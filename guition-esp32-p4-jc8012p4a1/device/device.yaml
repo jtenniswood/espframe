@@ -1,0 +1,91 @@
+# =============================================================================
+# HARDWARE CONFIGURATION - Guition ESP32-P4-JC8012P4A1
+# =============================================================================
+
+esp32:
+  variant: ESP32P4
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    advanced:
+      enable_idf_experimental_features: true
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  platformio_options:
+    board_build.flash_mode: dio
+    build_flags:
+      - "-DCONFIG_COMPILER_OPTIMIZATION_PERF=y"
+
+# ESP32-C6 coprocessor for WiFi and Bluetooth via SDIO
+esp32_hosted:
+  variant: esp32c6
+  reset_pin: GPIO54
+  cmd_pin: GPIO19
+  clk_pin: GPIO18
+  d0_pin: GPIO14
+  d1_pin: GPIO15
+  d2_pin: GPIO16
+  d3_pin: GPIO17
+  active_high: true
+
+psram:
+  mode: hex
+  speed: 200MHz
+
+api:
+
+logger:
+  level: DEBUG
+
+ota:
+  - platform: esphome
+
+external_components:
+  - source: github://kvj/esphome@jd9365_gsl3680
+    components: [gsl3680]
+
+# DSI PHY power rail
+esp_ldo:
+  - channel: 3
+    id: dsi_phy_enable
+    voltage: 2.5V
+    adjustable: true
+
+output:
+  - platform: ledc
+    id: backlight_output
+    pin: GPIO23
+
+i2c:
+  - id: i2c_bus_a
+    sda: GPIO7
+    scl: GPIO8
+    scan: true
+    frequency: 400kHz
+    sda_pullup_enabled: false
+    scl_pullup_enabled: false
+
+display:
+  - platform: mipi_dsi
+    model: JC8012P4A1
+    id: tft_display
+    reset_pin: GPIO27
+    rotation: 90
+    auto_clear_enabled: true
+    color_order: RGB
+    dimensions:
+      width: 800
+      height: 1280
+
+touchscreen:
+  - platform: gsl3680
+    id: tft_touch
+    display: tft_display
+    reset_pin: GPIO22
+    interrupt_pin: GPIO21
+    transform:
+      swap_xy: true
+      mirror_x: false
+      mirror_y: false

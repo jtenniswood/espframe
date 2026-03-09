@@ -1,0 +1,4 @@
+packages:
+  device: !include device/device.yaml
+  time_sync: !include addon/time.yaml
+  immich_poc: !include addon/immich_poc.yaml

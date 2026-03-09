@@ -1,0 +1,161 @@
+# =============================================================================
+# IMMICH SLIDESHOW POC (DIRECT API, NO HOME ASSISTANT REQUIRED)
+# =============================================================================
+# This package overlays the upstream dashboard config with a direct Immich flow:
+# - Request random IMAGE assets from Immich
+# - Convert asset ID into thumbnail URL
+# - Push URL to existing online_image widget
+#
+# Notes:
+# - Keep this isolated as a local package so final-form redesign can replace it.
+# - Uses query `key=` for thumbnail fetch to avoid redefining upstream online_image.
+# =============================================================================
+
+substitutions:
+  immich_slide_interval: "45s"
+  immich_verify_ssl: "false"
+  immich_error_backoff_cycles: "2"
+
+http_request:
+  id: http_req
+  timeout: 10s
+  verify_ssl: ${immich_verify_ssl}
+
+globals:
+  - id: immich_request_inflight
+    type: bool
+    initial_value: 'false'
+  - id: immich_backoff_cycles
+    type: int
+    initial_value: '0'
+  - id: immich_last_asset_id
+    type: std::string
+    initial_value: '""'
+  - id: immich_last_image_url
+    type: std::string
+    initial_value: '""'
+
+esphome:
+  on_boot:
+    - priority: -50
+      then:
+        - lambda: |-
+            // POC-only: suppress HA onboarding overlays.
+            id(device_has_been_setup) = true;
+            id(actions_prompt_acked) = true;
+        - lvgl.widget.hide: setup_prompt
+        - lvgl.widget.hide: ha_setup_prompt
+        - lvgl.widget.hide: wifi_setup_prompt
+        - lvgl.widget.hide: actions_prompt
+        - lvgl.label.update:
+            id: media_title_label
+            text: "Immich Slideshow"
+        - lvgl.widget.hide: media_artist_label
+        - lvgl.label.update:
+            id: media_time_label
+            text: "Loading..."
+        - script.execute: immich_request_next_image
+
+interval:
+  - interval: 5s
+    then:
+      - lvgl.widget.hide: setup_prompt
+      - lvgl.widget.hide: ha_setup_prompt
+      - lvgl.widget.hide: wifi_setup_prompt
+      - lvgl.widget.hide: actions_prompt
+
+  - interval: ${immich_slide_interval}
+    then:
+      - script.execute: immich_request_next_image
+
+script:
+  - id: immich_request_next_image
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: 'return id(immich_backoff_cycles) > 0;'
+          then:
+            - lambda: |-
+                id(immich_backoff_cycles)--;
+                ESP_LOGW("immich", "Backoff active, skipping fetch (remaining=%d)", id(immich_backoff_cycles));
+          else:
+            - if:
+                condition:
+                  lambda: 'return id(immich_request_inflight);'
+                then:
+                  - logger.log:
+                      level: WARN
+                      tag: immich
+                      format: "Previous request still in flight, skipping"
+                else:
+                  - lambda: 'id(immich_request_inflight) = true;'
+                  - http_request.post:
+                      id: http_req
+                      url: ${immich_base_url}/api/search/random
+                      capture_response: true
+                      max_response_buffer_size: 12kB
+                      request_headers:
+                        Content-Type: application/json
+                        Accept: application/json
+                        x-api-key: ${immich_api_key}
+                      body: '{"size":1,"type":"IMAGE"}'
+                      on_response:
+                        then:
+                          - lambda: |-
+                              if (response->status_code != 200) {
+                                ESP_LOGW("immich", "search/random failed: status=%d", response->status_code);
+                                id(immich_request_inflight) = false;
+                                id(immich_backoff_cycles) = ${immich_error_backoff_cycles};
+                                return;
+                              }
+
+                              std::string asset_id;
+                              auto doc = json::parse_json(body);
+                              if (!doc.isNull()) {
+                                if (doc.is<JsonArray>()) {
+                                  JsonArray arr = doc.as<JsonArray>();
+                                  if (arr.size() > 0) {
+                                    JsonObject first = arr[0].as<JsonObject>();
+                                    if (!first.isNull() && first["id"].is<const char *>()) {
+                                      asset_id = first["id"].as<std::string>();
+                                    }
+                                  }
+                                } else if (doc.is<JsonObject>()) {
+                                  JsonObject root = doc.as<JsonObject>();
+                                  if (root["id"].is<const char *>()) {
+                                    asset_id = root["id"].as<std::string>();
+                                  }
+                                }
+                              }
+
+                              if (asset_id.empty()) {
+                                ESP_LOGW("immich", "No asset id in response body");
+                                id(immich_request_inflight) = false;
+                                id(immich_backoff_cycles) = ${immich_error_backoff_cycles};
+                                return;
+                              }
+
+                              id(immich_last_asset_id) = asset_id;
+                              id(immich_last_image_url) = std::string("${immich_base_url}") +
+                                                          "/api/assets/" + asset_id +
+                                                          "/thumbnail?size=preview&key=" +
+                                                          std::string("${immich_api_key}");
+                              ESP_LOGI("immich", "Loading asset: %s", asset_id.c_str());
+                          - online_image.set_url:
+                              id: album_art_background
+                              url: !lambda 'return id(immich_last_image_url);'
+                          - lvgl.label.update:
+                              id: media_title_label
+                              text: !lambda 'return std::string("Immich: ") + id(immich_last_asset_id);'
+                          - lvgl.label.update:
+                              id: media_time_label
+                              text: "Random image"
+                          - lvgl.widget.hide: artwork_error_label
+                          - lambda: 'id(immich_request_inflight) = false;'
+                      on_error:
+                        then:
+                          - lambda: |-
+                              ESP_LOGW("immich", "Request error calling /api/search/random");
+                              id(immich_request_inflight) = false;
+                              id(immich_backoff_cycles) = ${immich_error_backoff_cycles};
