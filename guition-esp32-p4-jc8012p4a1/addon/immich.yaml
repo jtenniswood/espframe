@@ -88,6 +88,8 @@ online_image:
 # --- LVGL UI ---
 
 lvgl:
+  buffer_size: 12%
+  byte_order: little_endian
   displays:
     - tft_display
   pages:
