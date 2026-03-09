@@ -3,7 +3,7 @@
 # =============================================================================
 # Self-contained digital photo frame powered by Immich.
 # Fetches random images via the Immich API and displays them fullscreen
-# on an LVGL-driven display with a minimal status overlay.
+# on an LVGL-driven display with a metadata overlay.
 # No Home Assistant or external dashboard dependency required.
 # =============================================================================
 
@@ -28,6 +28,12 @@ globals:
     type: std::string
     initial_value: '""'
   - id: immich_last_image_url
+    type: std::string
+    initial_value: '""'
+  - id: immich_photo_date
+    type: std::string
+    initial_value: '""'
+  - id: immich_photo_location
     type: std::string
     initial_value: '""'
 
@@ -57,12 +63,24 @@ online_image:
             id: slideshow_img
             src: immich_image
         - lvgl.label.update:
+            id: info_label
+            text: !lambda |-
+              std::string info = id(immich_photo_date);
+              if (!id(immich_photo_location).empty()) {
+                if (!info.empty()) info += "  \u2022  ";
+                info += id(immich_photo_location);
+              }
+              return info.empty() ? std::string("Unknown") : info;
+        - lvgl.label.update:
             id: status_label
             text: !lambda 'return id(immich_last_asset_id);'
     on_error:
       then:
         - lambda: |-
             ESP_LOGE("immich", "Image download/decode failed for URL: %s", id(immich_last_image_url).c_str());
+        - lvgl.label.update:
+            id: info_label
+            text: ""
         - lvgl.label.update:
             id: status_label
             text: !lambda |-
@@ -82,22 +100,33 @@ lvgl:
             align: CENTER
             src: immich_image
         - obj:
-            id: status_bar
+            id: info_overlay
             align: BOTTOM_MID
             width: 100%
-            height: 36
+            height: 52
             bg_color: 0x000000
-            bg_opa: 60%
+            bg_opa: 50%
             pad_left: 16
+            pad_right: 16
+            pad_top: 6
+            pad_bottom: 6
             border_width: 0
             clickable: false
             widgets:
               - label:
+                  id: info_label
+                  x: 0
+                  y: 0
+                  text_color: 0xFFFFFF
+                  text: ""
+                  text_font: montserrat_18
+              - label:
                   id: status_label
-                  align: LEFT_MID
-                  text_color: 0xAAAAAA
+                  x: 0
+                  y: 22
+                  text_color: 0x888888
                   text: "Starting..."
-                  text_font: montserrat_14
+                  text_font: montserrat_12
 
 # --- Boot & slideshow timer ---
 
@@ -182,36 +211,97 @@ script:
                               }
 
                               std::string asset_id;
+                              std::string photo_date;
+                              std::string photo_location;
+
                               auto doc = json::parse_json(body);
+                              JsonObject asset;
+
                               if (!doc.isNull()) {
                                 if (doc.is<JsonArray>()) {
                                   JsonArray arr = doc.as<JsonArray>();
-                                  if (arr.size() > 0) {
-                                    JsonObject first = arr[0].as<JsonObject>();
-                                    if (!first.isNull() && first["id"].is<const char *>()) {
-                                      asset_id = first["id"].as<std::string>();
-                                    }
-                                  }
+                                  if (arr.size() > 0) asset = arr[0].as<JsonObject>();
                                 } else if (doc.is<JsonObject>()) {
-                                  JsonObject root = doc.as<JsonObject>();
-                                  if (root["id"].is<const char *>()) {
-                                    asset_id = root["id"].as<std::string>();
-                                  }
+                                  asset = doc.as<JsonObject>();
                                 }
                               }
 
-                              if (asset_id.empty()) {
-                                ESP_LOGW("immich", "No asset id in response body");
+                              if (asset.isNull()) {
+                                ESP_LOGW("immich", "No asset in response body");
                                 id(immich_request_inflight) = false;
                                 id(immich_backoff_cycles) = ${immich_error_backoff_cycles};
                                 return;
                               }
 
+                              if (asset["id"].is<const char *>()) {
+                                asset_id = asset["id"].as<std::string>();
+                              }
+
+                              if (asset_id.empty()) {
+                                ESP_LOGW("immich", "No asset id in response");
+                                id(immich_request_inflight) = false;
+                                id(immich_backoff_cycles) = ${immich_error_backoff_cycles};
+                                return;
+                              }
+
+                              // Parse date from localDateTime (already in local tz)
+                              if (asset["localDateTime"].is<const char *>()) {
+                                std::string raw = asset["localDateTime"].as<std::string>();
+                                // Format "2024-01-15T14:30:00.000Z" -> "15 Jan 2024"
+                                if (raw.size() >= 10) {
+                                  int year = atoi(raw.substr(0, 4).c_str());
+                                  int month = atoi(raw.substr(5, 2).c_str());
+                                  int day = atoi(raw.substr(8, 2).c_str());
+                                  const char *months[] = {"", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                                          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+                                  if (month >= 1 && month <= 12) {
+                                    photo_date = str_sprintf("%d %s %d", day, months[month], year);
+                                  }
+                                }
+                              }
+
+                              // Parse location from exifInfo
+                              JsonObject exif = asset["exifInfo"].as<JsonObject>();
+                              if (!exif.isNull()) {
+                                std::string city, country;
+                                if (exif["city"].is<const char *>())
+                                  city = exif["city"].as<std::string>();
+                                if (exif["country"].is<const char *>())
+                                  country = exif["country"].as<std::string>();
+
+                                if (!city.empty() && !country.empty()) {
+                                  photo_location = city + ", " + country;
+                                } else if (!city.empty()) {
+                                  photo_location = city;
+                                } else if (!country.empty()) {
+                                  photo_location = country;
+                                }
+
+                                // Fall back to exif date if localDateTime was missing
+                                if (photo_date.empty() && exif["dateTimeOriginal"].is<const char *>()) {
+                                  std::string raw = exif["dateTimeOriginal"].as<std::string>();
+                                  if (raw.size() >= 10) {
+                                    int year = atoi(raw.substr(0, 4).c_str());
+                                    int month = atoi(raw.substr(5, 2).c_str());
+                                    int day = atoi(raw.substr(8, 2).c_str());
+                                    const char *months[] = {"", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                                            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+                                    if (month >= 1 && month <= 12) {
+                                      photo_date = str_sprintf("%d %s %d", day, months[month], year);
+                                    }
+                                  }
+                                }
+                              }
+
                               id(immich_last_asset_id) = asset_id;
+                              id(immich_photo_date) = photo_date;
+                              id(immich_photo_location) = photo_location;
                               id(immich_last_image_url) = std::string("${immich_base_url}") +
                                                           "/api/assets/" + asset_id +
                                                           "/thumbnail?size=preview";
-                              ESP_LOGI("immich", "Loading asset: %s", asset_id.c_str());
+
+                              ESP_LOGI("immich", "Asset: %s | Date: %s | Location: %s",
+                                       asset_id.c_str(), photo_date.c_str(), photo_location.c_str());
                               ESP_LOGI("immich", "Image URL: %s", id(immich_last_image_url).c_str());
                           - lvgl.label.update:
                               id: status_label
