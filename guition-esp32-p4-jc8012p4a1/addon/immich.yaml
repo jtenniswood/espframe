@@ -112,7 +112,9 @@ esphome:
         - lvgl.label.update:
             id: status_label
             text: !lambda |-
-              return std::string("WiFi OK: ") + network::get_ip_address().str();
+              auto ips = network::get_ip_addresses();
+              if (!ips.empty()) return std::string("WiFi OK: ") + ips[0].str();
+              return std::string("WiFi OK (no IP)");
         - delay: 3s
         - script.execute: immich_request_next_image
 
