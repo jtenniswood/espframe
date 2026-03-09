@@ -73,7 +73,8 @@ display:
     id: tft_display
     reset_pin: GPIO27
     rotation: 90
-    auto_clear_enabled: true
+    auto_clear_enabled: false
+    update_interval: never
     color_order: RGB
     dimensions:
       width: 800

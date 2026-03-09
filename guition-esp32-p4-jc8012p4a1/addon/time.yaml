@@ -1,3 +1,4 @@
 time:
-  - platform: homeassistant
-    id: ha_time
+  - platform: sntp
+    id: sntp_time
+    timezone: "Australia/Melbourne"

@@ -1,14 +1,10 @@
 # =============================================================================
-# IMMICH SLIDESHOW POC (DIRECT API, NO HOME ASSISTANT REQUIRED)
+# IMMICH SLIDESHOW - STANDALONE
 # =============================================================================
-# This package overlays the upstream dashboard config with a direct Immich flow:
-# - Request random IMAGE assets from Immich
-# - Convert asset ID into thumbnail URL
-# - Push URL to existing online_image widget
-#
-# Notes:
-# - Keep this isolated as a local package so final-form redesign can replace it.
-# - Uses query `key=` for thumbnail fetch to avoid redefining upstream online_image.
+# Self-contained digital photo frame powered by Immich.
+# Fetches random images via the Immich API and displays them fullscreen
+# on an LVGL-driven display with a minimal status overlay.
+# No Home Assistant or external dashboard dependency required.
 # =============================================================================
 
 substitutions:
@@ -35,38 +31,87 @@ globals:
     type: std::string
     initial_value: '""'
 
+# --- Backlight ---
+
+light:
+  - platform: monochromatic
+    id: backlight
+    output: backlight_output
+    name: "Backlight"
+    default_transition_length: 500ms
+    restore_mode: ALWAYS_ON
+
+# --- Image fetcher ---
+
+online_image:
+  - id: immich_image
+    url: "https://via.placeholder.com/1x1.jpg"
+    format: JPEG
+    type: RGB565
+    resize: 1280x800
+    on_download_finished:
+      then:
+        - lvgl.image.update:
+            id: slideshow_img
+            src: immich_image
+        - lvgl.label.update:
+            id: status_label
+            text: !lambda 'return id(immich_last_asset_id);'
+    on_error:
+      then:
+        - lvgl.label.update:
+            id: status_label
+            text: "Image load failed"
+
+# --- LVGL UI ---
+
+lvgl:
+  displays:
+    - tft_display
+  pages:
+    - id: main_page
+      bg_color: 0x000000
+      widgets:
+        - image:
+            id: slideshow_img
+            align: CENTER
+            src: immich_image
+        - obj:
+            id: status_bar
+            align: BOTTOM_MID
+            width: 100%
+            height: 36
+            bg_color: 0x000000
+            bg_opa: 60%
+            pad_left: 16
+            border_width: 0
+            clickable: false
+            widgets:
+              - label:
+                  id: status_label
+                  align: LEFT_MID
+                  text_color: 0xAAAAAA
+                  text: "Starting..."
+                  text_font: montserrat_14
+
+# --- Boot & slideshow timer ---
+
 esphome:
   on_boot:
     - priority: -50
       then:
-        - lambda: |-
-            // POC-only: suppress HA onboarding overlays.
-            id(device_has_been_setup) = true;
-            id(actions_prompt_acked) = true;
-        - lvgl.widget.hide: setup_prompt
-        - lvgl.widget.hide: ha_setup_prompt
-        - lvgl.widget.hide: wifi_setup_prompt
-        - lvgl.widget.hide: actions_prompt
-        - lvgl.label.update:
-            id: media_title_label
-            text: "Immich Slideshow"
-        - lvgl.widget.hide: media_artist_label
-        - lvgl.label.update:
-            id: media_time_label
-            text: "Loading..."
+        - light.turn_on:
+            id: backlight
+            brightness: 100%
+        - delay: 2s
         - script.execute: immich_request_next_image
 
 interval:
-  - interval: 5s
-    then:
-      - lvgl.widget.hide: setup_prompt
-      - lvgl.widget.hide: ha_setup_prompt
-      - lvgl.widget.hide: wifi_setup_prompt
-      - lvgl.widget.hide: actions_prompt
-
   - interval: ${immich_slide_interval}
     then:
       - script.execute: immich_request_next_image
+
+# --- Immich API logic ---
 
 script:
   - id: immich_request_next_image
@@ -78,7 +123,7 @@ script:
           then:
             - lambda: |-
                 id(immich_backoff_cycles)--;
-                ESP_LOGW("immich", "Backoff active, skipping fetch (remaining=%d)", id(immich_backoff_cycles));
+                ESP_LOGW("immich", "Backoff active, skipping (remaining=%d)", id(immich_backoff_cycles));
           else:
             - if:
                 condition:
@@ -90,6 +135,9 @@ script:
                       format: "Previous request still in flight, skipping"
                 else:
                   - lambda: 'id(immich_request_inflight) = true;'
+                  - lvgl.label.update:
+                      id: status_label
+                      text: "Fetching..."
                   - http_request.post:
                       id: http_req
                       url: ${immich_base_url}/api/search/random
@@ -143,15 +191,8 @@ script:
                                                           std::string("${immich_api_key}");
                               ESP_LOGI("immich", "Loading asset: %s", asset_id.c_str());
                           - online_image.set_url:
-                              id: album_art_background
+                              id: immich_image
                               url: !lambda 'return id(immich_last_image_url);'
-                          - lvgl.label.update:
-                              id: media_title_label
-                              text: !lambda 'return std::string("Immich: ") + id(immich_last_asset_id);'
-                          - lvgl.label.update:
-                              id: media_time_label
-                              text: "Random image"
-                          - lvgl.widget.hide: artwork_error_label
                           - lambda: 'id(immich_request_inflight) = false;'
                       on_error:
                         then:
@@ -159,3 +200,6 @@ script:
                               ESP_LOGW("immich", "Request error calling /api/search/random");
                               id(immich_request_inflight) = false;
                               id(immich_backoff_cycles) = ${immich_error_backoff_cycles};
+                          - lvgl.label.update:
+                              id: status_label
+                              text: "Connection error"
