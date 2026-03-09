@@ -111,7 +111,9 @@ esphome:
         - delay: 2s
         - lvgl.label.update:
             id: status_label
-            text: "WiFi connected, fetching..."
+            text: !lambda |-
+              return std::string("WiFi OK: ") + WiFi.localIP().toString().c_str();
+        - delay: 3s
         - script.execute: immich_request_next_image
 
 interval:
@@ -164,9 +166,11 @@ script:
                         then:
                           - lambda: |-
                               if (response->status_code != 200) {
-                                ESP_LOGW("immich", "search/random failed: status=%d", response->status_code);
+                                auto msg = str_sprintf("HTTP %d from Immich", response->status_code);
+                                ESP_LOGW("immich", "%s", msg.c_str());
                                 id(immich_request_inflight) = false;
                                 id(immich_backoff_cycles) = ${immich_error_backoff_cycles};
+                                lv_label_set_text(id(status_label), msg.c_str());
                                 return;
                               }
 
@@ -214,4 +218,5 @@ script:
                               id(immich_backoff_cycles) = ${immich_error_backoff_cycles};
                           - lvgl.label.update:
                               id: status_label
-                              text: "Connection error"
+                              text: !lambda |-
+                                return std::string("Conn error -> ${immich_base_url}");
