@@ -59,9 +59,12 @@ online_image:
             text: !lambda 'return id(immich_last_asset_id);'
     on_error:
       then:
+        - lambda: |-
+            ESP_LOGE("immich", "Image download/decode failed for URL: %s", id(immich_last_image_url).c_str());
         - lvgl.label.update:
             id: status_label
-            text: "Image load failed"
+            text: !lambda |-
+              return std::string("Img fail: ") + id(immich_last_asset_id);
 
 # --- LVGL UI ---
 
@@ -208,6 +211,11 @@ script:
                                                           "/thumbnail?size=preview&key=" +
                                                           std::string("${immich_api_key}");
                               ESP_LOGI("immich", "Loading asset: %s", asset_id.c_str());
+                              ESP_LOGI("immich", "Image URL: %s", id(immich_last_image_url).c_str());
+                          - lvgl.label.update:
+                              id: status_label
+                              text: !lambda |-
+                                return std::string("Downloading: ") + id(immich_last_asset_id);
                           - online_image.set_url:
                               id: immich_image
                               url: !lambda 'return id(immich_last_image_url);'
