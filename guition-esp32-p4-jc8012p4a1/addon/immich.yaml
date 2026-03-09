@@ -103,13 +103,25 @@ esphome:
         - light.turn_on:
             id: backlight
             brightness: 100%
+        - lvgl.label.update:
+            id: status_label
+            text: "Waiting for WiFi..."
+        - wait_until:
+            wifi.connected:
         - delay: 2s
+        - lvgl.label.update:
+            id: status_label
+            text: "WiFi connected, fetching..."
         - script.execute: immich_request_next_image
 
 interval:
   - interval: ${immich_slide_interval}
     then:
-      - script.execute: immich_request_next_image
+      - if:
+          condition:
+            wifi.connected:
+          then:
+            - script.execute: immich_request_next_image
 
 # --- Immich API logic ---
 
