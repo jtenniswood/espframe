@@ -43,7 +43,9 @@ ota:
   - platform: esphome
 
 external_components:
-  - source: github://kvj/esphome@jd9365_gsl3680
+  - source:
+      type: local
+      path: components
     components: [gsl3680]
 
 # DSI PHY power rail
