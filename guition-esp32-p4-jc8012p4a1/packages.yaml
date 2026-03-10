@@ -1,4 +1,6 @@
 packages:
   device: !include device/device.yaml
+  fonts: !include assets/fonts.yaml
+  icons: !include assets/icons.yaml
   time_sync: !include addon/time.yaml
   immich: !include addon/immich.yaml

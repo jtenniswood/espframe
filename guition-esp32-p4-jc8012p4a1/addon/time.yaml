@@ -2,3 +2,23 @@ time:
   - platform: sntp
     id: sntp_time
     timezone: "Europe/London"
+    on_time_sync:
+      then:
+        - lambda: |-
+            auto now = id(sntp_time).now();
+            if (now.is_valid()) {
+              char buf[6];
+              snprintf(buf, sizeof(buf), "%02d:%02d", now.hour, now.minute);
+              lv_label_set_text(id(time_label), buf);
+            }
+
+interval:
+  - interval: 60s
+    then:
+      - lambda: |-
+          auto now = id(sntp_time).now();
+          if (now.is_valid()) {
+            char buf[6];
+            snprintf(buf, sizeof(buf), "%02d:%02d", now.hour, now.minute);
+            lv_label_set_text(id(time_label), buf);
+          }

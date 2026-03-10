@@ -1,0 +1,10 @@
+font:
+  - file: 'https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf'
+    id: icon_font_setup
+    size: 64
+    bpp: 4
+    glyphs:
+      - "\U000F05A9"  # mdi-wifi
+
+substitutions:
+  icon_wifi: "\U000F05A9"

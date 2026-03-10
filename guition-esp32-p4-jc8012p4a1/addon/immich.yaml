@@ -17,7 +17,29 @@ http_request:
   timeout: 10s
   verify_ssl: ${immich_verify_ssl}
 
+captive_portal:
+
+wifi:
+  ap: {}
+  on_connect:
+    - lambda: |-
+        lv_bar_set_value(id(loading_progress_bar), 100, LV_ANIM_OFF);
+    - delay: 800ms
+    - lvgl.widget.hide: loading_screen
+    - lvgl.widget.hide: wifi_setup_prompt
+    - delay: 2s
+    - script.execute: immich_request_next_image
+  on_disconnect:
+    - if:
+        condition:
+          lambda: 'return !id(boot_grace_period);'
+        then:
+          - lvgl.widget.show: wifi_setup_prompt
+
 globals:
+  - id: boot_grace_period
+    type: bool
+    initial_value: 'true'
   - id: immich_request_inflight
     type: bool
     initial_value: 'false'
@@ -39,6 +61,12 @@ globals:
   - id: immich_photo_year
     type: int
     initial_value: '0'
+  - id: immich_photo_camera
+    type: std::string
+    initial_value: '""'
+  - id: immich_photo_person
+    type: std::string
+    initial_value: '""'
   - id: immich_error_retries
     type: int
     initial_value: '0'
@@ -60,6 +88,12 @@ globals:
   - id: immich_prefetch_year
     type: int
     initial_value: '0'
+  - id: immich_prefetch_camera
+    type: std::string
+    initial_value: '""'
+  - id: immich_prefetch_person
+    type: std::string
+    initial_value: '""'
 
 # --- Backlight ---
 
@@ -91,25 +125,30 @@ online_image:
             id: slideshow_img
             src: immich_image
         - lvgl.label.update:
-            id: info_label
+            id: meta_label
             text: !lambda |-
-              std::string info = id(immich_photo_date);
+              std::string meta = id(immich_photo_date);
               if (id(immich_photo_year) > 0) {
                 auto now = id(sntp_time).now();
                 if (now.is_valid()) {
                   int ago = now.year - id(immich_photo_year);
-                  if (ago == 1) info += " (1 year ago)";
-                  else if (ago > 1) info += str_sprintf(" (%d years ago)", ago);
+                  if (ago == 1) meta += " (1 year ago)";
+                  else if (ago > 1) meta += str_sprintf(" (%d years ago)", ago);
                 }
               }
-              if (!id(immich_photo_location).empty()) {
-                if (!info.empty()) info += "  \u2022  ";
-                info += id(immich_photo_location);
+              if (!id(immich_photo_camera).empty()) {
+                if (!meta.empty()) meta += "  \u2022  ";
+                meta += id(immich_photo_camera);
               }
-              return info.empty() ? std::string("Unknown") : info;
-        - lvgl.label.update:
-            id: status_label
-            text: !lambda 'return id(immich_last_asset_id);'
+              if (!id(immich_photo_person).empty()) {
+                if (!meta.empty()) meta += "  \u2022  ";
+                meta += id(immich_photo_person);
+              }
+              if (!id(immich_photo_location).empty()) {
+                if (!meta.empty()) meta += "  \u2022  ";
+                meta += id(immich_photo_location);
+              }
+              return meta;
         - script.execute: immich_prefetch_next
     on_error:
       then:
@@ -118,10 +157,6 @@ online_image:
             id(immich_error_retries)++;
             ESP_LOGE("immich", "Image decode failed (attempt %d): %s",
                      id(immich_error_retries), id(immich_last_image_url).c_str());
-        - lvgl.label.update:
-            id: status_label
-            text: !lambda |-
-              return str_sprintf("Retry %d/3...", id(immich_error_retries));
         - if:
             condition:
               lambda: 'return id(immich_error_retries) < 3;'
@@ -130,9 +165,6 @@ online_image:
               - script.execute: immich_request_next_image
             else:
               - lambda: 'id(immich_error_retries) = 0;'
-              - lvgl.label.update:
-                  id: status_label
-                  text: "Waiting for next slide..."
 
 # --- LVGL UI ---
 
@@ -146,6 +178,7 @@ lvgl:
       bg_color: 0x000000
       scrollable: false
       widgets:
+        # --- Slideshow image ---
         - image:
             id: slideshow_img
             align: CENTER
@@ -164,62 +197,165 @@ lvgl:
             on_long_press:
               then:
                 - script.execute: immich_request_next_image
+        # --- Metadata overlay (bottom bar) ---
         - obj:
             id: info_overlay
             align: BOTTOM_MID
             width: 100%
-            height: 52
+            height: 56
             bg_color: 0x000000
             bg_opa: 50%
-            pad_left: 16
-            pad_right: 16
-            pad_top: 6
-            pad_bottom: 6
+            pad_left: 20
+            pad_right: 20
+            pad_top: 0
+            pad_bottom: 0
             border_width: 0
             clickable: false
             widgets:
               - label:
-                  id: info_label
-                  x: 0
-                  y: 0
-                  text_color: 0xFFFFFF
+                  id: time_label
+                  align: LEFT_MID
                   text: ""
-                  text_font: montserrat_18
+                  text_color: 0xFFFFFF
+                  text_font: roboto_light40_font
               - label:
-                  id: status_label
-                  x: 0
-                  y: 22
-                  text_color: 0x888888
-                  text: "Starting..."
-                  text_font: montserrat_12
+                  id: meta_label
+                  align: RIGHT_MID
+                  text: ""
+                  text_color: 0xCCCCCC
+                  text_font: roboto_light26_font
+                  text_align: RIGHT
+                  long_mode: DOT
+                  width: 1000
+        # --- Loading screen (shown at boot until WiFi connects) ---
+        - obj:
+            id: loading_screen
+            x: 0
+            y: 0
+            width: 1280
+            height: 800
+            bg_color: 0x000000
+            bg_opa: 100%
+            radius: 0
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            scrollbar_mode: "off"
+            hidden: false
+            widgets:
+              - obj:
+                  align: center
+                  width: 700
+                  height: SIZE_CONTENT
+                  bg_opa: 0%
+                  border_width: 0
+                  pad_all: 0
+                  scrollable: false
+                  layout:
+                    type: flex
+                    flex_flow: COLUMN
+                    flex_align_main: center
+                    flex_align_cross: center
+                    pad_row: 40
+                  widgets:
+                    - label:
+                        text: "Starting up"
+                        text_font: roboto_light40_font
+                        text_color: 0xFFFFFF
+                        width: 700
+                        text_align: center
+                    - bar:
+                        id: loading_progress_bar
+                        width: 75
+                        height: 4
+                        bg_color: 0x333333
+                        bg_opa: 100%
+                        radius: 3
+                        min_value: 0
+                        max_value: 100
+                        value: 0
+                        indicator:
+                          bg_color: 0xFFFFFF
+                          radius: 3
+        # --- WiFi setup prompt ---
+        - obj:
+            id: wifi_setup_prompt
+            x: 0
+            y: 0
+            width: 1280
+            height: 800
+            bg_color: 0x000000
+            bg_opa: 100%
+            radius: 0
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            scrollbar_mode: "off"
+            hidden: true
+            widgets:
+              - obj:
+                  align: center
+                  width: 700
+                  height: SIZE_CONTENT
+                  bg_opa: 0%
+                  border_width: 0
+                  pad_all: 0
+                  scrollable: false
+                  layout:
+                    type: flex
+                    flex_flow: COLUMN
+                    flex_align_main: center
+                    flex_align_cross: center
+                    pad_row: 20
+                  widgets:
+                    - label:
+                        text_font: icon_font_setup
+                        text: $icon_wifi
+                        text_color: 0xFFFFFF
+                    - label:
+                        text: "WiFi Setup"
+                        text_font: roboto_light40_font
+                        text_color: 0xFFFFFF
+                        width: 700
+                        text_align: center
+                    - label:
+                        id: wifi_setup_instructions
+                        text: "Connect to the WiFi hotspot\nto configure your network"
+                        text_font: roboto30_font
+                        text_color: 0x888888
+                        width: 700
+                        text_align: center
 
-# --- Boot & slideshow timer ---
+# --- Boot sequence ---
 
 esphome:
   on_boot:
-    - priority: -50
+    - priority: -200
       then:
         - light.turn_on:
             id: backlight
             brightness: 100%
-        - lvgl.label.update:
-            id: status_label
-            text: "Waiting for WiFi..."
-        - wait_until:
-            wifi.connected:
-        - delay: 2s
-        - lvgl.label.update:
-            id: status_label
-            text: !lambda |-
-              auto ips = network::get_ip_addresses();
-              if (!ips.empty()) {
-                char buf[network::IP_ADDRESS_BUFFER_SIZE];
-                ips[0].str_to(buf);
-                return std::string("WiFi OK: ") + buf;
-              }
-              return std::string("WiFi OK (no IP)");
-        - delay: 3s
-        - script.execute: immich_request_next_image
+        - lambda: |-
+            lv_bar_set_value(id(loading_progress_bar), 25, LV_ANIM_OFF);
+    - priority: -100
+      then:
+        - lambda: |-
+            lv_bar_set_value(id(loading_progress_bar), 50, LV_ANIM_OFF);
+        - lambda: |-
+            std::string name = App.get_name();
+            std::string wifi_text = "Connect to the WiFi hotspot\n'" + name + "'\nto configure your network";
+            lv_label_set_text(id(wifi_setup_instructions), wifi_text.c_str());
+        - delay: 10s
+        - lambda: 'id(boot_grace_period) = false;'
+        - lvgl.widget.hide: loading_screen
+        - if:
+            condition:
+              not:
+                wifi.connected:
+            then:
+              - lvgl.widget.show: wifi_setup_prompt
+
+# --- Slideshow timer ---
 
 interval:
   - interval: ${immich_slide_interval}
@@ -264,19 +400,14 @@ script:
                             id(immich_photo_date) = id(immich_prefetch_date);
                             id(immich_photo_location) = id(immich_prefetch_location);
                             id(immich_photo_year) = id(immich_prefetch_year);
+                            id(immich_photo_camera) = id(immich_prefetch_camera);
+                            id(immich_photo_person) = id(immich_prefetch_person);
                             id(immich_prefetch_ready) = false;
                             ESP_LOGI("immich", "Using prefetched asset: %s", id(immich_last_asset_id).c_str());
-                        - lvgl.label.update:
-                            id: status_label
-                            text: !lambda |-
-                              return std::string("Downloading: ") + id(immich_last_asset_id);
                         - online_image.set_url:
                             id: immich_image
                             url: !lambda 'return id(immich_last_image_url);'
                       else:
-                        - lvgl.label.update:
-                            id: status_label
-                            text: "Fetching..."
                         - script.execute: immich_fetch_and_show
 
   - id: immich_fetch_and_show
@@ -286,7 +417,7 @@ script:
           id: http_req
           url: ${immich_base_url}/api/search/random
           capture_response: true
-          max_response_buffer_size: 12kB
+          max_response_buffer_size: 16kB
           request_headers:
             Content-Type: application/json
             Accept: application/json
@@ -296,15 +427,13 @@ script:
             then:
               - lambda: |-
                   if (response->status_code != 200) {
-                    auto msg = str_sprintf("HTTP %d from Immich", response->status_code);
-                    ESP_LOGW("immich", "%s", msg.c_str());
+                    ESP_LOGW("immich", "HTTP %d from Immich", response->status_code);
                     id(immich_request_inflight) = false;
                     id(immich_backoff_cycles) = ${immich_error_backoff_cycles};
-                    lv_label_set_text(id(status_label), msg.c_str());
                     return;
                   }
 
-                  std::string asset_id, photo_date, photo_location;
+                  std::string asset_id, photo_date, photo_location, photo_camera, photo_person;
                   int photo_year = 0;
                   auto doc = json::parse_json(body);
                   JsonObject asset;
@@ -329,11 +458,10 @@ script:
                     if (raw.size() >= 10) {
                       photo_year = atoi(raw.substr(0, 4).c_str());
                       int month = atoi(raw.substr(5, 2).c_str());
-                      int day = atoi(raw.substr(8, 2).c_str());
                       const char *months[] = {"", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
                       if (month >= 1 && month <= 12)
-                        photo_date = str_sprintf("%d %s %d", day, months[month], photo_year);
+                        photo_date = str_sprintf("%s %d", months[month], photo_year);
                     }
                   }
 
@@ -345,17 +473,38 @@ script:
                     if (!city.empty() && !country.empty()) photo_location = city + ", " + country;
                     else if (!city.empty()) photo_location = city;
                     else if (!country.empty()) photo_location = country;
+
+                    std::string make, model;
+                    if (exif["make"].is<const char *>()) make = exif["make"].as<std::string>();
+                    if (exif["model"].is<const char *>()) model = exif["model"].as<std::string>();
+                    if (!model.empty() && !make.empty() && model.find(make) != std::string::npos)
+                      photo_camera = model;
+                    else if (!model.empty() && !make.empty())
+                      photo_camera = make + " " + model;
+                    else if (!model.empty())
+                      photo_camera = model;
+                    else
+                      photo_camera = make;
+
                     if (photo_date.empty() && exif["dateTimeOriginal"].is<const char *>()) {
                       std::string raw = exif["dateTimeOriginal"].as<std::string>();
                       if (raw.size() >= 10) {
                         photo_year = atoi(raw.substr(0, 4).c_str());
                         int month = atoi(raw.substr(5, 2).c_str());
-                        int day = atoi(raw.substr(8, 2).c_str());
                         const char *months[] = {"", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
                         if (month >= 1 && month <= 12)
-                          photo_date = str_sprintf("%d %s %d", day, months[month], photo_year);
+                          photo_date = str_sprintf("%s %d", months[month], photo_year);
                       }
+                    }
+                  }
+
+                  if (asset["people"].is<JsonArray>()) {
+                    JsonArray people = asset["people"].as<JsonArray>();
+                    if (people.size() > 0) {
+                      JsonObject person = people[0].as<JsonObject>();
+                      if (person["name"].is<const char *>())
+                        photo_person = person["name"].as<std::string>();
                     }
                   }
 
@@ -363,14 +512,13 @@ script:
                   id(immich_photo_date) = photo_date;
                   id(immich_photo_location) = photo_location;
                   id(immich_photo_year) = photo_year;
+                  id(immich_photo_camera) = photo_camera;
+                  id(immich_photo_person) = photo_person;
                   id(immich_last_image_url) = std::string("${immich_base_url}") +
                                               "/api/assets/" + asset_id + "/thumbnail?size=preview";
-                  ESP_LOGI("immich", "Asset: %s | Date: %s | Location: %s",
-                           asset_id.c_str(), photo_date.c_str(), photo_location.c_str());
-              - lvgl.label.update:
-                  id: status_label
-                  text: !lambda |-
-                    return std::string("Downloading: ") + id(immich_last_asset_id);
+                  ESP_LOGI("immich", "Asset: %s | Date: %s | Camera: %s | Person: %s | Location: %s",
+                           asset_id.c_str(), photo_date.c_str(), photo_camera.c_str(),
+                           photo_person.c_str(), photo_location.c_str());
               - online_image.set_url:
                   id: immich_image
                   url: !lambda 'return id(immich_last_image_url);'
@@ -380,10 +528,6 @@ script:
                   ESP_LOGW("immich", "Request error calling /api/search/random");
                   id(immich_request_inflight) = false;
                   id(immich_backoff_cycles) = ${immich_error_backoff_cycles};
-              - lvgl.label.update:
-                  id: status_label
-                  text: !lambda |-
-                    return std::string("Conn error -> ${immich_base_url}");
 
   - id: immich_prefetch_next
     mode: single
@@ -392,7 +536,7 @@ script:
           id: http_req
           url: ${immich_base_url}/api/search/random
           capture_response: true
-          max_response_buffer_size: 12kB
+          max_response_buffer_size: 16kB
           request_headers:
             Content-Type: application/json
             Accept: application/json
@@ -420,7 +564,7 @@ script:
                     return;
                   }
                   std::string asset_id = asset["id"].as<std::string>();
-                  std::string photo_date, photo_location;
+                  std::string photo_date, photo_location, photo_camera, photo_person;
                   int photo_year = 0;
 
                   if (asset["localDateTime"].is<const char *>()) {
@@ -428,13 +572,13 @@ script:
                     if (raw.size() >= 10) {
                       photo_year = atoi(raw.substr(0, 4).c_str());
                       int month = atoi(raw.substr(5, 2).c_str());
-                      int day = atoi(raw.substr(8, 2).c_str());
                       const char *months[] = {"", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
                       if (month >= 1 && month <= 12)
-                        photo_date = str_sprintf("%d %s %d", day, months[month], photo_year);
+                        photo_date = str_sprintf("%s %d", months[month], photo_year);
                     }
                   }
+
                   JsonObject exif = asset["exifInfo"].as<JsonObject>();
                   if (!exif.isNull()) {
                     std::string city, country;
@@ -443,17 +587,38 @@ script:
                     if (!city.empty() && !country.empty()) photo_location = city + ", " + country;
                     else if (!city.empty()) photo_location = city;
                     else if (!country.empty()) photo_location = country;
+
+                    std::string make, model;
+                    if (exif["make"].is<const char *>()) make = exif["make"].as<std::string>();
+                    if (exif["model"].is<const char *>()) model = exif["model"].as<std::string>();
+                    if (!model.empty() && !make.empty() && model.find(make) != std::string::npos)
+                      photo_camera = model;
+                    else if (!model.empty() && !make.empty())
+                      photo_camera = make + " " + model;
+                    else if (!model.empty())
+                      photo_camera = model;
+                    else
+                      photo_camera = make;
+
                     if (photo_date.empty() && exif["dateTimeOriginal"].is<const char *>()) {
                       std::string raw = exif["dateTimeOriginal"].as<std::string>();
                       if (raw.size() >= 10) {
                         photo_year = atoi(raw.substr(0, 4).c_str());
                         int month = atoi(raw.substr(5, 2).c_str());
-                        int day = atoi(raw.substr(8, 2).c_str());
                         const char *months[] = {"", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
                         if (month >= 1 && month <= 12)
-                          photo_date = str_sprintf("%d %s %d", day, months[month], photo_year);
+                          photo_date = str_sprintf("%s %d", months[month], photo_year);
                       }
+                    }
+                  }
+
+                  if (asset["people"].is<JsonArray>()) {
+                    JsonArray people = asset["people"].as<JsonArray>();
+                    if (people.size() > 0) {
+                      JsonObject person = people[0].as<JsonObject>();
+                      if (person["name"].is<const char *>())
+                        photo_person = person["name"].as<std::string>();
                     }
                   }
 
@@ -463,6 +628,8 @@ script:
                   id(immich_prefetch_date) = photo_date;
                   id(immich_prefetch_location) = photo_location;
                   id(immich_prefetch_year) = photo_year;
+                  id(immich_prefetch_camera) = photo_camera;
+                  id(immich_prefetch_person) = photo_person;
                   id(immich_prefetch_ready) = true;
                   ESP_LOGI("immich", "Prefetched: %s", asset_id.c_str());
           on_error:
