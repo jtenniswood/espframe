@@ -229,7 +229,6 @@ online_image:
               id(immich_photo_location) = id(slot0_location);
               id(immich_photo_year) = id(slot0_year);
               id(immich_photo_month) = id(slot0_month);
-              id(immich_photo_camera) = id(slot0_camera);
               id(immich_photo_person) = id(slot0_person);
               id(immich_last_asset_id) = id(slot0_asset_id);
               id(immich_last_image_url) = id(slot0_image_url);
@@ -274,7 +273,6 @@ online_image:
               id(immich_photo_location) = id(slot1_location);
               id(immich_photo_year) = id(slot1_year);
               id(immich_photo_month) = id(slot1_month);
-              id(immich_photo_camera) = id(slot1_camera);
               id(immich_photo_person) = id(slot1_person);
               id(immich_last_asset_id) = id(slot1_asset_id);
               id(immich_last_image_url) = id(slot1_image_url);
@@ -319,7 +317,6 @@ online_image:
               id(immich_photo_location) = id(slot2_location);
               id(immich_photo_year) = id(slot2_year);
               id(immich_photo_month) = id(slot2_month);
-              id(immich_photo_camera) = id(slot2_camera);
               id(immich_photo_person) = id(slot2_person);
               id(immich_last_asset_id) = id(slot2_asset_id);
               id(immich_last_image_url) = id(slot2_image_url);
@@ -618,10 +615,6 @@ script:
                 }
               }
             }
-            if (!id(immich_photo_camera).empty()) {
-              if (!meta.empty()) meta += "  \u2022  ";
-              meta += id(immich_photo_camera);
-            }
             if (!id(immich_photo_person).empty()) {
               if (!meta.empty()) meta += "  \u2022  ";
               meta += id(immich_photo_person);
@@ -655,7 +648,6 @@ script:
                   id(immich_prev_location) = id(immich_photo_location);
                   id(immich_prev_year) = id(immich_photo_year);
                   id(immich_prev_month) = id(immich_photo_month);
-                  id(immich_prev_camera) = id(immich_photo_camera);
                   id(immich_prev_person) = id(immich_photo_person);
                   id(immich_prev_valid) = true;
                 }
@@ -677,17 +669,17 @@ script:
                             int s = id(active_slot);
                             if (s == 0) {
                               id(immich_photo_date) = id(slot0_date); id(immich_photo_location) = id(slot0_location);
-                              id(immich_photo_year) = id(slot0_year); id(immich_photo_month) = id(slot0_month); id(immich_photo_camera) = id(slot0_camera);
+                              id(immich_photo_year) = id(slot0_year); id(immich_photo_month) = id(slot0_month);
                               id(immich_photo_person) = id(slot0_person); id(immich_last_asset_id) = id(slot0_asset_id);
                               id(immich_last_image_url) = id(slot0_image_url);
                             } else if (s == 1) {
                               id(immich_photo_date) = id(slot1_date); id(immich_photo_location) = id(slot1_location);
-                              id(immich_photo_year) = id(slot1_year); id(immich_photo_month) = id(slot1_month); id(immich_photo_camera) = id(slot1_camera);
+                              id(immich_photo_year) = id(slot1_year); id(immich_photo_month) = id(slot1_month);
                               id(immich_photo_person) = id(slot1_person); id(immich_last_asset_id) = id(slot1_asset_id);
                               id(immich_last_image_url) = id(slot1_image_url);
                             } else {
                               id(immich_photo_date) = id(slot2_date); id(immich_photo_location) = id(slot2_location);
-                              id(immich_photo_year) = id(slot2_year); id(immich_photo_month) = id(slot2_month); id(immich_photo_camera) = id(slot2_camera);
+                              id(immich_photo_year) = id(slot2_year); id(immich_photo_month) = id(slot2_month);
                               id(immich_photo_person) = id(slot2_person); id(immich_last_asset_id) = id(slot2_asset_id);
                               id(immich_last_image_url) = id(slot2_image_url);
                             }
@@ -723,7 +715,6 @@ script:
                 std::string tmp_loc = id(immich_photo_location);
                 int tmp_year = id(immich_photo_year);
                 int tmp_month = id(immich_photo_month);
-                std::string tmp_cam = id(immich_photo_camera);
                 std::string tmp_per = id(immich_photo_person);
 
                 id(immich_last_asset_id) = id(immich_prev_asset_id);
@@ -732,7 +723,6 @@ script:
                 id(immich_photo_location) = id(immich_prev_location);
                 id(immich_photo_year) = id(immich_prev_year);
                 id(immich_photo_month) = id(immich_prev_month);
-                id(immich_photo_camera) = id(immich_prev_camera);
                 id(immich_photo_person) = id(immich_prev_person);
 
                 id(immich_prev_asset_id) = tmp_id;
@@ -741,7 +731,6 @@ script:
                 id(immich_prev_location) = tmp_loc;
                 id(immich_prev_year) = tmp_year;
                 id(immich_prev_month) = tmp_month;
-                id(immich_prev_camera) = tmp_cam;
                 id(immich_prev_person) = tmp_per;
 
                 int prev_slot = (id(active_slot) + 2) % 3;
@@ -756,7 +745,6 @@ script:
                   id(slot0_location) = id(immich_photo_location);
                   id(slot0_year) = id(immich_photo_year);
                   id(slot0_month) = id(immich_photo_month);
-                  id(slot0_camera) = id(immich_photo_camera);
                   id(slot0_person) = id(immich_photo_person);
                 } else if (prev_slot == 1) {
                   id(slot1_ready) = false;
@@ -766,7 +754,6 @@ script:
                   id(slot1_location) = id(immich_photo_location);
                   id(slot1_year) = id(immich_photo_year);
                   id(slot1_month) = id(immich_photo_month);
-                  id(slot1_camera) = id(immich_photo_camera);
                   id(slot1_person) = id(immich_photo_person);
                 } else {
                   id(slot2_ready) = false;
@@ -776,7 +763,6 @@ script:
                   id(slot2_location) = id(immich_photo_location);
                   id(slot2_year) = id(immich_photo_year);
                   id(slot2_month) = id(immich_photo_month);
-                  id(slot2_camera) = id(immich_photo_camera);
                   id(slot2_person) = id(immich_photo_person);
                 }
                 ESP_LOGI("immich", "Showing previous in slot %d: %s", prev_slot, id(immich_last_asset_id).c_str());
@@ -825,7 +811,7 @@ script:
                     ESP_LOGW("immich", "HTTP %d from Immich", response->status_code);
                     return;
                   }
-                  std::string asset_id, photo_date, photo_location, photo_camera, photo_person;
+                  std::string asset_id, photo_date, photo_location, photo_person;
                   int photo_year = 0, photo_month = 0;
                   auto doc = json::parse_json(body);
                   JsonObject asset;
@@ -864,18 +850,6 @@ script:
                     else if (!city.empty()) photo_location = city;
                     else if (!country.empty()) photo_location = country;
 
-                    std::string make, model;
-                    if (exif["make"].is<const char *>()) make = exif["make"].as<std::string>();
-                    if (exif["model"].is<const char *>()) model = exif["model"].as<std::string>();
-                    if (!model.empty() && !make.empty() && model.find(make) != std::string::npos)
-                      photo_camera = model;
-                    else if (!model.empty() && !make.empty())
-                      photo_camera = make + " " + model;
-                    else if (!model.empty())
-                      photo_camera = model;
-                    else
-                      photo_camera = make;
-
                     if (photo_date.empty() && exif["dateTimeOriginal"].is<const char *>()) {
                       std::string raw = exif["dateTimeOriginal"].as<std::string>();
                       if (raw.size() >= 10) {
@@ -901,24 +875,24 @@ script:
                   std::string img_url = std::string("${immich_base_url}") +
                                         "/api/assets/" + asset_id + "/thumbnail?size=preview";
                   int slot = id(target_slot);
-                  ESP_LOGI("immich", "Slot %d fetched: %s | %s | %s | %s | %s",
-                           slot, asset_id.c_str(), photo_date.c_str(), photo_camera.c_str(),
+                  ESP_LOGI("immich", "Slot %d fetched: %s | %s | %s | %s",
+                           slot, asset_id.c_str(), photo_date.c_str(),
                            photo_person.c_str(), photo_location.c_str());
 
                   if (slot == 0) {
                     id(slot0_asset_id) = asset_id; id(slot0_image_url) = img_url;
                     id(slot0_date) = photo_date; id(slot0_location) = photo_location;
-                    id(slot0_year) = photo_year; id(slot0_month) = photo_month; id(slot0_camera) = photo_camera;
+                    id(slot0_year) = photo_year; id(slot0_month) = photo_month;
                     id(slot0_person) = photo_person;
                   } else if (slot == 1) {
                     id(slot1_asset_id) = asset_id; id(slot1_image_url) = img_url;
                     id(slot1_date) = photo_date; id(slot1_location) = photo_location;
-                    id(slot1_year) = photo_year; id(slot1_month) = photo_month; id(slot1_camera) = photo_camera;
+                    id(slot1_year) = photo_year; id(slot1_month) = photo_month;
                     id(slot1_person) = photo_person;
                   } else {
                     id(slot2_asset_id) = asset_id; id(slot2_image_url) = img_url;
                     id(slot2_date) = photo_date; id(slot2_location) = photo_location;
-                    id(slot2_year) = photo_year; id(slot2_month) = photo_month; id(slot2_camera) = photo_camera;
+                    id(slot2_year) = photo_year; id(slot2_month) = photo_month;
                     id(slot2_person) = photo_person;
                   }
               - if:
