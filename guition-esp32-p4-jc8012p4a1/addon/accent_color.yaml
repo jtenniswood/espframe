@@ -132,4 +132,4 @@ script:
             }
           }
 
-          lv_obj_invalidate(id(slideshow_img)->obj);
+          lv_obj_invalidate(id(slideshow_img));
