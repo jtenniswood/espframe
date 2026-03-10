@@ -421,7 +421,6 @@ lvgl:
                         text_color: 0x000000
                         text_opa: 50%
                         text_font: roboto_light150_font
-                        text_letter_space: -5
                     - label:
                         id: time_label
                         x: 0
@@ -429,7 +428,6 @@ lvgl:
                         text: ""
                         text_color: 0xFFFFFF
                         text_font: roboto_light150_font
-                        text_letter_space: -5
               - obj:
                   width: SIZE_CONTENT
                   height: SIZE_CONTENT
