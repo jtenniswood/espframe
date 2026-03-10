@@ -434,6 +434,7 @@ lvgl:
                   bg_opa: 0%
                   border_width: 0
                   pad_all: 0
+                  pad_top: 20
                   scrollable: false
                   layout:
                     type: flex
