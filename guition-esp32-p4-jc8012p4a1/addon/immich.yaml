@@ -213,7 +213,7 @@ esphome:
             text: !lambda |-
               auto ips = network::get_ip_addresses();
               if (!ips.empty()) {
-                char buf[IP_ADDRESS_BUFFER_SIZE];
+                char buf[network::IP_ADDRESS_BUFFER_SIZE];
                 ips[0].str_to(buf);
                 return std::string("WiFi OK: ") + buf;
               }
