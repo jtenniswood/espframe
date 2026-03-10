@@ -193,6 +193,58 @@ globals:
     type: std::string
     initial_value: '""'
 
+  # --- Per-slot portrait detection ---
+  - id: slot0_is_portrait
+    type: bool
+    initial_value: 'false'
+  - id: slot1_is_portrait
+    type: bool
+    initial_value: 'false'
+  - id: slot2_is_portrait
+    type: bool
+    initial_value: 'false'
+  - id: slot0_datetime
+    type: std::string
+    initial_value: '""'
+  - id: slot1_datetime
+    type: std::string
+    initial_value: '""'
+  - id: slot2_datetime
+    type: std::string
+    initial_value: '""'
+
+  # --- Portrait pair state ---
+  - id: portrait_left_ready
+    type: bool
+    initial_value: 'false'
+  - id: portrait_right_ready
+    type: bool
+    initial_value: 'false'
+  - id: portrait_companion_found
+    type: bool
+    initial_value: 'false'
+  - id: portrait_search_datetime
+    type: std::string
+    initial_value: '""'
+  - id: portrait_primary_asset_id
+    type: std::string
+    initial_value: '""'
+  - id: immich_is_portrait_pair
+    type: bool
+    initial_value: 'false'
+
+  - id: portrait_companion_url
+    type: std::string
+    initial_value: '""'
+
+  # --- Previous image portrait state ---
+  - id: immich_prev_is_portrait
+    type: bool
+    initial_value: 'false'
+  - id: immich_prev_datetime
+    type: std::string
+    initial_value: '""'
+
 # =============================================================================
 # BACKLIGHT
 # =============================================================================
@@ -342,6 +394,57 @@ online_image:
             else:
               - lambda: 'id(immich_error_retries) = 0;'
 
+  # --- Portrait pair half-width image components (640x960 each) ---
+  - id: immich_portrait_left
+    url: "https://via.placeholder.com/1x1.jpg"
+    format: JPEG
+    resize: 640x960
+    type: RGB565
+    byte_order: little_endian
+    request_headers:
+      x-api-key: ${immich_api_key}
+    on_download_finished:
+      then:
+        - lambda: |-
+            id(portrait_left_ready) = true;
+            ESP_LOGI("immich", "Portrait left ready");
+        - if:
+            condition:
+              lambda: 'return id(portrait_left_ready) && id(portrait_right_ready);'
+            then:
+              - script.execute: immich_display_portrait_pair
+    on_error:
+      then:
+        - lambda: |-
+            ESP_LOGE("immich", "Portrait left decode failed, falling back to single");
+            id(portrait_left_ready) = false;
+            id(portrait_companion_found) = false;
+
+  - id: immich_portrait_right
+    url: "https://via.placeholder.com/1x1.jpg"
+    format: JPEG
+    resize: 640x960
+    type: RGB565
+    byte_order: little_endian
+    request_headers:
+      x-api-key: ${immich_api_key}
+    on_download_finished:
+      then:
+        - lambda: |-
+            id(portrait_right_ready) = true;
+            ESP_LOGI("immich", "Portrait right ready");
+        - if:
+            condition:
+              lambda: 'return id(portrait_left_ready) && id(portrait_right_ready);'
+            then:
+              - script.execute: immich_display_portrait_pair
+    on_error:
+      then:
+        - lambda: |-
+            ESP_LOGE("immich", "Portrait right decode failed, falling back to single");
+            id(portrait_right_ready) = false;
+            id(portrait_companion_found) = false;
+
 # =============================================================================
 # LVGL UI
 # =============================================================================
@@ -387,6 +490,55 @@ lvgl:
             on_long_press:
               then:
                 - script.execute: immich_advance_forward
+        - obj:
+            id: portrait_pair_container
+            align: CENTER
+            width: 1280
+            height: 960
+            bg_color: 0x000000
+            bg_opa: 100%
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            hidden: true
+            clickable: true
+            layout:
+              type: flex
+              flex_flow: ROW
+            on_press:
+              then:
+                - lambda: |-
+                    lv_point_t point;
+                    lv_indev_get_point(lv_indev_get_act(), &point);
+                    id(touch_start_x) = point.x;
+            on_release:
+              then:
+                - lambda: |-
+                    lv_point_t point;
+                    lv_indev_get_point(lv_indev_get_act(), &point);
+                    int dx = point.x - id(touch_start_x);
+                    if (dx < -80) {
+                      id(immich_advance_forward).execute();
+                    } else if (dx > 80) {
+                      id(immich_show_previous).execute();
+                    } else {
+                      if (lv_obj_has_flag(id(info_overlay), LV_OBJ_FLAG_HIDDEN))
+                        lv_obj_clear_flag(id(info_overlay), LV_OBJ_FLAG_HIDDEN);
+                      else
+                        lv_obj_add_flag(id(info_overlay), LV_OBJ_FLAG_HIDDEN);
+                    }
+            on_long_press:
+              then:
+                - script.execute: immich_advance_forward
+            widgets:
+              - image:
+                  id: portrait_left_img
+                  src: immich_portrait_left
+                  scrollable: false
+              - image:
+                  id: portrait_right_img
+                  src: immich_portrait_right
+                  scrollable: false
         - obj:
             id: info_overlay
             align: BOTTOM_LEFT
@@ -648,6 +800,10 @@ script:
   - id: immich_display_current
     mode: single
     then:
+      - lambda: |-
+          lv_obj_clear_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
+          id(immich_is_portrait_pair) = false;
       - if:
           condition:
             lambda: 'return id(active_slot) == 0;'
@@ -693,6 +849,33 @@ script:
           lv_label_set_text(id(time_ago_label), ago.c_str());
           lv_label_set_text(id(time_ago_label_shadow), ago.c_str());
       - script.execute: extract_accent_color
+      - lambda: |-
+          int s = id(active_slot);
+          bool is_p = (s == 0) ? id(slot0_is_portrait) : (s == 1) ? id(slot1_is_portrait) : id(slot2_is_portrait);
+          if (is_p) {
+            std::string dt = (s == 0) ? id(slot0_datetime) : (s == 1) ? id(slot1_datetime) : id(slot2_datetime);
+            std::string url = (s == 0) ? id(slot0_image_url) : (s == 1) ? id(slot1_image_url) : id(slot2_image_url);
+            std::string aid = (s == 0) ? id(slot0_asset_id) : (s == 1) ? id(slot1_asset_id) : id(slot2_asset_id);
+            id(portrait_left_ready) = false;
+            id(portrait_right_ready) = false;
+            id(portrait_companion_found) = false;
+            id(portrait_search_datetime) = dt;
+            id(portrait_primary_asset_id) = aid;
+            id(portrait_companion_url) = "";
+            ESP_LOGI("immich", "Portrait detected, loading pair for %s", aid.c_str());
+          }
+      - if:
+          condition:
+            lambda: |-
+              int s = id(active_slot);
+              return (s == 0) ? id(slot0_is_portrait) : (s == 1) ? id(slot1_is_portrait) : id(slot2_is_portrait);
+          then:
+            - online_image.set_url:
+                id: immich_portrait_left
+                url: !lambda |-
+                  int s = id(active_slot);
+                  return (s == 0) ? id(slot0_image_url) : (s == 1) ? id(slot1_image_url) : id(slot2_image_url);
+            - script.execute: immich_fetch_portrait_companion
 
   # ---------------------------------------------------------------------------
   # Advance forward: move ring index, display if ready, else fetch fresh
@@ -720,6 +903,10 @@ script:
                   id(immich_prev_person) = id(immich_photo_person);
                   id(immich_prev_valid) = true;
                 }
+                id(portrait_left_ready) = false;
+                id(portrait_right_ready) = false;
+                id(portrait_companion_found) = false;
+                id(immich_is_portrait_pair) = false;
                 int old_slot = id(active_slot);
                 id(active_slot) = (old_slot + 1) % 3;
                 id(active_slot_displayed) = false;
@@ -880,8 +1067,9 @@ script:
                     ESP_LOGW("immich", "HTTP %d from Immich", response->status_code);
                     return;
                   }
-                  std::string asset_id, photo_date, photo_location, photo_person;
+                  std::string asset_id, photo_date, photo_location, photo_person, local_datetime;
                   int photo_year = 0, photo_month = 0;
+                  bool is_portrait = false;
                   auto doc = json::parse_json(body);
                   JsonObject asset;
                   if (!doc.isNull()) {
@@ -900,6 +1088,7 @@ script:
 
                   if (asset["localDateTime"].is<const char *>()) {
                     std::string raw = asset["localDateTime"].as<std::string>();
+                    local_datetime = raw;
                     if (raw.size() >= 10) {
                       photo_year = atoi(raw.substr(0, 4).c_str());
                       photo_month = atoi(raw.substr(5, 2).c_str());
@@ -930,6 +1119,18 @@ script:
                           photo_date = str_sprintf("%s %d", months[photo_month], photo_year);
                       }
                     }
+
+                    int exif_w = 0, exif_h = 0;
+                    if (exif["exifImageWidth"].is<int>()) exif_w = exif["exifImageWidth"].as<int>();
+                    if (exif["exifImageHeight"].is<int>()) exif_h = exif["exifImageHeight"].as<int>();
+                    std::string orientation;
+                    if (exif["orientation"].is<const char *>()) orientation = exif["orientation"].as<std::string>();
+                    if (orientation == "5" || orientation == "6" || orientation == "7" || orientation == "8") {
+                      std::swap(exif_w, exif_h);
+                    }
+                    if (exif_w > 0 && exif_h > 0) {
+                      is_portrait = (exif_h > exif_w);
+                    }
                   }
 
                   if (asset["people"].is<JsonArray>()) {
@@ -944,25 +1145,28 @@ script:
                   std::string img_url = std::string("${immich_base_url}") +
                                         "/api/assets/" + asset_id + "/thumbnail?size=preview";
                   int slot = id(target_slot);
-                  ESP_LOGI("immich", "Slot %d fetched: %s | %s | %s | %s",
+                  ESP_LOGI("immich", "Slot %d fetched: %s | %s | %s | %s | portrait=%d",
                            slot, asset_id.c_str(), photo_date.c_str(),
-                           photo_person.c_str(), photo_location.c_str());
+                           photo_person.c_str(), photo_location.c_str(), is_portrait);
 
                   if (slot == 0) {
                     id(slot0_asset_id) = asset_id; id(slot0_image_url) = img_url;
                     id(slot0_date) = photo_date; id(slot0_location) = photo_location;
                     id(slot0_year) = photo_year; id(slot0_month) = photo_month;
                     id(slot0_person) = photo_person;
+                    id(slot0_is_portrait) = is_portrait; id(slot0_datetime) = local_datetime;
                   } else if (slot == 1) {
                     id(slot1_asset_id) = asset_id; id(slot1_image_url) = img_url;
                     id(slot1_date) = photo_date; id(slot1_location) = photo_location;
                     id(slot1_year) = photo_year; id(slot1_month) = photo_month;
                     id(slot1_person) = photo_person;
+                    id(slot1_is_portrait) = is_portrait; id(slot1_datetime) = local_datetime;
                   } else {
                     id(slot2_asset_id) = asset_id; id(slot2_image_url) = img_url;
                     id(slot2_date) = photo_date; id(slot2_location) = photo_location;
                     id(slot2_year) = photo_year; id(slot2_month) = photo_month;
                     id(slot2_person) = photo_person;
+                    id(slot2_is_portrait) = is_portrait; id(slot2_datetime) = local_datetime;
                   }
               - if:
                   condition:
@@ -989,6 +1193,139 @@ script:
             then:
               - lambda: |-
                   ESP_LOGW("immich", "API request error for slot %d", id(target_slot));
+
+  # ---------------------------------------------------------------------------
+  # Fetch a companion portrait from a similar date/time
+  # ---------------------------------------------------------------------------
+  - id: immich_fetch_portrait_companion
+    mode: single
+    then:
+      - lambda: |-
+          std::string dt = id(portrait_search_datetime);
+          if (dt.size() < 10) {
+            ESP_LOGW("immich", "No datetime for companion search");
+            id(portrait_companion_found) = false;
+            return;
+          }
+          std::string day = dt.substr(0, 10);
+          id(portrait_search_datetime) = day;
+          ESP_LOGI("immich", "Searching companion portrait for date %s", day.c_str());
+      - http_request.post:
+          id: http_req
+          url: ${immich_base_url}/api/search/random
+          capture_response: true
+          max_response_buffer_size: 48kB
+          request_headers:
+            Content-Type: application/json
+            Accept: application/json
+            x-api-key: ${immich_api_key}
+          body: !lambda |-
+            std::string day = id(portrait_search_datetime);
+            std::string after = day + "T00:00:00.000Z";
+            std::string before = day + "T23:59:59.999Z";
+            return "{\"size\":10,\"type\":\"IMAGE\",\"withExif\":true,\"takenAfter\":\"" + after + "\",\"takenBefore\":\"" + before + "\"}";
+          on_response:
+            then:
+              - lambda: |-
+                  if (response->status_code != 200) {
+                    ESP_LOGW("immich", "Companion search HTTP %d", response->status_code);
+                    id(portrait_companion_found) = false;
+                    return;
+                  }
+                  auto doc = json::parse_json(body);
+                  if (doc.isNull() || !doc.is<JsonArray>()) {
+                    ESP_LOGW("immich", "Companion search: no results");
+                    id(portrait_companion_found) = false;
+                    return;
+                  }
+                  JsonArray arr = doc.as<JsonArray>();
+                  std::string primary_id = id(portrait_primary_asset_id);
+                  std::string companion_url;
+
+                  for (size_t i = 0; i < arr.size(); i++) {
+                    JsonObject asset = arr[i].as<JsonObject>();
+                    if (asset.isNull() || !asset["id"].is<const char *>()) continue;
+                    std::string aid = asset["id"].as<std::string>();
+                    if (aid == primary_id) continue;
+
+                    JsonObject exif = asset["exifInfo"].as<JsonObject>();
+                    if (exif.isNull()) continue;
+                    int ew = 0, eh = 0;
+                    if (exif["exifImageWidth"].is<int>()) ew = exif["exifImageWidth"].as<int>();
+                    if (exif["exifImageHeight"].is<int>()) eh = exif["exifImageHeight"].as<int>();
+                    std::string ori;
+                    if (exif["orientation"].is<const char *>()) ori = exif["orientation"].as<std::string>();
+                    if (ori == "5" || ori == "6" || ori == "7" || ori == "8") std::swap(ew, eh);
+                    if (ew <= 0 || eh <= 0 || eh <= ew) continue;
+
+                    companion_url = std::string("${immich_base_url}") +
+                                    "/api/assets/" + aid + "/thumbnail?size=preview";
+                    ESP_LOGI("immich", "Companion portrait found: %s", aid.c_str());
+                    break;
+                  }
+
+                  if (companion_url.empty()) {
+                    ESP_LOGI("immich", "No companion portrait found for this day");
+                    id(portrait_companion_found) = false;
+                    return;
+                  }
+                  id(portrait_companion_found) = true;
+                  id(portrait_companion_url) = companion_url;
+              - if:
+                  condition:
+                    lambda: 'return id(portrait_companion_found);'
+                  then:
+                    - online_image.set_url:
+                        id: immich_portrait_right
+                        url: !lambda 'return id(portrait_companion_url);'
+          on_error:
+            then:
+              - lambda: |-
+                  ESP_LOGW("immich", "Companion search request failed");
+                  id(portrait_companion_found) = false;
+
+  # ---------------------------------------------------------------------------
+  # Display portrait pair (called when both left and right are ready)
+  # ---------------------------------------------------------------------------
+  - id: immich_display_portrait_pair
+    mode: single
+    then:
+      - lambda: |-
+          id(immich_is_portrait_pair) = true;
+          lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
+          ESP_LOGI("immich", "Displaying portrait pair");
+      - lvgl.image.update:
+          id: portrait_left_img
+          src: immich_portrait_left
+      - lvgl.image.update:
+          id: portrait_right_img
+          src: immich_portrait_right
+      - lambda: |-
+          std::string loc = id(immich_photo_location);
+          lv_label_set_text(id(location_label), loc.c_str());
+          lv_label_set_text(id(location_label_shadow), loc.c_str());
+
+          std::string ago;
+          if (id(immich_photo_year) > 0) {
+            auto now = id(sntp_time).now();
+            if (now.is_valid()) {
+              int months_ago = (now.year - id(immich_photo_year)) * 12 + (now.month - id(immich_photo_month));
+              if (months_ago >= 12) {
+                int years = months_ago / 12;
+                if (years == 1) ago = "1 year ago";
+                else ago = str_sprintf("%d years ago", years);
+              } else if (months_ago == 1) {
+                ago = "1 month ago";
+              } else if (months_ago > 1) {
+                ago = str_sprintf("%d months ago", months_ago);
+              }
+            }
+          }
+          lv_label_set_text(id(time_ago_label), ago.c_str());
+          lv_label_set_text(id(time_ago_label_shadow), ago.c_str());
+      - script.execute: extract_accent_color
+      - script.execute: immich_prefetch_chain
 
   # ---------------------------------------------------------------------------
   # Prefetch chain: fill the next empty slot(s) ahead of active_slot
