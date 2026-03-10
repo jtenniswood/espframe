@@ -413,6 +413,11 @@ online_image:
               lambda: 'return id(portrait_left_ready) && id(portrait_right_ready);'
             then:
               - script.execute: immich_display_portrait_pair
+        - if:
+            condition:
+              lambda: 'return !id(portrait_companion_found) && !id(portrait_primary_asset_id).empty();'
+            then:
+              - script.execute: immich_fetch_portrait_companion
     on_error:
       then:
         - lambda: |-
@@ -875,7 +880,6 @@ script:
                 url: !lambda |-
                   int s = id(active_slot);
                   return (s == 0) ? id(slot0_image_url) : (s == 1) ? id(slot1_image_url) : id(slot2_image_url);
-            - script.execute: immich_fetch_portrait_companion
 
   # ---------------------------------------------------------------------------
   # Advance forward: move ring index, display if ready, else fetch fresh
@@ -988,6 +992,11 @@ script:
                 id(immich_prev_year) = tmp_year;
                 id(immich_prev_month) = tmp_month;
                 id(immich_prev_person) = tmp_per;
+
+                id(portrait_left_ready) = false;
+                id(portrait_right_ready) = false;
+                id(portrait_companion_found) = false;
+                id(immich_is_portrait_pair) = false;
 
                 int prev_slot = (id(active_slot) + 2) % 3;
                 id(active_slot) = prev_slot;
