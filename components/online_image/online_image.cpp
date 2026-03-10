@@ -84,14 +84,10 @@ size_t OnlineImage::resize_(int width_in, int height_in) {
     if (this->width_ != width || this->height_ != height) {
       this->release();
     }
-  } else if (width_in > 0 && height_in > 0) {
-    // Fit within fixed dimensions while preserving aspect ratio
-    double scale = std::min(
-      static_cast<double>(this->fixed_width_) / width_in,
-      static_cast<double>(this->fixed_height_) / height_in
-    );
-    width = static_cast<int>(width_in * scale);
-    height = static_cast<int>(height_in * scale);
+  } else {
+    // Fixed dimensions: always use full target size for the buffer so
+    // the stride never changes between images (avoids LVGL descriptor
+    // cache mismatches).  Centering/scaling is handled in the decoder.
   }
   size_t new_size = this->get_buffer_size_(width, height);
   if (this->buffer_) {

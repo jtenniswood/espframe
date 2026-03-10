@@ -130,6 +130,7 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   bool big_endian = this->image_->is_big_endian();
 
   int y = 0;
+  int prev_dst_y = -1;
   while (cinfo.output_scanline < cinfo.output_height) {
     uint8_t *row_ptr = row_buffer;
     jpeg_read_scanlines(&cinfo, &row_ptr, 1);
@@ -138,11 +139,14 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
       App.feed_wdt();
     }
 
+    int dst_y = static_cast<int>(y * this->y_scale_) + this->y_offset_;
+    if (dst_y == prev_dst_y) {
+      y++;
+      continue;
+    }
+    prev_dst_y = dst_y;
+
     if (use_rgb565) {
-      // Convert RGB888 -> RGB565 in-place (2 bpp fits within the 3 bpp
-      // source buffer, so no separate allocation needed).  We read forward
-      // and write forward; the write pointer never overtakes the read
-      // pointer because 2 < 3.
       uint8_t *dst = row_buffer;
       for (int x = 0; x < out_w; x++) {
         uint8_t r = row_buffer[x * 3 + 0];
@@ -160,7 +164,6 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
       }
       this->draw_rgb565_block(0, y, out_w, 1, row_buffer);
     } else {
-      // Per-pixel draw for other image types
       for (int x = 0; x < out_w; x++) {
         Color color(row_buffer[x * 3 + 0], row_buffer[x * 3 + 1], row_buffer[x * 3 + 2]);
         this->draw(x, y, 1, 1, color);
