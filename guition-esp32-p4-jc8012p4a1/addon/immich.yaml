@@ -54,6 +54,7 @@ online_image:
     url: "https://via.placeholder.com/1x1.jpg"
     format: JPEG
     type: RGB565
+    byte_order: little_endian
     request_headers:
       x-api-key: ${immich_api_key}
     on_download_finished:
