@@ -16,6 +16,7 @@ guition-esp32-p4-jc8012p4a1/
 │   └── device.yaml           # Hardware config (display, touch, SoC, external components)
 ├── addon/
 │   ├── immich.yaml           # Slideshow logic, UI, ring buffer, API calls
+│   ├── accent_color.yaml     # Extract accent color from photo for page background
 │   └── time.yaml             # SNTP clock and time label updates
 ├── assets/
 │   ├── fonts.yaml            # Roboto font definitions (26/30/40/88pt)
@@ -159,6 +160,28 @@ Tunable defaults in `addon/immich.yaml`:
 - **Error retry:** Up to 3 retries with 2s delay on image decode failure, then gives up and resets counter.
 - **WiFi disconnect:** Shows captive portal setup prompt (after boot grace period).
 - **Slot readiness:** Forward advance blocks display until the slot's image has fully downloaded; current image remains on screen until then.
+
+## Accent Color
+
+The `extract_accent_color` script (in `addon/accent_color.yaml`) samples the displayed image and derives a dominant colour for the `main_page` background, so letter-boxed areas complement the photo instead of staying plain black.
+
+### How It Works
+
+1. A 20×20 grid of pixels is sampled from the active slot's raw RGB565 buffer (read little-endian to match the display byte order).
+2. Each pixel's saturation (max channel − min channel) is computed. The weight is `sat² + 1`, so vivid colours dominate while blacks, whites, and greys contribute minimally.
+3. A weighted average produces the accent RGB. This is darkened to one-third intensity (`r/3, g/3, b/3`) so the background doesn't overpower the photo.
+4. The darkened colour is applied to the LVGL page at runtime.
+
+### LVGL Background Color Caveat
+
+When setting an LVGL object's background colour from C/lambda code, you must set **both** the colour and the opacity. Setting only `lv_obj_set_style_bg_color` has no visible effect because the background opacity defaults to transparent. Always pair it with `lv_obj_set_style_bg_opa`:
+
+```c
+lv_obj_set_style_bg_color(id(main_page)->obj, color, 0);
+lv_obj_set_style_bg_opa(id(main_page)->obj, LV_OPA_COVER, 0);
+```
+
+Also note that ESPHome's `LvPageType*` is not a raw LVGL object pointer — use `->obj` to get the underlying `_lv_obj_t*` that LVGL functions expect.
 
 ## External Components
 
