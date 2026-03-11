@@ -10,6 +10,15 @@ globals:
     type: bool
     initial_value: 'false'
 
+esphome:
+  on_boot:
+    priority: -300
+    then:
+      - lambda: |-
+          ESP_LOGI("immich", "Immich config restored from NVS - URL: '%s' (%d chars), API key: %d chars",
+                   id(immich_url).state.c_str(), id(immich_url).state.length(),
+                   id(immich_api_key_text).state.length());
+
 text:
   - platform: template
     name: "Immich URL"
@@ -22,7 +31,10 @@ text:
     icon: "mdi:web"
     set_action:
       - lambda: |-
-          if (x.empty()) return;
+          if (x.empty()) {
+            ESP_LOGD("immich", "Ignoring empty URL update");
+            return;
+          }
           id(immich_url).publish_state(x);
           ESP_LOGI("immich", "Immich URL configured: %s", x.c_str());
 
@@ -37,6 +49,9 @@ text:
     icon: "mdi:key"
     set_action:
       - lambda: |-
-          if (x.empty()) return;
+          if (x.empty()) {
+            ESP_LOGD("immich", "Ignoring empty API key update");
+            return;
+          }
           id(immich_api_key_text).publish_state(x);
           ESP_LOGI("immich", "Immich API key configured (%d chars)", x.length());

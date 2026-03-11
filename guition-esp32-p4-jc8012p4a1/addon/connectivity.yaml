@@ -24,7 +24,12 @@ wifi:
     - delay: 800ms
     - lvgl.page.show: slideshow_page
     - delay: 2s
-    - lambda: 'id(target_slot) = 0;'
+    - lambda: |-
+        ESP_LOGI("immich", "WiFi connected. URL: '%s' (%d chars), API key: %d chars, fetch_started: %s",
+                 id(immich_url).state.c_str(), id(immich_url).state.length(),
+                 id(immich_api_key_text).state.length(),
+                 id(immich_fetch_started) ? "true" : "false");
+        id(target_slot) = 0;
     - script.execute: immich_fetch_into_slot
   on_disconnect:
     - if:
