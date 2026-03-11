@@ -4,6 +4,7 @@
 
 substitutions:
   package_ref: "main"
+  log_level: "INFO"
 
 esp32:
   variant: ESP32P4
@@ -16,6 +17,8 @@ esp32:
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
+  includes:
+    - components/immich_frame/immich_helpers.h
   platformio_options:
     board_build.flash_mode: dio
     build_flags:
@@ -40,7 +43,7 @@ psram:
 api:
 
 logger:
-  level: DEBUG
+  level: ${log_level}
 
 web_server:
   port: 80
