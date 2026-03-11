@@ -156,6 +156,14 @@ select:
             id(sntp_time).set_timezone(tz);
         - script.execute: update_clock_display
 
+switch:
+  - platform: template
+    name: "Show Clock"
+    id: show_clock
+    optimistic: true
+    restore_value: true
+    icon: "mdi:clock-outline"
+
 script:
   - id: update_clock_display
     mode: single
@@ -174,6 +182,11 @@ script:
           }
           lv_label_set_text(id(time_label), buf);
           lv_label_set_text(id(time_label_shadow), buf);
+          if (id(show_clock).state) {
+            lv_obj_clear_flag(id(clock_container), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(clock_container), LV_OBJ_FLAG_HIDDEN);
+          }
 
 time:
   - platform: sntp
