@@ -20,7 +20,7 @@ wifi:
   on_connect:
     - lambda: |-
         lv_bar_set_value(id(loading_progress_bar), 100, LV_ANIM_OFF);
-        lv_label_set_text(id(loading_status_label), "Connected!");
+        lv_label_set_text(id(loading_status_label), "Connected");
     - delay: 800ms
     - lvgl.page.show: slideshow_page
     - delay: 2s

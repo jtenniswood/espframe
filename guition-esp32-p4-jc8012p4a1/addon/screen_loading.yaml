@@ -37,6 +37,13 @@ lvgl:
                   text_color: 0xFFFFFF
                   width: 700
                   text_align: center
+              - label:
+                  id: loading_status_label
+                  text: "Booting"
+                  text_font: roboto_light32_font
+                  text_color: 0x888888
+                  width: 700
+                  text_align: center
               - bar:
                   id: loading_progress_bar
                   width: 75
@@ -50,13 +57,6 @@ lvgl:
                   indicator:
                     bg_color: 0xFFFFFF
                     radius: 3
-              - label:
-                  id: loading_status_label
-                  text: "Booting..."
-                  text_font: roboto_light32_font
-                  text_color: 0x888888
-                  width: 700
-                  text_align: center
 
 esphome:
   on_boot:
@@ -64,7 +64,7 @@ esphome:
       then:
         - lambda: |-
             lv_bar_set_value(id(loading_progress_bar), 25, LV_ANIM_OFF);
-            lv_label_set_text(id(loading_status_label), "Initializing display...");
+            lv_label_set_text(id(loading_status_label), "Initializing display");
         - delay: 100ms
         - light.turn_on:
             id: backlight
@@ -74,7 +74,7 @@ esphome:
       then:
         - lambda: |-
             lv_bar_set_value(id(loading_progress_bar), 50, LV_ANIM_OFF);
-            lv_label_set_text(id(loading_status_label), "Connecting to WiFi...");
+            lv_label_set_text(id(loading_status_label), "Connecting to WiFi");
         - lambda: |-
             std::string name = App.get_name();
             std::string wifi_text = "Connect to the WiFi hotspot\n'" + name + "'\nto configure your network";
