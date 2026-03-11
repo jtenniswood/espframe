@@ -8,7 +8,7 @@
 
 substitutions:
   immich_slide_interval_seconds: "15"
-  info_overlay_timeout: "8s"
+  info_overlay_timeout_seconds: "8"
   slideshow_check_interval: "5s"
 
 # =============================================================================
@@ -210,6 +210,18 @@ number:
     unit_of_measurement: "s"
     icon: "mdi:timer-outline"
 
+  - platform: template
+    name: "Info Overlay Timeout"
+    id: info_overlay_timeout
+    min_value: 1
+    max_value: 30
+    step: 1
+    initial_value: ${info_overlay_timeout_seconds}
+    optimistic: true
+    restore_value: true
+    unit_of_measurement: "s"
+    icon: "mdi:eye-timer-outline"
+
 # =============================================================================
 # SLIDESHOW TIMER
 # =============================================================================
@@ -259,9 +271,9 @@ script:
               id(hide_info_overlay).stop();
             }
           }
-
   - id: hide_info_overlay
     mode: restart
     then:
-      - delay: ${info_overlay_timeout}
+      - delay: !lambda 'return (uint32_t)(id(info_overlay_timeout).state * 1000);'
       - lambda: 'lv_obj_add_flag(id(info_overlay), LV_OBJ_FLAG_HIDDEN);'
+
