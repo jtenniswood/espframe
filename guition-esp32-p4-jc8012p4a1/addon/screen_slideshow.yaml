@@ -1313,7 +1313,7 @@ script:
                 level: WARN
                 tag: immich
                 format: "Immich URL or API key not configured. Set via web UI at http://<device-ip>/"
-            - lambda: 'return;'
+            - script.stop: immich_fetch_into_slot
       - http_request.post:
           id: http_req
           url: !lambda 'return id(immich_url).state + "/api/search/random";'
@@ -1471,7 +1471,7 @@ script:
           condition:
             lambda: 'return id(immich_url).state.empty() || id(immich_api_key_text).state.empty();'
           then:
-            - lambda: 'return;'
+            - script.stop: immich_fetch_portrait_companion
       - lambda: |-
           std::string dt = id(portrait_search_datetime);
           if (dt.size() < 10) {
