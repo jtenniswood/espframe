@@ -1,0 +1,11 @@
+# =============================================================================
+# BACKLIGHT
+# =============================================================================
+
+light:
+  - platform: monochromatic
+    id: backlight
+    output: backlight_output
+    name: "Backlight"
+    default_transition_length: 500ms
+    restore_mode: ALWAYS_ON

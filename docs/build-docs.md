@@ -10,22 +10,29 @@ This document explains the implementation of a standalone digital photo frame po
 
 ```
 guition-esp32-p4-jc8012p4a1/
-├── esphome.yaml              # User entry point (substitutions, wifi, remote package ref)
-├── packages.yaml             # Aggregates all local packages
+├── esphome.yaml                # User entry point (substitutions, wifi, remote package ref)
+├── packages.yaml               # Aggregates all local packages
 ├── device/
-│   └── device.yaml           # Hardware config (display, touch, SoC, external components)
+│   └── device.yaml             # Hardware config (display, touch, SoC, external components)
 ├── addon/
-│   ├── immich.yaml           # Slideshow logic, UI, ring buffer, API calls
-│   ├── accent_color.yaml     # Extract accent color from photo for page background
-│   └── time.yaml             # SNTP clock and time label updates
+│   ├── lvgl_base.yaml          # Shared LVGL config (buffer, displays)
+│   ├── connectivity.yaml       # WiFi, captive portal, HTTP client
+│   ├── backlight.yaml          # Display backlight light component
+│   ├── screen_loading.yaml     # Loading screen (LVGL page + boot sequence)
+│   ├── screen_wifi_setup.yaml  # WiFi setup screen (LVGL page)
+│   ├── screen_slideshow.yaml   # Slideshow screen (LVGL page, ring buffer, API, scripts)
+│   ├── accent_color.yaml       # Extract accent color from photo for letterbox fill
+│   └── time.yaml               # SNTP clock and time label updates
 ├── assets/
-│   ├── fonts.yaml            # Roboto font definitions (32/30/46/88/150pt)
-│   └── icons.yaml            # MDI WiFi icon for setup screen
+│   ├── fonts.yaml              # Roboto font definitions (32/30/46/88/150pt)
+│   └── icons.yaml              # MDI WiFi icon for setup screen
 └── components/
-    └── gsl3680/              # Custom touchscreen driver
+    └── gsl3680/                # Custom touchscreen driver
 components/
-└── online_image/             # Patched online_image with header-based auth
+└── online_image/               # Patched online_image with header-based auth
 ```
+
+Each screen is a self-contained YAML file that contributes an LVGL page, along with any screen-specific globals and scripts, to the merged config. ESPHome's `packages:` system deep-merges dictionaries and appends lists, so each file can independently define `lvgl: pages:`, `globals:`, `script:`, etc.
 
 ### User Setup
 
@@ -172,16 +179,28 @@ Secrets in `secrets.yaml`:
 | `wifi_password` | WiFi password |
 | `immich_api_key` | Immich API key |
 
-Tunable defaults in `addon/immich.yaml`:
+Tunable defaults:
 
-| Substitution | Default | Description |
-|---|---|---|
-| `immich_slide_interval_seconds` | `15` | Default slideshow interval in seconds (runtime-adjustable via HA) |
-| `immich_verify_ssl` | `false` | TLS certificate verification |
+| Substitution | Default | Defined in | Description |
+|---|---|---|---|
+| `immich_slide_interval_seconds` | `15` | `addon/screen_slideshow.yaml` | Default slideshow interval in seconds (runtime-adjustable via HA) |
+| `immich_verify_ssl` | `false` | `addon/connectivity.yaml` | TLS certificate verification |
 
 ## UI Layout
 
-### Main Page
+The UI uses separate LVGL pages for each screen, navigated via `lvgl.page.show`. The first page in the merged config (`loading_page`) is shown at startup.
+
+### `loading_page` (defined in `addon/screen_loading.yaml`)
+
+"Starting up" label and a progress bar. Shown at boot; the system transitions away once WiFi connects or the 10s grace period expires.
+
+### `wifi_setup_page` (defined in `addon/screen_wifi_setup.yaml`)
+
+WiFi icon and instructions to connect to the captive portal hotspot. Shown via `lvgl.page.show: wifi_setup_page` when WiFi disconnects after the boot grace period.
+
+### `slideshow_page` (defined in `addon/screen_slideshow.yaml`)
+
+The main photo display. Shown via `lvgl.page.show: slideshow_page` when WiFi connects.
 
 - **`slideshow_img`** — Full-screen LVGL image widget displaying the active slot's image. Zoom level is applied per-slot via `lv_img_set_zoom`. Hidden when a portrait pair is active.
 - **`portrait_pair_container`** — Hidden by default. A 1280×800 flex ROW container with two 640×800 child objects, each containing an image widget (`portrait_left_img`, `portrait_right_img`). Shown when a portrait pair is displayed; supports the same touch gestures as `slideshow_img`. Each portrait image is resized to 640×1200 and centred within its half.
@@ -190,8 +209,6 @@ Tunable defaults in `addon/immich.yaml`:
   - **`time_ago_label`** — Relative photo age ("3 years ago") in Roboto Light 46px.
   - **`location_label`** — Photo location (city, country) in Roboto Light 32px.
   - Each label has a paired `*_shadow` label rendered behind it (same text, black at 50% opacity, offset 2px right and 2px down) for readability over photos.
-- **`loading_screen`** — Shown on boot with "Starting up" text and a progress bar. Hidden after WiFi connects or 10s grace period.
-- **`wifi_setup_prompt`** — WiFi icon + instructions to connect to the captive portal hotspot. Shown when WiFi disconnects after boot grace period.
 
 ### Touch Gestures
 
@@ -204,12 +221,47 @@ Tunable defaults in `addon/immich.yaml`:
 
 Both `slideshow_img` and `portrait_pair_container` handle these gestures identically.
 
+### Adding a New Screen
+
+To add a screen, create a single `addon/screen_*.yaml` file and add one `!include` line to `packages.yaml`. No existing files need modification.
+
+The new file defines its own LVGL page plus any screen-specific globals and scripts:
+
+```yaml
+# addon/screen_settings.yaml
+lvgl:
+  pages:
+    - id: settings_page
+      bg_color: 0x000000
+      scrollable: false
+      widgets:
+        # ... screen widgets
+
+globals:
+  - id: my_screen_state
+    type: int
+    initial_value: '0'
+
+script:
+  - id: my_screen_script
+    then:
+      # ...
+```
+
+Then register it in `packages.yaml`:
+
+```yaml
+  screen_settings: !include addon/screen_settings.yaml
+```
+
+Navigate to the screen from any file using `lvgl.page.show: settings_page`. Shared resources (fonts, icons, time, accent color) are referenced by their global IDs across files.
+
 ## Boot Sequence
 
 1. **Priority -200:** Turn on backlight at 100%, set progress bar to 25%.
 2. **Priority -100:** Set progress bar to 50%. Populate WiFi setup instructions with device name.
-3. **WiFi connect:** Set progress bar to 100%, hide loading screen, start first image fetch.
-4. **10s timeout:** End boot grace period. If still no WiFi, hide loading screen and show WiFi setup prompt.
+3. **WiFi connect:** Set progress bar to 100%, navigate to `slideshow_page`, start first image fetch.
+4. **10s timeout:** End boot grace period. If still no WiFi, navigate to `wifi_setup_page`.
 
 ## Runtime Behavior and Guardrails
 
@@ -239,8 +291,8 @@ The `extract_accent_color` script (in `addon/accent_color.yaml`) samples the dis
 When setting an LVGL object's background colour from C/lambda code, you must set **both** the colour and the opacity. Setting only `lv_obj_set_style_bg_color` has no visible effect because the background opacity defaults to transparent. Always pair it with `lv_obj_set_style_bg_opa`:
 
 ```c
-lv_obj_set_style_bg_color(id(main_page)->obj, color, 0);
-lv_obj_set_style_bg_opa(id(main_page)->obj, LV_OPA_COVER, 0);
+lv_obj_set_style_bg_color(id(slideshow_page)->obj, color, 0);
+lv_obj_set_style_bg_opa(id(slideshow_page)->obj, LV_OPA_COVER, 0);
 ```
 
 Also note that ESPHome's `LvPageType*` is not a raw LVGL object pointer — use `->obj` to get the underlying `_lv_obj_t*` that LVGL functions expect.
@@ -277,3 +329,5 @@ Also note that ESPHome's `LvPageType*` is not a raw LVGL object pointer — use 
 3. Support deeper backward navigation history (ring buffer of previous URLs).
 4. Add screen dimming schedule or ambient light sensor integration.
 5. Smarter companion portrait matching (prefer similar location, people, or time-of-day).
+6. Define shared LVGL `style_definitions` in `addon/lvgl_base.yaml` for consistent styling across screens.
+7. Add page transition animations via `lvgl.page.show` options (`animation`, `time`).

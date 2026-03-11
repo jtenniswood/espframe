@@ -1,0 +1,33 @@
+# =============================================================================
+# CONNECTIVITY - WiFi, captive portal, HTTP client
+# =============================================================================
+# Handles network connectivity and navigates between screens based on
+# connection state using lvgl.page.show.
+# =============================================================================
+
+substitutions:
+  immich_verify_ssl: "false"
+
+http_request:
+  id: http_req
+  timeout: 10s
+  verify_ssl: ${immich_verify_ssl}
+
+captive_portal:
+
+wifi:
+  ap: {}
+  on_connect:
+    - lambda: |-
+        lv_bar_set_value(id(loading_progress_bar), 100, LV_ANIM_OFF);
+    - delay: 800ms
+    - lvgl.page.show: slideshow_page
+    - delay: 2s
+    - lambda: 'id(target_slot) = 0;'
+    - script.execute: immich_fetch_into_slot
+  on_disconnect:
+    - if:
+        condition:
+          lambda: 'return !id(boot_grace_period);'
+        then:
+          - lvgl.page.show: wifi_setup_page

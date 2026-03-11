@@ -1,40 +1,13 @@
 # =============================================================================
-# IMMICH SLIDESHOW - STANDALONE
+# SCREEN: IMMICH SLIDESHOW
 # =============================================================================
-# Self-contained digital photo frame powered by Immich.
-# Uses a 3-slot ring buffer of online_image components for instant forward
-# swiping. Two images are prefetched ahead. Backward navigation re-downloads
-# from a stored URL.
+# Digital photo frame powered by Immich. Uses a 3-slot ring buffer of
+# online_image components for instant forward swiping. Two images are
+# prefetched ahead. Backward navigation re-downloads from a stored URL.
 # =============================================================================
 
 substitutions:
   immich_slide_interval_seconds: "15"
-  immich_verify_ssl: "false"
-
-http_request:
-  id: http_req
-  timeout: 10s
-  verify_ssl: ${immich_verify_ssl}
-
-captive_portal:
-
-wifi:
-  ap: {}
-  on_connect:
-    - lambda: |-
-        lv_bar_set_value(id(loading_progress_bar), 100, LV_ANIM_OFF);
-    - delay: 800ms
-    - lvgl.widget.hide: loading_screen
-    - lvgl.widget.hide: wifi_setup_prompt
-    - delay: 2s
-    - lambda: 'id(target_slot) = 0;'
-    - script.execute: immich_fetch_into_slot
-  on_disconnect:
-    - if:
-        condition:
-          lambda: 'return !id(boot_grace_period);'
-        then:
-          - lvgl.widget.show: wifi_setup_prompt
 
 # =============================================================================
 # GLOBALS
@@ -42,9 +15,6 @@ wifi:
 
 globals:
   # --- System ---
-  - id: boot_grace_period
-    type: bool
-    initial_value: 'true'
   - id: immich_last_advance_ms
     type: uint32_t
     initial_value: '0'
@@ -284,18 +254,6 @@ globals:
   - id: immich_prev_datetime
     type: std::string
     initial_value: '""'
-
-# =============================================================================
-# BACKLIGHT
-# =============================================================================
-
-light:
-  - platform: monochromatic
-    id: backlight
-    output: backlight_output
-    name: "Backlight"
-    default_transition_length: 500ms
-    restore_mode: ALWAYS_ON
 
 # =============================================================================
 # 3-SLOT IMAGE RING BUFFER
@@ -559,12 +517,8 @@ online_image:
 # =============================================================================
 
 lvgl:
-  buffer_size: 6%
-  byte_order: little_endian
-  displays:
-    - tft_display
   pages:
-    - id: main_page
+    - id: slideshow_page
       bg_color: 0x000000
       scrollable: false
       widgets:
@@ -766,135 +720,6 @@ lvgl:
                               text: ""
                               text_color: 0xFFFFFF
                               text_font: roboto_light32_font
-        - obj:
-            id: loading_screen
-            x: 0
-            y: 0
-            width: 1280
-            height: 800
-            bg_color: 0x000000
-            bg_opa: 100%
-            radius: 0
-            border_width: 0
-            pad_all: 0
-            scrollable: false
-            scrollbar_mode: "off"
-            hidden: false
-            widgets:
-              - obj:
-                  align: center
-                  width: 700
-                  height: SIZE_CONTENT
-                  bg_opa: 0%
-                  border_width: 0
-                  pad_all: 0
-                  scrollable: false
-                  layout:
-                    type: flex
-                    flex_flow: COLUMN
-                    flex_align_main: center
-                    flex_align_cross: center
-                    pad_row: 40
-                  widgets:
-                    - label:
-                        text: "Starting up"
-                        text_font: roboto_light46_font
-                        text_color: 0xFFFFFF
-                        width: 700
-                        text_align: center
-                    - bar:
-                        id: loading_progress_bar
-                        width: 75
-                        height: 4
-                        bg_color: 0x333333
-                        bg_opa: 100%
-                        radius: 3
-                        min_value: 0
-                        max_value: 100
-                        value: 0
-                        indicator:
-                          bg_color: 0xFFFFFF
-                          radius: 3
-        - obj:
-            id: wifi_setup_prompt
-            x: 0
-            y: 0
-            width: 1280
-            height: 800
-            bg_color: 0x000000
-            bg_opa: 100%
-            radius: 0
-            border_width: 0
-            pad_all: 0
-            scrollable: false
-            scrollbar_mode: "off"
-            hidden: true
-            widgets:
-              - obj:
-                  align: center
-                  width: 700
-                  height: SIZE_CONTENT
-                  bg_opa: 0%
-                  border_width: 0
-                  pad_all: 0
-                  scrollable: false
-                  layout:
-                    type: flex
-                    flex_flow: COLUMN
-                    flex_align_main: center
-                    flex_align_cross: center
-                    pad_row: 20
-                  widgets:
-                    - label:
-                        text_font: icon_font_setup
-                        text: $icon_wifi
-                        text_color: 0xFFFFFF
-                    - label:
-                        text: "WiFi Setup"
-                        text_font: roboto_light46_font
-                        text_color: 0xFFFFFF
-                        width: 700
-                        text_align: center
-                    - label:
-                        id: wifi_setup_instructions
-                        text: "Connect to the WiFi hotspot\nto configure your network"
-                        text_font: roboto30_font
-                        text_color: 0x888888
-                        width: 700
-                        text_align: center
-
-# =============================================================================
-# BOOT SEQUENCE
-# =============================================================================
-
-esphome:
-  on_boot:
-    - priority: -200
-      then:
-        - lambda: |-
-            lv_bar_set_value(id(loading_progress_bar), 25, LV_ANIM_OFF);
-        - delay: 100ms
-        - light.turn_on:
-            id: backlight
-            brightness: 100%
-            transition_length: 500ms
-    - priority: -100
-      then:
-        - lambda: |-
-            lv_bar_set_value(id(loading_progress_bar), 50, LV_ANIM_OFF);
-        - lambda: |-
-            std::string name = App.get_name();
-            std::string wifi_text = "Connect to the WiFi hotspot\n'" + name + "'\nto configure your network";
-            lv_label_set_text(id(wifi_setup_instructions), wifi_text.c_str());
-        - delay: 10s
-        - lambda: 'id(boot_grace_period) = false;'
-        - lvgl.widget.hide: loading_screen
-        - if:
-            condition:
-              not:
-                wifi.connected:
-            then:
-              - lvgl.widget.show: wifi_setup_prompt
 
 # =============================================================================
 # USER-CONFIGURABLE SETTINGS
