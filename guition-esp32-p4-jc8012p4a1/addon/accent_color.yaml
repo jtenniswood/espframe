@@ -48,7 +48,7 @@ script:
 
             int content_w = img_w - 2 * x_off;
             int content_h = img_h - 2 * y_off;
-            int grid = 20;
+            int grid = ACCENT_GRID_SIZE;
             int step_x = content_w / grid;
             int step_y = content_h / grid;
             if (step_x < 1) step_x = 1;
@@ -110,7 +110,8 @@ script:
             // Build one column segment for left/right bar fills
             if (x_off > 0) {
               int col_bytes = x_off * 2;
-              uint8_t col_buf[col_bytes];
+              uint8_t col_buf[1280];
+              if (col_bytes > (int)sizeof(col_buf)) return;
               for (int x = 0; x < x_off; x++) {
                 col_buf[x * 2] = lo; col_buf[x * 2 + 1] = hi;
               }

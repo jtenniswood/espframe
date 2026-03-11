@@ -5,7 +5,25 @@
 # searching for portrait companions from the same day.
 # =============================================================================
 
+globals:
+  - id: immich_api_retries
+    type: int
+    initial_value: '0'
+
 script:
+  # ---------------------------------------------------------------------------
+  # Display fallback when companion portrait search fails or finds nothing
+  # ---------------------------------------------------------------------------
+  - id: handle_companion_not_found
+    mode: single
+    then:
+      - lambda: |-
+          id(portrait_companion_found) = false;
+          if (id(companion_target_slot) == id(active_slot) && !id(active_slot_displayed)) {
+            id(active_slot_displayed) = true;
+            id(immich_display_current).execute();
+          }
+
   # ---------------------------------------------------------------------------
   # Fetch API metadata and start image download into target_slot
   # ---------------------------------------------------------------------------
@@ -21,10 +39,9 @@ script:
                 tag: immich
                 format: "Immich URL or API key not configured"
             - script.stop: immich_fetch_into_slot
-      - lambda: 'id(immich_fetch_started) = true;'
       - http_request.post:
           id: http_req
-          url: !lambda 'return strip_trailing_slashes(id(immich_url).state) + "/api/search/random";'
+          url: !lambda 'return id(immich_url).state + "/api/search/random";'
           capture_response: true
           max_response_buffer_size: 24kB
           request_headers:
@@ -39,10 +56,13 @@ script:
                     ESP_LOGW("immich", "HTTP %d from Immich", response->status_code);
                     return;
                   }
+                  id(immich_fetch_started) = true;
+                  id(immich_api_retries) = 0;
+
                   std::string asset_id, photo_date, photo_location, photo_person, local_datetime;
                   int photo_year = 0, photo_month = 0;
                   bool is_portrait = false;
-                  uint16_t slot_zoom = 256;
+                  uint16_t slot_zoom = ZOOM_IDENTITY;
 
                   auto doc = json::parse_json(body);
                   JsonObject asset;
@@ -99,9 +119,9 @@ script:
                       is_portrait = (exif_h > exif_w);
                       if (!is_portrait) {
                         float aspect = (float)exif_w / (float)exif_h;
-                        if (aspect > 1.6f && aspect <= 2.0f) {
+                        if (aspect > PANORAMA_MIN_ASPECT && aspect <= PANORAMA_MAX_ASPECT) {
                           float decoded_h = 1280.0f / aspect;
-                          slot_zoom = (uint16_t)(256.0f * 800.0f / decoded_h);
+                          slot_zoom = (uint16_t)((float)ZOOM_IDENTITY * 800.0f / decoded_h);
                         }
                       }
                     }
@@ -116,8 +136,7 @@ script:
                     }
                   }
 
-                  std::string base = strip_trailing_slashes(id(immich_url).state);
-                  std::string img_url = base + "/api/assets/" + asset_id + "/thumbnail?size=preview";
+                  std::string img_url = id(immich_url).state + "/api/assets/" + asset_id + "/thumbnail?size=preview";
                   int slot = id(target_slot);
                   ESP_LOGI("immich", "Slot %d fetched: %s | %s | %s | %s | portrait=%d zoom=%u",
                            slot, asset_id.c_str(), photo_date.c_str(),
@@ -149,16 +168,16 @@ script:
           on_error:
             then:
               - lambda: |-
-                  id(immich_error_retries)++;
-                  ESP_LOGW("immich", "API request error for slot %d (attempt %d)", id(target_slot), id(immich_error_retries));
+                  id(immich_api_retries)++;
+                  ESP_LOGW("immich", "API request error for slot %d (attempt %d)", id(target_slot), id(immich_api_retries));
               - if:
                   condition:
-                    lambda: 'return id(immich_error_retries) < 3;'
+                    lambda: 'return id(immich_api_retries) < MAX_ERROR_RETRIES;'
                   then:
                     - delay: 5s
                     - script.execute: immich_fetch_into_slot
                   else:
-                    - lambda: 'id(immich_error_retries) = 0;'
+                    - lambda: 'id(immich_api_retries) = 0;'
 
   # ---------------------------------------------------------------------------
   # Fetch a companion portrait from a similar date/time
@@ -175,11 +194,7 @@ script:
           std::string dt = id(portrait_search_datetime);
           if (dt.size() < 10) {
             ESP_LOGW("immich", "No datetime for companion search");
-            id(portrait_companion_found) = false;
-            if (id(companion_target_slot) == id(active_slot) && !id(active_slot_displayed)) {
-              id(active_slot_displayed) = true;
-              id(immich_display_current).execute();
-            }
+            id(handle_companion_not_found).execute();
             return;
           }
           std::string day = dt.substr(0, 10);
@@ -188,7 +203,7 @@ script:
                    id(companion_target_slot), day.c_str());
       - http_request.post:
           id: http_req
-          url: !lambda 'return strip_trailing_slashes(id(immich_url).state) + "/api/search/random";'
+          url: !lambda 'return id(immich_url).state + "/api/search/random";'
           capture_response: true
           max_response_buffer_size: 32kB
           request_headers:
@@ -203,26 +218,18 @@ script:
               - lambda: |-
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Companion search HTTP %d", response->status_code);
-                    id(portrait_companion_found) = false;
-                    if (id(companion_target_slot) == id(active_slot) && !id(active_slot_displayed)) {
-                      id(active_slot_displayed) = true;
-                      id(immich_display_current).execute();
-                    }
+                    id(handle_companion_not_found).execute();
                     return;
                   }
                   auto doc = json::parse_json(body);
                   if (doc.isNull() || !doc.is<JsonArray>()) {
                     ESP_LOGW("immich", "Companion search: no results");
-                    id(portrait_companion_found) = false;
-                    if (id(companion_target_slot) == id(active_slot) && !id(active_slot_displayed)) {
-                      id(active_slot_displayed) = true;
-                      id(immich_display_current).execute();
-                    }
+                    id(handle_companion_not_found).execute();
                     return;
                   }
                   JsonArray arr = doc.as<JsonArray>();
                   std::string primary_id = id(portrait_primary_asset_id);
-                  std::string base = strip_trailing_slashes(id(immich_url).state);
+                  std::string base = id(immich_url).state;
                   std::string companion_url;
 
                   for (size_t i = 0; i < arr.size(); i++) {
@@ -249,11 +256,7 @@ script:
 
                   if (companion_url.empty()) {
                     ESP_LOGI("immich", "No companion portrait found for this day");
-                    id(portrait_companion_found) = false;
-                    if (id(companion_target_slot) == id(active_slot) && !id(active_slot_displayed)) {
-                      id(active_slot_displayed) = true;
-                      id(immich_display_current).execute();
-                    }
+                    id(handle_companion_not_found).execute();
                     return;
                   }
                   id(portrait_companion_found) = true;
@@ -290,11 +293,6 @@ script:
                         url: !lambda 'return id(portrait_companion_url);'
           on_error:
             then:
-              - lambda: |-
-                  ESP_LOGW("immich", "Companion search request failed");
-                  id(portrait_companion_found) = false;
-                  if (id(companion_target_slot) == id(active_slot) && !id(active_slot_displayed)) {
-                    id(active_slot_displayed) = true;
-                    id(immich_display_current).execute();
-                  }
+              - lambda: 'ESP_LOGW("immich", "Companion search request failed");'
+              - script.execute: handle_companion_not_found
       - script.execute: immich_prefetch_chain

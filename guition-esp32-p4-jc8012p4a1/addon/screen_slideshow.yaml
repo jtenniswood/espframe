@@ -8,6 +8,8 @@
 
 substitutions:
   immich_slide_interval_seconds: "15"
+  info_overlay_timeout: "8s"
+  slideshow_check_interval: "5s"
 
 # =============================================================================
 # LVGL UI
@@ -213,7 +215,7 @@ number:
 # =============================================================================
 
 interval:
-  - interval: 5s
+  - interval: ${slideshow_check_interval}
     then:
       - if:
           condition:
@@ -244,9 +246,9 @@ script:
           lv_point_t point;
           lv_indev_get_point(lv_indev_get_act(), &point);
           int dx = point.x - id(touch_start_x);
-          if (dx < -80) {
+          if (dx < -SWIPE_THRESHOLD_PX) {
             id(immich_advance_forward).execute();
-          } else if (dx > 80) {
+          } else if (dx > SWIPE_THRESHOLD_PX) {
             id(immich_show_previous).execute();
           } else {
             if (lv_obj_has_flag(id(info_overlay), LV_OBJ_FLAG_HIDDEN)) {
@@ -261,5 +263,5 @@ script:
   - id: hide_info_overlay
     mode: restart
     then:
-      - delay: 8s
+      - delay: ${info_overlay_timeout}
       - lambda: 'lv_obj_add_flag(id(info_overlay), LV_OBJ_FLAG_HIDDEN);'

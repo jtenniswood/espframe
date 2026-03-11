@@ -1,36 +1,31 @@
 #pragma once
 #include <string>
 #include <cstring>
+#include <cstdint>
 
-struct SlotMeta {
-  std::string asset_id;
-  std::string image_url;
-  std::string date;
-  std::string location;
-  std::string person;
-  std::string datetime;
-  std::string companion_url;
-  std::string pending_asset_id;
-  int year = 0;
-  int month = 0;
-  uint16_t zoom = 256;
-  bool ready = false;
-  bool is_portrait = false;
+static constexpr uint16_t ZOOM_IDENTITY = 256;
+static constexpr int MAX_ERROR_RETRIES = 3;
+static constexpr float PANORAMA_MIN_ASPECT = 1.6f;
+static constexpr float PANORAMA_MAX_ASPECT = 2.0f;
+static constexpr int ACCENT_GRID_SIZE = 20;
+static constexpr int SWIPE_THRESHOLD_PX = 80;
+
+struct PhotoMeta {
+  std::string asset_id, image_url, date, location, person;
+  int year = 0, month = 0;
+  uint16_t zoom = ZOOM_IDENTITY;
 };
 
-struct DisplayMeta {
-  std::string asset_id;
-  std::string image_url;
-  std::string date;
-  std::string location;
-  std::string person;
-  int year = 0;
-  int month = 0;
-  uint16_t zoom = 256;
+struct SlotMeta : PhotoMeta {
+  std::string datetime, companion_url, pending_asset_id;
+  bool ready = false, is_portrait = false;
+};
+
+struct DisplayMeta : PhotoMeta {
   bool valid = false;
 };
 
-static const char *MONTH_NAMES[] = {
+static constexpr const char *MONTH_NAMES[] = {
   "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 };
@@ -61,23 +56,9 @@ inline std::string format_photo_date(int year, int month) {
 }
 
 inline void copy_slot_to_display(const SlotMeta &slot, DisplayMeta &disp) {
-  disp.asset_id = slot.asset_id;
-  disp.image_url = slot.image_url;
-  disp.date = slot.date;
-  disp.location = slot.location;
-  disp.person = slot.person;
-  disp.year = slot.year;
-  disp.month = slot.month;
-  disp.zoom = slot.zoom;
+  static_cast<PhotoMeta&>(disp) = static_cast<const PhotoMeta&>(slot);
 }
 
 inline void copy_display_to_slot(const DisplayMeta &disp, SlotMeta &slot) {
-  slot.asset_id = disp.asset_id;
-  slot.image_url = disp.image_url;
-  slot.date = disp.date;
-  slot.location = disp.location;
-  slot.person = disp.person;
-  slot.year = disp.year;
-  slot.month = disp.month;
-  slot.zoom = disp.zoom;
+  static_cast<PhotoMeta&>(slot) = static_cast<const PhotoMeta&>(disp);
 }

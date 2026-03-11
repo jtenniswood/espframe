@@ -38,7 +38,10 @@ globals:
   - id: immich_last_advance_ms
     type: uint32_t
     initial_value: '0'
-  - id: immich_error_retries
+  - id: last_downloaded_slot
+    type: int
+    initial_value: '-1'
+  - id: immich_download_retries
     type: int
     initial_value: '0'
   - id: touch_start_x
@@ -100,58 +103,12 @@ online_image:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
       then:
-        - if:
-            condition:
-              lambda: 'return id(slot0).asset_id == id(slot0).pending_asset_id;'
-            then:
-              - lambda: |-
-                  id(slot0).ready = true;
-                  id(immich_error_retries) = 0;
-                  ESP_LOGI("immich", "Slot 0 ready: %s", id(slot0).asset_id.c_str());
-                  if (id(active_slot) == 0) {
-                    copy_slot_to_display(id(slot0), id(current_display));
-                    if (!id(slot0).is_portrait) id(active_slot_displayed) = true;
-                  }
-              - if:
-                  condition:
-                    lambda: 'return id(active_slot) == 0 && !id(slot0).is_portrait;'
-                  then:
-                    - script.execute: immich_display_current
-              - if:
-                  condition:
-                    lambda: 'return id(active_slot) == 0 && id(slot0).is_portrait;'
-                  then:
-                    - script.execute: immich_start_portrait_active
-              - if:
-                  condition:
-                    lambda: 'return id(slot0).is_portrait && id(active_slot) != 0;'
-                  then:
-                    - lambda: |-
-                        id(companion_target_slot) = 0;
-                        id(portrait_search_datetime) = id(slot0).datetime;
-                        id(portrait_primary_asset_id) = id(slot0).asset_id;
-                    - script.execute: immich_fetch_portrait_companion
-                  else:
-                    - if:
-                        condition:
-                          lambda: 'return id(active_slot) != 0;'
-                        then:
-                          - script.execute: immich_prefetch_chain
-            else:
-              - lambda: 'ESP_LOGW("immich", "Slot 0 download stale, ignoring");'
+        - lambda: 'id(last_downloaded_slot) = 0;'
+        - script.execute: handle_slot_download_finished
     on_error:
       then:
-        - lambda: |-
-            id(immich_error_retries)++;
-            ESP_LOGE("immich", "Slot 0 decode failed (attempt %d)", id(immich_error_retries));
-        - if:
-            condition:
-              lambda: 'return id(immich_error_retries) < 3;'
-            then:
-              - delay: 2s
-              - script.execute: immich_prefetch_chain
-            else:
-              - lambda: 'id(immich_error_retries) = 0;'
+        - lambda: 'id(last_downloaded_slot) = 0;'
+        - script.execute: handle_slot_download_error
 
   - id: immich_img_1
     url: "https://via.placeholder.com/1x1.jpg"
@@ -163,58 +120,12 @@ online_image:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
       then:
-        - if:
-            condition:
-              lambda: 'return id(slot1).asset_id == id(slot1).pending_asset_id;'
-            then:
-              - lambda: |-
-                  id(slot1).ready = true;
-                  id(immich_error_retries) = 0;
-                  ESP_LOGI("immich", "Slot 1 ready: %s", id(slot1).asset_id.c_str());
-                  if (id(active_slot) == 1) {
-                    copy_slot_to_display(id(slot1), id(current_display));
-                    if (!id(slot1).is_portrait) id(active_slot_displayed) = true;
-                  }
-              - if:
-                  condition:
-                    lambda: 'return id(active_slot) == 1 && !id(slot1).is_portrait;'
-                  then:
-                    - script.execute: immich_display_current
-              - if:
-                  condition:
-                    lambda: 'return id(active_slot) == 1 && id(slot1).is_portrait;'
-                  then:
-                    - script.execute: immich_start_portrait_active
-              - if:
-                  condition:
-                    lambda: 'return id(slot1).is_portrait && id(active_slot) != 1;'
-                  then:
-                    - lambda: |-
-                        id(companion_target_slot) = 1;
-                        id(portrait_search_datetime) = id(slot1).datetime;
-                        id(portrait_primary_asset_id) = id(slot1).asset_id;
-                    - script.execute: immich_fetch_portrait_companion
-                  else:
-                    - if:
-                        condition:
-                          lambda: 'return id(active_slot) != 1;'
-                        then:
-                          - script.execute: immich_prefetch_chain
-            else:
-              - lambda: 'ESP_LOGW("immich", "Slot 1 download stale, ignoring");'
+        - lambda: 'id(last_downloaded_slot) = 1;'
+        - script.execute: handle_slot_download_finished
     on_error:
       then:
-        - lambda: |-
-            id(immich_error_retries)++;
-            ESP_LOGE("immich", "Slot 1 decode failed (attempt %d)", id(immich_error_retries));
-        - if:
-            condition:
-              lambda: 'return id(immich_error_retries) < 3;'
-            then:
-              - delay: 2s
-              - script.execute: immich_prefetch_chain
-            else:
-              - lambda: 'id(immich_error_retries) = 0;'
+        - lambda: 'id(last_downloaded_slot) = 1;'
+        - script.execute: handle_slot_download_error
 
   - id: immich_img_2
     url: "https://via.placeholder.com/1x1.jpg"
@@ -226,58 +137,12 @@ online_image:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
       then:
-        - if:
-            condition:
-              lambda: 'return id(slot2).asset_id == id(slot2).pending_asset_id;'
-            then:
-              - lambda: |-
-                  id(slot2).ready = true;
-                  id(immich_error_retries) = 0;
-                  ESP_LOGI("immich", "Slot 2 ready: %s", id(slot2).asset_id.c_str());
-                  if (id(active_slot) == 2) {
-                    copy_slot_to_display(id(slot2), id(current_display));
-                    if (!id(slot2).is_portrait) id(active_slot_displayed) = true;
-                  }
-              - if:
-                  condition:
-                    lambda: 'return id(active_slot) == 2 && !id(slot2).is_portrait;'
-                  then:
-                    - script.execute: immich_display_current
-              - if:
-                  condition:
-                    lambda: 'return id(active_slot) == 2 && id(slot2).is_portrait;'
-                  then:
-                    - script.execute: immich_start_portrait_active
-              - if:
-                  condition:
-                    lambda: 'return id(slot2).is_portrait && id(active_slot) != 2;'
-                  then:
-                    - lambda: |-
-                        id(companion_target_slot) = 2;
-                        id(portrait_search_datetime) = id(slot2).datetime;
-                        id(portrait_primary_asset_id) = id(slot2).asset_id;
-                    - script.execute: immich_fetch_portrait_companion
-                  else:
-                    - if:
-                        condition:
-                          lambda: 'return id(active_slot) != 2;'
-                        then:
-                          - script.execute: immich_prefetch_chain
-            else:
-              - lambda: 'ESP_LOGW("immich", "Slot 2 download stale, ignoring");'
+        - lambda: 'id(last_downloaded_slot) = 2;'
+        - script.execute: handle_slot_download_finished
     on_error:
       then:
-        - lambda: |-
-            id(immich_error_retries)++;
-            ESP_LOGE("immich", "Slot 2 decode failed (attempt %d)", id(immich_error_retries));
-        - if:
-            condition:
-              lambda: 'return id(immich_error_retries) < 3;'
-            then:
-              - delay: 2s
-              - script.execute: immich_prefetch_chain
-            else:
-              - lambda: 'id(immich_error_retries) = 0;'
+        - lambda: 'id(last_downloaded_slot) = 2;'
+        - script.execute: handle_slot_download_error
 
   # --- Portrait pair half-width image components (640x1200 each) ---
   - id: immich_portrait_left
@@ -383,6 +248,84 @@ online_image:
 
 script:
   # ---------------------------------------------------------------------------
+  # Shared handler for any slot's on_download_finished
+  # ---------------------------------------------------------------------------
+  - id: handle_slot_download_finished
+    mode: single
+    then:
+      - lambda: |-
+          int slot = id(last_downloaded_slot);
+          auto &meta = (slot == 0) ? id(slot0) : (slot == 1) ? id(slot1) : id(slot2);
+          if (meta.asset_id != meta.pending_asset_id) {
+            ESP_LOGW("immich", "Slot %d download stale, ignoring", slot);
+            return;
+          }
+          meta.ready = true;
+          id(immich_download_retries) = 0;
+          ESP_LOGI("immich", "Slot %d ready: %s", slot, meta.asset_id.c_str());
+          if (id(active_slot) == slot) {
+            copy_slot_to_display(meta, id(current_display));
+            if (!meta.is_portrait) id(active_slot_displayed) = true;
+          }
+      - if:
+          condition:
+            lambda: |-
+              int slot = id(last_downloaded_slot);
+              auto &meta = (slot == 0) ? id(slot0) : (slot == 1) ? id(slot1) : id(slot2);
+              return meta.asset_id == meta.pending_asset_id && id(active_slot) == slot && !meta.is_portrait;
+          then:
+            - script.execute: immich_display_current
+      - if:
+          condition:
+            lambda: |-
+              int slot = id(last_downloaded_slot);
+              auto &meta = (slot == 0) ? id(slot0) : (slot == 1) ? id(slot1) : id(slot2);
+              return meta.asset_id == meta.pending_asset_id && id(active_slot) == slot && meta.is_portrait;
+          then:
+            - script.execute: immich_start_portrait_active
+      - if:
+          condition:
+            lambda: |-
+              int slot = id(last_downloaded_slot);
+              auto &meta = (slot == 0) ? id(slot0) : (slot == 1) ? id(slot1) : id(slot2);
+              return meta.asset_id == meta.pending_asset_id && meta.is_portrait && id(active_slot) != slot;
+          then:
+            - lambda: |-
+                int slot = id(last_downloaded_slot);
+                auto &meta = (slot == 0) ? id(slot0) : (slot == 1) ? id(slot1) : id(slot2);
+                id(companion_target_slot) = slot;
+                id(portrait_search_datetime) = meta.datetime;
+                id(portrait_primary_asset_id) = meta.asset_id;
+            - script.execute: immich_fetch_portrait_companion
+          else:
+            - if:
+                condition:
+                  lambda: |-
+                    int slot = id(last_downloaded_slot);
+                    auto &meta = (slot == 0) ? id(slot0) : (slot == 1) ? id(slot1) : id(slot2);
+                    return meta.asset_id == meta.pending_asset_id && id(active_slot) != slot;
+                then:
+                  - script.execute: immich_prefetch_chain
+
+  # ---------------------------------------------------------------------------
+  # Shared handler for any slot's on_error
+  # ---------------------------------------------------------------------------
+  - id: handle_slot_download_error
+    mode: single
+    then:
+      - lambda: |-
+          id(immich_download_retries)++;
+          ESP_LOGE("immich", "Slot %d decode failed (attempt %d)", id(last_downloaded_slot), id(immich_download_retries));
+      - if:
+          condition:
+            lambda: 'return id(immich_download_retries) < MAX_ERROR_RETRIES;'
+          then:
+            - delay: 2s
+            - script.execute: immich_prefetch_chain
+          else:
+            - lambda: 'id(immich_download_retries) = 0;'
+
+  # ---------------------------------------------------------------------------
   # Start portrait pair download for the active slot
   # ---------------------------------------------------------------------------
   - id: immich_start_portrait_active
@@ -423,41 +366,12 @@ script:
             - script.execute: immich_fetch_portrait_companion
 
   # ---------------------------------------------------------------------------
-  # Display whichever slot is active
+  # Update photo metadata labels (location, time ago) with shadows
   # ---------------------------------------------------------------------------
-  - id: immich_display_current
+  - id: update_photo_metadata_labels
     mode: single
     then:
       - lambda: |-
-          lv_obj_clear_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
-          lv_obj_add_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
-          id(immich_is_portrait_pair) = false;
-      - if:
-          condition:
-            lambda: 'return id(active_slot) == 0;'
-          then:
-            - lvgl.image.update:
-                id: slideshow_img
-                src: immich_img_0
-      - if:
-          condition:
-            lambda: 'return id(active_slot) == 1;'
-          then:
-            - lvgl.image.update:
-                id: slideshow_img
-                src: immich_img_1
-      - if:
-          condition:
-            lambda: 'return id(active_slot) == 2;'
-          then:
-            - lvgl.image.update:
-                id: slideshow_img
-                src: immich_img_2
-      - lambda: |-
-          int s = id(active_slot);
-          auto &meta = (s == 0) ? id(slot0) : (s == 1) ? id(slot1) : id(slot2);
-          lv_img_set_zoom(id(slideshow_img), meta.zoom);
-
           std::string loc = id(current_display).location;
           lv_label_set_text(id(location_label), loc.c_str());
           lv_label_set_text(id(location_label_shadow), loc.c_str());
@@ -468,6 +382,25 @@ script:
             ago = format_time_ago(id(current_display).year, id(current_display).month, now.year, now.month);
           lv_label_set_text(id(time_ago_label), ago.c_str());
           lv_label_set_text(id(time_ago_label_shadow), ago.c_str());
+
+  # ---------------------------------------------------------------------------
+  # Display whichever slot is active
+  # ---------------------------------------------------------------------------
+  - id: immich_display_current
+    mode: single
+    then:
+      - lambda: |-
+          lv_obj_clear_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
+          id(immich_is_portrait_pair) = false;
+
+          int s = id(active_slot);
+          esphome::image::Image *imgs[] = { id(immich_img_0), id(immich_img_1), id(immich_img_2) };
+          lv_img_set_src(id(slideshow_img), imgs[s]->get_lv_img_dsc());
+
+          auto &meta = (s == 0) ? id(slot0) : (s == 1) ? id(slot1) : id(slot2);
+          lv_img_set_zoom(id(slideshow_img), meta.zoom);
+      - script.execute: update_photo_metadata_labels
       - lambda: 'lv_obj_clear_flag(id(info_overlay), LV_OBJ_FLAG_HIDDEN);'
       - script.execute: hide_info_overlay
       - script.execute: extract_accent_color
@@ -484,7 +417,7 @@ script:
                 id(portrait_using_preload) = true;
                 id(portrait_preload_slot) = -1;
                 id(active_slot_displayed) = true;
-                lv_img_set_zoom(id(slideshow_img), 256);
+                lv_img_set_zoom(id(slideshow_img), ZOOM_IDENTITY);
                 lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
                 lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
                 ESP_LOGI("immich", "Instant portrait pair from preload");
@@ -624,28 +557,12 @@ script:
                 meta.ready = false;
                 copy_display_to_slot(id(current_display), meta);
                 meta.pending_asset_id = id(current_display).asset_id;
+
+                std::string url = meta.image_url;
+                if (prev_slot == 0) { id(immich_img_0).set_url(url); id(immich_img_0).update(); }
+                else if (prev_slot == 1) { id(immich_img_1).set_url(url); id(immich_img_1).update(); }
+                else { id(immich_img_2).set_url(url); id(immich_img_2).update(); }
                 ESP_LOGI("immich", "Showing previous in slot %d: %s", prev_slot, id(current_display).asset_id.c_str());
-            - if:
-                condition:
-                  lambda: 'return id(active_slot) == 0;'
-                then:
-                  - online_image.set_url:
-                      id: immich_img_0
-                      url: !lambda 'return id(slot0).image_url;'
-            - if:
-                condition:
-                  lambda: 'return id(active_slot) == 1;'
-                then:
-                  - online_image.set_url:
-                      id: immich_img_1
-                      url: !lambda 'return id(slot1).image_url;'
-            - if:
-                condition:
-                  lambda: 'return id(active_slot) == 2;'
-                then:
-                  - online_image.set_url:
-                      id: immich_img_2
-                      url: !lambda 'return id(slot2).image_url;'
 
   # ---------------------------------------------------------------------------
   # Display portrait pair (called when both left and right are ready)
@@ -656,7 +573,7 @@ script:
       - lambda: |-
           id(immich_is_portrait_pair) = true;
           id(active_slot_displayed) = true;
-          lv_img_set_zoom(id(slideshow_img), 256);
+          lv_img_set_zoom(id(slideshow_img), ZOOM_IDENTITY);
           lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
           lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
           ESP_LOGI("immich", "Displaying portrait pair");
@@ -666,17 +583,7 @@ script:
       - lvgl.image.update:
           id: portrait_right_img
           src: immich_portrait_right
-      - lambda: |-
-          std::string loc = id(current_display).location;
-          lv_label_set_text(id(location_label), loc.c_str());
-          lv_label_set_text(id(location_label_shadow), loc.c_str());
-
-          auto now = id(sntp_time).now();
-          std::string ago;
-          if (now.is_valid())
-            ago = format_time_ago(id(current_display).year, id(current_display).month, now.year, now.month);
-          lv_label_set_text(id(time_ago_label), ago.c_str());
-          lv_label_set_text(id(time_ago_label_shadow), ago.c_str());
+      - script.execute: update_photo_metadata_labels
       - script.execute: extract_accent_color
       - script.execute: immich_prefetch_chain
 
