@@ -2,7 +2,7 @@
 # FACTORY FIRMWARE - Web Installer Build
 # =============================================================================
 # Secrets-free config for the ESPHome web installer. Boots into AP mode
-# for WiFi setup via captive portal or Improv Serial.
+# for WiFi setup via captive portal.
 # =============================================================================
 
 substitutions:
@@ -16,5 +16,3 @@ esphome:
 
 packages:
   immich_frame: !include packages.yaml
-
-improv_serial:
