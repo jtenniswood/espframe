@@ -8,7 +8,7 @@
 
 substitutions:
   immich_slide_interval_seconds: "15"
-  info_overlay_timeout_seconds: "8"
+  info_overlay_timeout_seconds: "0"
   slideshow_check_interval: "5s"
 
 # =============================================================================
@@ -213,7 +213,7 @@ number:
   - platform: template
     name: "Info Overlay Timeout"
     id: info_overlay_timeout
-    min_value: 1
+    min_value: 0
     max_value: 30
     step: 1
     initial_value: ${info_overlay_timeout_seconds}
@@ -274,6 +274,10 @@ script:
   - id: hide_info_overlay
     mode: restart
     then:
-      - delay: !lambda 'return (uint32_t)(id(info_overlay_timeout).state * 1000);'
-      - lambda: 'lv_obj_add_flag(id(info_overlay), LV_OBJ_FLAG_HIDDEN);'
+      - if:
+          condition:
+            lambda: 'return id(info_overlay_timeout).state > 0;'
+          then:
+            - delay: !lambda 'return (uint32_t)(id(info_overlay_timeout).state * 1000);'
+            - lambda: 'lv_obj_add_flag(id(info_overlay), LV_OBJ_FLAG_HIDDEN);'
 
