@@ -24,11 +24,6 @@ wifi:
     - delay: 800ms
     - lvgl.page.show: slideshow_page
     - delay: 2s
-    - lambda: |-
-        ESP_LOGI("immich", "WiFi connected. URL: '%s' (%d chars), API key: %d chars, fetch_started: %s",
-                 id(immich_url).state.c_str(), id(immich_url).state.length(),
-                 id(immich_api_key_text).state.length(),
-                 id(immich_fetch_started) ? "true" : "false");
     - if:
         condition:
           lambda: 'return !id(immich_fetch_started);'

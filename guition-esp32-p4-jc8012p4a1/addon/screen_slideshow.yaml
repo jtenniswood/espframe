@@ -281,10 +281,6 @@ online_image:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
       then:
-        - lambda: |-
-            ESP_LOGI("immich", "Slot 0 download finished (asset: %s, pending: %s, match: %s)",
-                     id(slot0_asset_id).c_str(), id(slot0_pending_asset_id).c_str(),
-                     (id(slot0_asset_id) == id(slot0_pending_asset_id)) ? "yes" : "no");
         - if:
             condition:
               lambda: 'return id(slot0_asset_id) == id(slot0_pending_asset_id);'
@@ -366,7 +362,7 @@ online_image:
       then:
         - lambda: |-
             id(immich_error_retries)++;
-            ESP_LOGE("immich", "Slot 0 download/decode FAILED (attempt %d, url: %s)", id(immich_error_retries), id(slot0_image_url).c_str());
+            ESP_LOGE("immich", "Slot 0 decode failed (attempt %d)", id(immich_error_retries));
         - if:
             condition:
               lambda: 'return id(immich_error_retries) < 3;'
@@ -919,22 +915,12 @@ interval:
               if (!wifi::global_wifi_component->is_connected()) return false;
               if (!id(immich_fetch_started)
                   && !id(immich_url).state.empty() && !id(immich_api_key_text).state.empty()) {
-                ESP_LOGI("immich", "Config detected, starting initial fetch (URL: %s, key: %d chars)",
-                         id(immich_url).state.c_str(), id(immich_api_key_text).state.length());
                 id(immich_fetch_started) = true;
                 id(target_slot) = 0;
                 id(immich_fetch_into_slot).execute();
                 return false;
               }
-              if (!id(immich_fetch_started)) {
-                ESP_LOGD("immich", "Waiting for config: URL='%s' (%d), key=%d chars",
-                         id(immich_url).state.c_str(), id(immich_url).state.length(),
-                         id(immich_api_key_text).state.length());
-                return false;
-              }
-              ESP_LOGD("immich", "Timer tick: active=%d displayed=%s s0=%s s1=%s s2=%s",
-                       id(active_slot), id(active_slot_displayed) ? "Y" : "N",
-                       id(slot0_ready) ? "R" : "-", id(slot1_ready) ? "R" : "-", id(slot2_ready) ? "R" : "-");
+              if (!id(immich_fetch_started)) return false;
               uint32_t interval_ms = (uint32_t)(id(slideshow_interval).state * 1000);
               uint32_t elapsed = millis() - id(immich_last_advance_ms);
               if (elapsed < interval_ms) return false;
@@ -1336,11 +1322,7 @@ script:
                 tag: immich
                 format: "Immich URL or API key not configured. Set via web UI at http://<device-ip>/"
             - script.stop: immich_fetch_into_slot
-      - lambda: |-
-          id(immich_fetch_started) = true;
-          ESP_LOGI("immich", "Fetching into slot %d (URL: %s, key: %d chars)",
-                   id(target_slot), id(immich_url).state.c_str(),
-                   id(immich_api_key_text).state.length());
+      - lambda: 'id(immich_fetch_started) = true;'
       - http_request.post:
           id: http_req
           url: !lambda |-
@@ -1468,7 +1450,6 @@ script:
                     id(slot0_is_portrait) = is_portrait; id(slot0_datetime) = local_datetime;
                     id(slot0_companion_url) = ""; id(slot0_zoom) = slot_zoom;
                     id(slot0_pending_asset_id) = asset_id;
-                    ESP_LOGI("immich", "Starting image download slot 0: %s (api key: %d chars)", img_url.c_str(), id(immich_api_key_text).state.length());
                     id(immich_img_0).set_url(img_url);
                     id(immich_img_0).update();
                   } else if (slot == 1) {
@@ -1479,7 +1460,6 @@ script:
                     id(slot1_is_portrait) = is_portrait; id(slot1_datetime) = local_datetime;
                     id(slot1_companion_url) = ""; id(slot1_zoom) = slot_zoom;
                     id(slot1_pending_asset_id) = asset_id;
-                    ESP_LOGI("immich", "Starting image download slot 1: %s (api key: %d chars)", img_url.c_str(), id(immich_api_key_text).state.length());
                     id(immich_img_1).set_url(img_url);
                     id(immich_img_1).update();
                   } else {
@@ -1490,14 +1470,13 @@ script:
                     id(slot2_is_portrait) = is_portrait; id(slot2_datetime) = local_datetime;
                     id(slot2_companion_url) = ""; id(slot2_zoom) = slot_zoom;
                     id(slot2_pending_asset_id) = asset_id;
-                    ESP_LOGI("immich", "Starting image download slot 2: %s (api key: %d chars)", img_url.c_str(), id(immich_api_key_text).state.length());
                     id(immich_img_2).set_url(img_url);
                     id(immich_img_2).update();
                   }
           on_error:
             then:
               - lambda: |-
-                  ESP_LOGW("immich", "API request error for slot %d (URL: %s)", id(target_slot), id(immich_url).state.c_str());
+                  ESP_LOGW("immich", "API request error for slot %d", id(target_slot));
 
   # ---------------------------------------------------------------------------
   # Fetch a companion portrait from a similar date/time

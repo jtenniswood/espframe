@@ -20,9 +20,6 @@ esphome:
           if (url != id(immich_url).state) {
             id(immich_url).publish_state(url);
           }
-          ESP_LOGI("immich", "Immich config restored from NVS - URL: '%s' (%d chars), API key: %d chars",
-                   id(immich_url).state.c_str(), id(immich_url).state.length(),
-                   id(immich_api_key_text).state.length());
 
 text:
   - platform: template
@@ -36,10 +33,7 @@ text:
     icon: "mdi:web"
     set_action:
       - lambda: |-
-          if (x.empty()) {
-            ESP_LOGD("immich", "Ignoring empty URL update");
-            return;
-          }
+          if (x.empty()) return;
           std::string url = x;
           while (!url.empty() && url.back() == '/') url.pop_back();
           id(immich_url).publish_state(url);
@@ -56,9 +50,6 @@ text:
     icon: "mdi:key"
     set_action:
       - lambda: |-
-          if (x.empty()) {
-            ESP_LOGD("immich", "Ignoring empty API key update");
-            return;
-          }
+          if (x.empty()) return;
           id(immich_api_key_text).publish_state(x);
           ESP_LOGI("immich", "Immich API key configured (%d chars)", x.length());
