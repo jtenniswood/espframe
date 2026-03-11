@@ -25,7 +25,7 @@ jobs:
 
       - name: Build ESPHome firmware
         id: build
-        uses: esphome/build-action@v7
+        uses: esphome/build-action@v7.1.0
         continue-on-error: true
         with:
           yaml-file: guition-esp32-p4-jc8012p4a1/factory.yaml
