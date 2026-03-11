@@ -183,6 +183,7 @@ Tunable defaults:
 
 | Substitution | Default | Defined in | Description |
 |---|---|---|---|
+| `package_ref` | `main` | `device/device.yaml` | Git ref for external components (must match `ref:` in user's packages config) |
 | `immich_slide_interval_seconds` | `15` | `addon/screen_slideshow.yaml` | Default slideshow interval in seconds (runtime-adjustable via HA) |
 | `immich_verify_ssl` | `false` | `addon/connectivity.yaml` | TLS certificate verification |
 

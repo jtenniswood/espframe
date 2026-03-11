@@ -2,6 +2,9 @@
 # HARDWARE CONFIGURATION - Guition ESP32-P4-JC8012P4A1
 # =============================================================================
 
+substitutions:
+  package_ref: "main"
+
 esp32:
   variant: ESP32P4
   flash_size: 16MB
@@ -55,7 +58,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/jtenniswood/immich-frame
-      ref: main
+      ref: ${package_ref}
       path: components
     components: [gsl3680, online_image]
     refresh: 0s
