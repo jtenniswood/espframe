@@ -11,4 +11,4 @@
 
 #define BITS_IN_JSAMPLE  8
 
-#include "../jdcoefct.c"
+#include "jdcoefct.c"

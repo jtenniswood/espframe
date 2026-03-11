@@ -62,6 +62,7 @@ idf_component_register(
         "src/wrapper/jdsample-16.c"
         "src/wrapper/jutils-16.c"
     INCLUDE_DIRS "src"
+    PRIV_INCLUDE_DIRS "src" "src/wrapper"
 )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE

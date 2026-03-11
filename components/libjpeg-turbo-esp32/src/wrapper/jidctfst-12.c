@@ -1,2 +1,2 @@
 #define BITS_IN_JSAMPLE 12
-#include "../jidctfst.c"
+#include "jidctfst.c"

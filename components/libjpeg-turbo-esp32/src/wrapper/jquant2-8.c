@@ -11,4 +11,4 @@
 
 #define BITS_IN_JSAMPLE  8
 
-#include "../jquant2.c"
+#include "jquant2.c"

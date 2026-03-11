@@ -11,4 +11,4 @@
 
 #define BITS_IN_JSAMPLE  8
 
-#include "../jdsample.c"
+#include "jdsample.c"
