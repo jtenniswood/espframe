@@ -59,7 +59,7 @@ ota:
 external_components:
   - source:
       type: git
-      url: https://github.com/jtenniswood/immich-frame
+      url: https://github.com/jtenniswood/espframe
       ref: ${package_ref}
       path: components
     components: [gsl3680, online_image, espframe]

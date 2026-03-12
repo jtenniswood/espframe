@@ -14,7 +14,7 @@ hero:
       link: /install
     - theme: alt
       text: View on GitHub
-      link: https://github.com/jtenniswood/immich-frame
+      link: https://github.com/jtenniswood/espframe
 
 features:
   - title: Fully Standalone

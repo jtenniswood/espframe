@@ -30,7 +30,7 @@ wifi:
 
 packages:
   espframe:
-    url: https://github.com/jtenniswood/immich-frame
+    url: https://github.com/jtenniswood/espframe
     files: [guition-esp32-p4-jc8012p4a1/packages.yaml]
     ref: main
     refresh: 1s
