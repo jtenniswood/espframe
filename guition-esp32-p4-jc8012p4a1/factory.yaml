@@ -26,7 +26,7 @@ update:
     id: firmware_update
     name: Firmware Update
     source: https://jtenniswood.github.io/espframe/firmware/manifest.json
-    update_interval: 6h
+    update_interval: 2h
     on_update_available:
       then:
         - update.perform: firmware_update
