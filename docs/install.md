@@ -19,6 +19,11 @@ The web installer requires **Chrome** or **Edge** on desktop with [WebSerial](ht
 - **Immich server** running on your network — [immich.app](https://immich.app/)
 - An **Immich API key** — see [Creating an API Key](./configuration#creating-an-api-key) for which permissions to select
 
+## Where to Buy
+
+- **Panel:** [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH)
+- **Stand:** [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046)
+
 ## Step-by-Step
 
 ### 1. Connect the device
