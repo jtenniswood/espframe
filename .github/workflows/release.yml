@@ -27,10 +27,13 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
 
       - name: Compile P4 firmware
+        env:
+          VERSION: ${{ github.event.release.tag_name || github.ref_name }}
         run: >-
           docker run --rm
           -v "${PWD}:/config"
           ghcr.io/esphome/esphome:2026.2.4
+          -s firmware_version "${VERSION}"
           compile /config/guition-esp32-p4-jc8012p4a1/factory.yaml
 
       - name: Collect firmware files and generate manifest
@@ -45,8 +48,11 @@ jobs:
           fi
 
           sudo cp "${BUILD_DIR}/firmware.factory.bin" output/immich-frame.factory.bin
+          sudo cp "${BUILD_DIR}/firmware.bin" output/immich-frame.ota.bin
 
+          OTA_MD5=$(md5sum output/immich-frame.ota.bin | cut -d ' ' -f 1)
           VERSION="${{ github.event.release.tag_name || github.ref_name }}"
+
           cat > output/manifest.json << EOF
           {
             "name": "Immich Frame",
@@ -57,7 +63,12 @@ jobs:
                 "chipFamily": "ESP32-P4",
                 "parts": [
                   { "path": "immich-frame.factory.bin", "offset": 0 }
-                ]
+                ],
+                "ota": {
+                  "path": "immich-frame.ota.bin",
+                  "md5": "${OTA_MD5}",
+                  "release_url": "https://github.com/jtenniswood/espframe/releases/tag/${VERSION}"
+                }
               }
             ]
           }
@@ -76,6 +87,7 @@ jobs:
         run: >-
           gh release upload "${{ github.event.release.tag_name }}"
           output/immich-frame.factory.bin
+          output/immich-frame.ota.bin
           output/manifest.json
           --clobber
 
@@ -113,6 +125,7 @@ jobs:
           mkdir -p docs/.vitepress/dist/firmware
           cp firmware/manifest.json docs/.vitepress/dist/firmware/
           cp firmware/*.factory.bin docs/.vitepress/dist/firmware/
+          cp firmware/*.ota.bin docs/.vitepress/dist/firmware/
 
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v4

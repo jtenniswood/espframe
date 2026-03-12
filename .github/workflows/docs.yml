@@ -49,6 +49,7 @@ jobs:
           mkdir -p docs/.vitepress/dist/firmware
           gh release download --pattern 'manifest.json' --dir docs/.vitepress/dist/firmware/ || true
           gh release download --pattern '*.factory.bin' --dir docs/.vitepress/dist/firmware/ || true
+          gh release download --pattern '*.ota.bin' --dir docs/.vitepress/dist/firmware/ || true
 
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v4

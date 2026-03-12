@@ -8,11 +8,25 @@
 substitutions:
   name: "immich-frame-10inch"
   friendly_name: "Immich Frame 10inch"
+  firmware_version: "0.0.0"
 
 esphome:
   project:
     name: jtenniswood.immich-frame
-    version: "1.0.0"
+    version: "${firmware_version}"
 
 packages:
   espframe: !include packages.yaml
+
+ota:
+  - platform: http_request
+
+update:
+  - platform: http_request
+    id: firmware_update
+    name: Firmware Update
+    source: https://jtenniswood.github.io/espframe/firmware/manifest.json
+    update_interval: 6h
+    on_update_available:
+      then:
+        - update.perform: firmware_update
