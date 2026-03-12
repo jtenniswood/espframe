@@ -1,6 +1,6 @@
 # Manual Setup
 
-Install the Immich Frame firmware via the ESPHome dashboard instead of the web installer. This gives you full control over substitutions and lets you customise behaviour that the web installer leaves at defaults.
+Install the espframe firmware via the ESPHome dashboard instead of the web installer. This gives you full control over substitutions and lets you customise behaviour that the web installer leaves at defaults.
 
 ## Prerequisites
 

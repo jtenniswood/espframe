@@ -2,7 +2,7 @@
 
 In your Immich web UI, go to **Account Settings → API Keys → New API Key**.
 
-Immich lets you scope API keys to specific permissions. Immich Frame only needs read access — it never modifies, deletes, or uploads anything in your library. Deselect all permissions first, then enable only the ones below.
+Immich lets you scope API keys to specific permissions. espframe only needs read access — it never modifies, deletes, or uploads anything in your library. Deselect all permissions first, then enable only the ones below.
 
 ## Required permissions
 
