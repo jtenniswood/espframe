@@ -8,7 +8,6 @@ static constexpr int MAX_ERROR_RETRIES = 3;
 static constexpr float PANORAMA_MIN_ASPECT = 1.6f;
 static constexpr float PANORAMA_MAX_ASPECT = 2.0f;
 static constexpr int ACCENT_GRID_SIZE = 20;
-static constexpr int SWIPE_THRESHOLD_PX = 80;
 
 struct PhotoMeta {
   std::string asset_id, image_url, date, location, person;

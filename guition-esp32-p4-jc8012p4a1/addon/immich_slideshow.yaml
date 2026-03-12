@@ -44,10 +44,6 @@ globals:
   - id: immich_download_retries
     type: int
     initial_value: '0'
-  - id: touch_start_x
-    type: int
-    initial_value: '0'
-
   # --- Portrait pair state ---
   - id: portrait_left_ready
     type: bool

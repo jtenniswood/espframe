@@ -26,12 +26,6 @@ lvgl:
             src: immich_img_0
             scrollable: false
             clickable: true
-            on_press:
-              then:
-                - script.execute: handle_touch_press
-            on_release:
-              then:
-                - script.execute: handle_touch_release
             on_long_press:
               then:
                 - script.execute: immich_advance_forward
@@ -50,12 +44,6 @@ lvgl:
             layout:
               type: flex
               flex_flow: ROW
-            on_press:
-              then:
-                - script.execute: handle_touch_press
-            on_release:
-              then:
-                - script.execute: handle_touch_release
             on_long_press:
               then:
                 - script.execute: immich_advance_forward
@@ -168,29 +156,4 @@ interval:
           then:
             - script.execute: immich_advance_forward
 
-# =============================================================================
-# TOUCH / GESTURE SCRIPTS
-# =============================================================================
-
-script:
-  - id: handle_touch_press
-    mode: single
-    then:
-      - lambda: |-
-          lv_point_t point;
-          lv_indev_get_point(lv_indev_get_act(), &point);
-          id(touch_start_x) = point.x;
-
-  - id: handle_touch_release
-    mode: single
-    then:
-      - lambda: |-
-          lv_point_t point;
-          lv_indev_get_point(lv_indev_get_act(), &point);
-          int dx = point.x - id(touch_start_x);
-          if (dx < -SWIPE_THRESHOLD_PX) {
-            id(immich_advance_forward).execute();
-          } else if (dx > SWIPE_THRESHOLD_PX) {
-            id(immich_show_previous).execute();
-          }
 
