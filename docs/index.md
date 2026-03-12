@@ -4,6 +4,8 @@
 
 Espframe is a standalone digital photo frame powered by [ESPHome](https://esphome.io/) on the ESP32-P4. It connects directly to your [Immich](https://immich.app/) server over HTTP and streams your photo library to a 10" touchscreen — no hub, cloud service, or extra software required. Photos advance automatically with smooth transitions, and touch gestures let you swipe through your library at any time.
 
+<a href="./install" class="VPButton medium brand" style="display: inline-block; margin-top: 1em;">Get Started →</a>
+
 ## Clock Overlay
 
 When **Show Clock** is enabled in [settings](./configuration#clock), the current time is displayed in the bottom-left corner of the screen.
