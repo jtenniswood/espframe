@@ -26,3 +26,9 @@
 - Standard landscape images are resized to 1280x960. Portrait pairs are resized to 640x1200 each.
 - Very wide panoramas (wider than 2:1 aspect ratio) are shown with letterboxing rather than zoomed.
 - The companion portrait search picks from up to 10 random same-day photos — it doesn't guarantee the best pairing.
+
+## Bugs & Feature Requests
+
+If you run into a problem not covered here, or have an idea for a new feature, please open an issue on GitHub:
+
+**[github.com/jtenniswood/espframe/issues](https://github.com/jtenniswood/espframe/issues)**
