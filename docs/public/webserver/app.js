@@ -364,23 +364,62 @@
     conn.appendChild(f1);
 
     var f2 = field("API Key");
-    var grp = el("div", "input-group");
-    var keyInput = input("password", S.api_key, "");
-    keyInput.onchange = function () {
-      post(endpoints.api_key + "/set", { value: keyInput.value.trim() });
-      showSaved("API key saved");
-    };
-    var showBtn = el("button", "btn btn-secondary btn-sm");
-    showBtn.textContent = "Show";
-    showBtn.type = "button";
-    showBtn.onclick = function () {
-      var isPass = keyInput.type === "password";
-      keyInput.type = isPass ? "text" : "password";
-      showBtn.textContent = isPass ? "Hide" : "Show";
-    };
-    grp.appendChild(keyInput);
-    grp.appendChild(showBtn);
-    f2.appendChild(grp);
+    var keyConfigured = S.api_key && S.api_key.length > 0;
+    var keyWrap = el("div");
+
+    if (keyConfigured) {
+      var keyStatus = el("div", "input-group");
+      var maskedDisplay = el("div");
+      maskedDisplay.style.cssText =
+        "flex:1;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);" +
+        "border-radius:6px;color:var(--text2);font-size:.9rem;letter-spacing:2px";
+      maskedDisplay.textContent = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
+      var changeBtn = el("button", "btn btn-secondary btn-sm");
+      changeBtn.textContent = "Change";
+      changeBtn.type = "button";
+      changeBtn.onclick = function () {
+        keyWrap.innerHTML = "";
+        keyWrap.appendChild(makeKeyInput());
+      };
+      keyStatus.appendChild(maskedDisplay);
+      keyStatus.appendChild(changeBtn);
+      keyWrap.appendChild(keyStatus);
+    } else {
+      keyWrap.appendChild(makeKeyInput());
+    }
+
+    function makeKeyInput() {
+      var grp = el("div", "input-group");
+      var keyInput = input("text", "", "Paste your Immich API key");
+      keyInput.onchange = function () {
+        var v = keyInput.value.trim();
+        if (!v) return;
+        post(endpoints.api_key + "/set", { value: v });
+        showSaved("API key saved");
+        keyInput.value = "";
+        keyWrap.innerHTML = "";
+        var saved = el("div", "input-group");
+        var mask = el("div");
+        mask.style.cssText =
+          "flex:1;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);" +
+          "border-radius:6px;color:var(--text2);font-size:.9rem;letter-spacing:2px";
+        mask.textContent = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
+        var cb = el("button", "btn btn-secondary btn-sm");
+        cb.textContent = "Change";
+        cb.type = "button";
+        cb.onclick = function () {
+          keyWrap.innerHTML = "";
+          keyWrap.appendChild(makeKeyInput());
+        };
+        saved.appendChild(mask);
+        saved.appendChild(cb);
+        keyWrap.appendChild(saved);
+      };
+      grp.appendChild(keyInput);
+      return grp;
+    }
+
+    f2.appendChild(keyWrap);
     conn.appendChild(f2);
 
     conn.appendChild(connStatus);
