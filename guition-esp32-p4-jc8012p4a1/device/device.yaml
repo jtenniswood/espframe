@@ -62,10 +62,10 @@ external_components:
       url: https://github.com/jtenniswood/immich-frame
       ref: ${package_ref}
       path: components
-    components: [gsl3680, online_image, immich_frame]
+    components: [gsl3680, online_image, espframe]
     refresh: 0s
 
-immich_frame:
+espframe:
 
 # DSI PHY power rail
 esp_ldo:

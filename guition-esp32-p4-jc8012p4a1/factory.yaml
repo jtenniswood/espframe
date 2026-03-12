@@ -15,4 +15,4 @@ esphome:
     version: "1.0.0"
 
 packages:
-  immich_frame: !include packages.yaml
+  espframe: !include packages.yaml

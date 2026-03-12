@@ -29,7 +29,7 @@ wifi:
   password: !secret wifi_password
 
 packages:
-  immich_frame:
+  espframe:
     url: https://github.com/jtenniswood/immich-frame
     files: [guition-esp32-p4-jc8012p4a1/packages.yaml]
     ref: main
