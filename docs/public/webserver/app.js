@@ -719,14 +719,23 @@
     var fw = el("div", "card");
     fw.innerHTML = "<h3>Firmware</h3>";
 
-    if (S.firmware || S.installed_version) {
-      var ver = el("div", "field");
-      ver.innerHTML =
-        '<label>Version</label><span style="font-size:.9rem">' +
-        esc(S.firmware || S.installed_version) +
-        "</span>";
-      fw.appendChild(ver);
-    }
+    var versionRow = el("div", "field");
+    versionRow.style.cssText = "display:flex;align-items:center;justify-content:space-between";
+    var versionLabel = el("span");
+    versionLabel.style.cssText = "font-size:.9rem";
+    versionLabel.innerHTML = '<span style="color:var(--text2)">Installed</span> ' +
+      esc(S.firmware || S.installed_version || "unknown");
+    var checkBtn = el("button", "btn btn-secondary btn-sm");
+    checkBtn.textContent = "Check for Update";
+    var statusMsg = el("span");
+    statusMsg.style.cssText = "font-size:.8rem;color:var(--text2)";
+    versionRow.appendChild(versionLabel);
+    var checkWrap = el("div");
+    checkWrap.style.cssText = "display:flex;align-items:center;gap:8px;flex-shrink:0";
+    checkWrap.appendChild(statusMsg);
+    checkWrap.appendChild(checkBtn);
+    versionRow.appendChild(checkWrap);
+    fw.appendChild(versionRow);
 
     var updateRow = el("div");
     fw.appendChild(updateRow);
@@ -738,10 +747,10 @@
       if (!S.update_available) return;
       var row = el("div", "field");
       row.style.cssText = "display:flex;align-items:center;justify-content:space-between";
-      var info = el("div");
-      info.innerHTML =
-        '<div style="font-size:.8rem;color:var(--text2)">Stable</div>' +
-        '<div style="font-size:.9rem;color:var(--accent)">' + esc(S.latest_version) + "</div>";
+      var label = el("span");
+      label.style.cssText = "font-size:.9rem";
+      label.innerHTML = '<span style="color:var(--text2)">Stable</span> ' + esc(S.latest_version);
+      row.style.marginBottom = "8px";
       var installBtn = el("button", "btn btn-primary btn-sm");
       installBtn.textContent = "Install";
       installBtn.onclick = function () {
@@ -749,7 +758,7 @@
         installBtn.textContent = "Installing\u2026";
         post("/update/firmware_update/install");
       };
-      row.appendChild(info);
+      row.appendChild(label);
       row.appendChild(installBtn);
       updateRow.appendChild(row);
     }
@@ -759,10 +768,10 @@
       if (!S.beta_opt_in || !S.beta_available) return;
       var row = el("div", "field");
       row.style.cssText = "display:flex;align-items:center;justify-content:space-between";
-      var info = el("div");
-      info.innerHTML =
-        '<div style="font-size:.8rem;color:var(--text2)">Pre-release</div>' +
-        '<div style="font-size:.9rem">' + esc(S.beta_version) + "</div>";
+      var label = el("span");
+      label.style.cssText = "font-size:.9rem";
+      label.innerHTML = '<span style="color:var(--text2)">Pre-release</span> ' + esc(S.beta_version);
+      row.style.marginBottom = "8px";
       var betaBtn = el("button", "btn btn-secondary btn-sm");
       betaBtn.textContent = "Install";
       betaBtn.onclick = function () {
@@ -770,7 +779,7 @@
         betaBtn.textContent = "Installing\u2026";
         post(endpoints.update_beta + "/install");
       };
-      row.appendChild(info);
+      row.appendChild(label);
       row.appendChild(betaBtn);
       betaRow.appendChild(row);
     }
@@ -778,14 +787,6 @@
     renderUpdateRow();
     renderBetaRow();
 
-    var btnRow = el("div", "field");
-    btnRow.style.display = "flex";
-    btnRow.style.gap = "8px";
-    btnRow.style.alignItems = "center";
-    var checkBtn = el("button", "btn btn-secondary btn-sm");
-    checkBtn.textContent = "Check for Update";
-    var statusMsg = el("span");
-    statusMsg.style.cssText = "font-size:.8rem;color:var(--text2)";
     checkBtn.onclick = function () {
       checkBtn.disabled = true;
       checkBtn.textContent = "Checking\u2026";
@@ -810,9 +811,6 @@
             S.update_available = true;
             S.latest_version = data.latest_version || data.value;
             renderUpdateRow();
-          } else {
-            statusMsg.textContent = "You\u2019re on the latest version";
-            statusMsg.style.color = "var(--success)";
           }
           if (S.beta_opt_in) {
             return safeGet(endpoints.update_beta);
@@ -827,15 +825,12 @@
               : betaData.state === "UPDATE AVAILABLE";
           }
           renderBetaRow();
-          if (!S.update_available && !S.beta_available) {
-            statusMsg.textContent = "You\u2019re on the latest version";
+          if (!S.update_available && !(S.beta_opt_in && S.beta_available)) {
+            statusMsg.textContent = "Up to date";
             statusMsg.style.color = "var(--success)";
           }
         });
     };
-    btnRow.appendChild(checkBtn);
-    btnRow.appendChild(statusMsg);
-    fw.appendChild(btnRow);
 
     var fAutoUpd = field("");
     var autoTr = el("div", "toggle-row");
