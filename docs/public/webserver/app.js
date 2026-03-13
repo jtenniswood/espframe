@@ -728,14 +728,55 @@
       fw.appendChild(ver);
     }
 
-    if (S.update_available) {
-      var upd = el("div", "field");
-      upd.innerHTML =
-        '<label>Update Available</label><span style="font-size:.9rem;color:var(--accent)">' +
-        esc(S.latest_version) +
-        "</span>";
-      fw.appendChild(upd);
+    var updateRow = el("div");
+    fw.appendChild(updateRow);
+    var betaRow = el("div");
+    fw.appendChild(betaRow);
+
+    function renderUpdateRow() {
+      updateRow.innerHTML = "";
+      if (!S.update_available) return;
+      var row = el("div", "field");
+      row.style.cssText = "display:flex;align-items:center;justify-content:space-between";
+      var info = el("div");
+      info.innerHTML =
+        '<div style="font-size:.8rem;color:var(--text2)">Stable</div>' +
+        '<div style="font-size:.9rem;color:var(--accent)">' + esc(S.latest_version) + "</div>";
+      var installBtn = el("button", "btn btn-primary btn-sm");
+      installBtn.textContent = "Install";
+      installBtn.onclick = function () {
+        installBtn.disabled = true;
+        installBtn.textContent = "Installing\u2026";
+        post("/update/firmware_update/install");
+      };
+      row.appendChild(info);
+      row.appendChild(installBtn);
+      updateRow.appendChild(row);
     }
+
+    function renderBetaRow() {
+      betaRow.innerHTML = "";
+      if (!S.beta_opt_in || !S.beta_available) return;
+      var row = el("div", "field");
+      row.style.cssText = "display:flex;align-items:center;justify-content:space-between";
+      var info = el("div");
+      info.innerHTML =
+        '<div style="font-size:.8rem;color:var(--text2)">Pre-release</div>' +
+        '<div style="font-size:.9rem">' + esc(S.beta_version) + "</div>";
+      var betaBtn = el("button", "btn btn-secondary btn-sm");
+      betaBtn.textContent = "Install";
+      betaBtn.onclick = function () {
+        betaBtn.disabled = true;
+        betaBtn.textContent = "Installing\u2026";
+        post(endpoints.update_beta + "/install");
+      };
+      row.appendChild(info);
+      row.appendChild(betaBtn);
+      betaRow.appendChild(row);
+    }
+
+    renderUpdateRow();
+    renderBetaRow();
 
     var btnRow = el("div", "field");
     btnRow.style.display = "flex";
@@ -761,31 +802,14 @@
         .then(function (data) {
           checkBtn.disabled = false;
           checkBtn.textContent = "Check for Update";
-          if (
-            data &&
-            data.current_version &&
-            data.latest_version &&
-            data.current_version !== data.latest_version
-          ) {
+          var hasUpdate = data && data.value &&
+            (data.current_version
+              ? data.current_version !== data.latest_version
+              : data.state === "UPDATE AVAILABLE");
+          if (hasUpdate) {
             S.update_available = true;
-            S.latest_version = data.latest_version;
-            statusMsg.textContent = "";
-            btnRow.innerHTML = "";
-            var updateInfo = el("div");
-            updateInfo.style.cssText = "width:100%";
-            updateInfo.innerHTML =
-              '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
-              '<span style="font-size:.85rem;color:var(--accent)">' +
-              esc(data.latest_version) + " available</span></div>";
-            var installBtn = el("button", "btn btn-primary btn-sm");
-            installBtn.textContent = "Install Now";
-            installBtn.onclick = function () {
-              installBtn.disabled = true;
-              installBtn.textContent = "Installing\u2026";
-              post("/update/firmware_update/install");
-            };
-            updateInfo.appendChild(installBtn);
-            btnRow.appendChild(updateInfo);
+            S.latest_version = data.latest_version || data.value;
+            renderUpdateRow();
           } else {
             statusMsg.textContent = "You\u2019re on the latest version";
             statusMsg.style.color = "var(--success)";
@@ -796,44 +820,22 @@
           return null;
         })
         .then(function (betaData) {
-          if (betaData && betaData.latest_version) {
-            S.beta_version = betaData.latest_version;
-            S.beta_available =
-              betaData.current_version &&
-              betaData.latest_version !== betaData.current_version;
+          if (betaData && (betaData.latest_version || betaData.value)) {
+            S.beta_version = betaData.latest_version || betaData.value;
+            S.beta_available = betaData.current_version
+              ? betaData.latest_version !== betaData.current_version
+              : betaData.state === "UPDATE AVAILABLE";
           }
           renderBetaRow();
+          if (!S.update_available && !S.beta_available) {
+            statusMsg.textContent = "You\u2019re on the latest version";
+            statusMsg.style.color = "var(--success)";
+          }
         });
     };
     btnRow.appendChild(checkBtn);
     btnRow.appendChild(statusMsg);
     fw.appendChild(btnRow);
-
-    var betaRow = el("div");
-    fw.appendChild(betaRow);
-
-    function renderBetaRow() {
-      betaRow.innerHTML = "";
-      if (!S.beta_opt_in || !S.beta_available) return;
-      var inner = el("div", "field");
-      inner.style.display = "flex";
-      inner.style.gap = "8px";
-      inner.style.alignItems = "center";
-      var betaLabel = el("span");
-      betaLabel.style.cssText = "font-size:.85rem;color:var(--text2)";
-      betaLabel.textContent = "Pre-release: " + S.beta_version;
-      var betaBtn = el("button", "btn btn-secondary btn-sm");
-      betaBtn.textContent = "Install Pre-release";
-      betaBtn.onclick = function () {
-        betaBtn.disabled = true;
-        betaBtn.textContent = "Installing\u2026";
-        post(endpoints.update_beta + "/install");
-      };
-      inner.appendChild(betaLabel);
-      inner.appendChild(betaBtn);
-      betaRow.appendChild(inner);
-    }
-    renderBetaRow();
 
     var fAutoUpd = field("");
     var autoTr = el("div", "toggle-row");
@@ -879,11 +881,11 @@
       localStorage.setItem("beta_opt_in", S.beta_opt_in ? "true" : "false");
       if (S.beta_opt_in) {
         safeGet(endpoints.update_beta).then(function (betaData) {
-          if (betaData && betaData.latest_version) {
-            S.beta_version = betaData.latest_version;
-            S.beta_available =
-              betaData.current_version &&
-              betaData.latest_version !== betaData.current_version;
+          if (betaData && (betaData.latest_version || betaData.value)) {
+            S.beta_version = betaData.latest_version || betaData.value;
+            S.beta_available = betaData.current_version
+              ? betaData.latest_version !== betaData.current_version
+              : betaData.state === "UPDATE AVAILABLE";
           }
           renderBetaRow();
         });
