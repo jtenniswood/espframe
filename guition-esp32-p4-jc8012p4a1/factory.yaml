@@ -3,6 +3,9 @@
 # =============================================================================
 # Secrets-free config for the ESPHome web installer. Boots into AP mode
 # for WiFi setup via captive portal.
+#
+# Compiled by CI (see .github/workflows/release.yml) — not used locally.
+# For local development, use dev.yaml instead.
 # =============================================================================
 
 substitutions:
