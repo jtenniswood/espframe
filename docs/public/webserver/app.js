@@ -719,8 +719,9 @@
     var fw = el("div", "card");
     fw.innerHTML = "<h3>Firmware</h3>";
 
+    var fwRowStyle = "display:flex;align-items:center;justify-content:space-between;min-height:40px";
     var versionRow = el("div", "field");
-    versionRow.style.cssText = "display:flex;align-items:center;justify-content:space-between";
+    versionRow.style.cssText = fwRowStyle;
     var versionLabel = el("span");
     versionLabel.style.cssText = "font-size:.9rem";
     versionLabel.innerHTML = '<span style="color:var(--text2)">Installed</span> ' +
@@ -740,17 +741,17 @@
     var updateRow = el("div");
     fw.appendChild(updateRow);
     var betaRow = el("div");
+    betaRow.style.marginBottom = "12px";
     fw.appendChild(betaRow);
 
     function renderUpdateRow() {
       updateRow.innerHTML = "";
       if (!S.update_available) return;
       var row = el("div", "field");
-      row.style.cssText = "display:flex;align-items:center;justify-content:space-between";
+      row.style.cssText = fwRowStyle;
       var label = el("span");
       label.style.cssText = "font-size:.9rem";
       label.innerHTML = '<span style="color:var(--text2)">Stable</span> ' + esc(S.latest_version);
-      row.style.marginBottom = "8px";
       var installBtn = el("button", "btn btn-primary btn-sm");
       installBtn.textContent = "Install";
       installBtn.onclick = function () {
@@ -767,11 +768,10 @@
       betaRow.innerHTML = "";
       if (!S.beta_opt_in || !S.beta_available) return;
       var row = el("div", "field");
-      row.style.cssText = "display:flex;align-items:center;justify-content:space-between";
+      row.style.cssText = fwRowStyle;
       var label = el("span");
       label.style.cssText = "font-size:.9rem";
       label.innerHTML = '<span style="color:var(--text2)">Pre-release</span> ' + esc(S.beta_version);
-      row.style.marginBottom = "8px";
       var betaBtn = el("button", "btn btn-secondary btn-sm");
       betaBtn.textContent = "Install";
       betaBtn.onclick = function () {
@@ -832,8 +832,36 @@
         });
     };
 
+    var fBetaUpd = field("");
+    var betaTr = el("div", "toggle-row");
+    betaTr.style.minHeight = "40px";
+    betaTr.innerHTML = "<span>Pre-release Updates</span>";
+    var betaTog = el("div", S.beta_opt_in ? "toggle on" : "toggle");
+    betaTog.onclick = function () {
+      S.beta_opt_in = !S.beta_opt_in;
+      betaTog.className = S.beta_opt_in ? "toggle on" : "toggle";
+      localStorage.setItem("beta_opt_in", S.beta_opt_in ? "true" : "false");
+      if (S.beta_opt_in) {
+        safeGet(endpoints.update_beta).then(function (betaData) {
+          if (betaData && (betaData.latest_version || betaData.value)) {
+            S.beta_version = betaData.latest_version || betaData.value;
+            S.beta_available = betaData.current_version
+              ? betaData.latest_version !== betaData.current_version
+              : betaData.state === "UPDATE AVAILABLE";
+          }
+          renderBetaRow();
+        });
+      } else {
+        betaRow.innerHTML = "";
+      }
+    };
+    betaTr.appendChild(betaTog);
+    fBetaUpd.appendChild(betaTr);
+    fw.appendChild(fBetaUpd);
+
     var fAutoUpd = field("");
     var autoTr = el("div", "toggle-row");
+    autoTr.style.minHeight = "40px";
     autoTr.innerHTML = "<span>Auto Update</span>";
     var autoTog = el("div", S.auto_update ? "toggle on" : "toggle");
     autoTog.onclick = function () {
@@ -865,32 +893,6 @@
     freqField.appendChild(freqSel);
     freqField.style.display = S.auto_update ? "" : "none";
     fw.appendChild(freqField);
-
-    var fBetaUpd = field("");
-    var betaTr = el("div", "toggle-row");
-    betaTr.innerHTML = "<span>Pre-release Updates</span>";
-    var betaTog = el("div", S.beta_opt_in ? "toggle on" : "toggle");
-    betaTog.onclick = function () {
-      S.beta_opt_in = !S.beta_opt_in;
-      betaTog.className = S.beta_opt_in ? "toggle on" : "toggle";
-      localStorage.setItem("beta_opt_in", S.beta_opt_in ? "true" : "false");
-      if (S.beta_opt_in) {
-        safeGet(endpoints.update_beta).then(function (betaData) {
-          if (betaData && (betaData.latest_version || betaData.value)) {
-            S.beta_version = betaData.latest_version || betaData.value;
-            S.beta_available = betaData.current_version
-              ? betaData.latest_version !== betaData.current_version
-              : betaData.state === "UPDATE AVAILABLE";
-          }
-          renderBetaRow();
-        });
-      } else {
-        betaRow.innerHTML = "";
-      }
-    };
-    betaTr.appendChild(betaTog);
-    fBetaUpd.appendChild(betaTr);
-    fw.appendChild(fBetaUpd);
 
     wrap.appendChild(fw);
 
