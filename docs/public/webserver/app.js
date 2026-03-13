@@ -719,7 +719,7 @@
     var fw = el("div", "card");
     fw.innerHTML = "<h3>Firmware</h3>";
 
-    var fwRowStyle = "display:flex;align-items:center;justify-content:space-between;min-height:40px";
+    var fwRowStyle = "display:flex;align-items:center;justify-content:space-between;min-height:36px";
     var versionRow = el("div", "field");
     versionRow.style.cssText = fwRowStyle;
     var versionLabel = el("span");
@@ -834,7 +834,6 @@
 
     var fBetaUpd = field("");
     var betaTr = el("div", "toggle-row");
-    betaTr.style.minHeight = "40px";
     betaTr.innerHTML = "<span>Pre-release Updates</span>";
     var betaTog = el("div", S.beta_opt_in ? "toggle on" : "toggle");
     betaTog.onclick = function () {
@@ -861,7 +860,6 @@
 
     var fAutoUpd = field("");
     var autoTr = el("div", "toggle-row");
-    autoTr.style.minHeight = "40px";
     autoTr.innerHTML = "<span>Auto Update</span>";
     var autoTog = el("div", S.auto_update ? "toggle on" : "toggle");
     autoTog.onclick = function () {

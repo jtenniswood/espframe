@@ -62,7 +62,7 @@ select option{background:var(--surface);color:var(--text)}
 
 .toggle-row{
   display:flex;justify-content:space-between;align-items:center;
-  padding:2px 0;
+  min-height:36px;
 }
 .toggle-row span{font-size:.9rem}
 .toggle{
