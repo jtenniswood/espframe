@@ -26,6 +26,7 @@ export default defineConfig({
         text: 'Advanced',
         items: [
           { text: 'Home Assistant', link: '/home-assistant' },
+          { text: 'WireGuard VPN', link: '/wireguard' },
           { text: 'Manual Setup', link: '/manual-setup' },
           { text: 'Troubleshooting', link: '/troubleshooting' },
         ],
