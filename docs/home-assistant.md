@@ -1,3 +1,8 @@
+---
+title: Home Assistant Integration
+description: Optionally integrate Immich Frame with Home Assistant for OTA updates and dashboard controls.
+---
+
 # Home Assistant
 
 Home Assistant is **not required** to use Immich Frame — the device works fully standalone with its built-in [web UI](/configuration). However, if you already run [Home Assistant](https://www.home-assistant.io/), you can add the frame as an ESPHome device to manage updates and change settings from your dashboard instead.

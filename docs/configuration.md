@@ -1,3 +1,8 @@
+---
+title: Configuration
+description: Configure slideshow intervals, clock overlay, backlight schedules, and Wi-Fi settings for your Immich Frame.
+---
+
 # Configuration
 
 All settings can be changed at any time through the device's built-in web UI — no recompilation needed.

@@ -1,3 +1,8 @@
+---
+title: Install Immich Frame
+description: Flash Immich Frame firmware to your ESP32-P4 directly from the browser using Web Serial.
+---
+
 # Install
 
 Flash Immich Frame directly from your browser.

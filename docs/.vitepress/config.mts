@@ -1,9 +1,43 @@
 import { defineConfig } from 'vitepress'
 
+const hostname = 'https://jtenniswood.github.io/espframe/'
+
 export default defineConfig({
   title: 'Immich Frame',
   description: 'Standalone Immich-powered digital photo frame on ESP32-P4',
   base: '/espframe/',
+
+  sitemap: {
+    hostname,
+  },
+
+  head: [
+    ['meta', { property: 'og:type', content: 'website' }],
+    ['meta', { property: 'og:site_name', content: 'Immich Frame' }],
+    ['meta', { property: 'og:image', content: `${hostname}immich-frame.png` }],
+    ['meta', { property: 'og:url', content: hostname }],
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    ['meta', { name: 'twitter:image', content: `${hostname}immich-frame.png` }],
+    ['link', { rel: 'icon', type: 'image/png', href: '/espframe/immich-frame.png' }],
+    ['script', { type: 'application/ld+json' }, JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: 'Immich Frame',
+      applicationCategory: 'MultimediaApplication',
+      operatingSystem: 'ESP32',
+      description: 'Standalone Immich-powered digital photo frame on ESP32-P4',
+      url: hostname,
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    })],
+  ],
+
+  transformPageData(pageData) {
+    const canonical = `${hostname}${pageData.relativePath}`
+      .replace(/index\.md$/, '')
+      .replace(/\.md$/, '.html')
+    pageData.frontmatter.head ??= []
+    pageData.frontmatter.head.push(['link', { rel: 'canonical', href: canonical }])
+  },
 
   themeConfig: {
     nav: [

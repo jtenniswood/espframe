@@ -1,3 +1,8 @@
+---
+title: Troubleshooting
+description: Solutions for common Immich Frame issues including HTTP 401 errors, Wi-Fi problems, and display issues.
+---
+
 # Troubleshooting
 
 ## Common Issues

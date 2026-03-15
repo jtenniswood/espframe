@@ -1,3 +1,8 @@
+---
+title: Immich API Key
+description: Create a scoped Immich API key with minimal read-only permissions for your Espframe device.
+---
+
 # Immich API Key
 
 In your Immich web UI, go to **Account Settings → API Keys → New API Key**.
