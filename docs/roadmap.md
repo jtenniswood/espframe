@@ -13,9 +13,9 @@ Control **which** photos the frame displays.
 
 | Feature | Status |
 |---|---|
-| Filter by album | Planned |
-| Filter by person / face | Planned |
-| Favourite-only mode | Planned |
+| Filter by album | Done |
+| Filter by person / face | Done |
+| Favourite-only mode | Done |
 | Date-range filter (e.g. "this month in history") | Planned |
 | Exclude videos / motion photos | Planned |
 | Daily memory groups (e.g. "on this day" photo collections) | Planned |

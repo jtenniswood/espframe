@@ -5,6 +5,7 @@ packages:
   lvgl_base:       !include device/lvgl_base.yaml
   connectivity:    !include addon/connectivity.yaml
   immich_config:   !include addon/immich_config.yaml
+  immich_filter:   !include addon/immich_filter.yaml
   backlight:       !include addon/backlight.yaml
   backlight_sched: !include addon/backlight_schedule.yaml
   time_sync:       !include addon/time.yaml

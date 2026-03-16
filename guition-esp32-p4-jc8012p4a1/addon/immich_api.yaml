@@ -57,7 +57,8 @@ script:
             Content-Type: application/json
             Accept: application/json
             x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
-          body: '{"size":1,"type":"IMAGE","withExif":true,"withPeople":true}'
+          body: !lambda |-
+            return build_immich_search_body(1, true, id(photo_source_select).state, id(immich_album_ids).state, id(immich_person_ids).state);
           on_response:
             then:
               - lambda: |-
@@ -221,7 +222,8 @@ script:
             x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
           body: !lambda |-
             std::string day = id(portrait_search_datetime);
-            return "{\"size\":5,\"type\":\"IMAGE\",\"withExif\":true,\"takenAfter\":\"" + day + "T00:00:00.000Z\",\"takenBefore\":\"" + day + "T23:59:59.999Z\"}";
+            std::string extra = "\"takenAfter\":\"" + day + "T00:00:00.000Z\",\"takenBefore\":\"" + day + "T23:59:59.999Z\"";
+            return build_immich_search_body(5, false, id(photo_source_select).state, id(immich_album_ids).state, id(immich_person_ids).state, extra);
           on_response:
             then:
               - lambda: |-

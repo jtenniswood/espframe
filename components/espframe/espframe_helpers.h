@@ -64,6 +64,54 @@ inline void copy_display_to_slot(const DisplayMeta &disp, SlotMeta &slot) {
 }
 
 // ============================================================================
+// Immich search body builder
+// ============================================================================
+// Builds the JSON POST body for /api/search/random with optional filters
+// for favorites, albums, and people. The `extra` parameter allows injecting
+// additional JSON fields (e.g. takenAfter/takenBefore for companion search).
+
+inline std::string build_uuid_json_array(const std::string &csv) {
+  std::string result = "[";
+  size_t start = 0;
+  bool first = true;
+  while (start < csv.size()) {
+    size_t end = csv.find(',', start);
+    if (end == std::string::npos) end = csv.size();
+    size_t s = start, e = end;
+    while (s < e && csv[s] == ' ') s++;
+    while (e > s && csv[e - 1] == ' ') e--;
+    if (s < e) {
+      if (!first) result += ",";
+      result += "\"" + csv.substr(s, e - s) + "\"";
+      first = false;
+    }
+    start = end + 1;
+  }
+  result += "]";
+  return result;
+}
+
+inline std::string build_immich_search_body(int size, bool with_people,
+                                             const std::string &photo_source,
+                                             const std::string &album_ids,
+                                             const std::string &person_ids,
+                                             const std::string &extra = "") {
+  std::string body = "{\"size\":" + std::to_string(size) +
+                      ",\"type\":\"IMAGE\",\"withExif\":true";
+  if (with_people) body += ",\"withPeople\":true";
+  if (!extra.empty()) body += "," + extra;
+  if (photo_source == "Favorites") {
+    body += ",\"isFavorite\":true";
+  } else if (photo_source == "Album" && !album_ids.empty()) {
+    body += ",\"albumIds\":" + build_uuid_json_array(album_ids);
+  } else if (photo_source == "Person" && !person_ids.empty()) {
+    body += ",\"personIds\":" + build_uuid_json_array(person_ids);
+  }
+  body += "}";
+  return body;
+}
+
+// ============================================================================
 // Timezone coordinate lookup table
 // ============================================================================
 // Representative city lat/lon for each timezone in the selection list.

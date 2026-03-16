@@ -81,6 +81,10 @@
     brightness_night: 75,
     sunrise: "",
     sunset: "",
+    photo_source: "All Photos",
+    photo_source_options: ["All Photos", "Favorites", "Album", "Person"],
+    album_ids: "",
+    person_ids: "",
   };
 
   var app = document.getElementById("app");
@@ -111,6 +115,9 @@
     brightness_night: "/number/nighttime_brightness",
     sunrise: "/text_sensor/sunrise_time",
     sunset: "/text_sensor/sunset_time",
+    photo_source: "/select/photo_source",
+    album_ids: "/text/album_ids",
+    person_ids: "/text/person_ids",
   };
 
   function post(url, params) {
@@ -202,6 +209,13 @@
       S.sunrise = d.value || d.state || "";
     } else if (id === "text_sensor-sunset_time") {
       S.sunset = d.value || d.state || "";
+    } else if (id === "select-photo_source") {
+      S.photo_source = d.value || "All Photos";
+      if (d.option && d.option.length) S.photo_source_options = d.option;
+    } else if (id === "text-album_ids") {
+      S.album_ids = d.value || "";
+    } else if (id === "text-person_ids") {
+      S.person_ids = d.value || "";
     }
   }
 
@@ -480,6 +494,58 @@
 
     conn.appendChild(connStatus);
     wrap.appendChild(conn);
+
+    // Photo Source
+    var src = el("div", "card");
+    src.innerHTML = "<h3>Photo Source</h3>";
+
+    var fSrc = field("Source");
+    var srcSel = document.createElement("select");
+    srcSel.className = "select";
+    S.photo_source_options.forEach(function (opt) {
+      var o = document.createElement("option");
+      o.value = opt;
+      o.textContent = opt;
+      if (opt === S.photo_source) o.selected = true;
+      srcSel.appendChild(o);
+    });
+
+    var albumField = field("Album IDs");
+    var albumInput = input("text", S.album_ids, "Paste album IDs, comma-separated");
+    albumInput.onchange = function () {
+      post(endpoints.album_ids + "/set", { value: albumInput.value.trim() });
+    };
+    var albumHint = el("div");
+    albumHint.style.cssText = "font-size:.75rem;color:var(--text2);margin-top:4px";
+    albumHint.textContent = "Find IDs in your Immich server URL bar";
+    albumField.appendChild(albumInput);
+    albumField.appendChild(albumHint);
+    albumField.style.display = S.photo_source === "Album" ? "" : "none";
+
+    var personField = field("Person IDs");
+    var personInput = input("text", S.person_ids, "Paste person IDs, comma-separated");
+    personInput.onchange = function () {
+      post(endpoints.person_ids + "/set", { value: personInput.value.trim() });
+    };
+    var personHint = el("div");
+    personHint.style.cssText = "font-size:.75rem;color:var(--text2);margin-top:4px";
+    personHint.textContent = "Find IDs in your Immich server URL bar";
+    personField.appendChild(personInput);
+    personField.appendChild(personHint);
+    personField.style.display = S.photo_source === "Person" ? "" : "none";
+
+    srcSel.onchange = function () {
+      S.photo_source = srcSel.value;
+      post(endpoints.photo_source + "/set", { option: srcSel.value });
+      albumField.style.display = srcSel.value === "Album" ? "" : "none";
+      personField.style.display = srcSel.value === "Person" ? "" : "none";
+    };
+
+    fSrc.appendChild(srcSel);
+    src.appendChild(fSrc);
+    src.appendChild(albumField);
+    src.appendChild(personField);
+    wrap.appendChild(src);
 
     // Display
     var disp = el("div", "card");

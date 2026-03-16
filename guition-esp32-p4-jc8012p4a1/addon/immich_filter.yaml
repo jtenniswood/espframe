@@ -1,0 +1,52 @@
+# =============================================================================
+# IMMICH FILTER - Photo source selection and filtering
+# =============================================================================
+# Controls which photos the frame displays: all photos, favorites only,
+# specific albums, or specific people. Values persist across reboots via NVS.
+# =============================================================================
+
+select:
+  - platform: template
+    name: "Photo Source"
+    id: photo_source_select
+    options:
+      - "All Photos"
+      - "Favorites"
+      - "Album"
+      - "Person"
+    initial_option: "All Photos"
+    optimistic: true
+    restore_value: true
+    icon: "mdi:image-filter-frames"
+    on_value:
+      then:
+        - lambda: 'ESP_LOGI("immich", "Photo source: %s", x.c_str());'
+
+text:
+  - platform: template
+    name: "Album IDs"
+    id: immich_album_ids
+    optimistic: false
+    restore_value: true
+    min_length: 0
+    max_length: 512
+    mode: text
+    icon: "mdi:folder-image"
+    set_action:
+      - lambda: |-
+          id(immich_album_ids).publish_state(x);
+          ESP_LOGI("immich", "Album IDs configured (%d chars)", x.length());
+
+  - platform: template
+    name: "Person IDs"
+    id: immich_person_ids
+    optimistic: false
+    restore_value: true
+    min_length: 0
+    max_length: 512
+    mode: text
+    icon: "mdi:account-group"
+    set_action:
+      - lambda: |-
+          id(immich_person_ids).publish_state(x);
+          ESP_LOGI("immich", "Person IDs configured (%d chars)", x.length());
