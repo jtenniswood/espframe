@@ -13,12 +13,7 @@ Control **which** photos the frame displays.
 
 | Feature | Status |
 |---|---|
-| Filter by album | Done |
-| Filter by person / face | Done |
-| Favourite-only mode | Done |
-| Date-range filter (e.g. "this month in history") | Planned |
-| Exclude videos / motion photos | Planned |
-| Daily memory groups (e.g. "on this day" photo collections) | Planned |
+| Immich Memories | Planned |
 
 ## Offline Storage
 
@@ -34,8 +29,7 @@ Automatically adjust display output based on ambient light conditions.
 
 | Feature | Status |
 |---|---|
-| Automatic brightness based on ambient light level | Planned |
-| Automatic white balance based on ambient light temperature | Planned |
+| Automatic white balance based on time/season | Planned |
 
 ## Photo Metadata
 

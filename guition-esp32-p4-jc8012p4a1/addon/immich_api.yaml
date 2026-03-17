@@ -12,6 +12,9 @@ globals:
   - id: immich_memory_fallback
     type: bool
     initial_value: 'false'
+  - id: immich_memory_asset_id
+    type: std::string
+    initial_value: '""'
 
 script:
   # ---------------------------------------------------------------------------
@@ -28,7 +31,7 @@ script:
           }
 
   # ---------------------------------------------------------------------------
-  # Fetch a memory-lane photo ("on this day") into target_slot
+  # Fetch a memory ("on this day") — step 1: pick a random asset from memories
   # ---------------------------------------------------------------------------
   - id: immich_fetch_memory_into_slot
     mode: single
@@ -42,8 +45,9 @@ script:
           id: http_req
           url: !lambda |-
             auto now = id(sntp_time).now();
-            return id(immich_url).state + "/api/memories/memory-lane?day="
-                   + std::to_string(now.day_of_month) + "&month=" + std::to_string(now.month);
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%04d-%02d-%02dT00:00:00.000Z", now.year, now.month, now.day_of_month);
+            return id(immich_url).state + "/api/memories?type=on_this_day&for=" + std::string(buf);
           capture_response: true
           max_response_buffer_size: 32kB
           request_headers:
@@ -53,7 +57,7 @@ script:
             then:
               - lambda: |-
                   if (response->status_code != 200) {
-                    ESP_LOGW("immich", "Memory lane HTTP %d — falling back to random", response->status_code);
+                    ESP_LOGW("immich", "Memories HTTP %d — falling back to random", response->status_code);
                     id(immich_memory_fallback) = true;
                     id(immich_fetch_into_slot).execute();
                     return;
@@ -67,39 +71,61 @@ script:
                     return;
                   }
 
-                  JsonArray groups = doc.as<JsonArray>();
-                  int total = 0;
-                  for (size_t g = 0; g < groups.size(); g++) {
-                    JsonObject group = groups[g].as<JsonObject>();
-                    if (!group.isNull() && group["assets"].is<JsonArray>())
-                      total += group["assets"].as<JsonArray>().size();
+                  JsonArray memories = doc.as<JsonArray>();
+                  std::vector<std::string> image_ids;
+                  for (size_t m = 0; m < memories.size(); m++) {
+                    JsonObject mem = memories[m].as<JsonObject>();
+                    if (mem.isNull() || !mem["assets"].is<JsonArray>()) continue;
+                    JsonArray assets = mem["assets"].as<JsonArray>();
+                    for (size_t a = 0; a < assets.size(); a++) {
+                      JsonObject asset = assets[a].as<JsonObject>();
+                      if (!asset["id"].is<const char *>()) continue;
+                      if (asset["type"].is<const char *>()) {
+                        std::string type = asset["type"].as<std::string>();
+                        if (type != "IMAGE") continue;
+                      }
+                      image_ids.push_back(asset["id"].as<std::string>());
+                    }
                   }
-                  if (total == 0) {
-                    ESP_LOGI("immich", "Memory lane empty — falling back to random");
+
+                  if (image_ids.empty()) {
+                    ESP_LOGI("immich", "No memory images for today — falling back to random");
                     id(immich_memory_fallback) = true;
                     id(immich_fetch_into_slot).execute();
                     return;
                   }
 
-                  int pick = rand() % total;
-                  int idx = 0;
-                  JsonObject asset;
-                  for (size_t g = 0; g < groups.size(); g++) {
-                    JsonObject group = groups[g].as<JsonObject>();
-                    if (group.isNull() || !group["assets"].is<JsonArray>()) continue;
-                    JsonArray assets = group["assets"].as<JsonArray>();
-                    for (size_t a = 0; a < assets.size(); a++) {
-                      if (idx == pick) {
-                        asset = assets[a].as<JsonObject>();
-                        break;
-                      }
-                      idx++;
-                    }
-                    if (!asset.isNull()) break;
-                  }
+                  int pick = rand() % image_ids.size();
+                  id(immich_memory_asset_id) = image_ids[pick];
+                  ESP_LOGI("immich", "Memory picked: %s (%d of %d)",
+                           id(immich_memory_asset_id).c_str(), pick + 1, (int)image_ids.size());
+              - script.execute: immich_fetch_memory_asset
+          on_error:
+            then:
+              - lambda: |-
+                  ESP_LOGW("immich", "Memories request failed — falling back to random");
+                  id(immich_memory_fallback) = true;
+              - script.execute: immich_fetch_into_slot
 
-                  if (asset.isNull() || !asset["id"].is<const char *>()) {
-                    ESP_LOGW("immich", "Memory asset parse failed — falling back to random");
+  # ---------------------------------------------------------------------------
+  # Fetch full asset details for a memory photo — step 2
+  # ---------------------------------------------------------------------------
+  - id: immich_fetch_memory_asset
+    mode: single
+    then:
+      - http_request.get:
+          id: http_req
+          url: !lambda 'return id(immich_url).state + "/api/assets/" + id(immich_memory_asset_id);'
+          capture_response: true
+          max_response_buffer_size: 16kB
+          request_headers:
+            Accept: application/json
+            x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
+          on_response:
+            then:
+              - lambda: |-
+                  if (response->status_code != 200) {
+                    ESP_LOGW("immich", "Memory asset HTTP %d — falling back to random", response->status_code);
                     id(immich_memory_fallback) = true;
                     id(immich_fetch_into_slot).execute();
                     return;
@@ -107,6 +133,15 @@ script:
 
                   id(immich_fetch_started) = true;
                   id(immich_api_retries) = 0;
+
+                  auto doc = json::parse_json(body);
+                  JsonObject asset = doc.as<JsonObject>();
+                  if (asset.isNull() || !asset["id"].is<const char *>()) {
+                    ESP_LOGW("immich", "Memory asset parse failed — falling back to random");
+                    id(immich_memory_fallback) = true;
+                    id(immich_fetch_into_slot).execute();
+                    return;
+                  }
 
                   std::string asset_id = asset["id"].as<std::string>();
                   std::string photo_date, photo_location, photo_person, local_datetime;
@@ -202,7 +237,7 @@ script:
           on_error:
             then:
               - lambda: |-
-                  ESP_LOGW("immich", "Memory lane request failed — falling back to random");
+                  ESP_LOGW("immich", "Memory asset request failed — falling back to random");
                   id(immich_memory_fallback) = true;
               - script.execute: immich_fetch_into_slot
 
