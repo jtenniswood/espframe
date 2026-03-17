@@ -99,7 +99,7 @@ script:
                   id(immich_memory_asset_id) = image_ids[pick];
                   ESP_LOGI("immich", "Memory picked: %s (%d of %d)",
                            id(immich_memory_asset_id).c_str(), pick + 1, (int)image_ids.size());
-              - script.execute: immich_fetch_memory_asset
+                  id(immich_fetch_memory_asset).execute();
           on_error:
             then:
               - lambda: |-
