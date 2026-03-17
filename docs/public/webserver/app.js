@@ -93,29 +93,33 @@
     document.body.appendChild(app);
   }
 
+  function eid(domain, name) {
+    return "/" + domain + "/" + encodeURIComponent(name);
+  }
+
   var endpoints = {
-    immich_url: "/text/connection_server_url",
-    api_key: "/text/connection_api_key",
-    clock_format: "/select/clock_format",
-    timezone: "/select/clock_timezone",
-    interval: "/number/photos_slideshow_interval",
-    backlight: "/light/screen_backlight",
-    show_clock: "/switch/clock_show",
-    firmware: "/text_sensor/firmware_version",
-    update: "/update/firmware_update",
-    update_beta: "/update/firmware_update_beta",
-    auto_update: "/switch/firmware_auto_update",
-    update_frequency: "/select/firmware_update_frequency",
-    schedule_enabled: "/switch/screen_schedule",
-    schedule_on_hour: "/number/screen_schedule_on",
-    schedule_off_hour: "/number/screen_schedule_off",
-    brightness_day: "/number/screen_daytime_brightness",
-    brightness_night: "/number/screen_nighttime_brightness",
-    sunrise: "/text_sensor/screen_sunrise",
-    sunset: "/text_sensor/screen_sunset",
-    photo_source: "/select/photos_source",
-    album_ids: "/text/photos_album_ids",
-    person_ids: "/text/photos_person_ids",
+    immich_url: eid("text", "Connection: Server URL"),
+    api_key: eid("text", "Connection: API Key"),
+    clock_format: eid("select", "Clock: Format"),
+    timezone: eid("select", "Clock: Timezone"),
+    interval: eid("number", "Photos: Slideshow Interval"),
+    backlight: eid("light", "Screen: Backlight"),
+    show_clock: eid("switch", "Clock: Show"),
+    firmware: eid("text_sensor", "Firmware: Version"),
+    update: eid("update", "Firmware: Update"),
+    update_beta: eid("update", "Firmware: Update Beta"),
+    auto_update: eid("switch", "Firmware: Auto Update"),
+    update_frequency: eid("select", "Firmware: Update Frequency"),
+    schedule_enabled: eid("switch", "Screen: Schedule"),
+    schedule_on_hour: eid("number", "Screen: Schedule On"),
+    schedule_off_hour: eid("number", "Screen: Schedule Off"),
+    brightness_day: eid("number", "Screen: Daytime Brightness"),
+    brightness_night: eid("number", "Screen: Nighttime Brightness"),
+    sunrise: eid("text_sensor", "Screen: Sunrise"),
+    sunset: eid("text_sensor", "Screen: Sunset"),
+    photo_source: eid("select", "Photos: Source"),
+    album_ids: eid("text", "Photos: Album IDs"),
+    person_ids: eid("text", "Photos: Person IDs"),
   };
 
   function post(url, params) {
@@ -157,67 +161,67 @@
   function collectState(d) {
     if (!d || !d.id) return;
     var id = d.id;
-    if (id === "text-connection_server_url") {
+    if (id === "text/Connection: Server URL") {
       S.immich_url = d.value || "";
-    } else if (id === "text-connection_api_key") {
+    } else if (id === "text/Connection: API Key") {
       S.api_key = d.value || "";
-    } else if (id === "select-clock_format") {
+    } else if (id === "select/Clock: Format") {
       S.clock_format = d.value || "24 Hour";
       if (d.option && d.option.length) S.clock_options = d.option;
-    } else if (id === "select-clock_timezone") {
+    } else if (id === "select/Clock: Timezone") {
       S.timezone = d.value || "";
       if (d.option && d.option.length) S.tz_options = d.option;
-    } else if (id === "number-photos_slideshow_interval") {
+    } else if (id === "number/Photos: Slideshow Interval") {
       S.interval = d.value != null ? d.value : 30;
       if (d.min_value != null) S.interval_min = d.min_value;
       if (d.max_value != null) S.interval_max = d.max_value;
       if (d.step != null) S.interval_step = d.step;
-    } else if (id === "light-screen_backlight") {
+    } else if (id === "light/Screen: Backlight") {
       S.backlight_on = d.state === "ON";
       if (d.brightness != null)
         S.brightness = Math.round((d.brightness / 255) * 100);
-    } else if (id === "switch-clock_show") {
+    } else if (id === "switch/Clock: Show") {
       S.show_clock = d.value === true || d.state === "ON";
-    } else if (id === "text_sensor-firmware_version") {
+    } else if (id === "text_sensor/Firmware: Version") {
       S.firmware = d.value || d.state || "";
-    } else if (id === "update-firmware_update") {
+    } else if (id === "update/Firmware: Update") {
       S.installed_version = d.current_version || "";
       S.latest_version = d.latest_version || "";
       S.update_available =
         S.installed_version &&
         S.latest_version &&
         S.installed_version !== S.latest_version;
-    } else if (id === "update-firmware_update_beta") {
+    } else if (id === "update/Firmware: Update Beta") {
       S.beta_version = d.latest_version || "";
       S.beta_available =
         S.beta_version &&
         d.current_version &&
         S.beta_version !== d.current_version;
-    } else if (id === "switch-firmware_auto_update") {
+    } else if (id === "switch/Firmware: Auto Update") {
       S.auto_update = d.value === true || d.state === "ON";
-    } else if (id === "select-firmware_update_frequency") {
+    } else if (id === "select/Firmware: Update Frequency") {
       S.update_frequency = d.value || "Daily";
       if (d.option && d.option.length) S.update_freq_options = d.option;
-    } else if (id === "switch-screen_schedule") {
+    } else if (id === "switch/Screen: Schedule") {
       S.schedule_enabled = d.value === true || d.state === "ON";
-    } else if (id === "number-screen_schedule_on") {
+    } else if (id === "number/Screen: Schedule On") {
       S.schedule_on_hour = d.value != null ? d.value : 6;
-    } else if (id === "number-screen_schedule_off") {
+    } else if (id === "number/Screen: Schedule Off") {
       S.schedule_off_hour = d.value != null ? d.value : 23;
-    } else if (id === "number-screen_daytime_brightness") {
+    } else if (id === "number/Screen: Daytime Brightness") {
       S.brightness_day = d.value != null ? d.value : 100;
-    } else if (id === "number-screen_nighttime_brightness") {
+    } else if (id === "number/Screen: Nighttime Brightness") {
       S.brightness_night = d.value != null ? d.value : 75;
-    } else if (id === "text_sensor-screen_sunrise") {
+    } else if (id === "text_sensor/Screen: Sunrise") {
       S.sunrise = d.value || d.state || "";
-    } else if (id === "text_sensor-screen_sunset") {
+    } else if (id === "text_sensor/Screen: Sunset") {
       S.sunset = d.value || d.state || "";
-    } else if (id === "select-photos_source") {
+    } else if (id === "select/Photos: Source") {
       S.photo_source = d.value || "All Photos";
       if (d.option && d.option.length) S.photo_source_options = d.option;
-    } else if (id === "text-photos_album_ids") {
+    } else if (id === "text/Photos: Album IDs") {
       S.album_ids = d.value || "";
-    } else if (id === "text-photos_person_ids") {
+    } else if (id === "text/Photos: Person IDs") {
       S.person_ids = d.value || "";
     }
   }
@@ -556,7 +560,7 @@
       post(endpoints.photo_source + "/set", { option: src_val });
       post(endpoints.album_ids + "/set", { value: albumInput.value.trim() });
       post(endpoints.person_ids + "/set", { value: personInput.value.trim() });
-      post("/button/apply_photo_source/press").then(function () {
+      post(eid("button", "Apply Photo Source") + "/press").then(function () {
         applyBtn.textContent = "Applied";
         setTimeout(function () {
           applyBtn.disabled = false;
@@ -841,7 +845,7 @@
       checkBtn.disabled = true;
       checkBtn.textContent = "Checking\u2026";
       statusMsg.textContent = "";
-      post("/button/firmware_check_for_update/press")
+      post(eid("button", "Firmware: Check for Update") + "/press")
         .then(function () {
           return new Promise(function (r) {
             setTimeout(r, 4000);
@@ -994,11 +998,11 @@
   function handleLiveEvent(d) {
     if (!d || !d.id) return;
     var id = d.id;
-    if (id === "light-screen_backlight") {
+    if (id === "light/Screen: Backlight") {
       S.backlight_on = d.state === "ON";
       if (d.brightness != null)
         S.brightness = Math.round((d.brightness / 255) * 100);
-    } else if (id === "switch-clock_show") {
+    } else if (id === "switch/Clock: Show") {
       S.show_clock = d.state === "ON" || d.value === true;
     }
   }
