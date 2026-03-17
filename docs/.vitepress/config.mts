@@ -18,7 +18,6 @@ export default defineConfig({
     ['meta', { property: 'og:url', content: hostname }],
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
     ['meta', { name: 'twitter:image', content: `${hostname}immich-frame.png` }],
-    ['link', { rel: 'icon', type: 'image/png', href: '/espframe/immich-frame.png' }],
     ['script', {
       'data-name': 'BMC-Widget',
       'data-cfasync': 'false',
