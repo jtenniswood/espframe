@@ -7,13 +7,6 @@ description: Install Espframe firmware via the ESPHome dashboard for full contro
 
 Install the espframe firmware via the ESPHome dashboard instead of the web installer. This gives you full control over substitutions and lets you customise behaviour that the web installer leaves at defaults.
 
-## Prerequisites
-
-- **ESPHome** running (as a [Home Assistant add-on](https://esphome.io/guides/getting_started_hassio.html) or [standalone](https://esphome.io/guides/installing_esphome.html))
-- Your device connected via **USB** for the first flash (OTA updates work after that)
-- An **Immich server** running on your network — [immich.app](https://immich.app/)
-- An **Immich API key** — see [Creating an API Key](./api-key) for which permissions to select
-
 ## Create a configuration
 
 In the ESPHome dashboard, create a new YAML configuration for your device. Use the example below as a starting point.
