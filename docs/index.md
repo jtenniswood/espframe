@@ -34,3 +34,15 @@ features:
   - title: No Hub Required
     details: Connects directly to your Immich server over HTTP — no Home Assistant, cloud service, or extra software needed.
 ---
+
+<div style="text-align: center; margin-top: 3rem;">
+
+## Support This Project
+
+If you find this project useful, consider buying me a coffee to support ongoing development!
+
+<a href="https://www.buymeacoffee.com/jtenniswood">
+  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50" />
+</a>
+
+</div>

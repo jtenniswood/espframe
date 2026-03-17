@@ -36,3 +36,11 @@ You'll need a USB-C data cable and Chrome or Edge on desktop.
 Getting started, configuration, and troubleshooting guides are available at:
 
 **[jtenniswood.github.io/espframe](https://jtenniswood.github.io/espframe/)**
+
+## Support This Project
+
+If you find this project useful, consider buying me a coffee to support ongoing development!
+
+<a href="https://www.buymeacoffee.com/jtenniswood">
+  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50" />
+</a>
