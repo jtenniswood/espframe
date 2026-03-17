@@ -94,28 +94,28 @@
   }
 
   var endpoints = {
-    immich_url: "/text/immich_url",
-    api_key: "/text/immich_api_key",
+    immich_url: "/text/connection_server_url",
+    api_key: "/text/connection_api_key",
     clock_format: "/select/clock_format",
-    timezone: "/select/timezone",
-    interval: "/number/slideshow_interval",
-    backlight: "/light/backlight",
-    show_clock: "/switch/show_clock",
+    timezone: "/select/clock_timezone",
+    interval: "/number/photos_slideshow_interval",
+    backlight: "/light/screen_backlight",
+    show_clock: "/switch/clock_show",
     firmware: "/text_sensor/firmware_version",
     update: "/update/firmware_update",
     update_beta: "/update/firmware_update_beta",
-    auto_update: "/switch/auto_update",
-    update_frequency: "/select/update_frequency",
+    auto_update: "/switch/firmware_auto_update",
+    update_frequency: "/select/firmware_update_frequency",
     schedule_enabled: "/switch/screen_schedule",
-    schedule_on_hour: "/number/schedule_on_hour",
-    schedule_off_hour: "/number/schedule_off_hour",
-    brightness_day: "/number/daytime_brightness",
-    brightness_night: "/number/nighttime_brightness",
-    sunrise: "/text_sensor/sunrise_time",
-    sunset: "/text_sensor/sunset_time",
-    photo_source: "/select/photo_source",
-    album_ids: "/text/album_ids",
-    person_ids: "/text/person_ids",
+    schedule_on_hour: "/number/screen_schedule_on",
+    schedule_off_hour: "/number/screen_schedule_off",
+    brightness_day: "/number/screen_daytime_brightness",
+    brightness_night: "/number/screen_nighttime_brightness",
+    sunrise: "/text_sensor/screen_sunrise",
+    sunset: "/text_sensor/screen_sunset",
+    photo_source: "/select/photos_source",
+    album_ids: "/text/photos_album_ids",
+    person_ids: "/text/photos_person_ids",
   };
 
   function post(url, params) {
@@ -157,26 +157,26 @@
   function collectState(d) {
     if (!d || !d.id) return;
     var id = d.id;
-    if (id === "text-immich_url") {
+    if (id === "text-connection_server_url") {
       S.immich_url = d.value || "";
-    } else if (id === "text-immich_api_key") {
+    } else if (id === "text-connection_api_key") {
       S.api_key = d.value || "";
     } else if (id === "select-clock_format") {
       S.clock_format = d.value || "24 Hour";
       if (d.option && d.option.length) S.clock_options = d.option;
-    } else if (id === "select-timezone") {
+    } else if (id === "select-clock_timezone") {
       S.timezone = d.value || "";
       if (d.option && d.option.length) S.tz_options = d.option;
-    } else if (id === "number-slideshow_interval") {
+    } else if (id === "number-photos_slideshow_interval") {
       S.interval = d.value != null ? d.value : 30;
       if (d.min_value != null) S.interval_min = d.min_value;
       if (d.max_value != null) S.interval_max = d.max_value;
       if (d.step != null) S.interval_step = d.step;
-    } else if (id === "light-backlight") {
+    } else if (id === "light-screen_backlight") {
       S.backlight_on = d.state === "ON";
       if (d.brightness != null)
         S.brightness = Math.round((d.brightness / 255) * 100);
-    } else if (id === "switch-show_clock") {
+    } else if (id === "switch-clock_show") {
       S.show_clock = d.value === true || d.state === "ON";
     } else if (id === "text_sensor-firmware_version") {
       S.firmware = d.value || d.state || "";
@@ -193,31 +193,31 @@
         S.beta_version &&
         d.current_version &&
         S.beta_version !== d.current_version;
-    } else if (id === "switch-auto_update") {
+    } else if (id === "switch-firmware_auto_update") {
       S.auto_update = d.value === true || d.state === "ON";
-    } else if (id === "select-update_frequency") {
+    } else if (id === "select-firmware_update_frequency") {
       S.update_frequency = d.value || "Daily";
       if (d.option && d.option.length) S.update_freq_options = d.option;
     } else if (id === "switch-screen_schedule") {
       S.schedule_enabled = d.value === true || d.state === "ON";
-    } else if (id === "number-schedule_on_hour") {
+    } else if (id === "number-screen_schedule_on") {
       S.schedule_on_hour = d.value != null ? d.value : 6;
-    } else if (id === "number-schedule_off_hour") {
+    } else if (id === "number-screen_schedule_off") {
       S.schedule_off_hour = d.value != null ? d.value : 23;
-    } else if (id === "number-daytime_brightness") {
+    } else if (id === "number-screen_daytime_brightness") {
       S.brightness_day = d.value != null ? d.value : 100;
-    } else if (id === "number-nighttime_brightness") {
+    } else if (id === "number-screen_nighttime_brightness") {
       S.brightness_night = d.value != null ? d.value : 75;
-    } else if (id === "text_sensor-sunrise_time") {
+    } else if (id === "text_sensor-screen_sunrise") {
       S.sunrise = d.value || d.state || "";
-    } else if (id === "text_sensor-sunset_time") {
+    } else if (id === "text_sensor-screen_sunset") {
       S.sunset = d.value || d.state || "";
-    } else if (id === "select-photo_source") {
+    } else if (id === "select-photos_source") {
       S.photo_source = d.value || "All Photos";
       if (d.option && d.option.length) S.photo_source_options = d.option;
-    } else if (id === "text-album_ids") {
+    } else if (id === "text-photos_album_ids") {
       S.album_ids = d.value || "";
-    } else if (id === "text-person_ids") {
+    } else if (id === "text-photos_person_ids") {
       S.person_ids = d.value || "";
     }
   }
@@ -807,7 +807,7 @@
       installBtn.onclick = function () {
         installBtn.disabled = true;
         installBtn.textContent = "Installing\u2026";
-        post("/update/firmware_update/install");
+        post(endpoints.update + "/install");
       };
       row.appendChild(label);
       row.appendChild(installBtn);
@@ -841,7 +841,7 @@
       checkBtn.disabled = true;
       checkBtn.textContent = "Checking\u2026";
       statusMsg.textContent = "";
-      post("/button/check_for_update/press")
+      post("/button/firmware_check_for_update/press")
         .then(function () {
           return new Promise(function (r) {
             setTimeout(r, 4000);
@@ -994,11 +994,11 @@
   function handleLiveEvent(d) {
     if (!d || !d.id) return;
     var id = d.id;
-    if (id === "light-backlight") {
+    if (id === "light-screen_backlight") {
       S.backlight_on = d.state === "ON";
       if (d.brightness != null)
         S.brightness = Math.round((d.brightness / 255) * 100);
-    } else if (id === "switch-show_clock") {
+    } else if (id === "switch-clock_show") {
       S.show_clock = d.state === "ON" || d.value === true;
     }
   }
