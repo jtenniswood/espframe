@@ -19,6 +19,18 @@ export default defineConfig({
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
     ['meta', { name: 'twitter:image', content: `${hostname}immich-frame.png` }],
     ['link', { rel: 'icon', type: 'image/png', href: '/espframe/immich-frame.png' }],
+    ['script', {
+      'data-name': 'BMC-Widget',
+      'data-cfasync': 'false',
+      src: 'https://cdnjs.buymeacoffee.com/1.0.0/widget.prod.min.js',
+      'data-id': 'jtenniswood',
+      'data-description': 'Support me on Buy me a coffee!',
+      'data-message': '',
+      'data-color': '#FFDD00',
+      'data-position': 'Right',
+      'data-x_margin': '18',
+      'data-y_margin': '18',
+    }],
     ['script', { type: 'application/ld+json' }, JSON.stringify({
       '@context': 'https://schema.org',
       '@type': 'SoftwareApplication',
@@ -61,7 +73,6 @@ export default defineConfig({
         items: [
           { text: 'Home Assistant', link: '/home-assistant' },
           { text: 'Manual Setup', link: '/manual-setup' },
-          { text: 'Troubleshooting', link: '/troubleshooting' },
         ],
       },
       {
