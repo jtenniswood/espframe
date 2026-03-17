@@ -40,7 +40,7 @@ wifi:
           - lambda: |-
               auto ips = wifi::global_wifi_component->get_ip_addresses();
               if (!ips.empty()) {
-                char ip_buf[IP_ADDRESS_BUFFER_SIZE];
+                char ip_buf[esphome::network::IP_ADDRESS_BUFFER_SIZE];
                 ips[0].str_to(ip_buf);
                 std::string url = "http://" + std::string(ip_buf);
                 lv_label_set_text(id(setup_ip_label), url.c_str());
