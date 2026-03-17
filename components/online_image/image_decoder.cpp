@@ -129,6 +129,21 @@ void ImageDecoder::draw_rgb888_scaled(int src_y, int src_w, const uint8_t *rgb88
   }
 }
 
+void ImageDecoder::fill_row_gap(int gap_start, int gap_end, int src_row_y) {
+  int buf_h = this->image_->buffer_height_;
+  int buf_w = this->image_->buffer_width_;
+  gap_start = std::max(gap_start, 0);
+  gap_end = std::min(gap_end, buf_h);
+  if (gap_end <= gap_start) return;
+  if (src_row_y < 0 || src_row_y >= buf_h) return;
+
+  int row_bytes = buf_w * (this->image_->get_bpp() / 8);
+  uint8_t *src_row = this->image_->buffer_ + src_row_y * row_bytes;
+  for (int fy = gap_start; fy < gap_end; fy++) {
+    memcpy(this->image_->buffer_ + fy * row_bytes, src_row, row_bytes);
+  }
+}
+
 DownloadBuffer::DownloadBuffer(size_t size) : size_(size) {
   this->buffer_ = this->allocator_.allocate(size);
   this->reset();

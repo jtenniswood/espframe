@@ -89,6 +89,7 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
     int target_w = this->image_->get_fixed_width();
     int target_h = this->image_->get_fixed_height();
     if (target_w > 0 && target_h > 0) {
+      bool fill = this->image_->is_fill_mode();
       constexpr unsigned int denoms[] = {8, 4, 2, 1};
       for (unsigned int denom : denoms) {
         this->cinfo_->scale_num = 1;
@@ -96,10 +97,11 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
         jpeg_calc_output_dimensions(this->cinfo_);
         int idct_w = static_cast<int>(this->cinfo_->output_width);
         int idct_h = static_cast<int>(this->cinfo_->output_height);
-        double fit = std::min(
-          static_cast<double>(target_w) / idct_w,
-          static_cast<double>(target_h) / idct_h
-        );
+        double fit = fill
+          ? std::max(static_cast<double>(target_w) / idct_w,
+                     static_cast<double>(target_h) / idct_h)
+          : std::min(static_cast<double>(target_w) / idct_w,
+                     static_cast<double>(target_h) / idct_h);
         int need_w = static_cast<int>(idct_w * fit);
         int need_h = static_cast<int>(idct_h * fit);
         if (idct_w >= need_w && idct_h >= need_h) break;
@@ -183,6 +185,14 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
           Color color(this->row_buffer_[x * 3 + 0], this->row_buffer_[x * 3 + 1], this->row_buffer_[x * 3 + 2]);
           this->draw(x, this->current_scanline_, 1, 1, color);
         }
+      }
+
+      if (this->y_scale_ > 1.0 && dst_y > prev_gap_end_) {
+        int src_row_y = (dst_y >= 0) ? dst_y : prev_gap_end_ - 1;
+        this->fill_row_gap(prev_gap_end_, dst_y, src_row_y);
+        prev_gap_end_ = dst_y + 1;
+      } else if (this->y_scale_ > 1.0) {
+        prev_gap_end_ = std::max(dst_y + 1, 0);
       }
     }
     this->current_scanline_++;

@@ -312,7 +312,7 @@
       var f2 = field("API Key");
       var grp = el("div", "input-group");
       var keyInput = input("password", S.api_key, "Your Immich API key");
-      var showBtn = el("button", "btn btn-secondary btn-sm");
+      var showBtn = el("button", "btn btn-secondary");
       showBtn.textContent = "Show";
       showBtn.type = "button";
       showBtn.onclick = function () {
@@ -448,7 +448,7 @@
         "flex:1;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);" +
         "border-radius:6px;color:var(--text2);font-size:.9rem;letter-spacing:2px";
       mask.textContent = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
-      var cb = el("button", "btn btn-secondary btn-sm");
+      var cb = el("button", "btn btn-secondary");
       cb.textContent = "Change";
       cb.type = "button";
       cb.onclick = function () {
@@ -463,7 +463,7 @@
     function makeKeyInput() {
       var grp = el("div", "input-group");
       var keyInput = input("text", "", "Paste your Immich API key");
-      var saveBtn = el("button", "btn btn-primary btn-sm");
+      var saveBtn = el("button", "btn btn-primary");
       saveBtn.textContent = "Save";
       saveBtn.type = "button";
       saveBtn.onclick = function () {

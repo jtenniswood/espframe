@@ -102,6 +102,12 @@ class ImageDecoder {
 
   bool is_finished() const { return this->decoded_bytes_ == this->download_size_; }
 
+  /**
+   * @brief Fill skipped destination rows that occur when y_scale_ > 1.0
+   * (upscaling). Copies the row at src_row_y to all rows in [gap_start, gap_end).
+   */
+  void fill_row_gap(int gap_start, int gap_end, int src_row_y);
+
  protected:
   OnlineImage *image_;
   // Initializing to 1, to ensure it is distinguishable from initial "decoded_bytes_".

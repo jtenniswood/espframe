@@ -35,6 +35,7 @@ class JpegDecoder : public ImageDecoder {
   int out_w_ = 0;
   int current_scanline_ = 0;
   int prev_dst_y_ = -1;
+  int prev_gap_end_ = 0;
   bool use_rgb565_ = false;
   bool big_endian_ = false;
   bool scaling_ = false;

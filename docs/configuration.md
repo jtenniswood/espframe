@@ -15,7 +15,7 @@ Open `http://<device-ip>/` in your browser to access the settings page. Changes 
 
 | Setting | Description |
 |---|---|
-| **Immich URL** | Your Immich server address (e.g. `http://192.168.1.30:2283`) |
+| **Immich URL** | Your Immich server address (e.g. `http://192.168.1.30:2283`). Do not include a trailing slash. |
 | **Immich API Key** | Your Immich API key (masked in the UI for security) |
 
 See [Creating an API Key](/api-key) for how to generate a key and which permissions to select.

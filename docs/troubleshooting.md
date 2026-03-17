@@ -7,6 +7,9 @@ description: Solutions for common Immich Frame issues including HTTP 401 errors,
 
 ## Common Issues
 
+**Photos aren't loading / `HTTP 404` in logs**
+:   Check the URL in the logs — if you see a double slash like `http://192.168.1.30:2283//api/search/random`, your Immich URL has a trailing slash. Go to the [web UI](./configuration#immich-connection) and re-enter the URL without the trailing `/` (e.g. `http://192.168.1.30:2283`).
+
 **Photos aren't loading / `HTTP 401` in logs**
 :   Your API key is invalid or doesn't have permission. Generate a new one in Immich under *Account Settings > API Keys* and update it in the [web UI](./configuration#immich-connection).
 
