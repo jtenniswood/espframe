@@ -45,7 +45,6 @@ switch:
   - platform: template
     name: "Screen: Schedule"
     id: schedule_enabled
-    object_id: screen_schedule
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
     icon: "mdi:clock-time-four-outline"
@@ -66,7 +65,6 @@ number:
   - platform: template
     name: "Screen: Schedule On"
     id: schedule_on_hour
-    object_id: schedule_on_hour
     min_value: 0
     max_value: 23
     step: 1
@@ -82,7 +80,6 @@ number:
   - platform: template
     name: "Screen: Schedule Off"
     id: schedule_off_hour
-    object_id: schedule_off_hour
     min_value: 0
     max_value: 23
     step: 1
@@ -98,7 +95,6 @@ number:
   - platform: template
     name: "Screen: Daytime Brightness"
     id: brightness_day
-    object_id: daytime_brightness
     min_value: 10
     max_value: 100
     step: 5
@@ -114,7 +110,6 @@ number:
   - platform: template
     name: "Screen: Nighttime Brightness"
     id: brightness_night
-    object_id: nighttime_brightness
     min_value: 10
     max_value: 100
     step: 5
@@ -131,14 +126,12 @@ text_sensor:
   - platform: template
     name: "Screen: Sunrise"
     id: sunrise_time_sensor
-    object_id: sunrise_time
     entity_category: diagnostic
     icon: "mdi:weather-sunset-up"
 
   - platform: template
     name: "Screen: Sunset"
     id: sunset_time_sensor
-    object_id: sunset_time
     entity_category: diagnostic
     icon: "mdi:weather-sunset-down"
 

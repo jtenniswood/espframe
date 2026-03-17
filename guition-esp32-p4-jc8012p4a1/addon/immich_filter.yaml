@@ -9,7 +9,6 @@ select:
   - platform: template
     name: "Photos: Source"
     id: photo_source_select
-    object_id: photo_source
     options:
       - "All Photos"
       - "Favorites"

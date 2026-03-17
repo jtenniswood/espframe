@@ -162,7 +162,6 @@ number:
   - platform: template
     name: "Photos: Slideshow Interval"
     id: slideshow_interval
-    object_id: slideshow_interval
     min_value: 5
     max_value: 300
     step: 5

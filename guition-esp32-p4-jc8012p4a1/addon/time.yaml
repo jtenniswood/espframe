@@ -2,7 +2,6 @@ select:
   - platform: template
     name: "Clock: Format"
     id: clock_format_select
-    object_id: clock_format
     options:
       - "24 Hour"
       - "12 Hour"
@@ -16,7 +15,6 @@ select:
   - platform: template
     name: "Clock: Timezone"
     id: timezone_select
-    object_id: timezone
     entity_category: config
     options:
       - "Pacific/Midway (GMT-11)"
@@ -164,7 +162,6 @@ switch:
   - platform: template
     name: "Clock: Show"
     id: show_clock
-    object_id: show_clock
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
     icon: "mdi:clock-outline"
