@@ -781,9 +781,7 @@
     wrap.appendChild(makeCollapsibleCard("Screen Schedule", schedBody, false));
 
     // Clock
-    var clk = el("div", "card");
-    clk.innerHTML = "<h3>Clock</h3>";
-
+    var clkBody = el("div");
     var f5 = field("");
     var tr = el("div", "toggle-row");
     tr.innerHTML = "<span>Show Clock</span>";
@@ -797,7 +795,7 @@
     };
     tr.appendChild(tog);
     f5.appendChild(tr);
-    clk.appendChild(f5);
+    clkBody.appendChild(f5);
 
     var f6 = field("Format");
     var fmtSel = document.createElement("select");
@@ -814,7 +812,7 @@
       post(endpoints.clock_format + "/set", { option: fmtSel.value });
     };
     f6.appendChild(fmtSel);
-    clk.appendChild(f6);
+    clkBody.appendChild(f6);
 
     var f7 = field("Timezone");
     f7.appendChild(
@@ -823,13 +821,11 @@
         S.timezone = v;
       })
     );
-    clk.appendChild(f7);
-    wrap.appendChild(clk);
+    clkBody.appendChild(f7);
+    wrap.appendChild(makeCollapsibleCard("Clock", clkBody, false));
 
     // Firmware
-    var fw = el("div", "card");
-    fw.innerHTML = "<h3>Firmware</h3>";
-
+    var fwBody = el("div");
     var fwRowStyle = "display:flex;align-items:center;justify-content:space-between;min-height:36px";
     var versionRow = el("div", "field");
     versionRow.style.cssText = fwRowStyle;
@@ -847,14 +843,14 @@
     checkWrap.appendChild(statusMsg);
     checkWrap.appendChild(checkBtn);
     versionRow.appendChild(checkWrap);
-    fw.appendChild(versionRow);
+    fwBody.appendChild(versionRow);
 
     var updateRow = el("div");
     updateRow.style.marginBottom = "8px";
-    fw.appendChild(updateRow);
+    fwBody.appendChild(updateRow);
     var betaRow = el("div");
     betaRow.style.marginBottom = "12px";
-    fw.appendChild(betaRow);
+    fwBody.appendChild(betaRow);
 
     function renderUpdateRow() {
       updateRow.innerHTML = "";
@@ -968,7 +964,7 @@
     };
     betaTr.appendChild(betaTog);
     fBetaUpd.appendChild(betaTr);
-    fw.appendChild(fBetaUpd);
+    fwBody.appendChild(fBetaUpd);
 
     var fAutoUpd = field("");
     var autoTr = el("div", "toggle-row");
@@ -984,7 +980,7 @@
     };
     autoTr.appendChild(autoTog);
     fAutoUpd.appendChild(autoTr);
-    fw.appendChild(fAutoUpd);
+    fwBody.appendChild(fAutoUpd);
 
     var freqField = field("Update Frequency");
     var freqSel = document.createElement("select");
@@ -1002,13 +998,12 @@
     };
     freqField.appendChild(freqSel);
     freqField.style.display = S.auto_update ? "" : "none";
-    fw.appendChild(freqField);
+    fwBody.appendChild(freqField);
 
-    wrap.appendChild(fw);
+    wrap.appendChild(makeCollapsibleCard("Firmware", fwBody, false));
 
     // Logs
-    var logs = el("div", "card card-logs");
-    logs.innerHTML = "<h3>Device Logs</h3>";
+    var logsBody = el("div");
     var logToggle = el("button", "btn btn-secondary btn-sm");
     logToggle.textContent = "Show Logs";
     var logWrap = el("div");
@@ -1026,9 +1021,11 @@
     };
 
     logWrap.appendChild(logPre);
-    logs.appendChild(logToggle);
-    logs.appendChild(logWrap);
-    wrap.appendChild(logs);
+    logsBody.appendChild(logToggle);
+    logsBody.appendChild(logWrap);
+    var logsCard = makeCollapsibleCard("Device Logs", logsBody, false);
+    logsCard.classList.add("card-logs");
+    wrap.appendChild(logsCard);
 
     if (evtSource) {
       evtSource.addEventListener("log", function (e) {
