@@ -5,7 +5,7 @@ description: Screen brightness, tone, and schedule — the display controls avai
 
 # Screen Settings
 
-In the device **Settings** menu you’ll see three display-related sections:
+This page describes the display controls in Espframe: brightness (day/night), screen schedule, and download pausing. In the device **Settings** menu you’ll see three display-related sections:
 
 - **Screen Brightness** — Day and night brightness with automatic sunrise/sunset switching
 - **Screen Schedule** — Optional backlight on/off times and download pausing
