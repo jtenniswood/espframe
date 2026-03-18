@@ -661,7 +661,7 @@
     };
     f3.appendChild(intSel);
     dispBody.appendChild(f3);
-    wrap.appendChild(makeCollapsibleCard("Frequency", dispBody, false));
+    wrap.appendChild(makeCollapsibleCard("Frequency", dispBody, true));
 
     // Screen Brightness
     var dnDetails = el("div");
@@ -722,7 +722,7 @@
     updateSunInfo();
     dnDetails.appendChild(fSunInfo);
 
-    wrap.appendChild(makeCollapsibleCard("Screen Brightness", dnDetails, false));
+    wrap.appendChild(makeCollapsibleCard("Screen Brightness", dnDetails, true));
 
     // Schedule
     var schedBody = el("div");
@@ -778,7 +778,7 @@
     schedDetails.appendChild(fOffTime);
 
     schedBody.appendChild(schedDetails);
-    wrap.appendChild(makeCollapsibleCard("Screen Schedule", schedBody, false));
+    wrap.appendChild(makeCollapsibleCard("Screen Schedule", schedBody, true));
 
     // Clock
     var clkBody = el("div");
@@ -822,7 +822,7 @@
       })
     );
     clkBody.appendChild(f7);
-    wrap.appendChild(makeCollapsibleCard("Clock", clkBody, false));
+    wrap.appendChild(makeCollapsibleCard("Clock", clkBody, true));
 
     // Firmware
     var fwBody = el("div");
@@ -1000,7 +1000,7 @@
     freqField.style.display = S.auto_update ? "" : "none";
     fwBody.appendChild(freqField);
 
-    wrap.appendChild(makeCollapsibleCard("Firmware", fwBody, false));
+    wrap.appendChild(makeCollapsibleCard("Firmware", fwBody, true));
 
     // Logs
     var logsBody = el("div");
@@ -1023,7 +1023,7 @@
     logWrap.appendChild(logPre);
     logsBody.appendChild(logToggle);
     logsBody.appendChild(logWrap);
-    var logsCard = makeCollapsibleCard("Device Logs", logsBody, false);
+    var logsCard = makeCollapsibleCard("Device Logs", logsBody, true);
     logsCard.classList.add("card-logs");
     wrap.appendChild(logsCard);
 
