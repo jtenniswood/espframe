@@ -1004,25 +1004,12 @@
 
     // Logs
     var logsBody = el("div");
-    var logToggle = el("button", "btn btn-secondary btn-sm");
-    logToggle.textContent = "Show Logs";
-    var logWrap = el("div");
-    logWrap.style.display = "none";
     var logPre = document.createElement("pre");
     logPre.className = "log-output";
     var logLines = [];
     var maxLines = 200;
 
-    logToggle.onclick = function () {
-      var visible = logWrap.style.display !== "none";
-      logWrap.style.display = visible ? "none" : "block";
-      logToggle.textContent = visible ? "Show Logs" : "Hide Logs";
-      if (!visible) logPre.scrollTop = logPre.scrollHeight;
-    };
-
-    logWrap.appendChild(logPre);
-    logsBody.appendChild(logToggle);
-    logsBody.appendChild(logWrap);
+    logsBody.appendChild(logPre);
     var logsCard = makeCollapsibleCard("Device Logs", logsBody, true);
     logsCard.classList.add("card-logs");
     wrap.appendChild(logsCard);
@@ -1033,9 +1020,7 @@
         logLines.push(line);
         if (logLines.length > maxLines) logLines.shift();
         logPre.textContent = logLines.join("\n");
-        if (logWrap.style.display !== "none") {
-          logPre.scrollTop = logPre.scrollHeight;
-        }
+        logPre.scrollTop = logPre.scrollHeight;
       });
     }
 
