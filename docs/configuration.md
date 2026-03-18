@@ -55,6 +55,16 @@ When the schedule is active and the current time is outside the on/off window, t
 
 Brightness automatically adjusts based on sunrise and sunset times, which are calculated from the selected timezone. The current sunrise and sunset times are displayed below the brightness sliders.
 
+### Screen Tone
+
+| Setting | Default | Description |
+|---|---|---|
+| **Screen Tone Adjustment** | Off | Correct the display's blue cast with a permanent warm shift |
+| **Night Tone Adjustment** | Off | Automatically warm photos at sunset, neutral at sunrise |
+| **Turn on until sunrise** | Off | Force warm tones on immediately until the next sunrise |
+
+See **[Screen Tone](/screen-tone)** for detailed usage and tips.
+
 ### Clock
 
 | Setting | Default | Description |

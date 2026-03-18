@@ -13,12 +13,7 @@ Control **which** photos the frame displays.
 
 | Feature | Status |
 |---|---|
-| Filter by album | Done |
-| Filter by person / face | Done |
-| Favourite-only mode | Done |
-| Immich Memories ("on this day") | Done |
 | Date-range filter (e.g. "this month in history") | Planned |
-| Exclude videos / motion photos | Planned |
 
 ## Offline Storage
 
@@ -27,14 +22,6 @@ Store images offline when server access isn't available.
 | Feature | Status |
 |---|---|
 | Offline image cache using SD card | Planned |
-
-## Ambient Light Adaptation
-
-Automatically adjust display output based on ambient light conditions.
-
-| Feature | Status |
-|---|---|
-| Automatic white balance based on time/season | Done |
 
 ## Photo Metadata
 

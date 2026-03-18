@@ -84,6 +84,7 @@ export default defineConfig({
           { text: 'Overview', link: '/' },
           { text: 'Install', link: '/install' },
           { text: 'Configuration', link: '/configuration' },
+          { text: 'Screen Tone', link: '/screen-tone' },
           { text: 'Photo Sources', link: '/photo-sources' },
           { text: 'Immich API Key', link: '/api-key' },
         ],
