@@ -18,5 +18,3 @@ Espframe needs a read-only API key; it never modifies or uploads. **Account Sett
 | `tag.read` | Tags assigned to photos |
 | `memory.read` | "On this day" memories and groupings |
 | `map.read` | Additional GPS/map data beyond EXIF |
-
-Enter the key and Immich server URL in the device web UI. Advanced: [bake into ESPHome config](/manual-setup#pre-filling-immich-credentials).
