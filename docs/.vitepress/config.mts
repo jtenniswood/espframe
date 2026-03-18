@@ -124,7 +124,7 @@ export default defineConfig({
         items: [
           { text: 'Overview', link: '/' },
           { text: 'Install', link: '/install' },
-          { text: 'Immich', link: '/api-key' },
+          { text: 'Immich API Key', link: '/api-key' },
         ],
       },
       {

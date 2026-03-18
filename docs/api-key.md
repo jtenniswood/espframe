@@ -5,11 +5,7 @@ description: Create a scoped Immich API key with minimal read-only permissions f
 
 # Immich API Key
 
-This page explains how to create a read-only Immich API key for Espframe and which permissions to enable. Espframe only needs read access; it never modifies or uploads to your library.
-
-In your Immich web UI, go to **Account Settings → API Keys → New API Key**.
-
-Immich lets you scope API keys to specific permissions. Espframe only needs read access — it never modifies, deletes, or uploads anything in your library. Deselect all permissions first, then enable only the ones below.
+Espframe needs a read-only API key; it never modifies or uploads. **Account Settings → API Keys → New API Key** in Immich. Deselect all, then enable only:
 
 ## Recommended permissions
 
@@ -23,6 +19,4 @@ Immich lets you scope API keys to specific permissions. Espframe only needs read
 | `memory.read` | "On this day" memories and groupings |
 | `map.read` | Additional GPS/map data beyond EXIF |
 
-## Next steps
-
-Once you have your API key, enter it in the device's web UI along with your Immich server URL. For advanced setups, you can also [bake the key into your ESPHome config](/manual-setup#pre-filling-immich-credentials).
+Enter the key and Immich server URL in the device web UI. Advanced: [bake into ESPHome config](/manual-setup#pre-filling-immich-credentials).

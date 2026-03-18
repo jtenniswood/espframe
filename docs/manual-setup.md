@@ -5,13 +5,11 @@ description: Install Espframe firmware via the ESPHome dashboard for full contro
 
 # Manual Setup
 
-This page is for advanced users who want to install Espframe firmware via the ESPHome dashboard instead of the web installer. You get full control over substitutions and YAML configuration. This gives you full control over substitutions and lets you customise behaviour that the web installer leaves at defaults.
+For advanced users: install via the ESPHome dashboard instead of the web installer to control substitutions and YAML.
 
 ## Create a configuration
 
-In the ESPHome dashboard, create a new YAML configuration for your device. Use the example below as a starting point.
-
-### Guition ESP32-P4 (10")
+New YAML in the ESPHome dashboard (example for Guition ESP32-P4 10"):
 
 ```yaml
 substitutions:
@@ -30,58 +28,32 @@ packages:
     refresh: 1s
 ```
 
-Add a `secrets.yaml` file in the same folder:
-
-```yaml
-wifi_ssid: "YourWiFiName"
-wifi_password: "YourWiFiPassword"
-```
-
-Then flash via USB:
+Add `secrets.yaml` with `wifi_ssid` and `wifi_password`, then:
 
 ```bash
 esphome run esphome.yaml
 ```
 
-ESPHome will download the remote packages, compile, and flash the firmware. The first build takes a few minutes; subsequent OTA updates are much faster.
+First build takes a few minutes; OTA updates are faster.
 
-## Available substitutions
-
-These substitutions can be added to the `substitutions:` block in your configuration to override the defaults.
+## Substitutions
 
 | Substitution | Default | Description |
-|---|---|---|
-| `name` | — | Device name used on your network (required) |
-| `friendly_name` | — | Display name shown in the web UI (required) |
-| `immich_base_url` | *(empty)* | Pre-fill the Immich server URL to skip the setup screen on first boot |
-| `immich_api_key` | *(empty)* | Pre-fill the API key to skip the setup screen on first boot |
-| `immich_slide_interval` | `15 seconds` | Default slideshow interval (e.g. `30 seconds`, `2 minutes`) |
-| `immich_verify_ssl` | `false` | Set to `true` to enforce TLS certificate verification |
-
-::: tip
-You can optionally bake in `immich_base_url` and `immich_api_key` so the device skips the on-screen setup wizard. If you leave them empty, the device will prompt you to enter them via the built-in web UI on first boot.
-:::
+|--------------|---------|-------------|
+| `name` | — | Device name (required) |
+| `friendly_name` | — | Web UI display name (required) |
+| `immich_base_url` | *(empty)* | Pre-fill Immich URL to skip setup |
+| `immich_api_key` | *(empty)* | Pre-fill API key to skip setup |
+| `immich_slide_interval` | `15 seconds` | Slideshow interval |
+| `immich_verify_ssl` | `false` | Set `true` to verify TLS |
 
 ## Pre-filling Immich credentials
 
-To skip the first-boot setup screen entirely, add the Immich connection details to your substitutions:
+To skip the first-boot wizard, add to substitutions:
 
 ```yaml
-substitutions:
-  name: "immich-frame"
-  friendly_name: "Espframe for Immich"
-  immich_base_url: "http://192.168.1.30:2283"
-  immich_api_key: !secret immich_api_key
+immich_base_url: "http://192.168.1.30:2283"
+immich_api_key: !secret immich_api_key
 ```
 
-Add the API key to your `secrets.yaml`:
-
-```yaml
-wifi_ssid: "YourWiFiName"
-wifi_password: "YourWiFiPassword"
-immich_api_key: "your-immich-api-key-here"
-```
-
-::: tip
-Even with credentials baked in, you can change them at any time via the web UI — no reflash required.
-:::
+Add `immich_api_key` to `secrets.yaml`. You can still change these later in the web UI.
