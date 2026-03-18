@@ -268,10 +268,6 @@
         S.schedule_off_hour = Math.round(Number(res[6].value));
       if (res[7]) S.sunrise = res[7].value || res[7].state || "";
       if (res[8]) S.sunset = res[8].value || res[8].state || "";
-      if (res[9]) S.online = res[9].value === true || res[9].state === "ON";
-      if (res[10]) S.wifi_strength = res[10].value != null ? String(res[10].value) : (res[10].state != null ? res[10].state : "");
-      if (res[11]) S.wifi_signal_db = res[11].value != null ? String(res[11].value) : (res[11].state != null ? res[11].state : "");
-      if (res[12]) S.ip_address = res[12].value || res[12].state || "";
     });
   }
 
@@ -560,14 +556,6 @@
 
     connBody.appendChild(connStatus);
     wrap.appendChild(makeCollapsibleCard("Connection", connBody, true));
-
-    // Network
-    var netBody = el("div");
-    var netDetails = el("div", "field");
-    netDetails.id = "network-info";
-    updateNetworkInfoElement(netDetails);
-    netBody.appendChild(netDetails);
-    wrap.appendChild(makeCollapsibleCard("Network", netBody, true));
 
     // Photo Source
     var srcBody = el("div");
@@ -1012,13 +1000,6 @@
     } else if (id === "text_sensor/Screen: Sunset") {
       S.sunset = d.value || d.state || "";
       updateSunInfoElement(document.getElementById("sun-info"));
-    } else if (
-      id === "binary_sensor/Network: Online" ||
-      id === "sensor/Network: WiFi Strength" ||
-      id === "sensor/Network: WiFi Signal dB" ||
-      id === "text_sensor/Network: IP Address"
-    ) {
-      updateNetworkInfoElement(document.getElementById("network-info"));
     }
   }
 
@@ -1034,16 +1015,6 @@
     if (S.sunrise && S.sunset) t += " \u00a0/\u00a0 ";
     if (S.sunset) t += "Sunset: " + esc(S.sunset);
     el.innerHTML = t;
-  }
-
-  function updateNetworkInfoElement(netEl) {
-    if (!netEl) return;
-    var parts = [];
-    parts.push(S.online ? "Online" : "Offline");
-    if (S.ip_address) parts.push("IP: " + esc(S.ip_address));
-    if (S.wifi_strength) parts.push(esc(S.wifi_strength));
-    if (S.wifi_signal_db) parts.push(esc(S.wifi_signal_db) + " dB");
-    netEl.innerHTML = parts.join(" \u00a0/\u00a0 ");
   }
 
   // --- Hour formatting ---
