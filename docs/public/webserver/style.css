@@ -144,6 +144,7 @@ select option{background:var(--surface);color:var(--text)}
 .version{text-align:center;font-size:.75rem;color:var(--text2);margin-top:8px;opacity:.6}
 
 .fw-body{display:flex;flex-direction:column;gap:20px}
+.fw-updates{display:flex;flex-direction:column;gap:20px}
 .fw-row{display:flex;align-items:center;justify-content:space-between;min-height:36px}
 .fw-label{font-size:.9rem}
 .fw-status{font-size:.8rem;color:var(--text2)}

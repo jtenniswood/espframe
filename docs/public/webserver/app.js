@@ -916,10 +916,12 @@
     versionBlock.appendChild(versionRow);
     fwBody.appendChild(versionBlock);
 
+    var updatesSection = el("div", "fw-updates");
     var updateRow = el("div");
-    fwBody.appendChild(updateRow);
+    updatesSection.appendChild(updateRow);
     var betaRow = el("div");
-    fwBody.appendChild(betaRow);
+    updatesSection.appendChild(betaRow);
+    fwBody.appendChild(updatesSection);
 
     function renderUpdateRow() {
       updateRow.innerHTML = "";
