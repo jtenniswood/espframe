@@ -60,6 +60,10 @@ number:
     restore_value: true
     unit_of_measurement: "%"
     icon: "mdi:thermometer"
+    on_value:
+      then:
+        - lambda: 'id(warm_tone_retint) = true;'
+        - script.execute: apply_warm_tones
 
   - platform: template
     name: "Screen: Warm Tone Intensity"

@@ -730,9 +730,13 @@
     var warmTr = el("div", "toggle-row");
     warmTr.innerHTML = "<span>Night Tone Adjustment</span>";
     var warmTog = el("div", S.warm_tones_enabled ? "toggle on" : "toggle");
+    var nightDetails = el("div");
+    nightDetails.style.display = S.warm_tones_enabled ? "" : "none";
+
     warmTog.onclick = function () {
       S.warm_tones_enabled = !S.warm_tones_enabled;
       warmTog.className = S.warm_tones_enabled ? "toggle on" : "toggle";
+      nightDetails.style.display = S.warm_tones_enabled ? "" : "none";
       post(endpoints.warm_tones_enabled + (S.warm_tones_enabled ? "/turn_on" : "/turn_off"));
     };
     warmTr.appendChild(warmTog);
@@ -758,7 +762,7 @@
     rwWarm.appendChild(warmSlider);
     rwWarm.appendChild(warmVal);
     fWarmInt.appendChild(rwWarm);
-    warmBody.appendChild(fWarmInt);
+    nightDetails.appendChild(fWarmInt);
 
     var fOverride = field("");
     var overTr = el("div", "toggle-row");
@@ -771,8 +775,9 @@
     };
     overTr.appendChild(overTog);
     fOverride.appendChild(overTr);
-    warmBody.appendChild(fOverride);
+    nightDetails.appendChild(fOverride);
 
+    warmBody.appendChild(nightDetails);
     wrap.appendChild(makeCollapsibleCard("Screen Tone", warmBody, true));
 
     // Schedule
