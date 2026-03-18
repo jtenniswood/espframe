@@ -136,6 +136,7 @@ sensor:
     accuracy_decimals: 0
     entity_category: diagnostic
 
+# Sunrise/sunset times for dashboard display only; internal = not exposed to Home Assistant
 text_sensor:
   - platform: template
     name: "Screen: Sunrise"

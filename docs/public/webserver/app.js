@@ -229,11 +229,17 @@
     }
   }
 
-  function fetchPhotoSourceState() {
+  function fetchDeviceSettingsState() {
     return Promise.all([
       safeGet(endpoints.photo_source),
       safeGet(endpoints.album_ids),
-      safeGet(endpoints.person_ids)
+      safeGet(endpoints.person_ids),
+      safeGet(endpoints.interval),
+      safeGet(endpoints.schedule_enabled),
+      safeGet(endpoints.schedule_on_hour),
+      safeGet(endpoints.schedule_off_hour),
+      safeGet(endpoints.sunrise),
+      safeGet(endpoints.sunset)
     ]).then(function (res) {
       if (res[0] && (res[0].value != null || res[0].state != null))
         S.photo_source = res[0].value || res[0].state || "All Photos";
@@ -241,6 +247,18 @@
         S.photo_source_options = res[0].option;
       if (res[1]) S.album_ids = res[1].value || res[1].state || "";
       if (res[2]) S.person_ids = res[2].value || res[2].state || "";
+      if (res[3] && (res[3].value != null || res[3].state != null))
+        S.interval = res[3].value || res[3].state || "15 seconds";
+      if (res[3] && res[3].option && res[3].option.length)
+        S.interval_options = res[3].option;
+      if (res[4])
+        S.schedule_enabled = res[4].value === true || res[4].state === "ON";
+      if (res[5] && res[5].value != null)
+        S.schedule_on_hour = Math.round(Number(res[5].value));
+      if (res[6] && res[6].value != null)
+        S.schedule_off_hour = Math.round(Number(res[6].value));
+      if (res[7]) S.sunrise = res[7].value || res[7].state || "";
+      if (res[8]) S.sunset = res[8].value || res[8].state || "";
     });
   }
 
@@ -248,7 +266,7 @@
     if (rendered) return;
     rendered = true;
     if (S.immich_url) {
-      fetchPhotoSourceState().then(renderSettings);
+      fetchDeviceSettingsState().then(renderSettings);
       return;
     }
     Promise.all([
@@ -258,7 +276,7 @@
       if (res[0]) S.immich_url = res[0].value || res[0].state || "";
       if (res[1]) S.api_key = res[1].value || res[1].state || "";
       if (S.immich_url) {
-        fetchPhotoSourceState().then(renderSettings);
+        fetchDeviceSettingsState().then(renderSettings);
       } else {
         renderWizard();
       }
@@ -1036,7 +1054,20 @@
       S.show_clock = d.state === "ON" || d.value === true;
     } else if (id === "sensor/Screen: Brightness") {
       S.brightness_current = d.value != null ? d.value : 0;
-    } else if (id === "text_sensor/Screen: Sunrise" || id === "text_sensor/Screen: Sunset") {
+    } else if (id === "text_sensor/Screen: Sunrise") {
+      S.sunrise = d.value || d.state || "";
+      var el = document.getElementById("sun-info");
+      if (el) {
+        if (!S.sunrise && !S.sunset) { el.style.display = "none"; return; }
+        el.style.display = "";
+        var t = "";
+        if (S.sunrise) t += "Sunrise: " + esc(S.sunrise);
+        if (S.sunrise && S.sunset) t += " \u00a0/\u00a0 ";
+        if (S.sunset) t += "Sunset: " + esc(S.sunset);
+        el.innerHTML = t;
+      }
+    } else if (id === "text_sensor/Screen: Sunset") {
+      S.sunset = d.value || d.state || "";
       var el = document.getElementById("sun-info");
       if (el) {
         if (!S.sunrise && !S.sunset) { el.style.display = "none"; return; }
