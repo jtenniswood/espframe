@@ -1002,30 +1002,22 @@
         });
     };
 
-    var fAutoUpd = field("");
-    var autoTr = el("div", "toggle-row");
-    autoTr.innerHTML = "<span>Auto Update</span>";
-    var autoTog = el("div", S.auto_update ? "toggle on" : "toggle");
-    autoTog.onclick = function () {
-      S.auto_update = !S.auto_update;
-      autoTog.className = S.auto_update ? "toggle on" : "toggle";
-      post(
-        endpoints.auto_update + (S.auto_update ? "/turn_on" : "/turn_off")
-      );
-      freqField.style.display = S.auto_update ? "" : "none";
-    };
-    autoTr.appendChild(autoTog);
-    fAutoUpd.appendChild(autoTr);
-    fwBody.appendChild(fAutoUpd);
-
+    var autoUpdateOptions = ["Disabled"].concat(S.update_freq_options);
+    var currentAutoUpdate = S.auto_update ? S.update_frequency : "Disabled";
     var freqField = field("Auto updates");
     freqField.appendChild(
-      selectFromOptions(S.update_freq_options, S.update_frequency, function (v) {
-        S.update_frequency = v;
-        post(endpoints.update_frequency + "/set", { option: v });
+      selectFromOptions(autoUpdateOptions, currentAutoUpdate, function (v) {
+        if (v === "Disabled") {
+          S.auto_update = false;
+          post(endpoints.auto_update + "/turn_off");
+        } else {
+          S.auto_update = true;
+          S.update_frequency = v;
+          post(endpoints.auto_update + "/turn_on");
+          post(endpoints.update_frequency + "/set", { option: v });
+        }
       })
     );
-    freqField.style.display = S.auto_update ? "" : "none";
     fwBody.appendChild(freqField);
 
     wrap.appendChild(makeCollapsibleCard("Firmware", fwBody, true));
