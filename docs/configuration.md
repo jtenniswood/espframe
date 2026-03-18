@@ -24,25 +24,11 @@ See [Creating an API Key](/api-key) for how to generate a key and which permissi
 
 | Setting | Default | Description |
 |---|---|---|
-| **Source** | All Photos | Which photos to display (see options below) |
-| **Album IDs** | *(empty)* | Comma-separated Immich album UUIDs (visible when Source is `Album`) |
-| **Person IDs** | *(empty)* | Comma-separated Immich person UUIDs (visible when Source is `Person`) |
+| **Source** | All Photos | Which photos to display (see [Photo Sources](/photo-sources) for options and setup) |
+| **Album IDs** | *(empty)* | When Source is **Album**: comma-separated album UUIDs ([how to find](/photo-sources#album)) |
+| **Person IDs** | *(empty)* | When Source is **Person**: comma-separated person UUIDs ([how to find](/photo-sources#person)) |
 
-Available source options:
-
-| Source | Description |
-|---|---|
-| **All Photos** | Random photos from your entire Immich library |
-| **Favorites** | Only photos you've marked as favorites in Immich |
-| **Album** | Photos from specific albums — paste one or more album UUIDs separated by commas |
-| **Person** | Photos of specific people — paste one or more person UUIDs separated by commas |
-| **Memories** | "On this day" photos from previous years, just like the Memories feature in the Immich app. Falls back to random photos on days with no memories. |
-
-::: tip Finding UUIDs
-To find an album or person UUID, open the album or person page in the Immich web UI. The UUID is the last segment of the URL — for example, `http://immich.local:2283/albums/a1b2c3d4-...` has the album UUID `a1b2c3d4-...`.
-:::
-
-Changes to photo source settings are applied automatically — the frame flushes its image cache and begins fetching from the new source within a few seconds.
+See **[Photo Sources](/photo-sources)** for options and setup instructions.
 
 ### Frequency
 

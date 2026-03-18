@@ -36,7 +36,7 @@ Once added, the frame exposes its settings as Home Assistant entities. You can v
 | Entity | Type | Description |
 |---|---|---|
 | **Photos: Slideshow Interval** | Select | Time between photos (10 seconds – 10 minutes) |
-| **Photos: Source** | Select | Which photos to display (`All Photos`, `Favorites`, `Album`, `Person`, `Memories`) |
+| **Photos: Source** | Select | Which photos to display — see [Photo Sources](/photo-sources) for options and setup |
 
 ### Lights
 
@@ -66,7 +66,7 @@ Because the frame is a native ESPHome device, you can use it in Home Assistant a
 - **Turn off the clock at night** — toggle `Clock: Show` during sleeping hours
 - **Control screen brightness** — use the `Screen: Backlight` light to turn the display on/off or set brightness in automations
 - **Adjust slideshow speed** — slow the `Photos: Slideshow Interval` in the evening for a more relaxed pace
-- **Switch to memories on weekends** — change `Photos: Source` to `Memories` on Saturday mornings
+- **Switch to memories on weekends** — set `Photos: Source` to `Memories` (see [Photo Sources](/photo-sources))
 - **Notify on disconnect** — send an alert if the frame goes offline
 
 ## What's next
