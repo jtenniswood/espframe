@@ -90,7 +90,6 @@ export default defineConfig({
         text: 'Features',
         items: [
           { text: 'Photo Sources', link: '/photo-sources' },
-          { text: 'Frequency', link: '/frequency' },
           { text: 'Configuration', link: '/configuration' },
           { text: 'Firmware Update', link: '/firmware-update' },
           { text: 'Screen', link: '/screen' },

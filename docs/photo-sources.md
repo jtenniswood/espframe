@@ -126,11 +126,12 @@ Make sure the frame’s **Timezone** (under **Clock**) is correct so “today”
 
 ---
 
-## Summary
+# Frequency
 
-- **All Photos** and **Memories**: select the source only; no IDs.  
-- **Favorites**: mark photos as favorites in Immich, then select Favorites.  
-- **Album**: set Source to Album and fill **Album IDs** with one or more album UUIDs from the Immich album URL.  
-- **Person**: set Source to Person and fill **Person IDs** with one or more person UUIDs from the Immich person URL.  
+The **Frequency** settings control how often the frame advances to the next photo. All options are available in the device web UI at `http://<device-ip>/` under the **Frequency** card.
 
-UUIDs are always the last segment of the Immich page URL (albums or people). Multiple IDs are comma-separated, and changes take effect within a few seconds.
+## Slideshow Interval
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **Slideshow Interval** | 15 seconds | Time each photo is displayed before advancing to the next |

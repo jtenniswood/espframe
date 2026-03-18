@@ -38,8 +38,6 @@ See **[Photo Sources](/photo-sources)** for options and setup instructions.
 |---|---|---|
 | **Slideshow Interval** | 15 seconds | Time between photos. Options: 10 s, 15 s, 20 s, 30 s, 45 s, 1 min, 2 min, 3 min, 5 min, 10 min |
 
-See **[Frequency](/frequency)** for interval options and usage tips.
-
 ### Screen Brightness
 
 | Setting | Default | Description |
@@ -104,7 +102,6 @@ See **[Firmware Update](/firmware-update)** for how OTA and auto-update work, an
 |-------|------|
 | Immich URL and API key | [API Key](/api-key) |
 | Albums, people, and photo sources | [Photo Sources](/photo-sources) |
-| Slideshow interval options | [Frequency](/frequency) |
 | Brightness, schedule, and display | [Screen](/screen) |
 | Colour temperature and warm tone | [Screen Tone](/screen-tone) |
 | Touch wake, sleep, and next photo | [Touch Controls](/touch-controls) |
