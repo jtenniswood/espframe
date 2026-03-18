@@ -130,7 +130,7 @@ inline std::string parse_immich_asset_and_fill_slot(const std::string &body,
                                                     const std::string &base_url,
                                                     int slot,
                                                     SlotMeta &s0, SlotMeta &s1, SlotMeta &s2) {
-  auto doc = json::parse_json(body);
+  auto doc = esphome::json::parse_json(body);
   JsonObject asset;
   if (!doc.isNull()) {
     if (doc.is<JsonArray>()) {
