@@ -95,6 +95,7 @@ export default defineConfig({
           { text: 'Firmware Update', link: '/firmware-update' },
           { text: 'Screen', link: '/screen' },
           { text: 'Screen Tone', link: '/screen-tone' },
+          { text: 'Touch Controls', link: '/touch-controls' },
         ],
       },
       {

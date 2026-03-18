@@ -11,7 +11,10 @@ Built with [ESPHome](https://esphome.io/) on the ESP32-P4, the frame connects di
 ## Features
 
 - **Fully standalone** — runs on bare hardware, no hub or cloud service needed
-- **Photo filtering** — show all photos, favourites, specific albums, specific people, or "on this day" memories
+- **Photo sources** — show all photos, favourites, specific albums, specific people, or "on this day" memories
+- **Display tone adjustment** — adjust colour temperature (e.g. warm the image if the panel looks too blue)
+- **Night tone** — automatically adjust screen tone between sunset and sunrise
+- **Screen scheduling** — schedule when to turn off the display; set daytime and night-time brightness separately
 - **Smart portrait pairing** — detects portrait photos and pairs them side-by-side from the same day
 - **Accent colour fill** — letterboxed areas are tinted with a colour sampled from the photo
 - **Configuration options** — change Immich URL, API key, slideshow interval, and more via the built-in web UI

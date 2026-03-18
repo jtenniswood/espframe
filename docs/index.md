@@ -12,11 +12,13 @@ A standalone digital photo frame that displays your Immich photo library on a 10
 
 ## Features
 
-- **Photo Filtering** — Show all photos, favorites only, specific albums, specific people, or "on this day" memories from previous years.
+- **Photo Sources** — Show all photos, favorites only, specific albums, specific people, or "on this day" memories from previous years.
+- **Display Tone Adjustment** — Adjust colour temperature so the panel looks right (e.g. warm the image if it’s too blue).
+- **Night Tone** — Automatically adjust screen tone between sunset and sunrise.
+- **Screen Scheduling** — Schedule when to turn off the display; set daytime and night-time brightness levels separately.
 - **Portrait Pairing** — Automatically pairs portrait photos taken on the same day for a side-by-side display that fills the screen edge-to-edge.
 - **Accent Color Fill** — Replaces black letterbox bars with a muted color sampled from the photo itself.
 - **Clock Overlay** — Displays the current time over your photos when enabled in settings.
-- **Backlight Schedules** — Control brightness across day and night, with optional auto-off scheduling.
 - **No Hub Required** — Connects directly to your Immich server over HTTP — no Home Assistant, cloud service, or extra software needed.
 
 ## Where to Buy

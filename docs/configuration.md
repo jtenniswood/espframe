@@ -107,6 +107,7 @@ See **[Firmware Update](/firmware-update)** for how OTA and auto-update work, an
 | Slideshow interval options | [Frequency](/frequency) |
 | Brightness, schedule, and display | [Screen](/screen) |
 | Colour temperature and warm tone | [Screen Tone](/screen-tone) |
+| Touch wake, sleep, and next photo | [Touch Controls](/touch-controls) |
 | OTA and auto-update | [Firmware Update](/firmware-update) |
 
 See **[Firmware Update](/firmware-update)** for details on all firmware controls and how updates work.
