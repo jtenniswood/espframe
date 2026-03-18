@@ -898,7 +898,7 @@
     wrap.appendChild(makeCollapsibleCard("Clock", clkBody, true));
 
     // Firmware
-    var fwBody = el("div");
+    var fwBody = el("div", "fw-body");
     var versionRow = el("div", "field fw-row");
     var versionLabel = el("span", "fw-label");
     versionLabel.innerHTML = '<span style="color:var(--text2)">Installed</span> ' +
@@ -912,13 +912,13 @@
     checkWrap.appendChild(statusMsg);
     checkWrap.appendChild(checkBtn);
     versionRow.appendChild(checkWrap);
-    var versionBlock = el("div", "mb-20");
+    var versionBlock = el("div");
     versionBlock.appendChild(versionRow);
     fwBody.appendChild(versionBlock);
 
-    var updateRow = el("div", "mb-24");
+    var updateRow = el("div");
     fwBody.appendChild(updateRow);
-    var betaRow = el("div", "mb-12");
+    var betaRow = el("div");
     fwBody.appendChild(betaRow);
 
     function renderUpdateRow() {
