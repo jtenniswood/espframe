@@ -143,7 +143,8 @@ select option{background:var(--surface);color:var(--text)}
 
 .version{text-align:center;font-size:.75rem;color:var(--text2);margin-top:8px;opacity:.6}
 
-.fw-row{display:flex;align-items:center;justify-content:space-between;min-height:36px}
+.fw-row{display:flex;align-items:center;justify-content:space-between;min-height:36px;margin-bottom:16px}
+.fw-row:last-child{margin-bottom:0}
 .fw-label{font-size:.9rem}
 .fw-status{font-size:.8rem;color:var(--text2)}
 .field-hint{font-size:.75rem;color:var(--text2);margin-top:6px;margin-bottom:8px}
@@ -166,5 +167,6 @@ select option{background:var(--surface);color:var(--text)}
 
 .mb-8{margin-bottom:8px}
 .mb-12{margin-bottom:12px}
+.mb-20{margin-bottom:20px}
 .mb-24{margin-bottom:24px}
 .mt-12{margin-top:12px}

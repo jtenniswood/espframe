@@ -912,7 +912,7 @@
     checkWrap.appendChild(statusMsg);
     checkWrap.appendChild(checkBtn);
     versionRow.appendChild(checkWrap);
-    var versionBlock = el("div");
+    var versionBlock = el("div", "mb-20");
     versionBlock.appendChild(versionRow);
     fwBody.appendChild(versionBlock);
 
