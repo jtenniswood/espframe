@@ -25,3 +25,11 @@ A standalone digital photo frame that displays your Immich photo library on a 10
 
 - **Panel:** [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH)
 - **Stand:** [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046)
+
+## Support This Project
+
+If you find this project useful, consider buying me a coffee to support ongoing development!
+
+<a href="https://www.buymeacoffee.com/jtenniswood">
+  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50" />
+</a>

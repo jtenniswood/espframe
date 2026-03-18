@@ -33,5 +33,5 @@ So in practice:
 | Topic | Page |
 |-------|------|
 | Brightness and schedule | [Screen](/screen) |
-| Slideshow timing | [Configuration](/configuration) |
-| All settings | [Configuration](/configuration) |
+| Slideshow timing | Device web UI |
+| All settings | Device web UI |

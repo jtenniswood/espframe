@@ -23,4 +23,4 @@ Immich lets you scope API keys to specific permissions. Espframe only needs read
 
 ## Next steps
 
-Once you have your API key, enter it in the device's [web UI configuration](/configuration#immich-connection) along with your Immich server URL. For advanced setups, you can also [bake the key into your ESPHome config](/manual-setup#pre-filling-immich-credentials).
+Once you have your API key, enter it in the device's web UI along with your Immich server URL. For advanced setups, you can also [bake the key into your ESPHome config](/manual-setup#pre-filling-immich-credentials).

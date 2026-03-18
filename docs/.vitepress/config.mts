@@ -90,9 +90,8 @@ export default defineConfig({
         text: 'Features',
         items: [
           { text: 'Photo Sources', link: '/photo-sources' },
-          { text: 'Configuration', link: '/configuration' },
           { text: 'Firmware Update', link: '/firmware-update' },
-          { text: 'Screen', link: '/screen' },
+          { text: 'Screen Settings', link: '/screen-settings' },
           { text: 'Screen Tone', link: '/screen-tone' },
           { text: 'Touch Controls', link: '/touch-controls' },
         ],

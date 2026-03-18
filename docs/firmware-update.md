@@ -36,8 +36,3 @@ Auto-update only runs checks at these intervals; it does not install unless **Au
 ::: tip
 Use **Check for Update** after a release to get the latest version immediately, or rely on **Auto Update** with **Daily** or **Weekly** for hands-off updates.
 :::
-
-## Related settings
-
-- **[Configuration](/configuration)** — Full list of web UI settings including the Firmware section.
-- **[Install](/install)** — How to flash the initial firmware and set up the device.

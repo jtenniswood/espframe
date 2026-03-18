@@ -1,5 +1,5 @@
 ---
-title: Screen
+title: Screen Settings
 description: Screen brightness, tone, and schedule — the display controls available in the device Settings menu.
 ---
 
@@ -8,7 +8,6 @@ description: Screen brightness, tone, and schedule — the display controls avai
 In the device **Settings** menu you’ll see three display-related sections:
 
 - **Screen Brightness** — Day and night brightness with automatic sunrise/sunset switching
-- **Screen Tone** — Colour temperature and optional warm shift at night
 - **Screen Schedule** — Optional backlight on/off times and download pausing
 
 All of these are available in the built-in web UI and (where applicable) as Home Assistant entities.
@@ -24,18 +23,6 @@ The **Screen Brightness** card lets you set separate brightness levels for day a
 
 Sunrise and sunset are shown below the sliders so you can see when the switch happens. In Home Assistant, the **Screen: Backlight** light entity controls on/off and current brightness.
 
-## Screen Tone
-
-**Screen Tone** adjusts the colour temperature of the display: you can correct a blue cast and optionally warm photos automatically in the evening.
-
-| Setting | Default | Description |
-|---|---|---|
-| **Screen Tone Adjustment** | Off | Permanent warm shift to correct panel blue cast |
-| **Night Tone Adjustment** | Off | Automatically warm photos from sunset to sunrise |
-| **Turn on until sunrise** | Off | Force warm tone on now until next sunrise (HA: **Screen: Warm Tone Override**) |
-
-For step-by-step setup and tips, see **[Screen Tone](/screen-tone)**.
-
 ## Screen Schedule
 
 **Screen Schedule** optionally turns the backlight off outside a time window and pauses photo downloads to save power and bandwidth.
@@ -50,7 +37,3 @@ For step-by-step setup and tips, see **[Screen Tone](/screen-tone)**.
 - When the schedule is **on** and the current time is **outside** the on/off window, the backlight turns off and downloads pause. They resume when the schedule turns the backlight back on.
 
 On and Off times are hour-of-day (e.g. 6 = 6:00 AM, 23 = 11:00 PM). In Home Assistant you’ll see **Screen: Schedule**, **Screen: Schedule On**, and **Screen: Schedule Off**.
-
-::: tip
-For a full list of every web UI setting (including Connection, Photo Source, Frequency, Clock, and Firmware), see **[Configuration](/configuration)**.
-:::

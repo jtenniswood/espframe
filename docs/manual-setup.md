@@ -83,5 +83,5 @@ immich_api_key: "your-immich-api-key-here"
 ```
 
 ::: tip
-Even with credentials baked in, you can change them at any time via the [web UI](./configuration#immich-connection) — no reflash required.
+Even with credentials baked in, you can change them at any time via the web UI — no reflash required.
 :::
