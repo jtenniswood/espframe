@@ -567,9 +567,7 @@
     wrap.appendChild(makeCollapsibleCard("Connection", connBody, true));
 
     // Photo Source
-    var src = el("div", "card");
-    src.innerHTML = "<h3>Photo Source</h3>";
-
+    var srcBody = el("div");
     var fSrc = field("Source");
     var srcSel = document.createElement("select");
     srcSel.className = "select";
@@ -639,16 +637,14 @@
     };
 
     fSrc.appendChild(srcSel);
-    src.appendChild(fSrc);
-    src.appendChild(albumField);
-    src.appendChild(personField);
-    src.appendChild(applyBtn);
-    wrap.appendChild(src);
+    srcBody.appendChild(fSrc);
+    srcBody.appendChild(albumField);
+    srcBody.appendChild(personField);
+    srcBody.appendChild(applyBtn);
+    wrap.appendChild(makeCollapsibleCard("Photo Source", srcBody, false));
 
     // Frequency
-    var disp = el("div", "card");
-    disp.innerHTML = "<h3>Frequency</h3>";
-
+    var dispBody = el("div");
     var f3 = field("Slideshow Interval");
     var intSel = document.createElement("select");
     intSel.className = "select";
@@ -664,14 +660,10 @@
       post(endpoints.interval + "/set", { option: intSel.value });
     };
     f3.appendChild(intSel);
-    disp.appendChild(f3);
-
-    wrap.appendChild(disp);
+    dispBody.appendChild(f3);
+    wrap.appendChild(makeCollapsibleCard("Frequency", dispBody, false));
 
     // Screen Brightness
-    var dnCard = el("div", "card");
-    dnCard.innerHTML = "<h3>Screen Brightness</h3>";
-
     var dnDetails = el("div");
 
     var fDayBrt = field("Daytime Brightness");
@@ -730,13 +722,10 @@
     updateSunInfo();
     dnDetails.appendChild(fSunInfo);
 
-    dnCard.appendChild(dnDetails);
-    wrap.appendChild(dnCard);
+    wrap.appendChild(makeCollapsibleCard("Screen Brightness", dnDetails, false));
 
     // Schedule
-    var sched = el("div", "card");
-    sched.innerHTML = "<h3>Screen Schedule</h3>";
-
+    var schedBody = el("div");
     var fSchedToggle = field("");
     var schedTr = el("div", "toggle-row");
     schedTr.innerHTML = "<span>Enable Schedule</span>";
@@ -752,7 +741,7 @@
     };
     schedTr.appendChild(schedTog);
     fSchedToggle.appendChild(schedTr);
-    sched.appendChild(fSchedToggle);
+    schedBody.appendChild(fSchedToggle);
 
     var fOnTime = field("On Time");
     var onSel = document.createElement("select");
@@ -788,8 +777,8 @@
     fOffTime.appendChild(offSel);
     schedDetails.appendChild(fOffTime);
 
-    sched.appendChild(schedDetails);
-    wrap.appendChild(sched);
+    schedBody.appendChild(schedDetails);
+    wrap.appendChild(makeCollapsibleCard("Screen Schedule", schedBody, false));
 
     // Clock
     var clk = el("div", "card");
