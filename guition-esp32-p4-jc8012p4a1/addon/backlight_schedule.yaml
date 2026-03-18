@@ -127,15 +127,6 @@ number:
       then:
         - script.execute: backlight_apply_brightness
 
-sensor:
-  - platform: template
-    name: "Screen: Brightness"
-    id: backlight_brightness_sensor
-    unit_of_measurement: "%"
-    icon: "mdi:brightness-percent"
-    accuracy_decimals: 0
-    entity_category: diagnostic
-
 # Sunrise/sunset times for dashboard display only; internal = not exposed to Home Assistant
 text_sensor:
   - platform: template
@@ -170,7 +161,6 @@ script:
             - light.turn_off:
                 id: backlight
                 transition_length: 500ms
-            - lambda: 'id(backlight_brightness_sensor).publish_state(0);'
           else:
             - lambda: |-
                 float pct;
@@ -194,7 +184,6 @@ script:
                 call.set_brightness(brightness);
                 call.set_transition_length(500);
                 call.perform();
-                id(backlight_brightness_sensor).publish_state(pct);
 
   # ---------------------------------------------------------------------------
   # Check schedule and act (called by interval and on setting change)
@@ -294,7 +283,6 @@ script:
       - light.turn_off:
           id: backlight
           transition_length: 500ms
-      - lambda: 'id(backlight_brightness_sensor).publish_state(0);'
 
   # ---------------------------------------------------------------------------
   # Wake from manual off: restore brightness

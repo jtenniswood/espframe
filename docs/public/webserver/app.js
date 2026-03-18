@@ -115,7 +115,6 @@
     schedule_enabled: eid("switch", "Screen: Schedule"),
     schedule_on_hour: eid("number", "Screen: Schedule On"),
     schedule_off_hour: eid("number", "Screen: Schedule Off"),
-    brightness_current: eid("sensor", "Screen: Brightness"),
     brightness_day: eid("number", "Screen: Daytime Brightness"),
     brightness_night: eid("number", "Screen: Nighttime Brightness"),
     sunrise: eid("text_sensor", "Screen: Sunrise"),
@@ -179,8 +178,10 @@
       if (d.option && d.option.length) S.interval_options = d.option;
     } else if (id === "light/Screen: Backlight") {
       S.backlight_on = d.state === "ON";
-      if (d.brightness != null)
+      if (d.brightness != null) {
         S.brightness = Math.round((d.brightness / 255) * 100);
+        S.brightness_current = S.brightness;
+      }
     } else if (id === "switch/Clock: Show") {
       S.show_clock = d.value === true || d.state === "ON";
     } else if (id === "text_sensor/Firmware: Version") {
@@ -209,8 +210,6 @@
       S.schedule_on_hour = d.value != null ? d.value : 6;
     } else if (id === "number/Screen: Schedule Off") {
       S.schedule_off_hour = d.value != null ? d.value : 23;
-    } else if (id === "sensor/Screen: Brightness") {
-      S.brightness_current = d.value != null ? d.value : 0;
     } else if (id === "number/Screen: Daytime Brightness") {
       S.brightness_day = d.value != null ? d.value : 100;
     } else if (id === "number/Screen: Nighttime Brightness") {
@@ -1048,12 +1047,12 @@
     var id = d.id;
     if (id === "light/Screen: Backlight") {
       S.backlight_on = d.state === "ON";
-      if (d.brightness != null)
+      if (d.brightness != null) {
         S.brightness = Math.round((d.brightness / 255) * 100);
+        S.brightness_current = S.brightness;
+      }
     } else if (id === "switch/Clock: Show") {
       S.show_clock = d.state === "ON" || d.value === true;
-    } else if (id === "sensor/Screen: Brightness") {
-      S.brightness_current = d.value != null ? d.value : 0;
     } else if (id === "text_sensor/Screen: Sunrise") {
       S.sunrise = d.value || d.state || "";
       var el = document.getElementById("sun-info");

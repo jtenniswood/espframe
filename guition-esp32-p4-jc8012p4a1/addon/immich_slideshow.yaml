@@ -401,6 +401,7 @@ script:
 
           auto &meta = (s == 0) ? id(slot0) : (s == 1) ? id(slot1) : id(slot2);
           lv_img_set_zoom(id(slideshow_img), meta.zoom);
+          if (!meta.is_portrait) id(active_slot_displayed) = true;
       - script.execute: extract_accent_color
       - if:
           condition:

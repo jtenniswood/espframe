@@ -7,6 +7,5 @@ light:
     id: backlight
     output: backlight_output
     name: "Screen: Backlight"
-    internal: true
     default_transition_length: 500ms
     restore_mode: ALWAYS_ON
