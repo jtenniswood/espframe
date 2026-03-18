@@ -28,4 +28,4 @@ Requires **Chrome** or **Edge** (desktop) with [WebSerial](https://developer.moz
 1. **Connect** — Plug in with USB-C; allow drivers if prompted.
 2. **Flash** — Click **Install Espframe for Immich**, choose the device’s serial port, confirm. Takes a few minutes.
 3. **WiFi** — Enter network name and password when prompted. If no prompt appears, the device creates hotspot **immich-frame-10inch**; connect from phone/laptop for captive-portal setup.
-4. **Immich** — Open the device IP in a browser (shown on screen), enter **Immich server URL** and **API key**. See [API Key](/api-key) for permissions. Photos start loading.
+4. **Immich** — Open the device IP in a browser (shown on screen), enter **Immich server URL** and **API key**. See [API Key](/api-key) for permissions. Photos start loading. Next: [Photo Sources](/photo-sources) to choose what to display.

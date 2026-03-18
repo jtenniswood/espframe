@@ -5,7 +5,7 @@ description: Wake, sleep, and advance the slideshow with simple touch gestures.
 
 # Touch Controls
 
-This page describes touch gestures, wake, sleep, and advance slideshow. On the slideshow screen you can wake the display, turn it off with a timed hold, and advance to the next photo.
+On the slideshow screen you can wake the display, turn it off with a timed hold, and advance to the next photo.
 
 ## Gestures
 

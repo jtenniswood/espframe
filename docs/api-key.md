@@ -18,3 +18,7 @@ Espframe needs a read-only API key; it never modifies or uploads. **Account Sett
 | `tag.read` | Tags assigned to photos |
 | `memory.read` | "On this day" memories and groupings |
 | `map.read` | Additional GPS/map data beyond EXIF |
+
+## Next steps
+
+After creating the key, add the **Immich server URL** and paste this key in the frame’s web UI (or during [Install](/install)). Then choose a [Photo Source](/photo-sources) and your photos will start loading.
