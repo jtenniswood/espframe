@@ -436,6 +436,7 @@ script:
               return meta.is_portrait && !id(immich_is_portrait_pair);
           then:
             - script.execute: immich_start_portrait_active
+      - script.execute: update_clock_display
 
   # Advance forward: move ring index, display if ready, else fetch into slot
   - id: immich_advance_forward
@@ -582,6 +583,7 @@ script:
           src: immich_portrait_right
       - script.execute: extract_accent_color
       - script.execute: apply_warm_tones
+      - script.execute: update_clock_display
       - script.execute: delayed_prefetch_chain
 
   # Prefetch chain: fill the next empty slot(s) ahead of active_slot (skipped when backlight paused)
