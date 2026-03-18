@@ -88,6 +88,7 @@
     person_ids: "",
     warm_tones_enabled: false,
     warm_tone_intensity: 50,
+    warm_tone_override: false,
   };
 
   var app = document.getElementById("app");
@@ -124,9 +125,9 @@
     photo_source: eid("select", "Photos: Source"),
     album_ids: eid("text", "Photos: Album IDs"),
     person_ids: eid("text", "Photos: Person IDs"),
-    warm_tones_enabled: eid("switch", "Screen: Warm Tones"),
+    warm_tones_enabled: eid("switch", "Screen: Night Tone Adjustment"),
     warm_tone_intensity: eid("number", "Screen: Warm Tone Intensity"),
-    warm_tone_preview: eid("button", "Screen: Warm Tone Preview"),
+    warm_tone_override: eid("switch", "Screen: Warm Tone Override"),
   };
 
   function post(url, params) {
@@ -190,8 +191,9 @@
     "select/Photos: Source": { key: "photo_source", optionsKey: "photo_source_options", default: "All Photos" },
     "text/Photos: Album IDs": { key: "album_ids" },
     "text/Photos: Person IDs": { key: "person_ids" },
-    "switch/Screen: Warm Tones": { key: "warm_tones_enabled", boolFromState: true },
-    "number/Screen: Warm Tone Intensity": { key: "warm_tone_intensity", default: 50, number: true }
+    "switch/Screen: Night Tone Adjustment": { key: "warm_tones_enabled", boolFromState: true },
+    "number/Screen: Warm Tone Intensity": { key: "warm_tone_intensity", default: 50, number: true },
+    "switch/Screen: Warm Tone Override": { key: "warm_tone_override", boolFromState: true }
   };
 
   function applyEntityToState(d) {
@@ -244,7 +246,7 @@
     "photo_source", "album_ids", "person_ids", "interval",
     "schedule_enabled", "schedule_on_hour", "schedule_off_hour",
     "sunrise", "sunset",
-    "warm_tones_enabled", "warm_tone_intensity"
+    "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"
   ];
   function getEntityIdForStateKey(key) {
     for (var id in ENTITY_STATE_MAP) {
@@ -693,8 +695,21 @@
 
     wrap.appendChild(makeCollapsibleCard("Screen Brightness", dnDetails, true));
 
-    // Warm Tones
+    // Screen Tone
     var warmBody = el("div");
+
+    var fWarmToggle = field("");
+    var warmTr = el("div", "toggle-row");
+    warmTr.innerHTML = "<span>Night Tone Adjustment</span>";
+    var warmTog = el("div", S.warm_tones_enabled ? "toggle on" : "toggle");
+    warmTog.onclick = function () {
+      S.warm_tones_enabled = !S.warm_tones_enabled;
+      warmTog.className = S.warm_tones_enabled ? "toggle on" : "toggle";
+      post(endpoints.warm_tones_enabled + (S.warm_tones_enabled ? "/turn_on" : "/turn_off"));
+    };
+    warmTr.appendChild(warmTog);
+    fWarmToggle.appendChild(warmTr);
+    warmBody.appendChild(fWarmToggle);
 
     var fWarmInt = field("Intensity");
     var rwWarm = el("div", "range-wrap");
@@ -717,39 +732,20 @@
     fWarmInt.appendChild(rwWarm);
     warmBody.appendChild(fWarmInt);
 
-    var previewBtn = el("button", "btn btn-secondary btn-block");
-    previewBtn.textContent = "Preview";
-    previewBtn.onclick = function () {
-      previewBtn.disabled = true;
-      previewBtn.textContent = "Applying\u2026";
-      post(endpoints.warm_tone_preview + "/press").then(function () {
-        setTimeout(function () {
-          previewBtn.disabled = false;
-          previewBtn.textContent = "Preview";
-        }, 1500);
-      });
+    var fOverride = field("");
+    var overTr = el("div", "toggle-row");
+    overTr.innerHTML = "<span>Turn on until sunrise</span>";
+    var overTog = el("div", S.warm_tone_override ? "toggle on" : "toggle");
+    overTog.onclick = function () {
+      S.warm_tone_override = !S.warm_tone_override;
+      overTog.className = S.warm_tone_override ? "toggle on" : "toggle";
+      post(endpoints.warm_tone_override + (S.warm_tone_override ? "/turn_on" : "/turn_off"));
     };
-    warmBody.appendChild(previewBtn);
+    overTr.appendChild(overTog);
+    fOverride.appendChild(overTr);
+    warmBody.appendChild(fOverride);
 
-    var fWarmToggle = field("");
-    var warmTr = el("div", "toggle-row");
-    warmTr.innerHTML = "<span>Auto (sunset/sunrise)</span>";
-    var warmTog = el("div", S.warm_tones_enabled ? "toggle on" : "toggle");
-    warmTog.onclick = function () {
-      S.warm_tones_enabled = !S.warm_tones_enabled;
-      warmTog.className = S.warm_tones_enabled ? "toggle on" : "toggle";
-      post(endpoints.warm_tones_enabled + (S.warm_tones_enabled ? "/turn_on" : "/turn_off"));
-    };
-    warmTr.appendChild(warmTog);
-    fWarmToggle.appendChild(warmTr);
-    warmBody.appendChild(fWarmToggle);
-
-    var warmHint = el("div");
-    warmHint.className = "field-hint";
-    warmHint.textContent = "Shifts photos to warm tones near sunset, neutral during the day";
-    warmBody.appendChild(warmHint);
-
-    wrap.appendChild(makeCollapsibleCard("Warm Tones", warmBody, true));
+    wrap.appendChild(makeCollapsibleCard("Screen Tone", warmBody, true));
 
     // Schedule
     var schedBody = el("div");

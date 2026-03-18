@@ -10,33 +10,36 @@
 # sunrise. The tint is applied directly to the RGB565 image buffer after
 # accent color extraction, using precomputed lookup tables for speed.
 #
-# The Preview button applies warm tones at full intensity to the current
-# image regardless of time of day, so the effect can be judged visually.
+# The "Turn on until sunrise" switch forces full warmth immediately and
+# auto-disables after sunrise the next morning.
 # =============================================================================
 
 globals:
-  - id: warm_tone_preview
-    type: bool
-    initial_value: 'false'
+  - id: warm_tone_last_w
+    type: float
+    initial_value: '0.0f'
 
 switch:
   - platform: template
-    name: "Screen: Warm Tones"
+    name: "Screen: Night Tone Adjustment"
     id: warm_tones_enabled
     internal: true
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
     icon: "mdi:weather-sunset"
 
-button:
   - platform: template
-    name: "Screen: Warm Tone Preview"
-    id: warm_tone_preview_btn
+    name: "Screen: Warm Tone Override"
+    id: warm_tone_override
     internal: true
-    icon: "mdi:eye"
-    on_press:
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    icon: "mdi:weather-night"
+    on_turn_on:
       then:
-        - lambda: 'id(warm_tone_preview) = true;'
+        - script.execute: apply_warm_tones
+    on_turn_off:
+      then:
         - script.execute: apply_warm_tones
 
 number:
@@ -58,13 +61,12 @@ script:
     mode: restart
     then:
       - lambda: |-
-          bool preview = id(warm_tone_preview);
-          id(warm_tone_preview) = false;
+          bool override_on = id(warm_tone_override).state;
 
-          if (!preview && !id(warm_tones_enabled).state) return;
+          if (!override_on && !id(warm_tones_enabled).state) return;
 
           float warmth = 0.0f;
-          if (preview) {
+          if (override_on) {
             warmth = 1.0f;
           } else if (id(sunrise_sunset_valid)) {
             auto now = id(sntp_time).now();
@@ -88,25 +90,41 @@ script:
           }
 
           float w = warmth * (id(warm_tone_intensity).state / 100.0f);
-          if (w < 0.01f) return;
 
-          ESP_LOGI("warm", "Warmth=%.2f (intensity=%d%%, w=%.2f)", warmth, (int)id(warm_tone_intensity).state, w);
+          // For the normal pipeline (new image), buffer is fresh so last_w is 0.
+          // For override toggle changes, buffer may already be tinted.
+          float last_w = override_on ? id(warm_tone_last_w) : 0.0f;
+
+          // Skip if the buffer already has the target warmth applied
+          if (fabsf(w - last_w) < 0.01f) return;
+
+          ESP_LOGI("warm", "Warmth=%.2f->%.2f (intensity=%d%%)", last_w, w, (int)id(warm_tone_intensity).state);
+
+          // Build transition LUTs: undo last_w, apply new w in a single step.
+          // For each channel value in the buffer (which has last_w baked in),
+          // recover the original value then apply the new w.
+          float r_undo = (last_w > 0.005f) ? 1.0f / (1.0f + last_w * 0.06f) : 1.0f;
+          float g_undo = (last_w > 0.005f) ? 1.0f / (1.0f - last_w * 0.07f) : 1.0f;
+          float b_undo = (last_w > 0.005f) ? 1.0f / (1.0f - last_w * 0.28f) : 1.0f;
+          float r_apply = 1.0f + w * 0.06f;
+          float g_apply = 1.0f - w * 0.07f;
+          float b_apply = 1.0f - w * 0.28f;
 
           uint8_t r_lut[32], g_lut[64], b_lut[32];
           for (int i = 0; i < 32; i++) {
             int v = (i << 3) | (i >> 2);
-            int nv = (int)(v * (1.0f + w * 0.06f));
-            r_lut[i] = (uint8_t)((nv > 255 ? 255 : nv) >> 3);
+            int nv = (int)(v * r_undo * r_apply);
+            r_lut[i] = (uint8_t)((nv > 255 ? 255 : (nv < 0 ? 0 : nv)) >> 3);
           }
           for (int i = 0; i < 64; i++) {
             int v = (i << 2) | (i >> 4);
-            int nv = (int)(v * (1.0f - w * 0.07f));
-            g_lut[i] = (uint8_t)((nv < 0 ? 0 : nv) >> 2);
+            int nv = (int)(v * g_undo * g_apply);
+            g_lut[i] = (uint8_t)((nv > 255 ? 255 : (nv < 0 ? 0 : nv)) >> 2);
           }
           for (int i = 0; i < 32; i++) {
             int v = (i << 3) | (i >> 2);
-            int nv = (int)(v * (1.0f - w * 0.28f));
-            b_lut[i] = (uint8_t)((nv < 0 ? 0 : nv) >> 3);
+            int nv = (int)(v * b_undo * b_apply);
+            b_lut[i] = (uint8_t)((nv > 255 ? 255 : (nv < 0 ? 0 : nv)) >> 3);
           }
 
           auto tint_buffer = [&](esphome::image::Image *img) {
@@ -143,4 +161,23 @@ script:
                                        :            id(immich_img_2);
             tint_buffer(img);
             lv_obj_invalidate(id(slideshow_img));
+          }
+
+          id(warm_tone_last_w) = w;
+
+interval:
+  - interval: 60s
+    then:
+      - lambda: |-
+          if (!id(warm_tone_override).state) return;
+          if (!id(sunrise_sunset_valid)) return;
+          auto now = id(sntp_time).now();
+          if (!now.is_valid()) return;
+          int now_min = now.hour * 60 + now.minute;
+          int rise_min = id(sunrise_hour) * 60 + id(sunrise_minute);
+          int set_min  = id(sunset_hour)  * 60 + id(sunset_minute);
+          bool past_sunrise = (now_min >= rise_min && now_min < set_min);
+          if (past_sunrise) {
+            ESP_LOGI("warm", "Override auto-off: sunrise passed");
+            id(warm_tone_override).turn_off();
           }
