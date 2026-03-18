@@ -70,3 +70,4 @@ The device resets automatically after flashing. Wait 15-20 seconds for boot + Wi
 - **Docker compile fails with ESP32P4 unknown**: Pull the latest image with `docker pull ghcr.io/esphome/esphome:latest`.
 - **esptool connection timeout**: Hold the BOOT button on the device while running the flash command, release after "Connecting..." appears.
 - **Docker can't flash directly**: On macOS, Docker runs in a VM and cannot access host USB devices. Always use `esptool` on the host for flashing.
+- **"Could not find __init__.py for component online_image"**: In `dev.yaml`, the local component name is `remote_image`, not `online_image`. Use `components: [gsl3680, remote_image, espframe]` in `external_components`.
