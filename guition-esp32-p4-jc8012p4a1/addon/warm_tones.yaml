@@ -24,6 +24,22 @@ globals:
 
 switch:
   - platform: template
+    name: "Screen: Tone Adjustment"
+    id: base_tone_enabled
+    internal: true
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    icon: "mdi:palette"
+    on_turn_on:
+      then:
+        - lambda: 'id(warm_tone_retint) = true;'
+        - script.execute: apply_warm_tones
+    on_turn_off:
+      then:
+        - lambda: 'id(warm_tone_retint) = true;'
+        - script.execute: apply_warm_tones
+
+  - platform: template
     name: "Screen: Night Tone Adjustment"
     id: warm_tones_enabled
     internal: true
@@ -86,8 +102,8 @@ script:
           bool retint = id(warm_tone_retint);
           id(warm_tone_retint) = false;
 
-          // Base tone: always-on correction for display blue cast
-          float base_w = id(base_tone).state / 100.0f;
+          // Base tone: correction for display blue cast (only when enabled)
+          float base_w = id(base_tone_enabled).state ? (id(base_tone).state / 100.0f) : 0.0f;
 
           // Night warmth: sun-based or manual override
           float night_w = 0.0f;

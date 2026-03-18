@@ -109,6 +109,7 @@ select option{background:var(--surface);color:var(--text)}
 .range-wrap input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--accent);cursor:pointer}
 .range-wrap input[type="range"]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--accent);cursor:pointer;border:none}
 .range-val{min-width:42px;text-align:right;font-size:.85rem;color:var(--text2);font-variant-numeric:tabular-nums}
+.range-label{font-size:.75rem;color:var(--text2);white-space:nowrap}
 
 
 .status{

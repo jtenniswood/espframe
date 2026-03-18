@@ -86,6 +86,7 @@
     photo_source_options: ["All Photos", "Favorites", "Album", "Person", "Memories"],
     album_ids: "",
     person_ids: "",
+    base_tone_enabled: false,
     base_tone: 0,
     warm_tones_enabled: false,
     warm_tone_intensity: 50,
@@ -126,6 +127,7 @@
     photo_source: eid("select", "Photos: Source"),
     album_ids: eid("text", "Photos: Album IDs"),
     person_ids: eid("text", "Photos: Person IDs"),
+    base_tone_enabled: eid("switch", "Screen: Tone Adjustment"),
     base_tone: eid("number", "Screen: Display Tone"),
     warm_tones_enabled: eid("switch", "Screen: Night Tone Adjustment"),
     warm_tone_intensity: eid("number", "Screen: Warm Tone Intensity"),
@@ -193,6 +195,7 @@
     "select/Photos: Source": { key: "photo_source", optionsKey: "photo_source_options", default: "All Photos" },
     "text/Photos: Album IDs": { key: "album_ids" },
     "text/Photos: Person IDs": { key: "person_ids" },
+    "switch/Screen: Tone Adjustment": { key: "base_tone_enabled", boolFromState: true },
     "number/Screen: Display Tone": { key: "base_tone", default: 0, number: true },
     "switch/Screen: Night Tone Adjustment": { key: "warm_tones_enabled", boolFromState: true },
     "number/Screen: Warm Tone Intensity": { key: "warm_tone_intensity", default: 50, number: true },
@@ -249,7 +252,7 @@
     "photo_source", "album_ids", "person_ids", "interval",
     "schedule_enabled", "schedule_on_hour", "schedule_off_hour",
     "sunrise", "sunset",
-    "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"
+    "base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"
   ];
   function getEntityIdForStateKey(key) {
     for (var id in ENTITY_STATE_MAP) {
@@ -701,30 +704,48 @@
     // Screen Tone
     var warmBody = el("div");
 
-    var fBaseTone = field("Display Tone");
+    var fBaseToneToggle = field("");
+    var baseTr = el("div", "toggle-row");
+    baseTr.innerHTML = "<span>Screen Tone Adjustment</span>";
+    var baseTog = el("div", S.base_tone_enabled ? "toggle on" : "toggle");
+    var baseDetails = el("div");
+    baseDetails.style.display = S.base_tone_enabled ? "" : "none";
+
+    baseTog.onclick = function () {
+      S.base_tone_enabled = !S.base_tone_enabled;
+      baseTog.className = S.base_tone_enabled ? "toggle on" : "toggle";
+      baseDetails.style.display = S.base_tone_enabled ? "" : "none";
+      post(endpoints.base_tone_enabled + (S.base_tone_enabled ? "/turn_on" : "/turn_off"));
+    };
+    baseTr.appendChild(baseTog);
+    fBaseToneToggle.appendChild(baseTr);
+    warmBody.appendChild(fBaseToneToggle);
+
+    var fBaseTone = field("Intensity");
     var rwBase = el("div", "range-wrap");
+    var baseLabelL = el("span", "range-label");
+    baseLabelL.textContent = "Cooler";
     var baseSlider = document.createElement("input");
     baseSlider.type = "range";
     baseSlider.min = 0;
     baseSlider.max = 100;
     baseSlider.step = 5;
     baseSlider.value = S.base_tone;
-    var baseVal = el("span", "range-val");
-    baseVal.textContent = Math.round(S.base_tone) + "%";
-    baseSlider.oninput = function () {
-      baseVal.textContent = baseSlider.value + "%";
-    };
     baseSlider.onchange = function () {
       post(endpoints.base_tone + "/set", { value: baseSlider.value });
     };
+    var baseLabelR = el("span", "range-label");
+    baseLabelR.textContent = "Warmer";
+    rwBase.appendChild(baseLabelL);
     rwBase.appendChild(baseSlider);
-    rwBase.appendChild(baseVal);
+    rwBase.appendChild(baseLabelR);
     fBaseTone.appendChild(rwBase);
     var baseHint = el("div");
     baseHint.className = "field-hint";
     baseHint.textContent = "Corrects blue display cast. Applied to all photos.";
     fBaseTone.appendChild(baseHint);
-    warmBody.appendChild(fBaseTone);
+    baseDetails.appendChild(fBaseTone);
+    warmBody.appendChild(baseDetails);
 
     var fWarmToggle = field("");
     var warmTr = el("div", "toggle-row");
@@ -745,24 +766,29 @@
 
     var fWarmInt = field("Intensity");
     var rwWarm = el("div", "range-wrap");
+    var warmLabelL = el("span", "range-label");
+    warmLabelL.textContent = "Cooler";
     var warmSlider = document.createElement("input");
     warmSlider.type = "range";
     warmSlider.min = 10;
     warmSlider.max = 100;
     warmSlider.step = 5;
     warmSlider.value = S.warm_tone_intensity;
-    var warmVal = el("span", "range-val");
-    warmVal.textContent = Math.round(S.warm_tone_intensity) + "%";
-    warmSlider.oninput = function () {
-      warmVal.textContent = warmSlider.value + "%";
-    };
     warmSlider.onchange = function () {
       post(endpoints.warm_tone_intensity + "/set", { value: warmSlider.value });
     };
+    var warmLabelR = el("span", "range-label");
+    warmLabelR.textContent = "Warmer";
+    rwWarm.appendChild(warmLabelL);
     rwWarm.appendChild(warmSlider);
-    rwWarm.appendChild(warmVal);
+    rwWarm.appendChild(warmLabelR);
     fWarmInt.appendChild(rwWarm);
     nightDetails.appendChild(fWarmInt);
+
+    var nightHint = el("div");
+    nightHint.className = "field-hint";
+    nightHint.textContent = "Gradually turns on at sunset, off at sunrise";
+    nightDetails.appendChild(nightHint);
 
     var fOverride = field("");
     var overTr = el("div", "toggle-row");
