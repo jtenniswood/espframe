@@ -70,10 +70,9 @@
     update_available: false,
     beta_version: "",
     beta_available: false,
-    beta_opt_in: localStorage.getItem("beta_opt_in") === "true",
     auto_update: true,
     update_frequency: "Daily",
-    update_freq_options: ["Hourly", "Daily", "Weekly"],
+    update_freq_options: ["Hourly", "Daily", "Weekly", "Monthly"],
     schedule_enabled: false,
     schedule_on_hour: 6,
     schedule_off_hour: 23,
@@ -945,7 +944,7 @@
 
     function renderBetaRow() {
       betaRow.innerHTML = "";
-      if (!S.beta_opt_in || !S.beta_available) return;
+      if (!S.beta_available) return;
       var row = el("div", "field fw-row");
       var label = el("span", "fw-label");
       label.innerHTML = '<span style="color:var(--text2)">Pre-release</span> ' + esc(S.beta_version);
@@ -989,10 +988,7 @@
             S.latest_version = data.latest_version || data.value;
             renderUpdateRow();
           }
-          if (S.beta_opt_in) {
-            return safeGet(endpoints.update_beta);
-          }
-          return null;
+          return safeGet(endpoints.update_beta);
         })
         .then(function (betaData) {
           if (betaData && (betaData.latest_version || betaData.value)) {
@@ -1002,38 +998,12 @@
               : betaData.state === "UPDATE AVAILABLE";
           }
           renderBetaRow();
-          if (!S.update_available && !(S.beta_opt_in && S.beta_available)) {
+          if (!S.update_available && !S.beta_available) {
             statusMsg.textContent = "Up to date";
             statusMsg.style.color = "var(--success)";
           }
         });
     };
-
-    var fBetaUpd = field("");
-    var betaTr = el("div", "toggle-row");
-    betaTr.innerHTML = "<span>Pre-release Updates</span>";
-    var betaTog = el("div", S.beta_opt_in ? "toggle on" : "toggle");
-    betaTog.onclick = function () {
-      S.beta_opt_in = !S.beta_opt_in;
-      betaTog.className = S.beta_opt_in ? "toggle on" : "toggle";
-      localStorage.setItem("beta_opt_in", S.beta_opt_in ? "true" : "false");
-      if (S.beta_opt_in) {
-        safeGet(endpoints.update_beta).then(function (betaData) {
-          if (betaData && (betaData.latest_version || betaData.value)) {
-            S.beta_version = betaData.latest_version || betaData.value;
-            S.beta_available = betaData.current_version
-              ? betaData.latest_version !== betaData.current_version
-              : betaData.state === "UPDATE AVAILABLE";
-          }
-          renderBetaRow();
-        });
-      } else {
-        betaRow.innerHTML = "";
-      }
-    };
-    betaTr.appendChild(betaTog);
-    fBetaUpd.appendChild(betaTr);
-    fwBody.appendChild(fBetaUpd);
 
     var fAutoUpd = field("");
     var autoTr = el("div", "toggle-row");
@@ -1051,7 +1021,7 @@
     fAutoUpd.appendChild(autoTr);
     fwBody.appendChild(fAutoUpd);
 
-    var freqField = field("Update Frequency");
+    var freqField = field("Auto updates");
     freqField.appendChild(
       selectFromOptions(S.update_freq_options, S.update_frequency, function (v) {
         S.update_frequency = v;

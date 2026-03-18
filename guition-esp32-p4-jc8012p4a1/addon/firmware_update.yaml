@@ -75,6 +75,7 @@ select:
       - "Hourly"
       - "Daily"
       - "Weekly"
+      - "Monthly"
     initial_option: "Daily"
     optimistic: true
     restore_value: true
@@ -92,6 +93,7 @@ interval:
           int threshold = 24;
           if (freq == "Hourly") threshold = 1;
           else if (freq == "Weekly") threshold = 168;
+          else if (freq == "Monthly") threshold = 720;
           if (counter % threshold == 0) {
             id(firmware_update).update();
           }
