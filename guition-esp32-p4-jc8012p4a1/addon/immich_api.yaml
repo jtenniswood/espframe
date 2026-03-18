@@ -516,16 +516,14 @@ script:
                         id(portrait_preload_slot) = ts;
                         id(portrait_preload_left_ready) = false;
                         id(portrait_preload_right_ready) = false;
-                        ESP_LOGI("immich", "Starting portrait preload for slot %d", ts);
+                        ESP_LOGI("immich", "Starting portrait preload for slot %d (left first)", ts);
+                    # Start only left; right is started in preload_left on_download_finished to avoid socket exhaustion
                     - online_image.set_url:
                         id: immich_portrait_preload_left
                         url: !lambda |-
                           int ts = id(companion_target_slot);
                           auto &meta = (ts == 0) ? id(slot0) : (ts == 1) ? id(slot1) : id(slot2);
                           return meta.image_url;
-                    - online_image.set_url:
-                        id: immich_portrait_preload_right
-                        url: !lambda 'return id(portrait_companion_url);'
           on_error:
             then:
               - lambda: 'ESP_LOGW("immich", "Companion search request failed");'

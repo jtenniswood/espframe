@@ -229,11 +229,26 @@
     }
   }
 
+  function fetchPhotoSourceState() {
+    return Promise.all([
+      safeGet(endpoints.photo_source),
+      safeGet(endpoints.album_ids),
+      safeGet(endpoints.person_ids)
+    ]).then(function (res) {
+      if (res[0] && (res[0].value != null || res[0].state != null))
+        S.photo_source = res[0].value || res[0].state || "All Photos";
+      if (res[0] && res[0].option && res[0].option.length)
+        S.photo_source_options = res[0].option;
+      if (res[1]) S.album_ids = res[1].value || res[1].state || "";
+      if (res[2]) S.person_ids = res[2].value || res[2].state || "";
+    });
+  }
+
   function tryRender() {
     if (rendered) return;
     rendered = true;
     if (S.immich_url) {
-      renderSettings();
+      fetchPhotoSourceState().then(renderSettings);
       return;
     }
     Promise.all([
@@ -243,7 +258,7 @@
       if (res[0]) S.immich_url = res[0].value || res[0].state || "";
       if (res[1]) S.api_key = res[1].value || res[1].state || "";
       if (S.immich_url) {
-        renderSettings();
+        fetchPhotoSourceState().then(renderSettings);
       } else {
         renderWizard();
       }
@@ -617,14 +632,6 @@
     // Screen Brightness
     var dnCard = el("div", "card");
     dnCard.innerHTML = "<h3>Screen Brightness</h3>";
-
-    var fCurBrt = field("Current Brightness");
-    var curBrtVal = el("span");
-    curBrtVal.id = "current-brightness";
-    curBrtVal.style.cssText = "font-size:1.1rem;font-weight:500";
-    curBrtVal.textContent = Math.round(S.brightness_current) + "%";
-    fCurBrt.appendChild(curBrtVal);
-    dnCard.appendChild(fCurBrt);
 
     var dnDetails = el("div");
 
@@ -1029,8 +1036,6 @@
       S.show_clock = d.state === "ON" || d.value === true;
     } else if (id === "sensor/Screen: Brightness") {
       S.brightness_current = d.value != null ? d.value : 0;
-      var cb = document.getElementById("current-brightness");
-      if (cb) cb.textContent = Math.round(S.brightness_current) + "%";
     } else if (id === "text_sensor/Screen: Sunrise" || id === "text_sensor/Screen: Sunset") {
       var el = document.getElementById("sun-info");
       if (el) {

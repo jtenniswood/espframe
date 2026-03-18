@@ -291,6 +291,10 @@ online_image:
         - lambda: |-
             id(portrait_preload_left_ready) = true;
             ESP_LOGI("immich", "Portrait preload left ready (slot %d)", id(portrait_preload_slot));
+        # Start right only after left finishes to avoid socket exhaustion (esp-tls "Failed to create socket")
+        - online_image.set_url:
+            id: immich_portrait_preload_right
+            url: !lambda 'return id(portrait_companion_url);'
     on_error:
       then:
         - lambda: |-
