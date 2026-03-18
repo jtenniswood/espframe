@@ -232,6 +232,13 @@ online_image:
             ESP_LOGI("immich", "Portrait left ready");
         - if:
             condition:
+              lambda: 'return id(portrait_companion_found);'
+            then:
+              - online_image.set_url:
+                  id: immich_portrait_right
+                  url: !lambda 'return id(portrait_companion_url);'
+        - if:
+            condition:
               lambda: 'return id(portrait_left_ready) && id(portrait_right_ready);'
             then:
               - script.execute: immich_display_portrait_pair
@@ -360,7 +367,7 @@ script:
           if (!meta.companion_url.empty()) {
             id(portrait_companion_found) = true;
             id(portrait_companion_url) = meta.companion_url;
-            ESP_LOGI("immich", "Portrait slot %d: companion URL known, starting both downloads", s);
+            ESP_LOGI("immich", "Portrait slot %d: companion URL known, starting left (right after)", s);
           } else {
             id(portrait_companion_found) = false;
             id(portrait_companion_url) = "";
@@ -376,12 +383,8 @@ script:
             return meta.image_url;
       - if:
           condition:
-            lambda: 'return id(portrait_companion_found);'
+            lambda: 'return !id(portrait_companion_found);'
           then:
-            - online_image.set_url:
-                id: immich_portrait_right
-                url: !lambda 'return id(portrait_companion_url);'
-          else:
             - script.execute: immich_fetch_portrait_companion
 
   # ---------------------------------------------------------------------------
