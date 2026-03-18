@@ -21,6 +21,9 @@ globals:
   - id: update_check_counter
     type: int
     initial_value: '0'
+  - id: manual_check_only
+    type: bool
+    initial_value: 'false'
 
 # -----------------------------------------------------------------------------
 # OTA and HTTP update sources (stable + beta manifest)
@@ -39,7 +42,7 @@ update:
       then:
         - if:
             condition:
-              lambda: 'return id(auto_update_switch).state;'
+              lambda: 'return id(auto_update_switch).state && !id(manual_check_only);'
             then:
               - update.perform: firmware_update
 
@@ -112,5 +115,8 @@ button:
     entity_category: config
     icon: "mdi:update"
     on_press:
+      - lambda: 'id(manual_check_only) = true;'
       - component.update: firmware_update
       - component.update: firmware_update_beta
+      - delay: 15s
+      - lambda: 'id(manual_check_only) = false;'

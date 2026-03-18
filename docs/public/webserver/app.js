@@ -913,7 +913,12 @@
     checkWrap.appendChild(statusMsg);
     checkWrap.appendChild(checkBtn);
     versionRow.appendChild(checkWrap);
-    fwBody.appendChild(versionRow);
+    var checkHint = el("span", "field-hint");
+    checkHint.textContent = "Only checks; use Install to update.";
+    var versionBlock = el("div");
+    versionBlock.appendChild(versionRow);
+    versionBlock.appendChild(checkHint);
+    fwBody.appendChild(versionBlock);
 
     var updateRow = el("div", "mb-8");
     fwBody.appendChild(updateRow);

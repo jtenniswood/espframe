@@ -12,6 +12,6 @@ OTA and HTTP updates from GitHub. The device checks a manifest on GitHub Pages f
 | **Auto Update** | Switch | On | Check at selected frequency and install when available |
 | **Update Frequency** | Select | Daily | Hourly, Daily, or Weekly |
 | **Version** | Text sensor | *(current)* | Installed version |
-| **Check for Update** | Button | — | Immediate check (stable + beta) |
+| **Check for Update** | Button | — | Check only (stable + beta); does not install |
 
-Leave Auto Update off and use **Check for Update** for manual updates.
+**Check for Update** only checks for updates; it does not install. To install, use the **Install** button that appears when an update is available, or turn on **Auto Update** so the device installs at the selected frequency.
