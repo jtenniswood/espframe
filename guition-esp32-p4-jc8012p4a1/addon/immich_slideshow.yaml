@@ -124,7 +124,7 @@ online_image:
               id(portrait_primary_asset_id) = meta.asset_id;
               id(immich_fetch_portrait_companion).execute();
             } else if (!is_active) {
-              id(immich_prefetch_chain).execute();
+              id(delayed_prefetch_chain).execute();
             }
     on_error:
       then:
@@ -166,7 +166,7 @@ online_image:
               id(portrait_primary_asset_id) = meta.asset_id;
               id(immich_fetch_portrait_companion).execute();
             } else if (!is_active) {
-              id(immich_prefetch_chain).execute();
+              id(delayed_prefetch_chain).execute();
             }
     on_error:
       then:
@@ -208,7 +208,7 @@ online_image:
               id(portrait_primary_asset_id) = meta.asset_id;
               id(immich_fetch_portrait_companion).execute();
             } else if (!is_active) {
-              id(immich_prefetch_chain).execute();
+              id(delayed_prefetch_chain).execute();
             }
     on_error:
       then:
@@ -337,7 +337,7 @@ script:
   # Shared handler for any slot's on_error
   # ---------------------------------------------------------------------------
   - id: handle_slot_download_error
-    mode: single
+    mode: restart
     then:
       - lambda: |-
           id(immich_download_retries)++;
@@ -355,7 +355,7 @@ script:
   # Start portrait pair download for the active slot
   # ---------------------------------------------------------------------------
   - id: immich_start_portrait_active
-    mode: single
+    mode: restart
     then:
       - lambda: |-
           int s = id(active_slot);
@@ -589,7 +589,7 @@ script:
           id: portrait_right_img
           src: immich_portrait_right
       - script.execute: extract_accent_color
-      - script.execute: immich_prefetch_chain
+      - script.execute: delayed_prefetch_chain
 
   # ---------------------------------------------------------------------------
   # Prefetch chain: fill the next empty slot(s) ahead of active_slot
@@ -617,3 +617,13 @@ script:
           } else {
             ESP_LOGI("immich", "Prefetch chain: all slots filled");
           }
+
+  # ---------------------------------------------------------------------------
+  # Run prefetch after a short delay to avoid socket exhaustion when many
+  # downloads/HTTP callbacks fire at once (e.g. after switching to Favorites).
+  # ---------------------------------------------------------------------------
+  - id: delayed_prefetch_chain
+    mode: single
+    then:
+      - delay: 500ms
+      - script.execute: immich_prefetch_chain

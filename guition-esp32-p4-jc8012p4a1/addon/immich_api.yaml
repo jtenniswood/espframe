@@ -528,4 +528,4 @@ script:
             then:
               - lambda: 'ESP_LOGW("immich", "Companion search request failed");'
               - script.execute: handle_companion_not_found
-      - script.execute: immich_prefetch_chain
+      - script.execute: delayed_prefetch_chain
