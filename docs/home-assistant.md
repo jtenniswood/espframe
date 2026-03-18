@@ -56,7 +56,6 @@ Once added, the frame exposes its settings as Home Assistant entities. You can v
 | Entity | Type | Description |
 |---|---|---|
 | **WiFi Signal** | Sensor | Current signal strength (dBm) |
-| **Uptime** | Sensor | Time since last reboot |
 | **Firmware: Version** | Text Sensor | Currently installed firmware version |
 
 ## Automations

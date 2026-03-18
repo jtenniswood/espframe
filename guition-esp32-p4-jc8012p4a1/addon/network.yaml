@@ -7,17 +7,12 @@ binary_sensor:
     entity_category: diagnostic
 
 sensor:
-  - platform: uptime
-    name: "Network: Uptime"
-    id: uptime_sensor
-    entity_category: diagnostic
-    icon: mdi:clock-outline
-
   - platform: wifi_signal
     name: "Network: WiFi Signal dB"
     id: wifi_signal_db
     update_interval: 60s
     entity_category: diagnostic
+    disabled_by_default: true
     icon: mdi:wifi
 
   - platform: copy

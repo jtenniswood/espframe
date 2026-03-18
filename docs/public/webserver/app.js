@@ -89,7 +89,6 @@
     ip_address: "",
     wifi_strength: "",
     wifi_signal_db: "",
-    uptime: "",
     online: false,
   };
 
@@ -128,7 +127,6 @@
     album_ids: eid("text", "Photos: Album IDs"),
     person_ids: eid("text", "Photos: Person IDs"),
     network_online: eid("binary_sensor", "Network: Online"),
-    network_uptime: eid("sensor", "Network: Uptime"),
     network_wifi_strength: eid("sensor", "Network: WiFi Strength"),
     network_wifi_signal_db: eid("sensor", "Network: WiFi Signal dB"),
     network_ip: eid("text_sensor", "Network: IP Address"),
@@ -237,8 +235,6 @@
       S.person_ids = d.value || d.state || "";
     } else if (id === "binary_sensor/Network: Online") {
       S.online = d.value === true || d.state === "ON";
-    } else if (id === "sensor/Network: Uptime") {
-      S.uptime = d.value || d.state || "";
     } else if (id === "sensor/Network: WiFi Strength") {
       S.wifi_strength = d.value != null ? String(d.value) : (d.state != null ? d.state : "");
     } else if (id === "sensor/Network: WiFi Signal dB") {
@@ -260,7 +256,6 @@
       safeGet(endpoints.sunrise),
       safeGet(endpoints.sunset),
       safeGet(endpoints.network_online),
-      safeGet(endpoints.network_uptime),
       safeGet(endpoints.network_wifi_strength),
       safeGet(endpoints.network_wifi_signal_db),
       safeGet(endpoints.network_ip)
@@ -284,10 +279,9 @@
       if (res[7]) S.sunrise = res[7].value || res[7].state || "";
       if (res[8]) S.sunset = res[8].value || res[8].state || "";
       if (res[9]) S.online = res[9].value === true || res[9].state === "ON";
-      if (res[10]) S.uptime = res[10].value || res[10].state || "";
-      if (res[11]) S.wifi_strength = res[11].value != null ? String(res[11].value) : (res[11].state != null ? res[11].state : "");
-      if (res[12]) S.wifi_signal_db = res[12].value != null ? String(res[12].value) : (res[12].state != null ? res[12].state : "");
-      if (res[13]) S.ip_address = res[13].value || res[13].state || "";
+      if (res[10]) S.wifi_strength = res[10].value != null ? String(res[10].value) : (res[10].state != null ? res[10].state : "");
+      if (res[11]) S.wifi_signal_db = res[11].value != null ? String(res[11].value) : (res[11].state != null ? res[11].state : "");
+      if (res[12]) S.ip_address = res[12].value || res[12].state || "";
     });
   }
 
@@ -573,29 +567,6 @@
 
     conn.appendChild(connStatus);
     wrap.appendChild(conn);
-
-    // Network status
-    var netCard = el("div", "card");
-    netCard.innerHTML = "<h3>Network</h3>";
-    var netDetails = el("div", "field sun-info");
-    netDetails.id = "network-info";
-    function updateNetworkInfo() {
-      var parts = [];
-      parts.push(
-        '<span class="dot ' + (S.online ? "green" : "red") + '"></span> ' +
-        (S.online ? "Connected to Home Assistant" : "Disconnected")
-      );
-      if (S.ip_address) parts.push("IP: " + esc(S.ip_address));
-      if (S.wifi_strength !== "" && S.wifi_strength !== undefined)
-        parts.push("WiFi: " + esc(String(S.wifi_strength)) + "%");
-      if (S.wifi_signal_db !== "" && S.wifi_signal_db !== undefined)
-        parts.push("(" + esc(String(S.wifi_signal_db)) + " dBm)");
-      if (S.uptime) parts.push("Uptime: " + esc(S.uptime));
-      netDetails.innerHTML = parts.join(" &nbsp;/&nbsp; ");
-    }
-    updateNetworkInfo();
-    netCard.appendChild(netDetails);
-    wrap.appendChild(netCard);
 
     // Photo Source
     var src = el("div", "card");
@@ -1129,29 +1100,6 @@
         if (S.sunrise && S.sunset) t += " \u00a0/\u00a0 ";
         if (S.sunset) t += "Sunset: " + esc(S.sunset);
         el.innerHTML = t;
-      }
-    } else if (id === "binary_sensor/Network: Online" || id === "sensor/Network: Uptime" ||
-               id === "sensor/Network: WiFi Strength" || id === "sensor/Network: WiFi Signal dB" ||
-               id === "text_sensor/Network: IP Address") {
-      if (id === "binary_sensor/Network: Online") S.online = d.value === true || d.state === "ON";
-      else if (id === "sensor/Network: Uptime") S.uptime = d.value || d.state || "";
-      else if (id === "sensor/Network: WiFi Strength") S.wifi_strength = d.value != null ? String(d.value) : (d.state != null ? d.state : "");
-      else if (id === "sensor/Network: WiFi Signal dB") S.wifi_signal_db = d.value != null ? String(d.value) : (d.state != null ? d.state : "");
-      else if (id === "text_sensor/Network: IP Address") S.ip_address = d.value || d.state || "";
-      var netEl = document.getElementById("network-info");
-      if (netEl) {
-        var parts = [];
-        parts.push(
-          '<span class="dot ' + (S.online ? "green" : "red") + '"></span> ' +
-          (S.online ? "Connected to Home Assistant" : "Disconnected")
-        );
-        if (S.ip_address) parts.push("IP: " + esc(S.ip_address));
-        if (S.wifi_strength !== "" && S.wifi_strength !== undefined)
-          parts.push("WiFi: " + esc(String(S.wifi_strength)) + "%");
-        if (S.wifi_signal_db !== "" && S.wifi_signal_db !== undefined)
-          parts.push("(" + esc(String(S.wifi_signal_db)) + " dBm)");
-        if (S.uptime) parts.push("Uptime: " + esc(S.uptime));
-        netEl.innerHTML = parts.join(" &nbsp;/&nbsp; ");
       }
     }
   }
