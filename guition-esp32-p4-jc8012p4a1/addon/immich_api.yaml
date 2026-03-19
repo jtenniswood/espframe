@@ -67,6 +67,10 @@ script:
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Memories HTTP %d — falling back to random", response->status_code);
                     id(immich_memory_fallback) = true;
+                    int s = id(target_slot);
+                    if (s == 0) id(slot0_fetch_in_flight) = false;
+                    else if (s == 1) id(slot1_fetch_in_flight) = false;
+                    else id(slot2_fetch_in_flight) = false;
                     id(immich_fetch_into_slot).execute();
                     return;
                   }
@@ -75,6 +79,10 @@ script:
                   if (doc.isNull() || !doc.is<JsonArray>()) {
                     ESP_LOGI("immich", "No memories for today — falling back to random");
                     id(immich_memory_fallback) = true;
+                    int s = id(target_slot);
+                    if (s == 0) id(slot0_fetch_in_flight) = false;
+                    else if (s == 1) id(slot1_fetch_in_flight) = false;
+                    else id(slot2_fetch_in_flight) = false;
                     id(immich_fetch_into_slot).execute();
                     return;
                   }
@@ -99,6 +107,10 @@ script:
                   if (image_ids.empty()) {
                     ESP_LOGI("immich", "No memory images for today — falling back to random");
                     id(immich_memory_fallback) = true;
+                    int s = id(target_slot);
+                    if (s == 0) id(slot0_fetch_in_flight) = false;
+                    else if (s == 1) id(slot1_fetch_in_flight) = false;
+                    else id(slot2_fetch_in_flight) = false;
                     id(immich_fetch_into_slot).execute();
                     return;
                   }
@@ -113,6 +125,10 @@ script:
               - lambda: |-
                   ESP_LOGW("immich", "Memories request failed — falling back to random");
                   id(immich_memory_fallback) = true;
+                  int s = id(target_slot);
+                  if (s == 0) id(slot0_fetch_in_flight) = false;
+                  else if (s == 1) id(slot1_fetch_in_flight) = false;
+                  else id(slot2_fetch_in_flight) = false;
               - script.execute: immich_fetch_into_slot
 
   # ---------------------------------------------------------------------------
@@ -135,6 +151,10 @@ script:
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Memory asset HTTP %d — falling back to random", response->status_code);
                     id(immich_memory_fallback) = true;
+                    int s = id(target_slot);
+                    if (s == 0) id(slot0_fetch_in_flight) = false;
+                    else if (s == 1) id(slot1_fetch_in_flight) = false;
+                    else id(slot2_fetch_in_flight) = false;
                     id(immich_fetch_into_slot).execute();
                     return;
                   }
@@ -144,6 +164,10 @@ script:
                   if (img_url.empty()) {
                     ESP_LOGW("immich", "Memory asset parse failed — falling back to random");
                     id(immich_memory_fallback) = true;
+                    int s = id(target_slot);
+                    if (s == 0) id(slot0_fetch_in_flight) = false;
+                    else if (s == 1) id(slot1_fetch_in_flight) = false;
+                    else id(slot2_fetch_in_flight) = false;
                     id(immich_fetch_into_slot).execute();
                     return;
                   }
@@ -165,6 +189,10 @@ script:
               - lambda: |-
                   ESP_LOGW("immich", "Memory asset request failed — falling back to random");
                   id(immich_memory_fallback) = true;
+                  int s = id(target_slot);
+                  if (s == 0) id(slot0_fetch_in_flight) = false;
+                  else if (s == 1) id(slot1_fetch_in_flight) = false;
+                  else id(slot2_fetch_in_flight) = false;
               - script.execute: immich_fetch_into_slot
 
   # ---------------------------------------------------------------------------
@@ -193,6 +221,20 @@ script:
             - script.stop: immich_fetch_into_slot
       - if:
           condition:
+            lambda: |-
+              int s = id(target_slot);
+              return (s == 0) ? id(slot0_fetch_in_flight) : (s == 1) ? id(slot1_fetch_in_flight) : id(slot2_fetch_in_flight);
+          then:
+            - lambda: |-
+                ESP_LOGI("immich", "Slot %d fetch already in flight, skipping API fetch", id(target_slot));
+            - script.stop: immich_fetch_into_slot
+      - lambda: |-
+          int s = id(target_slot);
+          if (s == 0) id(slot0_fetch_in_flight) = true;
+          else if (s == 1) id(slot1_fetch_in_flight) = true;
+          else id(slot2_fetch_in_flight) = true;
+      - if:
+          condition:
             lambda: 'return id(photo_source_select).current_option() == "Memories" && !id(immich_memory_fallback);'
           then:
             - script.execute: immich_fetch_memory_into_slot
@@ -214,6 +256,10 @@ script:
               - lambda: |-
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "HTTP %d from Immich", response->status_code);
+                    int s = id(target_slot);
+                    if (s == 0) id(slot0_fetch_in_flight) = false;
+                    else if (s == 1) id(slot1_fetch_in_flight) = false;
+                    else id(slot2_fetch_in_flight) = false;
                     return;
                   }
                   id(immich_fetch_started) = true;
@@ -221,6 +267,10 @@ script:
                   std::string img_url = parse_immich_asset_and_fill_slot(body, id(immich_url).state, id(target_slot), id(slot0), id(slot1), id(slot2));
                   if (img_url.empty()) {
                     ESP_LOGW("immich", "No valid asset in response");
+                    int s = id(target_slot);
+                    if (s == 0) id(slot0_fetch_in_flight) = false;
+                    else if (s == 1) id(slot1_fetch_in_flight) = false;
+                    else id(slot2_fetch_in_flight) = false;
                     return;
                   }
                   int slot = id(target_slot);
@@ -241,6 +291,10 @@ script:
               - lambda: |-
                   id(immich_api_retries)++;
                   ESP_LOGW("immich", "API request error for slot %d (attempt %d)", id(target_slot), id(immich_api_retries));
+                  int s = id(target_slot);
+                  if (s == 0) id(slot0_fetch_in_flight) = false;
+                  else if (s == 1) id(slot1_fetch_in_flight) = false;
+                  else id(slot2_fetch_in_flight) = false;
               - if:
                   condition:
                     lambda: 'return id(immich_api_retries) < MAX_ERROR_RETRIES;'
