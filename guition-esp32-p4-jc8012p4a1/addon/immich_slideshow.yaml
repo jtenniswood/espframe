@@ -125,6 +125,7 @@ remote_image:
             } else if (is_active && meta.is_portrait) {
               id(immich_start_portrait_active).execute();
             } else if (!is_active && meta.is_portrait) {
+              if (id(companion_target_slot) == slot || id(portrait_preload_slot) == slot) return;
               id(companion_target_slot) = slot;
               id(portrait_search_datetime) = meta.datetime;
               id(portrait_primary_asset_id) = meta.asset_id;
@@ -167,6 +168,7 @@ remote_image:
             } else if (is_active && meta.is_portrait) {
               id(immich_start_portrait_active).execute();
             } else if (!is_active && meta.is_portrait) {
+              if (id(companion_target_slot) == slot || id(portrait_preload_slot) == slot) return;
               id(companion_target_slot) = slot;
               id(portrait_search_datetime) = meta.datetime;
               id(portrait_primary_asset_id) = meta.asset_id;
@@ -209,6 +211,7 @@ remote_image:
             } else if (is_active && meta.is_portrait) {
               id(immich_start_portrait_active).execute();
             } else if (!is_active && meta.is_portrait) {
+              if (id(companion_target_slot) == slot || id(portrait_preload_slot) == slot) return;
               id(companion_target_slot) = slot;
               id(portrait_search_datetime) = meta.datetime;
               id(portrait_primary_asset_id) = meta.asset_id;
@@ -308,6 +311,8 @@ remote_image:
         - remote_image.set_url:
             id: immich_portrait_preload_right
             url: !lambda 'return id(portrait_companion_url);'
+            update: false
+        - script.execute: deferred_preload_right_update
     on_error:
       then:
         - lambda: |-
@@ -656,3 +661,9 @@ script:
     then:
       - delay: 150ms
       - lambda: 'id(immich_portrait_preload_left).update();'
+
+  - id: deferred_preload_right_update
+    mode: single
+    then:
+      - delay: 150ms
+      - lambda: 'id(immich_portrait_preload_right).update();'
