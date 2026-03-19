@@ -29,6 +29,14 @@ esphome:
     board_build.flash_mode: dio
     build_flags:
       - "-DCONFIG_COMPILER_OPTIMIZATION_PERF=y"
+  # #region agent log
+  on_boot:
+    - priority: 900
+      then:
+        - lambda: |-
+            esphome::watchdog::set_wdt_timeout(30000);
+            ESP_LOGW("diag", "H6: Watchdog timeout set to 30s");
+  # #endregion
 
 # -----------------------------------------------------------------------------
 # ESP32-C6 coprocessor (WiFi and Bluetooth via SDIO)
@@ -72,6 +80,11 @@ text_sensor:
   - platform: debug
     reset_reason:
       name: "Reset Reason"
+      # #region agent log
+      on_value:
+        then:
+          - lambda: 'ESP_LOGW("diag", "H6: RESET REASON: %s", x.c_str());'
+      # #endregion
 
 json:
 
