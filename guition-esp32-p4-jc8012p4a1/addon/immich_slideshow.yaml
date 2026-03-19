@@ -60,6 +60,21 @@ globals:
   - id: slot2_fetch_in_flight
     type: bool
     initial_value: 'false'
+  - id: slot0_noncritical_update
+    type: bool
+    initial_value: 'false'
+  - id: slot1_noncritical_update
+    type: bool
+    initial_value: 'false'
+  - id: slot2_noncritical_update
+    type: bool
+    initial_value: 'false'
+  - id: preload_noncritical_in_flight
+    type: bool
+    initial_value: 'false'
+  - id: noncritical_remote_updates_in_flight
+    type: int
+    initial_value: '0'
   # Portrait pair state
   - id: portrait_left_ready
     type: bool
@@ -91,6 +106,9 @@ globals:
   - id: portrait_companion_url
     type: std::string
     initial_value: '""'
+  - id: active_portrait_workflow_busy
+    type: bool
+    initial_value: 'false'
 
   # Portrait preload state
   - id: portrait_preload_slot
@@ -126,10 +144,18 @@ remote_image:
             if (meta.asset_id != meta.pending_asset_id) {
               ESP_LOGW("immich", "Slot %d download stale, ignoring", slot);
               id(slot0_fetch_in_flight) = false;
+              if (id(slot0_noncritical_update)) {
+                id(slot0_noncritical_update) = false;
+                if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
+              }
               return;
             }
             meta.ready = true;
             id(slot0_fetch_in_flight) = false;
+            if (id(slot0_noncritical_update)) {
+              id(slot0_noncritical_update) = false;
+              if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
+            }
             id(immich_download_retries) = 0;
             ESP_LOGD("immich", "Slot %d ready: %s", slot, meta.asset_id.c_str());
             bool is_active = (id(active_slot) == slot);
@@ -154,7 +180,12 @@ remote_image:
             }
     on_error:
       then:
-        - lambda: 'id(slot0_fetch_in_flight) = false;'
+        - lambda: |-
+            id(slot0_fetch_in_flight) = false;
+            if (id(slot0_noncritical_update)) {
+              id(slot0_noncritical_update) = false;
+              if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
+            }
         - lambda: 'id(last_downloaded_slot) = 0;'
         - script.execute: handle_slot_download_error
 
@@ -174,10 +205,18 @@ remote_image:
             if (meta.asset_id != meta.pending_asset_id) {
               ESP_LOGW("immich", "Slot %d download stale, ignoring", slot);
               id(slot1_fetch_in_flight) = false;
+              if (id(slot1_noncritical_update)) {
+                id(slot1_noncritical_update) = false;
+                if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
+              }
               return;
             }
             meta.ready = true;
             id(slot1_fetch_in_flight) = false;
+            if (id(slot1_noncritical_update)) {
+              id(slot1_noncritical_update) = false;
+              if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
+            }
             id(immich_download_retries) = 0;
             ESP_LOGD("immich", "Slot %d ready: %s", slot, meta.asset_id.c_str());
             bool is_active = (id(active_slot) == slot);
@@ -202,7 +241,12 @@ remote_image:
             }
     on_error:
       then:
-        - lambda: 'id(slot1_fetch_in_flight) = false;'
+        - lambda: |-
+            id(slot1_fetch_in_flight) = false;
+            if (id(slot1_noncritical_update)) {
+              id(slot1_noncritical_update) = false;
+              if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
+            }
         - lambda: 'id(last_downloaded_slot) = 1;'
         - script.execute: handle_slot_download_error
 
@@ -222,10 +266,18 @@ remote_image:
             if (meta.asset_id != meta.pending_asset_id) {
               ESP_LOGW("immich", "Slot %d download stale, ignoring", slot);
               id(slot2_fetch_in_flight) = false;
+              if (id(slot2_noncritical_update)) {
+                id(slot2_noncritical_update) = false;
+                if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
+              }
               return;
             }
             meta.ready = true;
             id(slot2_fetch_in_flight) = false;
+            if (id(slot2_noncritical_update)) {
+              id(slot2_noncritical_update) = false;
+              if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
+            }
             id(immich_download_retries) = 0;
             ESP_LOGD("immich", "Slot %d ready: %s", slot, meta.asset_id.c_str());
             bool is_active = (id(active_slot) == slot);
@@ -250,7 +302,12 @@ remote_image:
             }
     on_error:
       then:
-        - lambda: 'id(slot2_fetch_in_flight) = false;'
+        - lambda: |-
+            id(slot2_fetch_in_flight) = false;
+            if (id(slot2_noncritical_update)) {
+              id(slot2_noncritical_update) = false;
+              if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
+            }
         - lambda: 'id(last_downloaded_slot) = 2;'
         - script.execute: handle_slot_download_error
 
@@ -292,6 +349,7 @@ remote_image:
             id(portrait_companion_found) = false;
             if (!id(active_slot_displayed)) {
               id(active_slot_displayed) = true;
+              id(active_portrait_workflow_busy) = false;
               id(immich_display_current).execute();
             }
 
@@ -323,6 +381,7 @@ remote_image:
             id(portrait_companion_found) = false;
             if (!id(active_slot_displayed)) {
               id(active_slot_displayed) = true;
+              id(active_portrait_workflow_busy) = false;
               id(immich_display_current).execute();
             }
 
@@ -352,6 +411,10 @@ remote_image:
         - lambda: |-
             ESP_LOGE("immich", "Portrait preload left failed");
             id(portrait_preload_left_ready) = false;
+            if (id(preload_noncritical_in_flight)) {
+              id(preload_noncritical_in_flight) = false;
+              if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
+            }
 
   - id: immich_portrait_preload_right
     url: "https://via.placeholder.com/1x1.jpg"
@@ -367,11 +430,19 @@ remote_image:
         - lambda: |-
             id(portrait_preload_right_ready) = true;
             ESP_LOGD("immich", "Portrait preload right ready (slot %d)", id(portrait_preload_slot));
+            if (id(preload_noncritical_in_flight)) {
+              id(preload_noncritical_in_flight) = false;
+              if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
+            }
     on_error:
       then:
         - lambda: |-
             ESP_LOGE("immich", "Portrait preload right failed");
             id(portrait_preload_right_ready) = false;
+            if (id(preload_noncritical_in_flight)) {
+              id(preload_noncritical_in_flight) = false;
+              if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
+            }
 
 # -----------------------------------------------------------------------------
 # Scripts: download error handler, display, advance, previous, prefetch
@@ -411,6 +482,7 @@ script:
           id(portrait_no_companion_active) = false;
           id(portrait_right_requested) = false;
           id(portrait_using_preload) = false;
+          id(active_portrait_workflow_busy) = true;
           id(portrait_primary_asset_id) = meta.asset_id;
           if (!meta.companion_url.empty()) {
             id(portrait_companion_found) = true;
@@ -459,7 +531,10 @@ script:
 
           auto &meta = (s == 0) ? id(slot0) : (s == 1) ? id(slot1) : id(slot2);
           lv_img_set_zoom(id(slideshow_img), meta.zoom);
-          if (!meta.is_portrait) id(active_slot_displayed) = true;
+          if (!meta.is_portrait) {
+            id(active_slot_displayed) = true;
+            id(active_portrait_workflow_busy) = false;
+          }
       - script.execute: extract_accent_color
       - script.execute: apply_warm_tones
       - if:
@@ -475,6 +550,7 @@ script:
                 id(portrait_using_preload) = true;
                 id(portrait_preload_slot) = -1;
                 id(active_slot_displayed) = true;
+                id(active_portrait_workflow_busy) = false;
                 lv_img_set_zoom(id(slideshow_img), ZOOM_IDENTITY);
                 lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
                 lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
@@ -525,6 +601,7 @@ script:
                 id(portrait_companion_found) = false;
                 id(immich_is_portrait_pair) = false;
                 id(portrait_using_preload) = false;
+                id(active_portrait_workflow_busy) = false;
                 int old_slot_idx = id(active_slot);
                 id(active_slot) = (old_slot_idx + 1) % 3;
                 id(active_slot_displayed) = false;
@@ -618,6 +695,7 @@ script:
                 id(portrait_companion_found) = false;
                 id(immich_is_portrait_pair) = false;
                 id(portrait_using_preload) = false;
+                id(active_portrait_workflow_busy) = false;
 
                 int prev_slot = (id(active_slot) + 2) % 3;
                 id(active_slot) = prev_slot;
@@ -647,6 +725,7 @@ script:
       - lambda: |-
           id(immich_is_portrait_pair) = true;
           id(active_slot_displayed) = true;
+          id(active_portrait_workflow_busy) = false;
           lv_img_set_zoom(id(slideshow_img), ZOOM_IDENTITY);
           lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
           lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
@@ -686,6 +765,14 @@ script:
                               !(id(portrait_preload_left_ready) && id(portrait_preload_right_ready));
           if (active_portrait_busy || preload_busy) {
             ESP_LOGD("immich", "Prefetch deferred (portrait pipeline busy)");
+            return;
+          }
+          if (id(active_portrait_workflow_busy)) {
+            ESP_LOGD("immich", "Prefetch deferred (active portrait workflow busy)");
+            return;
+          }
+          if (id(noncritical_remote_updates_in_flight) > 0) {
+            ESP_LOGD("immich", "Prefetch deferred (non-critical download busy: %d)", id(noncritical_remote_updates_in_flight));
             return;
           }
           if ((millis() - id(last_prefetch_start_ms)) < 600) {
@@ -740,13 +827,42 @@ script:
       - delay: 150ms
       - lambda: |-
           int s = id(target_slot);
+          bool noncritical = (s != id(active_slot));
+          if (noncritical && id(active_portrait_workflow_busy)) {
+            ESP_LOGD("immich", "Deferring slot %d update; active portrait workflow busy", s);
+            id(delayed_prefetch_chain).execute();
+            return;
+          }
+          if (noncritical && id(noncritical_remote_updates_in_flight) > 0) {
+            ESP_LOGD("immich", "Deferring slot %d update; non-critical download already busy", s);
+            id(delayed_prefetch_chain).execute();
+            return;
+          }
           if (s == 0) {
+            if (noncritical && !id(slot0_noncritical_update)) {
+              id(slot0_noncritical_update) = true;
+              id(noncritical_remote_updates_in_flight)++;
+            } else if (!noncritical) {
+              id(slot0_noncritical_update) = false;
+            }
             id(slot0_fetch_in_flight) = true;
             id(immich_img_0).update();
           } else if (s == 1) {
+            if (noncritical && !id(slot1_noncritical_update)) {
+              id(slot1_noncritical_update) = true;
+              id(noncritical_remote_updates_in_flight)++;
+            } else if (!noncritical) {
+              id(slot1_noncritical_update) = false;
+            }
             id(slot1_fetch_in_flight) = true;
             id(immich_img_1).update();
           } else {
+            if (noncritical && !id(slot2_noncritical_update)) {
+              id(slot2_noncritical_update) = true;
+              id(noncritical_remote_updates_in_flight)++;
+            } else if (!noncritical) {
+              id(slot2_noncritical_update) = false;
+            }
             id(slot2_fetch_in_flight) = true;
             id(immich_img_2).update();
           }
@@ -767,10 +883,26 @@ script:
     mode: single
     then:
       - delay: 150ms
-      - lambda: 'id(immich_portrait_preload_left).update();'
+      - lambda: |-
+          if (id(active_portrait_workflow_busy)) {
+            ESP_LOGD("immich", "Deferring preload-left update; active portrait workflow busy");
+            id(delayed_prefetch_chain).execute();
+            return;
+          }
+          if (!id(preload_noncritical_in_flight)) {
+            id(preload_noncritical_in_flight) = true;
+            id(noncritical_remote_updates_in_flight)++;
+          }
+          id(immich_portrait_preload_left).update();
 
   - id: deferred_preload_right_update
     mode: single
     then:
       - delay: 150ms
-      - lambda: 'id(immich_portrait_preload_right).update();'
+      - lambda: |-
+          if (id(active_portrait_workflow_busy)) {
+            ESP_LOGD("immich", "Deferring preload-right update; active portrait workflow busy");
+            id(delayed_prefetch_chain).execute();
+            return;
+          }
+          id(immich_portrait_preload_right).update();

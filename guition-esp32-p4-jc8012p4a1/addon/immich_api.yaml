@@ -32,6 +32,7 @@ script:
           meta.companion_url = "";
           if (id(companion_target_slot) == id(active_slot)) {
             id(portrait_no_companion_active) = true;
+            id(active_portrait_workflow_busy) = false;
             if (!id(active_slot_displayed)) {
               id(active_slot_displayed) = true;
               id(immich_display_current).execute();
@@ -221,6 +222,16 @@ script:
             - script.stop: immich_fetch_into_slot
       - if:
           condition:
+            lambda: 'return id(target_slot) != id(active_slot) && id(active_portrait_workflow_busy);'
+          then:
+            - logger.log:
+                level: DEBUG
+                tag: immich
+                format: "Deferring non-active fetch (active portrait workflow busy)"
+            - script.execute: delayed_prefetch_chain
+            - script.stop: immich_fetch_into_slot
+      - if:
+          condition:
             lambda: |-
               int s = id(target_slot);
               return (s == 0) ? id(slot0_fetch_in_flight) : (s == 1) ? id(slot1_fetch_in_flight) : id(slot2_fetch_in_flight);
@@ -319,6 +330,17 @@ script:
           id(portrait_companion_found) = false;
           id(portrait_companion_url) = "";
           id(portrait_right_requested) = false;
+          if (id(companion_target_slot) == id(active_slot)) id(active_portrait_workflow_busy) = true;
+      - if:
+          condition:
+            lambda: 'return id(companion_target_slot) != id(active_slot) && id(active_portrait_workflow_busy);'
+          then:
+            - logger.log:
+                level: DEBUG
+                tag: immich
+                format: "Deferring non-active companion search (active portrait workflow busy)"
+            - script.execute: delayed_prefetch_chain
+            - script.stop: immich_fetch_portrait_companion
       - lambda: |-
           std::string dt = id(portrait_search_datetime);
           if (dt.size() < 10) {
