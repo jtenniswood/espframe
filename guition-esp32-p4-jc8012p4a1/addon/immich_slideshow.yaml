@@ -519,7 +519,7 @@ script:
                   - lambda: |-
                       id(target_slot) = id(active_slot);
                       ESP_LOGI("immich", "Slot %d not ready, fetching fresh", id(active_slot));
-                  - script.execute: immich_fetch_into_slot
+                  - script.execute: deferred_fetch_into_slot
 
   # Show previous image (swipe back); re-downloads into slot from stored URL
   - id: immich_show_previous
@@ -626,6 +626,13 @@ script:
     then:
       - delay: 700ms
       - script.execute: immich_prefetch_chain
+
+  # When advance finds slot not ready, defer fetch so interval callback returns quickly
+  - id: deferred_fetch_into_slot
+    mode: single
+    then:
+      - delay: 200ms
+      - script.execute: immich_fetch_into_slot
 
   # Defer remote_image.update() so HTTP on_response returns before blocking get() runs
   - id: deferred_slot_image_update
