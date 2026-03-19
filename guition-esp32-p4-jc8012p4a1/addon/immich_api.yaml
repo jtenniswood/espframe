@@ -24,8 +24,13 @@ script:
     mode: single
     then:
       - lambda: |-
+          id(portrait_companion_found) = false;
+          id(portrait_companion_url) = "";
+          id(portrait_right_requested) = false;
+          int ts = id(companion_target_slot);
+          auto &meta = (ts == 0) ? id(slot0) : (ts == 1) ? id(slot1) : id(slot2);
+          meta.companion_url = "";
           if (id(companion_target_slot) == id(active_slot)) {
-            id(portrait_companion_found) = false;
             if (!id(active_slot_displayed)) {
               id(active_slot_displayed) = true;
               id(immich_display_current).execute();
@@ -255,6 +260,10 @@ script:
             lambda: 'return id(immich_url).state.empty() || id(immich_api_key_text).state.empty();'
           then:
             - script.stop: immich_fetch_portrait_companion
+      - lambda: |-
+          id(portrait_companion_found) = false;
+          id(portrait_companion_url) = "";
+          id(portrait_right_requested) = false;
       - lambda: |-
           std::string dt = id(portrait_search_datetime);
           if (dt.size() < 10) {

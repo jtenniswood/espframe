@@ -51,6 +51,15 @@ globals:
   - id: immich_download_retries
     type: int
     initial_value: '0'
+  - id: slot0_fetch_in_flight
+    type: bool
+    initial_value: 'false'
+  - id: slot1_fetch_in_flight
+    type: bool
+    initial_value: 'false'
+  - id: slot2_fetch_in_flight
+    type: bool
+    initial_value: 'false'
   # Portrait pair state
   - id: portrait_left_ready
     type: bool
@@ -113,9 +122,11 @@ remote_image:
             auto &meta = id(slot0);
             if (meta.asset_id != meta.pending_asset_id) {
               ESP_LOGW("immich", "Slot %d download stale, ignoring", slot);
+              id(slot0_fetch_in_flight) = false;
               return;
             }
             meta.ready = true;
+            id(slot0_fetch_in_flight) = false;
             id(immich_download_retries) = 0;
             ESP_LOGI("immich", "Slot %d ready: %s", slot, meta.asset_id.c_str());
             bool is_active = (id(active_slot) == slot);
@@ -138,6 +149,7 @@ remote_image:
             }
     on_error:
       then:
+        - lambda: 'id(slot0_fetch_in_flight) = false;'
         - lambda: 'id(last_downloaded_slot) = 0;'
         - script.execute: handle_slot_download_error
 
@@ -156,9 +168,11 @@ remote_image:
             auto &meta = id(slot1);
             if (meta.asset_id != meta.pending_asset_id) {
               ESP_LOGW("immich", "Slot %d download stale, ignoring", slot);
+              id(slot1_fetch_in_flight) = false;
               return;
             }
             meta.ready = true;
+            id(slot1_fetch_in_flight) = false;
             id(immich_download_retries) = 0;
             ESP_LOGI("immich", "Slot %d ready: %s", slot, meta.asset_id.c_str());
             bool is_active = (id(active_slot) == slot);
@@ -181,6 +195,7 @@ remote_image:
             }
     on_error:
       then:
+        - lambda: 'id(slot1_fetch_in_flight) = false;'
         - lambda: 'id(last_downloaded_slot) = 1;'
         - script.execute: handle_slot_download_error
 
@@ -199,9 +214,11 @@ remote_image:
             auto &meta = id(slot2);
             if (meta.asset_id != meta.pending_asset_id) {
               ESP_LOGW("immich", "Slot %d download stale, ignoring", slot);
+              id(slot2_fetch_in_flight) = false;
               return;
             }
             meta.ready = true;
+            id(slot2_fetch_in_flight) = false;
             id(immich_download_retries) = 0;
             ESP_LOGI("immich", "Slot %d ready: %s", slot, meta.asset_id.c_str());
             bool is_active = (id(active_slot) == slot);
@@ -224,6 +241,7 @@ remote_image:
             }
     on_error:
       then:
+        - lambda: 'id(slot2_fetch_in_flight) = false;'
         - lambda: 'id(last_downloaded_slot) = 2;'
         - script.execute: handle_slot_download_error
 
@@ -539,10 +557,20 @@ script:
                         - script.execute: immich_start_portrait_active
                         - script.execute: delayed_prefetch_chain
                 else:
-                  - lambda: |-
-                      id(target_slot) = id(active_slot);
-                      ESP_LOGI("immich", "Slot %d not ready, fetching fresh", id(active_slot));
-                  - script.execute: deferred_fetch_into_slot
+                  - if:
+                      condition:
+                        lambda: |-
+                          int s = id(active_slot);
+                          bool in_flight = (s == 0) ? id(slot0_fetch_in_flight) : (s == 1) ? id(slot1_fetch_in_flight) : id(slot2_fetch_in_flight);
+                          return in_flight;
+                      then:
+                        - lambda: |-
+                            ESP_LOGI("immich", "Slot %d not ready but already downloading, waiting", id(active_slot));
+                      else:
+                        - lambda: |-
+                            id(target_slot) = id(active_slot);
+                            ESP_LOGI("immich", "Slot %d not ready, fetching fresh", id(active_slot));
+                        - script.execute: deferred_fetch_into_slot
 
   # Show previous image (swipe back); re-downloads into slot from stored URL
   - id: immich_show_previous
@@ -589,6 +617,9 @@ script:
                 if (prev_slot == 0) { id(immich_img_0).set_url(url); id(immich_img_0).update(); }
                 else if (prev_slot == 1) { id(immich_img_1).set_url(url); id(immich_img_1).update(); }
                 else { id(immich_img_2).set_url(url); id(immich_img_2).update(); }
+                if (prev_slot == 0) id(slot0_fetch_in_flight) = true;
+                else if (prev_slot == 1) id(slot1_fetch_in_flight) = true;
+                else id(slot2_fetch_in_flight) = true;
                 ESP_LOGI("immich", "Showing previous in slot %d: %s", prev_slot, id(current_display).asset_id.c_str());
 
   # Display portrait pair when both left and right images are ready
@@ -630,12 +661,14 @@ script:
           int next2 = (id(active_slot) + 2) % 3;
           auto &n1 = (next1 == 0) ? id(slot0) : (next1 == 1) ? id(slot1) : id(slot2);
           auto &n2 = (next2 == 0) ? id(slot0) : (next2 == 1) ? id(slot1) : id(slot2);
-          if (!n1.ready) {
+          bool n1_in_flight = (next1 == 0) ? id(slot0_fetch_in_flight) : (next1 == 1) ? id(slot1_fetch_in_flight) : id(slot2_fetch_in_flight);
+          bool n2_in_flight = (next2 == 0) ? id(slot0_fetch_in_flight) : (next2 == 1) ? id(slot1_fetch_in_flight) : id(slot2_fetch_in_flight);
+          if (!n1.ready && !n1_in_flight) {
             id(target_slot) = next1;
             id(last_prefetch_start_ms) = millis();
             ESP_LOGI("immich", "Prefetch chain: filling slot %d (next)", next1);
             id(immich_fetch_into_slot).execute();
-          } else if (!n2.ready) {
+          } else if (!n2.ready && !n2_in_flight) {
             id(target_slot) = next2;
             id(last_prefetch_start_ms) = millis();
             ESP_LOGI("immich", "Prefetch chain: filling slot %d (next-next)", next2);
@@ -672,9 +705,16 @@ script:
       - delay: 150ms
       - lambda: |-
           int s = id(target_slot);
-          if (s == 0) id(immich_img_0).update();
-          else if (s == 1) id(immich_img_1).update();
-          else id(immich_img_2).update();
+          if (s == 0) {
+            id(slot0_fetch_in_flight) = true;
+            id(immich_img_0).update();
+          } else if (s == 1) {
+            id(slot1_fetch_in_flight) = true;
+            id(immich_img_1).update();
+          } else {
+            id(slot2_fetch_in_flight) = true;
+            id(immich_img_2).update();
+          }
 
   - id: deferred_portrait_left_update
     mode: single
