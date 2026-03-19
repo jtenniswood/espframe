@@ -81,6 +81,10 @@ button:
           id(portrait_preload_slot) = -1;
           id(portrait_preload_left_ready) = false;
           id(portrait_preload_right_ready) = false;
+          if (id(preload_noncritical_in_flight)) {
+            id(preload_noncritical_in_flight) = false;
+            if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
+          }
           id(active_slot_displayed) = false;
           id(target_slot) = id(active_slot);
           ESP_LOGI("immich", "Photo source applied — flushing all slots");
@@ -101,6 +105,10 @@ script:
           id(portrait_preload_slot) = -1;
           id(portrait_preload_left_ready) = false;
           id(portrait_preload_right_ready) = false;
+          if (id(preload_noncritical_in_flight)) {
+            id(preload_noncritical_in_flight) = false;
+            if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
+          }
           id(active_slot_displayed) = false;
           id(target_slot) = id(active_slot);
           ESP_LOGI("immich", "Photo source auto-applied — flushing all slots");

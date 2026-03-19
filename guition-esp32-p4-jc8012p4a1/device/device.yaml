@@ -12,7 +12,7 @@
 # -----------------------------------------------------------------------------
 substitutions:
   package_ref: "main"
-  log_level: "WARN"
+  log_level: "INFO"
 
 esp32:
   variant: ESP32P4

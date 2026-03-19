@@ -347,6 +347,9 @@ remote_image:
             ESP_LOGE("immich", "Portrait left decode failed, falling back to single");
             id(portrait_left_ready) = false;
             id(portrait_companion_found) = false;
+            // #region agent log
+            ESP_LOGW("diag", "H5: portrait LEFT error, displayed=%d busy=%d", id(active_slot_displayed), id(active_portrait_workflow_busy));
+            // #endregion
             if (!id(active_slot_displayed)) {
               id(active_slot_displayed) = true;
               id(active_portrait_workflow_busy) = false;
@@ -379,6 +382,9 @@ remote_image:
             id(portrait_right_ready) = false;
             id(portrait_right_requested) = false;
             id(portrait_companion_found) = false;
+            // #region agent log
+            ESP_LOGW("diag", "H1: portrait RIGHT error, displayed=%d busy=%d", id(active_slot_displayed), id(active_portrait_workflow_busy));
+            // #endregion
             if (!id(active_slot_displayed)) {
               id(active_slot_displayed) = true;
               id(active_portrait_workflow_busy) = false;
@@ -443,6 +449,24 @@ remote_image:
               id(preload_noncritical_in_flight) = false;
               if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
             }
+
+# -----------------------------------------------------------------------------
+# Diagnostic interval: dump guard state every 10s (remove after debugging)
+# -----------------------------------------------------------------------------
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          // #region agent log
+          ESP_LOGW("diag", "GUARD busy=%d nc_flight=%d pnc=%d s0nc=%d s1nc=%d s2nc=%d | slot=%d disp=%d pair=%d preload=%d | s0fly=%d s1fly=%d s2fly=%d | s0rdy=%d s1rdy=%d s2rdy=%d",
+            id(active_portrait_workflow_busy),
+            id(noncritical_remote_updates_in_flight),
+            id(preload_noncritical_in_flight),
+            id(slot0_noncritical_update), id(slot1_noncritical_update), id(slot2_noncritical_update),
+            id(active_slot), id(active_slot_displayed), id(immich_is_portrait_pair), id(portrait_preload_slot),
+            id(slot0_fetch_in_flight), id(slot1_fetch_in_flight), id(slot2_fetch_in_flight),
+            id(slot0).ready, id(slot1).ready, id(slot2).ready);
+          // #endregion
 
 # -----------------------------------------------------------------------------
 # Scripts: download error handler, display, advance, previous, prefetch
@@ -767,14 +791,16 @@ script:
             ESP_LOGD("immich", "Prefetch deferred (portrait pipeline busy)");
             return;
           }
+          // #region agent log
           if (id(active_portrait_workflow_busy)) {
-            ESP_LOGD("immich", "Prefetch deferred (active portrait workflow busy)");
+            ESP_LOGW("diag", "H1: prefetch BLOCKED by active_portrait_workflow_busy");
             return;
           }
           if (id(noncritical_remote_updates_in_flight) > 0) {
-            ESP_LOGD("immich", "Prefetch deferred (non-critical download busy: %d)", id(noncritical_remote_updates_in_flight));
+            ESP_LOGW("diag", "H2: prefetch BLOCKED by nc_flight=%d", id(noncritical_remote_updates_in_flight));
             return;
           }
+          // #endregion
           if ((millis() - id(last_prefetch_start_ms)) < 600) {
             ESP_LOGD("immich", "Prefetch throttled");
             return;
@@ -828,16 +854,18 @@ script:
       - lambda: |-
           int s = id(target_slot);
           bool noncritical = (s != id(active_slot));
+          // #region agent log
           if (noncritical && id(active_portrait_workflow_busy)) {
-            ESP_LOGD("immich", "Deferring slot %d update; active portrait workflow busy", s);
+            ESP_LOGW("diag", "H1: slot %d update DEFERRED (busy flag)", s);
             id(delayed_prefetch_chain).execute();
             return;
           }
           if (noncritical && id(noncritical_remote_updates_in_flight) > 0) {
-            ESP_LOGD("immich", "Deferring slot %d update; non-critical download already busy", s);
+            ESP_LOGW("diag", "H2: slot %d update DEFERRED (nc_flight=%d)", s, id(noncritical_remote_updates_in_flight));
             id(delayed_prefetch_chain).execute();
             return;
           }
+          // #endregion
           if (s == 0) {
             if (noncritical && !id(slot0_noncritical_update)) {
               id(slot0_noncritical_update) = true;
@@ -884,11 +912,13 @@ script:
     then:
       - delay: 150ms
       - lambda: |-
+          // #region agent log
           if (id(active_portrait_workflow_busy)) {
-            ESP_LOGD("immich", "Deferring preload-left update; active portrait workflow busy");
+            ESP_LOGW("diag", "H1: preload-left DEFERRED (busy flag)");
             id(delayed_prefetch_chain).execute();
             return;
           }
+          // #endregion
           if (!id(preload_noncritical_in_flight)) {
             id(preload_noncritical_in_flight) = true;
             id(noncritical_remote_updates_in_flight)++;
@@ -900,9 +930,15 @@ script:
     then:
       - delay: 150ms
       - lambda: |-
+          // #region agent log
           if (id(active_portrait_workflow_busy)) {
-            ESP_LOGD("immich", "Deferring preload-right update; active portrait workflow busy");
+            ESP_LOGW("diag", "H1: preload-right DEFERRED (busy flag), cleaning nc state");
+            if (id(preload_noncritical_in_flight)) {
+              id(preload_noncritical_in_flight) = false;
+              if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
+            }
             id(delayed_prefetch_chain).execute();
             return;
           }
+          // #endregion
           id(immich_portrait_preload_right).update();
