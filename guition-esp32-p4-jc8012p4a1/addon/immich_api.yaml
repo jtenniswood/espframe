@@ -334,6 +334,7 @@ script:
                   condition:
                     lambda: 'return id(portrait_companion_found) && id(companion_target_slot) == id(active_slot);'
                   then:
+                    - lambda: 'id(portrait_right_requested) = true;'
                     - remote_image.set_url:
                         id: immich_portrait_right
                         url: !lambda 'return id(portrait_companion_url);'

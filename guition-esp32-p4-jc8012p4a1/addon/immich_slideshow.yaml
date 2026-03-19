@@ -61,6 +61,9 @@ globals:
   - id: portrait_companion_found
     type: bool
     initial_value: 'false'
+  - id: portrait_right_requested
+    type: bool
+    initial_value: 'false'
   - id: portrait_search_datetime
     type: std::string
     initial_value: '""'
@@ -241,11 +244,14 @@ remote_image:
             ESP_LOGI("immich", "Portrait left ready");
         - if:
             condition:
-              lambda: 'return id(portrait_companion_found);'
+              lambda: 'return id(portrait_companion_found) && !id(portrait_right_ready) && !id(portrait_right_requested);'
             then:
+              - lambda: 'id(portrait_right_requested) = true;'
               - remote_image.set_url:
                   id: immich_portrait_right
                   url: !lambda 'return id(portrait_companion_url);'
+                  update: false
+              - script.execute: deferred_portrait_right_update
         - if:
             condition:
               lambda: 'return id(portrait_left_ready) && id(portrait_right_ready);'
@@ -286,6 +292,7 @@ remote_image:
         - lambda: |-
             ESP_LOGE("immich", "Portrait right decode failed, falling back to single");
             id(portrait_right_ready) = false;
+            id(portrait_right_requested) = false;
             id(portrait_companion_found) = false;
             if (!id(active_slot_displayed)) {
               id(active_slot_displayed) = true;
@@ -368,6 +375,7 @@ script:
           auto &meta = (s == 0) ? id(slot0) : (s == 1) ? id(slot1) : id(slot2);
           id(portrait_left_ready) = false;
           id(portrait_right_ready) = false;
+          id(portrait_right_requested) = false;
           id(portrait_using_preload) = false;
           id(portrait_primary_asset_id) = meta.asset_id;
           if (!meta.companion_url.empty()) {
@@ -393,11 +401,9 @@ script:
           condition:
             lambda: 'return id(portrait_companion_found);'
           then:
-            - remote_image.set_url:
-                id: immich_portrait_right
-                url: !lambda 'return id(portrait_companion_url);'
-                update: false
-            - script.execute: deferred_portrait_right_update
+            - lambda: |-
+                // Right image is started only after left finishes to avoid duplicate/in-flight updates.
+                return;
       - if:
           condition:
             lambda: 'return !id(portrait_companion_found);'
@@ -480,6 +486,7 @@ script:
                 }
                 id(portrait_left_ready) = false;
                 id(portrait_right_ready) = false;
+                id(portrait_right_requested) = false;
                 id(portrait_companion_found) = false;
                 id(immich_is_portrait_pair) = false;
                 id(portrait_using_preload) = false;
@@ -561,6 +568,7 @@ script:
 
                 id(portrait_left_ready) = false;
                 id(portrait_right_ready) = false;
+                id(portrait_right_requested) = false;
                 id(portrait_companion_found) = false;
                 id(immich_is_portrait_pair) = false;
                 id(portrait_using_preload) = false;
@@ -638,7 +646,7 @@ script:
 
   # Run prefetch after short delay to avoid socket exhaustion when many callbacks fire at once
   - id: delayed_prefetch_chain
-    mode: single
+    mode: restart
     then:
       - delay: 700ms
       - script.execute: immich_prefetch_chain
