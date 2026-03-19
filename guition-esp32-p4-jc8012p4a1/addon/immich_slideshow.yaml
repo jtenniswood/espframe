@@ -131,7 +131,7 @@ remote_image:
             meta.ready = true;
             id(slot0_fetch_in_flight) = false;
             id(immich_download_retries) = 0;
-            ESP_LOGI("immich", "Slot %d ready: %s", slot, meta.asset_id.c_str());
+            ESP_LOGD("immich", "Slot %d ready: %s", slot, meta.asset_id.c_str());
             bool is_active = (id(active_slot) == slot);
             if (is_active) {
               copy_slot_to_display(meta, id(current_display));
@@ -179,7 +179,7 @@ remote_image:
             meta.ready = true;
             id(slot1_fetch_in_flight) = false;
             id(immich_download_retries) = 0;
-            ESP_LOGI("immich", "Slot %d ready: %s", slot, meta.asset_id.c_str());
+            ESP_LOGD("immich", "Slot %d ready: %s", slot, meta.asset_id.c_str());
             bool is_active = (id(active_slot) == slot);
             if (is_active) {
               copy_slot_to_display(meta, id(current_display));
@@ -227,7 +227,7 @@ remote_image:
             meta.ready = true;
             id(slot2_fetch_in_flight) = false;
             id(immich_download_retries) = 0;
-            ESP_LOGI("immich", "Slot %d ready: %s", slot, meta.asset_id.c_str());
+            ESP_LOGD("immich", "Slot %d ready: %s", slot, meta.asset_id.c_str());
             bool is_active = (id(active_slot) == slot);
             if (is_active) {
               copy_slot_to_display(meta, id(current_display));
@@ -268,7 +268,7 @@ remote_image:
       then:
         - lambda: |-
             id(portrait_left_ready) = true;
-            ESP_LOGI("immich", "Portrait left ready");
+            ESP_LOGD("immich", "Portrait left ready");
         - if:
             condition:
               lambda: 'return id(portrait_companion_found) && !id(portrait_right_ready) && !id(portrait_right_requested);'
@@ -308,7 +308,7 @@ remote_image:
       then:
         - lambda: |-
             id(portrait_right_ready) = true;
-            ESP_LOGI("immich", "Portrait right ready");
+            ESP_LOGD("immich", "Portrait right ready");
         - if:
             condition:
               lambda: 'return id(portrait_left_ready) && id(portrait_right_ready);'
@@ -340,7 +340,7 @@ remote_image:
       then:
         - lambda: |-
             id(portrait_preload_left_ready) = true;
-            ESP_LOGI("immich", "Portrait preload left ready (slot %d)", id(portrait_preload_slot));
+            ESP_LOGD("immich", "Portrait preload left ready (slot %d)", id(portrait_preload_slot));
         # Start right only after left finishes to avoid socket exhaustion (esp-tls "Failed to create socket")
         - remote_image.set_url:
             id: immich_portrait_preload_right
@@ -366,7 +366,7 @@ remote_image:
       then:
         - lambda: |-
             id(portrait_preload_right_ready) = true;
-            ESP_LOGI("immich", "Portrait preload right ready (slot %d)", id(portrait_preload_slot));
+            ESP_LOGD("immich", "Portrait preload right ready (slot %d)", id(portrait_preload_slot));
     on_error:
       then:
         - lambda: |-
@@ -415,13 +415,13 @@ script:
           if (!meta.companion_url.empty()) {
             id(portrait_companion_found) = true;
             id(portrait_companion_url) = meta.companion_url;
-            ESP_LOGI("immich", "Portrait slot %d: companion URL known, starting left (right after)", s);
+            ESP_LOGD("immich", "Portrait slot %d: companion URL known, starting left (right after)", s);
           } else {
             id(portrait_companion_found) = false;
             id(portrait_companion_url) = "";
             id(portrait_search_datetime) = meta.datetime;
             id(companion_target_slot) = s;
-            ESP_LOGI("immich", "Portrait slot %d: no companion, searching", s);
+            ESP_LOGD("immich", "Portrait slot %d: no companion, searching", s);
           }
       - remote_image.set_url:
           id: immich_portrait_left
@@ -478,7 +478,7 @@ script:
                 lv_img_set_zoom(id(slideshow_img), ZOOM_IDENTITY);
                 lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
                 lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
-                ESP_LOGI("immich", "Instant portrait pair from preload");
+                ESP_LOGD("immich", "Instant portrait pair from preload");
             - lvgl.image.update:
                 id: portrait_left_img
                 src: immich_portrait_preload_left
@@ -531,7 +531,7 @@ script:
                 auto &cleared = (old_slot_idx == 0) ? id(slot0) : (old_slot_idx == 1) ? id(slot1) : id(slot2);
                 cleared.ready = false;
                 id(immich_last_advance_ms) = millis();
-                ESP_LOGI("immich", "Advancing: slot %d -> %d", old_slot_idx, id(active_slot));
+                ESP_LOGD("immich", "Advancing: slot %d -> %d", old_slot_idx, id(active_slot));
             - if:
                 condition:
                   lambda: |-
@@ -544,7 +544,7 @@ script:
                       auto &meta = (s == 0) ? id(slot0) : (s == 1) ? id(slot1) : id(slot2);
                       copy_slot_to_display(meta, id(current_display));
                       if (!meta.is_portrait) id(active_slot_displayed) = true;
-                      ESP_LOGI("immich", "Instant display slot %d: %s (portrait=%d)", s, id(current_display).asset_id.c_str(), meta.is_portrait);
+                      ESP_LOGD("immich", "Instant display slot %d: %s (portrait=%d)", s, id(current_display).asset_id.c_str(), meta.is_portrait);
                   - if:
                       condition:
                         lambda: |-
@@ -586,7 +586,7 @@ script:
                       else:
                         - lambda: |-
                             id(target_slot) = id(active_slot);
-                            ESP_LOGI("immich", "Slot %d not ready, fetching fresh", id(active_slot));
+                            ESP_LOGD("immich", "Slot %d not ready, fetching fresh", id(active_slot));
                         - script.execute: deferred_fetch_into_slot
 
   # Show previous image (swipe back); re-downloads into slot from stored URL
@@ -638,7 +638,7 @@ script:
                 if (prev_slot == 0) id(slot0_fetch_in_flight) = true;
                 else if (prev_slot == 1) id(slot1_fetch_in_flight) = true;
                 else id(slot2_fetch_in_flight) = true;
-                ESP_LOGI("immich", "Showing previous in slot %d: %s", prev_slot, id(current_display).asset_id.c_str());
+                ESP_LOGD("immich", "Showing previous in slot %d: %s", prev_slot, id(current_display).asset_id.c_str());
 
   # Display portrait pair when both left and right images are ready
   - id: immich_display_portrait_pair
@@ -650,7 +650,7 @@ script:
           lv_img_set_zoom(id(slideshow_img), ZOOM_IDENTITY);
           lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
           lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
-          ESP_LOGI("immich", "Displaying portrait pair");
+          ESP_LOGD("immich", "Displaying portrait pair");
       - lvgl.image.update:
           id: portrait_left_img
           src: immich_portrait_left
