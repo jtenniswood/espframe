@@ -34,8 +34,8 @@ esphome:
     - priority: 900
       then:
         - lambda: |-
-            esphome::watchdog::set_wdt_timeout(30000);
-            ESP_LOGW("diag", "H6: Watchdog timeout set to 30s");
+            esphome::watchdog::WatchdogManager *wdm = new esphome::watchdog::WatchdogManager(30000);
+            ESP_LOGW("diag", "H6: Watchdog timeout set to 30s (leaked WatchdogManager to keep it permanent)");
   # #endregion
 
 # -----------------------------------------------------------------------------
