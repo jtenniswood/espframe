@@ -184,28 +184,38 @@ lvgl:
                 - script.stop: connection_failed_dim
                 - script.execute: backlight_apply_brightness
                 - script.execute: connection_failed_dim
-            layout:
-              type: flex
-              flex_flow: COLUMN
-              flex_align_main: center
-              flex_align_cross: center
-              pad_row: 20
             widgets:
-              - label:
-                  text_font: icon_font_setup
-                  text: $icon_cloud_off
-                  text_color: 0xFFFFFF
-              - label:
-                  text: "Unable to connect to Immich"
-                  text_font: roboto_light46_font
-                  text_color: 0xFFFFFF
-                  text_align: center
-              - label:
-                  text: "Unable to load photos, check your\nconnection and the health of your Immich server."
+              - obj:
+                  align: center
                   width: 700
-                  text_font: roboto30_font
-                  text_color: 0x888888
-                  text_align: center
+                  height: SIZE_CONTENT
+                  bg_opa: 0%
+                  border_width: 0
+                  pad_all: 0
+                  scrollable: false
+                  layout:
+                    type: flex
+                    flex_flow: COLUMN
+                    flex_align_main: center
+                    flex_align_cross: center
+                    pad_row: 20
+                  widgets:
+                    - label:
+                        text_font: icon_font_setup
+                        text: $icon_cloud_off
+                        text_color: 0xFFFFFF
+                    - label:
+                        text: "Unable to connect to Immich"
+                        text_font: roboto_light46_font
+                        text_color: 0xFFFFFF
+                        width: 700
+                        text_align: center
+                    - label:
+                        text: "Check your internet connection and\nthe health of your Immich server."
+                        width: 700
+                        text_font: roboto30_font
+                        text_color: 0x888888
+                        text_align: center
 
 # =============================================================================
 # CONNECTION FAILED DIM TIMER
