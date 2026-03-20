@@ -157,7 +157,13 @@ script:
           // Skip if the buffer already has the target warmth applied
           if (fabsf(w - last_w) < 0.01f) return;
 
-          ESP_LOGI("warm", "Warmth=%.2f->%.2f (intensity=%d%%)", last_w, w, (int)id(warm_tone_intensity).state);
+          // Integer-only log (no %f / _dtoa_r) — warmth is ~0..1
+          int last_c = (int)(last_w * 100.0f + 0.5f);
+          int w_c = (int)(w * 100.0f + 0.5f);
+          if (last_c > 100) last_c = 100;
+          if (w_c > 100) w_c = 100;
+          ESP_LOGI("warm", "Warmth=%d.%02d->%d.%02d (intensity=%d%%)",
+                   last_c / 100, last_c % 100, w_c / 100, w_c % 100, (int)id(warm_tone_intensity).state);
 
           // Build transition LUTs: undo last_w, apply new w in a single step.
           // For each channel value in the buffer (which has last_w baked in),

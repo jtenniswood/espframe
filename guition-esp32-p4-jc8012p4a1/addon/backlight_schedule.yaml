@@ -264,8 +264,18 @@ script:
           if (sh < 12) snprintf(buf, sizeof(buf), "%d:%02d AM", (sh == 0) ? 12 : sh, sm);
           id(sunset_time_sensor).publish_state(buf);
 
-          ESP_LOGI("backlight", "Sunrise %02d:%02d, Sunset %02d:%02d (lat=%.2f lon=%.2f tz=%.1f)",
-                   rh, rm, sh, sm, lat, lon, tz_offset);
+          // Integer-only log: avoids newlib float formatting (_dtoa_r) during heap work under load.
+          float alat = lat >= 0 ? lat : -lat;
+          float alon = lon >= 0 ? lon : -lon;
+          float atz = tz_offset >= 0 ? tz_offset : -tz_offset;
+          int lat_c = (int)(alat * 100.0f + 0.5f);
+          int lon_c = (int)(alon * 100.0f + 0.5f);
+          int tz_c = (int)(atz * 10.0f + 0.5f);
+          ESP_LOGI("backlight", "Sunrise %02d:%02d, Sunset %02d:%02d (lat=%s%d.%02d lon=%s%d.%02d tz=%s%d.%d)",
+                   rh, rm, sh, sm,
+                   lat < 0 ? "-" : "", lat_c / 100, lat_c % 100,
+                   lon < 0 ? "-" : "", lon_c / 100, lon_c % 100,
+                   tz_offset < 0 ? "-" : "", tz_c / 10, tz_c % 10);
 
           id(backlight_apply_brightness).execute();
 

@@ -474,24 +474,6 @@ remote_image:
             }
 
 # -----------------------------------------------------------------------------
-# Diagnostic interval: dump guard state every 10s (remove after debugging)
-# -----------------------------------------------------------------------------
-interval:
-  - interval: 10s
-    then:
-      - lambda: |-
-          // #region agent log
-          ESP_LOGW("diag", "GUARD busy=%d nc_flight=%d pnc=%d s0nc=%d s1nc=%d s2nc=%d | slot=%d disp=%d pair=%d preload=%d | s0fly=%d s1fly=%d s2fly=%d | s0rdy=%d s1rdy=%d s2rdy=%d",
-            id(active_portrait_workflow_busy),
-            id(noncritical_remote_updates_in_flight),
-            id(preload_noncritical_in_flight),
-            id(slot0_noncritical_update), id(slot1_noncritical_update), id(slot2_noncritical_update),
-            id(active_slot), id(active_slot_displayed), id(immich_is_portrait_pair), id(portrait_preload_slot),
-            id(slot0_fetch_in_flight), id(slot1_fetch_in_flight), id(slot2_fetch_in_flight),
-            id(slot0).ready, id(slot1).ready, id(slot2).ready);
-          // #endregion
-
-# -----------------------------------------------------------------------------
 # Scripts: download error handler, display, advance, previous, prefetch
 # -----------------------------------------------------------------------------
 script:
