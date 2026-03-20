@@ -14,10 +14,12 @@ font:
     glyphs:
       - "\U000F05A9"  # mdi-wifi
       - "\U000F0493"  # mdi-cog
+      - "\U000F0164"  # mdi-cloud-off-outline
 
 # -----------------------------------------------------------------------------
-# Substitutions for use in labels/buttons (mdi-wifi, mdi-cog)
+# Substitutions for use in labels/buttons (mdi-wifi, mdi-cog, mdi-cloud-off-outline)
 # -----------------------------------------------------------------------------
 substitutions:
   icon_wifi: "\U000F05A9"
   icon_cog: "\U000F0493"
+  icon_cloud_off: "\U000F0164"

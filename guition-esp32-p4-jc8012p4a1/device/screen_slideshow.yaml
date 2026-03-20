@@ -177,8 +177,13 @@ lvgl:
             border_width: 0
             pad_all: 0
             scrollable: false
-            clickable: false
+            clickable: true
             hidden: true
+            on_press:
+              then:
+                - script.stop: connection_failed_dim
+                - script.execute: backlight_apply_brightness
+                - script.execute: connection_failed_dim
             layout:
               type: flex
               flex_flow: COLUMN
@@ -187,15 +192,37 @@ lvgl:
               pad_row: 20
             widgets:
               - label:
-                  text: "Connection Failed"
+                  text_font: icon_font_setup
+                  text: $icon_cloud_off
+                  text_color: 0xFFFFFF
+              - label:
+                  text: "Unable to connect to Immich"
                   text_font: roboto_light46_font
-                  text_color: 0x888888
+                  text_color: 0xFFFFFF
                   text_align: center
               - label:
-                  text: "Unable to load photos"
+                  text: "Unable to load photos, check your\nconnection and the health of your Immich server."
+                  width: 700
                   text_font: roboto30_font
-                  text_color: 0x555555
+                  text_color: 0x888888
                   text_align: center
+
+# =============================================================================
+# CONNECTION FAILED DIM TIMER
+# =============================================================================
+# Dims the backlight after 60s of showing the connection failed overlay to
+# prevent burn-in from the static message. Touch restores brightness.
+# =============================================================================
+
+script:
+  - id: connection_failed_dim
+    mode: restart
+    then:
+      - delay: 60s
+      - light.turn_on:
+          id: backlight
+          brightness: 5%
+          transition_length: 2s
 
 # =============================================================================
 # USER-CONFIGURABLE SETTINGS
@@ -253,6 +280,7 @@ interval:
                 }
                 lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
                 id(immich_download_retries) = 0;
+            - script.execute: connection_failed_dim
                 int s = id(active_slot);
                 bool in_flight = (s == 0) ? id(slot0_fetch_in_flight) : (s == 1) ? id(slot1_fetch_in_flight) : id(slot2_fetch_in_flight);
                 if (!in_flight) {

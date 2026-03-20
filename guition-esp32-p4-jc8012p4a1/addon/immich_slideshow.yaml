@@ -568,6 +568,10 @@ script:
     mode: single
     then:
       - lambda: |-
+          if (!lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN)) {
+            id(connection_failed_dim).stop();
+            id(backlight_apply_brightness).execute();
+          }
           lv_obj_add_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
           id(last_photo_displayed_ms) = millis();
 
@@ -789,6 +793,10 @@ script:
     mode: single
     then:
       - lambda: |-
+          if (!lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN)) {
+            id(connection_failed_dim).stop();
+            id(backlight_apply_brightness).execute();
+          }
           lv_obj_add_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
           id(last_photo_displayed_ms) = millis();
 
