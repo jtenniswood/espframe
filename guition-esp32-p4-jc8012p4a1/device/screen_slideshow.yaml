@@ -315,14 +315,14 @@ interval:
             lambda: |-
               if (id(last_photo_displayed_ms) == 0) return false;
               if (id(backlight_paused)) return false;
-              std::string opt = id(slideshow_interval).current_option();
+              std::string opt = id(connection_timeout).current_option();
               int num = atoi(opt.c_str());
               uint32_t seconds = (opt.find("minute") != std::string::npos) ? num * 60 : num;
-              return (millis() - id(last_photo_displayed_ms)) >= (seconds * 5 * 1000);
+              return (millis() - id(last_photo_displayed_ms)) >= (seconds * 1000);
           then:
             - lambda: |-
                 if (lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN)) {
-                  ESP_LOGE("immich", "No photo displayed for 5x interval, showing connection failed screen");
+                  ESP_LOGE("immich", "No photo displayed for %s, showing connection failed screen", id(connection_timeout).current_option().c_str());
                 }
                 lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
                 id(immich_download_retries) = 0;

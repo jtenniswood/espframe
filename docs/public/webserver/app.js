@@ -57,6 +57,11 @@
       "10 seconds", "15 seconds", "20 seconds", "30 seconds", "45 seconds",
       "1 minute", "2 minutes", "3 minutes", "5 minutes", "10 minutes"
     ],
+    conn_timeout: "2 minutes",
+    conn_timeout_options: [
+      "30 seconds", "45 seconds", "1 minute", "2 minutes", "3 minutes",
+      "5 minutes", "10 minutes", "15 minutes", "20 minutes", "30 minutes"
+    ],
     brightness: 100,
     backlight_on: true,
     show_clock: true,
@@ -109,6 +114,7 @@
     clock_format: eid("select", "Clock: Format"),
     timezone: eid("select", "Clock: Timezone"),
     interval: eid("select", "Photos: Slideshow Interval"),
+    conn_timeout: eid("select", "Screen: Connection Timeout"),
     backlight: eid("light", "Screen: Backlight"),
     show_clock: eid("switch", "Clock: Show"),
     firmware: eid("text_sensor", "Firmware: Version"),
@@ -180,6 +186,7 @@
     "select/Clock: Format": { key: "clock_format", optionsKey: "clock_options", default: "24 Hour" },
     "select/Clock: Timezone": { key: "timezone", optionsKey: "tz_options", default: "" },
     "select/Photos: Slideshow Interval": { key: "interval", optionsKey: "interval_options", default: "2 minutes" },
+    "select/Screen: Connection Timeout": { key: "conn_timeout", optionsKey: "conn_timeout_options", default: "2 minutes" },
     "switch/Clock: Show": { key: "show_clock", boolFromState: true },
     "text_sensor/Firmware: Version": { key: "firmware" },
     "switch/Firmware: Auto Update": { key: "auto_update", boolFromState: true },
@@ -248,7 +255,7 @@
 
   // Single source for settings fetched on load; KEY_TO_ENTITY_ID derived from ENTITY_STATE_MAP.
   var INITIAL_FETCH_KEYS = [
-    "photo_source", "album_ids", "person_ids", "interval",
+    "photo_source", "album_ids", "person_ids", "interval", "conn_timeout",
     "schedule_enabled", "schedule_on_hour", "schedule_off_hour",
     "sunrise", "sunset",
     "base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"
@@ -643,6 +650,14 @@
       })
     );
     dispBody.appendChild(f3);
+    var f4 = field("Connection Timeout");
+    f4.appendChild(
+      selectFromOptions(S.conn_timeout_options, S.conn_timeout, function (v) {
+        S.conn_timeout = v;
+        post(endpoints.conn_timeout + "/set", { option: v });
+      })
+    );
+    dispBody.appendChild(f4);
     wrap.appendChild(makeCollapsibleCard("Frequency", dispBody, true));
 
     // Screen Brightness
