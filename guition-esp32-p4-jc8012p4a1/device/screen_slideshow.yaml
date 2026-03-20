@@ -258,6 +258,25 @@ select:
     restore_value: true
     icon: "mdi:timer-outline"
 
+  - platform: template
+    name: "Screen: Connection Timeout"
+    id: connection_timeout
+    options:
+      - "30 seconds"
+      - "45 seconds"
+      - "1 minute"
+      - "2 minutes"
+      - "3 minutes"
+      - "5 minutes"
+      - "10 minutes"
+      - "15 minutes"
+      - "20 minutes"
+      - "30 minutes"
+    initial_option: "2 minutes"
+    optimistic: true
+    restore_value: true
+    icon: "mdi:connection"
+
 
 # =============================================================================
 # SLIDESHOW TIMER
@@ -299,11 +318,11 @@ interval:
               std::string opt = id(slideshow_interval).current_option();
               int num = atoi(opt.c_str());
               uint32_t seconds = (opt.find("minute") != std::string::npos) ? num * 60 : num;
-              return (millis() - id(last_photo_displayed_ms)) >= (seconds * 3 * 1000);
+              return (millis() - id(last_photo_displayed_ms)) >= (seconds * 5 * 1000);
           then:
             - lambda: |-
                 if (lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN)) {
-                  ESP_LOGE("immich", "No photo displayed for 3x interval, showing connection failed screen");
+                  ESP_LOGE("immich", "No photo displayed for 5x interval, showing connection failed screen");
                 }
                 lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
                 id(immich_download_retries) = 0;
