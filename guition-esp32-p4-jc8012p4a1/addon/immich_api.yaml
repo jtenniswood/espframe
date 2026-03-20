@@ -317,8 +317,7 @@ script:
                   condition:
                     lambda: 'return id(immich_api_retries) < MAX_ERROR_RETRIES;'
                   then:
-                    - delay: 5s
-                    - script.execute: immich_fetch_into_slot
+                    - script.execute: immich_fetch_retry
                   else:
                     - lambda: |-
                         id(immich_api_retries) = 0;
@@ -327,6 +326,12 @@ script:
                         }
                         lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
                     - script.execute: connection_failed_dim
+
+  - id: immich_fetch_retry
+    mode: restart
+    then:
+      - delay: 5s
+      - script.execute: immich_fetch_into_slot
 
   # ---------------------------------------------------------------------------
   # Fetch a companion portrait from a similar date/time

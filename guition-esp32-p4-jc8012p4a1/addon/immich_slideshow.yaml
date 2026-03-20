@@ -48,6 +48,12 @@ globals:
   - id: last_downloaded_slot
     type: int
     initial_value: '-1'
+  - id: deferred_update_slot
+    type: int
+    initial_value: '0'
+  - id: deferred_fetch_target
+    type: int
+    initial_value: '0'
   - id: immich_download_retries
     type: int
     initial_value: '0'
@@ -639,6 +645,24 @@ script:
                   id(active_slot_displayed) = true;
                   copy_slot_to_display(meta, id(current_display));
                   id(immich_display_current).execute();
+                } else if (!meta.ready) {
+                  bool in_flight = (s == 0) ? id(slot0_fetch_in_flight) : (s == 1) ? id(slot1_fetch_in_flight) : id(slot2_fetch_in_flight);
+                  uint32_t since_advance = millis() - id(immich_last_advance_ms);
+                  if (in_flight && since_advance > 15000) {
+                    ESP_LOGW("diag", "H3-FIX: Slot %d in_flight stuck for %ums, force-clearing", s, since_advance);
+                    if (s == 0) { id(slot0_fetch_in_flight) = false; id(slot0_noncritical_update) = false; }
+                    else if (s == 1) { id(slot1_fetch_in_flight) = false; id(slot1_noncritical_update) = false; }
+                    else { id(slot2_fetch_in_flight) = false; id(slot2_noncritical_update) = false; }
+                    in_flight = false;
+                  }
+                  if (!in_flight) {
+                    ESP_LOGW("diag", "H3-FIX: Slot %d not ready and not downloading, re-fetching", s);
+                    id(active_portrait_workflow_busy) = false;
+                    id(target_slot) = s;
+                    id(deferred_fetch_into_slot).execute();
+                  } else {
+                    ESP_LOGW("immich", "Active slot %d not ready, download in progress", s);
+                  }
                 } else {
                   ESP_LOGW("immich", "Active slot not displayed yet, skipping advance");
                 }
@@ -884,16 +908,19 @@ script:
   - id: deferred_fetch_into_slot
     mode: single
     then:
+      - lambda: 'id(deferred_fetch_target) = id(target_slot);'
       - delay: 200ms
+      - lambda: 'id(target_slot) = id(deferred_fetch_target);'
       - script.execute: immich_fetch_into_slot
 
   # Defer remote_image.update() so HTTP on_response returns before blocking get() runs
   - id: deferred_slot_image_update
     mode: single
     then:
+      - lambda: 'id(deferred_update_slot) = id(target_slot);'
       - delay: 150ms
       - lambda: |-
-          int s = id(target_slot);
+          int s = id(deferred_update_slot);
           bool noncritical = (s != id(active_slot));
           // #region agent log
           if (noncritical && id(active_portrait_workflow_busy)) {
