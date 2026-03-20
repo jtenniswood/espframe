@@ -17,7 +17,7 @@ substitutions:
 esp32:
   variant: ESP32P4
   flash_size: 16MB
-  engineering_sample: false
+  engineering_sample: true
   framework:
     type: esp-idf
     advanced:
