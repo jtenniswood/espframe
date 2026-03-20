@@ -212,6 +212,7 @@ script:
           if (in_window && id(backlight_paused) && !id(backlight_manual_off)) {
             ESP_LOGI("backlight", "Schedule: turning on (hour %d in window %d-%d)", current_hour, on_hour, off_hour);
             id(backlight_paused) = false;
+            id(last_photo_displayed_ms) = millis();
             id(last_schedule_state) = true;
             id(backlight_apply_brightness).execute();
             id(immich_prefetch_chain).execute();
@@ -312,6 +313,7 @@ script:
             }
           }
           id(backlight_paused) = false;
+          id(last_photo_displayed_ms) = millis();
           ESP_LOGI("backlight", "Wake: restoring brightness");
       - script.execute: backlight_apply_brightness
       - script.execute: immich_prefetch_chain

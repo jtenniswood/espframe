@@ -69,7 +69,7 @@ logger:
   logs:
     component: WARN
     remote_image: WARN
-    immich: WARN
+    immich: INFO
     warm: WARN
     accent: WARN
 

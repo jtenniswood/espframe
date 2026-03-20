@@ -174,8 +174,8 @@ script:
                   }
                   int slot = id(target_slot);
                   auto &meta = (slot == 0) ? id(slot0) : (slot == 1) ? id(slot1) : id(slot2);
-                  ESP_LOGD("immich", "Memory slot %d fetched: %s | %s | %s | %s | portrait=%d zoom=%u",
-                           slot, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.location.c_str(), meta.is_portrait, meta.zoom);
+                  ESP_LOGI("immich", "MEMORY slot %d: %s | %s | %s | %s | portrait=%d",
+                           slot, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.location.c_str(), meta.is_portrait);
                   if (id(portrait_preload_slot) == slot) {
                     id(portrait_preload_slot) = -1;
                     id(portrait_preload_left_ready) = false;
@@ -289,8 +289,8 @@ script:
                   }
                   int slot = id(target_slot);
                   auto &meta = (slot == 0) ? id(slot0) : (slot == 1) ? id(slot1) : id(slot2);
-                  ESP_LOGD("immich", "Slot %d fetched: %s | %s | %s | %s | portrait=%d zoom=%u",
-                           slot, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.location.c_str(), meta.is_portrait, meta.zoom);
+                  ESP_LOGI("immich", "RANDOM slot %d: %s | %s | %s | %s | portrait=%d",
+                           slot, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.location.c_str(), meta.is_portrait);
                   if (id(portrait_preload_slot) == slot) {
                     id(portrait_preload_slot) = -1;
                     id(portrait_preload_left_ready) = false;
@@ -407,13 +407,13 @@ script:
                     if (ew <= 0 || eh <= 0 || eh <= ew) continue;
 
                     companion_url = base + "/api/assets/" + aid + "/thumbnail?size=preview";
-                    ESP_LOGD("immich", "Companion portrait found: %s for slot %d",
+                    ESP_LOGI("immich", "COMPANION found: %s for slot %d",
                              aid.c_str(), id(companion_target_slot));
                     break;
                   }
 
                   if (companion_url.empty()) {
-                    ESP_LOGD("immich", "No companion portrait found for this day");
+                    ESP_LOGI("immich", "NO COMPANION found for slot %d", id(companion_target_slot));
                     id(handle_companion_not_found).execute();
                     return;
                   }

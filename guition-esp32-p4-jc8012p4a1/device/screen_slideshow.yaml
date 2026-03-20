@@ -167,6 +167,35 @@ lvgl:
                         text: ""
                         text_color: 0xFFFFFF
                         text_font: roboto_light150_font
+        - obj:
+            id: connection_failed_overlay
+            align: CENTER
+            width: 1280
+            height: 800
+            bg_color: 0x000000
+            bg_opa: 100%
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+            hidden: true
+            layout:
+              type: flex
+              flex_flow: COLUMN
+              flex_align_main: center
+              flex_align_cross: center
+              pad_row: 20
+            widgets:
+              - label:
+                  text: "Connection Failed"
+                  text_font: roboto_light46_font
+                  text_color: 0x888888
+                  text_align: center
+              - label:
+                  text: "Unable to load photos"
+                  text_font: roboto30_font
+                  text_color: 0x555555
+                  text_align: center
 
 # =============================================================================
 # USER-CONFIGURABLE SETTINGS
@@ -211,5 +240,27 @@ interval:
               return (millis() - id(immich_last_advance_ms)) >= (seconds * 1000);
           then:
             - script.execute: immich_advance_forward
+      - if:
+          condition:
+            lambda: |-
+              if (id(last_photo_displayed_ms) == 0) return false;
+              if (id(backlight_paused)) return false;
+              std::string opt = id(slideshow_interval).current_option();
+              int num = atoi(opt.c_str());
+              uint32_t seconds = (opt.find("minute") != std::string::npos) ? num * 60 : num;
+              return (millis() - id(last_photo_displayed_ms)) >= (seconds * 3 * 1000);
+          then:
+            - lambda: |-
+                if (lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN)) {
+                  ESP_LOGW("immich", "No photo displayed for 3x interval, showing connection failed screen");
+                }
+                lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
+                id(immich_download_retries) = 0;
+                int s = id(active_slot);
+                bool in_flight = (s == 0) ? id(slot0_fetch_in_flight) : (s == 1) ? id(slot1_fetch_in_flight) : id(slot2_fetch_in_flight);
+                if (!in_flight) {
+                  id(target_slot) = s;
+                  id(immich_fetch_into_slot).execute();
+                }
 
 

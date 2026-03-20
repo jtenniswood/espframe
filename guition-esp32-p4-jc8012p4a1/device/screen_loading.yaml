@@ -79,7 +79,7 @@ esphome:
         - delay: 100ms
         - light.turn_on:
             id: backlight
-            brightness: 100%
+            brightness: 90%
             transition_length: 500ms
     - priority: -100
       then:

@@ -123,6 +123,9 @@ globals:
   - id: portrait_using_preload
     type: bool
     initial_value: 'false'
+  - id: last_photo_displayed_ms
+    type: uint32_t
+    initial_value: '0'
 
 # -----------------------------------------------------------------------------
 # 3-slot full-size ring buffer and portrait pair / preload remote_image components
@@ -545,6 +548,9 @@ script:
     mode: single
     then:
       - lambda: |-
+          lv_obj_add_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
+          id(last_photo_displayed_ms) = millis();
+
           lv_obj_clear_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
           lv_obj_add_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
           id(immich_is_portrait_pair) = false;
@@ -555,6 +561,7 @@ script:
 
           auto &meta = (s == 0) ? id(slot0) : (s == 1) ? id(slot1) : id(slot2);
           lv_img_set_zoom(id(slideshow_img), meta.zoom);
+          ESP_LOGI("immich", "SHOW slot %d: %s | %s | %s | portrait=%d", s, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.is_portrait);
           if (!meta.is_portrait) {
             id(active_slot_displayed) = true;
             id(active_portrait_workflow_busy) = false;
@@ -578,7 +585,7 @@ script:
                 lv_img_set_zoom(id(slideshow_img), ZOOM_IDENTITY);
                 lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
                 lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
-                ESP_LOGD("immich", "Instant portrait pair from preload");
+                ESP_LOGI("immich", "PAIR (preloaded) displayed for slot %d", id(active_slot));
             - lvgl.image.update:
                 id: portrait_left_img
                 src: immich_portrait_preload_left
@@ -646,7 +653,7 @@ script:
                 auto &cleared = (old_slot_idx == 0) ? id(slot0) : (old_slot_idx == 1) ? id(slot1) : id(slot2);
                 cleared.ready = false;
                 id(immich_last_advance_ms) = millis();
-                ESP_LOGD("immich", "Advancing: slot %d -> %d", old_slot_idx, id(active_slot));
+                ESP_LOGI("immich", "ADVANCE: slot %d -> %d", old_slot_idx, id(active_slot));
             - if:
                 condition:
                   lambda: |-
@@ -659,7 +666,8 @@ script:
                       auto &meta = (s == 0) ? id(slot0) : (s == 1) ? id(slot1) : id(slot2);
                       copy_slot_to_display(meta, id(current_display));
                       if (!meta.is_portrait) id(active_slot_displayed) = true;
-                      ESP_LOGD("immich", "Instant display slot %d: %s (portrait=%d)", s, id(current_display).asset_id.c_str(), meta.is_portrait);
+                      ESP_LOGI("immich", "DISPLAY slot %d: %s | %s | %s | portrait=%d pair=%d",
+                        s, id(current_display).asset_id.c_str(), id(current_display).date.c_str(), id(current_display).person.c_str(), meta.is_portrait, id(immich_is_portrait_pair));
                   - if:
                       condition:
                         lambda: |-
@@ -761,13 +769,16 @@ script:
     mode: single
     then:
       - lambda: |-
+          lv_obj_add_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
+          id(last_photo_displayed_ms) = millis();
+
           id(immich_is_portrait_pair) = true;
           id(active_slot_displayed) = true;
           id(active_portrait_workflow_busy) = false;
           lv_img_set_zoom(id(slideshow_img), ZOOM_IDENTITY);
           lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
           lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
-          ESP_LOGD("immich", "Displaying portrait pair");
+          ESP_LOGI("immich", "PAIR displayed for slot %d", id(active_slot));
       - lvgl.image.update:
           id: portrait_left_img
           src: immich_portrait_left
