@@ -718,10 +718,6 @@
     };
     baseTr.appendChild(baseTog);
     fBaseToneToggle.appendChild(baseTr);
-    var baseHint = el("div");
-    baseHint.className = "field-hint";
-    baseHint.textContent = "Corrects blue display cast. Applied to all photos.";
-    fBaseToneToggle.appendChild(baseHint);
     warmBody.appendChild(fBaseToneToggle);
 
     var fBaseTone = field("");
@@ -761,10 +757,6 @@
     };
     warmTr.appendChild(warmTog);
     fWarmToggle.appendChild(warmTr);
-    var nightHint = el("div");
-    nightHint.className = "field-hint";
-    nightHint.textContent = "Gradually turns on at sunset, off at sunrise";
-    fWarmToggle.appendChild(nightHint);
     warmBody.appendChild(fWarmToggle);
 
     var fWarmInt = field("");
