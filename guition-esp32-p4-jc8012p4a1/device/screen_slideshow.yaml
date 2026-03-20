@@ -281,6 +281,7 @@ interval:
                 lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
                 id(immich_download_retries) = 0;
             - script.execute: connection_failed_dim
+            - lambda: |-
                 int s = id(active_slot);
                 bool in_flight = (s == 0) ? id(slot0_fetch_in_flight) : (s == 1) ? id(slot1_fetch_in_flight) : id(slot2_fetch_in_flight);
                 if (!in_flight) {
