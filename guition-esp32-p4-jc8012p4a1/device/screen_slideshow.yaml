@@ -221,7 +221,7 @@ script:
       - delay: 60s
       - light.turn_on:
           id: backlight
-          brightness: 5%
+          brightness: 50%
           transition_length: 2s
 
 # =============================================================================
