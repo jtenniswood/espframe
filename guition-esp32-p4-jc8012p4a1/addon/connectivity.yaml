@@ -24,6 +24,7 @@ http_request:
 captive_portal:
 
 wifi:
+  reboot_timeout: 0s
   ap: {}
   on_connect:
     - script.stop: setup_screen_dim

@@ -66,6 +66,7 @@ psram:
 # API, logger, JSON, web server, OTA, debug (reset reason for crash diagnosis)
 # -----------------------------------------------------------------------------
 api:
+  reboot_timeout: 0s
 
 logger:
   level: ${log_level}
