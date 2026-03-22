@@ -1,6 +1,6 @@
 # remote_image component
 
-ESPHome component that downloads images from HTTP/HTTPS URLs and decodes them for display. Supports JPEG, PNG, and BMP. Images are cached in a buffer so they can be redrawn without re-downloading. Optional placeholder image and ETag/Last-Modified handling reduce redundant transfers.
+ESPHome component that downloads images from HTTP/HTTPS URLs and decodes them for display. Supports JPEG, PNG, BMP, and WebP. Images are cached in a buffer so they can be redrawn without re-downloading. Optional placeholder image and ETag/Last-Modified handling reduce redundant transfers.
 
 ## Requirements
 
@@ -10,12 +10,13 @@ ESPHome component that downloads images from HTTP/HTTPS URLs and decodes them fo
 - Supported frameworks: ESP32 (Arduino/IDF), RP2040, host. ESP8266 is not supported.
 - For **JPEG**: the build uses the bundled `libjpeg-turbo-esp32` (no extra config).
 - For **PNG**: the component depends on the `pngle` library (v1.1.0).
+- For **WebP**: the build uses the bundled `libwebp-esp32` (decode-only, v1.6.0).
 
 ## Files
 
 | File | Purpose |
 |------|--------|
-| `__init__.py` | Component registration, config schema, actions, triggers, and format selection (BMP/JPEG/PNG). |
+| `__init__.py` | Component registration, config schema, actions, triggers, and format selection (BMP/JPEG/PNG/WebP). |
 | `remote_image.h` | `OnlineImage` class (main entity), `ImageFormat` enum, actions and triggers. |
 | `remote_image.cpp` | Download loop, HTTP handling, decoder lifecycle, buffer and pixel drawing. |
 | `image_decoder.h` | `ImageDecoder` base class and `DownloadBuffer` for streaming decode. |
@@ -23,6 +24,7 @@ ESPHome component that downloads images from HTTP/HTTPS URLs and decodes them fo
 | `jpeg_image.h` / `jpeg_image.cpp` | JPEG decoder (when `USE_REMOTE_IMAGE_JPEG_SUPPORT` is set). |
 | `png_image.h` / `png_image.cpp` | PNG decoder (when `USE_REMOTE_IMAGE_PNG_SUPPORT` is set). |
 | `bmp_image.h` / `bmp_image.cpp` | BMP decoder (when `USE_REMOTE_IMAGE_BMP_SUPPORT` is set). |
+| `webp_image.h` / `webp_image.cpp` | WebP decoder (when `USE_REMOTE_IMAGE_WEBP_SUPPORT` is set). |
 
 ---
 
@@ -51,7 +53,7 @@ remote_image:
 |--------|------|--------|-------------|
 | `id` | required | — | ID for this `OnlineImage` (e.g. for actions or as image source). |
 | `url` | required | — | URL to download (must use `http://` or `https://`). |
-| `format` | required | — | `BMP`, `JPEG`, or `PNG` (alias `JPG` for JPEG). |
+| `format` | required | — | `BMP`, `JPEG`, `PNG`, or `WEBP` (alias `JPG` for JPEG). |
 | `http_request_id` | required | — | ID of the `http_request` component to use. |
 | `request_headers` | optional | `{}` | Extra HTTP request headers (e.g. `x-api-key: !lambda 'return id(api_key).state;'`). |
 | `placeholder` | optional | — | ID of another `image` to show until the download is ready. |
@@ -156,6 +158,7 @@ on_error:
 | `JPEG` | JPEG format. |
 | `PNG` | PNG format. |
 | `BMP` | BMP format. |
+| `WEBP` | WebP format. |
 
 ### OnlineImage class (remote_image.h)
 

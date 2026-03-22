@@ -19,6 +19,9 @@ static const char *const IF_MODIFIED_SINCE_HEADER_NAME = "if-modified-since";
 #ifdef USE_REMOTE_IMAGE_PNG_SUPPORT
 #include "png_image.h"
 #endif
+#ifdef USE_REMOTE_IMAGE_WEBP_SUPPORT
+#include "webp_image.h"
+#endif
 
 #ifdef USE_ESP_IDF
 #include "soc/soc_caps.h"
@@ -151,6 +154,11 @@ void OnlineImage::update() {
       accept_mime_type = "image/png";
       break;
 #endif  // USE_REMOTE_IMAGE_PNG_SUPPORT
+#ifdef USE_REMOTE_IMAGE_WEBP_SUPPORT
+    case ImageFormat::WEBP:
+      accept_mime_type = "image/webp";
+      break;
+#endif  // USE_REMOTE_IMAGE_WEBP_SUPPORT
     default:
       accept_mime_type = "image/*";
   }
@@ -218,6 +226,13 @@ void OnlineImage::update() {
     this->enable_loop();
   }
 #endif  // USE_REMOTE_IMAGE_PNG_SUPPORT
+#ifdef USE_REMOTE_IMAGE_WEBP_SUPPORT
+  if (this->format_ == ImageFormat::WEBP) {
+    ESP_LOGD(TAG, "Allocating WebP decoder");
+    this->decoder_ = make_unique<WebpDecoder>(this);
+    this->enable_loop();
+  }
+#endif  // USE_REMOTE_IMAGE_WEBP_SUPPORT
 
   if (!this->decoder_) {
     ESP_LOGE(TAG, "Could not instantiate decoder. Image format unsupported: %d", this->format_);

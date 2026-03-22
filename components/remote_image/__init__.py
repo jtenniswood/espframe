@@ -102,12 +102,36 @@ class PNGFormat(Format):
         cg.add_library("pngle", "1.1.0")
 
 
+class WebPFormat(Format):
+    def __init__(self):
+        super().__init__("WEBP")
+
+    def actions(self):
+        cg.add_define("USE_REMOTE_IMAGE_WEBP_SUPPORT")
+        src_path = os.path.join(
+            os.path.dirname(__file__), "..", "libwebp-esp32"
+        )
+        dest_path = str(
+            CORE.relative_build_path("components", "libwebp-esp32")
+        )
+        src_cmake = os.path.join(src_path, "CMakeLists.txt")
+        dest_cmake = os.path.join(dest_path, "CMakeLists.txt")
+        needs_copy = not os.path.exists(dest_cmake) or (
+            os.path.getmtime(src_cmake) > os.path.getmtime(dest_cmake)
+        )
+        if needs_copy:
+            if os.path.exists(dest_path):
+                shutil.rmtree(dest_path)
+            shutil.copytree(src_path, dest_path)
+
+
 IMAGE_FORMATS = {
     x.image_type: x
     for x in (
         BMPFormat(),
         JPEGFormat(),
         PNGFormat(),
+        WebPFormat(),
     )
 }
 IMAGE_FORMATS.update({"JPG": IMAGE_FORMATS["JPEG"]})
