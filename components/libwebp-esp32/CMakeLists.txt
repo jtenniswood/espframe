@@ -31,8 +31,8 @@ idf_component_register(
         "src/utils/rescaler_utils.c"
         "src/utils/thread_utils.c"
         "src/utils/utils.c"
-    INCLUDE_DIRS "src"
-    PRIV_INCLUDE_DIRS "src" "src/dec" "src/dsp" "src/utils"
+    INCLUDE_DIRS "." "src"
+    PRIV_INCLUDE_DIRS "."
 )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE
