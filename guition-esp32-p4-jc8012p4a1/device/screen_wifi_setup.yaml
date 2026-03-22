@@ -12,7 +12,6 @@ lvgl:
       pad_all: 0
       widgets:
         - obj:
-            align: center
             width: 1280
             height: 800
             bg_opa: 0%
@@ -25,32 +24,41 @@ lvgl:
                 - script.stop: setup_screen_dim
                 - script.execute: backlight_apply_brightness
                 - script.execute: setup_screen_dim
-            layout:
-              type: flex
-              flex_flow: COLUMN
-              flex_align_main: center
-              flex_align_cross: center
-              pad_row: 20
             widgets:
-              - label:
-                  text_font: icon_font_setup
-                  text: $icon_wifi
-                  text_color: 0xFFFFFF
+              - obj:
+                  align: center
                   width: 700
-                  text_align: center
-              - label:
-                  text: "WiFi Setup"
-                  text_font: roboto_light46_font
-                  text_color: 0xFFFFFF
-                  width: 700
-                  text_align: center
-              - label:
-                  id: wifi_setup_instructions
-                  text: "Connect to the WiFi hotspot\nto configure your network"
-                  text_font: roboto30_font
-                  text_color: 0x888888
-                  width: 700
-                  text_align: center
+                  height: SIZE_CONTENT
+                  bg_opa: 0%
+                  border_width: 0
+                  pad_all: 0
+                  scrollable: false
+                  clickable: false
+                  layout:
+                    type: flex
+                    flex_flow: COLUMN
+                    flex_align_main: center
+                    flex_align_cross: center
+                    pad_row: 20
+                  widgets:
+                    - label:
+                        text_font: icon_font_setup
+                        text: $icon_wifi
+                        text_color: 0xFFFFFF
+                        text_align: center
+                    - label:
+                        text: "WiFi Setup"
+                        text_font: roboto_light46_font
+                        text_color: 0xFFFFFF
+                        width: 700
+                        text_align: center
+                    - label:
+                        id: wifi_setup_instructions
+                        text: "Connect to the WiFi hotspot\nto configure your network"
+                        text_font: roboto30_font
+                        text_color: 0x888888
+                        width: 700
+                        text_align: center
 
 # =============================================================================
 # SETUP SCREEN DIM TIMER
