@@ -716,6 +716,7 @@
     wrap.appendChild(makeCollapsibleCard("Screen Brightness", dnDetails, true));
 
     // Screen Tone
+    var toneBadge = makeBadge(S.base_tone_enabled || S.warm_tones_enabled);
     var warmBody = el("div");
 
     var fBaseToneToggle = field("");
@@ -729,6 +730,7 @@
       S.base_tone_enabled = !S.base_tone_enabled;
       baseTog.className = S.base_tone_enabled ? "toggle on" : "toggle";
       baseDetails.style.display = S.base_tone_enabled ? "" : "none";
+      toneBadge.className = "on-badge" + ((S.base_tone_enabled || S.warm_tones_enabled) ? " active" : "");
       post(endpoints.base_tone_enabled + (S.base_tone_enabled ? "/turn_on" : "/turn_off"));
     };
     baseTr.appendChild(baseTog);
@@ -770,6 +772,7 @@
       S.warm_tones_enabled = !S.warm_tones_enabled;
       warmTog.className = S.warm_tones_enabled ? "toggle on" : "toggle";
       nightDetails.style.display = S.warm_tones_enabled ? "" : "none";
+      toneBadge.className = "on-badge" + ((S.base_tone_enabled || S.warm_tones_enabled) ? " active" : "");
       post(endpoints.warm_tones_enabled + (S.warm_tones_enabled ? "/turn_on" : "/turn_off"));
     };
     warmTr.appendChild(warmTog);
@@ -812,9 +815,10 @@
     nightDetails.appendChild(fOverride);
 
     warmBody.appendChild(nightDetails);
-    wrap.appendChild(makeCollapsibleCard("Screen Tone", warmBody, true));
+    wrap.appendChild(makeCollapsibleCard("Screen Tone", warmBody, true, toneBadge));
 
     // Schedule
+    var schedBadge = makeBadge(S.schedule_enabled);
     var schedBody = el("div");
     var fSchedToggle = field("");
     var schedTr = el("div", "toggle-row");
@@ -827,6 +831,7 @@
       S.schedule_enabled = !S.schedule_enabled;
       schedTog.className = S.schedule_enabled ? "toggle on" : "toggle";
       schedDetails.style.display = S.schedule_enabled ? "" : "none";
+      schedBadge.className = "on-badge" + (S.schedule_enabled ? " active" : "");
       post(endpoints.schedule_enabled + (S.schedule_enabled ? "/turn_on" : "/turn_off"));
     };
     schedTr.appendChild(schedTog);
@@ -868,9 +873,10 @@
     schedDetails.appendChild(fOffTime);
 
     schedBody.appendChild(schedDetails);
-    wrap.appendChild(makeCollapsibleCard("Screen Schedule", schedBody, true));
+    wrap.appendChild(makeCollapsibleCard("Screen Schedule", schedBody, true, schedBadge));
 
     // Clock
+    var clockBadge = makeBadge(S.show_clock);
     var clkBody = el("div");
     var f5 = field("");
     var tr = el("div", "toggle-row");
@@ -879,6 +885,7 @@
     tog.onclick = function () {
       S.show_clock = !S.show_clock;
       tog.className = S.show_clock ? "toggle on" : "toggle";
+      clockBadge.className = "on-badge" + (S.show_clock ? " active" : "");
       post(
         endpoints.show_clock + (S.show_clock ? "/turn_on" : "/turn_off")
       );
@@ -904,7 +911,7 @@
       })
     );
     clkBody.appendChild(f7);
-    wrap.appendChild(makeCollapsibleCard("Clock", clkBody, true));
+    wrap.appendChild(makeCollapsibleCard("Clock", clkBody, true, clockBadge));
 
     // Firmware
     var fwBody = el("div", "fw-body");
@@ -1140,11 +1147,18 @@
     return e;
   }
 
-  function makeCollapsibleCard(title, bodyElement, defaultCollapsed) {
+  function makeBadge(isActive) {
+    var badge = el("span", "on-badge" + (isActive ? " active" : ""));
+    badge.textContent = "On";
+    return badge;
+  }
+
+  function makeCollapsibleCard(title, bodyElement, defaultCollapsed, badgeEl) {
     var card = el("div", "card");
     var header = el("div", "card-header");
     var h3 = document.createElement("h3");
     h3.textContent = title;
+    if (badgeEl) h3.appendChild(badgeEl);
     var chevron = el("span", "card-chevron");
     chevron.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 9l6 6 6-6\"/></svg>";
     header.appendChild(h3);

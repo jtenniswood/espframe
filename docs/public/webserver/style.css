@@ -39,6 +39,18 @@ h2{font-size:1.1rem;font-weight:600;margin-bottom:var(--gap);color:var(--text2)}
 .card.collapsed .card-chevron{transform:rotate(-90deg)}
 .card.collapsed .card-body{display:none}
 
+.on-badge{
+  display:none;align-items:center;gap:4px;
+  font-size:.65rem;font-weight:500;color:var(--success);
+  margin-left:8px;text-transform:none;letter-spacing:0;
+  vertical-align:middle;
+}
+.card.collapsed .on-badge.active{display:inline-flex}
+.on-badge::before{
+  content:"";display:inline-block;width:6px;height:6px;
+  border-radius:50%;background:var(--success);
+}
+
 .field{margin-bottom:22px}
 .field:last-child{margin-bottom:0}
 label{display:block;font-size:.85rem;color:var(--text2);margin-bottom:6px}
