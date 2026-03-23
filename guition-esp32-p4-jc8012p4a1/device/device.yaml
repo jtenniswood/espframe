@@ -11,7 +11,7 @@
 # Build and log
 # -----------------------------------------------------------------------------
 substitutions:
-  package_ref: "feature/webp-support"
+  package_ref: "main"
   log_level: "INFO"
 
 esp32:
