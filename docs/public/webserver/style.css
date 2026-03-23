@@ -47,7 +47,7 @@ h2{font-size:1.1rem;font-weight:600;margin-bottom:var(--gap);color:var(--text2)}
   padding:2px 8px 2px 6px;
   background:rgba(76,175,80,0.12);
   border-radius:999px;
-  text-transform:none;letter-spacing:0;
+  text-transform:uppercase;letter-spacing:.5px;
   white-space:nowrap;
 }
 .card.collapsed .on-badge.active{display:inline-flex}
