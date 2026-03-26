@@ -36,6 +36,9 @@ globals:
   - id: last_is_daytime
     type: bool
     initial_value: 'true'
+  - id: manual_wake_ms
+    type: uint32_t
+    initial_value: '0'
 
 # =============================================================================
 # USER-CONFIGURABLE ENTITIES
@@ -221,6 +224,10 @@ script:
             id(backlight_apply_brightness).execute();
             id(immich_prefetch_chain).execute();
           } else if (!in_window && !id(backlight_paused)) {
+            if (id(manual_wake_ms) != 0 && (millis() - id(manual_wake_ms)) < 120000) {
+              return;
+            }
+            id(manual_wake_ms) = 0;
             ESP_LOGI("backlight", "Schedule: turning off (hour %d outside window %d-%d)", current_hour, on_hour, off_hour);
             id(backlight_paused) = true;
             id(backlight_manual_off) = false;
@@ -305,26 +312,8 @@ script:
     then:
       - lambda: |-
           id(backlight_manual_off) = false;
-          if (id(schedule_enabled).state) {
-            auto now = id(sntp_time).now();
-            if (now.is_valid()) {
-              int current_hour = now.hour;
-              int on_hour = (int)id(schedule_on_hour).state;
-              int off_hour = (int)id(schedule_off_hour).state;
-              bool in_window;
-              if (on_hour < off_hour)
-                in_window = (current_hour >= on_hour && current_hour < off_hour);
-              else if (on_hour > off_hour)
-                in_window = (current_hour >= on_hour || current_hour < off_hour);
-              else
-                in_window = true;
-              if (!in_window) {
-                ESP_LOGI("backlight", "Wake blocked: outside schedule window");
-                return;
-              }
-            }
-          }
           id(backlight_paused) = false;
+          id(manual_wake_ms) = millis();
           id(last_photo_displayed_ms) = millis();
           ESP_LOGI("backlight", "Wake: restoring brightness");
       - script.execute: backlight_apply_brightness
