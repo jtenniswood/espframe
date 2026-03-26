@@ -183,10 +183,14 @@ lvgl:
             on_press:
               then:
                 - script.stop: connection_failed_dim
+                - script.stop: connection_failed_shift
+                - lambda: 'lv_obj_align(id(connection_failed_content), LV_ALIGN_CENTER, 0, 0);'
                 - script.execute: backlight_apply_brightness
                 - script.execute: connection_failed_dim
+                - script.execute: connection_failed_shift
             widgets:
               - obj:
+                  id: connection_failed_content
                   align: center
                   width: 700
                   height: SIZE_CONTENT
@@ -232,10 +236,27 @@ script:
     mode: restart
     then:
       - delay: 120s
-      - light.turn_on:
-          id: backlight
-          brightness: 50%
-          transition_length: 2s
+      - if:
+          condition:
+            lambda: 'return !id(backlight_paused);'
+          then:
+            - light.turn_on:
+                id: backlight
+                brightness: 50%
+                transition_length: 2s
+
+  - id: connection_failed_shift
+    mode: restart
+    then:
+      - while:
+          condition:
+            lambda: 'return true;'
+          then:
+            - delay: 30s
+            - lambda: |-
+                int x = ((int)(esp_random() % 61)) - 30;
+                int y = ((int)(esp_random() % 41)) - 20;
+                lv_obj_align(id(connection_failed_content), LV_ALIGN_CENTER, x, y);
 
 # =============================================================================
 # USER-CONFIGURABLE SETTINGS
@@ -337,6 +358,7 @@ interval:
                 lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
                 id(immich_download_retries) = 0;
             - script.execute: connection_failed_dim
+            - script.execute: connection_failed_shift
             - lambda: |-
                 int s = id(active_slot);
                 bool in_flight = (s == 0) ? id(slot0_fetch_in_flight) : (s == 1) ? id(slot1_fetch_in_flight) : id(slot2_fetch_in_flight);

@@ -28,8 +28,8 @@ Defined in the headers:
 | `PANORAMA_MIN_ASPECT` | `immich_helpers.h` | `1.6f` — minimum aspect ratio treated as panorama. |
 | `PANORAMA_MAX_ASPECT` | `immich_helpers.h` | `2.0f` — maximum aspect ratio for panorama zoom calculation. |
 | `MONTH_NAMES` | `date_utils.h` | `""`, `"Jan"` … `"Dec"` — short month names (index 0 unused). |
-| `TZ_COORDS` | `sun_calc.h` | Array of `TzCoord` (tz id, lat, lon) for many IANA timezones. |
-| `TZ_COORDS_COUNT` | `sun_calc.h` | Number of entries in `TZ_COORDS`. |
+| `TZ_DATA` | `sun_calc.h` | Array of `TzInfo` (tz id, lat, lon, POSIX TZ string) for many IANA timezones. |
+| `TZ_DATA_COUNT` | `sun_calc.h` | Number of entries in `TZ_DATA`. |
 | `DEG_TO_RAD`, `RAD_TO_DEG` | `sun_calc.h` | Angle conversion constants. |
 
 ---
@@ -74,12 +74,13 @@ Extends `PhotoMeta` for the currently displayed photo.
 
 Filled by `parse_immich_asset` from Immich JSON. Same logical fields as `PhotoMeta` plus `datetime` and `is_portrait` (see `immich_helpers.h`).
 
-### `TzCoord` (sun_calc.h)
+### `TzInfo` (sun_calc.h)
 
 | Field | Type | Meaning |
 |-------|------|--------|
 | `tz` | `const char*` | IANA timezone identifier. |
 | `lat`, `lon` | `float` | Representative latitude/longitude (degrees). |
+| `posix` | `const char*` | POSIX TZ string for ESPHome's `set_timezone()`. |
 
 ---
 
@@ -211,6 +212,19 @@ Looks up latitude and longitude for an IANA timezone string (e.g. `"America/New_
 float lat, lon;
 if (lookup_tz_coords(id(timezone_select).current_option(), lat, lon)) {
   // use lat, lon with calc_sunrise_sunset
+}
+```
+
+#### `lookup_tz_posix(tz_id)`
+
+Returns the POSIX TZ string for an IANA timezone identifier (e.g. `"America/Denver"` → `"MST7MDT,M3.2.0,M11.1.0"`). Returns `nullptr` if not found.
+
+**Use when:** Setting the timezone at runtime via `set_timezone()`, which requires POSIX format.
+
+```cpp
+const char* posix = lookup_tz_posix("America/Denver");
+if (posix) {
+  id(sntp_time).set_timezone(posix);
 }
 ```
 

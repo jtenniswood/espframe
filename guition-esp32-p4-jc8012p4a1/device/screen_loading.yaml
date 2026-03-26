@@ -88,7 +88,7 @@ esphome:
             lv_label_set_text(id(loading_status_label), "Connecting to WiFi");
         - lambda: |-
             std::string name = App.get_name();
-            std::string wifi_text = "Connect to the WiFi hotspot\n'" + name + "'\nto configure your network";
+            std::string wifi_text = "Connect to the WiFi hotspot\n'" + name + "'\nto configure your network\n\nThen visit 192.168.4.1 in your browser";
             lv_label_set_text(id(wifi_setup_instructions), wifi_text.c_str());
         - delay: 10s
         - lambda: 'id(boot_grace_period) = false;'

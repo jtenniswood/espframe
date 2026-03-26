@@ -290,6 +290,7 @@ script:
                       }
                       lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
                       id(connection_failed_dim).execute();
+                      id(connection_failed_shift).execute();
                     }
                     return;
                   }
@@ -350,6 +351,7 @@ script:
                         lv_label_set_text(id(connection_failed_subtitle), "Check your internet connection and\nthe health of your Immich server.");
                         lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
                     - script.execute: connection_failed_dim
+                    - script.execute: connection_failed_shift
 
   - id: immich_fetch_retry
     mode: restart

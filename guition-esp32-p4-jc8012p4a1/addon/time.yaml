@@ -168,8 +168,11 @@ select:
     on_value:
       then:
         - lambda: |-
-            auto tz = x.substr(0, x.find(" ("));
-            id(sntp_time).set_timezone(tz);
+            auto tz_id = x.substr(0, x.find(" ("));
+            const char* posix = lookup_tz_posix(tz_id);
+            if (posix) {
+              id(sntp_time).set_timezone(posix);
+            }
         - script.execute: update_clock_display
         - script.execute: backlight_recalc_sunrise_sunset
 

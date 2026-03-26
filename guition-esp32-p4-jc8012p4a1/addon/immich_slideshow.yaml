@@ -554,6 +554,8 @@ script:
       - lambda: |-
           if (!lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN)) {
             id(connection_failed_dim).stop();
+            id(connection_failed_shift).stop();
+            lv_obj_align(id(connection_failed_content), LV_ALIGN_CENTER, 0, 0);
             id(backlight_apply_brightness).execute();
           }
           lv_obj_add_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
@@ -804,6 +806,8 @@ script:
       - lambda: |-
           if (!lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN)) {
             id(connection_failed_dim).stop();
+            id(connection_failed_shift).stop();
+            lv_obj_align(id(connection_failed_content), LV_ALIGN_CENTER, 0, 0);
             id(backlight_apply_brightness).execute();
           }
           lv_obj_add_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);

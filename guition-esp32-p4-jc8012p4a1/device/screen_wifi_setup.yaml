@@ -54,7 +54,7 @@ lvgl:
                         text_align: center
                     - label:
                         id: wifi_setup_instructions
-                        text: "Connect to the WiFi hotspot\nto configure your network"
+                        text: "Connect to the WiFi hotspot\nto configure your network\n\nThen visit 192.168.4.1 in your browser"
                         text_font: roboto30_font
                         text_color: 0x888888
                         width: 700
@@ -72,7 +72,11 @@ script:
     mode: restart
     then:
       - delay: 120s
-      - light.turn_on:
-          id: backlight
-          brightness: 50%
-          transition_length: 2s
+      - if:
+          condition:
+            lambda: 'return !id(backlight_paused);'
+          then:
+            - light.turn_on:
+                id: backlight
+                brightness: 50%
+                transition_length: 2s
