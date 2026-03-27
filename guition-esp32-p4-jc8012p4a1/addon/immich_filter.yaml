@@ -43,8 +43,13 @@ text:
     icon: "mdi:folder-image"
     set_action:
       - lambda: |-
-          id(immich_album_ids).publish_state(x);
-          ESP_LOGI("immich", "Album IDs configured (%d chars)", x.length());
+          std::string v = x;
+          for (size_t p = v.find("%2C"); p != std::string::npos; p = v.find("%2C", p + 1))
+            v.replace(p, 3, ",");
+          for (size_t p = v.find("%2c"); p != std::string::npos; p = v.find("%2c", p + 1))
+            v.replace(p, 3, ",");
+          id(immich_album_ids).publish_state(v);
+          ESP_LOGI("immich", "Album IDs configured (%d chars)", v.length());
       - script.execute: auto_apply_photo_source
 
   - platform: template
@@ -59,8 +64,13 @@ text:
     icon: "mdi:account-group"
     set_action:
       - lambda: |-
-          id(immich_person_ids).publish_state(x);
-          ESP_LOGI("immich", "Person IDs configured (%d chars)", x.length());
+          std::string v = x;
+          for (size_t p = v.find("%2C"); p != std::string::npos; p = v.find("%2C", p + 1))
+            v.replace(p, 3, ",");
+          for (size_t p = v.find("%2c"); p != std::string::npos; p = v.find("%2c", p + 1))
+            v.replace(p, 3, ",");
+          id(immich_person_ids).publish_state(v);
+          ESP_LOGI("immich", "Person IDs configured (%d chars)", v.length());
       - script.execute: auto_apply_photo_source
 
 # -----------------------------------------------------------------------------

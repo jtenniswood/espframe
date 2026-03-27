@@ -140,10 +140,7 @@
   };
 
   function post(url, params) {
-    var fullUrl = url;
-    if (params) {
-      fullUrl += "?" + new URLSearchParams(params).toString().replace(/%2C/gi, ",");
-    }
+    var fullUrl = params ? url + "?" + new URLSearchParams(params).toString() : url;
     return fetch(fullUrl, { method: "POST" }).catch(function () {});
   }
 
