@@ -13,6 +13,12 @@ Flash Espframe to a Guition ESP32-P4 10" display from your browser — no deskto
 
 **Buy:** [Panel (AliExpress)](https://s.click.aliexpress.com/e/_c4LLo3rH) · [Stand (MakerWorld)](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046)
 
+## Connect the Display
+
+Plug the USB-C cable into the **bottom port** — the one closest to the edge, next to the USB-A connector. The upper port is for the screen ribbon cable only.
+
+<img src="/usb-plug.png" alt="USB-C cable plugged into the bottom port of the Guition ESP32-P4" style="max-width: 100%; border-radius: 8px; margin: 1rem 0;" />
+
 ## Web Installer
 
 Connect the display via USB-C, then click the button below.
