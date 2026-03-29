@@ -1,0 +1,25 @@
+# =============================================================================
+# FACTORY FIRMWARE - Guition ESP32-P4 JC8012P4A1
+# =============================================================================
+# Secrets-free config for the ESPHome web installer. Boots into AP mode
+# for WiFi setup via captive portal.
+#
+# Compiled by CI (see .github/workflows/release.yml) — not used locally.
+# For local development, use dev.yaml in the device folder instead.
+# =============================================================================
+
+substitutions:
+  name: "immich-frame-10inch"
+  friendly_name: "Immich Frame 10inch"
+  firmware_version: "0.0.0"
+
+packages:
+  espframe: !include ../guition-esp32-p4-jc8012p4a1/packages.yaml
+
+web_server:
+  port: 80
+  version: 3
+  css_url: ""
+  js_url: ""
+  css_include: "../docs/public/webserver/style.css"
+  js_include: "../docs/public/webserver/app.js"

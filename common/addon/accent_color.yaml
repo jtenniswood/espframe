@@ -5,10 +5,10 @@
 # saturation so vivid pixels dominate over blacks/whites/grays, and paints
 # the letterbox regions of the image buffer with a darkened accent colour.
 #
-# The image buffer is always 1280x960 (from the resize parameter) and covers
-# the entire display, so the page background is never visible. The black
-# letterbox bars are zero-filled pixels in the buffer itself. This script
-# detects the content boundaries and fills the padding regions directly.
+# The image buffer covers the entire display, so the page background is never
+# visible. The black letterbox bars are zero-filled pixels in the buffer
+# itself. This script detects the content boundaries and fills the padding
+# regions directly.
 #
 # Reads the raw RGB565 buffer directly (little-endian byte order) because
 # Image::get_pixel() always decodes as big-endian, producing wrong colours
@@ -110,7 +110,7 @@ script:
             // Build one column segment for left/right bar fills
             if (x_off > 0) {
               int col_bytes = x_off * 2;
-              uint8_t col_buf[1280];
+              uint8_t col_buf[${display_width}];
               if (col_bytes > (int)sizeof(col_buf)) return;
               for (int x = 0; x < x_off; x++) {
                 col_buf[x * 2] = lo; col_buf[x * 2 + 1] = hi;

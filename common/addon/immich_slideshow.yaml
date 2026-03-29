@@ -136,7 +136,7 @@ globals:
 remote_image:
   - id: immich_img_0
     url: "https://via.placeholder.com/1x1.jpg"
-    resize: 1280x800
+    resize: ${display_width}x${display_height}
     type: RGB565
     byte_order: little_endian
     request_headers:
@@ -196,7 +196,7 @@ remote_image:
 
   - id: immich_img_1
     url: "https://via.placeholder.com/1x1.jpg"
-    resize: 1280x800
+    resize: ${display_width}x${display_height}
     type: RGB565
     byte_order: little_endian
     request_headers:
@@ -256,7 +256,7 @@ remote_image:
 
   - id: immich_img_2
     url: "https://via.placeholder.com/1x1.jpg"
-    resize: 1280x800
+    resize: ${display_width}x${display_height}
     type: RGB565
     byte_order: little_endian
     request_headers:
@@ -317,7 +317,7 @@ remote_image:
   # Portrait pair half-width components (640x800 each, side-by-side)
   - id: immich_portrait_left
     url: "https://via.placeholder.com/1x1.jpg"
-    resize: 640x800
+    resize: ${portrait_half_width}x${display_height}
     fill: true
     type: RGB565
     byte_order: little_endian
@@ -360,7 +360,7 @@ remote_image:
 
   - id: immich_portrait_right
     url: "https://via.placeholder.com/1x1.jpg"
-    resize: 640x800
+    resize: ${portrait_half_width}x${display_height}
     fill: true
     type: RGB565
     byte_order: little_endian
@@ -395,7 +395,7 @@ remote_image:
   # Portrait preload components (downloaded during prefetch for instant pair display)
   - id: immich_portrait_preload_left
     url: "https://via.placeholder.com/1x1.jpg"
-    resize: 640x800
+    resize: ${portrait_half_width}x${display_height}
     fill: true
     type: RGB565
     byte_order: little_endian
@@ -444,7 +444,7 @@ remote_image:
 
   - id: immich_portrait_preload_right
     url: "https://via.placeholder.com/1x1.jpg"
-    resize: 640x800
+    resize: ${portrait_half_width}x${display_height}
     fill: true
     type: RGB565
     byte_order: little_endian
