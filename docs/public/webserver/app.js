@@ -1040,6 +1040,20 @@
 
     wrap.appendChild(makeCollapsibleCard("Firmware", fwBody, true));
 
+    // Backup
+    var backupBody = el("div");
+    var backupRow = el("div", "backup-row");
+    var exportBtn = el("button", "btn btn-secondary");
+    exportBtn.innerHTML = "Export";
+    exportBtn.onclick = exportConfig;
+    var importBtn = el("button", "btn btn-secondary");
+    importBtn.innerHTML = "Import";
+    importBtn.onclick = importConfig;
+    backupRow.appendChild(exportBtn);
+    backupRow.appendChild(importBtn);
+    backupBody.appendChild(backupRow);
+    wrap.appendChild(makeCollapsibleCard("Backup", backupBody, true));
+
     // Logs
     var logsBody = el("div");
     var logPre = document.createElement("pre");
@@ -1196,6 +1210,200 @@
     var d = document.createElement("div");
     d.textContent = s;
     return d.innerHTML;
+  }
+
+  // --- Banner ---
+
+  var bannerTimer = null;
+  function showBanner(msg, type) {
+    var existing = document.getElementById("banner");
+    if (existing) existing.remove();
+    clearTimeout(bannerTimer);
+    var b = el("div", "banner banner-" + (type || "success"));
+    b.id = "banner";
+    b.textContent = msg;
+    document.body.appendChild(b);
+    bannerTimer = setTimeout(function () { b.remove(); }, 5000);
+  }
+
+  // --- Import / Export ---
+
+  function exportConfig() {
+    var data = {
+      version: 1,
+      exported_at: new Date().toISOString(),
+      connection: {
+        immich_url: S.immich_url,
+        api_key: S.api_key
+      },
+      photos: {
+        source: S.photo_source,
+        album_ids: S.album_ids,
+        person_ids: S.person_ids
+      },
+      frequency: {
+        interval: S.interval,
+        conn_timeout: S.conn_timeout
+      },
+      clock: {
+        show: S.show_clock,
+        format: S.clock_format,
+        timezone: S.timezone
+      },
+      screen: {
+        brightness_day: S.brightness_day,
+        brightness_night: S.brightness_night,
+        schedule_enabled: S.schedule_enabled,
+        schedule_on_hour: S.schedule_on_hour,
+        schedule_off_hour: S.schedule_off_hour,
+        base_tone_enabled: S.base_tone_enabled,
+        base_tone: S.base_tone,
+        warm_tones_enabled: S.warm_tones_enabled,
+        warm_tone_intensity: S.warm_tone_intensity,
+        warm_tone_override: S.warm_tone_override
+      }
+    };
+
+    var json = JSON.stringify(data, null, 2);
+    var blob = new Blob([json], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var now = new Date();
+    var name = "espframe-config-" +
+      now.getFullYear() + "-" +
+      String(now.getMonth() + 1).padStart(2, "0") + "-" +
+      String(now.getDate()).padStart(2, "0") + ".json";
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function importConfig() {
+    var fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = ".json";
+    fileInput.style.display = "none";
+
+    fileInput.addEventListener("change", function () {
+      if (!fileInput.files || !fileInput.files[0]) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        var data;
+        try { data = JSON.parse(reader.result); } catch (_) {
+          showBanner("Invalid file \u2014 could not parse JSON", "error");
+          return;
+        }
+
+        if (!data.version) {
+          showBanner("Invalid config file \u2014 missing version", "error");
+          return;
+        }
+
+        var c = data.connection || {};
+        var p = data.photos || {};
+        var f = data.frequency || {};
+        var clk = data.clock || {};
+        var scr = data.screen || {};
+
+        if (c.immich_url !== undefined) {
+          S.immich_url = c.immich_url;
+          post(endpoints.immich_url + "/set", { value: c.immich_url });
+        }
+        if (c.api_key !== undefined) {
+          S.api_key = c.api_key;
+          post(endpoints.api_key + "/set", { value: c.api_key });
+        }
+
+        if (p.source !== undefined) {
+          S.photo_source = p.source;
+          post(endpoints.photo_source + "/set", { option: p.source });
+        }
+        if (p.album_ids !== undefined) {
+          S.album_ids = p.album_ids;
+          post(endpoints.album_ids + "/set", { value: p.album_ids });
+        }
+        if (p.person_ids !== undefined) {
+          S.person_ids = p.person_ids;
+          post(endpoints.person_ids + "/set", { value: p.person_ids });
+        }
+
+        if (f.interval !== undefined) {
+          S.interval = f.interval;
+          post(endpoints.interval + "/set", { option: f.interval });
+        }
+        if (f.conn_timeout !== undefined) {
+          S.conn_timeout = f.conn_timeout;
+          post(endpoints.conn_timeout + "/set", { option: f.conn_timeout });
+        }
+
+        if (clk.show !== undefined) {
+          S.show_clock = clk.show;
+          post(endpoints.show_clock + (clk.show ? "/turn_on" : "/turn_off"));
+        }
+        if (clk.format !== undefined) {
+          S.clock_format = clk.format;
+          post(endpoints.clock_format + "/set", { option: clk.format });
+        }
+        if (clk.timezone !== undefined) {
+          S.timezone = clk.timezone;
+          post(endpoints.timezone + "/set", { option: clk.timezone });
+        }
+
+        if (scr.brightness_day !== undefined) {
+          S.brightness_day = scr.brightness_day;
+          post(endpoints.brightness_day + "/set", { value: scr.brightness_day });
+        }
+        if (scr.brightness_night !== undefined) {
+          S.brightness_night = scr.brightness_night;
+          post(endpoints.brightness_night + "/set", { value: scr.brightness_night });
+        }
+
+        if (scr.schedule_enabled !== undefined) {
+          S.schedule_enabled = scr.schedule_enabled;
+          post(endpoints.schedule_enabled + (scr.schedule_enabled ? "/turn_on" : "/turn_off"));
+        }
+        if (scr.schedule_on_hour !== undefined) {
+          S.schedule_on_hour = scr.schedule_on_hour;
+          post(endpoints.schedule_on_hour + "/set", { value: scr.schedule_on_hour });
+        }
+        if (scr.schedule_off_hour !== undefined) {
+          S.schedule_off_hour = scr.schedule_off_hour;
+          post(endpoints.schedule_off_hour + "/set", { value: scr.schedule_off_hour });
+        }
+
+        if (scr.base_tone_enabled !== undefined) {
+          S.base_tone_enabled = scr.base_tone_enabled;
+          post(endpoints.base_tone_enabled + (scr.base_tone_enabled ? "/turn_on" : "/turn_off"));
+        }
+        if (scr.base_tone !== undefined) {
+          S.base_tone = scr.base_tone;
+          post(endpoints.base_tone + "/set", { value: scr.base_tone });
+        }
+        if (scr.warm_tones_enabled !== undefined) {
+          S.warm_tones_enabled = scr.warm_tones_enabled;
+          post(endpoints.warm_tones_enabled + (scr.warm_tones_enabled ? "/turn_on" : "/turn_off"));
+        }
+        if (scr.warm_tone_intensity !== undefined) {
+          S.warm_tone_intensity = scr.warm_tone_intensity;
+          post(endpoints.warm_tone_intensity + "/set", { value: scr.warm_tone_intensity });
+        }
+        if (scr.warm_tone_override !== undefined) {
+          S.warm_tone_override = scr.warm_tone_override;
+          post(endpoints.warm_tone_override + (scr.warm_tone_override ? "/turn_on" : "/turn_off"));
+        }
+
+        showBanner("Settings imported successfully", "success");
+        renderSettings();
+      };
+      reader.readAsText(fileInput.files[0]);
+    });
+
+    document.body.appendChild(fileInput);
+    fileInput.click();
+    document.body.removeChild(fileInput);
   }
 
   // --- Init ---

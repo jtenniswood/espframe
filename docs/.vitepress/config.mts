@@ -135,6 +135,7 @@ export default defineConfig({
           { text: 'Screen Settings', link: '/screen-settings' },
           { text: 'Screen Tone', link: '/screen-tone' },
           { text: 'Touch Controls', link: '/touch-controls' },
+          { text: 'Backup & Restore', link: '/backup' },
         ],
       },
       {

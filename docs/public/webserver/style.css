@@ -184,6 +184,21 @@ select option{background:var(--surface);color:var(--text)}
 .log-output .log-warning{color:#fdd835}
 .log-output .log-error{color:var(--danger)}
 
+.banner{
+  position:fixed;top:16px;left:50%;transform:translateX(-50%);
+  z-index:9999;padding:10px 20px;border-radius:8px;
+  font-size:.85rem;font-weight:500;color:#fff;
+  box-shadow:0 4px 12px rgba(0,0,0,.4);
+  animation:bannerIn .25s ease;
+  max-width:calc(100% - 32px);text-align:center;
+}
+.banner-success{background:var(--success)}
+.banner-error{background:var(--danger)}
+@keyframes bannerIn{from{opacity:0;transform:translateX(-50%) translateY(-12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+.backup-row{display:flex;gap:8px}
+.backup-row .btn{flex:1}
+
 .mb-8{margin-bottom:8px}
 .mb-12{margin-bottom:12px}
 .mb-20{margin-bottom:20px}
