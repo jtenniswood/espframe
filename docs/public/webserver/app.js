@@ -144,6 +144,25 @@
     return fetch(fullUrl, { method: "POST" }).catch(function () {});
   }
 
+  /** Matches ESPHome template text max_length for Album / Person IDs (avoids 414 from long query strings). */
+  var MAX_PHOTO_ID_FIELD_LENGTH = 255;
+  var PHOTO_ID_FIELD_TOO_LONG =
+    "List exceeds 255 characters (device limit). Remove IDs or shorten the list.";
+
+  function postTextValueSet(url, value) {
+    var body = new URLSearchParams();
+    body.set("value", value == null ? "" : String(value));
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString()
+    }).catch(function () {});
+  }
+
+  function photoIdFieldTooLong(s) {
+    return String(s != null ? s : "").trim().length > MAX_PHOTO_ID_FIELD_LENGTH;
+  }
+
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   function isValidUuidList(str) {
     var s = str.trim();
@@ -584,7 +603,7 @@
     });
 
     var albumField = field("Album IDs");
-    var albumInput = input("text", S.album_ids, "Paste album IDs, comma-separated");
+    var albumInput = input("text", S.album_ids, "Paste album IDs, comma-separated", MAX_PHOTO_ID_FIELD_LENGTH);
     var albumError = el("div", "field-error");
     var albumHint = el("div");
     albumHint.className = "field-hint";
@@ -595,7 +614,7 @@
     albumField.style.display = S.photo_source === "Album" ? "" : "none";
 
     var personField = field("Person IDs");
-    var personInput = input("text", S.person_ids, "Paste person IDs, comma-separated");
+    var personInput = input("text", S.person_ids, "Paste person IDs, comma-separated", MAX_PHOTO_ID_FIELD_LENGTH);
     var personError = el("div", "field-error");
     var personHint = el("div");
     personHint.className = "field-hint";
@@ -619,11 +638,21 @@
         personError.textContent = "Invalid UUID format";
         return;
       }
+      var albumTrim = albumInput.value.trim();
+      var personTrim = personInput.value.trim();
+      if (photoIdFieldTooLong(albumTrim)) {
+        albumError.textContent = PHOTO_ID_FIELD_TOO_LONG;
+        return;
+      }
+      if (photoIdFieldTooLong(personTrim)) {
+        personError.textContent = PHOTO_ID_FIELD_TOO_LONG;
+        return;
+      }
       applyBtn.disabled = true;
       applyBtn.textContent = "Applying\u2026";
       post(endpoints.photo_source + "/set", { option: src_val });
-      post(endpoints.album_ids + "/set", { value: albumInput.value.trim() });
-      post(endpoints.person_ids + "/set", { value: personInput.value.trim() });
+      postTextValueSet(endpoints.album_ids + "/set", albumTrim);
+      postTextValueSet(endpoints.person_ids + "/set", personTrim);
       post(eid("button", "Apply Photo Source") + "/press").then(function () {
         applyBtn.textContent = "Applied";
         setTimeout(function () {
@@ -1198,11 +1227,12 @@
     return f;
   }
 
-  function input(type, value, placeholder) {
+  function input(type, value, placeholder, maxLength) {
     var i = document.createElement("input");
     i.type = type;
     i.value = value || "";
     if (placeholder) i.placeholder = placeholder;
+    if (maxLength != null && maxLength > 0) i.maxLength = maxLength;
     return i;
   }
 
@@ -1322,12 +1352,22 @@
           post(endpoints.photo_source + "/set", { option: p.source });
         }
         if (p.album_ids !== undefined) {
-          S.album_ids = p.album_ids;
-          post(endpoints.album_ids + "/set", { value: p.album_ids });
+          var importAlbum = String(p.album_ids).trim();
+          if (photoIdFieldTooLong(importAlbum)) {
+            showBanner("Album IDs exceed 255 characters \u2014 not imported", "error");
+          } else {
+            S.album_ids = importAlbum;
+            postTextValueSet(endpoints.album_ids + "/set", importAlbum);
+          }
         }
         if (p.person_ids !== undefined) {
-          S.person_ids = p.person_ids;
-          post(endpoints.person_ids + "/set", { value: p.person_ids });
+          var importPerson = String(p.person_ids).trim();
+          if (photoIdFieldTooLong(importPerson)) {
+            showBanner("Person IDs exceed 255 characters \u2014 not imported", "error");
+          } else {
+            S.person_ids = importPerson;
+            postTextValueSet(endpoints.person_ids + "/set", importPerson);
+          }
         }
 
         if (f.interval !== undefined) {

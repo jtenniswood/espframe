@@ -33,6 +33,12 @@ Shows photos from one or more Immich albums. **Get the UUID:** open the album in
 
 Shows photos where specific people (faces) appear. Requires face recognition in Immich. **Get the UUID:** open the person under **People** — the URL is `.../person/<uuid>`. Paste into **Person IDs** (comma-separated for multiple). Your [API key](/api-key) needs `person.read`.
 
+## Album and Person ID limits
+
+The device stores each of **Album IDs** and **Person IDs** as a single text field with a **255 character** maximum (about **six** full UUIDs plus commas). The web UI blocks longer lists and shows an error so values are not truncated silently.
+
+Saving multiple IDs uses an HTTP POST body for the value so the request stays within URI length limits (avoiding errors such as **414 URI Too Long** when using comma-separated lists).
+
 ## Memories
 
 Shows "On this day" photos from past years; falls back to random if none. Set **Source** to **Memories**. No IDs needed. API key needs **memory.read**. Set **Timezone** (Clock) correctly so "today" matches.
