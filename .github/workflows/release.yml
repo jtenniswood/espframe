@@ -15,10 +15,11 @@ jobs:
   build-firmware:
     name: Build Firmware
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.release.tag_name || github.ref_name }}
+          ref: ${{ github.event.release.tag_name || github.ref }}
 
       - name: Compile P4 firmware
         env:
@@ -26,7 +27,7 @@ jobs:
         run: >-
           docker run --rm
           -v "${PWD}:/config"
-          ghcr.io/esphome/esphome:2025.4.0
+          ghcr.io/esphome/esphome:2026.3.0
           -s firmware_version "${VERSION}"
           compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
 
