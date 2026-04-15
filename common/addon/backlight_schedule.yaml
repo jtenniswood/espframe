@@ -281,12 +281,9 @@ script:
           id(sunrise_sunset_valid) = true;
 
           char buf[16];
-          snprintf(buf, sizeof(buf), "%d:%02d AM", (rh == 0) ? 12 : (rh > 12 ? rh - 12 : rh), rm);
-          if (rh >= 12) snprintf(buf, sizeof(buf), "%d:%02d PM", (rh == 12) ? 12 : rh - 12, rm);
+          format_time_12h(rh, rm, buf, sizeof(buf));
           id(sunrise_time_sensor).publish_state(buf);
-
-          snprintf(buf, sizeof(buf), "%d:%02d PM", (sh == 12) ? 12 : (sh > 12 ? sh - 12 : sh), sm);
-          if (sh < 12) snprintf(buf, sizeof(buf), "%d:%02d AM", (sh == 0) ? 12 : sh, sm);
+          format_time_12h(sh, sm, buf, sizeof(buf));
           id(sunset_time_sensor).publish_state(buf);
 
           // Integer-only log: avoids newlib float formatting (_dtoa_r) during heap work under load.
