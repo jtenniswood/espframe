@@ -9,6 +9,24 @@ static constexpr int MAX_ERROR_RETRIES = 3;
 static constexpr int ACCENT_GRID_SIZE = 20;
 static constexpr int WARM_TONE_LEAD_MINUTES = 60;
 
+inline int minutes_since_midnight(int h, int m) { return h * 60 + m; }
+
+inline bool is_daytime(int now_h, int now_m, int rise_h, int rise_m, int set_h, int set_m) {
+  int now_min = minutes_since_midnight(now_h, now_m);
+  int rise_min = minutes_since_midnight(rise_h, rise_m);
+  int set_min = minutes_since_midnight(set_h, set_m);
+  return now_min >= rise_min && now_min < set_min;
+}
+
+inline std::string format_time_12h(int h, int m) {
+  char buf[16];
+  const char *suffix = (h >= 12) ? "PM" : "AM";
+  int dh = h % 12;
+  if (dh == 0) dh = 12;
+  snprintf(buf, sizeof(buf), "%d:%02d %s", dh, m, suffix);
+  return buf;
+}
+
 struct PhotoMeta {
   std::string asset_id, image_url, date, location, person;
   int year = 0, month = 0;
