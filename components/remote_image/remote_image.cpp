@@ -132,7 +132,7 @@ void OnlineImage::update() {
   }
   ESP_LOGI(TAG, "Updating image %s", this->url_.c_str());
 
-  std::list<http_request::Header> headers = {};
+  std::vector<http_request::Header> headers = {};
 
   http_request::Header accept_header;
   accept_header.name = "Accept";
@@ -288,7 +288,7 @@ void OnlineImage::loop() {
     ESP_LOGD(TAG, "Total time: %" PRIu32 "s", (uint32_t) (::time(nullptr) - this->start_time_));
 #ifdef USE_LVGL
     this->dsc_.data = this->buffer_ + 1;
-    this->get_lv_img_dsc();
+    this->get_lv_image_dsc();
 #endif
     this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);
     this->last_modified_ = this->downloader_->get_response_header(LAST_MODIFIED_HEADER_NAME);
