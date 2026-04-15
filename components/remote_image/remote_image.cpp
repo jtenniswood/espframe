@@ -278,7 +278,12 @@ void OnlineImage::loop() {
     }
     return;
   }
-  if (!this->downloader_ || this->decoder_->is_finished()) {
+  if (!this->downloader_) {
+    ESP_LOGW(TAG, "Downloader disappeared mid-transfer");
+    this->download_error_callback_.call();
+    return;
+  }
+  if (this->decoder_->is_finished()) {
     this->data_start_ = buffer_;
     this->width_ = buffer_width_;
     this->height_ = buffer_height_;
