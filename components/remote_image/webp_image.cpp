@@ -61,7 +61,22 @@ int HOT WebpDecoder::decode(uint8_t *buffer, size_t size) {
 
   int src_w = config.input.width;
   int src_h = config.input.height;
+
+#ifdef ESP_PLATFORM
+  size_t free_psram = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+  ESP_LOGI(TAG, "WebP %dx%d, PSRAM free: %zu bytes", src_w, src_h, free_psram);
+  // Reject images whose raw pixel data alone would exceed 60 % of free PSRAM.
+  // Large images increase the chance of heap fragmentation that corrupts the
+  // decoder's internal allocation and causes a hard fault in ParseResiduals.
+  static const size_t MAX_DECODE_PIXELS = 4000000;  // ~4 MP
+  if ((size_t)src_w * (size_t)src_h > MAX_DECODE_PIXELS) {
+    ESP_LOGE(TAG, "WebP %dx%d exceeds %zu-pixel safety limit, skipping",
+             src_w, src_h, MAX_DECODE_PIXELS);
+    return DECODE_ERROR_UNSUPPORTED_FORMAT;
+  }
+#else
   ESP_LOGD(TAG, "WebP header: %dx%d", src_w, src_h);
+#endif
 
   int target_w = this->image_->get_fixed_width();
   int target_h = this->image_->get_fixed_height();
@@ -94,6 +109,18 @@ int HOT WebpDecoder::decode(uint8_t *buffer, size_t size) {
 
   size_t rgb_size = static_cast<size_t>(decode_w) * decode_h * 3;
 #ifdef ESP_PLATFORM
+  {
+    // Rough estimate: rgb_buffer + libwebp internal decoder state (~2× rgb_size).
+    // If PSRAM can't cover it, the allocator falls back to internal heap which
+    // is too small and may return a corrupted pointer → hard fault.
+    size_t psram_needed = rgb_size * 3;
+    size_t psram_avail  = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+    if (psram_avail < psram_needed) {
+      ESP_LOGE(TAG, "Insufficient PSRAM for WebP decode: need ~%zu, have %zu",
+               psram_needed, psram_avail);
+      return DECODE_ERROR_OUT_OF_MEMORY;
+    }
+  }
   this->rgb_buffer_ = static_cast<uint8_t *>(
       heap_caps_malloc(rgb_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
 #else
