@@ -28,6 +28,8 @@ select:
       then:
         - script.execute: update_clock_display
 
+  # Options list must match components/espframe/timezones.py (single source of truth).
+  # Run: python -c "from components.espframe.timezones import generate_yaml_options; print('\n'.join(f'      - \"{o}\"' for o in generate_yaml_options()))"
   - platform: template
     name: "Clock: Timezone"
     id: timezone_select

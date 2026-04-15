@@ -20,8 +20,8 @@ script:
     mode: restart
     then:
       - lambda: |-
-          if (id(immich_is_portrait_pair)) {
-            if (id(portrait_using_preload)) {
+          if (id(portrait).is_pair) {
+            if (id(portrait).using_preload) {
               fill_accent_color(id(immich_portrait_preload_left));
               fill_accent_color(id(immich_portrait_preload_right));
             } else {

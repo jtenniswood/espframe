@@ -55,6 +55,60 @@ struct DisplayMeta : PhotoMeta {
   bool valid = false;
 };
 
+struct SlotFlags {
+  bool fetch_in_flight[3] = {false, false, false};
+  bool noncritical_update[3] = {false, false, false};
+};
+
+struct PortraitState {
+  bool left_ready = false, right_ready = false;
+  bool no_companion_active = false, right_requested = false;
+  bool companion_found = false, is_pair = false;
+  bool using_preload = false, workflow_busy = false;
+  void reset() { *this = PortraitState{}; }
+};
+
+inline void clear_noncritical(int s, SlotFlags &f, int &nc_count) {
+  if (f.noncritical_update[s]) {
+    f.noncritical_update[s] = false;
+    if (nc_count > 0) nc_count--;
+  }
+}
+
+// Returns true if the slot is ready for display logic, false if stale/ignored.
+inline bool handle_slot_download_complete(int slot, SlotMeta &meta,
+    SlotFlags &flags, int &nc_count, int &retries) {
+  if (meta.asset_id != meta.pending_asset_id) {
+    ESP_LOGW("immich", "Slot %d download stale, ignoring", slot);
+    flags.fetch_in_flight[slot] = false;
+    clear_noncritical(slot, flags, nc_count);
+    return false;
+  }
+  meta.ready = true;
+  flags.fetch_in_flight[slot] = false;
+  clear_noncritical(slot, flags, nc_count);
+  retries = 0;
+  ESP_LOGD("immich", "Slot %d ready: %s", slot, meta.asset_id.c_str());
+  return true;
+}
+
+// Manage noncritical_update flag for deferred slot image updates.
+// Returns false if the update should be skipped (portrait workflow busy or another noncritical in-flight).
+inline bool prepare_deferred_slot_update(int slot, int active_slot, SlotFlags &flags,
+    bool workflow_busy, int &nc_count) {
+  bool noncritical = (slot != active_slot);
+  if (noncritical && (workflow_busy || nc_count > 0)) return false;
+  if (noncritical && !flags.noncritical_update[slot]) {
+    flags.noncritical_update[slot] = true;
+    nc_count++;
+  } else if (!noncritical && flags.noncritical_update[slot]) {
+    flags.noncritical_update[slot] = false;
+    if (nc_count > 0) nc_count--;
+  }
+  flags.fetch_in_flight[slot] = true;
+  return true;
+}
+
 inline std::string decode_url_commas(const std::string &input) {
   std::string v = input;
   for (size_t p = v.find("%2C"); p != std::string::npos; p = v.find("%2C", p + 1))

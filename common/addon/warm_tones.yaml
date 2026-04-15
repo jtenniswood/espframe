@@ -159,8 +159,8 @@ script:
           WarmToneLuts luts;
           build_warm_tone_luts(last_w, w, luts);
 
-          if (id(immich_is_portrait_pair)) {
-            if (id(portrait_using_preload)) {
+          if (id(portrait).is_pair) {
+            if (id(portrait).using_preload) {
               tint_image_buffer(id(immich_portrait_preload_left), luts);
               tint_image_buffer(id(immich_portrait_preload_right), luts);
             } else {
