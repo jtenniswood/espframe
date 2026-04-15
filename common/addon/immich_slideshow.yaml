@@ -131,6 +131,18 @@ globals:
     initial_value: '0'
 
 # -----------------------------------------------------------------------------
+# Portrait pairing toggle (persisted across reboots)
+# -----------------------------------------------------------------------------
+switch:
+  - platform: template
+    name: "Photos: Portrait Pairing"
+    id: portrait_pairing_enabled
+    internal: true
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    icon: "mdi:image-multiple"
+
+# -----------------------------------------------------------------------------
 # 3-slot full-size ring buffer and portrait pair / preload remote_image components
 # -----------------------------------------------------------------------------
 remote_image:
@@ -164,17 +176,18 @@ remote_image:
             id(immich_download_retries) = 0;
             ESP_LOGD("immich", "Slot %d ready: %s", slot, meta.asset_id.c_str());
             bool is_active = (id(active_slot) == slot);
+            bool pair = meta.is_portrait && id(portrait_pairing_enabled).state;
             if (is_active) {
               copy_slot_to_display(meta, id(current_display));
-              if (!meta.is_portrait) id(active_slot_displayed) = true;
+              if (!pair) id(active_slot_displayed) = true;
             }
-            if (is_active && !meta.is_portrait) {
+            if (is_active && !pair) {
               id(immich_display_current).execute();
-            } else if (is_active && meta.is_portrait) {
+            } else if (is_active && pair) {
               if (!(id(active_slot_displayed) && id(immich_is_portrait_pair))) {
                 id(immich_start_portrait_active).execute();
               }
-            } else if (!is_active && meta.is_portrait) {
+            } else if (!is_active && pair) {
               if (id(companion_target_slot) == slot || id(portrait_preload_slot) == slot) return;
               id(companion_target_slot) = slot;
               id(portrait_search_datetime) = meta.datetime;
@@ -224,17 +237,18 @@ remote_image:
             id(immich_download_retries) = 0;
             ESP_LOGD("immich", "Slot %d ready: %s", slot, meta.asset_id.c_str());
             bool is_active = (id(active_slot) == slot);
+            bool pair = meta.is_portrait && id(portrait_pairing_enabled).state;
             if (is_active) {
               copy_slot_to_display(meta, id(current_display));
-              if (!meta.is_portrait) id(active_slot_displayed) = true;
+              if (!pair) id(active_slot_displayed) = true;
             }
-            if (is_active && !meta.is_portrait) {
+            if (is_active && !pair) {
               id(immich_display_current).execute();
-            } else if (is_active && meta.is_portrait) {
+            } else if (is_active && pair) {
               if (!(id(active_slot_displayed) && id(immich_is_portrait_pair))) {
                 id(immich_start_portrait_active).execute();
               }
-            } else if (!is_active && meta.is_portrait) {
+            } else if (!is_active && pair) {
               if (id(companion_target_slot) == slot || id(portrait_preload_slot) == slot) return;
               id(companion_target_slot) = slot;
               id(portrait_search_datetime) = meta.datetime;
@@ -284,17 +298,18 @@ remote_image:
             id(immich_download_retries) = 0;
             ESP_LOGD("immich", "Slot %d ready: %s", slot, meta.asset_id.c_str());
             bool is_active = (id(active_slot) == slot);
+            bool pair = meta.is_portrait && id(portrait_pairing_enabled).state;
             if (is_active) {
               copy_slot_to_display(meta, id(current_display));
-              if (!meta.is_portrait) id(active_slot_displayed) = true;
+              if (!pair) id(active_slot_displayed) = true;
             }
-            if (is_active && !meta.is_portrait) {
+            if (is_active && !pair) {
               id(immich_display_current).execute();
-            } else if (is_active && meta.is_portrait) {
+            } else if (is_active && pair) {
               if (!(id(active_slot_displayed) && id(immich_is_portrait_pair))) {
                 id(immich_start_portrait_active).execute();
               }
-            } else if (!is_active && meta.is_portrait) {
+            } else if (!is_active && pair) {
               if (id(companion_target_slot) == slot || id(portrait_preload_slot) == slot) return;
               id(companion_target_slot) = slot;
               id(portrait_search_datetime) = meta.datetime;
@@ -573,7 +588,8 @@ script:
           auto &meta = (s == 0) ? id(slot0) : (s == 1) ? id(slot1) : id(slot2);
           lv_img_set_zoom(id(slideshow_img), meta.zoom);
           ESP_LOGI("immich", "SHOW slot %d: %s | %s | %s | portrait=%d", s, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.is_portrait);
-          if (!meta.is_portrait) {
+          bool pair = meta.is_portrait && id(portrait_pairing_enabled).state;
+          if (!pair) {
             id(active_slot_displayed) = true;
             id(active_portrait_workflow_busy) = false;
           }
@@ -584,7 +600,7 @@ script:
             lambda: |-
               int s = id(active_slot);
               auto &meta = (s == 0) ? id(slot0) : (s == 1) ? id(slot1) : id(slot2);
-              return meta.is_portrait && id(portrait_preload_slot) == s
+              return meta.is_portrait && id(portrait_pairing_enabled).state && id(portrait_preload_slot) == s
                      && id(portrait_preload_left_ready) && id(portrait_preload_right_ready);
           then:
             - lambda: |-
@@ -610,7 +626,7 @@ script:
             lambda: |-
               int s = id(active_slot);
               auto &meta = (s == 0) ? id(slot0) : (s == 1) ? id(slot1) : id(slot2);
-              return meta.is_portrait && !id(immich_is_portrait_pair) && !id(portrait_no_companion_active);
+              return meta.is_portrait && id(portrait_pairing_enabled).state && !id(immich_is_portrait_pair) && !id(portrait_no_companion_active);
           then:
             - script.execute: immich_start_portrait_active
       - script.execute: update_clock_display
@@ -700,14 +716,16 @@ script:
                       int s = id(active_slot);
                       auto &meta = (s == 0) ? id(slot0) : (s == 1) ? id(slot1) : id(slot2);
                       copy_slot_to_display(meta, id(current_display));
-                      if (!meta.is_portrait) id(active_slot_displayed) = true;
+                      bool pair = meta.is_portrait && id(portrait_pairing_enabled).state;
+                      if (!pair) id(active_slot_displayed) = true;
                       ESP_LOGI("immich", "DISPLAY slot %d: %s | %s | %s | portrait=%d pair=%d",
                         s, id(current_display).asset_id.c_str(), id(current_display).date.c_str(), id(current_display).person.c_str(), meta.is_portrait, id(immich_is_portrait_pair));
                   - if:
                       condition:
                         lambda: |-
                           int s = id(active_slot);
-                          return !(((s == 0) ? id(slot0) : (s == 1) ? id(slot1) : id(slot2)).is_portrait);
+                          auto &meta = (s == 0) ? id(slot0) : (s == 1) ? id(slot1) : id(slot2);
+                          return !(meta.is_portrait && id(portrait_pairing_enabled).state);
                       then:
                         - script.execute: immich_display_current
                         - script.execute: delayed_prefetch_chain
@@ -716,7 +734,7 @@ script:
                         lambda: |-
                           int s = id(active_slot);
                           auto &meta = (s == 0) ? id(slot0) : (s == 1) ? id(slot1) : id(slot2);
-                          return meta.is_portrait && id(portrait_preload_slot) == s
+                          return meta.is_portrait && id(portrait_pairing_enabled).state && id(portrait_preload_slot) == s
                                  && id(portrait_preload_left_ready) && id(portrait_preload_right_ready);
                       then:
                         - script.execute: immich_display_current
@@ -726,7 +744,7 @@ script:
                         lambda: |-
                           int s = id(active_slot);
                           auto &meta = (s == 0) ? id(slot0) : (s == 1) ? id(slot1) : id(slot2);
-                          return meta.is_portrait && !(id(portrait_preload_slot) == s
+                          return meta.is_portrait && id(portrait_pairing_enabled).state && !(id(portrait_preload_slot) == s
                                  && id(portrait_preload_left_ready) && id(portrait_preload_right_ready));
                       then:
                         - script.execute: immich_start_portrait_active
@@ -944,7 +962,7 @@ script:
             id(slot0_noncritical_update) = false;
             if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
           }
-          bool fill = (id(photo_display_mode).state == "Fill") && !id(slot0).is_portrait;
+          bool fill = (id(photo_display_mode).state == "Fill") && (!id(slot0).is_portrait || !id(portrait_pairing_enabled).state);
           id(immich_img_0).set_fill_mode(fill); id(slot0_fetch_in_flight) = true; id(immich_img_0).update();
 
   - id: deferred_slot1_image_update
@@ -973,7 +991,7 @@ script:
             id(slot1_noncritical_update) = false;
             if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
           }
-          bool fill = (id(photo_display_mode).state == "Fill") && !id(slot1).is_portrait;
+          bool fill = (id(photo_display_mode).state == "Fill") && (!id(slot1).is_portrait || !id(portrait_pairing_enabled).state);
           id(immich_img_1).set_fill_mode(fill); id(slot1_fetch_in_flight) = true; id(immich_img_1).update();
 
   - id: deferred_slot2_image_update
@@ -1002,7 +1020,7 @@ script:
             id(slot2_noncritical_update) = false;
             if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
           }
-          bool fill = (id(photo_display_mode).state == "Fill") && !id(slot2).is_portrait;
+          bool fill = (id(photo_display_mode).state == "Fill") && (!id(slot2).is_portrait || !id(portrait_pairing_enabled).state);
           id(immich_img_2).set_fill_mode(fill); id(slot2_fetch_in_flight) = true; id(immich_img_2).update();
 
   - id: deferred_portrait_left_update

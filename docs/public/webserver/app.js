@@ -95,6 +95,7 @@
     warm_tones_enabled: false,
     warm_tone_intensity: 50,
     warm_tone_override: false,
+    portrait_pairing: true,
   };
 
   var app = document.getElementById("app");
@@ -137,6 +138,7 @@
     warm_tones_enabled: eid("switch", "Screen: Night Tone Adjustment"),
     warm_tone_intensity: eid("number", "Screen: Warm Tone Intensity"),
     warm_tone_override: eid("switch", "Screen: Warm Tone Override"),
+    portrait_pairing: eid("switch", "Photos: Portrait Pairing"),
   };
 
   function post(url, params) {
@@ -205,7 +207,8 @@
     "number/Screen: Display Tone": { key: "base_tone", default: 0, number: true },
     "switch/Screen: Night Tone Adjustment": { key: "warm_tones_enabled", boolFromState: true },
     "number/Screen: Warm Tone Intensity": { key: "warm_tone_intensity", default: 50, number: true },
-    "switch/Screen: Warm Tone Override": { key: "warm_tone_override", boolFromState: true }
+    "switch/Screen: Warm Tone Override": { key: "warm_tone_override", boolFromState: true },
+    "switch/Photos: Portrait Pairing": { key: "portrait_pairing", boolFromState: true }
   };
 
   function applyEntityToState(d) {
@@ -258,7 +261,8 @@
     "photo_source", "album_ids", "person_ids", "interval", "conn_timeout",
     "schedule_enabled", "schedule_on_hour", "schedule_off_hour",
     "sunrise", "sunset",
-    "base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"
+    "base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override",
+    "portrait_pairing"
   ];
   function getEntityIdForStateKey(key) {
     for (var id in ENTITY_STATE_MAP) {
@@ -638,6 +642,20 @@
     srcBody.appendChild(albumField);
     srcBody.appendChild(personField);
     srcBody.appendChild(applyBtn);
+
+    var fPairToggle = field("");
+    var pairTr = el("div", "toggle-row");
+    pairTr.innerHTML = "<span>Portrait Pairing</span>";
+    var pairTog = el("div", S.portrait_pairing ? "toggle on" : "toggle");
+    pairTog.onclick = function () {
+      S.portrait_pairing = !S.portrait_pairing;
+      pairTog.className = S.portrait_pairing ? "toggle on" : "toggle";
+      post(endpoints.portrait_pairing + (S.portrait_pairing ? "/turn_on" : "/turn_off"));
+    };
+    pairTr.appendChild(pairTog);
+    fPairToggle.appendChild(pairTr);
+    srcBody.appendChild(fPairToggle);
+
     wrap.appendChild(makeCollapsibleCard("Photo Source", srcBody, false));
 
     // Frequency
@@ -1239,7 +1257,8 @@
       photos: {
         source: S.photo_source,
         album_ids: S.album_ids,
-        person_ids: S.person_ids
+        person_ids: S.person_ids,
+        portrait_pairing: S.portrait_pairing
       },
       frequency: {
         interval: S.interval,
@@ -1328,6 +1347,10 @@
         if (p.person_ids !== undefined) {
           S.person_ids = p.person_ids;
           post(endpoints.person_ids + "/set", { value: p.person_ids });
+        }
+        if (p.portrait_pairing !== undefined) {
+          S.portrait_pairing = p.portrait_pairing;
+          post(endpoints.portrait_pairing + (p.portrait_pairing ? "/turn_on" : "/turn_off"));
         }
 
         if (f.interval !== undefined) {
