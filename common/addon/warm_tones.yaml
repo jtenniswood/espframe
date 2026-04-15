@@ -37,6 +37,8 @@ switch:
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
     icon: "mdi:palette"
+    web_server:
+      sorting_group_id: sg_screen
     on_turn_on:
       then:
         - lambda: 'id(warm_tone_retint) = true;'
@@ -54,6 +56,8 @@ switch:
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
     icon: "mdi:weather-sunset"
+    web_server:
+      sorting_group_id: sg_screen
 
   # Override: force full warmth now; auto-off after next sunrise (interval below)
   - platform: template
@@ -63,6 +67,8 @@ switch:
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
     icon: "mdi:weather-night"
+    web_server:
+      sorting_group_id: sg_screen
     on_turn_on:
       then:
         - lambda: 'id(warm_tone_retint) = true;'
@@ -89,6 +95,8 @@ number:
     restore_value: true
     unit_of_measurement: "%"
     icon: "mdi:thermometer"
+    web_server:
+      sorting_group_id: sg_screen
     on_value:
       then:
         - lambda: 'id(warm_tone_retint) = true;'
@@ -107,6 +115,8 @@ number:
     restore_value: true
     unit_of_measurement: "%"
     icon: "mdi:palette"
+    web_server:
+      sorting_group_id: sg_screen
 
 # -----------------------------------------------------------------------------
 # Apply warmth to current image buffer (LUT-based RGB565 tint; portrait pair or single slot)

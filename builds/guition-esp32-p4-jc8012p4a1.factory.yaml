@@ -19,7 +19,5 @@ packages:
 web_server:
   port: 80
   version: 3
-  css_url: ""
   js_url: ""
-  css_include: "../docs/public/webserver/style.css"
   js_include: "../docs/public/webserver/app.js"

@@ -281,6 +281,8 @@ select:
     optimistic: true
     restore_value: true
     icon: "mdi:timer-outline"
+    web_server:
+      sorting_group_id: sg_photos
 
   - platform: template
     name: "Screen: Connection Timeout"
@@ -300,6 +302,8 @@ select:
     optimistic: true
     restore_value: true
     icon: "mdi:connection"
+    web_server:
+      sorting_group_id: sg_screen
 
 
 # =============================================================================

@@ -141,6 +141,8 @@ switch:
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
     icon: "mdi:image-multiple"
+    web_server:
+      sorting_group_id: sg_photos
 
 # -----------------------------------------------------------------------------
 # 3-slot full-size ring buffer and portrait pair / preload remote_image components
