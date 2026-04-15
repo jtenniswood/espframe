@@ -7,7 +7,6 @@
 # =============================================================================
 
 substitutions:
-  device_slug: "guition-esp32-p4-jc8012p4a1"
   display_width: "1280"
   display_height: "800"
   portrait_half_width: "640"

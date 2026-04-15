@@ -16,12 +16,6 @@ font:
     bpp: 4
     glyphs: " 0123456789:"
 
-  - file: "gfonts://Roboto@Light"
-    id: roboto_light88_font
-    size: 88
-    bpp: 4
-    glyphs: " 0123456789:"
-
 # -----------------------------------------------------------------------------
 # UI and setup text (full Latin + extended glyphs)
 # -----------------------------------------------------------------------------
