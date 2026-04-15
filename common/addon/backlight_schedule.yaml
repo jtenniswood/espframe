@@ -188,10 +188,9 @@ script:
                 if (id(sunrise_sunset_valid)) {
                   auto now = id(sntp_time).now();
                   if (now.is_valid()) {
-                    int now_min = now.hour * 60 + now.minute;
-                    int rise_min = id(sunrise_hour) * 60 + id(sunrise_minute);
-                    int set_min = id(sunset_hour) * 60 + id(sunset_minute);
-                    bool is_day = (now_min >= rise_min && now_min < set_min);
+                    bool is_day = is_daytime(now.hour, now.minute,
+                                             id(sunrise_hour), id(sunrise_minute),
+                                             id(sunset_hour), id(sunset_minute));
                     id(last_is_daytime) = is_day;
                     pct = is_day ? id(brightness_day).state : id(brightness_night).state;
                   } else {
@@ -280,11 +279,8 @@ script:
           id(sunset_minute) = sm;
           id(sunrise_sunset_valid) = true;
 
-          char buf[16];
-          format_time_12h(rh, rm, buf, sizeof(buf));
-          id(sunrise_time_sensor).publish_state(buf);
-          format_time_12h(sh, sm, buf, sizeof(buf));
-          id(sunset_time_sensor).publish_state(buf);
+          id(sunrise_time_sensor).publish_state(format_time_12h(rh, rm));
+          id(sunset_time_sensor).publish_state(format_time_12h(sh, sm));
 
           // Integer-only log: avoids newlib float formatting (_dtoa_r) during heap work under load.
           float alat = lat >= 0 ? lat : -lat;
@@ -330,12 +326,11 @@ script:
       - script.execute: backlight_apply_brightness
       - script.execute: immich_prefetch_chain
 
-# =============================================================================
-# PERIODIC CHECK (60 seconds)
-# =============================================================================
-
-interval:
-  - interval: 60s
+  # ---------------------------------------------------------------------------
+  # Periodic brightness check (called from the unified 60s interval)
+  # ---------------------------------------------------------------------------
+  - id: backlight_periodic_check
+    mode: single
     then:
       - script.execute: backlight_check_schedule
       - if:
@@ -344,10 +339,9 @@ interval:
               if (!id(sunrise_sunset_valid) || id(backlight_paused)) return false;
               auto now = id(sntp_time).now();
               if (!now.is_valid()) return false;
-              int now_min = now.hour * 60 + now.minute;
-              int rise_min = id(sunrise_hour) * 60 + id(sunrise_minute);
-              int set_min = id(sunset_hour) * 60 + id(sunset_minute);
-              bool is_day = (now_min >= rise_min && now_min < set_min);
+              bool is_day = is_daytime(now.hour, now.minute,
+                                       id(sunrise_hour), id(sunrise_minute),
+                                       id(sunset_hour), id(sunset_minute));
               if (is_day != id(last_is_daytime)) {
                 id(last_is_daytime) = is_day;
                 return true;

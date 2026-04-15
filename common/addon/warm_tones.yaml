@@ -139,9 +139,9 @@ script:
             if (!now.is_valid() && base_w < 0.01f) return;
             if (now.is_valid()) {
               float warmth = calc_sun_warmth(
-                now.hour * 60 + now.minute,
-                id(sunrise_hour) * 60 + id(sunrise_minute),
-                id(sunset_hour) * 60 + id(sunset_minute),
+                minutes_since_midnight(now.hour, now.minute),
+                minutes_since_midnight(id(sunrise_hour), id(sunrise_minute)),
+                minutes_since_midnight(id(sunset_hour), id(sunset_minute)),
                 WARM_TONE_LEAD_MINUTES);
               night_w = warmth * (id(warm_tone_intensity).state / 100.0f);
             }
@@ -176,22 +176,20 @@ script:
 
           id(warm_tone_last_w) = w;
 
-# -----------------------------------------------------------------------------
-# Override auto-off: turn off "Warm until sunrise" when sunrise has passed
-# -----------------------------------------------------------------------------
-interval:
-  - interval: 60s
+  # ---------------------------------------------------------------------------
+  # Override auto-off check (called from the unified 60s interval)
+  # ---------------------------------------------------------------------------
+  - id: warm_tone_periodic_check
+    mode: single
     then:
       - lambda: |-
           if (!id(warm_tone_override).state) return;
           if (!id(sunrise_sunset_valid)) return;
           auto now = id(sntp_time).now();
           if (!now.is_valid()) return;
-          int now_min = now.hour * 60 + now.minute;
-          int rise_min = id(sunrise_hour) * 60 + id(sunrise_minute);
-          int set_min  = id(sunset_hour)  * 60 + id(sunset_minute);
-          bool past_sunrise = (now_min >= rise_min && now_min < set_min);
-          if (past_sunrise) {
+          if (is_daytime(now.hour, now.minute,
+                         id(sunrise_hour), id(sunrise_minute),
+                         id(sunset_hour), id(sunset_minute))) {
             ESP_LOGI("warm", "Override auto-off: sunrise passed");
             id(warm_tone_override).turn_off();
           }

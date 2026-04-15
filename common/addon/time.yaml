@@ -233,9 +233,11 @@ time:
         - script.execute: backlight_check_schedule
 
 # -----------------------------------------------------------------------------
-# Periodic clock refresh (every 60s)
+# Unified 60-second periodic interval for clock, backlight, and warm tones
 # -----------------------------------------------------------------------------
 interval:
   - interval: 60s
     then:
       - script.execute: update_clock_display
+      - script.execute: backlight_periodic_check
+      - script.execute: warm_tone_periodic_check

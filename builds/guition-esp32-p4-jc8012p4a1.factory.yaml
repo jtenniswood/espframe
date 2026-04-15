@@ -16,6 +16,12 @@ substitutions:
 packages:
   espframe: !include ../guition-esp32-p4-jc8012p4a1/packages.yaml
 
+external_components:
+  - source:
+      type: local
+      path: ../components
+    components: [gsl3680, remote_image, espframe]
+
 web_server:
   port: 80
   version: 3
