@@ -15,6 +15,12 @@ from esphome.components.image import (
     get_transparency_enum,
     validate_settings,
 )
+
+try:
+    from esphome.components.image import add_metadata as _add_image_metadata
+except ImportError:
+    _add_image_metadata = None
+
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -260,6 +266,15 @@ async def to_code(config):
     url = config[CONF_URL]
     width, height = config.get(CONF_RESIZE, (0, 0))
     transparent = get_transparency_enum(config[CONF_TRANSPARENCY])
+
+    if _add_image_metadata is not None:
+        _add_image_metadata(
+            config[CONF_ID],
+            width,
+            height,
+            config[CONF_TYPE],
+            config[CONF_TRANSPARENCY],
+        )
 
     var = cg.new_Pvariable(
         config[CONF_ID],
