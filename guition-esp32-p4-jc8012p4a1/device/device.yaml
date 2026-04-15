@@ -155,7 +155,6 @@ display:
     model: JC8012P4A1
     id: tft_display
     reset_pin: GPIO27
-    rotation: 90
     auto_clear_enabled: false
     update_interval: never
     color_order: RGB
