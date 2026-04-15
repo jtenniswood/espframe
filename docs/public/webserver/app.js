@@ -115,9 +115,20 @@
     "html{font-size:16px}" +
     "body{font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;" +
     "background:var(--bg);color:var(--text);line-height:1.7;" +
-    "min-height:100vh;display:flex;justify-content:center;" +
-    "padding:var(--gap);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}" +
-    "#app{width:100%;max-width:520px}" +
+    "min-height:100vh;margin:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}" +
+    "#sp-app{max-width:960px;margin:0 auto}" +
+    ".sp-header{display:flex;align-items:center;background:var(--bg);" +
+    "border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;height:56px;padding:0 20px}" +
+    ".sp-brand{font-size:1rem;font-weight:600;color:var(--text);margin-right:auto;" +
+    "white-space:nowrap;letter-spacing:-.01em}" +
+    ".sp-nav{display:flex;align-items:center;height:100%}" +
+    ".sp-tab{padding:0 16px;height:100%;display:flex;align-items:center;color:var(--text2);cursor:pointer;" +
+    "font-size:.875rem;font-weight:500;border-bottom:2px solid transparent;transition:color .2s}" +
+    ".sp-tab:hover{color:var(--text)}" +
+    ".sp-tab.active{color:var(--accent);border-bottom-color:var(--accent)}" +
+    ".sp-page{display:none}.sp-page.active{display:block}" +
+    ".sp-settings-wrap{display:flex;justify-content:center;padding:var(--gap)}" +
+    ".sp-settings-inner{width:100%;max-width:520px}" +
     ".brand{font-size:1.6rem;font-weight:700;letter-spacing:-.02em;" +
     "background:linear-gradient(135deg,var(--accent) 0%,#a78bfa 100%);" +
     "-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}" +
@@ -224,14 +235,23 @@
     ".key-mask{flex:1;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);" +
     "border-radius:8px;color:var(--text2);font-size:.9rem;letter-spacing:2px}" +
     ".check-wrap{display:flex;align-items:center;gap:8px;flex-shrink:0}" +
-    ".card-logs{width:100vw;position:relative;left:50%;transform:translateX(-50%);max-width:none;border-radius:0}" +
-    ".log-output{margin-top:12px;padding:14px;background:rgba(0,0,0,.35);border:1px solid var(--border);" +
-    "border-radius:8px;font-family:'SF Mono',SFMono-Regular,ui-monospace,Menlo,Consolas,monospace;" +
-    "font-size:.75rem;line-height:1.6;color:rgba(255,255,255,.55);overflow-x:auto;overflow-y:auto;" +
-    "max-height:60vh;white-space:pre;word-break:break-all}" +
-    ".log-output .log-info{color:var(--success)}" +
-    ".log-output .log-warning{color:#fdd835}" +
-    ".log-output .log-error{color:var(--danger)}" +
+    ".sp-log-toolbar{display:flex;justify-content:flex-end;padding:12px var(--gap) 0}" +
+    ".sp-log-clear{background:var(--surface2);color:var(--text);border:1px solid var(--border);" +
+    "border-radius:8px;padding:8px 14px;font-size:.8rem;font-weight:500;cursor:pointer;" +
+    "font-family:inherit;transition:all .25s}" +
+    ".sp-log-clear:hover{background:var(--border);border-color:#4a4d54}" +
+    ".sp-log-output{margin:8px var(--gap) var(--gap);padding:16px;background:var(--surface);" +
+    "border:1px solid var(--border);border-radius:var(--radius);" +
+    "font-family:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;" +
+    "font-size:.75rem;line-height:1.7;color:var(--text2);overflow-x:auto;overflow-y:auto;" +
+    "max-height:70vh;white-space:pre;word-break:break-all}" +
+    ".sp-log-line{padding:1px 0;border-left:3px solid transparent;padding-left:8px}" +
+    ".sp-log-error{color:#f66f81;border-left-color:#f14158;background:rgba(244,63,94,.08)}" +
+    ".sp-log-warn{color:#f9b44e;border-left-color:#da8b17;background:rgba(234,179,8,.06)}" +
+    ".sp-log-info{color:#3dd68c}" +
+    ".sp-log-config{color:#c8abfa}" +
+    ".sp-log-debug{color:#5c73e7}" +
+    ".sp-log-verbose{color:var(--text2)}" +
     ".banner{position:fixed;top:16px;left:50%;transform:translateX(-50%);" +
     "z-index:9999;padding:10px 24px;border-radius:var(--radius);" +
     "font-size:.85rem;font-weight:600;color:#fff;" +
@@ -247,11 +267,110 @@
   style.textContent = CSS;
   document.head.appendChild(style);
 
-  var app = document.getElementById("app");
-  if (!app) {
-    app = document.createElement("div");
-    app.id = "app";
-    document.body.appendChild(app);
+  var els = {};
+  var app;
+
+  function buildUI() {
+    var root = document.createElement("div");
+    root.id = "sp-app";
+
+    var banner = document.createElement("div");
+    banner.className = "banner";
+    banner.style.display = "none";
+    root.appendChild(banner);
+    els.banner = banner;
+
+    buildHeader(root);
+    buildSettingsPage(root);
+    buildLogsPage(root);
+
+    var espApp = document.querySelector("esp-app");
+    if (espApp) {
+      espApp.parentNode.insertBefore(root, espApp);
+    } else {
+      document.body.insertBefore(root, document.body.firstChild);
+    }
+    els.root = root;
+    switchTab("settings");
+  }
+
+  function buildHeader(parent) {
+    var header = document.createElement("div");
+    header.className = "sp-header";
+
+    var brand = document.createElement("div");
+    brand.className = "sp-brand";
+    brand.textContent = "EspFrame";
+    header.appendChild(brand);
+
+    var nav = document.createElement("nav");
+    nav.className = "sp-nav";
+
+    var tabs = [
+      { id: "settings", label: "Settings" },
+      { id: "logs", label: "Logs" }
+    ];
+
+    tabs.forEach(function (t) {
+      var tab = document.createElement("div");
+      tab.className = "sp-tab";
+      tab.textContent = t.label;
+      tab.addEventListener("click", function () { switchTab(t.id); });
+      nav.appendChild(tab);
+      els["tab_" + t.id] = tab;
+    });
+
+    header.appendChild(nav);
+    parent.appendChild(header);
+  }
+
+  function buildSettingsPage(parent) {
+    var page = document.createElement("div");
+    page.id = "sp-settings";
+    page.className = "sp-page";
+
+    var wrap = document.createElement("div");
+    wrap.className = "sp-settings-wrap";
+    var inner = document.createElement("div");
+    inner.className = "sp-settings-inner";
+    wrap.appendChild(inner);
+    page.appendChild(wrap);
+
+    parent.appendChild(page);
+    els.settingsPage = page;
+    els.settingsInner = inner;
+    app = inner;
+  }
+
+  function buildLogsPage(parent) {
+    var page = document.createElement("div");
+    page.id = "sp-logs";
+    page.className = "sp-page";
+
+    var toolbar = document.createElement("div");
+    toolbar.className = "sp-log-toolbar";
+    var clearBtn = document.createElement("button");
+    clearBtn.className = "sp-log-clear";
+    clearBtn.textContent = "Clear";
+    clearBtn.addEventListener("click", function () { els.logOutput.innerHTML = ""; });
+    toolbar.appendChild(clearBtn);
+    page.appendChild(toolbar);
+
+    var output = document.createElement("div");
+    output.className = "sp-log-output";
+    page.appendChild(output);
+    els.logOutput = output;
+
+    parent.appendChild(page);
+    els.logsPage = page;
+  }
+
+  function switchTab(tab) {
+    ["settings", "logs"].forEach(function (t) {
+      els["tab_" + t].className = "sp-tab" + (tab === t ? " active" : "");
+    });
+    els.settingsPage.className = "sp-page" + (tab === "settings" ? " active" : "");
+    els.logsPage.className = "sp-page" + (tab === "logs" ? " active" : "");
   }
 
   function eid(domain, name) {
@@ -319,16 +438,47 @@
   var evtSource = null;
   var rendered = false;
   var renderTimer = null;
-  var logLines = [];
-  var logPreRef = null;
-  var logMaxLines = 200;
   var logListenerAttached = false;
 
-  function logLevelClass(line) {
-    if (/\[E\]/.test(line)) return "log-error";
-    if (/\[W\]/.test(line)) return "log-warning";
-    if (/\[I\]/.test(line)) return "log-info";
-    return "";
+  var ANSI_LEVEL = {
+    "1;31": "sp-log-error",
+    "0;31": "sp-log-error",
+    "0;33": "sp-log-warn",
+    "0;32": "sp-log-info",
+    "0;35": "sp-log-config",
+    "0;36": "sp-log-debug",
+    "0;37": "sp-log-verbose"
+  };
+  var ANSI_RE = /\033\[[\d;]*m/g;
+
+  function appendLog(msg, lvl) {
+    if (!els.logOutput) return;
+    var line = document.createElement("div");
+    line.className = "sp-log-line";
+
+    var ansiClass = "";
+    var m = msg.match(/\033\[([\d;]+)m/);
+    if (m) ansiClass = ANSI_LEVEL[m[1]] || "";
+
+    if (ansiClass) {
+      line.classList.add(ansiClass);
+    } else if (lvl === 1) line.classList.add("sp-log-error");
+    else if (lvl === 2) line.classList.add("sp-log-warn");
+    else if (lvl === 3) line.classList.add("sp-log-info");
+    else if (lvl === 4) line.classList.add("sp-log-config");
+    else if (lvl === 5) line.classList.add("sp-log-debug");
+    else if (lvl >= 6) line.classList.add("sp-log-verbose");
+
+    line.textContent = msg.replace(ANSI_RE, "");
+
+    var atBottom = els.logOutput.scrollHeight - els.logOutput.scrollTop - els.logOutput.clientHeight < 40;
+    els.logOutput.appendChild(line);
+    var overflow = els.logOutput.childNodes.length - 1000;
+    if (overflow > 0) {
+      for (var i = 0; i < overflow; i++)
+        els.logOutput.removeChild(els.logOutput.firstChild);
+    }
+    if (atBottom) els.logOutput.scrollTop = els.logOutput.scrollHeight;
   }
 
   // Entity id -> state key mapping; optional optionsKey and default.
