@@ -65,6 +65,22 @@ text:
       - script.execute: immich_check_config_ready
 
 # -----------------------------------------------------------------------------
+# Display mode: Fill (crop-to-cover) vs Fit (letterbox, no cropping)
+# -----------------------------------------------------------------------------
+select:
+  - platform: template
+    name: "Photos: Display Mode"
+    id: photo_display_mode
+    internal: true
+    options:
+      - "Fill"
+      - "Fit"
+    initial_option: "Fill"
+    optimistic: true
+    restore_value: true
+    icon: "mdi:image-size-select-large"
+
+# -----------------------------------------------------------------------------
 # When URL + key are set, show slideshow and start fetch if needed
 # -----------------------------------------------------------------------------
 script:
