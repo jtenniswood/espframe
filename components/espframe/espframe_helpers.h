@@ -34,6 +34,12 @@ inline std::string format_time_12h(int h, int m) {
   return buf;
 }
 
+inline bool is_http_auth_error(int status) { return status == 401; }
+inline bool is_http_retryable(int status) { return status >= 500 || status == 429; }
+inline bool is_http_client_error(int status) {
+  return status >= 400 && status < 500 && !is_http_auth_error(status) && status != 429;
+}
+
 struct PhotoMeta {
   std::string asset_id, image_url, date, location, person;
   int year = 0, month = 0;

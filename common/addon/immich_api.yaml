@@ -273,22 +273,34 @@ script:
             then:
               - lambda: |-
                   if (response->status_code != 200) {
-                    ESP_LOGW("immich", "HTTP %d from Immich", response->status_code);
-                    id(immich_last_http_status) = response->status_code;
+                    int code = response->status_code;
+                    ESP_LOGW("immich", "HTTP %d from Immich", code);
+                    id(immich_last_http_status) = code;
                     int s = id(target_slot);
                     if (s == 0) id(slot0_fetch_in_flight) = false;
                     else if (s == 1) id(slot1_fetch_in_flight) = false;
                     else id(slot2_fetch_in_flight) = false;
-                    if (response->status_code == 401) {
+                    if (is_http_auth_error(code)) {
                       lv_label_set_text(id(connection_failed_title), "Invalid API Key");
                       lv_label_set_text(id(connection_failed_subtitle), "Check your Immich API key in\nthe espframe settings.");
-                      if (id(last_photo_displayed_ms) == 0) {
-                        id(last_photo_displayed_ms) = millis();
+                    } else if (is_http_retryable(code)) {
+                      id(immich_api_retries)++;
+                      if (id(immich_api_retries) < MAX_ERROR_RETRIES) {
+                        id(immich_fetch_retry).execute();
+                        return;
                       }
-                      lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
-                      id(connection_failed_dim).execute();
-                      id(connection_failed_shift).execute();
+                      lv_label_set_text(id(connection_failed_title), "Immich server error");
+                      lv_label_set_text(id(connection_failed_subtitle), "Your Immich server returned an error.\nIt may be restarting or under heavy load.");
+                    } else {
+                      lv_label_set_text(id(connection_failed_title), "Unable to connect to Immich");
+                      lv_label_set_text(id(connection_failed_subtitle), "Check your internet connection and\nthe health of your Immich server.");
                     }
+                    if (id(last_photo_displayed_ms) == 0) {
+                      id(last_photo_displayed_ms) = millis();
+                    }
+                    lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
+                    id(connection_failed_dim).execute();
+                    id(connection_failed_shift).execute();
                     return;
                   }
                   id(immich_fetch_started) = true;
