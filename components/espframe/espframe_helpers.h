@@ -4,10 +4,17 @@
 #include "sun_calc.h"
 #include <string>
 #include <cstdint>
+#include <cstring>
+#include <cmath>
+
+#ifdef USE_LVGL
+#include "esphome/components/image/image.h"
+#endif
 
 static constexpr int MAX_ERROR_RETRIES = 3;
 static constexpr int ACCENT_GRID_SIZE = 20;
 static constexpr int WARM_TONE_LEAD_MINUTES = 60;
+static constexpr int ACCENT_COL_BUF_MAX = 2560;
 
 struct PhotoMeta {
   std::string asset_id, image_url, date, location, person;
@@ -40,6 +47,184 @@ inline void copy_display_to_slot(const DisplayMeta &disp, SlotMeta &slot) {
 // slot: target slot index (0, 1, or 2).
 // s0, s1, s2: references to the three SlotMeta globals.
 // Returns the image URL on success, empty string on parse failure.
+
+// ============================================================================
+// Accent color fill — detect letterbox bars and fill with dominant accent
+// ============================================================================
+#ifdef USE_LVGL
+inline void fill_accent_color(esphome::image::Image *img) {
+  int img_w = img->get_width();
+  int img_h = img->get_height();
+  if (img_w <= 0 || img_h <= 0) return;
+
+  lv_img_dsc_t *dsc = img->get_lv_img_dsc();
+  const uint8_t *data = dsc->data;
+  if (!data) return;
+
+  int x_off = 0;
+  int mid_y = img_h / 2;
+  for (int x = 0; x < img_w / 2; x++) {
+    int pos = (x + mid_y * img_w) * 2;
+    uint16_t px = data[pos] | (data[pos + 1] << 8);
+    if (px != 0x0000) { x_off = x; break; }
+  }
+  int y_off = 0;
+  int mid_x = img_w / 2;
+  for (int y = 0; y < img_h / 2; y++) {
+    int pos = (mid_x + y * img_w) * 2;
+    uint16_t px = data[pos] | (data[pos + 1] << 8);
+    if (px != 0x0000) { y_off = y; break; }
+  }
+
+  if (x_off == 0 && y_off == 0) return;
+
+  int content_w = img_w - 2 * x_off;
+  int content_h = img_h - 2 * y_off;
+  int grid = ACCENT_GRID_SIZE;
+  int step_x = content_w / grid;
+  int step_y = content_h / grid;
+  if (step_x < 1) step_x = 1;
+  if (step_y < 1) step_y = 1;
+
+  int64_t r_wsum = 0, g_wsum = 0, b_wsum = 0;
+  int64_t w_total = 0;
+
+  for (int sy = y_off + step_y / 2; sy < img_h - y_off; sy += step_y) {
+    for (int sx = x_off + step_x / 2; sx < img_w - x_off; sx += step_x) {
+      int pos = (sx + sy * img_w) * 2;
+      uint16_t rgb565 = data[pos] | (data[pos + 1] << 8);
+      int r = ((rgb565 >> 11) & 0x1F);
+      int g = ((rgb565 >> 5) & 0x3F);
+      int b = (rgb565 & 0x1F);
+      r = (r << 3) | (r >> 2);
+      g = (g << 2) | (g >> 4);
+      b = (b << 3) | (b >> 2);
+      int mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
+      int mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
+      int sat = mx - mn;
+      int weight = sat * sat + 1;
+      r_wsum += (int64_t)r * weight;
+      g_wsum += (int64_t)g * weight;
+      b_wsum += (int64_t)b * weight;
+      w_total += weight;
+    }
+  }
+
+  if (w_total <= 0) return;
+
+  int r = (int)(r_wsum / w_total);
+  int g = (int)(g_wsum / w_total);
+  int b = (int)(b_wsum / w_total);
+
+  int dr = r / 2, dg = g / 2, db = b / 2;
+  uint16_t accent_565 = ((dr >> 3) << 11) | ((dg >> 2) << 5) | (db >> 3);
+  uint8_t lo = accent_565 & 0xFF;
+  uint8_t hi = (accent_565 >> 8) & 0xFF;
+
+  uint8_t *buf = const_cast<uint8_t*>(data);
+  int row_bytes = img_w * 2;
+
+  if (y_off > 0) {
+    for (int x = 0; x < img_w; x++) {
+      buf[x * 2] = lo; buf[x * 2 + 1] = hi;
+    }
+    for (int y = 1; y < y_off; y++)
+      memcpy(buf + y * row_bytes, buf, row_bytes);
+    for (int y = img_h - y_off; y < img_h; y++)
+      memcpy(buf + y * row_bytes, buf, row_bytes);
+  }
+
+  if (x_off > 0) {
+    int col_bytes = x_off * 2;
+    uint8_t col_buf[ACCENT_COL_BUF_MAX];
+    if (col_bytes > (int)sizeof(col_buf)) return;
+    for (int x = 0; x < x_off; x++) {
+      col_buf[x * 2] = lo; col_buf[x * 2 + 1] = hi;
+    }
+    for (int y = y_off; y < img_h - y_off; y++) {
+      int row = y * row_bytes;
+      memcpy(buf + row, col_buf, col_bytes);
+      memcpy(buf + row + (img_w - x_off) * 2, col_buf, col_bytes);
+    }
+  }
+}
+#endif  // USE_LVGL
+
+// ============================================================================
+// Warm tone helpers — LUT-based RGB565 tinting
+// ============================================================================
+
+inline float calc_sun_warmth(int now_min, int rise_min, int set_min, int lead_min) {
+  if (now_min >= set_min) return 1.0f;
+  if (now_min >= set_min - lead_min)
+    return (float)(now_min - (set_min - lead_min)) / lead_min;
+  if (now_min < rise_min) return 1.0f;
+  if (now_min < rise_min + lead_min)
+    return 1.0f - (float)(now_min - rise_min) / lead_min;
+  return 0.0f;
+}
+
+struct WarmToneLuts {
+  uint8_t r[32];
+  uint8_t g[64];
+  uint8_t b[32];
+};
+
+inline void build_warm_tone_luts(float last_w, float new_w, WarmToneLuts &luts) {
+  float r_undo = (last_w > 0.005f) ? 1.0f / (1.0f + last_w * 0.06f) : 1.0f;
+  float g_undo = (last_w > 0.005f) ? 1.0f / (1.0f - last_w * 0.07f) : 1.0f;
+  float b_undo = (last_w > 0.005f) ? 1.0f / (1.0f - last_w * 0.28f) : 1.0f;
+  float r_apply = 1.0f + new_w * 0.06f;
+  float g_apply = 1.0f - new_w * 0.07f;
+  float b_apply = 1.0f - new_w * 0.28f;
+
+  for (int i = 0; i < 32; i++) {
+    int v = (i << 3) | (i >> 2);
+    int nv = (int)(v * r_undo * r_apply);
+    luts.r[i] = (uint8_t)((nv > 255 ? 255 : (nv < 0 ? 0 : nv)) >> 3);
+  }
+  for (int i = 0; i < 64; i++) {
+    int v = (i << 2) | (i >> 4);
+    int nv = (int)(v * g_undo * g_apply);
+    luts.g[i] = (uint8_t)((nv > 255 ? 255 : (nv < 0 ? 0 : nv)) >> 2);
+  }
+  for (int i = 0; i < 32; i++) {
+    int v = (i << 3) | (i >> 2);
+    int nv = (int)(v * b_undo * b_apply);
+    luts.b[i] = (uint8_t)((nv > 255 ? 255 : (nv < 0 ? 0 : nv)) >> 3);
+  }
+}
+
+#ifdef USE_LVGL
+inline void tint_image_buffer(esphome::image::Image *img, const WarmToneLuts &luts) {
+  if (!img) return;
+  lv_img_dsc_t *dsc = img->get_lv_img_dsc();
+  if (!dsc || !dsc->data) return;
+  uint8_t *buf = const_cast<uint8_t*>(dsc->data);
+  int total = img->get_width() * img->get_height();
+  for (int i = 0; i < total; i++) {
+    int pos = i * 2;
+    uint16_t px = buf[pos] | (buf[pos + 1] << 8);
+    uint8_t r5 = luts.r[(px >> 11) & 0x1F];
+    uint8_t g6 = luts.g[(px >> 5) & 0x3F];
+    uint8_t b5 = luts.b[px & 0x1F];
+    uint16_t out = (r5 << 11) | (g6 << 5) | b5;
+    buf[pos]     = out & 0xFF;
+    buf[pos + 1] = (out >> 8) & 0xFF;
+  }
+}
+#endif  // USE_LVGL
+
+// ============================================================================
+// Time formatting — 12-hour AM/PM format for sunrise/sunset display
+// ============================================================================
+
+inline void format_time_12h(int hour24, int minute, char *buf, size_t buf_size) {
+  const char *suffix = (hour24 >= 12) ? "PM" : "AM";
+  int h12 = hour24 % 12;
+  if (h12 == 0) h12 = 12;
+  snprintf(buf, buf_size, "%d:%02d %s", h12, minute, suffix);
+}
 
 #ifdef USE_JSON
 inline std::string parse_immich_asset_and_fill_slot(const std::string &body,

@@ -15,7 +15,9 @@ void GSL3680::setup() {
     this->reset_pin_->setup();
 
     this->reset_pin_->digital_write(false);
+    esphome::delay(5);
     this->reset_pin_->digital_write(true);
+    esphome::delay(10);
 
     auto err = this->init();
     if (err != esphome::i2c::ERROR_OK) {
@@ -123,6 +125,7 @@ esphome::i2c::ErrorCode GSL3680::load_firmware() {
         wrbuf[2] = (uint8_t)((GSLX680_FW[i].val & 0x00ff0000) >> 16);
         wrbuf[3] = (uint8_t)((GSLX680_FW[i].val & 0xff000000) >> 24);
         STOP_ON_I2C_ERROR(err, this->write_register(addr, (uint8_t *)&wrbuf, addr == 0xf0? 1: 4));
+        if (i % 256 == 0) App.feed_wdt();
     }
     ESP_LOGD(TAG,"Load firmware complete");
     return err;
@@ -193,12 +196,18 @@ void GSL3680::update_touches() {
 
     if ((mask > 0) && (mask < 0xffffffff)) {
         uint8_t buf[4] = {0xa, 0x0, 0x0, 0x0};
-        this->write_register(0xf0, (uint8_t *)&buf, 4);
+        auto mask_err = this->write_register(0xf0, (uint8_t *)&buf, 4);
+        if (mask_err != esphome::i2c::ERROR_OK) {
+            ESP_LOGW(TAG, "I2C mask write 0xf0 failed: %d", mask_err);
+        }
         buf[0] = (uint8_t)(mask & 0xff);
         buf[1] = (uint8_t)((mask >> 8) & 0xff);
         buf[2] = (uint8_t)((mask >> 16) & 0xff);
         buf[3] = (uint8_t)((mask >> 24) & 0xff);
-        this->write_register(0x8, (uint8_t *)&buf, 4);
+        mask_err = this->write_register(0x8, (uint8_t *)&buf, 4);
+        if (mask_err != esphome::i2c::ERROR_OK) {
+            ESP_LOGW(TAG, "I2C mask write 0x08 failed: %d", mask_err);
+        }
     }
 
     ESP_LOGV(TAG, "update_touches: touch [%d] %dx%d (%d)", cinfo.finger_num, cinfo.x[0], cinfo.y[0], mask);

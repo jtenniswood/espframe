@@ -89,9 +89,12 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
     case 1: {
       while (index < size) {
         uint8_t current_byte = buffer[index];
-        for (uint8_t i = 0; i < 8; i++) {
-          size_t x = (this->paint_index_ % this->width_) + i;
-          size_t y = (this->height_ - 1) - (this->paint_index_ / this->width_);
+        uint8_t bits_remaining = std::min(static_cast<uint8_t>(8),
+                                          static_cast<uint8_t>(this->width_ - (this->paint_index_ % this->width_)));
+        for (uint8_t i = 0; i < bits_remaining; i++) {
+          size_t pix = this->paint_index_ + i;
+          size_t x = pix % this->width_;
+          size_t y = (this->height_ - 1) - (pix / this->width_);
           Color c = (current_byte & (1 << (7 - i))) ? display::COLOR_ON : display::COLOR_OFF;
           this->draw(x, y, 1, 1, c);
         }

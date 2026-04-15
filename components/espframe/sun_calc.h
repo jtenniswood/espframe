@@ -259,14 +259,18 @@ inline float parse_tz_offset(const std::string &tz_label) {
   size_t idx = 0;
   if (offset_str[idx] == '+') { sign = 1.0f; idx++; }
   else if (offset_str[idx] == '-') { sign = -1.0f; idx++; }
-  // Strip trailing ')'
   auto paren = offset_str.find(')');
   if (paren != std::string::npos) offset_str = offset_str.substr(0, paren);
+  char *end = nullptr;
   auto colon = offset_str.find(':', idx);
   if (colon != std::string::npos) {
-    float hours = std::stof(offset_str.substr(idx, colon - idx));
-    float mins = std::stof(offset_str.substr(colon + 1));
+    float hours = strtof(offset_str.c_str() + idx, &end);
+    if (end == offset_str.c_str() + idx) return 0.0f;
+    float mins = strtof(offset_str.c_str() + colon + 1, &end);
+    if (end == offset_str.c_str() + colon + 1) return 0.0f;
     return sign * (hours + mins / 60.0f);
   }
-  return sign * std::stof(offset_str.substr(idx));
+  float val = strtof(offset_str.c_str() + idx, &end);
+  if (end == offset_str.c_str() + idx) return 0.0f;
+  return sign * val;
 }

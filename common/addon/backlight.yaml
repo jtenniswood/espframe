@@ -13,3 +13,5 @@ light:
     name: "Screen: Backlight"
     default_transition_length: 500ms
     restore_mode: ALWAYS_ON
+    web_server:
+      sorting_group_id: sg_screen

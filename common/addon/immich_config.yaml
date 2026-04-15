@@ -38,6 +38,8 @@ text:
     max_length: 255
     mode: text
     icon: "mdi:web"
+    web_server:
+      sorting_group_id: sg_connection
     set_action:
       - lambda: |-
           if (x.empty()) return;
@@ -57,6 +59,8 @@ text:
     max_length: 255
     mode: password
     icon: "mdi:key"
+    web_server:
+      sorting_group_id: sg_connection
     set_action:
       - lambda: |-
           if (x.empty()) return;
@@ -79,6 +83,8 @@ select:
     optimistic: true
     restore_value: true
     icon: "mdi:image-size-select-large"
+    web_server:
+      sorting_group_id: sg_photos
 
 # -----------------------------------------------------------------------------
 # When URL + key are set, show slideshow and start fetch if needed

@@ -5,7 +5,7 @@
 # for WiFi setup via captive portal.
 #
 # Compiled by CI (see .github/workflows/release.yml) — not used locally.
-# For local development, use dev.yaml in the device folder instead.
+# For local development, see guition-esp32-p4-jc8012p4a1/esphome.yaml.
 # =============================================================================
 
 substitutions:
@@ -19,7 +19,5 @@ packages:
 web_server:
   port: 80
   version: 3
-  css_url: ""
   js_url: ""
-  css_include: "../docs/public/webserver/style.css"
   js_include: "../docs/public/webserver/app.js"

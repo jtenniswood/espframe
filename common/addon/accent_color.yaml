@@ -20,124 +20,17 @@ script:
     mode: restart
     then:
       - lambda: |-
-          auto fill_accent = [](esphome::image::Image *img) {
-            int img_w = img->get_width();
-            int img_h = img->get_height();
-            if (img_w <= 0 || img_h <= 0) return;
-
-            lv_img_dsc_t *dsc = img->get_lv_img_dsc();
-            const uint8_t *data = dsc->data;
-            if (!data) return;
-
-            int x_off = 0;
-            int mid_y = img_h / 2;
-            for (int x = 0; x < img_w / 2; x++) {
-              int pos = (x + mid_y * img_w) * 2;
-              uint16_t px = data[pos] | (data[pos + 1] << 8);
-              if (px != 0x0000) { x_off = x; break; }
-            }
-            int y_off = 0;
-            int mid_x = img_w / 2;
-            for (int y = 0; y < img_h / 2; y++) {
-              int pos = (mid_x + y * img_w) * 2;
-              uint16_t px = data[pos] | (data[pos + 1] << 8);
-              if (px != 0x0000) { y_off = y; break; }
-            }
-
-            if (x_off == 0 && y_off == 0) return;
-
-            int content_w = img_w - 2 * x_off;
-            int content_h = img_h - 2 * y_off;
-            int grid = ACCENT_GRID_SIZE;
-            int step_x = content_w / grid;
-            int step_y = content_h / grid;
-            if (step_x < 1) step_x = 1;
-            if (step_y < 1) step_y = 1;
-
-            int64_t r_wsum = 0, g_wsum = 0, b_wsum = 0;
-            int64_t w_total = 0;
-
-            for (int sy = y_off + step_y / 2; sy < img_h - y_off; sy += step_y) {
-              for (int sx = x_off + step_x / 2; sx < img_w - x_off; sx += step_x) {
-                int pos = (sx + sy * img_w) * 2;
-                uint16_t rgb565 = data[pos] | (data[pos + 1] << 8);
-
-                int r = ((rgb565 >> 11) & 0x1F);
-                int g = ((rgb565 >> 5) & 0x3F);
-                int b = (rgb565 & 0x1F);
-                r = (r << 3) | (r >> 2);
-                g = (g << 2) | (g >> 4);
-                b = (b << 3) | (b >> 2);
-
-                int mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
-                int mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
-                int sat = mx - mn;
-
-                int weight = sat * sat + 1;
-                r_wsum += (int64_t)r * weight;
-                g_wsum += (int64_t)g * weight;
-                b_wsum += (int64_t)b * weight;
-                w_total += weight;
-              }
-            }
-
-            if (w_total <= 0) return;
-
-            int r = (int)(r_wsum / w_total);
-            int g = (int)(g_wsum / w_total);
-            int b = (int)(b_wsum / w_total);
-            ESP_LOGI("accent", "Accent rgb(%d,%d,%d) offset x=%d y=%d", r, g, b, x_off, y_off);
-
-            int dr = r / 2, dg = g / 2, db = b / 2;
-            uint16_t accent_565 = ((dr >> 3) << 11) | ((dg >> 2) << 5) | (db >> 3);
-            uint8_t lo = accent_565 & 0xFF;
-            uint8_t hi = (accent_565 >> 8) & 0xFF;
-
-            uint8_t *buf = const_cast<uint8_t*>(data);
-            int row_bytes = img_w * 2;
-
-            // Build one full accent row for top/bottom bar fills
-            if (y_off > 0) {
-              for (int x = 0; x < img_w; x++) {
-                buf[x * 2] = lo; buf[x * 2 + 1] = hi;
-              }
-              for (int y = 1; y < y_off; y++)
-                memcpy(buf + y * row_bytes, buf, row_bytes);
-              for (int y = img_h - y_off; y < img_h; y++)
-                memcpy(buf + y * row_bytes, buf, row_bytes);
-            }
-
-            // Build one column segment for left/right bar fills
-            if (x_off > 0) {
-              int col_bytes = x_off * 2;
-              uint8_t col_buf[${display_width}];
-              if (col_bytes > (int)sizeof(col_buf)) return;
-              for (int x = 0; x < x_off; x++) {
-                col_buf[x * 2] = lo; col_buf[x * 2 + 1] = hi;
-              }
-              for (int y = y_off; y < img_h - y_off; y++) {
-                int row = y * row_bytes;
-                memcpy(buf + row, col_buf, col_bytes);
-                memcpy(buf + row + (img_w - x_off) * 2, col_buf, col_bytes);
-              }
-            }
-          };
-
           if (id(immich_is_portrait_pair)) {
             if (id(portrait_using_preload)) {
-              fill_accent(id(immich_portrait_preload_left));
-              fill_accent(id(immich_portrait_preload_right));
+              fill_accent_color(id(immich_portrait_preload_left));
+              fill_accent_color(id(immich_portrait_preload_right));
             } else {
-              fill_accent(id(immich_portrait_left));
-              fill_accent(id(immich_portrait_right));
+              fill_accent_color(id(immich_portrait_left));
+              fill_accent_color(id(immich_portrait_right));
             }
             lv_obj_invalidate(id(portrait_pair_container));
           } else {
-            esphome::image::Image *img = nullptr;
-            int s = id(active_slot);
-            if (s == 0) img = id(immich_img_0);
-            else if (s == 1) img = id(immich_img_1);
-            else img = id(immich_img_2);
-            fill_accent(img);
+            esphome::image::Image *imgs[] = { id(immich_img_0), id(immich_img_1), id(immich_img_2) };
+            fill_accent_color(imgs[id(active_slot)]);
             lv_obj_invalidate(id(slideshow_img));
           }

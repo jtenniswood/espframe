@@ -156,5 +156,22 @@ class DownloadBuffer {
   size_t unread_;
 };
 
+inline void rgb888_row_to_rgb565(const uint8_t *rgb888, uint8_t *out, int width, bool big_endian) {
+  for (int x = 0; x < width; x++) {
+    uint8_t r = rgb888[x * 3 + 0];
+    uint8_t g = rgb888[x * 3 + 1];
+    uint8_t b = rgb888[x * 3 + 2];
+    uint16_t rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+    if (big_endian) {
+      out[0] = rgb565 >> 8;
+      out[1] = rgb565 & 0xFF;
+    } else {
+      out[0] = rgb565 & 0xFF;
+      out[1] = rgb565 >> 8;
+    }
+    out += 2;
+  }
+}
+
 }  // namespace remote_image
 }  // namespace esphome

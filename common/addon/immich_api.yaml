@@ -235,9 +235,6 @@ script:
           condition:
             lambda: 'return id(target_slot) != id(active_slot) && id(active_portrait_workflow_busy);'
           then:
-            # #region agent log
-            - lambda: 'ESP_LOGW("diag", "H1: fetch slot %d BLOCKED (busy flag)", id(target_slot));'
-            # #endregion
             - script.execute: delayed_prefetch_chain
             - script.stop: immich_fetch_into_slot
       - if:
@@ -379,9 +376,6 @@ script:
           condition:
             lambda: 'return id(companion_target_slot) != id(active_slot) && id(active_portrait_workflow_busy);'
           then:
-            # #region agent log
-            - lambda: 'ESP_LOGW("diag", "H1: companion search BLOCKED (busy flag)");'
-            # #endregion
             - script.execute: delayed_prefetch_chain
             - script.stop: immich_fetch_portrait_companion
       - lambda: |-

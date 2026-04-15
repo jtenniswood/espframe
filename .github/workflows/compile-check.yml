@@ -1,0 +1,26 @@
+name: Compile Check
+
+on:
+  pull_request:
+    paths:
+      - 'common/**'
+      - 'components/**'
+      - 'guition-*/**'
+      - 'builds/**'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  compile:
+    name: Compile Firmware
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Compile P4 firmware
+        run: >-
+          docker run --rm
+          -v "${PWD}:/config"
+          ghcr.io/esphome/esphome:2025.4.0
+          compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml

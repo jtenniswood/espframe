@@ -22,6 +22,8 @@ select:
     optimistic: true
     restore_value: true
     icon: "mdi:image-filter-frames"
+    web_server:
+      sorting_group_id: sg_photos
     on_value:
       then:
         - lambda: 'ESP_LOGI("immich", "Photo source: %s", x.c_str());'
@@ -41,6 +43,8 @@ text:
     max_length: 255
     mode: text
     icon: "mdi:folder-image"
+    web_server:
+      sorting_group_id: sg_photos
     set_action:
       - lambda: |-
           std::string v = x;
@@ -62,6 +66,8 @@ text:
     max_length: 255
     mode: text
     icon: "mdi:account-group"
+    web_server:
+      sorting_group_id: sg_photos
     set_action:
       - lambda: |-
           std::string v = x;
@@ -82,6 +88,8 @@ button:
     id: apply_photo_source
     internal: true
     icon: "mdi:check-circle"
+    web_server:
+      sorting_group_id: sg_photos
     on_press:
       - script.stop: auto_apply_photo_source
       - lambda: |-

@@ -22,6 +22,8 @@ select:
     initial_option: "24 Hour"
     optimistic: true
     restore_value: true
+    web_server:
+      sorting_group_id: sg_clock
     on_value:
       then:
         - script.execute: update_clock_display
@@ -187,6 +189,8 @@ switch:
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
     icon: "mdi:clock-outline"
+    web_server:
+      sorting_group_id: sg_clock
 
 # -----------------------------------------------------------------------------
 # Refresh clock label from current time; show/hide based on switch

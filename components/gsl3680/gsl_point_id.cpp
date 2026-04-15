@@ -1,3 +1,15 @@
+// ============================================================================
+// FROZEN VENDOR CODE — DO NOT EDIT
+// ============================================================================
+// Silead GSL3680 touch point identification algorithm.
+// Ported from the Silead Linux kernel driver (GPL-2.0).
+// Version: GSL_VERSION 0x20160901 (2016-09-01, no-gesture variant)
+//
+// This file contains global mutable state and is not re-entrant. It is called
+// only from GSL3680::update_touches() on a single task.
+//
+// Any modifications require hardware regression testing on the target panel.
+// ============================================================================
 /* drivers/input/touchscreen/mediatek/gslX680/
  *
  * 2010 - 2016 silead inc.
