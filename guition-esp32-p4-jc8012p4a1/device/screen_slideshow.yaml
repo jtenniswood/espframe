@@ -259,6 +259,18 @@ script:
                 lv_obj_align(id(connection_failed_content), LV_ALIGN_CENTER, x, y);
 
 # =============================================================================
+# CACHED INTERVAL VALUES (avoid repeated string parsing every 2s)
+# =============================================================================
+
+globals:
+  - id: slideshow_interval_sec
+    type: uint32_t
+    initial_value: '120'
+  - id: connection_timeout_sec
+    type: uint32_t
+    initial_value: '120'
+
+# =============================================================================
 # USER-CONFIGURABLE SETTINGS
 # =============================================================================
 
@@ -281,6 +293,11 @@ select:
     optimistic: true
     restore_value: true
     icon: "mdi:timer-outline"
+    on_value:
+      then:
+        - lambda: |-
+            int num = atoi(x.c_str());
+            id(slideshow_interval_sec) = (x.find("minute") != std::string::npos) ? num * 60 : num;
     web_server:
       sorting_group_id: sg_photos
 
@@ -302,6 +319,11 @@ select:
     optimistic: true
     restore_value: true
     icon: "mdi:connection"
+    on_value:
+      then:
+        - lambda: |-
+            int num = atoi(x.c_str());
+            id(connection_timeout_sec) = (x.find("minute") != std::string::npos) ? num * 60 : num;
     web_server:
       sorting_group_id: sg_screen
 
@@ -318,10 +340,7 @@ interval:
             lambda: |-
               if (!id(immich_fetch_started)) return false;
               if (id(backlight_paused)) return false;
-              std::string opt = id(slideshow_interval).current_option();
-              int num = atoi(opt.c_str());
-              uint32_t seconds = (opt.find("minute") != std::string::npos) ? num * 60 : num;
-              return (millis() - id(immich_last_advance_ms)) >= (seconds * 1000);
+              return (millis() - id(immich_last_advance_ms)) >= (id(slideshow_interval_sec) * 1000);
           then:
             - script.execute: immich_advance_forward
       - if:
@@ -343,10 +362,7 @@ interval:
             lambda: |-
               if (id(last_photo_displayed_ms) == 0) return false;
               if (id(backlight_paused)) return false;
-              std::string opt = id(connection_timeout).current_option();
-              int num = atoi(opt.c_str());
-              uint32_t seconds = (opt.find("minute") != std::string::npos) ? num * 60 : num;
-              return (millis() - id(last_photo_displayed_ms)) >= (seconds * 1000);
+              return (millis() - id(last_photo_displayed_ms)) >= (id(connection_timeout_sec) * 1000);
           then:
             - lambda: |-
                 if (lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN)) {
