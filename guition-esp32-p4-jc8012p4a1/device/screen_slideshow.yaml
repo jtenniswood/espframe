@@ -55,8 +55,8 @@ lvgl:
         - obj:
             id: portrait_pair_container
             align: CENTER
-            width: 1280
-            height: 800
+            width: ${display_width}
+            height: ${display_height}
             bg_color: 0x000000
             bg_opa: 100%
             border_width: 0
@@ -95,8 +95,8 @@ lvgl:
                 - script.stop: backlight_hold_timer
             widgets:
               - obj:
-                  width: 640
-                  height: 800
+                  width: ${portrait_half_width}
+                  height: ${display_height}
                   bg_opa: 0%
                   border_width: 0
                   pad_all: 0
@@ -110,8 +110,8 @@ lvgl:
                         scrollable: false
                         clickable: false
               - obj:
-                  width: 640
-                  height: 800
+                  width: ${portrait_half_width}
+                  height: ${display_height}
                   bg_opa: 0%
                   border_width: 0
                   pad_all: 0
@@ -170,8 +170,8 @@ lvgl:
         - obj:
             id: connection_failed_overlay
             align: CENTER
-            width: 1280
-            height: 800
+            width: ${display_width}
+            height: ${display_height}
             radius: 0
             bg_color: 0x000000
             bg_opa: 100%
@@ -281,6 +281,8 @@ select:
     optimistic: true
     restore_value: true
     icon: "mdi:timer-outline"
+    web_server:
+      sorting_group_id: sg_photos
 
   - platform: template
     name: "Screen: Connection Timeout"
@@ -300,6 +302,8 @@ select:
     optimistic: true
     restore_value: true
     icon: "mdi:connection"
+    web_server:
+      sorting_group_id: sg_screen
 
 
 # =============================================================================

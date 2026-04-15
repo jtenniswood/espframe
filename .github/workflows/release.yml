@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event.release.tag_name || github.ref_name }}
 
       - name: Compile P4 firmware
         env:
@@ -26,7 +26,7 @@ jobs:
         run: >-
           docker run --rm
           -v "${PWD}:/config"
-          ghcr.io/esphome/esphome:latest
+          ghcr.io/esphome/esphome:2025.4.0
           -s firmware_version "${VERSION}"
           compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
 

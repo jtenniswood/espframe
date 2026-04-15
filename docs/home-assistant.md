@@ -25,8 +25,9 @@ Under **Settings → Devices & Services → ESPHome** (device page):
 | **Screen: Connection Timeout** | Select | 30s–30min before showing connection-failed screen |
 | **Screen: Backlight** | Light | On/off and brightness (0–100%) |
 | **Firmware: Auto Update** | Switch | Install updates when available |
-| **Firmware: Update Frequency** | Select | Hourly, Daily, Weekly |
-| **Firmware: Check for Update** | Button | Manual check (stable + beta) |
+| **Firmware: Update Frequency** | Select | Hourly, Daily, Weekly, Monthly |
+| **Firmware: Beta Channel** | Switch | Opt in to pre-release firmware checks |
+| **Firmware: Check for Update** | Button | Manual check (stable + beta if enabled) |
 | **Firmware: Version** | Text Sensor | Installed version |
 | **Network: Online** | Binary Sensor | Connection status |
 | **Network: WiFi Strength** | Sensor | Signal % |

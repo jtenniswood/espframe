@@ -52,6 +52,8 @@ switch:
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
     icon: "mdi:clock-time-four-outline"
+    web_server:
+      sorting_group_id: sg_screen
     on_turn_on:
       then:
         - script.execute: backlight_check_schedule
@@ -78,6 +80,8 @@ number:
     restore_value: true
     unit_of_measurement: "h"
     icon: "mdi:weather-sunset-up"
+    web_server:
+      sorting_group_id: sg_screen
     on_value:
       then:
         - script.execute: backlight_check_schedule
@@ -94,6 +98,8 @@ number:
     restore_value: true
     unit_of_measurement: "h"
     icon: "mdi:weather-sunset-down"
+    web_server:
+      sorting_group_id: sg_screen
     on_value:
       then:
         - script.execute: backlight_check_schedule
@@ -110,6 +116,8 @@ number:
     restore_value: true
     unit_of_measurement: "%"
     icon: "mdi:brightness-7"
+    web_server:
+      sorting_group_id: sg_screen
     on_value:
       then:
         - script.execute: backlight_apply_brightness
@@ -126,6 +134,8 @@ number:
     restore_value: true
     unit_of_measurement: "%"
     icon: "mdi:brightness-4"
+    web_server:
+      sorting_group_id: sg_screen
     on_value:
       then:
         - script.execute: backlight_apply_brightness
@@ -138,6 +148,8 @@ text_sensor:
     internal: true
     entity_category: diagnostic
     icon: "mdi:weather-sunset-up"
+    web_server:
+      sorting_group_id: sg_screen
 
   - platform: template
     name: "Screen: Sunset"
@@ -145,6 +157,8 @@ text_sensor:
     internal: true
     entity_category: diagnostic
     icon: "mdi:weather-sunset-down"
+    web_server:
+      sorting_group_id: sg_screen
 
 # =============================================================================
 # SCRIPTS
@@ -267,12 +281,9 @@ script:
           id(sunrise_sunset_valid) = true;
 
           char buf[16];
-          snprintf(buf, sizeof(buf), "%d:%02d AM", (rh == 0) ? 12 : (rh > 12 ? rh - 12 : rh), rm);
-          if (rh >= 12) snprintf(buf, sizeof(buf), "%d:%02d PM", (rh == 12) ? 12 : rh - 12, rm);
+          format_time_12h(rh, rm, buf, sizeof(buf));
           id(sunrise_time_sensor).publish_state(buf);
-
-          snprintf(buf, sizeof(buf), "%d:%02d PM", (sh == 12) ? 12 : (sh > 12 ? sh - 12 : sh), sm);
-          if (sh < 12) snprintf(buf, sizeof(buf), "%d:%02d AM", (sh == 0) ? 12 : sh, sm);
+          format_time_12h(sh, sm, buf, sizeof(buf));
           id(sunset_time_sensor).publish_state(buf);
 
           // Integer-only log: avoids newlib float formatting (_dtoa_r) during heap work under load.

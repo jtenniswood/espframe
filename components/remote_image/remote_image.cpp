@@ -25,10 +25,6 @@ static const char *const CONTENT_TYPE_HEADER_NAME = "content-type";
 #include "webp_image.h"
 #endif
 
-#ifdef USE_ESP_IDF
-#include "soc/soc_caps.h"
-#endif
-
 namespace esphome {
 namespace remote_image {
 
@@ -278,7 +274,12 @@ void OnlineImage::loop() {
     }
     return;
   }
-  if (!this->downloader_ || this->decoder_->is_finished()) {
+  if (!this->downloader_) {
+    ESP_LOGW(TAG, "Downloader disappeared mid-transfer");
+    this->download_error_callback_.call();
+    return;
+  }
+  if (this->decoder_->is_finished()) {
     this->data_start_ = buffer_;
     this->width_ = buffer_width_;
     this->height_ = buffer_height_;

@@ -164,21 +164,7 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
       if (this->use_rgb565_ && this->scaling_) {
         this->draw_rgb888_scaled(this->current_scanline_, this->out_w_, this->row_buffer_, this->big_endian_);
       } else if (this->use_rgb565_) {
-        uint8_t *dst = this->row_buffer_;
-        for (int x = 0; x < this->out_w_; x++) {
-          uint8_t r = this->row_buffer_[x * 3 + 0];
-          uint8_t g = this->row_buffer_[x * 3 + 1];
-          uint8_t b = this->row_buffer_[x * 3 + 2];
-          uint16_t rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
-          if (this->big_endian_) {
-            dst[0] = rgb565 >> 8;
-            dst[1] = rgb565 & 0xFF;
-          } else {
-            dst[0] = rgb565 & 0xFF;
-            dst[1] = rgb565 >> 8;
-          }
-          dst += 2;
-        }
+        rgb888_row_to_rgb565(this->row_buffer_, this->row_buffer_, this->out_w_, this->big_endian_);
         this->draw_rgb565_block(0, this->current_scanline_, this->out_w_, 1, this->row_buffer_);
       } else {
         for (int x = 0; x < this->out_w_; x++) {

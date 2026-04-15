@@ -53,9 +53,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p docs/.vitepress/dist/firmware
-          gh release download --pattern 'manifest.json' --dir docs/.vitepress/dist/firmware/ || true
-          gh release download --pattern '*.factory.bin' --dir docs/.vitepress/dist/firmware/ || true
-          gh release download --pattern '*.ota.bin' --dir docs/.vitepress/dist/firmware/ || true
+          gh release download --pattern 'manifest.json' --dir docs/.vitepress/dist/firmware/ || echo "::warning::No manifest.json found in latest release"
+          gh release download --pattern '*.factory.bin' --dir docs/.vitepress/dist/firmware/ || echo "::warning::No factory binary found in latest release"
+          gh release download --pattern '*.ota.bin' --dir docs/.vitepress/dist/firmware/ || echo "::warning::No OTA binary found in latest release"
 
       - name: Download firmware from latest pre-release
         env:

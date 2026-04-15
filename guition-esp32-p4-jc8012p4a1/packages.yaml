@@ -7,10 +7,10 @@
 # =============================================================================
 
 substitutions:
-  device_slug: "guition-esp32-p4-jc8012p4a1"
   display_width: "1280"
   display_height: "800"
   portrait_half_width: "640"
+  captive_portal_ip: "192.168.4.1"
   firmware_manifest_url: "https://jtenniswood.github.io/espframe/firmware/manifest.json"
   firmware_beta_manifest_url: "https://jtenniswood.github.io/espframe/firmware/beta/manifest.json"
 

@@ -1,8 +1,8 @@
 # =============================================================================
 # FONTS - Roboto variants for clock, UI, and slideshow
 # =============================================================================
-# Google Fonts (Roboto / Roboto Light) at multiple sizes. Large sizes (150, 88)
-# use minimal glyph sets for clock digits; smaller sizes (46, 32, 30) include
+# Google Fonts (Roboto / Roboto Light) at multiple sizes. The 150px clock font
+# uses a minimal glyph set for digits; smaller sizes (46, 32, 30) include
 # full Latin + extended glyphs for setup screens and any on-screen text.
 # =============================================================================
 
@@ -13,12 +13,6 @@ font:
   - file: "gfonts://Roboto@Light"
     id: roboto_light150_font
     size: 150
-    bpp: 4
-    glyphs: " 0123456789:"
-
-  - file: "gfonts://Roboto@Light"
-    id: roboto_light88_font
-    size: 88
     bpp: 4
     glyphs: " 0123456789:"
 

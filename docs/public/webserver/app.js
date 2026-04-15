@@ -100,11 +100,296 @@
     display_mode_options: ["Fill", "Fit"],
   };
 
-  var app = document.getElementById("app");
-  if (!app) {
-    app = document.createElement("div");
-    app.id = "app";
-    document.body.appendChild(app);
+  var CSS =
+    "*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}" +
+    ":root{" +
+    "--bg:#1b1b1f;--surface:#202127;--surface2:#2e2e32;--border:#3c3f44;" +
+    "--border-hover:rgba(255,255,255,.16);--text:#dfdfd6;--text2:#98989f;--text3:#6a6a71;" +
+    "--accent:#5c73e7;--accent-hover:#a8b1ff;" +
+    "--accent-soft:rgba(100,108,255,.16);--success:#30a46c;--success-soft:rgba(48,164,108,.14);" +
+    "--danger:#f14158;--radius:12px;--action-r:9999px;--gap:16px;" +
+    "--shadow-1:0 1px 2px rgba(0,0,0,.2),0 1px 2px rgba(0,0,0,.24);" +
+    "--shadow-2:0 3px 12px rgba(0,0,0,.28),0 1px 4px rgba(0,0,0,.2);" +
+    "--shadow-3:0 12px 32px rgba(0,0,0,.35),0 2px 6px rgba(0,0,0,.24)}" +
+    "esp-app{display:none !important}" +
+    "html{font-size:16px}" +
+    "body{font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;" +
+    "background:var(--bg);color:var(--text);line-height:1.7;" +
+    "min-height:100vh;margin:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}" +
+    "#sp-app{max-width:960px;margin:0 auto}" +
+    ".sp-header{display:flex;align-items:center;background:var(--bg);" +
+    "border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;height:56px;padding:0 20px}" +
+    ".sp-brand{font-size:1rem;font-weight:600;color:var(--text);margin-right:auto;" +
+    "white-space:nowrap;letter-spacing:-.01em}" +
+    ".sp-nav{display:flex;align-items:center;height:100%}" +
+    ".sp-tab{padding:0 16px;height:100%;display:flex;align-items:center;color:var(--text2);cursor:pointer;" +
+    "font-size:.875rem;font-weight:500;border-bottom:2px solid transparent;transition:color .2s}" +
+    ".sp-tab:hover{color:var(--text)}" +
+    ".sp-tab.active{color:var(--accent);border-bottom-color:var(--accent)}" +
+    ".sp-page{display:none}.sp-page.active{display:block}" +
+    ".sp-settings-wrap{padding:var(--gap)}" +
+    ".brand{font-size:1.6rem;font-weight:700;letter-spacing:-.02em;" +
+    "background:linear-gradient(135deg,var(--accent) 0%,#a78bfa 100%);" +
+    "-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}" +
+    "h1{font-size:1.6rem;font-weight:700;margin-bottom:4px;letter-spacing:-.02em}" +
+    "h2{font-size:1rem;font-weight:500;margin-bottom:20px;color:var(--text2);letter-spacing:.01em}" +
+    ".subtitle{font-size:.9rem;color:var(--text2);margin-bottom:24px;line-height:1.6}" +
+    ".card{background:var(--surface);border:1px solid var(--border);" +
+    "border-radius:var(--radius);padding:24px;margin-bottom:var(--gap);transition:border-color .25s}" +
+    ".card:hover{border-color:#4a4d54}" +
+    ".card h3{font-size:.875rem;font-weight:600;margin-bottom:14px;color:var(--text);" +
+    "letter-spacing:-.01em}" +
+    ".card-header{display:flex;justify-content:space-between;align-items:center;" +
+    "cursor:pointer;user-select:none;margin:-24px -24px 0 -24px;padding:24px 24px 0 24px}" +
+    ".card-header h3{margin:0}" +
+    ".card-body{padding-top:20px}" +
+    ".card-chevron{display:inline-flex;align-items:center;justify-content:center;" +
+    "width:24px;height:24px;color:var(--text3);transition:transform .25s ease;flex-shrink:0}" +
+    ".card-chevron svg{width:100%;height:100%}" +
+    ".card.collapsed .card-chevron{transform:rotate(-90deg)}" +
+    ".card.collapsed .card-body{display:none}" +
+    ".card-header-right{display:flex;align-items:center;gap:8px}" +
+    ".on-badge{display:none;align-items:center;gap:4px;" +
+    "font-size:.6rem;font-weight:600;color:var(--success);" +
+    "padding:2px 8px 2px 6px;background:var(--success-soft);" +
+    "border-radius:999px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}" +
+    ".card.collapsed .on-badge.active{display:inline-flex}" +
+    ".on-badge::before{content:'';display:block;width:6px;height:6px;" +
+    "border-radius:50%;background:var(--success);flex-shrink:0}" +
+    ".field{margin-bottom:22px}.field:last-child{margin-bottom:0}" +
+    "label{display:block;font-size:.85rem;color:var(--text2);margin-bottom:6px;font-weight:500}" +
+    "input[type='text'],input[type='password'],input[type='url']{" +
+    "width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);" +
+    "border-radius:8px;color:var(--text);font-size:.9rem;outline:none;" +
+    "transition:border-color .25s,box-shadow .25s;font-family:inherit}" +
+    "input[type='text']:focus,input[type='password']:focus,input[type='url']:focus{" +
+    "border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}" +
+    "input::placeholder{color:var(--text2);opacity:.7}" +
+    ".select,select{width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);" +
+    "border-radius:8px;color:var(--text);font-size:.9rem;outline:none;" +
+    "transition:border-color .25s,box-shadow .25s;-webkit-appearance:none;appearance:none;" +
+    "font-family:inherit;" +
+    "background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E\");" +
+    "background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}" +
+    ".select:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}" +
+    "select option{background:var(--surface);color:var(--text)}" +
+    ".input-group{display:flex;gap:8px}.input-group input{flex:1}" +
+    ".btn{padding:10px 20px;border:none;border-radius:20px;font-size:.875rem;" +
+    "font-weight:600;cursor:pointer;transition:background .25s,opacity .25s,box-shadow .25s;" +
+    "font-family:inherit;letter-spacing:.01em}" +
+    ".btn:active{opacity:.85}" +
+    ".btn-primary{background:var(--accent);color:#fff}" +
+    ".btn-primary:hover{background:var(--accent-hover);box-shadow:0 2px 12px var(--accent-soft)}" +
+    ".btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}" +
+    ".btn-secondary:hover{border-color:var(--border-hover);background:rgba(255,255,255,.06)}" +
+    ".btn-sm{padding:7px 14px;font-size:.8rem}" +
+    ".btn-block{width:100%;display:block}" +
+    ".btn:disabled{opacity:.35;cursor:not-allowed}" +
+    ".field-error{font-size:.75rem;color:var(--danger);margin-top:4px}" +
+    ".field-error:empty{display:none}" +
+    ".toggle-row{display:flex;justify-content:space-between;align-items:center;min-height:36px}" +
+    ".toggle-row span{font-size:.9rem}" +
+    ".toggle{position:relative;width:44px;height:24px;" +
+    "background:var(--surface2);border-radius:12px;cursor:pointer;" +
+    "transition:background .25s;border:1px solid var(--border)}" +
+    ".toggle.on{background:var(--accent);border-color:var(--accent)}" +
+    ".toggle::after{content:'';position:absolute;top:2px;left:2px;" +
+    "width:18px;height:18px;border-radius:50%;background:#fff;" +
+    "transition:transform .25s ease;box-shadow:0 1px 3px rgba(0,0,0,.3)}" +
+    ".toggle.on::after{transform:translateX(20px)}" +
+    ".segment{display:flex;border-radius:8px;overflow:hidden;border:1px solid var(--border)}" +
+    ".segment button{flex:1;padding:8px 0;background:var(--surface2);color:var(--text2);" +
+    "border:none;font-size:.85rem;cursor:pointer;transition:background .25s,color .25s;font-family:inherit}" +
+    ".segment button.active{background:var(--accent);color:#fff}" +
+    ".range-wrap{display:flex;align-items:center;gap:12px}" +
+    ".range-wrap input[type='range']{flex:1;-webkit-appearance:none;height:4px;" +
+    "background:var(--surface2);border-radius:2px;outline:none}" +
+    ".range-wrap input[type='range']::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;" +
+    "border-radius:50%;background:var(--accent);cursor:pointer;" +
+    "box-shadow:0 0 0 3px var(--accent-soft);transition:box-shadow .2s}" +
+    ".range-wrap input[type='range']::-webkit-slider-thumb:hover{box-shadow:0 0 0 5px var(--accent-soft)}" +
+    ".range-wrap input[type='range']::-moz-range-thumb{width:18px;height:18px;border-radius:50%;" +
+    "background:var(--accent);cursor:pointer;border:none}" +
+    ".range-val{min-width:42px;text-align:right;font-size:.85rem;color:var(--text2);font-variant-numeric:tabular-nums}" +
+    ".range-label{font-size:.85rem;color:var(--text2);white-space:nowrap}" +
+    ".status{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text2);margin-top:4px}" +
+    ".dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}" +
+    ".dot.green{background:var(--success)}.dot.red{background:var(--danger)}.dot.orange{background:#ff9800}" +
+    ".wizard-steps{display:flex;gap:8px;margin-bottom:24px}" +
+    ".wizard-steps .step{flex:1;height:3px;border-radius:2px;background:var(--surface2);transition:background .3s}" +
+    ".wizard-steps .step.active{background:var(--accent)}" +
+    ".wizard-steps .step.done{background:var(--success)}" +
+    ".wizard-nav{display:flex;gap:8px;margin-top:20px}.wizard-nav .btn{flex:1}" +
+    ".fade-in{animation:fadeIn .35s ease}" +
+    "@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}" +
+    ".sun-info{font-size:.8rem;color:var(--text2);padding:10px 14px;background:var(--surface2);" +
+    "border-radius:8px;text-align:center;border:1px solid var(--border)}" +
+    ".version{text-align:center;font-size:.75rem;color:var(--text2);margin-top:8px;opacity:.5}" +
+    ".fw-body{display:flex;flex-direction:column;gap:12px}" +
+    ".fw-body .field{margin-bottom:0}" +
+    ".fw-updates{display:flex;flex-direction:column;gap:12px}" +
+    ".fw-row{display:flex;align-items:center;justify-content:space-between;min-height:36px}" +
+    ".fw-label{font-size:.9rem}.fw-status{font-size:.8rem;color:var(--text2)}" +
+    ".field-hint{font-size:.75rem;color:var(--text2);margin-top:6px;margin-bottom:8px}" +
+    ".key-mask{flex:1;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);" +
+    "border-radius:8px;color:var(--text2);font-size:.9rem;letter-spacing:2px}" +
+    ".check-wrap{display:flex;align-items:center;gap:8px;flex-shrink:0}" +
+    ".sp-log-toolbar{display:flex;justify-content:flex-end;padding:12px var(--gap) 0}" +
+    ".sp-log-clear{background:var(--surface2);color:var(--text);border:1px solid var(--border);" +
+    "border-radius:8px;padding:8px 14px;font-size:.8rem;font-weight:500;cursor:pointer;" +
+    "font-family:inherit;transition:all .25s}" +
+    ".sp-log-clear:hover{background:var(--border);border-color:#4a4d54}" +
+    ".sp-log-output{margin:8px var(--gap) var(--gap);padding:16px;background:var(--surface);" +
+    "border:1px solid var(--border);border-radius:var(--radius);" +
+    "font-family:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;" +
+    "font-size:.75rem;line-height:1.7;color:var(--text2);overflow-x:auto;overflow-y:auto;" +
+    "max-height:70vh;white-space:pre;word-break:break-all}" +
+    ".sp-log-line{padding:1px 0;border-left:3px solid transparent;padding-left:8px}" +
+    ".sp-log-error{color:#f66f81;border-left-color:#f14158;background:rgba(244,63,94,.08)}" +
+    ".sp-log-warn{color:#f9b44e;border-left-color:#da8b17;background:rgba(234,179,8,.06)}" +
+    ".sp-log-info{color:#3dd68c}" +
+    ".sp-log-config{color:#c8abfa}" +
+    ".sp-log-debug{color:#5c73e7}" +
+    ".sp-log-verbose{color:var(--text2)}" +
+    ".banner{position:fixed;top:16px;left:50%;transform:translateX(-50%);" +
+    "z-index:9999;padding:10px 24px;border-radius:var(--radius);" +
+    "font-size:.85rem;font-weight:600;color:#fff;" +
+    "box-shadow:var(--shadow-2);animation:bannerIn .25s ease;" +
+    "max-width:calc(100% - 32px);text-align:center}" +
+    ".banner-success{background:var(--success)}.banner-error{background:var(--danger)}" +
+    "@keyframes bannerIn{from{opacity:0;transform:translateX(-50%) translateY(-12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}" +
+    ".backup-row{display:flex;gap:8px}.backup-row .btn{flex:1}" +
+    ".mb-8{margin-bottom:8px}.mb-12{margin-bottom:12px}.mb-20{margin-bottom:20px}" +
+    ".mb-24{margin-bottom:24px}.mt-12{margin-top:12px}";
+
+  var style = document.createElement("style");
+  style.textContent = CSS;
+  document.head.appendChild(style);
+
+  var fonts = document.createElement("link");
+  fonts.rel = "stylesheet";
+  fonts.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap";
+  document.head.appendChild(fonts);
+
+  var els = {};
+  var app;
+
+  function buildUI() {
+    var root = document.createElement("div");
+    root.id = "sp-app";
+
+    var banner = document.createElement("div");
+    banner.className = "banner";
+    banner.style.display = "none";
+    root.appendChild(banner);
+    els.banner = banner;
+
+    buildHeader(root);
+    buildImmichPage(root);
+    buildSettingsPage(root);
+    buildLogsPage(root);
+
+    var espApp = document.querySelector("esp-app");
+    if (espApp) {
+      espApp.parentNode.insertBefore(root, espApp);
+    } else {
+      document.body.insertBefore(root, document.body.firstChild);
+    }
+    els.root = root;
+    switchTab("immich");
+  }
+
+  function buildHeader(parent) {
+    var header = document.createElement("div");
+    header.className = "sp-header";
+
+    var brand = document.createElement("div");
+    brand.className = "sp-brand";
+    brand.textContent = "EspFrame";
+    header.appendChild(brand);
+
+    var nav = document.createElement("nav");
+    nav.className = "sp-nav";
+
+    var tabs = [
+      { id: "immich", label: "Immich" },
+      { id: "settings", label: "Device" },
+      { id: "logs", label: "Logs" }
+    ];
+
+    tabs.forEach(function (t) {
+      var tab = document.createElement("div");
+      tab.className = "sp-tab";
+      tab.textContent = t.label;
+      tab.addEventListener("click", function () { switchTab(t.id); });
+      nav.appendChild(tab);
+      els["tab_" + t.id] = tab;
+    });
+
+    header.appendChild(nav);
+    parent.appendChild(header);
+  }
+
+  var immichApp;
+
+  function buildImmichPage(parent) {
+    var page = document.createElement("div");
+    page.id = "sp-immich";
+    page.className = "sp-page";
+
+    var wrap = document.createElement("div");
+    wrap.className = "sp-settings-wrap";
+    page.appendChild(wrap);
+
+    parent.appendChild(page);
+    els.immichPage = page;
+    immichApp = wrap;
+  }
+
+  function buildSettingsPage(parent) {
+    var page = document.createElement("div");
+    page.id = "sp-settings";
+    page.className = "sp-page";
+
+    var wrap = document.createElement("div");
+    wrap.className = "sp-settings-wrap";
+    page.appendChild(wrap);
+
+    parent.appendChild(page);
+    els.settingsPage = page;
+    app = wrap;
+  }
+
+  function buildLogsPage(parent) {
+    var page = document.createElement("div");
+    page.id = "sp-logs";
+    page.className = "sp-page";
+
+    var toolbar = document.createElement("div");
+    toolbar.className = "sp-log-toolbar";
+    var clearBtn = document.createElement("button");
+    clearBtn.className = "sp-log-clear";
+    clearBtn.textContent = "Clear";
+    clearBtn.addEventListener("click", function () { els.logOutput.innerHTML = ""; });
+    toolbar.appendChild(clearBtn);
+    page.appendChild(toolbar);
+
+    var output = document.createElement("div");
+    output.className = "sp-log-output";
+    page.appendChild(output);
+    els.logOutput = output;
+
+    parent.appendChild(page);
+    els.logsPage = page;
+  }
+
+  function switchTab(tab) {
+    ["immich", "settings", "logs"].forEach(function (t) {
+      els["tab_" + t].className = "sp-tab" + (tab === t ? " active" : "");
+    });
+    els.immichPage.className = "sp-page" + (tab === "immich" ? " active" : "");
+    els.settingsPage.className = "sp-page" + (tab === "settings" ? " active" : "");
+    els.logsPage.className = "sp-page" + (tab === "logs" ? " active" : "");
   }
 
   function eid(domain, name) {
@@ -178,16 +463,47 @@
   var evtSource = null;
   var rendered = false;
   var renderTimer = null;
-  var logLines = [];
-  var logPreRef = null;
-  var logMaxLines = 200;
   var logListenerAttached = false;
 
-  function logLevelClass(line) {
-    if (/\[E\]/.test(line)) return "log-error";
-    if (/\[W\]/.test(line)) return "log-warning";
-    if (/\[I\]/.test(line)) return "log-info";
-    return "";
+  var ANSI_LEVEL = {
+    "1;31": "sp-log-error",
+    "0;31": "sp-log-error",
+    "0;33": "sp-log-warn",
+    "0;32": "sp-log-info",
+    "0;35": "sp-log-config",
+    "0;36": "sp-log-debug",
+    "0;37": "sp-log-verbose"
+  };
+  var ANSI_RE = /\033\[[\d;]*m/g;
+
+  function appendLog(msg, lvl) {
+    if (!els.logOutput) return;
+    var line = document.createElement("div");
+    line.className = "sp-log-line";
+
+    var ansiClass = "";
+    var m = msg.match(/\033\[([\d;]+)m/);
+    if (m) ansiClass = ANSI_LEVEL[m[1]] || "";
+
+    if (ansiClass) {
+      line.classList.add(ansiClass);
+    } else if (lvl === 1) line.classList.add("sp-log-error");
+    else if (lvl === 2) line.classList.add("sp-log-warn");
+    else if (lvl === 3) line.classList.add("sp-log-info");
+    else if (lvl === 4) line.classList.add("sp-log-config");
+    else if (lvl === 5) line.classList.add("sp-log-debug");
+    else if (lvl >= 6) line.classList.add("sp-log-verbose");
+
+    line.textContent = msg.replace(ANSI_RE, "");
+
+    var atBottom = els.logOutput.scrollHeight - els.logOutput.scrollTop - els.logOutput.clientHeight < 40;
+    els.logOutput.appendChild(line);
+    var overflow = els.logOutput.childNodes.length - 1000;
+    if (overflow > 0) {
+      for (var i = 0; i < overflow; i++)
+        els.logOutput.removeChild(els.logOutput.firstChild);
+    }
+    if (atBottom) els.logOutput.scrollTop = els.logOutput.scrollHeight;
   }
 
   // Entity id -> state key mapping; optional optionsKey and default.
@@ -344,19 +660,9 @@
       if (!logListenerAttached) {
         logListenerAttached = true;
         evtSource.addEventListener("log", function (e) {
-          var line = e.data;
-          logLines.push(line);
-          if (logLines.length > logMaxLines) logLines.shift();
-          if (logPreRef) {
-            var parts = [];
-            for (var i = 0; i < logLines.length; i++) {
-              var ln = logLines[i];
-              var cls = logLevelClass(ln);
-              parts.push(cls ? '<span class="' + cls + '">' + esc(ln) + '</span>' : '<span>' + esc(ln) + '</span>');
-            }
-            logPreRef.innerHTML = parts.join("\n");
-            logPreRef.scrollTop = logPreRef.scrollHeight;
-          }
+          var d;
+          try { d = JSON.parse(e.data); } catch (_) { d = { msg: e.data }; }
+          appendLog(d.msg || e.data, d.lvl);
         });
       }
 
@@ -384,7 +690,7 @@
     app.innerHTML = "";
     var wrap = el("div", "fade-in");
     wrap.innerHTML =
-      '<h1>Espframe</h1><p class="subtitle">Let\'s connect your photo frame</p>';
+      '<p class="subtitle">Let\'s connect your photo frame</p>';
     var steps = el("div", "wizard-steps");
     var s1 = el("div", "step active");
     var s2 = el("div", "step");
@@ -509,8 +815,9 @@
 
   function renderSettings() {
     app.innerHTML = "";
+    immichApp.innerHTML = "";
+    var immichWrap = el("div", "fade-in");
     var wrap = el("div", "fade-in");
-    wrap.innerHTML = '<h1>Espframe</h1><h2>Settings</h2>';
 
     // Connection
     var connBody = el("div");
@@ -587,7 +894,7 @@
     connBody.appendChild(f2);
 
     connBody.appendChild(connStatus);
-    wrap.appendChild(makeCollapsibleCard("Connection", connBody, true));
+    immichWrap.appendChild(makeCollapsibleCard("Connection", connBody, true));
 
     // Photo Source
     var srcBody = el("div");
@@ -654,7 +961,7 @@
     srcBody.appendChild(personField);
     srcBody.appendChild(applyBtn);
 
-    wrap.appendChild(makeCollapsibleCard("Photo Source", srcBody, false));
+    immichWrap.appendChild(makeCollapsibleCard("Photo Source", srcBody, true));
 
     // Photo Settings
     var photoBody = el("div");
@@ -681,7 +988,7 @@
     );
     photoBody.appendChild(fDisplayMode);
 
-    wrap.appendChild(makeCollapsibleCard("Photo Settings", photoBody, true));
+    immichWrap.appendChild(makeCollapsibleCard("Photo Settings", photoBody, true));
 
     // Frequency
     var dispBody = el("div");
@@ -701,7 +1008,9 @@
       })
     );
     dispBody.appendChild(f4);
-    wrap.appendChild(makeCollapsibleCard("Frequency", dispBody, true));
+    immichWrap.appendChild(makeCollapsibleCard("Frequency", dispBody, true));
+
+    immichApp.appendChild(immichWrap);
 
     // Screen Brightness
     var dnDetails = el("div");
@@ -1097,25 +1406,6 @@
     backupBody.appendChild(backupRow);
     wrap.appendChild(makeCollapsibleCard("Backup", backupBody, true));
 
-    // Logs
-    var logsBody = el("div");
-    var logPre = document.createElement("pre");
-    logPre.className = "log-output";
-    logPreRef = logPre;
-    var parts = [];
-    for (var i = 0; i < logLines.length; i++) {
-      var ln = logLines[i];
-      var cls = logLevelClass(ln);
-      parts.push(cls ? '<span class="' + cls + '">' + esc(ln) + '</span>' : '<span>' + esc(ln) + '</span>');
-    }
-    logPre.innerHTML = parts.join("\n");
-    logPre.scrollTop = logPre.scrollHeight;
-
-    logsBody.appendChild(logPre);
-    var logsCard = makeCollapsibleCard("Device Logs", logsBody, true);
-    logsCard.classList.add("card-logs");
-    wrap.appendChild(logsCard);
-
     app.appendChild(wrap);
 
     if (S.firmware) {
@@ -1259,14 +1549,12 @@
 
   var bannerTimer = null;
   function showBanner(msg, type) {
-    var existing = document.getElementById("banner");
-    if (existing) existing.remove();
+    if (!els.banner) return;
+    els.banner.textContent = msg;
+    els.banner.className = "banner banner-" + (type || "success");
+    els.banner.style.display = "";
     clearTimeout(bannerTimer);
-    var b = el("div", "banner banner-" + (type || "success"));
-    b.id = "banner";
-    b.textContent = msg;
-    document.body.appendChild(b);
-    bannerTimer = setTimeout(function () { b.remove(); }, 5000);
+    bannerTimer = setTimeout(function () { els.banner.style.display = "none"; }, 5000);
   }
 
   // --- Import / Export ---
@@ -1469,7 +1757,6 @@
 
   // --- Init ---
 
-  app.innerHTML =
-    '<div style="text-align:center;padding:60px 0;color:#999">Loading\u2026</div>';
+  buildUI();
   initSSE();
 })();

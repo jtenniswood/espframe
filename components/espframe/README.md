@@ -25,8 +25,6 @@ Defined in the headers:
 | `MAX_ERROR_RETRIES` | `espframe_helpers.h` | `3` — suggested max retries for Immich API or download failures. |
 | `ACCENT_GRID_SIZE` | `espframe_helpers.h` | `20` — grid size used for sampling accent colour from images. |
 | `ZOOM_IDENTITY` | `immich_helpers.h` | `256` — no zoom (1:1). |
-| `PANORAMA_MIN_ASPECT` | `immich_helpers.h` | `1.6f` — minimum aspect ratio treated as panorama. |
-| `PANORAMA_MAX_ASPECT` | `immich_helpers.h` | `2.0f` — maximum aspect ratio for panorama zoom calculation. |
 | `MONTH_NAMES` | `date_utils.h` | `""`, `"Jan"` … `"Dec"` — short month names (index 0 unused). |
 | `TZ_DATA` | `sun_calc.h` | Array of `TzInfo` (tz id, lat, lon, POSIX TZ string) for many IANA timezones. |
 | `TZ_DATA_COUNT` | `sun_calc.h` | Number of entries in `TZ_DATA`. |
