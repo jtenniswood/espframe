@@ -378,7 +378,7 @@
     app.innerHTML = "";
     var wrap = el("div", "fade-in");
     wrap.innerHTML =
-      '<h1>Espframe</h1><p class="subtitle">Let\'s connect your photo frame</p>';
+      '<h1 class="brand">EspFrame</h1><p class="subtitle">Let\'s connect your photo frame</p>';
     var steps = el("div", "wizard-steps");
     var s1 = el("div", "step active");
     var s2 = el("div", "step");
@@ -504,7 +504,7 @@
   function renderSettings() {
     app.innerHTML = "";
     var wrap = el("div", "fade-in");
-    wrap.innerHTML = '<h1>Espframe</h1><h2>Settings</h2>';
+    wrap.innerHTML = '<h1 class="brand">EspFrame</h1><h2>Settings</h2>';
 
     // Connection
     var connBody = el("div");
@@ -1456,6 +1456,6 @@
   // --- Init ---
 
   app.innerHTML =
-    '<div style="text-align:center;padding:60px 0;color:#999">Loading\u2026</div>';
+    '<div style="text-align:center;padding:60px 0;color:rgba(255,255,255,.55)"><div class="brand" style="margin-bottom:12px">EspFrame</div>Loading\u2026</div>';
   initSSE();
 })();
