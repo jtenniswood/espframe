@@ -313,7 +313,7 @@
 
     var tabs = [
       { id: "immich", label: "Immich" },
-      { id: "settings", label: "Settings" },
+      { id: "settings", label: "Device" },
       { id: "logs", label: "Logs" }
     ];
 
@@ -809,6 +809,8 @@
 
   function renderSettings() {
     app.innerHTML = "";
+    immichApp.innerHTML = "";
+    var immichWrap = el("div", "fade-in");
     var wrap = el("div", "fade-in");
 
     // Connection
@@ -886,7 +888,7 @@
     connBody.appendChild(f2);
 
     connBody.appendChild(connStatus);
-    wrap.appendChild(makeCollapsibleCard("Connection", connBody, true));
+    immichWrap.appendChild(makeCollapsibleCard("Connection", connBody, true));
 
     // Photo Source
     var srcBody = el("div");
@@ -953,7 +955,7 @@
     srcBody.appendChild(personField);
     srcBody.appendChild(applyBtn);
 
-    wrap.appendChild(makeCollapsibleCard("Photo Source", srcBody, true));
+    immichWrap.appendChild(makeCollapsibleCard("Photo Source", srcBody, true));
 
     // Photo Settings
     var photoBody = el("div");
@@ -980,7 +982,7 @@
     );
     photoBody.appendChild(fDisplayMode);
 
-    wrap.appendChild(makeCollapsibleCard("Photo Settings", photoBody, true));
+    immichWrap.appendChild(makeCollapsibleCard("Photo Settings", photoBody, true));
 
     // Frequency
     var dispBody = el("div");
@@ -1000,7 +1002,9 @@
       })
     );
     dispBody.appendChild(f4);
-    wrap.appendChild(makeCollapsibleCard("Frequency", dispBody, true));
+    immichWrap.appendChild(makeCollapsibleCard("Frequency", dispBody, true));
+
+    immichApp.appendChild(immichWrap);
 
     // Screen Brightness
     var dnDetails = el("div");
