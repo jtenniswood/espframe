@@ -4,7 +4,7 @@
 # Provides OTA (over-the-air) and HTTP-based firmware updates. The device
 # checks a manifest on GitHub (stable and optional beta) and can auto-update
 # when new versions are available. Update checks run on an interval (hourly,
-# daily, or weekly) when auto-update is enabled; a manual "Check for Update"
+# daily, weekly, or monthly) when auto-update is enabled; a manual "Check for Update"
 # button triggers an immediate check. Version is exposed as a text sensor for
 # diagnostics.
 #
@@ -95,7 +95,7 @@ select:
     restore_value: true
 
 # -----------------------------------------------------------------------------
-# Periodic update check (hourly / daily / weekly when auto-update on)
+# Periodic update check (hourly / daily / weekly / monthly when auto-update on)
 # -----------------------------------------------------------------------------
 interval:
   - interval: 1h
