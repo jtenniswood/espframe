@@ -25,10 +25,6 @@ static const char *const CONTENT_TYPE_HEADER_NAME = "content-type";
 #include "webp_image.h"
 #endif
 
-#ifdef USE_ESP_IDF
-#include "soc/soc_caps.h"
-#endif
-
 namespace esphome {
 namespace remote_image {
 
