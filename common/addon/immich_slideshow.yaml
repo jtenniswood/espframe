@@ -962,7 +962,7 @@ script:
             id(slot0_noncritical_update) = false;
             if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
           }
-          bool fill = (id(photo_display_mode).current_option() == "Fill") && (!id(slot0).is_portrait || !id(portrait_pairing_enabled).state);
+          bool fill = (id(photo_display_mode).current_option() == "Fill") && !id(slot0).is_portrait;
           id(immich_img_0).set_fill_mode(fill); id(slot0_fetch_in_flight) = true; id(immich_img_0).update();
 
   - id: deferred_slot1_image_update
@@ -991,7 +991,7 @@ script:
             id(slot1_noncritical_update) = false;
             if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
           }
-          bool fill = (id(photo_display_mode).current_option() == "Fill") && (!id(slot1).is_portrait || !id(portrait_pairing_enabled).state);
+          bool fill = (id(photo_display_mode).current_option() == "Fill") && !id(slot1).is_portrait;
           id(immich_img_1).set_fill_mode(fill); id(slot1_fetch_in_flight) = true; id(immich_img_1).update();
 
   - id: deferred_slot2_image_update
@@ -1020,7 +1020,7 @@ script:
             id(slot2_noncritical_update) = false;
             if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
           }
-          bool fill = (id(photo_display_mode).current_option() == "Fill") && (!id(slot2).is_portrait || !id(portrait_pairing_enabled).state);
+          bool fill = (id(photo_display_mode).current_option() == "Fill") && !id(slot2).is_portrait;
           id(immich_img_2).set_fill_mode(fill); id(slot2_fetch_in_flight) = true; id(immich_img_2).update();
 
   - id: deferred_portrait_left_update

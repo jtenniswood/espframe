@@ -211,7 +211,8 @@
     "switch/Screen: Night Tone Adjustment": { key: "warm_tones_enabled", boolFromState: true },
     "number/Screen: Warm Tone Intensity": { key: "warm_tone_intensity", default: 50, number: true },
     "switch/Screen: Warm Tone Override": { key: "warm_tone_override", boolFromState: true },
-    "switch/Photos: Portrait Pairing": { key: "portrait_pairing", boolFromState: true }
+    "switch/Photos: Portrait Pairing": { key: "portrait_pairing", boolFromState: true },
+    "select/Photos: Display Mode": { key: "display_mode", optionsKey: "display_mode_options", default: "Fill" }
   };
 
   function applyEntityToState(d) {
@@ -265,7 +266,8 @@
     "schedule_enabled", "schedule_on_hour", "schedule_off_hour",
     "sunrise", "sunset",
     "base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override",
-    "portrait_pairing"
+    "portrait_pairing",
+    "display_mode"
   ];
   function getEntityIdForStateKey(key) {
     for (var id in ENTITY_STATE_MAP) {
@@ -658,6 +660,15 @@
     pairTr.appendChild(pairTog);
     fPairToggle.appendChild(pairTr);
     srcBody.appendChild(fPairToggle);
+
+    var fDisplayMode = field("Display Mode");
+    fDisplayMode.appendChild(
+      selectFromOptions(S.display_mode_options, S.display_mode, function (v) {
+        S.display_mode = v;
+        post(endpoints.display_mode + "/set", { option: v });
+      })
+    );
+    srcBody.appendChild(fDisplayMode);
 
     wrap.appendChild(makeCollapsibleCard("Photo Source", srcBody, false));
 
@@ -1261,7 +1272,8 @@
         source: S.photo_source,
         album_ids: S.album_ids,
         person_ids: S.person_ids,
-        portrait_pairing: S.portrait_pairing
+        portrait_pairing: S.portrait_pairing,
+        display_mode: S.display_mode
       },
       frequency: {
         interval: S.interval,
@@ -1354,6 +1366,10 @@
         if (p.portrait_pairing !== undefined) {
           S.portrait_pairing = p.portrait_pairing;
           post(endpoints.portrait_pairing + (p.portrait_pairing ? "/turn_on" : "/turn_off"));
+        }
+        if (p.display_mode !== undefined) {
+          S.display_mode = p.display_mode;
+          post(endpoints.display_mode + "/set", { option: p.display_mode });
         }
 
         if (f.interval !== undefined) {
