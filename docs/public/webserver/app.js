@@ -127,8 +127,7 @@
     ".sp-tab:hover{color:var(--text)}" +
     ".sp-tab.active{color:var(--accent);border-bottom-color:var(--accent)}" +
     ".sp-page{display:none}.sp-page.active{display:block}" +
-    ".sp-settings-wrap{display:flex;justify-content:center;padding:var(--gap)}" +
-    ".sp-settings-inner{width:100%;max-width:520px}" +
+    ".sp-settings-wrap{padding:var(--gap)}" +
     ".brand{font-size:1.6rem;font-weight:700;letter-spacing:-.02em;" +
     "background:linear-gradient(135deg,var(--accent) 0%,#a78bfa 100%);" +
     "-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}" +
@@ -336,15 +335,11 @@
 
     var wrap = document.createElement("div");
     wrap.className = "sp-settings-wrap";
-    var inner = document.createElement("div");
-    inner.className = "sp-settings-inner";
-    wrap.appendChild(inner);
     page.appendChild(wrap);
 
     parent.appendChild(page);
     els.settingsPage = page;
-    els.settingsInner = inner;
-    app = inner;
+    app = wrap;
   }
 
   function buildLogsPage(parent) {
