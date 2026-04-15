@@ -143,21 +143,7 @@ int HOT WebpDecoder::decode(uint8_t *buffer, size_t size) {
     if (use_rgb565 && scaling) {
       this->draw_rgb888_scaled(y, this->out_w_, row, big_endian);
     } else if (use_rgb565) {
-      uint8_t *dst = row;
-      for (int x = 0; x < this->out_w_; x++) {
-        uint8_t r = row[x * 3 + 0];
-        uint8_t g = row[x * 3 + 1];
-        uint8_t b = row[x * 3 + 2];
-        uint16_t rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
-        if (big_endian) {
-          dst[0] = rgb565 >> 8;
-          dst[1] = rgb565 & 0xFF;
-        } else {
-          dst[0] = rgb565 & 0xFF;
-          dst[1] = rgb565 >> 8;
-        }
-        dst += 2;
-      }
+      rgb888_row_to_rgb565(row, row, this->out_w_, big_endian);
       this->draw_rgb565_block(0, y, this->out_w_, 1, row);
     } else {
       for (int x = 0; x < this->out_w_; x++) {
