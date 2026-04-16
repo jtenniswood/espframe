@@ -1005,7 +1005,7 @@
     albumField.appendChild(albumHint);
     albumField.style.display = S.photo_source === "Album" ? "" : "none";
 
-    var personField = field("Person IDs");
+    var personField = field("People");
     var personIdList = el("div", "person-id-list");
     var personInputs = [];
     var personError = el("div", "field-error");
