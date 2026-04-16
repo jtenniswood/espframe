@@ -36,6 +36,8 @@ Firmware version, update status, sunrise/sunset, and current brightness are **no
 
 Partial config files work — only settings present in the file are applied; everything else stays unchanged.
 
+Album IDs and Person IDs each must be 255 characters or fewer after trimming, which matches the device storage limit. If an import file exceeds that for either field, the web UI shows an error and skips that field; other settings in the file are still sent.
+
 ## File Format
 
 The export is a standard JSON file with a `version` field and grouped settings:
