@@ -1,7 +1,0 @@
-interface:
-  display_name: "GitHub Release"
-  short_description: "Create and publish semver GitHub releases"
-  default_prompt: "Use $gh-r to create a patch release."
-
-policy:
-  allow_implicit_invocation: true
