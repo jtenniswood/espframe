@@ -962,6 +962,15 @@
     f2.appendChild(keyWrap);
     connBody.appendChild(f2);
 
+    var fConnTimeout = field("Connection Timeout");
+    fConnTimeout.appendChild(
+      selectFromOptions(S.conn_timeout_options, S.conn_timeout, function (v) {
+        S.conn_timeout = v;
+        post(endpoints.conn_timeout + "/set", { option: v });
+      })
+    );
+    connBody.appendChild(fConnTimeout);
+
     connBody.appendChild(connStatus);
     immichWrap.appendChild(makeCollapsibleCard("Connection", connBody, true));
 
@@ -975,14 +984,6 @@
       })
     );
     dispBody.appendChild(f3);
-    var f4 = field("Connection Timeout");
-    f4.appendChild(
-      selectFromOptions(S.conn_timeout_options, S.conn_timeout, function (v) {
-        S.conn_timeout = v;
-        post(endpoints.conn_timeout + "/set", { option: v });
-      })
-    );
-    dispBody.appendChild(f4);
     immichWrap.appendChild(makeCollapsibleCard("Frequency", dispBody, true));
 
     // Photo Source
