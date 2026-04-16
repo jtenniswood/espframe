@@ -11,6 +11,9 @@
 #include "esphome/components/image/image.h"
 #endif
 
+// Shared helpers used from ESPHome YAML lambdas. Keeping this logic in C++ keeps
+// the YAML readable and gives the slideshow, backlight, accent, and warm-tone
+// flows a single set of small, testable building blocks.
 static constexpr int MAX_ERROR_RETRIES = 3;
 static constexpr int ACCENT_GRID_SIZE = 20;
 static constexpr int WARM_TONE_LEAD_MINUTES = 60;
@@ -41,12 +44,15 @@ inline bool is_http_client_error(int status) {
 }
 
 struct PhotoMeta {
+  // Stable metadata shown with a photo, independent of which slideshow slot is
+  // currently carrying it.
   std::string asset_id, image_url, date, location, person;
   int year = 0, month = 0;
   uint16_t zoom = ZOOM_IDENTITY;
 };
 
 struct SlotMeta : PhotoMeta {
+  // Runtime state for one slot in the 3-image ring buffer.
   std::string datetime, companion_url, pending_asset_id;
   bool ready = false, is_portrait = false;
 };
@@ -56,11 +62,14 @@ struct DisplayMeta : PhotoMeta {
 };
 
 struct SlotFlags {
+  // Tracks network work that is currently in flight for each ring-buffer slot.
   bool fetch_in_flight[3] = {false, false, false};
   bool noncritical_update[3] = {false, false, false};
 };
 
 struct PortraitState {
+  // Coordinates the multi-step portrait pairing workflow so a pair is only
+  // displayed once both left and right images are ready.
   bool left_ready = false, right_ready = false;
   bool no_companion_active = false, right_requested = false;
   bool companion_found = false, is_pair = false;
@@ -160,6 +169,8 @@ inline void fill_accent_color(esphome::image::Image *img) {
   const uint8_t *data = dsc->data;
   if (!data) return;
 
+  // Detect black letterbox/pillarbox bars by scanning from the center lines
+  // until the real photo content begins.
   int x_off = 0;
   int mid_y = img_h / 2;
   for (int x = 0; x < img_w / 2; x++) {
@@ -185,6 +196,8 @@ inline void fill_accent_color(esphome::image::Image *img) {
   if (step_x < 1) step_x = 1;
   if (step_y < 1) step_y = 1;
 
+  // Sample the visible photo area and weight saturated colors more heavily so
+  // the fill color feels connected to the photo instead of averaging to gray.
   int64_t r_wsum = 0, g_wsum = 0, b_wsum = 0;
   int64_t w_total = 0;
 
@@ -215,6 +228,8 @@ inline void fill_accent_color(esphome::image::Image *img) {
   int g = (int)(g_wsum / w_total);
   int b = (int)(b_wsum / w_total);
 
+  // Use a dimmer version of the sampled color so the bars support the photo
+  // rather than competing with it.
   int dr = r / 2, dg = g / 2, db = b / 2;
   uint16_t accent_565 = ((dr >> 3) << 11) | ((dg >> 2) << 5) | (db >> 3);
   uint8_t lo = accent_565 & 0xFF;
@@ -254,6 +269,8 @@ inline void fill_accent_color(esphome::image::Image *img) {
 // ============================================================================
 
 inline float calc_sun_warmth(int now_min, int rise_min, int set_min, int lead_min) {
+  // Returns a 0..1 intensity: fully warm before sunrise/after sunset, then
+  // cross-faded around sunrise and sunset.
   if (now_min >= set_min) return 1.0f;
   if (now_min >= set_min - lead_min)
     return (float)(now_min - (set_min - lead_min)) / lead_min;
@@ -270,6 +287,9 @@ struct WarmToneLuts {
 };
 
 inline void build_warm_tone_luts(float last_w, float new_w, WarmToneLuts &luts) {
+  // Build lookup tables that first undo the previous tint, then apply the new
+  // tint. This prevents repeated warm-tone updates from permanently drifting
+  // the image colors.
   float r_undo = (last_w > 0.005f) ? 1.0f / (1.0f + last_w * 0.06f) : 1.0f;
   float g_undo = (last_w > 0.005f) ? 1.0f / (1.0f - last_w * 0.07f) : 1.0f;
   float b_undo = (last_w > 0.005f) ? 1.0f / (1.0f - last_w * 0.28f) : 1.0f;
@@ -301,6 +321,8 @@ inline void tint_image_buffer(esphome::image::Image *img, const WarmToneLuts &lu
   if (!dsc || !dsc->data) return;
   uint8_t *buf = const_cast<uint8_t*>(dsc->data);
   int total = img->get_width() * img->get_height();
+  // RGB565 stores only 5/6/5 bits per channel, so the LUTs operate directly on
+  // those channel indices instead of converting every pixel through RGB888.
   for (int i = 0; i < total; i++) {
     int pos = i * 2;
     uint16_t px = buf[pos] | (buf[pos + 1] << 8);
@@ -319,6 +341,8 @@ inline std::string parse_immich_asset_and_fill_slot(const std::string &body,
                                                     const std::string &base_url,
                                                     int slot,
                                                     SlotMeta &s0, SlotMeta &s1, SlotMeta &s2) {
+  // Parse once into an intermediate struct, then copy the fields into the slot
+  // selected by the YAML state machine.
   ImmichAssetMeta tmp;
   std::string img_url = parse_immich_asset(body, base_url, &tmp);
   if (img_url.empty()) return "";

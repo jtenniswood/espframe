@@ -1,6 +1,8 @@
 #pragma once
 #include <string>
 
+// Small formatting helpers shared by the display metadata code. They keep the
+// YAML lambdas focused on flow control instead of date/string manipulation.
 static constexpr const char *MONTH_NAMES[] = {
   "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"

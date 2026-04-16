@@ -6,6 +6,9 @@
 namespace esphome {
 namespace remote_image {
 
+// Shared drawing helpers used by all image formats. Format decoders discover
+// source dimensions and produce rows/blocks; this layer maps those pixels into
+// the final ESPHome image buffer, including fit/fill scaling and centering.
 static const char *const TAG = "remote_image.decoder";
 
 bool ImageDecoder::set_size(int width, int height) {
@@ -18,6 +21,9 @@ bool ImageDecoder::set_size(int width, int height) {
   int buf_w = this->image_->buffer_width_;
   int buf_h = this->image_->buffer_height_;
 
+  // The remote image may have fixed display dimensions. When it does, keep the
+  // buffer at the fixed size and calculate how incoming source pixels should be
+  // scaled and centered inside it.
   if (buf_w == width && buf_h == height) {
     this->x_scale_ = 1.0;
     this->y_scale_ = 1.0;
@@ -39,11 +45,15 @@ bool ImageDecoder::set_size(int width, int height) {
     this->y_offset_ = (buf_h - this->scaled_height_) / 2;
   }
 
+  // Clear the destination unless the fill-mode fast path is about to overwrite
+  // every RGB565 pixel. Avoiding that clear saves time on large photos.
   if (success && !(this->image_->fill_mode_ && this->image_->fixed_width_ > 0
                    && this->image_->image_type() == image::ImageType::IMAGE_TYPE_RGB565)) {
     memset(this->image_->buffer_, 0, this->image_->get_buffer_size_());
   }
 
+  // Horizontal lookup table lets row decoders scale by indexing into a prepared
+  // map instead of recalculating source columns for every output pixel.
   double inv = (this->x_scale_ > 0) ? 1.0 / this->x_scale_ : 1.0;
   this->src_x_lut_.resize(this->scaled_width_);
   for (int i = 0; i < this->scaled_width_; i++) {
@@ -72,6 +82,8 @@ void ImageDecoder::draw_rgb565_block(int x, int y, int w, int h, const uint8_t *
   bool no_transform = (this->x_scale_ == 1.0 && this->y_scale_ == 1.0 &&
                         this->x_offset_ == 0 && this->y_offset_ == 0);
 
+  // Most ESPFrame images end up as RGB565. When no scaling is needed, copy whole
+  // row spans directly instead of converting pixel by pixel.
   if (no_transform && bpp_bytes == 2) {
     for (int row = 0; row < h; row++) {
       int dy = y + row;
@@ -142,6 +154,8 @@ void ImageDecoder::fill_row_gap(int gap_start, int gap_end, int src_row_y) {
   if (gap_end <= gap_start) return;
   if (src_row_y < 0 || src_row_y >= buf_h) return;
 
+  // Nearest-neighbor upscaling can skip destination rows. Duplicate the nearest
+  // completed row to avoid thin black gaps between scaled scanlines.
   int row_bytes = buf_w * (this->image_->get_bpp() / 8);
   uint8_t *src_row = this->image_->buffer_ + src_row_y * row_bytes;
   for (int fy = gap_start; fy < gap_end; fy++) {
@@ -171,6 +185,8 @@ size_t DownloadBuffer::read(size_t len) {
     ESP_LOGE(TAG, "DownloadBuffer::read(%zu) exceeds unread %zu, clamping", len, this->unread_);
     len = this->unread_;
   }
+  // Decoders may consume only part of the buffered network data. Compact the
+  // unread tail so the next HTTP read can append directly after it.
   this->unread_ -= len;
   if (this->unread_ > 0) {
     memmove(this->data(), this->data(len), this->unread_);
@@ -202,6 +218,8 @@ size_t DownloadBuffer::resize(size_t size) {
 
 void DownloadBuffer::shrink(size_t max_size) {
   if (this->size_ <= max_size) return;
+  // Some decoders temporarily grow the download buffer to hold a whole file.
+  // Shrink after the transfer so future images do not pin that larger block.
   auto *new_buffer = this->allocator_.allocate(max_size);
   if (!new_buffer) {
     ESP_LOGW(TAG, "shrink allocation failed, keeping existing %zu-byte buffer", this->size_);

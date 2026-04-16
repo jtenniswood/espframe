@@ -1,3 +1,9 @@
+"""ESPHome code-generation wrapper for the GSL3680 touchscreen.
+
+This validates the YAML pins and connects them to the C++ driver that performs
+the actual I2C setup, firmware load, and touch reporting.
+"""
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c, touchscreen
@@ -30,6 +36,8 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
+    # Build the C++ object and attach both ESPHome base classes: touchscreen for
+    # event reporting and I2CDevice for register access.
     var = cg.new_Pvariable(config[CONF_ID])
     await touchscreen.register_touchscreen(var, config)
     await i2c.register_i2c_device(var, config)

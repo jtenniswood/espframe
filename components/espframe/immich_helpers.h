@@ -9,6 +9,9 @@
 static constexpr uint16_t ZOOM_IDENTITY = 256;
 
 struct ImmichAssetMeta {
+  // Normalized subset of the Immich asset response used by the slideshow UI.
+  // Keeping a compact struct avoids spreading JSON field names through YAML
+  // lambdas.
   std::string asset_id, image_url, date, location, person;
   std::string datetime;  // localDateTime from asset, for slot display
   int year = 0, month = 0;
@@ -24,6 +27,8 @@ struct ImmichAssetMeta {
 // additional JSON fields (e.g. takenAfter/takenBefore for companion search).
 
 inline std::vector<std::string> split_uuid_csv(const std::string &csv) {
+  // Home Assistant text fields store album/person IDs as comma-separated text;
+  // normalize that into individual UUID strings before building API requests.
   std::vector<std::string> out;
   size_t start = 0;
   while (start < csv.size()) {
@@ -70,6 +75,8 @@ inline std::string build_immich_search_body(int size, bool with_people,
                                              const std::string &album_ids,
                                              const std::string &person_ids,
                                              const std::string &extra = "") {
+  // Construct the small JSON request body by hand to keep this header usable
+  // from ESPHome lambdas without bringing in another JSON writer.
   std::string body = "{\"size\":" + std::to_string(size) +
                       ",\"type\":\"IMAGE\",\"withExif\":true";
   if (with_people) body += ",\"withPeople\":true";
@@ -134,6 +141,9 @@ inline std::string parse_immich_asset(const std::string &body,
 
   JsonObject exif = asset["exifInfo"].as<JsonObject>();
   if (!exif.isNull()) {
+    // Prefer location and date from EXIF when available; Immich's localDateTime
+    // remains the first choice because it already reflects the library's time
+    // zone handling.
     std::string city, country;
     if (exif["city"].is<const char *>()) city = exif["city"].as<std::string>();
     if (exif["country"].is<const char *>()) country = exif["country"].as<std::string>();
@@ -155,6 +165,8 @@ inline std::string parse_immich_asset(const std::string &body,
     if (exif["exifImageHeight"].is<int>()) exif_h = exif["exifImageHeight"].as<int>();
     std::string orientation;
     if (exif["orientation"].is<const char *>()) orientation = exif["orientation"].as<std::string>();
+    // EXIF orientations 5-8 mean the stored dimensions are rotated relative to
+    // the displayed photo, so swap before deciding whether it is portrait.
     if (orientation == "5" || orientation == "6" || orientation == "7" || orientation == "8")
       std::swap(exif_w, exif_h);
     if (exif_w > 0 && exif_h > 0) {

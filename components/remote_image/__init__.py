@@ -1,3 +1,10 @@
+"""ESPHome code-generation wrapper for the remote_image component.
+
+The Python side validates YAML, enables only the requested image decoders, and
+copies bundled C/C++ decoder libraries into ESPHome's build directory when they
+are needed. The C++ files do the runtime download and drawing work.
+"""
+
 import logging
 import os
 import shutil
@@ -54,6 +61,8 @@ ImageFormat = remote_image_ns.enum("ImageFormat")
 
 
 class Format:
+    """Small strategy object for enabling the decoder needed by each format."""
+
     def __init__(self, image_type):
         self.image_type = image_type
 
@@ -136,6 +145,8 @@ class AutoFormat(Format):
         super().__init__("AUTO")
 
     def actions(self):
+        # AUTO detection can discover any supported format at runtime, so compile
+        # all decoders into the firmware.
         for fmt in (BMPFormat(), JPEGFormat(), PNGFormat(), WebPFormat()):
             fmt.actions()
 
@@ -260,6 +271,8 @@ async def remote_image_action_to_code(config, action_id, template_arg, args):
 
 
 async def to_code(config):
+    # Convert the YAML configuration into a C++ OnlineImage instance and wire up
+    # ESPHome automations for download success/failure.
     image_format = IMAGE_FORMATS[config[CONF_FORMAT]]
     image_format.actions()
 

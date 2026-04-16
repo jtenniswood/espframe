@@ -1,5 +1,8 @@
 #include "gsl3680.h"
 
+// Runtime driver for the GSL3680 capacitive touch controller used by the target
+// display. It resets the chip, loads the bundled firmware table over I2C, then
+// translates raw touch registers into ESPHome touchscreen events.
 namespace esphome {
 namespace gsl3680 {
 
@@ -8,6 +11,8 @@ namespace gsl3680 {
 void GSL3680::setup() {
 
     ESP_LOGD(TAG, "Setup start");
+    // The panel can be mounted with swapped axes. Use the display's native
+    // dimensions so raw touch coordinates match the active orientation.
     this->x_raw_max_ = this->swap_x_y_? this->get_display()->get_native_height(): this->get_display()->get_native_width() ;
     this->y_raw_max_ = this->swap_x_y_? this->get_display()->get_native_width() : this->get_display()->get_native_height();
 
@@ -36,6 +41,9 @@ void GSL3680::setup() {
 esphome::i2c::ErrorCode GSL3680::init() {
     auto err = esphome::i2c::ERROR_OK;
 
+    // Silead controllers need a strict boot sequence: verify the bus, clear old
+    // state, reset, load firmware, start, then confirm RAM contains the expected
+    // marker bytes.
     STOP_ON_I2C_ERROR(err, this->read_configuration());
     STOP_ON_I2C_ERROR(err, this->clear_registers());
     STOP_ON_I2C_ERROR(err, this->reset());
@@ -118,6 +126,9 @@ esphome::i2c::ErrorCode GSL3680::load_firmware() {
     uint16_t source_len = sizeof(GSLX680_FW) / sizeof(struct fw_data);
     auto err = esphome::i2c::ERROR_OK;
 
+    // Firmware is a table of register writes from gsl3680_firmware.h. Feed the
+    // watchdog during the long transfer so boot does not trip ESPHome's safety
+    // timer.
     for(int i = 0; i < source_len; i++) {
         addr = GSLX680_FW[i].offset;
         wrbuf[0] = (uint8_t)(GSLX680_FW[i].val & 0x000000ff);
@@ -177,6 +188,8 @@ void GSL3680::update_touches() {
     }
     ESP_LOGV(TAG, "update_touches: %x %x %x %x %x %x %x %x", touch_data[0], touch_data[1], touch_data[2], touch_data[3], touch_data[4], touch_data[5], touch_data[6], touch_data[7]);
 
+    // The first two touches are packed into the 0x80 register block. The
+    // gsl_point_id algorithm cleans up IDs/jitter before ESPHome sees them.
     uint8_t finger = touch_data[0];
     uint16_t x1 = ((touch_data[7] & 0x0f) << 8) | touch_data[6];
 	uint16_t y1 = (touch_data[5] << 8) | touch_data[4];
@@ -194,6 +207,8 @@ void GSL3680::update_touches() {
     gsl_alg_id_main(&cinfo);
     unsigned int mask = gsl_mask_tiaoping();
 
+    // The vendor algorithm may return a tuning mask; write it back to the chip
+    // to improve subsequent touch tracking.
     if ((mask > 0) && (mask < 0xffffffff)) {
         uint8_t buf[4] = {0xa, 0x0, 0x0, 0x0};
         auto mask_err = this->write_register(0xf0, (uint8_t *)&buf, 4);

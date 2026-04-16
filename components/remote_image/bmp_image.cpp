@@ -9,6 +9,9 @@
 namespace esphome {
 namespace remote_image {
 
+// BMP support is intentionally narrow: uncompressed 1-bit and 24-bit images.
+// It exists mainly for simple local/test assets; photos are expected to use
+// JPEG, PNG, or WebP.
 static const char *const TAG = "remote_image.bmp";
 
 int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
@@ -87,6 +90,8 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
   }
   switch (this->bits_per_pixel_) {
     case 1: {
+      // 1-bit BMP rows are stored bottom-up. Paint each bit as on/off pixels in
+      // the destination image while reversing the row order.
       while (index < size) {
         uint8_t current_byte = buffer[index];
         uint8_t bits_remaining = std::min(static_cast<uint8_t>(8),
@@ -105,6 +110,8 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
       break;
     }
     case 24: {
+      // 24-bit BMP stores pixels as BGR and pads each row to a 4-byte boundary.
+      // Convert to ESPHome Color and skip the padding at the end of each row.
       while (index < size) {
         if (index + 2 >= size) {
           this->decoded_bytes_ += index;

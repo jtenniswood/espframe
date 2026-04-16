@@ -12,6 +12,8 @@ struct TzInfo { const char* tz; float lat; float lon; const char* posix; };
 #include "tz_data_generated.h"
 
 inline bool lookup_tz_coords(const std::string &tz_id, float &lat, float &lon) {
+  // Timezone IDs double as a rough location hint for sunrise/sunset when the
+  // user has not supplied separate coordinates.
   for (int i = 0; i < TZ_DATA_COUNT; i++) {
     if (tz_id == TZ_DATA[i].tz) {
       lat = TZ_DATA[i].lat;
@@ -114,6 +116,8 @@ inline bool calc_sunrise_sunset(int year, int month, int day,
 }
 
 inline float parse_tz_offset(const std::string &tz_label) {
+  // The UI exposes timezone labels like "Europe/London (GMT+0)". This extracts
+  // the GMT part for the sunrise/sunset calculator.
   auto pos = tz_label.find("GMT");
   if (pos == std::string::npos) return 0.0f;
   std::string offset_str = tz_label.substr(pos + 3);

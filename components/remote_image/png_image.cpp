@@ -6,6 +6,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+// PNGLE supports streaming decode, so PNGs can be fed incrementally from the
+// HTTP buffer. The callbacks below bridge PNGLE's rectangle output into the
+// shared ImageDecoder drawing helpers.
 static const char *const TAG = "remote_image.png";
 
 namespace esphome {

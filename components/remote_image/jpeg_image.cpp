@@ -7,6 +7,10 @@
 #include "esphome/core/log.h"
 
 #include "remote_image.h"
+
+// JPEG decoding is handled as a two-stage process: first collect the full file
+// into the download buffer because libjpeg-turbo expects seekable memory, then
+// decompress scanlines in small chunks so ESPHome's main loop can keep running.
 static const char *const TAG = "remote_image.jpeg";
 
 namespace esphome {
@@ -86,6 +90,9 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
     this->cinfo_->out_color_space = JCS_RGB;
     this->cinfo_->dct_method = JDCT_IFAST;
 
+    // Use libjpeg's native IDCT downscaling before ESPFrame scaling. This avoids
+    // decoding more pixels than the screen can use, which is important on ESP32
+    // memory and watchdog budgets.
     int target_w = this->image_->get_fixed_width();
     int target_h = this->image_->get_fixed_height();
     if (target_w > 0 && target_h > 0) {
@@ -139,7 +146,8 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
     this->phase_ = DECOMPRESSING;
   }
 
-  // --- DECOMPRESSING phase: process a chunk of scanlines ---
+  // DECOMPRESSING phase: process only a small batch of scanlines each call.
+  // Returning 0 tells OnlineImage to call us again without discarding bytes.
   if (setjmp(this->jerr_->setjmp_buffer)) {
     ESP_LOGE(TAG, "JPEG decode error: %s", this->jerr_->message);
     this->cleanup_();

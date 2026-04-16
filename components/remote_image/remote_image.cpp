@@ -3,6 +3,11 @@
 #include <cstring>
 #include "esphome/core/log.h"
 
+// Owns the runtime side of the remote_image component: HTTP fetching, cache
+// validation, decoder selection, and exposing the decoded pixel buffer as an
+// ESPHome Image. The format-specific decoder files only turn bytes into pixels;
+// this file coordinates when those bytes are fetched and when the final image is
+// safe to display.
 static const char *const TAG = "remote_image";
 static const char *const ETAG_HEADER_NAME = "etag";
 static const char *const IF_NONE_MATCH_HEADER_NAME = "if-none-match";
@@ -144,6 +149,8 @@ void OnlineImage::update() {
 
   std::vector<http_request::Header> headers = {};
 
+  // Tell servers the preferred image type while still allowing a generic image
+  // response. This helps Immich and other services pick a sensible thumbnail.
   http_request::Header accept_header;
   accept_header.name = "Accept";
   std::string accept_mime_type;
@@ -173,6 +180,8 @@ void OnlineImage::update() {
   }
   accept_header.value = accept_mime_type + ",*/*;q=0.8";
 
+  // Reuse HTTP cache validators when available so unchanged photos do not waste
+  // bandwidth or decoder memory on small ESP32 devices.
   if (!this->etag_.empty()) {
     headers.push_back(http_request::Header{IF_NONE_MATCH_HEADER_NAME, this->etag_});
   }
@@ -217,6 +226,8 @@ void OnlineImage::update() {
   ImageFormat resolved = this->detect_format_();
 
   if (resolved == ImageFormat::AUTO) {
+    // Some servers omit or mislabel Content-Type. In that case the loop buffers
+    // the first bytes of the file and detect_format_ checks the file signature.
     ESP_LOGD(TAG, "Image format not identified from Content-Type, deferring to magic-byte detection");
     this->data_start_ = nullptr;
     this->start_time_ = ::time(nullptr);
@@ -251,6 +262,7 @@ void OnlineImage::loop() {
       return;
     }
     // AUTO format detection: buffer data until we can identify the format.
+    // Waiting for 12 bytes is enough for JPEG, PNG, BMP, and WebP signatures.
     size_t available = this->download_buffer_.free_capacity();
     if (available) {
       available = std::min(available, this->download_buffer_initial_size_);
@@ -290,6 +302,9 @@ void OnlineImage::loop() {
     return;
   }
   if (this->decoder_->is_finished()) {
+    // Only publish width_/height_ after decode is complete. ESPHome display
+    // code treats non-zero dimensions as drawable, so this prevents partially
+    // decoded images from flashing on screen.
     this->data_start_ = buffer_;
     this->width_ = buffer_width_;
     this->height_ = buffer_height_;
@@ -334,6 +349,8 @@ void OnlineImage::loop() {
 
 void OnlineImage::map_chroma_key(Color &color) {
   if (this->transparency_ == image::TRANSPARENCY_CHROMA_KEY) {
+    // ESPHome reserves a near-black green value as the transparency key. Move
+    // real pixels away from that value, then map translucent input pixels to it.
     if (color.g == 1 && color.r == 0 && color.b == 0) {
       color.g = 0;
     }
@@ -388,6 +405,9 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
       break;
     }
     case ImageType::IMAGE_TYPE_RGB565: {
+      // The Guition display stores RGB565 little-endian, while other targets
+      // may expect big-endian. Keep the byte-order decision here so decoders can
+      // write normal colors without knowing the display wiring.
       this->map_chroma_key(color);
       uint16_t col565 = display::ColorUtil::color_to_565(color);
       if (this->is_big_endian_) {
@@ -420,6 +440,9 @@ ImageFormat OnlineImage::detect_format_() {
     return this->format_;
   }
 
+  // Prefer the HTTP header because it is available before the body, then fall
+  // back to magic bytes for servers that serve images as application/octet-stream
+  // or omit Content-Type entirely.
   if (this->downloader_) {
     std::string ct = this->downloader_->get_response_header(CONTENT_TYPE_HEADER_NAME);
     if (ct.find("image/jpeg") != std::string::npos || ct.find("image/jpg") != std::string::npos) {
@@ -492,6 +515,8 @@ std::unique_ptr<ImageDecoder> OnlineImage::create_decoder_for_format_(ImageForma
 }
 
 void OnlineImage::end_connection_() {
+  // End every transfer through one path so decoder state, buffered unread bytes,
+  // and temporary buffer growth are all reset together.
   if (this->downloader_) {
     this->downloader_->end();
     this->downloader_ = nullptr;

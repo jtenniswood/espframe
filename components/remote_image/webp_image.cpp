@@ -12,6 +12,9 @@
 #include "esp_heap_caps.h"
 #endif
 
+// WebP support uses libwebp's full-image decode path. The implementation
+// checks image size and PSRAM before decoding because large WebP allocations can
+// fail late and destabilize the ESP32 heap.
 static const char *const TAG = "remote_image.webp";
 
 namespace esphome {
@@ -78,6 +81,8 @@ int HOT WebpDecoder::decode(uint8_t *buffer, size_t size) {
   ESP_LOGD(TAG, "WebP header: %dx%d", src_w, src_h);
 #endif
 
+  // Let libwebp scale to the requested frame size before writing into ESPHome's
+  // buffer. That keeps the temporary RGB buffer as small as possible.
   int target_w = this->image_->get_fixed_width();
   int target_h = this->image_->get_fixed_height();
   int decode_w = src_w;

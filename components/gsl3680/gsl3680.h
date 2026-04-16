@@ -17,6 +17,9 @@ namespace gsl3680 {
 
 constexpr static const char *const TAG = "touchscreen.gsl3680";
 
+// ESPHome touchscreen wrapper for the GSL3680 controller. Public methods are
+// called by ESPHome; protected helpers keep the controller boot sequence broken
+// into understandable hardware steps.
 class GSL3680 : public touchscreen::Touchscreen, public i2c::I2CDevice {
     public:
         void setup() override;
