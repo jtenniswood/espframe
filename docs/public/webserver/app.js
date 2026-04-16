@@ -1055,8 +1055,6 @@
     );
     photoBody.appendChild(fDisplayMode);
 
-    immichWrap.appendChild(makeCollapsibleCard("Display Settings", photoBody, true));
-
     // Advanced Filters
     var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
     function isValidDate(s) {
@@ -1212,6 +1210,7 @@
 
     filterBody.appendChild(filterDetails);
     immichWrap.appendChild(makeCollapsibleCard("Advanced Filters", filterBody, true, filterBadge));
+    immichWrap.appendChild(makeCollapsibleCard("Display Settings", photoBody, true));
 
     // Frequency
     var dispBody = el("div");
