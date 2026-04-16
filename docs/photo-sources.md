@@ -31,7 +31,13 @@ Shows photos from one or more Immich albums. **Get the UUID:** open the album in
 
 ## Person
 
-Shows photos where specific people (faces) appear. Requires face recognition in Immich. **Get the UUID:** open the person under **People** — the URL is `.../person/<uuid>`. Paste into **Person IDs** (comma-separated for multiple). With several IDs, each new image is chosen from **one** of those people at random, so you see photos featuring **any** of them (not only photos where everyone appears together). Your [API key](/api-key) needs `person.read`.
+Shows photos where specific people (faces) appear. Requires face recognition in Immich. **Get the UUID:** open the person under **People** — the URL is `.../person/<uuid>`. Paste one UUID into **Person IDs**, then use **+** to add another person if needed. With several IDs, each new image is chosen from **one** of those people at random, so you see photos featuring **any** of them (not only photos where everyone appears together). Your [API key](/api-key) needs `person.read`.
+
+## Album and Person ID limits
+
+The device stores each of **Album IDs** and **Person IDs** as a single text field with a **255 character** maximum, which is about six full UUIDs plus commas. The web UI blocks longer lists and shows an error so values are not silently cut short.
+
+Saving multiple IDs uses an HTTP POST body for the value, so the request stays within URL length limits and avoids errors such as **414 URI Too Long**.
 
 ## Album and Person ID limits
 

@@ -192,6 +192,11 @@
     ".select:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}" +
     "select option{background:var(--surface);color:var(--text)}" +
     ".input-group{display:flex;gap:8px}.input-group input{flex:1}" +
+    ".person-id-list{display:flex;flex-direction:column;gap:8px}" +
+    ".person-id-row{display:grid;grid-template-columns:minmax(0,1fr) 40px;gap:8px;align-items:center}" +
+    ".person-id-actions{display:flex;justify-content:flex-end;margin-top:8px}" +
+    ".btn.btn-icon{width:40px;height:40px;padding:0;display:inline-flex;align-items:center;justify-content:center;" +
+    "border-radius:20px;font-size:1.2rem;line-height:1;flex-shrink:0}" +
     ".btn{padding:10px 20px;border:none;border-radius:20px;font-size:.875rem;" +
     "font-weight:600;cursor:pointer;transition:background .25s,opacity .25s,box-shadow .25s;" +
     "font-family:inherit;letter-spacing:.01em}" +
@@ -494,6 +499,13 @@
     var s = str.trim();
     if (!s) return true;
     return s.split(",").every(function (id) { return UUID_RE.test(id.trim()); });
+  }
+
+  function splitPhotoIdList(str) {
+    var parts = String(str || "").split(",").map(function (id) {
+      return id.trim();
+    }).filter(Boolean);
+    return parts.length ? parts : [""];
   }
 
   function safeGet(url) {
@@ -994,12 +1006,61 @@
     albumField.style.display = S.photo_source === "Album" ? "" : "none";
 
     var personField = field("Person IDs");
-    var personInput = input("text", S.person_ids, "Paste person IDs, comma-separated", MAX_PHOTO_ID_FIELD_LENGTH);
+    var personIdList = el("div", "person-id-list");
+    var personInputs = [];
     var personError = el("div", "field-error");
     var personHint = el("div");
     personHint.className = "field-hint";
-    personHint.textContent = "Find IDs in your Immich server URL bar";
-    personField.appendChild(personInput);
+    personHint.textContent = "Find each ID in your Immich server URL bar. Multiple rows are used as any person, not everyone together.";
+    function getPersonIdsValue() {
+      return personInputs.map(function (inputEl) {
+        return inputEl.value.trim();
+      }).filter(Boolean).join(",");
+    }
+    function refreshPersonRemoveButtons() {
+      Array.prototype.forEach.call(personIdList.querySelectorAll(".person-id-remove"), function (btn) {
+        btn.disabled = personInputs.length <= 1;
+      });
+    }
+    function addPersonIdRow(value) {
+      var row = el("div", "person-id-row");
+      var personInput = input("text", value || "", "Paste person ID", MAX_PHOTO_ID_FIELD_LENGTH);
+      var removeBtn = el("button", "btn btn-secondary btn-icon person-id-remove");
+      removeBtn.type = "button";
+      removeBtn.textContent = "x";
+      removeBtn.title = "Remove person ID";
+      removeBtn.setAttribute("aria-label", "Remove person ID");
+      removeBtn.onclick = function () {
+        if (personInputs.length <= 1) {
+          personInput.value = "";
+          return;
+        }
+        personInputs = personInputs.filter(function (inputEl) {
+          return inputEl !== personInput;
+        });
+        row.parentNode.removeChild(row);
+        refreshPersonRemoveButtons();
+      };
+      row.appendChild(personInput);
+      row.appendChild(removeBtn);
+      personIdList.appendChild(row);
+      personInputs.push(personInput);
+      refreshPersonRemoveButtons();
+    }
+    splitPhotoIdList(S.person_ids).forEach(addPersonIdRow);
+    var addPersonRow = el("div", "person-id-actions");
+    var addPersonBtn = el("button", "btn btn-secondary btn-icon");
+    addPersonBtn.type = "button";
+    addPersonBtn.textContent = "+";
+    addPersonBtn.title = "Add another person ID";
+    addPersonBtn.setAttribute("aria-label", "Add another person ID");
+    addPersonBtn.onclick = function () {
+      addPersonIdRow("");
+      personInputs[personInputs.length - 1].focus();
+    };
+    addPersonRow.appendChild(addPersonBtn);
+    personField.appendChild(personIdList);
+    personField.appendChild(addPersonRow);
     personField.appendChild(personError);
     personField.appendChild(personHint);
     personField.style.display = S.photo_source === "Person" ? "" : "none";
@@ -1011,7 +1072,7 @@
       personError.textContent = "";
       var src_val = srcSel.value;
       var albumTrim = albumInput.value.trim();
-      var personTrim = personInput.value.trim();
+      var personTrim = getPersonIdsValue();
       if (photoIdFieldTooLong(albumTrim)) {
         albumError.textContent = PHOTO_ID_FIELD_TOO_LONG;
         return;
