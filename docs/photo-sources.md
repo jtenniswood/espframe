@@ -31,7 +31,7 @@ Shows photos from one or more Immich albums. **Get the UUID:** open the album in
 
 ## Person
 
-Shows photos where specific people (faces) appear. Requires face recognition in Immich. **Get the UUID:** open the person under **People** — the URL is `.../person/<uuid>`. Paste into **Person IDs** (comma-separated for multiple). Your [API key](/api-key) needs `person.read`.
+Shows photos where specific people (faces) appear. Requires face recognition in Immich. **Get the UUID:** open the person under **People** — the URL is `.../person/<uuid>`. Paste into **Person IDs** (comma-separated for multiple). With several IDs, each new image is chosen from **one** of those people at random, so you see photos featuring **any** of them (not only photos where everyone appears together). Your [API key](/api-key) needs `person.read`.
 
 ## Memories
 

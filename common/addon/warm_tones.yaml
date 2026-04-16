@@ -37,6 +37,8 @@ switch:
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
     icon: "mdi:palette"
+    web_server:
+      sorting_group_id: sg_screen
     on_turn_on:
       then:
         - lambda: 'id(warm_tone_retint) = true;'
@@ -54,6 +56,8 @@ switch:
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
     icon: "mdi:weather-sunset"
+    web_server:
+      sorting_group_id: sg_screen
 
   # Override: force full warmth now; auto-off after next sunrise (interval below)
   - platform: template
@@ -63,6 +67,8 @@ switch:
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
     icon: "mdi:weather-night"
+    web_server:
+      sorting_group_id: sg_screen
     on_turn_on:
       then:
         - lambda: 'id(warm_tone_retint) = true;'
@@ -89,6 +95,8 @@ number:
     restore_value: true
     unit_of_measurement: "%"
     icon: "mdi:thermometer"
+    web_server:
+      sorting_group_id: sg_screen
     on_value:
       then:
         - lambda: 'id(warm_tone_retint) = true;'
@@ -107,6 +115,8 @@ number:
     restore_value: true
     unit_of_measurement: "%"
     icon: "mdi:palette"
+    web_server:
+      sorting_group_id: sg_screen
 
 # -----------------------------------------------------------------------------
 # Apply warmth to current image buffer (LUT-based RGB565 tint; portrait pair or single slot)
@@ -119,133 +129,67 @@ script:
           bool retint = id(warm_tone_retint);
           id(warm_tone_retint) = false;
 
-          // Base tone: correction for display blue cast (only when enabled)
           float base_w = id(base_tone_enabled).state ? (id(base_tone).state / 100.0f) : 0.0f;
 
-          // Night warmth: sun-based or manual override
           float night_w = 0.0f;
-          bool override_on = id(warm_tone_override).state;
-          if (override_on) {
+          if (id(warm_tone_override).state) {
             night_w = id(warm_tone_intensity).state / 100.0f;
           } else if (id(warm_tones_enabled).state && id(sunrise_sunset_valid)) {
             auto now = id(sntp_time).now();
             if (!now.is_valid() && base_w < 0.01f) return;
             if (now.is_valid()) {
-              int now_min = now.hour * 60 + now.minute;
-              int rise_min = id(sunrise_hour) * 60 + id(sunrise_minute);
-              int set_min  = id(sunset_hour)  * 60 + id(sunset_minute);
-              float warmth = 0.0f;
-              if (now_min >= set_min) {
-                warmth = 1.0f;
-              } else if (now_min >= set_min - WARM_TONE_LEAD_MINUTES) {
-                warmth = (float)(now_min - (set_min - WARM_TONE_LEAD_MINUTES)) / WARM_TONE_LEAD_MINUTES;
-              } else if (now_min < rise_min) {
-                warmth = 1.0f;
-              } else if (now_min < rise_min + WARM_TONE_LEAD_MINUTES) {
-                warmth = 1.0f - (float)(now_min - rise_min) / WARM_TONE_LEAD_MINUTES;
-              }
+              float warmth = calc_sun_warmth(
+                minutes_since_midnight(now.hour, now.minute),
+                minutes_since_midnight(id(sunrise_hour), id(sunrise_minute)),
+                minutes_since_midnight(id(sunset_hour), id(sunset_minute)),
+                WARM_TONE_LEAD_MINUTES);
               night_w = warmth * (id(warm_tone_intensity).state / 100.0f);
             }
           }
 
           float w = base_w + night_w;
-
-          // When called from a toggle change, buffer already has a tint applied.
-          // When called from the normal pipeline (new image), buffer is fresh.
           float last_w = retint ? id(warm_tone_last_w) : 0.0f;
-
-          // Skip if the buffer already has the target warmth applied
           if (fabsf(w - last_w) < 0.01f) return;
 
-          // Integer-only log (no %f / _dtoa_r) — warmth is ~0..1
-          int last_c = (int)(last_w * 100.0f + 0.5f);
-          int w_c = (int)(w * 100.0f + 0.5f);
-          if (last_c > 100) last_c = 100;
-          if (w_c > 100) w_c = 100;
+          int last_c = std::min((int)(last_w * 100.0f + 0.5f), 100);
+          int w_c = std::min((int)(w * 100.0f + 0.5f), 100);
           ESP_LOGI("warm", "Warmth=%d.%02d->%d.%02d (intensity=%d%%)",
                    last_c / 100, last_c % 100, w_c / 100, w_c % 100, (int)id(warm_tone_intensity).state);
 
-          // Build transition LUTs: undo last_w, apply new w in a single step.
-          // For each channel value in the buffer (which has last_w baked in),
-          // recover the original value then apply the new w.
-          float r_undo = (last_w > 0.005f) ? 1.0f / (1.0f + last_w * 0.06f) : 1.0f;
-          float g_undo = (last_w > 0.005f) ? 1.0f / (1.0f - last_w * 0.07f) : 1.0f;
-          float b_undo = (last_w > 0.005f) ? 1.0f / (1.0f - last_w * 0.28f) : 1.0f;
-          float r_apply = 1.0f + w * 0.06f;
-          float g_apply = 1.0f - w * 0.07f;
-          float b_apply = 1.0f - w * 0.28f;
+          WarmToneLuts luts;
+          build_warm_tone_luts(last_w, w, luts);
 
-          uint8_t r_lut[32], g_lut[64], b_lut[32];
-          for (int i = 0; i < 32; i++) {
-            int v = (i << 3) | (i >> 2);
-            int nv = (int)(v * r_undo * r_apply);
-            r_lut[i] = (uint8_t)((nv > 255 ? 255 : (nv < 0 ? 0 : nv)) >> 3);
-          }
-          for (int i = 0; i < 64; i++) {
-            int v = (i << 2) | (i >> 4);
-            int nv = (int)(v * g_undo * g_apply);
-            g_lut[i] = (uint8_t)((nv > 255 ? 255 : (nv < 0 ? 0 : nv)) >> 2);
-          }
-          for (int i = 0; i < 32; i++) {
-            int v = (i << 3) | (i >> 2);
-            int nv = (int)(v * b_undo * b_apply);
-            b_lut[i] = (uint8_t)((nv > 255 ? 255 : (nv < 0 ? 0 : nv)) >> 3);
-          }
-
-          auto tint_buffer = [&](esphome::image::Image *img) {
-            if (!img) return;
-            lv_img_dsc_t *dsc = img->get_lv_img_dsc();
-            if (!dsc || !dsc->data) return;
-            uint8_t *buf = const_cast<uint8_t*>(dsc->data);
-            int total = img->get_width() * img->get_height();
-            for (int i = 0; i < total; i++) {
-              int pos = i * 2;
-              uint16_t px = buf[pos] | (buf[pos + 1] << 8);
-              uint8_t r5 = r_lut[(px >> 11) & 0x1F];
-              uint8_t g6 = g_lut[(px >> 5) & 0x3F];
-              uint8_t b5 = b_lut[px & 0x1F];
-              uint16_t out = (r5 << 11) | (g6 << 5) | b5;
-              buf[pos]     = out & 0xFF;
-              buf[pos + 1] = (out >> 8) & 0xFF;
-            }
-          };
-
-          if (id(immich_is_portrait_pair)) {
-            if (id(portrait_using_preload)) {
-              tint_buffer(id(immich_portrait_preload_left));
-              tint_buffer(id(immich_portrait_preload_right));
+          if (id(portrait).is_pair) {
+            if (id(portrait).using_preload) {
+              tint_image_buffer(id(immich_portrait_preload_left), luts);
+              tint_image_buffer(id(immich_portrait_preload_right), luts);
             } else {
-              tint_buffer(id(immich_portrait_left));
-              tint_buffer(id(immich_portrait_right));
+              tint_image_buffer(id(immich_portrait_left), luts);
+              tint_image_buffer(id(immich_portrait_right), luts);
             }
             lv_obj_invalidate(id(portrait_pair_container));
           } else {
-            int s = id(active_slot);
-            esphome::image::Image *img = (s == 0) ? id(immich_img_0)
-                                       : (s == 1) ? id(immich_img_1)
-                                       :            id(immich_img_2);
-            tint_buffer(img);
+            esphome::image::Image *imgs[] = { id(immich_img_0), id(immich_img_1), id(immich_img_2) };
+            tint_image_buffer(imgs[id(active_slot)], luts);
             lv_obj_invalidate(id(slideshow_img));
           }
 
           id(warm_tone_last_w) = w;
 
-# -----------------------------------------------------------------------------
-# Override auto-off: turn off "Warm until sunrise" when sunrise has passed
-# -----------------------------------------------------------------------------
-interval:
-  - interval: 60s
+  # ---------------------------------------------------------------------------
+  # Override auto-off check (called from the unified 60s interval)
+  # ---------------------------------------------------------------------------
+  - id: warm_tone_periodic_check
+    mode: single
     then:
       - lambda: |-
           if (!id(warm_tone_override).state) return;
           if (!id(sunrise_sunset_valid)) return;
           auto now = id(sntp_time).now();
           if (!now.is_valid()) return;
-          int now_min = now.hour * 60 + now.minute;
-          int rise_min = id(sunrise_hour) * 60 + id(sunrise_minute);
-          int set_min  = id(sunset_hour)  * 60 + id(sunset_minute);
-          bool past_sunrise = (now_min >= rise_min && now_min < set_min);
-          if (past_sunrise) {
+          if (is_daytime(now.hour, now.minute,
+                         id(sunrise_hour), id(sunrise_minute),
+                         id(sunset_hour), id(sunset_minute))) {
             ESP_LOGI("warm", "Override auto-off: sunrise passed");
             id(warm_tone_override).turn_off();
           }

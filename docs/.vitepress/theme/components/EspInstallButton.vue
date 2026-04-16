@@ -25,7 +25,7 @@ onMounted(async () => {
   supported.value = 'serial' in navigator
   if (!supported.value) return
   try {
-    await import('https://unpkg.com/esp-web-tools@10/dist/web/install-button.js')
+    await import('https://unpkg.com/esp-web-tools@10.0.1/dist/web/install-button.js')
   } catch (err) {
     loadError.value = err?.message || 'Network or script load error.'
   }

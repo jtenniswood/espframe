@@ -9,6 +9,10 @@ namespace remote_image {
 static const char *const TAG = "remote_image.decoder";
 
 bool ImageDecoder::set_size(int width, int height) {
+  if (width <= 0 || height <= 0) {
+    ESP_LOGE(TAG, "Invalid image dimensions: %dx%d", width, height);
+    return false;
+  }
   bool success = this->image_->resize_(width, height) > 0;
 
   int buf_w = this->image_->buffer_width_;
@@ -163,6 +167,10 @@ uint8_t *DownloadBuffer::data(size_t offset) {
 }
 
 size_t DownloadBuffer::read(size_t len) {
+  if (len > this->unread_) {
+    ESP_LOGE(TAG, "DownloadBuffer::read(%zu) exceeds unread %zu, clamping", len, this->unread_);
+    len = this->unread_;
+  }
   this->unread_ -= len;
   if (this->unread_ > 0) {
     memmove(this->data(), this->data(len), this->unread_);
@@ -194,9 +202,14 @@ size_t DownloadBuffer::resize(size_t size) {
 
 void DownloadBuffer::shrink(size_t max_size) {
   if (this->size_ <= max_size) return;
+  auto *new_buffer = this->allocator_.allocate(max_size);
+  if (!new_buffer) {
+    ESP_LOGW(TAG, "shrink allocation failed, keeping existing %zu-byte buffer", this->size_);
+    return;
+  }
   this->allocator_.deallocate(this->buffer_, this->size_);
-  this->buffer_ = this->allocator_.allocate(max_size);
-  this->size_ = this->buffer_ ? max_size : 0;
+  this->buffer_ = new_buffer;
+  this->size_ = max_size;
   this->reset();
 }
 

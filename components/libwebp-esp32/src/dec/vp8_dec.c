@@ -15,6 +15,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef ESP_PLATFORM
+#include "esp_task_wdt.h"
+#endif
+
 #include "src/dec/alphai_dec.h"
 #include "src/dec/common_dec.h"
 #include "src/dec/vp8_dec.h"
@@ -529,6 +533,16 @@ static int ParseResiduals(VP8Decoder* const dec,
                           VP8MB* const mb, VP8BitReader* const token_br) {
   const VP8BandProbas* (* const bands)[16 + 1] = dec->proba.bands_ptr;
   const VP8BandProbas* const * ac_proba;
+#ifdef ESP_PLATFORM
+  // Guard against heap corruption: dec->mb_data can be null or invalid if a
+  // prior PSRAM allocation was corrupted. Convert the hard fault to a soft VP8
+  // bitstream error so the caller can handle it gracefully.
+  if (dec->mb_data == NULL || dec->mb_x >= dec->mb_w) {
+    token_br->eof = 1;
+    return VP8SetError(dec, VP8_STATUS_BITSTREAM_ERROR,
+                       "ParseResiduals: invalid decoder state");
+  }
+#endif
   VP8MBData* const block = dec->mb_data + dec->mb_x;
   const VP8QuantMatrix* const q = &dec->dqm[block->segment];
   int16_t* dst = block->coeffs;
@@ -656,6 +670,13 @@ void VP8InitScanline(VP8Decoder* const dec) {
 
 static int ParseFrame(VP8Decoder* const dec, VP8Io* io) {
   for (dec->mb_y = 0; dec->mb_y < dec->br_mb_y; ++dec->mb_y) {
+#ifdef ESP_PLATFORM
+    // Feed the watchdog every 16 macroblock rows (~256px) to prevent resets
+    // during large-image decodes that can take several seconds on this chip.
+    if ((dec->mb_y & 15) == 0) {
+      esp_task_wdt_reset();
+    }
+#endif
     // Parse bitstream for this row.
     VP8BitReader* const token_br =
         &dec->parts[dec->mb_y & dec->num_parts_minus_one];

@@ -1,0 +1,36 @@
+# =============================================================================
+# ACCENT COLOR - Extract dominant color from photo
+# =============================================================================
+# Samples a grid of pixels from the displayed image, weighted by colour
+# saturation so vivid pixels dominate over blacks/whites/grays, and paints
+# the letterbox regions of the image buffer with a darkened accent colour.
+#
+# The image buffer covers the entire display, so the page background is never
+# visible. The black letterbox bars are zero-filled pixels in the buffer
+# itself. This script detects the content boundaries and fills the padding
+# regions directly.
+#
+# Reads the raw RGB565 buffer directly (little-endian byte order) because
+# Image::get_pixel() always decodes as big-endian, producing wrong colours
+# when byte_order is little_endian.
+# =============================================================================
+
+script:
+  - id: extract_accent_color
+    mode: restart
+    then:
+      - lambda: |-
+          if (id(portrait).is_pair) {
+            if (id(portrait).using_preload) {
+              fill_accent_color(id(immich_portrait_preload_left));
+              fill_accent_color(id(immich_portrait_preload_right));
+            } else {
+              fill_accent_color(id(immich_portrait_left));
+              fill_accent_color(id(immich_portrait_right));
+            }
+            lv_obj_invalidate(id(portrait_pair_container));
+          } else {
+            esphome::image::Image *imgs[] = { id(immich_img_0), id(immich_img_1), id(immich_img_2) };
+            fill_accent_color(imgs[id(active_slot)]);
+            lv_obj_invalidate(id(slideshow_img));
+          }

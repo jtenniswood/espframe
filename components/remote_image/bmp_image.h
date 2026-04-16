@@ -9,7 +9,7 @@ namespace esphome {
 namespace remote_image {
 
 /**
- * @brief Image decoder specialization for PNG images.
+ * @brief Image decoder specialization for BMP images.
  */
 class BmpDecoder : public ImageDecoder {
  public:

@@ -25,14 +25,20 @@ static const char *const CONTENT_TYPE_HEADER_NAME = "content-type";
 #include "webp_image.h"
 #endif
 
-#ifdef USE_ESP_IDF
-#include "soc/soc_caps.h"
-#endif
-
 namespace esphome {
 namespace remote_image {
 
 using image::ImageType;
+
+#ifdef USE_LVGL
+template<typename T> auto refresh_lv_image_descriptor_(T *obj, int) -> decltype(obj->get_lv_image_dsc(), void()) {
+  obj->get_lv_image_dsc();
+}
+
+template<typename T> auto refresh_lv_image_descriptor_(T *obj, long) -> decltype(obj->get_lv_img_dsc(), void()) {
+  obj->get_lv_img_dsc();
+}
+#endif
 
 inline bool is_color_on(const Color &color) {
   // This produces the most accurate monochrome conversion, but is slightly slower.
@@ -136,7 +142,7 @@ void OnlineImage::update() {
   }
   ESP_LOGI(TAG, "Updating image %s", this->url_.c_str());
 
-  std::list<http_request::Header> headers = {};
+  std::vector<http_request::Header> headers = {};
 
   http_request::Header accept_header;
   accept_header.name = "Accept";
@@ -278,7 +284,12 @@ void OnlineImage::loop() {
     }
     return;
   }
-  if (!this->downloader_ || this->decoder_->is_finished()) {
+  if (!this->downloader_) {
+    ESP_LOGW(TAG, "Downloader disappeared mid-transfer");
+    this->download_error_callback_.call();
+    return;
+  }
+  if (this->decoder_->is_finished()) {
     this->data_start_ = buffer_;
     this->width_ = buffer_width_;
     this->height_ = buffer_height_;
@@ -287,7 +298,7 @@ void OnlineImage::loop() {
     ESP_LOGD(TAG, "Total time: %" PRIu32 "s", (uint32_t) (::time(nullptr) - this->start_time_));
 #ifdef USE_LVGL
     this->dsc_.data = this->buffer_ + 1;
-    this->get_lv_img_dsc();
+    refresh_lv_image_descriptor_(this, 0);
 #endif
     this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);
     this->last_modified_ = this->downloader_->get_response_header(LAST_MODIFIED_HEADER_NAME);

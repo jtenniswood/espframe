@@ -12,8 +12,8 @@ lvgl:
       scrollable: false
       widgets:
         - obj:
-            width: 1280
-            height: 800
+            width: ${display_width}
+            height: ${display_height}
             bg_opa: 0%
             border_width: 0
             pad_all: 0

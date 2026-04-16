@@ -1,8 +1,10 @@
 #pragma once
 #include "date_utils.h"
-#include <string>
+#include "esp_random.h"
 #include <cstdint>
 #include <cstdlib>
+#include <string>
+#include <vector>
 
 static constexpr uint16_t ZOOM_IDENTITY = 256;
 
@@ -21,22 +23,43 @@ struct ImmichAssetMeta {
 // for favorites, albums, and people. The `extra` parameter allows injecting
 // additional JSON fields (e.g. takenAfter/takenBefore for companion search).
 
-inline std::string build_uuid_json_array(const std::string &csv) {
-  std::string result = "[";
+inline std::vector<std::string> split_uuid_csv(const std::string &csv) {
+  std::vector<std::string> out;
   size_t start = 0;
-  bool first = true;
   while (start < csv.size()) {
     size_t end = csv.find(',', start);
-    if (end == std::string::npos) end = csv.size();
+    if (end == std::string::npos)
+      end = csv.size();
     size_t s = start, e = end;
-    while (s < e && csv[s] == ' ') s++;
-    while (e > s && csv[e - 1] == ' ') e--;
-    if (s < e) {
-      if (!first) result += ",";
-      result += "\"" + csv.substr(s, e - s) + "\"";
-      first = false;
-    }
+    while (s < e && csv[s] == ' ')
+      s++;
+    while (e > s && csv[e - 1] == ' ')
+      e--;
+    if (s < e)
+      out.emplace_back(csv.substr(s, e - s));
     start = end + 1;
+  }
+  return out;
+}
+
+// Immich treats multiple personIds as AND (asset must include every person).
+// For Person source we send one UUID per request so results are any-of over time.
+inline std::string pick_one_person_id_for_random_search(const std::string &csv) {
+  std::vector<std::string> ids = split_uuid_csv(csv);
+  if (ids.empty())
+    return "";
+  if (ids.size() == 1)
+    return ids[0];
+  return ids[esp_random() % ids.size()];
+}
+
+inline std::string build_uuid_json_array(const std::string &csv) {
+  std::vector<std::string> ids = split_uuid_csv(csv);
+  std::string result = "[";
+  for (size_t i = 0; i < ids.size(); i++) {
+    if (i)
+      result += ",";
+    result += "\"" + ids[i] + "\"";
   }
   result += "]";
   return result;
@@ -56,7 +79,9 @@ inline std::string build_immich_search_body(int size, bool with_people,
   } else if (photo_source == "Album" && !album_ids.empty()) {
     body += ",\"albumIds\":" + build_uuid_json_array(album_ids);
   } else if (photo_source == "Person" && !person_ids.empty()) {
-    body += ",\"personIds\":" + build_uuid_json_array(person_ids);
+    std::string one = pick_one_person_id_for_random_search(person_ids);
+    if (!one.empty())
+      body += ",\"personIds\":" + build_uuid_json_array(one);
   }
   body += "}";
   return body;

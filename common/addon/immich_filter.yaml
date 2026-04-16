@@ -22,6 +22,8 @@ select:
     optimistic: true
     restore_value: true
     icon: "mdi:image-filter-frames"
+    web_server:
+      sorting_group_id: sg_photos
     on_value:
       then:
         - lambda: 'ESP_LOGI("immich", "Photo source: %s", x.c_str());'
@@ -76,13 +78,11 @@ text:
     max_length: 255
     mode: text
     icon: "mdi:folder-image"
+    web_server:
+      sorting_group_id: sg_photos
     set_action:
       - lambda: |-
-          std::string v = x;
-          for (size_t p = v.find("%2C"); p != std::string::npos; p = v.find("%2C", p + 1))
-            v.replace(p, 3, ",");
-          for (size_t p = v.find("%2c"); p != std::string::npos; p = v.find("%2c", p + 1))
-            v.replace(p, 3, ",");
+          std::string v = decode_url_commas(x);
           id(immich_album_ids).publish_state(v);
           ESP_LOGI("immich", "Album IDs configured (%d chars)", v.length());
       - script.execute: auto_apply_photo_source
@@ -97,13 +97,11 @@ text:
     max_length: 255
     mode: text
     icon: "mdi:account-group"
+    web_server:
+      sorting_group_id: sg_photos
     set_action:
       - lambda: |-
-          std::string v = x;
-          for (size_t p = v.find("%2C"); p != std::string::npos; p = v.find("%2C", p + 1))
-            v.replace(p, 3, ",");
-          for (size_t p = v.find("%2c"); p != std::string::npos; p = v.find("%2c", p + 1))
-            v.replace(p, 3, ",");
+          std::string v = decode_url_commas(x);
           id(immich_person_ids).publish_state(v);
           ESP_LOGI("immich", "Person IDs configured (%d chars)", v.length());
       - script.execute: auto_apply_photo_source
@@ -117,32 +115,20 @@ button:
     id: apply_photo_source
     internal: true
     icon: "mdi:check-circle"
+    web_server:
+      sorting_group_id: sg_photos
     on_press:
       - script.stop: auto_apply_photo_source
-      - lambda: |-
-          id(slot0).ready = false;
-          id(slot1).ready = false;
-          id(slot2).ready = false;
-          id(portrait_preload_slot) = -1;
-          id(portrait_preload_left_ready) = false;
-          id(portrait_preload_right_ready) = false;
-          if (id(preload_noncritical_in_flight)) {
-            id(preload_noncritical_in_flight) = false;
-            if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
-          }
-          id(active_slot_displayed) = false;
-          id(target_slot) = id(active_slot);
-          ESP_LOGI("immich", "Photo source applied — flushing all slots");
-      - script.execute: immich_fetch_into_slot
+      - lambda: 'ESP_LOGI("immich", "Photo source applied — flushing all slots");'
+      - script.execute: flush_slots_and_refetch
 
 # -----------------------------------------------------------------------------
 # Delayed auto-apply after source/album/person change
 # -----------------------------------------------------------------------------
 script:
-  - id: auto_apply_photo_source
-    mode: restart
+  - id: flush_slots_and_refetch
+    mode: single
     then:
-      - delay: 1s
       - lambda: |-
           id(slot0).ready = false;
           id(slot1).ready = false;
@@ -156,5 +142,11 @@ script:
           }
           id(active_slot_displayed) = false;
           id(target_slot) = id(active_slot);
-          ESP_LOGI("immich", "Photo source auto-applied — flushing all slots");
       - script.execute: immich_fetch_into_slot
+
+  - id: auto_apply_photo_source
+    mode: restart
+    then:
+      - delay: 1s
+      - lambda: 'ESP_LOGI("immich", "Photo source auto-applied — flushing all slots");'
+      - script.execute: flush_slots_and_refetch

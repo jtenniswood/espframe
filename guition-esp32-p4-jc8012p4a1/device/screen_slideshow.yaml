@@ -28,35 +28,18 @@ lvgl:
             clickable: true
             on_press:
               then:
-                - lambda: |-
-                    id(touch_started_while_off) = !id(backlight).current_values.is_on();
-                    if (id(touch_started_while_off)) {
-                      id(backlight_wake).execute();
-                    } else {
-                      id(backlight_hold_timer).execute();
-                    }
+                - script.execute: slideshow_on_press
             on_short_click:
               then:
-                - if:
-                    condition:
-                      lambda: 'return !id(touch_started_while_off);'
-                    then:
-                      - lambda: |-
-                          uint32_t now = millis();
-                          if (id(last_short_tap_ms) != 0 && (now - id(last_short_tap_ms)) < 400) {
-                            id(last_short_tap_ms) = 0;
-                            id(immich_advance_forward).execute();
-                          } else {
-                            id(last_short_tap_ms) = now;
-                          }
+                - script.execute: slideshow_on_short_click
             on_release:
               then:
-                - script.stop: backlight_hold_timer
+                - script.execute: slideshow_on_release
         - obj:
             id: portrait_pair_container
             align: CENTER
-            width: 1280
-            height: 800
+            width: ${display_width}
+            height: ${display_height}
             bg_color: 0x000000
             bg_opa: 100%
             border_width: 0
@@ -69,34 +52,17 @@ lvgl:
               flex_flow: ROW
             on_press:
               then:
-                - lambda: |-
-                    id(touch_started_while_off) = !id(backlight).current_values.is_on();
-                    if (id(touch_started_while_off)) {
-                      id(backlight_wake).execute();
-                    } else {
-                      id(backlight_hold_timer).execute();
-                    }
+                - script.execute: slideshow_on_press
             on_short_click:
               then:
-                - if:
-                    condition:
-                      lambda: 'return !id(touch_started_while_off);'
-                    then:
-                      - lambda: |-
-                          uint32_t now = millis();
-                          if (id(last_short_tap_ms) != 0 && (now - id(last_short_tap_ms)) < 400) {
-                            id(last_short_tap_ms) = 0;
-                            id(immich_advance_forward).execute();
-                          } else {
-                            id(last_short_tap_ms) = now;
-                          }
+                - script.execute: slideshow_on_short_click
             on_release:
               then:
-                - script.stop: backlight_hold_timer
+                - script.execute: slideshow_on_release
             widgets:
               - obj:
-                  width: 640
-                  height: 800
+                  width: ${portrait_half_width}
+                  height: ${display_height}
                   bg_opa: 0%
                   border_width: 0
                   pad_all: 0
@@ -110,8 +76,8 @@ lvgl:
                         scrollable: false
                         clickable: false
               - obj:
-                  width: 640
-                  height: 800
+                  width: ${portrait_half_width}
+                  height: ${display_height}
                   bg_opa: 0%
                   border_width: 0
                   pad_all: 0
@@ -170,8 +136,8 @@ lvgl:
         - obj:
             id: connection_failed_overlay
             align: CENTER
-            width: 1280
-            height: 800
+            width: ${display_width}
+            height: ${display_height}
             radius: 0
             bg_color: 0x000000
             bg_opa: 100%
@@ -232,6 +198,49 @@ lvgl:
 # =============================================================================
 
 script:
+  - id: slideshow_on_press
+    mode: single
+    then:
+      - lambda: |-
+          id(touch_started_while_off) = !id(backlight).current_values.is_on();
+          if (id(touch_started_while_off)) id(backlight_wake).execute();
+          else id(backlight_hold_timer).execute();
+
+  - id: slideshow_on_short_click
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: 'return !id(touch_started_while_off);'
+          then:
+            - lambda: |-
+                uint32_t now = millis();
+                if (id(last_short_tap_ms) != 0 && (now - id(last_short_tap_ms)) < 400) {
+                  id(last_short_tap_ms) = 0;
+                  id(immich_advance_forward).execute();
+                } else {
+                  id(last_short_tap_ms) = now;
+                }
+
+  - id: slideshow_on_release
+    mode: single
+    then:
+      - script.stop: backlight_hold_timer
+
+  - id: hide_connection_failed
+    mode: single
+    then:
+      - lambda: |-
+          if (!lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN)) {
+            id(connection_failed_dim).stop();
+            id(connection_failed_shift).stop();
+            lv_obj_align(id(connection_failed_content), LV_ALIGN_CENTER, 0, 0);
+            id(backlight_apply_brightness).execute();
+          }
+          lv_obj_add_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
+          id(last_photo_displayed_ms) = millis();
+          id(immich_last_http_status) = 0;
+
   - id: connection_failed_dim
     mode: restart
     then:
@@ -259,6 +268,18 @@ script:
                 lv_obj_align(id(connection_failed_content), LV_ALIGN_CENTER, x, y);
 
 # =============================================================================
+# CACHED INTERVAL VALUES (avoid repeated string parsing every 2s)
+# =============================================================================
+
+globals:
+  - id: slideshow_interval_sec
+    type: uint32_t
+    initial_value: '120'
+  - id: connection_timeout_sec
+    type: uint32_t
+    initial_value: '120'
+
+# =============================================================================
 # USER-CONFIGURABLE SETTINGS
 # =============================================================================
 
@@ -281,6 +302,13 @@ select:
     optimistic: true
     restore_value: true
     icon: "mdi:timer-outline"
+    on_value:
+      then:
+        - lambda: |-
+            int num = atoi(x.c_str());
+            id(slideshow_interval_sec) = (x.find("minute") != std::string::npos) ? num * 60 : num;
+    web_server:
+      sorting_group_id: sg_photos
 
   - platform: template
     name: "Screen: Connection Timeout"
@@ -300,6 +328,13 @@ select:
     optimistic: true
     restore_value: true
     icon: "mdi:connection"
+    on_value:
+      then:
+        - lambda: |-
+            int num = atoi(x.c_str());
+            id(connection_timeout_sec) = (x.find("minute") != std::string::npos) ? num * 60 : num;
+    web_server:
+      sorting_group_id: sg_screen
 
 
 # =============================================================================
@@ -314,10 +349,7 @@ interval:
             lambda: |-
               if (!id(immich_fetch_started)) return false;
               if (id(backlight_paused)) return false;
-              std::string opt = id(slideshow_interval).current_option();
-              int num = atoi(opt.c_str());
-              uint32_t seconds = (opt.find("minute") != std::string::npos) ? num * 60 : num;
-              return (millis() - id(immich_last_advance_ms)) >= (seconds * 1000);
+              return (millis() - id(immich_last_advance_ms)) >= (id(slideshow_interval_sec) * 1000);
           then:
             - script.execute: immich_advance_forward
       - if:
@@ -325,12 +357,12 @@ interval:
             lambda: |-
               if (!id(immich_fetch_started)) return false;
               if (id(backlight_paused)) return false;
-              bool any_inflight = id(slot0_fetch_in_flight) || id(slot1_fetch_in_flight) || id(slot2_fetch_in_flight);
-              if (any_inflight || id(active_portrait_workflow_busy) || id(noncritical_remote_updates_in_flight) > 0) return false;
+              bool any_inflight = id(slot_flags).fetch_in_flight[0] || id(slot_flags).fetch_in_flight[1] || id(slot_flags).fetch_in_flight[2];
+              if (any_inflight || id(portrait).workflow_busy || id(noncritical_remote_updates_in_flight) > 0) return false;
               int next1 = (id(active_slot) + 1) % 3;
               int next2 = (id(active_slot) + 2) % 3;
-              auto &n1 = (next1 == 0) ? id(slot0) : (next1 == 1) ? id(slot1) : id(slot2);
-              auto &n2 = (next2 == 0) ? id(slot0) : (next2 == 1) ? id(slot1) : id(slot2);
+              auto &n1 = get_slot(next1, id(slot0), id(slot1), id(slot2));
+              auto &n2 = get_slot(next2, id(slot0), id(slot1), id(slot2));
               return !n1.ready || !n2.ready;
           then:
             - script.execute: immich_prefetch_chain
@@ -339,10 +371,7 @@ interval:
             lambda: |-
               if (id(last_photo_displayed_ms) == 0) return false;
               if (id(backlight_paused)) return false;
-              std::string opt = id(connection_timeout).current_option();
-              int num = atoi(opt.c_str());
-              uint32_t seconds = (opt.find("minute") != std::string::npos) ? num * 60 : num;
-              return (millis() - id(last_photo_displayed_ms)) >= (seconds * 1000);
+              return (millis() - id(last_photo_displayed_ms)) >= (id(connection_timeout_sec) * 1000);
           then:
             - lambda: |-
                 if (lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN)) {
@@ -360,10 +389,8 @@ interval:
             - script.execute: connection_failed_dim
             - script.execute: connection_failed_shift
             - lambda: |-
-                int s = id(active_slot);
-                bool in_flight = (s == 0) ? id(slot0_fetch_in_flight) : (s == 1) ? id(slot1_fetch_in_flight) : id(slot2_fetch_in_flight);
-                if (!in_flight) {
-                  id(target_slot) = s;
+                if (!id(slot_flags).fetch_in_flight[id(active_slot)]) {
+                  id(target_slot) = id(active_slot);
                   id(immich_fetch_into_slot).execute();
                 }
 

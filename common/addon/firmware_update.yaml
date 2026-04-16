@@ -4,7 +4,7 @@
 # Provides OTA (over-the-air) and HTTP-based firmware updates. The device
 # checks a manifest on GitHub (stable and optional beta) and can auto-update
 # when new versions are available. Update checks run on an interval (hourly,
-# daily, or weekly) when auto-update is enabled; a manual "Check for Update"
+# daily, weekly, or monthly) when auto-update is enabled; a manual "Check for Update"
 # button triggers an immediate check. Version is exposed as a text sensor for
 # diagnostics.
 #
@@ -42,7 +42,7 @@ update:
     id: firmware_update
     name: "Firmware: Update"
     internal: true
-    source: https://jtenniswood.github.io/espframe/firmware/manifest.json
+    source: ${firmware_manifest_url}
     update_interval: never
     on_update_available:
       then:
@@ -56,7 +56,7 @@ update:
     id: firmware_update_beta
     name: "Firmware: Update Beta"
     internal: true
-    source: https://jtenniswood.github.io/espframe/firmware/beta/manifest.json
+    source: ${firmware_beta_manifest_url}
     update_interval: never
 
 # -----------------------------------------------------------------------------
@@ -70,6 +70,18 @@ switch:
     icon: "mdi:update"
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
+    web_server:
+      sorting_group_id: sg_firmware
+
+  - platform: template
+    name: "Firmware: Beta Channel"
+    id: beta_channel_switch
+    entity_category: config
+    icon: "mdi:beta"
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    web_server:
+      sorting_group_id: sg_firmware
 
 select:
   - platform: template
@@ -77,6 +89,8 @@ select:
     id: update_frequency_select
     entity_category: config
     icon: "mdi:timer-outline"
+    web_server:
+      sorting_group_id: sg_firmware
     options:
       - "Hourly"
       - "Daily"
@@ -87,7 +101,7 @@ select:
     restore_value: true
 
 # -----------------------------------------------------------------------------
-# Periodic update check (hourly / daily / weekly when auto-update on)
+# Periodic update check (hourly / daily / weekly / monthly when auto-update on)
 # -----------------------------------------------------------------------------
 interval:
   - interval: 1h
@@ -102,6 +116,9 @@ interval:
           else if (freq == "Monthly") threshold = 720;
           if (counter % threshold == 0) {
             id(firmware_update).update();
+            if (id(beta_channel_switch).state) {
+              id(firmware_update_beta).update();
+            }
           }
           id(update_check_counter) = counter + 1;
 
@@ -114,6 +131,8 @@ text_sensor:
     id: firmware_version_sensor
     entity_category: diagnostic
     icon: "mdi:tag"
+    web_server:
+      sorting_group_id: sg_firmware
     update_interval: 5s
     lambda: 'return {"${firmware_version}"};'
 
@@ -122,9 +141,15 @@ button:
     name: "Firmware: Check for Update"
     entity_category: config
     icon: "mdi:update"
+    web_server:
+      sorting_group_id: sg_firmware
     on_press:
       - lambda: 'id(manual_check_only) = true;'
       - component.update: firmware_update
-      - component.update: firmware_update_beta
+      - if:
+          condition:
+            lambda: 'return id(beta_channel_switch).state;'
+          then:
+            - component.update: firmware_update_beta
       - delay: 15s
       - lambda: 'id(manual_check_only) = false;'

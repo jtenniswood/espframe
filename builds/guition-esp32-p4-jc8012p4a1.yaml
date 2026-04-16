@@ -1,0 +1,21 @@
+# =============================================================================
+# BUILD - Guition ESP32-P4 JC8012P4A1
+# =============================================================================
+# Thin CI wrapper: sets product name, enables AP mode for captive portal,
+# and pulls the full config from the device's packages.yaml.
+# =============================================================================
+
+substitutions:
+  name: "immich-frame-10inch"
+  friendly_name: "Immich Frame 10inch"
+
+esphome:
+  name_add_mac_suffix: true
+
+packages:
+  espframe: !include ../guition-esp32-p4-jc8012p4a1/packages.yaml
+
+wifi:
+  ap:
+
+captive_portal:

@@ -22,10 +22,14 @@ select:
     initial_option: "24 Hour"
     optimistic: true
     restore_value: true
+    web_server:
+      sorting_group_id: sg_clock
     on_value:
       then:
         - script.execute: update_clock_display
 
+  # Options list must match components/espframe/timezones.py (single source of truth).
+  # Run: python -c "from components.espframe.timezones import generate_yaml_options; print('\n'.join(f'      - \"{o}\"' for o in generate_yaml_options()))"
   - platform: template
     name: "Clock: Timezone"
     id: timezone_select
@@ -187,6 +191,8 @@ switch:
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
     icon: "mdi:clock-outline"
+    web_server:
+      sorting_group_id: sg_clock
 
 # -----------------------------------------------------------------------------
 # Refresh clock label from current time; show/hide based on switch
@@ -229,9 +235,11 @@ time:
         - script.execute: backlight_check_schedule
 
 # -----------------------------------------------------------------------------
-# Periodic clock refresh (every 60s)
+# Unified 60-second periodic interval for clock, backlight, and warm tones
 # -----------------------------------------------------------------------------
 interval:
   - interval: 60s
     then:
       - script.execute: update_clock_display
+      - script.execute: backlight_periodic_check
+      - script.execute: warm_tone_periodic_check

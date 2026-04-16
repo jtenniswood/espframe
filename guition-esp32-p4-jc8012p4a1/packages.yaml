@@ -1,11 +1,18 @@
 # =============================================================================
-# PACKAGES - ESPHome include manifest
+# PACKAGES - ESPHome include manifest (Guition ESP32-P4 JC8012P4A1)
 # =============================================================================
-# Pulls in device config, assets (fonts/icons), LVGL base, addons (connectivity,
-# Immich, backlight, time, display effects, firmware update, network), and
-# screen definitions (loading, WiFi setup, Immich setup, slideshow). Load order
-# follows dependencies: device and assets first, then addons and screens.
+# Device-specific substitutions followed by the package wiring. Shared addons
+# live in common/addon/ and are referenced via ../common/addon/; device-local
+# configs (hardware, screens, assets) stay under this folder.
 # =============================================================================
+
+substitutions:
+  display_width: "1280"
+  display_height: "800"
+  portrait_half_width: "640"
+  captive_portal_ip: "192.168.4.1"
+  firmware_manifest_url: "https://jtenniswood.github.io/espframe/firmware/manifest.json"
+  firmware_beta_manifest_url: "https://jtenniswood.github.io/espframe/firmware/beta/manifest.json"
 
 packages:
   # ---------------------------------------------------------------------------
@@ -16,30 +23,30 @@ packages:
   icons:           !include assets/icons.yaml
   lvgl_base:       !include device/lvgl_base.yaml
   # ---------------------------------------------------------------------------
-  # Addons: connectivity and Immich config/filter
+  # Shared addons: connectivity and Immich config/filter
   # ---------------------------------------------------------------------------
-  connectivity:    !include addon/connectivity.yaml
-  immich_config:   !include addon/immich_config.yaml
-  immich_filter:   !include addon/immich_filter.yaml
+  connectivity:    !include ../common/addon/connectivity.yaml
+  immich_config:   !include ../common/addon/immich_config.yaml
+  immich_filter:   !include ../common/addon/immich_filter.yaml
   # ---------------------------------------------------------------------------
-  # Addons: backlight, time, display effects
+  # Shared addons: backlight, time, display effects
   # ---------------------------------------------------------------------------
-  backlight:       !include addon/backlight.yaml
-  backlight_sched: !include addon/backlight_schedule.yaml
-  time_sync:       !include addon/time.yaml
-  accent_color:    !include addon/accent_color.yaml
-  warm_tones:      !include addon/warm_tones.yaml
+  backlight:       !include ../common/addon/backlight.yaml
+  backlight_sched: !include ../common/addon/backlight_schedule.yaml
+  time_sync:       !include ../common/addon/time.yaml
+  accent_color:    !include ../common/addon/accent_color.yaml
+  warm_tones:      !include ../common/addon/warm_tones.yaml
   # ---------------------------------------------------------------------------
   # Screens (loading, WiFi setup, Immich setup, slideshow)
   # ---------------------------------------------------------------------------
   screen_loading:  !include device/screen_loading.yaml
   screen_wifi:     !include device/screen_wifi_setup.yaml
   screen_setup:    !include device/screen_immich_setup.yaml
-  immich_api:      !include addon/immich_api.yaml
-  immich_slide:    !include addon/immich_slideshow.yaml
+  immich_api:      !include ../common/addon/immich_api.yaml
+  immich_slide:    !include ../common/addon/immich_slideshow.yaml
   screen_slide:    !include device/screen_slideshow.yaml
   # ---------------------------------------------------------------------------
-  # Addons: firmware update and network diagnostics
+  # Shared addons: firmware update and network diagnostics
   # ---------------------------------------------------------------------------
-  fw_update:       !include addon/firmware_update.yaml
-  network:         !include addon/network.yaml
+  fw_update:       !include ../common/addon/firmware_update.yaml
+  network:         !include ../common/addon/network.yaml

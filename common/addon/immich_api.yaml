@@ -27,15 +27,15 @@ script:
     mode: single
     then:
       - lambda: |-
-          id(portrait_companion_found) = false;
+          id(portrait).companion_found = false;
           id(portrait_companion_url) = "";
-          id(portrait_right_requested) = false;
+          id(portrait).right_requested = false;
           int ts = id(companion_target_slot);
-          auto &meta = (ts == 0) ? id(slot0) : (ts == 1) ? id(slot1) : id(slot2);
+          auto &meta = get_slot(ts, id(slot0), id(slot1), id(slot2));
           meta.companion_url = "";
           if (id(companion_target_slot) == id(active_slot)) {
-            id(portrait_no_companion_active) = true;
-            id(active_portrait_workflow_busy) = false;
+            id(portrait).no_companion_active = true;
+            id(portrait).workflow_busy = false;
             if (!id(active_slot_displayed)) {
               id(active_slot_displayed) = true;
               id(immich_display_current).execute();
@@ -71,10 +71,7 @@ script:
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Memories HTTP %d — falling back to random", response->status_code);
                     id(immich_memory_fallback) = true;
-                    int s = id(target_slot);
-                    if (s == 0) id(slot0_fetch_in_flight) = false;
-                    else if (s == 1) id(slot1_fetch_in_flight) = false;
-                    else id(slot2_fetch_in_flight) = false;
+                    id(slot_flags).fetch_in_flight[id(target_slot)] = false;
                     id(immich_fetch_into_slot).execute();
                     return;
                   }
@@ -83,10 +80,7 @@ script:
                   if (doc.isNull() || !doc.is<JsonArray>()) {
                     ESP_LOGD("immich", "No memories for today — falling back to random");
                     id(immich_memory_fallback) = true;
-                    int s = id(target_slot);
-                    if (s == 0) id(slot0_fetch_in_flight) = false;
-                    else if (s == 1) id(slot1_fetch_in_flight) = false;
-                    else id(slot2_fetch_in_flight) = false;
+                    id(slot_flags).fetch_in_flight[id(target_slot)] = false;
                     id(immich_fetch_into_slot).execute();
                     return;
                   }
@@ -111,10 +105,7 @@ script:
                   if (image_ids.empty()) {
                     ESP_LOGD("immich", "No memory images for today — falling back to random");
                     id(immich_memory_fallback) = true;
-                    int s = id(target_slot);
-                    if (s == 0) id(slot0_fetch_in_flight) = false;
-                    else if (s == 1) id(slot1_fetch_in_flight) = false;
-                    else id(slot2_fetch_in_flight) = false;
+                    id(slot_flags).fetch_in_flight[id(target_slot)] = false;
                     id(immich_fetch_into_slot).execute();
                     return;
                   }
@@ -129,10 +120,7 @@ script:
               - lambda: |-
                   ESP_LOGW("immich", "Memories request failed — falling back to random");
                   id(immich_memory_fallback) = true;
-                  int s = id(target_slot);
-                  if (s == 0) id(slot0_fetch_in_flight) = false;
-                  else if (s == 1) id(slot1_fetch_in_flight) = false;
-                  else id(slot2_fetch_in_flight) = false;
+                  id(slot_flags).fetch_in_flight[id(target_slot)] = false;
               - script.execute: immich_fetch_into_slot
 
   # ---------------------------------------------------------------------------
@@ -155,10 +143,7 @@ script:
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Memory asset HTTP %d — falling back to random", response->status_code);
                     id(immich_memory_fallback) = true;
-                    int s = id(target_slot);
-                    if (s == 0) id(slot0_fetch_in_flight) = false;
-                    else if (s == 1) id(slot1_fetch_in_flight) = false;
-                    else id(slot2_fetch_in_flight) = false;
+                    id(slot_flags).fetch_in_flight[id(target_slot)] = false;
                     id(immich_fetch_into_slot).execute();
                     return;
                   }
@@ -168,15 +153,12 @@ script:
                   if (img_url.empty()) {
                     ESP_LOGW("immich", "Memory asset parse failed — falling back to random");
                     id(immich_memory_fallback) = true;
-                    int s = id(target_slot);
-                    if (s == 0) id(slot0_fetch_in_flight) = false;
-                    else if (s == 1) id(slot1_fetch_in_flight) = false;
-                    else id(slot2_fetch_in_flight) = false;
+                    id(slot_flags).fetch_in_flight[id(target_slot)] = false;
                     id(immich_fetch_into_slot).execute();
                     return;
                   }
                   int slot = id(target_slot);
-                  auto &meta = (slot == 0) ? id(slot0) : (slot == 1) ? id(slot1) : id(slot2);
+                  auto &meta = get_slot(slot, id(slot0), id(slot1), id(slot2));
                   ESP_LOGI("immich", "MEMORY slot %d: %s | %s | %s | %s | portrait=%d",
                            slot, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.location.c_str(), meta.is_portrait);
                   if (id(portrait_preload_slot) == slot) {
@@ -201,10 +183,7 @@ script:
               - lambda: |-
                   ESP_LOGW("immich", "Memory asset request failed — falling back to random");
                   id(immich_memory_fallback) = true;
-                  int s = id(target_slot);
-                  if (s == 0) id(slot0_fetch_in_flight) = false;
-                  else if (s == 1) id(slot1_fetch_in_flight) = false;
-                  else id(slot2_fetch_in_flight) = false;
+                  id(slot_flags).fetch_in_flight[id(target_slot)] = false;
               - script.execute: immich_fetch_into_slot
 
   # ---------------------------------------------------------------------------
@@ -233,27 +212,18 @@ script:
             - script.stop: immich_fetch_into_slot
       - if:
           condition:
-            lambda: 'return id(target_slot) != id(active_slot) && id(active_portrait_workflow_busy);'
+            lambda: 'return id(target_slot) != id(active_slot) && id(portrait).workflow_busy;'
           then:
-            # #region agent log
-            - lambda: 'ESP_LOGW("diag", "H1: fetch slot %d BLOCKED (busy flag)", id(target_slot));'
-            # #endregion
             - script.execute: delayed_prefetch_chain
             - script.stop: immich_fetch_into_slot
       - if:
           condition:
-            lambda: |-
-              int s = id(target_slot);
-              return (s == 0) ? id(slot0_fetch_in_flight) : (s == 1) ? id(slot1_fetch_in_flight) : id(slot2_fetch_in_flight);
+            lambda: 'return id(slot_flags).fetch_in_flight[id(target_slot)];'
           then:
             - lambda: |-
                 ESP_LOGD("immich", "Slot %d fetch already in flight, skipping API fetch", id(target_slot));
             - script.stop: immich_fetch_into_slot
-      - lambda: |-
-          int s = id(target_slot);
-          if (s == 0) id(slot0_fetch_in_flight) = true;
-          else if (s == 1) id(slot1_fetch_in_flight) = true;
-          else id(slot2_fetch_in_flight) = true;
+      - lambda: 'id(slot_flags).fetch_in_flight[id(target_slot)] = true;'
       - if:
           condition:
             lambda: 'return id(photo_source_select).current_option() == "Memories" && !id(immich_memory_fallback);'
@@ -286,22 +256,31 @@ script:
             then:
               - lambda: |-
                   if (response->status_code != 200) {
-                    ESP_LOGW("immich", "HTTP %d from Immich", response->status_code);
-                    id(immich_last_http_status) = response->status_code;
-                    int s = id(target_slot);
-                    if (s == 0) id(slot0_fetch_in_flight) = false;
-                    else if (s == 1) id(slot1_fetch_in_flight) = false;
-                    else id(slot2_fetch_in_flight) = false;
-                    if (response->status_code == 401) {
+                    int code = response->status_code;
+                    ESP_LOGW("immich", "HTTP %d from Immich", code);
+                    id(immich_last_http_status) = code;
+                    id(slot_flags).fetch_in_flight[id(target_slot)] = false;
+                    if (is_http_auth_error(code)) {
                       lv_label_set_text(id(connection_failed_title), "Invalid API Key");
                       lv_label_set_text(id(connection_failed_subtitle), "Check your Immich API key in\nthe espframe settings.");
-                      if (id(last_photo_displayed_ms) == 0) {
-                        id(last_photo_displayed_ms) = millis();
+                    } else if (is_http_retryable(code)) {
+                      id(immich_api_retries)++;
+                      if (id(immich_api_retries) < MAX_ERROR_RETRIES) {
+                        id(immich_fetch_retry).execute();
+                        return;
                       }
-                      lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
-                      id(connection_failed_dim).execute();
-                      id(connection_failed_shift).execute();
+                      lv_label_set_text(id(connection_failed_title), "Immich server error");
+                      lv_label_set_text(id(connection_failed_subtitle), "Your Immich server returned an error.\nIt may be restarting or under heavy load.");
+                    } else {
+                      lv_label_set_text(id(connection_failed_title), "Unable to connect to Immich");
+                      lv_label_set_text(id(connection_failed_subtitle), "Check your internet connection and\nthe health of your Immich server.");
                     }
+                    if (id(last_photo_displayed_ms) == 0) {
+                      id(last_photo_displayed_ms) = millis();
+                    }
+                    lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
+                    id(connection_failed_dim).execute();
+                    id(connection_failed_shift).execute();
                     return;
                   }
                   id(immich_fetch_started) = true;
@@ -310,14 +289,11 @@ script:
                   std::string img_url = parse_immich_asset_and_fill_slot(body, id(immich_url).state, id(target_slot), id(slot0), id(slot1), id(slot2));
                   if (img_url.empty()) {
                     ESP_LOGW("immich", "No valid asset in response");
-                    int s = id(target_slot);
-                    if (s == 0) id(slot0_fetch_in_flight) = false;
-                    else if (s == 1) id(slot1_fetch_in_flight) = false;
-                    else id(slot2_fetch_in_flight) = false;
+                    id(slot_flags).fetch_in_flight[id(target_slot)] = false;
                     return;
                   }
                   int slot = id(target_slot);
-                  auto &meta = (slot == 0) ? id(slot0) : (slot == 1) ? id(slot1) : id(slot2);
+                  auto &meta = get_slot(slot, id(slot0), id(slot1), id(slot2));
                   ESP_LOGI("immich", "RANDOM slot %d: %s | %s | %s | %s | portrait=%d",
                            slot, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.location.c_str(), meta.is_portrait);
                   if (id(portrait_preload_slot) == slot) {
@@ -342,10 +318,7 @@ script:
               - lambda: |-
                   id(immich_api_retries)++;
                   ESP_LOGW("immich", "API request error for slot %d (attempt %d)", id(target_slot), id(immich_api_retries));
-                  int s = id(target_slot);
-                  if (s == 0) id(slot0_fetch_in_flight) = false;
-                  else if (s == 1) id(slot1_fetch_in_flight) = false;
-                  else id(slot2_fetch_in_flight) = false;
+                  id(slot_flags).fetch_in_flight[id(target_slot)] = false;
               - if:
                   condition:
                     lambda: 'return id(immich_api_retries) < MAX_ERROR_RETRIES;'
@@ -381,17 +354,14 @@ script:
           then:
             - script.stop: immich_fetch_portrait_companion
       - lambda: |-
-          id(portrait_companion_found) = false;
+          id(portrait).companion_found = false;
           id(portrait_companion_url) = "";
-          id(portrait_right_requested) = false;
-          if (id(companion_target_slot) == id(active_slot)) id(active_portrait_workflow_busy) = true;
+          id(portrait).right_requested = false;
+          if (id(companion_target_slot) == id(active_slot)) id(portrait).workflow_busy = true;
       - if:
           condition:
-            lambda: 'return id(companion_target_slot) != id(active_slot) && id(active_portrait_workflow_busy);'
+            lambda: 'return id(companion_target_slot) != id(active_slot) && id(portrait).workflow_busy;'
           then:
-            # #region agent log
-            - lambda: 'ESP_LOGW("diag", "H1: companion search BLOCKED (busy flag)");'
-            # #endregion
             - script.execute: delayed_prefetch_chain
             - script.stop: immich_fetch_portrait_companion
       - lambda: |-
@@ -470,17 +440,17 @@ script:
                     id(handle_companion_not_found).execute();
                     return;
                   }
-                  id(portrait_no_companion_active) = false;
-                  id(portrait_companion_found) = true;
+                  id(portrait).no_companion_active = false;
+                  id(portrait).companion_found = true;
                   id(portrait_companion_url) = companion_url;
                   int ts = id(companion_target_slot);
-                  auto &meta = (ts == 0) ? id(slot0) : (ts == 1) ? id(slot1) : id(slot2);
+                  auto &meta = get_slot(ts, id(slot0), id(slot1), id(slot2));
                   meta.companion_url = companion_url;
               - if:
                   condition:
-                    lambda: 'return id(portrait_companion_found) && id(companion_target_slot) == id(active_slot);'
+                    lambda: 'return id(portrait).companion_found && id(companion_target_slot) == id(active_slot);'
                   then:
-                    - lambda: 'id(portrait_right_requested) = true;'
+                    - lambda: 'id(portrait).right_requested = true;'
                     - remote_image.set_url:
                         id: immich_portrait_right
                         url: !lambda 'return id(portrait_companion_url);'
@@ -488,11 +458,11 @@ script:
                     - script.execute: deferred_portrait_right_update
               - if:
                   condition:
-                    lambda: 'return id(portrait_companion_found) && id(companion_target_slot) != id(active_slot);'
+                    lambda: 'return id(portrait).companion_found && id(companion_target_slot) != id(active_slot);'
                   then:
                     - lambda: |-
                         int ts = id(companion_target_slot);
-                        auto &meta = (ts == 0) ? id(slot0) : (ts == 1) ? id(slot1) : id(slot2);
+                        auto &meta = get_slot(ts, id(slot0), id(slot1), id(slot2));
                         id(portrait_preload_slot) = ts;
                         id(portrait_preload_left_ready) = false;
                         id(portrait_preload_right_ready) = false;
@@ -502,7 +472,7 @@ script:
                         id: immich_portrait_preload_left
                         url: !lambda |-
                           int ts = id(companion_target_slot);
-                          auto &meta = (ts == 0) ? id(slot0) : (ts == 1) ? id(slot1) : id(slot2);
+                          auto &meta = get_slot(ts, id(slot0), id(slot1), id(slot2));
                           return meta.image_url;
                         update: false
                     - script.execute: deferred_preload_left_update

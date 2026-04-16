@@ -15,10 +15,11 @@ jobs:
   build-firmware:
     name: Build Firmware
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event.release.tag_name || github.ref }}
 
       - name: Compile P4 firmware
         env:
@@ -26,14 +27,14 @@ jobs:
         run: >-
           docker run --rm
           -v "${PWD}:/config"
-          ghcr.io/esphome/esphome:latest
+          ghcr.io/esphome/esphome:2026.4.0
           -s firmware_version "${VERSION}"
-          compile /config/guition-esp32-p4-jc8012p4a1/factory.yaml
+          compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
 
       - name: Collect firmware files and generate manifest
         id: firmware
         run: |
-          BUILD_DIR="guition-esp32-p4-jc8012p4a1/.esphome/build/immich-frame-10inch/.pioenvs/immich-frame-10inch"
+          BUILD_DIR="builds/.esphome/build/immich-frame-10inch/.pioenvs/immich-frame-10inch"
           mkdir -p output
 
           if [ ! -f "${BUILD_DIR}/firmware.factory.bin" ]; then
