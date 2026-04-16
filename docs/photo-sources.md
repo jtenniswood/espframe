@@ -41,17 +41,20 @@ Shows "On this day" photos from past years; falls back to random if none. Set **
 
 ## Advanced Filters
 
-The **Advanced Filters** card in the web UI lets you restrict displayed photos to a date range. Both fields are optional — leave a field empty for no limit in that direction.
+The **Advanced Filters** card in the web UI lets you restrict displayed photos by fixed dates or by a rolling relative range.
 
 | Setting | Default | Format | Description |
 |---------|---------|--------|-------------|
-| **Minimum Date** | *(empty)* | `YYYY-MM-DD` | Only show photos taken on or after this date. Leave empty for no lower bound. |
-| **Maximum Date** | *(empty)* | `YYYY-MM-DD` | Only show photos taken on or before this date. Leave empty for no upper bound. |
+| **Mode** | `Fixed Range` | Select | Choose whether to use fixed dates or a relative range ending today. |
+| **Minimum Date** | *(empty)* | `YYYY-MM-DD` | In fixed mode, only show photos taken on or after this date. Leave empty for no lower bound. |
+| **Maximum Date** | *(empty)* | `YYYY-MM-DD` | In fixed mode, only show photos taken on or before this date. Leave empty for no upper bound. |
+| **Last** | `1` | Number | In relative mode, the amount of time to include. |
+| **Unit** | `Years` | `Months` or `Years` | In relative mode, whether the amount is counted in months or years. |
 
-Click **Apply** after changing either value. When both dates are set, the minimum date must not be after the maximum date.
+Click **Apply** after changing values. Fixed mode and relative mode are mutually exclusive, so relative ranges do not combine with the fixed minimum or maximum dates.
 
 ::: tip
-You can set only one side of the range — for example, a **Minimum Date** with no **Maximum Date** shows everything from that date onward.
+Use relative mode for ranges like the last 6 months, last 1 year, or last 2 years so the lower bound moves forward automatically.
 :::
 
 ---

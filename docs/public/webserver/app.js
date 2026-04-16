@@ -95,8 +95,13 @@
     warm_tones_enabled: false,
     warm_tone_intensity: 50,
     warm_tone_override: false,
+    date_filter_mode: "Fixed Range",
+    date_filter_mode_options: ["Fixed Range", "Relative Range"],
     date_from: "",
     date_to: "",
+    relative_amount: 1,
+    relative_unit: "Years",
+    relative_unit_options: ["Months", "Years"],
     portrait_pairing: true,
     display_mode: "Fill",
     display_mode_options: ["Fill", "Fit"],
@@ -160,12 +165,13 @@
     "border-radius:50%;background:var(--success);flex-shrink:0}" +
     ".field{margin-bottom:22px}.field:last-child{margin-bottom:0}" +
     "label{display:block;font-size:.85rem;color:var(--text2);margin-bottom:6px;font-weight:500}" +
-    "input[type='text'],input[type='password'],input[type='url'],input[type='date']{" +
+    "input[type='text'],input[type='password'],input[type='url'],input[type='date'],input[type='number']{" +
     "width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);" +
     "border-radius:8px;color:var(--text);font-size:.9rem;outline:none;" +
     "transition:border-color .25s,box-shadow .25s;font-family:inherit}" +
-    "input[type='text']:focus,input[type='password']:focus,input[type='url']:focus,input[type='date']:focus{" +
+    "input[type='text']:focus,input[type='password']:focus,input[type='url']:focus,input[type='date']:focus,input[type='number']:focus{" +
     "border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}" +
+    "input[type='date']::-webkit-datetime-edit{color:var(--text);font-family:inherit}" +
     "input[type='date']::-webkit-calendar-picker-indicator{filter:invert(.7);cursor:pointer}" +
     "input::placeholder{color:var(--text2);opacity:.7}" +
     ".select,select{width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);" +
@@ -423,8 +429,11 @@
     photo_source: eid("select", "Photos: Source"),
     album_ids: eid("text", "Photos: Album IDs"),
     person_ids: eid("text", "Photos: Person IDs"),
+    date_filter_mode: eid("select", "Photos: Date Filter Mode"),
     date_from: eid("text", "Photos: Date From"),
     date_to: eid("text", "Photos: Date To"),
+    relative_amount: eid("number", "Photos: Relative Amount"),
+    relative_unit: eid("select", "Photos: Relative Unit"),
     base_tone_enabled: eid("switch", "Screen: Tone Adjustment"),
     base_tone: eid("number", "Screen: Display Tone"),
     warm_tones_enabled: eid("switch", "Screen: Night Tone Adjustment"),
@@ -533,8 +542,11 @@
     "select/Photos: Source": { key: "photo_source", optionsKey: "photo_source_options", default: "All Photos" },
     "text/Photos: Album IDs": { key: "album_ids" },
     "text/Photos: Person IDs": { key: "person_ids" },
+    "select/Photos: Date Filter Mode": { key: "date_filter_mode", optionsKey: "date_filter_mode_options", default: "Fixed Range" },
     "text/Photos: Date From": { key: "date_from" },
     "text/Photos: Date To": { key: "date_to" },
+    "number/Photos: Relative Amount": { key: "relative_amount", default: 1, number: true },
+    "select/Photos: Relative Unit": { key: "relative_unit", optionsKey: "relative_unit_options", default: "Years" },
     "switch/Screen: Tone Adjustment": { key: "base_tone_enabled", boolFromState: true },
     "number/Screen: Display Tone": { key: "base_tone", default: 0, number: true },
     "switch/Screen: Night Tone Adjustment": { key: "warm_tones_enabled", boolFromState: true },
@@ -591,7 +603,8 @@
 
   // Single source for settings fetched on load; KEY_TO_ENTITY_ID derived from ENTITY_STATE_MAP.
   var INITIAL_FETCH_KEYS = [
-    "photo_source", "album_ids", "person_ids", "date_from", "date_to",
+    "photo_source", "album_ids", "person_ids",
+    "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit",
     "interval", "conn_timeout",
     "schedule_enabled", "schedule_on_hour", "schedule_off_hour",
     "sunrise", "sunset",
@@ -1006,13 +1019,24 @@
       var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
       return d.getFullYear() === Number(parts[0]) && d.getMonth() === Number(parts[1]) - 1 && d.getDate() === Number(parts[2]);
     }
-    var filterBadge = makeBadge(!!S.date_from || !!S.date_to);
+    function isFilterActive(mode, fromVal, toVal, amountVal) {
+      return mode === "Relative Range" ? amountVal > 0 : (!!fromVal || !!toVal);
+    }
+    var filterBadge = makeBadge(isFilterActive(S.date_filter_mode, S.date_from, S.date_to, S.relative_amount));
     var filterBody = el("div");
     var filterHint = el("div");
     filterHint.className = "field-hint";
-    filterHint.textContent = "Only show photos taken within this date range. Leave a field empty for no limit in that direction.";
+    filterHint.textContent = "Choose fixed dates or a rolling range that ends today.";
     filterBody.appendChild(filterHint);
 
+    var fFilterMode = field("Mode");
+    var modeSelect = selectFromOptions(S.date_filter_mode_options, S.date_filter_mode, function (v) {
+      updateFilterModeDisplay(v);
+    });
+    fFilterMode.appendChild(modeSelect);
+    filterBody.appendChild(fFilterMode);
+
+    var fixedWrap = el("div");
     var fDateFrom = field("Minimum Date");
     var dateFromInput = document.createElement("input");
     dateFromInput.type = "date";
@@ -1021,7 +1045,7 @@
     var dateFromError = el("div", "field-error");
     fDateFrom.appendChild(dateFromInput);
     fDateFrom.appendChild(dateFromError);
-    filterBody.appendChild(fDateFrom);
+    fixedWrap.appendChild(fDateFrom);
 
     var fDateTo = field("Maximum Date");
     var dateToInput = document.createElement("input");
@@ -1031,7 +1055,33 @@
     var dateToError = el("div", "field-error");
     fDateTo.appendChild(dateToInput);
     fDateTo.appendChild(dateToError);
-    filterBody.appendChild(fDateTo);
+    fixedWrap.appendChild(fDateTo);
+    filterBody.appendChild(fixedWrap);
+
+    var relativeWrap = el("div");
+    var fRelativeAmount = field("Last");
+    var relativeAmountInput = document.createElement("input");
+    relativeAmountInput.type = "number";
+    relativeAmountInput.min = "1";
+    relativeAmountInput.max = "120";
+    relativeAmountInput.step = "1";
+    relativeAmountInput.value = String(S.relative_amount || 1);
+    var relativeAmountError = el("div", "field-error");
+    fRelativeAmount.appendChild(relativeAmountInput);
+    fRelativeAmount.appendChild(relativeAmountError);
+    relativeWrap.appendChild(fRelativeAmount);
+
+    var fRelativeUnit = field("Unit");
+    var relativeUnitSelect = selectFromOptions(S.relative_unit_options, S.relative_unit, function () {});
+    fRelativeUnit.appendChild(relativeUnitSelect);
+    relativeWrap.appendChild(fRelativeUnit);
+    filterBody.appendChild(relativeWrap);
+
+    function updateFilterModeDisplay(mode) {
+      fixedWrap.style.display = mode === "Relative Range" ? "none" : "";
+      relativeWrap.style.display = mode === "Relative Range" ? "" : "none";
+    }
+    updateFilterModeDisplay(S.date_filter_mode);
 
     var filterError = el("div", "field-error");
     filterBody.appendChild(filterError);
@@ -1041,28 +1091,42 @@
     filterApplyBtn.onclick = function () {
       dateFromError.textContent = "";
       dateToError.textContent = "";
+      relativeAmountError.textContent = "";
       filterError.textContent = "";
+      var modeVal = modeSelect.value;
       var fromVal = dateFromInput.value.trim();
       var toVal = dateToInput.value.trim();
-      if (fromVal && !isValidDate(fromVal)) {
+      var amountVal = Math.round(Number(relativeAmountInput.value));
+      var unitVal = relativeUnitSelect.value;
+      if (modeVal === "Fixed Range" && fromVal && !isValidDate(fromVal)) {
         dateFromError.textContent = "Invalid date — use YYYY-MM-DD";
         return;
       }
-      if (toVal && !isValidDate(toVal)) {
+      if (modeVal === "Fixed Range" && toVal && !isValidDate(toVal)) {
         dateToError.textContent = "Invalid date — use YYYY-MM-DD";
         return;
       }
-      if (fromVal && toVal && fromVal > toVal) {
+      if (modeVal === "Fixed Range" && fromVal && toVal && fromVal > toVal) {
         filterError.textContent = "Minimum Date must not be after Maximum Date";
+        return;
+      }
+      if (modeVal === "Relative Range" && (!amountVal || amountVal < 1 || amountVal > 120)) {
+        relativeAmountError.textContent = "Enter a whole number from 1 to 120";
         return;
       }
       filterApplyBtn.disabled = true;
       filterApplyBtn.textContent = "Applying\u2026";
+      post(endpoints.date_filter_mode + "/set", { option: modeVal });
       post(endpoints.date_from + "/set", { value: fromVal });
       post(endpoints.date_to + "/set", { value: toVal });
+      post(endpoints.relative_amount + "/set", { value: amountVal });
+      post(endpoints.relative_unit + "/set", { option: unitVal });
+      S.date_filter_mode = modeVal;
       S.date_from = fromVal;
       S.date_to = toVal;
-      filterBadge.className = "on-badge" + ((fromVal || toVal) ? " active" : "");
+      S.relative_amount = amountVal;
+      S.relative_unit = unitVal;
+      filterBadge.className = "on-badge" + (isFilterActive(modeVal, fromVal, toVal, amountVal) ? " active" : "");
       post(eid("button", "Apply Photo Source") + "/press").then(function () {
         filterApplyBtn.textContent = "Applied";
         setTimeout(function () {
@@ -1655,8 +1719,11 @@
         source: S.photo_source,
         album_ids: S.album_ids,
         person_ids: S.person_ids,
+        date_filter_mode: S.date_filter_mode,
         date_from: S.date_from,
         date_to: S.date_to,
+        relative_amount: S.relative_amount,
+        relative_unit: S.relative_unit,
         portrait_pairing: S.portrait_pairing,
         display_mode: S.display_mode
       },
@@ -1764,6 +1831,10 @@
           S.display_mode = p.display_mode;
           post(endpoints.display_mode + "/set", { option: p.display_mode });
         }
+        if (p.date_filter_mode !== undefined) {
+          S.date_filter_mode = p.date_filter_mode;
+          post(endpoints.date_filter_mode + "/set", { option: p.date_filter_mode });
+        }
         if (p.date_from !== undefined) {
           S.date_from = p.date_from;
           post(endpoints.date_from + "/set", { value: p.date_from });
@@ -1771,6 +1842,14 @@
         if (p.date_to !== undefined) {
           S.date_to = p.date_to;
           post(endpoints.date_to + "/set", { value: p.date_to });
+        }
+        if (p.relative_amount !== undefined) {
+          S.relative_amount = p.relative_amount;
+          post(endpoints.relative_amount + "/set", { value: p.relative_amount });
+        }
+        if (p.relative_unit !== undefined) {
+          S.relative_unit = p.relative_unit;
+          post(endpoints.relative_unit + "/set", { option: p.relative_unit });
         }
 
         if (f.interval !== undefined) {

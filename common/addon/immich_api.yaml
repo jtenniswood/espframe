@@ -242,14 +242,52 @@ script:
             x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
           body: !lambda |-
             std::string extra;
-            std::string df = id(immich_date_from).state;
-            std::string dt = id(immich_date_to).state;
-            if (!df.empty()) {
-              extra += "\"takenAfter\":\"" + df + "T00:00:00.000Z\"";
-            }
-            if (!dt.empty()) {
-              if (!extra.empty()) extra += ",";
-              extra += "\"takenBefore\":\"" + dt + "T23:59:59.999Z\"";
+            auto add_range = [&](const std::string &from, const std::string &to) {
+              if (!from.empty()) {
+                extra += "\"takenAfter\":\"" + from + "T00:00:00.000Z\"";
+              }
+              if (!to.empty()) {
+                if (!extra.empty()) extra += ",";
+                extra += "\"takenBefore\":\"" + to + "T23:59:59.999Z\"";
+              }
+            };
+            auto format_date = [](int y, int m, int d) -> std::string {
+              char buf[11];
+              snprintf(buf, sizeof(buf), "%04d-%02d-%02d", y, m, d);
+              return std::string(buf);
+            };
+            auto days_in_month = [](int y, int m) -> int {
+              static const int days[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+              if (m == 2) {
+                bool leap = (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0);
+                return leap ? 29 : 28;
+              }
+              return days[m - 1];
+            };
+
+            if (id(immich_date_filter_mode).current_option() == "Relative Range") {
+              auto now = id(sntp_time).now();
+              if (now.is_valid()) {
+                int amount = (int) (id(immich_relative_amount).state + 0.5f);
+                if (amount < 1) amount = 1;
+                int y = now.year;
+                int m = now.month;
+                int d = now.day_of_month;
+                if (id(immich_relative_unit).current_option() == "Years") {
+                  y -= amount;
+                } else {
+                  int total_months = y * 12 + (m - 1) - amount;
+                  y = total_months / 12;
+                  m = (total_months % 12) + 1;
+                }
+                int max_day = days_in_month(y, m);
+                if (d > max_day) d = max_day;
+                add_range(format_date(y, m, d), format_date(now.year, now.month, now.day_of_month));
+              } else {
+                ESP_LOGW("immich", "Relative date filter skipped because time is not valid");
+              }
+            } else {
+              add_range(id(immich_date_from).state, id(immich_date_to).state);
             }
             return build_immich_search_body(1, true, id(photo_source_select).current_option(), id(immich_album_ids).state, id(immich_person_ids).state, extra);
           on_response:
@@ -388,8 +426,48 @@ script:
             std::string day = id(portrait_search_datetime);
             std::string after = day + "T00:00:00.000Z";
             std::string before = day + "T23:59:59.999Z";
-            std::string df = id(immich_date_from).state;
-            std::string dt = id(immich_date_to).state;
+            auto format_date = [](int y, int m, int d) -> std::string {
+              char buf[11];
+              snprintf(buf, sizeof(buf), "%04d-%02d-%02d", y, m, d);
+              return std::string(buf);
+            };
+            auto days_in_month = [](int y, int m) -> int {
+              static const int days[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+              if (m == 2) {
+                bool leap = (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0);
+                return leap ? 29 : 28;
+              }
+              return days[m - 1];
+            };
+
+            std::string df;
+            std::string dt;
+            if (id(immich_date_filter_mode).current_option() == "Relative Range") {
+              auto now = id(sntp_time).now();
+              if (now.is_valid()) {
+                int amount = (int) (id(immich_relative_amount).state + 0.5f);
+                if (amount < 1) amount = 1;
+                int y = now.year;
+                int m = now.month;
+                int d = now.day_of_month;
+                if (id(immich_relative_unit).current_option() == "Years") {
+                  y -= amount;
+                } else {
+                  int total_months = y * 12 + (m - 1) - amount;
+                  y = total_months / 12;
+                  m = (total_months % 12) + 1;
+                }
+                int max_day = days_in_month(y, m);
+                if (d > max_day) d = max_day;
+                df = format_date(y, m, d);
+                dt = format_date(now.year, now.month, now.day_of_month);
+              } else {
+                ESP_LOGW("immich", "Relative date filter skipped for companion search because time is not valid");
+              }
+            } else {
+              df = id(immich_date_from).state;
+              dt = id(immich_date_to).state;
+            }
             if (!df.empty() && df > day) after = df + "T00:00:00.000Z";
             if (!dt.empty() && dt < day) before = dt + "T23:59:59.999Z";
             std::string extra = "\"takenAfter\":\"" + after + "\",\"takenBefore\":\"" + before + "\"";

@@ -29,6 +29,59 @@ select:
         - lambda: 'ESP_LOGI("immich", "Photo source: %s", x.c_str());'
         - script.execute: auto_apply_photo_source
 
+  - platform: template
+    name: "Photos: Date Filter Mode"
+    id: immich_date_filter_mode
+    internal: true
+    options:
+      - "Fixed Range"
+      - "Relative Range"
+    initial_option: "Fixed Range"
+    optimistic: true
+    restore_value: true
+    icon: "mdi:calendar-filter"
+    on_value:
+      then:
+        - lambda: 'ESP_LOGI("immich", "Date filter mode: %s", x.c_str());'
+        - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: Relative Unit"
+    id: immich_relative_unit
+    internal: true
+    options:
+      - "Months"
+      - "Years"
+    initial_option: "Years"
+    optimistic: true
+    restore_value: true
+    icon: "mdi:calendar-range"
+    on_value:
+      then:
+        - lambda: 'ESP_LOGI("immich", "Relative date unit: %s", x.c_str());'
+        - script.execute: auto_apply_photo_source
+
+# -----------------------------------------------------------------------------
+# Relative date range amount (used when date filter mode is Relative Range)
+# -----------------------------------------------------------------------------
+number:
+  - platform: template
+    name: "Photos: Relative Amount"
+    id: immich_relative_amount
+    internal: true
+    min_value: 1
+    max_value: 120
+    step: 1
+    initial_value: 1
+    optimistic: true
+    restore_value: true
+    icon: "mdi:counter"
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGI("immich", "Relative date amount: %.0f", x);
+        - script.execute: auto_apply_photo_source
+
 # -----------------------------------------------------------------------------
 # Date range filter (optional, YYYY-MM-DD; empty = no bound)
 # -----------------------------------------------------------------------------
