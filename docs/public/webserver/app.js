@@ -1047,11 +1047,6 @@
     fFilterToggle.appendChild(filterTr);
     filterBody.appendChild(fFilterToggle);
 
-    var filterHint = el("div");
-    filterHint.className = "field-hint";
-    filterHint.textContent = "Choose fixed dates or a rolling range that ends today.";
-    filterDetails.appendChild(filterHint);
-
     var fFilterMode = field("Mode");
     var modeVal = S.date_filter_mode;
     var modeSegment = segmentedControl(S.date_filter_mode_options, modeVal, function (v) {
