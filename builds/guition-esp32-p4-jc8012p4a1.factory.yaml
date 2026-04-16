@@ -26,5 +26,5 @@ web_server:
   port: 80
   version: 3
   js_url: ""
-  css_include: "../docs/public/webserver/style.min.css"
-  js_include: "../docs/public/webserver/app.min.js"
+  css_include: "../docs/public/webserver/style.css"
+  js_include: "../docs/public/webserver/app.js"

@@ -49,9 +49,6 @@ npm run docs:dev
 
 # Compile firmware locally
 docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.3.0 compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
-
-# Minify web UI assets (run after editing app.js)
-npm run minify
 ```
 
 ## Support This Project
