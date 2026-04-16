@@ -194,7 +194,7 @@
     ".input-group{display:flex;gap:8px}.input-group input{flex:1}" +
     ".person-id-list{display:flex;flex-direction:column;gap:8px}" +
     ".person-id-row{display:grid;grid-template-columns:minmax(0,1fr) 40px;gap:8px;align-items:center}" +
-    ".person-id-actions{display:flex;justify-content:flex-start;margin-top:8px}" +
+    ".person-id-actions{display:flex;justify-content:flex-start;margin-top:18px}" +
     ".btn.btn-icon{width:40px;height:40px;padding:0;display:inline-flex;align-items:center;justify-content:center;" +
     "border-radius:20px;font-size:1.2rem;line-height:1;flex-shrink:0}" +
     ".btn{padding:10px 20px;border:none;border-radius:20px;font-size:.875rem;" +
