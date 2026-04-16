@@ -43,3 +43,5 @@ Requires **Chrome** or **Edge** (desktop) with [WebSerial](https://developer.moz
 ## Recent firmware notes
 
 - **Multiple Person or Album IDs:** Saving comma-separated UUID lists uses a POST body so long lists no longer hit **414 URI Too Long**. Album IDs and Person IDs are still limited to **255 characters** each; see [Photo Sources](/photo-sources#album-and-person-id-limits).
+- **Photo date filters:** The web UI now supports fixed date ranges and rolling ranges such as the last 6 months or last 2 years. See [Photo Sources](/photo-sources#date-filtering).
+- **ESPHome 2026.4:** Current local builds use ESPHome `2026.4.0`; manual builds also include compatibility fixes for ESPHome 2026.3 and 2026.4 LVGL changes.

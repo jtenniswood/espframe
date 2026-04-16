@@ -18,7 +18,7 @@ The export captures all user-facing settings from the current session:
 | Category | Settings |
 |----------|----------|
 | **Connection** | Immich server URL, API key |
-| **Photos** | Source, album IDs, person IDs, date filter settings, portrait pairing |
+| **Photos** | Source, album IDs, album labels, person IDs, person labels, date filter settings, portrait pairing |
 | **Frequency** | Slideshow interval, connection timeout |
 | **Clock** | Show clock, format, timezone |
 | **Screen Brightness** | Daytime brightness, nighttime brightness |
@@ -36,7 +36,7 @@ Firmware version, update status, sunrise/sunset, and current brightness are **no
 
 Partial config files work — only settings present in the file are applied; everything else stays unchanged.
 
-Album IDs and Person IDs each must be 255 characters or fewer after trimming, which matches the device storage limit. If an import file exceeds that for either field, the web UI shows an error and skips that field; other settings in the file are still sent.
+Album IDs, Album Labels, Person IDs, and Person Labels each must be 255 characters or fewer after trimming, which matches the device storage limit. If an import file exceeds that for any of those fields, the web UI shows an error and skips that field; other settings in the file are still sent.
 
 ## File Format
 

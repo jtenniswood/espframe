@@ -29,13 +29,17 @@ Shows only photos marked with the heart in Immich. Set **Source** to **Favorites
 
 Shows photos from one or more Immich albums. **Get the UUID:** open the album in Immich — the URL is `.../albums/<uuid>`. Paste one UUID into **Albums**, then optionally add a short description in **What is it?**. Use **Add an album** to add another album if needed.
 
+The descriptions are saved with the IDs so the web UI can show friendly labels later. They do not affect which photos Immich returns.
+
 ## Person
 
 Shows photos where specific people (faces) appear. Requires face recognition in Immich. **Get the UUID:** open the person under **People** — the URL is `.../person/<uuid>`. Paste one UUID into **People**, then optionally add the person's name in **Who is it?**. Use **Add a person** to add another person if needed. With several IDs, each new image is chosen from **one** of those people at random, so you see photos featuring **any** of them (not only photos where everyone appears together). Your [API key](/api-key) needs `person.read`.
 
+The names are saved with the IDs so the web UI can show friendly labels later. They do not need to match the name stored in Immich.
+
 ## Album and Person ID limits
 
-The device stores each of **Album IDs** and **Person IDs** as a single text field with a **255 character** maximum, which is about six full UUIDs plus commas. The web UI blocks longer lists and shows an error so values are not silently cut short.
+The device stores each of **Album IDs**, **Album Labels**, **Person IDs**, and **Person Labels** as a single text field with a **255 character** maximum. For IDs, that is about six full UUIDs plus commas. The web UI blocks longer lists and shows an error so values are not silently cut short.
 
 Saving multiple IDs uses an HTTP POST body for the value, so the request stays within URL length limits and avoids errors such as **414 URI Too Long**.
 

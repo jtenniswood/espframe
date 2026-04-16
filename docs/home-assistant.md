@@ -21,7 +21,19 @@ Under **Settings → Devices & Services → ESPHome** (device page):
 | Entity | Type | Description |
 |--------|------|-------------|
 | **Photos: Source** | Select | All Photos, Favorites, Album, Person, Memories — see [Photo Sources](/photo-sources) |
+| **Photos: Album IDs** | Text | Comma-separated Immich album UUIDs |
+| **Photos: Album Labels** | Text | Optional friendly labels for saved album IDs |
+| **Photos: Person IDs** | Text | Comma-separated Immich person UUIDs |
+| **Photos: Person Labels** | Text | Optional friendly labels for saved person IDs |
+| **Photos: Date Filter** | Switch | Turns photo date filtering on or off |
+| **Photos: Date Filter Mode** | Select | Fixed Range or Relative Range |
+| **Photos: Date From** | Text | Fixed range start date, in `YYYY-MM-DD` format |
+| **Photos: Date To** | Text | Fixed range end date, in `YYYY-MM-DD` format |
+| **Photos: Relative Amount** | Number | Rolling date range amount |
+| **Photos: Relative Unit** | Select | Months or Years for the rolling date range |
+| **Photos: Display Mode** | Select | Fill crops to cover the screen; Fit letterboxes without cropping |
 | **Photos: Slideshow Interval** | Select | 30s–10min between photos |
+| **Photos: Portrait Pairing** | Switch | Pair compatible portrait photos side-by-side |
 | **Screen: Connection Timeout** | Select | 30s–30min before showing connection-failed screen |
 | **Screen: Backlight** | Light | On/off and brightness (0–100%) |
 | **Firmware: Auto Update** | Switch | Install updates when available |
@@ -35,4 +47,4 @@ Under **Settings → Devices & Services → ESPHome** (device page):
 
 ## Automations
 
-Use entities in automations, e.g.: turn **Screen: Backlight** on/off by presence; change **Photos: Slideshow Interval** or **Photos: Source** by time; notify when **Network: Online** goes unavailable; trigger **Firmware: Check for Update** from a script.
+Use entities in automations, e.g.: turn **Screen: Backlight** on/off by presence; change **Photos: Slideshow Interval**, **Photos: Source**, or the date filter by time; notify when **Network: Online** goes unavailable; trigger **Firmware: Check for Update** from a script.

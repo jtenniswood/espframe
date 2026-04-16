@@ -11,13 +11,13 @@ Built with [ESPHome](https://esphome.io/) on the ESP32-P4, the frame connects di
 ## Features
 
 - **Fully standalone** — runs on bare hardware, no hub or cloud service needed
-- **Photo sources** — show all photos, favourites, specific albums, specific people, or "on this day" memories
+- **Photo sources** — show all photos, favourites, specific albums, specific people, "on this day" memories, or date-filtered ranges
 - **Display tone adjustment** — adjust colour temperature (e.g. warm the image if the panel looks too blue)
 - **Night tone** — automatically adjust screen tone between sunset and sunrise
 - **Screen scheduling** — schedule when to turn off the display; set daytime and night-time brightness separately
 - **Smart portrait pairing** — detects portrait photos and pairs them side-by-side from the same day
 - **Accent colour fill** — letterboxed areas are tinted with a colour sampled from the photo
-- **Configuration options** — change Immich URL, API key, slideshow interval, and more via the built-in web UI
+- **Configuration options** — change Immich URL, API key, photo source, date filters, slideshow interval, and more via the built-in web UI
 
 ## Hardware
 
@@ -48,7 +48,7 @@ npm ci
 npm run docs:dev
 
 # Compile firmware locally
-docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.3.0 compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
+docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.4.0 compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
 ```
 
 ## Support This Project
