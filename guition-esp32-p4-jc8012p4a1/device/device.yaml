@@ -154,7 +154,6 @@ display:
   - platform: mipi_dsi
     model: JC8012P4A1
     id: tft_display
-    rotation: 90
     reset_pin: GPIO27
     auto_clear_enabled: false
     update_interval: never
