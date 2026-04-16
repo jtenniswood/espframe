@@ -953,6 +953,26 @@
     connBody.appendChild(connStatus);
     immichWrap.appendChild(makeCollapsibleCard("Connection", connBody, true));
 
+    // Frequency
+    var dispBody = el("div");
+    var f3 = field("Slideshow Interval");
+    f3.appendChild(
+      selectFromOptions(S.interval_options, S.interval, function (v) {
+        S.interval = v;
+        post(endpoints.interval + "/set", { option: v });
+      })
+    );
+    dispBody.appendChild(f3);
+    var f4 = field("Connection Timeout");
+    f4.appendChild(
+      selectFromOptions(S.conn_timeout_options, S.conn_timeout, function (v) {
+        S.conn_timeout = v;
+        post(endpoints.conn_timeout + "/set", { option: v });
+      })
+    );
+    dispBody.appendChild(f4);
+    immichWrap.appendChild(makeCollapsibleCard("Frequency", dispBody, true));
+
     // Photo Source
     var srcBody = el("div");
     var fSrc = field("Source");
@@ -1211,26 +1231,6 @@
     filterBody.appendChild(filterDetails);
     immichWrap.appendChild(makeCollapsibleCard("Advanced Filters", filterBody, true, filterBadge));
     immichWrap.appendChild(makeCollapsibleCard("Display Settings", photoBody, true));
-
-    // Frequency
-    var dispBody = el("div");
-    var f3 = field("Slideshow Interval");
-    f3.appendChild(
-      selectFromOptions(S.interval_options, S.interval, function (v) {
-        S.interval = v;
-        post(endpoints.interval + "/set", { option: v });
-      })
-    );
-    dispBody.appendChild(f3);
-    var f4 = field("Connection Timeout");
-    f4.appendChild(
-      selectFromOptions(S.conn_timeout_options, S.conn_timeout, function (v) {
-        S.conn_timeout = v;
-        post(endpoints.conn_timeout + "/set", { option: v });
-      })
-    );
-    dispBody.appendChild(f4);
-    immichWrap.appendChild(makeCollapsibleCard("Frequency", dispBody, true));
 
     immichApp.appendChild(immichWrap);
 
