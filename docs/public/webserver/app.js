@@ -166,6 +166,8 @@
     "border-radius:50%;background:var(--success);flex-shrink:0}" +
     ".field{margin-bottom:22px}.field:last-child{margin-bottom:0}" +
     "label{display:block;font-size:.85rem;color:var(--text2);margin-bottom:6px;font-weight:500}" +
+    ".filter-relative-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}" +
+    ".filter-relative-row .field{margin-bottom:0}" +
     "input[type='text'],input[type='password'],input[type='url'],input[type='date'],input[type='number']{" +
     "width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);" +
     "border-radius:8px;color:var(--text);font-size:.9rem;outline:none;" +
@@ -1083,7 +1085,7 @@
     fixedWrap.appendChild(fDateTo);
     filterDetails.appendChild(fixedWrap);
 
-    var relativeWrap = el("div");
+    var relativeWrap = el("div", "filter-relative-row");
     var fRelativeAmount = field("Last");
     var relativeAmountInput = document.createElement("input");
     relativeAmountInput.type = "number";

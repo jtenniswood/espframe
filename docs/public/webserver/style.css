@@ -146,6 +146,14 @@ h2 {
 .field:last-child {
   margin-bottom: 0;
 }
+.filter-relative-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.filter-relative-row .field {
+  margin-bottom: 0;
+}
 label {
   display: block;
   font-size: 0.85rem;
