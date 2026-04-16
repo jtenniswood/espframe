@@ -9,6 +9,5 @@ lvgl:
   buffer_size: 6%
   byte_order: little_endian
   resume_on_input: true
-  rotation: 90
   displays:
     - tft_display
