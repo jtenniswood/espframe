@@ -30,6 +30,16 @@ namespace remote_image {
 
 using image::ImageType;
 
+#ifdef USE_LVGL
+template<typename T> auto refresh_lv_image_descriptor_(T *obj, int) -> decltype(obj->get_lv_image_dsc(), void()) {
+  obj->get_lv_image_dsc();
+}
+
+template<typename T> auto refresh_lv_image_descriptor_(T *obj, long) -> decltype(obj->get_lv_img_dsc(), void()) {
+  obj->get_lv_img_dsc();
+}
+#endif
+
 inline bool is_color_on(const Color &color) {
   // This produces the most accurate monochrome conversion, but is slightly slower.
   //  return (0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b) > 127;
@@ -288,7 +298,7 @@ void OnlineImage::loop() {
     ESP_LOGD(TAG, "Total time: %" PRIu32 "s", (uint32_t) (::time(nullptr) - this->start_time_));
 #ifdef USE_LVGL
     this->dsc_.data = this->buffer_ + 1;
-    this->get_lv_image_dsc();
+    refresh_lv_image_descriptor_(this, 0);
 #endif
     this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);
     this->last_modified_ = this->downloader_->get_response_header(LAST_MODIFIED_HEADER_NAME);

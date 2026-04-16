@@ -143,12 +143,20 @@ inline void copy_display_to_slot(const DisplayMeta &disp, SlotMeta &slot) {
 // Accent color fill — detect letterbox bars and fill with dominant accent
 // ============================================================================
 #ifdef USE_LVGL
+template<typename T> auto get_lv_image_descriptor_(T *img, int) -> decltype(img->get_lv_image_dsc()) {
+  return img->get_lv_image_dsc();
+}
+
+template<typename T> auto get_lv_image_descriptor_(T *img, long) -> decltype(img->get_lv_img_dsc()) {
+  return img->get_lv_img_dsc();
+}
+
 inline void fill_accent_color(esphome::image::Image *img) {
   int img_w = img->get_width();
   int img_h = img->get_height();
   if (img_w <= 0 || img_h <= 0) return;
 
-  lv_img_dsc_t *dsc = img->get_lv_image_dsc();
+  lv_img_dsc_t *dsc = get_lv_image_descriptor_(img, 0);
   const uint8_t *data = dsc->data;
   if (!data) return;
 
@@ -289,7 +297,7 @@ inline void build_warm_tone_luts(float last_w, float new_w, WarmToneLuts &luts) 
 #ifdef USE_LVGL
 inline void tint_image_buffer(esphome::image::Image *img, const WarmToneLuts &luts) {
   if (!img) return;
-  lv_img_dsc_t *dsc = img->get_lv_image_dsc();
+  lv_img_dsc_t *dsc = get_lv_image_descriptor_(img, 0);
   if (!dsc || !dsc->data) return;
   uint8_t *buf = const_cast<uint8_t*>(dsc->data);
   int total = img->get_width() * img->get_height();
