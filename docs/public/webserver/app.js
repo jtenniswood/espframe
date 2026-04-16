@@ -1051,10 +1051,14 @@
     filterDetails.appendChild(filterHint);
 
     var fFilterMode = field("Mode");
-    var modeSelect = selectFromOptions(S.date_filter_mode_options, S.date_filter_mode, function (v) {
+    var modeVal = S.date_filter_mode;
+    var modeSegment = segmentedControl(S.date_filter_mode_options, modeVal, function (v) {
+      modeVal = v;
       updateFilterModeDisplay(v);
+    }, function (v) {
+      return v === "Relative Range" ? "Relative" : "Fixed";
     });
-    fFilterMode.appendChild(modeSelect);
+    fFilterMode.appendChild(modeSegment);
     filterDetails.appendChild(fFilterMode);
 
     var fixedWrap = el("div");
@@ -1114,7 +1118,6 @@
       dateToError.textContent = "";
       relativeAmountError.textContent = "";
       filterError.textContent = "";
-      var modeVal = modeSelect.value;
       var fromVal = dateFromInput.value.trim();
       var toVal = dateToInput.value.trim();
       var amountVal = Math.round(Number(relativeAmountInput.value));
@@ -1649,6 +1652,32 @@
       onChange(sel.value);
     };
     return sel;
+  }
+
+  function segmentedControl(options, current, onChange, optionDisplayFn) {
+    var display = optionDisplayFn || function (o) { return o; };
+    var seg = el("div", "segment");
+    function setActive(value) {
+      Array.prototype.forEach.call(seg.children, function (button) {
+        var active = button.dataset.value === value;
+        button.className = active ? "active" : "";
+        button.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+    }
+    options.forEach(function (o) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.dataset.value = o;
+      btn.textContent = display(o);
+      btn.setAttribute("aria-pressed", o === current ? "true" : "false");
+      btn.onclick = function () {
+        setActive(o);
+        onChange(o);
+      };
+      seg.appendChild(btn);
+    });
+    setActive(current);
+    return seg;
   }
 
   function timezoneSelect(options, current, onChange) {
