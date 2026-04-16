@@ -19,7 +19,7 @@ Choose the **Source** in the device web UI at `http://<device-ip>/` under **Phot
 
 ## All Photos
 
-Shows random photos from your entire library. Set **Source** to **All Photos**; leave Album IDs and Person IDs empty.
+Shows random photos from your entire library. Set **Source** to **All Photos**; leave Albums and People empty.
 
 ## Favorites
 
@@ -27,7 +27,7 @@ Shows only photos marked with the heart in Immich. Set **Source** to **Favorites
 
 ## Album
 
-Shows photos from one or more Immich albums. **Get the UUID:** open the album in Immich — the URL is `.../albums/<uuid>`. Paste that UUID into **Album IDs** (comma-separated for multiple).
+Shows photos from one or more Immich albums. **Get the UUID:** open the album in Immich — the URL is `.../albums/<uuid>`. Paste one UUID into **Albums**, then use **Add an album** to add another album if needed.
 
 ## Person
 

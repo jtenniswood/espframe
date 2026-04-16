@@ -192,9 +192,9 @@
     ".select:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}" +
     "select option{background:var(--surface);color:var(--text)}" +
     ".input-group{display:flex;gap:8px}.input-group input{flex:1}" +
-    ".person-id-list{display:flex;flex-direction:column;gap:8px}" +
-    ".person-id-row{display:grid;grid-template-columns:minmax(0,1fr) 40px;gap:8px;align-items:center}" +
-    ".person-id-actions{display:flex;justify-content:flex-start;margin-top:18px}" +
+    ".photo-id-list{display:flex;flex-direction:column;gap:8px}" +
+    ".photo-id-row{display:grid;grid-template-columns:minmax(0,1fr) 40px;gap:8px;align-items:center}" +
+    ".photo-id-actions{display:flex;justify-content:flex-start;margin-top:18px}" +
     ".btn.btn-icon{width:40px;height:40px;padding:0;display:inline-flex;align-items:center;justify-content:center;" +
     "border-radius:20px;font-size:1.2rem;line-height:1;flex-shrink:0}" +
     ".btn{padding:10px 20px;border:none;border-radius:20px;font-size:.875rem;" +
@@ -997,19 +997,71 @@
       schedulePhotoSourceApply(0);
     });
 
-    var albumField = field("Album IDs");
-    var albumInput = input("text", S.album_ids, "Paste album IDs, comma-separated", MAX_PHOTO_ID_FIELD_LENGTH);
+    var removeIdIcon = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18\"/><path d=\"M8 6V4h8v2\"/><path d=\"M19 6l-1 14H6L5 6\"/><path d=\"M10 11v5\"/><path d=\"M14 11v5\"/></svg>";
+
+    var albumField = field("Albums");
+    var albumIdList = el("div", "photo-id-list");
+    var albumInputs = [];
     var albumError = el("div", "field-error");
-    var albumHint = el("div");
-    albumHint.className = "field-hint";
-    albumHint.textContent = "Find IDs in your Immich server URL bar";
-    albumField.appendChild(albumInput);
+    function getAlbumIdsValue() {
+      return albumInputs.map(function (inputEl) {
+        return inputEl.value.trim();
+      }).filter(Boolean).join(",");
+    }
+    function refreshAlbumRemoveButtons() {
+      Array.prototype.forEach.call(albumIdList.querySelectorAll(".album-id-remove"), function (btn) {
+        btn.disabled = albumInputs.length <= 1;
+      });
+    }
+    function addAlbumIdRow(value) {
+      var row = el("div", "photo-id-row");
+      var albumInput = input("text", value || "", "Paste album ID from Immich URL", MAX_PHOTO_ID_FIELD_LENGTH);
+      var removeBtn = el("button", "btn btn-secondary btn-icon album-id-remove");
+      removeBtn.type = "button";
+      removeBtn.innerHTML = removeIdIcon;
+      removeBtn.title = "Remove album ID";
+      removeBtn.setAttribute("aria-label", "Remove album ID");
+      removeBtn.onclick = function () {
+        if (albumInputs.length <= 1) {
+          albumInput.value = "";
+          schedulePhotoSourceApply(0);
+          return;
+        }
+        albumInputs = albumInputs.filter(function (inputEl) {
+          return inputEl !== albumInput;
+        });
+        row.parentNode.removeChild(row);
+        refreshAlbumRemoveButtons();
+        schedulePhotoSourceApply(0);
+      };
+      albumInput.oninput = function () {
+        schedulePhotoSourceApply();
+      };
+      row.appendChild(albumInput);
+      row.appendChild(removeBtn);
+      albumIdList.appendChild(row);
+      albumInputs.push(albumInput);
+      refreshAlbumRemoveButtons();
+    }
+    splitPhotoIdList(S.album_ids).forEach(addAlbumIdRow);
+    var addAlbumRow = el("div", "photo-id-actions");
+    var addAlbumBtn = el("button", "btn btn-secondary");
+    addAlbumBtn.type = "button";
+    addAlbumBtn.textContent = "Add an album";
+    addAlbumBtn.title = "Add an album";
+    addAlbumBtn.setAttribute("aria-label", "Add an album");
+    addAlbumBtn.onclick = function () {
+      addAlbumIdRow("");
+      albumInputs[albumInputs.length - 1].focus();
+    };
+    addAlbumRow.appendChild(addAlbumBtn);
+    albumField.appendChild(albumIdList);
+    albumField.appendChild(addAlbumRow);
     albumField.appendChild(albumError);
-    albumField.appendChild(albumHint);
     albumField.style.display = S.photo_source === "Album" ? "" : "none";
 
     var personField = field("People");
-    var personIdList = el("div", "person-id-list");
+    var personIdList = el("div", "photo-id-list");
     var personInputs = [];
     var personError = el("div", "field-error");
     function getPersonIdsValue() {
@@ -1021,7 +1073,7 @@
       albumError.textContent = "";
       personError.textContent = "";
       var srcVal = srcSel.value;
-      var albumTrim = albumInput.value.trim();
+      var albumTrim = getAlbumIdsValue();
       var personTrim = getPersonIdsValue();
       if (photoIdFieldTooLong(albumTrim)) {
         albumError.textContent = PHOTO_ID_FIELD_TOO_LONG;
@@ -1059,25 +1111,23 @@
       clearTimeout(photoSourceApplyTimer);
       photoSourceApplyTimer = setTimeout(applyPhotoSourceInputs, delayMs == null ? 600 : delayMs);
     }
-    albumInput.oninput = function () {
-      schedulePhotoSourceApply();
-    };
     function refreshPersonRemoveButtons() {
       Array.prototype.forEach.call(personIdList.querySelectorAll(".person-id-remove"), function (btn) {
         btn.disabled = personInputs.length <= 1;
       });
     }
     function addPersonIdRow(value) {
-      var row = el("div", "person-id-row");
+      var row = el("div", "photo-id-row");
       var personInput = input("text", value || "", "Paste person ID from Immich URL", MAX_PHOTO_ID_FIELD_LENGTH);
       var removeBtn = el("button", "btn btn-secondary btn-icon person-id-remove");
       removeBtn.type = "button";
-      removeBtn.innerHTML = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18\"/><path d=\"M8 6V4h8v2\"/><path d=\"M19 6l-1 14H6L5 6\"/><path d=\"M10 11v5\"/><path d=\"M14 11v5\"/></svg>";
+      removeBtn.innerHTML = removeIdIcon;
       removeBtn.title = "Remove person ID";
       removeBtn.setAttribute("aria-label", "Remove person ID");
       removeBtn.onclick = function () {
         if (personInputs.length <= 1) {
           personInput.value = "";
+          schedulePhotoSourceApply(0);
           return;
         }
         personInputs = personInputs.filter(function (inputEl) {
@@ -1097,7 +1147,7 @@
       refreshPersonRemoveButtons();
     }
     splitPhotoIdList(S.person_ids).forEach(addPersonIdRow);
-    var addPersonRow = el("div", "person-id-actions");
+    var addPersonRow = el("div", "photo-id-actions");
     var addPersonBtn = el("button", "btn btn-secondary");
     addPersonBtn.type = "button";
     addPersonBtn.textContent = "Add a person";
