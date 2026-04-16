@@ -987,7 +987,7 @@
 
     immichWrap.appendChild(makeCollapsibleCard("Photo Source", srcBody, true));
 
-    // Photo Settings
+    // Display Settings
     var photoBody = el("div");
 
     var fPairToggle = field("");
@@ -1012,7 +1012,7 @@
     );
     photoBody.appendChild(fDisplayMode);
 
-    immichWrap.appendChild(makeCollapsibleCard("Photo Settings", photoBody, true));
+    immichWrap.appendChild(makeCollapsibleCard("Display Settings", photoBody, true));
 
     // Advanced Filters
     var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
