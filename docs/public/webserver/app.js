@@ -790,7 +790,9 @@
 
   function renderWizard() {
     var step = 1;
+    immichApp.innerHTML = "";
     app.innerHTML = "";
+    renderStartupDevicePage();
     var wrap = el("div", "fade-in");
     wrap.innerHTML =
       '<p class="subtitle">Let\'s connect your photo frame</p>';
@@ -803,7 +805,7 @@
 
     var body = el("div");
     wrap.appendChild(body);
-    app.appendChild(wrap);
+    immichApp.appendChild(wrap);
 
     function showStep() {
       body.innerHTML = "";
@@ -912,6 +914,12 @@
     }
 
     showStep();
+  }
+
+  function renderStartupDevicePage() {
+    var wrap = el("div", "fade-in");
+    wrap.appendChild(makeImportSettingsCard());
+    app.appendChild(wrap);
   }
 
   // --- Settings ---
@@ -1846,19 +1854,7 @@
 
     wrap.appendChild(makeCollapsibleCard("Firmware", fwBody, true));
 
-    // Backup
-    var backupBody = el("div");
-    var backupRow = el("div", "backup-row");
-    var exportBtn = el("button", "btn btn-secondary");
-    exportBtn.innerHTML = "Export";
-    exportBtn.onclick = exportConfig;
-    var importBtn = el("button", "btn btn-secondary");
-    importBtn.innerHTML = "Import";
-    importBtn.onclick = importConfig;
-    backupRow.appendChild(exportBtn);
-    backupRow.appendChild(importBtn);
-    backupBody.appendChild(backupRow);
-    wrap.appendChild(makeCollapsibleCard("Backup", backupBody, true));
+    wrap.appendChild(makeBackupCard());
 
     app.appendChild(wrap);
 
@@ -1999,6 +1995,30 @@
     if (defaultCollapsed) card.classList.add("collapsed");
     header.onclick = function () { card.classList.toggle("collapsed"); };
     return card;
+  }
+
+  function makeBackupCard() {
+    var backupBody = el("div");
+    var backupRow = el("div", "backup-row");
+    var exportBtn = el("button", "btn btn-secondary");
+    exportBtn.innerHTML = "Export";
+    exportBtn.onclick = exportConfig;
+    var importBtn = el("button", "btn btn-secondary");
+    importBtn.innerHTML = "Import";
+    importBtn.onclick = importConfig;
+    backupRow.appendChild(exportBtn);
+    backupRow.appendChild(importBtn);
+    backupBody.appendChild(backupRow);
+    return makeCollapsibleCard("Backup", backupBody, true);
+  }
+
+  function makeImportSettingsCard() {
+    var importBody = el("div");
+    var importBtn = el("button", "btn btn-secondary btn-block");
+    importBtn.innerHTML = "Import Settings";
+    importBtn.onclick = importConfig;
+    importBody.appendChild(importBtn);
+    return makeCollapsibleCard("Import Settings", importBody, false);
   }
 
   function field(labelText) {
