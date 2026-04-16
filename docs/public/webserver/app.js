@@ -1037,7 +1037,7 @@
     filterBody.appendChild(fFilterMode);
 
     var fixedWrap = el("div");
-    var fDateFrom = field("Minimum Date");
+    var fDateFrom = field("From");
     var dateFromInput = document.createElement("input");
     dateFromInput.type = "date";
     dateFromInput.value = S.date_from || "";
@@ -1047,7 +1047,7 @@
     fDateFrom.appendChild(dateFromError);
     fixedWrap.appendChild(fDateFrom);
 
-    var fDateTo = field("Maximum Date");
+    var fDateTo = field("Until");
     var dateToInput = document.createElement("input");
     dateToInput.type = "date";
     dateToInput.value = S.date_to || "";
@@ -1107,7 +1107,7 @@
         return;
       }
       if (modeVal === "Fixed Range" && fromVal && toVal && fromVal > toVal) {
-        filterError.textContent = "Minimum Date must not be after Maximum Date";
+        filterError.textContent = "From must not be after Until";
         return;
       }
       if (modeVal === "Relative Range" && (!amountVal || amountVal < 1 || amountVal > 120)) {
