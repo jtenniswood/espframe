@@ -148,16 +148,23 @@ i2c:
     scl_pullup_enabled: false
 
 # -----------------------------------------------------------------------------
-# MIPI DSI display (JC1060P470 hardware, Waveshare 7B init test, 1024x600)
+# MIPI DSI display (JC1060P470, 1024x600)
 # -----------------------------------------------------------------------------
 display:
   - platform: mipi_dsi
-    model: WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-7B
+    model: JC1060P470
     id: tft_display
     reset_pin: GPIO5
     auto_clear_enabled: false
     update_interval: never
     color_order: RGB
+    pclk_frequency: 51.2MHz
+    hsync_pulse_width: 24
+    hsync_back_porch: 136
+    hsync_front_porch: 160
+    vsync_pulse_width: 2
+    vsync_back_porch: 21
+    vsync_front_porch: 12
     dimensions:
       width: 1024
       height: 600
