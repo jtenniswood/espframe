@@ -158,6 +158,7 @@ display:
     auto_clear_enabled: false
     update_interval: never
     color_order: RGB
+    hsync_pulse_width: 20
     dimensions:
       width: 1024
       height: 600
