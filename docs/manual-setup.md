@@ -28,25 +28,6 @@ packages:
     refresh: 1s
 ```
 
-For the Guition ESP32-P4 7" `JC1060P470`, use the same structure but change the package file:
-
-```yaml
-substitutions:
-  name: "immich-frame-7inch"
-  friendly_name: "Espframe for Immich 7inch"
-
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-
-packages:
-  espframe:
-    url: https://github.com/jtenniswood/espframe
-    files: [devices/guition-esp32-p4-jc1060p470/packages.yaml]
-    ref: main
-    refresh: 1s
-```
-
 Add `secrets.yaml` with `wifi_ssid` and `wifi_password`, then:
 
 ```bash

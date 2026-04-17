@@ -25,8 +25,6 @@ Built with [ESPHome](https://esphome.io/) on the ESP32-P4, the frame connects di
 |------|------|
 | 10" panel (JC8012P4A1) | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) |
 | 10" printable stand | [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046) |
-| 7" panel (JC1060P470) | [AliExpress](https://s.click.aliexpress.com/e/_c335W0r5) |
-| 7" printable stand | [MakerWorld](https://makerworld.com/en/models/2387421-guition-esp32p4-jc1060p470-7inch-screen-desk-mount#profileId-2614995) |
 
 ## Install
 

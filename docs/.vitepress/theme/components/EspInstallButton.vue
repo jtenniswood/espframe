@@ -34,13 +34,6 @@ const devices = [
     buttonLabel: '10-inch Espframe',
     manifest: './firmware/manifest.json',
   },
-  {
-    id: 'jc1060p470',
-    label: 'Guition ESP32-P4 7-inch',
-    model: 'JC1060P470',
-    buttonLabel: '7-inch Espframe',
-    manifest: './firmware/manifest-7inch.json',
-  },
 ]
 
 const selectedDeviceId = ref(devices[0].id)

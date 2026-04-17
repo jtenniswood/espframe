@@ -5,7 +5,7 @@ description: Over-the-air and HTTP firmware updates from GitHub — auto-update,
 
 # Firmware Update
 
-OTA and HTTP updates from GitHub. The device checks a manifest on GitHub Pages for stable and beta builds. The 10-inch model uses `https://jtenniswood.github.io/espframe/firmware/manifest.json`; the 7-inch model uses `https://jtenniswood.github.io/espframe/firmware/manifest-7inch.json`. Controls: device web UI at `http://<device-ip>/` under **Firmware** (and in Home Assistant).
+OTA and HTTP updates from GitHub. The device checks a manifest on GitHub Pages for stable and beta builds. The 10-inch model uses `https://jtenniswood.github.io/espframe/firmware/manifest.json`. Controls: device web UI at `http://<device-ip>/` under **Firmware** (and in Home Assistant).
 
 | Control | Type | Default | Description |
 |---------|------|---------|-------------|

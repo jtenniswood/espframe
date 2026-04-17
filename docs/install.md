@@ -14,7 +14,6 @@ Flash Espframe to a supported Guition ESP32-P4 display from your browser — no 
 | Model | Panel | Stand |
 |-------|-------|-------|
 | Guition ESP32-P4 10" `JC8012P4A1` | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) | [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046) |
-| Guition ESP32-P4 7" `JC1060P470` | [AliExpress](https://s.click.aliexpress.com/e/_c335W0r5) | [MakerWorld](https://makerworld.com/en/models/2387421-guition-esp32p4-jc1060p470-7inch-screen-desk-mount#profileId-2614995) |
 
 ## Connect the Display
 
@@ -28,7 +27,7 @@ If flashing fails, make sure you're using the **bottom** USB-C port as shown abo
 
 ## Web Installer
 
-Connect the display via USB-C, choose the matching model, then click the install button below. Choosing the wrong model can flash firmware for the wrong screen size, so check the model printed in the listing or on the PCB before continuing.
+Connect the display via USB-C, then click the install button below. Check the model printed in the listing or on the PCB before continuing.
 
 <EspInstallButton />
 
@@ -40,7 +39,7 @@ Requires **Chrome** or **Edge** (desktop) with [WebSerial](https://developer.moz
 
 1. **Connect** — Plug in with USB-C; allow drivers if prompted.
 2. **Flash** — Click **Install Espframe for Immich**, choose the device’s serial port, confirm. Takes a few minutes.
-3. **WiFi** — Enter network name and password when prompted. If no prompt appears, the device creates a hotspot named for the selected model, such as **immich-frame-10inch** or **immich-frame-7inch**; connect from phone/laptop for captive-portal setup.
+3. **WiFi** — Enter network name and password when prompted. If no prompt appears, the device creates a hotspot named **immich-frame-10inch**; connect from phone/laptop for captive-portal setup.
 4. **Immich** — Open the device IP in a browser (shown on screen), enter **Immich server URL** and **API key**. See [API Key](/api-key) for permissions. Photos start loading. Next: [Photo Sources](/photo-sources) to choose what to display.
 
 ## Recent firmware notes
