@@ -175,15 +175,25 @@ interval:
   - interval: 2s
     then:
       - lambda: |-
+          const int32_t physical_width = 1024;
+          const int32_t physical_height = 600;
           const int32_t width_compensation_scale = 244;  // 244/256 ~= 0.954
-          lv_obj_set_style_transform_pivot_x(id(loading_page)->obj, 512, LV_PART_MAIN);
-          lv_obj_set_style_transform_scale_x(id(loading_page)->obj, width_compensation_scale, LV_PART_MAIN);
-          lv_obj_set_style_transform_pivot_x(id(wifi_setup_page)->obj, 512, LV_PART_MAIN);
-          lv_obj_set_style_transform_scale_x(id(wifi_setup_page)->obj, width_compensation_scale, LV_PART_MAIN);
-          lv_obj_set_style_transform_pivot_x(id(immich_setup_page)->obj, 512, LV_PART_MAIN);
-          lv_obj_set_style_transform_scale_x(id(immich_setup_page)->obj, width_compensation_scale, LV_PART_MAIN);
-          lv_obj_set_style_transform_pivot_x(id(slideshow_page)->obj, 512, LV_PART_MAIN);
-          lv_obj_set_style_transform_scale_x(id(slideshow_page)->obj, width_compensation_scale, LV_PART_MAIN);
+          const int32_t virtual_width = (physical_width * 256 + width_compensation_scale / 2) / width_compensation_scale;  // 1074
+          const int32_t virtual_x = (physical_width - virtual_width) / 2;  // -25
+          const int32_t virtual_pivot_x = virtual_width / 2;
+
+          auto apply_width_compensation = [&](lv_obj_t *page) {
+            lv_obj_set_size(page, virtual_width, physical_height);
+            lv_obj_set_x(page, virtual_x);
+            lv_obj_set_style_transform_pivot_x(page, virtual_pivot_x, LV_PART_MAIN);
+            lv_obj_set_style_transform_scale_x(page, width_compensation_scale, LV_PART_MAIN);
+            lv_obj_invalidate(page);
+          };
+
+          apply_width_compensation(id(loading_page)->obj);
+          apply_width_compensation(id(wifi_setup_page)->obj);
+          apply_width_compensation(id(immich_setup_page)->obj);
+          apply_width_compensation(id(slideshow_page)->obj);
 
 # -----------------------------------------------------------------------------
 # Touch (GT911 capacitive)
