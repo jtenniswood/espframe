@@ -22,6 +22,8 @@ esp32:
     type: esp-idf
     sdkconfig_options:
       CONFIG_HTTPD_MAX_URI_LEN: "128"
+      CONFIG_LV_USE_MATRIX: "y"
+      CONFIG_LV_DRAW_TRANSFORM_USE_MATRIX: "y"
     advanced:
       enable_idf_experimental_features: true
 
