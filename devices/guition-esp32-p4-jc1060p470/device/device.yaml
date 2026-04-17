@@ -22,8 +22,6 @@ esp32:
     type: esp-idf
     sdkconfig_options:
       CONFIG_HTTPD_MAX_URI_LEN: "128"
-      CONFIG_LV_USE_MATRIX: "y"
-      CONFIG_LV_DRAW_TRANSFORM_USE_MATRIX: "y"
     advanced:
       enable_idf_experimental_features: true
 
@@ -125,9 +123,6 @@ external_components:
     refresh: 0s
 
 espframe:
-  lvgl_aspect_compensation:
-    scale_x: ${display_compensation_scale_x}
-    panel_width: ${display_width}
 
 # -----------------------------------------------------------------------------
 # DSI PHY power rail, backlight output, I2C
@@ -163,13 +158,7 @@ display:
     auto_clear_enabled: false
     update_interval: never
     color_order: RGB
-    pclk_frequency: 51.2MHz
-    hsync_pulse_width: 24
-    hsync_back_porch: 136
-    hsync_front_porch: 160
-    vsync_pulse_width: 2
-    vsync_back_porch: 21
-    vsync_front_porch: 12
+    hsync_pulse_width: 20
     dimensions:
       width: 1024
       height: 600

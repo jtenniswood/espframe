@@ -10,8 +10,6 @@ substitutions:
   display_width: "1024"
   display_height: "600"
   portrait_half_width: "512"
-  # Compensate for the 7-inch panel's physically wide pixels.
-  display_compensation_scale_x: "0.951"
   captive_portal_ip: "192.168.4.1"
   firmware_manifest_url: "https://jtenniswood.github.io/espframe/firmware/manifest-7inch.json"
   firmware_beta_manifest_url: "https://jtenniswood.github.io/espframe/firmware/beta/manifest-7inch.json"
