@@ -22,6 +22,8 @@ esp32:
     type: esp-idf
     sdkconfig_options:
       CONFIG_HTTPD_MAX_URI_LEN: "128"
+      CONFIG_LV_USE_MATRIX: "y"
+      CONFIG_LV_DRAW_TRANSFORM_USE_MATRIX: "y"
     advanced:
       enable_idf_experimental_features: true
 
@@ -152,15 +154,36 @@ i2c:
 # -----------------------------------------------------------------------------
 display:
   - platform: mipi_dsi
-    model: WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-7B
+    model: JC1060P470
     id: tft_display
     reset_pin: GPIO5
     auto_clear_enabled: false
     update_interval: never
     color_order: RGB
+    pclk_frequency: 51.2MHz
+    hsync_pulse_width: 24
+    hsync_back_porch: 136
+    hsync_front_porch: 160
+    vsync_pulse_width: 2
+    vsync_back_porch: 21
+    vsync_front_porch: 12
     dimensions:
       width: 1024
       height: 600
+
+interval:
+  - interval: 2s
+    then:
+      - lambda: |-
+          const int32_t obvious_half_width_scale = 128;  // LVGL 256 == 100%
+          lv_obj_set_style_transform_pivot_x(id(loading_page)->obj, 512, LV_PART_MAIN);
+          lv_obj_set_style_transform_scale_x(id(loading_page)->obj, obvious_half_width_scale, LV_PART_MAIN);
+          lv_obj_set_style_transform_pivot_x(id(wifi_setup_page)->obj, 512, LV_PART_MAIN);
+          lv_obj_set_style_transform_scale_x(id(wifi_setup_page)->obj, obvious_half_width_scale, LV_PART_MAIN);
+          lv_obj_set_style_transform_pivot_x(id(immich_setup_page)->obj, 512, LV_PART_MAIN);
+          lv_obj_set_style_transform_scale_x(id(immich_setup_page)->obj, obvious_half_width_scale, LV_PART_MAIN);
+          lv_obj_set_style_transform_pivot_x(id(slideshow_page)->obj, 512, LV_PART_MAIN);
+          lv_obj_set_style_transform_scale_x(id(slideshow_page)->obj, obvious_half_width_scale, LV_PART_MAIN);
 
 # -----------------------------------------------------------------------------
 # Touch (GT911 capacitive)
