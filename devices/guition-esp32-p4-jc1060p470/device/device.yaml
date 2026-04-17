@@ -158,7 +158,13 @@ display:
     auto_clear_enabled: false
     update_interval: never
     color_order: RGB
-    hsync_pulse_width: 20
+    pclk_frequency: 51.2MHz
+    hsync_pulse_width: 24
+    hsync_back_porch: 136
+    hsync_front_porch: 160
+    vsync_pulse_width: 2
+    vsync_back_porch: 21
+    vsync_front_porch: 12
     dimensions:
       width: 1024
       height: 600
