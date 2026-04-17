@@ -16,13 +16,6 @@ font:
       - "\U000F0493"  # mdi-cog
       - "\U000F0164"  # mdi-cloud-off-outline
 
-image:
-  - file: "https://raw.githubusercontent.com/jtenniswood/espframe/${package_ref}/devices/guition-esp32-p4-jc1060p470/assets/lvgl-rgb565a8-marker.svg"
-    id: lvgl_rgb565a8_support_marker
-    type: RGB565
-    transparency: alpha_channel
-    resize: 1x1
-
 # -----------------------------------------------------------------------------
 # Substitutions for use in labels/buttons (mdi-wifi, mdi-cog, mdi-cloud-off-outline)
 # -----------------------------------------------------------------------------

@@ -20,185 +20,175 @@ lvgl:
       bg_color: 0x000000
       scrollable: false
       widgets:
+        - image:
+            id: slideshow_img
+            align: CENTER
+            src: immich_img_0
+            scrollable: false
+            clickable: true
+            on_press:
+              then:
+                - script.execute: slideshow_on_press
+            on_short_click:
+              then:
+                - script.execute: slideshow_on_short_click
+            on_release:
+              then:
+                - script.execute: slideshow_on_release
         - obj:
-            id: slideshow_compensation_layer
+            id: portrait_pair_container
+            align: CENTER
             width: ${display_width}
             height: ${display_height}
+            bg_color: 0x000000
+            bg_opa: 100%
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            hidden: true
+            clickable: true
+            layout:
+              type: flex
+              flex_flow: ROW
+            on_press:
+              then:
+                - script.execute: slideshow_on_press
+            on_short_click:
+              then:
+                - script.execute: slideshow_on_short_click
+            on_release:
+              then:
+                - script.execute: slideshow_on_release
+            widgets:
+              - obj:
+                  width: ${portrait_half_width}
+                  height: ${display_height}
+                  bg_opa: 0%
+                  border_width: 0
+                  pad_all: 0
+                  scrollable: false
+                  clickable: false
+                  widgets:
+                    - image:
+                        id: portrait_left_img
+                        src: immich_portrait_left
+                        align: CENTER
+                        scrollable: false
+                        clickable: false
+              - obj:
+                  width: ${portrait_half_width}
+                  height: ${display_height}
+                  bg_opa: 0%
+                  border_width: 0
+                  pad_all: 0
+                  scrollable: false
+                  clickable: false
+                  widgets:
+                    - image:
+                        id: portrait_right_img
+                        src: immich_portrait_right
+                        align: CENTER
+                        scrollable: false
+                        clickable: false
+        - obj:
+            id: info_overlay
+            align: BOTTOM_LEFT
+            x: 45
+            y: -10
+            width: SIZE_CONTENT
+            height: SIZE_CONTENT
             bg_opa: 0%
             border_width: 0
             pad_all: 0
             scrollable: false
             clickable: false
+            layout:
+              type: flex
+              flex_flow: ROW
+              flex_align_cross: START
+              pad_column: 40
             widgets:
-              - image:
-                  id: slideshow_img
-                  align: CENTER
-                  src: immich_img_0
-                  scrollable: false
-                  clickable: true
-                  on_press:
-                    then:
-                      - script.execute: slideshow_on_press
-                  on_short_click:
-                    then:
-                      - script.execute: slideshow_on_short_click
-                  on_release:
-                    then:
-                      - script.execute: slideshow_on_release
               - obj:
-                  id: portrait_pair_container
-                  align: CENTER
-                  width: ${display_width}
-                  height: ${display_height}
-                  bg_color: 0x000000
-                  bg_opa: 100%
-                  border_width: 0
-                  pad_all: 0
-                  scrollable: false
+                  id: clock_container
                   hidden: true
-                  clickable: true
-                  layout:
-                    type: flex
-                    flex_flow: ROW
-                  on_press:
-                    then:
-                      - script.execute: slideshow_on_press
-                  on_short_click:
-                    then:
-                      - script.execute: slideshow_on_short_click
-                  on_release:
-                    then:
-                      - script.execute: slideshow_on_release
-                  widgets:
-                    - obj:
-                        width: ${portrait_half_width}
-                        height: ${display_height}
-                        bg_opa: 0%
-                        border_width: 0
-                        pad_all: 0
-                        scrollable: false
-                        clickable: false
-                        widgets:
-                          - image:
-                              id: portrait_left_img
-                              src: immich_portrait_left
-                              align: CENTER
-                              scrollable: false
-                              clickable: false
-                    - obj:
-                        width: ${portrait_half_width}
-                        height: ${display_height}
-                        bg_opa: 0%
-                        border_width: 0
-                        pad_all: 0
-                        scrollable: false
-                        clickable: false
-                        widgets:
-                          - image:
-                              id: portrait_right_img
-                              src: immich_portrait_right
-                              align: CENTER
-                              scrollable: false
-                              clickable: false
-              - obj:
-                  id: info_overlay
-                  align: BOTTOM_LEFT
-                  x: 45
-                  y: -10
                   width: SIZE_CONTENT
                   height: SIZE_CONTENT
                   bg_opa: 0%
                   border_width: 0
                   pad_all: 0
                   scrollable: false
-                  clickable: false
-                  layout:
-                    type: flex
-                    flex_flow: ROW
-                    flex_align_cross: START
-                    pad_column: 40
                   widgets:
-                    - obj:
-                        id: clock_container
-                        hidden: true
-                        width: SIZE_CONTENT
-                        height: SIZE_CONTENT
-                        bg_opa: 0%
-                        border_width: 0
-                        pad_all: 0
-                        scrollable: false
-                        widgets:
-                          - label:
-                              id: time_label_shadow
-                              x: 2
-                              y: 2
-                              text: ""
-                              text_color: 0x000000
-                              text_opa: 50%
-                              text_font: roboto_light150_font
-                          - label:
-                              id: time_label
-                              x: 0
-                              y: 0
-                              text: ""
-                              text_color: 0xFFFFFF
-                              text_font: roboto_light150_font
+                    - label:
+                        id: time_label_shadow
+                        x: 2
+                        y: 2
+                        text: ""
+                        text_color: 0x000000
+                        text_opa: 50%
+                        text_font: roboto_light150_font
+                    - label:
+                        id: time_label
+                        x: 0
+                        y: 0
+                        text: ""
+                        text_color: 0xFFFFFF
+                        text_font: roboto_light150_font
+        - obj:
+            id: connection_failed_overlay
+            align: CENTER
+            width: ${display_width}
+            height: ${display_height}
+            radius: 0
+            bg_color: 0x000000
+            bg_opa: 100%
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: true
+            hidden: true
+            on_press:
+              then:
+                - script.stop: connection_failed_dim
+                - script.stop: connection_failed_shift
+                - lambda: 'lv_obj_align(id(connection_failed_content), LV_ALIGN_CENTER, 0, 0);'
+                - script.execute: backlight_apply_brightness
+                - script.execute: connection_failed_dim
+                - script.execute: connection_failed_shift
+            widgets:
               - obj:
-                  id: connection_failed_overlay
-                  align: CENTER
-                  width: ${display_width}
-                  height: ${display_height}
-                  radius: 0
-                  bg_color: 0x000000
-                  bg_opa: 100%
+                  id: connection_failed_content
+                  align: center
+                  width: 700
+                  height: SIZE_CONTENT
+                  bg_opa: 0%
                   border_width: 0
                   pad_all: 0
                   scrollable: false
-                  clickable: true
-                  hidden: true
-                  on_press:
-                    then:
-                      - script.stop: connection_failed_dim
-                      - script.stop: connection_failed_shift
-                      - lambda: 'lv_obj_align(id(connection_failed_content), LV_ALIGN_CENTER, 0, 0);'
-                      - script.execute: backlight_apply_brightness
-                      - script.execute: connection_failed_dim
-                      - script.execute: connection_failed_shift
+                  layout:
+                    type: flex
+                    flex_flow: COLUMN
+                    flex_align_main: center
+                    flex_align_cross: center
+                    pad_row: 20
                   widgets:
-                    - obj:
-                        id: connection_failed_content
-                        align: center
+                    - label:
+                        text_font: icon_font_setup
+                        text: $icon_cloud_off
+                        text_color: 0xFFFFFF
+                    - label:
+                        id: connection_failed_title
+                        text: "Unable to connect to Immich"
+                        text_font: roboto_light46_font
+                        text_color: 0xFFFFFF
                         width: 700
-                        height: SIZE_CONTENT
-                        bg_opa: 0%
-                        border_width: 0
-                        pad_all: 0
-                        scrollable: false
-                        layout:
-                          type: flex
-                          flex_flow: COLUMN
-                          flex_align_main: center
-                          flex_align_cross: center
-                          pad_row: 20
-                        widgets:
-                          - label:
-                              text_font: icon_font_setup
-                              text: $icon_cloud_off
-                              text_color: 0xFFFFFF
-                          - label:
-                              id: connection_failed_title
-                              text: "Unable to connect to Immich"
-                              text_font: roboto_light46_font
-                              text_color: 0xFFFFFF
-                              width: 700
-                              text_align: center
-                          - label:
-                              id: connection_failed_subtitle
-                              text: "Check your internet connection and\nthe health of your Immich server."
-                              width: 700
-                              text_font: roboto30_font
-                              text_color: 0x888888
-                              text_align: center
+                        text_align: center
+                    - label:
+                        id: connection_failed_subtitle
+                        text: "Check your internet connection and\nthe health of your Immich server."
+                        width: 700
+                        text_font: roboto30_font
+                        text_color: 0x888888
+                        text_align: center
 
 # =============================================================================
 # CONNECTION FAILED DIM TIMER

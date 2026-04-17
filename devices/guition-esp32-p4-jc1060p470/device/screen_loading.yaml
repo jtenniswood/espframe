@@ -24,9 +24,6 @@ lvgl:
       bg_color: 0x000000
       scrollable: false
       widgets:
-        - image:
-            src: lvgl_rgb565a8_support_marker
-            hidden: true
         - obj:
             align: center
             width: 700

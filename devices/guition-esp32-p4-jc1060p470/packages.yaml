@@ -7,9 +7,9 @@
 # =============================================================================
 
 substitutions:
-  display_width: "1074"
+  display_width: "1024"
   display_height: "600"
-  portrait_half_width: "537"
+  portrait_half_width: "512"
   captive_portal_ip: "192.168.4.1"
   firmware_manifest_url: "https://jtenniswood.github.io/espframe/firmware/manifest-7inch.json"
   firmware_beta_manifest_url: "https://jtenniswood.github.io/espframe/firmware/beta/manifest-7inch.json"
