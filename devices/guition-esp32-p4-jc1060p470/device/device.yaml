@@ -125,6 +125,9 @@ external_components:
     refresh: 0s
 
 espframe:
+  lvgl_aspect_compensation:
+    scale_x: ${display_compensation_scale_x}
+    panel_width: ${display_width}
 
 # -----------------------------------------------------------------------------
 # DSI PHY power rail, backlight output, I2C

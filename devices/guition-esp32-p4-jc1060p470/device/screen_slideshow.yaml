@@ -26,9 +26,6 @@ lvgl:
             src: immich_img_0
             scrollable: false
             clickable: true
-            transform_scale_x: ${display_compensation_scale_x}
-            transform_pivot_x: ${display_compensation_pivot_x}
-            transform_pivot_y: ${display_compensation_pivot_y}
             on_press:
               then:
                 - script.execute: slideshow_on_press
@@ -50,9 +47,6 @@ lvgl:
             scrollable: false
             hidden: true
             clickable: true
-            transform_scale_x: ${display_compensation_scale_x}
-            transform_pivot_x: ${display_compensation_pivot_x}
-            transform_pivot_y: ${display_compensation_pivot_y}
             layout:
               type: flex
               flex_flow: ROW
@@ -123,8 +117,6 @@ lvgl:
                   border_width: 0
                   pad_all: 0
                   scrollable: false
-                  transform_scale_x: ${display_compensation_scale_x}
-                  transform_pivot_x: 0
                   widgets:
                     - label:
                         id: time_label_shadow
@@ -172,8 +164,6 @@ lvgl:
                   border_width: 0
                   pad_all: 0
                   scrollable: false
-                  transform_scale_x: ${display_compensation_scale_x}
-                  transform_pivot_x: 350
                   layout:
                     type: flex
                     flex_flow: COLUMN
@@ -403,4 +393,3 @@ interval:
                   id(target_slot) = id(active_slot);
                   id(immich_fetch_into_slot).execute();
                 }
-

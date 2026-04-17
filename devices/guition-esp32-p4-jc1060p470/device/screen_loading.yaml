@@ -32,8 +32,6 @@ lvgl:
             border_width: 0
             pad_all: 0
             scrollable: false
-            transform_scale_x: ${display_compensation_scale_x}
-            transform_pivot_x: 350
             layout:
               type: flex
               flex_flow: COLUMN
