@@ -158,6 +158,8 @@ display:
     auto_clear_enabled: false
     update_interval: never
     color_order: RGB
+    pixel_mode: 24bit
+    color_depth: 24bit
     pclk_frequency: 51.2MHz
     hsync_pulse_width: 24
     hsync_back_porch: 136
