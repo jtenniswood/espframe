@@ -35,8 +35,8 @@ async def to_code(config):
     if aspect_config := config.get(CONF_LVGL_ASPECT_COMPENSATION):
         script_path = Path(__file__).parent / "lvgl_aspect_compensation.py"
         cg.add_platformio_option("extra_scripts", [f"pre:{script_path}"])
-        cg.add_build_flag(f"-DESPFRAME_LVGL_ASPECT_SCALE_X={aspect_config[CONF_SCALE_X]:.6f}f")
-        cg.add_build_flag(f"-DESPFRAME_LVGL_ASPECT_PANEL_WIDTH={aspect_config[CONF_PANEL_WIDTH]}")
+        cg.add_build_flag(f"-DESPFRAME_DISPLAY_ASPECT_SCALE_X={aspect_config[CONF_SCALE_X]:.6f}f")
+        cg.add_build_flag(f"-DESPFRAME_DISPLAY_ASPECT_PANEL_WIDTH={aspect_config[CONF_PANEL_WIDTH]}")
 
     from .timezones import TIMEZONES
 
