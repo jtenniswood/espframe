@@ -190,12 +190,14 @@ interval:
 
           auto apply_layer_compensation = [&](lv_obj_t *page, lv_obj_t *layer) {
             lv_obj_set_pos(page, 0, 0);
-            lv_obj_set_size(page, physical_width, physical_height);
+            lv_obj_set_size(page, virtual_width, physical_height);
             lv_obj_set_style_transform_scale_x(page, 256, LV_PART_MAIN);
 
             lv_obj_set_pos(layer, 0, 0);
             lv_obj_set_size(layer, virtual_width, physical_height);
             lv_obj_clear_flag(layer, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_style_bg_color(layer, lv_color_hex(0x000000), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(layer, LV_OPA_COVER, LV_PART_MAIN);
             lv_obj_set_style_transform_pivot_x(layer, 0, LV_PART_MAIN);
             lv_obj_set_style_transform_scale_x(layer, width_compensation_scale, LV_PART_MAIN);
             lv_obj_invalidate(page);
