@@ -63,6 +63,3 @@ wifi:
         then:
           - lvgl.page.show: wifi_setup_page
           - script.execute: setup_screen_dim
-
-improv_serial:
-  next_url: "http://{{ip_address}}/"
