@@ -545,12 +545,18 @@ script:
                   condition:
                     lambda: 'return id(portrait).companion_found && id(companion_target_slot) == id(active_slot);'
                   then:
-                    - lambda: 'id(portrait).right_requested = true;'
+                    - lambda: |-
+                        id(portrait).left_ready = false;
+                        id(portrait).right_ready = false;
+                        id(portrait).right_requested = false;
                     - remote_image.set_url:
-                        id: immich_portrait_right
-                        url: !lambda 'return id(portrait_companion_url);'
+                        id: immich_portrait_left
+                        url: !lambda |-
+                          int ts = id(companion_target_slot);
+                          auto &meta = get_slot(ts, id(slot0), id(slot1), id(slot2));
+                          return meta.image_url;
                         update: false
-                    - script.execute: deferred_portrait_right_update
+                    - script.execute: deferred_portrait_left_update
               - if:
                   condition:
                     lambda: 'return id(portrait).companion_found && id(companion_target_slot) != id(active_slot);'

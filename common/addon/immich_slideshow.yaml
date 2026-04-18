@@ -442,21 +442,18 @@ script:
             id(companion_target_slot) = s;
             ESP_LOGD("immich", "Portrait slot %d: no companion, searching", s);
           }
-      - remote_image.set_url:
-          id: immich_portrait_left
-          url: !lambda |-
-            int s = id(active_slot);
-            auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
-            return meta.image_url;
-          update: false
-      - script.execute: deferred_portrait_left_update
       - if:
           condition:
             lambda: 'return id(portrait).companion_found;'
           then:
-            - lambda: |-
-                // Right image is started only after left finishes to avoid duplicate/in-flight updates.
-                return;
+            - remote_image.set_url:
+                id: immich_portrait_left
+                url: !lambda |-
+                  int s = id(active_slot);
+                  auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
+                  return meta.image_url;
+                update: false
+            - script.execute: deferred_portrait_left_update
       - if:
           condition:
             lambda: 'return !id(portrait).companion_found;'

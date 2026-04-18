@@ -141,7 +141,7 @@ size_t OnlineImage::resize_(int width_in, int height_in) {
 }
 
 void OnlineImage::update() {
-  if (this->decoder_) {
+  if (this->decoder_ || this->downloader_) {
     ESP_LOGW(TAG, "Cancelling in-progress image download to fetch new URL");
     this->end_connection_();
   }
