@@ -12,7 +12,12 @@
           <input v-model="selectedDeviceId" type="radio" name="espframe-device" :value="device.id">
           <span>
             <strong>{{ device.label }}</strong>
-            <small>{{ device.model }}</small>
+            <small>
+              {{ device.model }}
+              <template v-if="device.id === selectedDeviceId && manifestVersion">
+                - Latest {{ manifestVersion }}
+              </template>
+            </small>
           </span>
         </label>
       </div>
@@ -24,7 +29,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 
 const devices = [
   {
@@ -39,11 +44,25 @@ const devices = [
 const selectedDeviceId = ref(devices[0].id)
 const supported = ref(false)
 const loadError = ref(null)
+const manifestVersion = ref('')
 const selectedDevice = computed(() => devices.find((device) => device.id === selectedDeviceId.value) || devices[0])
 const manifestUrl = computed(() => selectedDevice.value.manifest)
 
+async function loadManifestVersion() {
+  manifestVersion.value = ''
+  try {
+    const response = await fetch(manifestUrl.value, { cache: 'no-store' })
+    if (!response.ok) return
+    const manifest = await response.json()
+    manifestVersion.value = typeof manifest.version === 'string' ? manifest.version : ''
+  } catch (_) {
+    manifestVersion.value = ''
+  }
+}
+
 onMounted(async () => {
   supported.value = 'serial' in navigator
+  await loadManifestVersion()
   if (!supported.value) return
   try {
     await import('https://unpkg.com/esp-web-tools@10.2.1/dist/web/install-button.js')
@@ -51,6 +70,8 @@ onMounted(async () => {
     loadError.value = err?.message || 'Network or script load error.'
   }
 })
+
+watch(manifestUrl, loadManifestVersion)
 </script>
 
 <style scoped>

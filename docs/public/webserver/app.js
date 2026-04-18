@@ -550,6 +550,13 @@
       });
   }
 
+  function displayVersion(value, fallback) {
+    var v = String(value || "").trim();
+    if (!v) return fallback || "";
+    if (v.toLowerCase() === "dev") return "Dev";
+    return v;
+  }
+
   // --- SSE-based init ---
 
   var evtSource = null;
@@ -684,6 +691,7 @@
 
   // Single source for settings fetched on load; KEY_TO_ENTITY_ID derived from ENTITY_STATE_MAP.
   var INITIAL_FETCH_KEYS = [
+    "firmware", "auto_update", "update_frequency",
     "clock_format", "timezone",
     "photo_source", "album_ids", "album_labels", "person_ids", "person_labels",
     "date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit",
@@ -1732,7 +1740,7 @@
     var versionRow = el("div", "field fw-row");
     var versionLabel = el("span", "fw-label");
     versionLabel.innerHTML = '<span style="color:var(--text2)">Installed</span> ' +
-      esc(S.firmware || S.installed_version || "Dev");
+      esc(displayVersion(S.firmware || S.installed_version, "Dev"));
     var checkBtn = el("button", "btn btn-secondary btn-sm");
     checkBtn.textContent = "Check for Update";
     var statusMsg = el("span", "fw-status");
@@ -1860,7 +1868,7 @@
 
     if (S.firmware) {
       var verLine = el("div", "version");
-      verLine.textContent = "v" + S.firmware;
+      verLine.textContent = displayVersion(S.firmware);
       app.appendChild(verLine);
     }
   }
