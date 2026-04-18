@@ -510,12 +510,8 @@ select option {
   flex-shrink: 0;
 }
 .card-logs {
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  transform: translate(-50%);
-  max-width: none;
-  border-radius: 0;
+  width: 100%;
+  max-width: 960px;
 }
 .log-output {
   margin-top: 12px;

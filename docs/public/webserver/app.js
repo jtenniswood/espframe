@@ -126,7 +126,7 @@
     "body{font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;" +
     "background:var(--bg);color:var(--text);line-height:1.7;" +
     "min-height:100vh;margin:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}" +
-    "#sp-app{width:100%;max-width:1280px;margin:0 auto}" +
+    "#sp-app{width:100%;max-width:960px;margin:0 auto}" +
     ".sp-header{display:flex;align-items:center;background:var(--bg);" +
     "border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;height:56px;padding:0 20px}" +
     ".sp-brand{font-size:1rem;font-weight:600;color:var(--text);margin-right:auto;" +
