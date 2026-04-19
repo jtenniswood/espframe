@@ -1,0 +1,11 @@
+menu "Cellular Heartbeat Example"
+
+    config ML_EXAMPLE_OPERATOR_PEER_IP
+        string "Operator Station VPN IP"
+        default ""
+        help
+            Tailscale VPN IP of the operator station (e.g., "100.114.120.57").
+            If set, heartbeats are sent to this peer immediately.
+            If empty, heartbeats start after receiving the first message from any peer.
+
+endmenu

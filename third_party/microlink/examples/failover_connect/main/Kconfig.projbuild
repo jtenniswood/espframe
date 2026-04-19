@@ -1,0 +1,14 @@
+menu "Failover Connect Example"
+
+    config ML_EXAMPLE_TARGET_PEER_IP
+        string "Target Peer VPN IP (for sending)"
+        default ""
+        help
+            VPN IP of the peer to send messages to (e.g., "100.114.120.57").
+            Leave empty to only receive.
+
+    config ML_EXAMPLE_UDP_PORT
+        int "UDP port"
+        default 9000
+
+endmenu

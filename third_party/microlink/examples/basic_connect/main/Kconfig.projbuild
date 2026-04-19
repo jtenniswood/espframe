@@ -1,0 +1,11 @@
+menu "Example Configuration"
+
+    config ML_EXAMPLE_TARGET_PEER_IP
+        string "Target Peer VPN IP (for sending)"
+        default ""
+        help
+            VPN IP of the peer to send "hello" messages to (e.g., "100.103.181.24").
+            Leave empty to only receive (no outgoing messages).
+            The peer should run: nc -lu 9000
+
+endmenu
