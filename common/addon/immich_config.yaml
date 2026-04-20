@@ -8,6 +8,10 @@
 # -----------------------------------------------------------------------------
 # Boot flag and URL normalization on boot
 # -----------------------------------------------------------------------------
+substitutions:
+  immich_base_url: ""
+  immich_api_key: ""
+
 globals:
   - id: immich_fetch_started
     type: bool
@@ -18,8 +22,8 @@ esphome:
     priority: -300
     then:
       - lambda: |-
-          std::string url = strip_trailing_slashes(id(immich_url).state);
-          if (url != id(immich_url).state) {
+          std::string url = normalize_immich_base_url(id(immich_url).state);
+          if (!url.empty() && is_http_url(url) && url != id(immich_url).state) {
             id(immich_url).publish_state(url);
           }
 
@@ -34,6 +38,7 @@ text:
     entity_category: config
     optimistic: false
     restore_value: true
+    initial_value: "${immich_base_url}"
     min_length: 0
     max_length: 255
     mode: text
@@ -43,7 +48,11 @@ text:
     set_action:
       - lambda: |-
           if (x.empty()) return;
-          std::string url = strip_trailing_slashes(x);
+          std::string url = normalize_immich_base_url(x);
+          if (!is_http_url(url)) {
+            ESP_LOGW("immich", "Immich URL must start with http:// or https://");
+            return;
+          }
           id(immich_url).publish_state(url);
           ESP_LOGI("immich", "Immich URL configured: %s", url.c_str());
       - script.execute: immich_check_config_ready
@@ -55,6 +64,7 @@ text:
     entity_category: config
     optimistic: false
     restore_value: true
+    initial_value: "${immich_api_key}"
     min_length: 0
     max_length: 255
     mode: password

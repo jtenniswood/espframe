@@ -6,7 +6,7 @@ A standalone digital photo frame that displays your [Immich](https://immich.app/
   <img src="docs/public/espframe.png" alt="Immich Frame displaying photos on a Guition ESP32-P4 touchscreen" width="700" />
 </p>
 
-Built with [ESPHome](https://esphome.io/) on the ESP32-P4, the frame connects directly to your Immich server over HTTP and streams photos to your display, completely in private over your local network.
+Built with [ESPHome](https://esphome.io/) on the ESP32-P4, the frame connects directly to your Immich server over HTTP or HTTPS and streams photos to your display, completely in private over your local network.
 
 ## Features
 

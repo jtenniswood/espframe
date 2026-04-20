@@ -49,15 +49,15 @@ Current local builds use ESPHome `2026.4.0`. The shared configuration includes c
 | `immich_base_url` | *(empty)* | Pre-fill Immich URL to skip setup |
 | `immich_api_key` | *(empty)* | Pre-fill API key to skip setup |
 | `immich_slide_interval` | `2 minutes` | Slideshow interval |
-| `immich_verify_ssl` | `false` | Set `true` to verify TLS |
+| `immich_verify_ssl` | `false` | Set `true` to verify TLS certificates |
 
 ## Pre-filling Immich credentials
 
 To skip the first-boot wizard, add to substitutions:
 
 ```yaml
-immich_base_url: "http://192.168.1.30:2283"
+immich_base_url: "https://photos.example.com"
 immich_api_key: !secret immich_api_key
 ```
 
-Add `immich_api_key` to `secrets.yaml`. You can still change these later in the web UI.
+Add `immich_api_key` to `secrets.yaml`. The URL can also be a direct local address such as `http://192.168.1.30:2283`. You can still change these later in the web UI.

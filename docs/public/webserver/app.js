@@ -498,6 +498,74 @@
     });
   }
 
+  function stripUrlTrailingSlashes(value) {
+    var url = String(value == null ? "" : value);
+    while (url.length > 0 && url.charAt(url.length - 1) === "/" && !/^[a-z][a-z0-9+.-]*:\/\/$/i.test(url)) {
+      url = url.slice(0, -1);
+    }
+    return url;
+  }
+
+  function extractUrlAuthority(value) {
+    var url = String(value || "");
+    if (url.indexOf("//") === 0) url = url.slice(2);
+    return url.split(/[/?#]/)[0] || "";
+  }
+
+  function extractUrlHost(value) {
+    var authority = extractUrlAuthority(value);
+    var at = authority.lastIndexOf("@");
+    if (at >= 0) authority = authority.slice(at + 1);
+    if (!authority) return "";
+    if (authority.charAt(0) === "[") {
+      var close = authority.indexOf("]");
+      return (close >= 0 ? authority.slice(0, close + 1) : authority).toLowerCase();
+    }
+    return authority.split(":")[0].toLowerCase();
+  }
+
+  function extractUrlPort(value) {
+    var authority = extractUrlAuthority(value);
+    var at = authority.lastIndexOf("@");
+    if (at >= 0) authority = authority.slice(at + 1);
+    if (!authority) return "";
+    if (authority.charAt(0) === "[") {
+      var close = authority.indexOf("]");
+      if (close >= 0 && authority.charAt(close + 1) === ":") return authority.slice(close + 2).match(/^\d*/)[0];
+      return "";
+    }
+    var colon = authority.indexOf(":");
+    return colon >= 0 ? authority.slice(colon + 1).match(/^\d*/)[0] : "";
+  }
+
+  function urlHasExplicitPort(value) {
+    return extractUrlPort(value) !== "";
+  }
+
+  function isLocalImmichHost(host) {
+    if (!host) return false;
+    if (host === "localhost" || host.charAt(0) === "[") return true;
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return true;
+    return host.slice(-6) === ".local" || host.slice(-4) === ".lan";
+  }
+
+  function normalizeImmichUrl(value) {
+    var url = stripUrlTrailingSlashes(String(value == null ? "" : value).trim());
+    if (!url) return "";
+    if (url.indexOf("//") === 0) {
+      url = "https:" + url;
+    } else if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) {
+      var host = extractUrlHost(url);
+      var port = extractUrlPort(url);
+      var useHttp = isLocalImmichHost(host) || urlHasExplicitPort(url);
+      if (port === "443") useHttp = false;
+      url = (useHttp ? "http://" : "https://") + url;
+    }
+    return stripUrlTrailingSlashes(url.replace(/^([a-z][a-z0-9+.-]*):\/\//i, function (_, scheme) {
+      return scheme.toLowerCase() + "://";
+    }));
+  }
+
   function photoIdFieldTooLong(s) {
     return String(s != null ? s : "").trim().length > MAX_PHOTO_ID_FIELD_LENGTH;
   }
@@ -741,7 +809,7 @@
       safeGet(endpoints.immich_url),
       safeGet(endpoints.api_key)
     ]).then(function (res) {
-      if (res[0]) S.immich_url = res[0].value || res[0].state || "";
+      if (res[0]) S.immich_url = normalizeImmichUrl(res[0].value || res[0].state || "");
       if (res[1]) S.api_key = res[1].value || res[1].state || "";
       if (S.immich_url) {
         fetchDeviceSettingsState().then(renderSettings);
@@ -833,7 +901,7 @@
       card.innerHTML = "<h3>Connection</h3>";
 
       var f1 = field("Immich Server URL");
-      var urlInput = input("url", S.immich_url, "http://192.168.0.1:2283");
+      var urlInput = input("url", S.immich_url, "https://photos.example.com");
       f1.appendChild(urlInput);
       card.appendChild(f1);
 
@@ -857,7 +925,7 @@
       var nextBtn = el("button", "btn btn-primary");
       nextBtn.textContent = "Connect";
       nextBtn.onclick = function () {
-        var u = urlInput.value.trim();
+        var u = normalizeImmichUrl(urlInput.value);
         var k = keyInput.value.trim();
         if (!u || !k) return;
         nextBtn.disabled = true;
@@ -952,9 +1020,12 @@
     }
 
     var f1 = field("Immich Server URL");
-    var urlInput = input("url", S.immich_url, "http://192.168.0.1:2283");
+    var urlInput = input("url", S.immich_url, "https://photos.example.com");
     urlInput.onchange = function () {
-      post(endpoints.immich_url + "/set", { value: urlInput.value.trim() });
+      var u = normalizeImmichUrl(urlInput.value);
+      urlInput.value = u;
+      S.immich_url = u;
+      post(endpoints.immich_url + "/set", { value: u });
       showSaved("URL saved");
     };
     f1.appendChild(urlInput);
@@ -2159,8 +2230,8 @@
         var scr = data.screen || {};
 
         if (c.immich_url !== undefined) {
-          S.immich_url = c.immich_url;
-          post(endpoints.immich_url + "/set", { value: c.immich_url });
+          S.immich_url = normalizeImmichUrl(c.immich_url);
+          post(endpoints.immich_url + "/set", { value: S.immich_url });
         }
         if (c.api_key !== undefined) {
           S.api_key = c.api_key;
