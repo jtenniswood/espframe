@@ -48,6 +48,12 @@ globals:
   - id: last_downloaded_slot
     type: int
     initial_value: '-1'
+  - id: immich_diag_reason
+    type: std::string
+    initial_value: '""'
+  - id: last_immich_diag_ms
+    type: uint32_t
+    initial_value: '0'
   - id: deferred_fetch_target
     type: int
     initial_value: '0'
@@ -150,6 +156,8 @@ remote_image:
         - lambda: |-
             id(slot_flags).fetch_in_flight[0] = false;
             clear_noncritical(0, id(slot_flags), id(noncritical_remote_updates_in_flight));
+            id(immich_diag_reason) = "slot0 image error";
+            id(log_immich_diag).execute();
         - lambda: 'id(last_downloaded_slot) = 0;'
         - script.execute: handle_slot_download_error
 
@@ -190,6 +198,8 @@ remote_image:
         - lambda: |-
             id(slot_flags).fetch_in_flight[1] = false;
             clear_noncritical(1, id(slot_flags), id(noncritical_remote_updates_in_flight));
+            id(immich_diag_reason) = "slot1 image error";
+            id(log_immich_diag).execute();
         - lambda: 'id(last_downloaded_slot) = 1;'
         - script.execute: handle_slot_download_error
 
@@ -230,6 +240,8 @@ remote_image:
         - lambda: |-
             id(slot_flags).fetch_in_flight[2] = false;
             clear_noncritical(2, id(slot_flags), id(noncritical_remote_updates_in_flight));
+            id(immich_diag_reason) = "slot2 image error";
+            id(log_immich_diag).execute();
         - lambda: 'id(last_downloaded_slot) = 2;'
         - script.execute: handle_slot_download_error
 
@@ -246,6 +258,7 @@ remote_image:
       then:
         - lambda: |-
             id(portrait).left_ready = true;
+            id(portrait).left_requested = false;
             ESP_LOGD("immich", "Portrait left ready");
         - if:
             condition:
@@ -267,7 +280,10 @@ remote_image:
         - lambda: |-
             ESP_LOGE("immich", "Portrait left decode failed, falling back to single");
             id(portrait).left_ready = false;
+            id(portrait).left_requested = false;
             id(portrait).companion_found = false;
+            id(immich_diag_reason) = "portrait left error";
+            id(log_immich_diag).execute();
             if (!id(active_slot_displayed)) {
               id(active_slot_displayed) = true;
               id(portrait).workflow_busy = false;
@@ -286,6 +302,7 @@ remote_image:
       then:
         - lambda: |-
             id(portrait).right_ready = true;
+            id(portrait).right_requested = false;
             ESP_LOGD("immich", "Portrait right ready");
         - if:
             condition:
@@ -299,6 +316,8 @@ remote_image:
             id(portrait).right_ready = false;
             id(portrait).right_requested = false;
             id(portrait).companion_found = false;
+            id(immich_diag_reason) = "portrait right error";
+            id(log_immich_diag).execute();
             if (!id(active_slot_displayed)) {
               id(active_slot_displayed) = true;
               id(portrait).workflow_busy = false;
@@ -350,6 +369,8 @@ remote_image:
         - lambda: |-
             ESP_LOGE("immich", "Portrait preload left failed");
             id(portrait_preload_left_ready) = false;
+            id(immich_diag_reason) = "portrait preload left error";
+            id(log_immich_diag).execute();
             if (id(preload_noncritical_in_flight)) {
               id(preload_noncritical_in_flight) = false;
               if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
@@ -377,6 +398,8 @@ remote_image:
         - lambda: |-
             ESP_LOGE("immich", "Portrait preload right failed");
             id(portrait_preload_right_ready) = false;
+            id(immich_diag_reason) = "portrait preload right error";
+            id(log_immich_diag).execute();
             if (id(preload_noncritical_in_flight)) {
               id(preload_noncritical_in_flight) = false;
               if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
@@ -386,6 +409,17 @@ remote_image:
 # Scripts: download error handler, display, advance, previous, prefetch
 # -----------------------------------------------------------------------------
 script:
+  - id: log_immich_diag
+    mode: restart
+    then:
+      - lambda: |-
+          log_immich_pipeline_diag(id(immich_diag_reason).c_str(), millis(), id(last_immich_diag_ms),
+            id(active_slot), id(target_slot), id(active_slot_displayed), id(slot_flags), id(portrait),
+            id(noncritical_remote_updates_in_flight), id(preload_noncritical_in_flight),
+            id(portrait_preload_slot), id(portrait_preload_left_ready), id(portrait_preload_right_ready),
+            id(companion_target_slot), id(immich_api_retries), id(immich_download_retries),
+            id(immich_retry_cooldown_until_ms));
+
   # Shared handler for any slot's on_error (retry up to MAX_ERROR_RETRIES)
   - id: handle_slot_download_error
     mode: restart
@@ -421,12 +455,22 @@ script:
           then:
             - lambda: 'ESP_LOGD("immich", "Portrait pair already displayed from preload; skipping live portrait refresh");'
             - script.stop: immich_start_portrait_active
+      - if:
+          condition:
+            lambda: |-
+              int s = id(active_slot);
+              auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
+              return id(portrait).workflow_busy && id(portrait_primary_asset_id) == meta.asset_id;
+          then:
+            - lambda: 'ESP_LOGD("immich", "Portrait workflow already in progress for active slot");'
+            - script.stop: immich_start_portrait_active
       - lambda: |-
           int s = id(active_slot);
           auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
           id(portrait).left_ready = false;
           id(portrait).right_ready = false;
           id(portrait).no_companion_active = false;
+          id(portrait).left_requested = false;
           id(portrait).right_requested = false;
           id(portrait).using_preload = false;
           id(portrait).workflow_busy = true;
@@ -444,8 +488,9 @@ script:
           }
       - if:
           condition:
-            lambda: 'return id(portrait).companion_found;'
+            lambda: 'return id(portrait).companion_found && !id(portrait).left_requested && !id(portrait).left_ready;'
           then:
+            - lambda: 'id(portrait).left_requested = true;'
             - remote_image.set_url:
                 id: immich_portrait_left
                 url: !lambda |-
@@ -550,6 +595,8 @@ script:
                     if (s == 0) id(immich_img_0).abort_download();
                     else if (s == 1) id(immich_img_1).abort_download();
                     else id(immich_img_2).abort_download();
+                    id(immich_diag_reason) = "h3 stuck slot";
+                    id(log_immich_diag).execute();
                     in_flight = false;
                   }
                   if (!in_flight) {
@@ -827,25 +874,27 @@ script:
           id(immich_img_2).update();
 
   - id: deferred_portrait_left_update
-    mode: single
+    mode: restart
     then:
       - delay: 150ms
       - lambda: |-
+          if (id(portrait).left_ready) return;
           bool fill = (id(photo_display_mode).current_option() == "Fill");
           id(immich_portrait_left).set_fill_mode(fill);
           id(immich_portrait_left).update();
 
   - id: deferred_portrait_right_update
-    mode: single
+    mode: restart
     then:
       - delay: 150ms
       - lambda: |-
+          if (id(portrait).right_ready) return;
           bool fill = (id(photo_display_mode).current_option() == "Fill");
           id(immich_portrait_right).set_fill_mode(fill);
           id(immich_portrait_right).update();
 
   - id: deferred_preload_left_update
-    mode: single
+    mode: restart
     then:
       - delay: 150ms
       - lambda: |-
@@ -860,7 +909,7 @@ script:
           id(immich_portrait_preload_left).update();
 
   - id: deferred_preload_right_update
-    mode: single
+    mode: restart
     then:
       - delay: 150ms
       - lambda: |-

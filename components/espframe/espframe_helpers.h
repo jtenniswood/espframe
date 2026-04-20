@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstring>
 #include <cmath>
+#include "esp_heap_caps.h"
 
 #ifdef USE_LVGL
 #include "esphome/components/image/image.h"
@@ -71,7 +72,7 @@ struct PortraitState {
   // Coordinates the multi-step portrait pairing workflow so a pair is only
   // displayed once both left and right images are ready.
   bool left_ready = false, right_ready = false;
-  bool no_companion_active = false, right_requested = false;
+  bool no_companion_active = false, left_requested = false, right_requested = false;
   bool companion_found = false, is_pair = false;
   bool using_preload = false, workflow_busy = false;
   void reset() { *this = PortraitState{}; }
@@ -116,6 +117,34 @@ inline bool prepare_deferred_slot_update(int slot, int active_slot, SlotFlags &f
   }
   flags.fetch_in_flight[slot] = true;
   return true;
+}
+
+inline void log_immich_pipeline_diag(const char *reason, uint32_t now_ms, uint32_t &last_diag_ms,
+    int active_slot, int target_slot, bool active_displayed, const SlotFlags &flags,
+    const PortraitState &portrait, int nc_count, bool preload_nc_in_flight,
+    int portrait_preload_slot, bool portrait_preload_left_ready, bool portrait_preload_right_ready,
+    int companion_target_slot, int api_retries, int download_retries, uint32_t retry_cooldown_until_ms) {
+  if (last_diag_ms != 0 && (now_ms - last_diag_ms) < 5000) return;
+  last_diag_ms = now_ms;
+
+  size_t free_heap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+  size_t largest_heap = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+  uint32_t cooldown_left = (retry_cooldown_until_ms != 0 && now_ms < retry_cooldown_until_ms)
+                               ? (retry_cooldown_until_ms - now_ms)
+                               : 0;
+
+  ESP_LOGW("diag",
+           "IMMICH-DIAG %s heap=%u largest=%u active=%d target=%d displayed=%d "
+           "slot_flight=%d%d%d nc=%d preload_nc=%d portrait_busy=%d left_req=%d "
+           "left_ready=%d right_req=%d right_ready=%d companion=%d pair=%d "
+           "preload_slot=%d preload_ready=%d/%d companion_slot=%d retries=%d/%d cooldown=%u",
+           reason, (unsigned) free_heap, (unsigned) largest_heap, active_slot, target_slot,
+           active_displayed, flags.fetch_in_flight[0], flags.fetch_in_flight[1],
+           flags.fetch_in_flight[2], nc_count, preload_nc_in_flight, portrait.workflow_busy,
+           portrait.left_requested, portrait.left_ready, portrait.right_requested,
+           portrait.right_ready, portrait.companion_found, portrait.is_pair,
+           portrait_preload_slot, portrait_preload_left_ready, portrait_preload_right_ready,
+           companion_target_slot, api_retries, download_retries, (unsigned) cooldown_left);
 }
 
 inline std::string decode_url_commas(const std::string &input) {

@@ -29,6 +29,7 @@ script:
       - lambda: |-
           id(portrait).companion_found = false;
           id(portrait_companion_url) = "";
+          id(portrait).left_requested = false;
           id(portrait).right_requested = false;
           int ts = id(companion_target_slot);
           auto &meta = get_slot(ts, id(slot0), id(slot1), id(slot2));
@@ -383,6 +384,8 @@ script:
                   id(immich_api_retries)++;
                   ESP_LOGW("immich", "API request error for slot %d (attempt %d)", id(target_slot), id(immich_api_retries));
                   id(slot_flags).fetch_in_flight[id(target_slot)] = false;
+                  id(immich_diag_reason) = "api request error";
+                  id(log_immich_diag).execute();
               - if:
                   condition:
                     lambda: 'return id(immich_api_retries) < MAX_ERROR_RETRIES;'
@@ -507,6 +510,8 @@ script:
               - lambda: |-
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Companion search HTTP %d", response->status_code);
+                    id(immich_diag_reason) = "companion search http";
+                    id(log_immich_diag).execute();
                     id(handle_companion_not_found).execute();
                     return;
                   }
@@ -556,11 +561,12 @@ script:
                   meta.companion_url = companion_url;
               - if:
                   condition:
-                    lambda: 'return id(portrait).companion_found && id(companion_target_slot) == id(active_slot);'
+                    lambda: 'return id(portrait).companion_found && id(companion_target_slot) == id(active_slot) && !id(portrait).left_requested && !id(portrait).left_ready;'
                   then:
                     - lambda: |-
                         id(portrait).left_ready = false;
                         id(portrait).right_ready = false;
+                        id(portrait).left_requested = true;
                         id(portrait).right_requested = false;
                     - remote_image.set_url:
                         id: immich_portrait_left
@@ -592,6 +598,9 @@ script:
                     - script.execute: deferred_preload_left_update
           on_error:
             then:
-              - lambda: 'ESP_LOGW("immich", "Companion search request failed");'
+              - lambda: |-
+                  ESP_LOGW("immich", "Companion search request failed");
+                  id(immich_diag_reason) = "companion search error";
+                  id(log_immich_diag).execute();
               - script.execute: handle_companion_not_found
       - script.execute: delayed_prefetch_chain
