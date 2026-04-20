@@ -92,6 +92,18 @@ Use relative mode for ranges like the last 6 months, last 1 year, or last 2 year
 
 ---
 
+## Display Settings
+
+Use **Display Settings** to control how photos are chosen and fitted to the screen.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **Portrait Pairing** | On | Pairs compatible portrait photos side-by-side on landscape screens. |
+| **Photo Orientation** | Any | Choose any photo, portrait-only photos, or landscape-only photos. Portrait-only is useful when the frame is mounted vertically. |
+| **Display Mode** | Fill | Fill crops to cover the screen; Fit letterboxes without cropping. |
+
+---
+
 ## Frequency
 
 **Slideshow Interval** (under **Frequency** in the web UI) sets how long each photo is shown before advancing (default 2 minutes, minimum 30 seconds).

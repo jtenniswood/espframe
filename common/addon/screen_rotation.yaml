@@ -1,0 +1,47 @@
+# =============================================================================
+# SCREEN ROTATION - Runtime LVGL display orientation
+# =============================================================================
+# Uses ESPHome 2026.4 LVGL rotation so display content and touch input rotate
+# together. Device packages map the user-facing 0/180 option to each panel's
+# LVGL-native rotation values.
+# =============================================================================
+
+select:
+  - platform: template
+    name: "Screen: Rotation"
+    id: screen_rotation_select
+    internal: true
+    options:
+      - "0"
+      - "180"
+    initial_option: "${screen_rotation}"
+    optimistic: true
+    restore_value: true
+    icon: "mdi:screen-rotation"
+    web_server:
+      sorting_group_id: sg_screen
+    on_value:
+      then:
+        - lambda: 'ESP_LOGI("screen", "Screen rotation: %s degrees", x.c_str());'
+        - script.execute: screen_apply_rotation
+
+esphome:
+  on_boot:
+    - priority: -150
+      then:
+        - script.execute: screen_apply_rotation
+
+script:
+  - id: screen_apply_rotation
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: 'return id(screen_rotation_select).current_option() == "0";'
+          then:
+            - lvgl.display.set_rotation: ${screen_rotation_0}
+      - if:
+          condition:
+            lambda: 'return id(screen_rotation_select).current_option() == "180";'
+          then:
+            - lvgl.display.set_rotation: ${screen_rotation_180}

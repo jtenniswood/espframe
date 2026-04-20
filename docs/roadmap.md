@@ -41,7 +41,7 @@ Support mounting the frame in landscape or portrait orientation.
 
 | Feature | Status |
 |---|---|
-| Configurable screen rotation (0°/90°/180°/270°) | Planned |
+| Configurable screen rotation (0°/180°) | Available |
 | Optimized layouts for both landscape and portrait orientations | Planned |
 
 ## Networking
@@ -68,7 +68,7 @@ Add controls to customize frame settings from the screen rather than the web ser
 
 | Feature | Status |
 |---|---|
-| Screen rotation | Planned |
+| Screen rotation | Available in web UI / HA |
 | Firmware update controls | Planned |
 | Backlight brightness | Planned |
 

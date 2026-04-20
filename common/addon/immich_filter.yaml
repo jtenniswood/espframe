@@ -46,6 +46,25 @@ select:
         - script.execute: auto_apply_photo_source
 
   - platform: template
+    name: "Photos: Orientation"
+    id: photo_orientation_filter
+    internal: true
+    options:
+      - "Any"
+      - "Portrait Only"
+      - "Landscape Only"
+    initial_option: "Any"
+    optimistic: true
+    restore_value: true
+    icon: "mdi:phone-rotate-portrait"
+    web_server:
+      sorting_group_id: sg_photos
+    on_value:
+      then:
+        - lambda: 'ESP_LOGI("immich", "Photo orientation: %s", x.c_str());'
+        - script.execute: auto_apply_photo_source
+
+  - platform: template
     name: "Photos: Relative Unit"
     id: immich_relative_unit
     internal: true

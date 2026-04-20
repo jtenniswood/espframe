@@ -340,11 +340,12 @@ inline void tint_image_buffer(esphome::image::Image *img, const WarmToneLuts &lu
 inline std::string parse_immich_asset_and_fill_slot(const std::string &body,
                                                     const std::string &base_url,
                                                     int slot,
-                                                    SlotMeta &s0, SlotMeta &s1, SlotMeta &s2) {
+                                                    SlotMeta &s0, SlotMeta &s1, SlotMeta &s2,
+                                                    const std::string &orientation_filter = "Any") {
   // Parse once into an intermediate struct, then copy the fields into the slot
   // selected by the YAML state machine.
   ImmichAssetMeta tmp;
-  std::string img_url = parse_immich_asset(body, base_url, &tmp);
+  std::string img_url = parse_immich_asset(body, base_url, &tmp, orientation_filter);
   if (img_url.empty()) return "";
 
   SlotMeta *meta = (slot == 0) ? &s0 : (slot == 1) ? &s1 : &s2;

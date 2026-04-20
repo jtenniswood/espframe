@@ -10,6 +10,9 @@ substitutions:
   display_width: "1024"
   display_height: "600"
   portrait_half_width: "512"
+  screen_rotation: "0"
+  screen_rotation_0: "0"
+  screen_rotation_180: "180"
   captive_portal_ip: "192.168.4.1"
   firmware_manifest_url: "https://jtenniswood.github.io/espframe/firmware/manifest-7inch.json"
   firmware_beta_manifest_url: "https://jtenniswood.github.io/espframe/firmware/beta/manifest-7inch.json"
@@ -22,6 +25,7 @@ packages:
   fonts:           !include assets/fonts.yaml
   icons:           !include assets/icons.yaml
   lvgl_base:       !include device/lvgl_base.yaml
+  screen_rotation: !include ../../common/addon/screen_rotation.yaml
   # ---------------------------------------------------------------------------
   # Shared addons: connectivity and Immich config/filter
   # ---------------------------------------------------------------------------

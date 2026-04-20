@@ -5,7 +5,17 @@ description: Screen brightness, tone, and schedule — the display controls avai
 
 # Screen Settings
 
-Display controls in **Settings**: brightness (day/night) and optional schedule. Available in the web UI and (where applicable) Home Assistant.
+Display controls in **Settings**: orientation, brightness (day/night), tone, and optional schedule. Available in the web UI and (where applicable) Home Assistant.
+
+## Screen Orientation
+
+**Screen Orientation** rotates the LVGL display layer, so the picture and touch input turn together. This uses ESPHome 2026.4's LVGL rotation support.
+
+The setting only exposes normal and upside-down orientations. On the 10" model, the firmware keeps its internal 90-degree panel offset and maps these two choices onto the correct LVGL values.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **Rotation** | 0 degrees | Rotate the screen to 0 or 180 degrees. |
 
 ## Screen Brightness
 

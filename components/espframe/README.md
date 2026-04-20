@@ -107,16 +107,17 @@ Copies the `PhotoMeta` part of `disp` into `slot`. Display-only field `valid` is
 copy_display_to_slot(id(current_display), id(slot0));
 ```
 
-#### `parse_immich_asset_and_fill_slot(body, base_url, slot, s0, s1, s2)`  
-**Signature:**  
-`std::string parse_immich_asset_and_fill_slot(const std::string &body, const std::string &base_url, int slot, SlotMeta &s0, SlotMeta &s1, SlotMeta &s2)`
+#### `parse_immich_asset_and_fill_slot(body, base_url, slot, s0, s1, s2, orientation_filter)`
+**Signature:**
+`std::string parse_immich_asset_and_fill_slot(const std::string &body, const std::string &base_url, int slot, SlotMeta &s0, SlotMeta &s1, SlotMeta &s2, const std::string &orientation_filter = "Any")`
 
-Parses Immich JSON (single asset object or array of one object), fills the corresponding slot (`slot` 0, 1, or 2), and returns the image URL. Returns empty string on parse failure. Requires `USE_JSON` (ESPHome json component).
+Parses Immich JSON (single asset object or array), fills the corresponding slot (`slot` 0, 1, or 2), and returns the image URL. When `orientation_filter` is `"Portrait Only"` or `"Landscape Only"`, arrays are searched for the first matching asset. Returns empty string on parse failure or no matching asset. Requires `USE_JSON` (ESPHome json component).
 
 - **body** — JSON response body (e.g. from `/api/assets/{id}` or `/api/search/random`).
 - **base_url** — Immich base URL with no trailing slash (e.g. `id(immich_url).state`).
 - **slot** — Which slot to fill: 0, 1, or 2.
 - **s0, s1, s2** — References to your three `SlotMeta` globals (e.g. `id(slot0)`, `id(slot1)`, `id(slot2)`).
+- **orientation_filter** — Optional: `"Any"`, `"Portrait Only"`, or `"Landscape Only"`.
 
 **Use when:** Handling Immich API responses in HTTP request lambdas.
 
@@ -197,11 +198,11 @@ std::string body = build_immich_search_body(1, true, id(photo_source_select).cur
 std::string body_memories = build_immich_search_body(1, true, "All", "", "", "\"takenAfter\":\"2024-01-01\",\"takenBefore\":\"2024-01-02\"");
 ```
 
-#### `parse_immich_asset(body, base_url, out_meta)`  
-**Signature:**  
-`std::string parse_immich_asset(const std::string &body, const std::string &base_url, ImmichAssetMeta *out_meta)`
+#### `parse_immich_asset(body, base_url, out_meta, orientation_filter)`
+**Signature:**
+`std::string parse_immich_asset(const std::string &body, const std::string &base_url, ImmichAssetMeta *out_meta, const std::string &orientation_filter = "Any")`
 
-Parses Immich asset JSON (single object or single-element array), fills `out_meta`, and returns the thumbnail URL. Returns `""` on failure. Requires `USE_JSON`.  
+Parses Immich asset JSON (single object or array), fills `out_meta`, and returns the thumbnail URL. With an orientation filter, array responses are searched for the first matching photo. Returns `""` on failure or no matching asset. Requires `USE_JSON`.
 Use `parse_immich_asset_and_fill_slot` in espframe_helpers.h if you want to fill a `SlotMeta` directly.
 
 ---

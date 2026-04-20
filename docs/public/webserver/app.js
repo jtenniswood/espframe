@@ -106,8 +106,12 @@
     relative_unit: "Years",
     relative_unit_options: ["Months", "Years"],
     portrait_pairing: true,
+    photo_orientation: "Any",
+    photo_orientation_options: ["Any", "Portrait Only", "Landscape Only"],
     display_mode: "Fill",
     display_mode_options: ["Fill", "Fit"],
+    screen_rotation: "0",
+    screen_rotation_options: ["0", "180"],
   };
 
   var CSS =
@@ -461,7 +465,9 @@
     warm_tone_intensity: eid("number", "Screen: Warm Tone Intensity"),
     warm_tone_override: eid("switch", "Screen: Warm Tone Override"),
     portrait_pairing: eid("switch", "Photos: Portrait Pairing"),
+    photo_orientation: eid("select", "Photos: Orientation"),
     display_mode: eid("select", "Photos: Display Mode"),
+    screen_rotation: eid("select", "Screen: Rotation"),
   };
 
   function post(url, params) {
@@ -703,11 +709,13 @@
     "text/Photos: Date To": { key: "date_to" },
     "number/Photos: Relative Amount": { key: "relative_amount", default: 1, number: true },
     "select/Photos: Relative Unit": { key: "relative_unit", optionsKey: "relative_unit_options", default: "Years" },
+    "select/Photos: Orientation": { key: "photo_orientation", optionsKey: "photo_orientation_options", default: "Any" },
     "switch/Screen: Tone Adjustment": { key: "base_tone_enabled", boolFromState: true },
     "number/Screen: Display Tone": { key: "base_tone", default: 0, number: true },
     "switch/Screen: Night Tone Adjustment": { key: "warm_tones_enabled", boolFromState: true },
     "number/Screen: Warm Tone Intensity": { key: "warm_tone_intensity", default: 50, number: true },
     "switch/Screen: Warm Tone Override": { key: "warm_tone_override", boolFromState: true },
+    "select/Screen: Rotation": { key: "screen_rotation", optionsKey: "screen_rotation_options", default: "0" },
     "switch/Photos: Portrait Pairing": { key: "portrait_pairing", boolFromState: true },
     "select/Photos: Display Mode": { key: "display_mode", optionsKey: "display_mode_options", default: "Fill" }
   };
@@ -763,10 +771,12 @@
     "clock_format", "timezone",
     "photo_source", "album_ids", "album_labels", "person_ids", "person_labels",
     "date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit",
+    "photo_orientation",
     "interval", "conn_timeout",
     "schedule_enabled", "schedule_on_hour", "schedule_off_hour",
     "sunrise", "sunset",
     "base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override",
+    "screen_rotation",
     "portrait_pairing",
     "display_mode"
   ];
@@ -1385,6 +1395,15 @@
     fPairToggle.appendChild(pairTr);
     photoBody.appendChild(fPairToggle);
 
+    var fPhotoOrientation = field("Photo Orientation");
+    fPhotoOrientation.appendChild(
+      selectFromOptions(S.photo_orientation_options, S.photo_orientation, function (v) {
+        S.photo_orientation = v;
+        post(endpoints.photo_orientation + "/set", { option: v });
+      })
+    );
+    photoBody.appendChild(fPhotoOrientation);
+
     var fDisplayMode = field("Display Mode");
     fDisplayMode.appendChild(
       selectFromOptions(S.display_mode_options, S.display_mode, function (v) {
@@ -1552,6 +1571,20 @@
     immichWrap.appendChild(makeCollapsibleCard("Display Settings", photoBody, true));
 
     immichApp.appendChild(immichWrap);
+
+    // Screen Orientation
+    var rotationBody = el("div");
+    var fRotation = field("Rotation");
+    fRotation.appendChild(
+      selectFromOptions(S.screen_rotation_options, S.screen_rotation, function (v) {
+        S.screen_rotation = v;
+        post(endpoints.screen_rotation + "/set", { option: v });
+      }, function (v) {
+        return v + " degrees";
+      })
+    );
+    rotationBody.appendChild(fRotation);
+    wrap.appendChild(makeCollapsibleCard("Screen Orientation", rotationBody, true));
 
     // Screen Brightness
     var dnDetails = el("div");
@@ -2159,6 +2192,7 @@
         date_to: S.date_to,
         relative_amount: S.relative_amount,
         relative_unit: S.relative_unit,
+        orientation: S.photo_orientation,
         portrait_pairing: S.portrait_pairing,
         display_mode: S.display_mode
       },
@@ -2181,7 +2215,8 @@
         base_tone: S.base_tone,
         warm_tones_enabled: S.warm_tones_enabled,
         warm_tone_intensity: S.warm_tone_intensity,
-        warm_tone_override: S.warm_tone_override
+        warm_tone_override: S.warm_tone_override,
+        rotation: S.screen_rotation
       }
     };
 
@@ -2290,6 +2325,10 @@
           S.display_mode = p.display_mode;
           post(endpoints.display_mode + "/set", { option: p.display_mode });
         }
+        if (p.orientation !== undefined) {
+          S.photo_orientation = p.orientation;
+          post(endpoints.photo_orientation + "/set", { option: p.orientation });
+        }
         if (p.date_filter_enabled !== undefined) {
           S.date_filter_enabled = p.date_filter_enabled;
           post(endpoints.date_filter_enabled + (p.date_filter_enabled ? "/turn_on" : "/turn_off"));
@@ -2378,6 +2417,13 @@
         if (scr.warm_tone_override !== undefined) {
           S.warm_tone_override = scr.warm_tone_override;
           post(endpoints.warm_tone_override + (scr.warm_tone_override ? "/turn_on" : "/turn_off"));
+        }
+        if (scr.rotation !== undefined) {
+          var importedRotation = String(scr.rotation);
+          if (S.screen_rotation_options.indexOf(importedRotation) !== -1) {
+            S.screen_rotation = importedRotation;
+            post(endpoints.screen_rotation + "/set", { option: S.screen_rotation });
+          }
         }
 
         showBanner("Settings imported successfully", "success");

@@ -31,10 +31,12 @@ Under **Settings → Devices & Services → ESPHome** (device page):
 | **Photos: Date To** | Text | Fixed range end date, in `YYYY-MM-DD` format |
 | **Photos: Relative Amount** | Number | Rolling date range amount |
 | **Photos: Relative Unit** | Select | Months or Years for the rolling date range |
+| **Photos: Orientation** | Select | Any, Portrait Only, or Landscape Only |
 | **Photos: Display Mode** | Select | Fill crops to cover the screen; Fit letterboxes without cropping |
 | **Photos: Slideshow Interval** | Select | 30s–10min between photos |
 | **Photos: Portrait Pairing** | Switch | Pair compatible portrait photos side-by-side |
 | **Screen: Connection Timeout** | Select | 30s–30min before showing connection-failed screen |
+| **Screen: Rotation** | Select | LVGL screen rotation: 0 or 180 degrees |
 | **Screen: Backlight** | Light | On/off and brightness (0–100%) |
 | **Firmware: Auto Update** | Switch | Install updates when available |
 | **Firmware: Update Frequency** | Select | Hourly, Daily, Weekly, Monthly |

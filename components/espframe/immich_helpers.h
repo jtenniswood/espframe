@@ -16,6 +16,7 @@ struct ImmichAssetMeta {
   std::string datetime;  // localDateTime from asset, for slot display
   int year = 0, month = 0;
   bool is_portrait = false;
+  bool orientation_known = false;
   uint16_t zoom = ZOOM_IDENTITY;
 };
 
@@ -94,6 +95,14 @@ inline std::string build_immich_search_body(int size, bool with_people,
   return body;
 }
 
+inline bool photo_orientation_matches(const ImmichAssetMeta &meta, const std::string &filter) {
+  if (filter == "Any" || filter.empty()) return true;
+  if (!meta.orientation_known) return false;
+  if (filter == "Portrait Only") return meta.is_portrait;
+  if (filter == "Landscape Only") return !meta.is_portrait;
+  return true;
+}
+
 // ============================================================================
 // Immich asset parser — parse JSON asset and fill meta
 // ============================================================================
@@ -106,20 +115,10 @@ inline std::string build_immich_search_body(int size, bool with_people,
 #ifdef USE_JSON
 #include "esphome/components/json/json_util.h"
 
-inline std::string parse_immich_asset(const std::string &body,
-                                      const std::string &base_url,
-                                      ImmichAssetMeta *out_meta) {
+inline std::string parse_immich_asset_object(JsonObject asset,
+                                             const std::string &base_url,
+                                             ImmichAssetMeta *out_meta) {
   if (out_meta == nullptr) return "";
-  auto doc = esphome::json::parse_json(body);
-  JsonObject asset;
-  if (!doc.isNull()) {
-    if (doc.is<JsonArray>()) {
-      JsonArray arr = doc.as<JsonArray>();
-      if (arr.size() > 0) asset = arr[0].as<JsonObject>();
-    } else if (doc.is<JsonObject>()) {
-      asset = doc.as<JsonObject>();
-    }
-  }
   if (asset.isNull() || !asset["id"].is<const char *>())
     return "";
 
@@ -127,6 +126,7 @@ inline std::string parse_immich_asset(const std::string &body,
   std::string photo_date, photo_location, photo_person;
   int photo_year = 0, photo_month = 0;
   bool is_portrait = false;
+  bool orientation_known = false;
 
   std::string local_datetime;
   if (asset["localDateTime"].is<const char *>()) {
@@ -171,6 +171,7 @@ inline std::string parse_immich_asset(const std::string &body,
       std::swap(exif_w, exif_h);
     if (exif_w > 0 && exif_h > 0) {
       is_portrait = (exif_h > exif_w);
+      orientation_known = true;
     }
   }
 
@@ -193,8 +194,41 @@ inline std::string parse_immich_asset(const std::string &body,
   out_meta->person = photo_person;
   out_meta->datetime = local_datetime;
   out_meta->is_portrait = is_portrait;
+  out_meta->orientation_known = orientation_known;
   out_meta->zoom = ZOOM_IDENTITY;
   return img_url;
+}
+
+inline std::string parse_immich_asset(const std::string &body,
+                                      const std::string &base_url,
+                                      ImmichAssetMeta *out_meta,
+                                      const std::string &orientation_filter = "Any") {
+  if (out_meta == nullptr) return "";
+  auto doc = esphome::json::parse_json(body);
+  if (doc.isNull()) return "";
+
+  if (doc.is<JsonArray>()) {
+    JsonArray arr = doc.as<JsonArray>();
+    for (size_t i = 0; i < arr.size(); i++) {
+      ImmichAssetMeta candidate;
+      std::string img_url = parse_immich_asset_object(arr[i].as<JsonObject>(), base_url, &candidate);
+      if (img_url.empty()) continue;
+      if (!photo_orientation_matches(candidate, orientation_filter)) continue;
+      *out_meta = candidate;
+      return img_url;
+    }
+    return "";
+  }
+
+  if (doc.is<JsonObject>()) {
+    ImmichAssetMeta candidate;
+    std::string img_url = parse_immich_asset_object(doc.as<JsonObject>(), base_url, &candidate);
+    if (img_url.empty() || !photo_orientation_matches(candidate, orientation_filter)) return "";
+    *out_meta = candidate;
+    return img_url;
+  }
+
+  return "";
 }
 
 #endif  // USE_JSON

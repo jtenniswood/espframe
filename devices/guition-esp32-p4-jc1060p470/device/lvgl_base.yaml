@@ -8,6 +8,7 @@
 lvgl:
   buffer_size: 6%
   byte_order: little_endian
+  rotation: ${screen_rotation_0}
   resume_on_input: true
   displays:
     - tft_display

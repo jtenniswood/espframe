@@ -18,9 +18,10 @@ The export captures all user-facing settings from the current session:
 | Category | Settings |
 |----------|----------|
 | **Connection** | Immich server URL, API key |
-| **Photos** | Source, album IDs, album labels, person IDs, person labels, date filter settings, portrait pairing |
+| **Photos** | Source, album IDs, album labels, person IDs, person labels, date filter settings, orientation, portrait pairing |
 | **Frequency** | Slideshow interval, connection timeout |
 | **Clock** | Show clock, format, timezone |
+| **Screen Orientation** | Rotation |
 | **Screen Brightness** | Daytime brightness, nighttime brightness |
 | **Screen Schedule** | Enable, on time, off time |
 | **Screen Tone** | Tone adjustment, display tone, night tone adjustment, warm tone intensity, warm tone override |
@@ -59,6 +60,7 @@ The export is a standard JSON file with a `version` field and grouped settings:
     "date_to": "",
     "relative_amount": 1,
     "relative_unit": "Years",
+    "orientation": "Any",
     "portrait_pairing": true
   },
   "frequency": { "interval": "15 seconds", "conn_timeout": "2 minutes" },
@@ -73,7 +75,8 @@ The export is a standard JSON file with a `version` field and grouped settings:
     "base_tone": 0,
     "warm_tones_enabled": false,
     "warm_tone_intensity": 50,
-    "warm_tone_override": false
+    "warm_tone_override": false,
+    "rotation": "0"
   }
 }
 ```

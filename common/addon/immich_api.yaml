@@ -149,7 +149,9 @@ script:
                   }
                   id(immich_fetch_started) = true;
                   id(immich_api_retries) = 0;
-                  std::string img_url = parse_immich_asset_and_fill_slot(body, id(immich_url).state, id(target_slot), id(slot0), id(slot1), id(slot2));
+                  std::string img_url = parse_immich_asset_and_fill_slot(
+                    body, id(immich_url).state, id(target_slot), id(slot0), id(slot1), id(slot2),
+                    id(photo_orientation_filter).current_option());
                   if (img_url.empty()) {
                     ESP_LOGW("immich", "Memory asset parse failed — falling back to random");
                     id(immich_memory_fallback) = true;
@@ -300,7 +302,8 @@ script:
             } else {
               add_range(id(immich_date_from).state, id(immich_date_to).state);
             }
-            return build_immich_search_body(1, true, id(photo_source_select).current_option(), id(immich_album_ids).state, id(immich_person_ids).state, extra);
+            int search_size = id(photo_orientation_filter).current_option() == "Any" ? 1 : 10;
+            return build_immich_search_body(search_size, true, id(photo_source_select).current_option(), id(immich_album_ids).state, id(immich_person_ids).state, extra);
           on_response:
             then:
               - lambda: |-
@@ -333,16 +336,26 @@ script:
                     return;
                   }
                   id(immich_fetch_started) = true;
-                  id(immich_api_retries) = 0;
                   id(immich_last_http_status) = 0;
-                  std::string img_url = parse_immich_asset_and_fill_slot(body, id(immich_url).state, id(target_slot), id(slot0), id(slot1), id(slot2));
+                  std::string orientation = id(photo_orientation_filter).current_option();
+                  std::string img_url = parse_immich_asset_and_fill_slot(
+                    body, id(immich_url).state, id(target_slot), id(slot0), id(slot1), id(slot2),
+                    orientation);
                   if (img_url.empty()) {
-                    ESP_LOGW("immich", "No valid asset in response");
                     id(slot_flags).fetch_in_flight[id(target_slot)] = false;
+                    if (orientation != "Any" && id(immich_api_retries) < MAX_ERROR_RETRIES) {
+                      id(immich_api_retries)++;
+                      ESP_LOGW("immich", "No %s image in random response; retrying", orientation.c_str());
+                      id(immich_fetch_retry).execute();
+                      return;
+                    }
+                    ESP_LOGW("immich", "No valid asset in response");
+                    id(immich_api_retries) = 0;
                     id(immich_retry_cooldown_until_ms) = millis() + 30000;
                     ESP_LOGW("immich", "No usable Immich asset; pausing fetches for 30s");
                     return;
                   }
+                  id(immich_api_retries) = 0;
                   int slot = id(target_slot);
                   auto &meta = get_slot(slot, id(slot0), id(slot1), id(slot2));
                   ESP_LOGI("immich", "RANDOM slot %d: %s | %s | %s | %s | portrait=%d",
