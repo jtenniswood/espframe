@@ -258,7 +258,7 @@ script:
     then:
       - while:
           condition:
-            lambda: 'return true;'
+            lambda: 'return !id(backlight_paused);'
           then:
             - delay: 30s
             - lambda: |-

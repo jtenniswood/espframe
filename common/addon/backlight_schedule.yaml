@@ -180,7 +180,10 @@ script:
                 transition_length: 500ms
             - delay: 600ms
             - lvgl.pause:
-                show_snow: true
+                # The snow renderer keeps writing random pixels while LVGL is
+                # paused. On these ESP32-P4 displays that can destabilize the
+                # overnight sleep state, so sleep should stop rendering.
+                show_snow: false
           else:
             - lvgl.resume:
             - lambda: |-
@@ -356,4 +359,3 @@ script:
               return now.is_valid() && now.hour == 0 && now.minute == 0;
           then:
             - script.execute: backlight_recalc_sunrise_sunset
-

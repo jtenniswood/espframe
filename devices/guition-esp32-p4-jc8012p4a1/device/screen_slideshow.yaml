@@ -259,7 +259,7 @@ script:
     then:
       - while:
           condition:
-            lambda: 'return true;'
+            lambda: 'return !id(backlight_paused);'
           then:
             - delay: 30s
             - lambda: |-
@@ -393,5 +393,4 @@ interval:
                   id(target_slot) = id(active_slot);
                   id(immich_fetch_into_slot).execute();
                 }
-
 
