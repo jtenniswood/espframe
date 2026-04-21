@@ -66,6 +66,11 @@ inline void mark_slot_fetch_in_flight(int s, SlotFlags &f, uint32_t now_ms) {
   f.fetch_started_ms[s] = now_ms;
 }
 
+inline uint32_t slot_fetch_age_ms(int s, const SlotFlags &f, uint32_t now_ms) {
+  if (!f.fetch_in_flight[s] || f.fetch_started_ms[s] == 0) return 0;
+  return now_ms - f.fetch_started_ms[s];
+}
+
 inline bool prepare_deferred_slot_update(int slot, int active_slot, SlotFlags &flags,
                                          bool workflow_busy, int &nc_count) {
   bool noncritical = slot != active_slot;
@@ -87,6 +92,10 @@ inline bool prepare_deferred_slot_update(int slot, int active_slot, SlotFlags &f
 
 inline void copy_slot_to_display(const SlotMeta &slot, DisplayMeta &disp) {
   static_cast<PhotoMeta &>(disp) = static_cast<const PhotoMeta &>(slot);
+}
+
+inline void copy_display_to_slot(const DisplayMeta &disp, SlotMeta &slot) {
+  static_cast<PhotoMeta &>(slot) = static_cast<const PhotoMeta &>(disp);
 }
 
 #include "components/espframe/slideshow_controller.h"
@@ -454,6 +463,104 @@ static void test_slideshow_component_preload_flow() {
   assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
 }
 
+static void test_slideshow_component_navigation_flow() {
+  EspFrameSlideshow slideshow;
+  SlotMeta slot0 = make_slot("slot0", false);
+  SlotMeta slot1 = make_slot("slot1", false);
+  SlotMeta slot2 = make_slot("slot2", true);
+  slot0.ready = true;
+  slot1.ready = true;
+  slot2.ready = true;
+  DisplayMeta current;
+  copy_slot_to_display(slot0, current);
+  DisplayMeta previous;
+  PortraitState portrait;
+  SlotFlags flags;
+  int active_slot = 0;
+  int target_slot = 0;
+  bool displayed = true;
+  uint32_t last_advance = 0;
+  int noncritical_count = 0;
+  std::string reason;
+
+  slideshow.advance_forward(2000, false, active_slot, target_slot, displayed, last_advance,
+                             slot0, slot1, slot2, current, previous, portrait, flags,
+                             noncritical_count, true, -1, false, false, reason);
+  assert(active_slot == 1);
+  assert(displayed);
+  assert(previous.valid);
+  assert(previous.asset_id == "slot0");
+  SlideshowCommand cmd;
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
+  assert(cmd.slot == 1);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY);
+
+  slideshow.advance_forward(3000, false, active_slot, target_slot, displayed, last_advance,
+                             slot0, slot1, slot2, current, previous, portrait, flags,
+                             noncritical_count, true, -1, false, false, reason);
+  assert(active_slot == 2);
+  assert(!displayed);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_START_ACTIVE_PAIR);
+  assert(cmd.slot == 2);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY);
+
+  slot2.ready = false;
+  flags.fetch_in_flight[2] = true;
+  flags.fetch_started_ms[2] = 1000;
+  slideshow.advance_forward(20000, false, active_slot, target_slot, displayed, last_advance,
+                             slot0, slot1, slot2, current, previous, portrait, flags,
+                             noncritical_count, true, -1, false, false, reason);
+  assert(reason == "h3 stuck slot");
+  assert(!flags.fetch_in_flight[2]);
+  assert(target_slot == 2);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_ABORT_SLOT_DOWNLOAD);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_DEFER_FETCH_INTO_SLOT);
+}
+
+static void test_slideshow_component_previous_flow() {
+  EspFrameSlideshow slideshow;
+  SlotMeta slot0 = make_slot("current", false);
+  SlotMeta slot1 = make_slot("slot1", false);
+  SlotMeta slot2 = make_slot("slot2", false);
+  DisplayMeta current;
+  copy_slot_to_display(slot0, current);
+  DisplayMeta previous;
+  previous.asset_id = "previous";
+  previous.image_url = "https://example.test/previous";
+  previous.valid = true;
+  PortraitState portrait;
+  SlotFlags flags;
+  int active_slot = 0;
+  bool displayed = true;
+
+  bool shown = slideshow.show_previous(1234, active_slot, displayed, slot0, slot1, slot2,
+                                       current, previous, portrait, flags);
+  assert(shown);
+  assert(active_slot == 2);
+  assert(!displayed);
+  assert(current.asset_id == "previous");
+  assert(slot2.pending_asset_id == "previous");
+  assert(flags.fetch_in_flight[2]);
+  SlideshowCommand cmd;
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_LOAD_PREVIOUS_SLOT);
+  assert(cmd.slot == 2);
+
+  DisplayMeta empty_previous;
+  slideshow.show_previous(2000, active_slot, displayed, slot0, slot1, slot2,
+                           current, empty_previous, portrait, flags);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_LOG_NO_PREVIOUS);
+}
+
 int main() {
   test_date_and_url_helpers();
   test_immich_body_helpers();
@@ -463,6 +570,8 @@ int main() {
   test_slideshow_component_prefetch_and_deferred_updates();
   test_slideshow_component_portrait_flow();
   test_slideshow_component_preload_flow();
+  test_slideshow_component_navigation_flow();
+  test_slideshow_component_previous_flow();
   std::cout << "espframe helper tests passed\n";
   return 0;
 }

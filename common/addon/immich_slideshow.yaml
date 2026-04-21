@@ -443,6 +443,27 @@ script:
               case SLIDESHOW_COMMAND_DEFER_COMPANION_SEARCH:
                 id(deferred_companion_search).execute();
                 break;
+              case SLIDESHOW_COMMAND_ABORT_SLOT_DOWNLOAD:
+                if (cmd.slot == 0) id(immich_img_0).abort_download();
+                else if (cmd.slot == 1) id(immich_img_1).abort_download();
+                else if (cmd.slot == 2) id(immich_img_2).abort_download();
+                break;
+              case SLIDESHOW_COMMAND_DEFER_FETCH_INTO_SLOT:
+                id(target_slot) = cmd.slot;
+                id(deferred_fetch_into_slot).execute();
+                break;
+              case SLIDESHOW_COMMAND_LOAD_PREVIOUS_SLOT: {
+                int s = cmd.slot;
+                auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
+                bool fill = (id(photo_display_mode).current_option() == "Fill");
+                if (s == 0) { id(immich_img_0).set_fill_mode(fill); id(immich_img_0).set_url(meta.image_url); id(immich_img_0).update(); }
+                else if (s == 1) { id(immich_img_1).set_fill_mode(fill); id(immich_img_1).set_url(meta.image_url); id(immich_img_1).update(); }
+                else if (s == 2) { id(immich_img_2).set_fill_mode(fill); id(immich_img_2).set_url(meta.image_url); id(immich_img_2).update(); }
+                break;
+              }
+              case SLIDESHOW_COMMAND_LOG_NO_PREVIOUS:
+                ESP_LOGI("immich", "No previous image available");
+                break;
               case SLIDESHOW_COMMAND_NONE:
               default:
                 break;
@@ -562,169 +583,28 @@ script:
   - id: immich_advance_forward
     mode: single
     then:
-      - if:
-          condition:
-            lambda: 'return !id(active_slot_displayed);'
-          then:
-            - lambda: |-
-                int s = id(active_slot);
-                auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
-                if (meta.ready && id(portrait).workflow_busy) {
-                  id(portrait).workflow_busy = false;
-                  id(portrait).left_ready = false;
-                  id(portrait).right_ready = false;
-                  id(portrait).right_requested = false;
-                  id(portrait).companion_found = false;
-                  id(active_slot_displayed) = true;
-                  copy_slot_to_display(meta, id(current_display));
-                  id(immich_display_current).execute();
-                } else if (!meta.ready) {
-                  bool in_flight = id(slot_flags).fetch_in_flight[s];
-                  uint32_t fetch_age = slot_fetch_age_ms(s, id(slot_flags), millis());
-                  if (in_flight && fetch_age > 15000) {
-                    ESP_LOGW("diag", "H3-FIX: Slot %d in_flight stuck for %ums, force-clearing", s, fetch_age);
-                    clear_noncritical(s, id(slot_flags), id(noncritical_remote_updates_in_flight));
-                    clear_slot_fetch_in_flight(s, id(slot_flags));
-                    if (s == 0) id(immich_img_0).abort_download();
-                    else if (s == 1) id(immich_img_1).abort_download();
-                    else id(immich_img_2).abort_download();
-                    id(immich_diag_reason) = "h3 stuck slot";
-                    id(log_immich_diag).execute();
-                    in_flight = false;
-                  }
-                  if (!in_flight) {
-                    if (id(immich_retry_cooldown_until_ms) != 0 && millis() < id(immich_retry_cooldown_until_ms)) {
-                      ESP_LOGD("diag", "H3-FIX: Slot %d refetch paused by connection retry cooldown", s);
-                      return;
-                    }
-                    ESP_LOGW("diag", "H3-FIX: Slot %d not ready and not downloading, re-fetching", s);
-                    id(portrait).workflow_busy = false;
-                    id(immich_last_advance_ms) = millis();
-                    id(target_slot) = s;
-                    id(deferred_fetch_into_slot).execute();
-                  } else {
-                    ESP_LOGW("immich", "Active slot %d not ready, download in progress", s);
-                  }
-                } else {
-                  ESP_LOGW("immich", "Active slot not displayed yet, skipping advance");
-                }
-          else:
-            - lambda: |-
-                if (!id(current_display).asset_id.empty()) {
-                  int s_old = id(active_slot);
-                  auto &old_meta = get_slot(s_old, id(slot0), id(slot1), id(slot2));
-                  id(prev_display) = id(current_display);
-                  id(prev_display).zoom = old_meta.zoom;
-                  id(prev_display).valid = true;
-                }
-                id(portrait).reset();
-                int old_slot_idx = id(active_slot);
-                id(active_slot) = (old_slot_idx + 1) % 3;
-                id(active_slot_displayed) = false;
-                auto &cleared = get_slot(old_slot_idx, id(slot0), id(slot1), id(slot2));
-                cleared.ready = false;
-                id(immich_last_advance_ms) = millis();
-                ESP_LOGI("immich", "ADVANCE: slot %d -> %d", old_slot_idx, id(active_slot));
-            - if:
-                condition:
-                  lambda: |-
-                    int s = id(active_slot);
-                    auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
-                    return meta.ready;
-                then:
-                  - lambda: |-
-                      int s = id(active_slot);
-                      auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
-                      copy_slot_to_display(meta, id(current_display));
-                      bool pair = meta.is_portrait && id(portrait_pairing_enabled).state;
-                      if (!pair) id(active_slot_displayed) = true;
-                      ESP_LOGI("immich", "DISPLAY slot %d: %s | %s | %s | portrait=%d pair=%d",
-                        s, id(current_display).asset_id.c_str(), id(current_display).date.c_str(), id(current_display).person.c_str(), meta.is_portrait, id(portrait).is_pair);
-                  - if:
-                      condition:
-                        lambda: |-
-                          int s = id(active_slot);
-                          auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
-                          return !(meta.is_portrait && id(portrait_pairing_enabled).state);
-                      then:
-                        - script.execute: immich_display_current
-                        - script.execute: delayed_prefetch_chain
-                  - if:
-                      condition:
-                        lambda: |-
-                          int s = id(active_slot);
-                          auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
-                          return meta.is_portrait && id(portrait_pairing_enabled).state && id(portrait_preload_slot) == s
-                                 && id(portrait_preload_left_ready) && id(portrait_preload_right_ready);
-                      then:
-                        - script.execute: immich_display_current
-                        - script.execute: delayed_prefetch_chain
-                  - if:
-                      condition:
-                        lambda: |-
-                          int s = id(active_slot);
-                          auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
-                          return meta.is_portrait && id(portrait_pairing_enabled).state && !(id(portrait_preload_slot) == s
-                                 && id(portrait_preload_left_ready) && id(portrait_preload_right_ready));
-                      then:
-                        - script.execute: immich_start_portrait_active
-                        - script.execute: delayed_prefetch_chain
-                else:
-                  - if:
-                      condition:
-                        lambda: 'return id(slot_flags).fetch_in_flight[id(active_slot)];'
-                      then:
-                        - lambda: |-
-                            ESP_LOGD("immich", "Slot %d not ready but already downloading, waiting", id(active_slot));
-                      else:
-                        - lambda: |-
-                            id(target_slot) = id(active_slot);
-                            ESP_LOGD("immich", "Slot %d not ready, fetching fresh", id(active_slot));
-                        - script.execute: deferred_fetch_into_slot
+      - lambda: |-
+          id(espframe_core).slideshow().advance_forward(
+            millis(),
+            id(immich_retry_cooldown_until_ms) != 0 && millis() < id(immich_retry_cooldown_until_ms),
+            id(active_slot), id(target_slot), id(active_slot_displayed),
+            id(immich_last_advance_ms), id(slot0), id(slot1), id(slot2),
+            id(current_display), id(prev_display), id(portrait), id(slot_flags),
+            id(noncritical_remote_updates_in_flight), id(portrait_pairing_enabled).state,
+            id(portrait_preload_slot), id(portrait_preload_left_ready),
+            id(portrait_preload_right_ready), id(immich_diag_reason));
+          id(espframe_slideshow_dispatch).execute();
 
   # Show previous image (swipe back); re-downloads into slot from stored URL
   - id: immich_show_previous
     mode: single
     then:
-      - if:
-          condition:
-            lambda: 'return !id(prev_display).valid;'
-          then:
-            - logger.log:
-                level: INFO
-                tag: immich
-                format: "No previous image available"
-          else:
-            - lambda: |-
-                int cur_s = id(active_slot);
-                auto &cur_meta = get_slot(cur_s, id(slot0), id(slot1), id(slot2));
-                DisplayMeta tmp = id(current_display);
-                tmp.zoom = cur_meta.zoom;
-
-                id(current_display) = id(prev_display);
-                id(prev_display) = tmp;
-
-                id(portrait).reset();
-
-                int prev_slot = (id(active_slot) + 2) % 3;
-                id(active_slot) = prev_slot;
-                id(active_slot_displayed) = false;
-
-                auto &meta = get_slot(prev_slot, id(slot0), id(slot1), id(slot2));
-                meta.ready = false;
-                meta.is_portrait = false;
-                meta.companion_url = "";
-                meta.datetime = "";
-                copy_display_to_slot(id(current_display), meta);
-                meta.pending_asset_id = id(current_display).asset_id;
-
-                std::string url = meta.image_url;
-                bool fill = (id(photo_display_mode).current_option() == "Fill");
-                if (prev_slot == 0) { id(immich_img_0).set_fill_mode(fill); id(immich_img_0).set_url(url); id(immich_img_0).update(); }
-                else if (prev_slot == 1) { id(immich_img_1).set_fill_mode(fill); id(immich_img_1).set_url(url); id(immich_img_1).update(); }
-                else { id(immich_img_2).set_fill_mode(fill); id(immich_img_2).set_url(url); id(immich_img_2).update(); }
-                mark_slot_fetch_in_flight(prev_slot, id(slot_flags), millis());
-                ESP_LOGD("immich", "Showing previous in slot %d: %s", prev_slot, id(current_display).asset_id.c_str());
+      - lambda: |-
+          id(espframe_core).slideshow().show_previous(
+            millis(), id(active_slot), id(active_slot_displayed),
+            id(slot0), id(slot1), id(slot2), id(current_display),
+            id(prev_display), id(portrait), id(slot_flags));
+          id(espframe_slideshow_dispatch).execute();
 
   # Display portrait pair when both left and right images are ready
   - id: immich_display_portrait_pair
