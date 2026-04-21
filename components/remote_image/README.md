@@ -54,6 +54,7 @@ remote_image:
 | `id` | required | — | ID for this `OnlineImage` (e.g. for actions or as image source). |
 | `url` | required | — | URL to download (must use `http://` or `https://`). |
 | `format` | optional | `AUTO` | `AUTO`, `BMP`, `JPEG`, `PNG`, or `WEBP` (alias `JPG` for JPEG). AUTO detects from image data. |
+| `formats` | optional | — | Decoder whitelist used with `format: AUTO`; for example `[JPEG, WEBP]` compiles only those decoders while still detecting from headers/data. |
 | `http_request_id` | required | — | ID of the `http_request` component to use. |
 | `request_headers` | optional | `{}` | Extra HTTP request headers (e.g. `x-api-key: !lambda 'return id(api_key).state;'`). |
 | `placeholder` | optional | — | ID of another `image` to show until the download is ready. |
@@ -168,7 +169,7 @@ Main component class: `esphome::remote_image::OnlineImage`. Inherits `PollingCom
 
 | Method | Description |
 |--------|-------------|
-| `set_url(const std::string &url)` | Set download URL. Validates scheme; clears ETag/Last-Modified. |
+| `set_url(const std::string &url)` | Set download URL. Validates scheme; clears ETag/Last-Modified only when the URL changes. |
 | `add_request_header(name, value)` | Add an HTTP request header (templatable value). |
 | `set_placeholder(image::Image *placeholder)` | Image to show until the download is ready. |
 | `release()` | Free the decoded buffer; image must be re-downloaded to show again. |

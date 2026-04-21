@@ -62,11 +62,14 @@ class OnlineImage : public PollingComponent,
 
   /** Set the URL to download the image from. */
   void set_url(const std::string &url) {
-    if (this->validate_url_(url)) {
-      this->url_ = url;
+    if (!this->validate_url_(url)) {
+      return;
     }
-    this->etag_ = "";
-    this->last_modified_ = "";
+    if (url != this->url_) {
+      this->url_ = url;
+      this->etag_ = "";
+      this->last_modified_ = "";
+    }
   }
 
   /** Add the request header */

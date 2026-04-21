@@ -172,6 +172,7 @@ remote_image:
     resize: ${display_width}x${display_height}
     type: RGB565
     byte_order: little_endian
+    formats: [JPEG, WEBP]
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
@@ -214,6 +215,7 @@ remote_image:
     resize: ${display_width}x${display_height}
     type: RGB565
     byte_order: little_endian
+    formats: [JPEG, WEBP]
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
@@ -256,6 +258,7 @@ remote_image:
     resize: ${display_width}x${display_height}
     type: RGB565
     byte_order: little_endian
+    formats: [JPEG, WEBP]
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
@@ -300,6 +303,7 @@ remote_image:
     fill: true
     type: RGB565
     byte_order: little_endian
+    formats: [JPEG, WEBP]
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
@@ -344,6 +348,7 @@ remote_image:
     fill: true
     type: RGB565
     byte_order: little_endian
+    formats: [JPEG, WEBP]
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
@@ -379,6 +384,7 @@ remote_image:
     fill: true
     type: RGB565
     byte_order: little_endian
+    formats: [JPEG, WEBP]
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
@@ -430,6 +436,7 @@ remote_image:
     fill: true
     type: RGB565
     byte_order: little_endian
+    formats: [JPEG, WEBP]
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:

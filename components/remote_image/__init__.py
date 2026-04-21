@@ -52,6 +52,7 @@ CONF_ON_DOWNLOAD_FINISHED = "on_download_finished"
 CONF_FILL = "fill"
 CONF_PLACEHOLDER = "placeholder"
 CONF_UPDATE = "update"
+CONF_FORMATS = "formats"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -163,6 +164,16 @@ IMAGE_FORMATS = {
 }
 IMAGE_FORMATS.update({"JPG": IMAGE_FORMATS["JPEG"]})
 
+
+def _enable_format_actions(format_names):
+    enabled = set()
+    for name in format_names:
+        fmt = IMAGE_FORMATS[name]
+        if fmt.image_type in enabled:
+            continue
+        fmt.actions()
+        enabled.add(fmt.image_type)
+
 OnlineImage = remote_image_ns.class_("OnlineImage", cg.PollingComponent, Image_)
 
 # Actions
@@ -203,6 +214,12 @@ ONLINE_IMAGE_SCHEMA = (
                 cv.Schema({cv.string: cv.templatable(cv.string)})
             ),
             cv.Optional(CONF_FORMAT, default="AUTO"): cv.one_of(*IMAGE_FORMATS, upper=True),
+            cv.Optional(CONF_FORMATS): cv.ensure_list(
+                cv.one_of(
+                    *[name for name in IMAGE_FORMATS if name != "AUTO"],
+                    upper=True,
+                )
+            ),
             cv.Optional(CONF_PLACEHOLDER): cv.use_id(Image_),
             cv.Optional(CONF_FILL, default=False): cv.boolean,
             cv.Optional(CONF_BUFFER_SIZE, default=65536): cv.int_range(256, 524288),
@@ -274,7 +291,10 @@ async def to_code(config):
     # Convert the YAML configuration into a C++ OnlineImage instance and wire up
     # ESPHome automations for download success/failure.
     image_format = IMAGE_FORMATS[config[CONF_FORMAT]]
-    image_format.actions()
+    if config[CONF_FORMAT] == "AUTO" and CONF_FORMATS in config:
+        _enable_format_actions(config[CONF_FORMATS])
+    else:
+        image_format.actions()
 
     url = config[CONF_URL]
     width, height = config.get(CONF_RESIZE, (0, 0))

@@ -173,11 +173,32 @@ DownloadBuffer::DownloadBuffer(size_t size) : size_(size) {
 }
 
 uint8_t *DownloadBuffer::data(size_t offset) {
-  if (offset > this->size_) {
+  if (!this->buffer_) {
+    return nullptr;
+  }
+  if (this->start_ + offset > this->size_) {
     ESP_LOGE(TAG, "Tried to access beyond download buffer bounds!!!");
     return this->buffer_;
   }
-  return this->buffer_ + offset;
+  return this->buffer_ + this->start_ + offset;
+}
+
+uint8_t *DownloadBuffer::append() {
+  this->free_capacity();
+  return this->data(this->unread_);
+}
+
+size_t DownloadBuffer::free_capacity() {
+  if (!this->buffer_ || this->size_ == 0) {
+    return 0;
+  }
+  if (this->unread_ == 0) {
+    this->start_ = 0;
+  }
+  if (this->start_ + this->unread_ >= this->size_ && this->start_ > 0) {
+    this->compact_();
+  }
+  return this->size_ - (this->start_ + this->unread_);
 }
 
 size_t DownloadBuffer::read(size_t len) {
@@ -185,12 +206,25 @@ size_t DownloadBuffer::read(size_t len) {
     ESP_LOGE(TAG, "DownloadBuffer::read(%zu) exceeds unread %zu, clamping", len, this->unread_);
     len = this->unread_;
   }
-  // Decoders may consume only part of the buffered network data. Compact the
-  // unread tail so the next HTTP read can append directly after it.
+  // Advance the unread window. Compaction is deferred until append space is
+  // actually needed, which avoids a memmove on every streaming decode step.
   this->unread_ -= len;
-  if (this->unread_ > 0) {
-    memmove(this->data(), this->data(len), this->unread_);
+  this->start_ += len;
+  if (this->unread_ == 0) {
+    this->start_ = 0;
+  } else if (this->start_ > this->size_ / 2) {
+    this->compact_();
   }
+  return this->unread_;
+}
+
+size_t DownloadBuffer::write(size_t len) {
+  size_t available = this->free_capacity();
+  if (len > available) {
+    ESP_LOGE(TAG, "DownloadBuffer::write(%zu) exceeds free capacity %zu, clamping", len, available);
+    len = available;
+  }
+  this->unread_ += len;
   return this->unread_;
 }
 
@@ -201,13 +235,14 @@ size_t DownloadBuffer::resize(size_t size) {
   auto *new_buffer = this->allocator_.allocate(size);
   if (new_buffer) {
     if (this->buffer_ && this->unread_ > 0) {
-      memcpy(new_buffer, this->buffer_, this->unread_);
+      memcpy(new_buffer, this->data(), this->unread_);
     }
     if (this->buffer_) {
       this->allocator_.deallocate(this->buffer_, this->size_);
     }
     this->buffer_ = new_buffer;
     this->size_ = size;
+    this->start_ = 0;
     return size;
   } else {
     ESP_LOGE(TAG, "allocation of %zu bytes failed. Biggest block in heap: %zu Bytes", size,
@@ -218,6 +253,10 @@ size_t DownloadBuffer::resize(size_t size) {
 
 void DownloadBuffer::shrink(size_t max_size) {
   if (this->size_ <= max_size) return;
+  if (this->unread_ > max_size) {
+    ESP_LOGW(TAG, "cannot shrink %zu-byte buffer below unread payload %zu", this->size_, this->unread_);
+    return;
+  }
   // Some decoders temporarily grow the download buffer to hold a whole file.
   // Shrink after the transfer so future images do not pin that larger block.
   auto *new_buffer = this->allocator_.allocate(max_size);
@@ -225,10 +264,21 @@ void DownloadBuffer::shrink(size_t max_size) {
     ESP_LOGW(TAG, "shrink allocation failed, keeping existing %zu-byte buffer", this->size_);
     return;
   }
+  if (this->unread_ > 0) {
+    memcpy(new_buffer, this->data(), this->unread_);
+  }
   this->allocator_.deallocate(this->buffer_, this->size_);
   this->buffer_ = new_buffer;
   this->size_ = max_size;
-  this->reset();
+  this->start_ = 0;
+}
+
+void DownloadBuffer::compact_() {
+  if (this->start_ == 0) return;
+  if (this->unread_ > 0) {
+    memmove(this->buffer_, this->buffer_ + this->start_, this->unread_);
+  }
+  this->start_ = 0;
 }
 
 }  // namespace remote_image

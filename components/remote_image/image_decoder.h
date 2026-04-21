@@ -131,27 +131,31 @@ class DownloadBuffer {
 
   uint8_t *data(size_t offset = 0);
 
-  uint8_t *append() { return this->data(this->unread_); }
+  uint8_t *append();
 
   size_t unread() const { return this->unread_; }
   size_t size() const { return this->size_; }
-  size_t free_capacity() const { return this->size_ - this->unread_; }
+  size_t free_capacity();
 
   size_t read(size_t len);
-  size_t write(size_t len) {
-    this->unread_ += len;
-    return this->unread_;
-  }
+  size_t write(size_t len);
 
-  void reset() { this->unread_ = 0; }
+  void reset() {
+    this->start_ = 0;
+    this->unread_ = 0;
+  }
 
   size_t resize(size_t size);
   void shrink(size_t max_size);
 
  protected:
+  void compact_();
+
   RAMAllocator<uint8_t> allocator_{};
   uint8_t *buffer_;
   size_t size_;
+  /** Offset of the first unread byte inside buffer_. */
+  size_t start_{0};
   /** Total number of downloaded bytes not yet read. */
   size_t unread_;
 };

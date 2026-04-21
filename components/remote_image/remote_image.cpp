@@ -122,7 +122,9 @@ size_t OnlineImage::resize_(int width_in, int height_in) {
       memset(this->buffer_, 0, this->get_buffer_size_());
       this->buffer_width_ = width;
       this->buffer_height_ = height;
-      this->width_ = width;
+      this->data_start_ = nullptr;
+      this->width_ = 0;
+      this->height_ = 0;
       return new_size;
     }
     this->allocator_.deallocate(this->buffer_, this->get_buffer_size_());
@@ -142,7 +144,9 @@ size_t OnlineImage::resize_(int width_in, int height_in) {
   }
   this->buffer_width_ = width;
   this->buffer_height_ = height;
-  this->width_ = width;
+  this->data_start_ = nullptr;
+  this->width_ = 0;
+  this->height_ = 0;
 #ifdef USE_LVGL
   memset(&this->dsc_, 0, sizeof(this->dsc_));
 #endif
