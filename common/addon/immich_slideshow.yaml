@@ -266,38 +266,16 @@ remote_image:
     on_download_finished:
       then:
         - lambda: |-
-            id(portrait).left_ready = true;
-            id(portrait).left_requested = false;
             ESP_LOGD("immich", "Portrait left ready");
-        - if:
-            condition:
-              lambda: 'return id(portrait).companion_found && !id(portrait).right_ready && !id(portrait).right_requested;'
-            then:
-              - lambda: 'id(portrait).right_requested = true;'
-              - remote_image.set_url:
-                  id: immich_portrait_right
-                  url: !lambda 'return id(portrait_companion_url);'
-                  update: false
-              - script.execute: deferred_portrait_right_update
-        - if:
-            condition:
-              lambda: 'return id(portrait).left_ready && id(portrait).right_ready;'
-            then:
-              - script.execute: immich_display_portrait_pair
+            id(espframe_core).slideshow().on_portrait_left_finished(id(portrait));
+            id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
             ESP_LOGE("immich", "Portrait left decode failed, falling back to single");
-            id(portrait).left_ready = false;
-            id(portrait).left_requested = false;
-            id(portrait).companion_found = false;
-            id(immich_diag_reason) = "portrait left error";
-            id(log_immich_diag).execute();
-            if (!id(active_slot_displayed)) {
-              id(active_slot_displayed) = true;
-              id(portrait).workflow_busy = false;
-              id(immich_display_current).execute();
-            }
+            id(espframe_core).slideshow().on_portrait_left_error(
+              id(portrait), id(immich_diag_reason), id(active_slot_displayed));
+            id(espframe_slideshow_dispatch).execute();
 
   - id: immich_portrait_right
     url: "https://via.placeholder.com/1x1.jpg"
@@ -311,28 +289,16 @@ remote_image:
     on_download_finished:
       then:
         - lambda: |-
-            id(portrait).right_ready = true;
-            id(portrait).right_requested = false;
             ESP_LOGD("immich", "Portrait right ready");
-        - if:
-            condition:
-              lambda: 'return id(portrait).left_ready && id(portrait).right_ready;'
-            then:
-              - script.execute: immich_display_portrait_pair
+            id(espframe_core).slideshow().on_portrait_right_finished(id(portrait));
+            id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
             ESP_LOGE("immich", "Portrait right decode failed, falling back to single");
-            id(portrait).right_ready = false;
-            id(portrait).right_requested = false;
-            id(portrait).companion_found = false;
-            id(immich_diag_reason) = "portrait right error";
-            id(log_immich_diag).execute();
-            if (!id(active_slot_displayed)) {
-              id(active_slot_displayed) = true;
-              id(portrait).workflow_busy = false;
-              id(immich_display_current).execute();
-            }
+            id(espframe_core).slideshow().on_portrait_right_error(
+              id(portrait), id(immich_diag_reason), id(active_slot_displayed));
+            id(espframe_slideshow_dispatch).execute();
 
   # Portrait preload components (downloaded during prefetch for instant pair display)
   - id: immich_portrait_preload_left
@@ -347,45 +313,20 @@ remote_image:
     on_download_finished:
       then:
         - lambda: |-
-            id(portrait_preload_left_ready) = true;
             ESP_LOGD("immich", "Portrait preload left ready (slot %d)", id(portrait_preload_slot));
-        # Start right only after left finishes to avoid socket exhaustion (esp-tls "Failed to create socket")
-        # Read companion URL from slot metadata (not shared global which may be cleared by active workflow)
-        - if:
-            condition:
-              lambda: |-
-                int ps = id(portrait_preload_slot);
-                if (ps < 0) return false;
-                auto &meta = get_slot(ps, id(slot0), id(slot1), id(slot2));
-                return !meta.companion_url.empty();
-            then:
-              - remote_image.set_url:
-                  id: immich_portrait_preload_right
-                  url: !lambda |-
-                    int ps = id(portrait_preload_slot);
-                    auto &meta = get_slot(ps, id(slot0), id(slot1), id(slot2));
-                    return meta.companion_url;
-                  update: false
-              - script.execute: deferred_preload_right_update
-            else:
-              - lambda: |-
-                  ESP_LOGW("immich", "Preload right skipped — no companion URL for slot %d", id(portrait_preload_slot));
-                  id(portrait_preload_right_ready) = false;
-                  if (id(preload_noncritical_in_flight)) {
-                    id(preload_noncritical_in_flight) = false;
-                    if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
-                  }
+            id(espframe_core).slideshow().on_preload_left_finished(
+              id(portrait_preload_slot), id(slot0), id(slot1), id(slot2),
+              id(portrait_preload_left_ready), id(portrait_preload_right_ready),
+              id(preload_noncritical_in_flight), id(noncritical_remote_updates_in_flight));
+            id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
             ESP_LOGE("immich", "Portrait preload left failed");
-            id(portrait_preload_left_ready) = false;
-            id(immich_diag_reason) = "portrait preload left error";
-            id(log_immich_diag).execute();
-            if (id(preload_noncritical_in_flight)) {
-              id(preload_noncritical_in_flight) = false;
-              if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
-            }
+            id(espframe_core).slideshow().on_preload_left_error(
+              id(immich_diag_reason), id(portrait_preload_left_ready),
+              id(preload_noncritical_in_flight), id(noncritical_remote_updates_in_flight));
+            id(espframe_slideshow_dispatch).execute();
 
   - id: immich_portrait_preload_right
     url: "https://via.placeholder.com/1x1.jpg"
@@ -399,23 +340,18 @@ remote_image:
     on_download_finished:
       then:
         - lambda: |-
-            id(portrait_preload_right_ready) = true;
             ESP_LOGD("immich", "Portrait preload right ready (slot %d)", id(portrait_preload_slot));
-            if (id(preload_noncritical_in_flight)) {
-              id(preload_noncritical_in_flight) = false;
-              if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
-            }
+            id(espframe_core).slideshow().on_preload_right_finished(
+              id(portrait_preload_right_ready), id(preload_noncritical_in_flight),
+              id(noncritical_remote_updates_in_flight));
     on_error:
       then:
         - lambda: |-
             ESP_LOGE("immich", "Portrait preload right failed");
-            id(portrait_preload_right_ready) = false;
-            id(immich_diag_reason) = "portrait preload right error";
-            id(log_immich_diag).execute();
-            if (id(preload_noncritical_in_flight)) {
-              id(preload_noncritical_in_flight) = false;
-              if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
-            }
+            id(espframe_core).slideshow().on_preload_right_error(
+              id(immich_diag_reason), id(portrait_preload_right_ready),
+              id(preload_noncritical_in_flight), id(noncritical_remote_updates_in_flight));
+            id(espframe_slideshow_dispatch).execute();
 
 # -----------------------------------------------------------------------------
 # Scripts: download error handler, display, advance, previous, prefetch
@@ -476,6 +412,37 @@ script:
               case SLIDESHOW_COMMAND_UPDATE_PRELOAD_RIGHT:
                 id(immich_portrait_preload_right).update();
                 break;
+              case SLIDESHOW_COMMAND_START_PORTRAIT_LEFT: {
+                int s = cmd.slot >= 0 ? cmd.slot : id(active_slot);
+                auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
+                id(immich_portrait_left).set_url(meta.image_url);
+                id(deferred_portrait_left_update).execute();
+                break;
+              }
+              case SLIDESHOW_COMMAND_START_PORTRAIT_RIGHT:
+                id(immich_portrait_right).set_url(id(portrait_companion_url));
+                id(deferred_portrait_right_update).execute();
+                break;
+              case SLIDESHOW_COMMAND_DISPLAY_PORTRAIT_PAIR:
+                id(immich_display_portrait_pair).execute();
+                break;
+              case SLIDESHOW_COMMAND_START_PRELOAD_LEFT: {
+                int s = cmd.slot >= 0 ? cmd.slot : id(companion_target_slot);
+                auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
+                id(immich_portrait_preload_left).set_url(meta.image_url);
+                id(deferred_preload_left_update).execute();
+                break;
+              }
+              case SLIDESHOW_COMMAND_START_PRELOAD_RIGHT: {
+                int s = cmd.slot >= 0 ? cmd.slot : id(portrait_preload_slot);
+                auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
+                id(immich_portrait_preload_right).set_url(meta.companion_url);
+                id(deferred_preload_right_update).execute();
+                break;
+              }
+              case SLIDESHOW_COMMAND_DEFER_COMPANION_SEARCH:
+                id(deferred_companion_search).execute();
+                break;
               case SLIDESHOW_COMMAND_NONE:
               default:
                 break;
@@ -522,61 +489,13 @@ script:
   - id: immich_start_portrait_active
     mode: restart
     then:
-      - if:
-          condition:
-            lambda: 'return id(active_slot_displayed) && id(portrait).is_pair && id(portrait).using_preload;'
-          then:
-            - lambda: 'ESP_LOGD("immich", "Portrait pair already displayed from preload; skipping live portrait refresh");'
-            - script.stop: immich_start_portrait_active
-      - if:
-          condition:
-            lambda: |-
-              int s = id(active_slot);
-              auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
-              return id(portrait).workflow_busy && id(portrait_primary_asset_id) == meta.asset_id;
-          then:
-            - lambda: 'ESP_LOGD("immich", "Portrait workflow already in progress for active slot");'
-            - script.stop: immich_start_portrait_active
       - lambda: |-
-          int s = id(active_slot);
-          auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
-          id(portrait).left_ready = false;
-          id(portrait).right_ready = false;
-          id(portrait).no_companion_active = false;
-          id(portrait).left_requested = false;
-          id(portrait).right_requested = false;
-          id(portrait).using_preload = false;
-          id(portrait).workflow_busy = true;
-          id(portrait_primary_asset_id) = meta.asset_id;
-          if (!meta.companion_url.empty()) {
-            id(portrait).companion_found = true;
-            id(portrait_companion_url) = meta.companion_url;
-            ESP_LOGD("immich", "Portrait slot %d: companion URL known, starting left (right after)", s);
-          } else {
-            id(portrait).companion_found = false;
-            id(portrait_companion_url) = "";
-            id(portrait_search_datetime) = meta.datetime;
-            id(companion_target_slot) = s;
-            ESP_LOGD("immich", "Portrait slot %d: no companion, searching", s);
-          }
-      - if:
-          condition:
-            lambda: 'return id(portrait).companion_found && !id(portrait).left_requested && !id(portrait).left_ready;'
-          then:
-            - lambda: 'id(portrait).left_requested = true;'
-            - remote_image.set_url:
-                id: immich_portrait_left
-                url: !lambda |-
-                  int s = id(active_slot);
-                  auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
-                  return meta.image_url;
-                update: false
-            - script.execute: deferred_portrait_left_update
-      - if:
-          condition:
-            lambda: 'return !id(portrait).companion_found;'
-          then:
-            - script.execute: deferred_companion_search
+          id(espframe_core).slideshow().start_active_portrait(
+            id(active_slot), id(slot0), id(slot1), id(slot2), id(portrait),
+            id(active_slot_displayed), id(portrait_primary_asset_id),
+            id(portrait_companion_url), id(portrait_search_datetime),
+            id(companion_target_slot));
+          id(espframe_slideshow_dispatch).execute();
 
   # Display whichever slot is active (single image or portrait pair; accent + warm tones)
   - id: immich_display_current

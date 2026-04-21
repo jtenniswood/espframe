@@ -18,6 +18,12 @@ enum SlideshowCommandKind : uint8_t {
   SLIDESHOW_COMMAND_UPDATE_PORTRAIT_RIGHT = 10,
   SLIDESHOW_COMMAND_UPDATE_PRELOAD_LEFT = 11,
   SLIDESHOW_COMMAND_UPDATE_PRELOAD_RIGHT = 12,
+  SLIDESHOW_COMMAND_START_PORTRAIT_LEFT = 13,
+  SLIDESHOW_COMMAND_START_PORTRAIT_RIGHT = 14,
+  SLIDESHOW_COMMAND_DISPLAY_PORTRAIT_PAIR = 15,
+  SLIDESHOW_COMMAND_START_PRELOAD_LEFT = 16,
+  SLIDESHOW_COMMAND_START_PRELOAD_RIGHT = 17,
+  SLIDESHOW_COMMAND_DEFER_COMPANION_SEARCH = 18,
 };
 
 struct SlideshowCommand {
@@ -117,6 +123,129 @@ class EspFrameSlideshow {
     this->emit_command(SLIDESHOW_COMMAND_HANDLE_SLOT_DOWNLOAD_ERROR, slot);
   }
 
+  bool start_active_portrait(int active_slot, SlotMeta &slot0, SlotMeta &slot1, SlotMeta &slot2,
+                             PortraitState &portrait, bool active_slot_displayed,
+                             std::string &portrait_primary_asset_id,
+                             std::string &portrait_companion_url,
+                             std::string &portrait_search_datetime,
+                             int &companion_target_slot) {
+    if (active_slot_displayed && portrait.is_pair && portrait.using_preload) return false;
+
+    SlotMeta &meta = this->slot_mut_(active_slot, slot0, slot1, slot2);
+    if (portrait.workflow_busy && portrait_primary_asset_id == meta.asset_id) return false;
+
+    portrait.left_ready = false;
+    portrait.right_ready = false;
+    portrait.no_companion_active = false;
+    portrait.left_requested = false;
+    portrait.right_requested = false;
+    portrait.using_preload = false;
+    portrait.workflow_busy = true;
+    portrait_primary_asset_id = meta.asset_id;
+
+    if (!meta.companion_url.empty()) {
+      portrait.companion_found = true;
+      portrait_companion_url = meta.companion_url;
+      portrait.left_requested = true;
+      this->emit_command(SLIDESHOW_COMMAND_START_PORTRAIT_LEFT, active_slot);
+      return true;
+    }
+
+    portrait.companion_found = false;
+    portrait_companion_url = "";
+    portrait_search_datetime = meta.datetime;
+    companion_target_slot = active_slot;
+    this->emit_command(SLIDESHOW_COMMAND_DEFER_COMPANION_SEARCH, active_slot, 200);
+    return true;
+  }
+
+  void on_portrait_left_finished(PortraitState &portrait) {
+    portrait.left_ready = true;
+    portrait.left_requested = false;
+    if (portrait.companion_found && !portrait.right_ready && !portrait.right_requested) {
+      portrait.right_requested = true;
+      this->emit_command(SLIDESHOW_COMMAND_START_PORTRAIT_RIGHT);
+    }
+    if (portrait.left_ready && portrait.right_ready) {
+      this->emit_command(SLIDESHOW_COMMAND_DISPLAY_PORTRAIT_PAIR);
+    }
+  }
+
+  void on_portrait_right_finished(PortraitState &portrait) {
+    portrait.right_ready = true;
+    portrait.right_requested = false;
+    if (portrait.left_ready && portrait.right_ready) {
+      this->emit_command(SLIDESHOW_COMMAND_DISPLAY_PORTRAIT_PAIR);
+    }
+  }
+
+  void on_portrait_left_error(PortraitState &portrait, std::string &diag_reason,
+                              bool &active_slot_displayed) {
+    portrait.left_ready = false;
+    portrait.left_requested = false;
+    portrait.companion_found = false;
+    diag_reason = "portrait left error";
+    this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG);
+    if (!active_slot_displayed) {
+      active_slot_displayed = true;
+      portrait.workflow_busy = false;
+      this->emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT);
+    }
+  }
+
+  void on_portrait_right_error(PortraitState &portrait, std::string &diag_reason,
+                               bool &active_slot_displayed) {
+    portrait.right_ready = false;
+    portrait.right_requested = false;
+    portrait.companion_found = false;
+    diag_reason = "portrait right error";
+    this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG);
+    if (!active_slot_displayed) {
+      active_slot_displayed = true;
+      portrait.workflow_busy = false;
+      this->emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT);
+    }
+  }
+
+  void on_preload_left_finished(int portrait_preload_slot, SlotMeta &slot0, SlotMeta &slot1,
+                                SlotMeta &slot2, bool &portrait_preload_left_ready,
+                                bool &portrait_preload_right_ready,
+                                bool &preload_noncritical_in_flight, int &noncritical_count) {
+    portrait_preload_left_ready = true;
+    if (portrait_preload_slot >= 0) {
+      SlotMeta &meta = this->slot_mut_(portrait_preload_slot, slot0, slot1, slot2);
+      if (!meta.companion_url.empty()) {
+        this->emit_command(SLIDESHOW_COMMAND_START_PRELOAD_RIGHT, portrait_preload_slot);
+        return;
+      }
+    }
+    portrait_preload_right_ready = false;
+    this->clear_preload_noncritical_(preload_noncritical_in_flight, noncritical_count);
+  }
+
+  void on_preload_left_error(std::string &diag_reason, bool &portrait_preload_left_ready,
+                             bool &preload_noncritical_in_flight, int &noncritical_count) {
+    portrait_preload_left_ready = false;
+    diag_reason = "portrait preload left error";
+    this->clear_preload_noncritical_(preload_noncritical_in_flight, noncritical_count);
+    this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG);
+  }
+
+  void on_preload_right_finished(bool &portrait_preload_right_ready,
+                                 bool &preload_noncritical_in_flight,
+                                 int &noncritical_count) {
+    portrait_preload_right_ready = true;
+    this->clear_preload_noncritical_(preload_noncritical_in_flight, noncritical_count);
+  }
+
+  void on_preload_right_error(std::string &diag_reason, bool &portrait_preload_right_ready,
+                              bool &preload_noncritical_in_flight, int &noncritical_count) {
+    portrait_preload_right_ready = false;
+    diag_reason = "portrait preload right error";
+    this->clear_preload_noncritical_(preload_noncritical_in_flight, noncritical_count);
+    this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG);
+  }
+
   bool request_prefetch(bool backlight_paused, bool retry_cooldown_active, uint32_t now_ms,
                         uint32_t &last_prefetch_start_ms, int active_slot, int &target_slot,
                         const SlotMeta &slot0, const SlotMeta &slot1, const SlotMeta &slot2,
@@ -206,9 +335,21 @@ class EspFrameSlideshow {
   }
 
  private:
+  static SlotMeta &slot_mut_(int slot, SlotMeta &slot0, SlotMeta &slot1, SlotMeta &slot2) {
+    return slot == 0 ? slot0 : (slot == 1 ? slot1 : slot2);
+  }
+
   static const SlotMeta &slot_const_(int slot, const SlotMeta &slot0, const SlotMeta &slot1,
                                      const SlotMeta &slot2) {
     return slot == 0 ? slot0 : (slot == 1 ? slot1 : slot2);
+  }
+
+  static void clear_preload_noncritical_(bool &preload_noncritical_in_flight,
+                                         int &noncritical_count) {
+    if (preload_noncritical_in_flight) {
+      preload_noncritical_in_flight = false;
+      if (noncritical_count > 0) noncritical_count--;
+    }
   }
 
   SlideshowCommandQueue commands_{};

@@ -349,6 +349,111 @@ static void test_slideshow_component_prefetch_and_deferred_updates() {
   assert(cmd.kind == SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY);
 }
 
+static void test_slideshow_component_portrait_flow() {
+  EspFrameSlideshow slideshow;
+  SlotMeta slot0 = make_slot("portrait-active", true);
+  slot0.companion_url = "https://example.test/companion";
+  SlotMeta slot1 = make_slot("slot1", false);
+  SlotMeta slot2 = make_slot("slot2", false);
+  PortraitState portrait;
+  bool displayed = false;
+  std::string primary_id;
+  std::string companion_url;
+  std::string search_datetime;
+  int companion_slot = -1;
+
+  bool started = slideshow.start_active_portrait(
+      0, slot0, slot1, slot2, portrait, displayed, primary_id, companion_url,
+      search_datetime, companion_slot);
+  assert(started);
+  assert(portrait.workflow_busy);
+  assert(portrait.companion_found);
+  assert(portrait.left_requested);
+  assert(primary_id == "portrait-active");
+  assert(companion_url == slot0.companion_url);
+
+  SlideshowCommand cmd;
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_START_PORTRAIT_LEFT);
+  assert(cmd.slot == 0);
+
+  slideshow.on_portrait_left_finished(portrait);
+  assert(portrait.left_ready);
+  assert(!portrait.left_requested);
+  assert(portrait.right_requested);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_START_PORTRAIT_RIGHT);
+
+  slideshow.on_portrait_right_finished(portrait);
+  assert(portrait.right_ready);
+  assert(!portrait.right_requested);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_PORTRAIT_PAIR);
+
+  PortraitState searching;
+  SlotMeta no_companion = make_slot("portrait-search", true);
+  no_companion.companion_url = "";
+  bool search_started = slideshow.start_active_portrait(
+      0, no_companion, slot1, slot2, searching, displayed, primary_id, companion_url,
+      search_datetime, companion_slot);
+  assert(search_started);
+  assert(searching.workflow_busy);
+  assert(!searching.companion_found);
+  assert(companion_url.empty());
+  assert(search_datetime == no_companion.datetime);
+  assert(companion_slot == 0);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_DEFER_COMPANION_SEARCH);
+
+  std::string reason;
+  slideshow.on_portrait_left_error(searching, reason, displayed);
+  assert(reason == "portrait left error");
+  assert(displayed);
+  assert(!searching.workflow_busy);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
+}
+
+static void test_slideshow_component_preload_flow() {
+  EspFrameSlideshow slideshow;
+  SlotMeta slot0 = make_slot("active", false);
+  SlotMeta slot1 = make_slot("portrait-preload", true);
+  slot1.companion_url = "https://example.test/preload-companion";
+  SlotMeta slot2 = make_slot("slot2", false);
+  bool left_ready = false;
+  bool right_ready = false;
+  bool preload_in_flight = true;
+  int noncritical_count = 1;
+
+  slideshow.on_preload_left_finished(1, slot0, slot1, slot2, left_ready, right_ready,
+                                     preload_in_flight, noncritical_count);
+  assert(left_ready);
+  assert(preload_in_flight);
+  assert(noncritical_count == 1);
+  SlideshowCommand cmd;
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_START_PRELOAD_RIGHT);
+  assert(cmd.slot == 1);
+
+  slideshow.on_preload_right_finished(right_ready, preload_in_flight, noncritical_count);
+  assert(right_ready);
+  assert(!preload_in_flight);
+  assert(noncritical_count == 0);
+
+  std::string reason;
+  preload_in_flight = true;
+  noncritical_count = 1;
+  slideshow.on_preload_left_error(reason, left_ready, preload_in_flight, noncritical_count);
+  assert(reason == "portrait preload left error");
+  assert(!left_ready);
+  assert(!preload_in_flight);
+  assert(noncritical_count == 0);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
+}
+
 int main() {
   test_date_and_url_helpers();
   test_immich_body_helpers();
@@ -356,6 +461,8 @@ int main() {
   test_fetch_queue_and_error_handling();
   test_slideshow_component_commands();
   test_slideshow_component_prefetch_and_deferred_updates();
+  test_slideshow_component_portrait_flow();
+  test_slideshow_component_preload_flow();
   std::cout << "espframe helper tests passed\n";
   return 0;
 }
