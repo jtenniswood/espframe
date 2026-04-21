@@ -446,6 +446,36 @@ script:
               case SLIDESHOW_COMMAND_HANDLE_SLOT_DOWNLOAD_ERROR:
                 id(handle_slot_download_error).execute();
                 break;
+              case SLIDESHOW_COMMAND_FETCH_INTO_SLOT:
+                id(target_slot) = cmd.slot;
+                id(immich_fetch_into_slot).execute();
+                break;
+              case SLIDESHOW_COMMAND_UPDATE_SLOT_IMAGE:
+                if (cmd.slot == 0) {
+                  id(immich_img_0).set_fill_mode((id(photo_display_mode).current_option() == "Fill") && !id(slot0).is_portrait);
+                  id(immich_img_0).update();
+                } else if (cmd.slot == 1) {
+                  id(immich_img_1).set_fill_mode((id(photo_display_mode).current_option() == "Fill") && !id(slot1).is_portrait);
+                  id(immich_img_1).update();
+                } else if (cmd.slot == 2) {
+                  id(immich_img_2).set_fill_mode((id(photo_display_mode).current_option() == "Fill") && !id(slot2).is_portrait);
+                  id(immich_img_2).update();
+                }
+                break;
+              case SLIDESHOW_COMMAND_UPDATE_PORTRAIT_LEFT:
+                id(immich_portrait_left).set_fill_mode(id(photo_display_mode).current_option() == "Fill");
+                id(immich_portrait_left).update();
+                break;
+              case SLIDESHOW_COMMAND_UPDATE_PORTRAIT_RIGHT:
+                id(immich_portrait_right).set_fill_mode(id(photo_display_mode).current_option() == "Fill");
+                id(immich_portrait_right).update();
+                break;
+              case SLIDESHOW_COMMAND_UPDATE_PRELOAD_LEFT:
+                id(immich_portrait_preload_left).update();
+                break;
+              case SLIDESHOW_COMMAND_UPDATE_PRELOAD_RIGHT:
+                id(immich_portrait_preload_right).update();
+                break;
               case SLIDESHOW_COMMAND_NONE:
               default:
                 break;
@@ -837,50 +867,14 @@ script:
     mode: single
     then:
       - lambda: |-
-          if (id(backlight_paused)) {
-            ESP_LOGD("immich", "Prefetch paused (backlight off)");
-            return;
-          }
-          if (id(immich_retry_cooldown_until_ms) != 0 && millis() < id(immich_retry_cooldown_until_ms)) {
-            ESP_LOGD("immich", "Prefetch paused (connection retry cooldown)");
-            return;
-          }
-          // Avoid piling up concurrent HTTP/decode work while portrait downloads
-          // are still in progress (active pair or preload pair).
-          bool active_portrait_busy = false;
-          if (id(active_slot) == 0 || id(active_slot) == 1 || id(active_slot) == 2) {
-            auto &active = get_slot(id(active_slot), id(slot0), id(slot1), id(slot2));
-            if (active.is_portrait) {
-              bool left_pending = !id(portrait).left_ready;
-              bool right_pending = id(portrait).companion_found && !id(portrait).right_ready;
-              active_portrait_busy = left_pending || right_pending;
-            }
-          }
-          bool preload_busy = (id(portrait_preload_slot) != -1) &&
-                              !(id(portrait_preload_left_ready) && id(portrait_preload_right_ready));
-          if (active_portrait_busy || preload_busy) {
-            ESP_LOGD("immich", "Prefetch deferred (portrait pipeline busy)");
-            return;
-          }
-          if (id(portrait).workflow_busy) return;
-          if (id(noncritical_remote_updates_in_flight) > 0) return;
-          if ((millis() - id(last_prefetch_start_ms)) < 600) {
-            ESP_LOGD("immich", "Prefetch throttled");
-            return;
-          }
-          if (SlideshowController::enqueue_prefetch_slots(
-                id(fetch_queue), id(active_slot), id(slot0), id(slot1), id(slot2),
-                id(slot_flags), millis())) {
-            FetchJob job;
-            if (!id(fetch_queue).pop(job)) return;
-            id(target_slot) = job.slot;
-            id(last_prefetch_start_ms) = millis();
-            ESP_LOGD("immich", "Prefetch queue: filling slot %d (%s)", job.slot,
-                     job.priority >= 20 ? "next" : "next-next");
-            id(immich_fetch_into_slot).execute();
-          } else {
-            ESP_LOGD("immich", "Prefetch queue: all slots filled");
-          }
+          id(espframe_core).slideshow().request_prefetch(
+            id(backlight_paused),
+            id(immich_retry_cooldown_until_ms) != 0 && millis() < id(immich_retry_cooldown_until_ms),
+            millis(), id(last_prefetch_start_ms), id(active_slot), id(target_slot),
+            id(slot0), id(slot1), id(slot2), id(slot_flags), id(fetch_queue), id(portrait),
+            id(noncritical_remote_updates_in_flight), id(portrait_preload_slot),
+            id(portrait_preload_left_ready), id(portrait_preload_right_ready));
+          id(espframe_slideshow_dispatch).execute();
 
   # Run prefetch after short delay to avoid socket exhaustion when many callbacks fire at once
   - id: delayed_prefetch_chain
@@ -914,80 +908,63 @@ script:
     then:
       - delay: 150ms
       - lambda: |-
-          if (!prepare_deferred_slot_update(0, id(active_slot), id(slot_flags), id(portrait).workflow_busy, id(noncritical_remote_updates_in_flight))) {
-            id(delayed_prefetch_chain).execute(); return;
-          }
-          id(immich_img_0).set_fill_mode((id(photo_display_mode).current_option() == "Fill") && !id(slot0).is_portrait);
-          id(immich_img_0).update();
+          id(espframe_core).slideshow().request_deferred_slot_update(
+            0, id(active_slot), id(slot_flags), id(portrait).workflow_busy,
+            id(noncritical_remote_updates_in_flight));
+          id(espframe_slideshow_dispatch).execute();
 
   - id: deferred_slot1_image_update
     mode: single
     then:
       - delay: 150ms
       - lambda: |-
-          if (!prepare_deferred_slot_update(1, id(active_slot), id(slot_flags), id(portrait).workflow_busy, id(noncritical_remote_updates_in_flight))) {
-            id(delayed_prefetch_chain).execute(); return;
-          }
-          id(immich_img_1).set_fill_mode((id(photo_display_mode).current_option() == "Fill") && !id(slot1).is_portrait);
-          id(immich_img_1).update();
+          id(espframe_core).slideshow().request_deferred_slot_update(
+            1, id(active_slot), id(slot_flags), id(portrait).workflow_busy,
+            id(noncritical_remote_updates_in_flight));
+          id(espframe_slideshow_dispatch).execute();
 
   - id: deferred_slot2_image_update
     mode: single
     then:
       - delay: 150ms
       - lambda: |-
-          if (!prepare_deferred_slot_update(2, id(active_slot), id(slot_flags), id(portrait).workflow_busy, id(noncritical_remote_updates_in_flight))) {
-            id(delayed_prefetch_chain).execute(); return;
-          }
-          id(immich_img_2).set_fill_mode((id(photo_display_mode).current_option() == "Fill") && !id(slot2).is_portrait);
-          id(immich_img_2).update();
+          id(espframe_core).slideshow().request_deferred_slot_update(
+            2, id(active_slot), id(slot_flags), id(portrait).workflow_busy,
+            id(noncritical_remote_updates_in_flight));
+          id(espframe_slideshow_dispatch).execute();
 
   - id: deferred_portrait_left_update
     mode: restart
     then:
       - delay: 150ms
       - lambda: |-
-          if (id(portrait).left_ready) return;
-          bool fill = (id(photo_display_mode).current_option() == "Fill");
-          id(immich_portrait_left).set_fill_mode(fill);
-          id(immich_portrait_left).update();
+          id(espframe_core).slideshow().request_portrait_left_update(id(portrait));
+          id(espframe_slideshow_dispatch).execute();
 
   - id: deferred_portrait_right_update
     mode: restart
     then:
       - delay: 150ms
       - lambda: |-
-          if (id(portrait).right_ready) return;
-          bool fill = (id(photo_display_mode).current_option() == "Fill");
-          id(immich_portrait_right).set_fill_mode(fill);
-          id(immich_portrait_right).update();
+          id(espframe_core).slideshow().request_portrait_right_update(id(portrait));
+          id(espframe_slideshow_dispatch).execute();
 
   - id: deferred_preload_left_update
     mode: restart
     then:
       - delay: 150ms
       - lambda: |-
-          if (id(portrait).workflow_busy) {
-            id(delayed_prefetch_chain).execute();
-            return;
-          }
-          if (!id(preload_noncritical_in_flight)) {
-            id(preload_noncritical_in_flight) = true;
-            id(noncritical_remote_updates_in_flight)++;
-          }
-          id(immich_portrait_preload_left).update();
+          id(espframe_core).slideshow().request_preload_left_update(
+            id(portrait).workflow_busy, id(preload_noncritical_in_flight),
+            id(noncritical_remote_updates_in_flight));
+          id(espframe_slideshow_dispatch).execute();
 
   - id: deferred_preload_right_update
     mode: restart
     then:
       - delay: 150ms
       - lambda: |-
-          if (id(portrait).workflow_busy) {
-            if (id(preload_noncritical_in_flight)) {
-              id(preload_noncritical_in_flight) = false;
-              if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
-            }
-            id(delayed_prefetch_chain).execute();
-            return;
-          }
-          id(immich_portrait_preload_right).update();
+          id(espframe_core).slideshow().request_preload_right_update(
+            id(portrait).workflow_busy, id(preload_noncritical_in_flight),
+            id(noncritical_remote_updates_in_flight));
+          id(espframe_slideshow_dispatch).execute();

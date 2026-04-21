@@ -61,6 +61,30 @@ inline bool handle_slot_download_complete(int slot, SlotMeta &meta,
   return true;
 }
 
+inline void mark_slot_fetch_in_flight(int s, SlotFlags &f, uint32_t now_ms) {
+  f.fetch_in_flight[s] = true;
+  f.fetch_started_ms[s] = now_ms;
+}
+
+inline bool prepare_deferred_slot_update(int slot, int active_slot, SlotFlags &flags,
+                                         bool workflow_busy, int &nc_count) {
+  bool noncritical = slot != active_slot;
+  if (noncritical && (workflow_busy || nc_count > 0)) {
+    clear_noncritical(slot, flags, nc_count);
+    clear_slot_fetch_in_flight(slot, flags);
+    return false;
+  }
+  if (noncritical && !flags.noncritical_update[slot]) {
+    flags.noncritical_update[slot] = true;
+    nc_count++;
+  } else if (!noncritical && flags.noncritical_update[slot]) {
+    flags.noncritical_update[slot] = false;
+    if (nc_count > 0) nc_count--;
+  }
+  mark_slot_fetch_in_flight(slot, flags, 1000);
+  return true;
+}
+
 inline void copy_slot_to_display(const SlotMeta &slot, DisplayMeta &disp) {
   static_cast<PhotoMeta &>(disp) = static_cast<const PhotoMeta &>(slot);
 }
@@ -261,12 +285,77 @@ static void test_slideshow_component_commands() {
   assert(!slideshow.has_command());
 }
 
+static void test_slideshow_component_prefetch_and_deferred_updates() {
+  EspFrameSlideshow slideshow;
+  SlotMeta slot0 = make_slot("active", false);
+  SlotMeta slot1 = make_slot("next", false);
+  SlotMeta slot2 = make_slot("next-next", false);
+  slot0.ready = true;
+  slot1.ready = false;
+  slot2.ready = false;
+  SlotFlags flags;
+  FetchQueue queue;
+  PortraitState portrait;
+  uint32_t last_prefetch = 0;
+  int target_slot = 0;
+
+  bool queued = slideshow.request_prefetch(
+      false, false, 1000, last_prefetch, 0, target_slot, slot0, slot1, slot2,
+      flags, queue, portrait, 0, -1, false, false);
+  assert(queued);
+  assert(target_slot == 1);
+  assert(last_prefetch == 1000);
+  SlideshowCommand cmd;
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_FETCH_INTO_SLOT);
+  assert(cmd.slot == 1);
+
+  queued = slideshow.request_prefetch(
+      false, false, 1200, last_prefetch, 0, target_slot, slot0, slot1, slot2,
+      flags, queue, portrait, 0, -1, false, false);
+  assert(!queued);
+  assert(!slideshow.has_command());
+
+  int noncritical_count = 0;
+  bool update = slideshow.request_deferred_slot_update(1, 0, flags, false, noncritical_count);
+  assert(update);
+  assert(noncritical_count == 1);
+  assert(flags.noncritical_update[1]);
+  assert(flags.fetch_in_flight[1]);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_UPDATE_SLOT_IMAGE);
+  assert(cmd.slot == 1);
+
+  clear_slot_fetch_in_flight(1, flags);
+  clear_noncritical(1, flags, noncritical_count);
+  update = slideshow.request_deferred_slot_update(2, 0, flags, true, noncritical_count);
+  assert(!update);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY);
+
+  bool preload_in_flight = false;
+  update = slideshow.request_preload_left_update(false, preload_in_flight, noncritical_count);
+  assert(update);
+  assert(preload_in_flight);
+  assert(noncritical_count == 1);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_UPDATE_PRELOAD_LEFT);
+
+  update = slideshow.request_preload_right_update(true, preload_in_flight, noncritical_count);
+  assert(!update);
+  assert(!preload_in_flight);
+  assert(noncritical_count == 0);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY);
+}
+
 int main() {
   test_date_and_url_helpers();
   test_immich_body_helpers();
   test_slideshow_slot_actions();
   test_fetch_queue_and_error_handling();
   test_slideshow_component_commands();
+  test_slideshow_component_prefetch_and_deferred_updates();
   std::cout << "espframe helper tests passed\n";
   return 0;
 }

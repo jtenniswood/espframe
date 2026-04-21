@@ -12,6 +12,12 @@ enum SlideshowCommandKind : uint8_t {
   SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY = 4,
   SLIDESHOW_COMMAND_LOG_DIAG = 5,
   SLIDESHOW_COMMAND_HANDLE_SLOT_DOWNLOAD_ERROR = 6,
+  SLIDESHOW_COMMAND_FETCH_INTO_SLOT = 7,
+  SLIDESHOW_COMMAND_UPDATE_SLOT_IMAGE = 8,
+  SLIDESHOW_COMMAND_UPDATE_PORTRAIT_LEFT = 9,
+  SLIDESHOW_COMMAND_UPDATE_PORTRAIT_RIGHT = 10,
+  SLIDESHOW_COMMAND_UPDATE_PRELOAD_LEFT = 11,
+  SLIDESHOW_COMMAND_UPDATE_PRELOAD_RIGHT = 12,
 };
 
 struct SlideshowCommand {
@@ -111,6 +117,99 @@ class EspFrameSlideshow {
     this->emit_command(SLIDESHOW_COMMAND_HANDLE_SLOT_DOWNLOAD_ERROR, slot);
   }
 
+  bool request_prefetch(bool backlight_paused, bool retry_cooldown_active, uint32_t now_ms,
+                        uint32_t &last_prefetch_start_ms, int active_slot, int &target_slot,
+                        const SlotMeta &slot0, const SlotMeta &slot1, const SlotMeta &slot2,
+                        const SlotFlags &flags, FetchQueue &queue, const PortraitState &portrait,
+                        int noncritical_count, int portrait_preload_slot,
+                        bool portrait_preload_left_ready, bool portrait_preload_right_ready) {
+    if (backlight_paused || retry_cooldown_active) return false;
+
+    const SlotMeta &active = this->slot_const_(active_slot, slot0, slot1, slot2);
+    bool active_portrait_busy = false;
+    if (active.is_portrait) {
+      bool left_pending = !portrait.left_ready;
+      bool right_pending = portrait.companion_found && !portrait.right_ready;
+      active_portrait_busy = left_pending || right_pending;
+    }
+
+    bool preload_busy = (portrait_preload_slot != -1) &&
+                        !(portrait_preload_left_ready && portrait_preload_right_ready);
+    if (active_portrait_busy || preload_busy || portrait.workflow_busy || noncritical_count > 0)
+      return false;
+    if ((now_ms - last_prefetch_start_ms) < 600) return false;
+
+    if (!SlideshowController::enqueue_prefetch_slots(
+            queue, active_slot, slot0, slot1, slot2, flags, now_ms)) {
+      return false;
+    }
+
+    FetchJob job;
+    if (!queue.pop(job)) return false;
+    target_slot = job.slot;
+    last_prefetch_start_ms = now_ms;
+    this->emit_command(SLIDESHOW_COMMAND_FETCH_INTO_SLOT, job.slot);
+    return true;
+  }
+
+  bool request_deferred_slot_update(int slot, int active_slot, SlotFlags &flags,
+                                    bool portrait_workflow_busy, int &noncritical_count) {
+    if (!prepare_deferred_slot_update(
+            slot, active_slot, flags, portrait_workflow_busy, noncritical_count)) {
+      this->emit_command(SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY, slot, 500);
+      return false;
+    }
+    this->emit_command(SLIDESHOW_COMMAND_UPDATE_SLOT_IMAGE, slot);
+    return true;
+  }
+
+  bool request_portrait_left_update(const PortraitState &portrait) {
+    if (portrait.left_ready) return false;
+    this->emit_command(SLIDESHOW_COMMAND_UPDATE_PORTRAIT_LEFT);
+    return true;
+  }
+
+  bool request_portrait_right_update(const PortraitState &portrait) {
+    if (portrait.right_ready) return false;
+    this->emit_command(SLIDESHOW_COMMAND_UPDATE_PORTRAIT_RIGHT);
+    return true;
+  }
+
+  bool request_preload_left_update(bool portrait_workflow_busy,
+                                   bool &preload_noncritical_in_flight,
+                                   int &noncritical_count) {
+    if (portrait_workflow_busy) {
+      this->emit_command(SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY, -1, 500);
+      return false;
+    }
+    if (!preload_noncritical_in_flight) {
+      preload_noncritical_in_flight = true;
+      noncritical_count++;
+    }
+    this->emit_command(SLIDESHOW_COMMAND_UPDATE_PRELOAD_LEFT);
+    return true;
+  }
+
+  bool request_preload_right_update(bool portrait_workflow_busy,
+                                    bool &preload_noncritical_in_flight,
+                                    int &noncritical_count) {
+    if (portrait_workflow_busy) {
+      if (preload_noncritical_in_flight) {
+        preload_noncritical_in_flight = false;
+        if (noncritical_count > 0) noncritical_count--;
+      }
+      this->emit_command(SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY, -1, 500);
+      return false;
+    }
+    this->emit_command(SLIDESHOW_COMMAND_UPDATE_PRELOAD_RIGHT);
+    return true;
+  }
+
  private:
+  static const SlotMeta &slot_const_(int slot, const SlotMeta &slot0, const SlotMeta &slot1,
+                                     const SlotMeta &slot2) {
+    return slot == 0 ? slot0 : (slot == 1 ? slot1 : slot2);
+  }
+
   SlideshowCommandQueue commands_{};
 };
