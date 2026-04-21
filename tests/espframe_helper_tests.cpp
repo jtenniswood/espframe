@@ -66,6 +66,7 @@ inline void copy_slot_to_display(const SlotMeta &slot, DisplayMeta &disp) {
 }
 
 #include "components/espframe/slideshow_controller.h"
+#include "components/espframe/slideshow_component.h"
 
 static void test_date_and_url_helpers() {
   assert(normalize_immich_base_url(" immich.local:2283/") == "http://immich.local:2283");
@@ -205,11 +206,67 @@ static void test_fetch_queue_and_error_handling() {
   assert(last_downloaded == 1);
 }
 
+static void test_slideshow_component_commands() {
+  EspFrameSlideshow slideshow;
+  assert(!slideshow.has_command());
+  assert(slideshow.emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT, 1));
+  assert(slideshow.emit_action(SLIDESHOW_ACTION_PREFETCH, 2));
+  assert(slideshow.command_count() == 2);
+
+  SlideshowCommand cmd;
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
+  assert(cmd.slot == 1);
+  assert(cmd.delay_ms == 0);
+
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY);
+  assert(cmd.slot == 2);
+  assert(cmd.delay_ms == 500);
+  assert(!slideshow.has_command());
+
+  SlotFlags flags;
+  int noncritical_count = 0;
+  int retries = 1;
+  bool displayed = false;
+  DisplayMeta current;
+  PortraitState portrait;
+  int companion_slot = -1;
+  std::string search_datetime;
+  std::string primary_asset_id;
+  SlotMeta active = make_slot("active-landscape", false);
+  flags.fetch_in_flight[0] = true;
+
+  SlideshowAction action = slideshow.on_slot_download_finished(
+      0, active, flags, noncritical_count, retries, 0, true, displayed, current,
+      portrait, companion_slot, -1, search_datetime, primary_asset_id);
+  assert(action == SLIDESHOW_ACTION_DISPLAY_CURRENT);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
+  assert(cmd.slot == 0);
+
+  std::string reason;
+  int last_downloaded = -1;
+  flags.fetch_in_flight[2] = true;
+  slideshow.on_slot_download_error(2, flags, noncritical_count, reason, last_downloaded,
+                                   "slot2 image error");
+  assert(reason == "slot2 image error");
+  assert(last_downloaded == 2);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
+  assert(cmd.slot == 2);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_HANDLE_SLOT_DOWNLOAD_ERROR);
+  assert(cmd.slot == 2);
+  assert(!slideshow.has_command());
+}
+
 int main() {
   test_date_and_url_helpers();
   test_immich_body_helpers();
   test_slideshow_slot_actions();
   test_fetch_queue_and_error_handling();
+  test_slideshow_component_commands();
   std::cout << "espframe helper tests passed\n";
   return 0;
 }

@@ -190,6 +190,7 @@ inline void copy_display_to_slot(const DisplayMeta &disp, SlotMeta &slot) {
 }
 
 #include "slideshow_controller.h"
+#include "slideshow_component.h"
 
 // ============================================================================
 // Immich asset parser — parse JSON and fill one of the three slot metas

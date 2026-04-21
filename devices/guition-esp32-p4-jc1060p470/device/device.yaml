@@ -126,6 +126,7 @@ external_components:
     refresh: 0s
 
 espframe:
+  id: espframe_core
 
 # -----------------------------------------------------------------------------
 # DSI PHY power rail, backlight output, I2C

@@ -182,29 +182,20 @@ remote_image:
         - lambda: |-
             const int slot = 0;
             auto &meta = id(slot0);
-            SlideshowAction action = SlideshowController::handle_slot_download_finished(
+            id(espframe_core).slideshow().on_slot_download_finished(
               slot, meta, id(slot_flags), id(noncritical_remote_updates_in_flight),
               id(immich_download_retries), id(active_slot), id(portrait_pairing_enabled).state,
               id(active_slot_displayed), id(current_display), id(portrait),
               id(companion_target_slot), id(portrait_preload_slot),
               id(portrait_search_datetime), id(portrait_primary_asset_id));
-            if (action == SLIDESHOW_ACTION_DISPLAY_CURRENT) {
-              id(immich_display_current).execute();
-            } else if (action == SLIDESHOW_ACTION_START_ACTIVE_PAIR) {
-              id(immich_start_portrait_active).execute();
-            } else if (action == SLIDESHOW_ACTION_FETCH_COMPANION) {
-              id(immich_fetch_portrait_companion).execute();
-            } else if (action == SLIDESHOW_ACTION_PREFETCH) {
-              id(delayed_prefetch_chain).execute();
-            }
+            id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
-            SlideshowController::handle_slot_download_error(
+            id(espframe_core).slideshow().on_slot_download_error(
               0, id(slot_flags), id(noncritical_remote_updates_in_flight),
               id(immich_diag_reason), id(last_downloaded_slot), "slot0 image error");
-            id(log_immich_diag).execute();
-        - script.execute: handle_slot_download_error
+            id(espframe_slideshow_dispatch).execute();
 
   - id: immich_img_1
     url: "https://via.placeholder.com/1x1.jpg"
@@ -219,29 +210,20 @@ remote_image:
         - lambda: |-
             const int slot = 1;
             auto &meta = id(slot1);
-            SlideshowAction action = SlideshowController::handle_slot_download_finished(
+            id(espframe_core).slideshow().on_slot_download_finished(
               slot, meta, id(slot_flags), id(noncritical_remote_updates_in_flight),
               id(immich_download_retries), id(active_slot), id(portrait_pairing_enabled).state,
               id(active_slot_displayed), id(current_display), id(portrait),
               id(companion_target_slot), id(portrait_preload_slot),
               id(portrait_search_datetime), id(portrait_primary_asset_id));
-            if (action == SLIDESHOW_ACTION_DISPLAY_CURRENT) {
-              id(immich_display_current).execute();
-            } else if (action == SLIDESHOW_ACTION_START_ACTIVE_PAIR) {
-              id(immich_start_portrait_active).execute();
-            } else if (action == SLIDESHOW_ACTION_FETCH_COMPANION) {
-              id(immich_fetch_portrait_companion).execute();
-            } else if (action == SLIDESHOW_ACTION_PREFETCH) {
-              id(delayed_prefetch_chain).execute();
-            }
+            id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
-            SlideshowController::handle_slot_download_error(
+            id(espframe_core).slideshow().on_slot_download_error(
               1, id(slot_flags), id(noncritical_remote_updates_in_flight),
               id(immich_diag_reason), id(last_downloaded_slot), "slot1 image error");
-            id(log_immich_diag).execute();
-        - script.execute: handle_slot_download_error
+            id(espframe_slideshow_dispatch).execute();
 
   - id: immich_img_2
     url: "https://via.placeholder.com/1x1.jpg"
@@ -256,29 +238,20 @@ remote_image:
         - lambda: |-
             const int slot = 2;
             auto &meta = id(slot2);
-            SlideshowAction action = SlideshowController::handle_slot_download_finished(
+            id(espframe_core).slideshow().on_slot_download_finished(
               slot, meta, id(slot_flags), id(noncritical_remote_updates_in_flight),
               id(immich_download_retries), id(active_slot), id(portrait_pairing_enabled).state,
               id(active_slot_displayed), id(current_display), id(portrait),
               id(companion_target_slot), id(portrait_preload_slot),
               id(portrait_search_datetime), id(portrait_primary_asset_id));
-            if (action == SLIDESHOW_ACTION_DISPLAY_CURRENT) {
-              id(immich_display_current).execute();
-            } else if (action == SLIDESHOW_ACTION_START_ACTIVE_PAIR) {
-              id(immich_start_portrait_active).execute();
-            } else if (action == SLIDESHOW_ACTION_FETCH_COMPANION) {
-              id(immich_fetch_portrait_companion).execute();
-            } else if (action == SLIDESHOW_ACTION_PREFETCH) {
-              id(delayed_prefetch_chain).execute();
-            }
+            id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
-            SlideshowController::handle_slot_download_error(
+            id(espframe_core).slideshow().on_slot_download_error(
               2, id(slot_flags), id(noncritical_remote_updates_in_flight),
               id(immich_diag_reason), id(last_downloaded_slot), "slot2 image error");
-            id(log_immich_diag).execute();
-        - script.execute: handle_slot_download_error
+            id(espframe_slideshow_dispatch).execute();
 
   # Portrait pair half-width components (640x800 each, side-by-side)
   - id: immich_portrait_left
@@ -448,6 +421,37 @@ remote_image:
 # Scripts: download error handler, display, advance, previous, prefetch
 # -----------------------------------------------------------------------------
 script:
+  - id: espframe_slideshow_dispatch
+    mode: queued
+    then:
+      - lambda: |-
+          SlideshowCommand cmd;
+          while (id(espframe_core).slideshow().pop_command(cmd)) {
+            switch (cmd.kind) {
+              case SLIDESHOW_COMMAND_DISPLAY_CURRENT:
+                id(immich_display_current).execute();
+                break;
+              case SLIDESHOW_COMMAND_START_ACTIVE_PAIR:
+                id(immich_start_portrait_active).execute();
+                break;
+              case SLIDESHOW_COMMAND_FETCH_COMPANION:
+                id(immich_fetch_portrait_companion).execute();
+                break;
+              case SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY:
+                id(delayed_prefetch_chain).execute();
+                break;
+              case SLIDESHOW_COMMAND_LOG_DIAG:
+                id(log_immich_diag).execute();
+                break;
+              case SLIDESHOW_COMMAND_HANDLE_SLOT_DOWNLOAD_ERROR:
+                id(handle_slot_download_error).execute();
+                break;
+              case SLIDESHOW_COMMAND_NONE:
+              default:
+                break;
+            }
+          }
+
   - id: log_immich_diag
     mode: restart
     then:
