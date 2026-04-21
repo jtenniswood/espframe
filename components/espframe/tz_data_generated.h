@@ -135,4 +135,3 @@ static const TzInfo TZ_DATA[] = {
 };
 
 static constexpr int TZ_DATA_COUNT = 130;
-

@@ -2,6 +2,9 @@
   "name": "immich-frame",
   "private": true,
   "scripts": {
+    "generate": "python3 scripts/generate_assets.py",
+    "check:generated": "python3 scripts/generate_assets.py --check",
+    "webserver:build": "python3 scripts/generate_assets.py",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"
