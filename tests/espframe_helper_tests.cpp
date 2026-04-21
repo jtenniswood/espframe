@@ -103,6 +103,8 @@ inline void copy_display_to_slot(const DisplayMeta &disp, SlotMeta &slot) {
 
 static void test_date_and_url_helpers() {
   assert(normalize_immich_base_url(" immich.local:2283/") == "http://immich.local:2283");
+  assert(normalize_immich_base_url("photos.example.com") == "https://photos.example.com");
+  assert(normalize_immich_base_url("photos.example.com:443/") == "https://photos.example.com:443");
   assert(normalize_immich_base_url("//photos.example.com/") == "https://photos.example.com");
   assert(normalize_immich_base_url("HTTPS://photos.example.com///") == "https://photos.example.com");
   assert(format_photo_age(2026, 4, 21, 2026, 4, 21) == "today");

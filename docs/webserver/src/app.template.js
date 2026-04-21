@@ -272,18 +272,24 @@
   var PHOTO_LABEL_FIELD_TOO_LONG =
     "Labels exceed 255 characters (device limit). Shorten or remove labels.";
 
-  function postTextValueSet(url, value) {
+  function postTextValueSet(url, value, useQueryFallback) {
     var body = new URLSearchParams();
     body.set("value", value == null ? "" : String(value));
-    return fetch(url, {
+    var encoded = body.toString();
+    var fullUrl = url;
+    if (useQueryFallback) {
+      var candidate = url + "?" + encoded;
+      if (candidate.length <= 120) fullUrl = candidate;
+    }
+    return fetch(fullUrl, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body.toString()
+      body: encoded
     }).then(function (r) {
-      if (!r.ok) console.error("POST " + url + " failed: " + r.status);
+      if (!r.ok) console.error("POST " + fullUrl + " failed: " + r.status);
       return r;
     }).catch(function (err) {
-      console.error("POST " + url + " error:", err);
+      console.error("POST " + fullUrl + " error:", err);
       showBanner("Failed to save setting", "error");
     });
   }
@@ -770,12 +776,12 @@
         if (!u || !k) return;
         nextBtn.disabled = true;
         nextBtn.textContent = "Saving\u2026";
-        post(endpoints.immich_url + "/set", { value: u })
+        postTextValueSet(endpoints.immich_url + "/set", u, true)
           .then(function () {
             return new Promise(function (r) { setTimeout(r, 500); });
           })
           .then(function () {
-            return post(endpoints.api_key + "/set", { value: k });
+            return postTextValueSet(endpoints.api_key + "/set", k, true);
           })
           .then(function () {
             S.immich_url = u;
@@ -865,8 +871,9 @@
       var u = normalizeImmichUrl(urlInput.value);
       urlInput.value = u;
       S.immich_url = u;
-      post(endpoints.immich_url + "/set", { value: u });
-      showSaved("URL saved");
+      postTextValueSet(endpoints.immich_url + "/set", u, true).then(function () {
+        showSaved("URL saved");
+      });
     };
     f1.appendChild(urlInput);
     connBody.appendChild(f1);
@@ -904,7 +911,7 @@
         if (!v) return;
         saveBtn.disabled = true;
         saveBtn.textContent = "Saving\u2026";
-        post(endpoints.api_key + "/set", { value: v }).then(function () {
+        postTextValueSet(endpoints.api_key + "/set", v, true).then(function () {
           showSaved("API key saved");
           showKeyMasked();
         });
@@ -2126,11 +2133,11 @@
 
         if (c.immich_url !== undefined) {
           S.immich_url = normalizeImmichUrl(c.immich_url);
-          post(endpoints.immich_url + "/set", { value: S.immich_url });
+          postTextValueSet(endpoints.immich_url + "/set", S.immich_url, true);
         }
         if (c.api_key !== undefined) {
           S.api_key = c.api_key;
-          post(endpoints.api_key + "/set", { value: c.api_key });
+          postTextValueSet(endpoints.api_key + "/set", c.api_key, true);
         }
 
         if (p.source !== undefined) {

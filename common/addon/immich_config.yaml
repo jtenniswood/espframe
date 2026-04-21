@@ -55,7 +55,7 @@ text:
           }
           id(immich_url).publish_state(url);
           ESP_LOGI("immich", "Immich URL configured: %s", url.c_str());
-      - script.execute: immich_check_config_ready
+          id(immich_connection_config_changed).execute();
 
   - platform: template
     name: "Connection: API Key"
@@ -76,7 +76,7 @@ text:
           if (x.empty()) return;
           id(immich_api_key_text).publish_state(x);
           ESP_LOGI("immich", "Immich API key configured (%d chars)", x.length());
-      - script.execute: immich_check_config_ready
+          id(immich_connection_config_changed).execute();
 
 # -----------------------------------------------------------------------------
 # Display mode: Fill (crop-to-cover) vs Fit (letterbox, no cropping)
@@ -100,6 +100,44 @@ select:
 # When URL + key are set, show slideshow and start fetch if needed
 # -----------------------------------------------------------------------------
 script:
+  - id: immich_connection_config_changed
+    mode: restart
+    then:
+      - lambda: |-
+          id(immich_fetch_started) = false;
+          id(immich_api_retries) = 0;
+          id(immich_download_retries) = 0;
+          id(immich_last_http_status) = 0;
+          id(immich_retry_cooldown_until_ms) = 0;
+          id(immich_memory_fallback) = false;
+          id(immich_memory_asset_id) = "";
+          id(active_slot) = 0;
+          id(target_slot) = 0;
+          id(active_slot_displayed) = false;
+          id(last_prefetch_start_ms) = 0;
+          id(last_downloaded_slot) = -1;
+          id(last_photo_displayed_ms) = 0;
+          id(slot0) = SlotMeta{};
+          id(slot1) = SlotMeta{};
+          id(slot2) = SlotMeta{};
+          id(current_display) = DisplayMeta{};
+          id(prev_display) = DisplayMeta{};
+          id(slot_flags) = SlotFlags{};
+          id(fetch_queue) = FetchQueue{};
+          id(portrait) = PortraitState{};
+          id(portrait_search_datetime) = "";
+          id(portrait_primary_asset_id) = "";
+          id(companion_target_slot) = 0;
+          id(portrait_companion_url) = "";
+          id(portrait_preload_slot) = -1;
+          id(portrait_preload_left_ready) = false;
+          id(portrait_preload_right_ready) = false;
+          id(preload_noncritical_in_flight) = false;
+          id(noncritical_remote_updates_in_flight) = 0;
+          lv_obj_add_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
+          ESP_LOGI("immich", "Connection settings changed; retrying Immich connection");
+      - script.execute: immich_check_config_ready
+
   - id: immich_check_config_ready
     mode: restart
     then:
