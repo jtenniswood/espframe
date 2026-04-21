@@ -1,7 +1,9 @@
 #pragma once
 #include "date_utils.h"
 #include "esp_random.h"
+#include <algorithm>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -13,6 +15,7 @@ struct ImmichAssetMeta {
   // Keeping a compact struct avoids spreading JSON field names through YAML
   // lambdas.
   std::string asset_id, image_url, date, location, person;
+  std::string people, date_taken, image_format, camera, camera_settings, lens;
   std::string datetime;  // localDateTime from asset, for slot display
   int year = 0, month = 0;
   bool is_portrait = false;
@@ -115,6 +118,169 @@ inline bool photo_orientation_matches(const ImmichAssetMeta &meta, const std::st
 #ifdef USE_JSON
 #include "esphome/components/json/json_util.h"
 
+inline std::string upper_ascii(std::string value) {
+  for (char &c : value) {
+    if (c >= 'a' && c <= 'z') c = (char) (c - 'a' + 'A');
+  }
+  return value;
+}
+
+inline std::string format_decimal_trimmed(double value, int precision = 1) {
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%.*f", precision, value);
+  std::string out = buf;
+  while (out.size() > 1 && out.back() == '0') out.pop_back();
+  if (!out.empty() && out.back() == '.') out.pop_back();
+  return out;
+}
+
+inline std::string json_string_value(JsonObject obj, const char *key) {
+  if (obj[key].is<const char *>()) return obj[key].as<std::string>();
+  return "";
+}
+
+inline std::string json_number_or_string(JsonObject obj, const char *key, int precision = 1) {
+  if (obj[key].is<const char *>()) return trim_ascii_whitespace(obj[key].as<std::string>());
+  if (obj[key].is<int>()) return std::to_string(obj[key].as<int>());
+  if (obj[key].is<float>()) return format_decimal_trimmed(obj[key].as<float>(), precision);
+  if (obj[key].is<double>()) return format_decimal_trimmed(obj[key].as<double>(), precision);
+  return "";
+}
+
+inline int json_int_value(JsonObject obj, const char *key) {
+  if (obj[key].is<int>()) return obj[key].as<int>();
+  if (obj[key].is<const char *>()) return atoi(obj[key].as<const char *>());
+  return 0;
+}
+
+inline uint64_t json_uint64_value(JsonObject obj, const char *key) {
+  if (obj[key].is<const char *>()) return strtoull(obj[key].as<const char *>(), nullptr, 10);
+  if (obj[key].is<unsigned long>()) return obj[key].as<unsigned long>();
+  if (obj[key].is<long>()) {
+    long value = obj[key].as<long>();
+    return value > 0 ? (uint64_t) value : 0;
+  }
+  if (obj[key].is<int>()) {
+    int value = obj[key].as<int>();
+    return value > 0 ? (uint64_t) value : 0;
+  }
+  if (obj[key].is<double>()) {
+    double value = obj[key].as<double>();
+    return value > 0 ? (uint64_t) value : 0;
+  }
+  return 0;
+}
+
+inline std::string join_strings(const std::vector<std::string> &items, const char *sep = ", ") {
+  std::string out;
+  for (const auto &item : items) {
+    if (item.empty()) continue;
+    if (!out.empty()) out += sep;
+    out += item;
+  }
+  return out;
+}
+
+inline std::string format_immich_datetime(const std::string &raw) {
+  if (raw.size() < 10) return "";
+
+  int year = 0, month = 0, day = 0, hour = -1, minute = -1;
+  if (raw.size() >= 10 && raw[4] == '-' && raw[7] == '-') {
+    year = atoi(raw.substr(0, 4).c_str());
+    month = atoi(raw.substr(5, 2).c_str());
+    day = atoi(raw.substr(8, 2).c_str());
+  } else if (raw.size() >= 10 && raw[4] == ':' && raw[7] == ':') {
+    year = atoi(raw.substr(0, 4).c_str());
+    month = atoi(raw.substr(5, 2).c_str());
+    day = atoi(raw.substr(8, 2).c_str());
+  }
+
+  size_t time_pos = raw.find('T');
+  if (time_pos == std::string::npos) time_pos = raw.find(' ');
+  if (time_pos != std::string::npos && raw.size() >= time_pos + 6) {
+    hour = atoi(raw.substr(time_pos + 1, 2).c_str());
+    minute = atoi(raw.substr(time_pos + 4, 2).c_str());
+  }
+
+  if (year <= 0 || month < 1 || month > 12 || day <= 0) return "";
+  char buf[40];
+  if (hour >= 0 && minute >= 0) {
+    snprintf(buf, sizeof(buf), "%d %s %04d, %02d:%02d", day, MONTH_NAMES[month], year, hour, minute);
+  } else {
+    snprintf(buf, sizeof(buf), "%d %s %04d", day, MONTH_NAMES[month], year);
+  }
+  return std::string(buf);
+}
+
+inline std::string format_file_size(uint64_t bytes) {
+  if (bytes == 0) return "";
+  if (bytes >= 1024ULL * 1024ULL)
+    return format_decimal_trimmed((double) bytes / (1024.0 * 1024.0), 1) + " MB";
+  if (bytes >= 1024ULL)
+    return format_decimal_trimmed((double) bytes / 1024.0, 1) + " KB";
+  return std::to_string((unsigned long long) bytes) + " bytes";
+}
+
+inline std::string format_mime_type(const std::string &mime) {
+  std::string lower = to_lower_ascii(trim_ascii_whitespace(mime));
+  if (lower == "image/jpeg" || lower == "image/jpg") return "JPEG";
+  if (lower == "image/png") return "PNG";
+  if (lower == "image/webp") return "WebP";
+  if (lower == "image/heic") return "HEIC";
+  if (lower == "image/heif") return "HEIF";
+  if (lower.rfind("image/", 0) == 0) return upper_ascii(lower.substr(6));
+  return mime;
+}
+
+inline std::string format_image_details(const std::string &mime, int width, int height, uint64_t bytes) {
+  std::vector<std::string> parts;
+  std::string type = format_mime_type(mime);
+  if (!type.empty()) parts.push_back(type);
+  if (width > 0 && height > 0) {
+    std::string dims = std::to_string(width) + " x " + std::to_string(height);
+    double mp = ((double) width * (double) height) / 1000000.0;
+    if (mp >= 0.1) dims += " (" + format_decimal_trimmed(mp, 1) + " MP)";
+    parts.push_back(dims);
+  }
+  std::string size = format_file_size(bytes);
+  if (!size.empty()) parts.push_back(size);
+  return join_strings(parts, " | ");
+}
+
+inline std::string format_camera_name(const std::string &make, const std::string &model) {
+  std::string clean_make = trim_ascii_whitespace(make);
+  std::string clean_model = trim_ascii_whitespace(model);
+  if (clean_make.empty()) return clean_model;
+  if (clean_model.empty()) return clean_make;
+  std::string lower_make = to_lower_ascii(clean_make);
+  std::string lower_model = to_lower_ascii(clean_model);
+  if (lower_model.rfind(lower_make, 0) == 0) return clean_model;
+  return clean_make + " " + clean_model;
+}
+
+inline std::string format_aperture(std::string value) {
+  value = trim_ascii_whitespace(value);
+  if (value.empty()) return "";
+  std::string lower = to_lower_ascii(value);
+  if (lower.rfind("f/", 0) == 0) return value;
+  return "f/" + value;
+}
+
+inline std::string format_exposure(std::string value) {
+  value = trim_ascii_whitespace(value);
+  if (value.empty()) return "";
+  if (value.find('s') != std::string::npos || value.find('S') != std::string::npos) return value;
+  return value + "s";
+}
+
+inline std::string format_focal_length(std::string value) {
+  value = trim_ascii_whitespace(value);
+  if (value.empty()) return "";
+  std::string lower = to_lower_ascii(value);
+  if (lower.find("mm") != std::string::npos) return value;
+  return value + "mm";
+}
+
 inline std::string parse_immich_asset_object(JsonObject asset,
                                              const std::string &base_url,
                                              ImmichAssetMeta *out_meta) {
@@ -124,14 +290,19 @@ inline std::string parse_immich_asset_object(JsonObject asset,
 
   std::string asset_id = asset["id"].as<std::string>();
   std::string photo_date, photo_location, photo_person;
+  std::string photo_people, photo_date_taken, photo_image_format, photo_camera;
+  std::string photo_camera_settings, photo_lens;
   int photo_year = 0, photo_month = 0;
   bool is_portrait = false;
   bool orientation_known = false;
+  int display_w = 0, display_h = 0;
+  uint64_t file_size = 0;
 
   std::string local_datetime;
   if (asset["localDateTime"].is<const char *>()) {
     std::string raw = asset["localDateTime"].as<std::string>();
     local_datetime = raw;
+    photo_date_taken = format_immich_datetime(raw);
     if (raw.size() >= 10) {
       photo_year = atoi(raw.substr(0, 4).c_str());
       photo_month = atoi(raw.substr(5, 2).c_str());
@@ -153,6 +324,7 @@ inline std::string parse_immich_asset_object(JsonObject asset,
 
     if (photo_date.empty() && exif["dateTimeOriginal"].is<const char *>()) {
       std::string raw = exif["dateTimeOriginal"].as<std::string>();
+      if (photo_date_taken.empty()) photo_date_taken = format_immich_datetime(raw);
       if (raw.size() >= 10) {
         photo_year = atoi(raw.substr(0, 4).c_str());
         photo_month = atoi(raw.substr(5, 2).c_str());
@@ -172,17 +344,46 @@ inline std::string parse_immich_asset_object(JsonObject asset,
     if (exif_w > 0 && exif_h > 0) {
       is_portrait = (exif_h > exif_w);
       orientation_known = true;
+      display_w = exif_w;
+      display_h = exif_h;
     }
+
+    file_size = json_uint64_value(exif, "fileSizeInByte");
+    photo_camera = format_camera_name(json_string_value(exif, "make"), json_string_value(exif, "model"));
+    photo_lens = json_string_value(exif, "lensModel");
+
+    std::vector<std::string> settings;
+    std::string focal = format_focal_length(json_number_or_string(exif, "focalLength", 1));
+    if (!focal.empty()) settings.push_back(focal);
+    std::string aperture = format_aperture(json_number_or_string(exif, "fNumber", 1));
+    if (!aperture.empty()) settings.push_back(aperture);
+    std::string exposure = format_exposure(json_number_or_string(exif, "exposureTime", 4));
+    if (!exposure.empty()) settings.push_back(exposure);
+    int iso = json_int_value(exif, "iso");
+    if (iso > 0) settings.push_back("ISO " + std::to_string(iso));
+    photo_camera_settings = join_strings(settings, " | ");
   }
 
   if (asset["people"].is<JsonArray>()) {
     JsonArray people = asset["people"].as<JsonArray>();
+    std::vector<std::string> names;
     if (people.size() > 0) {
       JsonObject person = people[0].as<JsonObject>();
       if (person["name"].is<const char *>())
         photo_person = person["name"].as<std::string>();
     }
+    for (size_t i = 0; i < people.size(); i++) {
+      JsonObject person = people[i].as<JsonObject>();
+      if (!person.isNull() && person["name"].is<const char *>()) {
+        std::string name = trim_ascii_whitespace(person["name"].as<std::string>());
+        if (!name.empty()) names.push_back(name);
+      }
+    }
+    photo_people = join_strings(names);
   }
+
+  std::string mime = json_string_value(asset, "originalMimeType");
+  photo_image_format = format_image_details(mime, display_w, display_h, file_size);
 
   std::string img_url = base_url + "/api/assets/" + asset_id + "/thumbnail?size=preview";
   out_meta->asset_id = asset_id;
@@ -192,6 +393,12 @@ inline std::string parse_immich_asset_object(JsonObject asset,
   out_meta->year = photo_year;
   out_meta->month = photo_month;
   out_meta->person = photo_person;
+  out_meta->people = photo_people;
+  out_meta->date_taken = photo_date_taken;
+  out_meta->image_format = photo_image_format;
+  out_meta->camera = photo_camera;
+  out_meta->camera_settings = photo_camera_settings;
+  out_meta->lens = photo_lens;
   out_meta->datetime = local_datetime;
   out_meta->is_portrait = is_portrait;
   out_meta->orientation_known = orientation_known;

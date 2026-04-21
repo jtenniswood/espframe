@@ -34,6 +34,8 @@ script:
           int ts = id(companion_target_slot);
           auto &meta = get_slot(ts, id(slot0), id(slot1), id(slot2));
           meta.companion_url = "";
+          meta.companion = PhotoMeta{};
+          meta.companion_valid = false;
           if (id(companion_target_slot) == id(active_slot)) {
             id(portrait).no_companion_active = true;
             id(portrait).workflow_busy = false;
@@ -53,6 +55,15 @@ script:
           condition:
             lambda: 'return id(immich_url).state.empty() || id(immich_api_key_text).state.empty();'
           then:
+            - script.stop: immich_fetch_memory_into_slot
+      - if:
+          condition:
+            lambda: 'return id(photo_details_open);'
+          then:
+            - logger.log:
+                level: DEBUG
+                tag: immich
+                format: "Memory fetch paused (photo details open)"
             - script.stop: immich_fetch_memory_into_slot
       - http_request.get:
           id: http_req
@@ -74,6 +85,11 @@ script:
                     id(immich_memory_fallback) = true;
                     clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
                     id(immich_fetch_into_slot).execute();
+                    return;
+                  }
+                  if (id(photo_details_open)) {
+                    ESP_LOGD("immich", "Memory response ignored while photo details are open");
+                    clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
                     return;
                   }
 
@@ -130,6 +146,15 @@ script:
   - id: immich_fetch_memory_asset
     mode: single
     then:
+      - if:
+          condition:
+            lambda: 'return id(photo_details_open);'
+          then:
+            - logger.log:
+                level: DEBUG
+                tag: immich
+                format: "Memory asset fetch paused (photo details open)"
+            - script.stop: immich_fetch_memory_asset
       - http_request.get:
           id: http_req
           url: !lambda 'return id(immich_url).state + "/api/assets/" + id(immich_memory_asset_id);'
@@ -146,6 +171,11 @@ script:
                     id(immich_memory_fallback) = true;
                     clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
                     id(immich_fetch_into_slot).execute();
+                    return;
+                  }
+                  if (id(photo_details_open) && id(target_slot) != id(active_slot)) {
+                    ESP_LOGD("immich", "Memory asset response ignored while photo details are open");
+                    clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
                     return;
                   }
                   id(immich_fetch_started) = true;
@@ -212,6 +242,15 @@ script:
                 level: INFO
                 tag: immich
                 format: "Fetch paused (backlight off)"
+            - script.stop: immich_fetch_into_slot
+      - if:
+          condition:
+            lambda: 'return id(photo_details_open);'
+          then:
+            - logger.log:
+                level: DEBUG
+                tag: immich
+                format: "Fetch paused (photo details open)"
             - script.stop: immich_fetch_into_slot
       - if:
           condition:
@@ -338,6 +377,11 @@ script:
                   }
                   id(immich_fetch_started) = true;
                   id(immich_last_http_status) = 0;
+                  if (id(photo_details_open) && id(target_slot) != id(active_slot)) {
+                    ESP_LOGD("immich", "Random response ignored while photo details are open");
+                    clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
+                    return;
+                  }
                   std::string orientation = id(photo_orientation_filter).current_option();
                   std::string img_url = parse_immich_asset_and_fill_slot(
                     body, id(immich_url).state, id(target_slot), id(slot0), id(slot1), id(slot2),
@@ -422,6 +466,15 @@ script:
             lambda: 'return id(immich_url).state.empty() || id(immich_api_key_text).state.empty();'
           then:
             - script.stop: immich_fetch_portrait_companion
+      - if:
+          condition:
+            lambda: 'return id(photo_details_open);'
+          then:
+            - logger.log:
+                level: DEBUG
+                tag: immich
+                format: "Companion search paused (photo details open)"
+            - script.stop: immich_fetch_portrait_companion
       - lambda: |-
           id(portrait).companion_found = false;
           id(portrait_companion_url) = "";
@@ -504,10 +557,15 @@ script:
             if (!df.empty() && df > day) after = df + "T00:00:00.000Z";
             if (!dt.empty() && dt < day) before = dt + "T23:59:59.999Z";
             std::string extra = "\"takenAfter\":\"" + after + "\",\"takenBefore\":\"" + before + "\"";
-            return build_immich_search_body(5, false, id(photo_source_select).current_option(), id(immich_album_ids).state, id(immich_person_ids).state, extra);
+            return build_immich_search_body(5, true, id(photo_source_select).current_option(), id(immich_album_ids).state, id(immich_person_ids).state, extra);
           on_response:
             then:
               - lambda: |-
+                  if (id(photo_details_open)) {
+                    ESP_LOGD("immich", "Companion response ignored while photo details are open");
+                    id(portrait).workflow_busy = false;
+                    return;
+                  }
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Companion search HTTP %d", response->status_code);
                     id(immich_diag_reason) = "companion search http";
@@ -525,26 +583,20 @@ script:
                   std::string primary_id = id(portrait_primary_asset_id);
                   std::string base = id(immich_url).state;
                   std::string companion_url;
+                  ImmichAssetMeta companion_meta;
 
                   for (size_t i = 0; i < arr.size(); i++) {
                     JsonObject asset = arr[i].as<JsonObject>();
-                    if (asset.isNull() || !asset["id"].is<const char *>()) continue;
-                    std::string aid = asset["id"].as<std::string>();
-                    if (aid == primary_id) continue;
+                    ImmichAssetMeta candidate;
+                    std::string candidate_url = parse_immich_asset_object(asset, base, &candidate);
+                    if (candidate_url.empty()) continue;
+                    if (candidate.asset_id == primary_id) continue;
+                    if (!candidate.is_portrait) continue;
 
-                    JsonObject exif = asset["exifInfo"].as<JsonObject>();
-                    if (exif.isNull()) continue;
-                    int ew = 0, eh = 0;
-                    if (exif["exifImageWidth"].is<int>()) ew = exif["exifImageWidth"].as<int>();
-                    if (exif["exifImageHeight"].is<int>()) eh = exif["exifImageHeight"].as<int>();
-                    std::string ori;
-                    if (exif["orientation"].is<const char *>()) ori = exif["orientation"].as<std::string>();
-                    if (ori == "5" || ori == "6" || ori == "7" || ori == "8") std::swap(ew, eh);
-                    if (ew <= 0 || eh <= 0 || eh <= ew) continue;
-
-                    companion_url = base + "/api/assets/" + aid + "/thumbnail?size=preview";
+                    companion_url = candidate_url;
+                    companion_meta = candidate;
                     ESP_LOGI("immich", "COMPANION found: %s for slot %d",
-                             aid.c_str(), id(companion_target_slot));
+                             candidate.asset_id.c_str(), id(companion_target_slot));
                     break;
                   }
 
@@ -559,6 +611,8 @@ script:
                   int ts = id(companion_target_slot);
                   auto &meta = get_slot(ts, id(slot0), id(slot1), id(slot2));
                   meta.companion_url = companion_url;
+                  copy_immich_asset_to_photo(companion_meta, meta.companion);
+                  meta.companion_valid = true;
               - if:
                   condition:
                     lambda: 'return id(portrait).companion_found && id(companion_target_slot) == id(active_slot) && !id(portrait).left_requested && !id(portrait).left_ready;'

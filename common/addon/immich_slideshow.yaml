@@ -45,6 +45,14 @@ globals:
   - id: last_short_tap_ms
     type: uint32_t
     initial_value: '0'
+  - id: photo_details_open
+    type: bool
+    initial_value: 'false'
+  - id: photo_details_use_companion
+    type: bool
+    initial_value: 'false'
+  - id: photo_details_meta
+    type: PhotoMeta
   - id: last_downloaded_slot
     type: int
     initial_value: '-1'
@@ -420,6 +428,125 @@ script:
             id(companion_target_slot), id(immich_api_retries), id(immich_download_retries),
             id(immich_retry_cooldown_until_ms));
 
+  - id: open_photo_details
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: |-
+              if (!id(active_slot_displayed)) return true;
+              int s = id(active_slot);
+              auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
+              return meta.asset_id.empty();
+          then:
+            - script.stop: open_photo_details
+      - script.stop: delayed_prefetch_chain
+      - script.stop: deferred_fetch_into_slot
+      - script.stop: deferred_companion_search
+      - script.stop: immich_fetch_retry
+      - lambda: |-
+          id(photo_details_open) = true;
+          int active = id(active_slot);
+
+          auto clear_background_slot = [&](int s) {
+            if (s == active) return;
+            if (id(slot_flags).fetch_in_flight[s]) {
+              if (s == 0) id(immich_img_0).abort_download();
+              else if (s == 1) id(immich_img_1).abort_download();
+              else id(immich_img_2).abort_download();
+            }
+            clear_noncritical(s, id(slot_flags), id(noncritical_remote_updates_in_flight));
+            clear_slot_fetch_in_flight(s, id(slot_flags));
+          };
+          clear_background_slot(0);
+          clear_background_slot(1);
+          clear_background_slot(2);
+
+          if (id(portrait_preload_slot) != -1 && id(portrait_preload_slot) != active) {
+            id(immich_portrait_preload_left).abort_download();
+            id(immich_portrait_preload_right).abort_download();
+            id(portrait_preload_slot) = -1;
+            id(portrait_preload_left_ready) = false;
+            id(portrait_preload_right_ready) = false;
+            if (id(preload_noncritical_in_flight)) {
+              id(preload_noncritical_in_flight) = false;
+              if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
+            }
+          }
+
+          auto &slot = get_slot(active, id(slot0), id(slot1), id(slot2));
+          bool show_companion = id(photo_details_use_companion) && id(portrait).is_pair && slot.companion_valid;
+          if (show_companion) {
+            id(photo_details_meta) = slot.companion;
+          } else {
+            id(photo_details_meta) = static_cast<PhotoMeta&>(slot);
+            id(photo_details_use_companion) = false;
+          }
+
+          esphome::image::Image *img = nullptr;
+          if (show_companion) {
+            img = id(portrait).using_preload ? id(immich_portrait_preload_right) : id(immich_portrait_right);
+          } else if (id(portrait).is_pair) {
+            img = id(portrait).using_preload ? id(immich_portrait_preload_left) : id(immich_portrait_left);
+          } else {
+            esphome::image::Image *imgs[] = { id(immich_img_0), id(immich_img_1), id(immich_img_2) };
+            img = imgs[active];
+          }
+          if (img != nullptr) {
+            lv_img_set_src(id(photo_details_img), get_lv_image_descriptor_(img, 0));
+            lv_img_set_zoom(id(photo_details_img),
+                            fit_image_zoom_to_bounds(img, ${details_image_max_width}, ${details_image_max_height}, 205));
+          }
+
+          auto set_row = [](lv_obj_t *label, const char *prefix, const std::string &value) -> bool {
+            if (value.empty()) {
+              lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+              return false;
+            }
+            std::string text = std::string(prefix) + value;
+            lv_label_set_text(label, text.c_str());
+            lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
+            return true;
+          };
+
+          PhotoMeta &m = id(photo_details_meta);
+          std::string title = m.date.empty() ? "Photo Details" : m.date;
+          lv_label_set_text(id(photo_details_title_label), title.c_str());
+
+          int rows = 0;
+          std::string people = m.people.empty() ? m.person : m.people;
+          if (set_row(id(photo_details_people_label), "People: ", people)) rows++;
+          if (set_row(id(photo_details_date_label), "Taken: ", m.date_taken)) rows++;
+          if (set_row(id(photo_details_location_label), "Location: ", m.location)) rows++;
+          if (set_row(id(photo_details_format_label), "Image: ", m.image_format)) rows++;
+          if (set_row(id(photo_details_camera_label), "Camera: ", m.camera)) rows++;
+          if (set_row(id(photo_details_settings_label), "Settings: ", m.camera_settings)) rows++;
+          if (set_row(id(photo_details_lens_label), "Lens: ", m.lens)) rows++;
+
+          if (rows == 0) {
+            lv_obj_clear_flag(id(photo_details_empty_label), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(photo_details_empty_label), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          lv_obj_clear_flag(id(photo_details_overlay), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_move_foreground(id(photo_details_overlay));
+          ESP_LOGI("immich", "DETAILS open: %s", m.asset_id.c_str());
+
+  - id: close_photo_details
+    mode: single
+    then:
+      - lambda: |-
+          if (!id(photo_details_open)) return;
+          id(photo_details_open) = false;
+          id(photo_details_use_companion) = false;
+          lv_obj_add_flag(id(photo_details_overlay), LV_OBJ_FLAG_HIDDEN);
+          id(immich_last_advance_ms) = millis();
+          id(last_photo_displayed_ms) = millis();
+          ESP_LOGI("immich", "DETAILS closed");
+      - script.execute: update_clock_display
+      - script.execute: delayed_prefetch_chain
+
   # Shared handler for any slot's on_error (retry up to MAX_ERROR_RETRIES)
   - id: handle_slot_download_error
     mode: restart
@@ -433,6 +560,8 @@ script:
           meta.asset_id = "";
           meta.pending_asset_id = "";
           meta.image_url = "";
+          meta.companion = PhotoMeta{};
+          meta.companion_valid = false;
       - if:
           condition:
             lambda: 'return id(immich_download_retries) < MAX_ERROR_RETRIES;'
@@ -571,6 +700,11 @@ script:
     then:
       - if:
           condition:
+            lambda: 'return id(photo_details_open);'
+          then:
+            - script.stop: immich_advance_forward
+      - if:
+          condition:
             lambda: 'return !id(active_slot_displayed);'
           then:
             - lambda: |-
@@ -695,6 +829,11 @@ script:
     then:
       - if:
           condition:
+            lambda: 'return id(photo_details_open);'
+          then:
+            - script.stop: immich_show_previous
+      - if:
+          condition:
             lambda: 'return !id(prev_display).valid;'
           then:
             - logger.log:
@@ -762,6 +901,10 @@ script:
     mode: single
     then:
       - lambda: |-
+          if (id(photo_details_open)) {
+            ESP_LOGD("immich", "Prefetch paused (photo details open)");
+            return;
+          }
           if (id(backlight_paused)) {
             ESP_LOGD("immich", "Prefetch paused (backlight off)");
             return;
@@ -845,6 +988,11 @@ script:
     then:
       - delay: 150ms
       - lambda: |-
+          if (id(photo_details_open) && id(active_slot) != 0) {
+            clear_noncritical(0, id(slot_flags), id(noncritical_remote_updates_in_flight));
+            clear_slot_fetch_in_flight(0, id(slot_flags));
+            return;
+          }
           if (!prepare_deferred_slot_update(0, id(active_slot), id(slot_flags), id(portrait).workflow_busy, id(noncritical_remote_updates_in_flight))) {
             id(delayed_prefetch_chain).execute(); return;
           }
@@ -856,6 +1004,11 @@ script:
     then:
       - delay: 150ms
       - lambda: |-
+          if (id(photo_details_open) && id(active_slot) != 1) {
+            clear_noncritical(1, id(slot_flags), id(noncritical_remote_updates_in_flight));
+            clear_slot_fetch_in_flight(1, id(slot_flags));
+            return;
+          }
           if (!prepare_deferred_slot_update(1, id(active_slot), id(slot_flags), id(portrait).workflow_busy, id(noncritical_remote_updates_in_flight))) {
             id(delayed_prefetch_chain).execute(); return;
           }
@@ -867,6 +1020,11 @@ script:
     then:
       - delay: 150ms
       - lambda: |-
+          if (id(photo_details_open) && id(active_slot) != 2) {
+            clear_noncritical(2, id(slot_flags), id(noncritical_remote_updates_in_flight));
+            clear_slot_fetch_in_flight(2, id(slot_flags));
+            return;
+          }
           if (!prepare_deferred_slot_update(2, id(active_slot), id(slot_flags), id(portrait).workflow_busy, id(noncritical_remote_updates_in_flight))) {
             id(delayed_prefetch_chain).execute(); return;
           }
@@ -898,6 +1056,13 @@ script:
     then:
       - delay: 150ms
       - lambda: |-
+          if (id(photo_details_open)) {
+            if (id(preload_noncritical_in_flight)) {
+              id(preload_noncritical_in_flight) = false;
+              if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
+            }
+            return;
+          }
           if (id(portrait).workflow_busy) {
             id(delayed_prefetch_chain).execute();
             return;
@@ -913,6 +1078,13 @@ script:
     then:
       - delay: 150ms
       - lambda: |-
+          if (id(photo_details_open)) {
+            if (id(preload_noncritical_in_flight)) {
+              id(preload_noncritical_in_flight) = false;
+              if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
+            }
+            return;
+          }
           if (id(portrait).workflow_busy) {
             if (id(preload_noncritical_in_flight)) {
               id(preload_noncritical_in_flight) = false;

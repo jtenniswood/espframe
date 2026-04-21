@@ -45,6 +45,10 @@ Base metadata for a single photo.
 | `date` | `std::string` | Human-readable date (e.g. `"Jan 2024"`). |
 | `location` | `std::string` | Location string (e.g. city, country from EXIF). |
 | `person` | `std::string` | First person name from Immich people. |
+| `people` | `std::string` | Comma-separated Immich people names for details views. |
+| `date_taken` | `std::string` | Formatted local date/time for details views. |
+| `image_format` | `std::string` | Formatted image type, dimensions, megapixels, and file size when available. |
+| `camera`, `camera_settings`, `lens` | `std::string` | Formatted EXIF camera details when available. |
 | `year`, `month` | `int` | Photo date (month 1–12). |
 | `zoom` | `uint16_t` | Display zoom (e.g. `ZOOM_IDENTITY` = no zoom). |
 
@@ -56,9 +60,11 @@ Extends `PhotoMeta` for a preload slot (one of three buffers).
 |-------------------|------|--------|
 | `datetime` | `std::string` | Raw local date/time from asset (e.g. for “on this day”). |
 | `companion_url` | `std::string` | URL for portrait companion image when pairing. |
+| `companion` | `PhotoMeta` | Metadata for the paired companion portrait. |
 | `pending_asset_id` | `std::string` | Asset ID currently being loaded. |
 | `ready` | `bool` | Whether the slot has a loaded image ready to show. |
 | `is_portrait` | `bool` | Whether the image is portrait orientation. |
+| `companion_valid` | `bool` | Whether `companion` contains valid metadata. |
 
 ### `DisplayMeta` (espframe_helpers.h)
 

@@ -16,6 +16,7 @@ Built with [ESPHome](https://esphome.io/) on the ESP32-P4, the frame connects di
 - **Night tone** — automatically adjust screen tone between sunset and sunrise
 - **Screen scheduling** — schedule when to turn off the display; set daytime and night-time brightness separately
 - **Smart portrait pairing** — detects portrait photos and pairs them side-by-side from the same day
+- **Photo details** — tap the displayed photo to inspect Immich metadata such as people, date, location, camera, and image details
 - **Accent colour fill** — letterboxed areas are tinted with a colour sampled from the photo
 - **Configuration options** — change Immich URL, API key, photo source, date filters, slideshow interval, and more via the built-in web UI
 
