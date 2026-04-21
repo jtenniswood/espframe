@@ -91,6 +91,9 @@ web_server:
     - id: sg_photos
       name: "Photos"
       sorting_weight: 20
+    - id: sg_device
+      name: "Device"
+      sorting_weight: 25
     - id: sg_screen
       name: "Screen"
       sorting_weight: 30

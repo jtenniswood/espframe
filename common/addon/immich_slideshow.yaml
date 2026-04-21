@@ -118,14 +118,14 @@ switch:
       sorting_group_id: sg_photos
 
   - platform: template
-    name: "Photos: Show Metadata"
+    name: "Device: Show Metadata"
     id: photo_metadata_enabled
     internal: true
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
     icon: "mdi:text-box-outline"
     web_server:
-      sorting_group_id: sg_photos
+      sorting_group_id: sg_device
     on_turn_on:
       then:
         - script.execute: update_photo_metadata_display
@@ -134,14 +134,14 @@ switch:
         - script.execute: update_photo_metadata_display
 
   - platform: template
-    name: "Photos: Metadata Time"
+    name: "Device: Metadata Time"
     id: photo_metadata_time_enabled
     internal: true
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
     icon: "mdi:calendar-clock"
     web_server:
-      sorting_group_id: sg_photos
+      sorting_group_id: sg_device
     on_turn_on:
       then:
         - script.execute: update_photo_metadata_display
@@ -150,14 +150,14 @@ switch:
         - script.execute: update_photo_metadata_display
 
   - platform: template
-    name: "Photos: Metadata Location"
+    name: "Device: Metadata Location"
     id: photo_metadata_location_enabled
     internal: true
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
     icon: "mdi:map-marker-outline"
     web_server:
-      sorting_group_id: sg_photos
+      sorting_group_id: sg_device
     on_turn_on:
       then:
         - script.execute: update_photo_metadata_display
