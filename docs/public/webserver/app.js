@@ -1827,7 +1827,7 @@
     schedDetails.appendChild(fOffTime);
 
     schedBody.appendChild(schedDetails);
-    wrap.appendChild(makeCollapsibleCard("Screen schedule", schedBody, true, schedBadge));
+    wrap.appendChild(makeCollapsibleCard("Night Schedule", schedBody, true, schedBadge));
 
     // Rotation
     var rotationBody = el("div");

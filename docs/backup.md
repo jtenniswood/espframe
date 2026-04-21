@@ -22,7 +22,7 @@ The export captures all user-facing settings from the current session:
 | **Frequency** | Slideshow interval, connection timeout |
 | **Clock** | Show clock, format, timezone |
 | **Screen Brightness** | Daytime brightness, nighttime brightness |
-| **Screen Schedule** | Enable, on time, off time |
+| **Night Schedule** | Enable, on time, off time |
 | **Rotation** | Rotation |
 | **Screen Tone** | Tone adjustment, display tone, night tone adjustment, warm tone intensity, warm tone override |
 
