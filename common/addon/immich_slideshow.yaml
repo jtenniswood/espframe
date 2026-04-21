@@ -568,8 +568,9 @@ script:
   - id: close_photo_details
     mode: single
     then:
+      - script.stop: open_photo_details
       - lambda: |-
-          if (!id(photo_details_open)) return;
+          bool was_open = id(photo_details_open);
           id(photo_details_open) = false;
           id(photo_details_close_guard) = true;
           id(photo_details_use_companion) = false;
@@ -599,7 +600,10 @@ script:
           id(active_slot_displayed) = true;
           id(immich_last_advance_ms) = millis();
           id(last_photo_displayed_ms) = millis();
-          ESP_LOGI("immich", "DETAILS closed");
+          if (id(show_clock).state) {
+            lv_obj_clear_flag(id(clock_container), LV_OBJ_FLAG_HIDDEN);
+          }
+          ESP_LOGI("immich", "DETAILS closed%s", was_open ? "" : " (state recovered)");
       - lvgl.page.show: slideshow_page
       - script.execute: update_clock_display
       - script.execute: delayed_prefetch_chain

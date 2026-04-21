@@ -190,7 +190,18 @@ touchscreen:
               screen_y = ${display_height} - touch.x - 1;
             }
 
-            if (screen_x >= (${display_width} - 180) && screen_y <= 180) {
+            const int32_t hit = 240;
+            auto in_close_zone = [&](int32_t x, int32_t y) -> bool {
+              return x >= (${display_width} - hit) && y <= hit;
+            };
+            bool close_hit =
+              in_close_zone(screen_x, screen_y) ||
+              in_close_zone(touch.x, touch.y) ||
+              in_close_zone(touch.y, touch.x) ||
+              in_close_zone(${display_width} - touch.x - 1, ${display_height} - touch.y - 1) ||
+              in_close_zone(${display_width} - touch.y - 1, ${display_height} - touch.x - 1);
+
+            if (close_hit) {
               ESP_LOGI("immich", "DETAILS close touch: raw=%d,%d screen=%d,%d", touch.x, touch.y, screen_x, screen_y);
               id(close_photo_details).execute();
             }
