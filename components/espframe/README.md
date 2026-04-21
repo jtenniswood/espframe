@@ -12,6 +12,7 @@ ESPHome component that provides shared C++ helpers for the Espframe-for-Immich d
 | File | Purpose |
 |------|--------|
 | `espframe_helpers.h` | Main entry: data types (`PhotoMeta`, `SlotMeta`, `DisplayMeta`), copy helpers, and `parse_immich_asset_and_fill_slot`. Include this from YAML lambdas when you need slot/display types or Immich parsing. |
+| `slideshow_controller.h` | Typed slideshow slot decisions and a small priority queue used by the Immich prefetch path. Included by `espframe_helpers.h`. |
 | `date_utils.h` | Month names, URL normalization, and human‑readable date/time-ago formatting. |
 | `immich_helpers.h` | Immich API: search body builder, UUID array builder, and JSON asset parser filling `ImmichAssetMeta`. |
 | `sun_calc.h` | Timezone coordinate lookup and NOAA-based sunrise/sunset calculation. |
@@ -68,6 +69,12 @@ Extends `PhotoMeta` for the currently displayed photo.
 |------------------|------|--------|
 | `valid` | `bool` | Whether the display is showing a valid photo. |
 
+### `FetchQueue` and `SlideshowController` (slideshow_controller.h)
+
+`FetchQueue` is a fixed-size, no-allocation queue for choosing the next image fetch by priority. `SlideshowController` centralizes the repeated “slot download finished”, “slot download failed”, and “which slot should be prefetched next” decisions that used to live in separate YAML lambdas for each slot.
+
+This keeps the YAML responsible for ESPHome actions (show the image, start a script, update a remote image) while moving state decisions into C++ where they are easier to review and test.
+
 ### `ImmichAssetMeta` (immich_helpers.h)
 
 Filled by `parse_immich_asset` from Immich JSON. Same logical fields as `PhotoMeta` plus `datetime` and `is_portrait` (see `immich_helpers.h`).
@@ -106,6 +113,14 @@ Copies the `PhotoMeta` part of `disp` into `slot`. Display-only field `valid` is
 ```cpp
 copy_display_to_slot(id(current_display), id(slot0));
 ```
+
+#### `SlideshowController::handle_slot_download_finished(...)`
+
+Returns a `SlideshowAction` after one remote image slot finishes downloading. The helper validates stale downloads, marks the slot ready, updates current-display metadata for the active slot, and decides whether ESPHome should display the slot, start portrait pairing, fetch a portrait companion, or continue prefetching.
+
+#### `SlideshowController::enqueue_prefetch_slots(...)`
+
+Adds the next eligible ring-buffer slots to `FetchQueue`, with the immediate next slot ranked above the next-next slot. The ESPHome script pops one job and starts the actual HTTP/image work.
 
 #### `parse_immich_asset_and_fill_slot(body, base_url, slot, s0, s1, s2, orientation_filter)`
 **Signature:**

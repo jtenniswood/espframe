@@ -189,6 +189,8 @@ inline void copy_display_to_slot(const DisplayMeta &disp, SlotMeta &slot) {
   static_cast<PhotoMeta&>(slot) = static_cast<const PhotoMeta&>(disp);
 }
 
+#include "slideshow_controller.h"
+
 // ============================================================================
 // Immich asset parser — parse JSON and fill one of the three slot metas
 // ============================================================================

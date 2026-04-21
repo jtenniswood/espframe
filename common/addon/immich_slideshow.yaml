@@ -65,6 +65,8 @@ globals:
     initial_value: '0'
   - id: slot_flags
     type: SlotFlags
+  - id: fetch_queue
+    type: FetchQueue
   - id: preload_noncritical_in_flight
     type: bool
     initial_value: 'false'
@@ -180,34 +182,28 @@ remote_image:
         - lambda: |-
             const int slot = 0;
             auto &meta = id(slot0);
-            if (!handle_slot_download_complete(slot, meta, id(slot_flags), id(noncritical_remote_updates_in_flight), id(immich_download_retries))) return;
-            bool is_active = (id(active_slot) == slot);
-            bool pair = meta.is_portrait && id(portrait_pairing_enabled).state;
-            if (is_active) {
-              copy_slot_to_display(meta, id(current_display));
-              if (!pair) id(active_slot_displayed) = true;
-            }
-            if (is_active && !pair) {
+            SlideshowAction action = SlideshowController::handle_slot_download_finished(
+              slot, meta, id(slot_flags), id(noncritical_remote_updates_in_flight),
+              id(immich_download_retries), id(active_slot), id(portrait_pairing_enabled).state,
+              id(active_slot_displayed), id(current_display), id(portrait),
+              id(companion_target_slot), id(portrait_preload_slot),
+              id(portrait_search_datetime), id(portrait_primary_asset_id));
+            if (action == SLIDESHOW_ACTION_DISPLAY_CURRENT) {
               id(immich_display_current).execute();
-            } else if (is_active && pair) {
-              if (!(id(active_slot_displayed) && id(portrait).is_pair)) id(immich_start_portrait_active).execute();
-            } else if (!is_active && pair) {
-              if (id(companion_target_slot) == slot || id(portrait_preload_slot) == slot) return;
-              id(companion_target_slot) = slot;
-              id(portrait_search_datetime) = meta.datetime;
-              id(portrait_primary_asset_id) = meta.asset_id;
+            } else if (action == SLIDESHOW_ACTION_START_ACTIVE_PAIR) {
+              id(immich_start_portrait_active).execute();
+            } else if (action == SLIDESHOW_ACTION_FETCH_COMPANION) {
               id(immich_fetch_portrait_companion).execute();
-            } else if (!is_active) {
+            } else if (action == SLIDESHOW_ACTION_PREFETCH) {
               id(delayed_prefetch_chain).execute();
             }
     on_error:
       then:
         - lambda: |-
-            clear_slot_fetch_in_flight(0, id(slot_flags));
-            clear_noncritical(0, id(slot_flags), id(noncritical_remote_updates_in_flight));
-            id(immich_diag_reason) = "slot0 image error";
+            SlideshowController::handle_slot_download_error(
+              0, id(slot_flags), id(noncritical_remote_updates_in_flight),
+              id(immich_diag_reason), id(last_downloaded_slot), "slot0 image error");
             id(log_immich_diag).execute();
-        - lambda: 'id(last_downloaded_slot) = 0;'
         - script.execute: handle_slot_download_error
 
   - id: immich_img_1
@@ -223,34 +219,28 @@ remote_image:
         - lambda: |-
             const int slot = 1;
             auto &meta = id(slot1);
-            if (!handle_slot_download_complete(slot, meta, id(slot_flags), id(noncritical_remote_updates_in_flight), id(immich_download_retries))) return;
-            bool is_active = (id(active_slot) == slot);
-            bool pair = meta.is_portrait && id(portrait_pairing_enabled).state;
-            if (is_active) {
-              copy_slot_to_display(meta, id(current_display));
-              if (!pair) id(active_slot_displayed) = true;
-            }
-            if (is_active && !pair) {
+            SlideshowAction action = SlideshowController::handle_slot_download_finished(
+              slot, meta, id(slot_flags), id(noncritical_remote_updates_in_flight),
+              id(immich_download_retries), id(active_slot), id(portrait_pairing_enabled).state,
+              id(active_slot_displayed), id(current_display), id(portrait),
+              id(companion_target_slot), id(portrait_preload_slot),
+              id(portrait_search_datetime), id(portrait_primary_asset_id));
+            if (action == SLIDESHOW_ACTION_DISPLAY_CURRENT) {
               id(immich_display_current).execute();
-            } else if (is_active && pair) {
-              if (!(id(active_slot_displayed) && id(portrait).is_pair)) id(immich_start_portrait_active).execute();
-            } else if (!is_active && pair) {
-              if (id(companion_target_slot) == slot || id(portrait_preload_slot) == slot) return;
-              id(companion_target_slot) = slot;
-              id(portrait_search_datetime) = meta.datetime;
-              id(portrait_primary_asset_id) = meta.asset_id;
+            } else if (action == SLIDESHOW_ACTION_START_ACTIVE_PAIR) {
+              id(immich_start_portrait_active).execute();
+            } else if (action == SLIDESHOW_ACTION_FETCH_COMPANION) {
               id(immich_fetch_portrait_companion).execute();
-            } else if (!is_active) {
+            } else if (action == SLIDESHOW_ACTION_PREFETCH) {
               id(delayed_prefetch_chain).execute();
             }
     on_error:
       then:
         - lambda: |-
-            clear_slot_fetch_in_flight(1, id(slot_flags));
-            clear_noncritical(1, id(slot_flags), id(noncritical_remote_updates_in_flight));
-            id(immich_diag_reason) = "slot1 image error";
+            SlideshowController::handle_slot_download_error(
+              1, id(slot_flags), id(noncritical_remote_updates_in_flight),
+              id(immich_diag_reason), id(last_downloaded_slot), "slot1 image error");
             id(log_immich_diag).execute();
-        - lambda: 'id(last_downloaded_slot) = 1;'
         - script.execute: handle_slot_download_error
 
   - id: immich_img_2
@@ -266,34 +256,28 @@ remote_image:
         - lambda: |-
             const int slot = 2;
             auto &meta = id(slot2);
-            if (!handle_slot_download_complete(slot, meta, id(slot_flags), id(noncritical_remote_updates_in_flight), id(immich_download_retries))) return;
-            bool is_active = (id(active_slot) == slot);
-            bool pair = meta.is_portrait && id(portrait_pairing_enabled).state;
-            if (is_active) {
-              copy_slot_to_display(meta, id(current_display));
-              if (!pair) id(active_slot_displayed) = true;
-            }
-            if (is_active && !pair) {
+            SlideshowAction action = SlideshowController::handle_slot_download_finished(
+              slot, meta, id(slot_flags), id(noncritical_remote_updates_in_flight),
+              id(immich_download_retries), id(active_slot), id(portrait_pairing_enabled).state,
+              id(active_slot_displayed), id(current_display), id(portrait),
+              id(companion_target_slot), id(portrait_preload_slot),
+              id(portrait_search_datetime), id(portrait_primary_asset_id));
+            if (action == SLIDESHOW_ACTION_DISPLAY_CURRENT) {
               id(immich_display_current).execute();
-            } else if (is_active && pair) {
-              if (!(id(active_slot_displayed) && id(portrait).is_pair)) id(immich_start_portrait_active).execute();
-            } else if (!is_active && pair) {
-              if (id(companion_target_slot) == slot || id(portrait_preload_slot) == slot) return;
-              id(companion_target_slot) = slot;
-              id(portrait_search_datetime) = meta.datetime;
-              id(portrait_primary_asset_id) = meta.asset_id;
+            } else if (action == SLIDESHOW_ACTION_START_ACTIVE_PAIR) {
+              id(immich_start_portrait_active).execute();
+            } else if (action == SLIDESHOW_ACTION_FETCH_COMPANION) {
               id(immich_fetch_portrait_companion).execute();
-            } else if (!is_active) {
+            } else if (action == SLIDESHOW_ACTION_PREFETCH) {
               id(delayed_prefetch_chain).execute();
             }
     on_error:
       then:
         - lambda: |-
-            clear_slot_fetch_in_flight(2, id(slot_flags));
-            clear_noncritical(2, id(slot_flags), id(noncritical_remote_updates_in_flight));
-            id(immich_diag_reason) = "slot2 image error";
+            SlideshowController::handle_slot_download_error(
+              2, id(slot_flags), id(noncritical_remote_updates_in_flight),
+              id(immich_diag_reason), id(last_downloaded_slot), "slot2 image error");
             id(log_immich_diag).execute();
-        - lambda: 'id(last_downloaded_slot) = 2;'
         - script.execute: handle_slot_download_error
 
   # Portrait pair half-width components (640x800 each, side-by-side)
@@ -880,24 +864,18 @@ script:
             ESP_LOGD("immich", "Prefetch throttled");
             return;
           }
-          int next1 = (id(active_slot) + 1) % 3;
-          int next2 = (id(active_slot) + 2) % 3;
-          auto &n1 = get_slot(next1, id(slot0), id(slot1), id(slot2));
-          auto &n2 = get_slot(next2, id(slot0), id(slot1), id(slot2));
-          bool n1_in_flight = id(slot_flags).fetch_in_flight[next1];
-          bool n2_in_flight = id(slot_flags).fetch_in_flight[next2];
-          if (!n1.ready && !n1_in_flight) {
-            id(target_slot) = next1;
+          if (SlideshowController::enqueue_prefetch_slots(
+                id(fetch_queue), id(active_slot), id(slot0), id(slot1), id(slot2),
+                id(slot_flags), millis())) {
+            FetchJob job;
+            if (!id(fetch_queue).pop(job)) return;
+            id(target_slot) = job.slot;
             id(last_prefetch_start_ms) = millis();
-            ESP_LOGD("immich", "Prefetch chain: filling slot %d (next)", next1);
-            id(immich_fetch_into_slot).execute();
-          } else if (!n2.ready && !n2_in_flight) {
-            id(target_slot) = next2;
-            id(last_prefetch_start_ms) = millis();
-            ESP_LOGD("immich", "Prefetch chain: filling slot %d (next-next)", next2);
+            ESP_LOGD("immich", "Prefetch queue: filling slot %d (%s)", job.slot,
+                     job.priority >= 20 ? "next" : "next-next");
             id(immich_fetch_into_slot).execute();
           } else {
-            ESP_LOGD("immich", "Prefetch chain: all slots filled");
+            ESP_LOGD("immich", "Prefetch queue: all slots filled");
           }
 
   # Run prefetch after short delay to avoid socket exhaustion when many callbacks fire at once
