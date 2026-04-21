@@ -464,6 +464,15 @@ script:
               case SLIDESHOW_COMMAND_LOG_NO_PREVIOUS:
                 ESP_LOGI("immich", "No previous image available");
                 break;
+              case SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR:
+                lv_img_set_zoom(id(slideshow_img), ZOOM_IDENTITY);
+                lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
+                lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
+                lv_img_set_src(id(portrait_left_img), get_lv_image_descriptor_(id(immich_portrait_preload_left), 0));
+                lv_img_set_src(id(portrait_right_img), get_lv_image_descriptor_(id(immich_portrait_preload_right), 0));
+                id(extract_accent_color).execute();
+                id(apply_warm_tones).execute();
+                break;
               case SLIDESHOW_COMMAND_NONE:
               default:
                 break;
@@ -526,7 +535,6 @@ script:
       - lambda: |-
           lv_obj_clear_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
           lv_obj_add_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
-          id(portrait).is_pair = false;
 
           int s = id(active_slot);
           esphome::image::Image *imgs[] = { id(immich_img_0), id(immich_img_1), id(immich_img_2) };
@@ -535,47 +543,18 @@ script:
           auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
           lv_img_set_zoom(id(slideshow_img), meta.zoom);
           ESP_LOGI("immich", "SHOW slot %d: %s | %s | %s | portrait=%d", s, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.is_portrait);
-          bool pair = meta.is_portrait && id(portrait_pairing_enabled).state;
-          if (!pair) {
-            id(active_slot_displayed) = true;
-            id(portrait).workflow_busy = false;
-          }
+          id(espframe_core).slideshow().begin_display_current(
+            s, id(slot0), id(slot1), id(slot2), id(portrait),
+            id(portrait_pairing_enabled).state, id(active_slot_displayed));
       - script.execute: extract_accent_color
       - script.execute: apply_warm_tones
-      - if:
-          condition:
-            lambda: |-
-              int s = id(active_slot);
-              auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
-              return meta.is_portrait && id(portrait_pairing_enabled).state && id(portrait_preload_slot) == s
-                     && id(portrait_preload_left_ready) && id(portrait_preload_right_ready);
-          then:
-            - lambda: |-
-                id(portrait).is_pair = true;
-                id(portrait).using_preload = true;
-                id(portrait_preload_slot) = -1;
-                id(active_slot_displayed) = true;
-                id(portrait).workflow_busy = false;
-                lv_img_set_zoom(id(slideshow_img), ZOOM_IDENTITY);
-                lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
-                lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
-                ESP_LOGI("immich", "PAIR (preloaded) displayed for slot %d", id(active_slot));
-            - lvgl.image.update:
-                id: portrait_left_img
-                src: immich_portrait_preload_left
-            - lvgl.image.update:
-                id: portrait_right_img
-                src: immich_portrait_preload_right
-            - script.execute: extract_accent_color
-            - script.execute: apply_warm_tones
-      - if:
-          condition:
-            lambda: |-
-              int s = id(active_slot);
-              auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
-              return meta.is_portrait && id(portrait_pairing_enabled).state && !id(portrait).is_pair && !id(portrait).no_companion_active;
-          then:
-            - script.execute: immich_start_portrait_active
+      - lambda: |-
+          id(espframe_core).slideshow().after_display_current(
+            id(active_slot), id(slot0), id(slot1), id(slot2), id(portrait),
+            id(portrait_pairing_enabled).state, id(active_slot_displayed),
+            id(portrait_preload_slot), id(portrait_preload_left_ready),
+            id(portrait_preload_right_ready));
+          id(espframe_slideshow_dispatch).execute();
       - script.execute: update_clock_display
       - script.execute: update_photo_metadata_display
 

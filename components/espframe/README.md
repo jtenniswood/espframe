@@ -69,11 +69,11 @@ Extends `PhotoMeta` for the currently displayed photo.
 |------------------|------|--------|
 | `valid` | `bool` | Whether the display is showing a valid photo. |
 
-### `FetchQueue` and `SlideshowController` (slideshow_controller.h)
+### `FetchQueue`, `SlideshowController`, and `EspFrameSlideshow`
 
-`FetchQueue` is a fixed-size, no-allocation queue for choosing the next image fetch by priority. `SlideshowController` centralizes the repeated “slot download finished”, “slot download failed”, and “which slot should be prefetched next” decisions that used to live in separate YAML lambdas for each slot.
+`FetchQueue` is a fixed-size, no-allocation queue for choosing the next image fetch by priority. `SlideshowController` keeps the small slot completion primitives, while `EspFrameSlideshow` owns the higher-level slideshow state machine: slot completion, forward/back navigation, prefetch gating, portrait companion handling, preload handling, and deferred image update decisions.
 
-This keeps the YAML responsible for ESPHome actions (show the image, start a script, update a remote image) while moving state decisions into C++ where they are easier to review and test.
+The YAML layer is now mostly an action bridge. It still performs ESPHome-only actions such as `remote_image.update()`, LVGL image updates, and HTTP requests, but those actions are selected by C++ `SlideshowCommand` values instead of scattered YAML branches.
 
 ### `ImmichAssetMeta` (immich_helpers.h)
 
@@ -116,11 +116,15 @@ copy_display_to_slot(id(current_display), id(slot0));
 
 #### `SlideshowController::handle_slot_download_finished(...)`
 
-Returns a `SlideshowAction` after one remote image slot finishes downloading. The helper validates stale downloads, marks the slot ready, updates current-display metadata for the active slot, and decides whether ESPHome should display the slot, start portrait pairing, fetch a portrait companion, or continue prefetching.
+Returns a `SlideshowAction` after one remote image slot finishes downloading. `EspFrameSlideshow::on_slot_download_finished(...)` wraps this and queues the matching `SlideshowCommand` for the YAML dispatcher.
 
 #### `SlideshowController::enqueue_prefetch_slots(...)`
 
-Adds the next eligible ring-buffer slots to `FetchQueue`, with the immediate next slot ranked above the next-next slot. The ESPHome script pops one job and starts the actual HTTP/image work.
+Adds the next eligible ring-buffer slots to `FetchQueue`, with the immediate next slot ranked above the next-next slot. `EspFrameSlideshow::request_prefetch(...)` applies the runtime gates before queuing the fetch command.
+
+#### `EspFrameSlideshow`
+
+Owns the Immich slideshow decisions that used to live in long ESPHome lambdas. It exposes event-style methods such as `advance_forward(...)`, `show_previous(...)`, `start_active_portrait(...)`, `on_companion_found(...)`, and `request_deferred_slot_update(...)`. Those methods mutate the shared state structs and push `SlideshowCommand` items for YAML to execute.
 
 #### `parse_immich_asset_and_fill_slot(body, base_url, slot, s0, s1, s2, orientation_filter)`
 **Signature:**

@@ -154,15 +154,10 @@ script:
                   auto &meta = get_slot(slot, id(slot0), id(slot1), id(slot2));
                   ESP_LOGI("immich", "MEMORY slot %d: %s | %s | %s | %s | portrait=%d",
                            slot, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.location.c_str(), meta.is_portrait);
-                  if (id(portrait_preload_slot) == slot) {
-                    id(portrait_preload_slot) = -1;
-                    id(portrait_preload_left_ready) = false;
-                    id(portrait_preload_right_ready) = false;
-                    if (id(preload_noncritical_in_flight)) {
-                      id(preload_noncritical_in_flight) = false;
-                      if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
-                    }
-                  }
+                  id(espframe_core).slideshow().clear_preload_for_slot(
+                    slot, id(portrait_preload_slot), id(portrait_preload_left_ready),
+                    id(portrait_preload_right_ready), id(preload_noncritical_in_flight),
+                    id(noncritical_remote_updates_in_flight));
                   if (slot == 0) { id(immich_img_0).set_url(img_url); }
                   else if (slot == 1) { id(immich_img_1).set_url(img_url); }
                   else { id(immich_img_2).set_url(img_url); }
@@ -313,15 +308,10 @@ script:
                   auto &meta = get_slot(slot, id(slot0), id(slot1), id(slot2));
                   ESP_LOGI("immich", "RANDOM slot %d: %s | %s | %s | %s | portrait=%d",
                            slot, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.location.c_str(), meta.is_portrait);
-                  if (id(portrait_preload_slot) == slot) {
-                    id(portrait_preload_slot) = -1;
-                    id(portrait_preload_left_ready) = false;
-                    id(portrait_preload_right_ready) = false;
-                    if (id(preload_noncritical_in_flight)) {
-                      id(preload_noncritical_in_flight) = false;
-                      if (id(noncritical_remote_updates_in_flight) > 0) id(noncritical_remote_updates_in_flight)--;
-                    }
-                  }
+                  id(espframe_core).slideshow().clear_preload_for_slot(
+                    slot, id(portrait_preload_slot), id(portrait_preload_left_ready),
+                    id(portrait_preload_right_ready), id(preload_noncritical_in_flight),
+                    id(noncritical_remote_updates_in_flight));
                   if (slot == 0) { id(immich_img_0).set_url(img_url); }
                   else if (slot == 1) { id(immich_img_1).set_url(img_url); }
                   else { id(immich_img_2).set_url(img_url); }

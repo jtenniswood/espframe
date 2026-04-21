@@ -28,6 +28,7 @@ enum SlideshowCommandKind : uint8_t {
   SLIDESHOW_COMMAND_DEFER_FETCH_INTO_SLOT = 20,
   SLIDESHOW_COMMAND_LOAD_PREVIOUS_SLOT = 21,
   SLIDESHOW_COMMAND_LOG_NO_PREVIOUS = 22,
+  SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR = 23,
 };
 
 struct SlideshowCommand {
@@ -420,6 +421,58 @@ class EspFrameSlideshow {
       return true;
     }
 
+    return true;
+  }
+
+  bool begin_display_current(int active_slot, SlotMeta &slot0, SlotMeta &slot1,
+                             SlotMeta &slot2, PortraitState &portrait,
+                             bool portrait_pairing_enabled, bool &active_slot_displayed) {
+    SlotMeta &meta = this->slot_mut_(active_slot, slot0, slot1, slot2);
+    portrait.is_pair = false;
+    bool pair = meta.is_portrait && portrait_pairing_enabled;
+    if (!pair) {
+      active_slot_displayed = true;
+      portrait.workflow_busy = false;
+    }
+    return pair;
+  }
+
+  void after_display_current(int active_slot, SlotMeta &slot0, SlotMeta &slot1,
+                             SlotMeta &slot2, PortraitState &portrait,
+                             bool portrait_pairing_enabled, bool &active_slot_displayed,
+                             int &portrait_preload_slot,
+                             bool portrait_preload_left_ready,
+                             bool portrait_preload_right_ready) {
+    SlotMeta &meta = this->slot_mut_(active_slot, slot0, slot1, slot2);
+    bool pair = meta.is_portrait && portrait_pairing_enabled;
+    if (!pair) return;
+
+    if (portrait_preload_slot == active_slot && portrait_preload_left_ready &&
+        portrait_preload_right_ready) {
+      portrait.is_pair = true;
+      portrait.using_preload = true;
+      portrait_preload_slot = -1;
+      active_slot_displayed = true;
+      portrait.workflow_busy = false;
+      this->emit_command(SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR, active_slot);
+      return;
+    }
+
+    if (!portrait.is_pair && !portrait.no_companion_active) {
+      this->emit_command(SLIDESHOW_COMMAND_START_ACTIVE_PAIR, active_slot);
+    }
+  }
+
+  bool clear_preload_for_slot(int slot, int &portrait_preload_slot,
+                              bool &portrait_preload_left_ready,
+                              bool &portrait_preload_right_ready,
+                              bool &preload_noncritical_in_flight,
+                              int &noncritical_count) {
+    if (portrait_preload_slot != slot) return false;
+    portrait_preload_slot = -1;
+    portrait_preload_left_ready = false;
+    portrait_preload_right_ready = false;
+    this->clear_preload_noncritical_(preload_noncritical_in_flight, noncritical_count);
     return true;
   }
 

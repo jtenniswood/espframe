@@ -612,6 +612,54 @@ static void test_slideshow_component_companion_result_flow() {
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
 }
 
+static void test_slideshow_component_display_current_flow() {
+  EspFrameSlideshow slideshow;
+  SlotMeta slot0 = make_slot("landscape", false);
+  SlotMeta slot1 = make_slot("portrait", true);
+  SlotMeta slot2 = make_slot("slot2", false);
+  PortraitState portrait;
+  bool displayed = false;
+
+  bool pair = slideshow.begin_display_current(0, slot0, slot1, slot2, portrait, true, displayed);
+  assert(!pair);
+  assert(displayed);
+  assert(!portrait.workflow_busy);
+
+  displayed = false;
+  portrait = PortraitState{};
+  portrait.workflow_busy = true;
+  int preload_slot = 1;
+  pair = slideshow.begin_display_current(1, slot0, slot1, slot2, portrait, true, displayed);
+  assert(pair);
+  assert(!displayed);
+  slideshow.after_display_current(1, slot0, slot1, slot2, portrait, true, displayed,
+                                  preload_slot, true, true);
+  assert(displayed);
+  assert(portrait.is_pair);
+  assert(portrait.using_preload);
+  assert(preload_slot == -1);
+  SlideshowCommand cmd;
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR);
+
+  bool preload_left = true;
+  bool preload_right = true;
+  bool preload_in_flight = true;
+  int noncritical_count = 1;
+  bool cleared = slideshow.clear_preload_for_slot(
+      1, preload_slot, preload_left, preload_right, preload_in_flight, noncritical_count);
+  assert(!cleared);
+  preload_slot = 1;
+  cleared = slideshow.clear_preload_for_slot(
+      1, preload_slot, preload_left, preload_right, preload_in_flight, noncritical_count);
+  assert(cleared);
+  assert(preload_slot == -1);
+  assert(!preload_left);
+  assert(!preload_right);
+  assert(!preload_in_flight);
+  assert(noncritical_count == 0);
+}
+
 int main() {
   test_date_and_url_helpers();
   test_immich_body_helpers();
@@ -624,6 +672,7 @@ int main() {
   test_slideshow_component_navigation_flow();
   test_slideshow_component_previous_flow();
   test_slideshow_component_companion_result_flow();
+  test_slideshow_component_display_current_flow();
   std::cout << "espframe helper tests passed\n";
   return 0;
 }
