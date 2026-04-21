@@ -1,6 +1,7 @@
 #include "remote_image.h"
 
 #include <cstring>
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 // Owns the runtime side of the remote_image component: HTTP fetching, cache
@@ -85,6 +86,9 @@ void OnlineImage::release() {
     this->height_ = 0;
     this->buffer_width_ = 0;
     this->buffer_height_ = 0;
+#ifdef USE_LVGL
+    memset(&this->dsc_, 0, sizeof(this->dsc_));
+#endif
     this->last_modified_ = "";
     this->etag_ = "";
     this->end_connection_();
@@ -124,6 +128,9 @@ size_t OnlineImage::resize_(int width_in, int height_in) {
     this->allocator_.deallocate(this->buffer_, this->get_buffer_size_());
     this->buffer_ = nullptr;
     this->data_start_ = nullptr;
+#ifdef USE_LVGL
+    memset(&this->dsc_, 0, sizeof(this->dsc_));
+#endif
   }
   ESP_LOGD(TAG, "Allocating new buffer of %zu bytes", new_size);
   this->buffer_ = this->allocator_.allocate(new_size);
@@ -136,6 +143,9 @@ size_t OnlineImage::resize_(int width_in, int height_in) {
   this->buffer_width_ = width;
   this->buffer_height_ = height;
   this->width_ = width;
+#ifdef USE_LVGL
+  memset(&this->dsc_, 0, sizeof(this->dsc_));
+#endif
   ESP_LOGV(TAG, "New size: (%d, %d)", width, height);
   return new_size;
 }
@@ -231,6 +241,7 @@ void OnlineImage::update() {
     ESP_LOGD(TAG, "Image format not identified from Content-Type, deferring to magic-byte detection");
     this->data_start_ = nullptr;
     this->start_time_ = ::time(nullptr);
+    this->last_progress_millis_ = millis();
     this->enable_loop();
     return;
   }
@@ -253,9 +264,11 @@ void OnlineImage::update() {
   this->enable_loop();
   ESP_LOGI(TAG, "Downloading image (Size: %zu)", total_size);
   this->start_time_ = ::time(nullptr);
+  this->last_progress_millis_ = millis();
 }
 
 void OnlineImage::loop() {
+  bool made_progress = false;
   if (!this->decoder_) {
     if (!this->downloader_) {
       this->disable_loop();
@@ -269,13 +282,22 @@ void OnlineImage::loop() {
       auto len = this->downloader_->read(this->download_buffer_.append(), available);
       if (len > 0) {
         this->download_buffer_.write(len);
+        made_progress = true;
       } else if (len < 0) {
         this->fail_download_("HTTP read failed while detecting image format", len);
         return;
       }
     }
     if (this->download_buffer_.unread() < 12) {
+      if (!made_progress && (millis() - this->last_progress_millis_) > DOWNLOAD_STALL_TIMEOUT_MS) {
+        this->fail_download_("Download stalled while detecting image format", http_request::HTTP_ERROR_CONNECTION_CLOSED);
+      } else if (made_progress) {
+        this->last_progress_millis_ = millis();
+      }
       return;
+    }
+    if (made_progress) {
+      this->last_progress_millis_ = millis();
     }
     auto detected = this->detect_format_();
     if (detected == ImageFormat::AUTO) {
@@ -314,7 +336,7 @@ void OnlineImage::loop() {
              this->width_, this->height_);
     ESP_LOGD(TAG, "Total time: %" PRIu32 "s", (uint32_t) (::time(nullptr) - this->start_time_));
 #ifdef USE_LVGL
-    this->dsc_.data = this->buffer_ + 1;
+    this->dsc_.data = nullptr;
     refresh_lv_image_descriptor_(this, 0);
 #endif
     this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);
@@ -330,6 +352,7 @@ void OnlineImage::loop() {
     auto len = this->downloader_->read(this->download_buffer_.append(), available);
     if (len > 0) {
       this->download_buffer_.write(len);
+      made_progress = true;
     } else if (len < 0) {
       this->fail_download_("HTTP read failed while downloading image", len);
       return;
@@ -348,7 +371,13 @@ void OnlineImage::loop() {
     }
     if (fed > 0) {
       this->download_buffer_.read(fed);
+      made_progress = true;
     }
+  }
+  if (made_progress) {
+    this->last_progress_millis_ = millis();
+  } else if ((millis() - this->last_progress_millis_) > DOWNLOAD_STALL_TIMEOUT_MS) {
+    this->fail_download_("Download stalled while downloading image", http_request::HTTP_ERROR_CONNECTION_CLOSED);
   }
 }
 

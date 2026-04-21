@@ -7,6 +7,7 @@
 #include <cstring>
 #include <cmath>
 #include "esp_heap_caps.h"
+#include "esphome/core/hal.h"
 
 #ifdef USE_LVGL
 #include "esphome/components/image/image.h"
@@ -65,6 +66,7 @@ struct DisplayMeta : PhotoMeta {
 struct SlotFlags {
   // Tracks network work that is currently in flight for each ring-buffer slot.
   bool fetch_in_flight[3] = {false, false, false};
+  uint32_t fetch_started_ms[3] = {0, 0, 0};
   bool noncritical_update[3] = {false, false, false};
 };
 
@@ -85,17 +87,32 @@ inline void clear_noncritical(int s, SlotFlags &f, int &nc_count) {
   }
 }
 
+inline void mark_slot_fetch_in_flight(int s, SlotFlags &f, uint32_t now_ms) {
+  f.fetch_in_flight[s] = true;
+  f.fetch_started_ms[s] = now_ms;
+}
+
+inline void clear_slot_fetch_in_flight(int s, SlotFlags &f) {
+  f.fetch_in_flight[s] = false;
+  f.fetch_started_ms[s] = 0;
+}
+
+inline uint32_t slot_fetch_age_ms(int s, const SlotFlags &f, uint32_t now_ms) {
+  if (!f.fetch_in_flight[s] || f.fetch_started_ms[s] == 0) return 0;
+  return now_ms - f.fetch_started_ms[s];
+}
+
 // Returns true if the slot is ready for display logic, false if stale/ignored.
 inline bool handle_slot_download_complete(int slot, SlotMeta &meta,
     SlotFlags &flags, int &nc_count, int &retries) {
   if (meta.asset_id != meta.pending_asset_id) {
     ESP_LOGW("immich", "Slot %d download stale, ignoring", slot);
-    flags.fetch_in_flight[slot] = false;
+    clear_slot_fetch_in_flight(slot, flags);
     clear_noncritical(slot, flags, nc_count);
     return false;
   }
   meta.ready = true;
-  flags.fetch_in_flight[slot] = false;
+  clear_slot_fetch_in_flight(slot, flags);
   clear_noncritical(slot, flags, nc_count);
   retries = 0;
   ESP_LOGD("immich", "Slot %d ready: %s", slot, meta.asset_id.c_str());
@@ -107,7 +124,11 @@ inline bool handle_slot_download_complete(int slot, SlotMeta &meta,
 inline bool prepare_deferred_slot_update(int slot, int active_slot, SlotFlags &flags,
     bool workflow_busy, int &nc_count) {
   bool noncritical = (slot != active_slot);
-  if (noncritical && (workflow_busy || nc_count > 0)) return false;
+  if (noncritical && (workflow_busy || nc_count > 0)) {
+    clear_noncritical(slot, flags, nc_count);
+    clear_slot_fetch_in_flight(slot, flags);
+    return false;
+  }
   if (noncritical && !flags.noncritical_update[slot]) {
     flags.noncritical_update[slot] = true;
     nc_count++;
@@ -115,7 +136,7 @@ inline bool prepare_deferred_slot_update(int slot, int active_slot, SlotFlags &f
     flags.noncritical_update[slot] = false;
     if (nc_count > 0) nc_count--;
   }
-  flags.fetch_in_flight[slot] = true;
+  mark_slot_fetch_in_flight(slot, flags, esphome::millis());
   return true;
 }
 

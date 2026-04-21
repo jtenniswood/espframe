@@ -154,7 +154,7 @@ remote_image:
     on_error:
       then:
         - lambda: |-
-            id(slot_flags).fetch_in_flight[0] = false;
+            clear_slot_fetch_in_flight(0, id(slot_flags));
             clear_noncritical(0, id(slot_flags), id(noncritical_remote_updates_in_flight));
             id(immich_diag_reason) = "slot0 image error";
             id(log_immich_diag).execute();
@@ -196,7 +196,7 @@ remote_image:
     on_error:
       then:
         - lambda: |-
-            id(slot_flags).fetch_in_flight[1] = false;
+            clear_slot_fetch_in_flight(1, id(slot_flags));
             clear_noncritical(1, id(slot_flags), id(noncritical_remote_updates_in_flight));
             id(immich_diag_reason) = "slot1 image error";
             id(log_immich_diag).execute();
@@ -238,7 +238,7 @@ remote_image:
     on_error:
       then:
         - lambda: |-
-            id(slot_flags).fetch_in_flight[2] = false;
+            clear_slot_fetch_in_flight(2, id(slot_flags));
             clear_noncritical(2, id(slot_flags), id(noncritical_remote_updates_in_flight));
             id(immich_diag_reason) = "slot2 image error";
             id(log_immich_diag).execute();
@@ -587,11 +587,11 @@ script:
                   id(immich_display_current).execute();
                 } else if (!meta.ready) {
                   bool in_flight = id(slot_flags).fetch_in_flight[s];
-                  uint32_t since_advance = millis() - id(immich_last_advance_ms);
-                  if (in_flight && since_advance > 15000) {
-                    ESP_LOGW("diag", "H3-FIX: Slot %d in_flight stuck for %ums, force-clearing", s, since_advance);
+                  uint32_t fetch_age = slot_fetch_age_ms(s, id(slot_flags), millis());
+                  if (in_flight && fetch_age > 15000) {
+                    ESP_LOGW("diag", "H3-FIX: Slot %d in_flight stuck for %ums, force-clearing", s, fetch_age);
                     clear_noncritical(s, id(slot_flags), id(noncritical_remote_updates_in_flight));
-                    id(slot_flags).fetch_in_flight[s] = false;
+                    clear_slot_fetch_in_flight(s, id(slot_flags));
                     if (s == 0) id(immich_img_0).abort_download();
                     else if (s == 1) id(immich_img_1).abort_download();
                     else id(immich_img_2).abort_download();
@@ -730,7 +730,7 @@ script:
                 if (prev_slot == 0) { id(immich_img_0).set_fill_mode(fill); id(immich_img_0).set_url(url); id(immich_img_0).update(); }
                 else if (prev_slot == 1) { id(immich_img_1).set_fill_mode(fill); id(immich_img_1).set_url(url); id(immich_img_1).update(); }
                 else { id(immich_img_2).set_fill_mode(fill); id(immich_img_2).set_url(url); id(immich_img_2).update(); }
-                id(slot_flags).fetch_in_flight[prev_slot] = true;
+                mark_slot_fetch_in_flight(prev_slot, id(slot_flags), millis());
                 ESP_LOGD("immich", "Showing previous in slot %d: %s", prev_slot, id(current_display).asset_id.c_str());
 
   # Display portrait pair when both left and right images are ready
