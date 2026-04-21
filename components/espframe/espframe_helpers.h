@@ -49,7 +49,7 @@ struct PhotoMeta {
   // Stable metadata shown with a photo, independent of which slideshow slot is
   // currently carrying it.
   std::string asset_id, image_url, date, location, person;
-  int year = 0, month = 0;
+  int year = 0, month = 0, day = 0;
   uint16_t zoom = ZOOM_IDENTITY;
 };
 
@@ -406,6 +406,7 @@ inline std::string parse_immich_asset_and_fill_slot(const std::string &body,
   meta->person = tmp.person;
   meta->year = tmp.year;
   meta->month = tmp.month;
+  meta->day = tmp.day;
   meta->zoom = tmp.zoom;
   meta->datetime = tmp.datetime;
   meta->companion_url = "";

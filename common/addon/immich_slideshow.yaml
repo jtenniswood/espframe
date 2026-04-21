@@ -564,6 +564,7 @@ script:
           then:
             - script.execute: immich_start_portrait_active
       - script.execute: update_clock_display
+      - script.execute: update_photo_metadata_display
 
   # Advance forward: move ring index, display if ready, else fetch into slot
   - id: immich_advance_forward
@@ -755,7 +756,29 @@ script:
       - script.execute: extract_accent_color
       - script.execute: apply_warm_tones
       - script.execute: update_clock_display
+      - script.execute: update_photo_metadata_display
       - script.execute: delayed_prefetch_chain
+
+  # Refresh the bottom-right photo date/location metadata overlay.
+  - id: update_photo_metadata_display
+    mode: single
+    then:
+      - lambda: |-
+          std::string text;
+          if (id(active_slot_displayed) && !id(current_display).date.empty()) {
+            text = id(current_display).date;
+            if (!id(current_display).location.empty()) {
+              text += "\n" + id(current_display).location;
+            }
+          }
+
+          lv_label_set_text(id(photo_metadata_label), text.c_str());
+          lv_label_set_text(id(photo_metadata_label_shadow), text.c_str());
+          if (text.empty()) {
+            lv_obj_add_flag(id(photo_metadata_overlay), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_clear_flag(id(photo_metadata_overlay), LV_OBJ_FLAG_HIDDEN);
+          }
 
   # Prefetch chain: fill the next empty slot(s) ahead of active_slot (skipped when backlight paused)
   - id: immich_prefetch_chain

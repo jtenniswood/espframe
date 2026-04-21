@@ -134,6 +134,39 @@ lvgl:
                         text_color: 0xFFFFFF
                         text_font: roboto_light150_font
         - obj:
+            id: photo_metadata_overlay
+            align: BOTTOM_RIGHT
+            x: -45
+            y: -25
+            width: 520
+            height: SIZE_CONTENT
+            bg_opa: 0%
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+            hidden: true
+            widgets:
+              - label:
+                  id: photo_metadata_label_shadow
+                  x: 2
+                  y: 2
+                  width: 520
+                  text: ""
+                  text_align: right
+                  text_color: 0x000000
+                  text_opa: 50%
+                  text_font: roboto30_font
+              - label:
+                  id: photo_metadata_label
+                  x: 0
+                  y: 0
+                  width: 520
+                  text: ""
+                  text_align: right
+                  text_color: 0xFFFFFF
+                  text_font: roboto30_font
+        - obj:
             id: connection_failed_overlay
             align: CENTER
             width: ${display_width}

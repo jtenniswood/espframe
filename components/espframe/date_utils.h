@@ -8,6 +8,11 @@ static constexpr const char *MONTH_NAMES[] = {
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 };
 
+static constexpr const char *MONTH_NAMES_FULL[] = {
+  "", "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+};
+
 inline std::string strip_trailing_slashes(const std::string &url) {
   std::string result = url;
   size_t min_len = 0;
@@ -178,4 +183,9 @@ inline std::string format_photo_date(int year, int month) {
   if (month >= 1 && month <= 12)
     return std::string(MONTH_NAMES[month]) + " " + std::to_string(year);
   return "";
+}
+
+inline std::string format_photo_date_full(int year, int month, int day) {
+  if (year <= 0 || month < 1 || month > 12 || day < 1 || day > 31) return "";
+  return std::to_string(day) + " " + std::string(MONTH_NAMES_FULL[month]) + " " + std::to_string(year);
 }

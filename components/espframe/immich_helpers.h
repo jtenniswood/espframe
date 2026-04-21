@@ -14,7 +14,7 @@ struct ImmichAssetMeta {
   // lambdas.
   std::string asset_id, image_url, date, location, person;
   std::string datetime;  // localDateTime from asset, for slot display
-  int year = 0, month = 0;
+  int year = 0, month = 0, day = 0;
   bool is_portrait = false;
   bool orientation_known = false;
   uint16_t zoom = ZOOM_IDENTITY;
@@ -109,7 +109,7 @@ inline bool photo_orientation_matches(const ImmichAssetMeta &meta, const std::st
 // body: JSON string (single asset object or array with one object).
 // base_url: Immich server base URL (no trailing slash).
 // out_meta: filled with asset_id, image_url, date, location, person, year,
-//           month, is_portrait, zoom. Returns the image URL on success,
+//           month, day, is_portrait, zoom. Returns the image URL on success,
 //           empty string on parse failure.
 
 #ifdef USE_JSON
@@ -124,19 +124,23 @@ inline std::string parse_immich_asset_object(JsonObject asset,
 
   std::string asset_id = asset["id"].as<std::string>();
   std::string photo_date, photo_location, photo_person;
-  int photo_year = 0, photo_month = 0;
+  int photo_year = 0, photo_month = 0, photo_day = 0;
   bool is_portrait = false;
   bool orientation_known = false;
+  auto read_date = [](const std::string &raw, int &year, int &month, int &day) {
+    if (raw.size() < 10) return false;
+    year = atoi(raw.substr(0, 4).c_str());
+    month = atoi(raw.substr(5, 2).c_str());
+    day = atoi(raw.substr(8, 2).c_str());
+    return year > 0 && month >= 1 && month <= 12 && day >= 1 && day <= 31;
+  };
 
   std::string local_datetime;
   if (asset["localDateTime"].is<const char *>()) {
     std::string raw = asset["localDateTime"].as<std::string>();
     local_datetime = raw;
-    if (raw.size() >= 10) {
-      photo_year = atoi(raw.substr(0, 4).c_str());
-      photo_month = atoi(raw.substr(5, 2).c_str());
-      photo_date = format_photo_date(photo_year, photo_month);
-    }
+    if (read_date(raw, photo_year, photo_month, photo_day))
+      photo_date = format_photo_date_full(photo_year, photo_month, photo_day);
   }
 
   JsonObject exif = asset["exifInfo"].as<JsonObject>();
@@ -153,11 +157,8 @@ inline std::string parse_immich_asset_object(JsonObject asset,
 
     if (photo_date.empty() && exif["dateTimeOriginal"].is<const char *>()) {
       std::string raw = exif["dateTimeOriginal"].as<std::string>();
-      if (raw.size() >= 10) {
-        photo_year = atoi(raw.substr(0, 4).c_str());
-        photo_month = atoi(raw.substr(5, 2).c_str());
-        photo_date = format_photo_date(photo_year, photo_month);
-      }
+      if (read_date(raw, photo_year, photo_month, photo_day))
+        photo_date = format_photo_date_full(photo_year, photo_month, photo_day);
     }
 
     int exif_w = 0, exif_h = 0;
@@ -191,6 +192,7 @@ inline std::string parse_immich_asset_object(JsonObject asset,
   out_meta->location = photo_location;
   out_meta->year = photo_year;
   out_meta->month = photo_month;
+  out_meta->day = photo_day;
   out_meta->person = photo_person;
   out_meta->datetime = local_datetime;
   out_meta->is_portrait = is_portrait;
