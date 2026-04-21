@@ -504,70 +504,94 @@ script:
   - id: backlight_wake
     mode: restart
     then:
-      - script.stop: screen_schedule_sleep
-      - script.stop: backlight_schedule_display_off
-      - lambda: |-
-          auto now = id(sntp_time).now();
-          bool was_off = id(backlight_paused) || id(screen_schedule_asleep) ||
-                         id(screensaver_display_off_active) ||
-                         !id(backlight).current_values.is_on();
-          if (was_off) {
-            id(touch_started_while_off) = true;
-            id(wake_touch_ms) = millis();
-          }
-
-          if (id(schedule_enabled).state && !now.is_valid()) {
-            id(backlight_paused) = true;
-            id(screensaver_display_off_active) = true;
-            id(screen_schedule_asleep) = true;
-            id(backlight_manual_off) = false;
-            id(manual_wake_ms) = 0;
-            return;
-          }
-
-          id(backlight_manual_off) = false;
-          if (id(schedule_enabled).state && now.is_valid()) {
-            int on_hour = (int) id(schedule_on_hour).state;
-            int off_hour = (int) id(schedule_off_hour).state;
-            if (on_hour < 0) on_hour = 0;
-            if (on_hour > 23) on_hour = 23;
-            if (off_hour < 0) off_hour = 0;
-            if (off_hour > 23) off_hour = 23;
-
-            bool in_window = true;
-            if (on_hour < off_hour) {
-              in_window = now.hour >= on_hour && now.hour < off_hour;
-            } else if (on_hour > off_hour) {
-              in_window = now.hour >= on_hour || now.hour < off_hour;
-            }
-            id(manual_wake_ms) = in_window ? 0 : millis();
-          } else {
-            id(manual_wake_ms) = 0;
-          }
-
-          id(backlight_paused) = false;
-          id(screensaver_display_off_active) = false;
-          id(screen_schedule_asleep) = false;
-          id(last_photo_displayed_ms) = millis();
-          ESP_LOGI("backlight", "Wake: restoring brightness");
       - if:
           condition:
-            lambda: 'return id(schedule_enabled).state && !id(sntp_time).now().is_valid();'
+            lambda: |-
+              auto now = id(sntp_time).now();
+              if (id(schedule_enabled).state && !now.is_valid()) return true;
+              if (id(backlight_paused) || id(screen_schedule_asleep) ||
+                  id(screensaver_display_off_active) ||
+                  !id(backlight).current_values.is_on()) {
+                return true;
+              }
+
+              float target = id(brightness_day).state / 100.0f;
+              if (id(sunrise_sunset_valid) && now.is_valid()) {
+                bool is_day = is_daytime(now.hour, now.minute,
+                                         id(sunrise_hour), id(sunrise_minute),
+                                         id(sunset_hour), id(sunset_minute));
+                target = (is_day ? id(brightness_day).state : id(brightness_night).state) / 100.0f;
+              }
+              float diff = id(backlight).current_values.get_brightness() - target;
+              if (diff < 0) diff = -diff;
+              return diff > 0.01f;
           then:
-            - script.execute: backlight_schedule_display_off
-          else:
+            - script.stop: screen_schedule_sleep
+            - script.stop: backlight_schedule_display_off
+            - lambda: |-
+                auto now = id(sntp_time).now();
+                bool was_off = id(backlight_paused) || id(screen_schedule_asleep) ||
+                               id(screensaver_display_off_active) ||
+                               !id(backlight).current_values.is_on();
+                if (was_off) {
+                  id(touch_started_while_off) = true;
+                  id(wake_touch_ms) = millis();
+                }
+
+                if (id(schedule_enabled).state && !now.is_valid()) {
+                  id(backlight_paused) = true;
+                  id(screensaver_display_off_active) = true;
+                  id(screen_schedule_asleep) = true;
+                  id(backlight_manual_off) = false;
+                  id(manual_wake_ms) = 0;
+                  return;
+                }
+
+                id(backlight_manual_off) = false;
+                if (id(schedule_enabled).state && now.is_valid()) {
+                  int on_hour = (int) id(schedule_on_hour).state;
+                  int off_hour = (int) id(schedule_off_hour).state;
+                  if (on_hour < 0) on_hour = 0;
+                  if (on_hour > 23) on_hour = 23;
+                  if (off_hour < 0) off_hour = 0;
+                  if (off_hour > 23) off_hour = 23;
+
+                  bool in_window = true;
+                  if (on_hour < off_hour) {
+                    in_window = now.hour >= on_hour && now.hour < off_hour;
+                  } else if (on_hour > off_hour) {
+                    in_window = now.hour >= on_hour || now.hour < off_hour;
+                  }
+                  id(manual_wake_ms) = in_window ? 0 : millis();
+                } else {
+                  id(manual_wake_ms) = 0;
+                }
+
+                id(backlight_paused) = false;
+                id(screensaver_display_off_active) = false;
+                id(screen_schedule_asleep) = false;
+                id(last_photo_displayed_ms) = millis();
+                if (was_off) {
+                  ESP_LOGI("backlight", "Wake: restoring brightness");
+                }
             - if:
                 condition:
-                  lambda: 'return id(manual_wake_ms) != 0;'
+                  lambda: 'return id(schedule_enabled).state && !id(sntp_time).now().is_valid();'
                 then:
-                  - script.execute: screen_schedule_wake_timeout_check
+                  - script.execute: backlight_schedule_display_off
                 else:
-                  - script.stop: screen_schedule_wake_timeout_check
-            - lvgl.resume:
-            - script.execute: screen_schedule_restore_page
-            - delay: 50ms
-            - script.execute: backlight_apply_brightness
-            - script.execute: immich_prefetch_chain
+                  - if:
+                      condition:
+                        lambda: 'return id(manual_wake_ms) != 0;'
+                      then:
+                        - script.execute: screen_schedule_wake_timeout_check
+                      else:
+                        - script.stop: screen_schedule_wake_timeout_check
+                  - lvgl.resume:
+                  - script.execute: screen_schedule_restore_page
+                  - delay: 50ms
+                  - script.execute: backlight_apply_brightness
+                  - script.execute: immich_prefetch_chain
 
   # Backward-compatible script name used by older local call sites.
   - id: backlight_check_schedule
