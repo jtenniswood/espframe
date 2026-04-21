@@ -33,12 +33,9 @@ lvgl:
             on_press:
               then:
                 - script.execute: slideshow_on_press
-            on_short_click:
-              then:
-                - lambda: 'id(photo_details_use_companion) = false;'
-                - script.execute: slideshow_on_short_click
             on_release:
               then:
+                - lambda: 'id(photo_details_use_companion) = false;'
                 - script.execute: slideshow_on_release
         - obj:
             id: portrait_pair_container
@@ -67,12 +64,9 @@ lvgl:
                   on_press:
                     then:
                       - script.execute: slideshow_on_press
-                  on_short_click:
-                    then:
-                      - lambda: 'id(photo_details_use_companion) = false;'
-                      - script.execute: slideshow_on_short_click
                   on_release:
                     then:
+                      - lambda: 'id(photo_details_use_companion) = false;'
                       - script.execute: slideshow_on_release
                   widgets:
                     - image:
@@ -92,12 +86,9 @@ lvgl:
                   on_press:
                     then:
                       - script.execute: slideshow_on_press
-                  on_short_click:
-                    then:
-                      - lambda: 'id(photo_details_use_companion) = true;'
-                      - script.execute: slideshow_on_short_click
                   on_release:
                     then:
+                      - lambda: 'id(photo_details_use_companion) = true;'
                       - script.execute: slideshow_on_release
                   widgets:
                     - image:
@@ -331,7 +322,7 @@ lvgl:
                   border_color: 0x444444
                   scrollable: false
                   clickable: true
-                  on_short_click:
+                  on_release:
                     then:
                       - script.execute: close_photo_details
                   widgets:
@@ -358,18 +349,16 @@ script:
           if (id(touch_started_while_off)) id(backlight_wake).execute();
           else id(backlight_hold_timer).execute();
 
-  - id: slideshow_on_short_click
-    mode: single
-    then:
-      - if:
-          condition:
-            lambda: 'return !id(touch_started_while_off);'
-          then:
-            - script.execute: open_photo_details
   - id: slideshow_on_release
     mode: single
     then:
       - script.stop: backlight_hold_timer
+      - if:
+          condition:
+            lambda: |-
+              return !id(touch_started_while_off) && !id(backlight_paused) && !id(photo_details_open);
+          then:
+            - script.execute: open_photo_details
 
   - id: hide_connection_failed
     mode: single
