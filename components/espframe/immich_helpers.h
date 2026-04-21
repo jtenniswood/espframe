@@ -2,6 +2,7 @@
 #include "date_utils.h"
 #include "esp_random.h"
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -26,6 +27,96 @@ struct ImmichAssetMeta {
 // Builds the JSON POST body for /api/search/random with optional filters
 // for favorites, albums, and people. The `extra` parameter allows injecting
 // additional JSON fields (e.g. takenAfter/takenBefore for companion search).
+
+struct ImmichDateRange {
+  std::string from;
+  std::string to;
+  bool relative_skipped_for_invalid_time = false;
+};
+
+inline int immich_days_in_month(int year, int month) {
+  static const int days[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+  if (month == 2) {
+    bool leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+    return leap ? 29 : 28;
+  }
+  if (month < 1 || month > 12) return 31;
+  return days[month - 1];
+}
+
+inline std::string immich_format_iso_date(int year, int month, int day) {
+  char buf[11];
+  snprintf(buf, sizeof(buf), "%04d-%02d-%02d", year, month, day);
+  return std::string(buf);
+}
+
+inline ImmichDateRange resolve_immich_date_filter(bool enabled,
+                                                  const std::string &mode,
+                                                  int amount,
+                                                  const std::string &unit,
+                                                  bool now_valid,
+                                                  int now_year,
+                                                  int now_month,
+                                                  int now_day,
+                                                  const std::string &fixed_from,
+                                                  const std::string &fixed_to) {
+  ImmichDateRange range;
+  if (!enabled) return range;
+
+  if (mode == "Relative Range") {
+    if (!now_valid) {
+      range.relative_skipped_for_invalid_time = true;
+      return range;
+    }
+    if (amount < 1) amount = 1;
+    int year = now_year;
+    int month = now_month;
+    int day = now_day;
+    if (unit == "Years") {
+      year -= amount;
+    } else {
+      int total_months = year * 12 + (month - 1) - amount;
+      year = total_months / 12;
+      month = (total_months % 12) + 1;
+    }
+    int max_day = immich_days_in_month(year, month);
+    if (day > max_day) day = max_day;
+    range.from = immich_format_iso_date(year, month, day);
+    range.to = immich_format_iso_date(now_year, now_month, now_day);
+    return range;
+  }
+
+  range.from = fixed_from;
+  range.to = fixed_to;
+  return range;
+}
+
+inline void append_immich_taken_range(std::string &extra,
+                                      const std::string &from,
+                                      const std::string &to) {
+  if (!from.empty()) {
+    extra += "\"takenAfter\":\"" + from + "T00:00:00.000Z\"";
+  }
+  if (!to.empty()) {
+    if (!extra.empty()) extra += ",";
+    extra += "\"takenBefore\":\"" + to + "T23:59:59.999Z\"";
+  }
+}
+
+inline std::string build_immich_date_filter_extra(const ImmichDateRange &range) {
+  std::string extra;
+  append_immich_taken_range(extra, range.from, range.to);
+  return extra;
+}
+
+inline std::string build_immich_companion_date_filter_extra(const std::string &day,
+                                                           const ImmichDateRange &range) {
+  std::string after = day + "T00:00:00.000Z";
+  std::string before = day + "T23:59:59.999Z";
+  if (!range.from.empty() && range.from > day) after = range.from + "T00:00:00.000Z";
+  if (!range.to.empty() && range.to < day) before = range.to + "T23:59:59.999Z";
+  return "\"takenAfter\":\"" + after + "\",\"takenBefore\":\"" + before + "\"";
+}
 
 inline std::vector<std::string> split_uuid_csv(const std::string &csv) {
   // Home Assistant text fields store album/person IDs as comma-separated text;

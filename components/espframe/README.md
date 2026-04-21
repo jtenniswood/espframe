@@ -208,6 +208,12 @@ std::string body = build_immich_search_body(1, true, id(photo_source_select).cur
 std::string body_memories = build_immich_search_body(1, true, "All", "", "", "\"takenAfter\":\"2024-01-01\",\"takenBefore\":\"2024-01-02\"");
 ```
 
+#### `resolve_immich_date_filter(...)`
+
+Converts the configured fixed or relative date filter into normalized `YYYY-MM-DD` bounds. `build_immich_date_filter_extra(range)` turns those bounds into Immich `takenAfter` / `takenBefore` JSON fields, while `build_immich_companion_date_filter_extra(day, range)` clips portrait companion searches to the target day.
+
+**Use when:** Building Immich search request bodies that must honor the same date-filter rules.
+
 #### `parse_immich_asset(body, base_url, out_meta, orientation_filter)`
 **Signature:**
 `std::string parse_immich_asset(const std::string &body, const std::string &base_url, ImmichAssetMeta *out_meta, const std::string &orientation_filter = "Any")`
