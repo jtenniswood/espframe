@@ -65,6 +65,9 @@
     photo_orientation_options: ["Any", "Portrait Only", "Landscape Only"],
     display_mode: "Fill",
     display_mode_options: ["Fill", "Fit"],
+    photo_metadata_enabled: true,
+    photo_metadata_time_enabled: true,
+    photo_metadata_location_enabled: true,
     screen_rotation: "0",
     screen_rotation_options: ["0", "180"],
   };
@@ -246,6 +249,9 @@
     portrait_pairing: eid("switch", "Photos: Portrait Pairing"),
     photo_orientation: eid("select", "Photos: Orientation"),
     display_mode: eid("select", "Photos: Display Mode"),
+    photo_metadata_enabled: eid("switch", "Device: Show Metadata"),
+    photo_metadata_time_enabled: eid("switch", "Device: Metadata Time"),
+    photo_metadata_location_enabled: eid("switch", "Device: Metadata Location"),
     screen_rotation: eid("select", "Screen: Rotation"),
   };
 
@@ -513,7 +519,10 @@
     "switch/Screen: Warm Tone Override": { key: "warm_tone_override", boolFromState: true },
     "select/Screen: Rotation": { key: "screen_rotation", optionsKey: "screen_rotation_options", default: "0" },
     "switch/Photos: Portrait Pairing": { key: "portrait_pairing", boolFromState: true },
-    "select/Photos: Display Mode": { key: "display_mode", optionsKey: "display_mode_options", default: "Fill" }
+    "select/Photos: Display Mode": { key: "display_mode", optionsKey: "display_mode_options", default: "Fill" },
+    "switch/Device: Show Metadata": { key: "photo_metadata_enabled", boolFromState: true },
+    "switch/Device: Metadata Time": { key: "photo_metadata_time_enabled", boolFromState: true },
+    "switch/Device: Metadata Location": { key: "photo_metadata_location_enabled", boolFromState: true }
   };
 
   function applyEntityToState(d) {
@@ -574,7 +583,8 @@
     "base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override",
     "screen_rotation",
     "portrait_pairing",
-    "display_mode"
+    "display_mode",
+    "photo_metadata_enabled", "photo_metadata_time_enabled", "photo_metadata_location_enabled"
   ];
   function getEntityIdForStateKey(key) {
     for (var id in ENTITY_STATE_MAP) {
@@ -1409,6 +1419,66 @@
 
     immichApp.appendChild(immichWrap);
 
+    // Device metadata
+    function metadataIsActive() {
+      return S.photo_metadata_enabled &&
+        (S.photo_metadata_time_enabled || S.photo_metadata_location_enabled);
+    }
+    var metadataBadge = makeBadge(metadataIsActive());
+    var metadataBody = el("div");
+    var metadataDetails = el("div");
+
+    function refreshMetadataDetails() {
+      metadataDetails.style.display = S.photo_metadata_enabled ? "" : "none";
+      metadataBadge.className = "on-badge" + (metadataIsActive() ? " active" : "");
+    }
+
+    var fMetadataToggle = field("");
+    var metadataTr = el("div", "toggle-row");
+    metadataTr.innerHTML = "<span>Show Photo Metadata</span>";
+    var metadataTog = el("div", S.photo_metadata_enabled ? "toggle on" : "toggle");
+    metadataTog.onclick = function () {
+      S.photo_metadata_enabled = !S.photo_metadata_enabled;
+      metadataTog.className = S.photo_metadata_enabled ? "toggle on" : "toggle";
+      refreshMetadataDetails();
+      post(endpoints.photo_metadata_enabled + (S.photo_metadata_enabled ? "/turn_on" : "/turn_off"));
+    };
+    metadataTr.appendChild(metadataTog);
+    fMetadataToggle.appendChild(metadataTr);
+    metadataBody.appendChild(fMetadataToggle);
+
+    var fMetadataTime = field("");
+    var metadataTimeTr = el("div", "toggle-row");
+    metadataTimeTr.innerHTML = "<span>Display Photo Time</span>";
+    var metadataTimeTog = el("div", S.photo_metadata_time_enabled ? "toggle on" : "toggle");
+    metadataTimeTog.onclick = function () {
+      S.photo_metadata_time_enabled = !S.photo_metadata_time_enabled;
+      metadataTimeTog.className = S.photo_metadata_time_enabled ? "toggle on" : "toggle";
+      refreshMetadataDetails();
+      post(endpoints.photo_metadata_time_enabled + (S.photo_metadata_time_enabled ? "/turn_on" : "/turn_off"));
+    };
+    metadataTimeTr.appendChild(metadataTimeTog);
+    fMetadataTime.appendChild(metadataTimeTr);
+    metadataDetails.appendChild(fMetadataTime);
+
+    var fMetadataLocation = field("");
+    var metadataLocationTr = el("div", "toggle-row");
+    metadataLocationTr.innerHTML = "<span>Display Photo Location</span>";
+    var metadataLocationTog = el("div", S.photo_metadata_location_enabled ? "toggle on" : "toggle");
+    metadataLocationTog.onclick = function () {
+      S.photo_metadata_location_enabled = !S.photo_metadata_location_enabled;
+      metadataLocationTog.className = S.photo_metadata_location_enabled ? "toggle on" : "toggle";
+      refreshMetadataDetails();
+      post(endpoints.photo_metadata_location_enabled + (S.photo_metadata_location_enabled ? "/turn_on" : "/turn_off"));
+    };
+    metadataLocationTr.appendChild(metadataLocationTog);
+    fMetadataLocation.appendChild(metadataLocationTr);
+    metadataDetails.appendChild(fMetadataLocation);
+
+    metadataBody.appendChild(metadataDetails);
+    refreshMetadataDetails();
+    wrap.appendChild(makeCollapsibleCard("Device metadata", metadataBody, true, metadataBadge));
+
     // Screen Brightness
     var dnDetails = el("div");
 
@@ -1842,6 +1912,8 @@
     } else if (id === "text_sensor/Screen: Sunset") {
       S.sunset = d.value || d.state || "";
       updateSunInfoElement(document.getElementById("sun-info"));
+    } else if (ENTITY_STATE_MAP[id] && ENTITY_STATE_MAP[id].key.indexOf("photo_metadata_") === 0) {
+      if (!isEditingSetting()) renderSettings();
     } else if (ENTITY_STATE_MAP[id] && ENTITY_STATE_MAP[id].key.indexOf("schedule_") === 0) {
       if (!isEditingSetting()) renderSettings();
     }
