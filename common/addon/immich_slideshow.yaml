@@ -621,7 +621,7 @@ script:
       - script.execute: update_photo_metadata_display
       - script.execute: delayed_prefetch_chain
 
-  # Refresh the photo date/location metadata overlay beneath the clock.
+  # Refresh the photo date/location metadata overlay above the clock.
   - id: update_photo_metadata_display
     mode: single
     then:
@@ -669,23 +669,32 @@ script:
 
           lv_obj_update_layout(id(info_overlay));
           const int32_t metadata_width = lv_obj_get_width(id(info_overlay));
+          const int32_t metadata_height = (has_location && has_date) ? 104 : 52;
           lv_obj_set_width(id(photo_metadata_overlay), metadata_width);
           lv_obj_set_width(id(photo_metadata_shadow_row), metadata_width);
           lv_obj_set_width(id(photo_metadata_row), metadata_width);
+          lv_obj_set_height(id(photo_metadata_overlay), metadata_height);
+          lv_obj_set_height(id(photo_metadata_shadow_row), metadata_height);
+          lv_obj_set_height(id(photo_metadata_row), metadata_height);
 
           lv_obj_set_width(id(photo_metadata_location_label), LV_SIZE_CONTENT);
           lv_obj_set_width(id(photo_metadata_location_label_shadow), LV_SIZE_CONTENT);
-          if (has_location) {
-            lv_obj_update_layout(id(photo_metadata_row));
-            const int32_t row_width = lv_obj_get_width(id(photo_metadata_row));
-            const int32_t date_width = has_date ? lv_obj_get_width(id(photo_metadata_date_label)) : 0;
-            const int32_t metadata_gap_width = (has_location && has_date) ? 40 : 0;
-            const int32_t available_location_width = row_width - date_width - metadata_gap_width;
-            const int32_t max_location_width = available_location_width > 0 ? available_location_width : 0;
+          lv_obj_set_width(id(photo_metadata_date_label), LV_SIZE_CONTENT);
+          lv_obj_set_width(id(photo_metadata_date_label_shadow), LV_SIZE_CONTENT);
+          lv_obj_update_layout(id(photo_metadata_row));
+          const int32_t row_width = lv_obj_get_width(id(photo_metadata_row));
+          const int32_t max_metadata_width = row_width > 0 ? row_width : 0;
+          if (has_location && max_metadata_width > 0) {
             const int32_t natural_location_width = lv_obj_get_width(id(photo_metadata_location_label));
-            const int32_t location_width = natural_location_width < max_location_width ? natural_location_width : max_location_width;
+            const int32_t location_width = natural_location_width < max_metadata_width ? natural_location_width : max_metadata_width;
             lv_obj_set_width(id(photo_metadata_location_label), location_width);
             lv_obj_set_width(id(photo_metadata_location_label_shadow), location_width);
+          }
+          if (has_date && max_metadata_width > 0) {
+            const int32_t natural_date_width = lv_obj_get_width(id(photo_metadata_date_label));
+            const int32_t date_width = natural_date_width < max_metadata_width ? natural_date_width : max_metadata_width;
+            lv_obj_set_width(id(photo_metadata_date_label), date_width);
+            lv_obj_set_width(id(photo_metadata_date_label_shadow), date_width);
           }
 
           if (!has_location && !has_date) {
