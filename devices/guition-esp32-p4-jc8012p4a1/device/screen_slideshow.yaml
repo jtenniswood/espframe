@@ -125,7 +125,7 @@ lvgl:
                         y: 2
                         text: ""
                         text_color: 0x000000
-                        text_opa: 50%
+                        text_opa: 20%
                         text_font: roboto_light150_font
                     - label:
                         id: time_label
@@ -137,8 +137,9 @@ lvgl:
               - obj:
                   id: photo_metadata_overlay
                   hidden: true
-                  width: 650
-                  height: 42
+                  width: 1190
+                  height: 52
+                  translate_y: -10
                   bg_opa: 0%
                   border_width: 0
                   pad_all: 0
@@ -149,8 +150,8 @@ lvgl:
                         id: photo_metadata_shadow_row
                         x: 2
                         y: 2
-                        width: SIZE_CONTENT
-                        height: 42
+                        width: 1190
+                        height: 52
                         bg_opa: 0%
                         border_width: 0
                         pad_all: 0
@@ -161,20 +162,22 @@ lvgl:
                           flex_flow: ROW
                           flex_align_main: START
                           flex_align_cross: CENTER
-                          pad_column: 14
+                          pad_column: 28
                         widgets:
                           - label:
                               id: photo_metadata_location_label_shadow
                               hidden: true
+                              width: 900
                               text: ""
+                              long_mode: DOT
                               text_color: 0x000000
-                              text_opa: 50%
-                              text_font: roboto_light32_font
+                              text_opa: 20%
+                              text_font: noto_location_light40_font
                           - obj:
                               id: photo_metadata_divider_shadow
                               hidden: true
                               width: 2
-                              height: 32
+                              height: 40
                               bg_opa: 0%
                               border_width: 0
                               pad_all: 0
@@ -185,14 +188,14 @@ lvgl:
                               hidden: true
                               text: ""
                               text_color: 0x000000
-                              text_opa: 50%
-                              text_font: roboto_light32_font
+                              text_opa: 20%
+                              text_font: roboto_light40_font
                     - obj:
                         id: photo_metadata_row
                         x: 0
                         y: 0
-                        width: SIZE_CONTENT
-                        height: 42
+                        width: 1190
+                        height: 52
                         bg_opa: 0%
                         border_width: 0
                         pad_all: 0
@@ -203,19 +206,21 @@ lvgl:
                           flex_flow: ROW
                           flex_align_main: START
                           flex_align_cross: CENTER
-                          pad_column: 14
+                          pad_column: 28
                         widgets:
                           - label:
                               id: photo_metadata_location_label
                               hidden: true
+                              width: 900
                               text: ""
+                              long_mode: DOT
                               text_color: 0xFFFFFF
-                              text_font: roboto_light32_font
+                              text_font: noto_location_light40_font
                           - obj:
                               id: photo_metadata_divider
                               hidden: true
                               width: 2
-                              height: 32
+                              height: 40
                               bg_color: 0xFFFFFF
                               bg_opa: 50%
                               border_width: 0
@@ -227,7 +232,7 @@ lvgl:
                               hidden: true
                               text: ""
                               text_color: 0xFFFFFF
-                              text_font: roboto_light32_font
+                              text_font: roboto_light40_font
         - obj:
             id: connection_failed_overlay
             align: CENTER

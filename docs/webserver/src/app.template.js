@@ -1438,7 +1438,7 @@
 
     var fMetadataDate = field("");
     var metadataDateTr = el("div", "toggle-row");
-    metadataDateTr.innerHTML = "<span>Display Photo Date</span>";
+    metadataDateTr.innerHTML = "<span>Date</span>";
     var metadataDateTog = el("div", S.photo_metadata_date_enabled ? "toggle on" : "toggle");
     metadataDateTog.onclick = function () {
       S.photo_metadata_date_enabled = !S.photo_metadata_date_enabled;
@@ -1448,9 +1448,8 @@
     };
     metadataDateTr.appendChild(metadataDateTog);
     fMetadataDate.appendChild(metadataDateTr);
-    metadataBody.appendChild(fMetadataDate);
 
-    var fMetadataDateFormat = field("Date Display");
+    var fMetadataDateFormat = field("Date Format");
     fMetadataDateFormat.appendChild(
       selectFromOptions(S.photo_metadata_date_format_options, S.photo_metadata_date_format, function (v) {
         S.photo_metadata_date_format = v;
@@ -1458,11 +1457,10 @@
       })
     );
     metadataDateDetails.appendChild(fMetadataDateFormat);
-    metadataBody.appendChild(metadataDateDetails);
 
     var fMetadataLocation = field("");
     var metadataLocationTr = el("div", "toggle-row");
-    metadataLocationTr.innerHTML = "<span>Display Photo Location</span>";
+    metadataLocationTr.innerHTML = "<span>Location</span>";
     var metadataLocationTog = el("div", S.photo_metadata_location_enabled ? "toggle on" : "toggle");
     metadataLocationTog.onclick = function () {
       S.photo_metadata_location_enabled = !S.photo_metadata_location_enabled;
@@ -1473,6 +1471,8 @@
     metadataLocationTr.appendChild(metadataLocationTog);
     fMetadataLocation.appendChild(metadataLocationTr);
     metadataBody.appendChild(fMetadataLocation);
+    metadataBody.appendChild(fMetadataDate);
+    metadataBody.appendChild(metadataDateDetails);
 
     refreshMetadataDetails();
     wrap.appendChild(makeCollapsibleCard("Device Metadata", metadataBody, true, metadataBadge));
