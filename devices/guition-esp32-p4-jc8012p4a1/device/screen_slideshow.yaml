@@ -47,9 +47,6 @@ lvgl:
             scrollable: false
             hidden: true
             clickable: true
-            layout:
-              type: flex
-              flex_flow: ROW
             on_press:
               then:
                 - script.execute: slideshow_on_press
@@ -61,6 +58,7 @@ lvgl:
                 - script.execute: slideshow_on_release
             widgets:
               - obj:
+                  align: LEFT_MID
                   width: ${portrait_half_width}
                   height: ${display_height}
                   bg_opa: 0%
@@ -76,6 +74,7 @@ lvgl:
                         scrollable: false
                         clickable: false
               - obj:
+                  align: RIGHT_MID
                   width: ${portrait_half_width}
                   height: ${display_height}
                   bg_opa: 0%
