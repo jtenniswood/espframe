@@ -71,6 +71,10 @@ inline uint32_t slot_fetch_age_ms(int s, const SlotFlags &f, uint32_t now_ms) {
   return now_ms - f.fetch_started_ms[s];
 }
 
+inline bool any_slot_fetch_in_flight(const SlotFlags &f) {
+  return f.fetch_in_flight[0] || f.fetch_in_flight[1] || f.fetch_in_flight[2];
+}
+
 inline bool prepare_deferred_slot_update(int slot, int active_slot, SlotFlags &flags,
                                          bool workflow_busy, int &nc_count) {
   bool noncritical = slot != active_slot;
@@ -333,6 +337,14 @@ static void test_slideshow_component_prefetch_and_deferred_updates() {
   assert(!queued);
   assert(!slideshow.has_command());
 
+  flags.fetch_in_flight[2] = true;
+  queued = slideshow.request_prefetch(
+      false, false, 2600, last_prefetch, 0, target_slot, slot0, slot1, slot2,
+      flags, queue, portrait, true, 0, -1, false, false);
+  assert(!queued);
+  assert(!slideshow.has_command());
+  flags.fetch_in_flight[2] = false;
+
   int noncritical_count = 0;
   bool update = slideshow.request_deferred_slot_update(1, 0, flags, false, noncritical_count);
   assert(update);
@@ -427,10 +439,32 @@ static void test_slideshow_component_portrait_flow() {
   assert(reason == "portrait left error");
   assert(displayed);
   assert(!searching.workflow_busy);
+  assert(searching.no_companion_active);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
+  slideshow.after_display_current(0, no_companion, slot1, slot2, searching, true, displayed,
+                                  companion_slot, false, false);
+  assert(!slideshow.has_command());
+
+  PortraitState right_error;
+  right_error.workflow_busy = true;
+  right_error.companion_found = true;
+  right_error.left_ready = true;
+  displayed = false;
+  slideshow.on_portrait_right_error(right_error, reason, displayed);
+  assert(reason == "portrait right error");
+  assert(displayed);
+  assert(!right_error.workflow_busy);
+  assert(right_error.no_companion_active);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
+  slideshow.after_display_current(0, no_companion, slot1, slot2, right_error, true, displayed,
+                                  companion_slot, false, false);
+  assert(!slideshow.has_command());
 }
 
 static void test_slideshow_component_preload_flow() {

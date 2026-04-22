@@ -109,6 +109,7 @@ class OnlineImage : public PollingComponent,
 
   void set_fill_mode(bool fill) { this->fill_mode_ = fill; }
   bool is_fill_mode() const { return this->fill_mode_; }
+  bool is_downloading() const { return this->downloader_ != nullptr || this->decoder_ != nullptr; }
 
   bool is_big_endian() const { return this->is_big_endian_; }
   int get_fixed_width() const { return this->fixed_width_; }

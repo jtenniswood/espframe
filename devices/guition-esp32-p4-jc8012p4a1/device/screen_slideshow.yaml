@@ -397,6 +397,18 @@ interval:
             lambda: |-
               if (!id(immich_fetch_started)) return false;
               if (id(backlight_paused)) return false;
+              if (id(active_slot_displayed)) {
+                bool image_busy = id(immich_img_0).is_downloading() ||
+                                  id(immich_img_1).is_downloading() ||
+                                  id(immich_img_2).is_downloading() ||
+                                  id(immich_portrait_left).is_downloading() ||
+                                  id(immich_portrait_right).is_downloading() ||
+                                  id(immich_portrait_preload_left).is_downloading() ||
+                                  id(immich_portrait_preload_right).is_downloading();
+                if (any_slot_fetch_in_flight(id(slot_flags)) || image_busy ||
+                    id(portrait).workflow_busy || id(preload_noncritical_in_flight) ||
+                    id(noncritical_remote_updates_in_flight) > 0) return false;
+              }
               return (millis() - id(immich_last_advance_ms)) >= (id(slideshow_interval_sec) * 1000);
           then:
             - script.execute: immich_advance_forward
@@ -406,8 +418,9 @@ interval:
               if (!id(immich_fetch_started)) return false;
               if (id(backlight_paused)) return false;
               if (!id(active_slot_displayed)) return false;
-              bool any_inflight = id(slot_flags).fetch_in_flight[0] || id(slot_flags).fetch_in_flight[1] || id(slot_flags).fetch_in_flight[2];
-              if (any_inflight || id(portrait).workflow_busy || id(noncritical_remote_updates_in_flight) > 0) return false;
+              bool any_inflight = any_slot_fetch_in_flight(id(slot_flags));
+              if (any_inflight || id(portrait).workflow_busy || id(preload_noncritical_in_flight) ||
+                  id(noncritical_remote_updates_in_flight) > 0) return false;
               int next1 = (id(active_slot) + 1) % 3;
               int next2 = (id(active_slot) + 2) % 3;
               auto &n1 = get_slot(next1, id(slot0), id(slot1), id(slot2));

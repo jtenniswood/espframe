@@ -215,10 +215,33 @@ script:
             - script.stop: immich_fetch_into_slot
       - if:
           condition:
+            lambda: 'return any_slot_fetch_in_flight(id(slot_flags)) && !id(slot_flags).fetch_in_flight[id(target_slot)];'
+          then:
+            - script.execute: delayed_prefetch_chain
+            - script.stop: immich_fetch_into_slot
+      - if:
+          condition:
             lambda: 'return id(slot_flags).fetch_in_flight[id(target_slot)];'
           then:
             - lambda: |-
                 ESP_LOGD("immich", "Slot %d fetch already in flight, skipping API fetch", id(target_slot));
+            - script.stop: immich_fetch_into_slot
+      - if:
+          condition:
+            lambda: |-
+              return id(immich_img_0).is_downloading() ||
+                     id(immich_img_1).is_downloading() ||
+                     id(immich_img_2).is_downloading() ||
+                     id(immich_portrait_left).is_downloading() ||
+                     id(immich_portrait_right).is_downloading() ||
+                     id(immich_portrait_preload_left).is_downloading() ||
+                     id(immich_portrait_preload_right).is_downloading();
+          then:
+            - logger.log:
+                level: DEBUG
+                tag: immich
+                format: "Fetch deferred (image download active)"
+            - script.execute: delayed_prefetch_chain
             - script.stop: immich_fetch_into_slot
       - lambda: 'mark_slot_fetch_in_flight(id(target_slot), id(slot_flags), millis());'
       - if:
@@ -363,6 +386,23 @@ script:
           condition:
             lambda: 'return id(immich_url).state.empty() || id(immich_api_key_text).state.empty();'
           then:
+            - script.stop: immich_fetch_portrait_companion
+      - if:
+          condition:
+            lambda: |-
+              return id(immich_img_0).is_downloading() ||
+                     id(immich_img_1).is_downloading() ||
+                     id(immich_img_2).is_downloading() ||
+                     id(immich_portrait_left).is_downloading() ||
+                     id(immich_portrait_right).is_downloading() ||
+                     id(immich_portrait_preload_left).is_downloading() ||
+                     id(immich_portrait_preload_right).is_downloading();
+          then:
+            - logger.log:
+                level: DEBUG
+                tag: immich
+                format: "Companion search deferred (image download active)"
+            - script.execute: deferred_companion_search
             - script.stop: immich_fetch_portrait_companion
       - lambda: |-
           id(portrait).companion_found = false;

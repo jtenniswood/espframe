@@ -102,6 +102,10 @@ inline uint32_t slot_fetch_age_ms(int s, const SlotFlags &f, uint32_t now_ms) {
   return now_ms - f.fetch_started_ms[s];
 }
 
+inline bool any_slot_fetch_in_flight(const SlotFlags &f) {
+  return f.fetch_in_flight[0] || f.fetch_in_flight[1] || f.fetch_in_flight[2];
+}
+
 // Returns true if the slot is ready for display logic, false if stale/ignored.
 inline bool handle_slot_download_complete(int slot, SlotMeta &meta,
     SlotFlags &flags, int &nc_count, int &retries) {

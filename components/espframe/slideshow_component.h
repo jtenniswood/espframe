@@ -189,6 +189,7 @@ class EspFrameSlideshow {
     portrait.left_ready = false;
     portrait.left_requested = false;
     portrait.companion_found = false;
+    portrait.no_companion_active = true;
     diag_reason = "portrait left error";
     this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG);
     if (!active_slot_displayed) {
@@ -203,6 +204,7 @@ class EspFrameSlideshow {
     portrait.right_ready = false;
     portrait.right_requested = false;
     portrait.companion_found = false;
+    portrait.no_companion_active = true;
     diag_reason = "portrait right error";
     this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG);
     if (!active_slot_displayed) {
@@ -285,7 +287,7 @@ class EspFrameSlideshow {
           this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG, slot);
           in_flight = false;
         }
-        if (!in_flight && !retry_cooldown_active) {
+        if (!in_flight && !any_slot_fetch_in_flight(flags) && !retry_cooldown_active) {
           portrait.workflow_busy = false;
           last_advance_ms = now_ms;
           target_slot = slot;
@@ -495,7 +497,8 @@ class EspFrameSlideshow {
 
     bool preload_busy = (portrait_preload_slot != -1) &&
                         !(portrait_preload_left_ready && portrait_preload_right_ready);
-    if (active_portrait_busy || preload_busy || portrait.workflow_busy || noncritical_count > 0)
+    if (any_slot_fetch_in_flight(flags) || active_portrait_busy || preload_busy ||
+        portrait.workflow_busy || noncritical_count > 0)
       return false;
     if ((now_ms - last_prefetch_start_ms) < 600) return false;
 
