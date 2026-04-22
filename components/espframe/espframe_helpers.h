@@ -51,8 +51,9 @@ inline void espframe_service_long_task(uint32_t &last_service_ms) {
   uint32_t now = esphome::millis();
   if (now - last_service_ms < ESPFRAME_LONG_TASK_SERVICE_INTERVAL_MS) return;
   esphome::App.feed_wdt();
-  esphome::yield();
-  last_service_ms = esphome::millis();
+  // Do not yield while mutating LVGL image buffers; re-entering ESPHome/LVGL
+  // mid-write can expose partially updated image state to other callbacks.
+  last_service_ms = now;
 }
 
 struct PhotoMeta {
