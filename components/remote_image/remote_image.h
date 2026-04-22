@@ -207,8 +207,8 @@ class OnlineImage : public PollingComponent,
    * this will be equal to it; otherwise it will be set once the decoding
    * starts and the original size is known.
    * This needs to be separate from "BaseImage::get_width()" because the latter
-   * must return 0 until the image has been decoded (to avoid showing partially
-   * decoded images).
+   * remains 0 until the first image has been decoded. After that, it keeps the
+   * last complete image drawable while the next transfer runs.
    */
   int buffer_width_;
   /**
@@ -216,8 +216,8 @@ class OnlineImage : public PollingComponent,
    * this will be equal to it; otherwise it will be set once the decoding
    * starts and the original size is known.
    * This needs to be separate from "BaseImage::get_height()" because the latter
-   * must return 0 until the image has been decoded (to avoid showing partially
-   * decoded images).
+   * remains 0 until the first image has been decoded. After that, it keeps the
+   * last complete image drawable while the next transfer runs.
    */
   int buffer_height_;
   /**

@@ -117,12 +117,8 @@ size_t OnlineImage::resize_(int width_in, int height_in) {
   size_t new_size = this->get_buffer_size_(width, height);
   if (this->buffer_) {
     if (new_size <= this->get_buffer_size_()) {
-      memset(this->buffer_, 0, this->get_buffer_size_());
       this->buffer_width_ = width;
       this->buffer_height_ = height;
-      this->data_start_ = nullptr;
-      this->width_ = 0;
-      this->height_ = 0;
       return new_size;
     }
     this->allocator_.deallocate(this->buffer_, this->get_buffer_size_());
@@ -246,7 +242,6 @@ void OnlineImage::update() {
     // Some servers omit or mislabel Content-Type. In that case the loop buffers
     // the first bytes of the file and detect_format_ checks the file signature.
     ESP_LOGD(TAG, "Image format not identified from Content-Type, deferring to magic-byte detection");
-    this->data_start_ = nullptr;
     this->start_time_ = ::time(nullptr);
     this->last_progress_millis_ = millis();
     this->enable_loop();
@@ -267,7 +262,9 @@ void OnlineImage::update() {
     this->download_error_callback_.call();
     return;
   }
-  this->data_start_ = nullptr;
+  // Keep the last complete image published during transfer. LVGL widgets keep a
+  // pointer to this descriptor, so clearing it mid-download can leave the display
+  // reading a temporarily invalid image source.
   this->enable_loop();
   ESP_LOGI(TAG, "Downloading image (Size: %zu)", total_size);
   this->start_time_ = ::time(nullptr);
@@ -333,9 +330,8 @@ void OnlineImage::loop() {
     return;
   }
   if (this->decoder_->is_finished()) {
-    // Only publish width_/height_ after decode is complete. ESPHome display
-    // code treats non-zero dimensions as drawable, so this prevents partially
-    // decoded images from flashing on screen.
+    // Publish the new dimensions after decode is complete. If an older image was
+    // already visible, its descriptor stayed valid while this transfer ran.
     this->data_start_ = buffer_;
     this->width_ = buffer_width_;
     this->height_ = buffer_height_;
