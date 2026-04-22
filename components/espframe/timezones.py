@@ -1,7 +1,10 @@
-# Single source of truth for timezone data used by both C++ (sun_calc.h) and
-# YAML (time.yaml). Each entry is (iana_key, gmt_label, lat, lon, posix_tz).
+# Single source of truth for timezone data used by both C++ (sun_calc.h), YAML
+# (time.yaml), and the web UI. Each entry is:
+# (iana_key, gmt_label, lat, lon, posix_tz).
 # To add or remove a timezone, edit this list only — both the C++ TZ_DATA[]
 # array and the YAML select options are generated from it.
+
+import re
 
 TIMEZONES = [
     ("Pacific/Midway",                  "GMT-11",     28.21, -177.38, "SST11"),
@@ -50,6 +53,8 @@ TIMEZONES = [
     ("Europe/London",                   "GMT+0",      51.51,   -0.13, "GMT0BST,M3.5.0/1,M10.5.0"),
     ("Europe/Dublin",                   "GMT+0",      53.35,   -6.26, "IST-1GMT0,M10.5.0,M3.5.0/1"),
     ("Europe/Lisbon",                   "GMT+0",      38.72,   -9.14, "WET0WEST,M3.5.0/1,M10.5.0"),
+    # Morocco temporarily switches to GMT+0 during Ramadan. That yearly,
+    # religion-calendar rule is not representable by this compact POSIX string.
     ("Africa/Casablanca",               "GMT+1",      33.57,   -7.59, "<+01>-1"),
     ("Africa/Accra",                    "GMT+0",       5.56,   -0.19, "GMT0"),
     ("Atlantic/Reykjavik",              "GMT+0",      64.15,  -21.94, "GMT0"),
@@ -101,7 +106,7 @@ TIMEZONES = [
     ("Asia/Colombo",                    "GMT+5:30",    6.93,   79.84, "<+0530>-5:30"),
     ("Asia/Kathmandu",                  "GMT+5:45",   27.72,   85.32, "<+0545>-5:45"),
     ("Asia/Dhaka",                      "GMT+6",      23.81,   90.41, "<+06>-6"),
-    ("Asia/Almaty",                     "GMT+6",      43.24,   76.95, "<+05>-5"),
+    ("Asia/Almaty",                     "GMT+5",      43.24,   76.95, "<+05>-5"),
     ("Asia/Rangoon",                    "GMT+6:30",   16.87,   96.20, "<+0630>-6:30"),
     ("Asia/Bangkok",                    "GMT+7",      13.76,  100.50, "<+07>-7"),
     ("Asia/Jakarta",                    "GMT+7",      -6.21,  106.85, "WIB-7"),
@@ -140,6 +145,101 @@ TIMEZONES = [
 def generate_yaml_options():
     """Generate the YAML select options list."""
     return [f'{tz} ({gmt})' for tz, gmt, *_ in TIMEZONES]
+
+
+def parse_gmt_label(gmt: str) -> float:
+    """Parse a GMT label like GMT+5:30 into an hour offset."""
+    if not gmt.startswith("GMT"):
+        raise ValueError(f"Invalid GMT label: {gmt}")
+    value = gmt[3:]
+    if value in ("", "0", "+0", "-0"):
+        return 0.0
+    sign = 1.0
+    if value[0] == "+":
+        value = value[1:]
+    elif value[0] == "-":
+        sign = -1.0
+        value = value[1:]
+    if ":" in value:
+        hours, minutes = value.split(":", 1)
+        return sign * (int(hours) + int(minutes) / 60.0)
+    return sign * float(value)
+
+
+def format_gmt_offset(offset: float) -> str:
+    """Format an hour offset as a GMT label."""
+    if abs(offset) < 0.0001:
+        return "GMT+0"
+    sign = "+" if offset >= 0 else "-"
+    total_minutes = int(round(abs(offset) * 60))
+    hours, minutes = divmod(total_minutes, 60)
+    if minutes:
+        return f"GMT{sign}{hours}:{minutes:02d}"
+    return f"GMT{sign}{hours}"
+
+
+def _skip_posix_tz_name(posix: str, index: int) -> int:
+    if index >= len(posix):
+        raise ValueError("Missing timezone name")
+    if posix[index] == "<":
+        end = posix.find(">", index + 1)
+        if end == -1:
+            raise ValueError(f"Unterminated POSIX timezone name: {posix}")
+        return end + 1
+    match = re.match(r"[A-Za-z]{3,}", posix[index:])
+    if not match:
+        raise ValueError(f"Invalid POSIX timezone name: {posix}")
+    return index + match.end()
+
+
+def _parse_posix_offset(posix: str, index: int) -> tuple[float, int]:
+    match = re.match(r"([+-]?)(\d{1,2})(?::(\d{1,2}))?(?::(\d{1,2}))?", posix[index:])
+    if not match:
+        raise ValueError(f"Invalid POSIX timezone offset: {posix}")
+    sign = -1.0 if match.group(1) == "-" else 1.0
+    hours = int(match.group(2))
+    minutes = int(match.group(3) or "0")
+    seconds = int(match.group(4) or "0")
+    posix_offset = sign * (hours + minutes / 60.0 + seconds / 3600.0)
+    # POSIX offsets use the opposite sign to conventional UTC/GMT offsets.
+    return -posix_offset, index + match.end()
+
+
+def posix_conventional_offsets(posix: str) -> list[float]:
+    """Return the conventional UTC offsets represented by a POSIX TZ string."""
+    index = _skip_posix_tz_name(posix, 0)
+    standard_offset, index = _parse_posix_offset(posix, index)
+    offsets = [standard_offset]
+    if index >= len(posix) or posix[index] == ",":
+        return offsets
+    index = _skip_posix_tz_name(posix, index)
+    if index < len(posix) and posix[index] != ",":
+        daylight_offset, _ = _parse_posix_offset(posix, index)
+    else:
+        daylight_offset = standard_offset + 1.0
+    offsets.append(daylight_offset)
+    return sorted(set(offsets))
+
+
+def web_timezone_label(tz: str, gmt: str, posix: str) -> str:
+    """Generate a clearer web-only display label without changing stored values."""
+    option = f"{tz} ({gmt})"
+    offsets = posix_conventional_offsets(posix)
+    if len(offsets) < 2:
+        return option
+    base_offset = parse_gmt_label(gmt)
+    daylight_offset = max(offsets)
+    if abs(daylight_offset - base_offset) < 0.0001:
+        return option
+    return f"{tz} ({gmt}; daylight {format_gmt_offset(daylight_offset)})"
+
+
+def generate_web_timezone_labels():
+    """Generate option-value to display-label mapping for the web UI."""
+    return {
+        f"{tz} ({gmt})": web_timezone_label(tz, gmt, posix)
+        for tz, gmt, _lat, _lon, posix in TIMEZONES
+    }
 
 
 def generate_cpp_tz_data():

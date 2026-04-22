@@ -2,6 +2,11 @@
 #include <string>
 #include <cstdint>
 #include <cmath>
+#include <ctime>
+
+#ifdef USE_TIME_TIMEZONE
+#include "esphome/components/time/posix_tz.h"
+#endif
 
 // ============================================================================
 // Timezone data lookup table — generated from timezones.py via __init__.py
@@ -31,6 +36,18 @@ inline const char* lookup_tz_posix(const std::string &tz_id) {
     }
   }
   return nullptr;
+}
+
+inline float active_tz_offset_hours(time_t epoch, float fallback_offset) {
+#ifdef USE_TIME_TIMEZONE
+  const auto &tz = esphome::time::get_global_tz();
+  int32_t offset_seconds = esphome::time::is_in_dst(epoch, tz)
+                             ? tz.dst_offset_seconds
+                             : tz.std_offset_seconds;
+  return -offset_seconds / 3600.0f;
+#else
+  return fallback_offset;
+#endif
 }
 
 // ============================================================================

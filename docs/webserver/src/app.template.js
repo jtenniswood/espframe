@@ -2,10 +2,12 @@
   "use strict";
 
   var TIMEZONES = __ESPFRAME_TIMEZONES__;
+  var TIMEZONE_LABELS = __ESPFRAME_TIMEZONE_LABELS__;
 
   var S = {
     clock_options: ["24 Hour", "12 Hour"],
     tz_options: TIMEZONES,
+    tz_labels: TIMEZONE_LABELS,
     interval: "15 seconds",
     interval_options: [
       "10 seconds", "15 seconds", "20 seconds", "30 seconds", "45 seconds",
@@ -564,6 +566,7 @@
     } else {
       S[spec.key] = v !== undefined && v !== null ? String(v) : (spec.default !== undefined ? spec.default : "");
     }
+    if (spec.key === "timezone") S[spec.key] = normalizeTimezoneOption(S[spec.key]);
     if (spec.optionsKey && d.option && d.option.length) S[spec.optionsKey] = d.option;
   }
 
@@ -2002,9 +2005,22 @@
   }
 
   function timezoneSelect(options, current, onChange) {
-    return selectFromOptions(options, current, onChange, function (o) {
-      return o.replace(/_/g, " ");
+    current = normalizeTimezoneOption(current);
+    return selectFromOptions(options, current, function (v) {
+      onChange(normalizeTimezoneOption(v));
+    }, function (o) {
+      return timezoneDisplayLabel(o);
     });
+  }
+
+  function normalizeTimezoneOption(value) {
+    if (value === "Asia/Almaty (GMT+6)") return "Asia/Almaty (GMT+5)";
+    return value;
+  }
+
+  function timezoneDisplayLabel(option) {
+    var label = (S.tz_labels && S.tz_labels[option]) || option;
+    return label.replace(/_/g, " ");
   }
 
   // --- Helpers ---
@@ -2306,8 +2322,8 @@
           post(endpoints.clock_format + "/set", { option: clk.format });
         }
         if (clk.timezone !== undefined) {
-          S.timezone = clk.timezone;
-          post(endpoints.timezone + "/set", { option: clk.timezone });
+          S.timezone = normalizeTimezoneOption(clk.timezone);
+          post(endpoints.timezone + "/set", { option: S.timezone });
         }
 
         if (scr.brightness_day !== undefined) {

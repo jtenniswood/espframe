@@ -4,6 +4,7 @@
   "scripts": {
     "generate": "python3 scripts/generate_assets.py",
     "check:generated": "python3 scripts/generate_assets.py --check",
+    "test:timezones": "python3 scripts/check_timezones.py",
     "test:helpers": "g++ -std=c++17 -I. -Itests/stubs tests/espframe_helper_tests.cpp -o /tmp/espframe_helper_tests && /tmp/espframe_helper_tests",
     "webserver:build": "python3 scripts/generate_assets.py",
     "docs:dev": "vitepress dev docs",

@@ -452,7 +452,17 @@ script:
 
           std::string tz_full = id(timezone_select).current_option();
           std::string tz_id = tz_full.substr(0, tz_full.find(" ("));
-          float tz_offset = parse_tz_offset(tz_full);
+          float fallback_tz_offset = parse_tz_offset(tz_full);
+          float tz_offset = fallback_tz_offset;
+
+          auto local_noon = now;
+          local_noon.hour = 12;
+          local_noon.minute = 0;
+          local_noon.second = 0;
+          local_noon.recalc_timestamp_local();
+          if (local_noon.timestamp >= 0) {
+            tz_offset = active_tz_offset_hours(local_noon.timestamp, fallback_tz_offset);
+          }
 
           float lat, lon;
           if (!lookup_tz_coords(tz_id, lat, lon)) {

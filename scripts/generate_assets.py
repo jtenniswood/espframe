@@ -41,6 +41,11 @@ def timezone_options() -> list[str]:
     return list(module.generate_yaml_options())
 
 
+def timezone_labels() -> dict[str, str]:
+    module = load_timezones()
+    return dict(module.generate_web_timezone_labels())
+
+
 def timezone_header() -> str:
     module = load_timezones()
     return "\n".join(
@@ -123,6 +128,19 @@ def bootstrap_webserver_sources() -> None:
     tz_start, tz_end = extract_first_array_block(text, "TIMEZONES")
     text = text[:tz_start] + "  var TIMEZONES = __ESPFRAME_TIMEZONES__;" + text[tz_end:]
 
+    label_marker = "  var TIMEZONE_LABELS = "
+    try:
+        label_start = text.index(label_marker)
+        label_end = text.index(";", label_start) + 1
+        text = text[:label_start] + "  var TIMEZONE_LABELS = __ESPFRAME_TIMEZONE_LABELS__;" + text[label_end:]
+    except ValueError:
+        text = text.replace(
+            "  var TIMEZONES = __ESPFRAME_TIMEZONES__;",
+            "  var TIMEZONES = __ESPFRAME_TIMEZONES__;\n"
+            "  var TIMEZONE_LABELS = __ESPFRAME_TIMEZONE_LABELS__;",
+            1,
+        )
+
     css_start, css_end, css = extract_css_assignment(text)
     text = text[:css_start] + "  var CSS = __ESPFRAME_CSS__;" + text[css_end:]
 
@@ -137,8 +155,14 @@ def web_app_bundle() -> str:
     template = WEB_TEMPLATE_PATH.read_text()
     css = WEB_STYLE_PATH.read_text().rstrip("\n")
     timezones_json = json.dumps(timezone_options(), separators=(",", ":"))
+    timezone_labels_json = json.dumps(timezone_labels(), separators=(",", ":"))
     css_json = json.dumps(css, separators=(",", ":"))
-    return template.replace("__ESPFRAME_TIMEZONES__", timezones_json).replace("__ESPFRAME_CSS__", css_json)
+    return (
+        template
+        .replace("__ESPFRAME_TIMEZONES__", timezones_json)
+        .replace("__ESPFRAME_TIMEZONE_LABELS__", timezone_labels_json)
+        .replace("__ESPFRAME_CSS__", css_json)
+    )
 
 
 def write_or_check(path: Path, content: str, check: bool) -> bool:

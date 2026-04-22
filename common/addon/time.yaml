@@ -133,7 +133,7 @@ select:
       - "Asia/Colombo (GMT+5:30)"
       - "Asia/Kathmandu (GMT+5:45)"
       - "Asia/Dhaka (GMT+6)"
-      - "Asia/Almaty (GMT+6)"
+      - "Asia/Almaty (GMT+5)"
       - "Asia/Rangoon (GMT+6:30)"
       - "Asia/Bangkok (GMT+7)"
       - "Asia/Jakarta (GMT+7)"
