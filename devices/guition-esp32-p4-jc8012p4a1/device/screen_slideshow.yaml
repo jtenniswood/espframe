@@ -102,8 +102,8 @@ lvgl:
                   clickable: false
         - obj:
             id: info_overlay
-            align: BOTTOM_LEFT
-            x: 45
+            align: BOTTOM_RIGHT
+            x: -45
             y: 0
             width: 1190
             height: SIZE_CONTENT
@@ -116,7 +116,7 @@ lvgl:
               type: flex
               flex_flow: COLUMN
               flex_align_main: START
-              flex_align_cross: START
+              flex_align_cross: END
               pad_row: 0
             widgets:
               - obj:
@@ -145,7 +145,7 @@ lvgl:
                           type: flex
                           flex_flow: COLUMN
                           flex_align_main: START
-                          flex_align_cross: START
+                          flex_align_cross: END
                           pad_row: 0
                         widgets:
                           - label:
@@ -154,6 +154,7 @@ lvgl:
                               width: SIZE_CONTENT
                               text: ""
                               long_mode: DOT
+                              text_align: right
                               text_color: 0x000000
                               text_opa: 20%
                               text_font: noto_location_light40_font
@@ -163,6 +164,7 @@ lvgl:
                               width: SIZE_CONTENT
                               text: ""
                               long_mode: DOT
+                              text_align: right
                               text_color: 0x000000
                               text_opa: 20%
                               text_font: roboto_light40_font
@@ -181,7 +183,7 @@ lvgl:
                           type: flex
                           flex_flow: COLUMN
                           flex_align_main: START
-                          flex_align_cross: START
+                          flex_align_cross: END
                           pad_row: 0
                         widgets:
                           - label:
@@ -190,6 +192,7 @@ lvgl:
                               width: SIZE_CONTENT
                               text: ""
                               long_mode: DOT
+                              text_align: right
                               text_color: 0xFFFFFF
                               text_font: noto_location_light40_font
                           - label:
@@ -198,6 +201,7 @@ lvgl:
                               width: SIZE_CONTENT
                               text: ""
                               long_mode: DOT
+                              text_align: right
                               text_color: 0xFFFFFF
                               text_font: roboto_light40_font
               - obj:
@@ -215,6 +219,7 @@ lvgl:
                         x: 2
                         y: 2
                         text: ""
+                        text_align: right
                         text_color: 0x000000
                         text_opa: 20%
                         text_font: roboto_light150_font
@@ -223,6 +228,7 @@ lvgl:
                         x: 0
                         y: 0
                         text: ""
+                        text_align: right
                         text_color: 0xFFFFFF
                         text_font: roboto_light150_font
         - obj:
