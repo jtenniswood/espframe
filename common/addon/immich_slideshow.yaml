@@ -408,19 +408,19 @@ script:
                 }
                 break;
               case SLIDESHOW_COMMAND_UPDATE_PORTRAIT_LEFT:
-                id(immich_portrait_left).set_fill_mode(id(photo_display_mode).current_option() == "Fill");
+                id(immich_portrait_left).set_fill_mode(true);
                 id(immich_portrait_left).update();
                 break;
               case SLIDESHOW_COMMAND_UPDATE_PORTRAIT_RIGHT:
-                id(immich_portrait_right).set_fill_mode(id(photo_display_mode).current_option() == "Fill");
+                id(immich_portrait_right).set_fill_mode(true);
                 id(immich_portrait_right).update();
                 break;
               case SLIDESHOW_COMMAND_UPDATE_PRELOAD_LEFT:
-                id(immich_portrait_preload_left).set_fill_mode(id(photo_display_mode).current_option() == "Fill");
+                id(immich_portrait_preload_left).set_fill_mode(true);
                 id(immich_portrait_preload_left).update();
                 break;
               case SLIDESHOW_COMMAND_UPDATE_PRELOAD_RIGHT:
-                id(immich_portrait_preload_right).set_fill_mode(id(photo_display_mode).current_option() == "Fill");
+                id(immich_portrait_preload_right).set_fill_mode(true);
                 id(immich_portrait_preload_right).update();
                 break;
               case SLIDESHOW_COMMAND_START_PORTRAIT_LEFT: {
