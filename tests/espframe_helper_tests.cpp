@@ -113,7 +113,7 @@ static void test_date_and_url_helpers() {
   assert(normalize_immich_base_url("HTTPS://photos.example.com///") == "https://photos.example.com");
   assert(format_photo_age(2026, 4, 21, 2026, 4, 21) == "today");
   assert(format_photo_age(2026, 4, 1, 2026, 4, 21) == "20 days ago");
-  assert(format_photo_date_full(2026, 4, 21) == "21 April 2026");
+  assert(format_photo_date_full(2026, 4, 21) == "21 April, 2026");
 }
 
 static void test_immich_body_helpers() {

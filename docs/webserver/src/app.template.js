@@ -65,8 +65,9 @@
     photo_orientation_options: ["Any", "Portrait Only", "Landscape Only"],
     display_mode: "Fill",
     display_mode_options: ["Fill", "Fit"],
-    photo_metadata_enabled: true,
-    photo_metadata_time_enabled: true,
+    photo_metadata_date_enabled: true,
+    photo_metadata_date_format: "Relative Date",
+    photo_metadata_date_format_options: ["Relative Date", "Date Taken"],
     photo_metadata_location_enabled: true,
     screen_rotation: "0",
     screen_rotation_options: ["0", "180"],
@@ -249,8 +250,8 @@
     portrait_pairing: eid("switch", "Photos: Portrait Pairing"),
     photo_orientation: eid("select", "Photos: Orientation"),
     display_mode: eid("select", "Photos: Display Mode"),
-    photo_metadata_enabled: eid("switch", "Device: Show Metadata"),
-    photo_metadata_time_enabled: eid("switch", "Device: Metadata Time"),
+    photo_metadata_date_enabled: eid("switch", "Device: Metadata Date"),
+    photo_metadata_date_format: eid("select", "Device: Metadata Date Format"),
     photo_metadata_location_enabled: eid("switch", "Device: Metadata Location"),
     screen_rotation: eid("select", "Screen: Rotation"),
   };
@@ -520,8 +521,8 @@
     "select/Screen: Rotation": { key: "screen_rotation", optionsKey: "screen_rotation_options", default: "0" },
     "switch/Photos: Portrait Pairing": { key: "portrait_pairing", boolFromState: true },
     "select/Photos: Display Mode": { key: "display_mode", optionsKey: "display_mode_options", default: "Fill" },
-    "switch/Device: Show Metadata": { key: "photo_metadata_enabled", boolFromState: true },
-    "switch/Device: Metadata Time": { key: "photo_metadata_time_enabled", boolFromState: true },
+    "switch/Device: Metadata Date": { key: "photo_metadata_date_enabled", boolFromState: true },
+    "select/Device: Metadata Date Format": { key: "photo_metadata_date_format", optionsKey: "photo_metadata_date_format_options", default: "Relative Date" },
     "switch/Device: Metadata Location": { key: "photo_metadata_location_enabled", boolFromState: true }
   };
 
@@ -584,7 +585,7 @@
     "screen_rotation",
     "portrait_pairing",
     "display_mode",
-    "photo_metadata_enabled", "photo_metadata_time_enabled", "photo_metadata_location_enabled"
+    "photo_metadata_date_enabled", "photo_metadata_date_format", "photo_metadata_location_enabled"
   ];
   function getEntityIdForStateKey(key) {
     for (var id in ENTITY_STATE_MAP) {
@@ -1421,45 +1422,40 @@
 
     // Device Metadata
     function metadataIsActive() {
-      return S.photo_metadata_enabled &&
-        (S.photo_metadata_time_enabled || S.photo_metadata_location_enabled);
+      return S.photo_metadata_date_enabled || S.photo_metadata_location_enabled;
     }
     var metadataBadge = makeBadge(metadataIsActive());
     var metadataBody = el("div");
-    var metadataDetails = el("div");
+    var metadataDateDetails = el("div");
 
     function refreshMetadataDetails() {
-      metadataDetails.style.display = S.photo_metadata_enabled ? "" : "none";
+      metadataDateDetails.style.display = S.photo_metadata_date_enabled ? "" : "none";
       metadataBadge.className = "on-badge" + (metadataIsActive() ? " active" : "");
     }
 
-    var fMetadataToggle = field("");
-    var metadataTr = el("div", "toggle-row");
-    metadataTr.innerHTML = "<span>Show Photo Metadata</span>";
-    var metadataTog = el("div", S.photo_metadata_enabled ? "toggle on" : "toggle");
-    metadataTog.onclick = function () {
-      S.photo_metadata_enabled = !S.photo_metadata_enabled;
-      metadataTog.className = S.photo_metadata_enabled ? "toggle on" : "toggle";
+    var fMetadataDate = field("");
+    var metadataDateTr = el("div", "toggle-row");
+    metadataDateTr.innerHTML = "<span>Display Photo Date</span>";
+    var metadataDateTog = el("div", S.photo_metadata_date_enabled ? "toggle on" : "toggle");
+    metadataDateTog.onclick = function () {
+      S.photo_metadata_date_enabled = !S.photo_metadata_date_enabled;
+      metadataDateTog.className = S.photo_metadata_date_enabled ? "toggle on" : "toggle";
       refreshMetadataDetails();
-      post(endpoints.photo_metadata_enabled + (S.photo_metadata_enabled ? "/turn_on" : "/turn_off"));
+      post(endpoints.photo_metadata_date_enabled + (S.photo_metadata_date_enabled ? "/turn_on" : "/turn_off"));
     };
-    metadataTr.appendChild(metadataTog);
-    fMetadataToggle.appendChild(metadataTr);
-    metadataBody.appendChild(fMetadataToggle);
+    metadataDateTr.appendChild(metadataDateTog);
+    fMetadataDate.appendChild(metadataDateTr);
+    metadataBody.appendChild(fMetadataDate);
 
-    var fMetadataTime = field("");
-    var metadataTimeTr = el("div", "toggle-row");
-    metadataTimeTr.innerHTML = "<span>Display Photo Time</span>";
-    var metadataTimeTog = el("div", S.photo_metadata_time_enabled ? "toggle on" : "toggle");
-    metadataTimeTog.onclick = function () {
-      S.photo_metadata_time_enabled = !S.photo_metadata_time_enabled;
-      metadataTimeTog.className = S.photo_metadata_time_enabled ? "toggle on" : "toggle";
-      refreshMetadataDetails();
-      post(endpoints.photo_metadata_time_enabled + (S.photo_metadata_time_enabled ? "/turn_on" : "/turn_off"));
-    };
-    metadataTimeTr.appendChild(metadataTimeTog);
-    fMetadataTime.appendChild(metadataTimeTr);
-    metadataDetails.appendChild(fMetadataTime);
+    var fMetadataDateFormat = field("Date Display");
+    fMetadataDateFormat.appendChild(
+      selectFromOptions(S.photo_metadata_date_format_options, S.photo_metadata_date_format, function (v) {
+        S.photo_metadata_date_format = v;
+        post(endpoints.photo_metadata_date_format + "/set", { option: v });
+      })
+    );
+    metadataDateDetails.appendChild(fMetadataDateFormat);
+    metadataBody.appendChild(metadataDateDetails);
 
     var fMetadataLocation = field("");
     var metadataLocationTr = el("div", "toggle-row");
@@ -1473,9 +1469,8 @@
     };
     metadataLocationTr.appendChild(metadataLocationTog);
     fMetadataLocation.appendChild(metadataLocationTr);
-    metadataDetails.appendChild(fMetadataLocation);
+    metadataBody.appendChild(fMetadataLocation);
 
-    metadataBody.appendChild(metadataDetails);
     refreshMetadataDetails();
     wrap.appendChild(makeCollapsibleCard("Device Metadata", metadataBody, true, metadataBadge));
 

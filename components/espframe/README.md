@@ -43,7 +43,7 @@ Base metadata for a single photo.
 |-------|------|--------|
 | `asset_id` | `std::string` | Immich asset ID. |
 | `image_url` | `std::string` | Full URL for thumbnail/preview (e.g. `/api/assets/.../thumbnail?size=preview`). |
-| `date` | `std::string` | Human-readable date (e.g. `"10 October 2022"` when a full date is known). |
+| `date` | `std::string` | Human-readable date (e.g. `"10 October, 2022"` when a full date is known). |
 | `location` | `std::string` | Location string (e.g. city, country from EXIF). |
 | `person` | `std::string` | First person name from Immich people. |
 | `year`, `month`, `day` | `int` | Photo date parts when known. |
@@ -189,7 +189,7 @@ std::string date_str = format_photo_date(meta.year, meta.month);
 
 #### `format_photo_date_full(year, month, day)`
 
-Returns a full display date such as `"10 October 2022"` or `""` if the date parts are invalid.
+Returns a full display date such as `"10 October, 2022"` or `""` if the date parts are invalid.
 
 ---
 

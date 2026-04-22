@@ -230,5 +230,5 @@ inline std::string format_photo_date(int year, int month) {
 
 inline std::string format_photo_date_full(int year, int month, int day) {
   if (!is_valid_date_parts(year, month, day)) return "";
-  return std::to_string(day) + " " + std::string(MONTH_NAMES_FULL[month]) + " " + std::to_string(year);
+  return std::to_string(day) + " " + std::string(MONTH_NAMES_FULL[month]) + ", " + std::to_string(year);
 }

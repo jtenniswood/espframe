@@ -104,7 +104,28 @@ globals:
     initial_value: '0'
 
 # -----------------------------------------------------------------------------
-# Portrait pairing toggle (persisted across reboots)
+# Metadata display mode (persisted across reboots)
+# -----------------------------------------------------------------------------
+select:
+  - platform: template
+    name: "Device: Metadata Date Format"
+    id: photo_metadata_date_format
+    internal: true
+    options:
+      - "Relative Date"
+      - "Date Taken"
+    initial_option: "Relative Date"
+    optimistic: true
+    restore_value: true
+    icon: "mdi:calendar-clock"
+    web_server:
+      sorting_group_id: sg_device
+    on_value:
+      then:
+        - script.execute: update_photo_metadata_display
+
+# -----------------------------------------------------------------------------
+# Portrait pairing and metadata toggles (persisted across reboots)
 # -----------------------------------------------------------------------------
 switch:
   - platform: template
@@ -118,24 +139,8 @@ switch:
       sorting_group_id: sg_photos
 
   - platform: template
-    name: "Device: Show Metadata"
-    id: photo_metadata_enabled
-    internal: true
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON
-    icon: "mdi:text-box-outline"
-    web_server:
-      sorting_group_id: sg_device
-    on_turn_on:
-      then:
-        - script.execute: update_photo_metadata_display
-    on_turn_off:
-      then:
-        - script.execute: update_photo_metadata_display
-
-  - platform: template
-    name: "Device: Metadata Time"
-    id: photo_metadata_time_enabled
+    name: "Device: Metadata Date"
+    id: photo_metadata_date_enabled
     internal: true
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
@@ -616,12 +621,16 @@ script:
     then:
       - lambda: |-
           std::string text;
-          if (id(active_slot_displayed) && id(photo_metadata_enabled).state) {
-            if (id(photo_metadata_time_enabled).state) {
-              auto now = id(sntp_time).now();
-              if (now.is_valid()) {
-                text = format_photo_age(id(current_display).year, id(current_display).month, id(current_display).day,
-                                        now.year, now.month, now.day_of_month);
+          if (id(active_slot_displayed)) {
+            if (id(photo_metadata_date_enabled).state) {
+              if (id(photo_metadata_date_format).current_option() == "Date Taken") {
+                text = id(current_display).date;
+              } else {
+                auto now = id(sntp_time).now();
+                if (now.is_valid()) {
+                  text = format_photo_age(id(current_display).year, id(current_display).month, id(current_display).day,
+                                          now.year, now.month, now.day_of_month);
+                }
               }
             }
             if (id(photo_metadata_location_enabled).state && !id(current_display).location.empty()) {
