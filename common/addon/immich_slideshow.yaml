@@ -114,7 +114,7 @@ select:
     options:
       - "Relative Date"
       - "Date Taken"
-    initial_option: "Relative Date"
+    initial_option: "Date Taken"
     optimistic: true
     restore_value: true
     icon: "mdi:calendar-clock"
@@ -615,35 +615,53 @@ script:
       - script.execute: update_photo_metadata_display
       - script.execute: delayed_prefetch_chain
 
-  # Refresh the bottom-right photo date/location metadata overlay.
+  # Refresh the photo date/location metadata overlay beneath the clock.
   - id: update_photo_metadata_display
     mode: single
     then:
       - lambda: |-
-          std::string text;
+          std::string location_text;
+          std::string date_text;
           if (id(active_slot_displayed)) {
+            if (id(photo_metadata_location_enabled).state && !id(current_display).location.empty()) {
+              location_text = id(current_display).location;
+            }
             if (id(photo_metadata_date_enabled).state) {
               if (id(photo_metadata_date_format).current_option() == "Date Taken") {
-                text = id(current_display).date;
+                date_text = id(current_display).date;
               } else {
                 auto now = id(sntp_time).now();
                 if (now.is_valid()) {
-                  text = format_photo_age(id(current_display).year, id(current_display).month, id(current_display).day,
-                                          now.year, now.month, now.day_of_month);
+                  date_text = format_photo_age(id(current_display).year, id(current_display).month, id(current_display).day,
+                                               now.year, now.month, now.day_of_month);
                 }
               }
             }
-            if (id(photo_metadata_location_enabled).state && !id(current_display).location.empty()) {
-              if (!text.empty()) text += "\n";
-              text += id(current_display).location;
-            }
           }
 
-          lv_obj_set_style_text_line_space(id(photo_metadata_label), 10, LV_PART_MAIN);
-          lv_obj_set_style_text_line_space(id(photo_metadata_label_shadow), 10, LV_PART_MAIN);
-          lv_label_set_text(id(photo_metadata_label), text.c_str());
-          lv_label_set_text(id(photo_metadata_label_shadow), text.c_str());
-          if (text.empty()) {
+          const bool has_location = !location_text.empty();
+          const bool has_date = !date_text.empty();
+          lv_label_set_text(id(photo_metadata_location_label), location_text.c_str());
+          lv_label_set_text(id(photo_metadata_location_label_shadow), location_text.c_str());
+          lv_label_set_text(id(photo_metadata_date_label), date_text.c_str());
+          lv_label_set_text(id(photo_metadata_date_label_shadow), date_text.c_str());
+
+          if (has_location) {
+            lv_obj_clear_flag(id(photo_metadata_location_container), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(photo_metadata_location_container), LV_OBJ_FLAG_HIDDEN);
+          }
+          if (has_location && has_date) {
+            lv_obj_clear_flag(id(photo_metadata_divider), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(photo_metadata_divider), LV_OBJ_FLAG_HIDDEN);
+          }
+          if (has_date) {
+            lv_obj_clear_flag(id(photo_metadata_date_container), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(photo_metadata_date_container), LV_OBJ_FLAG_HIDDEN);
+          }
+          if (!has_location && !has_date) {
             lv_obj_add_flag(id(photo_metadata_overlay), LV_OBJ_FLAG_HIDDEN);
           } else {
             lv_obj_clear_flag(id(photo_metadata_overlay), LV_OBJ_FLAG_HIDDEN);

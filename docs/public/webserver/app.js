@@ -68,7 +68,7 @@
     display_mode: "Fill",
     display_mode_options: ["Fill", "Fit"],
     photo_metadata_date_enabled: true,
-    photo_metadata_date_format: "Relative Date",
+    photo_metadata_date_format: "Date Taken",
     photo_metadata_date_format_options: ["Relative Date", "Date Taken"],
     photo_metadata_location_enabled: true,
     screen_rotation: "0",
@@ -524,7 +524,7 @@
     "switch/Photos: Portrait Pairing": { key: "portrait_pairing", boolFromState: true },
     "select/Photos: Display Mode": { key: "display_mode", optionsKey: "display_mode_options", default: "Fill" },
     "switch/Device: Metadata Date": { key: "photo_metadata_date_enabled", boolFromState: true },
-    "select/Device: Metadata Date Format": { key: "photo_metadata_date_format", optionsKey: "photo_metadata_date_format_options", default: "Relative Date" },
+    "select/Device: Metadata Date Format": { key: "photo_metadata_date_format", optionsKey: "photo_metadata_date_format_options", default: "Date Taken" },
     "switch/Device: Metadata Location": { key: "photo_metadata_location_enabled", boolFromState: true }
   };
 
