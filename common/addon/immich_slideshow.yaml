@@ -668,12 +668,7 @@ script:
           }
 
           lv_obj_update_layout(id(info_overlay));
-          const bool has_clock = !lv_obj_has_flag(id(clock_container), LV_OBJ_FLAG_HIDDEN);
-          const int32_t clock_width = has_clock ? lv_obj_get_width(id(clock_container)) : 0;
-          const int32_t clock_metadata_gap_width = has_clock ? 40 : 0;
-          const int32_t available_metadata_width = lv_obj_get_width(id(info_overlay)) -
-                                                   clock_width - clock_metadata_gap_width;
-          const int32_t metadata_width = available_metadata_width > 0 ? available_metadata_width : 0;
+          const int32_t metadata_width = lv_obj_get_width(id(info_overlay));
           lv_obj_set_width(id(photo_metadata_overlay), metadata_width);
           lv_obj_set_width(id(photo_metadata_shadow_row), metadata_width);
           lv_obj_set_width(id(photo_metadata_row), metadata_width);

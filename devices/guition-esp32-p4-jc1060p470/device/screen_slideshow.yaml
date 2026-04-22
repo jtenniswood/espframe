@@ -103,10 +103,10 @@ lvgl:
             clickable: false
             layout:
               type: flex
-              flex_flow: ROW
+              flex_flow: COLUMN
               flex_align_main: START
-              flex_align_cross: END
-              pad_column: 40
+              flex_align_cross: START
+              pad_row: 0
             widgets:
               - obj:
                   id: clock_container
@@ -136,8 +136,9 @@ lvgl:
               - obj:
                   id: photo_metadata_overlay
                   hidden: true
-                  width: 494
+                  width: 934
                   height: 52
+                  translate_y: -10
                   bg_opa: 0%
                   border_width: 0
                   pad_all: 0
@@ -148,7 +149,7 @@ lvgl:
                         id: photo_metadata_shadow_row
                         x: 2
                         y: 2
-                        width: 494
+                        width: 934
                         height: 52
                         bg_opa: 0%
                         border_width: 0
@@ -162,6 +163,13 @@ lvgl:
                           flex_align_cross: CENTER
                           pad_column: 28
                         widgets:
+                          - label:
+                              id: photo_metadata_date_label_shadow
+                              hidden: true
+                              text: ""
+                              text_color: 0x000000
+                              text_opa: 20%
+                              text_font: roboto_light40_font
                           - label:
                               id: photo_metadata_location_label_shadow
                               hidden: true
@@ -171,18 +179,11 @@ lvgl:
                               text_color: 0x000000
                               text_opa: 20%
                               text_font: noto_location_light40_font
-                          - label:
-                              id: photo_metadata_date_label_shadow
-                              hidden: true
-                              text: ""
-                              text_color: 0x000000
-                              text_opa: 20%
-                              text_font: roboto_light40_font
                     - obj:
                         id: photo_metadata_row
                         x: 0
                         y: 0
-                        width: 494
+                        width: 934
                         height: 52
                         bg_opa: 0%
                         border_width: 0
@@ -197,6 +198,12 @@ lvgl:
                           pad_column: 28
                         widgets:
                           - label:
+                              id: photo_metadata_date_label
+                              hidden: true
+                              text: ""
+                              text_color: 0xFFFFFF
+                              text_font: roboto_light40_font
+                          - label:
                               id: photo_metadata_location_label
                               hidden: true
                               width: SIZE_CONTENT
@@ -204,12 +211,6 @@ lvgl:
                               long_mode: DOT
                               text_color: 0xFFFFFF
                               text_font: noto_location_light40_font
-                          - label:
-                              id: photo_metadata_date_label
-                              hidden: true
-                              text: ""
-                              text_color: 0xFFFFFF
-                              text_font: roboto_light40_font
         - obj:
             id: connection_failed_overlay
             align: CENTER
