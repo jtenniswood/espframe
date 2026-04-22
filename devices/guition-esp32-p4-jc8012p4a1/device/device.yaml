@@ -32,6 +32,8 @@ esphome:
     board_build.flash_mode: dio
     build_flags:
       - "-DCONFIG_COMPILER_OPTIMIZATION_PERF=y"
+      - "-DLV_USE_BIDI=1"
+      - "-DLV_USE_ARABIC_PERSIAN_CHARS=1"
 
 # -----------------------------------------------------------------------------
 # ESP32-C6 coprocessor (WiFi and Bluetooth via SDIO)

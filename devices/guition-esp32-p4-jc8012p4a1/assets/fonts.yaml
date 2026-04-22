@@ -4,7 +4,8 @@
 # Google Fonts at multiple sizes. The 150px clock font uses a minimal glyph set
 # for digits; smaller sizes include broader glyphs for setup screens and text.
 # Location metadata uses Noto Sans Light because Immich place names can include
-# glyphs that Roboto does not provide.
+# glyphs that Roboto does not provide. Middle East scripts use script-specific
+# Noto extras so the main location font can keep its existing European coverage.
 # =============================================================================
 
 substitutions:
@@ -13,6 +14,8 @@ substitutions:
     ¡¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿĀāĂăĄąĆćĈĉĊċČčĎďĐđĒēĔĕĖėĘęĚěĜĝĞğĠġĢģĤĥĦħĨĩĪīĬĭĮįİıĲĳĴĵĶķĸĹĺĻļĽľĿŀŁłŃńŅņŇňŉŊŋŌōŎŏŐőŒœŔŕŖŗŘřŚśŜŝŞşŠšŢţŤťŦŧŨũŪūŬŭŮůŰűŲųŴŵŶŷŸŹźŻżŽž—–‐…·µ©®™«»°•€£¥¢ªº†
   greek_cyrillic_vietnamese_glyphs: >-
     ΆΈΉΊΌΎΏΐΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩΪΫάέήίΰαβγδεζηθικλμνξοπρςστυφχψωϊϋόύώЁЂЃЄЅІЇЈЉЊЋЌЍЎЏАБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюяёђѓєѕіїјљњћќѝўџҐґƠơƯưẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặẸẹẺẻẼẽẾếỀềỂểỄễỆệỈỉỊịỌọỎỏỐốỒồỔổỖỗỘộỚớỜờỞởỠỡỢợỤụỦủỨứỪừỬửỮữỰựỲỳỴỵỶỷỸỹ
+  arabic_location_glyphs: "\u0609\u060c\u060d\u0615\u061b\u061f\u0621\u0622\u0623\u0624\u0625\u0626\u0627\u0628\u0629\u062a\u062b\u062c\u062d\u062e\u062f\u0630\u0631\u0632\u0633\u0634\u0635\u0636\u0637\u0638\u0639\u063a\u0640\u0641\u0642\u0643\u0644\u0645\u0646\u0647\u0648\u0649\u064a\u064b\u064c\u064d\u064e\u064f\u0650\u0651\u0652\u0653\u0654\u0655\u0656\u0658\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669\u066a\u066b\u066c\u066d\u066e\u066f\u0670\u0671\u0679\u067a\u067b\u067c\u067d\u067e\u067f\u0680\u0681\u0683\u0684\u0685\u0686\u0687\u0688\u0689\u068a\u068c\u068d\u068f\u0691\u0693\u0695\u0696\u0698\u0699\u069a\u06a1\u06a4\u06a6\u06a9\u06aa\u06ab\u06ad\u06af\u06b1\u06b3\u06b5\u06ba\u06bb\u06bc\u06be\u06c1\u06c6\u06c7\u06c8\u06cb\u06cc\u06cd\u06ce\u06d0\u06d2\u06d4\u06d5\u06db\u06ef\u06f0\u06f1\u06f2\u06f3\u06f4\u06f5\u06f6\u06f7\u06f8\u06f9\u06fd\u06fe\u0763\u2018\u2019\u201c\u201d\u2039\u203a\u204f\u2212\u25cc\u2e41\ufb56\ufb57\ufb58\ufb59\ufb7a\ufb7b\ufb7c\ufb7d\ufb8a\ufb8b\ufb8e\ufb8f\ufb90\ufb91\ufb92\ufb93\ufb94\ufb95\ufbfc\ufbfd\ufbfe\ufbff\ufd3e\ufd3f\ufe81\ufe83\ufe84\ufe85\ufe86\ufe87\ufe88\ufe89\ufe8a\ufe8b\ufe8c\ufe8d\ufe8e\ufe8f\ufe90\ufe91\ufe92\ufe93\ufe94\ufe95\ufe96\ufe97\ufe98\ufe99\ufe9a\ufe9b\ufe9c\ufe9d\ufe9e\ufe9f\ufea0\ufea1\ufea2\ufea3\ufea4\ufea5\ufea6\ufea7\ufea8\ufea9\ufeaa\ufeab\ufeac\ufead\ufeae\ufeaf\ufeb0\ufeb1\ufeb2\ufeb3\ufeb4\ufeb5\ufeb6\ufeb7\ufeb8\ufeb9\ufeba\ufebb\ufebc\ufebd\ufebe\ufebf\ufec0\ufec1\ufec2\ufec3\ufec4\ufec5\ufec6\ufec7\ufec8\ufec9\ufeca\ufecb\ufecc\ufecd\ufece\ufecf\ufed0\ufed1\ufed2\ufed3\ufed4\ufed5\ufed6\ufed7\ufed8\ufed9\ufeda\ufedb\ufedc\ufedd\ufede\ufedf\ufee0\ufee1\ufee2\ufee3\ufee4\ufee5\ufee6\ufee7\ufee8\ufee9\ufeea\ufeeb\ufeec\ufeed\ufeee\ufeef\ufef0\ufef1\ufef2\ufef3\ufef4\ufef5\ufef6\ufef7\ufef8\ufef9\ufefa\ufefb\ufefc"
+  hebrew_location_glyphs: "\u0591\u0592\u0593\u0594\u0595\u0596\u0597\u0598\u0599\u059a\u059b\u059c\u059d\u059e\u059f\u05a0\u05a1\u05a2\u05a3\u05a4\u05a5\u05a6\u05a7\u05a8\u05a9\u05aa\u05ab\u05ac\u05ad\u05ae\u05af\u05b0\u05b1\u05b2\u05b3\u05b4\u05b5\u05b6\u05b7\u05b8\u05b9\u05ba\u05bb\u05bc\u05bd\u05bf\u05c0\u05c1\u05c2\u05c3\u05c4\u05c5\u05c7\u05d0\u05d1\u05d2\u05d3\u05d4\u05d5\u05d6\u05d7\u05d8\u05d9\u05da\u05db\u05dc\u05dd\u05de\u05df\u05e0\u05e1\u05e2\u05e3\u05e4\u05e5\u05e6\u05e7\u05e8\u05e9\u05ea\u05ef\u05f0\u05f1\u05f2\u05f3\u05f4"
 
 # -----------------------------------------------------------------------------
 # Clock and numeric (minimal glyph set for lower memory)
@@ -68,3 +71,8 @@ font:
       - GF_Greek_Core
       - GF_Cyrillic_Plus
     glyphs: "${latin_extended_glyphs}${greek_cyrillic_vietnamese_glyphs}"
+    extras:
+      - file: "gfonts://Noto Sans Arabic@Light"
+        glyphs: "${arabic_location_glyphs}"
+      - file: "gfonts://Noto Sans Hebrew@Light"
+        glyphs: "${hebrew_location_glyphs}"
