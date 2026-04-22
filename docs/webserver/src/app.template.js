@@ -1224,7 +1224,7 @@
     srcBody.appendChild(albumField);
     srcBody.appendChild(personField);
 
-    immichWrap.appendChild(makeCollapsibleCard("Photo source", srcBody, true));
+    immichWrap.appendChild(makeCollapsibleCard("Photo Source", srcBody, true));
 
     // Display Settings
     var photoBody = el("div");
@@ -1414,12 +1414,12 @@
     }
 
     filterBody.appendChild(filterDetails);
-    immichWrap.appendChild(makeCollapsibleCard("Advanced filters", filterBody, true, filterBadge));
-    immichWrap.appendChild(makeCollapsibleCard("Display settings", photoBody, true));
+    immichWrap.appendChild(makeCollapsibleCard("Advanced Filters", filterBody, true, filterBadge));
+    immichWrap.appendChild(makeCollapsibleCard("Display Settings", photoBody, true));
 
     immichApp.appendChild(immichWrap);
 
-    // Device metadata
+    // Device Metadata
     function metadataIsActive() {
       return S.photo_metadata_enabled &&
         (S.photo_metadata_time_enabled || S.photo_metadata_location_enabled);
@@ -1477,7 +1477,7 @@
 
     metadataBody.appendChild(metadataDetails);
     refreshMetadataDetails();
-    wrap.appendChild(makeCollapsibleCard("Device metadata", metadataBody, true, metadataBadge));
+    wrap.appendChild(makeCollapsibleCard("Device Metadata", metadataBody, true, metadataBadge));
 
     // Screen Brightness
     var dnDetails = el("div");
@@ -1532,7 +1532,7 @@
     updateSunInfo();
     dnDetails.appendChild(fSunInfo);
 
-    wrap.appendChild(makeCollapsibleCard("Screen brightness", dnDetails, true));
+    wrap.appendChild(makeCollapsibleCard("Screen Brightness", dnDetails, true));
 
     // Screen Tone
     var toneBadge = makeBadge(S.base_tone_enabled || S.warm_tones_enabled);
@@ -1634,7 +1634,7 @@
     nightDetails.appendChild(fOverride);
 
     warmBody.appendChild(nightDetails);
-    wrap.appendChild(makeCollapsibleCard("Screen tone", warmBody, true, toneBadge));
+    wrap.appendChild(makeCollapsibleCard("Screen Tone", warmBody, true, toneBadge));
 
     // Schedule
     var schedBadge = makeBadge(S.schedule_enabled);
@@ -2068,7 +2068,7 @@
     importBtn.innerHTML = "Import Settings";
     importBtn.onclick = importConfig;
     importBody.appendChild(importBtn);
-    return makeCollapsibleCard("Import settings", importBody, false);
+    return makeCollapsibleCard("Import Settings", importBody, false);
   }
 
   function field(labelText) {
