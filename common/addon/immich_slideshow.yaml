@@ -673,6 +673,23 @@ script:
             lv_obj_add_flag(id(photo_metadata_date_label), LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(id(photo_metadata_date_label_shadow), LV_OBJ_FLAG_HIDDEN);
           }
+
+          lv_obj_set_width(id(photo_metadata_location_label), LV_SIZE_CONTENT);
+          lv_obj_set_width(id(photo_metadata_location_label_shadow), LV_SIZE_CONTENT);
+          if (has_location) {
+            lv_obj_update_layout(id(photo_metadata_row));
+            const int32_t row_width = lv_obj_get_width(id(photo_metadata_row));
+            const int32_t date_width = has_date ? lv_obj_get_width(id(photo_metadata_date_label)) : 0;
+            const int32_t divider_width = (has_location && has_date) ? lv_obj_get_width(id(photo_metadata_divider)) : 0;
+            const int32_t metadata_gap_width = (has_location && has_date) ? 56 : 0;
+            const int32_t available_location_width = row_width - date_width - divider_width - metadata_gap_width;
+            const int32_t max_location_width = available_location_width > 0 ? available_location_width : 0;
+            const int32_t natural_location_width = lv_obj_get_width(id(photo_metadata_location_label));
+            const int32_t location_width = natural_location_width < max_location_width ? natural_location_width : max_location_width;
+            lv_obj_set_width(id(photo_metadata_location_label), location_width);
+            lv_obj_set_width(id(photo_metadata_location_label_shadow), location_width);
+          }
+
           if (!has_location && !has_date) {
             lv_obj_add_flag(id(photo_metadata_overlay), LV_OBJ_FLAG_HIDDEN);
           } else {
