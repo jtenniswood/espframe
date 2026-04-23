@@ -77,10 +77,15 @@
 
   var CSS = __ESPFRAME_CSS__;
   var BMC_CSS = [
-    ".bmc-floating{position:fixed;right:18px;bottom:18px;z-index:9998;display:inline-flex;align-items:center;justify-content:center;min-width:190px;height:58px;padding:0 20px;border-radius:12px;background:#ffdd00;color:#111;text-decoration:none;font-size:17px;font-weight:700;line-height:1;box-shadow:var(--shadow-3);transition:transform .2s ease,box-shadow .2s ease}",
+    ".bmc-floating{position:fixed;right:18px;bottom:18px;z-index:9998;box-shadow:var(--shadow-3);transition:transform .2s ease,box-shadow .2s ease}",
     ".bmc-floating:hover{transform:translateY(-2px);box-shadow:0 16px 38px rgba(0,0,0,.42),0 2px 8px rgba(0,0,0,.24)}",
     ".bmc-floating:focus-visible{outline:3px solid rgba(255,255,255,.8);outline-offset:3px}",
-    "@media(max-width:480px){.bmc-floating{right:12px;bottom:12px;min-width:162px;height:52px;padding:0 16px;font-size:15px}}"
+    ".bmc-btn{min-width:210px;color:#000 !important;background-color:#ffdd00 !important;height:60px;border-radius:12px;font-size:28px;font-weight:normal;border:none;padding:0 24px;line-height:27px;text-decoration:none !important;display:inline-flex !important;align-items:center;font-family:'Cookie',cursive !important;box-sizing:border-box !important}",
+    ".bmc-btn:hover,.bmc-btn:active,.bmc-btn:focus{text-decoration:none !important;cursor:pointer}",
+    ".bmc-btn svg{height:32px !important;width:32px !important;margin-bottom:0 !important;box-shadow:none !important;border:none !important;vertical-align:middle !important;transform:scale(.9);flex-shrink:0}",
+    ".bmc-btn-text{text-align:left;margin-left:8px;display:inline-block;line-height:0;width:100%;flex-shrink:0;font-family:'Cookie',cursive !important;white-space:nowrap}",
+    ".logo-outline{stroke:#000;fill:none}.logo-coffee{fill:#fff}",
+    "@media(max-width:480px){.bmc-floating{right:12px;bottom:12px}.bmc-btn{min-width:190px;height:54px;padding:0 18px;font-size:25px}.bmc-btn svg{height:28px !important;width:28px !important}}"
   ].join("");
 
   var style = document.createElement("style");
@@ -89,7 +94,7 @@
 
   var fonts = document.createElement("link");
   fonts.rel = "stylesheet";
-  fonts.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap";
+  fonts.href = "https://fonts.googleapis.com/css2?family=Cookie&family=Inter:wght@400;500;600;700&display=swap";
   document.head.appendChild(fonts);
 
   var els = {};
@@ -154,13 +159,55 @@
 
   function buildBuyMeCoffeeButton(parent) {
     var link = document.createElement("a");
-    link.className = "bmc-floating";
-    link.href = "https://www.buymeacoffee.com/jtenniswood";
+    link.className = "bmc-floating bmc-btn";
+    link.href = "https://buymeacoffee.com/jtenniswood";
     link.target = "_blank";
     link.rel = "noopener noreferrer";
-    link.setAttribute("aria-label", "Buy Me A Coffee");
-    link.textContent = "Buy Me A Coffee";
+    link.setAttribute("aria-label", "Buy me a coffee");
+    link.appendChild(buildCoffeeIcon());
+    var text = document.createElement("span");
+    text.className = "bmc-btn-text";
+    text.textContent = "Buy me a coffee";
+    link.appendChild(text);
     parent.appendChild(link);
+  }
+
+  function buildCoffeeIcon() {
+    var ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 64 64");
+    svg.setAttribute("aria-hidden", "true");
+
+    var cup = document.createElementNS(ns, "path");
+    cup.setAttribute("class", "logo-coffee logo-outline");
+    cup.setAttribute("d", "M17 26h30l-4 23H21L17 26Z");
+    cup.setAttribute("stroke-width", "4");
+    cup.setAttribute("stroke-linejoin", "round");
+    svg.appendChild(cup);
+
+    var handle = document.createElementNS(ns, "path");
+    handle.setAttribute("class", "logo-outline");
+    handle.setAttribute("d", "M46 31h5c4 0 7 3 7 7s-3 7-7 7h-7");
+    handle.setAttribute("stroke-width", "4");
+    handle.setAttribute("stroke-linecap", "round");
+    handle.setAttribute("stroke-linejoin", "round");
+    svg.appendChild(handle);
+
+    var saucer = document.createElementNS(ns, "path");
+    saucer.setAttribute("class", "logo-outline");
+    saucer.setAttribute("d", "M18 54h29");
+    saucer.setAttribute("stroke-width", "4");
+    saucer.setAttribute("stroke-linecap", "round");
+    svg.appendChild(saucer);
+
+    var steam = document.createElementNS(ns, "path");
+    steam.setAttribute("class", "logo-outline");
+    steam.setAttribute("d", "M25 20c-2-3 2-5 0-8M34 20c-2-3 2-5 0-8M43 20c-2-3 2-5 0-8");
+    steam.setAttribute("stroke-width", "3");
+    steam.setAttribute("stroke-linecap", "round");
+    svg.appendChild(steam);
+
+    return svg;
   }
 
   var immichApp;
