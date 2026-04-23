@@ -214,6 +214,7 @@
   var endpoints = {
     immich_url: eid("text", "Connection: Server URL"),
     api_key: eid("text", "Connection: API Key"),
+    reboot_screen: eid("button", "Device: Reboot Screen"),
     clock_format: eid("select", "Clock: Format"),
     timezone: eid("select", "Clock: Timezone"),
     interval: eid("select", "Photos: Slideshow Interval"),
@@ -985,8 +986,14 @@
           keyInput.placeholder = "Paste your Immich API key";
         });
       }
+      if (saveUrl) {
+        apply = apply.then(function () {
+          return post(endpoints.reboot_screen + "/press");
+        });
+      }
       apply.then(function () {
-        showSaved("Connection settings applied");
+        if (saveUrl) showSaved("Connection settings applied. Rebooting screen...");
+        else showSaved("Connection settings applied");
       }).catch(function () {
         showConnectionError("Failed to apply connection settings.");
       }).then(function () {

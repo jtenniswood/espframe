@@ -150,3 +150,9 @@ script:
             - lvgl.page.show: slideshow_page
             - lambda: 'id(target_slot) = 0;'
             - script.execute: immich_fetch_into_slot
+
+button:
+  - platform: restart
+    id: reboot_screen_button
+    name: "Device: Reboot Screen"
+    internal: true
