@@ -986,13 +986,13 @@
           keyInput.placeholder = "Paste your Immich API key";
         });
       }
-      if (saveUrl) {
+      if (saveUrl || saveApiKey) {
         apply = apply.then(function () {
           return post(endpoints.reboot_screen + "/press");
         });
       }
       apply.then(function () {
-        if (saveUrl) showSaved("Connection settings applied. Rebooting screen...");
+        if (saveUrl || saveApiKey) showSaved("Connection settings applied. Rebooting screen...");
         else showSaved("Connection settings applied");
       }).catch(function () {
         showConnectionError("Failed to apply connection settings.");
