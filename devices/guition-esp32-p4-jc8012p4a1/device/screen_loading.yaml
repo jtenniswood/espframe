@@ -1,9 +1,8 @@
 # =============================================================================
 # SCREEN: LOADING
 # =============================================================================
-# Boot screen with progress bar. Must be the first page included in
-# packages.yaml so LVGL shows it at startup. on_boot advances the bar and
-# status text; after a grace period, if WiFi is not connected, switches to
+# Boot screen. Must be the first page included in packages.yaml so LVGL shows
+# it at startup. After a grace period, if WiFi is not connected, switches to
 # wifi_setup_page.
 # =============================================================================
 
@@ -16,7 +15,7 @@ globals:
     initial_value: 'true'
 
 # -----------------------------------------------------------------------------
-# Loading page: title, status label, progress bar
+# Loading page: title and status label
 # -----------------------------------------------------------------------------
 lvgl:
   pages:
@@ -47,13 +46,14 @@ lvgl:
                   text_align: center
               - label:
                   id: loading_status_label
-                  text: "Booting"
+                  text: "Connecting to WiFi"
                   text_font: roboto_light32_font
                   text_color: 0x888888
                   width: 700
                   text_align: center
               - bar:
                   id: loading_progress_bar
+                  hidden: true
                   width: 75
                   height: 4
                   bg_color: 0x333333
@@ -70,15 +70,12 @@ lvgl:
       scrollable: false
 
 # -----------------------------------------------------------------------------
-# Boot sequence: progress steps, backlight on, then show WiFi setup if not connected
+# Boot sequence: backlight on, then show WiFi setup if not connected
 # -----------------------------------------------------------------------------
 esphome:
   on_boot:
     - priority: -200
       then:
-        - lambda: |-
-            lv_bar_set_value(id(loading_progress_bar), 25, LV_ANIM_OFF);
-            lv_label_set_text(id(loading_status_label), "Initializing display");
         - delay: 100ms
         - if:
             condition:
@@ -95,7 +92,6 @@ esphome:
     - priority: -100
       then:
         - lambda: |-
-            lv_bar_set_value(id(loading_progress_bar), 50, LV_ANIM_OFF);
             lv_label_set_text(id(loading_status_label), "Connecting to WiFi");
         - lambda: |-
             std::string name = App.get_name();
