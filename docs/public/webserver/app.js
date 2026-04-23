@@ -86,6 +86,21 @@
   fonts.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap";
   document.head.appendChild(fonts);
 
+  function loadBuyMeCoffeeWidget() {
+    var script = document.createElement("script");
+    script.setAttribute("data-name", "BMC-Widget");
+    script.setAttribute("data-cfasync", "false");
+    script.src = "https://cdnjs.buymeacoffee.com/1.0.0/widget.prod.min.js";
+    script.setAttribute("data-id", "jtenniswood");
+    script.setAttribute("data-description", "Support me on Buy me a coffee!");
+    script.setAttribute("data-message", "");
+    script.setAttribute("data-color", "#FFDD00");
+    script.setAttribute("data-position", "Right");
+    script.setAttribute("data-x_margin", "18");
+    script.setAttribute("data-y_margin", "18");
+    document.head.appendChild(script);
+  }
+
   var els = {};
   var app;
 
@@ -214,7 +229,6 @@
   var endpoints = {
     immich_url: eid("text", "Connection: Server URL"),
     api_key: eid("text", "Connection: API Key"),
-    reboot_screen: eid("button", "Device: Reboot Screen"),
     clock_format: eid("select", "Clock: Format"),
     timezone: eid("select", "Clock: Timezone"),
     interval: eid("select", "Photos: Slideshow Interval"),
@@ -986,14 +1000,8 @@
           keyInput.placeholder = "Paste your Immich API key";
         });
       }
-      if (saveUrl || saveApiKey) {
-        apply = apply.then(function () {
-          return post(endpoints.reboot_screen + "/press");
-        });
-      }
       apply.then(function () {
-        if (saveUrl || saveApiKey) showSaved("Connection settings applied. Rebooting screen...");
-        else showSaved("Connection settings applied");
+        showSaved("Connection settings applied");
       }).catch(function () {
         showConnectionError("Failed to apply connection settings.");
       }).then(function () {
@@ -1004,10 +1012,6 @@
     updateConnectionApplyState();
     connBody.appendChild(applyBtn);
 
-    connBody.appendChild(connStatus);
-    immichWrap.appendChild(makeCollapsibleCard("Server Settings", connBody, true));
-
-    var connectionBody = el("div");
     var fConnTimeout = field("Connection Timeout");
     fConnTimeout.appendChild(
       selectFromOptions(S.conn_timeout_options, S.conn_timeout, function (v) {
@@ -1015,7 +1019,10 @@
         post(endpoints.conn_timeout + "/set", { option: v });
       })
     );
-    connectionBody.appendChild(fConnTimeout);
+    connBody.appendChild(fConnTimeout);
+
+    connBody.appendChild(connStatus);
+    immichWrap.appendChild(makeCollapsibleCard("Connection", connBody, true));
 
     // Frequency
     var dispBody = el("div");
@@ -1481,7 +1488,6 @@
     filterBody.appendChild(filterDetails);
     immichWrap.appendChild(makeCollapsibleCard("Advanced Filters", filterBody, true, filterBadge));
     immichWrap.appendChild(makeCollapsibleCard("Display Settings", photoBody, true));
-    immichWrap.appendChild(makeCollapsibleCard("Connection", connectionBody, true));
 
     immichApp.appendChild(immichWrap);
 
@@ -2456,5 +2462,6 @@
   // --- Init ---
 
   buildUI();
+  loadBuyMeCoffeeWidget();
   initSSE();
 })();

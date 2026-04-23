@@ -86,6 +86,21 @@
   fonts.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap";
   document.head.appendChild(fonts);
 
+  function loadBuyMeCoffeeWidget() {
+    var script = document.createElement("script");
+    script.setAttribute("data-name", "BMC-Widget");
+    script.setAttribute("data-cfasync", "false");
+    script.src = "https://cdnjs.buymeacoffee.com/1.0.0/widget.prod.min.js";
+    script.setAttribute("data-id", "jtenniswood");
+    script.setAttribute("data-description", "Support me on Buy me a coffee!");
+    script.setAttribute("data-message", "");
+    script.setAttribute("data-color", "#FFDD00");
+    script.setAttribute("data-position", "Right");
+    script.setAttribute("data-x_margin", "18");
+    script.setAttribute("data-y_margin", "18");
+    document.head.appendChild(script);
+  }
+
   var els = {};
   var app;
 
@@ -2447,5 +2462,6 @@
   // --- Init ---
 
   buildUI();
+  loadBuyMeCoffeeWidget();
   initSSE();
 })();
