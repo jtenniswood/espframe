@@ -80,7 +80,7 @@
     ".bmc-floating{position:fixed;right:18px;bottom:18px;z-index:9998;box-shadow:var(--shadow-3);transition:transform .2s ease,box-shadow .2s ease}",
     ".bmc-floating:hover{transform:translateY(-2px);box-shadow:0 16px 38px rgba(0,0,0,.42),0 2px 8px rgba(0,0,0,.24)}",
     ".bmc-floating:focus-visible{outline:3px solid rgba(255,255,255,.8);outline-offset:3px}",
-    ".bmc-btn{min-width:210px;color:#000 !important;background-color:#ffdd00 !important;height:60px;border-radius:12px;font-size:28px;font-weight:normal;border:none;padding:0 24px;line-height:27px;text-decoration:none !important;display:inline-flex !important;align-items:center;font-family:'Cookie',cursive !important;box-sizing:border-box !important}",
+    ".bmc-btn{min-width:210px;color:#000 !important;background-color:#ffdd00 !important;height:60px;border-radius:9999px;font-size:28px;font-weight:normal;border:none;padding:0 24px;line-height:27px;text-decoration:none !important;display:inline-flex !important;align-items:center;font-family:'Cookie',cursive !important;box-sizing:border-box !important}",
     ".bmc-btn:hover,.bmc-btn:active,.bmc-btn:focus{text-decoration:none !important;cursor:pointer}",
     ".bmc-btn svg{height:32px !important;width:32px !important;margin-bottom:0 !important;box-shadow:none !important;border:none !important;vertical-align:middle !important;transform:scale(.9);flex-shrink:0}",
     ".bmc-btn-text{text-align:left;margin-left:8px;display:inline-block;line-height:0;width:100%;flex-shrink:0;font-family:'Cookie',cursive !important;white-space:nowrap}",
