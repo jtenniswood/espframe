@@ -1,11 +1,11 @@
 # =============================================================================
 # FONTS - Clock, UI, and slideshow text
 # =============================================================================
-# Google Fonts at multiple sizes. The 150px clock font uses a minimal glyph set
+# Noto Sans at multiple sizes. The 150px clock font uses a minimal glyph set
 # for digits; smaller sizes include broader glyphs for setup screens and text.
-# Location metadata uses Noto Sans Light because Immich place names can include
-# glyphs that Roboto does not provide. Middle East scripts use script-specific
-# Noto extras so the main location font can keep its existing European coverage.
+# Location metadata uses broad Noto glyph coverage for Immich place names.
+# Middle East scripts use script-specific Noto extras so the main location font
+# can keep its existing European coverage.
 # =============================================================================
 
 substitutions:
@@ -21,8 +21,8 @@ substitutions:
 # Clock and numeric (minimal glyph set for lower memory)
 # -----------------------------------------------------------------------------
 font:
-  - file: "gfonts://Roboto@Light"
-    id: roboto_light150_font
+  - file: "gfonts://Noto Sans@Light"
+    id: noto_light150_font
     size: 150
     bpp: 4
     glyphs: " 0123456789:"
@@ -30,26 +30,26 @@ font:
 # -----------------------------------------------------------------------------
 # UI and setup text (full Latin + extended glyphs)
 # -----------------------------------------------------------------------------
-  - file: "gfonts://Roboto@Light"
-    id: roboto_light46_font
+  - file: "gfonts://Noto Sans@Light"
+    id: noto_light46_font
     size: 46
     bpp: 4
     glyphs: "${latin_extended_glyphs}"
 
-  - file: "gfonts://Roboto"
-    id: roboto30_font
+  - file: "gfonts://Noto Sans"
+    id: noto30_font
     size: 30
     bpp: 4
     glyphs: "${latin_extended_glyphs}"
 
-  - file: "gfonts://Roboto"
-    id: roboto24_font
+  - file: "gfonts://Noto Sans"
+    id: noto24_font
     size: 24
     bpp: 4
     glyphs: "${latin_extended_glyphs}"
 
-  - file: "gfonts://Roboto@Light"
-    id: roboto_light32_font
+  - file: "gfonts://Noto Sans@Light"
+    id: noto_light32_font
     size: 32
     bpp: 4
     glyphs: "${latin_extended_glyphs}${greek_cyrillic_vietnamese_glyphs}"
