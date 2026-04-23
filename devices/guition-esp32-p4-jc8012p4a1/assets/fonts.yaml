@@ -54,8 +54,8 @@ font:
     bpp: 4
     glyphs: "${latin_extended_glyphs}${greek_cyrillic_vietnamese_glyphs}"
 
-  - file: "gfonts://Noto Sans@400"
-    id: noto_location_400_36_font
+  - file: "gfonts://Noto Sans@350"
+    id: noto_location_350_36_font
     size: 36
     bpp: 4
     glyphsets:

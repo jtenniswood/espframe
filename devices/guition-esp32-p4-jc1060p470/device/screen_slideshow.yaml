@@ -186,7 +186,7 @@ lvgl:
                               text_align: right
                               text_color: 0x000000
                               text_opa: 20%
-                              text_font: noto_location_400_36_font
+                              text_font: noto_location_350_36_font
                           - label:
                               id: photo_metadata_date_label_shadow
                               hidden: true
@@ -222,7 +222,7 @@ lvgl:
                               long_mode: DOT
                               text_align: right
                               text_color: 0xFFFFFF
-                              text_font: noto_location_400_36_font
+                              text_font: noto_location_350_36_font
                           - label:
                               id: photo_metadata_date_label
                               hidden: true
