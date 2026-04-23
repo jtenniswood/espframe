@@ -11,9 +11,7 @@
 // safe to display.
 static const char *const TAG = "remote_image";
 static const char *const ETAG_HEADER_NAME = "etag";
-static const char *const IF_NONE_MATCH_HEADER_NAME = "if-none-match";
 static const char *const LAST_MODIFIED_HEADER_NAME = "last-modified";
-static const char *const IF_MODIFIED_SINCE_HEADER_NAME = "if-modified-since";
 static const char *const CONTENT_TYPE_HEADER_NAME = "content-type";
 
 #include "image_decoder.h"
@@ -194,15 +192,9 @@ void OnlineImage::update() {
   }
   accept_header.value = accept_mime_type + ",*/*;q=0.8";
 
-  // Reuse HTTP cache validators when available so unchanged photos do not waste
-  // bandwidth or decoder memory on small ESP32 devices.
-  if (!this->etag_.empty()) {
-    headers.push_back(http_request::Header{IF_NONE_MATCH_HEADER_NAME, this->etag_});
-  }
-
-  if (!this->last_modified_.empty()) {
-    headers.push_back(http_request::Header{IF_MODIFIED_SINCE_HEADER_NAME, this->last_modified_});
-  }
+  // Do not send conditional validators. In high-churn slideshow workloads,
+  // repeated 304/cancel cycles can cause stale state transitions and increase
+  // descriptor races in the display pipeline.
 
   headers.push_back(accept_header);
 

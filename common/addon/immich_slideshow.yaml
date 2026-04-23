@@ -494,8 +494,22 @@ script:
                 lv_img_set_zoom(id(slideshow_img), ZOOM_IDENTITY);
                 lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
                 lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
-                lv_img_set_src(id(portrait_left_img), get_lv_image_descriptor_(id(immich_portrait_preload_left), 0));
-                lv_img_set_src(id(portrait_right_img), get_lv_image_descriptor_(id(immich_portrait_preload_right), 0));
+                {
+                  auto *left_dsc = get_lv_image_descriptor_(id(immich_portrait_preload_left), 0);
+                  auto *right_dsc = get_lv_image_descriptor_(id(immich_portrait_preload_right), 0);
+                  if (left_dsc == nullptr || right_dsc == nullptr ||
+                      left_dsc->data == nullptr || right_dsc->data == nullptr ||
+                      id(immich_portrait_preload_left).get_width() <= 0 || id(immich_portrait_preload_left).get_height() <= 0 ||
+                      id(immich_portrait_preload_right).get_width() <= 0 || id(immich_portrait_preload_right).get_height() <= 0) {
+                    ESP_LOGW("immich", "Preloaded portrait descriptor not ready; deferring pair display");
+                    id(immich_diag_reason) = "preloaded pair descriptor not ready";
+                    id(log_immich_diag).execute();
+                    id(delayed_prefetch_chain).execute();
+                    break;
+                  }
+                  lv_img_set_src(id(portrait_left_img), left_dsc);
+                  lv_img_set_src(id(portrait_right_img), right_dsc);
+                }
                 id(extract_accent_color).execute();
                 id(apply_warm_tones).execute();
                 break;
@@ -564,7 +578,14 @@ script:
 
           int s = id(active_slot);
           esphome::image::Image *imgs[] = { id(immich_img_0), id(immich_img_1), id(immich_img_2) };
-          lv_img_set_src(id(slideshow_img), get_lv_image_descriptor_(imgs[s], 0));
+          auto *dsc = get_lv_image_descriptor_(imgs[s], 0);
+          if (dsc == nullptr || dsc->data == nullptr || imgs[s]->get_width() <= 0 || imgs[s]->get_height() <= 0) {
+            ESP_LOGW("immich", "Slot %d descriptor not ready, skipping display update", s);
+            id(immich_diag_reason) = "slot descriptor not ready";
+            id(log_immich_diag).execute();
+            return;
+          }
+          lv_img_set_src(id(slideshow_img), dsc);
 
           auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
           lv_img_set_zoom(id(slideshow_img), meta.zoom);
