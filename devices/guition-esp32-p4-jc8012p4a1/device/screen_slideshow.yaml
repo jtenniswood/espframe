@@ -132,7 +132,7 @@ lvgl:
             id: info_overlay
             align: BOTTOM_RIGHT
             x: -45
-            y: -20
+            y: -50
             width: 1190
             height: SIZE_CONTENT
             bg_opa: 0%
