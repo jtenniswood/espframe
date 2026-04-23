@@ -396,15 +396,30 @@ script:
                 id(immich_fetch_into_slot).execute();
                 break;
               case SLIDESHOW_COMMAND_UPDATE_SLOT_IMAGE:
-                if (cmd.slot == 0) {
-                  id(immich_img_0).set_fill_mode((id(photo_display_mode).current_option() == "Fill") && !id(slot0).is_portrait);
-                  id(immich_img_0).update();
-                } else if (cmd.slot == 1) {
-                  id(immich_img_1).set_fill_mode((id(photo_display_mode).current_option() == "Fill") && !id(slot1).is_portrait);
-                  id(immich_img_1).update();
-                } else if (cmd.slot == 2) {
-                  id(immich_img_2).set_fill_mode((id(photo_display_mode).current_option() == "Fill") && !id(slot2).is_portrait);
-                  id(immich_img_2).update();
+                {
+                  bool any_downloading = id(immich_img_0).is_downloading() ||
+                                         id(immich_img_1).is_downloading() ||
+                                         id(immich_img_2).is_downloading() ||
+                                         id(immich_portrait_left).is_downloading() ||
+                                         id(immich_portrait_right).is_downloading() ||
+                                         id(immich_portrait_preload_left).is_downloading() ||
+                                         id(immich_portrait_preload_right).is_downloading();
+                  // Non-active slot updates are best-effort; defer them if network/decoder work
+                  // is already active to avoid cascaded cancel/restart churn.
+                  if (any_downloading && cmd.slot != id(active_slot)) {
+                    id(delayed_prefetch_chain).execute();
+                    break;
+                  }
+                  if (cmd.slot == 0) {
+                    id(immich_img_0).set_fill_mode((id(photo_display_mode).current_option() == "Fill") && !id(slot0).is_portrait);
+                    id(immich_img_0).update();
+                  } else if (cmd.slot == 1) {
+                    id(immich_img_1).set_fill_mode((id(photo_display_mode).current_option() == "Fill") && !id(slot1).is_portrait);
+                    id(immich_img_1).update();
+                  } else if (cmd.slot == 2) {
+                    id(immich_img_2).set_fill_mode((id(photo_display_mode).current_option() == "Fill") && !id(slot2).is_portrait);
+                    id(immich_img_2).update();
+                  }
                 }
                 break;
               case SLIDESHOW_COMMAND_UPDATE_PORTRAIT_LEFT:
@@ -712,14 +727,14 @@ script:
   - id: delayed_prefetch_chain
     mode: restart
     then:
-      - delay: 500ms
+      - delay: 1200ms
       - script.execute: immich_prefetch_chain
 
   # Defer companion search when started from advance so interval callback returns quickly
   - id: deferred_companion_search
     mode: restart
     then:
-      - delay: 200ms
+      - delay: 400ms
       - script.execute: immich_fetch_portrait_companion
 
   # When advance finds slot not ready, defer fetch so interval callback returns quickly
@@ -727,7 +742,7 @@ script:
     mode: single
     then:
       - lambda: 'id(deferred_fetch_target) = id(target_slot);'
-      - delay: 200ms
+      - delay: 400ms
       - lambda: 'id(target_slot) = id(deferred_fetch_target);'
       - script.execute: immich_fetch_into_slot
 
@@ -738,7 +753,7 @@ script:
   - id: deferred_slot0_image_update
     mode: single
     then:
-      - delay: 150ms
+      - delay: 450ms
       - lambda: |-
           id(espframe_core).slideshow().request_deferred_slot_update(
             0, id(active_slot), id(slot_flags), id(portrait).workflow_busy,
@@ -748,7 +763,7 @@ script:
   - id: deferred_slot1_image_update
     mode: single
     then:
-      - delay: 150ms
+      - delay: 450ms
       - lambda: |-
           id(espframe_core).slideshow().request_deferred_slot_update(
             1, id(active_slot), id(slot_flags), id(portrait).workflow_busy,
@@ -758,7 +773,7 @@ script:
   - id: deferred_slot2_image_update
     mode: single
     then:
-      - delay: 150ms
+      - delay: 450ms
       - lambda: |-
           id(espframe_core).slideshow().request_deferred_slot_update(
             2, id(active_slot), id(slot_flags), id(portrait).workflow_busy,
@@ -768,7 +783,7 @@ script:
   - id: deferred_portrait_left_update
     mode: restart
     then:
-      - delay: 150ms
+      - delay: 450ms
       - lambda: |-
           id(espframe_core).slideshow().request_portrait_left_update(id(portrait));
           id(espframe_slideshow_dispatch).execute();
@@ -776,7 +791,7 @@ script:
   - id: deferred_portrait_right_update
     mode: restart
     then:
-      - delay: 150ms
+      - delay: 450ms
       - lambda: |-
           id(espframe_core).slideshow().request_portrait_right_update(id(portrait));
           id(espframe_slideshow_dispatch).execute();
@@ -784,7 +799,7 @@ script:
   - id: deferred_preload_left_update
     mode: restart
     then:
-      - delay: 150ms
+      - delay: 450ms
       - lambda: |-
           id(espframe_core).slideshow().request_preload_left_update(
             id(portrait).workflow_busy, id(preload_noncritical_in_flight),
@@ -794,7 +809,7 @@ script:
   - id: deferred_preload_right_update
     mode: restart
     then:
-      - delay: 150ms
+      - delay: 450ms
       - lambda: |-
           id(espframe_core).slideshow().request_preload_right_update(
             id(portrait).workflow_busy, id(preload_noncritical_in_flight),
