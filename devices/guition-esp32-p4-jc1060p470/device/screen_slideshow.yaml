@@ -195,7 +195,7 @@ lvgl:
                               text_align: right
                               text_color: 0x000000
                               text_opa: 20%
-                              text_font: noto24_font
+                              text_font: noto28_font
                     - obj:
                         id: photo_metadata_row
                         x: 0
@@ -230,7 +230,7 @@ lvgl:
                               text: ""
                               text_align: right
                               text_color: 0xFFFFFF
-                              text_font: noto24_font
+                              text_font: noto28_font
         - obj:
             id: connection_failed_overlay
             align: CENTER

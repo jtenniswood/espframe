@@ -43,8 +43,8 @@ font:
     glyphs: "${latin_extended_glyphs}"
 
   - file: "gfonts://Noto Sans"
-    id: noto24_font
-    size: 24
+    id: noto28_font
+    size: 28
     bpp: 4
     glyphs: "${latin_extended_glyphs}"
 
