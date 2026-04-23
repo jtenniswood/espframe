@@ -120,14 +120,14 @@ lvgl:
                   text: ""
                   text_color: 0x000000
                   text_opa: 20%
-                  text_font: noto_light150_font
+                  text_font: noto_275_150_font
               - label:
                   id: time_label
                   x: 0
                   y: 0
                   text: ""
                   text_color: 0xFFFFFF
-                  text_font: noto_light150_font
+                  text_font: noto_275_150_font
         - obj:
             id: info_overlay
             align: BOTTOM_RIGHT
@@ -186,7 +186,7 @@ lvgl:
                               text_align: right
                               text_color: 0x000000
                               text_opa: 20%
-                              text_font: noto_location_light36_font
+                              text_font: noto_location_275_36_font
                           - label:
                               id: photo_metadata_date_label_shadow
                               hidden: true
@@ -195,7 +195,7 @@ lvgl:
                               text_align: right
                               text_color: 0x000000
                               text_opa: 20%
-                              text_font: noto_light28_font
+                              text_font: noto_275_28_font
                     - obj:
                         id: photo_metadata_row
                         x: 0
@@ -222,7 +222,7 @@ lvgl:
                               long_mode: DOT
                               text_align: right
                               text_color: 0xFFFFFF
-                              text_font: noto_location_light36_font
+                              text_font: noto_location_275_36_font
                           - label:
                               id: photo_metadata_date_label
                               hidden: true
@@ -230,7 +230,7 @@ lvgl:
                               text: ""
                               text_align: right
                               text_color: 0xFFFFFF
-                              text_font: noto_light28_font
+                              text_font: noto_275_28_font
         - obj:
             id: connection_failed_overlay
             align: CENTER
@@ -276,7 +276,7 @@ lvgl:
                     - label:
                         id: connection_failed_title
                         text: "Unable to connect to Immich"
-                        text_font: noto_light46_font
+                        text_font: noto_275_46_font
                         text_color: 0xFFFFFF
                         width: 700
                         text_align: center
@@ -284,7 +284,7 @@ lvgl:
                         id: connection_failed_subtitle
                         text: "Check your internet connection and\nthe health of your Immich server."
                         width: 700
-                        text_font: noto30_font
+                        text_font: noto_275_30_font
                         text_color: 0x888888
                         text_align: center
 

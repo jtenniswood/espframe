@@ -21,8 +21,8 @@ substitutions:
 # Clock and numeric (minimal glyph set for lower memory)
 # -----------------------------------------------------------------------------
 font:
-  - file: "gfonts://Noto Sans@Light"
-    id: noto_light150_font
+  - file: "gfonts://Noto Sans@275"
+    id: noto_275_150_font
     size: 150
     bpp: 4
     glyphs: " 0123456789:"
@@ -30,32 +30,32 @@ font:
 # -----------------------------------------------------------------------------
 # UI and setup text (full Latin + extended glyphs)
 # -----------------------------------------------------------------------------
-  - file: "gfonts://Noto Sans@Light"
-    id: noto_light46_font
+  - file: "gfonts://Noto Sans@275"
+    id: noto_275_46_font
     size: 46
     bpp: 4
     glyphs: "${latin_extended_glyphs}"
 
-  - file: "gfonts://Noto Sans"
-    id: noto30_font
+  - file: "gfonts://Noto Sans@275"
+    id: noto_275_30_font
     size: 30
     bpp: 4
     glyphs: "${latin_extended_glyphs}"
 
-  - file: "gfonts://Noto Sans@Light"
-    id: noto_light28_font
+  - file: "gfonts://Noto Sans@275"
+    id: noto_275_28_font
     size: 28
     bpp: 4
     glyphs: "${latin_extended_glyphs}"
 
-  - file: "gfonts://Noto Sans@Light"
-    id: noto_light32_font
+  - file: "gfonts://Noto Sans@275"
+    id: noto_275_32_font
     size: 32
     bpp: 4
     glyphs: "${latin_extended_glyphs}${greek_cyrillic_vietnamese_glyphs}"
 
-  - file: "gfonts://Noto Sans@Light"
-    id: noto_location_light36_font
+  - file: "gfonts://Noto Sans@275"
+    id: noto_location_275_36_font
     size: 36
     bpp: 4
     glyphsets:
@@ -66,7 +66,7 @@ font:
       - GF_Cyrillic_Plus
     glyphs: "${latin_extended_glyphs}${greek_cyrillic_vietnamese_glyphs}"
     extras:
-      - file: "gfonts://Noto Sans Arabic@Light"
+      - file: "gfonts://Noto Sans Arabic@275"
         glyphs: "${arabic_location_glyphs}"
-      - file: "gfonts://Noto Sans Hebrew@Light"
+      - file: "gfonts://Noto Sans Hebrew@275"
         glyphs: "${hebrew_location_glyphs}"
