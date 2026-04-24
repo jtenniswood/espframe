@@ -1007,37 +1007,6 @@
     );
     connBody.appendChild(fConnTimeout);
 
-    var wifiResetHint = el("div", "field-hint");
-    wifiResetHint.textContent =
-      "Reconfigure WiFi without clearing your saved Immich settings. The frame will disconnect from this page, create its own hotspot, and use the same captive-portal setup flow as first install.";
-    connBody.appendChild(wifiResetHint);
-
-    var wifiResetBtn = el("button", "btn btn-danger btn-block");
-    wifiResetBtn.textContent = "Reconfigure WiFi";
-    wifiResetBtn.type = "button";
-    wifiResetBtn.onclick = function () {
-      var confirmed = window.confirm(
-        "Reconfigure WiFi now?\n\n" +
-        "Your browser will disconnect from the frame.\n" +
-        "The frame will create its own WiFi hotspot.\n" +
-        "Your saved Immich settings will be kept."
-      );
-      if (!confirmed) return;
-
-      wifiResetBtn.disabled = true;
-      wifiResetBtn.textContent = "Starting…";
-      connStatus.innerHTML =
-        '<span class="dot orange"></span> Switching to WiFi setup mode. If this page disconnects, join the frame hotspot and visit 192.168.4.1.';
-
-      fetch(endpoints.wifi_reconfigure + "/press", {
-        method: "POST",
-        keepalive: true
-      }).catch(function (err) {
-        console.warn("WiFi reconfigure request may have disconnected early:", err);
-      });
-    };
-    connBody.appendChild(wifiResetBtn);
-
     connBody.appendChild(connStatus);
     immichWrap.appendChild(makeCollapsibleCard("Connection", connBody, true));
 
@@ -1964,6 +1933,41 @@
     fwBody.appendChild(freqField);
 
     wrap.appendChild(makeCollapsibleCard("Firmware", fwBody, true));
+
+    var wifiBody = el("div");
+    var wifiHint = el("div", "field-hint");
+    wifiHint.textContent =
+      "Reconfigure WiFi without clearing your saved Immich settings. The frame will disconnect from this page, create its own hotspot, and use the same captive-portal setup flow as first install.";
+    wifiBody.appendChild(wifiHint);
+
+    var wifiStatus = el("div", "status mb-12");
+    var wifiResetBtn = el("button", "btn btn-danger btn-block");
+    wifiResetBtn.textContent = "Reconfigure WiFi";
+    wifiResetBtn.type = "button";
+    wifiResetBtn.onclick = function () {
+      var confirmed = window.confirm(
+        "Reconfigure WiFi now?\n\n" +
+        "Your browser will disconnect from the frame.\n" +
+        "The frame will create its own WiFi hotspot.\n" +
+        "Your saved Immich settings will be kept."
+      );
+      if (!confirmed) return;
+
+      wifiResetBtn.disabled = true;
+      wifiResetBtn.textContent = "Starting…";
+      wifiStatus.innerHTML =
+        '<span class="dot orange"></span> Switching to WiFi setup mode. If this page disconnects, join the frame hotspot and visit 192.168.4.1.';
+
+      fetch(endpoints.wifi_reconfigure + "/press", {
+        method: "POST",
+        keepalive: true
+      }).catch(function (err) {
+        console.warn("WiFi reconfigure request may have disconnected early:", err);
+      });
+    };
+    wifiBody.appendChild(wifiResetBtn);
+    wifiBody.appendChild(wifiStatus);
+    wrap.appendChild(makeCollapsibleCard("WiFi", wifiBody, true));
 
     wrap.appendChild(makeBackupCard());
 
