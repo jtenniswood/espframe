@@ -14,7 +14,6 @@ substitutions:
   screen_rotation_0: "0"
   screen_rotation_180: "180"
   captive_portal_ip: "192.168.4.1"
-  factory_wifi_setup: "false"
   firmware_manifest_url: "https://jtenniswood.github.io/espframe/firmware/manifest-7inch.json"
   firmware_beta_manifest_url: "https://jtenniswood.github.io/espframe/firmware/beta/manifest-7inch.json"
 

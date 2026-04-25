@@ -12,7 +12,6 @@ substitutions:
   name: "immich-frame-7inch"
   friendly_name: "Immich Frame 7inch"
   firmware_version: "0.0.0"
-  factory_wifi_setup: "true"
 
 packages:
   espframe: !include ../devices/guition-esp32-p4-jc1060p470/packages.yaml
