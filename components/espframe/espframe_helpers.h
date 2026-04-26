@@ -1,6 +1,7 @@
 #pragma once
 #include "date_utils.h"
 #include "immich_helpers.h"
+#include "ntp_helpers.h"
 #include "sun_calc.h"
 #include <string>
 #include <cstdint>

@@ -25,6 +25,9 @@
     immich_url: "",
     api_key: "",
     timezone: "Europe/London (GMT+0)",
+    ntp_server_1: "0.pool.ntp.org",
+    ntp_server_2: "1.pool.ntp.org",
+    ntp_server_3: "2.pool.ntp.org",
     firmware: "",
     installed_version: "",
     latest_version: "",
@@ -219,6 +222,9 @@
     api_key: eid("text", "Connection: API Key"),
     clock_format: eid("select", "Clock: Format"),
     timezone: eid("select", "Clock: Timezone"),
+    ntp_server_1: eid("text", "Clock: NTP Server 1"),
+    ntp_server_2: eid("text", "Clock: NTP Server 2"),
+    ntp_server_3: eid("text", "Clock: NTP Server 3"),
     interval: eid("select", "Photos: Slideshow Interval"),
     conn_timeout: eid("select", "Screen: Connection Timeout"),
     backlight: eid("light", "Screen: Backlight"),
@@ -279,6 +285,7 @@
 
   // Matches the ESPHome template text max_length for album/person ID and label lists.
   var MAX_PHOTO_ID_FIELD_LENGTH = 255;
+  var MAX_NTP_SERVER_LENGTH = 253;
   var PHOTO_ID_FIELD_TOO_LONG =
     "List exceeds 255 characters (device limit). Remove IDs or shorten the list.";
   var PHOTO_LABEL_FIELD_TOO_LONG =
@@ -304,6 +311,16 @@
       console.error("POST " + fullUrl + " error:", err);
       showBanner("Failed to save setting", "error");
     });
+  }
+
+  function normalizeNtpServer(value) {
+    return String(value == null ? "" : value).trim();
+  }
+
+  function saveNtpServer(key, value) {
+    var server = normalizeNtpServer(value);
+    S[key] = server;
+    return postTextValueSet(endpoints[key] + "/set", server);
   }
 
   function stripUrlTrailingSlashes(value) {
@@ -489,6 +506,9 @@
     "text/Connection: API Key": { key: "api_key" },
     "select/Clock: Format": { key: "clock_format", optionsKey: "clock_options", default: "24 Hour" },
     "select/Clock: Timezone": { key: "timezone", optionsKey: "tz_options", default: "" },
+    "text/Clock: NTP Server 1": { key: "ntp_server_1", default: "0.pool.ntp.org" },
+    "text/Clock: NTP Server 2": { key: "ntp_server_2", default: "1.pool.ntp.org" },
+    "text/Clock: NTP Server 3": { key: "ntp_server_3", default: "2.pool.ntp.org" },
     "select/Photos: Slideshow Interval": { key: "interval", optionsKey: "interval_options", default: "2 minutes" },
     "select/Screen: Connection Timeout": { key: "conn_timeout", optionsKey: "conn_timeout_options", default: "2 minutes" },
     "switch/Clock: Show": { key: "show_clock", boolFromState: true },
@@ -570,6 +590,7 @@
       S[spec.key] = v !== undefined && v !== null ? String(v) : (spec.default !== undefined ? spec.default : "");
     }
     if (spec.key === "timezone") S[spec.key] = normalizeTimezoneOption(S[spec.key]);
+    if (spec.key && spec.key.indexOf("ntp_server_") === 0) S[spec.key] = normalizeNtpServer(S[spec.key]);
     if (spec.optionsKey && d.option && d.option.length) S[spec.optionsKey] = d.option;
   }
 
@@ -580,7 +601,7 @@
   // Single source for settings fetched on load; KEY_TO_ENTITY_ID derived from ENTITY_STATE_MAP.
   var INITIAL_FETCH_KEYS = [
     "firmware", "auto_update", "update_frequency",
-    "clock_format", "timezone",
+    "clock_format", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3",
     "photo_source", "album_ids", "album_labels", "person_ids", "person_labels",
     "date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit",
     "photo_orientation",
@@ -833,6 +854,10 @@
         })
       );
       card.appendChild(f2);
+
+      card.appendChild(ntpServerField("NTP Server 1", "ntp_server_1", "0.pool.ntp.org"));
+      card.appendChild(ntpServerField("NTP Server 2", "ntp_server_2", "1.pool.ntp.org"));
+      card.appendChild(ntpServerField("NTP Server 3", "ntp_server_3", "2.pool.ntp.org"));
 
       var nav = el("div", "wizard-nav");
       var backBtn = el("button", "btn btn-secondary");
@@ -1755,6 +1780,9 @@
       })
     );
     clkBody.appendChild(f7);
+    clkBody.appendChild(ntpServerField("NTP Server 1", "ntp_server_1", "0.pool.ntp.org"));
+    clkBody.appendChild(ntpServerField("NTP Server 2", "ntp_server_2", "1.pool.ntp.org"));
+    clkBody.appendChild(ntpServerField("NTP Server 3", "ntp_server_3", "2.pool.ntp.org"));
     wrap.appendChild(makeCollapsibleCard("Clock", clkBody, true, clockBadge));
 
     // Firmware
@@ -2096,6 +2124,17 @@
     return f;
   }
 
+  function ntpServerField(labelText, key, placeholder) {
+    var f = field(labelText);
+    var serverInput = input("text", S[key], placeholder, MAX_NTP_SERVER_LENGTH);
+    serverInput.onchange = function () {
+      saveNtpServer(key, serverInput.value);
+      serverInput.value = S[key];
+    };
+    f.appendChild(serverInput);
+    return f;
+  }
+
   function input(type, value, placeholder, maxLength) {
     var i = document.createElement("input");
     i.type = type;
@@ -2156,7 +2195,12 @@
       clock: {
         show: S.show_clock,
         format: S.clock_format,
-        timezone: S.timezone
+        timezone: S.timezone,
+        ntp_servers: [
+          S.ntp_server_1,
+          S.ntp_server_2,
+          S.ntp_server_3
+        ]
       },
       screen: {
         brightness_day: S.brightness_day,
@@ -2328,6 +2372,12 @@
         if (clk.timezone !== undefined) {
           S.timezone = normalizeTimezoneOption(clk.timezone);
           post(endpoints.timezone + "/set", { option: S.timezone });
+        }
+        if (Array.isArray(clk.ntp_servers)) {
+          ["ntp_server_1", "ntp_server_2", "ntp_server_3"].forEach(function (key, idx) {
+            if (clk.ntp_servers[idx] === undefined) return;
+            saveNtpServer(key, clk.ntp_servers[idx]);
+          });
         }
 
         if (scr.brightness_day !== undefined) {

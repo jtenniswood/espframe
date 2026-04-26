@@ -9,8 +9,95 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
+# Default NTP servers (can be overridden by substitutions or the web UI)
+# -----------------------------------------------------------------------------
+substitutions:
+  ntp_server_1: "0.pool.ntp.org"
+  ntp_server_2: "1.pool.ntp.org"
+  ntp_server_3: "2.pool.ntp.org"
+
+esphome:
+  on_boot:
+    - priority: -200
+      then:
+        - script.execute: apply_ntp_servers
+
+# -----------------------------------------------------------------------------
 # Clock format (12/24h) and timezone selection
 # -----------------------------------------------------------------------------
+text:
+  - platform: template
+    name: "Clock: NTP Server 1"
+    id: ntp_server_1_text
+    internal: true
+    entity_category: config
+    optimistic: false
+    restore_value: true
+    initial_value: "${ntp_server_1}"
+    min_length: 0
+    max_length: 253
+    mode: text
+    icon: "mdi:server-network"
+    web_server:
+      sorting_group_id: sg_clock
+    set_action:
+      - lambda: |-
+          std::string server = espframe_trim_ntp_server(x);
+          if (!espframe_is_valid_ntp_server(server)) {
+            ESP_LOGW("sntp", "Invalid NTP server: %s", x.c_str());
+            return;
+          }
+          id(ntp_server_1_text).publish_state(server);
+      - script.execute: apply_ntp_servers
+
+  - platform: template
+    name: "Clock: NTP Server 2"
+    id: ntp_server_2_text
+    internal: true
+    entity_category: config
+    optimistic: false
+    restore_value: true
+    initial_value: "${ntp_server_2}"
+    min_length: 0
+    max_length: 253
+    mode: text
+    icon: "mdi:server-network"
+    web_server:
+      sorting_group_id: sg_clock
+    set_action:
+      - lambda: |-
+          std::string server = espframe_trim_ntp_server(x);
+          if (!espframe_is_valid_ntp_server(server)) {
+            ESP_LOGW("sntp", "Invalid NTP server: %s", x.c_str());
+            return;
+          }
+          id(ntp_server_2_text).publish_state(server);
+      - script.execute: apply_ntp_servers
+
+  - platform: template
+    name: "Clock: NTP Server 3"
+    id: ntp_server_3_text
+    internal: true
+    entity_category: config
+    optimistic: false
+    restore_value: true
+    initial_value: "${ntp_server_3}"
+    min_length: 0
+    max_length: 253
+    mode: text
+    icon: "mdi:server-network"
+    web_server:
+      sorting_group_id: sg_clock
+    set_action:
+      - lambda: |-
+          std::string server = espframe_trim_ntp_server(x);
+          if (!espframe_is_valid_ntp_server(server)) {
+            ESP_LOGW("sntp", "Invalid NTP server: %s", x.c_str());
+            return;
+          }
+          id(ntp_server_3_text).publish_state(server);
+      - script.execute: apply_ntp_servers
+
 select:
   - platform: template
     name: "Clock: Format"
@@ -199,6 +286,16 @@ switch:
 # Refresh clock label from current time; show/hide based on switch
 # -----------------------------------------------------------------------------
 script:
+  - id: apply_ntp_servers
+    mode: restart
+    then:
+      - lambda: |-
+          espframe_apply_sntp_servers(
+            id(ntp_server_1_text).state,
+            id(ntp_server_2_text).state,
+            id(ntp_server_3_text).state
+          );
+
   - id: update_clock_display
     mode: single
     then:
@@ -229,6 +326,10 @@ time:
   - platform: sntp
     id: sntp_time
     timezone: "Europe/London"
+    servers:
+      - "${ntp_server_1}"
+      - "${ntp_server_2}"
+      - "${ntp_server_3}"
     on_time_sync:
       then:
         - script.execute: update_clock_display
