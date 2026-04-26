@@ -72,9 +72,11 @@
     display_mode_options: ["Fill", "Fit"],
     photo_metadata_date_enabled: true,
     photo_metadata_date_format: "Date Taken",
-    photo_metadata_date_format_options: [
-      "Relative Date", "Date Taken", "Month Day, Year",
-      "Month Day Ordinal, Year", "YYYY-MM-DD", "MM/DD/YYYY", "DD/MM/YYYY"
+    photo_metadata_date_format_options: ["Relative Date", "Date Taken"],
+    photo_metadata_date_taken_format: "Day Month, Year",
+    photo_metadata_date_taken_format_options: [
+      "Day Month, Year", "Month Day, Year", "Month Day Ordinal, Year",
+      "YYYY-MM-DD", "MM/DD/YYYY", "DD/MM/YYYY"
     ],
     photo_metadata_location_enabled: true,
     screen_rotation: "0",
@@ -263,6 +265,7 @@
     display_mode: eid("select", "Photos: Display Mode"),
     photo_metadata_date_enabled: eid("switch", "Device: Metadata Date"),
     photo_metadata_date_format: eid("select", "Device: Metadata Date Format"),
+    photo_metadata_date_taken_format: eid("select", "Device: Metadata Date Taken Format"),
     photo_metadata_location_enabled: eid("switch", "Device: Metadata Location"),
     screen_rotation: eid("select", "Screen: Rotation"),
   };
@@ -548,6 +551,7 @@
     "select/Photos: Display Mode": { key: "display_mode", optionsKey: "display_mode_options", default: "Fill" },
     "switch/Device: Metadata Date": { key: "photo_metadata_date_enabled", boolFromState: true },
     "select/Device: Metadata Date Format": { key: "photo_metadata_date_format", optionsKey: "photo_metadata_date_format_options", default: "Date Taken" },
+    "select/Device: Metadata Date Taken Format": { key: "photo_metadata_date_taken_format", optionsKey: "photo_metadata_date_taken_format_options", default: "Day Month, Year" },
     "switch/Device: Metadata Location": { key: "photo_metadata_location_enabled", boolFromState: true }
   };
 
@@ -592,6 +596,13 @@
     if (spec.key === "timezone") S[spec.key] = normalizeTimezoneOption(S[spec.key]);
     if (spec.key && spec.key.indexOf("ntp_server_") === 0) S[spec.key] = normalizeNtpServer(S[spec.key]);
     if (spec.optionsKey && d.option && d.option.length) S[spec.optionsKey] = d.option;
+    if (spec.key === "photo_metadata_date_format" &&
+        S[spec.key] !== "Relative Date" && S[spec.key] !== "Date Taken") {
+      if (S.photo_metadata_date_taken_format_options.indexOf(S[spec.key]) !== -1) {
+        S.photo_metadata_date_taken_format = S[spec.key];
+      }
+      S[spec.key] = "Date Taken";
+    }
   }
 
   function collectState(d) {
@@ -612,7 +623,8 @@
     "screen_rotation",
     "portrait_pairing",
     "display_mode",
-    "photo_metadata_date_enabled", "photo_metadata_date_format", "photo_metadata_location_enabled"
+    "photo_metadata_date_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format",
+    "photo_metadata_location_enabled"
   ];
   function getEntityIdForStateKey(key) {
     for (var id in ENTITY_STATE_MAP) {
@@ -1457,9 +1469,14 @@
     var metadataBadge = makeBadge(metadataIsActive());
     var metadataBody = el("div");
     var metadataDateDetails = el("div");
+    var fMetadataDateTakenFormat = null;
 
     function refreshMetadataDetails() {
       metadataDateDetails.style.display = S.photo_metadata_date_enabled ? "" : "none";
+      if (fMetadataDateTakenFormat) {
+        fMetadataDateTakenFormat.style.display =
+          S.photo_metadata_date_enabled && S.photo_metadata_date_format === "Date Taken" ? "" : "none";
+      }
       metadataBadge.className = "on-badge" + (metadataIsActive() ? " active" : "");
     }
 
@@ -1480,10 +1497,20 @@
     fMetadataDateFormat.appendChild(
       selectFromOptions(S.photo_metadata_date_format_options, S.photo_metadata_date_format, function (v) {
         S.photo_metadata_date_format = v;
+        refreshMetadataDetails();
         post(endpoints.photo_metadata_date_format + "/set", { option: v });
       })
     );
     metadataDateDetails.appendChild(fMetadataDateFormat);
+
+    fMetadataDateTakenFormat = field("Date Taken Format");
+    fMetadataDateTakenFormat.appendChild(
+      selectFromOptions(S.photo_metadata_date_taken_format_options, S.photo_metadata_date_taken_format, function (v) {
+        S.photo_metadata_date_taken_format = v;
+        post(endpoints.photo_metadata_date_taken_format + "/set", { option: v });
+      })
+    );
+    metadataDateDetails.appendChild(fMetadataDateTakenFormat);
 
     var fMetadataLocation = field("");
     var metadataLocationTr = el("div", "toggle-row");

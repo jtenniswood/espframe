@@ -114,15 +114,31 @@ select:
     options:
       - "Relative Date"
       - "Date Taken"
+    initial_option: "Date Taken"
+    optimistic: true
+    restore_value: true
+    icon: "mdi:calendar-clock"
+    web_server:
+      sorting_group_id: sg_device
+    on_value:
+      then:
+        - script.execute: update_photo_metadata_display
+
+  - platform: template
+    name: "Device: Metadata Date Taken Format"
+    id: photo_metadata_date_taken_format
+    internal: true
+    options:
+      - "Day Month, Year"
       - "Month Day, Year"
       - "Month Day Ordinal, Year"
       - "YYYY-MM-DD"
       - "MM/DD/YYYY"
       - "DD/MM/YYYY"
-    initial_option: "Date Taken"
+    initial_option: "Day Month, Year"
     optimistic: true
     restore_value: true
-    icon: "mdi:calendar-clock"
+    icon: "mdi:calendar-month"
     web_server:
       sorting_group_id: sg_device
     on_value:
@@ -704,25 +720,28 @@ script:
               location_text = id(current_display).location;
             }
             if (id(photo_metadata_date_enabled).state) {
-              const std::string format = id(photo_metadata_date_format).current_option();
-              if (format == "Relative Date") {
+              const std::string mode = id(photo_metadata_date_format).current_option();
+              if (mode == "Relative Date") {
                 auto now = id(sntp_time).now();
                 if (now.is_valid()) {
                   date_text = format_photo_age(id(current_display).year, id(current_display).month, id(current_display).day,
                                                now.year, now.month, now.day_of_month);
                 }
-              } else if (format == "Month Day, Year") {
-                date_text = format_photo_date_month_day_year(id(current_display).year, id(current_display).month, id(current_display).day);
-              } else if (format == "Month Day Ordinal, Year") {
-                date_text = format_photo_date_month_day_ordinal_year(id(current_display).year, id(current_display).month, id(current_display).day);
-              } else if (format == "YYYY-MM-DD") {
-                date_text = format_photo_date_ymd(id(current_display).year, id(current_display).month, id(current_display).day);
-              } else if (format == "MM/DD/YYYY") {
-                date_text = format_photo_date_mdy(id(current_display).year, id(current_display).month, id(current_display).day);
-              } else if (format == "DD/MM/YYYY") {
-                date_text = format_photo_date_dmy(id(current_display).year, id(current_display).month, id(current_display).day);
               } else {
-                date_text = id(current_display).date;
+                const std::string format = id(photo_metadata_date_taken_format).current_option();
+                if (format == "Month Day, Year") {
+                  date_text = format_photo_date_month_day_year(id(current_display).year, id(current_display).month, id(current_display).day);
+                } else if (format == "Month Day Ordinal, Year") {
+                  date_text = format_photo_date_month_day_ordinal_year(id(current_display).year, id(current_display).month, id(current_display).day);
+                } else if (format == "YYYY-MM-DD") {
+                  date_text = format_photo_date_ymd(id(current_display).year, id(current_display).month, id(current_display).day);
+                } else if (format == "MM/DD/YYYY") {
+                  date_text = format_photo_date_mdy(id(current_display).year, id(current_display).month, id(current_display).day);
+                } else if (format == "DD/MM/YYYY") {
+                  date_text = format_photo_date_dmy(id(current_display).year, id(current_display).month, id(current_display).day);
+                } else {
+                  date_text = id(current_display).date;
+                }
               }
             }
           }
