@@ -1468,7 +1468,7 @@
 
     immichApp.appendChild(immichWrap);
 
-    // Device Metadata
+    // Metadata
     function metadataIsActive() {
       return S.photo_metadata_date_enabled || S.photo_metadata_location_enabled;
     }
@@ -1535,7 +1535,7 @@
     metadataBody.appendChild(metadataDateDetails);
 
     refreshMetadataDetails();
-    wrap.appendChild(makeCollapsibleCard("Device Metadata", metadataBody, true, metadataBadge));
+    immichWrap.appendChild(makeCollapsibleCard("Metadata", metadataBody, true, metadataBadge));
 
     // Screen Brightness
     var dnDetails = el("div");

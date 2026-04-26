@@ -104,6 +104,19 @@ Use **Layout** to control how photos are chosen and fitted to the screen.
 
 ---
 
+## Metadata
+
+Use **Metadata** in the **Immich** section of the web UI to control the photo information shown over the current image.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **Location** | On | Shows the photo location when Immich has location data for the image. |
+| **Date** | On | Shows the photo date. |
+| **Date Format** | Date Taken | Choose whether the date uses the photo's taken date or a relative age. |
+| **Date Taken Format** | `1 January, 2000` | Choose the display style used when **Date Format** is set to **Date Taken**. |
+
+---
+
 ## Frequency
 
 **Slideshow Interval** (under **Frequency** in the web UI) sets how long each photo is shown before advancing (default 2 minutes, minimum 30 seconds).
