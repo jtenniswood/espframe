@@ -73,8 +73,8 @@
     photo_metadata_date_enabled: true,
     photo_metadata_date_format: "Date Taken",
     photo_metadata_date_format_options: ["Relative Date", "Date Taken"],
-    photo_metadata_date_taken_format: "1 January, 2000",
-    photo_metadata_date_taken_format_options: ["1 January, 2000", "January 1, 2000"],
+    photo_metadata_date_taken_format: "1 January, 2026",
+    photo_metadata_date_taken_format_options: ["1 January, 2026", "January 1, 2026"],
     photo_metadata_location_enabled: true,
     screen_rotation: "0",
     screen_rotation_options: ["0", "180"],
@@ -548,7 +548,7 @@
     "select/Photos: Display Mode": { key: "display_mode", optionsKey: "display_mode_options", default: "Fill" },
     "switch/Device: Metadata Date": { key: "photo_metadata_date_enabled", boolFromState: true },
     "select/Device: Metadata Date Format": { key: "photo_metadata_date_format", optionsKey: "photo_metadata_date_format_options", default: "Date Taken" },
-    "select/Device: Metadata Date Taken Format": { key: "photo_metadata_date_taken_format", optionsKey: "photo_metadata_date_taken_format_options", default: "1 January, 2000" },
+    "select/Device: Metadata Date Taken Format": { key: "photo_metadata_date_taken_format", optionsKey: "photo_metadata_date_taken_format_options", default: "1 January, 2026" },
     "switch/Device: Metadata Location": { key: "photo_metadata_location_enabled", boolFromState: true }
   };
 
@@ -604,11 +604,11 @@
   }
 
   function normalizeDateTakenFormat(value) {
-    if (value === "January 1, 2000" || value === "Month Day, Year" ||
+    if (value === "January 1, 2026" || value === "January 1, 2000" || value === "Month Day, Year" ||
         value === "Month Day Ordinal, Year") {
-      return "January 1, 2000";
+      return "January 1, 2026";
     }
-    return "1 January, 2000";
+    return "1 January, 2026";
   }
 
   function collectState(d) {
