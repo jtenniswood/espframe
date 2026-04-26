@@ -121,16 +121,9 @@ static void test_date_and_url_helpers() {
   assert(format_photo_age(2026, 4, 21, 2026, 4, 21) == "today");
   assert(format_photo_age(2026, 4, 1, 2026, 4, 21) == "20 days ago");
   assert(format_photo_date_full(2026, 4, 21) == "21 April, 2026");
+  assert(format_photo_date_full(2000, 1, 1) == "1 January, 2000");
   assert(format_photo_date_month_day_year(2026, 1, 1) == "January 1, 2026");
-  assert(format_photo_date_month_day_ordinal_year(2026, 1, 1) == "January 1st, 2026");
-  assert(format_photo_date_month_day_ordinal_year(2026, 1, 2) == "January 2nd, 2026");
-  assert(format_photo_date_month_day_ordinal_year(2026, 1, 3) == "January 3rd, 2026");
-  assert(format_photo_date_month_day_ordinal_year(2026, 1, 4) == "January 4th, 2026");
-  assert(format_photo_date_month_day_ordinal_year(2026, 1, 11) == "January 11th, 2026");
-  assert(format_photo_date_month_day_ordinal_year(2026, 1, 21) == "January 21st, 2026");
-  assert(format_photo_date_ymd(2026, 4, 9) == "2026-04-09");
-  assert(format_photo_date_mdy(2026, 4, 9) == "04/09/2026");
-  assert(format_photo_date_dmy(2026, 4, 9) == "09/04/2026");
+  assert(format_photo_date_month_day_year(2000, 1, 1) == "January 1, 2000");
 }
 
 static void test_immich_body_helpers() {

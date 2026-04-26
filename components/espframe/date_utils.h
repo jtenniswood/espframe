@@ -264,43 +264,7 @@ inline std::string format_photo_date_full(int year, int month, int day) {
   return std::to_string(day) + " " + std::string(MONTH_NAMES_FULL[month]) + ", " + std::to_string(year);
 }
 
-inline std::string two_digit_date_part(int value) {
-  return (value < 10 ? "0" : "") + std::to_string(value);
-}
-
-inline std::string ordinal_suffix(int day) {
-  int mod100 = day % 100;
-  if (mod100 >= 11 && mod100 <= 13) return "th";
-  switch (day % 10) {
-    case 1: return "st";
-    case 2: return "nd";
-    case 3: return "rd";
-    default: return "th";
-  }
-}
-
 inline std::string format_photo_date_month_day_year(int year, int month, int day) {
   if (!is_valid_date_parts(year, month, day)) return "";
   return std::string(MONTH_NAMES_FULL[month]) + " " + std::to_string(day) + ", " + std::to_string(year);
-}
-
-inline std::string format_photo_date_month_day_ordinal_year(int year, int month, int day) {
-  if (!is_valid_date_parts(year, month, day)) return "";
-  return std::string(MONTH_NAMES_FULL[month]) + " " + std::to_string(day) +
-         ordinal_suffix(day) + ", " + std::to_string(year);
-}
-
-inline std::string format_photo_date_ymd(int year, int month, int day) {
-  if (!is_valid_date_parts(year, month, day)) return "";
-  return std::to_string(year) + "-" + two_digit_date_part(month) + "-" + two_digit_date_part(day);
-}
-
-inline std::string format_photo_date_mdy(int year, int month, int day) {
-  if (!is_valid_date_parts(year, month, day)) return "";
-  return two_digit_date_part(month) + "/" + two_digit_date_part(day) + "/" + std::to_string(year);
-}
-
-inline std::string format_photo_date_dmy(int year, int month, int day) {
-  if (!is_valid_date_parts(year, month, day)) return "";
-  return two_digit_date_part(day) + "/" + two_digit_date_part(month) + "/" + std::to_string(year);
 }

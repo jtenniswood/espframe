@@ -129,13 +129,9 @@ select:
     id: photo_metadata_date_taken_format
     internal: true
     options:
-      - "Day Month, Year"
-      - "Month Day, Year"
-      - "Month Day Ordinal, Year"
-      - "YYYY-MM-DD"
-      - "MM/DD/YYYY"
-      - "DD/MM/YYYY"
-    initial_option: "Day Month, Year"
+      - "1 January, 2000"
+      - "January 1, 2000"
+    initial_option: "1 January, 2000"
     optimistic: true
     restore_value: true
     icon: "mdi:calendar-month"
@@ -729,16 +725,8 @@ script:
                 }
               } else {
                 const std::string format = id(photo_metadata_date_taken_format).current_option();
-                if (format == "Month Day, Year") {
+                if (format == "January 1, 2000" || format == "Month Day, Year") {
                   date_text = format_photo_date_month_day_year(id(current_display).year, id(current_display).month, id(current_display).day);
-                } else if (format == "Month Day Ordinal, Year") {
-                  date_text = format_photo_date_month_day_ordinal_year(id(current_display).year, id(current_display).month, id(current_display).day);
-                } else if (format == "YYYY-MM-DD") {
-                  date_text = format_photo_date_ymd(id(current_display).year, id(current_display).month, id(current_display).day);
-                } else if (format == "MM/DD/YYYY") {
-                  date_text = format_photo_date_mdy(id(current_display).year, id(current_display).month, id(current_display).day);
-                } else if (format == "DD/MM/YYYY") {
-                  date_text = format_photo_date_dmy(id(current_display).year, id(current_display).month, id(current_display).day);
                 } else {
                   date_text = id(current_display).date;
                 }

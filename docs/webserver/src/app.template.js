@@ -73,11 +73,8 @@
     photo_metadata_date_enabled: true,
     photo_metadata_date_format: "Date Taken",
     photo_metadata_date_format_options: ["Relative Date", "Date Taken"],
-    photo_metadata_date_taken_format: "Day Month, Year",
-    photo_metadata_date_taken_format_options: [
-      "Day Month, Year", "Month Day, Year", "Month Day Ordinal, Year",
-      "YYYY-MM-DD", "MM/DD/YYYY", "DD/MM/YYYY"
-    ],
+    photo_metadata_date_taken_format: "1 January, 2000",
+    photo_metadata_date_taken_format_options: ["1 January, 2000", "January 1, 2000"],
     photo_metadata_location_enabled: true,
     screen_rotation: "0",
     screen_rotation_options: ["0", "180"],
@@ -551,7 +548,7 @@
     "select/Photos: Display Mode": { key: "display_mode", optionsKey: "display_mode_options", default: "Fill" },
     "switch/Device: Metadata Date": { key: "photo_metadata_date_enabled", boolFromState: true },
     "select/Device: Metadata Date Format": { key: "photo_metadata_date_format", optionsKey: "photo_metadata_date_format_options", default: "Date Taken" },
-    "select/Device: Metadata Date Taken Format": { key: "photo_metadata_date_taken_format", optionsKey: "photo_metadata_date_taken_format_options", default: "Day Month, Year" },
+    "select/Device: Metadata Date Taken Format": { key: "photo_metadata_date_taken_format", optionsKey: "photo_metadata_date_taken_format_options", default: "1 January, 2000" },
     "switch/Device: Metadata Location": { key: "photo_metadata_location_enabled", boolFromState: true }
   };
 
@@ -598,11 +595,20 @@
     if (spec.optionsKey && d.option && d.option.length) S[spec.optionsKey] = d.option;
     if (spec.key === "photo_metadata_date_format" &&
         S[spec.key] !== "Relative Date" && S[spec.key] !== "Date Taken") {
-      if (S.photo_metadata_date_taken_format_options.indexOf(S[spec.key]) !== -1) {
-        S.photo_metadata_date_taken_format = S[spec.key];
-      }
+      S.photo_metadata_date_taken_format = normalizeDateTakenFormat(S[spec.key]);
       S[spec.key] = "Date Taken";
     }
+    if (spec.key === "photo_metadata_date_taken_format") {
+      S[spec.key] = normalizeDateTakenFormat(S[spec.key]);
+    }
+  }
+
+  function normalizeDateTakenFormat(value) {
+    if (value === "January 1, 2000" || value === "Month Day, Year" ||
+        value === "Month Day Ordinal, Year") {
+      return "January 1, 2000";
+    }
+    return "1 January, 2000";
   }
 
   function collectState(d) {
