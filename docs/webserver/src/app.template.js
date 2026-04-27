@@ -130,21 +130,31 @@
 
     var nav = document.createElement("nav");
     nav.className = "sp-nav";
+    nav.setAttribute("aria-label", "Primary");
 
     var tabs = [
       { id: "immich", label: "Immich" },
-      { id: "settings", label: "Device" },
-      { id: "logs", label: "Logs" }
+      { id: "settings", label: "Device" }
     ];
 
     tabs.forEach(function (t) {
       var tab = document.createElement("div");
       tab.className = "sp-tab";
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-selected", "false");
       tab.textContent = t.label;
       tab.addEventListener("click", function () { switchTab(t.id); });
       nav.appendChild(tab);
       els["tab_" + t.id] = tab;
     });
+
+    var docsLink = document.createElement("a");
+    docsLink.className = "sp-tab sp-tab-docs";
+    docsLink.href = "https://jtenniswood.github.io/espframe/";
+    docsLink.target = "_blank";
+    docsLink.rel = "noopener";
+    docsLink.innerHTML = 'Docs <span class="sp-docs-icon" aria-hidden="true">&#8599;</span>';
+    nav.appendChild(docsLink);
 
     header.appendChild(nav);
     parent.appendChild(header);
@@ -204,8 +214,9 @@
   }
 
   function switchTab(tab) {
-    ["immich", "settings", "logs"].forEach(function (t) {
+    ["immich", "settings"].forEach(function (t) {
       els["tab_" + t].className = "sp-tab" + (tab === t ? " active" : "");
+      els["tab_" + t].setAttribute("aria-selected", tab === t ? "true" : "false");
     });
     els.immichPage.className = "sp-page" + (tab === "immich" ? " active" : "");
     els.settingsPage.className = "sp-page" + (tab === "settings" ? " active" : "");
