@@ -56,6 +56,7 @@ text:
             return;
           }
           id(immich_url).publish_state(url);
+          global_preferences->sync();
           ESP_LOGI("immich", "Immich URL configured: %s", url.c_str());
           id(immich_connection_config_changed).execute();
 
@@ -77,6 +78,7 @@ text:
       - lambda: |-
           if (x.empty()) return;
           id(immich_api_key_text).publish_state(x);
+          global_preferences->sync();
           ESP_LOGI("immich", "Immich API key configured (%d chars)", x.length());
           id(immich_connection_config_changed).execute();
 
