@@ -360,7 +360,7 @@
   function developerPanelEnabledByUrl() {
     try {
       var params = new URLSearchParams(window.location.search || "");
-      return params.get("developer") === "1" || params.get("dev") === "1";
+      return params.get("developer") === "experimental" || params.get("dev") === "experimental";
     } catch (_) {
       return false;
     }

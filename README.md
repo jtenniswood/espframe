@@ -53,7 +53,7 @@ docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.4.0 compile /co
 
 ### In-development firmware features
 
-In-progress firmware experiences are built into normal firmware, but must stay off unless the hidden developer setting is enabled. Open the device web UI with `?developer=1`, for example `http://<device-ip>/?developer=1`, then use the **Developer** panel to turn them on for that device.
+In-progress firmware experiences are built into normal firmware, but must stay off unless the hidden developer setting is enabled. Open the device web UI with `?developer=experimental`, for example `http://<device-ip>/?developer=experimental`, then use the **Developer** panel to turn them on for that device.
 
 Firmware code should check `id(developer_features_enabled).state` before running anything experimental. The switch defaults off and persists only when deliberately enabled.
 
