@@ -117,6 +117,18 @@
     }
     els.root = root;
     switchTab("immich");
+    addSupportButton();
+  }
+
+  function addSupportButton() {
+    if (document.querySelector(".sp-support-btn")) return;
+    var link = document.createElement("a");
+    link.className = "sp-support-btn";
+    link.href = "https://www.buymeacoffee.com/jtenniswood";
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.innerHTML = '<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="60" style="border-radius:999px;">';
+    document.body.appendChild(link);
   }
 
   function buildHeader(parent) {

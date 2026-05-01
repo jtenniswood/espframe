@@ -56,5 +56,5 @@ docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.4.0 compile /co
 If you find this project useful, consider buying me a coffee to support ongoing development!
 
 <a href="https://www.buymeacoffee.com/jtenniswood">
-  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50" />
+  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="60" style="border-radius:999px;" />
 </a>

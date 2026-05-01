@@ -34,8 +34,8 @@ export default defineConfig({
       'data-message': '',
       'data-color': '#FFDD00',
       'data-position': 'Right',
-      'data-x_margin': '18',
-      'data-y_margin': '18',
+      'data-x_margin': '28',
+      'data-y_margin': '28',
     }],
     ['script', { type: 'application/ld+json' }, JSON.stringify({
       '@context': 'https://schema.org',
