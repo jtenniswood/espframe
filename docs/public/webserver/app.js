@@ -2001,11 +2001,6 @@
 
     app.appendChild(wrap);
 
-    if (S.firmware) {
-      var verLine = el("div", "version");
-      verLine.textContent = displayVersion(S.firmware);
-      app.appendChild(verLine);
-    }
   }
 
   // --- SSE live updates (after render) ---
