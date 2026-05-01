@@ -195,6 +195,103 @@ script:
               - script.execute: immich_fetch_into_slot
 
   # ---------------------------------------------------------------------------
+  # Fetch a random asset from an album using the album details endpoint.
+  #
+  # Immich's random search can stay scoped to assets owned by the API key user,
+  # even when albumIds are supplied. Reading the album directly includes shared
+  # album assets owned by other users.
+  # ---------------------------------------------------------------------------
+  - id: immich_fetch_album_into_slot
+    mode: single
+    then:
+      - if:
+          condition:
+            not:
+              wifi.connected:
+          then:
+            - logger.log:
+                level: DEBUG
+                tag: immich
+                format: "Skipping album fetch (wifi disconnected)"
+            - script.stop: immich_fetch_album_into_slot
+      - if:
+          condition:
+            lambda: 'return id(immich_url).state.empty() || id(immich_api_key_text).state.empty() || id(immich_album_ids).state.empty();'
+          then:
+            - lambda: |-
+                ESP_LOGW("immich", "Album source selected but Immich URL, API key, or album IDs are missing");
+                clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
+            - script.stop: immich_fetch_album_into_slot
+      - http_request.get:
+          id: http_req
+          url: !lambda |-
+            std::string album_id = pick_one_uuid_from_csv(id(immich_album_ids).state);
+            return id(immich_url).state + "/api/albums/" + album_id;
+          capture_response: true
+          max_response_buffer_size: 96kB
+          request_headers:
+            Accept: application/json
+            x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
+          on_response:
+            then:
+              - lambda: |-
+                  if (response->status_code != 200) {
+                    ESP_LOGW("immich", "Album fetch HTTP %d", response->status_code);
+                    clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
+                    id(immich_last_http_status) = response->status_code;
+                    id(immich_retry_cooldown_until_ms) = millis() + 30000;
+                    return;
+                  }
+                  id(immich_fetch_started) = true;
+                  id(immich_last_http_status) = 0;
+                  std::string orientation = id(photo_orientation_filter).current_option();
+                  std::string img_url = parse_immich_album_asset_and_fill_slot(
+                    body, id(immich_url).state, id(target_slot), id(slot0), id(slot1), id(slot2),
+                    orientation);
+                  if (img_url.empty()) {
+                    clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
+                    ESP_LOGW("immich", "No usable album asset in response");
+                    id(immich_api_retries) = 0;
+                    id(immich_retry_cooldown_until_ms) = millis() + 30000;
+                    return;
+                  }
+                  id(immich_api_retries) = 0;
+                  int slot = id(target_slot);
+                  auto &meta = get_slot(slot, id(slot0), id(slot1), id(slot2));
+                  ESP_LOGI("immich", "ALBUM slot %d: %s | %s | %s | %s | portrait=%d",
+                           slot, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.location.c_str(), meta.is_portrait);
+                  id(espframe_core).slideshow().clear_preload_for_slot(
+                    slot, id(portrait_preload_slot), id(portrait_preload_left_ready),
+                    id(portrait_preload_right_ready), id(preload_noncritical_in_flight),
+                    id(noncritical_remote_updates_in_flight));
+                  if (slot == 0) { id(immich_img_0).set_url(img_url); }
+                  else if (slot == 1) { id(immich_img_1).set_url(img_url); }
+                  else { id(immich_img_2).set_url(img_url); }
+              - lambda: |-
+                  int s = id(target_slot);
+                  if (s == 0) id(deferred_slot0_image_update).execute();
+                  else if (s == 1) id(deferred_slot1_image_update).execute();
+                  else id(deferred_slot2_image_update).execute();
+          on_error:
+            then:
+              - lambda: |-
+                  id(immich_api_retries)++;
+                  ESP_LOGW("immich", "Album request error for slot %d (attempt %d)", id(target_slot), id(immich_api_retries));
+                  clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
+                  id(immich_diag_reason) = "album request error";
+                  id(log_immich_diag).execute();
+              - if:
+                  condition:
+                    lambda: 'return id(immich_api_retries) < MAX_ERROR_RETRIES;'
+                  then:
+                    - script.execute: immich_fetch_retry
+                  else:
+                    - lambda: |-
+                        id(immich_api_retries) = 0;
+                        id(immich_retry_cooldown_until_ms) = millis() + 30000;
+                        ESP_LOGW("immich", "Album retries exhausted; pausing Immich fetches for 30s");
+
+  # ---------------------------------------------------------------------------
   # Fetch API metadata and start image download into target_slot
   # ---------------------------------------------------------------------------
   - id: immich_fetch_into_slot
@@ -281,6 +378,12 @@ script:
             - script.execute: immich_fetch_memory_into_slot
             - script.stop: immich_fetch_into_slot
       - lambda: 'id(immich_memory_fallback) = false;'
+      - if:
+          condition:
+            lambda: 'return id(photo_source_select).current_option() == "Album";'
+          then:
+            - script.execute: immich_fetch_album_into_slot
+            - script.stop: immich_fetch_into_slot
       - http_request.post:
           id: http_req
           url: !lambda 'return id(immich_url).state + "/api/search/random";'
