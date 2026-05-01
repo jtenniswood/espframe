@@ -24,6 +24,7 @@ TIME_YAML_PATH = ROOT / "common" / "addon" / "time.yaml"
 WEB_SRC_DIR = ROOT / "docs" / "webserver" / "src"
 WEB_TEMPLATE_PATH = WEB_SRC_DIR / "app.template.js"
 WEB_STYLE_PATH = WEB_SRC_DIR / "style.css"
+WEB_PUBLIC_STYLE_PATH = ROOT / "docs" / "public" / "webserver" / "style.css"
 WEB_APP_PATH = ROOT / "docs" / "public" / "webserver" / "app.js"
 
 
@@ -190,6 +191,7 @@ def generate(check: bool) -> int:
     changed = False
     changed |= write_or_check(TZ_HEADER_PATH, timezone_header(), check)
     changed |= write_or_check(TIME_YAML_PATH, replace_timezone_yaml(TIME_YAML_PATH.read_text(), timezone_options()), check)
+    changed |= write_or_check(WEB_PUBLIC_STYLE_PATH, WEB_STYLE_PATH.read_text(), check)
     changed |= write_or_check(WEB_APP_PATH, web_app_bundle(), check)
     if check and changed:
         print("Generated files are stale. Run `npm run generate`.", file=sys.stderr)
