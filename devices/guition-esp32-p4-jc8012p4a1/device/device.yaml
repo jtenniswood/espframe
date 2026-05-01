@@ -22,6 +22,7 @@ esp32:
     type: esp-idf
     sdkconfig_options:
       CONFIG_HTTPD_MAX_URI_LEN: "128"
+      CONFIG_ESP_TASK_WDT_TIMEOUT_S: "30"
     advanced:
       enable_idf_experimental_features: true
 

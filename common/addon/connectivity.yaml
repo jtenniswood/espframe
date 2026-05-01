@@ -13,6 +13,10 @@ substitutions:
   # Default "false" allows self-signed certs common in home lab setups.
   immich_verify_ssl: "false"
 
+# Enable IPv6 so dual-stack DNS names can use AAAA when IPv4 is unavailable.
+network:
+  enable_ipv6: true
+
 http_request:
   id: http_req
   timeout: 20s

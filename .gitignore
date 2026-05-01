@@ -7,3 +7,4 @@ docs/.vitepress/cache
 **/secrets.yaml
 __pycache__/
 *.pyc
+backups/
