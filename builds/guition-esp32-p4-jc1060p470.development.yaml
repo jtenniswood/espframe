@@ -1,0 +1,34 @@
+# =============================================================================
+# DEVELOPMENT FIRMWARE - Guition ESP32-P4 JC1060P470
+# =============================================================================
+# Opt-in build for in-progress firmware experiences. Release and factory builds
+# use the .factory.yaml file instead and do not include development_features.
+# =============================================================================
+
+substitutions:
+  name: "immich-frame-7inch-dev"
+  friendly_name: "Immich Frame 7inch Dev"
+  firmware_version: "dev"
+  log_level: "DEBUG"
+
+packages:
+  espframe: !include ../devices/guition-esp32-p4-jc1060p470/packages.yaml
+  development_features: !include ../common/development/development_features.yaml
+
+external_components:
+  - source:
+      type: local
+      path: ../components
+    components: [remote_image, espframe]
+
+wifi:
+  ap:
+
+captive_portal:
+
+web_server:
+  port: 80
+  version: 3
+  js_url: ""
+  css_include: "../docs/public/webserver/style.css"
+  js_include: "../docs/public/webserver/app.js"

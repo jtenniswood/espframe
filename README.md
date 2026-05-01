@@ -51,6 +51,18 @@ npm run docs:dev
 docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.4.0 compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
 ```
 
+### Development-only firmware features
+
+In-progress firmware experiences belong in `common/development/development_features.yaml`. That file is only included by the `.development.yaml` build wrappers, so normal factory releases and user package installs do not expose development features.
+
+```bash
+# 10-inch development build
+docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.4.0 compile /config/builds/guition-esp32-p4-jc8012p4a1.development.yaml
+
+# 7-inch development build
+docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.4.0 compile /config/builds/guition-esp32-p4-jc1060p470.development.yaml
+```
+
 ## Support This Project
 
 If you find this project useful, consider buying me a coffee to support ongoing development!
