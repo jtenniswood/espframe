@@ -53,4 +53,5 @@ packages:
   # Shared addons: firmware update and network diagnostics
   # ---------------------------------------------------------------------------
   fw_update:       !include ../../common/addon/firmware_update.yaml
+  dev_features:    !include ../../common/addon/developer_features.yaml
   network:         !include ../../common/addon/network.yaml

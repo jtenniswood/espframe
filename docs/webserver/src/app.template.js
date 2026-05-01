@@ -78,6 +78,7 @@
     photo_metadata_location_enabled: true,
     screen_rotation: "0",
     screen_rotation_options: ["0", "180"],
+    developer_features_enabled: false,
   };
 
   var CSS = __ESPFRAME_CSS__;
@@ -289,6 +290,7 @@
     photo_metadata_date_taken_format: eid("select", "Device: Metadata Date Taken Format"),
     photo_metadata_location_enabled: eid("switch", "Device: Metadata Location"),
     screen_rotation: eid("select", "Screen: Rotation"),
+    developer_features_enabled: eid("switch", "Developer: Features"),
   };
 
   function post(url, params) {
@@ -353,6 +355,15 @@
       url = url.slice(0, -1);
     }
     return url;
+  }
+
+  function developerPanelEnabledByUrl() {
+    try {
+      var params = new URLSearchParams(window.location.search || "");
+      return params.get("developer") === "1" || params.get("dev") === "1";
+    } catch (_) {
+      return false;
+    }
   }
 
   function extractUrlAuthority(value) {
@@ -573,7 +584,8 @@
     "switch/Device: Metadata Date": { key: "photo_metadata_date_enabled", boolFromState: true },
     "select/Device: Metadata Date Format": { key: "photo_metadata_date_format", optionsKey: "photo_metadata_date_format_options", default: "Date Taken" },
     "select/Device: Metadata Date Taken Format": { key: "photo_metadata_date_taken_format", optionsKey: "photo_metadata_date_taken_format_options", default: "1 January, 2026" },
-    "switch/Device: Metadata Location": { key: "photo_metadata_location_enabled", boolFromState: true }
+    "switch/Device: Metadata Location": { key: "photo_metadata_location_enabled", boolFromState: true },
+    "switch/Developer: Features": { key: "developer_features_enabled", boolFromState: true }
   };
 
   function applyEntityToState(d) {
@@ -654,7 +666,8 @@
     "portrait_pairing",
     "display_mode",
     "photo_metadata_date_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format",
-    "photo_metadata_location_enabled"
+    "photo_metadata_location_enabled",
+    "developer_features_enabled"
   ];
   function getEntityIdForStateKey(key) {
     for (var id in ENTITY_STATE_MAP) {
@@ -1964,6 +1977,25 @@
     fwBody.appendChild(freqField);
 
     wrap.appendChild(makeCollapsibleCard("Firmware", fwBody, true));
+
+    if (developerPanelEnabledByUrl()) {
+      var devBadge = makeBadge(S.developer_features_enabled);
+      var devBody = el("div");
+      var devField = field("");
+      var devRow = el("div", "toggle-row");
+      devRow.innerHTML = "<span>Enable in-development features</span>";
+      var devToggle = el("div", S.developer_features_enabled ? "toggle on" : "toggle");
+      devToggle.onclick = function () {
+        S.developer_features_enabled = !S.developer_features_enabled;
+        devToggle.className = S.developer_features_enabled ? "toggle on" : "toggle";
+        devBadge.className = "on-badge" + (S.developer_features_enabled ? " active" : "");
+        post(endpoints.developer_features_enabled + (S.developer_features_enabled ? "/turn_on" : "/turn_off"));
+      };
+      devRow.appendChild(devToggle);
+      devField.appendChild(devRow);
+      devBody.appendChild(devField);
+      wrap.appendChild(makeCollapsibleCard("Developer", devBody, true, devBadge));
+    }
 
     wrap.appendChild(makeBackupCard());
 

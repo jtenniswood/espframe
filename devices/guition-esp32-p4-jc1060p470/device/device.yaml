@@ -105,6 +105,9 @@ web_server:
     - id: sg_firmware
       name: "Firmware"
       sorting_weight: 40
+    - id: sg_developer
+      name: "Developer"
+      sorting_weight: 90
 
 ota:
   - platform: esphome

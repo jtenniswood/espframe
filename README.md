@@ -51,17 +51,11 @@ npm run docs:dev
 docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.4.0 compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
 ```
 
-### Development-only firmware features
+### In-development firmware features
 
-In-progress firmware experiences belong in `common/development/development_features.yaml`. That file is only included by the `.development.yaml` build wrappers, so normal factory releases and user package installs do not expose development features.
+In-progress firmware experiences are built into normal firmware, but must stay off unless the hidden developer setting is enabled. Open the device web UI with `?developer=1`, for example `http://<device-ip>/?developer=1`, then use the **Developer** panel to turn them on for that device.
 
-```bash
-# 10-inch development build
-docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.4.0 compile /config/builds/guition-esp32-p4-jc8012p4a1.development.yaml
-
-# 7-inch development build
-docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.4.0 compile /config/builds/guition-esp32-p4-jc1060p470.development.yaml
-```
+Firmware code should check `id(developer_features_enabled).state` before running anything experimental. The switch defaults off and persists only when deliberately enabled.
 
 ## Support This Project
 

@@ -1,0 +1,19 @@
+# =============================================================================
+# DEVELOPER FEATURES - runtime gate for in-progress experiences
+# =============================================================================
+# This package is included in normal firmware so development experiences can be
+# compiled into release builds, but they must stay inactive unless this switch
+# is turned on from the hidden developer panel in the web UI.
+# =============================================================================
+
+switch:
+  - platform: template
+    name: "Developer: Features"
+    id: developer_features_enabled
+    internal: true
+    entity_category: config
+    icon: "mdi:flask-outline"
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    web_server:
+      sorting_group_id: sg_developer
