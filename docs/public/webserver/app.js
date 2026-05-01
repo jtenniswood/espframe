@@ -844,7 +844,8 @@
         nextBtn.disabled = true;
         nextBtn.textContent = "Saving\u2026";
         postTextValueSet(endpoints.immich_url + "/set", u, true)
-          .then(function () {
+          .then(function (r) {
+            if (!(r && r.ok)) throw new Error("Failed to save URL");
             return new Promise(function (r) { setTimeout(r, 500); });
           })
           .then(function () {
@@ -855,6 +856,11 @@
             S.api_key = k;
             step = 2;
             showStep();
+          })
+          .catch(function () {
+            nextBtn.disabled = false;
+            nextBtn.textContent = "Connect";
+            showBanner("Failed to save Immich URL", "error");
           });
       };
       nav.appendChild(nextBtn);
