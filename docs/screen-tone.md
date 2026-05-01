@@ -1,9 +1,9 @@
 ---
-title: Screen Tone
-description: Adjust display colour temperature to correct blue cast and automatically warm photos at night.
+title: Espframe Screen Tone and Night Warmth
+description: Adjust Espframe display colour temperature to correct blue cast and automatically warm photos at night.
 ---
 
-# Screen Tone
+# Espframe Screen Tone and Night Warmth
 
 Adjust display colour temperature and automatic night warmth. All settings are under the **Screen Tone** card in the web UI.
 

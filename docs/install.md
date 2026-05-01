@@ -1,9 +1,9 @@
 ---
-title: Install
-description: Flash Espframe for Immich firmware to a supported ESP32-P4 display directly from the browser using Web Serial.
+title: Install Espframe on a Guition ESP32-P4 Display
+description: Flash Espframe for Immich firmware to a supported Guition ESP32-P4 touchscreen directly from Chrome or Edge using Web Serial.
 ---
 
-# Install
+# Install Espframe on a Guition ESP32-P4 Display
 
 Flash Espframe to a supported Guition ESP32-P4 display from your browser — no desktop toolchain or ESPHome required.
 

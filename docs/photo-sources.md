@@ -1,9 +1,9 @@
 ---
-title: Photo Sources
-description: Choose where your frame gets its images — all photos, favorites, albums, people, or memories — and how to set each source up.
+title: Espframe Photo Sources for Immich
+description: Configure which Immich photos Espframe displays, including all photos, favorites, albums, people, memories, and date filters.
 ---
 
-# Photo Sources
+# Espframe Photo Sources for Immich
 
 Choose the **Source** in the device web UI at `http://<device-ip>/` under **Photo Source**. Changes apply automatically shortly after you change a control.
 

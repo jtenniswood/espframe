@@ -1,9 +1,9 @@
 ---
-title: Touch Controls
-description: Wake, sleep, and advance the slideshow with simple touch gestures.
+title: Espframe Touch Controls
+description: Use Espframe touchscreen gestures to wake the display, put the screen to sleep, and advance the Immich slideshow.
 ---
 
-# Touch Controls
+# Espframe Touch Controls
 
 On the slideshow screen you can wake the display, turn it off with a timed hold, and advance to the next photo.
 

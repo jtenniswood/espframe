@@ -1,9 +1,9 @@
 ---
-title: Roadmap
-description: Planned features and improvements for the Espframe project.
+title: Espframe Roadmap
+description: Planned Espframe firmware, display, photo source, and web UI improvements for the Immich digital photo frame project.
 ---
 
-# Roadmap
+# Espframe Roadmap
 
 Planned features and improvements for Espframe. Items are roughly ordered by priority within each category. Features marked **Done** are available now via the device web UI.
 

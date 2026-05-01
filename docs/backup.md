@@ -1,9 +1,9 @@
 ---
-title: Backup & Restore
-description: Export and import your Espframe settings as a JSON file to back up, restore, or clone your configuration.
+title: Back Up and Restore Espframe Settings
+description: Export and import Espframe settings as a JSON file to back up, restore, migrate, or clone a digital photo frame configuration.
 ---
 
-# Backup & Restore
+# Back Up and Restore Espframe Settings
 
 Export your settings to a JSON file and import them back — useful for backups, migrating to a new device, or cloning a configuration across multiple frames.
 

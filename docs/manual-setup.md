@@ -1,9 +1,9 @@
 ---
-title: Manual Setup
-description: Install Espframe firmware via the ESPHome dashboard for full control over substitutions and configuration.
+title: ESPHome Manual Setup for Espframe
+description: Install Espframe firmware from the ESPHome dashboard when you want full control over YAML substitutions and local builds.
 ---
 
-# Manual Setup
+# ESPHome Manual Setup for Espframe
 
 For advanced users: install via the ESPHome dashboard instead of the web installer to control substitutions and YAML.
 

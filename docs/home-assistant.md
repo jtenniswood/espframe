@@ -1,9 +1,9 @@
 ---
-title: Home Assistant Integration
-description: Optionally integrate Espframe with Home Assistant for OTA updates and dashboard controls.
+title: Espframe Home Assistant Integration
+description: Add Espframe to Home Assistant as an ESPHome device for optional OTA updates, controls, and dashboard visibility.
 ---
 
-# Home Assistant Integration
+# Espframe Home Assistant Integration
 
 Home Assistant is **not required** — the frame works standalone. If you run [Home Assistant](https://www.home-assistant.io/), you can add it as an ESPHome device for updates and dashboard control.
 
