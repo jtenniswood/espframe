@@ -1,9 +1,9 @@
 ---
-title: Immich API Key
-description: Create a scoped Immich API key with minimal read-only permissions for your Espframe device.
+title: Immich API Key Permissions for Espframe
+description: Create a read-only Immich API key with the minimum permissions needed for an Espframe digital photo frame.
 ---
 
-# Immich API Key
+# Immich API Key Permissions for Espframe
 
 Espframe needs a read-only API key; it never modifies or uploads. **Account Settings → API Keys → New API Key** in Immich. Deselect all, then enable only:
 

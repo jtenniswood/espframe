@@ -78,13 +78,16 @@
     photo_metadata_location_enabled: true,
     screen_rotation: "0",
     screen_rotation_options: ["0", "180"],
+    developer_features_enabled: false,
   };
 
   var CSS = __ESPFRAME_CSS__;
+  var FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" id="mdi-home-automation" viewBox="0 0 24 24"><path fill="#5c73e7" d="M12,3L2,12H5V20H19V12H22L12,3M12,8.5C14.34,8.5 16.46,9.43 18,10.94L16.8,12.12C15.58,10.91 13.88,10.17 12,10.17C10.12,10.17 8.42,10.91 7.2,12.12L6,10.94C7.54,9.43 9.66,8.5 12,8.5M12,11.83C13.4,11.83 14.67,12.39 15.6,13.3L14.4,14.47C13.79,13.87 12.94,13.5 12,13.5C11.06,13.5 10.21,13.87 9.6,14.47L8.4,13.3C9.33,12.39 10.6,11.83 12,11.83M12,15.17C12.94,15.17 13.7,15.91 13.7,16.83C13.7,17.75 12.94,18.5 12,18.5C11.06,18.5 10.3,17.75 10.3,16.83C10.3,15.91 11.06,15.17 12,15.17Z"/></svg>';
 
   var style = document.createElement("style");
   style.textContent = CSS;
   document.head.appendChild(style);
+  ensureFavicon();
 
   var fonts = document.createElement("link");
   fonts.rel = "stylesheet";
@@ -93,6 +96,14 @@
 
   var els = {};
   var app;
+
+  function ensureFavicon() {
+    var icon = document.querySelector('link[rel="icon"]') || document.createElement("link");
+    icon.rel = "icon";
+    icon.type = "image/svg+xml";
+    icon.href = "data:image/svg+xml," + encodeURIComponent(FAVICON_SVG);
+    if (!icon.parentNode) document.head.appendChild(icon);
+  }
 
   function buildUI() {
     var root = document.createElement("div");
@@ -117,6 +128,19 @@
     }
     els.root = root;
     switchTab("immich");
+    addSupportButton();
+  }
+
+  function addSupportButton() {
+    if (document.querySelector(".sp-support-btn")) return;
+    var link = document.createElement("a");
+    link.className = "sp-support-btn";
+    link.href = "https://www.buymeacoffee.com/jtenniswood";
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.setAttribute("aria-label", "Buy Me A Coffee");
+    link.innerHTML = '<span>Buy Me A Coffee</span><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="60" style="border-radius:999px;">';
+    document.body.appendChild(link);
   }
 
   function buildHeader(parent) {
@@ -276,6 +300,7 @@
     photo_metadata_date_taken_format: eid("select", "Device: Metadata Date Taken Format"),
     photo_metadata_location_enabled: eid("switch", "Device: Metadata Location"),
     screen_rotation: eid("select", "Screen: Rotation"),
+    developer_features_enabled: eid("switch", "Developer: Features"),
   };
 
   function post(url, params) {
@@ -340,6 +365,15 @@
       url = url.slice(0, -1);
     }
     return url;
+  }
+
+  function developerPanelEnabledByUrl() {
+    try {
+      var params = new URLSearchParams(window.location.search || "");
+      return params.get("developer") === "experimental" || params.get("dev") === "experimental";
+    } catch (_) {
+      return false;
+    }
   }
 
   function extractUrlAuthority(value) {
@@ -560,7 +594,8 @@
     "switch/Device: Metadata Date": { key: "photo_metadata_date_enabled", boolFromState: true },
     "select/Device: Metadata Date Format": { key: "photo_metadata_date_format", optionsKey: "photo_metadata_date_format_options", default: "Date Taken" },
     "select/Device: Metadata Date Taken Format": { key: "photo_metadata_date_taken_format", optionsKey: "photo_metadata_date_taken_format_options", default: "1 January, 2026" },
-    "switch/Device: Metadata Location": { key: "photo_metadata_location_enabled", boolFromState: true }
+    "switch/Device: Metadata Location": { key: "photo_metadata_location_enabled", boolFromState: true },
+    "switch/Developer: Features": { key: "developer_features_enabled", boolFromState: true }
   };
 
   function applyEntityToState(d) {
@@ -641,7 +676,8 @@
     "portrait_pairing",
     "display_mode",
     "photo_metadata_date_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format",
-    "photo_metadata_location_enabled"
+    "photo_metadata_location_enabled",
+    "developer_features_enabled"
   ];
   function getEntityIdForStateKey(key) {
     for (var id in ENTITY_STATE_MAP) {
@@ -1960,15 +1996,29 @@
 
     wrap.appendChild(makeCollapsibleCard("Firmware", fwBody, true));
 
+    if (developerPanelEnabledByUrl()) {
+      var devBadge = makeBadge(S.developer_features_enabled);
+      var devBody = el("div");
+      var devField = field("");
+      var devRow = el("div", "toggle-row");
+      devRow.innerHTML = "<span>Enable in-development features</span>";
+      var devToggle = el("div", S.developer_features_enabled ? "toggle on" : "toggle");
+      devToggle.onclick = function () {
+        S.developer_features_enabled = !S.developer_features_enabled;
+        devToggle.className = S.developer_features_enabled ? "toggle on" : "toggle";
+        devBadge.className = "on-badge" + (S.developer_features_enabled ? " active" : "");
+        post(endpoints.developer_features_enabled + (S.developer_features_enabled ? "/turn_on" : "/turn_off"));
+      };
+      devRow.appendChild(devToggle);
+      devField.appendChild(devRow);
+      devBody.appendChild(devField);
+      wrap.appendChild(makeCollapsibleCard("Developer", devBody, true, devBadge));
+    }
+
     wrap.appendChild(makeBackupCard());
 
     app.appendChild(wrap);
 
-    if (S.firmware) {
-      var verLine = el("div", "version");
-      verLine.textContent = displayVersion(S.firmware);
-      app.appendChild(verLine);
-    }
   }
 
   // --- SSE live updates (after render) ---

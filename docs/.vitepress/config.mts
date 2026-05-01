@@ -12,11 +12,13 @@ export default defineConfig({
 
   sitemap: {
     hostname,
+    transformItems(items) {
+      return items.filter((item) => !item.url.replace(/\/$/, '').endsWith('404'))
+    },
   },
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/espframe/favicon.svg' }],
-    ['meta', { name: 'keywords', content: 'Espframe, Immich, digital photo frame, ESP32, ESP32-P4, ESPHome, photo frame, self-hosted' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:locale', content: 'en_US' }],
     ['meta', { property: 'og:site_name', content: 'Espframe for Immich' }],
@@ -25,18 +27,6 @@ export default defineConfig({
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
     ['meta', { name: 'twitter:image', content: `${hostname}espframe.png` }],
     ['meta', { name: 'twitter:image:alt', content: 'Espframe displaying Immich photos on a Guition ESP32-P4 touchscreen' }],
-    ['script', {
-      'data-name': 'BMC-Widget',
-      'data-cfasync': 'false',
-      src: 'https://cdnjs.buymeacoffee.com/1.0.0/widget.prod.min.js',
-      'data-id': 'jtenniswood',
-      'data-description': 'Support me on Buy me a coffee!',
-      'data-message': '',
-      'data-color': '#FFDD00',
-      'data-position': 'Right',
-      'data-x_margin': '18',
-      'data-y_margin': '18',
-    }],
     ['script', { type: 'application/ld+json' }, JSON.stringify({
       '@context': 'https://schema.org',
       '@graph': [
@@ -86,8 +76,36 @@ export default defineConfig({
       ['meta', { name: 'twitter:description', content: description }],
     )
 
+    if (pageData.relativePath !== '404.md') {
+      const breadcrumbItems = [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Espframe for Immich',
+          item: hostname,
+        },
+      ]
+
+      if (pageData.relativePath !== 'index.md') {
+        breadcrumbItems.push({
+          '@type': 'ListItem',
+          position: 2,
+          name: title,
+          item: canonicalUrl,
+        })
+      }
+
+      pageData.frontmatter.head.push(
+        ['script', { type: 'application/ld+json' }, JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: breadcrumbItems,
+        })],
+      )
+    }
+
     // Per-page Article schema for docs (helps search and AI understanding)
-    if (pageData.relativePath !== 'index.md' && title && description) {
+    if (pageData.relativePath !== 'index.md' && pageData.relativePath !== '404.md' && title && description) {
       const isHowTo = pageData.relativePath === 'install.md'
       const articleSchema: Record<string, unknown> = {
         '@context': 'https://schema.org',
@@ -100,9 +118,11 @@ export default defineConfig({
       }
       if (isHowTo) {
         articleSchema.step = [
-          { '@type': 'HowToStep', name: 'Connect device via USB-C' },
-          { '@type': 'HowToStep', name: 'Flash firmware with Web Installer' },
-          { '@type': 'HowToStep', name: 'Configure WiFi and Immich' },
+          { '@type': 'HowToStep', name: 'Connect the display with a USB-C data cable' },
+          { '@type': 'HowToStep', name: 'Flash Espframe from Chrome or Edge with the web installer' },
+          { '@type': 'HowToStep', name: 'Connect the frame to WiFi' },
+          { '@type': 'HowToStep', name: 'Enter the Immich server URL and API key' },
+          { '@type': 'HowToStep', name: 'Choose a photo source for the slideshow' },
         ]
       }
       pageData.frontmatter.head.push(
@@ -123,8 +143,11 @@ export default defineConfig({
         text: 'Guide',
         items: [
           { text: 'Overview', link: '/' },
+          { text: 'Immich Photo Frame', link: '/immich-photo-frame' },
           { text: 'Install', link: '/install' },
+          { text: 'USB Flashing Help', link: '/usb-flashing' },
           { text: 'Immich API Key', link: '/api-key' },
+          { text: 'Troubleshooting', link: '/troubleshooting' },
         ],
       },
       {

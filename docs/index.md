@@ -1,12 +1,14 @@
 ---
 title: Espframe for Immich – ESP32 Digital Photo Frame
 titleTemplate: :title
-description: Standalone Immich-powered digital photo frame on ESP32-P4. No hub, cloud, or extra software required.
+description: Build a standalone Immich digital photo frame on a Guition ESP32-P4 touchscreen with ESPHome. No hub, cloud, or extra software required.
 ---
 
 # Espframe for Immich
 
-**Espframe** is a standalone digital photo frame that displays your [Immich](https://immich.app/) photo library on a supported Guition ESP32-P4 touchscreen. It runs on ESP32-P4 hardware with [ESPHome](https://esphome.io/) and connects directly to your self-hosted Immich server over HTTP or HTTPS — no hub, cloud, or extra software required.
+**Espframe** is a standalone Immich digital photo frame for a supported Guition ESP32-P4 touchscreen. It turns an ESP32 photo frame into a private, self-hosted photo frame that displays your [Immich](https://immich.app/) library directly from your own server.
+
+The firmware runs on ESP32-P4 hardware with [ESPHome](https://esphome.io/) and connects to Immich over HTTP or HTTPS. It does not need Home Assistant, a cloud account, or a separate bridge service.
 
 <img src="/espframe.png" alt="Espframe displaying photos on a Guition ESP32-P4 touchscreen" style="max-width: 100%; border-radius: 8px; margin: 1.5rem 0;" />
 
@@ -32,5 +34,5 @@ description: Standalone Immich-powered digital photo frame on ESP32-P4. No hub, 
 If you find this project useful, consider buying me a coffee to support ongoing development!
 
 <a href="https://www.buymeacoffee.com/jtenniswood">
-  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50" />
+  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="60" style="border-radius:999px;" />
 </a>

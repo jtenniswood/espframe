@@ -1,9 +1,9 @@
 ---
-title: Screen Settings
-description: Screen brightness, tone, schedule, and rotation — the display controls available in the device Settings menu.
+title: Espframe Screen Brightness and Display Settings
+description: Configure Espframe screen brightness, day and night schedules, display tone, and rotation from the device settings menu.
 ---
 
-# Screen Settings
+# Espframe Screen Brightness and Display Settings
 
 Display controls in **Settings**: brightness (day/night), tone, optional schedule, and rotation. Available in the web UI and (where applicable) Home Assistant.
 
