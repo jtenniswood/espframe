@@ -25,18 +25,6 @@ export default defineConfig({
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
     ['meta', { name: 'twitter:image', content: `${hostname}espframe.png` }],
     ['meta', { name: 'twitter:image:alt', content: 'Espframe displaying Immich photos on a Guition ESP32-P4 touchscreen' }],
-    ['script', {
-      'data-name': 'BMC-Widget',
-      'data-cfasync': 'false',
-      src: 'https://cdnjs.buymeacoffee.com/1.0.0/widget.prod.min.js',
-      'data-id': 'jtenniswood',
-      'data-description': 'Support me on Buy me a coffee!',
-      'data-message': '',
-      'data-color': '#FFDD00',
-      'data-position': 'Right',
-      'data-x_margin': '28',
-      'data-y_margin': '28',
-    }],
     ['script', { type: 'application/ld+json' }, JSON.stringify({
       '@context': 'https://schema.org',
       '@graph': [
