@@ -874,13 +874,14 @@
       var nextBtn = el("button", "btn btn-primary");
       nextBtn.textContent = "Connect";
       nextBtn.onclick = function () {
-        var u = urlInput.value.trim();
+        var u = normalizeImmichUrl(urlInput.value);
         var k = keyInput.value.trim();
         if (!u || !k) return;
         nextBtn.disabled = true;
         nextBtn.textContent = "Saving\u2026";
-        post(endpoints.immich_url + "/set", { value: u })
-          .then(function () {
+        postTextValueSet(endpoints.immich_url + "/set", u, true)
+          .then(function (r) {
+            if (!(r && r.ok)) throw new Error("Failed to save URL");
             return new Promise(function (r) { setTimeout(r, 500); });
           })
           .then(function () {
@@ -891,6 +892,11 @@
             S.api_key = k;
             step = 2;
             showStep();
+          })
+          .catch(function () {
+            nextBtn.disabled = false;
+            nextBtn.textContent = "Connect";
+            showBanner("Failed to save Immich URL", "error");
           });
       };
       nav.appendChild(nextBtn);
@@ -978,8 +984,16 @@
     var f1 = field("Immich Server URL");
     var urlInput = input("url", S.immich_url, "http://192.168.0.1:2283");
     urlInput.onchange = function () {
-      post(endpoints.immich_url + "/set", { value: urlInput.value.trim() });
-      showSaved("URL saved");
+      var normalized = normalizeImmichUrl(urlInput.value);
+      postTextValueSet(endpoints.immich_url + "/set", normalized, true).then(function (r) {
+        if (r && r.ok) {
+          S.immich_url = normalized;
+          urlInput.value = normalized;
+          showSaved("URL saved");
+        } else {
+          showConnectionError("Failed to save URL");
+        }
+      });
     };
     f1.appendChild(urlInput);
     connBody.appendChild(f1);
