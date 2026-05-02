@@ -456,6 +456,7 @@ script:
                       : ((id(photo_display_mode).current_option() == "Fill") && !meta.is_portrait);
                     img->set_target_size(target_w, target_h);
                     img->set_fill_mode(fill);
+                    img->set_vertical_align(portrait_screen ? esphome::remote_image::VERTICAL_ALIGN_START : esphome::remote_image::VERTICAL_ALIGN_CENTER);
                     img->update();
                   };
                   if (cmd.slot == 0) {
@@ -533,9 +534,10 @@ script:
                 bool fill = portrait_screen
                   ? (id(photo_display_mode).current_option() == "Fill")
                   : ((id(photo_display_mode).current_option() == "Fill") && !meta.is_portrait);
-                if (s == 0) { id(immich_img_0).set_target_size(target_w, target_h); id(immich_img_0).set_fill_mode(fill); id(immich_img_0).set_url(meta.image_url); id(immich_img_0).update(); }
-                else if (s == 1) { id(immich_img_1).set_target_size(target_w, target_h); id(immich_img_1).set_fill_mode(fill); id(immich_img_1).set_url(meta.image_url); id(immich_img_1).update(); }
-                else if (s == 2) { id(immich_img_2).set_target_size(target_w, target_h); id(immich_img_2).set_fill_mode(fill); id(immich_img_2).set_url(meta.image_url); id(immich_img_2).update(); }
+                auto valign = portrait_screen ? esphome::remote_image::VERTICAL_ALIGN_START : esphome::remote_image::VERTICAL_ALIGN_CENTER;
+                if (s == 0) { id(immich_img_0).set_target_size(target_w, target_h); id(immich_img_0).set_fill_mode(fill); id(immich_img_0).set_vertical_align(valign); id(immich_img_0).set_url(meta.image_url); id(immich_img_0).update(); }
+                else if (s == 1) { id(immich_img_1).set_target_size(target_w, target_h); id(immich_img_1).set_fill_mode(fill); id(immich_img_1).set_vertical_align(valign); id(immich_img_1).set_url(meta.image_url); id(immich_img_1).update(); }
+                else if (s == 2) { id(immich_img_2).set_target_size(target_w, target_h); id(immich_img_2).set_fill_mode(fill); id(immich_img_2).set_vertical_align(valign); id(immich_img_2).set_url(meta.image_url); id(immich_img_2).update(); }
                 break;
               }
               case SLIDESHOW_COMMAND_LOG_NO_PREVIOUS:
@@ -790,9 +792,10 @@ script:
           bool fill = portrait_screen
             ? (id(photo_display_mode).current_option() == "Fill")
             : ((id(photo_display_mode).current_option() == "Fill") && !meta.is_portrait);
-          if (s == 0) { id(immich_img_0).set_target_size(target_w, target_h); id(immich_img_0).set_fill_mode(fill); id(immich_img_0).set_url(meta.image_url); id(immich_img_0).update(); }
-          else if (s == 1) { id(immich_img_1).set_target_size(target_w, target_h); id(immich_img_1).set_fill_mode(fill); id(immich_img_1).set_url(meta.image_url); id(immich_img_1).update(); }
-          else if (s == 2) { id(immich_img_2).set_target_size(target_w, target_h); id(immich_img_2).set_fill_mode(fill); id(immich_img_2).set_url(meta.image_url); id(immich_img_2).update(); }
+          auto valign = portrait_screen ? esphome::remote_image::VERTICAL_ALIGN_START : esphome::remote_image::VERTICAL_ALIGN_CENTER;
+          if (s == 0) { id(immich_img_0).set_target_size(target_w, target_h); id(immich_img_0).set_fill_mode(fill); id(immich_img_0).set_vertical_align(valign); id(immich_img_0).set_url(meta.image_url); id(immich_img_0).update(); }
+          else if (s == 1) { id(immich_img_1).set_target_size(target_w, target_h); id(immich_img_1).set_fill_mode(fill); id(immich_img_1).set_vertical_align(valign); id(immich_img_1).set_url(meta.image_url); id(immich_img_1).update(); }
+          else if (s == 2) { id(immich_img_2).set_target_size(target_w, target_h); id(immich_img_2).set_fill_mode(fill); id(immich_img_2).set_vertical_align(valign); id(immich_img_2).set_url(meta.image_url); id(immich_img_2).update(); }
 
   # Advance forward: move ring index, display if ready, else fetch into slot
   - id: immich_advance_forward

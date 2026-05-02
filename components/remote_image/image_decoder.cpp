@@ -58,7 +58,23 @@ bool ImageDecoder::set_size(int width, int height) {
     } else {
       this->x_offset_ = x_space / 2;
     }
-    this->y_offset_ = (buf_h - this->scaled_height_) / 2;
+    int y_space = buf_h - this->scaled_height_;
+    if (y_space >= 0) {
+      switch (this->image_->vertical_align_) {
+        case VERTICAL_ALIGN_START:
+          this->y_offset_ = 0;
+          break;
+        case VERTICAL_ALIGN_END:
+          this->y_offset_ = y_space;
+          break;
+        case VERTICAL_ALIGN_CENTER:
+        default:
+          this->y_offset_ = y_space / 2;
+          break;
+      }
+    } else {
+      this->y_offset_ = y_space / 2;
+    }
   }
 
   // Clear the destination unless the fill-mode fast path is about to overwrite
