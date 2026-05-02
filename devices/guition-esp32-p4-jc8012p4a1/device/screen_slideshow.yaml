@@ -172,7 +172,7 @@ lvgl:
                   id: portrait_metadata_location_label_shadow
                   hidden: true
                   x: 2
-                  y: 174
+                  y: 197
                   width: ${portrait_metadata_width}
                   text: ""
                   long_mode: DOT
@@ -184,7 +184,7 @@ lvgl:
                   id: portrait_metadata_location_label
                   hidden: true
                   x: 0
-                  y: 172
+                  y: 195
                   width: ${portrait_metadata_width}
                   text: ""
                   long_mode: DOT
@@ -195,7 +195,7 @@ lvgl:
                   id: portrait_metadata_date_label_shadow
                   hidden: true
                   x: 2
-                  y: 218
+                  y: 250
                   width: ${portrait_metadata_width}
                   text: ""
                   text_align: left
@@ -206,7 +206,7 @@ lvgl:
                   id: portrait_metadata_date_label
                   hidden: true
                   x: 0
-                  y: 216
+                  y: 248
                   width: ${portrait_metadata_width}
                   text: ""
                   text_align: left
