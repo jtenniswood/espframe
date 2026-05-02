@@ -14,7 +14,7 @@
       "10 seconds", "15 seconds", "20 seconds", "30 seconds", "45 seconds",
       "1 minute", "2 minutes", "3 minutes", "5 minutes", "10 minutes"
     ],
-    conn_timeout: "2 minutes",
+    conn_timeout: "10 minutes",
     conn_timeout_options: [
       "30 seconds", "45 seconds", "1 minute", "2 minutes", "3 minutes",
       "5 minutes", "10 minutes", "15 minutes", "20 minutes", "30 minutes"
@@ -580,7 +580,7 @@
     "text/Clock: NTP Server 2": { key: "ntp_server_2", default: "1.pool.ntp.org" },
     "text/Clock: NTP Server 3": { key: "ntp_server_3", default: "2.pool.ntp.org" },
     "select/Photos: Slideshow Interval": { key: "interval", optionsKey: "interval_options", default: "2 minutes" },
-    "select/Screen: Connection Timeout": { key: "conn_timeout", optionsKey: "conn_timeout_options", default: "2 minutes" },
+    "select/Screen: Connection Timeout": { key: "conn_timeout", optionsKey: "conn_timeout_options", default: "10 minutes" },
     "switch/Clock: Show": { key: "show_clock", boolFromState: true },
     "text_sensor/Firmware: Version": { key: "firmware" },
     "switch/Firmware: Auto Update": { key: "auto_update", boolFromState: true },

@@ -597,7 +597,7 @@ globals:
     initial_value: '120'
   - id: connection_timeout_sec
     type: uint32_t
-    initial_value: '120'
+    initial_value: '600'
 
 # =============================================================================
 # USER-CONFIGURABLE SETTINGS
@@ -644,7 +644,7 @@ select:
       - "15 minutes"
       - "20 minutes"
       - "30 minutes"
-    initial_option: "2 minutes"
+    initial_option: "10 minutes"
     optimistic: true
     restore_value: true
     icon: "mdi:connection"

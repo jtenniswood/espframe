@@ -63,7 +63,7 @@ The export is a standard JSON file with a `version` field and grouped settings:
     "orientation": "Any",
     "portrait_pairing": true
   },
-  "frequency": { "interval": "15 seconds", "conn_timeout": "2 minutes" },
+  "frequency": { "interval": "15 seconds", "conn_timeout": "10 minutes" },
   "clock": { "show": true, "format": "24 Hour", "timezone": "..." },
   "screen": {
     "brightness_day": 100,
