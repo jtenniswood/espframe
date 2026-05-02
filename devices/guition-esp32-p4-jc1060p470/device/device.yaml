@@ -190,3 +190,18 @@ touchscreen:
     interrupt_pin: GPIO21
     on_touch:
       - script.execute: backlight_wake
+    on_update:
+      - lambda: |-
+          if (!id(developer_features_enabled).state) return;
+          if (id(photo_source_menu_open) || id(photo_source_swipe_triggered)) return;
+          if (touches.empty()) return;
+          const auto &touch = touches.front();
+          const int dy = static_cast<int>(touch.y) - static_cast<int>(touch.y_org);
+          const int dx = std::abs(static_cast<int>(touch.x) - static_cast<int>(touch.x_org));
+          if (touch.y_org <= 140 && dy >= 110 && dx <= 220) {
+            id(photo_source_swipe_triggered) = true;
+            id(show_photo_source_menu).execute();
+          }
+    on_release:
+      - lambda: |-
+          id(photo_source_swipe_triggered) = false;

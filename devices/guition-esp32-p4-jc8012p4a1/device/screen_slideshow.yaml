@@ -35,13 +35,6 @@ lvgl:
             on_release:
               then:
                 - script.execute: slideshow_on_release
-            on_swipe_down:
-              then:
-                - if:
-                    condition:
-                      switch.is_on: developer_features_enabled
-                    then:
-                      - script.execute: show_photo_source_menu
         - obj:
             id: portrait_pair_container
             align: CENTER
@@ -63,13 +56,6 @@ lvgl:
             on_release:
               then:
                 - script.execute: slideshow_on_release
-            on_swipe_down:
-              then:
-                - if:
-                    condition:
-                      switch.is_on: developer_features_enabled
-                    then:
-                      - script.execute: show_photo_source_menu
             widgets:
               - obj:
                   align: LEFT_MID
@@ -114,32 +100,6 @@ lvgl:
                   pad_all: 0
                   scrollable: false
                   clickable: false
-        - obj:
-            id: photo_source_swipe_zone
-            align: TOP_MID
-            width: ${display_width}
-            height: 140
-            bg_opa: 0%
-            border_width: 0
-            pad_all: 0
-            scrollable: false
-            clickable: true
-            on_press:
-              then:
-                - script.execute: slideshow_on_press
-            on_short_click:
-              then:
-                - script.execute: slideshow_on_short_click
-            on_release:
-              then:
-                - script.execute: slideshow_on_release
-            on_swipe_down:
-              then:
-                - if:
-                    condition:
-                      switch.is_on: developer_features_enabled
-                    then:
-                      - script.execute: show_photo_source_menu
         - obj:
             id: clock_container
             align: BOTTOM_LEFT

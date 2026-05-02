@@ -105,6 +105,9 @@ globals:
   - id: photo_source_menu_open
     type: bool
     initial_value: 'false'
+  - id: photo_source_swipe_triggered
+    type: bool
+    initial_value: 'false'
   - id: photo_source_menu_selection_index
     type: int
     initial_value: '0'
@@ -571,6 +574,7 @@ script:
     then:
       - lambda: |-
           if (!id(developer_features_enabled).state) return;
+          if (lv_scr_act() != id(slideshow_page)->obj) return;
           id(backlight_hold_timer).stop();
           id(last_short_tap_ms) = 0;
           id(photo_source_menu_open) = true;
