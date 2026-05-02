@@ -313,6 +313,7 @@ script:
           }
           lv_label_set_text(id(time_label), buf);
           lv_label_set_text(id(time_label_shadow), buf);
+          lv_obj_align(id(clock_container), LV_ALIGN_BOTTOM_LEFT, 45, -20);
           if (id(show_clock).state && id(active_slot_displayed)) {
             lv_obj_clear_flag(id(clock_container), LV_OBJ_FLAG_HIDDEN);
           } else {
