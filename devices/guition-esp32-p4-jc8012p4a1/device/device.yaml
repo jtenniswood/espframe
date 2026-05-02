@@ -193,9 +193,28 @@ touchscreen:
           if (id(photo_source_menu_open) || id(photo_source_swipe_triggered)) return;
           if (touches.empty()) return;
           const auto &touch = touches.front();
-          const int dy = static_cast<int>(touch.y) - static_cast<int>(touch.y_org);
-          const int dx = std::abs(static_cast<int>(touch.x) - static_cast<int>(touch.x_org));
-          if (touch.y_org <= 140 && dy >= 110 && dx <= 220) {
+          auto map_visible = [](int x, int y, int &screen_x, int &screen_y) {
+            const std::string rotation = id(screen_rotation_select).current_option();
+            if (rotation == "90") {
+              screen_x = ${display_height} - y;
+              screen_y = x;
+            } else if (rotation == "180") {
+              screen_x = ${display_width} - x;
+              screen_y = ${display_height} - y;
+            } else if (rotation == "270") {
+              screen_x = y;
+              screen_y = ${display_width} - x;
+            } else {
+              screen_x = x;
+              screen_y = y;
+            }
+          };
+          int start_x, start_y, current_x, current_y;
+          map_visible(touch.x_org, touch.y_org, start_x, start_y);
+          map_visible(touch.x, touch.y, current_x, current_y);
+          const int dy = current_y - start_y;
+          const int dx = std::abs(current_x - start_x);
+          if (start_y <= 140 && dy >= 110 && dx <= 220) {
             id(photo_source_swipe_triggered) = true;
             id(show_photo_source_menu).execute();
           }
