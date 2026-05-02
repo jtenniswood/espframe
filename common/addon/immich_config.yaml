@@ -58,7 +58,9 @@ text:
           id(immich_url).publish_state(url);
           global_preferences->sync();
           ESP_LOGI("immich", "Immich URL configured: %s", url.c_str());
-          id(immich_connection_config_changed).execute();
+      # Delay reconnect logic so settings are committed before any network crash path.
+      - delay: 15s
+      - script.execute: immich_connection_config_changed
 
   - platform: template
     name: "Connection: API Key"
@@ -80,7 +82,9 @@ text:
           id(immich_api_key_text).publish_state(x);
           global_preferences->sync();
           ESP_LOGI("immich", "Immich API key configured (%d chars)", x.length());
-          id(immich_connection_config_changed).execute();
+      # Delay reconnect logic so settings are committed before any network crash path.
+      - delay: 15s
+      - script.execute: immich_connection_config_changed
 
 # -----------------------------------------------------------------------------
 # Display mode: Fill (crop-to-cover) vs Fit (letterbox, no cropping)

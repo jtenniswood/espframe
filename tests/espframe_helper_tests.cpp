@@ -149,6 +149,7 @@ static void test_immich_body_helpers() {
          "\"takenBefore\":\"2024-05-10T23:59:59.999Z\"");
 
   assert(build_uuid_json_array(" a, b ,, c ") == "[\"a\",\"b\",\"c\"]");
+  assert(pick_one_uuid_from_csv(" a, b ,, c ") == "a");
   assert(build_immich_search_body(1, true, "Favorites", "", "").find("\"isFavorite\":true") !=
          std::string::npos);
   assert(build_immich_search_body(1, false, "Person", "", "p1,p2").find("\"personIds\":[\"p1\"]") !=

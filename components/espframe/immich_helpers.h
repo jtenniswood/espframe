@@ -150,6 +150,15 @@ inline std::string pick_one_person_id_for_random_search(const std::string &csv) 
   return ids[esp_random() % ids.size()];
 }
 
+inline std::string pick_one_uuid_from_csv(const std::string &csv) {
+  std::vector<std::string> ids = split_uuid_csv(csv);
+  if (ids.empty())
+    return "";
+  if (ids.size() == 1)
+    return ids[0];
+  return ids[esp_random() % ids.size()];
+}
+
 inline std::string build_uuid_json_array(const std::string &csv) {
   std::vector<std::string> ids = split_uuid_csv(csv);
   std::string result = "[";
@@ -322,6 +331,38 @@ inline std::string parse_immich_asset(const std::string &body,
   }
 
   return "";
+}
+
+inline std::string parse_immich_album_asset(const std::string &body,
+                                            const std::string &base_url,
+                                            ImmichAssetMeta *out_meta,
+                                            const std::string &orientation_filter = "Any") {
+  if (out_meta == nullptr) return "";
+  auto doc = esphome::json::parse_json(body);
+  if (doc.isNull() || !doc.is<JsonObject>()) return "";
+
+  JsonArray assets = doc.as<JsonObject>()["assets"].as<JsonArray>();
+  if (assets.isNull() || assets.size() == 0) return "";
+
+  std::vector<ImmichAssetMeta> candidates;
+  for (size_t i = 0; i < assets.size(); i++) {
+    JsonObject asset = assets[i].as<JsonObject>();
+    if (asset.isNull()) continue;
+    if (asset["type"].is<const char *>()) {
+      std::string type = asset["type"].as<std::string>();
+      if (type != "IMAGE") continue;
+    }
+
+    ImmichAssetMeta candidate;
+    std::string img_url = parse_immich_asset_object(asset, base_url, &candidate);
+    if (img_url.empty()) continue;
+    if (!photo_orientation_matches(candidate, orientation_filter)) continue;
+    candidates.push_back(candidate);
+  }
+
+  if (candidates.empty()) return "";
+  *out_meta = candidates[esp_random() % candidates.size()];
+  return out_meta->image_url;
 }
 
 inline std::string find_immich_portrait_companion_url(const std::string &body,

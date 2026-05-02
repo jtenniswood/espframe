@@ -349,6 +349,17 @@
     });
   }
 
+  function delayMs(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  }
+
+  function saveConnectionValue(path, value, useQueryFallback) {
+    return postTextValueSet(path + "/set", value, useQueryFallback).then(function (r) {
+      if (!r || !r.ok) throw new Error("save_failed");
+      return delayMs(1200);
+    });
+  }
+
   function normalizeNtpServer(value) {
     return String(value == null ? "" : value).trim();
   }
@@ -879,15 +890,20 @@
         if (!u || !k) return;
         nextBtn.disabled = true;
         nextBtn.textContent = "Saving\u2026";
-        postTextValueSet(endpoints.immich_url + "/set", u, true)
-          .then(function (r) {
-            if (!(r && r.ok)) throw new Error("Failed to save URL");
-            return new Promise(function (r) { setTimeout(r, 500); });
+        saveConnectionValue(endpoints.immich_url, u, true)
+          .then(function () {
+            return saveConnectionValue(endpoints.api_key, k, false);
           })
           .then(function () {
-            return post(endpoints.api_key + "/set", { value: k });
+            return Promise.all([
+              safeGet(endpoints.immich_url),
+              safeGet(endpoints.api_key)
+            ]);
           })
-          .then(function () {
+          .then(function (res) {
+            var savedUrl = normalizeImmichUrl((res[0] && (res[0].value || res[0].state)) || "");
+            var savedKey = (res[1] && (res[1].value || res[1].state)) || "";
+            if (savedUrl !== u || !savedKey) throw new Error("verify_failed");
             S.immich_url = u;
             S.api_key = k;
             step = 2;
@@ -896,7 +912,7 @@
           .catch(function () {
             nextBtn.disabled = false;
             nextBtn.textContent = "Connect";
-            showBanner("Failed to save Immich URL", "error");
+            showBanner("Failed to save connection. Please try again.", "error");
           });
       };
       nav.appendChild(nextBtn);
@@ -1031,10 +1047,21 @@
         if (!v) return;
         saveBtn.disabled = true;
         saveBtn.textContent = "Saving\u2026";
-        post(endpoints.api_key + "/set", { value: v }).then(function () {
-          showSaved("API key saved");
-          showKeyMasked();
-        });
+        saveConnectionValue(endpoints.api_key, v, false)
+          .then(function () {
+            return safeGet(endpoints.api_key);
+          })
+          .then(function (resp) {
+            var saved = (resp && (resp.value || resp.state)) || "";
+            if (!saved) throw new Error("verify_failed");
+            showSaved("API key saved");
+            showKeyMasked();
+          })
+          .catch(function () {
+            saveBtn.disabled = false;
+            saveBtn.textContent = "Save";
+            showConnectionError("Failed to save API key");
+          });
       };
       grp.appendChild(keyInput);
       grp.appendChild(saveBtn);
