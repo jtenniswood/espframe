@@ -453,29 +453,4 @@ inline std::string parse_immich_asset_and_fill_slot(const std::string &body,
   return img_url;
 }
 
-inline std::string parse_immich_album_asset_and_fill_slot(const std::string &body,
-                                                          const std::string &base_url,
-                                                          int slot,
-                                                          SlotMeta &s0, SlotMeta &s1, SlotMeta &s2,
-                                                          const std::string &orientation_filter = "Any") {
-  ImmichAssetMeta tmp;
-  std::string img_url = parse_immich_album_asset(body, base_url, &tmp, orientation_filter);
-  if (img_url.empty()) return "";
-
-  SlotMeta *meta = (slot == 0) ? &s0 : (slot == 1) ? &s1 : &s2;
-  meta->asset_id = tmp.asset_id;
-  meta->image_url = tmp.image_url;
-  meta->date = tmp.date;
-  meta->location = tmp.location;
-  meta->person = tmp.person;
-  meta->year = tmp.year;
-  meta->month = tmp.month;
-  meta->day = tmp.day;
-  meta->zoom = tmp.zoom;
-  meta->datetime = tmp.datetime;
-  meta->companion_url = "";
-  meta->pending_asset_id = tmp.asset_id;
-  meta->is_portrait = tmp.is_portrait;
-  return img_url;
-}
 #endif  // USE_JSON

@@ -18,6 +18,15 @@ globals:
   - id: immich_memory_asset_id
     type: std::string
     initial_value: '""'
+  - id: immich_album_selected_id
+    type: std::string
+    initial_value: '""'
+  - id: immich_album_time_bucket
+    type: std::string
+    initial_value: '""'
+  - id: immich_album_asset_id
+    type: std::string
+    initial_value: '""'
 
 script:
   - id: immich_register_fetch_failure
@@ -215,11 +224,10 @@ script:
               - script.execute: immich_fetch_into_slot
 
   # ---------------------------------------------------------------------------
-  # Fetch a random asset from an album using the album details endpoint.
+  # Fetch a random asset from an album using Immich's timeline endpoints.
   #
-  # Immich's random search can stay scoped to assets owned by the API key user,
-  # even when albumIds are supplied. Reading the album directly includes shared
-  # album assets owned by other users.
+  # The web app uses timeline buckets for album grids; following that path keeps
+  # shared album contents aligned with what the same user sees in Immich.
   # ---------------------------------------------------------------------------
   - id: immich_fetch_album_into_slot
     mode: single
@@ -245,8 +253,70 @@ script:
       - http_request.get:
           id: http_req
           url: !lambda |-
-            std::string album_id = pick_one_uuid_from_csv(id(immich_album_ids).state);
-            return id(immich_url).state + "/api/albums/" + album_id;
+            id(immich_album_selected_id) = pick_one_uuid_from_csv(id(immich_album_ids).state);
+            return id(immich_url).state + "/api/timeline/buckets?albumId=" + id(immich_album_selected_id);
+          capture_response: true
+          max_response_buffer_size: 24kB
+          request_headers:
+            Accept: application/json
+            x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
+          on_response:
+            then:
+              - lambda: |-
+                  if (response->status_code != 200) {
+                    ESP_LOGW("immich", "Album buckets HTTP %d", response->status_code);
+                    clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
+                    id(immich_last_http_status) = response->status_code;
+                    id(immich_retry_cooldown_until_ms) = millis() + 30000;
+                    return;
+                  }
+                  id(immich_fetch_started) = true;
+                  id(immich_last_http_status) = 0;
+                  id(immich_album_time_bucket) = pick_immich_time_bucket(body);
+                  if (id(immich_album_time_bucket).empty()) {
+                    clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
+                    ESP_LOGW("immich", "No album time buckets in response");
+                    id(immich_api_retries) = 0;
+                    id(immich_retry_cooldown_until_ms) = millis() + 30000;
+                    return;
+                  }
+                  ESP_LOGD("immich", "Album bucket selected: %s", id(immich_album_time_bucket).c_str());
+                  id(immich_fetch_album_bucket).execute();
+          on_error:
+            then:
+              - lambda: |-
+                  id(immich_api_retries)++;
+                  ESP_LOGW("immich", "Album buckets request error for slot %d (attempt %d)", id(target_slot), id(immich_api_retries));
+                  clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
+                  id(immich_diag_reason) = "album buckets request error";
+                  id(log_immich_diag).execute();
+              - if:
+                  condition:
+                    lambda: 'return id(immich_api_retries) < MAX_ERROR_RETRIES;'
+                  then:
+                    - script.execute: immich_fetch_retry
+                  else:
+                    - lambda: |-
+                        id(immich_api_retries) = 0;
+                        id(immich_retry_cooldown_until_ms) = millis() + 30000;
+                        ESP_LOGW("immich", "Album retries exhausted; pausing Immich fetches for 30s");
+
+  - id: immich_fetch_album_bucket
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: 'return id(immich_album_selected_id).empty() || id(immich_album_time_bucket).empty();'
+          then:
+            - lambda: |-
+                ESP_LOGW("immich", "Album bucket fetch missing album or bucket");
+                clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
+            - script.stop: immich_fetch_album_bucket
+      - http_request.get:
+          id: http_req
+          url: !lambda |-
+            return id(immich_url).state + "/api/timeline/bucket?albumId=" +
+                   id(immich_album_selected_id) + "&timeBucket=" + id(immich_album_time_bucket);
           capture_response: true
           max_response_buffer_size: 96kB
           request_headers:
@@ -256,21 +326,76 @@ script:
             then:
               - lambda: |-
                   if (response->status_code != 200) {
-                    ESP_LOGW("immich", "Album fetch HTTP %d", response->status_code);
+                    ESP_LOGW("immich", "Album bucket HTTP %d", response->status_code);
                     clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
                     id(immich_last_http_status) = response->status_code;
                     id(immich_retry_cooldown_until_ms) = millis() + 30000;
                     return;
                   }
-                  id(immich_fetch_started) = true;
-                  id(immich_last_http_status) = 0;
                   std::string orientation = id(photo_orientation_filter).current_option();
-                  std::string img_url = parse_immich_album_asset_and_fill_slot(
+                  id(immich_album_asset_id) = pick_immich_timeline_asset_id(body, orientation);
+                  if (id(immich_album_asset_id).empty()) {
+                    clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
+                    ESP_LOGW("immich", "No usable album asset in bucket");
+                    id(immich_api_retries) = 0;
+                    id(immich_retry_cooldown_until_ms) = millis() + 30000;
+                    return;
+                  }
+                  id(immich_fetch_album_asset).execute();
+          on_error:
+            then:
+              - lambda: |-
+                  id(immich_api_retries)++;
+                  ESP_LOGW("immich", "Album bucket request error for slot %d (attempt %d)", id(target_slot), id(immich_api_retries));
+                  clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
+                  id(immich_diag_reason) = "album bucket request error";
+                  id(log_immich_diag).execute();
+              - if:
+                  condition:
+                    lambda: 'return id(immich_api_retries) < MAX_ERROR_RETRIES;'
+                  then:
+                    - script.execute: immich_fetch_retry
+                  else:
+                    - lambda: |-
+                        id(immich_api_retries) = 0;
+                        id(immich_retry_cooldown_until_ms) = millis() + 30000;
+                        ESP_LOGW("immich", "Album retries exhausted; pausing Immich fetches for 30s");
+
+  - id: immich_fetch_album_asset
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: 'return id(immich_album_asset_id).empty();'
+          then:
+            - lambda: |-
+                ESP_LOGW("immich", "Album asset fetch missing asset ID");
+                clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
+            - script.stop: immich_fetch_album_asset
+      - http_request.get:
+          id: http_req
+          url: !lambda 'return id(immich_url).state + "/api/assets/" + id(immich_album_asset_id);'
+          capture_response: true
+          max_response_buffer_size: 16kB
+          request_headers:
+            Accept: application/json
+            x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
+          on_response:
+            then:
+              - lambda: |-
+                  if (response->status_code != 200) {
+                    ESP_LOGW("immich", "Album asset HTTP %d", response->status_code);
+                    clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
+                    id(immich_last_http_status) = response->status_code;
+                    id(immich_retry_cooldown_until_ms) = millis() + 30000;
+                    return;
+                  }
+                  std::string img_url = parse_immich_asset_and_fill_slot(
                     body, id(immich_url).state, id(target_slot), id(slot0), id(slot1), id(slot2),
-                    orientation);
+                    id(photo_orientation_filter).current_option());
                   if (img_url.empty()) {
                     clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
-                    ESP_LOGW("immich", "No usable album asset in response");
+                    ESP_LOGW("immich", "Album asset parse failed");
                     id(immich_api_retries) = 0;
                     id(immich_retry_cooldown_until_ms) = millis() + 30000;
                     return;
@@ -296,9 +421,9 @@ script:
             then:
               - lambda: |-
                   id(immich_api_retries)++;
-                  ESP_LOGW("immich", "Album request error for slot %d (attempt %d)", id(target_slot), id(immich_api_retries));
+                  ESP_LOGW("immich", "Album asset request error for slot %d (attempt %d)", id(target_slot), id(immich_api_retries));
                   clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
-                  id(immich_diag_reason) = "album request error";
+                  id(immich_diag_reason) = "album asset request error";
                   id(log_immich_diag).execute();
               - if:
                   condition:

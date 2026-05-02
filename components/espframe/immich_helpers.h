@@ -333,36 +333,74 @@ inline std::string parse_immich_asset(const std::string &body,
   return "";
 }
 
-inline std::string parse_immich_album_asset(const std::string &body,
-                                            const std::string &base_url,
-                                            ImmichAssetMeta *out_meta,
-                                            const std::string &orientation_filter = "Any") {
-  if (out_meta == nullptr) return "";
+inline std::string pick_immich_time_bucket(const std::string &body) {
+  auto doc = esphome::json::parse_json(body);
+  if (doc.isNull() || !doc.is<JsonArray>()) return "";
+
+  struct BucketChoice {
+    std::string time_bucket;
+    uint32_t count;
+  };
+
+  JsonArray buckets = doc.as<JsonArray>();
+  std::vector<BucketChoice> choices;
+  uint32_t total = 0;
+
+  for (size_t i = 0; i < buckets.size(); i++) {
+    JsonObject bucket = buckets[i].as<JsonObject>();
+    if (bucket.isNull() || !bucket["timeBucket"].is<const char *>()) continue;
+    int count = bucket["count"].is<int>() ? bucket["count"].as<int>() : 1;
+    if (count <= 0) count = 1;
+    choices.push_back({bucket["timeBucket"].as<std::string>(), static_cast<uint32_t>(count)});
+    total += static_cast<uint32_t>(count);
+  }
+
+  if (choices.empty() || total == 0) return "";
+
+  uint32_t pick = esp_random() % total;
+  uint32_t seen = 0;
+  for (const auto &choice : choices) {
+    seen += choice.count;
+    if (pick < seen) return choice.time_bucket;
+  }
+
+  return choices.back().time_bucket;
+}
+
+inline std::string pick_immich_timeline_asset_id(const std::string &body,
+                                                 const std::string &orientation_filter = "Any") {
   auto doc = esphome::json::parse_json(body);
   if (doc.isNull() || !doc.is<JsonObject>()) return "";
 
-  JsonArray assets = doc.as<JsonObject>()["assets"].as<JsonArray>();
-  if (assets.isNull() || assets.size() == 0) return "";
+  JsonObject bucket = doc.as<JsonObject>();
+  JsonArray ids = bucket["id"].as<JsonArray>();
+  if (ids.isNull() || ids.size() == 0) return "";
 
-  std::vector<ImmichAssetMeta> candidates;
-  for (size_t i = 0; i < assets.size(); i++) {
-    JsonObject asset = assets[i].as<JsonObject>();
-    if (asset.isNull()) continue;
-    if (asset["type"].is<const char *>()) {
-      std::string type = asset["type"].as<std::string>();
-      if (type != "IMAGE") continue;
+  JsonArray is_images = bucket["isImage"].as<JsonArray>();
+  JsonArray ratios = bucket["ratio"].as<JsonArray>();
+  std::vector<std::string> candidates;
+
+  for (size_t i = 0; i < ids.size(); i++) {
+    if (!ids[i].is<const char *>()) continue;
+    if (!is_images.isNull() && is_images[i].is<bool>() && !is_images[i].as<bool>()) continue;
+
+    if (orientation_filter == "Portrait Only" || orientation_filter == "Landscape Only") {
+      if (ratios.isNull()) continue;
+      float ratio = 0.0f;
+      if (ratios[i].is<float>() || ratios[i].is<double>() || ratios[i].is<int>()) {
+        ratio = ratios[i].as<float>();
+      }
+      if (ratio <= 0.0f) continue;
+      bool portrait = ratio < 1.0f;
+      if (orientation_filter == "Portrait Only" && !portrait) continue;
+      if (orientation_filter == "Landscape Only" && portrait) continue;
     }
 
-    ImmichAssetMeta candidate;
-    std::string img_url = parse_immich_asset_object(asset, base_url, &candidate);
-    if (img_url.empty()) continue;
-    if (!photo_orientation_matches(candidate, orientation_filter)) continue;
-    candidates.push_back(candidate);
+    candidates.push_back(ids[i].as<std::string>());
   }
 
   if (candidates.empty()) return "";
-  *out_meta = candidates[esp_random() % candidates.size()];
-  return out_meta->image_url;
+  return candidates[esp_random() % candidates.size()];
 }
 
 inline std::string find_immich_portrait_companion_url(const std::string &body,
