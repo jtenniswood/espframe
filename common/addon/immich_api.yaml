@@ -20,6 +20,23 @@ globals:
     initial_value: '""'
 
 script:
+  - id: immich_register_fetch_failure
+    mode: restart
+    then:
+      - lambda: |-
+          id(immich_api_retries) = 0;
+          id(immich_consecutive_failures)++;
+          if (id(immich_failure_window_started_ms) == 0) {
+            id(immich_failure_window_started_ms) = millis();
+          }
+          uint32_t cooldown_ms = 3000;
+          if (id(immich_consecutive_failures) >= 3) cooldown_ms = 7000;
+          if (id(immich_consecutive_failures) >= 6) cooldown_ms = 15000;
+          id(immich_retry_cooldown_until_ms) = millis() + cooldown_ms;
+          ESP_LOGW("immich",
+                   "Fetch failure registered; pausing fetches for %us (consecutive failures=%d)",
+                   (unsigned) (cooldown_ms / 1000), id(immich_consecutive_failures));
+
   # ---------------------------------------------------------------------------
   # Display fallback when companion portrait search fails or finds nothing
   # ---------------------------------------------------------------------------
@@ -160,6 +177,9 @@ script:
                   }
                   id(immich_fetch_started) = true;
                   id(immich_api_retries) = 0;
+                  id(immich_consecutive_failures) = 0;
+                  id(immich_failure_window_started_ms) = 0;
+                  id(immich_retry_cooldown_until_ms) = 0;
                   std::string img_url = parse_immich_asset_and_fill_slot(
                     body, id(immich_url).state, id(target_slot), id(slot0), id(slot1), id(slot2),
                     id(photo_orientation_filter).current_option());
@@ -417,30 +437,32 @@ script:
                     id(immich_last_http_status) = code;
                     clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
                     if (is_http_auth_error(code)) {
+                      if (id(immich_failure_window_started_ms) == 0) {
+                        id(immich_failure_window_started_ms) = millis();
+                      }
                       lv_label_set_text(id(connection_failed_title), "Invalid API Key");
                       lv_label_set_text(id(connection_failed_subtitle), "Check your Immich API key in\nthe espframe settings.");
+                      lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
+                      id(connection_failed_dim).execute();
+                      id(connection_failed_shift).execute();
+                      return;
                     } else if (is_http_retryable(code)) {
                       id(immich_api_retries)++;
                       if (id(immich_api_retries) < MAX_ERROR_RETRIES) {
                         id(immich_fetch_retry).execute();
                         return;
                       }
-                      lv_label_set_text(id(connection_failed_title), "Immich server error");
-                      lv_label_set_text(id(connection_failed_subtitle), "Your Immich server returned an error.\nIt may be restarting or under heavy load.");
-                    } else {
-                      lv_label_set_text(id(connection_failed_title), "Unable to connect to Immich");
-                      lv_label_set_text(id(connection_failed_subtitle), "Check your internet connection and\nthe health of your Immich server.");
                     }
-                    if (id(last_photo_displayed_ms) == 0) {
-                      id(last_photo_displayed_ms) = millis();
-                    }
-                    lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
-                    id(connection_failed_dim).execute();
-                    id(connection_failed_shift).execute();
+                    id(immich_diag_reason) = "api http status";
+                    id(log_immich_diag).execute();
+                    id(immich_register_fetch_failure).execute();
                     return;
                   }
                   id(immich_fetch_started) = true;
                   id(immich_last_http_status) = 0;
+                  id(immich_consecutive_failures) = 0;
+                  id(immich_failure_window_started_ms) = 0;
+                  id(immich_retry_cooldown_until_ms) = 0;
                   std::string orientation = id(photo_orientation_filter).current_option();
                   std::string img_url = parse_immich_asset_and_fill_slot(
                     body, id(immich_url).state, id(target_slot), id(slot0), id(slot1), id(slot2),
@@ -454,9 +476,9 @@ script:
                       return;
                     }
                     ESP_LOGW("immich", "No valid asset in response");
-                    id(immich_api_retries) = 0;
-                    id(immich_retry_cooldown_until_ms) = millis() + 30000;
-                    ESP_LOGW("immich", "No usable Immich asset; pausing fetches for 30s");
+                    id(immich_diag_reason) = "no valid asset in response";
+                    id(log_immich_diag).execute();
+                    id(immich_register_fetch_failure).execute();
                     return;
                   }
                   id(immich_api_retries) = 0;
@@ -491,22 +513,23 @@ script:
                     - script.execute: immich_fetch_retry
                   else:
                     - lambda: |-
-                        id(immich_api_retries) = 0;
-                        if (id(last_photo_displayed_ms) == 0) {
-                          id(last_photo_displayed_ms) = millis();
-                        }
-                        lv_label_set_text(id(connection_failed_title), "Unable to connect to Immich");
-                        lv_label_set_text(id(connection_failed_subtitle), "Check your internet connection and\nthe health of your Immich server.");
-                        lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
-                        id(immich_retry_cooldown_until_ms) = millis() + 30000;
-                        ESP_LOGW("immich", "API retries exhausted; pausing Immich fetches for 30s");
-                    - script.execute: connection_failed_dim
-                    - script.execute: connection_failed_shift
+                        id(immich_diag_reason) = "api retries exhausted";
+                        id(log_immich_diag).execute();
+                    - script.execute: immich_register_fetch_failure
 
   - id: immich_fetch_retry
     mode: restart
     then:
-      - delay: 5s
+      - lambda: |-
+          uint32_t delay_ms = 2000;
+          if (id(immich_api_retries) >= 2) delay_ms = 5000;
+          if (id(immich_api_retries) >= 3) delay_ms = 10000;
+          if (id(immich_consecutive_failures) >= 5 && delay_ms < 10000) delay_ms = 10000;
+          id(immich_api_retry_delay_ms) = delay_ms;
+          ESP_LOGW("immich", "Retrying Immich fetch in %us (attempt=%d, consecutive failures=%d)",
+                   (unsigned) (delay_ms / 1000), id(immich_api_retries) + 1,
+                   id(immich_consecutive_failures));
+      - delay: !lambda 'return id(immich_api_retry_delay_ms);'
       - script.execute: immich_fetch_into_slot
 
   # ---------------------------------------------------------------------------

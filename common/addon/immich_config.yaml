@@ -115,6 +115,9 @@ script:
           id(immich_fetch_started) = false;
           id(immich_api_retries) = 0;
           id(immich_download_retries) = 0;
+          id(immich_consecutive_failures) = 0;
+          id(immich_failure_window_started_ms) = 0;
+          id(immich_api_retry_delay_ms) = 2000;
           id(immich_last_http_status) = 0;
           id(immich_retry_cooldown_until_ms) = 0;
           id(immich_memory_fallback) = false;

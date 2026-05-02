@@ -60,6 +60,15 @@ globals:
   - id: immich_download_retries
     type: int
     initial_value: '0'
+  - id: immich_consecutive_failures
+    type: int
+    initial_value: '0'
+  - id: immich_failure_window_started_ms
+    type: uint32_t
+    initial_value: '0'
+  - id: immich_api_retry_delay_ms
+    type: uint32_t
+    initial_value: '2000'
   - id: immich_retry_cooldown_until_ms
     type: uint32_t
     initial_value: '0'
@@ -686,8 +695,17 @@ script:
           else:
             - lambda: 'id(immich_download_retries) = 0;'
             - lambda: |-
-                id(immich_retry_cooldown_until_ms) = millis() + 30000;
-                ESP_LOGW("immich", "Download retries exhausted; pausing Immich fetches for 30s");
+                id(immich_consecutive_failures)++;
+                if (id(immich_failure_window_started_ms) == 0) {
+                  id(immich_failure_window_started_ms) = millis();
+                }
+                uint32_t cooldown_ms = 5000;
+                if (id(immich_consecutive_failures) >= 4) cooldown_ms = 10000;
+                if (id(immich_consecutive_failures) >= 8) cooldown_ms = 20000;
+                id(immich_retry_cooldown_until_ms) = millis() + cooldown_ms;
+                ESP_LOGW("immich",
+                         "Download retries exhausted; pausing fetches for %us (consecutive failures=%d)",
+                         (unsigned) (cooldown_ms / 1000), id(immich_consecutive_failures));
 
   # Start portrait pair download for the active slot (left then right or companion search)
   - id: immich_start_portrait_active
