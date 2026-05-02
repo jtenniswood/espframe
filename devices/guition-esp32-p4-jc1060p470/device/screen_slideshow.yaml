@@ -511,6 +511,8 @@ script:
           }
           lv_obj_add_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
           id(last_photo_displayed_ms) = millis();
+          id(immich_failure_window_started_ms) = 0;
+          id(immich_consecutive_failures) = 0;
           id(immich_last_http_status) = 0;
 
   - id: connection_failed_dim
@@ -665,10 +667,23 @@ interval:
       - if:
           condition:
             lambda: |-
-              if (id(last_photo_displayed_ms) == 0) return false;
               if (id(backlight_paused)) return false;
               if (id(photo_source_menu_open)) return false;
-              return (millis() - id(last_photo_displayed_ms)) >= (id(connection_timeout_sec) * 1000);
+              if (id(active_slot_displayed)) return false;
+              uint32_t failure_start_ms = id(immich_failure_window_started_ms);
+              if (failure_start_ms == 0) return false;
+              if (id(immich_consecutive_failures) <= 0 && id(immich_last_http_status) == 0) return false;
+              bool image_busy = id(immich_img_0).is_downloading() ||
+                                id(immich_img_1).is_downloading() ||
+                                id(immich_img_2).is_downloading() ||
+                                id(immich_portrait_left).is_downloading() ||
+                                id(immich_portrait_right).is_downloading() ||
+                                id(immich_portrait_preload_left).is_downloading() ||
+                                id(immich_portrait_preload_right).is_downloading();
+              if (any_slot_fetch_in_flight(id(slot_flags)) || image_busy ||
+                  id(portrait).workflow_busy || id(preload_noncritical_in_flight) ||
+                  id(noncritical_remote_updates_in_flight) > 0) return false;
+              return (millis() - failure_start_ms) >= (id(connection_timeout_sec) * 1000);
           then:
             - lambda: |-
                 if (lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN)) {
