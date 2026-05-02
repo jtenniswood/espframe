@@ -17,3 +17,6 @@ switch:
     restore_mode: RESTORE_DEFAULT_OFF
     web_server:
       sorting_group_id: sg_developer
+    on_turn_off:
+      then:
+        - script.execute: screen_apply_rotation

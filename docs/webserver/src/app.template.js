@@ -3,6 +3,7 @@
 
   var TIMEZONES = __ESPFRAME_TIMEZONES__;
   var TIMEZONE_LABELS = __ESPFRAME_TIMEZONE_LABELS__;
+  var SCREEN_ROTATION_OPTIONS = ["0", "90", "180", "270"];
 
   var S = {
     clock_options: ["24 Hour", "12 Hour"],
@@ -385,6 +386,19 @@
     } catch (_) {
       return false;
     }
+  }
+
+  function isPortraitScreenRotation(value) {
+    return value === "90" || value === "270";
+  }
+
+  function screenRotationOptionsForUi() {
+    return S.developer_features_enabled ? SCREEN_ROTATION_OPTIONS.slice() : ["0", "180"];
+  }
+
+  function effectiveScreenRotationForUi() {
+    var current = String(S.screen_rotation || "0");
+    return screenRotationOptionsForUi().indexOf(current) !== -1 ? current : "0";
   }
 
   function extractUrlAuthority(value) {
@@ -1367,10 +1381,18 @@
     var photoBody = el("div");
 
     var fPairToggle = field("");
+    var portraitRotationActive = isPortraitScreenRotation(effectiveScreenRotationForUi());
+    var pairingEnabled = S.portrait_pairing && !portraitRotationActive;
     var pairTr = el("div", "toggle-row");
     pairTr.innerHTML = "<span>Portrait Pairing</span>";
-    var pairTog = el("div", S.portrait_pairing ? "toggle on" : "toggle");
+    var pairTog = el("div", pairingEnabled ? "toggle on" : "toggle");
+    if (portraitRotationActive) {
+      pairTog.style.opacity = ".35";
+      pairTog.style.cursor = "not-allowed";
+      pairTog.title = "Portrait pairing is disabled while the screen is in portrait rotation";
+    }
     pairTog.onclick = function () {
+      if (portraitRotationActive) return;
       S.portrait_pairing = !S.portrait_pairing;
       pairTog.className = S.portrait_pairing ? "toggle on" : "toggle";
       post(endpoints.portrait_pairing + (S.portrait_pairing ? "/turn_on" : "/turn_off"));
@@ -1852,10 +1874,14 @@
     // Rotation
     var rotationBody = el("div");
     var fRotation = field("Rotation");
+    var rotationOptions = screenRotationOptionsForUi();
     fRotation.appendChild(
-      selectFromOptions(S.screen_rotation_options, S.screen_rotation, function (v) {
+      selectFromOptions(rotationOptions, effectiveScreenRotationForUi(), function (v) {
         S.screen_rotation = v;
         post(endpoints.screen_rotation + "/set", { option: v });
+        S.portrait_pairing = !isPortraitScreenRotation(v);
+        post(endpoints.portrait_pairing + (S.portrait_pairing ? "/turn_on" : "/turn_off"));
+        renderSettings();
       }, function (v) {
         return v + " degrees";
       })
@@ -2041,6 +2067,13 @@
         devToggle.className = S.developer_features_enabled ? "toggle on" : "toggle";
         devBadge.className = "on-badge" + (S.developer_features_enabled ? " active" : "");
         post(endpoints.developer_features_enabled + (S.developer_features_enabled ? "/turn_on" : "/turn_off"));
+        if (!S.developer_features_enabled && isPortraitScreenRotation(S.screen_rotation)) {
+          S.screen_rotation = "0";
+          S.portrait_pairing = true;
+          post(endpoints.screen_rotation + "/set", { option: "0" });
+          post(endpoints.portrait_pairing + "/turn_on");
+        }
+        renderSettings();
       };
       devRow.appendChild(devToggle);
       devField.appendChild(devRow);
@@ -2073,6 +2106,9 @@
     } else if (id === "text_sensor/Screen: Sunset") {
       S.sunset = d.value || d.state || "";
       updateSunInfoElement(document.getElementById("sun-info"));
+    } else if (ENTITY_STATE_MAP[id] && ["screen_rotation", "portrait_pairing", "developer_features_enabled"].indexOf(ENTITY_STATE_MAP[id].key) !== -1) {
+      applyEntityToState(d);
+      if (!isEditingSetting()) renderSettings();
     } else if (ENTITY_STATE_MAP[id] && ENTITY_STATE_MAP[id].key.indexOf("photo_metadata_") === 0) {
       if (!isEditingSetting()) renderSettings();
     } else if (ENTITY_STATE_MAP[id] && ENTITY_STATE_MAP[id].key.indexOf("schedule_") === 0) {
@@ -2568,7 +2604,7 @@
         }
         if (scr.rotation !== undefined) {
           var importedRotation = String(scr.rotation);
-          if (S.screen_rotation_options.indexOf(importedRotation) !== -1) {
+          if (screenRotationOptionsForUi().indexOf(importedRotation) !== -1) {
             S.screen_rotation = importedRotation;
             post(endpoints.screen_rotation + "/set", { option: S.screen_rotation });
           }
