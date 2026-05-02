@@ -434,15 +434,24 @@ script:
                     id(delayed_prefetch_chain).execute();
                     break;
                   }
+                  bool portrait_screen = id(screen_rotation_select).current_option() == "90" ||
+                                         id(screen_rotation_select).current_option() == "270";
+                  int target_w = portrait_screen ? ${portrait_display_width} : ${display_width};
+                  int target_h = portrait_screen ? ${portrait_display_height} : ${display_height};
+                  auto apply_slot_layout = [&](auto *img, SlotMeta &meta) {
+                    bool fill = portrait_screen
+                      ? (meta.is_portrait || id(photo_display_mode).current_option() == "Fill")
+                      : ((id(photo_display_mode).current_option() == "Fill") && !meta.is_portrait);
+                    img->set_target_size(target_w, target_h);
+                    img->set_fill_mode(fill);
+                    img->update();
+                  };
                   if (cmd.slot == 0) {
-                    id(immich_img_0).set_fill_mode((id(photo_display_mode).current_option() == "Fill") && !id(slot0).is_portrait);
-                    id(immich_img_0).update();
+                    apply_slot_layout(id(immich_img_0), id(slot0));
                   } else if (cmd.slot == 1) {
-                    id(immich_img_1).set_fill_mode((id(photo_display_mode).current_option() == "Fill") && !id(slot1).is_portrait);
-                    id(immich_img_1).update();
+                    apply_slot_layout(id(immich_img_1), id(slot1));
                   } else if (cmd.slot == 2) {
-                    id(immich_img_2).set_fill_mode((id(photo_display_mode).current_option() == "Fill") && !id(slot2).is_portrait);
-                    id(immich_img_2).update();
+                    apply_slot_layout(id(immich_img_2), id(slot2));
                   }
                 }
                 break;
@@ -505,10 +514,16 @@ script:
               case SLIDESHOW_COMMAND_LOAD_PREVIOUS_SLOT: {
                 int s = cmd.slot;
                 auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
-                bool fill = (id(photo_display_mode).current_option() == "Fill");
-                if (s == 0) { id(immich_img_0).set_fill_mode(fill); id(immich_img_0).set_url(meta.image_url); id(immich_img_0).update(); }
-                else if (s == 1) { id(immich_img_1).set_fill_mode(fill); id(immich_img_1).set_url(meta.image_url); id(immich_img_1).update(); }
-                else if (s == 2) { id(immich_img_2).set_fill_mode(fill); id(immich_img_2).set_url(meta.image_url); id(immich_img_2).update(); }
+                bool portrait_screen = id(screen_rotation_select).current_option() == "90" ||
+                                       id(screen_rotation_select).current_option() == "270";
+                int target_w = portrait_screen ? ${portrait_display_width} : ${display_width};
+                int target_h = portrait_screen ? ${portrait_display_height} : ${display_height};
+                bool fill = portrait_screen
+                  ? (meta.is_portrait || id(photo_display_mode).current_option() == "Fill")
+                  : ((id(photo_display_mode).current_option() == "Fill") && !meta.is_portrait);
+                if (s == 0) { id(immich_img_0).set_target_size(target_w, target_h); id(immich_img_0).set_fill_mode(fill); id(immich_img_0).set_url(meta.image_url); id(immich_img_0).update(); }
+                else if (s == 1) { id(immich_img_1).set_target_size(target_w, target_h); id(immich_img_1).set_fill_mode(fill); id(immich_img_1).set_url(meta.image_url); id(immich_img_1).update(); }
+                else if (s == 2) { id(immich_img_2).set_target_size(target_w, target_h); id(immich_img_2).set_fill_mode(fill); id(immich_img_2).set_url(meta.image_url); id(immich_img_2).update(); }
                 break;
               }
               case SLIDESHOW_COMMAND_LOG_NO_PREVIOUS:
@@ -720,6 +735,32 @@ script:
       - script.execute: update_clock_display
       - script.execute: update_photo_metadata_display
 
+  - id: immich_reapply_current_image_layout
+    mode: restart
+    then:
+      - script.execute: update_clock_display
+      - script.execute: update_photo_metadata_display
+      - lambda: |-
+          if (!id(active_slot_displayed)) return;
+          if (id(portrait).is_pair) {
+            lv_obj_add_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
+            id(portrait) = PortraitState{};
+          }
+          int s = id(active_slot);
+          auto &meta = get_slot(s, id(slot0), id(slot1), id(slot2));
+          if (meta.image_url.empty()) return;
+          id(active_slot_displayed) = false;
+          bool portrait_screen = id(screen_rotation_select).current_option() == "90" ||
+                                 id(screen_rotation_select).current_option() == "270";
+          int target_w = portrait_screen ? ${portrait_display_width} : ${display_width};
+          int target_h = portrait_screen ? ${portrait_display_height} : ${display_height};
+          bool fill = portrait_screen
+            ? (meta.is_portrait || id(photo_display_mode).current_option() == "Fill")
+            : ((id(photo_display_mode).current_option() == "Fill") && !meta.is_portrait);
+          if (s == 0) { id(immich_img_0).set_target_size(target_w, target_h); id(immich_img_0).set_fill_mode(fill); id(immich_img_0).set_url(meta.image_url); id(immich_img_0).update(); }
+          else if (s == 1) { id(immich_img_1).set_target_size(target_w, target_h); id(immich_img_1).set_fill_mode(fill); id(immich_img_1).set_url(meta.image_url); id(immich_img_1).update(); }
+          else if (s == 2) { id(immich_img_2).set_target_size(target_w, target_h); id(immich_img_2).set_fill_mode(fill); id(immich_img_2).set_url(meta.image_url); id(immich_img_2).update(); }
+
   # Advance forward: move ring index, display if ready, else fetch into slot
   - id: immich_advance_forward
     mode: single
@@ -830,20 +871,42 @@ script:
           lv_label_set_text(id(photo_metadata_location_label_shadow), location_text.c_str());
           lv_label_set_text(id(photo_metadata_date_label), date_text.c_str());
           lv_label_set_text(id(photo_metadata_date_label_shadow), date_text.c_str());
+          lv_label_set_text(id(portrait_metadata_location_label), location_text.c_str());
+          lv_label_set_text(id(portrait_metadata_location_label_shadow), location_text.c_str());
+          lv_label_set_text(id(portrait_metadata_date_label), date_text.c_str());
+          lv_label_set_text(id(portrait_metadata_date_label_shadow), date_text.c_str());
 
-          if (has_location) {
+          const bool portrait_screen = id(screen_rotation_select).current_option() == "90" ||
+                                       id(screen_rotation_select).current_option() == "270";
+
+          if (has_location && !portrait_screen) {
             lv_obj_clear_flag(id(photo_metadata_location_label), LV_OBJ_FLAG_HIDDEN);
             lv_obj_clear_flag(id(photo_metadata_location_label_shadow), LV_OBJ_FLAG_HIDDEN);
           } else {
             lv_obj_add_flag(id(photo_metadata_location_label), LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(id(photo_metadata_location_label_shadow), LV_OBJ_FLAG_HIDDEN);
           }
-          if (has_date) {
+          if (has_date && !portrait_screen) {
             lv_obj_clear_flag(id(photo_metadata_date_label), LV_OBJ_FLAG_HIDDEN);
             lv_obj_clear_flag(id(photo_metadata_date_label_shadow), LV_OBJ_FLAG_HIDDEN);
           } else {
             lv_obj_add_flag(id(photo_metadata_date_label), LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(id(photo_metadata_date_label_shadow), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (has_location && portrait_screen) {
+            lv_obj_clear_flag(id(portrait_metadata_location_label), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_clear_flag(id(portrait_metadata_location_label_shadow), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(portrait_metadata_location_label), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(portrait_metadata_location_label_shadow), LV_OBJ_FLAG_HIDDEN);
+          }
+          if (has_date && portrait_screen) {
+            lv_obj_clear_flag(id(portrait_metadata_date_label), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_clear_flag(id(portrait_metadata_date_label_shadow), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(portrait_metadata_date_label), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(portrait_metadata_date_label_shadow), LV_OBJ_FLAG_HIDDEN);
           }
 
           lv_obj_update_layout(id(info_overlay));
@@ -856,7 +919,7 @@ script:
           lv_obj_set_width(id(photo_metadata_date_label), metadata_width);
           lv_obj_set_width(id(photo_metadata_date_label_shadow), metadata_width);
 
-          if (!has_location && !has_date) {
+          if (portrait_screen || (!has_location && !has_date)) {
             lv_obj_add_flag(id(photo_metadata_overlay), LV_OBJ_FLAG_HIDDEN);
           } else {
             lv_obj_clear_flag(id(photo_metadata_overlay), LV_OBJ_FLAG_HIDDEN);

@@ -100,9 +100,21 @@ void OnlineImage::abort_download() {
   }
 }
 
+void OnlineImage::set_target_size(int width, int height) {
+  if (width <= 0 || height <= 0) {
+    ESP_LOGW(TAG, "Ignoring invalid target size %dx%d", width, height);
+    return;
+  }
+  if (this->target_width_ == width && this->target_height_ == height) return;
+  ESP_LOGI(TAG, "Changing target size to %dx%d", width, height);
+  this->target_width_ = width;
+  this->target_height_ = height;
+  this->release();
+}
+
 size_t OnlineImage::resize_(int width_in, int height_in) {
-  int width = this->fixed_width_;
-  int height = this->fixed_height_;
+  int width = this->get_fixed_width();
+  int height = this->get_fixed_height();
   if (this->is_auto_resize_()) {
     width = width_in;
     height = height_in;

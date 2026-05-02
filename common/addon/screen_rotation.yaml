@@ -52,21 +52,25 @@ script:
           then:
             - lvgl.display.set_rotation: ${screen_rotation_0}
             - switch.turn_on: portrait_pairing_enabled
+            - script.execute: immich_reapply_current_image_layout
       - if:
           condition:
             lambda: 'return id(screen_rotation_select).current_option() == "90";'
           then:
             - lvgl.display.set_rotation: ${screen_rotation_90}
             - switch.turn_off: portrait_pairing_enabled
+            - script.execute: immich_reapply_current_image_layout
       - if:
           condition:
             lambda: 'return id(screen_rotation_select).current_option() == "180";'
           then:
             - lvgl.display.set_rotation: ${screen_rotation_180}
             - switch.turn_on: portrait_pairing_enabled
+            - script.execute: immich_reapply_current_image_layout
       - if:
           condition:
             lambda: 'return id(screen_rotation_select).current_option() == "270";'
           then:
             - lvgl.display.set_rotation: ${screen_rotation_270}
             - switch.turn_off: portrait_pairing_enabled
+            - script.execute: immich_reapply_current_image_layout

@@ -9,6 +9,9 @@
 substitutions:
   display_width: "1280"
   display_height: "800"
+  portrait_display_width: "800"
+  portrait_display_height: "1280"
+  portrait_metadata_width: "710"
   portrait_half_width: "640"
   screen_rotation: "0"
   screen_rotation_0: "90"

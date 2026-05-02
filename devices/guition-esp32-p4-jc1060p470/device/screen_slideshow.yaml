@@ -142,6 +142,50 @@ lvgl:
                   text: ""
                   text_color: 0xFFFFFF
                   text_font: noto_325_150_font
+              - label:
+                  id: portrait_metadata_location_label_shadow
+                  hidden: true
+                  x: 2
+                  y: 143
+                  width: ${portrait_metadata_width}
+                  text: ""
+                  long_mode: DOT
+                  text_align: left
+                  text_color: 0x000000
+                  text_opa: 20%
+                  text_font: noto_location_400_36_font
+              - label:
+                  id: portrait_metadata_location_label
+                  hidden: true
+                  x: 0
+                  y: 141
+                  width: ${portrait_metadata_width}
+                  text: ""
+                  long_mode: DOT
+                  text_align: left
+                  text_color: 0xFFFFFF
+                  text_font: noto_location_400_36_font
+              - label:
+                  id: portrait_metadata_date_label_shadow
+                  hidden: true
+                  x: 2
+                  y: 184
+                  width: ${portrait_metadata_width}
+                  text: ""
+                  text_align: left
+                  text_color: 0x000000
+                  text_opa: 20%
+                  text_font: noto_400_28_font
+              - label:
+                  id: portrait_metadata_date_label
+                  hidden: true
+                  x: 0
+                  y: 182
+                  width: ${portrait_metadata_width}
+                  text: ""
+                  text_align: left
+                  text_color: 0xFFFFFF
+                  text_font: noto_400_28_font
         - obj:
             id: info_overlay
             align: BOTTOM_RIGHT
