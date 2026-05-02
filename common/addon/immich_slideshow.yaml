@@ -589,10 +589,22 @@ script:
           id(backlight_hold_timer).stop();
           id(last_short_tap_ms) = 0;
           id(photo_source_menu_open) = true;
-          std::string title = "Photo Source: " + id(photo_source_select).current_option();
-          lv_label_set_text(id(photo_source_menu_title), title.c_str());
+          lv_obj_set_size(id(photo_source_menu_overlay), lv_pct(100), lv_pct(100));
+          lv_obj_align(id(photo_source_menu_overlay), LV_ALIGN_CENTER, 0, 0);
+          lv_label_set_text(id(photo_source_menu_title), "Photo Source");
           lv_label_set_text(id(photo_source_menu_message), "");
           lv_obj_add_flag(id(photo_source_menu_message), LV_OBJ_FLAG_HIDDEN);
+          const std::string current = id(photo_source_select).current_option();
+          auto set_source_style = [&](lv_obj_t *label, const char *source) {
+            const bool selected = current == source;
+            lv_obj_set_style_text_color(label, lv_color_hex(selected ? 0xFFD166 : 0xFFFFFF), LV_PART_MAIN);
+            lv_obj_set_style_text_opa(label, selected ? LV_OPA_COVER : LV_OPA_70, LV_PART_MAIN);
+          };
+          set_source_style(id(photo_source_all_label), "All Photos");
+          set_source_style(id(photo_source_favorites_label), "Favorites");
+          set_source_style(id(photo_source_album_label), "Album");
+          set_source_style(id(photo_source_person_label), "Person");
+          set_source_style(id(photo_source_memories_label), "Memories");
           lv_obj_clear_flag(id(photo_source_menu_overlay), LV_OBJ_FLAG_HIDDEN);
 
   - id: close_photo_source_menu
