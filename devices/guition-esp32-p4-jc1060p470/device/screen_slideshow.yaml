@@ -35,6 +35,13 @@ lvgl:
             on_release:
               then:
                 - script.execute: slideshow_on_release
+            on_swipe_down:
+              then:
+                - if:
+                    condition:
+                      switch.is_on: developer_features_enabled
+                    then:
+                      - script.execute: show_photo_source_menu
         - obj:
             id: portrait_pair_container
             align: CENTER
@@ -56,6 +63,13 @@ lvgl:
             on_release:
               then:
                 - script.execute: slideshow_on_release
+            on_swipe_down:
+              then:
+                - if:
+                    condition:
+                      switch.is_on: developer_features_enabled
+                    then:
+                      - script.execute: show_photo_source_menu
             widgets:
               - obj:
                   align: LEFT_MID
@@ -287,6 +301,124 @@ lvgl:
                         text_font: noto_400_30_font
                         text_color: 0x888888
                         text_align: center
+        - obj:
+            id: photo_source_menu_overlay
+            align: CENTER
+            width: ${display_width}
+            height: ${display_height}
+            radius: 0
+            bg_color: 0x000000
+            bg_opa: 85%
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: true
+            hidden: true
+            widgets:
+              - obj:
+                  align: CENTER
+                  width: 700
+                  height: SIZE_CONTENT
+                  radius: 8
+                  bg_color: 0x141414
+                  bg_opa: 95%
+                  border_color: 0x444444
+                  border_width: 1
+                  pad_all: 24
+                  scrollable: false
+                  layout:
+                    type: flex
+                    flex_flow: COLUMN
+                    flex_align_main: center
+                    flex_align_cross: center
+                    pad_row: 14
+                  widgets:
+                    - label:
+                        id: photo_source_menu_title
+                        text: "Photo Source"
+                        width: 640
+                        text_align: center
+                        text_color: 0xFFFFFF
+                        text_font: noto_400_46_font
+                    - label:
+                        id: photo_source_menu_message
+                        text: ""
+                        hidden: true
+                        width: 640
+                        text_align: center
+                        text_color: 0xFFD166
+                        text_font: noto_400_28_font
+                    - button:
+                        width: 640
+                        height: 58
+                        on_click:
+                          then:
+                            - lambda: 'id(photo_source_menu_selection_index) = 0;'
+                            - script.execute: select_photo_source_from_menu
+                        widgets:
+                          - label:
+                              text: "All Photos"
+                              align: CENTER
+                              text_font: noto_400_30_font
+                    - button:
+                        width: 640
+                        height: 58
+                        on_click:
+                          then:
+                            - lambda: 'id(photo_source_menu_selection_index) = 1;'
+                            - script.execute: select_photo_source_from_menu
+                        widgets:
+                          - label:
+                              text: "Favorites"
+                              align: CENTER
+                              text_font: noto_400_30_font
+                    - button:
+                        width: 640
+                        height: 58
+                        on_click:
+                          then:
+                            - lambda: 'id(photo_source_menu_selection_index) = 2;'
+                            - script.execute: select_photo_source_from_menu
+                        widgets:
+                          - label:
+                              text: "Album"
+                              align: CENTER
+                              text_font: noto_400_30_font
+                    - button:
+                        width: 640
+                        height: 58
+                        on_click:
+                          then:
+                            - lambda: 'id(photo_source_menu_selection_index) = 3;'
+                            - script.execute: select_photo_source_from_menu
+                        widgets:
+                          - label:
+                              text: "Person"
+                              align: CENTER
+                              text_font: noto_400_30_font
+                    - button:
+                        width: 640
+                        height: 58
+                        on_click:
+                          then:
+                            - lambda: 'id(photo_source_menu_selection_index) = 4;'
+                            - script.execute: select_photo_source_from_menu
+                        widgets:
+                          - label:
+                              text: "Memories"
+                              align: CENTER
+                              text_font: noto_400_30_font
+                    - button:
+                        width: 640
+                        height: 58
+                        on_click:
+                          then:
+                            - script.execute: close_photo_source_menu
+                        widgets:
+                          - label:
+                              text: "Close"
+                              align: CENTER
+                              text_font: noto_400_30_font
 
 # =============================================================================
 # CONNECTION FAILED DIM TIMER
@@ -467,6 +599,7 @@ interval:
             lambda: |-
               if (!id(immich_fetch_started)) return false;
               if (id(backlight_paused)) return false;
+              if (id(photo_source_menu_open)) return false;
               if (id(active_slot_displayed)) {
                 bool image_busy = id(immich_img_0).is_downloading() ||
                                   id(immich_img_1).is_downloading() ||
@@ -487,6 +620,7 @@ interval:
             lambda: |-
               if (!id(immich_fetch_started)) return false;
               if (id(backlight_paused)) return false;
+              if (id(photo_source_menu_open)) return false;
               if (!id(active_slot_displayed)) return false;
               bool any_inflight = any_slot_fetch_in_flight(id(slot_flags));
               if (any_inflight || id(portrait).workflow_busy || id(preload_noncritical_in_flight) ||
@@ -503,6 +637,7 @@ interval:
             lambda: |-
               if (id(last_photo_displayed_ms) == 0) return false;
               if (id(backlight_paused)) return false;
+              if (id(photo_source_menu_open)) return false;
               return (millis() - id(last_photo_displayed_ms)) >= (id(connection_timeout_sec) * 1000);
           then:
             - lambda: |-

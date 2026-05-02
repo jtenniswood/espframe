@@ -102,6 +102,12 @@ globals:
   - id: last_photo_displayed_ms
     type: uint32_t
     initial_value: '0'
+  - id: photo_source_menu_open
+    type: bool
+    initial_value: 'false'
+  - id: photo_source_menu_selection_index
+    type: int
+    initial_value: '0'
 
 # -----------------------------------------------------------------------------
 # Metadata display mode (persisted across reboots)
@@ -387,6 +393,7 @@ script:
     mode: queued
     then:
       - lambda: |-
+          if (id(photo_source_menu_open)) return;
           SlideshowCommand cmd;
           while (id(espframe_core).slideshow().pop_command(cmd)) {
             switch (cmd.kind) {
@@ -542,6 +549,89 @@ script:
               default:
                 break;
             }
+          }
+
+  - id: show_photo_source_menu
+    mode: single
+    then:
+      - lambda: |-
+          if (!id(developer_features_enabled).state) return;
+          id(backlight_hold_timer).stop();
+          id(last_short_tap_ms) = 0;
+          id(photo_source_menu_open) = true;
+          std::string title = "Photo Source: " + id(photo_source_select).current_option();
+          lv_label_set_text(id(photo_source_menu_title), title.c_str());
+          lv_label_set_text(id(photo_source_menu_message), "");
+          lv_obj_add_flag(id(photo_source_menu_message), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_clear_flag(id(photo_source_menu_overlay), LV_OBJ_FLAG_HIDDEN);
+
+  - id: close_photo_source_menu
+    mode: single
+    then:
+      - lambda: |-
+          id(photo_source_menu_open) = false;
+          id(immich_last_advance_ms) = millis();
+          id(last_photo_displayed_ms) = millis();
+          lv_obj_add_flag(id(photo_source_menu_message), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(id(photo_source_menu_overlay), LV_OBJ_FLAG_HIDDEN);
+          id(espframe_slideshow_dispatch).execute();
+
+  - id: select_photo_source_from_menu
+    mode: single
+    then:
+      - lambda: |-
+          if (!id(photo_source_menu_open)) return;
+          std::string source = "All Photos";
+          switch (id(photo_source_menu_selection_index)) {
+            case 1:
+              source = "Favorites";
+              break;
+            case 2:
+              source = "Album";
+              break;
+            case 3:
+              source = "Person";
+              break;
+            case 4:
+              source = "Memories";
+              break;
+            case 0:
+            default:
+              source = "All Photos";
+              break;
+          }
+
+          auto has_configured_ids = [](std::string value) -> bool {
+            value.erase(0, value.find_first_not_of(" \t\r\n,"));
+            value.erase(value.find_last_not_of(" \t\r\n,") + 1);
+            return !value.empty();
+          };
+
+          if (source == "Album" && !has_configured_ids(id(immich_album_ids).state)) {
+            lv_label_set_text(id(photo_source_menu_message), "Set up album IDs in the web settings first.");
+            lv_obj_clear_flag(id(photo_source_menu_message), LV_OBJ_FLAG_HIDDEN);
+            return;
+          }
+          if (source == "Person" && !has_configured_ids(id(immich_person_ids).state)) {
+            lv_label_set_text(id(photo_source_menu_message), "Set up person IDs in the web settings first.");
+            lv_obj_clear_flag(id(photo_source_menu_message), LV_OBJ_FLAG_HIDDEN);
+            return;
+          }
+
+          const bool changed = source != id(photo_source_select).current_option();
+          id(photo_source_menu_open) = false;
+          id(immich_last_advance_ms) = millis();
+          id(last_photo_displayed_ms) = millis();
+          lv_obj_add_flag(id(photo_source_menu_message), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(id(photo_source_menu_overlay), LV_OBJ_FLAG_HIDDEN);
+
+          if (changed) {
+            id(espframe_core).slideshow().clear_commands();
+            auto call = id(photo_source_select).make_call();
+            call.set_option(source);
+            call.perform();
+          } else {
+            id(espframe_slideshow_dispatch).execute();
           }
 
   - id: log_immich_diag
@@ -777,6 +867,7 @@ script:
     mode: single
     then:
       - lambda: |-
+          if (id(photo_source_menu_open)) return;
           id(espframe_core).slideshow().request_prefetch(
             id(backlight_paused),
             id(immich_retry_cooldown_until_ms) != 0 && millis() < id(immich_retry_cooldown_until_ms),
