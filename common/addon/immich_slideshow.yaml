@@ -440,7 +440,7 @@ script:
                   int target_h = portrait_screen ? ${portrait_display_height} : ${display_height};
                   auto apply_slot_layout = [&](auto *img, SlotMeta &meta) {
                     bool fill = portrait_screen
-                      ? (meta.is_portrait || id(photo_display_mode).current_option() == "Fill")
+                      ? (id(photo_display_mode).current_option() == "Fill")
                       : ((id(photo_display_mode).current_option() == "Fill") && !meta.is_portrait);
                     img->set_target_size(target_w, target_h);
                     img->set_fill_mode(fill);
@@ -519,7 +519,7 @@ script:
                 int target_w = portrait_screen ? ${portrait_display_width} : ${display_width};
                 int target_h = portrait_screen ? ${portrait_display_height} : ${display_height};
                 bool fill = portrait_screen
-                  ? (meta.is_portrait || id(photo_display_mode).current_option() == "Fill")
+                  ? (id(photo_display_mode).current_option() == "Fill")
                   : ((id(photo_display_mode).current_option() == "Fill") && !meta.is_portrait);
                 if (s == 0) { id(immich_img_0).set_target_size(target_w, target_h); id(immich_img_0).set_fill_mode(fill); id(immich_img_0).set_url(meta.image_url); id(immich_img_0).update(); }
                 else if (s == 1) { id(immich_img_1).set_target_size(target_w, target_h); id(immich_img_1).set_fill_mode(fill); id(immich_img_1).set_url(meta.image_url); id(immich_img_1).update(); }
@@ -755,7 +755,7 @@ script:
           int target_w = portrait_screen ? ${portrait_display_width} : ${display_width};
           int target_h = portrait_screen ? ${portrait_display_height} : ${display_height};
           bool fill = portrait_screen
-            ? (meta.is_portrait || id(photo_display_mode).current_option() == "Fill")
+            ? (id(photo_display_mode).current_option() == "Fill")
             : ((id(photo_display_mode).current_option() == "Fill") && !meta.is_portrait);
           if (s == 0) { id(immich_img_0).set_target_size(target_w, target_h); id(immich_img_0).set_fill_mode(fill); id(immich_img_0).set_url(meta.image_url); id(immich_img_0).update(); }
           else if (s == 1) { id(immich_img_1).set_target_size(target_w, target_h); id(immich_img_1).set_fill_mode(fill); id(immich_img_1).set_url(meta.image_url); id(immich_img_1).update(); }
