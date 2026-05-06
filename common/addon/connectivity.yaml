@@ -41,16 +41,10 @@ wifi:
     - delay: 800ms
     - if:
         condition:
-          lambda: 'return !id(immich_url).state.empty() && !id(immich_api_key_text).state.empty();'
+          lambda: 'return is_valid_http_url(id(immich_url).state) && !id(immich_api_key_text).state.empty();'
         then:
-          - lvgl.page.show: slideshow_page
           - delay: 2s
-          - if:
-              condition:
-                lambda: 'return !id(immich_fetch_started);'
-              then:
-                - lambda: 'id(target_slot) = 0;'
-                - script.execute: immich_fetch_into_slot
+          - script.execute: immich_check_config_ready
         else:
           - lambda: |-
               auto ips = wifi::global_wifi_component->get_ip_addresses();

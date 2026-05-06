@@ -28,6 +28,15 @@ esphome:
           } else if (!url.empty() && !is_valid_http_url(url)) {
             ESP_LOGW("immich", "Stored Immich URL is invalid; expected valid http(s)://host[:port]");
           }
+      # Some boots connect to WiFi before restored text settings are ready.
+      # Re-check once the startup screen grace period has passed so a saved
+      # Immich configuration always starts the first photo fetch.
+      - delay: 12s
+      - if:
+          condition:
+            wifi.connected:
+          then:
+            - script.execute: immich_check_config_ready
 
 # -----------------------------------------------------------------------------
 # Server URL and API key (persisted via NVS)
