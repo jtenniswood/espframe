@@ -95,6 +95,12 @@ In-progress firmware experiences are built into normal firmware, but must stay o
 
 Firmware code should check `id(developer_features_enabled).state` before running anything experimental. The switch defaults off and persists only when deliberately enabled.
 
+## License
+
+Espframe's project-owned code and documentation are source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE). You can use, change, and share it for non-commercial purposes. Commercial use needs separate permission from the project owner.
+
+This is not an OSI-approved open source license because formal open source licenses must allow commercial use. Third-party components keep their own licenses.
+
 ## Support This Project
 
 If you find this project useful, consider buying me a coffee to support ongoing development.

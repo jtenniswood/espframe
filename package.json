@@ -1,6 +1,7 @@
 {
   "name": "immich-frame",
   "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
   "scripts": {
     "generate": "python3 scripts/generate_assets.py",
     "check:generated": "python3 scripts/generate_assets.py --check",

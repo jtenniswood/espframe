@@ -172,6 +172,7 @@ export default defineConfig({
         text: 'Project',
         items: [
           { text: 'Roadmap', link: '/roadmap' },
+          { text: 'License', link: '/license' },
         ],
       },
     ],

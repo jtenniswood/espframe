@@ -20,4 +20,4 @@ description: Standalone digital photo frame firmware that displays a self-hosted
 
 [content-types]
 - Documentation (install, configuration, photo sources, firmware update, screen settings, Home Assistant).
-- Open-source firmware for Guition ESP32-P4 10" display (JC8012P4A1); works with self-hosted Immich only.
+- Source-available, non-commercial firmware for Guition ESP32-P4 10" display (JC8012P4A1); works with self-hosted Immich only.
