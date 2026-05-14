@@ -13,6 +13,7 @@ on:
       - "package-lock.json"
       - "scripts/**"
       - "tests/**"
+      - ".github/workflows/**"
 
 permissions:
   contents: read
@@ -35,14 +36,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Check generated files
-        run: npm run check:generated
-
-      - name: Run helper unit tests
-        run: npm run test:helpers
-
-      - name: Build docs
-        run: npm run docs:build
+      - name: Run local checks
+        run: npm run check:all
 
   compile:
     name: Compile Firmware

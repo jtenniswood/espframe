@@ -10,120 +10,167 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  DEVICE_SLUGS: immich-frame immich-frame-7inch
 
 jobs:
+  release-notes:
+    name: Update Release Notes
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Build detailed changelog
+        env:
+          VERSION: ${{ github.event.release.tag_name }}
+        run: python3 scripts/release_changelog.py "$VERSION" --output "$RUNNER_TEMP/release-notes.md"
+
+      - name: Update GitHub release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ github.event.release.tag_name }}
+        run: gh release edit "$VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"
+
   build-firmware:
-    name: Build Firmware
+    name: Build ${{ matrix.slug }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slug: immich-frame
+            yaml: guition-esp32-p4-jc8012p4a1
+            build_name: immich-frame-10inch
+            chip: ESP32-P4
+          - slug: immich-frame-7inch
+            yaml: guition-esp32-p4-jc1060p470
+            build_name: immich-frame-7inch
+            chip: ESP32-P4
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.release.tag_name || github.ref }}
 
-      - name: Compile 10-inch P4 firmware
-        env:
-          VERSION: ${{ github.event.release.tag_name || github.ref_name }}
-        run: >-
-          docker run --rm
-          -v "${PWD}:/config"
-          ghcr.io/esphome/esphome:2026.4.5
-          -s firmware_version "${VERSION}"
-          compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
+      - name: Cache ESPHome build
+        uses: actions/cache@v5
+        with:
+          path: builds/.esphome
+          key: esphome-release-${{ matrix.slug }}-${{ hashFiles('builds/*.yaml', 'common/**', 'devices/**', 'components/**') }}
+          restore-keys: |
+            esphome-release-${{ matrix.slug }}-
 
-      - name: Compile 7-inch P4 firmware
+      - name: Compile firmware
         env:
           VERSION: ${{ github.event.release.tag_name || github.ref_name }}
-        run: >-
-          docker run --rm
-          -v "${PWD}:/config"
-          ghcr.io/esphome/esphome:2026.4.5
-          -s firmware_version "${VERSION}"
-          compile /config/builds/guition-esp32-p4-jc1060p470.factory.yaml
+        run: |
+          python3 scripts/firmware_release.py inject \
+            --slug "${{ matrix.slug }}" \
+            --version "${VERSION}"
+
+          docker run --rm \
+            -v "${PWD}:/config" \
+            ghcr.io/esphome/esphome:2026.4.5 \
+            compile /config/builds/${{ matrix.yaml }}.factory.yaml
+
+      - name: Fix ESPHome cache permissions
+        if: always()
+        run: |
+          if [ -d builds/.esphome ]; then
+            sudo chown -R "$USER:$USER" builds/.esphome
+            chmod -R u+rwX builds/.esphome
+          fi
 
       - name: Collect firmware files and generate manifest
-        id: firmware
+        env:
+          VERSION: ${{ github.event.release.tag_name || github.ref_name }}
         run: |
-          BUILD_DIR_10="builds/.esphome/build/immich-frame-10inch/.pioenvs/immich-frame-10inch"
-          BUILD_DIR_7="builds/.esphome/build/immich-frame-7inch/.pioenvs/immich-frame-7inch"
+          BUILD_DIR="builds/.esphome/build/${{ matrix.build_name }}/.pioenvs/${{ matrix.build_name }}"
           mkdir -p output
 
-          if [ ! -f "${BUILD_DIR_10}/firmware.factory.bin" ]; then
-            echo "::error::10-inch firmware compilation failed — factory binary not found"
+          if [ ! -f "${BUILD_DIR}/firmware.factory.bin" ]; then
+            echo "::error::Firmware compilation failed - factory binary not found"
             exit 1
           fi
-          if [ ! -f "${BUILD_DIR_7}/firmware.factory.bin" ]; then
-            echo "::error::7-inch firmware compilation failed — factory binary not found"
+          if [ ! -f "${BUILD_DIR}/firmware.bin" ]; then
+            echo "::error::Firmware compilation failed - OTA binary not found"
             exit 1
           fi
 
-          sudo cp "${BUILD_DIR_10}/firmware.factory.bin" output/immich-frame.factory.bin
-          sudo cp "${BUILD_DIR_10}/firmware.bin" output/immich-frame.ota.bin
-          sudo cp "${BUILD_DIR_7}/firmware.factory.bin" output/immich-frame-7inch.factory.bin
-          sudo cp "${BUILD_DIR_7}/firmware.bin" output/immich-frame-7inch.ota.bin
+          sudo cp "${BUILD_DIR}/firmware.factory.bin" "output/${{ matrix.slug }}.factory.bin"
+          sudo cp "${BUILD_DIR}/firmware.bin" "output/${{ matrix.slug }}.ota.bin"
 
-          OTA_MD5_10=$(md5sum output/immich-frame.ota.bin | cut -d ' ' -f 1)
-          OTA_MD5_7=$(md5sum output/immich-frame-7inch.ota.bin | cut -d ' ' -f 1)
-          VERSION="${{ github.event.release.tag_name || github.ref_name }}"
+          python3 scripts/firmware_release.py manifest \
+            --slug "${{ matrix.slug }}" \
+            --chip "${{ matrix.chip }}" \
+            --version "${VERSION}" \
+            --factory "output/${{ matrix.slug }}.factory.bin" \
+            --ota "output/${{ matrix.slug }}.ota.bin" \
+            --out "output/${{ matrix.slug }}.manifest.json"
 
-          cat > output/manifest.json << EOF
-          {
-            "name": "Immich Frame",
-            "version": "${VERSION}",
-            "home_assistant_domain": "esphome",
-            "builds": [
-              {
-                "chipFamily": "ESP32-P4",
-                "parts": [
-                  { "path": "immich-frame.factory.bin", "offset": 0 }
-                ],
-                "ota": {
-                  "path": "immich-frame.ota.bin",
-                  "md5": "${OTA_MD5_10}",
-                  "release_url": "https://github.com/jtenniswood/espframe/releases/tag/${VERSION}"
-                }
-              }
-            ]
-          }
-          EOF
-
-          cat > output/manifest-7inch.json << EOF
-          {
-            "name": "Immich Frame 7-inch",
-            "version": "${VERSION}",
-            "home_assistant_domain": "esphome",
-            "builds": [
-              {
-                "chipFamily": "ESP32-P4",
-                "parts": [
-                  { "path": "immich-frame-7inch.factory.bin", "offset": 0 }
-                ],
-                "ota": {
-                  "path": "immich-frame-7inch.ota.bin",
-                  "md5": "${OTA_MD5_7}",
-                  "release_url": "https://github.com/jtenniswood/espframe/releases/tag/${VERSION}"
-                }
-              }
-            ]
-          }
-          EOF
+          python3 scripts/firmware_release.py verify-files \
+            --slug "${{ matrix.slug }}" \
+            --version "${VERSION}" \
+            --manifest "output/${{ matrix.slug }}.manifest.json" \
+            --factory "output/${{ matrix.slug }}.factory.bin" \
+            --ota "output/${{ matrix.slug }}.ota.bin"
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v7
         with:
-          name: firmware
+          name: firmware-${{ matrix.slug }}
           path: output/
 
+  publish:
+    name: Publish to Release
+    if: github.event_name == 'release'
+    needs: build-firmware
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: scripts/firmware_release.py
+          sparse-checkout-cone-mode: false
+
+      - name: Download all firmware artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: firmware-*
+          merge-multiple: true
+          path: firmware
+
+      - name: Verify assembled release assets
+        env:
+          VERSION: ${{ github.event.release.tag_name }}
+        run: >-
+          python3 scripts/firmware_release.py verify-directory
+          --version "${VERSION}"
+          --dir firmware
+          --slugs $DEVICE_SLUGS
+
       - name: Upload firmware to release
-        if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release upload "${{ github.event.release.tag_name }}"
-          output/immich-frame.factory.bin
-          output/immich-frame.ota.bin
-          output/immich-frame-7inch.factory.bin
-          output/immich-frame-7inch.ota.bin
-          output/manifest.json
-          output/manifest-7inch.json
-          --clobber
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "${{ github.event.release.tag_name }}" firmware/* --clobber
+
+      - name: Verify uploaded release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ github.event.release.tag_name }}
+        run: |
+          mkdir -p published
+          gh release download "${VERSION}" \
+            --pattern "*.manifest.json" \
+            --pattern "*.factory.bin" \
+            --pattern "*.ota.bin" \
+            --dir published
+          python3 scripts/firmware_release.py verify-directory \
+            --version "${VERSION}" \
+            --dir published \
+            --slugs $DEVICE_SLUGS

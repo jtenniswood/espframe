@@ -71,6 +71,13 @@ If there is no existing stable release, treat the first stable release as
 
 ### 3. Create the Release
 
+Before publishing, run the local release helper checks:
+
+```bash
+npm run check:firmware-release
+npm run check:release-changelog
+```
+
 Use a published release, not a draft, so GitHub emits the `release.published`
 event and starts the firmware build.
 
@@ -153,11 +160,16 @@ Expected release assets:
 ```text
 immich-frame.factory.bin
 immich-frame.ota.bin
+immich-frame.manifest.json
 immich-frame-7inch.factory.bin
 immich-frame-7inch.ota.bin
-manifest.json
-manifest-7inch.json
+immich-frame-7inch.manifest.json
 ```
+
+The release workflow verifies the compiled binaries before upload, downloads the
+uploaded assets from GitHub Releases, and verifies them again. The checks confirm
+that the manifests, OTA checksums, release URLs, and embedded ESPHome project
+versions all match the release tag.
 
 The `Deploy Docs` workflow is configured to run after a successful
 `Build Release`. Check it if the user asks about docs or firmware download
@@ -166,6 +178,10 @@ availability:
 ```bash
 gh run list --workflow docs.yml --event workflow_run --limit 5
 ```
+
+That workflow downloads the latest release assets, publishes the public firmware
+URLs used by the installer and OTA updater, and verifies those URLs after GitHub
+Pages deploys.
 
 ## Report Back
 

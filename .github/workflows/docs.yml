@@ -5,15 +5,16 @@ on:
     branches: [main]
     paths:
       - 'docs/**'
+      - 'scripts/firmware_release.py'
       - 'package.json'
       - 'package-lock.json'
+      - '.github/workflows/docs.yml'
   workflow_run:
     workflows: ["Build Release"]
     types: [completed]
   workflow_dispatch:
 
 permissions:
-  actions: write
   contents: read
   pages: write
   id-token: write
@@ -24,7 +25,7 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  PAGES_ARTIFACT_NAME: github-pages-${{ github.run_id }}
+  DEVICE_SLUGS: immich-frame immich-frame-7inch
 
 jobs:
   build-docs:
@@ -41,69 +42,169 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v6
-
       - name: Install dependencies
         run: npm ci
 
       - name: Build docs
         run: npm run docs:build
 
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: docs-dist
+          path: docs/.vitepress/dist
+
+  download-firmware:
+    name: Download Firmware
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.release-meta.outputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: scripts/firmware_release.py
+          sparse-checkout-cone-mode: false
+
+      - name: Set release metadata
+        id: release-meta
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          RELEASE_TAG=$(gh release view --json tagName -q .tagName)
+          echo "RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"
+          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
       - name: Download firmware from latest release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          mkdir -p docs/.vitepress/dist/firmware
-          gh release download --pattern 'manifest*.json' --dir docs/.vitepress/dist/firmware/ || echo "::warning::No firmware manifests found in latest release"
-          gh release download --pattern '*.factory.bin' --dir docs/.vitepress/dist/firmware/ || echo "::warning::No factory binary found in latest release"
-          gh release download --pattern '*.ota.bin' --dir docs/.vitepress/dist/firmware/ || echo "::warning::No OTA binary found in latest release"
+          mkdir -p firmware
+          gh release download "$RELEASE_TAG" \
+            --pattern "*.factory.bin" \
+            --pattern "*.ota.bin" \
+            --dir firmware \
+            --clobber
+          for SLUG in $DEVICE_SLUGS; do
+            gh release download "$RELEASE_TAG" \
+              --pattern "${SLUG}.manifest.json" \
+              --dir firmware \
+              --clobber 2>/dev/null || true
+          done
+          if [ -f firmware/immich-frame.manifest.json ]; then
+            cp firmware/immich-frame.manifest.json firmware/manifest.json
+          else
+            gh release download "$RELEASE_TAG" \
+              --pattern "manifest.json" \
+              --dir firmware \
+              --clobber
+          fi
+          if [ -f firmware/immich-frame-7inch.manifest.json ]; then
+            cp firmware/immich-frame-7inch.manifest.json firmware/manifest-7inch.json
+          else
+            gh release download "$RELEASE_TAG" \
+              --pattern "manifest-7inch.json" \
+              --dir firmware \
+              --clobber
+          fi
 
       - name: Download firmware from latest pre-release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           BETA_TAG=$(gh release list --limit 20 --json tagName,isPrerelease \
             -q '[.[] | select(.isPrerelease)] | .[0].tagName // empty')
           if [ -n "$BETA_TAG" ]; then
-            mkdir -p docs/.vitepress/dist/firmware/beta
+            mkdir -p firmware/beta
             gh release download "$BETA_TAG" \
-              --pattern 'manifest*.json' \
-              --dir docs/.vitepress/dist/firmware/beta/ || true
-            gh release download "$BETA_TAG" \
-              --pattern '*.ota.bin' \
-              --dir docs/.vitepress/dist/firmware/beta/ || true
+              --pattern "*.factory.bin" \
+              --pattern "*.ota.bin" \
+              --dir firmware/beta \
+              --clobber 2>/dev/null || true
+            for SLUG in $DEVICE_SLUGS; do
+              gh release download "$BETA_TAG" \
+                --pattern "${SLUG}.manifest.json" \
+                --dir firmware/beta \
+                --clobber 2>/dev/null || true
+            done
+            if [ -f firmware/beta/immich-frame.manifest.json ]; then
+              cp firmware/beta/immich-frame.manifest.json firmware/beta/manifest.json
+            else
+              gh release download "$BETA_TAG" \
+                --pattern "manifest.json" \
+                --dir firmware/beta \
+                --clobber 2>/dev/null || true
+            fi
+            if [ -f firmware/beta/immich-frame-7inch.manifest.json ]; then
+              cp firmware/beta/immich-frame-7inch.manifest.json firmware/beta/manifest-7inch.json
+            else
+              gh release download "$BETA_TAG" \
+                --pattern "manifest-7inch.json" \
+                --dir firmware/beta \
+                --clobber 2>/dev/null || true
+            fi
           fi
 
-      - name: Remove stale Pages artifact from reruns
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          EXISTING_IDS=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts \
-            --jq '.artifacts[] | select(.name == "'"${PAGES_ARTIFACT_NAME}"'") | .id')
-          if [ -n "$EXISTING_IDS" ]; then
-            while IFS= read -r ARTIFACT_ID; do
-              gh api -X DELETE repos/${{ github.repository }}/actions/artifacts/${ARTIFACT_ID}
-            done <<< "$EXISTING_IDS"
-          fi
+      - name: Verify firmware assets
+        run: >-
+          python3 scripts/firmware_release.py verify-directory
+          --version "$RELEASE_TAG"
+          --dir firmware
+          --slugs $DEVICE_SLUGS
 
-      - name: Upload pages artifact
-        uses: actions/upload-pages-artifact@v5
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v7
         with:
-          name: ${{ env.PAGES_ARTIFACT_NAME }}
-          path: docs/.vitepress/dist
+          name: firmware
+          path: firmware/
 
   deploy-docs:
     name: Deploy Docs
-    needs: build-docs
+    needs: [build-docs, download-firmware]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: scripts/firmware_release.py
+          sparse-checkout-cone-mode: false
+
+      - name: Download docs artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: docs-dist
+          path: dist
+
+      - name: Clear bundled firmware placeholders
+        run: rm -rf dist/firmware
+
+      - name: Download firmware artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: firmware
+          path: dist/firmware
+
+      - name: Upload pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
-        with:
-          artifact_name: ${{ env.PAGES_ARTIFACT_NAME }}
+
+      - name: Verify public firmware
+        run: >-
+          python3 scripts/firmware_release.py verify-pages
+          --version "${{ needs.download-firmware.outputs.release_tag }}"
+          --base-url "https://jtenniswood.github.io/espframe"
+          --slugs $DEVICE_SLUGS
+          --retries 10
+          --delay 15
