@@ -533,7 +533,8 @@ script:
           condition:
             lambda: |-
               std::string source = id(photo_source_select).current_option();
-              return source == "Album" || source == "Person";
+              return source == "All Photos" || source == "Favorites" ||
+                     source == "Album" || source == "Person";
           then:
             - script.execute: immich_fetch_metadata_into_slot
             - script.stop: immich_fetch_into_slot
