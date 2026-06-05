@@ -91,7 +91,7 @@ script:
             snprintf(buf, sizeof(buf), "%04d-%02d-%02dT00:00:00.000Z", now.year, now.month, now.day_of_month);
             return id(immich_url).state + "/api/memories?type=on_this_day&for=" + std::string(buf);
           capture_response: true
-          max_response_buffer_size: 64kB
+          max_response_buffer_size: 192kB
           request_headers:
             Accept: application/json
             x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
