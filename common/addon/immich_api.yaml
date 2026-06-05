@@ -227,13 +227,13 @@ script:
               - script.execute: immich_fetch_into_slot
 
   # ---------------------------------------------------------------------------
-  # Fetch a random asset using Immich's timeline endpoints.
+  # Fetch a random asset from photo sources using paged metadata search.
   #
-  # The web app uses timeline buckets for library grids; following that path
-  # samples across the full source instead of repeatedly asking Immich's random
-  # search endpoint for a tiny result set.
+  # Metadata search is stable and supports page/size; the frame first reads the
+  # total, then asks for one small random page so large libraries are not limited
+  # to a tiny repeated random-search batch.
   # ---------------------------------------------------------------------------
-  - id: immich_fetch_timeline_into_slot
+  - id: immich_fetch_metadata_into_slot
     mode: single
     then:
       - if:
@@ -244,8 +244,8 @@ script:
             - logger.log:
                 level: DEBUG
                 tag: immich
-                format: "Skipping timeline fetch (wifi disconnected)"
-            - script.stop: immich_fetch_timeline_into_slot
+                format: "Skipping metadata fetch (wifi disconnected)"
+            - script.stop: immich_fetch_metadata_into_slot
       - if:
           condition:
             lambda: |-
@@ -256,26 +256,42 @@ script:
                      (source == "Person" && id(immich_person_ids).state.empty());
           then:
             - lambda: |-
-                ESP_LOGW("immich", "Timeline source selected but Immich URL, API key, or source IDs are missing");
+                ESP_LOGW("immich", "Metadata source selected but Immich URL, API key, or source IDs are missing");
                 clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
-            - script.stop: immich_fetch_timeline_into_slot
-      - http_request.get:
+            - script.stop: immich_fetch_metadata_into_slot
+      - http_request.post:
           id: http_req
-          url: !lambda |-
-            id(immich_timeline_query) = build_immich_timeline_query(
-              id(photo_source_select).current_option(), id(immich_album_ids).state,
-              id(immich_person_ids).state);
-            return id(immich_url).state + "/api/timeline/buckets?" + id(immich_timeline_query);
+          url: !lambda 'return id(immich_url).state + "/api/search/metadata";'
           capture_response: true
           max_response_buffer_size: 24kB
           request_headers:
+            Content-Type: application/json
             Accept: application/json
             x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
+          body: !lambda |-
+            std::string source = id(photo_source_select).current_option();
+            id(immich_metadata_album_id) = source == "Album" ? pick_one_uuid_from_csv(id(immich_album_ids).state) : "";
+            id(immich_metadata_person_id) = source == "Person" ? pick_one_person_id_for_random_search(id(immich_person_ids).state) : "";
+            auto now = id(sntp_time).now();
+            ImmichDateRange range = resolve_immich_date_filter(
+              id(immich_date_filter_enabled).state,
+              id(immich_date_filter_mode).current_option(),
+              (int) (id(immich_relative_amount).state + 0.5f),
+              id(immich_relative_unit).current_option(),
+              now.is_valid(), now.year, now.month, now.day_of_month,
+              id(immich_date_from).state, id(immich_date_to).state);
+            if (range.relative_skipped_for_invalid_time) {
+              ESP_LOGW("immich", "Relative date filter skipped because time is not valid");
+            }
+            std::string extra = build_immich_date_filter_extra(range);
+            return build_immich_metadata_search_body(
+              1, 1, true, source, id(immich_metadata_album_id),
+              id(immich_metadata_person_id), extra);
           on_response:
             then:
               - lambda: |-
                   if (response->status_code != 200) {
-                    ESP_LOGW("immich", "Timeline buckets HTTP %d", response->status_code);
+                    ESP_LOGW("immich", "Metadata count HTTP %d", response->status_code);
                     clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
                     id(immich_last_http_status) = response->status_code;
                     id(immich_retry_cooldown_until_ms) = millis() + 30000;
@@ -283,26 +299,28 @@ script:
                   }
                   id(immich_fetch_started) = true;
                   id(immich_last_http_status) = 0;
-                  auto bucket = pick_immich_timeline_bucket(body);
-                  id(immich_timeline_time_bucket) = bucket.time_bucket;
-                  id(immich_timeline_page) = bucket.page;
-                  if (id(immich_timeline_time_bucket).empty()) {
+                  uint32_t total = parse_immich_metadata_total(body);
+                  if (total == 0) {
                     clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
-                    ESP_LOGW("immich", "Source has no usable timeline buckets");
+                    ESP_LOGW("immich", "Metadata source has no matching images");
                     id(immich_api_retries) = 0;
                     id(immich_retry_cooldown_until_ms) = millis() + 30000;
                     return;
                   }
-                  ESP_LOGD("immich", "Timeline bucket selected: %s page %d of %d assets",
-                           id(immich_timeline_time_bucket).c_str(), id(immich_timeline_page), (int) bucket.count);
-                  id(immich_fetch_timeline_bucket).execute();
+                  std::string orientation = id(photo_orientation_filter).current_option();
+                  id(immich_metadata_page_size) = orientation == "Any" ? 1 : IMMICH_METADATA_PAGE_SIZE;
+                  id(immich_metadata_page) = immich_metadata_page_for_total(
+                    total, id(immich_metadata_page_size));
+                  ESP_LOGD("immich", "Metadata source selected: page %d size %d of %u images",
+                           id(immich_metadata_page), id(immich_metadata_page_size), (unsigned) total);
+                  id(immich_fetch_metadata_page).execute();
           on_error:
             then:
               - lambda: |-
                   id(immich_api_retries)++;
-                  ESP_LOGW("immich", "Timeline buckets request error for slot %d (attempt %d)", id(target_slot), id(immich_api_retries));
+                  ESP_LOGW("immich", "Metadata count request error for slot %d (attempt %d)", id(target_slot), id(immich_api_retries));
                   clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
-                  id(immich_diag_reason) = "timeline buckets request error";
+                  id(immich_diag_reason) = "metadata count request error";
                   id(log_immich_diag).execute();
               - if:
                   condition:
@@ -313,113 +331,85 @@ script:
                     - lambda: |-
                         id(immich_api_retries) = 0;
                         id(immich_retry_cooldown_until_ms) = millis() + 30000;
-                        ESP_LOGW("immich", "Timeline retries exhausted; pausing Immich fetches for 30s");
+                        ESP_LOGW("immich", "Metadata retries exhausted; pausing Immich fetches for 30s");
 
-  - id: immich_fetch_timeline_bucket
+  - id: immich_fetch_metadata_page
     mode: single
     then:
       - if:
           condition:
-            lambda: 'return id(immich_timeline_query).empty() || id(immich_timeline_time_bucket).empty();'
+            lambda: |-
+              std::string source = id(photo_source_select).current_option();
+              return (source == "Album" && id(immich_metadata_album_id).empty()) ||
+                     (source == "Person" && id(immich_metadata_person_id).empty()) ||
+                     id(immich_metadata_page) < 1 ||
+                     id(immich_metadata_page_size) < 1;
           then:
             - lambda: |-
-                ESP_LOGW("immich", "Timeline bucket fetch missing query or bucket");
+                ESP_LOGW("immich", "Metadata page fetch missing source ID or page");
                 clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
-            - script.stop: immich_fetch_timeline_bucket
-      - http_request.get:
+            - script.stop: immich_fetch_metadata_page
+      - http_request.post:
           id: http_req
-          url: !lambda |-
-            return id(immich_url).state + "/api/timeline/bucket?" + id(immich_timeline_query) +
-                   "&timeBucket=" + id(immich_timeline_time_bucket) +
-                   "&page=" + std::to_string(id(immich_timeline_page)) +
-                   "&pageSize=" + std::to_string(IMMICH_TIMELINE_PAGE_SIZE);
+          url: !lambda 'return id(immich_url).state + "/api/search/metadata";'
           capture_response: true
           max_response_buffer_size: 24kB
           request_headers:
+            Content-Type: application/json
             Accept: application/json
             x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
+          body: !lambda |-
+            auto now = id(sntp_time).now();
+            ImmichDateRange range = resolve_immich_date_filter(
+              id(immich_date_filter_enabled).state,
+              id(immich_date_filter_mode).current_option(),
+              (int) (id(immich_relative_amount).state + 0.5f),
+              id(immich_relative_unit).current_option(),
+              now.is_valid(), now.year, now.month, now.day_of_month,
+              id(immich_date_from).state, id(immich_date_to).state);
+            if (range.relative_skipped_for_invalid_time) {
+              ESP_LOGW("immich", "Relative date filter skipped because time is not valid");
+            }
+            std::string extra = build_immich_date_filter_extra(range);
+            return build_immich_metadata_search_body(
+              id(immich_metadata_page), id(immich_metadata_page_size), true,
+              id(photo_source_select).current_option(), id(immich_metadata_album_id),
+              id(immich_metadata_person_id), extra);
           on_response:
             then:
               - lambda: |-
                   if (response->status_code != 200) {
-                    ESP_LOGW("immich", "Timeline bucket HTTP %d", response->status_code);
+                    ESP_LOGW("immich", "Metadata page HTTP %d", response->status_code);
                     clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
                     id(immich_last_http_status) = response->status_code;
                     id(immich_retry_cooldown_until_ms) = millis() + 30000;
                     return;
                   }
                   std::string orientation = id(photo_orientation_filter).current_option();
-                  id(immich_timeline_asset_id) = pick_immich_timeline_asset_id(body, orientation);
-                  if (id(immich_timeline_asset_id).empty()) {
-                    clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
-                    ESP_LOGW("immich", "No usable image in paged timeline response");
-                    id(immich_api_retries) = 0;
-                    id(immich_retry_cooldown_until_ms) = millis() + 30000;
-                    return;
-                  }
-                  id(immich_fetch_timeline_asset).execute();
-          on_error:
-            then:
-              - lambda: |-
-                  id(immich_api_retries)++;
-                  ESP_LOGW("immich", "Paged timeline bucket request error for slot %d (attempt %d)", id(target_slot), id(immich_api_retries));
-                  clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
-                  id(immich_diag_reason) = "paged timeline bucket request error";
-                  id(log_immich_diag).execute();
-              - if:
-                  condition:
-                    lambda: 'return id(immich_api_retries) < MAX_ERROR_RETRIES;'
-                  then:
-                    - script.execute: immich_fetch_retry
-                  else:
-                    - lambda: |-
-                        id(immich_api_retries) = 0;
-                        id(immich_retry_cooldown_until_ms) = millis() + 30000;
-                        ESP_LOGW("immich", "Timeline retries exhausted; pausing Immich fetches for 30s");
-
-  - id: immich_fetch_timeline_asset
-    mode: single
-    then:
-      - if:
-          condition:
-            lambda: 'return id(immich_timeline_asset_id).empty();'
-          then:
-            - lambda: |-
-                ESP_LOGW("immich", "Timeline asset fetch missing asset ID");
-                clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
-            - script.stop: immich_fetch_timeline_asset
-      - http_request.get:
-          id: http_req
-          url: !lambda 'return id(immich_url).state + "/api/assets/" + id(immich_timeline_asset_id);'
-          capture_response: true
-          max_response_buffer_size: 16kB
-          request_headers:
-            Accept: application/json
-            x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
-          on_response:
-            then:
-              - lambda: |-
-                  if (response->status_code != 200) {
-                    ESP_LOGW("immich", "Timeline asset HTTP %d", response->status_code);
-                    clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
-                    id(immich_last_http_status) = response->status_code;
-                    id(immich_retry_cooldown_until_ms) = millis() + 30000;
-                    return;
-                  }
-                  std::string img_url = parse_immich_asset_and_fill_slot(
+                  std::string img_url = parse_immich_metadata_asset_and_fill_slot(
                     body, id(immich_url).state, id(target_slot), id(slot0), id(slot1), id(slot2),
-                    id(photo_orientation_filter).current_option());
+                    orientation);
                   if (img_url.empty()) {
                     clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
-                    ESP_LOGW("immich", "Timeline asset metadata parse failed");
-                    id(immich_api_retries) = 0;
-                    id(immich_retry_cooldown_until_ms) = millis() + 30000;
+                    if (orientation != "Any" && id(immich_api_retries) < MAX_ERROR_RETRIES) {
+                      id(immich_api_retries)++;
+                      ESP_LOGW("immich", "No %s image in metadata page; retrying", orientation.c_str());
+                      id(immich_fetch_retry).execute();
+                      return;
+                    }
+                    ESP_LOGW("immich", "Metadata page asset parse failed");
+                    id(immich_diag_reason) = "metadata page asset parse failed";
+                    id(log_immich_diag).execute();
+                    id(immich_register_fetch_failure).execute();
                     return;
                   }
                   id(immich_api_retries) = 0;
+                  id(immich_consecutive_failures) = 0;
+                  id(immich_failure_window_started_ms) = 0;
+                  id(immich_retry_cooldown_until_ms) = 0;
                   int slot = id(target_slot);
                   auto &meta = get_slot(slot, id(slot0), id(slot1), id(slot2));
-                  ESP_LOGI("immich", "TIMELINE slot %d: %s | %s | %s | %s | portrait=%d",
+                  ESP_LOGI("immich", "METADATA slot %d: %s | %s | %s | %s | portrait=%d",
                            slot, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.location.c_str(), meta.is_portrait);
                   id(espframe_core).slideshow().clear_preload_for_slot(
                     slot, id(portrait_preload_slot), id(portrait_preload_left_ready),
@@ -437,9 +427,9 @@ script:
             then:
               - lambda: |-
                   id(immich_api_retries)++;
-                  ESP_LOGW("immich", "Timeline asset request error for slot %d (attempt %d)", id(target_slot), id(immich_api_retries));
+                  ESP_LOGW("immich", "Metadata page request error for slot %d (attempt %d)", id(target_slot), id(immich_api_retries));
                   clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
-                  id(immich_diag_reason) = "timeline asset request error";
+                  id(immich_diag_reason) = "metadata page request error";
                   id(log_immich_diag).execute();
               - if:
                   condition:
@@ -450,7 +440,7 @@ script:
                     - lambda: |-
                         id(immich_api_retries) = 0;
                         id(immich_retry_cooldown_until_ms) = millis() + 30000;
-                        ESP_LOGW("immich", "Timeline retries exhausted; pausing Immich fetches for 30s");
+                        ESP_LOGW("immich", "Metadata retries exhausted; pausing Immich fetches for 30s");
 
   # ---------------------------------------------------------------------------
   # Fetch API metadata and start image download into target_slot
@@ -543,11 +533,9 @@ script:
           condition:
             lambda: |-
               std::string source = id(photo_source_select).current_option();
-              if (source == "Album") return true;
-              return !id(immich_date_filter_enabled).state &&
-                     (source == "All Photos" || source == "Favorites" || source == "Person");
+              return source == "Album" || source == "Person";
           then:
-            - script.execute: immich_fetch_timeline_into_slot
+            - script.execute: immich_fetch_metadata_into_slot
             - script.stop: immich_fetch_into_slot
       - http_request.post:
           id: http_req

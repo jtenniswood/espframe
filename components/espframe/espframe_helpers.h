@@ -425,17 +425,9 @@ inline void tint_image_buffer(esphome::image::Image *img, const WarmToneLuts &lu
 #endif  // USE_LVGL
 
 #ifdef USE_JSON
-inline std::string parse_immich_asset_and_fill_slot(const std::string &body,
-                                                    const std::string &base_url,
-                                                    int slot,
-                                                    SlotMeta &s0, SlotMeta &s1, SlotMeta &s2,
-                                                    const std::string &orientation_filter = "Any") {
-  // Parse once into an intermediate struct, then copy the fields into the slot
-  // selected by the YAML state machine.
-  ImmichAssetMeta tmp;
-  std::string img_url = parse_immich_asset(body, base_url, &tmp, orientation_filter);
-  if (img_url.empty()) return "";
-
+inline void fill_slot_from_immich_meta(const ImmichAssetMeta &tmp,
+                                       int slot,
+                                       SlotMeta &s0, SlotMeta &s1, SlotMeta &s2) {
   SlotMeta *meta = (slot == 0) ? &s0 : (slot == 1) ? &s1 : &s2;
   meta->asset_id = tmp.asset_id;
   meta->image_url = tmp.image_url;
@@ -450,6 +442,34 @@ inline std::string parse_immich_asset_and_fill_slot(const std::string &body,
   meta->companion_url = "";
   meta->pending_asset_id = tmp.asset_id;
   meta->is_portrait = tmp.is_portrait;
+}
+
+inline std::string parse_immich_asset_and_fill_slot(const std::string &body,
+                                                    const std::string &base_url,
+                                                    int slot,
+                                                    SlotMeta &s0, SlotMeta &s1, SlotMeta &s2,
+                                                    const std::string &orientation_filter = "Any") {
+  // Parse once into an intermediate struct, then copy the fields into the slot
+  // selected by the YAML state machine.
+  ImmichAssetMeta tmp;
+  std::string img_url = parse_immich_asset(body, base_url, &tmp, orientation_filter);
+  if (img_url.empty()) return "";
+
+  fill_slot_from_immich_meta(tmp, slot, s0, s1, s2);
+  return img_url;
+}
+
+inline std::string parse_immich_metadata_asset_and_fill_slot(
+                                                    const std::string &body,
+                                                    const std::string &base_url,
+                                                    int slot,
+                                                    SlotMeta &s0, SlotMeta &s1, SlotMeta &s2,
+                                                    const std::string &orientation_filter = "Any") {
+  ImmichAssetMeta tmp;
+  std::string img_url = parse_immich_metadata_asset(body, base_url, &tmp, orientation_filter);
+  if (img_url.empty()) return "";
+
+  fill_slot_from_immich_meta(tmp, slot, s0, s1, s2);
   return img_url;
 }
 

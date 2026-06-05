@@ -19,11 +19,11 @@ Choose the **Source** in the device web UI at `http://<device-ip>/` under **Phot
 
 ## All Photos
 
-Shows photos sampled from your entire Immich timeline. Set **Source** to **All Photos**; leave Albums and People empty.
+Shows photos sampled across your entire Immich library. Set **Source** to **All Photos**; leave Albums and People empty.
 
 ## Favorites
 
-Shows only photos marked with the heart in Immich, sampled from the full favorites timeline. Set **Source** to **Favorites**. Ensure at least some photos are favorited.
+Shows only photos marked with the heart in Immich, sampled across the full favorites list. Set **Source** to **Favorites**. Ensure at least some photos are favorited.
 
 ## Album
 
@@ -31,7 +31,7 @@ Shows photos from one or more Immich albums. **Get the UUID:** open the album in
 
 The descriptions are saved with the IDs so the web UI can show friendly labels later. They do not affect which photos Immich returns.
 
-Album photos are sampled through Immich's timeline view, so large albums are not limited to the first small batch of results.
+Album photos are sampled through paged Immich search, so large albums are not limited to the first small batch of results.
 
 ## Person
 
@@ -39,7 +39,7 @@ Shows photos where specific people (faces) appear. Requires face recognition in 
 
 The names are saved with the IDs so the web UI can show friendly labels later. They do not need to match the name stored in Immich.
 
-Person photos are sampled through Immich's timeline view, so large libraries are not limited to the first small batch of results.
+Person photos are sampled through paged Immich search, so large libraries are not limited to the first small batch of results.
 
 ## Album and Person ID limits
 

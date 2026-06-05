@@ -154,15 +154,24 @@ static void test_immich_body_helpers() {
          std::string::npos);
   assert(build_immich_search_body(1, false, "Person", "", "p1,p2").find("\"personIds\":[\"p1\"]") !=
          std::string::npos);
-  assert(build_immich_timeline_query("All Photos", "", "") == "visibility=timeline");
-  assert(build_immich_timeline_query("Favorites", "", "") ==
-         "visibility=timeline&isFavorite=true");
-  assert(build_immich_timeline_query("Album", "a,b", "") ==
-         "visibility=timeline&albumId=a");
-  assert(build_immich_timeline_query("Person", "", "p1,p2") ==
-         "visibility=timeline&personId=p1");
-  assert(build_immich_timeline_query("Album", "", "").empty());
-  assert(build_immich_timeline_query("Person", "", "").empty());
+  assert(immich_metadata_page_for_total(0) == 1);
+  assert(immich_metadata_page_for_total(848) == 1);
+  assert(immich_metadata_page_for_total(848, 5) <= 170);
+  std::string album_metadata = build_immich_metadata_search_body(
+      7, 5, true, "Album", "album-a", "", "\"takenAfter\":\"2026-01-01T00:00:00.000Z\"");
+  assert(album_metadata.find("\"page\":7") != std::string::npos);
+  assert(album_metadata.find("\"size\":5") != std::string::npos);
+  assert(album_metadata.find("\"visibility\":\"timeline\"") != std::string::npos);
+  assert(album_metadata.find("\"albumIds\":[\"album-a\"]") != std::string::npos);
+  assert(album_metadata.find("\"withPeople\":true") != std::string::npos);
+  assert(album_metadata.find("\"takenAfter\":\"2026-01-01T00:00:00.000Z\"") !=
+         std::string::npos);
+  assert(build_immich_metadata_search_body(2, 1, true, "All Photos", "", "")
+             .find("\"page\":2") != std::string::npos);
+  assert(build_immich_metadata_search_body(3, 1, true, "Favorites", "", "")
+             .find("\"isFavorite\":true") != std::string::npos);
+  assert(build_immich_metadata_search_body(1, 1, false, "Person", "", "p1")
+             .find("\"personIds\":[\"p1\"]") != std::string::npos);
 
   std::vector<ImmichTimelineBucketInfo> large_album_buckets = {
       {"2026-05-01", 848},
