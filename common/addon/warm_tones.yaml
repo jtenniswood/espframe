@@ -35,7 +35,9 @@ switch:
     id: base_tone_enabled
     internal: true
     optimistic: true
+    # ESPFRAME:SETTING_FIELDS base_tone_enabled START
     restore_mode: RESTORE_DEFAULT_OFF
+    # ESPFRAME:SETTING_FIELDS base_tone_enabled END
     icon: "mdi:palette"
     web_server:
       sorting_group_id: sg_screen
@@ -54,7 +56,9 @@ switch:
     id: warm_tones_enabled
     internal: true
     optimistic: true
+    # ESPFRAME:SETTING_FIELDS warm_tones_enabled START
     restore_mode: RESTORE_DEFAULT_OFF
+    # ESPFRAME:SETTING_FIELDS warm_tones_enabled END
     icon: "mdi:weather-sunset"
     web_server:
       sorting_group_id: sg_screen
@@ -65,7 +69,9 @@ switch:
     id: warm_tone_override
     internal: true
     optimistic: true
+    # ESPFRAME:SETTING_FIELDS warm_tone_override START
     restore_mode: RESTORE_DEFAULT_OFF
+    # ESPFRAME:SETTING_FIELDS warm_tone_override END
     icon: "mdi:weather-night"
     web_server:
       sorting_group_id: sg_screen
@@ -87,12 +93,14 @@ number:
     name: "Screen: Display Tone"
     id: base_tone
     internal: true
+    # ESPFRAME:SETTING_FIELDS base_tone START
     min_value: 0
     max_value: 100
     step: 5
     initial_value: 0
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS base_tone END
     unit_of_measurement: "%"
     icon: "mdi:thermometer"
     web_server:
@@ -107,12 +115,14 @@ number:
     name: "Screen: Warm Tone Intensity"
     id: warm_tone_intensity
     internal: true
+    # ESPFRAME:SETTING_FIELDS warm_tone_intensity START
     min_value: 10
     max_value: 100
     step: 5
     initial_value: 50
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS warm_tone_intensity END
     unit_of_measurement: "%"
     icon: "mdi:palette"
     web_server:

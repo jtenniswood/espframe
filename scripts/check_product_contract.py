@@ -1536,6 +1536,8 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
             errors.append("package.json check:backup must run scripts/check_backup_config.py")
         if scripts.get("check:compat") != "python3 scripts/check_compatibility.py":
             errors.append("package.json check:compat must run scripts/check_compatibility.py")
+        if scripts.get("check:firmware-fields") != "python3 scripts/check_firmware_fields.py":
+            errors.append("package.json check:firmware-fields must run scripts/check_firmware_fields.py")
         if scripts.get("test:web-compat") != "node tests/web_compat_tests.js":
             errors.append("package.json test:web-compat must run tests/web_compat_tests.js")
         if scripts.get("test:web-modules") != "node tests/web_module_tests.js":
@@ -1545,6 +1547,8 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
             errors.append("package.json check:all must include check:backup")
         if "npm run check:compat" not in check_all:
             errors.append("package.json check:all must include check:compat")
+        if "npm run check:firmware-fields" not in check_all:
+            errors.append("package.json check:all must include check:firmware-fields")
         if "npm run test:web-compat" not in check_all:
             errors.append("package.json check:all must include test:web-compat")
         if "npm run test:web-modules" not in check_all:

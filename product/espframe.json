@@ -484,6 +484,70 @@
       "__ESPFRAME_WEB_COMPAT_HELPERS__",
       "__ESPFRAME_CSS__"
     ],
+    "generated_firmware_setting_fields": {
+      "photo_source": {},
+      "date_filter_mode": {},
+      "relative_unit": {},
+      "photo_orientation": {},
+      "display_mode": {},
+      "interval": {},
+      "conn_timeout": {},
+      "screen_rotation": {
+        "options": ["0", "90", "180", "270"]
+      },
+      "photo_metadata_date_format": {},
+      "photo_metadata_date_taken_format": {},
+      "clock_format": {},
+      "update_frequency": {},
+      "auto_update": {},
+      "beta_channel": {},
+      "firmware_manifest_url": {
+        "optimistic": false,
+        "restore_value": true,
+        "initial_value": "${firmware_manifest_url}",
+        "min_length": 0,
+        "max_length": 255,
+        "mode": "text"
+      },
+      "firmware_beta_manifest_url": {
+        "optimistic": false,
+        "restore_value": true,
+        "initial_value": "${firmware_beta_manifest_url}",
+        "min_length": 0,
+        "max_length": 255,
+        "mode": "text"
+      },
+      "date_filter_enabled": {},
+      "date_from": {
+        "optimistic": false,
+        "restore_value": true,
+        "min_length": 0,
+        "max_length": 10,
+        "mode": "text"
+      },
+      "date_to": {
+        "optimistic": false,
+        "restore_value": true,
+        "min_length": 0,
+        "max_length": 10,
+        "mode": "text"
+      },
+      "relative_amount": {},
+      "schedule_enabled": {},
+      "schedule_on_hour": {},
+      "schedule_off_hour": {},
+      "schedule_wake_timeout": {},
+      "brightness_day": {},
+      "brightness_night": {},
+      "base_tone_enabled": {},
+      "base_tone": {},
+      "warm_tones_enabled": {},
+      "warm_tone_intensity": {},
+      "warm_tone_override": {},
+      "portrait_pairing": {},
+      "photo_metadata_date_enabled": {},
+      "photo_metadata_location_enabled": {}
+    },
     "support_url": "https://www.buymeacoffee.com/jtenniswood",
     "support_button_image_url": "https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png",
     "node_version": "24",

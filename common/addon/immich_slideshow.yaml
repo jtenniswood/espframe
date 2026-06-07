@@ -132,12 +132,14 @@ select:
     name: "Device: Metadata Date Format"
     id: photo_metadata_date_format
     internal: true
+    # ESPFRAME:SETTING_FIELDS photo_metadata_date_format START
     options:
       - "Relative Date"
       - "Date Taken"
     initial_option: "Date Taken"
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS photo_metadata_date_format END
     icon: "mdi:calendar-clock"
     web_server:
       sorting_group_id: sg_device
@@ -149,12 +151,14 @@ select:
     name: "Device: Metadata Date Taken Format"
     id: photo_metadata_date_taken_format
     internal: true
+    # ESPFRAME:SETTING_FIELDS photo_metadata_date_taken_format START
     options:
       - "1 January, 2026"
       - "January 1, 2026"
     initial_option: "1 January, 2026"
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS photo_metadata_date_taken_format END
     icon: "mdi:calendar-month"
     web_server:
       sorting_group_id: sg_device
@@ -171,7 +175,9 @@ switch:
     id: portrait_pairing_enabled
     internal: true
     optimistic: true
+    # ESPFRAME:SETTING_FIELDS portrait_pairing START
     restore_mode: RESTORE_DEFAULT_ON
+    # ESPFRAME:SETTING_FIELDS portrait_pairing END
     icon: "mdi:image-multiple"
     web_server:
       sorting_group_id: sg_photos
@@ -181,7 +187,9 @@ switch:
     id: photo_metadata_date_enabled
     internal: true
     optimistic: true
+    # ESPFRAME:SETTING_FIELDS photo_metadata_date_enabled START
     restore_mode: RESTORE_DEFAULT_ON
+    # ESPFRAME:SETTING_FIELDS photo_metadata_date_enabled END
     icon: "mdi:calendar-clock"
     web_server:
       sorting_group_id: sg_device
@@ -197,7 +205,9 @@ switch:
     id: photo_metadata_location_enabled
     internal: true
     optimistic: true
+    # ESPFRAME:SETTING_FIELDS photo_metadata_location_enabled START
     restore_mode: RESTORE_DEFAULT_ON
+    # ESPFRAME:SETTING_FIELDS photo_metadata_location_enabled END
     icon: "mdi:map-marker-outline"
     web_server:
       sorting_group_id: sg_device

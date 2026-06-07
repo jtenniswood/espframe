@@ -51,7 +51,9 @@ switch:
     id: schedule_enabled
     internal: true
     optimistic: true
+    # ESPFRAME:SETTING_FIELDS schedule_enabled START
     restore_mode: RESTORE_DEFAULT_OFF
+    # ESPFRAME:SETTING_FIELDS schedule_enabled END
     icon: "mdi:calendar-clock"
     web_server:
       sorting_group_id: sg_screen
@@ -91,12 +93,14 @@ number:
     name: "Screen: Schedule On Hour"
     id: schedule_on_hour
     internal: true
+    # ESPFRAME:SETTING_FIELDS schedule_on_hour START
     min_value: 0
     max_value: 23
     step: 1
     initial_value: 6
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS schedule_on_hour END
     unit_of_measurement: "h"
     icon: "mdi:weather-sunset-up"
     web_server:
@@ -109,12 +113,14 @@ number:
     name: "Screen: Schedule Off Hour"
     id: schedule_off_hour
     internal: true
+    # ESPFRAME:SETTING_FIELDS schedule_off_hour START
     min_value: 0
     max_value: 23
     step: 1
     initial_value: 23
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS schedule_off_hour END
     unit_of_measurement: "h"
     icon: "mdi:weather-night"
     web_server:
@@ -127,12 +133,14 @@ number:
     name: "Screen: Schedule Wake Timeout"
     id: schedule_wake_timeout
     internal: true
+    # ESPFRAME:SETTING_FIELDS schedule_wake_timeout START
     min_value: 10
     max_value: 3600
     step: 10
     initial_value: 60
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS schedule_wake_timeout END
     unit_of_measurement: "s"
     icon: "mdi:timer-outline"
     web_server:
@@ -149,12 +157,14 @@ number:
     name: "Screen: Daytime Brightness"
     id: brightness_day
     internal: true
+    # ESPFRAME:SETTING_FIELDS brightness_day START
     min_value: 10
     max_value: 100
     step: 5
     initial_value: 100
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS brightness_day END
     unit_of_measurement: "%"
     icon: "mdi:brightness-7"
     web_server:
@@ -167,12 +177,14 @@ number:
     name: "Screen: Nighttime Brightness"
     id: brightness_night
     internal: true
+    # ESPFRAME:SETTING_FIELDS brightness_night START
     min_value: 10
     max_value: 100
     step: 5
     initial_value: 75
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS brightness_night END
     unit_of_measurement: "%"
     icon: "mdi:brightness-4"
     web_server:

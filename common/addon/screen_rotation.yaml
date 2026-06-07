@@ -11,6 +11,7 @@ select:
     name: "Screen: Rotation"
     id: screen_rotation_select
     internal: true
+    # ESPFRAME:SETTING_FIELDS screen_rotation START
     options:
       - "0"
       - "90"
@@ -19,6 +20,7 @@ select:
     initial_option: "${screen_rotation}"
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS screen_rotation END
     icon: "mdi:screen-rotation"
     web_server:
       sorting_group_id: sg_screen

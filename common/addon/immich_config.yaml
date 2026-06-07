@@ -103,12 +103,14 @@ select:
     name: "Photos: Display Mode"
     id: photo_display_mode
     internal: true
+    # ESPFRAME:SETTING_FIELDS display_mode START
     options:
       - "Fill"
       - "Fit"
     initial_option: "Fill"
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS display_mode END
     icon: "mdi:image-size-select-large"
     web_server:
       sorting_group_id: sg_photos

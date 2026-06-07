@@ -77,12 +77,14 @@ text:
     id: firmware_manifest_url_text
     internal: true
     entity_category: config
+    # ESPFRAME:SETTING_FIELDS firmware_manifest_url START
     optimistic: false
     restore_value: true
     initial_value: "${firmware_manifest_url}"
     min_length: 0
     max_length: 255
     mode: text
+    # ESPFRAME:SETTING_FIELDS firmware_manifest_url END
     icon: "mdi:web"
     web_server:
       sorting_group_id: sg_firmware
@@ -104,12 +106,14 @@ text:
     id: firmware_beta_manifest_url_text
     internal: true
     entity_category: config
+    # ESPFRAME:SETTING_FIELDS firmware_beta_manifest_url START
     optimistic: false
     restore_value: true
     initial_value: "${firmware_beta_manifest_url}"
     min_length: 0
     max_length: 255
     mode: text
+    # ESPFRAME:SETTING_FIELDS firmware_beta_manifest_url END
     icon: "mdi:web"
     web_server:
       sorting_group_id: sg_firmware
@@ -133,7 +137,9 @@ switch:
     entity_category: config
     icon: "mdi:update"
     optimistic: true
+    # ESPFRAME:SETTING_FIELDS auto_update START
     restore_mode: RESTORE_DEFAULT_ON
+    # ESPFRAME:SETTING_FIELDS auto_update END
     web_server:
       sorting_group_id: sg_firmware
 
@@ -143,7 +149,9 @@ switch:
     entity_category: config
     icon: "mdi:beta"
     optimistic: true
+    # ESPFRAME:SETTING_FIELDS beta_channel START
     restore_mode: RESTORE_DEFAULT_OFF
+    # ESPFRAME:SETTING_FIELDS beta_channel END
     web_server:
       sorting_group_id: sg_firmware
 
@@ -155,6 +163,7 @@ select:
     icon: "mdi:timer-outline"
     web_server:
       sorting_group_id: sg_firmware
+    # ESPFRAME:SETTING_FIELDS update_frequency START
     options:
       - "Hourly"
       - "Daily"
@@ -163,6 +172,7 @@ select:
     initial_option: "Daily"
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS update_frequency END
 
 # -----------------------------------------------------------------------------
 # Periodic update check (hourly / daily / weekly / monthly when auto-update on)

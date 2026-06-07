@@ -590,6 +590,7 @@ select:
   - platform: template
     name: "Photos: Slideshow Interval"
     id: slideshow_interval
+    # ESPFRAME:SETTING_FIELDS interval START
     options:
       - "10 seconds"
       - "15 seconds"
@@ -601,9 +602,10 @@ select:
       - "3 minutes"
       - "5 minutes"
       - "10 minutes"
-    initial_option: ${immich_slide_interval}
+    initial_option: "${immich_slide_interval}"
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS interval END
     icon: "mdi:timer-outline"
     on_value:
       then:
@@ -615,6 +617,7 @@ select:
   - platform: template
     name: "Screen: Connection Timeout"
     id: connection_timeout
+    # ESPFRAME:SETTING_FIELDS conn_timeout START
     options:
       - "30 seconds"
       - "45 seconds"
@@ -629,6 +632,7 @@ select:
     initial_option: "10 minutes"
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS conn_timeout END
     icon: "mdi:connection"
     on_value:
       then:

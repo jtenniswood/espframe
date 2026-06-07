@@ -103,12 +103,14 @@ select:
     name: "Clock: Format"
     id: clock_format_select
     internal: true
+    # ESPFRAME:SETTING_FIELDS clock_format START
     options:
       - "24 Hour"
       - "12 Hour"
     initial_option: "24 Hour"
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS clock_format END
     web_server:
       sorting_group_id: sg_clock
     on_value:

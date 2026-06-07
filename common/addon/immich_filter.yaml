@@ -12,6 +12,7 @@ select:
   - platform: template
     name: "Photos: Source"
     id: photo_source_select
+    # ESPFRAME:SETTING_FIELDS photo_source START
     options:
       - "All Photos"
       - "Favorites"
@@ -21,6 +22,7 @@ select:
     initial_option: "All Photos"
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS photo_source END
     icon: "mdi:image-filter-frames"
     web_server:
       sorting_group_id: sg_photos
@@ -33,12 +35,14 @@ select:
     name: "Photos: Date Filter Mode"
     id: immich_date_filter_mode
     internal: true
+    # ESPFRAME:SETTING_FIELDS date_filter_mode START
     options:
       - "Fixed Range"
       - "Relative Range"
     initial_option: "Fixed Range"
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS date_filter_mode END
     icon: "mdi:calendar-filter"
     on_value:
       then:
@@ -49,6 +53,7 @@ select:
     name: "Photos: Orientation"
     id: photo_orientation_filter
     internal: true
+    # ESPFRAME:SETTING_FIELDS photo_orientation START
     options:
       - "Any"
       - "Portrait Only"
@@ -56,6 +61,7 @@ select:
     initial_option: "Any"
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS photo_orientation END
     icon: "mdi:phone-rotate-portrait"
     web_server:
       sorting_group_id: sg_photos
@@ -68,12 +74,14 @@ select:
     name: "Photos: Relative Unit"
     id: immich_relative_unit
     internal: true
+    # ESPFRAME:SETTING_FIELDS relative_unit START
     options:
       - "Months"
       - "Years"
     initial_option: "Years"
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS relative_unit END
     icon: "mdi:calendar-range"
     on_value:
       then:
@@ -88,12 +96,14 @@ number:
     name: "Photos: Relative Amount"
     id: immich_relative_amount
     internal: true
+    # ESPFRAME:SETTING_FIELDS relative_amount START
     min_value: 1
     max_value: 120
     step: 1
     initial_value: 1
     optimistic: true
     restore_value: true
+    # ESPFRAME:SETTING_FIELDS relative_amount END
     icon: "mdi:counter"
     on_value:
       then:
@@ -110,7 +120,9 @@ switch:
     id: immich_date_filter_enabled
     internal: true
     optimistic: true
+    # ESPFRAME:SETTING_FIELDS date_filter_enabled START
     restore_mode: RESTORE_DEFAULT_OFF
+    # ESPFRAME:SETTING_FIELDS date_filter_enabled END
     icon: "mdi:calendar-check"
     on_turn_on:
       then:
@@ -129,11 +141,13 @@ text:
     name: "Photos: Date From"
     id: immich_date_from
     internal: true
+    # ESPFRAME:SETTING_FIELDS date_from START
     optimistic: false
     restore_value: true
     min_length: 0
     max_length: 10
     mode: text
+    # ESPFRAME:SETTING_FIELDS date_from END
     icon: "mdi:calendar-start"
     set_action:
       - lambda: |-
@@ -145,11 +159,13 @@ text:
     name: "Photos: Date To"
     id: immich_date_to
     internal: true
+    # ESPFRAME:SETTING_FIELDS date_to START
     optimistic: false
     restore_value: true
     min_length: 0
     max_length: 10
     mode: text
+    # ESPFRAME:SETTING_FIELDS date_to END
     icon: "mdi:calendar-end"
     set_action:
       - lambda: |-
