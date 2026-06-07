@@ -15,11 +15,6 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 PRODUCT_PATH = ROOT / "product" / "espframe.json"
-WEB_ENTITY_ALIASES = {
-    "schedule_enabled": [{"entity": "switch/Screen: Schedule", "boolFromState": True}],
-    "schedule_on_hour": [{"entity": "number/Screen: Schedule On", "default": 6, "number": True}],
-    "schedule_off_hour": [{"entity": "number/Screen: Schedule Off", "default": 23, "number": True}],
-}
 DOCS_SETTINGS_TABLES = {
     ROOT / "docs" / "screen-settings.md": {
         "screen_brightness": {"settings": ["brightness_day", "brightness_night"]},
@@ -225,8 +220,20 @@ def web_static_entities_metadata(product: dict[str, Any] | None = None) -> dict[
     return result
 
 
-def web_entity_aliases_metadata() -> dict[str, list[dict[str, Any]]]:
-    return {key: [dict(alias) for alias in aliases] for key, aliases in WEB_ENTITY_ALIASES.items()}
+def web_entity_aliases(product: dict[str, Any] | None = None) -> dict[str, list[dict[str, Any]]]:
+    data = product if product is not None else load_product()
+    aliases = data["project"].get("web_entity_aliases", {})
+    if not isinstance(aliases, dict):
+        return {}
+    return {
+        str(key): [dict(alias) for alias in value if isinstance(alias, dict)]
+        for key, value in aliases.items()
+        if isinstance(value, list)
+    }
+
+
+def web_entity_aliases_metadata(product: dict[str, Any] | None = None) -> dict[str, list[dict[str, Any]]]:
+    return {key: [dict(alias) for alias in aliases] for key, aliases in web_entity_aliases(product).items()}
 
 
 def web_manual_entities(product: dict[str, Any] | None = None) -> dict[str, dict[str, Any]]:

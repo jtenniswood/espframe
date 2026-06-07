@@ -16,13 +16,13 @@ from pathlib import Path
 from product_config import (
     DOCS_SETTINGS_TABLE_COLUMNS,
     DOCS_SETTINGS_TABLES,
-    WEB_ENTITY_ALIASES,
     default_public_manifest_urls,
     device_public_manifest_urls,
     load_product,
     public_base_url,
     public_url,
     release_matrix_devices,
+    web_entity_aliases,
     web_entity_aliases_metadata,
     web_initial_fetch_keys,
     web_local_state_keys,
@@ -3094,7 +3094,10 @@ def check_web_entity_metadata(product: dict, errors: list[str]) -> None:
 
     alias_entities_seen: set[str] = set()
     valid_state_keys = product_keys | set(static_entities)
-    for key, aliases in WEB_ENTITY_ALIASES.items():
+    entity_aliases = web_entity_aliases(product)
+    if not entity_aliases:
+        errors.append("project.web_entity_aliases must be a non-empty object")
+    for key, aliases in entity_aliases.items():
         if key not in valid_state_keys:
             errors.append(f"Web entity alias {key} does not point at a known state key")
         if not isinstance(aliases, list) or not aliases:
@@ -3169,8 +3172,8 @@ def check_generated_web_metadata(product: dict, web_text: str, errors: list[str]
         errors.append("Generated web MANUAL_ENTITIES does not match product/espframe.json")
 
     entity_aliases = extract_js_json_var(web_text, "ENTITY_ALIASES", errors)
-    if entity_aliases is not None and entity_aliases != web_entity_aliases_metadata():
-        errors.append("Generated web ENTITY_ALIASES does not match product_config.py")
+    if entity_aliases is not None and entity_aliases != web_entity_aliases_metadata(product):
+        errors.append("Generated web ENTITY_ALIASES does not match product/espframe.json")
 
     initial_fetch_keys = extract_js_json_var(web_text, "INITIAL_FETCH_KEYS", errors)
     if initial_fetch_keys is not None and initial_fetch_keys != web_initial_fetch_keys(product["settings"]):

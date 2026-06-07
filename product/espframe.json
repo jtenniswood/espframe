@@ -208,6 +208,11 @@
       "apply_photo_source": { "entity": "button/Apply Photo Source", "firmware_file": "common/addon/immich_filter.yaml" },
       "firmware_check": { "entity": "button/Firmware: Check for Update", "firmware_file": "common/addon/firmware_update.yaml" }
     },
+    "web_entity_aliases": {
+      "schedule_enabled": [{ "entity": "switch/Screen: Schedule", "boolFromState": true }],
+      "schedule_on_hour": [{ "entity": "number/Screen: Schedule On", "default": 6, "number": true }],
+      "schedule_off_hour": [{ "entity": "number/Screen: Schedule Off", "default": 23, "number": true }]
+    },
     "web_local_state_keys": [
       "api_key",
       "backlight_on",
