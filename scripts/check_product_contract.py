@@ -433,6 +433,29 @@ def check_project_metadata(product: dict, errors: list[str]) -> None:
             errors.append(f"project.{field} is required")
     if not isinstance(project.get("photo_source_id_limit"), int) or isinstance(project.get("photo_source_id_limit"), bool):
         errors.append("project.photo_source_id_limit must be an integer")
+    for field in (
+        "connection_timeout_default",
+        "connection_timeout_range",
+        "connection_failure_trigger",
+        "connection_invalid_api_key_title",
+        "connection_unavailable_title",
+    ):
+        if not str(project.get(field, "")).strip():
+            errors.append(f"project.{field} is required")
+    if not isinstance(project.get("immich_max_error_retries"), int) or isinstance(project.get("immich_max_error_retries"), bool):
+        errors.append("project.immich_max_error_retries must be an integer")
+    retry_delays = project.get("immich_api_retry_delay_ms", [])
+    if not isinstance(retry_delays, list) or not retry_delays:
+        errors.append("project.immich_api_retry_delay_ms must be a non-empty list")
+    elif any(not isinstance(value, int) or isinstance(value, bool) or value < 1 for value in retry_delays):
+        errors.append("project.immich_api_retry_delay_ms must only contain positive integers")
+    retryable_statuses = project.get("immich_retryable_http_statuses", [])
+    if not isinstance(retryable_statuses, list) or not retryable_statuses:
+        errors.append("project.immich_retryable_http_statuses must be a non-empty list")
+    elif any(not isinstance(value, str) or not value.strip() for value in retryable_statuses):
+        errors.append("project.immich_retryable_http_statuses must only contain non-empty strings")
+    if not isinstance(project.get("immich_auth_error_status"), int) or isinstance(project.get("immich_auth_error_status"), bool):
+        errors.append("project.immich_auth_error_status must be an integer")
     for field in ("setup_captive_portal_ip", "setup_connection_ready_condition"):
         if not str(project.get(field, "")).strip():
             errors.append(f"project.{field} is required")
@@ -1248,6 +1271,127 @@ def check_photo_source_metadata(product: dict, errors: list[str]) -> None:
         "Person IDs exceed 255 characters",
     ):
         require_contains(web_template, needle, rel(WEB_TEMPLATE), errors)
+
+
+def check_connection_resilience_metadata(product: dict, errors: list[str]) -> None:
+    project = product["project"]
+    timeout_default = str(project.get("connection_timeout_default", "")).strip()
+    timeout_range = str(project.get("connection_timeout_range", "")).strip()
+    failure_trigger = str(project.get("connection_failure_trigger", "")).strip()
+    invalid_key_title = str(project.get("connection_invalid_api_key_title", "")).strip()
+    unavailable_title = str(project.get("connection_unavailable_title", "")).strip()
+    max_error_retries = project.get("immich_max_error_retries")
+    retry_delays = project.get("immich_api_retry_delay_ms", [])
+    retryable_statuses = [str(value).strip() for value in project.get("immich_retryable_http_statuses", []) if str(value).strip()]
+    auth_error_status = project.get("immich_auth_error_status")
+
+    settings_by_key = {str(setting.get("key", "")).strip(): setting for setting in product["settings"]}
+    connection_timeout_setting = settings_by_key.get("conn_timeout")
+    if not connection_timeout_setting:
+        errors.append("product settings must include conn_timeout")
+    else:
+        if timeout_default and connection_timeout_setting.get("default") != timeout_default:
+            errors.append("project.connection_timeout_default must match conn_timeout default")
+        if "30 seconds" not in connection_timeout_setting.get("options", []):
+            errors.append("conn_timeout options must include 30 seconds")
+        if "30 minutes" not in connection_timeout_setting.get("options", []):
+            errors.append("conn_timeout options must include 30 minutes")
+
+    photo_docs = read(ROOT / "docs" / "photo-sources.md", errors)
+    troubleshooting_docs = read(ROOT / "docs" / "troubleshooting.md", errors)
+    home_assistant_docs = read(ROOT / "docs" / "home-assistant.md", errors)
+    backup_docs = read(ROOT / "docs" / "backup.md", errors)
+    screen_yaml = read(ROOT / "devices" / "guition-esp32-p4-jc8012p4a1" / "device" / "screen_slideshow.yaml", errors)
+    api_yaml = read(ROOT / "common" / "addon" / "immich_api.yaml", errors)
+    slideshow_yaml = read(ROOT / "common" / "addon" / "immich_slideshow.yaml", errors)
+    immich_config_yaml = read(ROOT / "common" / "addon" / "immich_config.yaml", errors)
+    helper_header = read(ROOT / "components" / "espframe" / "espframe_helpers.h", errors)
+    helper_tests = read(ROOT / "tests" / "espframe_helper_tests.cpp", errors)
+    web_template = read(WEB_TEMPLATE, errors)
+
+    for needle in (timeout_default, timeout_range, failure_trigger, invalid_key_title, unavailable_title):
+        if needle:
+            require_contains(photo_docs, needle, "docs/photo-sources.md", errors)
+    for needle in ("Connection Timeout", "connection-failed screen", "slow server", "large photo library"):
+        require_contains(photo_docs, needle, "docs/photo-sources.md", errors)
+    for needle in ("Immich Connection Problems", "API Key Problems", "Photos Do Not Appear"):
+        require_contains(troubleshooting_docs, needle, "docs/troubleshooting.md", errors)
+    require_contains(home_assistant_docs, "Screen: Connection Timeout", "docs/home-assistant.md", errors)
+    require_contains(backup_docs, f'"conn_timeout": "{timeout_default}"', "docs/backup.md", errors)
+
+    for needle in (
+        "Screen: Connection Timeout",
+        f'initial_option: "{timeout_default}"',
+        'parse_duration_option_seconds(x, 600, 30, 1800)',
+        "connection_failed_overlay",
+        "connection_failed_dim",
+        "connection_failed_shift",
+        invalid_key_title,
+        unavailable_title,
+        "Check your Immich API key",
+        "Check your internet connection",
+    ):
+        if needle:
+            require_contains(screen_yaml, needle, "devices/guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml", errors)
+    for option in ("30 seconds", "30 minutes"):
+        require_contains(screen_yaml, f'      - "{option}"', "devices/guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml", errors)
+
+    if isinstance(max_error_retries, int) and not isinstance(max_error_retries, bool):
+        require_contains(helper_header, f"MAX_ERROR_RETRIES = {max_error_retries}", "components/espframe/espframe_helpers.h", errors)
+        for label, text in (
+            ("common/addon/immich_api.yaml", api_yaml),
+            ("common/addon/immich_slideshow.yaml", slideshow_yaml),
+        ):
+            require_contains(text, "MAX_ERROR_RETRIES", label, errors)
+    if isinstance(retry_delays, list):
+        for delay in retry_delays:
+            if isinstance(delay, int) and not isinstance(delay, bool):
+                require_contains(api_yaml, f"delay_ms = {delay}", "common/addon/immich_api.yaml", errors)
+    for status in retryable_statuses:
+        if status == "HTTP 5xx":
+            require_contains(helper_header, "status >= 500", "components/espframe/espframe_helpers.h", errors)
+        elif status == "429":
+            require_contains(helper_header, "status == 429", "components/espframe/espframe_helpers.h", errors)
+        else:
+            errors.append(f"project.immich_retryable_http_statuses has no checker mapping for {status!r}")
+    if isinstance(auth_error_status, int) and not isinstance(auth_error_status, bool):
+        require_contains(helper_header, f"status == {auth_error_status}", "components/espframe/espframe_helpers.h", errors)
+        require_contains(api_yaml, "is_http_auth_error(code)", "common/addon/immich_api.yaml", errors)
+    for needle in (
+        "immich_fetch_retry",
+        "immich_register_fetch_failure",
+        "Fetch paused (connection retry cooldown)",
+        "Retrying Immich fetch",
+        "api retries exhausted",
+    ):
+        require_contains(api_yaml, needle, "common/addon/immich_api.yaml", errors)
+    for needle in (
+        "immich_consecutive_failures",
+        "immich_retry_cooldown_until_ms",
+        "Download retries exhausted",
+        "hide_connection_failed",
+    ):
+        require_contains(slideshow_yaml + screen_yaml, needle, "connection retry firmware", errors)
+    for needle in (
+        "Connection settings changed; retrying Immich connection",
+        "connection_failed_overlay",
+        "immich_api_retries",
+        "immich_download_retries",
+        "immich_consecutive_failures",
+    ):
+        require_contains(immich_config_yaml, needle, "common/addon/immich_config.yaml", errors)
+    for needle in (
+        "Connection Timeout",
+        "productSettingOptions(\"conn_timeout\")",
+        "conn_timeout",
+    ):
+        require_contains(web_template, needle, rel(WEB_TEMPLATE), errors)
+    for needle in (
+        "parse_duration_option_seconds",
+        "20 minutes",
+        "MAX_ERROR_RETRIES",
+    ):
+        require_contains(helper_tests + helper_header, needle, "connection helper tests", errors)
 
 
 def check_setup_flow_metadata(product: dict, errors: list[str]) -> None:
@@ -2286,6 +2430,7 @@ def main() -> int:
     check_screen_tone_metadata(product, errors)
     check_clock_time_metadata(product, errors)
     check_photo_source_metadata(product, errors)
+    check_connection_resilience_metadata(product, errors)
     check_setup_flow_metadata(product, errors)
     check_photo_display_metadata(product, errors)
     check_devices(product, errors)

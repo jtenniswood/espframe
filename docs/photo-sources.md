@@ -147,3 +147,5 @@ Use **Frequency** in the web UI to control slideshow timing and disconnect handl
 <!-- ESPFRAME:SETTINGS_TABLE frequency END -->
 
 Increase **Connection Timeout** if you have a slow server or large photo library and see false disconnects.
+
+Before showing the connection-failed screen, Espframe retries temporary Immich errors. If Immich returns an API key error, the frame shows **Invalid API Key**; otherwise it shows **Unable to connect to Immich**.
