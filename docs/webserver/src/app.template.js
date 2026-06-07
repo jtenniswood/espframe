@@ -39,9 +39,6 @@
       var spec = PRODUCT_SETTINGS[key];
       if (!spec) return;
       if (S[key] === undefined) S[key] = spec.default !== undefined ? spec.default : "";
-      if (spec.optionsKey && Array.isArray(spec.options) && spec.options.length) {
-        S[spec.optionsKey] = spec.options.slice();
-      }
     });
   }
 
@@ -600,7 +597,6 @@
       var productSpec = PRODUCT_SETTINGS[key];
       if (!productSpec || typeof productSpec.entity !== "string") return;
       var stateSpec = { key: key, default: productSpec.default };
-      if (productSpec.optionsKey) stateSpec.optionsKey = productSpec.optionsKey;
       if (productSpec.domain === "switch") stateSpec.boolFromState = true;
       if (productSpec.domain === "number") stateSpec.number = true;
       ENTITY_STATE_MAP[productSpec.entity] = stateSpec;
@@ -918,7 +914,7 @@
 
       var f1 = field("Clock Format");
       f1.appendChild(
-        selectFromOptions(S.clock_options, S.clock_format, function (v) {
+        selectFromOptions(productSettingOptions("clock_format"), S.clock_format, function (v) {
           S.clock_format = v;
           post(endpoints.clock_format + "/set", { option: v });
         })
@@ -1071,7 +1067,7 @@
 
     var fConnTimeout = field("Connection Timeout");
     fConnTimeout.appendChild(
-      selectFromOptions(S.conn_timeout_options, S.conn_timeout, function (v) {
+      selectFromOptions(productSettingOptions("conn_timeout"), S.conn_timeout, function (v) {
         S.conn_timeout = v;
         post(endpoints.conn_timeout + "/set", { option: v });
       })
@@ -1085,7 +1081,7 @@
     var dispBody = el("div");
     var f3 = field("Slideshow Interval");
     f3.appendChild(
-      selectFromOptions(S.interval_options, S.interval, function (v) {
+      selectFromOptions(productSettingOptions("interval"), S.interval, function (v) {
         S.interval = v;
         post(endpoints.interval + "/set", { option: v });
       })
@@ -1098,7 +1094,7 @@
     var photoSourceApplyTimer = null;
     var pendingPhotoSourceSave = { source: false, album: false, albumLabel: false, person: false, personLabel: false };
     var fSrc = field("Source");
-    var srcSel = selectFromOptions(S.photo_source_options, S.photo_source, function (v) {
+    var srcSel = selectFromOptions(productSettingOptions("photo_source"), S.photo_source, function (v) {
       S.photo_source = v;
       albumField.style.display = v === "Album" ? "" : "none";
       personField.style.display = v === "Person" ? "" : "none";
@@ -1381,7 +1377,7 @@
 
     var fPhotoOrientation = field("Photo Orientation");
     fPhotoOrientation.appendChild(
-      selectFromOptions(S.photo_orientation_options, S.photo_orientation, function (v) {
+      selectFromOptions(productSettingOptions("photo_orientation"), S.photo_orientation, function (v) {
         S.photo_orientation = v;
         post(endpoints.photo_orientation + "/set", { option: v });
       })
@@ -1390,7 +1386,7 @@
 
     var fDisplayMode = field("Display Mode");
     fDisplayMode.appendChild(
-      selectFromOptions(S.display_mode_options, S.display_mode, function (v) {
+      selectFromOptions(productSettingOptions("display_mode"), S.display_mode, function (v) {
         S.display_mode = v;
         post(endpoints.display_mode + "/set", { option: v });
       })
@@ -1430,7 +1426,7 @@
 
     var fFilterMode = field("Mode");
     var modeVal = S.date_filter_mode;
-    var modeSegment = segmentedControl(S.date_filter_mode_options, modeVal, function (v) {
+    var modeSegment = segmentedControl(productSettingOptions("date_filter_mode"), modeVal, function (v) {
       modeVal = v;
       updateFilterModeDisplay(v);
       scheduleFilterApply();
@@ -1479,7 +1475,7 @@
     relativeWrap.appendChild(fRelativeAmount);
 
     var fRelativeUnit = field("Unit");
-    var relativeUnitSelect = selectFromOptions(S.relative_unit_options, S.relative_unit, function () {
+    var relativeUnitSelect = selectFromOptions(productSettingOptions("relative_unit"), S.relative_unit, function () {
       scheduleFilterApply();
     });
     fRelativeUnit.appendChild(relativeUnitSelect);
@@ -1593,7 +1589,7 @@
 
     var fMetadataDateFormat = field("Date Format");
     fMetadataDateFormat.appendChild(
-      selectFromOptions(S.photo_metadata_date_format_options, S.photo_metadata_date_format, function (v) {
+      selectFromOptions(productSettingOptions("photo_metadata_date_format"), S.photo_metadata_date_format, function (v) {
         S.photo_metadata_date_format = v;
         refreshMetadataDetails();
         post(endpoints.photo_metadata_date_format + "/set", { option: v });
@@ -1603,7 +1599,7 @@
 
     fMetadataDateTakenFormat = field("Date Taken Format");
     fMetadataDateTakenFormat.appendChild(
-      selectFromOptions(S.photo_metadata_date_taken_format_options, S.photo_metadata_date_taken_format, function (v) {
+      selectFromOptions(productSettingOptions("photo_metadata_date_taken_format"), S.photo_metadata_date_taken_format, function (v) {
         S.photo_metadata_date_taken_format = v;
         post(endpoints.photo_metadata_date_taken_format + "/set", { option: v });
       })
@@ -1906,7 +1902,7 @@
 
     var f6 = field("Format");
     f6.appendChild(
-      selectFromOptions(S.clock_options, S.clock_format, function (v) {
+      selectFromOptions(productSettingOptions("clock_format"), S.clock_format, function (v) {
         S.clock_format = v;
         post(endpoints.clock_format + "/set", { option: v });
       })
@@ -2037,7 +2033,7 @@
         });
     };
 
-    var autoUpdateOptions = ["Disabled"].concat(S.update_freq_options);
+    var autoUpdateOptions = ["Disabled"].concat(productSettingOptions("update_frequency"));
     var currentAutoUpdate = S.auto_update ? S.update_frequency : "Disabled";
     var freqField = field("Auto updates");
     freqField.appendChild(
