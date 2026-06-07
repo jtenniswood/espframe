@@ -211,13 +211,15 @@ touchscreen:
           };
           if (id(photo_source_menu_open)) {
             if (id(photo_source_swipe_triggered) || id(photo_source_menu_touch_handled)) return;
-            int screen_x, screen_y;
-            map_visible(touch.x, touch.y, screen_x, screen_y);
-            auto hit = [&](lv_obj_t *obj) -> bool {
+            auto hit_at = [&](lv_obj_t *obj, int x, int y) -> bool {
               lv_area_t coords;
               lv_obj_get_coords(obj, &coords);
-              return screen_x >= coords.x1 && screen_x <= coords.x2 &&
-                     screen_y >= coords.y1 && screen_y <= coords.y2;
+              return x >= coords.x1 && x <= coords.x2 && y >= coords.y1 && y <= coords.y2;
+            };
+            int mapped_x, mapped_y;
+            map_visible(touch.x, touch.y, mapped_x, mapped_y);
+            auto hit = [&](lv_obj_t *obj) -> bool {
+              return hit_at(obj, touch.x, touch.y) || hit_at(obj, mapped_x, mapped_y);
             };
             if (hit(id(photo_source_menu_close_label))) {
               id(photo_source_menu_touch_handled) = true;
