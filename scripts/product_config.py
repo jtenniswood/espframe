@@ -15,68 +15,6 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 PRODUCT_PATH = ROOT / "product" / "espframe.json"
-DOCS_SETTINGS_TABLES = {
-    ROOT / "docs" / "screen-settings.md": {
-        "screen_brightness": {"settings": ["brightness_day", "brightness_night"]},
-        "night_schedule": {
-            "settings": [
-                "schedule_enabled",
-                "schedule_on_hour",
-                "schedule_off_hour",
-                "schedule_wake_timeout",
-            ]
-        },
-        "screen_rotation": {"settings": ["screen_rotation"]},
-    },
-    ROOT / "docs" / "screen-tone.md": {
-        "screen_tone": {"settings": ["base_tone_enabled", "base_tone"]},
-        "night_tone": {"settings": ["warm_tones_enabled", "warm_tone_intensity"]},
-        "warm_tone_override": {"settings": ["warm_tone_override"]},
-    },
-    ROOT / "docs" / "photo-sources.md": {
-        "source": {
-            "columns": ["Setting", "Default", "Format", "Description"],
-            "settings": ["photo_source"],
-        },
-        "date_filtering": {
-            "columns": ["Setting", "Default", "Format", "Description"],
-            "settings": [
-                "date_filter_enabled",
-                "date_filter_mode",
-                "date_from",
-                "date_to",
-                "relative_amount",
-                "relative_unit",
-            ],
-        },
-        "layout": {
-            "settings": ["portrait_pairing", "photo_orientation", "display_mode"],
-        },
-        "metadata": {
-            "settings": [
-                "photo_metadata_location_enabled",
-                "photo_metadata_date_enabled",
-                "photo_metadata_date_format",
-                "photo_metadata_date_taken_format",
-            ],
-        },
-        "frequency": {
-            "settings": ["interval", "conn_timeout"],
-        },
-    },
-    ROOT / "docs" / "firmware-update.md": {
-        "firmware_controls": {
-            "columns": ["Control", "Type", "Default", "Description"],
-            "settings": [
-                "auto_update",
-                "beta_channel",
-                "update_frequency",
-                "firmware_manifest_url",
-                "firmware_beta_manifest_url",
-            ],
-        },
-    },
-}
 DOCS_SETTINGS_TABLE_COLUMNS = {"Control", "Default", "Description", "Format", "Setting", "Type"}
 
 
@@ -180,6 +118,22 @@ def release_matrix_devices(product: dict[str, Any] | None = None) -> list[dict[s
 
 def settings() -> list[dict[str, Any]]:
     return list(load_product()["settings"])
+
+
+def docs_settings_tables(product: dict[str, Any] | None = None) -> dict[Path, dict[str, dict[str, Any]]]:
+    data = product if product is not None else load_product()
+    tables = data["project"].get("docs_settings_tables", {})
+    if not isinstance(tables, dict):
+        return {}
+    return {
+        ROOT / str(path): {
+            str(block_id): dict(block)
+            for block_id, block in table_blocks.items()
+            if isinstance(block, dict)
+        }
+        for path, table_blocks in tables.items()
+        if isinstance(table_blocks, dict)
+    }
 
 
 def web_settings_metadata(product_settings: list[dict[str, Any]] | None = None) -> dict[str, dict[str, Any]]:

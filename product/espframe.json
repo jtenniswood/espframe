@@ -213,6 +213,46 @@
       "schedule_on_hour": [{ "entity": "number/Screen: Schedule On", "default": 6, "number": true }],
       "schedule_off_hour": [{ "entity": "number/Screen: Schedule Off", "default": 23, "number": true }]
     },
+    "docs_settings_tables": {
+      "docs/screen-settings.md": {
+        "screen_brightness": { "settings": ["brightness_day", "brightness_night"] },
+        "night_schedule": {
+          "settings": ["schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"]
+        },
+        "screen_rotation": { "settings": ["screen_rotation"] }
+      },
+      "docs/screen-tone.md": {
+        "screen_tone": { "settings": ["base_tone_enabled", "base_tone"] },
+        "night_tone": { "settings": ["warm_tones_enabled", "warm_tone_intensity"] },
+        "warm_tone_override": { "settings": ["warm_tone_override"] }
+      },
+      "docs/photo-sources.md": {
+        "source": {
+          "columns": ["Setting", "Default", "Format", "Description"],
+          "settings": ["photo_source"]
+        },
+        "date_filtering": {
+          "columns": ["Setting", "Default", "Format", "Description"],
+          "settings": ["date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit"]
+        },
+        "layout": { "settings": ["portrait_pairing", "photo_orientation", "display_mode"] },
+        "metadata": {
+          "settings": [
+            "photo_metadata_location_enabled",
+            "photo_metadata_date_enabled",
+            "photo_metadata_date_format",
+            "photo_metadata_date_taken_format"
+          ]
+        },
+        "frequency": { "settings": ["interval", "conn_timeout"] }
+      },
+      "docs/firmware-update.md": {
+        "firmware_controls": {
+          "columns": ["Control", "Type", "Default", "Description"],
+          "settings": ["auto_update", "beta_channel", "update_frequency", "firmware_manifest_url", "firmware_beta_manifest_url"]
+        }
+      }
+    },
     "web_local_state_keys": [
       "api_key",
       "backlight_on",

@@ -18,8 +18,8 @@ from pathlib import Path
 
 from product_config import (
     DOCS_SETTINGS_TABLE_COLUMNS,
-    DOCS_SETTINGS_TABLES,
     default_public_manifest_urls,
+    docs_settings_tables,
     load_product,
     project_value,
     public_base_url,
@@ -335,7 +335,7 @@ def generate(check: bool) -> int:
     changed |= write_or_check(TIME_YAML_PATH, replace_timezone_yaml(TIME_YAML_PATH.read_text(), timezone_options()), check)
     changed |= write_or_check(WEB_PUBLIC_STYLE_PATH, WEB_STYLE_PATH.read_text(), check)
     changed |= write_or_check(WEB_APP_PATH, web_app_bundle(), check)
-    for path, table_blocks in DOCS_SETTINGS_TABLES.items():
+    for path, table_blocks in docs_settings_tables().items():
         changed |= write_or_check(path, generated_docs(path, table_blocks), check)
     if check and changed:
         print("Generated files are stale. Run `npm run generate`.", file=sys.stderr)

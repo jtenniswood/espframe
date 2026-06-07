@@ -15,9 +15,9 @@ from pathlib import Path
 
 from product_config import (
     DOCS_SETTINGS_TABLE_COLUMNS,
-    DOCS_SETTINGS_TABLES,
     default_public_manifest_urls,
     device_public_manifest_urls,
+    docs_settings_tables,
     load_product,
     public_base_url,
     public_url,
@@ -3301,7 +3301,8 @@ def check_web_template_key_references(product: dict, web_template: str, errors: 
 def check_docs_table_membership(product: dict, errors: list[str]) -> None:
     settings_by_key = {str(setting.get("key", "")): setting for setting in product["settings"]}
     table_memberships: set[tuple[str, str]] = set()
-    for path, table_blocks in DOCS_SETTINGS_TABLES.items():
+    tables = docs_settings_tables(product)
+    for path, table_blocks in tables.items():
         relative_path = rel(path)
         for block_id, table in table_blocks.items():
             for key in [str(item) for item in table["settings"]]:
@@ -3316,7 +3317,7 @@ def check_docs_table_membership(product: dict, errors: list[str]) -> None:
                         f"{relative_path} settings table {block_id} includes {key}, "
                         f"but product docs_files does not include {relative_path}"
                     )
-    generated_docs_files = {rel(path) for path in DOCS_SETTINGS_TABLES}
+    generated_docs_files = {rel(path) for path in tables}
     for key, setting in settings_by_key.items():
         for docs_file in [str(item) for item in setting.get("docs_files", [])]:
             if docs_file in generated_docs_files and (docs_file, key) not in table_memberships:
@@ -3328,7 +3329,11 @@ def check_docs_table_metadata(product: dict, errors: list[str]) -> None:
     seen_tables: set[tuple[str, str]] = set()
     all_table_refs: set[tuple[str, str]] = set()
 
-    for path, table_blocks in DOCS_SETTINGS_TABLES.items():
+    tables = docs_settings_tables(product)
+    if not tables:
+        errors.append("project.docs_settings_tables must be a non-empty object")
+
+    for path, table_blocks in tables.items():
         if not isinstance(path, Path):
             errors.append(f"Generated docs table path {path!r} must be a Path")
             relative_path = str(path)
@@ -3396,7 +3401,7 @@ def check_docs_table_markers(errors: list[str]) -> None:
     marker_re = re.compile(r"<!-- ESPFRAME:SETTINGS_TABLE ([A-Za-z0-9_-]+) (START|END) -->")
     expected = {
         (rel(path), block_id)
-        for path, table_blocks in DOCS_SETTINGS_TABLES.items()
+        for path, table_blocks in docs_settings_tables().items()
         for block_id in table_blocks
     }
     seen: dict[tuple[str, str], dict[str, int]] = {}
