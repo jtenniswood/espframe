@@ -9,6 +9,7 @@ we start generating larger parts of the project from the product schema.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -19,6 +20,20 @@ ROOT = Path(__file__).resolve().parent.parent
 WEB_TEMPLATE = ROOT / "docs" / "webserver" / "src" / "app.template.js"
 WEB_APP = ROOT / "docs" / "public" / "webserver" / "app.js"
 SETTING_DOMAINS = {"number", "select", "switch", "text"}
+WEB_INITIAL_FETCH_STATIC_KEYS = [
+    "firmware",
+    "timezone",
+    "ntp_server_1",
+    "ntp_server_2",
+    "ntp_server_3",
+    "album_ids",
+    "album_labels",
+    "person_ids",
+    "person_labels",
+    "sunrise",
+    "sunset",
+    "developer_features_enabled",
+]
 
 
 def rel(path: Path) -> str:
@@ -35,6 +50,18 @@ def read(path: Path, errors: list[str]) -> str:
 def require_contains(text: str, needle: str, label: str, errors: list[str]) -> None:
     if needle not in text:
         errors.append(f"{label} is missing {needle!r}")
+
+
+def extract_js_json_var(text: str, var_name: str, errors: list[str]) -> object | None:
+    match = re.search(rf"\bvar {re.escape(var_name)} = (.*?);", text)
+    if not match:
+        errors.append(f"Generated web app is missing {var_name}")
+        return None
+    try:
+        return json.loads(match.group(1))
+    except json.JSONDecodeError as exc:
+        errors.append(f"Generated web app {var_name} is not valid JSON: {exc}")
+        return None
 
 
 def firmware_entity_block(text: str, name: str, filename: str, errors: list[str]) -> str:
@@ -192,6 +219,50 @@ def check_workflows(errors: list[str]) -> None:
         require_contains(text, "product/espframe.json", label, errors)
 
 
+def expected_web_product_settings(product: dict) -> dict[str, dict[str, object]]:
+    result: dict[str, dict[str, object]] = {}
+    for setting in product["settings"]:
+        entity = setting["entity"]
+        key = str(setting["key"])
+        result[key] = {
+            "entity": f'{entity["domain"]}/{entity["name"]}',
+            "domain": entity["domain"],
+            "default": setting.get("default", ""),
+            "options": setting.get("options", []),
+        }
+        if setting.get("developer_options"):
+            result[key]["developerOptions"] = setting["developer_options"]
+        for field in ("min", "max", "step"):
+            if field in setting:
+                result[key][field] = setting[field]
+    return result
+
+
+def expected_initial_fetch_keys(product: dict) -> list[str]:
+    keys: list[str] = []
+
+    def add(key: str) -> None:
+        if key not in keys:
+            keys.append(key)
+
+    add("firmware")
+    for setting in product["settings"]:
+        add(str(setting["key"]))
+    for key in WEB_INITIAL_FETCH_STATIC_KEYS:
+        add(key)
+    return keys
+
+
+def check_generated_web_metadata(product: dict, web_text: str, errors: list[str]) -> None:
+    product_settings = extract_js_json_var(web_text, "PRODUCT_SETTINGS", errors)
+    if product_settings is not None and product_settings != expected_web_product_settings(product):
+        errors.append("Generated web PRODUCT_SETTINGS does not match product/espframe.json")
+
+    initial_fetch_keys = extract_js_json_var(web_text, "INITIAL_FETCH_KEYS", errors)
+    if initial_fetch_keys is not None and initial_fetch_keys != expected_initial_fetch_keys(product):
+        errors.append("Generated web INITIAL_FETCH_KEYS does not match product/espframe.json")
+
+
 def check_setting(setting: dict, web_text: str, errors: list[str]) -> None:
     key = str(setting.get("key", "")).strip()
     entity = setting.get("entity") or {}
@@ -262,6 +333,7 @@ def check_setting(setting: dict, web_text: str, errors: list[str]) -> None:
 def check_settings(product: dict, errors: list[str]) -> None:
     web_template = read(WEB_TEMPLATE, errors)
     web_text = read(WEB_APP, errors)
+    check_generated_web_metadata(product, web_text, errors)
     require_contains(web_template, "__ESPFRAME_PRODUCT_SETTINGS__", rel(WEB_TEMPLATE), errors)
     require_contains(web_template, "__ESPFRAME_INITIAL_FETCH_KEYS__", rel(WEB_TEMPLATE), errors)
     for needle in (
