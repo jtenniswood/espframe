@@ -48,7 +48,7 @@ Current local builds use ESPHome `2026.4.0`. The shared configuration includes c
 | `friendly_name` | — | Web UI display name (required) |
 | `immich_base_url` | *(empty)* | Pre-fill Immich URL to skip setup |
 | `immich_api_key` | *(empty)* | Pre-fill API key to skip setup |
-| `immich_slide_interval` | `2 minutes` | Slideshow interval |
+| `immich_slide_interval` | `15 seconds` | Slideshow interval |
 | `immich_verify_ssl` | `false` | Set `true` to verify TLS certificates |
 | `ntp_server_1` | `0.pool.ntp.org` | First NTP server used for clock sync |
 | `ntp_server_2` | `1.pool.ntp.org` | Second NTP server used for clock sync |

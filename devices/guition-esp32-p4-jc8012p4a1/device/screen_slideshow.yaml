@@ -588,8 +588,7 @@ select:
     on_value:
       then:
         - lambda: |-
-            int num = atoi(x.c_str());
-            id(slideshow_interval_sec) = (x.find("minute") != std::string::npos) ? num * 60 : num;
+            id(slideshow_interval_sec) = parse_duration_option_seconds(x, 15, 10, 600);
     web_server:
       sorting_group_id: sg_photos
 
@@ -614,8 +613,7 @@ select:
     on_value:
       then:
         - lambda: |-
-            int num = atoi(x.c_str());
-            id(connection_timeout_sec) = (x.find("minute") != std::string::npos) ? num * 60 : num;
+            id(connection_timeout_sec) = parse_duration_option_seconds(x, 600, 30, 1800);
     web_server:
       sorting_group_id: sg_screen
 
@@ -633,6 +631,8 @@ interval:
               if (!id(immich_fetch_started)) return false;
               if (id(backlight_paused)) return false;
               if (id(photo_source_menu_open)) return false;
+              id(slideshow_interval_sec) = parse_duration_option_seconds(
+                id(slideshow_interval).current_option(), id(slideshow_interval_sec), 10, 600);
               if (id(active_slot_displayed)) {
                 bool image_busy = id(immich_img_0).is_downloading() ||
                                   id(immich_img_1).is_downloading() ||
@@ -674,6 +674,8 @@ interval:
               uint32_t failure_start_ms = id(immich_failure_window_started_ms);
               if (failure_start_ms == 0) return false;
               if (id(immich_consecutive_failures) <= 0 && id(immich_last_http_status) == 0) return false;
+              id(connection_timeout_sec) = parse_duration_option_seconds(
+                id(connection_timeout).current_option(), id(connection_timeout_sec), 30, 1800);
               bool image_busy = id(immich_img_0).is_downloading() ||
                                 id(immich_img_1).is_downloading() ||
                                 id(immich_img_2).is_downloading() ||
