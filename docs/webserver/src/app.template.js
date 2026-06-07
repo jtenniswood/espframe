@@ -12,13 +12,9 @@
     tz_labels: TIMEZONE_LABELS,
     brightness: 100,
     backlight_on: true,
-    show_clock: true,
     immich_url: "",
     api_key: "",
     timezone: "Europe/London (GMT+0)",
-    ntp_server_1: "0.pool.ntp.org",
-    ntp_server_2: "1.pool.ntp.org",
-    ntp_server_3: "2.pool.ntp.org",
     firmware: "",
     installed_version: "",
     latest_version: "",
@@ -35,6 +31,15 @@
     developer_features_enabled: false,
   };
 
+  function registerStaticEntityStateDefaults() {
+    if (!STATIC_ENTITIES) return;
+    Object.keys(STATIC_ENTITIES).forEach(function (key) {
+      var spec = STATIC_ENTITIES[key];
+      if (!spec || spec.default === undefined) return;
+      if (S[key] === undefined) S[key] = spec.default;
+    });
+  }
+
   function registerProductSettingStateDefaults() {
     if (!PRODUCT_SETTINGS) return;
     Object.keys(PRODUCT_SETTINGS).forEach(function (key) {
@@ -44,6 +49,7 @@
     });
   }
 
+  registerStaticEntityStateDefaults();
   registerProductSettingStateDefaults();
 
   function productNumberSettingField(key, field, fallback) {

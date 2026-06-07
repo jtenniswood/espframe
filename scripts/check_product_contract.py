@@ -539,6 +539,7 @@ def check_settings(product: dict, errors: list[str]) -> None:
     require_contains(web_template, "__ESPFRAME_ENTITY_ALIASES__", rel(WEB_TEMPLATE), errors)
     require_contains(web_template, "__ESPFRAME_INITIAL_FETCH_KEYS__", rel(WEB_TEMPLATE), errors)
     for needle in (
+        "registerStaticEntityStateDefaults",
         "registerProductSettingStateDefaults",
         "registerProductSettingEndpoints",
         "registerProductSettingEntities",
