@@ -182,6 +182,46 @@ def setting_options(product: dict[str, Any]) -> dict[str, set[str]]:
     }
 
 
+def validate_internal_contract(product: dict[str, Any], errors: list[str]) -> None:
+    expected_groups = {str(group) for group in product["project"].get("backup_export_groups", [])}
+    configured_groups = set(BACKUP_GROUP_KEYS)
+    missing_groups = sorted(expected_groups - configured_groups)
+    extra_groups = sorted(configured_groups - expected_groups)
+    if missing_groups:
+        errors.append(
+            f"Backup checker is missing groups from product.backup_export_groups: {', '.join(missing_groups)}"
+        )
+    if extra_groups:
+        errors.append(
+            f"Backup checker has groups not listed in product.backup_export_groups: {', '.join(extra_groups)}"
+        )
+
+    expected_fields = set().union(*BACKUP_GROUP_KEYS.values())
+    if len(expected_fields) != sum(len(fields) for fields in BACKUP_GROUP_KEYS.values()):
+        errors.append("Backup checker field names must be unique across groups")
+
+    expected_group_fields = {(group, field) for group, fields in BACKUP_GROUP_KEYS.items() for field in fields}
+    for label, snippet_keys in (
+        ("export snippets", set(EXPORT_SNIPPETS)),
+        ("import field snippets", set(IMPORT_FIELD_SNIPPETS)),
+    ):
+        missing = sorted(expected_group_fields - snippet_keys)
+        extra = sorted(snippet_keys - expected_group_fields)
+        if missing:
+            fields = ", ".join(f"{group}.{field}" for group, field in missing)
+            errors.append(f"Backup checker {label} are missing fields: {fields}")
+        if extra:
+            fields = ", ".join(f"{group}.{field}" for group, field in extra)
+            errors.append(f"Backup checker {label} include unknown fields: {fields}")
+
+    missing_import_groups = sorted(expected_groups - set(IMPORT_SNIPPETS))
+    extra_import_groups = sorted(set(IMPORT_SNIPPETS) - expected_groups)
+    if missing_import_groups:
+        errors.append(f"Backup checker import snippets are missing groups: {', '.join(missing_import_groups)}")
+    if extra_import_groups:
+        errors.append(f"Backup checker import snippets include unknown groups: {', '.join(extra_import_groups)}")
+
+
 def validate_fixture(path: Path, data: dict[str, Any], product: dict[str, Any], errors: list[str]) -> None:
     project = product["project"]
     label = rel(path)
@@ -270,6 +310,7 @@ def main() -> int:
             data = load_json(path, errors)
             if data:
                 validate_fixture(path, data, product, errors)
+    validate_internal_contract(product, errors)
     validate_web_support(product, errors)
 
     if errors:
