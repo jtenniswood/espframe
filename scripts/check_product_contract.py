@@ -4066,6 +4066,14 @@ def check_web_entity_metadata(product: dict, errors: list[str]) -> None:
             domain = str(entity).split("/", 1)[0]
             state_domains[str(key)] = domain
             check_web_entity_default_type(metadata, domain, f"Static web entity {key}", errors)
+            if domain == "switch" and metadata.get("boolFromState") is not True:
+                errors.append(f"Static web entity {key} switch entity must set boolFromState: true")
+            if domain != "switch" and metadata.get("boolFromState") is True:
+                errors.append(f"Static web entity {key} boolFromState is only valid for switch entities")
+            if domain == "number" and metadata.get("number") is not True:
+                errors.append(f"Static web entity {key} number entity must set number: true")
+            if domain != "number" and metadata.get("number") is True:
+                errors.append(f"Static web entity {key} number is only valid for number entities")
         if entity in product_entities:
             errors.append(f"Static web entity {key} duplicates product entity {entity}")
         for field in ("fetch", "boolFromState", "number"):
