@@ -284,6 +284,11 @@
     return eid(parts.domain, parts.name);
   }
 
+  function settingEntityId(key, fallbackDomain, fallbackName) {
+    var parts = settingEntityParts(key, fallbackDomain, fallbackName);
+    return parts.domain + "/" + parts.name;
+  }
+
   var endpoints = {
     immich_url: eid("text", "Connection: Server URL"),
     api_key: eid("text", "Connection: API Key"),
@@ -675,6 +680,35 @@
     "switch/Developer: Features": { key: "developer_features_enabled", boolFromState: true }
   };
 
+  function mapSettingEntity(key, fallbackDomain, fallbackName, spec) {
+    ENTITY_STATE_MAP[settingEntityId(key, fallbackDomain, fallbackName)] = spec;
+  }
+
+  mapSettingEntity("clock_format", "select", "Clock: Format",
+    { key: "clock_format", optionsKey: "clock_options", default: settingDefault("clock_format", "24 Hour") });
+  mapSettingEntity("interval", "select", "Photos: Slideshow Interval",
+    { key: "interval", optionsKey: "interval_options", default: settingDefault("interval", "15 seconds") });
+  mapSettingEntity("conn_timeout", "select", "Screen: Connection Timeout",
+    { key: "conn_timeout", optionsKey: "conn_timeout_options", default: settingDefault("conn_timeout", "10 minutes") });
+  mapSettingEntity("update_frequency", "select", "Firmware: Update Frequency",
+    { key: "update_frequency", optionsKey: "update_freq_options", default: settingDefault("update_frequency", "Daily") });
+  mapSettingEntity("photo_source", "select", "Photos: Source",
+    { key: "photo_source", optionsKey: "photo_source_options", default: settingDefault("photo_source", "All Photos") });
+  mapSettingEntity("date_filter_mode", "select", "Photos: Date Filter Mode",
+    { key: "date_filter_mode", optionsKey: "date_filter_mode_options", default: settingDefault("date_filter_mode", "Fixed Range") });
+  mapSettingEntity("relative_unit", "select", "Photos: Relative Unit",
+    { key: "relative_unit", optionsKey: "relative_unit_options", default: settingDefault("relative_unit", "Years") });
+  mapSettingEntity("photo_orientation", "select", "Photos: Orientation",
+    { key: "photo_orientation", optionsKey: "photo_orientation_options", default: settingDefault("photo_orientation", "Any") });
+  mapSettingEntity("screen_rotation", "select", "Screen: Rotation",
+    { key: "screen_rotation", optionsKey: "screen_rotation_options", default: settingDefault("screen_rotation", "0") });
+  mapSettingEntity("display_mode", "select", "Photos: Display Mode",
+    { key: "display_mode", optionsKey: "display_mode_options", default: settingDefault("display_mode", "Fill") });
+  mapSettingEntity("photo_metadata_date_format", "select", "Device: Metadata Date Format",
+    { key: "photo_metadata_date_format", optionsKey: "photo_metadata_date_format_options", default: settingDefault("photo_metadata_date_format", "Date Taken") });
+  mapSettingEntity("photo_metadata_date_taken_format", "select", "Device: Metadata Date Taken Format",
+    { key: "photo_metadata_date_taken_format", optionsKey: "photo_metadata_date_taken_format_options", default: settingDefault("photo_metadata_date_taken_format", "1 January, 2026") });
+
   function applyEntityToState(d) {
     if (!d || !d.id) return;
     var id = d.id;
@@ -758,6 +792,8 @@
     "developer_features_enabled"
   ];
   function getEntityIdForStateKey(key) {
+    var productSpec = PRODUCT_SETTINGS && PRODUCT_SETTINGS[key];
+    if (productSpec && typeof productSpec.entity === "string") return productSpec.entity;
     for (var id in ENTITY_STATE_MAP) {
       if (ENTITY_STATE_MAP[id].key === key) return id;
     }
