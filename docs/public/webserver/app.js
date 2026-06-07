@@ -8,6 +8,7 @@
   var MANUAL_ENTITIES = {"immich_url":{"entity":"text/Connection: Server URL"},"api_key":{"entity":"text/Connection: API Key"},"backlight":{"entity":"light/Screen: Backlight"},"update":{"entity":"update/Firmware: Update"},"update_beta":{"entity":"update/Firmware: Update Beta"},"apply_photo_source":{"entity":"button/Apply Photo Source"},"firmware_check":{"entity":"button/Firmware: Check for Update"}};
   var ENTITY_ALIASES = {"schedule_enabled":[{"entity":"switch/Screen: Schedule","boolFromState":true}],"schedule_on_hour":[{"entity":"number/Screen: Schedule On","default":6,"number":true}],"schedule_off_hour":[{"entity":"number/Screen: Schedule Off","default":23,"number":true}]};
   var FIRMWARE_MANIFEST_URLS = {"stable":"https://jtenniswood.github.io/espframe/firmware/manifest.json","beta":"https://jtenniswood.github.io/espframe/firmware/beta/manifest.json"};
+  var DOCS_BASE_URL = "https://jtenniswood.github.io/espframe";
 
   var S = {
     tz_options: TIMEZONES,
@@ -175,7 +176,7 @@
 
     var docsLink = document.createElement("a");
     docsLink.className = "sp-tab sp-tab-docs";
-    docsLink.href = "https://jtenniswood.github.io/espframe/";
+    docsLink.href = DOCS_BASE_URL + "/";
     docsLink.target = "_blank";
     docsLink.rel = "noopener";
     docsLink.innerHTML = 'Docs <span class="sp-docs-icon" aria-hidden="true">&#8599;</span>';

@@ -8,6 +8,7 @@
   var MANUAL_ENTITIES = __ESPFRAME_MANUAL_ENTITIES__;
   var ENTITY_ALIASES = __ESPFRAME_ENTITY_ALIASES__;
   var FIRMWARE_MANIFEST_URLS = __ESPFRAME_FIRMWARE_MANIFEST_URLS__;
+  var DOCS_BASE_URL = __ESPFRAME_DOCS_BASE_URL__;
 
   var S = {
     tz_options: TIMEZONES,
@@ -175,7 +176,7 @@
 
     var docsLink = document.createElement("a");
     docsLink.className = "sp-tab sp-tab-docs";
-    docsLink.href = "https://jtenniswood.github.io/espframe/";
+    docsLink.href = DOCS_BASE_URL + "/";
     docsLink.target = "_blank";
     docsLink.rel = "noopener";
     docsLink.innerHTML = 'Docs <span class="sp-docs-icon" aria-hidden="true">&#8599;</span>';

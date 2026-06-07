@@ -20,6 +20,7 @@ from product_config import (
     DOCS_SETTINGS_TABLE_COLUMNS,
     DOCS_SETTINGS_TABLES,
     default_public_manifest_urls,
+    public_base_url,
     settings,
     web_entity_aliases_metadata,
     web_initial_fetch_keys,
@@ -174,6 +175,7 @@ def web_app_bundle() -> str:
     entity_aliases_json = json.dumps(web_entity_aliases_metadata(), separators=(",", ":"))
     initial_fetch_keys_json = json.dumps(web_initial_fetch_keys(), separators=(",", ":"))
     firmware_manifest_urls_json = json.dumps(default_public_manifest_urls(), separators=(",", ":"))
+    docs_base_url_json = json.dumps(public_base_url(), separators=(",", ":"))
     css_json = json.dumps(css, separators=(",", ":"))
     return (
         template
@@ -185,6 +187,7 @@ def web_app_bundle() -> str:
         .replace("__ESPFRAME_ENTITY_ALIASES__", entity_aliases_json)
         .replace("__ESPFRAME_INITIAL_FETCH_KEYS__", initial_fetch_keys_json)
         .replace("__ESPFRAME_FIRMWARE_MANIFEST_URLS__", firmware_manifest_urls_json)
+        .replace("__ESPFRAME_DOCS_BASE_URL__", docs_base_url_json)
         .replace("__ESPFRAME_CSS__", css_json)
     )
 

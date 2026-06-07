@@ -463,6 +463,10 @@ def check_generated_web_metadata(product: dict, web_text: str, errors: list[str]
     if firmware_manifest_urls is not None and firmware_manifest_urls != default_public_manifest_urls(product):
         errors.append("Generated web FIRMWARE_MANIFEST_URLS does not match product/espframe.json")
 
+    docs_base_url = extract_js_json_var(web_text, "DOCS_BASE_URL", errors)
+    if docs_base_url is not None and docs_base_url != public_base_url(product):
+        errors.append("Generated web DOCS_BASE_URL does not match product/espframe.json")
+
 
 def check_static_web_defaults_against_firmware(errors: list[str]) -> None:
     text = read(TIME_YAML, errors)
@@ -728,6 +732,7 @@ def check_settings(product: dict, errors: list[str]) -> None:
     require_contains(web_template, "__ESPFRAME_ENTITY_ALIASES__", rel(WEB_TEMPLATE), errors)
     require_contains(web_template, "__ESPFRAME_INITIAL_FETCH_KEYS__", rel(WEB_TEMPLATE), errors)
     require_contains(web_template, "__ESPFRAME_FIRMWARE_MANIFEST_URLS__", rel(WEB_TEMPLATE), errors)
+    require_contains(web_template, "__ESPFRAME_DOCS_BASE_URL__", rel(WEB_TEMPLATE), errors)
     for needle in (
         "registerStaticEntityStateDefaults",
         "registerProductSettingStateDefaults",
