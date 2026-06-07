@@ -222,24 +222,25 @@
     "web_ui_logs_clear_label": "Clear",
     "web_ui_logs_retained_lines": 1000,
     "web_static_entities": {
-      "firmware": { "entity": "text_sensor/Firmware: Version", "fetch": true },
+      "firmware": { "entity": "text_sensor/Firmware: Version", "firmware_file": "common/addon/firmware_update.yaml", "fetch": true },
       "timezone": {
         "entity": "select/Clock: Timezone",
+        "firmware_file": "common/addon/time.yaml",
         "optionsKey": "tz_options",
         "default": "Europe/London (GMT+0)",
         "fetch": true
       },
-      "ntp_server_1": { "entity": "text/Clock: NTP Server 1", "default": "0.pool.ntp.org", "fetch": true },
-      "ntp_server_2": { "entity": "text/Clock: NTP Server 2", "default": "1.pool.ntp.org", "fetch": true },
-      "ntp_server_3": { "entity": "text/Clock: NTP Server 3", "default": "2.pool.ntp.org", "fetch": true },
-      "album_ids": { "entity": "text/Photos: Album IDs", "fetch": true },
-      "album_labels": { "entity": "text/Photos: Album Labels", "fetch": true },
-      "person_ids": { "entity": "text/Photos: Person IDs", "fetch": true },
-      "person_labels": { "entity": "text/Photos: Person Labels", "fetch": true },
-      "sunrise": { "entity": "text_sensor/Screen: Sunrise", "fetch": true },
-      "sunset": { "entity": "text_sensor/Screen: Sunset", "fetch": true },
-      "developer_features_enabled": { "entity": "switch/Developer: Features", "boolFromState": true, "fetch": true },
-      "show_clock": { "entity": "switch/Clock: Show", "boolFromState": true, "default": true }
+      "ntp_server_1": { "entity": "text/Clock: NTP Server 1", "firmware_file": "common/addon/time.yaml", "default": "0.pool.ntp.org", "fetch": true },
+      "ntp_server_2": { "entity": "text/Clock: NTP Server 2", "firmware_file": "common/addon/time.yaml", "default": "1.pool.ntp.org", "fetch": true },
+      "ntp_server_3": { "entity": "text/Clock: NTP Server 3", "firmware_file": "common/addon/time.yaml", "default": "2.pool.ntp.org", "fetch": true },
+      "album_ids": { "entity": "text/Photos: Album IDs", "firmware_file": "common/addon/immich_filter.yaml", "fetch": true },
+      "album_labels": { "entity": "text/Photos: Album Labels", "firmware_file": "common/addon/immich_filter.yaml", "fetch": true },
+      "person_ids": { "entity": "text/Photos: Person IDs", "firmware_file": "common/addon/immich_filter.yaml", "fetch": true },
+      "person_labels": { "entity": "text/Photos: Person Labels", "firmware_file": "common/addon/immich_filter.yaml", "fetch": true },
+      "sunrise": { "entity": "text_sensor/Screen: Sunrise", "firmware_file": "common/addon/backlight_schedule.yaml", "fetch": true },
+      "sunset": { "entity": "text_sensor/Screen: Sunset", "firmware_file": "common/addon/backlight_schedule.yaml", "fetch": true },
+      "developer_features_enabled": { "entity": "switch/Developer: Features", "firmware_file": "common/addon/developer_features.yaml", "boolFromState": true, "fetch": true },
+      "show_clock": { "entity": "switch/Clock: Show", "firmware_file": "common/addon/time.yaml", "boolFromState": true, "default": true }
     },
     "web_manual_entities": {
       "immich_url": { "entity": "text/Connection: Server URL", "firmware_file": "common/addon/immich_config.yaml" },

@@ -170,7 +170,7 @@ def web_static_entities(product: dict[str, Any] | None = None) -> dict[str, dict
 def web_static_entities_metadata(product: dict[str, Any] | None = None) -> dict[str, dict[str, Any]]:
     result: dict[str, dict[str, Any]] = {}
     for key, metadata in web_static_entities(product).items():
-        result[key] = {field: value for field, value in metadata.items() if field != "fetch"}
+        result[key] = {field: value for field, value in metadata.items() if field not in {"fetch", "firmware_file"}}
     return result
 
 

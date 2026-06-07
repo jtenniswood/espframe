@@ -3975,6 +3975,16 @@ def check_web_entity_metadata(product: dict, errors: list[str]) -> None:
                 errors.append(f"Static web entity {key} {field} must be true or false")
         if "optionsKey" in metadata and not str(metadata["optionsKey"]).strip():
             errors.append(f"Static web entity {key} optionsKey must be non-empty")
+        firmware_file = str(metadata.get("firmware_file", "")).strip()
+        if not firmware_file:
+            errors.append(f"Static web entity {key} is missing firmware_file")
+        elif Path(firmware_file).is_absolute() or ".." in Path(firmware_file).parts:
+            errors.append(f"Static web entity {key} has unsafe firmware_file path: {firmware_file}")
+        elif valid_entity_string(entity):
+            domain, name = str(entity).split("/", 1)
+            text = read(ROOT / firmware_file, errors)
+            require_contains(text, f"{domain}:", firmware_file, errors)
+            require_contains(text, f"name: \"{name}\"", firmware_file, errors)
 
     alias_entities_seen: set[str] = set()
     valid_state_keys = product_keys | set(static_entities)
