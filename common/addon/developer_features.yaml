@@ -6,6 +6,24 @@
 # is turned on from the hidden developer panel in the web UI.
 # =============================================================================
 
+globals:
+  - id: developer_features_saved
+    type: bool
+    restore_value: true
+    initial_value: 'false'
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - if:
+            condition:
+              lambda: 'return id(developer_features_saved);'
+            then:
+              - switch.turn_on: developer_features_enabled
+            else:
+              - switch.turn_off: developer_features_enabled
+
 switch:
   - platform: template
     name: "Developer: Features"
@@ -17,6 +35,10 @@ switch:
     restore_mode: RESTORE_DEFAULT_OFF
     web_server:
       sorting_group_id: sg_developer
+    on_turn_on:
+      then:
+        - lambda: 'id(developer_features_saved) = true;'
     on_turn_off:
       then:
+        - lambda: 'id(developer_features_saved) = false;'
         - script.execute: screen_apply_rotation
