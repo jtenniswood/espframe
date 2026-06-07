@@ -20,6 +20,8 @@ VERSION = "v9.8.7"
 BETA_VERSION = "v9.8.8-beta.1"
 CHIP = "ESP32-S3"
 PROJECT_NAME = firmware_release.PROJECT_NAME
+REAL_DEVICE = next(iter(firmware_release.DEVICES.values()))
+REAL_SLUG = REAL_DEVICE.slug
 
 
 class QuietHandler(SimpleHTTPRequestHandler):
@@ -70,7 +72,7 @@ def make_release_files(base: Path, slug: str = SLUG, version: str = VERSION) -> 
     factory = base / f"{slug}.factory.bin"
     ota = base / f"{slug}.ota.bin"
     manifest = base / f"{slug}.manifest.json"
-    chip = "ESP32-P4" if slug == "immich-frame" else CHIP
+    chip = firmware_release.expected_chip_for_slug(slug) or CHIP
     write_release_image(factory, version)
     write_release_image(ota, version)
     run_ok([
@@ -103,16 +105,15 @@ def test_valid_files_and_directory() -> None:
 def test_inject_replaces_factory_placeholder() -> None:
     with TemporaryDirectory() as tmp:
         root = Path(tmp)
-        builds = root / "builds"
-        builds.mkdir()
-        factory_yaml = builds / "guition-esp32-p4-jc8012p4a1.factory.yaml"
+        factory_yaml = root / REAL_DEVICE.build_yaml
+        factory_yaml.parent.mkdir(parents=True)
         factory_yaml.write_text('substitutions:\n  firmware_version: "0.0.0"\n')
         original_root = firmware_release.ROOT
         try:
             firmware_release.ROOT = root
-            run_ok(["inject", "--slug", "immich-frame", "--version", VERSION])
+            run_ok(["inject", "--slug", REAL_SLUG, "--version", VERSION])
             assert f'  firmware_version: "{VERSION}"' in factory_yaml.read_text()
-            run_fails(["inject", "--slug", "immich-frame", "--version", VERSION])
+            run_fails(["inject", "--slug", REAL_SLUG, "--version", VERSION])
         finally:
             firmware_release.ROOT = original_root
 
@@ -273,19 +274,19 @@ def test_public_pages_verification() -> None:
         firmware_dir = base / "firmware"
         firmware_dir.mkdir(parents=True)
 
-        manifest, _, _ = make_release_files(firmware_dir, slug="immich-frame")
-        manifest.rename(firmware_dir / "manifest.json")
+        manifest, _, _ = make_release_files(firmware_dir, slug=REAL_SLUG)
+        manifest.rename(firmware_dir / firmware_release.public_manifest_name(REAL_SLUG))
 
         beta_dir = firmware_dir / "beta"
         beta_dir.mkdir()
-        beta_manifest, _, _ = make_release_files(beta_dir, slug="immich-frame", version=BETA_VERSION)
-        beta_manifest.rename(beta_dir / "manifest.json")
+        beta_manifest, _, _ = make_release_files(beta_dir, slug=REAL_SLUG, version=BETA_VERSION)
+        beta_manifest.rename(beta_dir / firmware_release.public_manifest_name(REAL_SLUG, beta=True))
 
         run_ok([
             "verify-directory",
             "--version", VERSION,
             "--dir", str(firmware_dir),
-            "--slugs", "immich-frame",
+            "--slugs", REAL_SLUG,
         ])
 
         handler = partial(QuietHandler, directory=str(base))
@@ -297,7 +298,7 @@ def test_public_pages_verification() -> None:
                 "verify-pages",
                 "--version", VERSION,
                 "--base-url", f"http://127.0.0.1:{server.server_port}",
-                "--slugs", "immich-frame",
+                "--slugs", REAL_SLUG,
             ])
         finally:
             server.shutdown()
