@@ -278,6 +278,24 @@ def check_devices(product: dict, errors: list[str]) -> None:
                 errors.append(f"Device {slug} mipi_dsi_power_rail.channel must be an integer")
         if not str(device.get("i2c_frequency", "")).strip():
             errors.append(f"Device {slug} i2c_frequency is required")
+        package_includes = device.get("package_includes", [])
+        if not isinstance(package_includes, list) or not package_includes:
+            errors.append(f"Device {slug} package_includes must be a non-empty list")
+        else:
+            seen_includes: set[str] = set()
+            for include in package_includes:
+                if not isinstance(include, dict):
+                    errors.append(f"Device {slug} package_includes entries must be objects")
+                    continue
+                alias = str(include.get("alias", "")).strip()
+                path = str(include.get("path", "")).strip()
+                if not alias:
+                    errors.append(f"Device {slug} package_includes entry is missing alias")
+                if not path:
+                    errors.append(f"Device {slug} package_includes entry is missing path")
+                if alias in seen_includes:
+                    errors.append(f"Device {slug} package_includes has duplicate alias {alias}")
+                seen_includes.add(alias)
 
         for field in ("panel_url", "stand_url"):
             url = str(device.get(field, "")).strip()
@@ -364,6 +382,20 @@ def check_devices(product: dict, errors: list[str]) -> None:
         i2c_frequency = str(device.get("i2c_frequency", "")).strip()
         if i2c_frequency:
             require_contains(device_yaml, f"frequency: {i2c_frequency}", rel(ROOT / device_yaml_path), errors)
+        if isinstance(package_includes, list):
+            package_dir = (ROOT / package_yaml_path).parent
+            for include in package_includes:
+                if not isinstance(include, dict):
+                    continue
+                alias = str(include.get("alias", "")).strip()
+                path = str(include.get("path", "")).strip()
+                if not alias or not path:
+                    continue
+                require_contains(package_yaml, f"{alias}:", rel(ROOT / package_yaml_path), errors)
+                require_contains(package_yaml, f"!include {path}", rel(ROOT / package_yaml_path), errors)
+                include_path = (package_dir / path).resolve()
+                if not include_path.is_file():
+                    errors.append(f"Missing package include for device {slug}: {rel(include_path)}")
         for needle in (
             "esp_ldo:",
             "platform: ledc",
