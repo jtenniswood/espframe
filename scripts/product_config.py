@@ -219,6 +219,14 @@ def web_local_state_keys(product: dict[str, Any] | None = None) -> set[str]:
     return {str(key).strip() for key in data["project"].get("web_local_state_keys", []) if str(key).strip()}
 
 
+def web_initial_fetch_first_keys(product: dict[str, Any] | None = None) -> list[str]:
+    data = product if product is not None else load_product()
+    keys = data["project"].get("web_initial_fetch_first_keys", [])
+    if not isinstance(keys, list):
+        return []
+    return [str(key).strip() for key in keys if str(key).strip()]
+
+
 def web_initial_fetch_keys(product_settings: list[dict[str, Any]] | None = None) -> list[str]:
     product = load_product()
     if product_settings is None:
@@ -229,7 +237,8 @@ def web_initial_fetch_keys(product_settings: list[dict[str, Any]] | None = None)
         if key not in keys:
             keys.append(key)
 
-    add("firmware")
+    for key in web_initial_fetch_first_keys(product):
+        add(key)
     for setting in product_settings:
         add(str(setting["key"]))
     for key, metadata in web_static_entities(product).items():

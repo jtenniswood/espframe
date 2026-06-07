@@ -25,6 +25,7 @@ from product_config import (
     web_entity_aliases,
     web_entity_aliases_metadata,
     web_initial_fetch_keys,
+    web_initial_fetch_first_keys,
     web_local_state_keys,
     web_manual_entities,
     web_manual_entities_metadata,
@@ -995,6 +996,7 @@ def check_project_metadata(product: dict, errors: list[str]) -> None:
         "generated_asset_outputs",
         "generated_asset_sources",
         "web_template_placeholders",
+        "web_initial_fetch_first_keys",
         "web_local_state_keys",
         "web_manual_state_keys",
     ):
@@ -4049,12 +4051,21 @@ def check_web_entity_metadata(product: dict, errors: list[str]) -> None:
         for setting in product["settings"]
     }
     static_entities = web_static_entities(product)
+    initial_fetch_first_keys = web_initial_fetch_first_keys(product)
     static_entities_seen: set[str] = set()
     state_domains = dict(product_key_domains)
     local_state_keys = web_local_state_keys(product)
 
     if not static_entities:
         errors.append("project.web_static_entities must be a non-empty object")
+    if not initial_fetch_first_keys:
+        errors.append("project.web_initial_fetch_first_keys must be a non-empty list")
+    for key in initial_fetch_first_keys:
+        metadata = static_entities.get(key)
+        if not metadata:
+            errors.append(f"project.web_initial_fetch_first_keys {key} must point at a static web entity")
+        elif metadata.get("fetch") is not True:
+            errors.append(f"project.web_initial_fetch_first_keys {key} must point at a fetch-enabled static web entity")
 
     for key, metadata in static_entities.items():
         if not isinstance(key, str) or not key.strip():

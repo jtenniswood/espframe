@@ -221,6 +221,7 @@
     "web_ui_logs_event_name": "log",
     "web_ui_logs_clear_label": "Clear",
     "web_ui_logs_retained_lines": 1000,
+    "web_initial_fetch_first_keys": ["firmware"],
     "web_static_entities": {
       "firmware": { "entity": "text_sensor/Firmware: Version", "firmware_file": "common/addon/firmware_update.yaml", "fetch": true },
       "timezone": {
