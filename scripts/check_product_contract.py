@@ -260,6 +260,9 @@ def check_project_metadata(product: dict, errors: list[str]) -> None:
         "firmware_custom_manifest_requirement",
         "backup_filename_prefix",
         "backup_filename_date_format",
+        "backup_import_write_behavior",
+        "backup_partial_config_behavior",
+        "backup_invalid_photo_id_behavior",
         "privacy_connection_model",
         "privacy_network_scope",
         "privacy_no_cloud_service",
@@ -367,6 +370,11 @@ def check_project_metadata(product: dict, errors: list[str]) -> None:
         errors.append("project.backup_excluded_runtime_values must be a non-empty list")
     elif any(not isinstance(value, str) or not value.strip() for value in backup_excluded_values):
         errors.append("project.backup_excluded_runtime_values must only contain non-empty strings")
+    backup_export_groups = project.get("backup_export_groups", [])
+    if not isinstance(backup_export_groups, list) or not backup_export_groups:
+        errors.append("project.backup_export_groups must be a non-empty list")
+    elif any(not isinstance(value, str) or not value.strip() for value in backup_export_groups):
+        errors.append("project.backup_export_groups must only contain non-empty strings")
     touch_controls = project.get("touch_controls", [])
     if not isinstance(touch_controls, list) or not touch_controls:
         errors.append("project.touch_controls must be a non-empty list")
@@ -801,6 +809,10 @@ def check_backup_metadata(product: dict, errors: list[str]) -> None:
     date_format = str(project.get("backup_filename_date_format", "")).strip()
     photo_id_limit = project.get("backup_import_photo_id_limit")
     excluded_values = project.get("backup_excluded_runtime_values", [])
+    export_groups = [str(value).strip() for value in project.get("backup_export_groups", []) if str(value).strip()]
+    import_write_behavior = str(project.get("backup_import_write_behavior", "")).strip()
+    partial_behavior = str(project.get("backup_partial_config_behavior", "")).strip()
+    invalid_photo_id_behavior = str(project.get("backup_invalid_photo_id_behavior", "")).strip()
 
     backup_docs = read(ROOT / "docs" / "backup.md", errors)
     web_template = read(WEB_TEMPLATE, errors)
@@ -824,14 +836,37 @@ def check_backup_metadata(product: dict, errors: list[str]) -> None:
         for value in excluded_values:
             if isinstance(value, str) and value.strip():
                 require_contains(backup_docs, value.strip(), "docs/backup.md", errors)
+    for group in export_groups:
+        require_contains(backup_docs, f'"{group}"', "docs/backup.md", errors)
+        require_contains(web_template, f"{group}: {{", rel(WEB_TEMPLATE), errors)
+        require_contains(web_text, f"{group}: {{", rel(WEB_APP), errors)
+        require_contains(web_template, f"data.{group} || {{}}", rel(WEB_TEMPLATE), errors)
+        require_contains(web_text, f"data.{group} || {{}}", rel(WEB_APP), errors)
+    if import_write_behavior:
+        require_contains(backup_docs, import_write_behavior, "docs/backup.md", errors)
+    if partial_behavior:
+        require_contains(backup_docs, partial_behavior, "docs/backup.md", errors)
+    if invalid_photo_id_behavior:
+        require_contains(backup_docs, invalid_photo_id_behavior, "docs/backup.md", errors)
+        for label in ("Album IDs", "Album labels", "Person IDs", "Person labels"):
+            require_contains(web_template, f"{label} exceed {photo_id_limit} characters - not imported", rel(WEB_TEMPLATE), errors)
+            require_contains(web_text, f"{label} exceed {photo_id_limit} characters - not imported", rel(WEB_APP), errors)
+        for label in ("album IDs", "person IDs"):
+            require_contains(web_template, f"Import skipped invalid {label}", rel(WEB_TEMPLATE), errors)
+            require_contains(web_text, f"Import skipped invalid {label}", rel(WEB_APP), errors)
 
     for needle in (
         "display_mode",
         "display mode",
         "Partial config files work",
-        "everything else stays unchanged",
+        "Settings imported successfully",
+        "JSON.stringify(data, null, 2)",
     ):
-        require_contains(backup_docs, needle, "docs/backup.md", errors)
+        if needle in {"Settings imported successfully", "JSON.stringify(data, null, 2)"}:
+            require_contains(web_template, needle, rel(WEB_TEMPLATE), errors)
+            require_contains(web_text, needle, rel(WEB_APP), errors)
+        else:
+            require_contains(backup_docs, needle, "docs/backup.md", errors)
     require_contains(web_template, "display_mode: S.display_mode", rel(WEB_TEMPLATE), errors)
     require_contains(web_template, "p.display_mode", rel(WEB_TEMPLATE), errors)
 
