@@ -504,6 +504,11 @@ def check_project_metadata(product: dict, errors: list[str]) -> None:
         "web_server_public_app_path",
         "web_server_factory_css_include",
         "web_server_factory_js_include",
+        "external_component_git_source_type",
+        "external_component_local_source_type",
+        "external_component_git_path",
+        "external_component_local_path",
+        "external_component_ref",
     ):
         if not str(project.get(field, "")).strip():
             errors.append(f"project.{field} is required")
@@ -536,6 +541,11 @@ def check_project_metadata(product: dict, errors: list[str]) -> None:
                 errors.append(f"project.web_server_sorting_groups.{group_id or '<missing>'} is missing name")
             if not isinstance(weight, int) or isinstance(weight, bool):
                 errors.append(f"project.web_server_sorting_groups.{group_id or '<missing>'}.sorting_weight must be an integer")
+    external_components = project.get("external_component_names", [])
+    if not isinstance(external_components, list) or not external_components:
+        errors.append("project.external_component_names must be a non-empty list")
+    elif any(not isinstance(value, str) or not value.strip() for value in external_components):
+        errors.append("project.external_component_names must only contain non-empty strings")
     for field in ("setup_wizard_steps", "setup_required_connection_fields", "setup_skip_substitutions"):
         values = project.get(field, [])
         if not isinstance(values, list) or not values:
@@ -2303,6 +2313,69 @@ def check_web_server_metadata(product: dict, errors: list[str]) -> None:
             errors.append(f"project web server include is missing: {normalized}")
 
 
+def check_external_components_metadata(product: dict, errors: list[str]) -> None:
+    project = product["project"]
+    component_names = [
+        str(value).strip() for value in project.get("external_component_names", []) if str(value).strip()
+    ]
+    git_source_type = str(project.get("external_component_git_source_type", "")).strip()
+    local_source_type = str(project.get("external_component_local_source_type", "")).strip()
+    git_path = str(project.get("external_component_git_path", "")).strip()
+    local_path = str(project.get("external_component_local_path", "")).strip()
+    component_ref = str(project.get("external_component_ref", "")).strip()
+    components_inline = f"components: [{', '.join(component_names)}]" if component_names else ""
+    repository_url = str(project.get("repository_url", "")).strip()
+
+    for component in component_names:
+        component_dir = ROOT / "components" / component
+        if not component_dir.is_dir():
+            errors.append(f"Missing external component directory: {rel(component_dir)}")
+        init_file = component_dir / "__init__.py"
+        if not init_file.is_file():
+            errors.append(f"Missing external component entrypoint: {rel(init_file)}")
+
+    for device in product["devices"]:
+        slug = str(device.get("slug", "")).strip()
+        device_yaml = check_relative_path(device.get("device_yaml"), f"Device {slug} device_yaml", errors)
+        build_yaml = check_relative_path(device.get("build_yaml"), f"Device {slug} build_yaml", errors)
+        if device_yaml:
+            device_text = read(ROOT / device_yaml, errors)
+            require_contains(device_text, "external_components:", device_yaml, errors)
+            if git_source_type:
+                require_contains(device_text, f"      type: {git_source_type}", device_yaml, errors)
+            if repository_url:
+                require_contains(device_text, f'espframe_component_url: "{repository_url}"', device_yaml, errors)
+                require_contains(device_text, "      url: ${espframe_component_url}", device_yaml, errors)
+            if component_ref:
+                require_contains(device_text, f'espframe_component_ref: "{component_ref}"', device_yaml, errors)
+                require_contains(device_text, "      ref: ${espframe_component_ref}", device_yaml, errors)
+            if git_path:
+                require_contains(device_text, f"      path: {git_path}", device_yaml, errors)
+            if components_inline:
+                require_contains(device_text, f"    {components_inline}", device_yaml, errors)
+            require_contains(device_text, "    refresh: 0s", device_yaml, errors)
+            require_contains(device_text, "espframe:", device_yaml, errors)
+            require_contains(device_text, "  id: espframe_core", device_yaml, errors)
+        if build_yaml:
+            build_text = read(ROOT / build_yaml, errors)
+            require_contains(build_text, "external_components:", build_yaml, errors)
+            if local_source_type:
+                require_contains(build_text, f"      type: {local_source_type}", build_yaml, errors)
+            if local_path:
+                require_contains(build_text, f"      path: {local_path}", build_yaml, errors)
+            if components_inline:
+                require_contains(build_text, f"    {components_inline}", build_yaml, errors)
+
+    if local_path:
+        normalized = local_path
+        while normalized.startswith("../"):
+            normalized = normalized[3:]
+        if not (ROOT / normalized).is_dir():
+            errors.append(f"project.external_component_local_path is missing: {normalized}")
+    if git_path and not (ROOT / git_path).is_dir():
+        errors.append(f"project.external_component_git_path is missing: {git_path}")
+
+
 def check_esphome_version(product: dict, errors: list[str]) -> None:
     version = str(product["project"].get("esphome_version", "")).strip()
     if not version:
@@ -2849,6 +2922,7 @@ def main() -> int:
     check_device_workflow_contract(product, errors)
     check_factory_firmware_metadata(product, errors)
     check_web_server_metadata(product, errors)
+    check_external_components_metadata(product, errors)
     check_esphome_version(product, errors)
     check_node_version(product, errors)
     check_workflows(errors)

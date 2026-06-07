@@ -138,6 +138,12 @@
       { "id": "sg_firmware", "name": "Firmware", "sorting_weight": 40 },
       { "id": "sg_developer", "name": "Developer", "sorting_weight": 90 }
     ],
+    "external_component_names": ["gsl3680", "remote_image", "espframe"],
+    "external_component_git_source_type": "git",
+    "external_component_local_source_type": "local",
+    "external_component_git_path": "components",
+    "external_component_local_path": "../components",
+    "external_component_ref": "main",
     "web_ui_tabs": [
       { "id": "immich", "label": "Immich" },
       { "id": "settings", "label": "Device" },
