@@ -782,6 +782,37 @@ def check_project_metadata(product: dict, errors: list[str]) -> None:
         errors.append("project.backup_export_groups must be a non-empty list")
     elif any(not isinstance(value, str) or not value.strip() for value in backup_export_groups):
         errors.append("project.backup_export_groups must only contain non-empty strings")
+    backup_export_fields = project.get("backup_export_fields", {})
+    if not isinstance(backup_export_fields, dict) or not backup_export_fields:
+        errors.append("project.backup_export_fields must be a non-empty object")
+    else:
+        expected_groups = {str(group).strip() for group in backup_export_groups if str(group).strip()}
+        configured_groups = {str(group).strip() for group in backup_export_fields}
+        missing_groups = sorted(expected_groups - configured_groups)
+        extra_groups = sorted(configured_groups - expected_groups)
+        if missing_groups:
+            errors.append(f"project.backup_export_fields is missing groups: {', '.join(missing_groups)}")
+        if extra_groups:
+            errors.append(f"project.backup_export_fields contains unknown groups: {', '.join(extra_groups)}")
+
+        all_fields: set[str] = set()
+        field_count = 0
+        for raw_group, raw_fields in backup_export_fields.items():
+            group = str(raw_group).strip()
+            if not group:
+                errors.append("project.backup_export_fields keys must be non-empty strings")
+            if not isinstance(raw_fields, list) or not raw_fields:
+                errors.append(f"project.backup_export_fields.{group or '<missing>'} must be a non-empty list")
+                continue
+            fields = [str(field).strip() for field in raw_fields]
+            if any(not field for field in fields):
+                errors.append(f"project.backup_export_fields.{group or '<missing>'} must only contain non-empty strings")
+            if len(fields) != len(set(fields)):
+                errors.append(f"project.backup_export_fields.{group or '<missing>'} must not contain duplicate fields")
+            all_fields.update(fields)
+            field_count += len(fields)
+        if len(all_fields) != field_count:
+            errors.append("project.backup_export_fields field names must be unique across groups")
     backup_fixture_files = project.get("backup_fixture_files", [])
     if not isinstance(backup_fixture_files, list) or not backup_fixture_files:
         errors.append("project.backup_fixture_files must be a non-empty list")

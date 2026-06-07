@@ -20,43 +20,6 @@ UUID_LIST_RE = re.compile(
     r"(,[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})*$"
 )
 
-BACKUP_GROUP_KEYS = {
-    "connection": {"immich_url", "api_key"},
-    "photos": {
-        "source",
-        "album_ids",
-        "album_labels",
-        "person_ids",
-        "person_labels",
-        "date_filter_enabled",
-        "date_filter_mode",
-        "date_from",
-        "date_to",
-        "relative_amount",
-        "relative_unit",
-        "orientation",
-        "portrait_pairing",
-        "display_mode",
-    },
-    "frequency": {"interval", "conn_timeout"},
-    "firmware_updates": {"auto_update", "beta_channel", "update_frequency", "manifest_url", "beta_manifest_url"},
-    "clock": {"show", "format", "timezone", "ntp_servers"},
-    "screen": {
-        "brightness_day",
-        "brightness_night",
-        "schedule_enabled",
-        "schedule_on_hour",
-        "schedule_off_hour",
-        "schedule_wake_timeout",
-        "base_tone_enabled",
-        "base_tone",
-        "warm_tones_enabled",
-        "warm_tone_intensity",
-        "warm_tone_override",
-        "rotation",
-    },
-}
-
 EXPORT_SNIPPETS = {
     ("connection", "immich_url"): "immich_url: S.immich_url",
     ("connection", "api_key"): "api_key: S.api_key",
@@ -182,9 +145,38 @@ def setting_options(product: dict[str, Any]) -> dict[str, set[str]]:
     }
 
 
-def validate_internal_contract(product: dict[str, Any], errors: list[str]) -> None:
+def backup_group_keys(product: dict[str, Any], errors: list[str]) -> dict[str, set[str]]:
+    raw_fields = product["project"].get("backup_export_fields", {})
+    if not isinstance(raw_fields, dict) or not raw_fields:
+        errors.append("project.backup_export_fields must be a non-empty object")
+        return {}
+
+    fields_by_group: dict[str, set[str]] = {}
+    for raw_group, raw_values in raw_fields.items():
+        group = str(raw_group).strip()
+        if not group:
+            errors.append("project.backup_export_fields keys must be non-empty strings")
+            continue
+        if not isinstance(raw_values, list) or not raw_values:
+            errors.append(f"project.backup_export_fields.{group} must be a non-empty list")
+            continue
+        values = [str(value).strip() for value in raw_values]
+        if any(not value for value in values):
+            errors.append(f"project.backup_export_fields.{group} must only contain non-empty strings")
+            continue
+        if len(values) != len(set(values)):
+            errors.append(f"project.backup_export_fields.{group} must not contain duplicate fields")
+        fields_by_group[group] = set(values)
+    return fields_by_group
+
+
+def validate_internal_contract(
+    product: dict[str, Any],
+    group_keys: dict[str, set[str]],
+    errors: list[str],
+) -> None:
     expected_groups = {str(group) for group in product["project"].get("backup_export_groups", [])}
-    configured_groups = set(BACKUP_GROUP_KEYS)
+    configured_groups = set(group_keys)
     missing_groups = sorted(expected_groups - configured_groups)
     extra_groups = sorted(configured_groups - expected_groups)
     if missing_groups:
@@ -196,11 +188,11 @@ def validate_internal_contract(product: dict[str, Any], errors: list[str]) -> No
             f"Backup checker has groups not listed in product.backup_export_groups: {', '.join(extra_groups)}"
         )
 
-    expected_fields = set().union(*BACKUP_GROUP_KEYS.values())
-    if len(expected_fields) != sum(len(fields) for fields in BACKUP_GROUP_KEYS.values()):
-        errors.append("Backup checker field names must be unique across groups")
+    expected_fields = {field for fields in group_keys.values() for field in fields}
+    if len(expected_fields) != sum(len(fields) for fields in group_keys.values()):
+        errors.append("project.backup_export_fields field names must be unique across groups")
 
-    expected_group_fields = {(group, field) for group, fields in BACKUP_GROUP_KEYS.items() for field in fields}
+    expected_group_fields = {(group, field) for group, fields in group_keys.items() for field in fields}
     for label, snippet_keys in (
         ("export snippets", set(EXPORT_SNIPPETS)),
         ("import field snippets", set(IMPORT_FIELD_SNIPPETS)),
@@ -222,7 +214,13 @@ def validate_internal_contract(product: dict[str, Any], errors: list[str]) -> No
         errors.append(f"Backup checker import snippets include unknown groups: {', '.join(extra_import_groups)}")
 
 
-def validate_fixture(path: Path, data: dict[str, Any], product: dict[str, Any], errors: list[str]) -> None:
+def validate_fixture(
+    path: Path,
+    data: dict[str, Any],
+    product: dict[str, Any],
+    group_keys: dict[str, set[str]],
+    errors: list[str],
+) -> None:
     project = product["project"]
     label = rel(path)
     expected_version = project.get("backup_config_version")
@@ -245,7 +243,7 @@ def validate_fixture(path: Path, data: dict[str, Any], product: dict[str, Any], 
         if not isinstance(value, dict):
             errors.append(f"{label} {group} must be an object")
             continue
-        allowed = BACKUP_GROUP_KEYS.get(group, set())
+        allowed = group_keys.get(group, set())
         unknown_keys = sorted(set(value) - allowed)
         if unknown_keys:
             errors.append(f"{label} {group} contains unknown keys: {', '.join(unknown_keys)}")
@@ -302,6 +300,7 @@ def main() -> int:
     project = product["project"]
     fixture_files = project.get("backup_fixture_files", [])
     errors: list[str] = []
+    group_keys = backup_group_keys(product, errors)
     if not isinstance(fixture_files, list) or not fixture_files:
         errors.append("project.backup_fixture_files must be a non-empty list")
     else:
@@ -309,8 +308,8 @@ def main() -> int:
             path = ROOT / str(raw_path)
             data = load_json(path, errors)
             if data:
-                validate_fixture(path, data, product, errors)
-    validate_internal_contract(product, errors)
+                validate_fixture(path, data, product, group_keys, errors)
+    validate_internal_contract(product, group_keys, errors)
     validate_web_support(product, errors)
 
     if errors:
