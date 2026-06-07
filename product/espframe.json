@@ -199,10 +199,17 @@
       "checkout": "actions/checkout@v6",
       "cache": "actions/cache@v5",
       "upload_artifact": "actions/upload-artifact@v7",
-      "download_artifact": "actions/download-artifact@v8"
+      "download_artifact": "actions/download-artifact@v8",
+      "setup_node": "actions/setup-node@v6",
+      "upload_pages_artifact": "actions/upload-pages-artifact@v5",
+      "deploy_pages": "actions/deploy-pages@v5"
     },
     "release_artifact_prefix": "firmware-",
     "release_asset_suffixes": [".factory.bin", ".ota.bin", ".manifest.json"],
+    "docs_firmware_verify_retries": 10,
+    "docs_firmware_verify_delay_seconds": 15,
+    "docs_dist_artifact_name": "docs-dist",
+    "docs_firmware_artifact_name": "firmware",
     "support_url": "https://www.buymeacoffee.com/jtenniswood",
     "support_button_image_url": "https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png",
     "node_version": "24",

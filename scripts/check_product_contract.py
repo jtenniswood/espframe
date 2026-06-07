@@ -848,7 +848,12 @@ def check_project_metadata(product: dict, errors: list[str]) -> None:
         errors.append("project.immich_retryable_http_statuses must only contain non-empty strings")
     if not isinstance(project.get("immich_auth_error_status"), int) or isinstance(project.get("immich_auth_error_status"), bool):
         errors.append("project.immich_auth_error_status must be an integer")
-    for field in ("slideshow_interval_default_seconds", "connection_timeout_default_seconds"):
+    for field in (
+        "slideshow_interval_default_seconds",
+        "connection_timeout_default_seconds",
+        "docs_firmware_verify_retries",
+        "docs_firmware_verify_delay_seconds",
+    ):
         if not isinstance(project.get(field), int) or isinstance(project.get(field), bool) or project.get(field) < 1:
             errors.append(f"project.{field} must be a positive integer")
     for field in ("slideshow_interval_range_seconds", "connection_timeout_range_seconds"):
@@ -863,6 +868,8 @@ def check_project_metadata(product: dict, errors: list[str]) -> None:
             errors.append(f"project.{field} minimum must not exceed maximum")
     for field in (
         "slideshow_check_interval",
+        "docs_dist_artifact_name",
+        "docs_firmware_artifact_name",
         "setup_captive_portal_ip",
         "setup_screen_dim_delay",
         "setup_screen_dim_brightness",
@@ -2657,6 +2664,10 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     release_actions = project.get("release_workflow_actions", {})
     artifact_prefix = str(project.get("release_artifact_prefix", "")).strip()
     asset_suffixes = [str(value).strip() for value in project.get("release_asset_suffixes", []) if str(value).strip()]
+    docs_dist_artifact_name = str(project.get("docs_dist_artifact_name", "")).strip()
+    docs_firmware_artifact_name = str(project.get("docs_firmware_artifact_name", "")).strip()
+    docs_verify_retries = project.get("docs_firmware_verify_retries")
+    docs_verify_delay = project.get("docs_firmware_verify_delay_seconds")
     slugs = [str(device.get("slug", "")).strip() for device in product["devices"]]
     expected_slugs = " ".join(slugs)
     for label, text in (
@@ -2668,7 +2679,17 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         for action in release_actions.values():
             if not isinstance(action, str) or not action.strip():
                 continue
-            if "download-artifact" in action or "upload-artifact" in action or "cache" in action:
+            if (
+                "download-artifact" in action
+                or "upload-artifact" in action
+                or "cache" in action
+                or "upload-pages-artifact" in action
+                or "deploy-pages" in action
+                or "setup-node" in action
+            ):
+                if "upload-pages-artifact" in action or "deploy-pages" in action or "setup-node" in action:
+                    require_contains(docs_workflow, action.strip(), ".github/workflows/docs.yml", errors)
+                    continue
                 require_contains(release_workflow, action.strip(), ".github/workflows/release.yml", errors)
             elif "checkout" in action:
                 for label, text in (
@@ -2685,6 +2706,26 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         if suffix == ".manifest.json":
             require_contains(docs_workflow, suffix, ".github/workflows/docs.yml", errors)
         require_contains(read(ROOT / "scripts" / "firmware_release.py", errors), suffix, "scripts/firmware_release.py", errors)
+    if docs_dist_artifact_name:
+        require_contains(docs_workflow, f"name: {docs_dist_artifact_name}", ".github/workflows/docs.yml", errors)
+    if docs_firmware_artifact_name:
+        require_contains(docs_workflow, f"name: {docs_firmware_artifact_name}", ".github/workflows/docs.yml", errors)
+        require_contains(docs_workflow, f"path: dist/{docs_firmware_artifact_name}", ".github/workflows/docs.yml", errors)
+    if isinstance(docs_verify_retries, int) and not isinstance(docs_verify_retries, bool):
+        require_contains(docs_workflow, f"--retries {docs_verify_retries}", ".github/workflows/docs.yml", errors)
+    if isinstance(docs_verify_delay, int) and not isinstance(docs_verify_delay, bool):
+        require_contains(docs_workflow, f"--delay {docs_verify_delay}", ".github/workflows/docs.yml", errors)
+    for needle in (
+        "gh release view --json tagName",
+        "gh release list --limit 20 --json tagName,isPrerelease",
+        "python3 scripts/firmware_release.py verify-directory",
+        "python3 scripts/firmware_release.py verify-pages",
+        f'--base-url "{public_base_url(product)}"',
+        "rm -rf dist/firmware",
+        "environment:",
+        "name: github-pages",
+    ):
+        require_contains(docs_workflow, needle, ".github/workflows/docs.yml", errors)
 
     try:
         release_devices = release_matrix_devices(product)
