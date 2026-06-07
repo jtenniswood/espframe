@@ -32,6 +32,13 @@
     "home_assistant_requirement": "not required",
     "home_assistant_integration_platform": "ESPHome",
     "home_assistant_integration_features": ["updates", "dashboard control", "automations"],
+    "home_assistant_network_entities": [
+      { "name": "Network: Online", "type": "Binary Sensor", "description": "Connection status" },
+      { "name": "Network: WiFi Strength", "type": "Sensor", "description": "Signal %" },
+      { "name": "Network: IP Address", "type": "Text Sensor", "description": "Device IP" }
+    ],
+    "network_wifi_strength_source": "Network: WiFi Signal dB",
+    "network_wifi_strength_update_interval": "60s",
     "firmware_update_methods": ["OTA", "HTTP"],
     "firmware_update_source": "GitHub Pages",
     "firmware_update_channels": ["stable", "beta"],

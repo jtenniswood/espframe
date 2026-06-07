@@ -344,6 +344,20 @@ def check_project_metadata(product: dict, errors: list[str]) -> None:
         errors.append("project.home_assistant_integration_features must be a non-empty list")
     elif any(not isinstance(value, str) or not value.strip() for value in home_assistant_features):
         errors.append("project.home_assistant_integration_features must only contain non-empty strings")
+    network_entities = project.get("home_assistant_network_entities", [])
+    if not isinstance(network_entities, list) or not network_entities:
+        errors.append("project.home_assistant_network_entities must be a non-empty list")
+    else:
+        for entity in network_entities:
+            if not isinstance(entity, dict):
+                errors.append("project.home_assistant_network_entities entries must be objects")
+                continue
+            for field in ("name", "type", "description"):
+                if not str(entity.get(field, "")).strip():
+                    errors.append(f"project.home_assistant_network_entities entry is missing {field}")
+    for field in ("network_wifi_strength_source", "network_wifi_strength_update_interval"):
+        if not str(project.get(field, "")).strip():
+            errors.append(f"project.{field} is required")
     if not isinstance(project.get("backup_config_version"), int) or isinstance(project.get("backup_config_version"), bool):
         errors.append("project.backup_config_version must be an integer")
     if not isinstance(project.get("backup_import_photo_id_limit"), int) or isinstance(project.get("backup_import_photo_id_limit"), bool):
@@ -629,11 +643,15 @@ def check_home_assistant_metadata(product: dict, errors: list[str]) -> None:
     requirement = str(project.get("home_assistant_requirement", "")).strip()
     platform = str(project.get("home_assistant_integration_platform", "")).strip()
     features = project.get("home_assistant_integration_features", [])
+    network_entities = project.get("home_assistant_network_entities", [])
+    wifi_strength_source = str(project.get("network_wifi_strength_source", "")).strip()
+    wifi_strength_update_interval = str(project.get("network_wifi_strength_update_interval", "")).strip()
 
     readme = read(ROOT / "README.md", errors)
     index_docs = read(ROOT / "docs" / "index.md", errors)
     immich_photo_frame_docs = read(ROOT / "docs" / "immich-photo-frame.md", errors)
     home_assistant_docs = read(ROOT / "docs" / "home-assistant.md", errors)
+    network_yaml = read(ROOT / "common" / "addon" / "network.yaml", errors)
 
     docs_to_check = (
         ("README.md", readme),
@@ -661,6 +679,35 @@ def check_home_assistant_metadata(product: dict, errors: list[str]) -> None:
             if not isinstance(feature, str) or not feature.strip():
                 continue
             require_contains(home_assistant_docs, feature.strip(), "docs/home-assistant.md", errors)
+    if isinstance(network_entities, list):
+        for entity in network_entities:
+            if not isinstance(entity, dict):
+                continue
+            entity_name = str(entity.get("name", "")).strip()
+            entity_type = str(entity.get("type", "")).strip()
+            entity_description = str(entity.get("description", "")).strip()
+            for value in (entity_name, entity_type, entity_description):
+                if value:
+                    require_contains(home_assistant_docs, value, "docs/home-assistant.md", errors)
+            if entity_name:
+                require_contains(network_yaml, f'name: "{entity_name}"', "common/addon/network.yaml", errors)
+    if wifi_strength_source:
+        require_contains(network_yaml, f'name: "{wifi_strength_source}"', "common/addon/network.yaml", errors)
+        require_contains(network_yaml, "source_id: wifi_signal_db", "common/addon/network.yaml", errors)
+    if wifi_strength_update_interval:
+        require_contains(network_yaml, f"update_interval: {wifi_strength_update_interval}", "common/addon/network.yaml", errors)
+    for needle in (
+        "platform: status",
+        "platform: wifi_signal",
+        "platform: copy",
+        "unit_of_measurement: \"%\"",
+        "platform: wifi_info",
+        "ip_address:",
+        "entity_category: diagnostic",
+        "return min(max(2 * (x + 100.0), 0.0), 100.0);",
+    ):
+        require_contains(network_yaml, needle, "common/addon/network.yaml", errors)
+    require_contains(home_assistant_docs, "notify when **Network: Online** goes unavailable", "docs/home-assistant.md", errors)
 
 
 def check_firmware_update_metadata(product: dict, errors: list[str]) -> None:
