@@ -243,6 +243,7 @@ def check_project_metadata(product: dict, errors: list[str]) -> None:
         "social_image_alt",
         "usb_flashing_image",
         "usb_flashing_image_alt",
+        "web_installer_required_api",
         "favicon",
         "npm_package_name",
         "license_id",
@@ -290,6 +291,12 @@ def check_project_metadata(product: dict, errors: list[str]) -> None:
             public_asset = ROOT / "docs" / "public" / value
             if not public_asset.is_file():
                 errors.append(f"Missing file: {rel(public_asset)}")
+    for field in ("web_installer_required_browsers", "web_installer_unsupported_browsers"):
+        values = project.get(field, [])
+        if not isinstance(values, list) or not values:
+            errors.append(f"project.{field} must be a non-empty list")
+        elif any(not isinstance(value, str) or not value.strip() for value in values):
+            errors.append(f"project.{field} must only contain non-empty strings")
 
     firmware_update = read(ROOT / "common" / "addon" / "firmware_update.yaml", errors)
     if package_name:
@@ -392,6 +399,9 @@ def check_public_site_references(product: dict, errors: list[str]) -> None:
     social_image_alt = str(product["project"].get("social_image_alt", "")).strip()
     usb_flashing_image = str(product["project"].get("usb_flashing_image", "")).strip()
     usb_flashing_image_alt = str(product["project"].get("usb_flashing_image_alt", "")).strip()
+    web_installer_required_browsers = product["project"].get("web_installer_required_browsers", [])
+    web_installer_required_api = str(product["project"].get("web_installer_required_api", "")).strip()
+    web_installer_unsupported_browsers = product["project"].get("web_installer_unsupported_browsers", [])
     repository_url = str(product["project"].get("repository_url", "")).strip().rstrip("/")
     support_url = str(product["project"].get("support_url", "")).strip()
     support_button_image_url = str(product["project"].get("support_button_image_url", "")).strip()
@@ -449,6 +459,32 @@ def check_public_site_references(product: dict, errors: list[str]) -> None:
             ("docs/usb-flashing.md", usb_flashing_docs),
         ):
             require_contains(text, f'alt="{usb_flashing_image_alt}"', label, errors)
+    if isinstance(web_installer_required_browsers, list):
+        for label, text in (
+            ("README.md", readme),
+            ("docs/install.md", install_docs),
+            ("docs/usb-flashing.md", usb_flashing_docs),
+            ("docs/troubleshooting.md", troubleshooting_docs),
+            ("docs/immich-photo-frame.md", read(ROOT / "docs" / "immich-photo-frame.md", errors)),
+        ):
+            for browser in web_installer_required_browsers:
+                if isinstance(browser, str) and browser.strip():
+                    require_contains(text, browser.strip(), label, errors)
+    if web_installer_required_api:
+        for label, text in (
+            ("docs/install.md", install_docs),
+            ("docs/usb-flashing.md", usb_flashing_docs),
+            ("docs/immich-photo-frame.md", read(ROOT / "docs" / "immich-photo-frame.md", errors)),
+        ):
+            require_contains(text, web_installer_required_api, label, errors)
+    if isinstance(web_installer_unsupported_browsers, list):
+        for label, text in (
+            ("docs/install.md", install_docs),
+            ("docs/usb-flashing.md", usb_flashing_docs),
+        ):
+            for browser in web_installer_unsupported_browsers:
+                if isinstance(browser, str) and browser.strip():
+                    require_contains(text, browser.strip(), label, errors)
 
     for device in product["devices"]:
         slug = str(device.get("slug", "")).strip()

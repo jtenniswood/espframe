@@ -32,7 +32,7 @@ Connect the display via USB-C, then click the install button below. Check the mo
 <EspInstallButton />
 
 ::: info Browser
-Requires **Chrome** or **Edge** (desktop) with [WebSerial](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API). Safari and Firefox not supported.
+Requires **Chrome** or **Edge** (desktop) with [Web Serial](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API). Safari and Firefox not supported.
 :::
 
 ## Steps
