@@ -36,6 +36,30 @@ def require_contains(text: str, needle: str, label: str, errors: list[str]) -> N
         errors.append(f"{label} is missing {needle!r}")
 
 
+def firmware_entity_block(text: str, name: str, filename: str, errors: list[str]) -> str:
+    needle = f'name: "{name}"'
+    lines = text.splitlines()
+    name_index = next((idx for idx, line in enumerate(lines) if needle in line), None)
+    if name_index is None:
+        errors.append(f"{filename} entity is missing {needle!r}")
+        return ""
+
+    start = name_index
+    while start > 0 and not lines[start].startswith("  - platform:"):
+        start -= 1
+    if not lines[start].startswith("  - platform:"):
+        errors.append(f"{filename} entity block for {name} is missing a platform header")
+        return ""
+
+    end = len(lines)
+    for idx in range(start + 1, len(lines)):
+        if lines[idx].startswith("  - platform:") or (lines[idx] and not lines[idx].startswith((" ", "#"))):
+            end = idx
+            break
+
+    return "\n".join(lines[start:end])
+
+
 def check_devices(product: dict, errors: list[str]) -> None:
     seen: set[str] = set()
     for device in product["devices"]:
@@ -121,21 +145,21 @@ def check_setting(setting: dict, web_text: str, errors: list[str]) -> None:
         errors.append(f"Setting {key} has no firmware_files")
     for filename in firmware_files:
         text = read(ROOT / str(filename), errors)
-        require_contains(text, f'name: "{name}"', f"{filename} entity for {key}", errors)
+        block = firmware_entity_block(text, name, str(filename), errors)
         for option in options:
-            require_contains(text, f'"{option}"', f"{filename} option for {key}", errors)
+            require_contains(block, f'"{option}"', f"{filename} option for {key}", errors)
         for option in developer_options:
-            require_contains(text, f'"{option}"', f"{filename} developer option for {key}", errors)
+            require_contains(block, f'"{option}"', f"{filename} developer option for {key}", errors)
         if entity.get("domain") == "select":
             initial_option = str(setting.get("firmware_initial_option", raw_default))
             if initial_option.startswith("${"):
                 if (
-                    f"initial_option: {initial_option}" not in text
-                    and f'initial_option: "{initial_option}"' not in text
+                    f"initial_option: {initial_option}" not in block
+                    and f'initial_option: "{initial_option}"' not in block
                 ):
                     errors.append(f"{filename} initial_option for {key} is missing {initial_option!r}")
             else:
-                require_contains(text, f'initial_option: "{initial_option}"', f"{filename} initial_option for {key}", errors)
+                require_contains(block, f'initial_option: "{initial_option}"', f"{filename} initial_option for {key}", errors)
         if entity.get("domain") == "number":
             for product_field, firmware_field in (
                 ("default", "initial_value"),
@@ -145,10 +169,10 @@ def check_setting(setting: dict, web_text: str, errors: list[str]) -> None:
             ):
                 if product_field in setting:
                     value = str(setting[product_field])
-                    require_contains(text, f"{firmware_field}: {value}", f"{filename} {firmware_field} for {key}", errors)
+                    require_contains(block, f"{firmware_field}: {value}", f"{filename} {firmware_field} for {key}", errors)
         if entity.get("domain") == "switch" and isinstance(raw_default, bool):
             restore_mode = "RESTORE_DEFAULT_ON" if raw_default else "RESTORE_DEFAULT_OFF"
-            require_contains(text, f"restore_mode: {restore_mode}", f"{filename} restore_mode for {key}", errors)
+            require_contains(block, f"restore_mode: {restore_mode}", f"{filename} restore_mode for {key}", errors)
 
     docs_files = setting.get("docs_files", [])
     if not docs_files:
