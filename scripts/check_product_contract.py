@@ -384,6 +384,21 @@ def check_project_metadata(product: dict, errors: list[str]) -> None:
         errors.append("project.timezone_change_effects must be a non-empty list")
     elif any(not isinstance(value, str) or not value.strip() for value in timezone_effects):
         errors.append("project.timezone_change_effects must only contain non-empty strings")
+    photo_source_modes = project.get("photo_source_modes", [])
+    if not isinstance(photo_source_modes, list) or not photo_source_modes:
+        errors.append("project.photo_source_modes must be a non-empty list")
+    elif any(not isinstance(value, str) or not value.strip() for value in photo_source_modes):
+        errors.append("project.photo_source_modes must only contain non-empty strings")
+    for field in (
+        "photo_source_auto_apply_behavior",
+        "photo_source_memories_window",
+        "photo_source_memories_fallback",
+        "photo_source_album_person_sampling",
+    ):
+        if not str(project.get(field, "")).strip():
+            errors.append(f"project.{field} is required")
+    if not isinstance(project.get("photo_source_id_limit"), int) or isinstance(project.get("photo_source_id_limit"), bool):
+        errors.append("project.photo_source_id_limit must be an integer")
     screen_schedule_effects = project.get("screen_schedule_off_effects", [])
     if not isinstance(screen_schedule_effects, list) or not screen_schedule_effects:
         errors.append("project.screen_schedule_off_effects must be a non-empty list")
@@ -934,6 +949,114 @@ def check_clock_time_metadata(product: dict, errors: list[str]) -> None:
         "ntp_server_1",
         "ntp_server_2",
         "ntp_server_3",
+    ):
+        require_contains(web_template, needle, rel(WEB_TEMPLATE), errors)
+
+
+def check_photo_source_metadata(product: dict, errors: list[str]) -> None:
+    project = product["project"]
+    photo_source_modes = [str(value).strip() for value in project.get("photo_source_modes", []) if str(value).strip()]
+    auto_apply_behavior = str(project.get("photo_source_auto_apply_behavior", "")).strip()
+    id_limit = project.get("photo_source_id_limit")
+    memories_window = str(project.get("photo_source_memories_window", "")).strip()
+    memories_fallback = str(project.get("photo_source_memories_fallback", "")).strip()
+    album_person_sampling = str(project.get("photo_source_album_person_sampling", "")).strip()
+
+    settings_by_key = {str(setting.get("key", "")).strip(): setting for setting in product["settings"]}
+    photo_source_setting = settings_by_key.get("photo_source")
+    if not photo_source_setting:
+        errors.append("product settings must include photo_source")
+    else:
+        if photo_source_modes and photo_source_setting.get("options") != photo_source_modes:
+            errors.append("project.photo_source_modes must match the photo_source setting options")
+        if photo_source_setting.get("default") != "All Photos":
+            errors.append("photo_source default must be All Photos")
+
+    readme = read(ROOT / "README.md", errors)
+    index_docs = read(ROOT / "docs" / "index.md", errors)
+    photo_docs = read(ROOT / "docs" / "photo-sources.md", errors)
+    api_key_docs = read(ROOT / "docs" / "api-key.md", errors)
+    backup_docs = read(ROOT / "docs" / "backup.md", errors)
+    filter_yaml = read(ROOT / "common" / "addon" / "immich_filter.yaml", errors)
+    api_yaml = read(ROOT / "common" / "addon" / "immich_api.yaml", errors)
+    web_template = read(WEB_TEMPLATE, errors)
+
+    if auto_apply_behavior:
+        require_contains(photo_docs, auto_apply_behavior, "docs/photo-sources.md", errors)
+    if memories_window:
+        require_contains(photo_docs, memories_window, "docs/photo-sources.md", errors)
+    if memories_fallback:
+        require_contains(photo_docs, memories_fallback, "docs/photo-sources.md", errors)
+        require_contains(api_yaml, "falling back to random", "common/addon/immich_api.yaml", errors)
+    if album_person_sampling:
+        require_contains(photo_docs, album_person_sampling, "docs/photo-sources.md", errors)
+        require_contains(api_yaml, "paged metadata search", "common/addon/immich_api.yaml", errors)
+    if isinstance(id_limit, int):
+        id_limit_text = str(id_limit)
+        for label, text in (
+            ("docs/photo-sources.md", photo_docs),
+            ("docs/backup.md", backup_docs),
+            (rel(WEB_TEMPLATE), web_template),
+            ("common/addon/immich_filter.yaml", filter_yaml),
+        ):
+            require_contains(text, id_limit_text, label, errors)
+
+    for mode in photo_source_modes:
+        for label, text in (
+            ("docs/photo-sources.md", photo_docs),
+            ("common/addon/immich_filter.yaml", filter_yaml),
+        ):
+            require_contains(text, mode, label, errors)
+    for needle in (
+        "whole library",
+        "favorites",
+        "specific albums",
+        "specific people",
+        '"on this day" memories',
+        "chosen date range",
+    ):
+        require_contains(readme, needle, "README.md", errors)
+    for needle in (
+        "Photo Sources",
+        "favorites only",
+        "specific albums",
+        "specific people",
+        '"on this day" memories',
+        "date range",
+    ):
+        require_contains(index_docs, needle, "docs/index.md", errors)
+    for needle in ("Album IDs", "Album Labels", "Person IDs", "Person Labels"):
+        require_contains(backup_docs, needle, "docs/backup.md", errors)
+
+    for needle in (
+        "Photos: Source",
+        'initial_option: "All Photos"',
+        "auto_apply_photo_source",
+        "delay: 1s",
+        "Photos: Album IDs",
+        "Photos: Person IDs",
+        "Apply Photo Source",
+    ):
+        require_contains(filter_yaml, needle, "common/addon/immich_filter.yaml", errors)
+    for needle in (
+        "immich_memory_window_offset",
+        "id(immich_memory_window_offset) = -2",
+        "id(immich_memory_window_offset) <= 2",
+        "build_immich_search_body",
+        "pick_one_uuid_from_csv",
+        "pick_one_person_id_for_random_search",
+    ):
+        require_contains(api_yaml, needle, "common/addon/immich_api.yaml", errors)
+    require_contains(api_key_docs, "memory.read", "docs/api-key.md", errors)
+    for needle in (
+        "MAX_PHOTO_ID_FIELD_LENGTH",
+        "schedulePhotoSourceApply",
+        "Add an album",
+        "Add a person",
+        "Paste album ID from Immich URL",
+        "Paste person ID from Immich URL",
+        "Album IDs exceed 255 characters",
+        "Person IDs exceed 255 characters",
     ):
         require_contains(web_template, needle, rel(WEB_TEMPLATE), errors)
 
@@ -1748,6 +1871,7 @@ def main() -> int:
     check_screen_schedule_metadata(product, errors)
     check_screen_tone_metadata(product, errors)
     check_clock_time_metadata(product, errors)
+    check_photo_source_metadata(product, errors)
     check_devices(product, errors)
     check_public_manifest_urls(product, errors)
     check_public_site_references(product, errors)
