@@ -612,6 +612,7 @@ def check_project_metadata(product: dict, errors: list[str]) -> None:
         "web_ui_logs_event_name",
         "web_ui_logs_clear_label",
         "node_version",
+        "github_actions_runner",
     ):
         if not str(project.get(field, "")).strip():
             errors.append(f"project.{field} is required")
@@ -939,6 +940,7 @@ def check_project_metadata(product: dict, errors: list[str]) -> None:
         "connection_timeout_default_seconds",
         "docs_firmware_verify_retries",
         "docs_firmware_verify_delay_seconds",
+        "firmware_compile_timeout_minutes",
     ):
         if not isinstance(project.get(field), int) or isinstance(project.get(field), bool) or project.get(field) < 1:
             errors.append(f"project.{field} must be a positive integer")
@@ -2770,8 +2772,17 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     docs_firmware_artifact_name = str(project.get("docs_firmware_artifact_name", "")).strip()
     docs_verify_retries = project.get("docs_firmware_verify_retries")
     docs_verify_delay = project.get("docs_firmware_verify_delay_seconds")
+    actions_runner = str(project.get("github_actions_runner", "")).strip()
+    firmware_compile_timeout = project.get("firmware_compile_timeout_minutes")
     slugs = [str(device.get("slug", "")).strip() for device in product["devices"]]
     expected_slugs = " ".join(slugs)
+    if actions_runner:
+        for label, text in (
+            (".github/workflows/release.yml", release_workflow),
+            (".github/workflows/docs.yml", docs_workflow),
+            (".github/workflows/compile.yml", compile_workflow),
+        ):
+            require_contains(text, f"runs-on: {actions_runner}", label, errors)
     for label, text in (
         (".github/workflows/release.yml", release_workflow),
         (".github/workflows/docs.yml", docs_workflow),
@@ -2835,6 +2846,12 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         require_contains(docs_workflow, f"--retries {docs_verify_retries}", ".github/workflows/docs.yml", errors)
     if isinstance(docs_verify_delay, int) and not isinstance(docs_verify_delay, bool):
         require_contains(docs_workflow, f"--delay {docs_verify_delay}", ".github/workflows/docs.yml", errors)
+    if isinstance(firmware_compile_timeout, int) and not isinstance(firmware_compile_timeout, bool):
+        for label, text in (
+            (".github/workflows/release.yml", release_workflow),
+            (".github/workflows/compile.yml", compile_workflow),
+        ):
+            require_contains(text, f"timeout-minutes: {firmware_compile_timeout}", label, errors)
     for needle in (
         "gh release view --json tagName",
         "gh release list --limit 20 --json tagName,isPrerelease",
