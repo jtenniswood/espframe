@@ -5,6 +5,8 @@
     "ai_description": "Standalone digital photo frame firmware that displays a self-hosted Immich photo library on an ESP32-P4 10\" touchscreen. No hub, cloud, or extra software required. Built with ESPHome.",
     "social_image": "espframe.png",
     "social_image_alt": "Espframe displaying Immich photos on a Guition ESP32-P4 touchscreen",
+    "usb_flashing_image": "usb-plug.png",
+    "usb_flashing_image_alt": "USB-C cable plugged into the bottom USB-C flashing port on the Guition ESP32-P4 display",
     "favicon": "favicon.svg",
     "npm_package_name": "immich-frame",
     "license_id": "PolyForm-Noncommercial-1.0.0",

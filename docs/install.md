@@ -19,7 +19,7 @@ Flash Espframe to a supported Guition ESP32-P4 display from your browser — no 
 
 The device has two USB-C ports. Plug the cable into the **bottom port** (labeled **USB** on the PCB) — the one closest to the edge, next to the USB-A connector. The upper port is for the screen ribbon cable only.
 
-<img src="/usb-plug.png" alt="USB-C cable plugged into the bottom USB-C port of the Guition ESP32-P4" style="max-width: 100%; border-radius: 8px; margin: 1rem 0;" />
+<img src="/usb-plug.png" alt="USB-C cable plugged into the bottom USB-C flashing port on the Guition ESP32-P4 display" style="max-width: 100%; border-radius: 8px; margin: 1rem 0;" />
 
 ::: tip Wrong port?
 If flashing fails, make sure you're using the **bottom** USB-C port as shown above. The upper port will not work for flashing.

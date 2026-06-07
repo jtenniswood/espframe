@@ -241,6 +241,8 @@ def check_project_metadata(product: dict, errors: list[str]) -> None:
         "ai_description",
         "social_image",
         "social_image_alt",
+        "usb_flashing_image",
+        "usb_flashing_image_alt",
         "favicon",
         "npm_package_name",
         "license_id",
@@ -280,10 +282,14 @@ def check_project_metadata(product: dict, errors: list[str]) -> None:
     owner_url = str(project.get("owner_url", "")).strip()
     if owner_url and not owner_url.startswith("https://"):
         errors.append("project.owner_url must be an https URL")
-    for field in ("social_image", "favicon"):
+    for field in ("social_image", "usb_flashing_image", "favicon"):
         value = str(project.get(field, "")).strip()
         if value and (value.startswith("/") or ".." in Path(value).parts):
             errors.append(f"project.{field} must be a relative public asset path")
+        if value:
+            public_asset = ROOT / "docs" / "public" / value
+            if not public_asset.is_file():
+                errors.append(f"Missing file: {rel(public_asset)}")
 
     firmware_update = read(ROOT / "common" / "addon" / "firmware_update.yaml", errors)
     if package_name:
@@ -384,6 +390,8 @@ def check_public_site_references(product: dict, errors: list[str]) -> None:
     web_app_url = public_url("webserver/app.js", product)
     project_name = str(product["project"].get("name", "")).strip()
     social_image_alt = str(product["project"].get("social_image_alt", "")).strip()
+    usb_flashing_image = str(product["project"].get("usb_flashing_image", "")).strip()
+    usb_flashing_image_alt = str(product["project"].get("usb_flashing_image_alt", "")).strip()
     repository_url = str(product["project"].get("repository_url", "")).strip().rstrip("/")
     support_url = str(product["project"].get("support_url", "")).strip()
     support_button_image_url = str(product["project"].get("support_button_image_url", "")).strip()
@@ -429,6 +437,18 @@ def check_public_site_references(product: dict, errors: list[str]) -> None:
             ("docs/immich-photo-frame.md", read(ROOT / "docs" / "immich-photo-frame.md", errors)),
         ):
             require_contains(text, f'alt="{social_image_alt}"', label, errors)
+    if usb_flashing_image:
+        for label, text in (
+            ("docs/install.md", install_docs),
+            ("docs/usb-flashing.md", usb_flashing_docs),
+        ):
+            require_contains(text, f'src="/{usb_flashing_image}"', label, errors)
+    if usb_flashing_image_alt:
+        for label, text in (
+            ("docs/install.md", install_docs),
+            ("docs/usb-flashing.md", usb_flashing_docs),
+        ):
+            require_contains(text, f'alt="{usb_flashing_image_alt}"', label, errors)
 
     for device in product["devices"]:
         slug = str(device.get("slug", "")).strip()
