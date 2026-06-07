@@ -838,6 +838,16 @@ def check_project_metadata(product: dict, errors: list[str]) -> None:
         errors.append("project.release_asset_suffixes must be a non-empty list")
     elif any(not isinstance(suffix, str) or not suffix.strip() or not suffix.startswith(".") for suffix in release_asset_suffixes):
         errors.append("project.release_asset_suffixes must only contain non-empty dot-prefixed strings")
+    for field in ("release_binary_download_patterns", "release_manifest_download_patterns", "release_uploaded_verify_patterns"):
+        patterns = project.get(field, [])
+        if not isinstance(patterns, list) or not patterns:
+            errors.append(f"project.{field} must be a non-empty list")
+        else:
+            values = [str(pattern).strip() for pattern in patterns]
+            if any(not value for value in values):
+                errors.append(f"project.{field} must only contain non-empty strings")
+            if len(values) != len(set(values)):
+                errors.append(f"project.{field} must not contain duplicate patterns")
     for field in ("release_version_pattern", "stable_release_version_pattern"):
         pattern = str(project.get(field, "")).strip()
         if pattern:
@@ -2972,6 +2982,15 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     release_source_factory_binary = str(project.get("release_source_factory_binary", "")).strip()
     release_source_ota_binary = str(project.get("release_source_ota_binary", "")).strip()
     asset_suffixes = [str(value).strip() for value in project.get("release_asset_suffixes", []) if str(value).strip()]
+    binary_download_patterns = [
+        str(value).strip() for value in project.get("release_binary_download_patterns", []) if str(value).strip()
+    ]
+    manifest_download_patterns = [
+        str(value).strip() for value in project.get("release_manifest_download_patterns", []) if str(value).strip()
+    ]
+    uploaded_verify_patterns = [
+        str(value).strip() for value in project.get("release_uploaded_verify_patterns", []) if str(value).strip()
+    ]
     release_version_pattern = str(project.get("release_version_pattern", "")).strip()
     stable_release_version_pattern = str(project.get("stable_release_version_pattern", "")).strip()
     firmware_version_placeholder = str(project.get("firmware_version_placeholder_line", "")).rstrip("\n")
@@ -3073,6 +3092,12 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             f"--dir {release_uploaded_verify_dir}",
         ):
             require_contains(release_workflow, needle, ".github/workflows/release.yml", errors)
+    for pattern in binary_download_patterns:
+        require_contains(docs_workflow, f'--pattern "{pattern}"', ".github/workflows/docs.yml", errors)
+    for pattern in manifest_download_patterns:
+        require_contains(docs_workflow, f'--pattern "{pattern}"', ".github/workflows/docs.yml", errors)
+    for pattern in uploaded_verify_patterns:
+        require_contains(release_workflow, f'--pattern "{pattern}"', ".github/workflows/release.yml", errors)
     for suffix in asset_suffixes:
         require_contains(release_workflow, suffix, ".github/workflows/release.yml", errors)
         if suffix == ".manifest.json":
