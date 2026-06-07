@@ -11,7 +11,8 @@
 # Build and log
 # -----------------------------------------------------------------------------
 substitutions:
-  package_ref: "main"
+  espframe_component_url: "https://github.com/jtenniswood/espframe"
+  espframe_component_ref: "main"
   log_level: "INFO"
 
 esp32:
@@ -125,8 +126,8 @@ ota:
 external_components:
   - source:
       type: git
-      url: https://github.com/jtenniswood/espframe
-      ref: ${package_ref}
+      url: ${espframe_component_url}
+      ref: ${espframe_component_ref}
       path: components
     components: [gsl3680, remote_image, espframe]
     refresh: 0s
