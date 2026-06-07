@@ -13,6 +13,7 @@
   var FIRMWARE_MANIFEST_URLS = {"stable":"https://jtenniswood.github.io/espframe/firmware/manifest.json","beta":"https://jtenniswood.github.io/espframe/firmware/beta/manifest.json"};
   var DOCS_BASE_URL = "https://jtenniswood.github.io/espframe";
   var WEB_UI_TABS = [{"id":"immich","label":"Immich"},{"id":"settings","label":"Device"},{"id":"logs","label":"Logs"}];
+  var WEB_UI_LOGS_RETAINED_LINES = 1000;
   var SUPPORT_URL = "https://www.buymeacoffee.com/jtenniswood";
   var SUPPORT_BUTTON_IMAGE_URL = "https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png";
 
@@ -584,7 +585,7 @@
 
     var atBottom = els.logOutput.scrollHeight - els.logOutput.scrollTop - els.logOutput.clientHeight < 40;
     els.logOutput.appendChild(line);
-    var overflow = els.logOutput.childNodes.length - 1000;
+    var overflow = els.logOutput.childNodes.length - WEB_UI_LOGS_RETAINED_LINES;
     if (overflow > 0) {
       for (var i = 0; i < overflow; i++)
         els.logOutput.removeChild(els.logOutput.firstChild);

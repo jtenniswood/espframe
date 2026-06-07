@@ -13,6 +13,7 @@
   var FIRMWARE_MANIFEST_URLS = __ESPFRAME_FIRMWARE_MANIFEST_URLS__;
   var DOCS_BASE_URL = __ESPFRAME_DOCS_BASE_URL__;
   var WEB_UI_TABS = __ESPFRAME_WEB_UI_TABS__;
+  var WEB_UI_LOGS_RETAINED_LINES = __ESPFRAME_WEB_UI_LOGS_RETAINED_LINES__;
   var SUPPORT_URL = __ESPFRAME_SUPPORT_URL__;
   var SUPPORT_BUTTON_IMAGE_URL = __ESPFRAME_SUPPORT_BUTTON_IMAGE_URL__;
 
@@ -584,7 +585,7 @@
 
     var atBottom = els.logOutput.scrollHeight - els.logOutput.scrollTop - els.logOutput.clientHeight < 40;
     els.logOutput.appendChild(line);
-    var overflow = els.logOutput.childNodes.length - 1000;
+    var overflow = els.logOutput.childNodes.length - WEB_UI_LOGS_RETAINED_LINES;
     if (overflow > 0) {
       for (var i = 0; i < overflow; i++)
         els.logOutput.removeChild(els.logOutput.firstChild);

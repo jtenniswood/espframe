@@ -4308,6 +4308,10 @@ def check_generated_web_metadata(product: dict, web_text: str, errors: list[str]
     if web_ui_tabs is not None and web_ui_tabs != product["project"].get("web_ui_tabs"):
         errors.append("Generated web WEB_UI_TABS does not match product/espframe.json")
 
+    logs_retained_lines = extract_js_json_var(web_text, "WEB_UI_LOGS_RETAINED_LINES", errors)
+    if logs_retained_lines is not None and logs_retained_lines != product["project"].get("web_ui_logs_retained_lines"):
+        errors.append("Generated web WEB_UI_LOGS_RETAINED_LINES does not match product/espframe.json")
+
     support_url = extract_js_json_var(web_text, "SUPPORT_URL", errors)
     if support_url is not None and support_url != product["project"].get("support_url"):
         errors.append("Generated web SUPPORT_URL does not match product/espframe.json")
@@ -4367,6 +4371,7 @@ def check_web_ui_metadata(product: dict, web_template: str, web_text: str, error
         require_contains(text, "sp-log-error", label, errors)
         require_contains(text, "sp-log-warn", label, errors)
         require_contains(text, "sp-log-info", label, errors)
+        require_contains(text, "WEB_UI_LOGS_RETAINED_LINES", label, errors)
         if event_source:
             require_contains(text, f'new EventSource("{event_source}")', label, errors)
         if event_name:
@@ -4374,7 +4379,7 @@ def check_web_ui_metadata(product: dict, web_template: str, web_text: str, error
         if clear_label:
             require_contains(text, f'textContent = "{clear_label}"', label, errors)
         if isinstance(retained_lines, int) and not isinstance(retained_lines, bool):
-            require_contains(text, f"childNodes.length - {retained_lines}", label, errors)
+            require_contains(text, "childNodes.length - WEB_UI_LOGS_RETAINED_LINES", label, errors)
 
     if isinstance(tabs, list):
         seen_tab_ids: set[str] = set()
