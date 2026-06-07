@@ -3523,6 +3523,8 @@ def check_factory_firmware_metadata(product: dict, errors: list[str]) -> None:
     local_use = str(project.get("factory_firmware_local_use", "")).strip()
     esphome_config_mount = str(project.get("esphome_config_mount", "")).strip()
     firmware_version_placeholder = str(project.get("firmware_version_placeholder_line", "")).strip()
+    factory_css_include = str(project.get("web_server_factory_css_include", "")).strip()
+    factory_js_include = str(project.get("web_server_factory_js_include", "")).strip()
 
     install_docs = read(ROOT / "docs" / "install.md", errors)
     connectivity_yaml = read(ROOT / "common" / "addon" / "connectivity.yaml", errors)
@@ -3540,8 +3542,10 @@ def check_factory_firmware_metadata(product: dict, errors: list[str]) -> None:
                 require_contains(build_text, value, build_yaml, errors)
         if firmware_version_placeholder:
             require_contains(build_text, firmware_version_placeholder, build_yaml, errors)
-        require_contains(build_text, "css_include: \"../docs/public/webserver/style.css\"", build_yaml, errors)
-        require_contains(build_text, "js_include: \"../docs/public/webserver/app.js\"", build_yaml, errors)
+        if factory_css_include:
+            require_contains(build_text, f'css_include: "{factory_css_include}"', build_yaml, errors)
+        if factory_js_include:
+            require_contains(build_text, f'js_include: "{factory_js_include}"', build_yaml, errors)
         if esphome_config_mount:
             require_contains(
                 compile_workflow,
