@@ -6,34 +6,12 @@
   var SCREEN_ROTATION_OPTIONS = ["0", "90", "180", "270"];
   var PRODUCT_SETTINGS = __ESPFRAME_PRODUCT_SETTINGS__;
 
-  function settingDefault(key, fallback) {
-    var spec = PRODUCT_SETTINGS && PRODUCT_SETTINGS[key];
-    return spec && spec.default !== undefined ? spec.default : fallback;
-  }
-
-  function settingOptions(key, fallback) {
-    var spec = PRODUCT_SETTINGS && PRODUCT_SETTINGS[key];
-    return spec && Array.isArray(spec.options) && spec.options.length ? spec.options.slice() : fallback;
-  }
-
   var S = {
-    clock_options: settingOptions("clock_format", ["24 Hour", "12 Hour"]),
     tz_options: TIMEZONES,
     tz_labels: TIMEZONE_LABELS,
-    interval: settingDefault("interval", "15 seconds"),
-    interval_options: settingOptions("interval", [
-      "10 seconds", "15 seconds", "20 seconds", "30 seconds", "45 seconds",
-      "1 minute", "2 minutes", "3 minutes", "5 minutes", "10 minutes"
-    ]),
-    conn_timeout: settingDefault("conn_timeout", "10 minutes"),
-    conn_timeout_options: settingOptions("conn_timeout", [
-      "30 seconds", "45 seconds", "1 minute", "2 minutes", "3 minutes",
-      "5 minutes", "10 minutes", "15 minutes", "20 minutes", "30 minutes"
-    ]),
     brightness: 100,
     backlight_on: true,
     show_clock: true,
-    clock_format: settingDefault("clock_format", "24 Hour"),
     immich_url: "",
     api_key: "",
     timezone: "Europe/London (GMT+0)",
@@ -46,55 +24,29 @@
     update_available: false,
     beta_version: "",
     beta_available: false,
-    auto_update: settingDefault("auto_update", true),
-    beta_channel: settingDefault("beta_channel", false),
-    update_frequency: settingDefault("update_frequency", "Daily"),
-    update_freq_options: settingOptions("update_frequency", ["Hourly", "Daily", "Weekly", "Monthly"]),
-    firmware_manifest_url: "",
-    firmware_beta_manifest_url: "",
-    schedule_enabled: settingDefault("schedule_enabled", false),
-    schedule_on_hour: settingDefault("schedule_on_hour", 6),
-    schedule_off_hour: settingDefault("schedule_off_hour", 23),
-    schedule_wake_timeout: settingDefault("schedule_wake_timeout", 60),
     brightness_current: 0,
-    brightness_day: settingDefault("brightness_day", 100),
-    brightness_night: settingDefault("brightness_night", 75),
     sunrise: "",
     sunset: "",
-    photo_source: settingDefault("photo_source", "All Photos"),
-    photo_source_options: settingOptions("photo_source", ["All Photos", "Favorites", "Album", "Person", "Memories"]),
     album_ids: "",
     album_labels: "",
     person_ids: "",
     person_labels: "",
-    base_tone_enabled: settingDefault("base_tone_enabled", false),
-    base_tone: settingDefault("base_tone", 0),
-    warm_tones_enabled: settingDefault("warm_tones_enabled", false),
-    warm_tone_intensity: settingDefault("warm_tone_intensity", 50),
-    warm_tone_override: settingDefault("warm_tone_override", false),
-    date_filter_enabled: settingDefault("date_filter_enabled", false),
-    date_filter_mode: settingDefault("date_filter_mode", "Fixed Range"),
-    date_filter_mode_options: settingOptions("date_filter_mode", ["Fixed Range", "Relative Range"]),
-    date_from: "",
-    date_to: "",
-    relative_amount: settingDefault("relative_amount", 1),
-    relative_unit: settingDefault("relative_unit", "Years"),
-    relative_unit_options: settingOptions("relative_unit", ["Months", "Years"]),
-    portrait_pairing: settingDefault("portrait_pairing", true),
-    photo_orientation: settingDefault("photo_orientation", "Any"),
-    photo_orientation_options: settingOptions("photo_orientation", ["Any", "Portrait Only", "Landscape Only"]),
-    display_mode: settingDefault("display_mode", "Fill"),
-    display_mode_options: settingOptions("display_mode", ["Fill", "Fit"]),
-    photo_metadata_date_enabled: settingDefault("photo_metadata_date_enabled", true),
-    photo_metadata_date_format: settingDefault("photo_metadata_date_format", "Date Taken"),
-    photo_metadata_date_format_options: settingOptions("photo_metadata_date_format", ["Relative Date", "Date Taken"]),
-    photo_metadata_date_taken_format: settingDefault("photo_metadata_date_taken_format", "1 January, 2026"),
-    photo_metadata_date_taken_format_options: settingOptions("photo_metadata_date_taken_format", ["1 January, 2026", "January 1, 2026"]),
-    photo_metadata_location_enabled: settingDefault("photo_metadata_location_enabled", true),
-    screen_rotation: settingDefault("screen_rotation", "0"),
-    screen_rotation_options: settingOptions("screen_rotation", ["0", "180"]),
     developer_features_enabled: false,
   };
+
+  function registerProductSettingStateDefaults() {
+    if (!PRODUCT_SETTINGS) return;
+    Object.keys(PRODUCT_SETTINGS).forEach(function (key) {
+      var spec = PRODUCT_SETTINGS[key];
+      if (!spec) return;
+      if (S[key] === undefined) S[key] = spec.default !== undefined ? spec.default : "";
+      if (spec.optionsKey && Array.isArray(spec.options) && spec.options.length) {
+        S[spec.optionsKey] = spec.options.slice();
+      }
+    });
+  }
+
+  registerProductSettingStateDefaults();
 
   var CSS = __ESPFRAME_CSS__;
   var FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" id="mdi-home-automation" viewBox="0 0 24 24"><path fill="#5c73e7" d="M12,3L2,12H5V20H19V12H22L12,3M12,8.5C14.34,8.5 16.46,9.43 18,10.94L16.8,12.12C15.58,10.91 13.88,10.17 12,10.17C10.12,10.17 8.42,10.91 7.2,12.12L6,10.94C7.54,9.43 9.66,8.5 12,8.5M12,11.83C13.4,11.83 14.67,12.39 15.6,13.3L14.4,14.47C13.79,13.87 12.94,13.5 12,13.5C11.06,13.5 10.21,13.87 9.6,14.47L8.4,13.3C9.33,12.39 10.6,11.83 12,11.83M12,15.17C12.94,15.17 13.7,15.91 13.7,16.83C13.7,17.75 12.94,18.5 12,18.5C11.06,18.5 10.3,17.75 10.3,16.83C10.3,15.91 11.06,15.17 12,15.17Z"/></svg>';

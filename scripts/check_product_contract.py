@@ -16,7 +16,8 @@ from product_config import load_product
 
 
 ROOT = Path(__file__).resolve().parent.parent
-WEB_APP = ROOT / "docs" / "webserver" / "src" / "app.template.js"
+WEB_TEMPLATE = ROOT / "docs" / "webserver" / "src" / "app.template.js"
+WEB_APP = ROOT / "docs" / "public" / "webserver" / "app.js"
 
 
 def rel(path: Path) -> str:
@@ -143,11 +144,18 @@ def check_setting(setting: dict, web_text: str, errors: list[str]) -> None:
 
 
 def check_settings(product: dict, errors: list[str]) -> None:
+    web_template = read(WEB_TEMPLATE, errors)
     web_text = read(WEB_APP, errors)
-    require_contains(web_text, "__ESPFRAME_PRODUCT_SETTINGS__", rel(WEB_APP), errors)
-    require_contains(web_text, "__ESPFRAME_INITIAL_FETCH_KEYS__", rel(WEB_APP), errors)
-    require_contains(web_text, "registerProductSettingEndpoints", rel(WEB_APP), errors)
-    require_contains(web_text, "endpoints[key] = eid(parts.domain, parts.name);", rel(WEB_APP), errors)
+    require_contains(web_template, "__ESPFRAME_PRODUCT_SETTINGS__", rel(WEB_TEMPLATE), errors)
+    require_contains(web_template, "__ESPFRAME_INITIAL_FETCH_KEYS__", rel(WEB_TEMPLATE), errors)
+    for needle in (
+        "registerProductSettingStateDefaults",
+        "registerProductSettingEndpoints",
+        "registerProductSettingEntities",
+        "endpoints[key] = eid(parts.domain, parts.name);",
+        "ENTITY_STATE_MAP[productSpec.entity] = stateSpec;",
+    ):
+        require_contains(web_template, needle, rel(WEB_TEMPLATE), errors)
     seen: set[str] = set()
     for setting in product["settings"]:
         key = str(setting.get("key", "")).strip()
