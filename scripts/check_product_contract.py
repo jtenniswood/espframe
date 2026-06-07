@@ -2721,6 +2721,12 @@ def check_photo_display_metadata(product: dict, errors: list[str]) -> None:
         "Fixed Range",
     ):
         require_contains(web_template, needle, rel(WEB_TEMPLATE), errors)
+    for key in ("date_from", "date_to"):
+        date_setting = settings_by_key.get(key, {})
+        date_format = str(date_setting.get("docs_format", "")).strip().strip("`")
+        if date_format:
+            require_contains(web_template, f'placeholder = "{date_format}"', rel(WEB_TEMPLATE), errors)
+            require_contains(web_template, f"Invalid date — use {date_format}", rel(WEB_TEMPLATE), errors)
 
     if portrait_pairing_behavior:
         require_contains(readme, portrait_pairing_behavior, "README.md", errors)
