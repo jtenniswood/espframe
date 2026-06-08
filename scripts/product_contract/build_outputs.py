@@ -21,7 +21,9 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
     sources = [str(value).strip() for value in project.get("generated_asset_sources", []) if str(value).strip()]
     placeholders = [str(value).strip() for value in project.get("web_template_placeholders", []) if str(value).strip()]
 
-    generator = read(ROOT / "scripts" / "generate_assets.py", errors)
+    generator_paths = [ROOT / "scripts" / "generate_assets.py"] + sorted((ROOT / "scripts" / "asset_generation").glob("*.py"))
+    generator = "\n".join(read(path, errors) for path in generator_paths)
+    generator_label = "asset generator sources"
     web_template = read_web_source(errors)
     package_json = read(ROOT / "package.json", errors)
 
@@ -62,9 +64,9 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
             read(ROOT / path, errors)
             path_name = Path(path).name
             if path_name in {"espframe.json", "product_config.py"}:
-                require_contains(generator, "load_product", "scripts/generate_assets.py", errors)
+                require_contains(generator, "load_product", generator_label, errors)
             else:
-                require_contains(generator, path_name, "scripts/generate_assets.py", errors)
+                require_contains(generator, path_name, generator_label, errors)
     template_placeholders = set(re.findall(r"__ESPFRAME_[A-Z0-9_]+__", web_template))
     configured_placeholders = set(placeholders)
     missing_placeholders = sorted(template_placeholders - configured_placeholders)
@@ -81,7 +83,7 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
         )
     for placeholder in placeholders:
         require_contains(web_template, placeholder, rel(WEB_TEMPLATE), errors)
-        require_contains(generator, placeholder, "scripts/generate_assets.py", errors)
+        require_contains(generator, placeholder, generator_label, errors)
     for needle in (
         "python3 scripts/generate_assets.py",
         "python3 scripts/generate_assets.py --check",
@@ -95,7 +97,7 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
         "web_app_bundle",
         "render_settings_table",
     ):
-        require_contains(generator, needle, "scripts/generate_assets.py", errors)
+        require_contains(generator, needle, generator_label, errors)
 
 
 def check_factory_firmware_metadata(product: dict, errors: list[str]) -> None:
