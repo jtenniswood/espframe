@@ -295,6 +295,12 @@ function smokeAssertionsForScenario(scenario) {
             throw new Error("Exported backup fields changed for " + group + ": " + JSON.stringify(actualFields));
           }
         });
+        if (!Array.isArray(exported.clock.ntp_servers) || exported.clock.ntp_servers.length !== 3) {
+          throw new Error("Exported NTP servers must remain a three-item array");
+        }
+        if (exported.screen.schedule_wake_timeout !== 60) {
+          throw new Error("Exported schedule wake timeout was not normalized");
+        }
       }
       function selectByLabel(labelText) {
         const labels = Array.from(document.querySelectorAll("label"));

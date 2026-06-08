@@ -220,9 +220,11 @@ def validate_web_support(product: dict[str, Any], errors: list[str]) -> None:
     for label, text in labels_and_text:
         require_contains(text, f"version: {product['project']['backup_config_version']}", label, errors)
         require_contains(text, "JSON.stringify(data, null, 2)", label, errors)
+        require_contains(text, "buildBackupExportData", label, errors)
+        require_contains(text, "BACKUP_SCHEMA.forEach", label, errors)
+        require_contains(text, "normalizeScheduleWakeTimeout(S.schedule_wake_timeout)", label, errors)
         require_contains(text, "Settings imported successfully", label, errors)
         for group in product["project"].get("backup_export_groups", []):
-            require_contains(text, f"{group}: {{", label, errors)
             require_contains(text, IMPORT_SNIPPETS[str(group)], label, errors)
         for entry in backup_schema(product):
             group = str(entry["group"])

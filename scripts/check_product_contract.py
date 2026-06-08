@@ -1992,8 +1992,6 @@ def check_backup_metadata(product: dict, errors: list[str]) -> None:
                 require_contains(backup_docs, value.strip(), "docs/backup.md", errors)
     for group in export_groups:
         require_contains(backup_docs, f'"{group}"', "docs/backup.md", errors)
-        require_contains(web_template, f"{group}: {{", rel(WEB_TEMPLATE), errors)
-        require_contains(web_text, f"{group}: {{", rel(WEB_APP), errors)
         require_contains(web_template, f"data.{group} || {{}}", rel(WEB_TEMPLATE), errors)
         require_contains(web_text, f"data.{group} || {{}}", rel(WEB_APP), errors)
     if import_write_behavior:
@@ -2015,13 +2013,21 @@ def check_backup_metadata(product: dict, errors: list[str]) -> None:
         "Partial config files work",
         "Settings imported successfully",
         "JSON.stringify(data, null, 2)",
+        "buildBackupExportData",
+        "BACKUP_SCHEMA.forEach",
+        "normalizeScheduleWakeTimeout(S.schedule_wake_timeout)",
     ):
-        if needle in {"Settings imported successfully", "JSON.stringify(data, null, 2)"}:
+        if needle in {
+            "Settings imported successfully",
+            "JSON.stringify(data, null, 2)",
+            "buildBackupExportData",
+            "BACKUP_SCHEMA.forEach",
+            "normalizeScheduleWakeTimeout(S.schedule_wake_timeout)",
+        }:
             require_contains(web_template, needle, rel(WEB_TEMPLATE), errors)
             require_contains(web_text, needle, rel(WEB_APP), errors)
         else:
             require_contains(backup_docs, needle, "docs/backup.md", errors)
-    require_contains(web_template, "display_mode: S.display_mode", rel(WEB_TEMPLATE), errors)
     require_contains(web_template, "p.display_mode", rel(WEB_TEMPLATE), errors)
 
 

@@ -2497,67 +2497,34 @@ if (typeof module !== "undefined") {
 
     // --- Import / Export ---
 
-  function exportConfig() {
+  function backupExportFieldValue(entry) {
+    if (!entry || !Array.isArray(entry.state_keys) || !entry.state_keys.length) return "";
+    if (entry.group === "screen" && entry.field === "schedule_wake_timeout") {
+      return normalizeScheduleWakeTimeout(S.schedule_wake_timeout);
+    }
+    if (entry.state_keys.length > 1) {
+      return entry.state_keys.map(function (key) {
+        return S[key];
+      });
+    }
+    return S[entry.state_keys[0]];
+  }
+
+  function buildBackupExportData() {
     var data = {
       version: 1,
-      exported_at: new Date().toISOString(),
-      connection: {
-        immich_url: S.immich_url,
-        api_key: S.api_key
-      },
-      photos: {
-        source: S.photo_source,
-        album_ids: S.album_ids,
-        album_labels: S.album_labels,
-        person_ids: S.person_ids,
-        person_labels: S.person_labels,
-        date_filter_enabled: S.date_filter_enabled,
-        date_filter_mode: S.date_filter_mode,
-        date_from: S.date_from,
-        date_to: S.date_to,
-        relative_amount: S.relative_amount,
-        relative_unit: S.relative_unit,
-        orientation: S.photo_orientation,
-        portrait_pairing: S.portrait_pairing,
-        display_mode: S.display_mode
-      },
-      frequency: {
-        interval: S.interval,
-        conn_timeout: S.conn_timeout
-      },
-      firmware_updates: {
-        auto_update: S.auto_update,
-        beta_channel: S.beta_channel,
-        update_frequency: S.update_frequency,
-        manifest_url: S.firmware_manifest_url,
-        beta_manifest_url: S.firmware_beta_manifest_url
-      },
-      clock: {
-        show: S.show_clock,
-        format: S.clock_format,
-        timezone: S.timezone,
-        ntp_servers: [
-          S.ntp_server_1,
-          S.ntp_server_2,
-          S.ntp_server_3
-        ]
-      },
-      screen: {
-        brightness_day: S.brightness_day,
-        brightness_night: S.brightness_night,
-        schedule_enabled: S.schedule_enabled,
-        schedule_on_hour: S.schedule_on_hour,
-        schedule_off_hour: S.schedule_off_hour,
-        schedule_wake_timeout: normalizeScheduleWakeTimeout(S.schedule_wake_timeout),
-        base_tone_enabled: S.base_tone_enabled,
-        base_tone: S.base_tone,
-        warm_tones_enabled: S.warm_tones_enabled,
-        warm_tone_intensity: S.warm_tone_intensity,
-        warm_tone_override: S.warm_tone_override,
-        rotation: S.screen_rotation
-      }
+      exported_at: new Date().toISOString()
     };
+    BACKUP_SCHEMA.forEach(function (entry) {
+      if (!entry || !entry.group || !entry.field) return;
+      if (!data[entry.group]) data[entry.group] = {};
+      data[entry.group][entry.field] = backupExportFieldValue(entry);
+    });
+    return data;
+  }
 
+  function exportConfig() {
+    var data = buildBackupExportData();
     var json = JSON.stringify(data, null, 2);
     var blob = new Blob([json], { type: "application/json" });
     var url = URL.createObjectURL(blob);
