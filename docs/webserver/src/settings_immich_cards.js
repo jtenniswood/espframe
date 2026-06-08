@@ -88,14 +88,7 @@
     f2.appendChild(keyWrap);
     connBody.appendChild(f2);
 
-    var fConnTimeout = field("Connection Timeout");
-    fConnTimeout.appendChild(
-      selectFromOptions(productSettingOptions("conn_timeout"), S.conn_timeout, function (v) {
-        S.conn_timeout = v;
-        post(endpoints.conn_timeout + "/set", { option: v });
-      })
-    );
-    connBody.appendChild(fConnTimeout);
+    connBody.appendChild(productSelectSettingField("Connection Timeout", "conn_timeout"));
 
     connBody.appendChild(connStatus);
     return makeCollapsibleCard("Connection", connBody, true);
@@ -105,14 +98,7 @@
   function makeFrequencyCard() {
     // Frequency
     var dispBody = el("div");
-    var f3 = field("Slideshow Interval");
-    f3.appendChild(
-      selectFromOptions(productSettingOptions("interval"), S.interval, function (v) {
-        S.interval = v;
-        post(endpoints.interval + "/set", { option: v });
-      })
-    );
-    dispBody.appendChild(f3);
+    dispBody.appendChild(productSelectSettingField("Slideshow Interval", "interval"));
     return makeCollapsibleCard("Frequency", dispBody, true);
 
   }

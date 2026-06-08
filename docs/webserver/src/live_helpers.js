@@ -93,6 +93,20 @@
     return sel;
   }
 
+  function productSelectSettingField(labelText, key, options) {
+    var opts = options || {};
+    var f = field(labelText);
+    var current = opts.current !== undefined ? opts.current : S[key];
+    f.appendChild(
+      selectFromOptions(productSettingOptions(key, opts.includeDeveloper), current, function (v) {
+        S[key] = v;
+        post(endpoints[key] + "/set", { option: v });
+        if (opts.onChange) opts.onChange(v);
+      }, opts.optionDisplayFn)
+    );
+    return f;
+  }
+
   function segmentedControl(options, current, onChange, optionDisplayFn) {
     var display = optionDisplayFn || function (o) { return o; };
     var seg = el("div", "segment");
