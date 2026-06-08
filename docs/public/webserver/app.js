@@ -1037,12 +1037,7 @@ if (typeof module !== "undefined") {
 
   // --- Settings ---
 
-    function renderSettings() {
-    app.innerHTML = "";
-    immichApp.innerHTML = "";
-    var immichWrap = el("div", "fade-in");
-    var wrap = el("div", "fade-in");
-
+    function makeConnectionCard() {
     // Connection
     var connBody = el("div");
     var connStatus = el("div", "status mb-12");
@@ -1151,8 +1146,11 @@ if (typeof module !== "undefined") {
     connBody.appendChild(fConnTimeout);
 
     connBody.appendChild(connStatus);
-    immichWrap.appendChild(makeCollapsibleCard("Connection", connBody, true));
+    return makeCollapsibleCard("Connection", connBody, true);
 
+  }
+
+  function makeFrequencyCard() {
     // Frequency
     var dispBody = el("div");
     var f3 = field("Slideshow Interval");
@@ -1163,8 +1161,11 @@ if (typeof module !== "undefined") {
       })
     );
     dispBody.appendChild(f3);
-    immichWrap.appendChild(makeCollapsibleCard("Frequency", dispBody, true));
+    return makeCollapsibleCard("Frequency", dispBody, true);
 
+  }
+
+  function makePhotoSourceCard() {
     // Photo Source
     var srcBody = el("div");
     var photoSourceApplyTimer = null;
@@ -1425,50 +1426,11 @@ if (typeof module !== "undefined") {
     srcBody.appendChild(albumField);
     srcBody.appendChild(personField);
 
-    immichWrap.appendChild(makeCollapsibleCard("Photo Source", srcBody, true));
+    return makeCollapsibleCard("Photo Source", srcBody, true);
 
-    // Layout
-    var photoBody = el("div");
+  }
 
-    var fPairToggle = field("");
-    var portraitRotationActive = isPortraitScreenRotation(effectiveScreenRotationForUi());
-    var pairingEnabled = S.portrait_pairing && !portraitRotationActive;
-    var pairTr = el("div", "toggle-row");
-    pairTr.innerHTML = "<span>Portrait Pairing</span>";
-    var pairTog = el("div", pairingEnabled ? "toggle on" : "toggle");
-    if (portraitRotationActive) {
-      pairTog.style.opacity = ".35";
-      pairTog.style.cursor = "not-allowed";
-      pairTog.title = "Portrait pairing is disabled while the screen is in portrait rotation";
-    }
-    pairTog.onclick = function () {
-      if (portraitRotationActive) return;
-      S.portrait_pairing = !S.portrait_pairing;
-      pairTog.className = S.portrait_pairing ? "toggle on" : "toggle";
-      post(endpoints.portrait_pairing + (S.portrait_pairing ? "/turn_on" : "/turn_off"));
-    };
-    pairTr.appendChild(pairTog);
-    fPairToggle.appendChild(pairTr);
-    photoBody.appendChild(fPairToggle);
-
-    var fPhotoOrientation = field("Photo Orientation");
-    fPhotoOrientation.appendChild(
-      selectFromOptions(productSettingOptions("photo_orientation"), S.photo_orientation, function (v) {
-        S.photo_orientation = v;
-        post(endpoints.photo_orientation + "/set", { option: v });
-      })
-    );
-    photoBody.appendChild(fPhotoOrientation);
-
-    var fDisplayMode = field("Display Mode");
-    fDisplayMode.appendChild(
-      selectFromOptions(productSettingOptions("display_mode"), S.display_mode, function (v) {
-        S.display_mode = v;
-        post(endpoints.display_mode + "/set", { option: v });
-      })
-    );
-    photoBody.appendChild(fDisplayMode);
-
+  function makeAdvancedFiltersCard() {
     // Advanced Filters
     var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
     function isValidDate(s) {
@@ -1627,11 +1589,56 @@ if (typeof module !== "undefined") {
     }
 
     filterBody.appendChild(filterDetails);
-    immichWrap.appendChild(makeCollapsibleCard("Advanced Filters", filterBody, true, filterBadge));
-    immichWrap.appendChild(makeCollapsibleCard("Layout", photoBody, true));
+    return makeCollapsibleCard("Advanced Filters", filterBody, true, filterBadge);
+  }
 
-    immichApp.appendChild(immichWrap);
+  function makeLayoutCard() {
+    // Layout
+    var photoBody = el("div");
 
+    var fPairToggle = field("");
+    var portraitRotationActive = isPortraitScreenRotation(effectiveScreenRotationForUi());
+    var pairingEnabled = S.portrait_pairing && !portraitRotationActive;
+    var pairTr = el("div", "toggle-row");
+    pairTr.innerHTML = "<span>Portrait Pairing</span>";
+    var pairTog = el("div", pairingEnabled ? "toggle on" : "toggle");
+    if (portraitRotationActive) {
+      pairTog.style.opacity = ".35";
+      pairTog.style.cursor = "not-allowed";
+      pairTog.title = "Portrait pairing is disabled while the screen is in portrait rotation";
+    }
+    pairTog.onclick = function () {
+      if (portraitRotationActive) return;
+      S.portrait_pairing = !S.portrait_pairing;
+      pairTog.className = S.portrait_pairing ? "toggle on" : "toggle";
+      post(endpoints.portrait_pairing + (S.portrait_pairing ? "/turn_on" : "/turn_off"));
+    };
+    pairTr.appendChild(pairTog);
+    fPairToggle.appendChild(pairTr);
+    photoBody.appendChild(fPairToggle);
+
+    var fPhotoOrientation = field("Photo Orientation");
+    fPhotoOrientation.appendChild(
+      selectFromOptions(productSettingOptions("photo_orientation"), S.photo_orientation, function (v) {
+        S.photo_orientation = v;
+        post(endpoints.photo_orientation + "/set", { option: v });
+      })
+    );
+    photoBody.appendChild(fPhotoOrientation);
+
+    var fDisplayMode = field("Display Mode");
+    fDisplayMode.appendChild(
+      selectFromOptions(productSettingOptions("display_mode"), S.display_mode, function (v) {
+        S.display_mode = v;
+        post(endpoints.display_mode + "/set", { option: v });
+      })
+    );
+    photoBody.appendChild(fDisplayMode);
+
+    return makeCollapsibleCard("Layout", photoBody, true);
+  }
+
+  function makeMetadataCard() {
     // Metadata
     function metadataIsActive() {
       return S.photo_metadata_date_enabled || S.photo_metadata_location_enabled;
@@ -1699,8 +1706,11 @@ if (typeof module !== "undefined") {
     metadataBody.appendChild(metadataDateDetails);
 
     refreshMetadataDetails();
-    immichWrap.appendChild(makeCollapsibleCard("Metadata", metadataBody, true, metadataBadge));
+    return makeCollapsibleCard("Metadata", metadataBody, true, metadataBadge);
 
+  }
+
+    function makeScreenBrightnessCard() {
     // Screen Brightness
     var dnDetails = el("div");
 
@@ -1754,8 +1764,11 @@ if (typeof module !== "undefined") {
     updateSunInfo();
     dnDetails.appendChild(fSunInfo);
 
-    wrap.appendChild(makeCollapsibleCard("Screen Brightness", dnDetails, true));
+    return makeCollapsibleCard("Screen Brightness", dnDetails, true);
 
+  }
+
+  function makeScreenToneCard() {
     // Screen Tone
     var toneBadge = makeBadge(S.base_tone_enabled || S.warm_tones_enabled);
     var warmBody = el("div");
@@ -1856,8 +1869,11 @@ if (typeof module !== "undefined") {
     nightDetails.appendChild(fOverride);
 
     warmBody.appendChild(nightDetails);
-    wrap.appendChild(makeCollapsibleCard("Screen Tone", warmBody, true, toneBadge));
+    return makeCollapsibleCard("Screen Tone", warmBody, true, toneBadge);
 
+  }
+
+  function makeNightScheduleCard() {
     // Schedule
     var schedBadge = makeBadge(S.schedule_enabled);
     var schedBody = el("div");
@@ -1937,8 +1953,11 @@ if (typeof module !== "undefined") {
     schedDetails.appendChild(fWakeTimeout);
 
     schedBody.appendChild(schedDetails);
-    wrap.appendChild(makeCollapsibleCard("Night Schedule", schedBody, true, schedBadge));
+    return makeCollapsibleCard("Night Schedule", schedBody, true, schedBadge);
 
+  }
+
+  function makeRotationCard() {
     // Rotation
     var rotationBody = el("div");
     var fRotation = field("Rotation");
@@ -1955,8 +1974,11 @@ if (typeof module !== "undefined") {
       })
     );
     rotationBody.appendChild(fRotation);
-    wrap.appendChild(makeCollapsibleCard("Rotation", rotationBody, true));
+    return makeCollapsibleCard("Rotation", rotationBody, true);
 
+  }
+
+  function makeClockCard() {
     // Clock
     var clockBadge = makeBadge(S.show_clock);
     var clkBody = el("div");
@@ -1994,8 +2016,11 @@ if (typeof module !== "undefined") {
     );
     clkBody.appendChild(f7);
     clkBody.appendChild(ntpServersField());
-    wrap.appendChild(makeCollapsibleCard("Clock", clkBody, true, clockBadge));
+    return makeCollapsibleCard("Clock", clkBody, true, clockBadge);
 
+  }
+
+    function makeFirmwareCard() {
     // Firmware
     var fwBody = el("div", "fw-body");
     var versionRow = el("div", "field fw-row");
@@ -2205,38 +2230,69 @@ if (typeof module !== "undefined") {
     ));
     fwBody.appendChild(firmwareUrlStatus);
 
-    wrap.appendChild(makeCollapsibleCard("Firmware", fwBody, true));
+    return makeCollapsibleCard("Firmware", fwBody, true);
+  }
 
-    if (developerPanelEnabledByUrl()) {
-      var devBadge = makeBadge(S.developer_features_enabled);
-      var devBody = el("div");
-      var devField = field("");
-      var devRow = el("div", "toggle-row");
-      devRow.innerHTML = "<span>Enable in-development features</span>";
-      var devToggle = el("div", S.developer_features_enabled ? "toggle on" : "toggle");
-      devToggle.onclick = function () {
-        S.developer_features_enabled = !S.developer_features_enabled;
-        devToggle.className = S.developer_features_enabled ? "toggle on" : "toggle";
-        devBadge.className = "on-badge" + (S.developer_features_enabled ? " active" : "");
-        post(endpoints.developer_features_enabled + (S.developer_features_enabled ? "/turn_on" : "/turn_off"));
-        if (!S.developer_features_enabled && isPortraitScreenRotation(S.screen_rotation)) {
-          S.screen_rotation = "0";
-          S.portrait_pairing = true;
-          post(endpoints.screen_rotation + "/set", { option: "0" });
-          post(endpoints.portrait_pairing + "/turn_on");
-        }
-        renderSettings();
-      };
-      devRow.appendChild(devToggle);
-      devField.appendChild(devRow);
-      devBody.appendChild(devField);
-      wrap.appendChild(makeCollapsibleCard("Developer", devBody, true, devBadge));
-    }
+  function makeDeveloperCard() {
+    if (!developerPanelEnabledByUrl()) return null;
+    var devBadge = makeBadge(S.developer_features_enabled);
+    var devBody = el("div");
+    var devField = field("");
+    var devRow = el("div", "toggle-row");
+    devRow.innerHTML = "<span>Enable in-development features</span>";
+    var devToggle = el("div", S.developer_features_enabled ? "toggle on" : "toggle");
+    devToggle.onclick = function () {
+      S.developer_features_enabled = !S.developer_features_enabled;
+      devToggle.className = S.developer_features_enabled ? "toggle on" : "toggle";
+      devBadge.className = "on-badge" + (S.developer_features_enabled ? " active" : "");
+      post(endpoints.developer_features_enabled + (S.developer_features_enabled ? "/turn_on" : "/turn_off"));
+      if (!S.developer_features_enabled && isPortraitScreenRotation(S.screen_rotation)) {
+        S.screen_rotation = "0";
+        S.portrait_pairing = true;
+        post(endpoints.screen_rotation + "/set", { option: "0" });
+        post(endpoints.portrait_pairing + "/turn_on");
+      }
+      renderSettings();
+    };
+    devRow.appendChild(devToggle);
+    devField.appendChild(devRow);
+    devBody.appendChild(devField);
+    return makeCollapsibleCard("Developer", devBody, true, devBadge);
+  }
 
-    wrap.appendChild(makeBackupCard());
+    function appendCards(parent, cards) {
+    cards.forEach(function (card) {
+      if (card) parent.appendChild(card);
+    });
+  }
 
+  function renderSettings() {
+    app.innerHTML = "";
+    immichApp.innerHTML = "";
+    var immichWrap = el("div", "fade-in");
+    var wrap = el("div", "fade-in");
+
+    appendCards(immichWrap, [
+      makeConnectionCard(),
+      makeFrequencyCard(),
+      makePhotoSourceCard(),
+      makeAdvancedFiltersCard(),
+      makeLayoutCard(),
+      makeMetadataCard()
+    ]);
+    immichApp.appendChild(immichWrap);
+
+    appendCards(wrap, [
+      makeScreenBrightnessCard(),
+      makeScreenToneCard(),
+      makeNightScheduleCard(),
+      makeRotationCard(),
+      makeClockCard(),
+      makeFirmwareCard(),
+      makeDeveloperCard(),
+      makeBackupCard()
+    ]);
     app.appendChild(wrap);
-
   }
 
     // --- SSE live updates (after render) ---
