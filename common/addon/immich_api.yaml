@@ -122,8 +122,14 @@ script:
                     return;
                   }
 
-                  auto doc = json::parse_json(body);
-                  if (doc.isNull() || !doc.is<JsonArray>()) {
+                  JsonDocument filter;
+                  filter[0]["assets"][0]["id"] = true;
+                  filter[0]["assets"][0]["type"] = true;
+
+                  JsonDocument doc;
+                  DeserializationError err = deserializeJson(
+                    doc, body.c_str(), DeserializationOption::Filter(filter));
+                  if (err || !doc.is<JsonArray>()) {
                     ESP_LOGD("immich", "No memories for offset %+d", id(immich_memory_window_offset));
                     return;
                   }
@@ -135,8 +141,8 @@ script:
                     JsonArray assets = mem["assets"].as<JsonArray>();
                     for (size_t a = 0; a < assets.size(); a++) {
                       JsonObject asset = assets[a].as<JsonObject>();
-                      if (!asset["id"].is<const char *>()) continue;
-                      if (asset["type"].is<const char *>()) {
+                      if (asset["id"].isNull()) continue;
+                      if (!asset["type"].isNull()) {
                         std::string type = asset["type"].as<std::string>();
                         if (type != "IMAGE") continue;
                       }
@@ -200,6 +206,7 @@ script:
                 tag: immich
                 format: "Skipping memory asset fetch (wifi disconnected)"
             - script.stop: immich_fetch_memory_asset
+      - delay: 200ms
       - http_request.get:
           id: http_req
           url: !lambda 'return id(immich_url).state + "/api/assets/" + id(immich_memory_asset_id);'
