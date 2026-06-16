@@ -42,6 +42,9 @@ globals:
   - id: immich_metadata_page_size
     type: int
     initial_value: '1'
+  - id: immich_metadata_bypass_until_ms
+    type: uint32_t
+    initial_value: '0'
 
 script:
   - id: immich_register_fetch_failure
@@ -350,6 +353,15 @@ script:
                     id(immich_retry_cooldown_until_ms) = millis() + 30000;
                     return;
                   }
+                  std::string source = id(photo_source_select).current_option();
+                  if (total <= 1 && (source == "Album" || source == "Person" || source == "Tag")) {
+                    ESP_LOGW("immich", "Metadata count for %s returned %u image(s); retrying via random search",
+                             source.c_str(), (unsigned) total);
+                    id(immich_metadata_bypass_until_ms) = millis() + 5000;
+                    clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
+                    id(immich_fetch_into_slot).execute();
+                    return;
+                  }
                   std::string orientation = id(photo_orientation_filter).current_option();
                   id(immich_metadata_page_size) = orientation == "Any" ? 1 : IMMICH_METADATA_PAGE_SIZE;
                   id(immich_metadata_page) = immich_metadata_page_for_total(
@@ -575,7 +587,9 @@ script:
       - lambda: 'id(immich_memory_fallback) = false;'
       - if:
           condition:
-            lambda: 'return immich_source_uses_metadata_search(id(photo_source_select).current_option());'
+            lambda: |-
+              return immich_source_uses_metadata_search(id(photo_source_select).current_option()) &&
+                     millis() >= id(immich_metadata_bypass_until_ms);
           then:
             - script.execute: immich_fetch_metadata_into_slot
             - script.stop: immich_fetch_into_slot
