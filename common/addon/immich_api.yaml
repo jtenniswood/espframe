@@ -65,6 +65,15 @@ script:
                    (unsigned) (cooldown_ms / 1000), id(immich_consecutive_failures));
 
   # ---------------------------------------------------------------------------
+  # Retry fetch after temporarily bypassing metadata search
+  # ---------------------------------------------------------------------------
+  - id: immich_fetch_with_metadata_bypass
+    mode: restart
+    then:
+      - delay: 120ms
+      - script.execute: immich_fetch_into_slot
+
+  # ---------------------------------------------------------------------------
   # Display fallback when companion portrait search fails or finds nothing
   # ---------------------------------------------------------------------------
   - id: handle_companion_not_found
@@ -359,7 +368,7 @@ script:
                              source.c_str(), (unsigned) total);
                     id(immich_metadata_bypass_until_ms) = millis() + 5000;
                     clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
-                    id(immich_fetch_into_slot).execute();
+                    id(immich_fetch_with_metadata_bypass).execute();
                     return;
                   }
                   std::string orientation = id(photo_orientation_filter).current_option();
