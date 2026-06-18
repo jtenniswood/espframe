@@ -26,7 +26,7 @@ jobs:
     name: Validate Generated Files and Docs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
@@ -45,7 +45,7 @@ jobs:
     needs: validate
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Read product metadata
         run: python3 scripts/product_config.py github-env >> "$GITHUB_ENV"
