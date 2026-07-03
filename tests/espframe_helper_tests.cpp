@@ -181,6 +181,8 @@ static void test_immich_body_helpers() {
   assert(pick_one_uuid_from_csv(" a, b ,, c ") == "a");
   assert(build_immich_search_body(1, true, "Favorites", "", "", "").find("\"isFavorite\":true") !=
          std::string::npos);
+  assert(build_immich_search_body(1, true, "All Photos", "", "", "").find("\"visibility\":\"timeline\"") !=
+         std::string::npos);
   assert(build_immich_search_body(1, false, "Person", "", "p1,p2", "").find("\"personIds\":[\"p1\"]") !=
          std::string::npos);
   assert(build_immich_search_body(1, false, "Tag", "", "", "t1,t2").find("\"tagIds\":[\"t1\",\"t2\"]") !=
