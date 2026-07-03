@@ -111,6 +111,7 @@
       source: false,
       album: false,
       albumLabel: false,
+      albumOrder: false,
       person: false,
       personLabel: false,
       tag: false,
@@ -120,12 +121,24 @@
     var srcSel = selectFromOptions(productSettingOptions("photo_source"), S.photo_source, function (v) {
       S.photo_source = v;
       albumField.style.display = v === "Album" ? "" : "none";
+      albumOrderField.style.display = v === "Album" ? "" : "none";
       personField.style.display = v === "Person" ? "" : "none";
       tagField.style.display = v === "Tag" ? "" : "none";
       schedulePhotoSourceApply(0, { source: true });
     });
 
     var removeIdIcon = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18\"/><path d=\"M8 6V4h8v2\"/><path d=\"M19 6l-1 14H6L5 6\"/><path d=\"M10 11v5\"/><path d=\"M14 11v5\"/></svg>";
+    var moveUpIcon = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 19V5\"/><path d=\"M5 12l7-7 7 7\"/></svg>";
+    var moveDownIcon = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14\"/><path d=\"M19 12l-7 7-7-7\"/></svg>";
+
+    var albumOrderField = field("Album Order");
+    albumOrderField.appendChild(
+      selectFromOptions(productSettingOptions("album_order"), S.album_order, function (v) {
+        S.album_order = v;
+        schedulePhotoSourceApply(0, { albumOrder: true });
+      })
+    );
+    albumOrderField.style.display = S.photo_source === "Album" ? "" : "none";
 
     var albumField = field("Albums");
     var albumIdList = el("div", "photo-id-list");
@@ -144,12 +157,58 @@
       Array.prototype.forEach.call(albumIdList.querySelectorAll(".album-id-remove"), function (btn) {
         btn.disabled = albumInputs.length <= 1;
       });
+      Array.prototype.forEach.call(albumIdList.querySelectorAll(".album-id-up"), function (btn) {
+        btn.disabled = albumInputs.length <= 1 || Number(btn.getAttribute("data-index")) === 0;
+      });
+      Array.prototype.forEach.call(albumIdList.querySelectorAll(".album-id-down"), function (btn) {
+        btn.disabled = albumInputs.length <= 1 || Number(btn.getAttribute("data-index")) === albumInputs.length - 1;
+      });
+    }
+    function syncAlbumMoveButtonIndexes() {
+      Array.prototype.forEach.call(albumIdList.querySelectorAll(".photo-id-row"), function (row, index) {
+        Array.prototype.forEach.call(row.querySelectorAll(".album-id-up,.album-id-down"), function (btn) {
+          btn.setAttribute("data-index", String(index));
+        });
+      });
+    }
+    function moveAlbumIdRow(fromIndex, toIndex) {
+      if (toIndex < 0 || toIndex >= albumInputs.length || fromIndex === toIndex) return;
+      var row = albumInputs[fromIndex].closest(".photo-id-row");
+      var targetRow = albumInputs[toIndex].closest(".photo-id-row");
+      var movedInput = albumInputs.splice(fromIndex, 1)[0];
+      var movedLabel = albumLabelInputs.splice(fromIndex, 1)[0];
+      albumInputs.splice(toIndex, 0, movedInput);
+      albumLabelInputs.splice(toIndex, 0, movedLabel);
+      if (toIndex < fromIndex) albumIdList.insertBefore(row, targetRow);
+      else albumIdList.insertBefore(row, targetRow.nextSibling);
+      syncAlbumMoveButtonIndexes();
+      refreshAlbumRemoveButtons();
+      schedulePhotoSourceApply(0, { album: true, albumLabel: true });
     }
     function addAlbumIdRow(value, labelValue) {
       var row = el("div", "photo-id-row");
       var fields = el("div", "photo-id-fields");
       var albumInput = input("text", value || "", "Paste album ID from Immich URL", MAX_PHOTO_ID_FIELD_LENGTH);
       var albumLabelInput = input("text", labelValue || "", "What is it?", MAX_PHOTO_ID_FIELD_LENGTH);
+      var actions = el("div", "photo-id-row-actions");
+      var upBtn = el("button", "btn btn-secondary btn-icon album-id-up");
+      upBtn.type = "button";
+      upBtn.innerHTML = moveUpIcon;
+      upBtn.title = "Move album up";
+      upBtn.setAttribute("aria-label", "Move album up");
+      upBtn.onclick = function () {
+        var fromIndex = albumInputs.indexOf(albumInput);
+        moveAlbumIdRow(fromIndex, fromIndex - 1);
+      };
+      var downBtn = el("button", "btn btn-secondary btn-icon album-id-down");
+      downBtn.type = "button";
+      downBtn.innerHTML = moveDownIcon;
+      downBtn.title = "Move album down";
+      downBtn.setAttribute("aria-label", "Move album down");
+      downBtn.onclick = function () {
+        var fromIndex = albumInputs.indexOf(albumInput);
+        moveAlbumIdRow(fromIndex, fromIndex + 1);
+      };
       var removeBtn = el("button", "btn btn-secondary btn-icon album-id-remove");
       removeBtn.type = "button";
       removeBtn.innerHTML = removeIdIcon;
@@ -166,6 +225,7 @@
         albumInputs.splice(removeIndex, 1);
         albumLabelInputs.splice(removeIndex, 1);
         row.parentNode.removeChild(row);
+        syncAlbumMoveButtonIndexes();
         refreshAlbumRemoveButtons();
         schedulePhotoSourceApply(0, { album: true, albumLabel: true });
       };
@@ -178,10 +238,14 @@
       fields.appendChild(albumInput);
       fields.appendChild(albumLabelInput);
       row.appendChild(fields);
-      row.appendChild(removeBtn);
+      actions.appendChild(upBtn);
+      actions.appendChild(downBtn);
+      actions.appendChild(removeBtn);
+      row.appendChild(actions);
       albumIdList.appendChild(row);
       albumInputs.push(albumInput);
       albumLabelInputs.push(albumLabelInput);
+      syncAlbumMoveButtonIndexes();
       refreshAlbumRemoveButtons();
     }
     var albumIds = splitPhotoIdList(S.album_ids);
@@ -270,6 +334,7 @@
       }
       return {
         source: srcVal,
+        albumOrder: S.album_order,
         albumIds: albumTrim,
         albumLabels: albumLabels,
         personIds: personTrim,
@@ -283,6 +348,7 @@
         source: pendingPhotoSourceSave.source,
         album: pendingPhotoSourceSave.album,
         albumLabel: pendingPhotoSourceSave.albumLabel,
+        albumOrder: pendingPhotoSourceSave.albumOrder,
         person: pendingPhotoSourceSave.person,
         personLabel: pendingPhotoSourceSave.personLabel,
         tag: pendingPhotoSourceSave.tag,
@@ -292,6 +358,7 @@
         source: false,
         album: false,
         albumLabel: false,
+        albumOrder: false,
         person: false,
         personLabel: false,
         tag: false,
@@ -309,6 +376,9 @@
       if (changes.albumLabel) {
         requests.push(saveSetting("album_labels", vals.albumLabels));
       }
+      if (changes.albumOrder) {
+        requests.push(saveSetting("album_order", vals.albumOrder));
+      }
       if (changes.person) {
         requests.push(saveSetting("person_ids", vals.personIds));
       }
@@ -323,7 +393,7 @@
       }
       if (!requests.length) return;
       Promise.all(requests).then(function () {
-        if (changes.source || changes.album || changes.person || changes.tag)
+        if (changes.source || changes.album || changes.albumOrder || changes.person || changes.tag)
           post(endpoints.apply_photo_source + "/press");
       });
     }
@@ -332,6 +402,7 @@
         pendingPhotoSourceSave.source = pendingPhotoSourceSave.source || !!changes.source;
         pendingPhotoSourceSave.album = pendingPhotoSourceSave.album || !!changes.album;
         pendingPhotoSourceSave.albumLabel = pendingPhotoSourceSave.albumLabel || !!changes.albumLabel;
+        pendingPhotoSourceSave.albumOrder = pendingPhotoSourceSave.albumOrder || !!changes.albumOrder;
         pendingPhotoSourceSave.person = pendingPhotoSourceSave.person || !!changes.person;
         pendingPhotoSourceSave.personLabel = pendingPhotoSourceSave.personLabel || !!changes.personLabel;
         pendingPhotoSourceSave.tag = pendingPhotoSourceSave.tag || !!changes.tag;
@@ -485,6 +556,7 @@
 
     fSrc.appendChild(srcSel);
     srcBody.appendChild(fSrc);
+    srcBody.appendChild(albumOrderField);
     srcBody.appendChild(albumField);
     srcBody.appendChild(personField);
     srcBody.appendChild(tagField);

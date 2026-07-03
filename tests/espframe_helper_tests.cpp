@@ -179,6 +179,21 @@ static void test_immich_body_helpers() {
 
   assert(build_uuid_json_array(" a, b ,, c ") == "[\"a\",\"b\",\"c\"]");
   assert(pick_one_uuid_from_csv(" a, b ,, c ") == "a");
+  int album_order_index = 0;
+  assert(pick_album_id_for_metadata_search(" a, b, c ", "Album list order", album_order_index) == "a");
+  assert(album_order_index == 1);
+  assert(pick_album_id_for_metadata_search(" a, b, c ", "Album list order", album_order_index) == "b");
+  assert(album_order_index == 2);
+  assert(pick_album_id_for_metadata_search(" a, b, c ", "Album list order", album_order_index) == "c");
+  assert(album_order_index == 0);
+  album_order_index = 9;
+  assert(pick_album_id_for_metadata_search(" a, b ", "Album list order", album_order_index) == "a");
+  assert(album_order_index == 1);
+  assert(pick_album_id_for_metadata_search(" , , ", "Album list order", album_order_index).empty());
+  assert(album_order_index == 0);
+  album_order_index = 1;
+  assert(pick_album_id_for_metadata_search(" a, b, c ", "Random albums", album_order_index) == "a");
+  assert(album_order_index == 1);
   assert(build_immich_search_body(1, true, "Favorites", "", "", "").find("\"isFavorite\":true") !=
          std::string::npos);
   assert(build_immich_search_body(1, true, "All Photos", "", "", "").find("\"visibility\":\"timeline\"") !=

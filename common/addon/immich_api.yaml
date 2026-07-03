@@ -45,6 +45,9 @@ globals:
   - id: immich_metadata_bypass_until_ms
     type: uint32_t
     initial_value: '0'
+  - id: immich_album_order_index
+    type: int
+    initial_value: '0'
 
 script:
   - id: immich_register_fetch_failure
@@ -324,7 +327,12 @@ script:
             x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
           body: !lambda |-
             std::string source = id(photo_source_select).current_option();
-            id(immich_metadata_album_id) = source == "Album" ? pick_one_uuid_from_csv(id(immich_album_ids).state) : "";
+            id(immich_metadata_album_id) = source == "Album"
+              ? pick_album_id_for_metadata_search(
+                  id(immich_album_ids).state,
+                  id(immich_album_order).current_option(),
+                  id(immich_album_order_index))
+              : "";
             id(immich_metadata_person_id) = source == "Person" ? pick_one_person_id_for_random_search(id(immich_person_ids).state) : "";
             id(immich_metadata_tag_ids) = source == "Tag" ? id(immich_tag_ids).state : "";
             auto now = id(sntp_time).now();

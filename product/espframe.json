@@ -74,6 +74,7 @@
       "connection": ["immich_url", "api_key"],
       "photos": [
         "source",
+        "album_order",
         "album_ids",
         "album_labels",
         "person_ids",
@@ -115,6 +116,7 @@
       },
       "photos": {
         "source": "photo_source",
+        "album_order": "album_order",
         "album_ids": "album_ids",
         "album_labels": "album_labels",
         "person_ids": "person_ids",
@@ -379,7 +381,7 @@
       "docs/photo-sources.md": {
         "source": {
           "columns": ["Setting", "Default", "Format", "Description"],
-          "settings": ["photo_source"]
+          "settings": ["photo_source", "album_order"]
         },
         "date_filtering": {
           "columns": ["Setting", "Default", "Format", "Description"],
@@ -869,6 +871,16 @@
       "default": "All Photos",
       "docs_description": "Choose all photos, favorites, albums, people, tags, or Immich memories.",
       "options": ["All Photos", "Favorites", "Album", "Person", "Tag", "Memories"],
+      "firmware_files": ["common/addon/immich_filter.yaml"],
+      "docs_files": ["docs/photo-sources.md"]
+    },
+    {
+      "key": "album_order",
+      "entity": { "domain": "select", "name": "Photos: Album Order" },
+      "default": "Random albums",
+      "docs_label": "Album Order",
+      "docs_description": "Choose whether multiple albums are sampled randomly or cycled in the order shown in the Albums list.",
+      "options": ["Random albums", "Album list order"],
       "firmware_files": ["common/addon/immich_filter.yaml"],
       "docs_files": ["docs/photo-sources.md"]
     },

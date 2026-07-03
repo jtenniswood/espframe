@@ -207,6 +207,27 @@ inline std::string pick_one_uuid_from_csv(const std::string &csv) {
   return ids[esp_random() % ids.size()];
 }
 
+inline std::string pick_album_id_for_metadata_search(const std::string &csv,
+                                                     const std::string &album_order,
+                                                     int &next_index) {
+  std::vector<std::string> ids = split_uuid_csv(csv);
+  if (ids.empty()) {
+    next_index = 0;
+    return "";
+  }
+
+  if (album_order != "Album list order") {
+    return pick_one_uuid_from_csv(csv);
+  }
+
+  if (next_index < 0 || next_index >= static_cast<int>(ids.size())) {
+    next_index = 0;
+  }
+  std::string selected = ids[next_index];
+  next_index = (next_index + 1) % static_cast<int>(ids.size());
+  return selected;
+}
+
 inline std::string build_uuid_json_array(const std::string &csv) {
   std::vector<std::string> ids = split_uuid_csv(csv);
   std::string result = "[";
