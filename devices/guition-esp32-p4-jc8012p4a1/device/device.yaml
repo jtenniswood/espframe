@@ -80,8 +80,16 @@ debug:
 text_sensor:
   - platform: debug
     reset_reason:
+      id: reset_reason_sensor
       name: "Reset Reason"
       entity_category: diagnostic
+      on_value:
+        then:
+          - if:
+              condition:
+                lambda: 'return x.find("esphome.ota") != std::string::npos;'
+              then:
+                - script.execute: firmware_update_recover_display
 
 json:
 

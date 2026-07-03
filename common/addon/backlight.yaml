@@ -37,8 +37,7 @@ light:
         - if:
             condition:
               lambda: |-
-                return id(screen_schedule_asleep) ||
-                       (id(schedule_enabled).state && !id(sntp_time).now().is_valid());
+                return id(screen_schedule_asleep);
             then:
               - script.execute: backlight_force_display_off
             else:
