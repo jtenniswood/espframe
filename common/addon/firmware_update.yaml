@@ -39,9 +39,6 @@ globals:
   - id: manual_check_only
     type: bool
     initial_value: 'false'
-  - id: firmware_update_blank_active
-    type: bool
-    initial_value: 'false'
 
 # -----------------------------------------------------------------------------
 # OTA and HTTP update sources (stable + beta manifest)
@@ -62,16 +59,6 @@ update:
             condition:
               lambda: 'return id(auto_update_switch).state && !id(manual_check_only);'
             then:
-              - globals.set:
-                  id: firmware_update_blank_active
-                  value: 'true'
-              - light.turn_off:
-                  id: backlight
-                  transition_length: 300ms
-              - delay: 350ms
-              - globals.set:
-                  id: firmware_update_blank_active
-                  value: 'false'
               - update.perform: firmware_update
 
   - platform: http_request

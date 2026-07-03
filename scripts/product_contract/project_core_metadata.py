@@ -40,8 +40,6 @@ def check_project_required_metadata(product: dict, errors: list[str]) -> None:
         "firmware_custom_manifest_requirement",
         "ota_update_platform",
         "ota_pre_update_action",
-        "ota_pre_update_transition",
-        "ota_pre_update_delay",
         "backup_filename_prefix",
         "backup_filename_date_format",
         "backup_import_write_behavior",

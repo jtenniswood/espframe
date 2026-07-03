@@ -4,7 +4,7 @@
 # Base device config: ESP32-P4 host, ESP32-C6 coprocessor (WiFi/BT over SDIO),
 # PSRAM, display (MIPI DSI JC8012P4A1), touch (GSL3680), backlight, I2C. Also
 # API, logger, web server, OTA, and espframe external components. Display is
-# 800×1280 logical (rotation 90); OTA dims backlight before apply.
+# 800×1280 logical (rotation 90).
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -118,18 +118,6 @@ web_server:
 
 ota:
   - platform: esphome
-    on_begin:
-      then:
-        - globals.set:
-            id: firmware_update_blank_active
-            value: 'true'
-        - light.turn_off:
-            id: backlight
-            transition_length: 300ms
-        - delay: 350ms
-        - globals.set:
-            id: firmware_update_blank_active
-            value: 'false'
 
 # -----------------------------------------------------------------------------
 # External components (espframe: gsl3680, remote_image, espframe)
