@@ -119,8 +119,6 @@ def check_ota_update_metadata(product: dict, errors: list[str]) -> None:
     project = product["project"]
     platform = str(project.get("ota_update_platform", "")).strip()
     pre_update_action = str(project.get("ota_pre_update_action", "")).strip()
-    transition = str(project.get("ota_pre_update_transition", "")).strip()
-    delay = str(project.get("ota_pre_update_delay", "")).strip()
 
     firmware_docs = read(ROOT / "docs" / "firmware-update.md", errors)
     device_yaml_path = "devices/guition-esp32-p4-jc8012p4a1/device/device.yaml"
@@ -128,18 +126,12 @@ def check_ota_update_metadata(product: dict, errors: list[str]) -> None:
 
     if pre_update_action:
         require_contains(firmware_docs, pre_update_action, "docs/firmware-update.md", errors)
-    if transition:
-        require_contains(firmware_docs, transition, "docs/firmware-update.md", errors)
-        require_contains(device_yaml, f"transition_length: {transition}", device_yaml_path, errors)
-    if delay:
-        require_contains(firmware_docs, delay, "docs/firmware-update.md", errors)
-        require_contains(device_yaml, f"delay: {delay}", device_yaml_path, errors)
     if platform:
         require_contains(device_yaml, f"platform: {platform}", device_yaml_path, errors)
     for needle in (
         "ota:",
         "on_begin:",
-        "light.turn_off:",
-        "id: backlight",
+        "firmware_update_reboot_pending",
+        "global_preferences->sync();",
     ):
         require_contains(device_yaml, needle, device_yaml_path, errors)

@@ -7,7 +7,7 @@ description: Configure Espframe over-the-air and HTTP firmware updates from GitH
 
 OTA and HTTP updates from GitHub. The device checks the stable firmware manifest on GitHub Pages. The 10-inch model uses `https://jtenniswood.github.io/espframe/firmware/manifest.json`. Controls: device web UI at `http://<device-ip>/` under **Firmware** (and in Home Assistant).
 
-During OTA updates, Espframe turns the backlight off before the update starts using a 300ms transition, waits 350ms, then starts the update. If Home Assistant or the screen sleep control had already turned the display off, the screen stays off after the update reboot until it is woken again.
+During OTA updates, Espframe keeps the current backlight state while the update starts. If Home Assistant or the screen sleep control had already turned the display off, the screen stays off after the update reboot until it is woken again.
 
 <!-- ESPFRAME:SETTINGS_TABLE firmware_controls START -->
 | Control | Type | Default | Description |
