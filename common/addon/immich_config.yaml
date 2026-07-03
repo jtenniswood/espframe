@@ -173,12 +173,33 @@ script:
             - if:
                 condition:
                   lambda: |-
+                    return !immich_source_has_required_ids(
+                      id(photo_source_select).current_option(),
+                      id(immich_album_ids).state,
+                      id(immich_person_ids).state,
+                      id(immich_tag_ids).state);
+                then:
+                  - logger.log:
+                      level: DEBUG
+                      tag: immich
+                      format: "Photo source is waiting for restored source IDs"
+                  - script.execute: immich_retry_config_ready
+                  - script.stop: immich_check_config_ready
+            - if:
+                condition:
+                  lambda: |-
                     if (!id(immich_fetch_started)) return true;
                     if (id(active_slot_displayed)) return false;
                     return !any_slot_fetch_in_flight(id(slot_flags));
                 then:
                   - lambda: 'id(target_slot) = id(active_slot);'
                   - script.execute: immich_fetch_into_slot
+
+  - id: immich_retry_config_ready
+    mode: restart
+    then:
+      - delay: 2s
+      - script.execute: immich_check_config_ready
 
 button:
   - platform: restart

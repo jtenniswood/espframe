@@ -178,6 +178,15 @@ static void test_immich_body_helpers() {
          "\"takenBefore\":\"2024-05-10T23:59:59.999Z\"");
 
   assert(build_uuid_json_array(" a, b ,, c ") == "[\"a\",\"b\",\"c\"]");
+  assert(immich_source_has_required_ids("All Photos", "", "", ""));
+  assert(immich_source_has_required_ids("Favorites", "", "", ""));
+  assert(immich_source_has_required_ids("Memories", "", "", ""));
+  assert(immich_source_has_required_ids("Album", " a ", "", ""));
+  assert(!immich_source_has_required_ids("Album", " , ", "", ""));
+  assert(immich_source_has_required_ids("Person", "", " p1 ", ""));
+  assert(!immich_source_has_required_ids("Person", "", "", ""));
+  assert(immich_source_has_required_ids("Tag", "", "", " t1,t2 "));
+  assert(!immich_source_has_required_ids("Tag", "", "", " , "));
   assert(pick_one_uuid_from_csv(" a, b ,, c ") == "a");
   int album_order_index = 0;
   assert(pick_album_id_for_metadata_search(" a, b, c ", "Album list order", album_order_index) == "a");

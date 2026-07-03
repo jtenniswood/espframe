@@ -240,6 +240,19 @@ inline std::string build_uuid_json_array(const std::string &csv) {
   return result;
 }
 
+inline bool immich_source_has_required_ids(const std::string &photo_source,
+                                           const std::string &album_ids,
+                                           const std::string &person_ids,
+                                           const std::string &tag_ids) {
+  if (photo_source == "Album")
+    return !split_uuid_csv(album_ids).empty();
+  if (photo_source == "Person")
+    return !split_uuid_csv(person_ids).empty();
+  if (photo_source == "Tag")
+    return !split_uuid_csv(tag_ids).empty();
+  return true;
+}
+
 inline std::string build_immich_search_body(int size, bool with_people,
                                              const std::string &photo_source,
                                              const std::string &album_ids,

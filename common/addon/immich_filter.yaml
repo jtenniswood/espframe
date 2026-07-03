@@ -334,6 +334,21 @@ script:
   - id: flush_slots_and_refetch
     mode: single
     then:
+      - if:
+          condition:
+            lambda: |-
+              return !immich_source_has_required_ids(
+                id(photo_source_select).current_option(),
+                id(immich_album_ids).state,
+                id(immich_person_ids).state,
+                id(immich_tag_ids).state);
+          then:
+            - logger.log:
+                level: DEBUG
+                tag: immich
+                format: "Photo source apply deferred until source IDs are restored"
+            - script.execute: immich_retry_config_ready
+            - script.stop: flush_slots_and_refetch
       - lambda: |-
           id(slot0).ready = false;
           id(slot1).ready = false;

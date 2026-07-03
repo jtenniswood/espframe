@@ -307,16 +307,22 @@ script:
       - if:
           condition:
             lambda: |-
-              std::string source = id(photo_source_select).current_option();
               return id(immich_url).state.empty() ||
                      id(immich_api_key_text).state.empty() ||
-                     (source == "Album" && id(immich_album_ids).state.empty()) ||
-                     (source == "Person" && id(immich_person_ids).state.empty()) ||
-                     (source == "Tag" && id(immich_tag_ids).state.empty());
+                     !immich_source_has_required_ids(
+                       id(photo_source_select).current_option(),
+                       id(immich_album_ids).state,
+                       id(immich_person_ids).state,
+                       id(immich_tag_ids).state);
           then:
             - lambda: |-
                 ESP_LOGW("immich", "Metadata source selected but Immich URL, API key, or source IDs are missing");
                 clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
+            - if:
+                condition:
+                  lambda: 'return !id(active_slot_displayed);'
+                then:
+                  - script.execute: immich_retry_config_ready
             - script.stop: immich_fetch_metadata_into_slot
       - http_request.post:
           id: http_req
