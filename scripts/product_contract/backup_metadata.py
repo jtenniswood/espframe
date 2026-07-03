@@ -56,7 +56,6 @@ def check_backup_metadata(product: dict, errors: list[str]) -> None:
             require_contains(web_text, f"Import skipped invalid {label}", rel(WEB_APP), errors)
     for message in (
         "Stable firmware URL was invalid - not imported",
-        "Beta firmware URL was invalid - not imported",
     ):
         require_contains(web_template, message, rel(WEB_TEMPLATE), errors)
         require_contains(web_text, message, rel(WEB_APP), errors)

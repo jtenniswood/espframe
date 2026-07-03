@@ -29,10 +29,8 @@
   },
   "firmware_updates": {
     "auto_update": true,
-    "beta_channel": false,
     "update_frequency": "Daily",
-    "manifest_url": "https://jtenniswood.github.io/espframe/firmware/manifest.json",
-    "beta_manifest_url": "https://jtenniswood.github.io/espframe/firmware/beta/manifest.json"
+    "manifest_url": "https://jtenniswood.github.io/espframe/firmware/manifest.json"
   },
   "clock": {
     "show": true,

@@ -44,8 +44,7 @@ Under **Settings → Devices & Services → ESPHome** (device page):
 | **Screen: Wake** | Button | Wakes the display and resumes the slideshow. During scheduled off-hours, this is a temporary wake using the configured wake timeout. |
 | **Firmware: Auto Update** | Switch | Install updates when available |
 | **Firmware: Update Frequency** | Select | Hourly, Daily, Weekly, Monthly |
-| **Firmware: Beta Channel** | Switch | Opt in to pre-release firmware checks |
-| **Firmware: Check for Update** | Button | Manual check (stable + beta if enabled) |
+| **Firmware: Check for Update** | Button | Manual stable update check |
 | **Firmware: Version** | Text Sensor | Installed version |
 | **Network: Online** | Binary Sensor | Connection status |
 | **Network: WiFi Strength** | Sensor | Signal % |

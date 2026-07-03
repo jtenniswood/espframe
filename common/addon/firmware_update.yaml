@@ -2,7 +2,7 @@
 # FIRMWARE UPDATE - OTA and HTTP update from GitHub
 # =============================================================================
 # Provides OTA (over-the-air) and HTTP-based firmware updates. The device
-# checks a manifest on GitHub (stable and optional beta) and can auto-update
+# checks a stable manifest on GitHub and can auto-update
 # when new versions are available. Update checks run on an interval (hourly,
 # daily, weekly, or monthly) when auto-update is enabled; a manual "Check for Update"
 # button triggers an immediate check. Version is exposed as a text sensor for
@@ -15,7 +15,6 @@
 substitutions:
   firmware_version: "dev"
   firmware_manifest_url: "https://jtenniswood.github.io/espframe/firmware/manifest.json"
-  firmware_beta_manifest_url: "https://jtenniswood.github.io/espframe/firmware/beta/manifest.json"
 
 esphome:
   project:
@@ -26,7 +25,6 @@ esphome:
       then:
         - lambda: |-
             id(firmware_update).set_source_url(id(firmware_manifest_url_text).state);
-            id(firmware_update_beta).set_source_url(id(firmware_beta_manifest_url_text).state);
         - component.update: firmware_version_sensor
 
 # -----------------------------------------------------------------------------
@@ -44,7 +42,7 @@ globals:
     initial_value: 'false'
 
 # -----------------------------------------------------------------------------
-# OTA and HTTP update sources (stable + beta manifest)
+# OTA and HTTP update source
 # -----------------------------------------------------------------------------
 ota:
   - platform: http_request
@@ -73,13 +71,6 @@ update:
                   id: firmware_update_blank_active
                   value: 'false'
               - update.perform: firmware_update
-
-  - platform: http_request
-    id: firmware_update_beta
-    name: "Firmware: Update Beta"
-    internal: true
-    source: ${firmware_beta_manifest_url}
-    update_interval: never
 
 # -----------------------------------------------------------------------------
 # User controls: auto-update and check frequency
@@ -114,35 +105,6 @@ text:
           global_preferences->sync();
           ESP_LOGI("firmware", "Firmware manifest URL configured: %s", url.c_str());
 
-  - platform: template
-    name: "Firmware: Beta Manifest URL"
-    id: firmware_beta_manifest_url_text
-    internal: true
-    entity_category: config
-    # ESPFRAME:SETTING_FIELDS firmware_beta_manifest_url START
-    optimistic: false
-    restore_value: true
-    initial_value: "${firmware_beta_manifest_url}"
-    min_length: 0
-    max_length: 255
-    mode: text
-    # ESPFRAME:SETTING_FIELDS firmware_beta_manifest_url END
-    icon: "mdi:web"
-    web_server:
-      sorting_group_id: sg_firmware
-    set_action:
-      - lambda: |-
-          std::string url = strip_trailing_slashes(x);
-          if (url.empty()) url = "${firmware_beta_manifest_url}";
-          if (!is_valid_http_url(url)) {
-            ESP_LOGW("firmware", "Firmware beta manifest URL must be a valid http(s)://host[:port]/path URL");
-            return;
-          }
-          id(firmware_beta_manifest_url_text).publish_state(url);
-          id(firmware_update_beta).set_source_url(url);
-          global_preferences->sync();
-          ESP_LOGI("firmware", "Firmware beta manifest URL configured: %s", url.c_str());
-
 switch:
   - platform: template
     name: "Firmware: Auto Update"
@@ -153,18 +115,6 @@ switch:
     # ESPFRAME:SETTING_FIELDS auto_update START
     restore_mode: RESTORE_DEFAULT_ON
     # ESPFRAME:SETTING_FIELDS auto_update END
-    web_server:
-      sorting_group_id: sg_firmware
-
-  - platform: template
-    name: "Firmware: Beta Channel"
-    id: beta_channel_switch
-    entity_category: config
-    icon: "mdi:beta"
-    optimistic: true
-    # ESPFRAME:SETTING_FIELDS beta_channel START
-    restore_mode: RESTORE_DEFAULT_OFF
-    # ESPFRAME:SETTING_FIELDS beta_channel END
     web_server:
       sorting_group_id: sg_firmware
 
@@ -204,10 +154,6 @@ interval:
           if (counter % threshold == 0) {
             id(firmware_update).set_source_url(id(firmware_manifest_url_text).state);
             id(firmware_update).update();
-            if (id(beta_channel_switch).state) {
-              id(firmware_update_beta).set_source_url(id(firmware_beta_manifest_url_text).state);
-              id(firmware_update_beta).update();
-            }
           }
           id(update_check_counter) = counter + 1;
 
@@ -236,12 +182,6 @@ button:
       - lambda: 'id(manual_check_only) = true;'
       - lambda: |-
           id(firmware_update).set_source_url(id(firmware_manifest_url_text).state);
-          id(firmware_update_beta).set_source_url(id(firmware_beta_manifest_url_text).state);
       - component.update: firmware_update
-      - if:
-          condition:
-            lambda: 'return id(beta_channel_switch).state;'
-          then:
-            - component.update: firmware_update_beta
       - delay: 15s
       - lambda: 'id(manual_check_only) = false;'

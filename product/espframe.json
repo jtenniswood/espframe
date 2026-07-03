@@ -53,10 +53,8 @@
     "network_wifi_strength_update_interval": "60s",
     "firmware_update_methods": ["OTA", "HTTP"],
     "firmware_update_source": "GitHub Pages",
-    "firmware_update_channels": ["stable", "beta"],
-    "firmware_beta_channel_label": "pre-release",
+    "firmware_update_channels": ["stable"],
     "firmware_manual_check_behavior": "only checks for updates; it does not install",
-    "firmware_beta_check_requirement": "Beta Channel must be enabled to check for pre-release firmware",
     "firmware_custom_manifest_requirement": "full http:// or https:// URL",
     "firmware_manifest_url_length_limit": 255,
     "firmware_update_frequency_hours": { "Hourly": 1, "Daily": 24, "Weekly": 168, "Monthly": 720 },
@@ -91,7 +89,7 @@
         "display_mode"
       ],
       "frequency": ["interval", "conn_timeout"],
-      "firmware_updates": ["auto_update", "beta_channel", "update_frequency", "manifest_url", "beta_manifest_url"],
+      "firmware_updates": ["auto_update", "update_frequency", "manifest_url"],
       "clock": ["show", "format", "timezone", "ntp_servers"],
       "screen": [
         "brightness_day",
@@ -137,10 +135,8 @@
       },
       "firmware_updates": {
         "auto_update": "auto_update",
-        "beta_channel": "beta_channel",
         "update_frequency": "update_frequency",
-        "manifest_url": "firmware_manifest_url",
-        "beta_manifest_url": "firmware_beta_manifest_url"
+        "manifest_url": "firmware_manifest_url"
       },
       "clock": {
         "show": "show_clock",
@@ -193,8 +189,7 @@
         {
           "path": "tests/fixtures/compat/espframe-config-v1-invalid-manifest-urls.json",
           "messages": [
-            "Stable firmware URL was invalid - not imported",
-            "Beta firmware URL was invalid - not imported"
+            "Stable firmware URL was invalid - not imported"
           ]
         }
       ],
@@ -321,7 +316,7 @@
     "web_ui_logs_event_name": "log",
     "web_ui_logs_clear_label": "Clear",
     "web_ui_logs_retained_lines": 1000,
-    "web_live_render_state_keys": ["screen_rotation", "portrait_pairing", "developer_features_enabled", "beta_channel"],
+    "web_live_render_state_keys": ["screen_rotation", "portrait_pairing", "developer_features_enabled"],
     "web_live_render_state_prefixes": ["photo_metadata_", "schedule_"],
     "web_initial_fetch_first_keys": ["firmware"],
     "web_static_entities": {
@@ -352,7 +347,6 @@
       "api_key": { "entity": "text/Connection: API Key", "firmware_file": "common/addon/immich_config.yaml" },
       "backlight": { "entity": "light/Screen: Backlight", "firmware_file": "common/addon/backlight.yaml" },
       "update": { "entity": "update/Firmware: Update", "firmware_file": "common/addon/firmware_update.yaml" },
-      "update_beta": { "entity": "update/Firmware: Update Beta", "firmware_file": "common/addon/firmware_update.yaml" },
       "apply_photo_source": { "entity": "button/Apply Photo Source", "firmware_file": "common/addon/immich_filter.yaml" },
       "firmware_check": { "entity": "button/Firmware: Check for Update", "firmware_file": "common/addon/firmware_update.yaml" },
       "reboot_screen": { "entity": "button/Device: Reboot Screen", "firmware_file": "common/addon/immich_config.yaml" }
@@ -399,15 +393,13 @@
       "docs/firmware-update.md": {
         "firmware_controls": {
           "columns": ["Control", "Type", "Default", "Description"],
-          "settings": ["auto_update", "beta_channel", "update_frequency", "firmware_manifest_url", "firmware_beta_manifest_url"]
+          "settings": ["auto_update", "update_frequency", "firmware_manifest_url"]
         }
       }
     },
     "web_local_state_keys": [
       "api_key",
       "backlight_on",
-      "beta_available",
-      "beta_version",
       "brightness",
       "brightness_current",
       "immich_url",
@@ -592,19 +584,10 @@
       "clock_format": {},
       "update_frequency": {},
       "auto_update": {},
-      "beta_channel": {},
       "firmware_manifest_url": {
         "optimistic": false,
         "restore_value": true,
         "initial_value": "${firmware_manifest_url}",
-        "min_length": 0,
-        "max_length": 255,
-        "mode": "text"
-      },
-      "firmware_beta_manifest_url": {
-        "optimistic": false,
-        "restore_value": true,
-        "initial_value": "${firmware_beta_manifest_url}",
         "min_length": 0,
         "max_length": 255,
         "mode": "text"
@@ -829,8 +812,7 @@
         "screen_rotation_180": "270",
         "screen_rotation_270": "0",
         "captive_portal_ip": "192.168.4.1",
-        "firmware_manifest_url": "https://jtenniswood.github.io/espframe/firmware/manifest.json",
-        "firmware_beta_manifest_url": "https://jtenniswood.github.io/espframe/firmware/beta/manifest.json"
+        "firmware_manifest_url": "https://jtenniswood.github.io/espframe/firmware/manifest.json"
       },
       "font_assets": [
         { "id": "noto_325_150_font", "file": "gfonts://Noto Sans@325", "size": 150, "bpp": 4 },
@@ -999,16 +981,6 @@
       "docs_files": ["docs/firmware-update.md"]
     },
     {
-      "key": "beta_channel",
-      "entity": { "domain": "switch", "name": "Firmware: Beta Channel" },
-      "default": false,
-      "docs_label": "Beta Channel",
-      "docs_default": "Off",
-      "docs_description": "Opt in to pre-release firmware checks",
-      "firmware_files": ["common/addon/firmware_update.yaml"],
-      "docs_files": ["docs/firmware-update.md"]
-    },
-    {
       "key": "firmware_manifest_url",
       "entity": { "domain": "text", "name": "Firmware: Manifest URL" },
       "default": "",
@@ -1016,17 +988,6 @@
       "docs_default": "Device default",
       "docs_type": "Text",
       "docs_description": "Advanced: custom stable update manifest",
-      "firmware_files": ["common/addon/firmware_update.yaml"],
-      "docs_files": ["docs/firmware-update.md"]
-    },
-    {
-      "key": "firmware_beta_manifest_url",
-      "entity": { "domain": "text", "name": "Firmware: Beta Manifest URL" },
-      "default": "",
-      "docs_label": "Beta Manifest URL",
-      "docs_default": "Device default",
-      "docs_type": "Text",
-      "docs_description": "Advanced: custom pre-release update manifest",
       "firmware_files": ["common/addon/firmware_update.yaml"],
       "docs_files": ["docs/firmware-update.md"]
     },

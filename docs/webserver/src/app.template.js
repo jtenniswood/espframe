@@ -30,8 +30,6 @@
     installed_version: "",
     latest_version: "",
     update_available: false,
-    beta_version: "",
-    beta_available: false,
     brightness_current: 0,
     sunrise: "",
     sunset: "",
