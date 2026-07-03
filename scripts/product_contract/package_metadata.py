@@ -39,19 +39,51 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
             errors.append("package.json test:web-modules must run tests/web_module_tests.js")
         if scripts.get("test:web-smoke") != "node tests/web_smoke_tests.js":
             errors.append("package.json test:web-smoke must run tests/web_smoke_tests.js")
-        check_all = str(scripts.get("check:all", ""))
-        if "npm run check:backup" not in check_all:
-            errors.append("package.json check:all must include check:backup")
-        if "npm run check:compat" not in check_all:
-            errors.append("package.json check:all must include check:compat")
-        if "npm run check:firmware-fields" not in check_all:
-            errors.append("package.json check:all must include check:firmware-fields")
-        if "npm run test:web-compat" not in check_all:
-            errors.append("package.json check:all must include test:web-compat")
-        if "npm run test:web-modules" not in check_all:
-            errors.append("package.json check:all must include test:web-modules")
-        if "npm run test:web-smoke" not in check_all:
-            errors.append("package.json check:all must include test:web-smoke")
+        test_web = str(scripts.get("test:web", ""))
+        if "npm run test:web-compat" not in test_web:
+            errors.append("package.json test:web must include test:web-compat")
+        if "npm run test:web-modules" not in test_web:
+            errors.append("package.json test:web must include test:web-modules")
+        if "npm run test:web-smoke" not in test_web:
+            errors.append("package.json test:web must include test:web-smoke")
+        firmware_logic = str(scripts.get("test:firmware-logic", ""))
+        if "npm run test:helpers" not in firmware_logic:
+            errors.append("package.json test:firmware-logic must include test:helpers")
+        if "npm run test:timezones" not in firmware_logic:
+            errors.append("package.json test:firmware-logic must include test:timezones")
+        check_fast = str(scripts.get("check:fast", ""))
+        if "npm run check:generated" not in check_fast:
+            errors.append("package.json check:fast must include check:generated")
+        if "npm run check:product" not in check_fast:
+            errors.append("package.json check:fast must include check:product")
+        if "npm run check:backup" not in check_fast:
+            errors.append("package.json check:fast must include check:backup")
+        if "npm run check:compat" not in check_fast:
+            errors.append("package.json check:fast must include check:compat")
+        if "npm run check:firmware-fields" not in check_fast:
+            errors.append("package.json check:fast must include check:firmware-fields")
+        check_pr = str(scripts.get("check:pr", ""))
+        if "npm run check:fast" not in check_pr:
+            errors.append("package.json check:pr must include check:fast")
+        if "npm run test:web-compat" not in check_pr:
+            errors.append("package.json check:pr must include test:web-compat")
+        if "npm run test:web-modules" not in check_pr:
+            errors.append("package.json check:pr must include test:web-modules")
+        if "npm run test:web-smoke" not in check_pr:
+            errors.append("package.json check:pr must include test:web-smoke")
+        if "npm run test:firmware-logic" not in check_pr:
+            errors.append("package.json check:pr must include test:firmware-logic")
+        if "npm run docs:build" not in check_pr:
+            errors.append("package.json check:pr must include docs:build")
+        check_release = str(scripts.get("check:release", ""))
+        if "npm run check:pr" not in check_release:
+            errors.append("package.json check:release must include check:pr")
+        if "npm run check:firmware-release" not in check_release:
+            errors.append("package.json check:release must include check:firmware-release")
+        if "npm run check:release-changelog" not in check_release:
+            errors.append("package.json check:release must include check:release-changelog")
+        if scripts.get("check:all") != "npm run check:release":
+            errors.append("package.json check:all must run check:release")
     if package_lock.get("name") != expected_name:
         errors.append("package-lock.json name must match project.npm_package_name")
     root_package = package_lock.get("packages", {}).get("", {})

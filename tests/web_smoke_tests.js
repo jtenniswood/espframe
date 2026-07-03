@@ -547,12 +547,14 @@ function htmlForScenario(scenario) {
 
 function runChrome(args, timeoutMs) {
   return new Promise((resolve) => {
+    const useProcessGroup = process.platform !== "win32";
     const child = spawn(chromePath, args, {
-      detached: true,
+      detached: useProcessGroup,
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
     let stderr = "";
+    let timedOut = false;
 
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
@@ -564,21 +566,27 @@ function runChrome(args, timeoutMs) {
     });
 
     const timer = setTimeout(() => {
-      try {
-        process.kill(-child.pid, "SIGKILL");
-      } catch (_) {
-        child.kill("SIGKILL");
+      timedOut = true;
+      if (useProcessGroup) {
+        try {
+          process.kill(-child.pid, "SIGKILL");
+          return;
+        } catch (_) {
+          // Fall back to killing the browser wrapper if the process group is already gone.
+        }
       }
+      child.kill("SIGKILL");
     }, timeoutMs);
 
     child.on("close", (status, signal) => {
       clearTimeout(timer);
-      resolve({ status, signal, stdout, stderr });
+      resolve({ status, signal, stdout, stderr, timedOut });
     });
   });
 }
 
 async function runScenario(scenario) {
+  console.log(`running web browser smoke scenario: ${scenario.name}`);
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "espframe-web-smoke-"));
   const htmlPath = path.join(tempDir, `${scenario.name}.html`);
   const userDataDir = path.join(tempDir, "chrome-profile");
@@ -607,6 +615,7 @@ async function runScenario(scenario) {
   const output = `${result.stdout || ""}\n${result.stderr || ""}`;
   const passToken = `ESPFRAME_BROWSER_SMOKE_${scenario.name.toUpperCase().replace(/-/g, "_")}_PASS`;
   if (!output.includes(passToken)) {
+    assert.equal(result.timedOut, false, `Chrome timed out for ${scenario.name}:\n${output}`);
     assert.equal(result.status, 0, `Chrome failed for ${scenario.name}:\n${output}`);
   }
   assert.ok(output.includes(passToken), `Browser smoke scenario ${scenario.name} failed:\n${output}`);

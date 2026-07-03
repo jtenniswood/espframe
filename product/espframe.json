@@ -647,7 +647,7 @@
     "node_version": "24",
     "node_package_cache": "npm",
     "node_install_command": "npm ci",
-    "local_check_command": "npm run check:all",
+    "local_check_command": "npm run check:pr",
     "docs_build_command": "npm run docs:build",
     "github_actions_node24_env": "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24",
     "github_actions_runner": "ubuntu-latest",
@@ -708,7 +708,7 @@
     "github_docs_workflow_run_success_conclusion": "success",
     "github_workflow_jobs": {
       "compile": {
-        "validate": "Validate Generated Files and Docs",
+        "validate": "Validate PR Gate",
         "compile": "Compile Firmware"
       },
       "docs": {
