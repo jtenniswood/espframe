@@ -39,12 +39,31 @@ gh pr view <number> \
 
 ### 2. Work in the PR Branch
 
-Protect `main`. Use the PR branch in a separate worktree when possible. If the
-branch is not local yet:
+Protect `main`. Use the PR branch in a separate worktree when possible. Inspect
+whether the PR is from this repository or from a fork before fetching branch
+names:
+
+```bash
+gh pr view <number> \
+  --json headRefName,headRepositoryOwner,headRepository,isCrossRepository,maintainerCanModify
+```
+
+For same-repository PRs, fetch the branch from `origin` and create the worktree
+from that remote-tracking branch:
 
 ```bash
 git fetch origin <head-branch>
-git worktree add ../espframe-<short-topic> -b <head-branch> origin/<head-branch>
+git worktree add ../espframe-<short-topic> -b <local-pr-branch> origin/<head-branch>
+```
+
+For forked PRs, do not assume the head branch exists in this repository's
+`origin`. Check out the PR ref directly in the new worktree, or fetch from the
+reported head repository owner when a push back to the fork is allowed:
+
+```bash
+git worktree add ../espframe-pr-<number> --detach
+cd ../espframe-pr-<number>
+gh pr checkout <number>
 ```
 
 Before editing, check for local changes:

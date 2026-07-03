@@ -50,16 +50,25 @@ Use a worktree from the PR branch when it can be pushed:
 
 ```bash
 git fetch origin <base-branch>
-gh pr checkout <number> --branch <local-pr-branch>
-git worktree add ../<repo>-pr-<number>-conflicts <local-pr-branch>
+gh pr view <number> \
+  --json headRefName,headRepositoryOwner,headRepository,isCrossRepository,maintainerCanModify
+git fetch origin <head-branch>
+git worktree add ../<repo>-pr-<number>-conflicts -b <local-pr-branch> origin/<head-branch>
 ```
+
+Do not check out `<local-pr-branch>` in the current worktree before adding the
+new worktree. A branch that is already checked out cannot be reused by
+`git worktree add` without forcing it, and forcing is not appropriate when the
+goal is to protect local work.
 
 If the PR comes from a fork and cannot be pushed safely, create a same-repo
 branch from the PR head instead and tell the user the original PR may need a
 replacement PR:
 
 ```bash
-gh pr checkout <number> --detach
+git worktree add ../<repo>-pr-<number>-conflicts --detach
+cd ../<repo>-pr-<number>-conflicts
+gh pr checkout <number>
 git switch -c <maintainer-conflict-branch>
 ```
 
