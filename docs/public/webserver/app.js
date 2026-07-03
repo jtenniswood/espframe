@@ -1209,16 +1209,11 @@ if (typeof module !== "undefined") {
     connStatus.id = "conn-status";
 
     function showSaved(msg) {
-      connStatus.innerHTML = '<span class="dot green"></span> ' + (msg || "Saved");
-      clearTimeout(connStatus._t);
-      connStatus._t = setTimeout(function () {
-        connStatus.textContent = "";
-      }, 3000);
+      setStatus(connStatus, msg || "Saved", "green", 3000);
     }
 
     function showConnectionError(msg) {
-      connStatus.innerHTML = '<span class="dot red"></span> ' + msg;
-      clearTimeout(connStatus._t);
+      setStatus(connStatus, msg, "red");
     }
 
     var urlField = makeConnectionUrlField(S.immich_url);
@@ -1331,10 +1326,6 @@ if (typeof module !== "undefined") {
       schedulePhotoSourceApply(0, { source: true });
     });
 
-    var removeIdIcon = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18\"/><path d=\"M8 6V4h8v2\"/><path d=\"M19 6l-1 14H6L5 6\"/><path d=\"M10 11v5\"/><path d=\"M14 11v5\"/></svg>";
-    var moveUpIcon = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 19V5\"/><path d=\"M5 12l7-7 7 7\"/></svg>";
-    var moveDownIcon = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14\"/><path d=\"M19 12l-7 7-7-7\"/></svg>";
-
     var albumOrderField = field("Album Order");
     albumOrderField.appendChild(
       selectFromOptions(productSettingOptions("album_order"), S.album_order, function (v) {
@@ -1344,196 +1335,102 @@ if (typeof module !== "undefined") {
     );
     albumOrderField.style.display = S.photo_source === "Album" ? "" : "none";
 
-    var albumField = field("Albums");
-    var albumIdList = el("div", "photo-id-list");
-    var albumInputs = [];
-    var albumLabelInputs = [];
-    var albumError = el("div", "field-error");
-    function getAlbumIdsValue() {
-      return albumInputs.map(function (inputEl) {
-        return inputEl.value.trim();
-      }).filter(Boolean).join(",");
-    }
-    function getAlbumLabelsValue() {
-      return buildPhotoLabelList(albumInputs, albumLabelInputs);
-    }
-    function refreshAlbumRemoveButtons() {
-      Array.prototype.forEach.call(albumIdList.querySelectorAll(".album-id-remove"), function (btn) {
-        btn.disabled = albumInputs.length <= 1;
-      });
-      Array.prototype.forEach.call(albumIdList.querySelectorAll(".album-id-up"), function (btn) {
-        btn.disabled = albumInputs.length <= 1 || Number(btn.getAttribute("data-index")) === 0;
-      });
-      Array.prototype.forEach.call(albumIdList.querySelectorAll(".album-id-down"), function (btn) {
-        btn.disabled = albumInputs.length <= 1 || Number(btn.getAttribute("data-index")) === albumInputs.length - 1;
-      });
-    }
-    function syncAlbumMoveButtonIndexes() {
-      Array.prototype.forEach.call(albumIdList.querySelectorAll(".photo-id-row"), function (row, index) {
-        Array.prototype.forEach.call(row.querySelectorAll(".album-id-up,.album-id-down"), function (btn) {
-          btn.setAttribute("data-index", String(index));
-        });
-      });
-    }
-    function moveAlbumIdRow(fromIndex, toIndex) {
-      if (toIndex < 0 || toIndex >= albumInputs.length || fromIndex === toIndex) return;
-      var row = albumInputs[fromIndex].closest(".photo-id-row");
-      var targetRow = albumInputs[toIndex].closest(".photo-id-row");
-      var movedInput = albumInputs.splice(fromIndex, 1)[0];
-      var movedLabel = albumLabelInputs.splice(fromIndex, 1)[0];
-      albumInputs.splice(toIndex, 0, movedInput);
-      albumLabelInputs.splice(toIndex, 0, movedLabel);
-      if (toIndex < fromIndex) albumIdList.insertBefore(row, targetRow);
-      else albumIdList.insertBefore(row, targetRow.nextSibling);
-      syncAlbumMoveButtonIndexes();
-      refreshAlbumRemoveButtons();
-      schedulePhotoSourceApply(0, { album: true, albumLabel: true });
-    }
-    function addAlbumIdRow(value, labelValue) {
-      var row = el("div", "photo-id-row");
-      var fields = el("div", "photo-id-fields");
-      var albumInput = input("text", value || "", "Paste album ID from Immich URL", MAX_PHOTO_ID_FIELD_LENGTH);
-      var albumLabelInput = input("text", labelValue || "", "What is it?", MAX_PHOTO_ID_FIELD_LENGTH);
-      var actions = el("div", "photo-id-row-actions");
-      var upBtn = el("button", "btn btn-secondary btn-icon album-id-up");
-      upBtn.type = "button";
-      upBtn.innerHTML = moveUpIcon;
-      upBtn.title = "Move album up";
-      upBtn.setAttribute("aria-label", "Move album up");
-      upBtn.onclick = function () {
-        var fromIndex = albumInputs.indexOf(albumInput);
-        moveAlbumIdRow(fromIndex, fromIndex - 1);
-      };
-      var downBtn = el("button", "btn btn-secondary btn-icon album-id-down");
-      downBtn.type = "button";
-      downBtn.innerHTML = moveDownIcon;
-      downBtn.title = "Move album down";
-      downBtn.setAttribute("aria-label", "Move album down");
-      downBtn.onclick = function () {
-        var fromIndex = albumInputs.indexOf(albumInput);
-        moveAlbumIdRow(fromIndex, fromIndex + 1);
-      };
-      var removeBtn = el("button", "btn btn-secondary btn-icon album-id-remove");
-      removeBtn.type = "button";
-      removeBtn.innerHTML = removeIdIcon;
-      removeBtn.title = "Remove album ID";
-      removeBtn.setAttribute("aria-label", "Remove album ID");
-      removeBtn.onclick = function () {
-        if (albumInputs.length <= 1) {
-          albumInput.value = "";
-          albumLabelInput.value = "";
-          schedulePhotoSourceApply(0, { album: true, albumLabel: true });
-          return;
-        }
-        var removeIndex = albumInputs.indexOf(albumInput);
-        albumInputs.splice(removeIndex, 1);
-        albumLabelInputs.splice(removeIndex, 1);
-        row.parentNode.removeChild(row);
-        syncAlbumMoveButtonIndexes();
-        refreshAlbumRemoveButtons();
-        schedulePhotoSourceApply(0, { album: true, albumLabel: true });
-      };
-      albumInput.oninput = function () {
-        schedulePhotoSourceApply(null, { album: true, albumLabel: true });
-      };
-      albumLabelInput.oninput = function () {
-        schedulePhotoSourceApply(null, { albumLabel: true });
-      };
-      fields.appendChild(albumInput);
-      fields.appendChild(albumLabelInput);
-      row.appendChild(fields);
-      actions.appendChild(upBtn);
-      actions.appendChild(downBtn);
-      actions.appendChild(removeBtn);
-      row.appendChild(actions);
-      albumIdList.appendChild(row);
-      albumInputs.push(albumInput);
-      albumLabelInputs.push(albumLabelInput);
-      syncAlbumMoveButtonIndexes();
-      refreshAlbumRemoveButtons();
-    }
-    var albumIds = splitPhotoIdList(S.album_ids);
-    var albumLabels = parsePhotoLabelList(S.album_labels);
-    for (var albumIndex = 0; albumIndex < Math.max(albumIds.length, albumLabels.length, 1); albumIndex++) {
-      addAlbumIdRow(albumIds[albumIndex] || "", albumLabels[albumIndex] || "");
-    }
-    var addAlbumRow = el("div", "photo-id-actions");
-    var addAlbumBtn = el("button", "btn btn-secondary");
-    addAlbumBtn.type = "button";
-    addAlbumBtn.textContent = "Add an album";
-    addAlbumBtn.title = "Add an album";
-    addAlbumBtn.setAttribute("aria-label", "Add an album");
-    addAlbumBtn.onclick = function () {
-      addAlbumIdRow("", "");
-      albumInputs[albumInputs.length - 1].focus();
-    };
-    addAlbumRow.appendChild(addAlbumBtn);
-    albumField.appendChild(albumIdList);
-    albumField.appendChild(addAlbumRow);
-    albumField.appendChild(albumError);
+    var albumList = photoIdListField({
+      label: "Albums",
+      idKey: "album_ids",
+      labelKey: "album_labels",
+      idPlaceholder: "Paste album ID from Immich URL",
+      labelPlaceholder: "What is it?",
+      addText: "Add an album",
+      removeTitle: "Remove album ID",
+      idChanges: { album: true, albumLabel: true },
+      labelChanges: { albumLabel: true },
+      clearChanges: { album: true, albumLabel: true },
+      onChange: function (changes, delayMs) { schedulePhotoSourceApply(delayMs, changes); }
+    });
+    var albumField = albumList.field;
     albumField.style.display = S.photo_source === "Album" ? "" : "none";
 
-    var personField = field("People");
-    var personIdList = el("div", "photo-id-list");
-    var personInputs = [];
-    var personLabelInputs = [];
-    var personError = el("div", "field-error");
-    function getPersonIdsValue() {
-      return personInputs.map(function (inputEl) {
-        return inputEl.value.trim();
-      }).filter(Boolean).join(",");
-    }
-    function getPersonLabelsValue() {
-      return buildPhotoLabelList(personInputs, personLabelInputs);
-    }
+    var personList = photoIdListField({
+      label: "People",
+      idKey: "person_ids",
+      labelKey: "person_labels",
+      idPlaceholder: "Paste person ID from Immich URL",
+      labelPlaceholder: "Who is it?",
+      addText: "Add a person",
+      removeTitle: "Remove person ID",
+      idChanges: { person: true, personLabel: true },
+      labelChanges: { personLabel: true },
+      clearChanges: { person: true, personLabel: true },
+      onChange: function (changes, delayMs) { schedulePhotoSourceApply(delayMs, changes); }
+    });
+    var personField = personList.field;
+    personField.style.display = S.photo_source === "Person" ? "" : "none";
+
+    var tagList = photoIdListField({
+      label: "Tags",
+      idKey: "tag_ids",
+      labelKey: "tag_labels",
+      idPlaceholder: "Paste tag ID from Immich URL",
+      labelPlaceholder: "What tag is it?",
+      addText: "Add a tag",
+      removeTitle: "Remove tag ID",
+      idChanges: { tag: true, tagLabel: true },
+      labelChanges: { tagLabel: true },
+      clearChanges: { tag: true, tagLabel: true },
+      onChange: function (changes, delayMs) { schedulePhotoSourceApply(delayMs, changes); }
+    });
+    var tagField = tagList.field;
+    tagField.style.display = S.photo_source === "Tag" ? "" : "none";
+
     function validatePhotoSourceInputs(changes) {
-      albumError.textContent = "";
-      personError.textContent = "";
-      tagError.textContent = "";
+      albumList.error.textContent = "";
+      personList.error.textContent = "";
+      tagList.error.textContent = "";
       var srcVal = srcSel.value;
-      var albumTrim = getAlbumIdsValue();
-      var albumLabels = getAlbumLabelsValue();
-      var personTrim = getPersonIdsValue();
-      var personLabels = getPersonLabelsValue();
-      var tagTrim = getTagIdsValue();
-      var tagLabels = getTagLabelsValue();
+      var albumTrim = albumList.getIdsValue();
+      var albumLabels = albumList.getLabelsValue();
+      var personTrim = personList.getIdsValue();
+      var personLabels = personList.getLabelsValue();
+      var tagTrim = tagList.getIdsValue();
+      var tagLabels = tagList.getLabelsValue();
       var shouldValidateAlbum = changes.album || srcVal === "Album";
       var shouldValidatePerson = changes.person || srcVal === "Person";
       var shouldValidateTag = changes.tag || srcVal === "Tag";
       if (shouldValidateAlbum && photoIdFieldTooLong(albumTrim)) {
-        albumError.textContent = PHOTO_ID_FIELD_TOO_LONG;
+        albumList.error.textContent = PHOTO_ID_FIELD_TOO_LONG;
         return null;
       }
       if (shouldValidatePerson && photoIdFieldTooLong(personTrim)) {
-        personError.textContent = PHOTO_ID_FIELD_TOO_LONG;
+        personList.error.textContent = PHOTO_ID_FIELD_TOO_LONG;
         return null;
       }
       if (shouldValidateTag && photoIdFieldTooLong(tagTrim)) {
-        tagError.textContent = PHOTO_ID_FIELD_TOO_LONG;
+        tagList.error.textContent = PHOTO_ID_FIELD_TOO_LONG;
         return null;
       }
       if (shouldValidateAlbum && !isValidUuidList(albumTrim)) {
-        albumError.textContent = "Invalid UUID format";
+        albumList.error.textContent = "Invalid UUID format";
         return null;
       }
       if (changes.albumLabel && photoLabelFieldTooLong(albumLabels)) {
-        albumError.textContent = PHOTO_LABEL_FIELD_TOO_LONG;
+        albumList.error.textContent = PHOTO_LABEL_FIELD_TOO_LONG;
         return null;
       }
       if (shouldValidatePerson && !isValidUuidList(personTrim)) {
-        personError.textContent = "Invalid UUID format";
+        personList.error.textContent = "Invalid UUID format";
         return null;
       }
       if (changes.personLabel && photoLabelFieldTooLong(personLabels)) {
-        personError.textContent = PHOTO_LABEL_FIELD_TOO_LONG;
+        personList.error.textContent = PHOTO_LABEL_FIELD_TOO_LONG;
         return null;
       }
       if (shouldValidateTag && !isValidUuidList(tagTrim)) {
-        tagError.textContent = "Invalid UUID format";
+        tagList.error.textContent = "Invalid UUID format";
         return null;
       }
       if (changes.tagLabel && photoLabelFieldTooLong(tagLabels)) {
-        tagError.textContent = PHOTO_LABEL_FIELD_TOO_LONG;
+        tagList.error.textContent = PHOTO_LABEL_FIELD_TOO_LONG;
         return null;
       }
       return {
@@ -1615,148 +1512,6 @@ if (typeof module !== "undefined") {
       clearTimeout(photoSourceApplyTimer);
       photoSourceApplyTimer = setTimeout(applyPhotoSourceInputs, delayMs == null ? 600 : delayMs);
     }
-    function refreshPersonRemoveButtons() {
-      Array.prototype.forEach.call(personIdList.querySelectorAll(".person-id-remove"), function (btn) {
-        btn.disabled = personInputs.length <= 1;
-      });
-    }
-    function addPersonIdRow(value, labelValue) {
-      var row = el("div", "photo-id-row");
-      var fields = el("div", "photo-id-fields");
-      var personInput = input("text", value || "", "Paste person ID from Immich URL", MAX_PHOTO_ID_FIELD_LENGTH);
-      var personLabelInput = input("text", labelValue || "", "Who is it?", MAX_PHOTO_ID_FIELD_LENGTH);
-      var removeBtn = el("button", "btn btn-secondary btn-icon person-id-remove");
-      removeBtn.type = "button";
-      removeBtn.innerHTML = removeIdIcon;
-      removeBtn.title = "Remove person ID";
-      removeBtn.setAttribute("aria-label", "Remove person ID");
-      removeBtn.onclick = function () {
-        if (personInputs.length <= 1) {
-          personInput.value = "";
-          personLabelInput.value = "";
-          schedulePhotoSourceApply(0, { person: true, personLabel: true });
-          return;
-        }
-        var removeIndex = personInputs.indexOf(personInput);
-        personInputs.splice(removeIndex, 1);
-        personLabelInputs.splice(removeIndex, 1);
-        row.parentNode.removeChild(row);
-        refreshPersonRemoveButtons();
-        schedulePhotoSourceApply(0, { person: true, personLabel: true });
-      };
-      personInput.oninput = function () {
-        schedulePhotoSourceApply(null, { person: true, personLabel: true });
-      };
-      personLabelInput.oninput = function () {
-        schedulePhotoSourceApply(null, { personLabel: true });
-      };
-      fields.appendChild(personInput);
-      fields.appendChild(personLabelInput);
-      row.appendChild(fields);
-      row.appendChild(removeBtn);
-      personIdList.appendChild(row);
-      personInputs.push(personInput);
-      personLabelInputs.push(personLabelInput);
-      refreshPersonRemoveButtons();
-    }
-    var personIds = splitPhotoIdList(S.person_ids);
-    var personLabels = parsePhotoLabelList(S.person_labels);
-    for (var personIndex = 0; personIndex < Math.max(personIds.length, personLabels.length, 1); personIndex++) {
-      addPersonIdRow(personIds[personIndex] || "", personLabels[personIndex] || "");
-    }
-    var addPersonRow = el("div", "photo-id-actions");
-    var addPersonBtn = el("button", "btn btn-secondary");
-    addPersonBtn.type = "button";
-    addPersonBtn.textContent = "Add a person";
-    addPersonBtn.title = "Add a person";
-    addPersonBtn.setAttribute("aria-label", "Add a person");
-    addPersonBtn.onclick = function () {
-      addPersonIdRow("", "");
-      personInputs[personInputs.length - 1].focus();
-    };
-    addPersonRow.appendChild(addPersonBtn);
-    personField.appendChild(personIdList);
-    personField.appendChild(addPersonRow);
-    personField.appendChild(personError);
-    personField.style.display = S.photo_source === "Person" ? "" : "none";
-
-    var tagField = field("Tags");
-    var tagIdList = el("div", "photo-id-list");
-    var tagInputs = [];
-    var tagLabelInputs = [];
-    var tagError = el("div", "field-error");
-    function getTagIdsValue() {
-      return tagInputs.map(function (inputEl) {
-        return inputEl.value.trim();
-      }).filter(Boolean).join(",");
-    }
-    function getTagLabelsValue() {
-      return buildPhotoLabelList(tagInputs, tagLabelInputs);
-    }
-    function refreshTagRemoveButtons() {
-      Array.prototype.forEach.call(tagIdList.querySelectorAll(".tag-id-remove"), function (btn) {
-        btn.disabled = tagInputs.length <= 1;
-      });
-    }
-    function addTagIdRow(value, labelValue) {
-      var row = el("div", "photo-id-row");
-      var fields = el("div", "photo-id-fields");
-      var tagInput = input("text", value || "", "Paste tag ID from Immich URL", MAX_PHOTO_ID_FIELD_LENGTH);
-      var tagLabelInput = input("text", labelValue || "", "What tag is it?", MAX_PHOTO_ID_FIELD_LENGTH);
-      var removeBtn = el("button", "btn btn-secondary btn-icon tag-id-remove");
-      removeBtn.type = "button";
-      removeBtn.innerHTML = removeIdIcon;
-      removeBtn.title = "Remove tag ID";
-      removeBtn.setAttribute("aria-label", "Remove tag ID");
-      removeBtn.onclick = function () {
-        if (tagInputs.length <= 1) {
-          tagInput.value = "";
-          tagLabelInput.value = "";
-          schedulePhotoSourceApply(0, { tag: true, tagLabel: true });
-          return;
-        }
-        var removeIndex = tagInputs.indexOf(tagInput);
-        tagInputs.splice(removeIndex, 1);
-        tagLabelInputs.splice(removeIndex, 1);
-        row.parentNode.removeChild(row);
-        refreshTagRemoveButtons();
-        schedulePhotoSourceApply(0, { tag: true, tagLabel: true });
-      };
-      tagInput.oninput = function () {
-        schedulePhotoSourceApply(null, { tag: true, tagLabel: true });
-      };
-      tagLabelInput.oninput = function () {
-        schedulePhotoSourceApply(null, { tagLabel: true });
-      };
-      fields.appendChild(tagInput);
-      fields.appendChild(tagLabelInput);
-      row.appendChild(fields);
-      row.appendChild(removeBtn);
-      tagIdList.appendChild(row);
-      tagInputs.push(tagInput);
-      tagLabelInputs.push(tagLabelInput);
-      refreshTagRemoveButtons();
-    }
-    var tagIds = splitPhotoIdList(S.tag_ids);
-    var tagLabels = parsePhotoLabelList(S.tag_labels);
-    for (var tagIndex = 0; tagIndex < Math.max(tagIds.length, tagLabels.length, 1); tagIndex++) {
-      addTagIdRow(tagIds[tagIndex] || "", tagLabels[tagIndex] || "");
-    }
-    var addTagRow = el("div", "photo-id-actions");
-    var addTagBtn = el("button", "btn btn-secondary");
-    addTagBtn.type = "button";
-    addTagBtn.textContent = "Add a tag";
-    addTagBtn.title = "Add a tag";
-    addTagBtn.setAttribute("aria-label", "Add a tag");
-    addTagBtn.onclick = function () {
-      addTagIdRow("", "");
-      tagInputs[tagInputs.length - 1].focus();
-    };
-    addTagRow.appendChild(addTagBtn);
-    tagField.appendChild(tagIdList);
-    tagField.appendChild(addTagRow);
-    tagField.appendChild(tagError);
-    tagField.style.display = S.photo_source === "Tag" ? "" : "none";
 
     fSrc.appendChild(srcSel);
     srcBody.appendChild(fSrc);
@@ -1784,22 +1539,18 @@ if (typeof module !== "undefined") {
     var filterBadge = makeBadge(isFilterActive(S.date_filter_enabled));
     var filterBody = el("div");
     var filterApplyTimer = null;
-    var fFilterToggle = field("");
-    var filterTr = el("div", "toggle-row");
-    filterTr.innerHTML = "<span>Filter by Date</span>";
-    var filterTog = el("div", S.date_filter_enabled ? "toggle on" : "toggle");
     var filterDetails = el("div");
     filterDetails.style.display = S.date_filter_enabled ? "" : "none";
-    filterTog.onclick = function () {
-      S.date_filter_enabled = !S.date_filter_enabled;
-      filterTog.className = S.date_filter_enabled ? "toggle on" : "toggle";
-      filterDetails.style.display = S.date_filter_enabled ? "" : "none";
-      filterBadge.className = "on-badge" + (isFilterActive(S.date_filter_enabled) ? " active" : "");
-      scheduleFilterApply();
-    };
-    filterTr.appendChild(filterTog);
-    fFilterToggle.appendChild(filterTr);
-    filterBody.appendChild(fFilterToggle);
+    filterBody.appendChild(toggleSettingRow({
+      label: "Filter by Date",
+      value: S.date_filter_enabled,
+      getValue: function () { return S.date_filter_enabled; },
+      setValue: function (value) { S.date_filter_enabled = value; },
+      details: filterDetails,
+      badge: filterBadge,
+      badgeActive: function () { return isFilterActive(S.date_filter_enabled); },
+      onChange: scheduleFilterApply
+    }).field);
 
     var fFilterMode = field("Mode");
     var modeVal = S.date_filter_mode;
@@ -1935,26 +1686,19 @@ if (typeof module !== "undefined") {
     // Layout
     var photoBody = el("div");
 
-    var fPairToggle = field("");
     var portraitRotationActive = isPortraitScreenRotation(effectiveScreenRotationForUi());
     var pairingEnabled = S.portrait_pairing && !portraitRotationActive;
-    var pairTr = el("div", "toggle-row");
-    pairTr.innerHTML = "<span>Portrait Pairing</span>";
-    var pairTog = el("div", pairingEnabled ? "toggle on" : "toggle");
-    if (portraitRotationActive) {
-      pairTog.style.opacity = ".35";
-      pairTog.style.cursor = "not-allowed";
-      pairTog.title = "Portrait pairing is disabled while the screen is in portrait rotation";
-    }
-    pairTog.onclick = function () {
-      if (portraitRotationActive) return;
-      S.portrait_pairing = !S.portrait_pairing;
-      pairTog.className = S.portrait_pairing ? "toggle on" : "toggle";
-      saveSetting("portrait_pairing", S.portrait_pairing);
-    };
-    pairTr.appendChild(pairTog);
-    fPairToggle.appendChild(pairTr);
-    photoBody.appendChild(fPairToggle);
+    photoBody.appendChild(toggleSettingRow({
+      label: "Portrait Pairing",
+      value: pairingEnabled,
+      getValue: function () { return S.portrait_pairing; },
+      setValue: function (value) { S.portrait_pairing = value; },
+      disabled: portraitRotationActive,
+      disabledTitle: "Portrait pairing is disabled while the screen is in portrait rotation",
+      onChange: function () {
+        saveSetting("portrait_pairing", S.portrait_pairing);
+      }
+    }).field);
 
     var fPhotoOrientation = field("Photo Orientation");
     fPhotoOrientation.appendChild(
@@ -1994,18 +1738,16 @@ if (typeof module !== "undefined") {
       metadataBadge.className = "on-badge" + (metadataIsActive() ? " active" : "");
     }
 
-    var fMetadataDate = field("");
-    var metadataDateTr = el("div", "toggle-row");
-    metadataDateTr.innerHTML = "<span>Date</span>";
-    var metadataDateTog = el("div", S.photo_metadata_date_enabled ? "toggle on" : "toggle");
-    metadataDateTog.onclick = function () {
-      S.photo_metadata_date_enabled = !S.photo_metadata_date_enabled;
-      metadataDateTog.className = S.photo_metadata_date_enabled ? "toggle on" : "toggle";
-      refreshMetadataDetails();
-      saveSetting("photo_metadata_date_enabled", S.photo_metadata_date_enabled);
-    };
-    metadataDateTr.appendChild(metadataDateTog);
-    fMetadataDate.appendChild(metadataDateTr);
+    var fMetadataDate = toggleSettingRow({
+      label: "Date",
+      value: S.photo_metadata_date_enabled,
+      getValue: function () { return S.photo_metadata_date_enabled; },
+      setValue: function (value) { S.photo_metadata_date_enabled = value; },
+      onChange: function () {
+        refreshMetadataDetails();
+        saveSetting("photo_metadata_date_enabled", S.photo_metadata_date_enabled);
+      }
+    }).field;
 
     var fMetadataDateFormat = field("Date Format");
     fMetadataDateFormat.appendChild(
@@ -2024,18 +1766,16 @@ if (typeof module !== "undefined") {
     );
     metadataDateDetails.appendChild(fMetadataDateTakenFormat);
 
-    var fMetadataLocation = field("");
-    var metadataLocationTr = el("div", "toggle-row");
-    metadataLocationTr.innerHTML = "<span>Location</span>";
-    var metadataLocationTog = el("div", S.photo_metadata_location_enabled ? "toggle on" : "toggle");
-    metadataLocationTog.onclick = function () {
-      S.photo_metadata_location_enabled = !S.photo_metadata_location_enabled;
-      metadataLocationTog.className = S.photo_metadata_location_enabled ? "toggle on" : "toggle";
-      refreshMetadataDetails();
-      saveSetting("photo_metadata_location_enabled", S.photo_metadata_location_enabled);
-    };
-    metadataLocationTr.appendChild(metadataLocationTog);
-    fMetadataLocation.appendChild(metadataLocationTr);
+    var fMetadataLocation = toggleSettingRow({
+      label: "Location",
+      value: S.photo_metadata_location_enabled,
+      getValue: function () { return S.photo_metadata_location_enabled; },
+      setValue: function (value) { S.photo_metadata_location_enabled = value; },
+      onChange: function () {
+        refreshMetadataDetails();
+        saveSetting("photo_metadata_location_enabled", S.photo_metadata_location_enabled);
+      }
+    }).field;
     metadataBody.appendChild(fMetadataLocation);
     metadataBody.appendChild(fMetadataDate);
     metadataBody.appendChild(metadataDateDetails);
@@ -2049,47 +1789,19 @@ if (typeof module !== "undefined") {
     // Screen Brightness
     var dnDetails = el("div");
 
-    var fDayBrt = field("Daytime Brightness");
-    var rwDay = el("div", "range-wrap");
-    var daySlider = document.createElement("input");
-    daySlider.type = "range";
-    daySlider.min = productNumberMin("brightness_day", 10);
-    daySlider.max = productNumberMax("brightness_day", 100);
-    daySlider.step = productNumberStep("brightness_day", 5);
-    daySlider.value = S.brightness_day;
-    var dayVal = el("span", "range-val");
-    dayVal.textContent = Math.round(S.brightness_day) + "%";
-    daySlider.oninput = function () {
-      dayVal.textContent = daySlider.value + "%";
-    };
-    daySlider.onchange = function () {
-      saveSetting("brightness_day", daySlider.value);
-    };
-    rwDay.appendChild(daySlider);
-    rwDay.appendChild(dayVal);
-    fDayBrt.appendChild(rwDay);
-    dnDetails.appendChild(fDayBrt);
+    dnDetails.appendChild(rangeSettingField("Daytime Brightness", "brightness_day", {
+      minFallback: 10,
+      maxFallback: 100,
+      stepFallback: 5,
+      valueSuffix: "%"
+    }).field);
 
-    var fNightBrt = field("Nighttime Brightness");
-    var rwNight = el("div", "range-wrap");
-    var nightSlider = document.createElement("input");
-    nightSlider.type = "range";
-    nightSlider.min = productNumberMin("brightness_night", 10);
-    nightSlider.max = productNumberMax("brightness_night", 100);
-    nightSlider.step = productNumberStep("brightness_night", 5);
-    nightSlider.value = S.brightness_night;
-    var nightVal = el("span", "range-val");
-    nightVal.textContent = Math.round(S.brightness_night) + "%";
-    nightSlider.oninput = function () {
-      nightVal.textContent = nightSlider.value + "%";
-    };
-    nightSlider.onchange = function () {
-      saveSetting("brightness_night", nightSlider.value);
-    };
-    rwNight.appendChild(nightSlider);
-    rwNight.appendChild(nightVal);
-    fNightBrt.appendChild(rwNight);
-    dnDetails.appendChild(fNightBrt);
+    dnDetails.appendChild(rangeSettingField("Nighttime Brightness", "brightness_night", {
+      minFallback: 10,
+      maxFallback: 100,
+      stepFallback: 5,
+      valueSuffix: "%"
+    }).field);
 
     var fSunInfo = el("div", "field sun-info");
     fSunInfo.id = "sun-info";
@@ -2108,100 +1820,61 @@ if (typeof module !== "undefined") {
     var toneBadge = makeBadge(S.base_tone_enabled || S.warm_tones_enabled);
     var warmBody = el("div");
 
-    var fBaseToneToggle = field("");
-    var baseTr = el("div", "toggle-row");
-    baseTr.innerHTML = "<span>Screen Tone Adjustment</span>";
-    var baseTog = el("div", S.base_tone_enabled ? "toggle on" : "toggle");
     var baseDetails = el("div");
     baseDetails.style.display = S.base_tone_enabled ? "" : "none";
-
-    baseTog.onclick = function () {
-      S.base_tone_enabled = !S.base_tone_enabled;
-      baseTog.className = S.base_tone_enabled ? "toggle on" : "toggle";
-      baseDetails.style.display = S.base_tone_enabled ? "" : "none";
-      toneBadge.className = "on-badge" + ((S.base_tone_enabled || S.warm_tones_enabled) ? " active" : "");
-      saveSetting("base_tone_enabled", S.base_tone_enabled);
-    };
-    baseTr.appendChild(baseTog);
-    fBaseToneToggle.appendChild(baseTr);
+    var fBaseToneToggle = toggleSettingRow({
+      label: "Screen Tone Adjustment",
+      value: S.base_tone_enabled,
+      getValue: function () { return S.base_tone_enabled; },
+      setValue: function (value) { S.base_tone_enabled = value; },
+      details: baseDetails,
+      badge: toneBadge,
+      badgeActive: function () { return S.base_tone_enabled || S.warm_tones_enabled; },
+      onChange: function () { saveSetting("base_tone_enabled", S.base_tone_enabled); }
+    }).field;
     fBaseToneToggle.style.marginBottom = "8px";
     warmBody.appendChild(fBaseToneToggle);
 
-    var fBaseTone = field("");
-    var rwBase = el("div", "range-wrap");
-    var baseLabelL = el("span", "range-label");
-    baseLabelL.textContent = "Cooler";
-    var baseSlider = document.createElement("input");
-    baseSlider.type = "range";
-    baseSlider.min = productNumberMin("base_tone", 0);
-    baseSlider.max = productNumberMax("base_tone", 100);
-    baseSlider.step = productNumberStep("base_tone", 5);
-    baseSlider.value = S.base_tone;
-    baseSlider.onchange = function () {
-      saveSetting("base_tone", baseSlider.value);
-    };
-    var baseLabelR = el("span", "range-label");
-    baseLabelR.textContent = "Warmer";
-    rwBase.appendChild(baseLabelL);
-    rwBase.appendChild(baseSlider);
-    rwBase.appendChild(baseLabelR);
-    fBaseTone.appendChild(rwBase);
-    baseDetails.appendChild(fBaseTone);
+    baseDetails.appendChild(rangeSettingField("", "base_tone", {
+      minFallback: 0,
+      maxFallback: 100,
+      stepFallback: 5,
+      leftLabel: "Cooler",
+      rightLabel: "Warmer"
+    }).field);
     baseDetails.style.marginBottom = "28px";
     warmBody.appendChild(baseDetails);
 
-    var fWarmToggle = field("");
-    var warmTr = el("div", "toggle-row");
-    warmTr.innerHTML = "<span>Night Tone Adjustment</span>";
-    var warmTog = el("div", S.warm_tones_enabled ? "toggle on" : "toggle");
     var nightDetails = el("div");
     nightDetails.style.display = S.warm_tones_enabled ? "" : "none";
-
-    warmTog.onclick = function () {
-      S.warm_tones_enabled = !S.warm_tones_enabled;
-      warmTog.className = S.warm_tones_enabled ? "toggle on" : "toggle";
-      nightDetails.style.display = S.warm_tones_enabled ? "" : "none";
-      toneBadge.className = "on-badge" + ((S.base_tone_enabled || S.warm_tones_enabled) ? " active" : "");
-      saveSetting("warm_tones_enabled", S.warm_tones_enabled);
-    };
-    warmTr.appendChild(warmTog);
-    fWarmToggle.appendChild(warmTr);
+    var fWarmToggle = toggleSettingRow({
+      label: "Night Tone Adjustment",
+      value: S.warm_tones_enabled,
+      getValue: function () { return S.warm_tones_enabled; },
+      setValue: function (value) { S.warm_tones_enabled = value; },
+      details: nightDetails,
+      badge: toneBadge,
+      badgeActive: function () { return S.base_tone_enabled || S.warm_tones_enabled; },
+      onChange: function () { saveSetting("warm_tones_enabled", S.warm_tones_enabled); }
+    }).field;
     fWarmToggle.style.marginBottom = "8px";
     warmBody.appendChild(fWarmToggle);
 
-    var fWarmInt = field("");
-    var rwWarm = el("div", "range-wrap");
-    var warmLabelL = el("span", "range-label");
-    warmLabelL.textContent = "Cooler";
-    var warmSlider = document.createElement("input");
-    warmSlider.type = "range";
-    warmSlider.min = productNumberMin("warm_tone_intensity", 10);
-    warmSlider.max = productNumberMax("warm_tone_intensity", 100);
-    warmSlider.step = productNumberStep("warm_tone_intensity", 5);
-    warmSlider.value = S.warm_tone_intensity;
-    warmSlider.onchange = function () {
-      saveSetting("warm_tone_intensity", warmSlider.value);
-    };
-    var warmLabelR = el("span", "range-label");
-    warmLabelR.textContent = "Warmer";
-    rwWarm.appendChild(warmLabelL);
-    rwWarm.appendChild(warmSlider);
-    rwWarm.appendChild(warmLabelR);
-    fWarmInt.appendChild(rwWarm);
-    nightDetails.appendChild(fWarmInt);
+    nightDetails.appendChild(rangeSettingField("", "warm_tone_intensity", {
+      minFallback: 10,
+      maxFallback: 100,
+      stepFallback: 5,
+      leftLabel: "Cooler",
+      rightLabel: "Warmer"
+    }).field);
 
-    var fOverride = field("");
-    var overTr = el("div", "toggle-row");
-    overTr.innerHTML = "<span>Turn on until sunrise</span>";
-    var overTog = el("div", S.warm_tone_override ? "toggle on" : "toggle");
-    overTog.onclick = function () {
-      S.warm_tone_override = !S.warm_tone_override;
-      overTog.className = S.warm_tone_override ? "toggle on" : "toggle";
-      saveSetting("warm_tone_override", S.warm_tone_override);
-    };
-    overTr.appendChild(overTog);
-    fOverride.appendChild(overTr);
-    nightDetails.appendChild(fOverride);
+    nightDetails.appendChild(toggleSettingRow({
+      label: "Turn on until sunrise",
+      value: S.warm_tone_override,
+      getValue: function () { return S.warm_tone_override; },
+      setValue: function (value) { S.warm_tone_override = value; },
+      onChange: function () { saveSetting("warm_tone_override", S.warm_tone_override); }
+    }).field);
 
     warmBody.appendChild(nightDetails);
     return makeCollapsibleCard("Screen Tone", warmBody, true, toneBadge);
@@ -2212,59 +1885,20 @@ if (typeof module !== "undefined") {
     // Schedule
     var schedBadge = makeBadge(S.schedule_enabled);
     var schedBody = el("div");
-    var fSchedToggle = field("");
-    var schedTr = el("div", "toggle-row");
-    schedTr.innerHTML = "<span>Schedule Screen Off</span>";
-    var schedTog = el("div", S.schedule_enabled ? "toggle on" : "toggle");
     var schedDetails = el("div");
     schedDetails.style.display = S.schedule_enabled ? "" : "none";
+    schedBody.appendChild(toggleSettingRow({
+      label: "Schedule Screen Off",
+      value: S.schedule_enabled,
+      getValue: function () { return S.schedule_enabled; },
+      setValue: function (value) { S.schedule_enabled = value; },
+      details: schedDetails,
+      badge: schedBadge,
+      onChange: function () { saveSetting("schedule_enabled", S.schedule_enabled); }
+    }).field);
 
-    schedTog.onclick = function () {
-      S.schedule_enabled = !S.schedule_enabled;
-      schedTog.className = S.schedule_enabled ? "toggle on" : "toggle";
-      schedDetails.style.display = S.schedule_enabled ? "" : "none";
-      schedBadge.className = "on-badge" + (S.schedule_enabled ? " active" : "");
-      saveSetting("schedule_enabled", S.schedule_enabled);
-    };
-    schedTr.appendChild(schedTog);
-    fSchedToggle.appendChild(schedTr);
-    schedBody.appendChild(fSchedToggle);
-
-    var fOnTime = field("On Time");
-    var onSel = document.createElement("select");
-    onSel.className = "select";
-    var scheduleOnMin = productNumberMin("schedule_on_hour", 0);
-    var scheduleOnMax = productNumberMax("schedule_on_hour", 23);
-    for (var h = scheduleOnMin; h <= scheduleOnMax; h++) {
-      var o = document.createElement("option");
-      o.value = h;
-      o.textContent = formatHour(h);
-      if (h === Math.round(S.schedule_on_hour)) o.selected = true;
-      onSel.appendChild(o);
-    }
-    onSel.onchange = function () {
-      saveSetting("schedule_on_hour", parseInt(onSel.value));
-    };
-    fOnTime.appendChild(onSel);
-    schedDetails.appendChild(fOnTime);
-
-    var fOffTime = field("Off Time");
-    var offSel = document.createElement("select");
-    offSel.className = "select";
-    var scheduleOffMin = productNumberMin("schedule_off_hour", 0);
-    var scheduleOffMax = productNumberMax("schedule_off_hour", 23);
-    for (var h2 = scheduleOffMin; h2 <= scheduleOffMax; h2++) {
-      var o2 = document.createElement("option");
-      o2.value = h2;
-      o2.textContent = formatHour(h2);
-      if (h2 === Math.round(S.schedule_off_hour)) o2.selected = true;
-      offSel.appendChild(o2);
-    }
-    offSel.onchange = function () {
-      saveSetting("schedule_off_hour", parseInt(offSel.value));
-    };
-    fOffTime.appendChild(offSel);
-    schedDetails.appendChild(fOffTime);
+    schedDetails.appendChild(hourSelectSettingField("On Time", "schedule_on_hour"));
+    schedDetails.appendChild(hourSelectSettingField("Off Time", "schedule_off_hour"));
 
     var fWakeTimeout = field("When Woken, Idle Time To Screen Off");
     var scheduleWakeMin = productNumberMin("schedule_wake_timeout", 10);
@@ -2311,19 +1945,14 @@ if (typeof module !== "undefined") {
     // Clock
     var clockBadge = makeBadge(S.show_clock);
     var clkBody = el("div");
-    var f5 = field("");
-    var tr = el("div", "toggle-row");
-    tr.innerHTML = "<span>Show Clock</span>";
-    var tog = el("div", S.show_clock ? "toggle on" : "toggle");
-    tog.onclick = function () {
-      S.show_clock = !S.show_clock;
-      tog.className = S.show_clock ? "toggle on" : "toggle";
-      clockBadge.className = "on-badge" + (S.show_clock ? " active" : "");
-      saveSetting("show_clock", S.show_clock);
-    };
-    tr.appendChild(tog);
-    f5.appendChild(tr);
-    clkBody.appendChild(f5);
+    clkBody.appendChild(toggleSettingRow({
+      label: "Show Clock",
+      value: S.show_clock,
+      getValue: function () { return S.show_clock; },
+      setValue: function (value) { S.show_clock = value; },
+      badge: clockBadge,
+      onChange: function () { saveSetting("show_clock", S.show_clock); }
+    }).field);
 
     var f6 = field("Format");
     f6.appendChild(
@@ -2348,91 +1977,35 @@ if (typeof module !== "undefined") {
     function makeFirmwareCard() {
     // Firmware
     var fwBody = el("div", "fw-body");
-    var versionRow = el("div", "field fw-row");
-    var versionLabel = el("span", "fw-label");
-    versionLabel.innerHTML = '<span style="color:var(--text2)">Installed</span> ' +
-      esc(displayVersion(S.firmware || S.installed_version, "Dev"));
-    var checkBtn = el("button", "btn btn-secondary btn-sm");
-    checkBtn.textContent = "Check for Update";
+    var versionLabel = textLabel("Installed", displayVersion(S.firmware || S.installed_version, "Dev"));
+    var checkBtn = button("Check for Update", "btn btn-secondary btn-sm");
     var statusMsg = el("span", "fw-status");
-    versionRow.appendChild(versionLabel);
     var checkWrap = el("div");
     checkWrap.className = "check-wrap";
     checkWrap.appendChild(statusMsg);
     checkWrap.appendChild(checkBtn);
-    versionRow.appendChild(checkWrap);
     var versionBlock = el("div");
-    versionBlock.appendChild(versionRow);
+    versionBlock.appendChild(actionRow(versionLabel, checkWrap));
     fwBody.appendChild(versionBlock);
 
     var updatesSection = el("div", "fw-updates");
     var updateRow = el("div");
     updatesSection.appendChild(updateRow);
-    var betaRow = el("div");
-    updatesSection.appendChild(betaRow);
     fwBody.appendChild(updatesSection);
-
-    var rebootRow = el("div", "field fw-row");
-    var rebootLabel = el("span", "fw-label");
-    rebootLabel.textContent = "Device Reboot";
-    var rebootBtn = el("button", "btn btn-secondary btn-sm");
-    rebootBtn.textContent = "Reboot Screen";
-    rebootBtn.onclick = function () {
-      rebootBtn.disabled = true;
-      rebootBtn.textContent = "Rebooting...";
-      post(endpoints.reboot_screen + "/press")
-        .catch(function () {
-          // Shared request helpers already surface failures in the UI.
-        })
-        .finally(function () {
-          setTimeout(function () {
-            rebootBtn.disabled = false;
-            rebootBtn.textContent = "Reboot Screen";
-          }, 3000);
-        });
-    };
-    rebootRow.appendChild(rebootLabel);
-    rebootRow.appendChild(rebootBtn);
-    fwBody.appendChild(rebootRow);
 
     function renderUpdateRow() {
       updateRow.innerHTML = "";
       if (!S.update_available) return;
-      var row = el("div", "field fw-row");
-      var label = el("span", "fw-label");
-      label.innerHTML = '<span style="color:var(--text2)">Stable</span> ' + esc(S.latest_version);
-      var installBtn = el("button", "btn btn-primary btn-sm");
-      installBtn.textContent = "Install";
-      installBtn.onclick = function () {
+      var label = textLabel("Stable", S.latest_version);
+      var installBtn = button("Install", "btn btn-primary btn-sm", function () {
         installBtn.disabled = true;
         installBtn.textContent = "Installing\u2026";
         post(endpoints.update + "/install");
-      };
-      row.appendChild(label);
-      row.appendChild(installBtn);
-      updateRow.appendChild(row);
-    }
-
-    function renderBetaRow() {
-      betaRow.innerHTML = "";
-      if (!S.beta_available) return;
-      var row = el("div", "field fw-row");
-      var label = el("span", "fw-label");
-      label.innerHTML = '<span style="color:var(--text2)">Pre-release</span> ' + esc(S.beta_version);
-      var betaBtn = el("button", "btn btn-secondary btn-sm");
-      betaBtn.textContent = "Install";
-      betaBtn.onclick = function () {
-        betaBtn.disabled = true;
-        betaBtn.textContent = "Installing\u2026";
-        post(endpoints.update_beta + "/install");
-      };
-      row.appendChild(label);
-      row.appendChild(betaBtn);
-      betaRow.appendChild(row);
+      });
+      updateRow.appendChild(actionRow(label, installBtn));
     }
 
     renderUpdateRow();
-    renderBetaRow();
 
     checkBtn.onclick = function () {
       checkBtn.disabled = true;
@@ -2459,23 +2032,7 @@ if (typeof module !== "undefined") {
             S.latest_version = data.latest_version || data.value;
             renderUpdateRow();
           }
-          if (!S.beta_channel) {
-            S.beta_available = false;
-            S.beta_version = "";
-            renderBetaRow();
-            return null;
-          }
-          return safeGet(endpoints.update_beta);
-        })
-        .then(function (betaData) {
-          if (betaData && (betaData.latest_version || betaData.value)) {
-            S.beta_version = betaData.latest_version || betaData.value;
-            S.beta_available = betaData.current_version
-              ? betaData.latest_version !== betaData.current_version
-              : betaData.state === "UPDATE AVAILABLE";
-          }
-          renderBetaRow();
-          if (!S.update_available && !S.beta_available) {
+          if (!S.update_available) {
             statusMsg.textContent = "Up to date";
             statusMsg.style.color = "var(--success)";
           }
@@ -2497,39 +2054,15 @@ if (typeof module !== "undefined") {
     );
     fwBody.appendChild(freqField);
 
-    var betaChannelField = field("");
-    var betaChannelRow = el("div", "toggle-row");
-    betaChannelRow.innerHTML = "<span>Beta Channel</span>";
-    var betaChannelToggle = el("div", S.beta_channel ? "toggle on" : "toggle");
-    betaChannelToggle.onclick = function () {
-      S.beta_channel = !S.beta_channel;
-      betaChannelToggle.className = S.beta_channel ? "toggle on" : "toggle";
-      saveSetting("beta_channel", S.beta_channel);
-      if (!S.beta_channel) {
-        S.beta_available = false;
-        S.beta_version = "";
-        renderBetaRow();
-      }
-    };
-    betaChannelRow.appendChild(betaChannelToggle);
-    betaChannelField.appendChild(betaChannelRow);
-    fwBody.appendChild(betaChannelField);
-
     var firmwareUrlStatus = el("div", "status");
     function setFirmwareUrlStatus(msg, ok) {
-      firmwareUrlStatus.innerHTML = '<span class="dot ' + (ok ? "green" : "red") + '"></span> ' + msg;
-      clearTimeout(firmwareUrlStatus._t);
-      if (ok) {
-        firmwareUrlStatus._t = setTimeout(function () {
-          firmwareUrlStatus.textContent = "";
-        }, 3000);
-      }
+      setStatus(firmwareUrlStatus, msg, ok ? "green" : "red", ok ? 3000 : null);
     }
 
     function makeFirmwareUrlField(label, key, placeholder) {
       var f = field(label);
       var firmwareUrlInput = input("url", S[key], placeholder, MAX_FIRMWARE_URL_LENGTH);
-      var firmwareUrlError = el("div", "field-error");
+      var firmwareUrlError = makeFieldError();
       firmwareUrlInput.onchange = function () {
         var url = normalizeFirmwareManifestUrl(firmwareUrlInput.value);
         firmwareUrlError.textContent = "";
@@ -2560,20 +2093,24 @@ if (typeof module !== "undefined") {
       return f;
     }
 
+    var advancedBody = el("div", "fw-advanced-body");
     var firmwareUrlsHint = el("div", "field-hint");
-    firmwareUrlsHint.textContent = "Advanced: use a custom manifest to check and install firmware from another location.";
-    fwBody.appendChild(firmwareUrlsHint);
-    fwBody.appendChild(makeFirmwareUrlField(
+    firmwareUrlsHint.textContent = "Use a custom manifest to check and install firmware from another location.";
+    advancedBody.appendChild(firmwareUrlsHint);
+    advancedBody.appendChild(makeFirmwareUrlField(
       "Stable Manifest URL",
       "firmware_manifest_url",
       FIRMWARE_MANIFEST_URLS.stable
     ));
-    fwBody.appendChild(makeFirmwareUrlField(
-      "Beta Manifest URL",
-      "firmware_beta_manifest_url",
-      FIRMWARE_MANIFEST_URLS.beta
-    ));
-    fwBody.appendChild(firmwareUrlStatus);
+    advancedBody.appendChild(firmwareUrlStatus);
+
+    var advancedPanel = document.createElement("details");
+    advancedPanel.className = "inline-expander";
+    var advancedSummary = document.createElement("summary");
+    advancedSummary.textContent = "Advanced";
+    advancedPanel.appendChild(advancedSummary);
+    advancedPanel.appendChild(advancedBody);
+    fwBody.appendChild(advancedPanel);
 
     return makeCollapsibleCard("Firmware", fwBody, true);
   }
@@ -2581,24 +2118,17 @@ if (typeof module !== "undefined") {
   function makeWifiCard() {
     var wifiBody = el("div", "fw-body");
 
-    var currentRow = el("div", "field fw-row");
-    var currentLabel = el("span", "fw-label");
-    currentLabel.innerHTML = '<span style="color:var(--text2)">Current C6 firmware</span> ' +
-      esc(displayVersion(S.c6_current_firmware, "Unknown"));
-    currentRow.appendChild(currentLabel);
-    wifiBody.appendChild(currentRow);
+    wifiBody.appendChild(actionRow(
+      textLabel("Current C6 firmware", displayVersion(S.c6_current_firmware, "Unknown")),
+      document.createElement("span")
+    ));
 
-    var availableRow = el("div", "field fw-row");
-    var availableLabel = el("span", "fw-label");
-    availableLabel.innerHTML = '<span style="color:var(--text2)">Available firmware</span> ' +
-      esc(displayVersion(S.c6_available_firmware, "Unknown"));
+    var availableLabel = textLabel("Available firmware", displayVersion(S.c6_available_firmware, "Unknown"));
     var actionWrap = el("div");
     actionWrap.className = "check-wrap";
-    var checkBtn = el("button", "btn btn-secondary btn-sm");
-    checkBtn.textContent = "Check";
-    checkBtn.onclick = function () {
+    var checkBtn = button("Check", "btn btn-secondary btn-sm", function () {
       checkBtn.disabled = true;
-      checkBtn.textContent = "Checking\u2026";
+      checkBtn.textContent = "Checking...";
       post(endpoints.c6_firmware_check + "/press")
         .catch(function () {
           // Shared request helpers already surface failures in the UI.
@@ -2609,12 +2139,10 @@ if (typeof module !== "undefined") {
             checkBtn.textContent = "Check";
           }, 3000);
         });
-    };
-    var installBtn = el("button", "btn btn-primary btn-sm");
-    installBtn.textContent = "Install";
-    installBtn.onclick = function () {
+    });
+    var installBtn = button("Install", "btn btn-primary btn-sm", function () {
       installBtn.disabled = true;
-      installBtn.textContent = "Installing\u2026";
+      installBtn.textContent = "Installing...";
       post(endpoints.c6_firmware_install + "/press")
         .catch(function () {
           // Shared request helpers already surface failures in the UI.
@@ -2625,12 +2153,10 @@ if (typeof module !== "undefined") {
             installBtn.textContent = "Install";
           }, 3000);
         });
-    };
+    });
     actionWrap.appendChild(checkBtn);
     actionWrap.appendChild(installBtn);
-    availableRow.appendChild(availableLabel);
-    availableRow.appendChild(actionWrap);
-    wifiBody.appendChild(availableRow);
+    wifiBody.appendChild(actionRow(availableLabel, actionWrap));
 
     return makeCollapsibleCard("WiFi", wifiBody, true);
   }
@@ -2639,23 +2165,20 @@ if (typeof module !== "undefined") {
     if (!developerPanelEnabledByUrl()) return null;
     var devBadge = makeBadge(S.developer_features_enabled);
     var devBody = el("div");
-    var devField = field("");
-    var devRow = el("div", "toggle-row");
-    devRow.innerHTML = "<span>Enable in-development features</span>";
-    var devToggle = el("div", S.developer_features_enabled ? "toggle on" : "toggle");
-    devToggle.onclick = function () {
-      S.developer_features_enabled = !S.developer_features_enabled;
-      devToggle.className = S.developer_features_enabled ? "toggle on" : "toggle";
-      devBadge.className = "on-badge" + (S.developer_features_enabled ? " active" : "");
-      saveSetting("developer_features_enabled", S.developer_features_enabled);
-      if (!S.developer_features_enabled && isPortraitScreenRotation(S.screen_rotation)) {
-        saveSetting("screen_rotation", "0");
+    devBody.appendChild(toggleSettingRow({
+      label: "Enable in-development features",
+      value: S.developer_features_enabled,
+      getValue: function () { return S.developer_features_enabled; },
+      setValue: function (value) { S.developer_features_enabled = value; },
+      badge: devBadge,
+      onChange: function () {
+        saveSetting("developer_features_enabled", S.developer_features_enabled);
+        if (!S.developer_features_enabled && isPortraitScreenRotation(S.screen_rotation)) {
+          saveSetting("screen_rotation", "0");
+        }
+        renderSettings();
       }
-      renderSettings();
-    };
-    devRow.appendChild(devToggle);
-    devField.appendChild(devRow);
-    devBody.appendChild(devField);
+    }).field);
     return makeCollapsibleCard("Developer", devBody, true, devBadge);
   }
 
@@ -2895,6 +2418,233 @@ if (typeof module !== "undefined") {
     var badge = el("span", "on-badge" + (isActive ? " active" : ""));
     badge.textContent = "On";
     return badge;
+  }
+
+  function setBadgeActive(badge, isActive) {
+    if (!badge) return;
+    badge.className = "on-badge" + (isActive ? " active" : "");
+  }
+
+  function setStatus(target, msg, type, clearAfterMs) {
+    if (!target) return;
+    target.innerHTML = "";
+    if (!msg) {
+      target.textContent = "";
+      return;
+    }
+    var dot = el("span", "dot " + (type || "green"));
+    target.appendChild(dot);
+    target.appendChild(document.createTextNode(" " + msg));
+    clearTimeout(target._t);
+    if (clearAfterMs) {
+      target._t = setTimeout(function () {
+        target.textContent = "";
+      }, clearAfterMs);
+    }
+  }
+
+  function button(text, cls, onClick) {
+    var btn = el("button", cls || "btn btn-secondary");
+    btn.type = "button";
+    btn.textContent = text;
+    if (onClick) btn.onclick = onClick;
+    return btn;
+  }
+
+  function actionRow(labelEl, actionEl) {
+    var row = el("div", "field fw-row");
+    row.appendChild(labelEl);
+    row.appendChild(actionEl);
+    return row;
+  }
+
+  function textLabel(prefix, value) {
+    var label = el("span", "fw-label");
+    if (prefix) {
+      var prefixEl = el("span");
+      prefixEl.style.color = "var(--text2)";
+      prefixEl.textContent = prefix;
+      label.appendChild(prefixEl);
+      label.appendChild(document.createTextNode(" " + value));
+    } else {
+      label.textContent = value;
+    }
+    return label;
+  }
+
+  function toggleSettingRow(options) {
+    var opts = options || {};
+    var f = field("");
+    var row = el("div", "toggle-row");
+    var label = el("span");
+    label.textContent = opts.label || "";
+    var getValue = opts.getValue || function () { return !!opts.value; };
+    var setValue = opts.setValue || function (value) { opts.value = value; };
+    var toggle = el("div", opts.value ? "toggle on" : "toggle");
+    if (opts.disabled) {
+      toggle.style.opacity = ".35";
+      toggle.style.cursor = "not-allowed";
+      if (opts.disabledTitle) toggle.title = opts.disabledTitle;
+    }
+    toggle.onclick = function () {
+      if (opts.disabled) return;
+      var next = !getValue();
+      setValue(next);
+      toggle.className = next ? "toggle on" : "toggle";
+      if (opts.details) opts.details.style.display = next ? "" : "none";
+      if (opts.badge) setBadgeActive(opts.badge, opts.badgeActive ? opts.badgeActive() : next);
+      if (opts.onChange) opts.onChange(next);
+    };
+    row.appendChild(label);
+    row.appendChild(toggle);
+    f.appendChild(row);
+    return { field: f, toggle: toggle };
+  }
+
+  function rangeSettingField(labelText, key, options) {
+    var opts = options || {};
+    var f = field(labelText || "");
+    var rw = el("div", "range-wrap");
+    if (opts.leftLabel) {
+      var left = el("span", "range-label");
+      left.textContent = opts.leftLabel;
+      rw.appendChild(left);
+    }
+    var slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = productNumberMin(key, opts.minFallback);
+    slider.max = productNumberMax(key, opts.maxFallback);
+    slider.step = productNumberStep(key, opts.stepFallback);
+    slider.value = S[key];
+    rw.appendChild(slider);
+    if (opts.rightLabel) {
+      var right = el("span", "range-label");
+      right.textContent = opts.rightLabel;
+      rw.appendChild(right);
+    }
+    if (opts.valueSuffix != null) {
+      var value = el("span", "range-val");
+      value.textContent = Math.round(S[key]) + opts.valueSuffix;
+      slider.oninput = function () {
+        value.textContent = slider.value + opts.valueSuffix;
+      };
+      rw.appendChild(value);
+    }
+    slider.onchange = function () {
+      saveSetting(key, slider.value);
+      if (opts.onChange) opts.onChange(slider.value);
+    };
+    f.appendChild(rw);
+    return { field: f, input: slider };
+  }
+
+  function hourSelectSettingField(labelText, key) {
+    var min = productNumberMin(key, 0);
+    var max = productNumberMax(key, 23);
+    var options = [];
+    for (var h = min; h <= max; h++) options.push(h);
+    var f = field(labelText);
+    f.appendChild(
+      selectFromOptions(options, Math.round(S[key]), function (v) {
+        saveSetting(key, parseInt(v));
+      }, formatHour)
+    );
+    return f;
+  }
+
+  function makeFieldError() {
+    return el("div", "field-error");
+  }
+
+  function photoIdListField(options) {
+    var opts = options || {};
+    var f = field(opts.label);
+    var list = el("div", "photo-id-list");
+    var idInputs = [];
+    var labelInputs = [];
+    var error = makeFieldError();
+    var removeIcon = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18\"/><path d=\"M8 6V4h8v2\"/><path d=\"M19 6l-1 14H6L5 6\"/><path d=\"M10 11v5\"/><path d=\"M14 11v5\"/></svg>";
+
+    function notify(changes, delayMs) {
+      if (opts.onChange) opts.onChange(changes, delayMs);
+    }
+
+    function refreshRemoveButtons() {
+      Array.prototype.forEach.call(list.querySelectorAll("button"), function (btn) {
+        btn.disabled = idInputs.length <= 1;
+      });
+    }
+
+    function addRow(value, labelValue) {
+      var row = el("div", "photo-id-row");
+      var fields = el("div", "photo-id-fields");
+      var idInput = input("text", value || "", opts.idPlaceholder, MAX_PHOTO_ID_FIELD_LENGTH);
+      var labelInput = input("text", labelValue || "", opts.labelPlaceholder, MAX_PHOTO_ID_FIELD_LENGTH);
+      var removeBtn = el("button", "btn btn-secondary btn-icon");
+      removeBtn.type = "button";
+      removeBtn.innerHTML = removeIcon;
+      removeBtn.title = opts.removeTitle;
+      removeBtn.setAttribute("aria-label", opts.removeTitle);
+      removeBtn.onclick = function () {
+        if (idInputs.length <= 1) {
+          idInput.value = "";
+          labelInput.value = "";
+          notify(opts.clearChanges, 0);
+          return;
+        }
+        var removeIndex = idInputs.indexOf(idInput);
+        idInputs.splice(removeIndex, 1);
+        labelInputs.splice(removeIndex, 1);
+        row.parentNode.removeChild(row);
+        refreshRemoveButtons();
+        notify(opts.clearChanges, 0);
+      };
+      idInput.oninput = function () {
+        notify(opts.idChanges);
+      };
+      labelInput.oninput = function () {
+        notify(opts.labelChanges);
+      };
+      fields.appendChild(idInput);
+      fields.appendChild(labelInput);
+      row.appendChild(fields);
+      row.appendChild(removeBtn);
+      list.appendChild(row);
+      idInputs.push(idInput);
+      labelInputs.push(labelInput);
+      refreshRemoveButtons();
+    }
+
+    var ids = splitPhotoIdList(S[opts.idKey]);
+    var labels = parsePhotoLabelList(S[opts.labelKey]);
+    for (var i = 0; i < Math.max(ids.length, labels.length, 1); i++) {
+      addRow(ids[i] || "", labels[i] || "");
+    }
+
+    var addRowWrap = el("div", "photo-id-actions");
+    var addBtn = button(opts.addText, "btn btn-secondary", function () {
+      addRow("", "");
+      idInputs[idInputs.length - 1].focus();
+    });
+    addBtn.title = opts.addText;
+    addBtn.setAttribute("aria-label", opts.addText);
+    addRowWrap.appendChild(addBtn);
+    f.appendChild(list);
+    f.appendChild(addRowWrap);
+    f.appendChild(error);
+
+    return {
+      field: f,
+      error: error,
+      getIdsValue: function () {
+        return idInputs.map(function (inputEl) {
+          return inputEl.value.trim();
+        }).filter(Boolean).join(",");
+      },
+      getLabelsValue: function () {
+        return buildPhotoLabelList(idInputs, labelInputs);
+      }
+    };
   }
 
   function makeCollapsibleCard(title, bodyElement, defaultCollapsed, badgeEl) {

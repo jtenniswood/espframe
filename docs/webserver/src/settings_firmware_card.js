@@ -1,91 +1,35 @@
   function makeFirmwareCard() {
     // Firmware
     var fwBody = el("div", "fw-body");
-    var versionRow = el("div", "field fw-row");
-    var versionLabel = el("span", "fw-label");
-    versionLabel.innerHTML = '<span style="color:var(--text2)">Installed</span> ' +
-      esc(displayVersion(S.firmware || S.installed_version, "Dev"));
-    var checkBtn = el("button", "btn btn-secondary btn-sm");
-    checkBtn.textContent = "Check for Update";
+    var versionLabel = textLabel("Installed", displayVersion(S.firmware || S.installed_version, "Dev"));
+    var checkBtn = button("Check for Update", "btn btn-secondary btn-sm");
     var statusMsg = el("span", "fw-status");
-    versionRow.appendChild(versionLabel);
     var checkWrap = el("div");
     checkWrap.className = "check-wrap";
     checkWrap.appendChild(statusMsg);
     checkWrap.appendChild(checkBtn);
-    versionRow.appendChild(checkWrap);
     var versionBlock = el("div");
-    versionBlock.appendChild(versionRow);
+    versionBlock.appendChild(actionRow(versionLabel, checkWrap));
     fwBody.appendChild(versionBlock);
 
     var updatesSection = el("div", "fw-updates");
     var updateRow = el("div");
     updatesSection.appendChild(updateRow);
-    var betaRow = el("div");
-    updatesSection.appendChild(betaRow);
     fwBody.appendChild(updatesSection);
-
-    var rebootRow = el("div", "field fw-row");
-    var rebootLabel = el("span", "fw-label");
-    rebootLabel.textContent = "Device Reboot";
-    var rebootBtn = el("button", "btn btn-secondary btn-sm");
-    rebootBtn.textContent = "Reboot Screen";
-    rebootBtn.onclick = function () {
-      rebootBtn.disabled = true;
-      rebootBtn.textContent = "Rebooting...";
-      post(endpoints.reboot_screen + "/press")
-        .catch(function () {
-          // Shared request helpers already surface failures in the UI.
-        })
-        .finally(function () {
-          setTimeout(function () {
-            rebootBtn.disabled = false;
-            rebootBtn.textContent = "Reboot Screen";
-          }, 3000);
-        });
-    };
-    rebootRow.appendChild(rebootLabel);
-    rebootRow.appendChild(rebootBtn);
-    fwBody.appendChild(rebootRow);
 
     function renderUpdateRow() {
       updateRow.innerHTML = "";
       if (!S.update_available) return;
-      var row = el("div", "field fw-row");
-      var label = el("span", "fw-label");
-      label.innerHTML = '<span style="color:var(--text2)">Stable</span> ' + esc(S.latest_version);
-      var installBtn = el("button", "btn btn-primary btn-sm");
-      installBtn.textContent = "Install";
-      installBtn.onclick = function () {
+      var label = textLabel("Stable", S.latest_version);
+      var installBtn = button("Install", "btn btn-primary btn-sm", function () {
         installBtn.disabled = true;
         installBtn.textContent = "Installing\u2026";
         post(endpoints.update + "/install");
-      };
-      row.appendChild(label);
-      row.appendChild(installBtn);
-      updateRow.appendChild(row);
-    }
-
-    function renderBetaRow() {
-      betaRow.innerHTML = "";
-      if (!S.beta_available) return;
-      var row = el("div", "field fw-row");
-      var label = el("span", "fw-label");
-      label.innerHTML = '<span style="color:var(--text2)">Pre-release</span> ' + esc(S.beta_version);
-      var betaBtn = el("button", "btn btn-secondary btn-sm");
-      betaBtn.textContent = "Install";
-      betaBtn.onclick = function () {
-        betaBtn.disabled = true;
-        betaBtn.textContent = "Installing\u2026";
-        post(endpoints.update_beta + "/install");
-      };
-      row.appendChild(label);
-      row.appendChild(betaBtn);
-      betaRow.appendChild(row);
+      });
+      updateRow.appendChild(actionRow(label, installBtn));
     }
 
     renderUpdateRow();
-    renderBetaRow();
 
     checkBtn.onclick = function () {
       checkBtn.disabled = true;
@@ -112,23 +56,7 @@
             S.latest_version = data.latest_version || data.value;
             renderUpdateRow();
           }
-          if (!S.beta_channel) {
-            S.beta_available = false;
-            S.beta_version = "";
-            renderBetaRow();
-            return null;
-          }
-          return safeGet(endpoints.update_beta);
-        })
-        .then(function (betaData) {
-          if (betaData && (betaData.latest_version || betaData.value)) {
-            S.beta_version = betaData.latest_version || betaData.value;
-            S.beta_available = betaData.current_version
-              ? betaData.latest_version !== betaData.current_version
-              : betaData.state === "UPDATE AVAILABLE";
-          }
-          renderBetaRow();
-          if (!S.update_available && !S.beta_available) {
+          if (!S.update_available) {
             statusMsg.textContent = "Up to date";
             statusMsg.style.color = "var(--success)";
           }
@@ -150,39 +78,15 @@
     );
     fwBody.appendChild(freqField);
 
-    var betaChannelField = field("");
-    var betaChannelRow = el("div", "toggle-row");
-    betaChannelRow.innerHTML = "<span>Beta Channel</span>";
-    var betaChannelToggle = el("div", S.beta_channel ? "toggle on" : "toggle");
-    betaChannelToggle.onclick = function () {
-      S.beta_channel = !S.beta_channel;
-      betaChannelToggle.className = S.beta_channel ? "toggle on" : "toggle";
-      saveSetting("beta_channel", S.beta_channel);
-      if (!S.beta_channel) {
-        S.beta_available = false;
-        S.beta_version = "";
-        renderBetaRow();
-      }
-    };
-    betaChannelRow.appendChild(betaChannelToggle);
-    betaChannelField.appendChild(betaChannelRow);
-    fwBody.appendChild(betaChannelField);
-
     var firmwareUrlStatus = el("div", "status");
     function setFirmwareUrlStatus(msg, ok) {
-      firmwareUrlStatus.innerHTML = '<span class="dot ' + (ok ? "green" : "red") + '"></span> ' + msg;
-      clearTimeout(firmwareUrlStatus._t);
-      if (ok) {
-        firmwareUrlStatus._t = setTimeout(function () {
-          firmwareUrlStatus.textContent = "";
-        }, 3000);
-      }
+      setStatus(firmwareUrlStatus, msg, ok ? "green" : "red", ok ? 3000 : null);
     }
 
     function makeFirmwareUrlField(label, key, placeholder) {
       var f = field(label);
       var firmwareUrlInput = input("url", S[key], placeholder, MAX_FIRMWARE_URL_LENGTH);
-      var firmwareUrlError = el("div", "field-error");
+      var firmwareUrlError = makeFieldError();
       firmwareUrlInput.onchange = function () {
         var url = normalizeFirmwareManifestUrl(firmwareUrlInput.value);
         firmwareUrlError.textContent = "";
@@ -213,20 +117,24 @@
       return f;
     }
 
+    var advancedBody = el("div", "fw-advanced-body");
     var firmwareUrlsHint = el("div", "field-hint");
-    firmwareUrlsHint.textContent = "Advanced: use a custom manifest to check and install firmware from another location.";
-    fwBody.appendChild(firmwareUrlsHint);
-    fwBody.appendChild(makeFirmwareUrlField(
+    firmwareUrlsHint.textContent = "Use a custom manifest to check and install firmware from another location.";
+    advancedBody.appendChild(firmwareUrlsHint);
+    advancedBody.appendChild(makeFirmwareUrlField(
       "Stable Manifest URL",
       "firmware_manifest_url",
       FIRMWARE_MANIFEST_URLS.stable
     ));
-    fwBody.appendChild(makeFirmwareUrlField(
-      "Beta Manifest URL",
-      "firmware_beta_manifest_url",
-      FIRMWARE_MANIFEST_URLS.beta
-    ));
-    fwBody.appendChild(firmwareUrlStatus);
+    advancedBody.appendChild(firmwareUrlStatus);
+
+    var advancedPanel = document.createElement("details");
+    advancedPanel.className = "inline-expander";
+    var advancedSummary = document.createElement("summary");
+    advancedSummary.textContent = "Advanced";
+    advancedPanel.appendChild(advancedSummary);
+    advancedPanel.appendChild(advancedBody);
+    fwBody.appendChild(advancedPanel);
 
     return makeCollapsibleCard("Firmware", fwBody, true);
   }
@@ -234,24 +142,17 @@
   function makeWifiCard() {
     var wifiBody = el("div", "fw-body");
 
-    var currentRow = el("div", "field fw-row");
-    var currentLabel = el("span", "fw-label");
-    currentLabel.innerHTML = '<span style="color:var(--text2)">Current C6 firmware</span> ' +
-      esc(displayVersion(S.c6_current_firmware, "Unknown"));
-    currentRow.appendChild(currentLabel);
-    wifiBody.appendChild(currentRow);
+    wifiBody.appendChild(actionRow(
+      textLabel("Current C6 firmware", displayVersion(S.c6_current_firmware, "Unknown")),
+      document.createElement("span")
+    ));
 
-    var availableRow = el("div", "field fw-row");
-    var availableLabel = el("span", "fw-label");
-    availableLabel.innerHTML = '<span style="color:var(--text2)">Available firmware</span> ' +
-      esc(displayVersion(S.c6_available_firmware, "Unknown"));
+    var availableLabel = textLabel("Available firmware", displayVersion(S.c6_available_firmware, "Unknown"));
     var actionWrap = el("div");
     actionWrap.className = "check-wrap";
-    var checkBtn = el("button", "btn btn-secondary btn-sm");
-    checkBtn.textContent = "Check";
-    checkBtn.onclick = function () {
+    var checkBtn = button("Check", "btn btn-secondary btn-sm", function () {
       checkBtn.disabled = true;
-      checkBtn.textContent = "Checking\u2026";
+      checkBtn.textContent = "Checking...";
       post(endpoints.c6_firmware_check + "/press")
         .catch(function () {
           // Shared request helpers already surface failures in the UI.
@@ -262,12 +163,10 @@
             checkBtn.textContent = "Check";
           }, 3000);
         });
-    };
-    var installBtn = el("button", "btn btn-primary btn-sm");
-    installBtn.textContent = "Install";
-    installBtn.onclick = function () {
+    });
+    var installBtn = button("Install", "btn btn-primary btn-sm", function () {
       installBtn.disabled = true;
-      installBtn.textContent = "Installing\u2026";
+      installBtn.textContent = "Installing...";
       post(endpoints.c6_firmware_install + "/press")
         .catch(function () {
           // Shared request helpers already surface failures in the UI.
@@ -278,12 +177,10 @@
             installBtn.textContent = "Install";
           }, 3000);
         });
-    };
+    });
     actionWrap.appendChild(checkBtn);
     actionWrap.appendChild(installBtn);
-    availableRow.appendChild(availableLabel);
-    availableRow.appendChild(actionWrap);
-    wifiBody.appendChild(availableRow);
+    wifiBody.appendChild(actionRow(availableLabel, actionWrap));
 
     return makeCollapsibleCard("WiFi", wifiBody, true);
   }
@@ -292,22 +189,19 @@
     if (!developerPanelEnabledByUrl()) return null;
     var devBadge = makeBadge(S.developer_features_enabled);
     var devBody = el("div");
-    var devField = field("");
-    var devRow = el("div", "toggle-row");
-    devRow.innerHTML = "<span>Enable in-development features</span>";
-    var devToggle = el("div", S.developer_features_enabled ? "toggle on" : "toggle");
-    devToggle.onclick = function () {
-      S.developer_features_enabled = !S.developer_features_enabled;
-      devToggle.className = S.developer_features_enabled ? "toggle on" : "toggle";
-      devBadge.className = "on-badge" + (S.developer_features_enabled ? " active" : "");
-      saveSetting("developer_features_enabled", S.developer_features_enabled);
-      if (!S.developer_features_enabled && isPortraitScreenRotation(S.screen_rotation)) {
-        saveSetting("screen_rotation", "0");
+    devBody.appendChild(toggleSettingRow({
+      label: "Enable in-development features",
+      value: S.developer_features_enabled,
+      getValue: function () { return S.developer_features_enabled; },
+      setValue: function (value) { S.developer_features_enabled = value; },
+      badge: devBadge,
+      onChange: function () {
+        saveSetting("developer_features_enabled", S.developer_features_enabled);
+        if (!S.developer_features_enabled && isPortraitScreenRotation(S.screen_rotation)) {
+          saveSetting("screen_rotation", "0");
+        }
+        renderSettings();
       }
-      renderSettings();
-    };
-    devRow.appendChild(devToggle);
-    devField.appendChild(devRow);
-    devBody.appendChild(devField);
+    }).field);
     return makeCollapsibleCard("Developer", devBody, true, devBadge);
   }
