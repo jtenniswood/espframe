@@ -24,7 +24,7 @@ env:
 
 jobs:
   validate:
-    name: Validate Generated Files and Docs
+    name: Validate PR Gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -37,8 +37,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run local checks
-        run: npm run check:all
+      - name: Run PR checks
+        run: npm run check:pr
 
   compile:
     name: Compile Firmware

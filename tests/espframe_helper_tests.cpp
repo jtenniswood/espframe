@@ -179,6 +179,21 @@ static void test_immich_body_helpers() {
 
   assert(build_uuid_json_array(" a, b ,, c ") == "[\"a\",\"b\",\"c\"]");
   assert(pick_one_uuid_from_csv(" a, b ,, c ") == "a");
+  int album_order_index = 0;
+  assert(pick_album_id_for_metadata_search(" a, b, c ", "Album list order", album_order_index) == "a");
+  assert(album_order_index == 1);
+  assert(pick_album_id_for_metadata_search(" a, b, c ", "Album list order", album_order_index) == "b");
+  assert(album_order_index == 2);
+  assert(pick_album_id_for_metadata_search(" a, b, c ", "Album list order", album_order_index) == "c");
+  assert(album_order_index == 0);
+  album_order_index = 9;
+  assert(pick_album_id_for_metadata_search(" a, b ", "Album list order", album_order_index) == "a");
+  assert(album_order_index == 1);
+  assert(pick_album_id_for_metadata_search(" , , ", "Album list order", album_order_index).empty());
+  assert(album_order_index == 0);
+  album_order_index = 1;
+  assert(pick_album_id_for_metadata_search(" a, b, c ", "Random albums", album_order_index) == "a");
+  assert(album_order_index == 1);
   assert(build_immich_search_body(1, true, "Favorites", "", "", "").find("\"isFavorite\":true") !=
          std::string::npos);
   assert(build_immich_search_body(1, true, "All Photos", "", "", "").find("\"visibility\":\"timeline\"") !=
@@ -211,6 +226,19 @@ static void test_immich_body_helpers() {
   assert(build_immich_metadata_search_body(1, 1, false, "Person", "", "p1", "")
              .find("\"personIds\":[\"p1\"]") != std::string::npos);
   assert(build_immich_metadata_search_body(1, 1, false, "Tag", "", "", "t1,t2")
+             .find("\"tagIds\":[\"t1\",\"t2\"]") != std::string::npos);
+  std::string album_statistics = build_immich_statistics_search_body(
+      "Album", "album-a", "", "", "\"takenAfter\":\"2026-01-01T00:00:00.000Z\"");
+  assert(album_statistics.find("\"type\":\"IMAGE\"") != std::string::npos);
+  assert(album_statistics.find("\"visibility\":\"timeline\"") != std::string::npos);
+  assert(album_statistics.find("\"albumIds\":[\"album-a\"]") != std::string::npos);
+  assert(album_statistics.find("\"takenAfter\":\"2026-01-01T00:00:00.000Z\"") !=
+         std::string::npos);
+  assert(album_statistics.find("\"page\"") == std::string::npos);
+  assert(album_statistics.find("\"size\"") == std::string::npos);
+  assert(build_immich_statistics_search_body("Person", "", "p1", "")
+             .find("\"personIds\":[\"p1\"]") != std::string::npos);
+  assert(build_immich_statistics_search_body("Tag", "", "", "t1,t2")
              .find("\"tagIds\":[\"t1\",\"t2\"]") != std::string::npos);
 
   std::vector<ImmichTimelineBucketInfo> large_album_buckets = {

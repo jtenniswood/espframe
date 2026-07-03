@@ -207,6 +207,27 @@ inline std::string pick_one_uuid_from_csv(const std::string &csv) {
   return ids[esp_random() % ids.size()];
 }
 
+inline std::string pick_album_id_for_metadata_search(const std::string &csv,
+                                                     const std::string &album_order,
+                                                     int &next_index) {
+  std::vector<std::string> ids = split_uuid_csv(csv);
+  if (ids.empty()) {
+    next_index = 0;
+    return "";
+  }
+
+  if (album_order != "Album list order") {
+    return pick_one_uuid_from_csv(csv);
+  }
+
+  if (next_index < 0 || next_index >= static_cast<int>(ids.size())) {
+    next_index = 0;
+  }
+  std::string selected = ids[next_index];
+  next_index = (next_index + 1) % static_cast<int>(ids.size());
+  return selected;
+}
+
 inline std::string build_uuid_json_array(const std::string &csv) {
   std::vector<std::string> ids = split_uuid_csv(csv);
   std::string result = "[";
@@ -273,6 +294,26 @@ inline std::string build_immich_metadata_search_body(uint32_t page,
                      ",\"size\":" + std::to_string(size) +
                      ",\"type\":\"IMAGE\",\"visibility\":\"timeline\",\"withExif\":true";
   if (with_people) body += ",\"withPeople\":true";
+  if (!extra.empty()) body += "," + extra;
+  if (photo_source == "Favorites") {
+    body += ",\"isFavorite\":true";
+  } else if (photo_source == "Album" && !album_id.empty()) {
+    body += ",\"albumIds\":[\"" + album_id + "\"]";
+  } else if (photo_source == "Person" && !person_id.empty()) {
+    body += ",\"personIds\":[\"" + person_id + "\"]";
+  } else if (photo_source == "Tag" && !tag_ids.empty()) {
+    body += ",\"tagIds\":" + build_uuid_json_array(tag_ids);
+  }
+  body += "}";
+  return body;
+}
+
+inline std::string build_immich_statistics_search_body(const std::string &photo_source,
+                                                       const std::string &album_id,
+                                                       const std::string &person_id,
+                                                       const std::string &tag_ids,
+                                                       const std::string &extra = "") {
+  std::string body = "{\"type\":\"IMAGE\",\"visibility\":\"timeline\"";
   if (!extra.empty()) body += "," + extra;
   if (photo_source == "Favorites") {
     body += ",\"isFavorite\":true";
@@ -503,30 +544,15 @@ inline uint32_t parse_immich_metadata_total(const std::string &body) {
   return total > 0 ? static_cast<uint32_t>(total) : 0;
 }
 
-inline bool immich_metadata_total_looks_page_limited(const std::string &body,
-                                                     uint16_t page_size) {
-  if (page_size == 0) return false;
+inline uint32_t parse_immich_statistics_total(const std::string &body) {
   auto doc = esphome::json::parse_json(body);
-  if (doc.isNull() || !doc.is<JsonObject>()) return false;
+  if (doc.isNull() || !doc.is<JsonObject>()) return 0;
 
   JsonObject root = doc.as<JsonObject>();
-  JsonObject assets = root["assets"].as<JsonObject>();
-  if (assets.isNull()) return false;
-
-  int reported_total = 0;
-  if (assets["total"].is<int>()) reported_total = assets["total"].as<int>();
-  if (reported_total <= 0 && assets["count"].is<int>())
-    reported_total = assets["count"].as<int>();
-  if (reported_total <= 0) return false;
-
-  JsonArray items = assets["items"].as<JsonArray>();
-  if (items.isNull() && assets["assets"].is<JsonArray>()) {
-    items = assets["assets"].as<JsonArray>();
-  }
-  size_t item_count = items.isNull() ? 0 : items.size();
-  bool next_page_present = !assets["nextPage"].isNull();
-  return static_cast<uint32_t>(reported_total) <= page_size &&
-         (next_page_present || item_count >= page_size);
+  int total = 0;
+  if (root["total"].is<int>()) total = root["total"].as<int>();
+  if (total <= 0 && root["images"].is<int>()) total = root["images"].as<int>();
+  return total > 0 ? static_cast<uint32_t>(total) : 0;
 }
 
 inline std::string parse_immich_metadata_asset(const std::string &body,

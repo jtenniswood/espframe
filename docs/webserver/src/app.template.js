@@ -198,6 +198,7 @@
 
   var PHOTO_SOURCE_APPLY_SETTING_KEYS = [
     "photo_source",
+    "album_order",
     "album_ids",
     "person_ids",
     "tag_ids",

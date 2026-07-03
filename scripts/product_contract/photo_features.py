@@ -107,7 +107,7 @@ def check_photo_source_metadata(product: dict, errors: list[str]) -> None:
         "id(immich_memory_window_offset) = -2",
         "id(immich_memory_window_offset) <= 2",
         "build_immich_search_body",
-        "pick_one_uuid_from_csv",
+        "pick_album_id_for_metadata_search",
         "pick_one_person_id_for_random_search",
     ):
         require_contains(api_yaml, needle, "common/addon/immich_api.yaml", errors)
