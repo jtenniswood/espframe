@@ -384,6 +384,7 @@ script:
                                (id(screen_schedule_asleep) ||
                                 id(backlight_paused) ||
                                 id(screensaver_display_off_active) ||
+                                lv_scr_act() == id(screen_off_page)->obj ||
                                 !id(backlight).current_values.is_on());
             if (should_wake) {
               id(screen_schedule_wake).execute();
@@ -572,6 +573,7 @@ script:
               if (id(schedule_enabled).state && !now.is_valid()) return true;
               if (id(backlight_paused) || id(screen_schedule_asleep) ||
                   id(screensaver_display_off_active) ||
+                  lv_scr_act() == id(screen_off_page)->obj ||
                   !id(backlight).current_values.is_on()) {
                 return true;
               }
@@ -593,6 +595,7 @@ script:
                 auto now = id(sntp_time).now();
                 bool was_off = id(backlight_paused) || id(screen_schedule_asleep) ||
                                id(screensaver_display_off_active) ||
+                               lv_scr_act() == id(screen_off_page)->obj ||
                                !id(backlight).current_values.is_on();
                 if (was_off) {
                   id(touch_started_while_off) = true;
