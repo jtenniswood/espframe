@@ -114,8 +114,7 @@ esphome:
             condition:
               lambda: |-
                 return !id(backlight_manual_off) &&
-                       !id(screen_schedule_asleep) &&
-                       !(id(schedule_enabled).state && !id(sntp_time).now().is_valid());
+                       !id(screen_schedule_asleep);
             then:
               - light.turn_on:
                   id: backlight

@@ -1,7 +1,7 @@
 # =============================================================================
 # BACKLIGHT SCHEDULE & DAY/NIGHT BRIGHTNESS
 # =============================================================================
-# Scheduled true display-off, temporary touch wake during off-hours, automatic
+# Scheduled backlight-off, temporary touch wake during off-hours, automatic
 # day/night brightness based on sunrise/sunset calculation, and manual
 # long-press sleep.
 # =============================================================================
@@ -218,7 +218,8 @@ text_sensor:
 # =============================================================================
 
 script:
-  # Keep the backlight dark after reboot until valid time confirms the schedule.
+  # Keep LVGL active during boot. Schedule checks run once time is valid; until
+  # then, the frame should remain visible instead of entering the black off page.
   - id: screen_schedule_boot_guard
     mode: restart
     then:
@@ -228,20 +229,19 @@ script:
           then:
             - globals.set:
                 id: backlight_paused
-                value: 'true'
+                value: 'false'
             - globals.set:
                 id: screensaver_display_off_active
-                value: 'true'
+                value: 'false'
             - globals.set:
                 id: screen_schedule_asleep
-                value: 'true'
+                value: 'false'
             - globals.set:
                 id: backlight_manual_off
                 value: 'false'
             - globals.set:
                 id: manual_wake_ms
                 value: '0'
-            - script.execute: backlight_schedule_display_off
             - script.execute: screen_schedule_boot_recover
           else:
             - if:
@@ -267,9 +267,8 @@ script:
                       value: 'false'
 
   # Re-check the schedule soon after boot. OTA and power-on boots can start
-  # before SNTP has a valid clock, so the boot guard keeps the panel dark until
-  # one of these checks sees the current time and wakes the screen if it is
-  # inside the configured on-hours.
+  # before SNTP has a valid clock, so these checks apply the schedule as soon
+  # as reliable local time is available.
   - id: screen_schedule_boot_recover
     mode: restart
     then:
@@ -466,8 +465,7 @@ script:
             lambda: |-
               auto now = id(sntp_time).now();
               return id(backlight_paused) || id(screen_schedule_asleep) ||
-                     id(backlight_manual_off) ||
-                     (id(schedule_enabled).state && !now.is_valid());
+                     id(backlight_manual_off);
           then:
             - script.execute: backlight_force_display_off
           else:
@@ -570,7 +568,6 @@ script:
           condition:
             lambda: |-
               auto now = id(sntp_time).now();
-              if (id(schedule_enabled).state && !now.is_valid()) return true;
               if (id(backlight_paused) || id(screen_schedule_asleep) ||
                   id(screensaver_display_off_active) ||
                   lv_scr_act() == id(screen_off_page)->obj ||
@@ -602,15 +599,6 @@ script:
                   id(wake_touch_ms) = millis();
                 }
 
-                if (id(schedule_enabled).state && !now.is_valid()) {
-                  id(backlight_paused) = true;
-                  id(screensaver_display_off_active) = true;
-                  id(screen_schedule_asleep) = true;
-                  id(backlight_manual_off) = false;
-                  id(manual_wake_ms) = 0;
-                  return;
-                }
-
                 id(backlight_manual_off) = false;
                 if (id(schedule_enabled).state && now.is_valid()) {
                   int on_hour = (int) id(schedule_on_hour).state;
@@ -640,22 +628,16 @@ script:
                 }
             - if:
                 condition:
-                  lambda: 'return id(schedule_enabled).state && !id(sntp_time).now().is_valid();'
+                  lambda: 'return id(manual_wake_ms) != 0;'
                 then:
-                  - script.execute: backlight_schedule_display_off
+                  - script.execute: screen_schedule_wake_timeout_check
                 else:
-                  - if:
-                      condition:
-                        lambda: 'return id(manual_wake_ms) != 0;'
-                      then:
-                        - script.execute: screen_schedule_wake_timeout_check
-                      else:
-                        - script.stop: screen_schedule_wake_timeout_check
-                  - lvgl.resume:
-                  - script.execute: screen_schedule_restore_page
-                  - delay: 50ms
-                  - script.execute: backlight_apply_brightness
-                  - script.execute: immich_prefetch_chain
+                  - script.stop: screen_schedule_wake_timeout_check
+            - lvgl.resume:
+            - script.execute: screen_schedule_restore_page
+            - delay: 50ms
+            - script.execute: backlight_apply_brightness
+            - script.execute: immich_prefetch_chain
 
   # Backward-compatible script name used by older local call sites.
   - id: backlight_check_schedule
@@ -701,16 +683,14 @@ script:
           then:
             - script.execute: backlight_recalc_sunrise_sunset
 
-# Keep the physical backlight off while schedule sleep or boot-time unknown-time
-# guard is active, even if another route turns the light entity on.
+# Keep the physical backlight off while schedule sleep or manual-off is active,
+# even if another route turns the light entity on.
 interval:
   - interval: 500ms
     then:
       - if:
           condition:
             lambda: |-
-              return id(screen_schedule_asleep) ||
-                     id(backlight_manual_off) ||
-                     (id(schedule_enabled).state && !id(sntp_time).now().is_valid());
+              return id(screen_schedule_asleep) || id(backlight_manual_off);
           then:
             - script.execute: backlight_force_display_off
