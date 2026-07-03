@@ -808,7 +808,7 @@
       ]
     },
     "github_workflow_events": {
-      "compile": ["pull_request"],
+      "compile": ["pull_request", "workflow_dispatch"],
       "docs": ["push", "workflow_run", "workflow_dispatch"],
       "release": ["release", "workflow_dispatch"]
     },
