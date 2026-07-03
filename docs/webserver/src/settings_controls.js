@@ -18,6 +18,7 @@
       makeRotationCard: makeRotationCard,
       makeClockCard: makeClockCard,
       makeFirmwareCard: makeFirmwareCard,
+      makeWifiCard: makeWifiCard,
       makeDeveloperCard: makeDeveloperCard,
       makeBackupCard: makeBackupCard
     };
@@ -60,6 +61,7 @@
       makeRotationCard(),
       makeClockCard(),
       makeFirmwareCard(),
+      makeWifiCard(),
       makeDeveloperCard(),
       makeBackupCard()
     ];

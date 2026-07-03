@@ -231,6 +231,43 @@
     return makeCollapsibleCard("Firmware", fwBody, true);
   }
 
+  function makeWifiCard() {
+    var wifiBody = el("div", "fw-body");
+
+    var currentRow = el("div", "field fw-row");
+    var currentLabel = el("span", "fw-label");
+    currentLabel.innerHTML = '<span style="color:var(--text2)">Current C6 firmware</span> ' +
+      esc(displayVersion(S.c6_current_firmware, "Unknown"));
+    currentRow.appendChild(currentLabel);
+    wifiBody.appendChild(currentRow);
+
+    var availableRow = el("div", "field fw-row");
+    var availableLabel = el("span", "fw-label");
+    availableLabel.innerHTML = '<span style="color:var(--text2)">Available firmware</span> ' +
+      esc(displayVersion(S.c6_available_firmware, "Unknown"));
+    var installBtn = el("button", "btn btn-primary btn-sm");
+    installBtn.textContent = "Install";
+    installBtn.onclick = function () {
+      installBtn.disabled = true;
+      installBtn.textContent = "Installing\u2026";
+      post(endpoints.c6_firmware_install + "/press")
+        .catch(function () {
+          // Shared request helpers already surface failures in the UI.
+        })
+        .finally(function () {
+          setTimeout(function () {
+            installBtn.disabled = false;
+            installBtn.textContent = "Install";
+          }, 3000);
+        });
+    };
+    availableRow.appendChild(availableLabel);
+    availableRow.appendChild(installBtn);
+    wifiBody.appendChild(availableRow);
+
+    return makeCollapsibleCard("WiFi", wifiBody, true);
+  }
+
   function makeDeveloperCard() {
     if (!developerPanelEnabledByUrl()) return null;
     var devBadge = makeBadge(S.developer_features_enabled);

@@ -306,6 +306,7 @@
       { "id": "sg_screen", "name": "Screen", "sorting_weight": 30 },
       { "id": "sg_clock", "name": "Clock", "sorting_weight": 35 },
       { "id": "sg_firmware", "name": "Firmware", "sorting_weight": 40 },
+      { "id": "sg_wifi", "name": "WiFi", "sorting_weight": 45 },
       { "id": "sg_developer", "name": "Developer", "sorting_weight": 90 }
     ],
     "external_component_names": ["gsl3680", "remote_image", "espframe"],
@@ -415,6 +416,14 @@
         "manual_entities": ["update", "update_beta", "firmware_check", "reboot_screen"]
       },
       {
+        "id": "wifi",
+        "label": "WiFi",
+        "tab": "settings",
+        "function": "makeWifiCard",
+        "static_entities": ["c6_current_firmware", "c6_available_firmware"],
+        "manual_entities": ["c6_firmware_install"]
+      },
+      {
         "id": "developer",
         "label": "Developer",
         "tab": "settings",
@@ -456,7 +465,9 @@
       "sunrise": { "entity": "text_sensor/Screen: Sunrise", "firmware_file": "common/addon/backlight_schedule.yaml", "fetch": true },
       "sunset": { "entity": "text_sensor/Screen: Sunset", "firmware_file": "common/addon/backlight_schedule.yaml", "fetch": true },
       "developer_features_enabled": { "entity": "switch/Developer: Features", "firmware_file": "common/addon/developer_features.yaml", "boolFromState": true, "fetch": true },
-      "show_clock": { "entity": "switch/Clock: Show", "firmware_file": "common/addon/time.yaml", "boolFromState": true, "default": true }
+      "show_clock": { "entity": "switch/Clock: Show", "firmware_file": "common/addon/time.yaml", "boolFromState": true, "default": true },
+      "c6_current_firmware": { "entity": "text_sensor/ESP32-C6: Current Firmware", "firmware_file": "common/addon/esp32_c6_firmware_update.yaml", "default": "Unknown", "fetch": true },
+      "c6_available_firmware": { "entity": "text_sensor/ESP32-C6: Available Firmware", "firmware_file": "common/addon/esp32_c6_firmware_update.yaml", "default": "Unknown", "fetch": true }
     },
     "web_manual_entities": {
       "immich_url": { "entity": "text/Connection: Server URL", "firmware_file": "common/addon/immich_config.yaml" },
@@ -466,6 +477,7 @@
       "update_beta": { "entity": "update/Firmware: Update Beta", "firmware_file": "common/addon/firmware_update.yaml" },
       "apply_photo_source": { "entity": "button/Apply Photo Source", "firmware_file": "common/addon/immich_filter.yaml" },
       "firmware_check": { "entity": "button/Firmware: Check for Update", "firmware_file": "common/addon/firmware_update.yaml" },
+      "c6_firmware_install": { "entity": "button/Firmware ESP32-C6: Install Update", "firmware_file": "common/addon/esp32_c6_firmware_update.yaml" },
       "reboot_screen": { "entity": "button/Device: Reboot Screen", "firmware_file": "common/addon/immich_config.yaml" }
     },
     "web_manual_state_keys": ["immich_url", "api_key"],

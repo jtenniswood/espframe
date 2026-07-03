@@ -16,6 +16,8 @@ binary_sensor:
     id: ink_ha_connected
     icon: mdi:check-network
     entity_category: diagnostic
+    web_server:
+      sorting_group_id: sg_wifi
 
 sensor:
   - platform: wifi_signal
@@ -25,6 +27,8 @@ sensor:
     update_interval: 60s
     entity_category: diagnostic
     icon: mdi:wifi
+    web_server:
+      sorting_group_id: sg_wifi
 
   - platform: copy
     source_id: wifi_signal_db
@@ -34,6 +38,8 @@ sensor:
     unit_of_measurement: "%"
     icon: mdi:wifi
     entity_category: diagnostic
+    web_server:
+      sorting_group_id: sg_wifi
 
 # -----------------------------------------------------------------------------
 # WiFi info (IP address)
@@ -44,3 +50,5 @@ text_sensor:
       name: "Network: IP Address"
       icon: mdi:ip-network
       entity_category: diagnostic
+      web_server:
+        sorting_group_id: sg_wifi
