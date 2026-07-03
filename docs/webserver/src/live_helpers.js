@@ -309,15 +309,46 @@
     var labelInputs = [];
     var error = makeFieldError();
     var removeIcon = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18\"/><path d=\"M8 6V4h8v2\"/><path d=\"M19 6l-1 14H6L5 6\"/><path d=\"M10 11v5\"/><path d=\"M14 11v5\"/></svg>";
+    var moveUpIcon = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 19V5\"/><path d=\"M5 12l7-7 7 7\"/></svg>";
+    var moveDownIcon = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14\"/><path d=\"M19 12l-7 7-7-7\"/></svg>";
 
     function notify(changes, delayMs) {
       if (opts.onChange) opts.onChange(changes, delayMs);
     }
 
     function refreshRemoveButtons() {
-      Array.prototype.forEach.call(list.querySelectorAll("button"), function (btn) {
+      Array.prototype.forEach.call(list.querySelectorAll(".photo-id-remove"), function (btn) {
         btn.disabled = idInputs.length <= 1;
       });
+      Array.prototype.forEach.call(list.querySelectorAll(".photo-id-up"), function (btn) {
+        btn.disabled = idInputs.length <= 1 || Number(btn.getAttribute("data-index")) === 0;
+      });
+      Array.prototype.forEach.call(list.querySelectorAll(".photo-id-down"), function (btn) {
+        btn.disabled = idInputs.length <= 1 || Number(btn.getAttribute("data-index")) === idInputs.length - 1;
+      });
+    }
+
+    function syncMoveButtonIndexes() {
+      Array.prototype.forEach.call(list.querySelectorAll(".photo-id-row"), function (row, index) {
+        Array.prototype.forEach.call(row.querySelectorAll(".photo-id-up,.photo-id-down"), function (btn) {
+          btn.setAttribute("data-index", String(index));
+        });
+      });
+    }
+
+    function moveAlbumIdRow(fromIndex, toIndex) {
+      if (toIndex < 0 || toIndex >= idInputs.length || fromIndex === toIndex) return;
+      var row = idInputs[fromIndex].closest(".photo-id-row");
+      var targetRow = idInputs[toIndex].closest(".photo-id-row");
+      var movedInput = idInputs.splice(fromIndex, 1)[0];
+      var movedLabel = labelInputs.splice(fromIndex, 1)[0];
+      idInputs.splice(toIndex, 0, movedInput);
+      labelInputs.splice(toIndex, 0, movedLabel);
+      if (toIndex < fromIndex) list.insertBefore(row, targetRow);
+      else list.insertBefore(row, targetRow.nextSibling);
+      syncMoveButtonIndexes();
+      refreshRemoveButtons();
+      notify(opts.idChanges, 0);
     }
 
     function addRow(value, labelValue) {
@@ -325,7 +356,30 @@
       var fields = el("div", "photo-id-fields");
       var idInput = input("text", value || "", opts.idPlaceholder, MAX_PHOTO_ID_FIELD_LENGTH);
       var labelInput = input("text", labelValue || "", opts.labelPlaceholder, MAX_PHOTO_ID_FIELD_LENGTH);
-      var removeBtn = el("button", "btn btn-secondary btn-icon");
+      var actions = el("div", "photo-id-row-actions");
+      if (opts.reorderable) {
+        var upBtn = el("button", "btn btn-secondary btn-icon photo-id-up");
+        upBtn.type = "button";
+        upBtn.innerHTML = moveUpIcon;
+        upBtn.title = opts.moveUpTitle;
+        upBtn.setAttribute("aria-label", opts.moveUpTitle);
+        upBtn.onclick = function () {
+          var fromIndex = idInputs.indexOf(idInput);
+          moveAlbumIdRow(fromIndex, fromIndex - 1);
+        };
+        var downBtn = el("button", "btn btn-secondary btn-icon photo-id-down");
+        downBtn.type = "button";
+        downBtn.innerHTML = moveDownIcon;
+        downBtn.title = opts.moveDownTitle;
+        downBtn.setAttribute("aria-label", opts.moveDownTitle);
+        downBtn.onclick = function () {
+          var fromIndex = idInputs.indexOf(idInput);
+          moveAlbumIdRow(fromIndex, fromIndex + 1);
+        };
+        actions.appendChild(upBtn);
+        actions.appendChild(downBtn);
+      }
+      var removeBtn = el("button", "btn btn-secondary btn-icon photo-id-remove");
       removeBtn.type = "button";
       removeBtn.innerHTML = removeIcon;
       removeBtn.title = opts.removeTitle;
@@ -341,6 +395,7 @@
         idInputs.splice(removeIndex, 1);
         labelInputs.splice(removeIndex, 1);
         row.parentNode.removeChild(row);
+        syncMoveButtonIndexes();
         refreshRemoveButtons();
         notify(opts.clearChanges, 0);
       };
@@ -353,10 +408,12 @@
       fields.appendChild(idInput);
       fields.appendChild(labelInput);
       row.appendChild(fields);
-      row.appendChild(removeBtn);
+      actions.appendChild(removeBtn);
+      row.appendChild(actions);
       list.appendChild(row);
       idInputs.push(idInput);
       labelInputs.push(labelInput);
+      syncMoveButtonIndexes();
       refreshRemoveButtons();
     }
 

@@ -72,6 +72,26 @@ select:
         - script.execute: auto_apply_photo_source
 
   - platform: template
+    name: "Photos: Album Order"
+    id: immich_album_order
+    internal: true
+    # ESPFRAME:SETTING_FIELDS album_order START
+    options:
+      - "Random albums"
+      - "Album list order"
+    initial_option: "Random albums"
+    optimistic: true
+    restore_value: true
+    # ESPFRAME:SETTING_FIELDS album_order END
+    icon: "mdi:sort"
+    web_server:
+      sorting_group_id: sg_photos
+    on_value:
+      then:
+        - lambda: 'ESP_LOGI("immich", "Album order: %s", x.c_str());'
+        - script.execute: auto_apply_photo_source
+
+  - platform: template
     name: "Photos: Relative Unit"
     id: immich_relative_unit
     internal: true

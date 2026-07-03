@@ -139,6 +139,63 @@
     return makeCollapsibleCard("Firmware", fwBody, true);
   }
 
+  function makeWifiCard() {
+    var wifiBody = el("div", "fw-body");
+
+    var currentRow = el("div", "field fw-row");
+    var currentLabel = el("span", "fw-label");
+    currentLabel.innerHTML = '<span style="color:var(--text2)">Current C6 firmware</span> ' +
+      esc(displayVersion(S.c6_current_firmware, "Unknown"));
+    currentRow.appendChild(currentLabel);
+    wifiBody.appendChild(currentRow);
+
+    var availableRow = el("div", "field fw-row");
+    var availableLabel = el("span", "fw-label");
+    availableLabel.innerHTML = '<span style="color:var(--text2)">Available firmware</span> ' +
+      esc(displayVersion(S.c6_available_firmware, "Unknown"));
+    var actionWrap = el("div");
+    actionWrap.className = "check-wrap";
+    var checkBtn = el("button", "btn btn-secondary btn-sm");
+    checkBtn.textContent = "Check";
+    checkBtn.onclick = function () {
+      checkBtn.disabled = true;
+      checkBtn.textContent = "Checking\u2026";
+      post(endpoints.c6_firmware_check + "/press")
+        .catch(function () {
+          // Shared request helpers already surface failures in the UI.
+        })
+        .finally(function () {
+          setTimeout(function () {
+            checkBtn.disabled = false;
+            checkBtn.textContent = "Check";
+          }, 3000);
+        });
+    };
+    var installBtn = el("button", "btn btn-primary btn-sm");
+    installBtn.textContent = "Install";
+    installBtn.onclick = function () {
+      installBtn.disabled = true;
+      installBtn.textContent = "Installing\u2026";
+      post(endpoints.c6_firmware_install + "/press")
+        .catch(function () {
+          // Shared request helpers already surface failures in the UI.
+        })
+        .finally(function () {
+          setTimeout(function () {
+            installBtn.disabled = false;
+            installBtn.textContent = "Install";
+          }, 3000);
+        });
+    };
+    actionWrap.appendChild(checkBtn);
+    actionWrap.appendChild(installBtn);
+    availableRow.appendChild(availableLabel);
+    availableRow.appendChild(actionWrap);
+    wifiBody.appendChild(availableRow);
+
+    return makeCollapsibleCard("WiFi", wifiBody, true);
+  }
+
   function makeDeviceRebootCard() {
     var rebootBody = el("div", "fw-body");
     var rebootLabel = textLabel("", "Device Reboot");

@@ -30,6 +30,7 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
     expected_outputs = {
         "components/espframe/tz_data_generated.h",
         "common/addon/time.yaml",
+        "devices/guition-esp32-p4-jc8012p4a1/packages.yaml",
         "docs/public/webserver/app.js",
         "docs/public/webserver/style.css",
     }
@@ -46,6 +47,7 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
         "docs/webserver/src/startup_wizard.js",
         "docs/webserver/src/style.css",
         "product/espframe.json",
+        "scripts/asset_generation/device_packages.py",
         "scripts/product_config.py",
     }
     missing_outputs = sorted(expected_outputs - set(outputs))
@@ -65,6 +67,8 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
             path_name = Path(path).name
             if path_name in {"espframe.json", "product_config.py"}:
                 require_contains(generator, "load_product", generator_label, errors)
+            elif path_name in {"device_packages.py", "packages.yaml"}:
+                require_contains(generator, "generated_device_package_files", generator_label, errors)
             else:
                 require_contains(generator, path_name, generator_label, errors)
     template_placeholders = set(re.findall(r"__ESPFRAME_[A-Z0-9_]+__", web_template))
@@ -93,11 +97,28 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
         require_contains(package_json, needle, "package.json", errors)
     for needle in (
         "write_or_check",
+        "generated_device_package_files",
         "replace_timezone_yaml",
         "web_app_bundle",
         "render_settings_table",
     ):
         require_contains(generator, needle, generator_label, errors)
+
+    generated_headers = project.get("generated_asset_output_headers", {})
+    if not isinstance(generated_headers, dict) or not generated_headers:
+        errors.append("project.generated_asset_output_headers must be a non-empty object")
+    else:
+        for output, raw_header in generated_headers.items():
+            if output not in outputs:
+                errors.append(f"project.generated_asset_output_headers references non-generated output {output}")
+                continue
+            header = str(raw_header).strip()
+            if not header:
+                errors.append(f"project.generated_asset_output_headers is missing {output}")
+                continue
+            output_text = read(ROOT / output, errors)
+            if output_text and not output_text.startswith(header):
+                errors.append(f"{output} must start with its generated-file header")
 
 
 def check_factory_firmware_metadata(product: dict, errors: list[str]) -> None:

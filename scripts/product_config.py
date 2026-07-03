@@ -384,6 +384,33 @@ def web_local_state_keys(product: dict[str, Any] | None = None) -> set[str]:
     return {str(key).strip() for key in data["project"].get("web_local_state_keys", []) if str(key).strip()}
 
 
+def web_ui_cards_metadata(product: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    data = product if product is not None else load_product()
+    cards = data["project"].get("web_ui_cards", [])
+    if not isinstance(cards, list):
+        return []
+    result: list[dict[str, Any]] = []
+    for card in cards:
+        if not isinstance(card, dict):
+            continue
+        result.append(
+            {
+                "id": str(card.get("id", "")).strip(),
+                "label": str(card.get("label", "")).strip(),
+                "tab": str(card.get("tab", "")).strip(),
+                "function": str(card.get("function", "")).strip(),
+                "settings": [str(value).strip() for value in card.get("settings", []) if str(value).strip()],
+                "staticEntities": [
+                    str(value).strip() for value in card.get("static_entities", []) if str(value).strip()
+                ],
+                "manualEntities": [
+                    str(value).strip() for value in card.get("manual_entities", []) if str(value).strip()
+                ],
+            }
+        )
+    return result
+
+
 def web_initial_fetch_first_keys(product: dict[str, Any] | None = None) -> list[str]:
     data = product if product is not None else load_product()
     keys = data["project"].get("web_initial_fetch_first_keys", [])

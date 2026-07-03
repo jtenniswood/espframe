@@ -20,13 +20,19 @@ text_sensor:
     id: c6_update_available
     icon: "mdi:update"
     web_server:
-      sorting_group_id: sg_firmware
+      sorting_group_id: sg_wifi
     lambda: |-
       auto upd = id(esp32_c6_update);
       if (!upd) return std::string("Unknown");
+      if (upd->state == esphome::update::UpdateState::UPDATE_STATE_UNKNOWN)
+        return std::string("Unknown");
+      if (upd->state == esphome::update::UpdateState::UPDATE_STATE_INSTALLING)
+        return std::string("Installing");
       if (upd->state == esphome::update::UpdateState::UPDATE_STATE_AVAILABLE)
         return std::string("Update available");
-      return std::string("Up-to-date");
+      if (upd->state == esphome::update::UpdateState::UPDATE_STATE_NO_UPDATE)
+        return std::string("Up-to-date");
+      return std::string("Unknown");
     update_interval: 60s
 
   - platform: template
@@ -35,7 +41,7 @@ text_sensor:
     id: c6_update_current_firmware
     icon: "mdi:chip"
     web_server:
-      sorting_group_id: sg_firmware
+      sorting_group_id: sg_wifi
     lambda: |-
       auto upd = id(esp32_c6_update);
       if (!upd) return std::string("Unknown");
@@ -45,12 +51,12 @@ text_sensor:
     update_interval: 60s
 
   - platform: template
-    name: "ESP32-C6: Latest Firmware"
+    name: "ESP32-C6: Available Firmware"
     entity_category: diagnostic
     id: c6_update_latest_firmware
     icon: "mdi:chip"
     web_server:
-      sorting_group_id: sg_firmware
+      sorting_group_id: sg_wifi
     lambda: |-
       auto upd = id(esp32_c6_update);
       if (!upd) return std::string("Unknown");
@@ -65,7 +71,7 @@ button:
     entity_category: config
     icon: "mdi:download"
     web_server:
-      sorting_group_id: sg_firmware
+      sorting_group_id: sg_wifi
     on_press:
       then:
         - logger.log:
@@ -79,7 +85,7 @@ button:
     entity_category: config
     icon: "mdi:update"
     web_server:
-      sorting_group_id: sg_firmware
+      sorting_group_id: sg_wifi
     on_press:
       then:
         - logger.log:

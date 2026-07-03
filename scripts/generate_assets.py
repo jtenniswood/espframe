@@ -8,6 +8,7 @@ import difflib
 import sys
 from pathlib import Path
 
+from asset_generation.device_packages import generated_device_package_files
 from asset_generation.docs_tables import generated_docs, render_settings_table, setting_lookup
 from asset_generation.firmware_fields import (
     generated_firmware_field_files,
@@ -24,7 +25,11 @@ from asset_generation.paths import (
 )
 from asset_generation.timezones import replace_timezone_yaml, timezone_header, timezone_options
 from asset_generation.web_bundle import bootstrap_webserver_sources, web_app_bundle
-from product_config import docs_settings_tables
+from product_config import docs_settings_tables, load_product
+
+
+GENERATED_JS_HEADER = "// ESPFRAME: generated from docs/webserver/src and product/espframe.json; run `npm run generate` to update.\n"
+GENERATED_CSS_HEADER = "/* ESPFRAME: generated from docs/webserver/src/style.css; run `npm run generate` to update. */\n"
 
 
 def write_or_check(path: Path, content: str, check: bool) -> bool:
@@ -50,12 +55,15 @@ def write_or_check(path: Path, content: str, check: bool) -> bool:
 
 def generate(check: bool) -> int:
     changed = False
+    product = load_product()
     all_settings = setting_lookup()
     firmware_field_configs = generated_firmware_setting_fields()
     changed |= write_or_check(TZ_HEADER_PATH, timezone_header(), check)
     changed |= write_or_check(TIME_YAML_PATH, replace_timezone_yaml(TIME_YAML_PATH.read_text(), timezone_options()), check)
-    changed |= write_or_check(WEB_PUBLIC_STYLE_PATH, WEB_STYLE_PATH.read_text(), check)
-    changed |= write_or_check(WEB_APP_PATH, web_app_bundle(), check)
+    changed |= write_or_check(WEB_PUBLIC_STYLE_PATH, GENERATED_CSS_HEADER + WEB_STYLE_PATH.read_text(), check)
+    changed |= write_or_check(WEB_APP_PATH, GENERATED_JS_HEADER + web_app_bundle(), check)
+    for path, content in generated_device_package_files(product).items():
+        changed |= write_or_check(path, content, check)
     for path in generated_firmware_field_files(all_settings, firmware_field_configs):
         changed |= write_or_check(path, generated_firmware_yaml(path, all_settings, firmware_field_configs), check)
     for path, table_blocks in docs_settings_tables().items():

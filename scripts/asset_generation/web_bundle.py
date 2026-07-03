@@ -27,6 +27,7 @@ from product_config import (
     web_manual_state_keys,
     web_settings_metadata,
     web_static_entities_metadata,
+    web_ui_cards_metadata,
 )
 
 
@@ -125,6 +126,7 @@ def web_app_bundle() -> str:
     firmware_manifest_urls_json = json.dumps(default_public_manifest_urls(), separators=(",", ":"))
     docs_base_url_json = json.dumps(public_base_url(), separators=(",", ":"))
     web_ui_tabs_json = json.dumps(load_product()["project"].get("web_ui_tabs", []), separators=(",", ":"))
+    web_ui_cards_json = json.dumps(web_ui_cards_metadata(), separators=(",", ":"))
     web_ui_logs_retained_lines_json = json.dumps(load_product()["project"].get("web_ui_logs_retained_lines"), separators=(",", ":"))
     support_url_json = json.dumps(project_value("support_url"), separators=(",", ":"))
     support_button_image_url_json = json.dumps(project_value("support_button_image_url"), separators=(",", ":"))
@@ -149,6 +151,7 @@ def web_app_bundle() -> str:
         .replace("__ESPFRAME_FIRMWARE_MANIFEST_URLS__", firmware_manifest_urls_json)
         .replace("__ESPFRAME_DOCS_BASE_URL__", docs_base_url_json)
         .replace("__ESPFRAME_WEB_UI_TABS__", web_ui_tabs_json)
+        .replace("__ESPFRAME_WEB_UI_CARDS__", web_ui_cards_json)
         .replace("__ESPFRAME_WEB_UI_LOGS_RETAINED_LINES__", web_ui_logs_retained_lines_json)
         .replace("__ESPFRAME_SUPPORT_URL__", support_url_json)
         .replace("__ESPFRAME_SUPPORT_BUTTON_IMAGE_URL__", support_button_image_url_json)

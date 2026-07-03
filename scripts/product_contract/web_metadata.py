@@ -34,6 +34,7 @@ from product_config import (
     web_settings_metadata,
     web_static_entities,
     web_static_entities_metadata,
+    web_ui_cards_metadata,
 )
 
 
@@ -43,6 +44,13 @@ WEB_PRODUCT_HELPER_REF_RE = re.compile(
     r"\b(?:productSettingOptions|productNumberMin|productNumberMax|productNumberStep)\(\s*\"([^\"]+)\""
 )
 WEB_PRODUCT_SETTINGS_REF_RE = re.compile(r"\bPRODUCT_SETTINGS\.([A-Za-z_$][A-Za-z0-9_$]*)")
+
+
+def require_web_card_renderer(web_text: str, function_name: str, errors: list[str]) -> None:
+    renderer_pattern = rf"\b{re.escape(function_name)}\s*:\s*{re.escape(function_name)}\b"
+    if re.search(renderer_pattern, web_text):
+        return
+    errors.append(f"Missing generated web card renderer {function_name}")
 
 
 def check_web_entity_metadata(product: dict, errors: list[str]) -> None:
@@ -313,6 +321,10 @@ def check_generated_web_metadata(product: dict, web_text: str, errors: list[str]
     if web_ui_tabs is not None and web_ui_tabs != product["project"].get("web_ui_tabs"):
         errors.append("Generated web WEB_UI_TABS does not match product/espframe.json")
 
+    web_ui_cards = extract_js_json_var(web_text, "WEB_UI_CARDS", errors)
+    if web_ui_cards is not None and web_ui_cards != web_ui_cards_metadata(product):
+        errors.append("Generated web WEB_UI_CARDS does not match product/espframe.json")
+
     logs_retained_lines = extract_js_json_var(web_text, "WEB_UI_LOGS_RETAINED_LINES", errors)
     if logs_retained_lines is not None and logs_retained_lines != product["project"].get("web_ui_logs_retained_lines"):
         errors.append("Generated web WEB_UI_LOGS_RETAINED_LINES does not match product/espframe.json")
@@ -367,6 +379,7 @@ def check_web_ui_metadata(product: dict, web_template: str, web_text: str, error
 
     for label, text in labels_and_text:
         require_contains(text, "WEB_UI_TABS", label, errors)
+        require_contains(text, "WEB_UI_CARDS", label, errors)
         require_contains(text, "webUiTabs()", label, errors)
         require_contains(text, "switchTab(t.id)", label, errors)
         require_contains(text, 'els["tab_" + t]', label, errors)
@@ -410,6 +423,105 @@ def check_web_ui_metadata(product: dict, web_template: str, web_text: str, error
                 require_contains(web_text, f'"label":"{tab_label}"', f"generated web UI tab {tab_label}", errors)
     else:
         errors.append("project.web_ui_tabs must be a list")
+
+    check_web_ui_card_metadata(product, web_template, web_text, errors)
+
+
+def check_web_ui_card_metadata(product: dict, web_template: str, web_text: str, errors: list[str]) -> None:
+    project = product["project"]
+    cards = project.get("web_ui_cards", [])
+    tab_ids = {
+        str(tab.get("id", "")).strip()
+        for tab in project.get("web_ui_tabs", [])
+        if isinstance(tab, dict) and str(tab.get("id", "")).strip()
+    }
+    product_keys = {str(setting.get("key", "")).strip() for setting in product["settings"]}
+    static_keys = set(web_static_entities(product))
+    manual_keys = set(web_manual_entities(product))
+    seen_card_ids: set[str] = set()
+    settings_by_card: dict[str, str] = {}
+    combined_web = web_template + "\n" + web_text
+
+    if not isinstance(cards, list) or not cards:
+        errors.append("project.web_ui_cards must be a non-empty list")
+        return
+
+    for card in cards:
+        if not isinstance(card, dict):
+            errors.append("project.web_ui_cards entries must be objects")
+            continue
+        card_id = str(card.get("id", "")).strip()
+        label = str(card.get("label", "")).strip()
+        tab = str(card.get("tab", "")).strip()
+        function_name = str(card.get("function", "")).strip()
+        settings = card.get("settings", [])
+        static_entities = card.get("static_entities", [])
+        manual_entities = card.get("manual_entities", [])
+        card_label = f"project.web_ui_cards {card_id or '<missing>'}"
+
+        if not card_id:
+            errors.append("project.web_ui_cards entries must include id")
+        elif not re.match(r"^[a-z][a-z0-9_]*$", card_id):
+            errors.append(f"{card_label} id must be lowercase snake_case")
+        elif card_id in seen_card_ids:
+            errors.append(f"project.web_ui_cards has duplicate id {card_id!r}")
+        else:
+            seen_card_ids.add(card_id)
+
+        if not label:
+            errors.append(f"{card_label} must include label")
+        else:
+            require_contains(combined_web, label, f"web card label {label}", errors)
+
+        if tab not in tab_ids:
+            errors.append(f"{card_label} tab {tab!r} must point at project.web_ui_tabs")
+
+        if not re.match(r"^make[A-Za-z0-9]+Card$", function_name):
+            errors.append(f"{card_label} function must name a make*Card function")
+        else:
+            require_contains(combined_web, f"function {function_name}()", f"web card function {function_name}", errors)
+            require_web_card_renderer(combined_web, function_name, errors)
+
+        for field, known_keys in (
+            ("settings", product_keys),
+            ("static_entities", static_keys),
+            ("manual_entities", manual_keys),
+        ):
+            values = card.get(field, [])
+            if values is None:
+                values = []
+            if not isinstance(values, list):
+                errors.append(f"{card_label} {field} must be a list")
+                continue
+            seen_values: set[str] = set()
+            for raw_value in values:
+                value = str(raw_value).strip()
+                if not value:
+                    errors.append(f"{card_label} {field} contains a blank value")
+                    continue
+                if value in seen_values:
+                    errors.append(f"{card_label} {field} contains duplicate value {value}")
+                    continue
+                seen_values.add(value)
+                if value not in known_keys:
+                    errors.append(f"{card_label} {field} references unknown key {value}")
+
+        if isinstance(settings, list):
+            for raw_key in settings:
+                key = str(raw_key).strip()
+                if not key:
+                    continue
+                if key in settings_by_card:
+                    errors.append(
+                        f"Product setting {key} is assigned to multiple web UI cards: "
+                        f"{settings_by_card[key]} and {card_id}"
+                    )
+                else:
+                    settings_by_card[key] = card_id
+
+    missing_settings = sorted(product_keys - set(settings_by_card))
+    if missing_settings:
+        errors.append("Product settings missing from project.web_ui_cards: " + ", ".join(missing_settings))
 
 
 def check_web_template_key_references(product: dict, web_template: str, errors: list[str]) -> None:

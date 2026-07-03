@@ -106,6 +106,7 @@
       source: false,
       album: false,
       albumLabel: false,
+      albumOrder: false,
       person: false,
       personLabel: false,
       tag: false,
@@ -115,10 +116,20 @@
     var srcSel = selectFromOptions(productSettingOptions("photo_source"), S.photo_source, function (v) {
       S.photo_source = v;
       albumField.style.display = v === "Album" ? "" : "none";
+      albumOrderField.style.display = v === "Album" ? "" : "none";
       personField.style.display = v === "Person" ? "" : "none";
       tagField.style.display = v === "Tag" ? "" : "none";
       schedulePhotoSourceApply(0, { source: true });
     });
+
+    var albumOrderField = field("Album Order");
+    albumOrderField.appendChild(
+      selectFromOptions(productSettingOptions("album_order"), S.album_order, function (v) {
+        S.album_order = v;
+        schedulePhotoSourceApply(0, { albumOrder: true });
+      })
+    );
+    albumOrderField.style.display = S.photo_source === "Album" ? "" : "none";
 
     var albumList = photoIdListField({
       label: "Albums",
@@ -128,6 +139,9 @@
       labelPlaceholder: "What is it?",
       addText: "Add an album",
       removeTitle: "Remove album ID",
+      reorderable: true,
+      moveUpTitle: "Move album up",
+      moveDownTitle: "Move album down",
       idChanges: { album: true, albumLabel: true },
       labelChanges: { albumLabel: true },
       clearChanges: { album: true, albumLabel: true },
@@ -220,6 +234,7 @@
       }
       return {
         source: srcVal,
+        albumOrder: S.album_order,
         albumIds: albumTrim,
         albumLabels: albumLabels,
         personIds: personTrim,
@@ -233,6 +248,7 @@
         source: pendingPhotoSourceSave.source,
         album: pendingPhotoSourceSave.album,
         albumLabel: pendingPhotoSourceSave.albumLabel,
+        albumOrder: pendingPhotoSourceSave.albumOrder,
         person: pendingPhotoSourceSave.person,
         personLabel: pendingPhotoSourceSave.personLabel,
         tag: pendingPhotoSourceSave.tag,
@@ -242,6 +258,7 @@
         source: false,
         album: false,
         albumLabel: false,
+        albumOrder: false,
         person: false,
         personLabel: false,
         tag: false,
@@ -259,6 +276,9 @@
       if (changes.albumLabel) {
         requests.push(saveSetting("album_labels", vals.albumLabels));
       }
+      if (changes.albumOrder) {
+        requests.push(saveSetting("album_order", vals.albumOrder));
+      }
       if (changes.person) {
         requests.push(saveSetting("person_ids", vals.personIds));
       }
@@ -273,7 +293,7 @@
       }
       if (!requests.length) return;
       Promise.all(requests).then(function () {
-        if (changes.source || changes.album || changes.person || changes.tag)
+        if (changes.source || changes.album || changes.albumOrder || changes.person || changes.tag)
           post(endpoints.apply_photo_source + "/press");
       });
     }
@@ -282,6 +302,7 @@
         pendingPhotoSourceSave.source = pendingPhotoSourceSave.source || !!changes.source;
         pendingPhotoSourceSave.album = pendingPhotoSourceSave.album || !!changes.album;
         pendingPhotoSourceSave.albumLabel = pendingPhotoSourceSave.albumLabel || !!changes.albumLabel;
+        pendingPhotoSourceSave.albumOrder = pendingPhotoSourceSave.albumOrder || !!changes.albumOrder;
         pendingPhotoSourceSave.person = pendingPhotoSourceSave.person || !!changes.person;
         pendingPhotoSourceSave.personLabel = pendingPhotoSourceSave.personLabel || !!changes.personLabel;
         pendingPhotoSourceSave.tag = pendingPhotoSourceSave.tag || !!changes.tag;
@@ -293,6 +314,7 @@
 
     fSrc.appendChild(srcSel);
     srcBody.appendChild(fSrc);
+    srcBody.appendChild(albumOrderField);
     srcBody.appendChild(albumField);
     srcBody.appendChild(personField);
     srcBody.appendChild(tagField);

@@ -51,6 +51,7 @@ The export is a standard JSON file with a `version` field and grouped settings:
   "connection": { "immich_url": "...", "api_key": "..." },
   "photos": {
     "source": "All Photos",
+    "album_order": "Random albums",
     "album_ids": "",
     "album_labels": "",
     "person_ids": "",

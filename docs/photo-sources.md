@@ -11,6 +11,7 @@ Choose the **Source** in the device web UI at `http://<device-ip>/` under **Phot
 | Setting | Default | Format | Description |
 |---------|---------|--------|-------------|
 | **Source** | All Photos | Select | Choose all photos, favorites, albums, people, tags, or Immich memories. |
+| **Album Order** | Random albums | Select | Choose whether multiple albums are sampled randomly or cycled in the order shown in the Albums list. |
 <!-- ESPFRAME:SETTINGS_TABLE source END -->
 
 | Source | Extra setup | Best for |
@@ -39,6 +40,8 @@ Shows photos from one or more Immich albums. **Get the UUID:** open the album in
 The descriptions are saved with the IDs so the web UI can show friendly labels later. They do not affect which photos Immich returns.
 
 Album photos are sampled through paged Immich search, so large albums are not limited to the first small batch of results.
+
+When you add more than one album, **Album Order** can either keep sampling albums randomly or cycle through the Albums list from top to bottom. Use the move buttons beside each album to set the list order. Photos inside each selected album are still chosen randomly.
 
 ## Person
 

@@ -1,10 +1,4 @@
-# =============================================================================
-# PACKAGES - ESPHome include manifest (Guition ESP32-P4 JC8012P4A1)
-# =============================================================================
-# Device-specific substitutions followed by the package wiring. Shared addons
-# live in common/addon/ and are referenced via ../../common/addon/; device-local
-# configs (hardware, screens, assets) stay under this folder.
-# =============================================================================
+# ESPFRAME: generated from product/espframe.json; run `npm run generate` to update.
 
 substitutions:
   display_width: "1280"
@@ -22,41 +16,26 @@ substitutions:
   firmware_manifest_url: "https://jtenniswood.github.io/espframe/firmware/manifest.json"
 
 packages:
-  # ---------------------------------------------------------------------------
-  # Device, assets, and LVGL base
-  # ---------------------------------------------------------------------------
-  device:          !include device/device.yaml
-  fonts:           !include assets/fonts.yaml
-  icons:           !include assets/icons.yaml
-  lvgl_base:       !include device/lvgl_base.yaml
+  device: !include device/device.yaml
+  fonts: !include assets/fonts.yaml
+  icons: !include assets/icons.yaml
+  lvgl_base: !include device/lvgl_base.yaml
   screen_rotation: !include ../../common/addon/screen_rotation.yaml
-  # ---------------------------------------------------------------------------
-  # Shared addons: connectivity and Immich config/filter
-  # ---------------------------------------------------------------------------
-  connectivity:    !include ../../common/addon/connectivity.yaml
-  immich_config:   !include ../../common/addon/immich_config.yaml
-  immich_filter:   !include ../../common/addon/immich_filter.yaml
-  # ---------------------------------------------------------------------------
-  # Shared addons: backlight, time, display effects
-  # ---------------------------------------------------------------------------
-  backlight:       !include ../../common/addon/backlight.yaml
+  connectivity: !include ../../common/addon/connectivity.yaml
+  immich_config: !include ../../common/addon/immich_config.yaml
+  immich_filter: !include ../../common/addon/immich_filter.yaml
+  backlight: !include ../../common/addon/backlight.yaml
   backlight_sched: !include ../../common/addon/backlight_schedule.yaml
-  time_sync:       !include ../../common/addon/time.yaml
-  accent_color:    !include ../../common/addon/accent_color.yaml
-  warm_tones:      !include ../../common/addon/warm_tones.yaml
-  # ---------------------------------------------------------------------------
-  # Screens (loading, WiFi setup, Immich setup, slideshow)
-  # ---------------------------------------------------------------------------
-  screen_loading:  !include device/screen_loading.yaml
-  screen_wifi:     !include device/screen_wifi_setup.yaml
-  screen_setup:    !include device/screen_immich_setup.yaml
-  immich_api:      !include ../../common/addon/immich_api.yaml
-  immich_slide:    !include ../../common/addon/immich_slideshow.yaml
-  screen_slide:    !include device/screen_slideshow.yaml
-  # ---------------------------------------------------------------------------
-  # Shared addons: firmware update and network diagnostics
-  # ---------------------------------------------------------------------------
-  fw_update:       !include ../../common/addon/firmware_update.yaml
-  c6_fw_update:    !include ../../common/addon/esp32_c6_firmware_update.yaml
-  dev_features:    !include ../../common/addon/developer_features.yaml
-  network:         !include ../../common/addon/network.yaml
+  time_sync: !include ../../common/addon/time.yaml
+  accent_color: !include ../../common/addon/accent_color.yaml
+  warm_tones: !include ../../common/addon/warm_tones.yaml
+  screen_loading: !include device/screen_loading.yaml
+  screen_wifi: !include device/screen_wifi_setup.yaml
+  screen_setup: !include device/screen_immich_setup.yaml
+  immich_api: !include ../../common/addon/immich_api.yaml
+  immich_slide: !include ../../common/addon/immich_slideshow.yaml
+  screen_slide: !include device/screen_slideshow.yaml
+  fw_update: !include ../../common/addon/firmware_update.yaml
+  c6_fw_update: !include ../../common/addon/esp32_c6_firmware_update.yaml
+  dev_features: !include ../../common/addon/developer_features.yaml
+  network: !include ../../common/addon/network.yaml
