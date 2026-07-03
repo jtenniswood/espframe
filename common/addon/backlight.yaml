@@ -3,8 +3,8 @@
 # =============================================================================
 # Single monochromatic light entity driving the panel backlight output.
 # Used by the backlight schedule and manual brightness controls. The schedule
-# can also force a true display-off state: black LVGL page, LVGL paused, light
-# off, and raw PWM off.
+# can also force a display-off state by cutting the physical backlight while
+# keeping LVGL and the panel pipeline alive for reliable wake.
 # =============================================================================
 
 globals:
@@ -95,13 +95,6 @@ script:
   - id: backlight_schedule_display_off
     mode: restart
     then:
-      - script.execute: backlight_force_display_off
-      - lvgl.resume:
-      - lvgl.page.show: screen_off_page
-      - delay: 50ms
-      - script.execute: backlight_force_display_off
-      - lvgl.pause:
-          show_snow: false
       - script.execute: backlight_force_display_off
 
   - id: screen_schedule_manual_sleep
