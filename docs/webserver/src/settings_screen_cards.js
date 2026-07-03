@@ -2,47 +2,19 @@
     // Screen Brightness
     var dnDetails = el("div");
 
-    var fDayBrt = field("Daytime Brightness");
-    var rwDay = el("div", "range-wrap");
-    var daySlider = document.createElement("input");
-    daySlider.type = "range";
-    daySlider.min = productNumberMin("brightness_day", 10);
-    daySlider.max = productNumberMax("brightness_day", 100);
-    daySlider.step = productNumberStep("brightness_day", 5);
-    daySlider.value = S.brightness_day;
-    var dayVal = el("span", "range-val");
-    dayVal.textContent = Math.round(S.brightness_day) + "%";
-    daySlider.oninput = function () {
-      dayVal.textContent = daySlider.value + "%";
-    };
-    daySlider.onchange = function () {
-      saveSetting("brightness_day", daySlider.value);
-    };
-    rwDay.appendChild(daySlider);
-    rwDay.appendChild(dayVal);
-    fDayBrt.appendChild(rwDay);
-    dnDetails.appendChild(fDayBrt);
+    dnDetails.appendChild(rangeSettingField("Daytime Brightness", "brightness_day", {
+      minFallback: 10,
+      maxFallback: 100,
+      stepFallback: 5,
+      valueSuffix: "%"
+    }).field);
 
-    var fNightBrt = field("Nighttime Brightness");
-    var rwNight = el("div", "range-wrap");
-    var nightSlider = document.createElement("input");
-    nightSlider.type = "range";
-    nightSlider.min = productNumberMin("brightness_night", 10);
-    nightSlider.max = productNumberMax("brightness_night", 100);
-    nightSlider.step = productNumberStep("brightness_night", 5);
-    nightSlider.value = S.brightness_night;
-    var nightVal = el("span", "range-val");
-    nightVal.textContent = Math.round(S.brightness_night) + "%";
-    nightSlider.oninput = function () {
-      nightVal.textContent = nightSlider.value + "%";
-    };
-    nightSlider.onchange = function () {
-      saveSetting("brightness_night", nightSlider.value);
-    };
-    rwNight.appendChild(nightSlider);
-    rwNight.appendChild(nightVal);
-    fNightBrt.appendChild(rwNight);
-    dnDetails.appendChild(fNightBrt);
+    dnDetails.appendChild(rangeSettingField("Nighttime Brightness", "brightness_night", {
+      minFallback: 10,
+      maxFallback: 100,
+      stepFallback: 5,
+      valueSuffix: "%"
+    }).field);
 
     var fSunInfo = el("div", "field sun-info");
     fSunInfo.id = "sun-info";
@@ -61,100 +33,61 @@
     var toneBadge = makeBadge(S.base_tone_enabled || S.warm_tones_enabled);
     var warmBody = el("div");
 
-    var fBaseToneToggle = field("");
-    var baseTr = el("div", "toggle-row");
-    baseTr.innerHTML = "<span>Screen Tone Adjustment</span>";
-    var baseTog = el("div", S.base_tone_enabled ? "toggle on" : "toggle");
     var baseDetails = el("div");
     baseDetails.style.display = S.base_tone_enabled ? "" : "none";
-
-    baseTog.onclick = function () {
-      S.base_tone_enabled = !S.base_tone_enabled;
-      baseTog.className = S.base_tone_enabled ? "toggle on" : "toggle";
-      baseDetails.style.display = S.base_tone_enabled ? "" : "none";
-      toneBadge.className = "on-badge" + ((S.base_tone_enabled || S.warm_tones_enabled) ? " active" : "");
-      saveSetting("base_tone_enabled", S.base_tone_enabled);
-    };
-    baseTr.appendChild(baseTog);
-    fBaseToneToggle.appendChild(baseTr);
+    var fBaseToneToggle = toggleSettingRow({
+      label: "Screen Tone Adjustment",
+      value: S.base_tone_enabled,
+      getValue: function () { return S.base_tone_enabled; },
+      setValue: function (value) { S.base_tone_enabled = value; },
+      details: baseDetails,
+      badge: toneBadge,
+      badgeActive: function () { return S.base_tone_enabled || S.warm_tones_enabled; },
+      onChange: function () { saveSetting("base_tone_enabled", S.base_tone_enabled); }
+    }).field;
     fBaseToneToggle.style.marginBottom = "8px";
     warmBody.appendChild(fBaseToneToggle);
 
-    var fBaseTone = field("");
-    var rwBase = el("div", "range-wrap");
-    var baseLabelL = el("span", "range-label");
-    baseLabelL.textContent = "Cooler";
-    var baseSlider = document.createElement("input");
-    baseSlider.type = "range";
-    baseSlider.min = productNumberMin("base_tone", 0);
-    baseSlider.max = productNumberMax("base_tone", 100);
-    baseSlider.step = productNumberStep("base_tone", 5);
-    baseSlider.value = S.base_tone;
-    baseSlider.onchange = function () {
-      saveSetting("base_tone", baseSlider.value);
-    };
-    var baseLabelR = el("span", "range-label");
-    baseLabelR.textContent = "Warmer";
-    rwBase.appendChild(baseLabelL);
-    rwBase.appendChild(baseSlider);
-    rwBase.appendChild(baseLabelR);
-    fBaseTone.appendChild(rwBase);
-    baseDetails.appendChild(fBaseTone);
+    baseDetails.appendChild(rangeSettingField("", "base_tone", {
+      minFallback: 0,
+      maxFallback: 100,
+      stepFallback: 5,
+      leftLabel: "Cooler",
+      rightLabel: "Warmer"
+    }).field);
     baseDetails.style.marginBottom = "28px";
     warmBody.appendChild(baseDetails);
 
-    var fWarmToggle = field("");
-    var warmTr = el("div", "toggle-row");
-    warmTr.innerHTML = "<span>Night Tone Adjustment</span>";
-    var warmTog = el("div", S.warm_tones_enabled ? "toggle on" : "toggle");
     var nightDetails = el("div");
     nightDetails.style.display = S.warm_tones_enabled ? "" : "none";
-
-    warmTog.onclick = function () {
-      S.warm_tones_enabled = !S.warm_tones_enabled;
-      warmTog.className = S.warm_tones_enabled ? "toggle on" : "toggle";
-      nightDetails.style.display = S.warm_tones_enabled ? "" : "none";
-      toneBadge.className = "on-badge" + ((S.base_tone_enabled || S.warm_tones_enabled) ? " active" : "");
-      saveSetting("warm_tones_enabled", S.warm_tones_enabled);
-    };
-    warmTr.appendChild(warmTog);
-    fWarmToggle.appendChild(warmTr);
+    var fWarmToggle = toggleSettingRow({
+      label: "Night Tone Adjustment",
+      value: S.warm_tones_enabled,
+      getValue: function () { return S.warm_tones_enabled; },
+      setValue: function (value) { S.warm_tones_enabled = value; },
+      details: nightDetails,
+      badge: toneBadge,
+      badgeActive: function () { return S.base_tone_enabled || S.warm_tones_enabled; },
+      onChange: function () { saveSetting("warm_tones_enabled", S.warm_tones_enabled); }
+    }).field;
     fWarmToggle.style.marginBottom = "8px";
     warmBody.appendChild(fWarmToggle);
 
-    var fWarmInt = field("");
-    var rwWarm = el("div", "range-wrap");
-    var warmLabelL = el("span", "range-label");
-    warmLabelL.textContent = "Cooler";
-    var warmSlider = document.createElement("input");
-    warmSlider.type = "range";
-    warmSlider.min = productNumberMin("warm_tone_intensity", 10);
-    warmSlider.max = productNumberMax("warm_tone_intensity", 100);
-    warmSlider.step = productNumberStep("warm_tone_intensity", 5);
-    warmSlider.value = S.warm_tone_intensity;
-    warmSlider.onchange = function () {
-      saveSetting("warm_tone_intensity", warmSlider.value);
-    };
-    var warmLabelR = el("span", "range-label");
-    warmLabelR.textContent = "Warmer";
-    rwWarm.appendChild(warmLabelL);
-    rwWarm.appendChild(warmSlider);
-    rwWarm.appendChild(warmLabelR);
-    fWarmInt.appendChild(rwWarm);
-    nightDetails.appendChild(fWarmInt);
+    nightDetails.appendChild(rangeSettingField("", "warm_tone_intensity", {
+      minFallback: 10,
+      maxFallback: 100,
+      stepFallback: 5,
+      leftLabel: "Cooler",
+      rightLabel: "Warmer"
+    }).field);
 
-    var fOverride = field("");
-    var overTr = el("div", "toggle-row");
-    overTr.innerHTML = "<span>Turn on until sunrise</span>";
-    var overTog = el("div", S.warm_tone_override ? "toggle on" : "toggle");
-    overTog.onclick = function () {
-      S.warm_tone_override = !S.warm_tone_override;
-      overTog.className = S.warm_tone_override ? "toggle on" : "toggle";
-      saveSetting("warm_tone_override", S.warm_tone_override);
-    };
-    overTr.appendChild(overTog);
-    fOverride.appendChild(overTr);
-    nightDetails.appendChild(fOverride);
+    nightDetails.appendChild(toggleSettingRow({
+      label: "Turn on until sunrise",
+      value: S.warm_tone_override,
+      getValue: function () { return S.warm_tone_override; },
+      setValue: function (value) { S.warm_tone_override = value; },
+      onChange: function () { saveSetting("warm_tone_override", S.warm_tone_override); }
+    }).field);
 
     warmBody.appendChild(nightDetails);
     return makeCollapsibleCard("Screen Tone", warmBody, true, toneBadge);
@@ -165,59 +98,20 @@
     // Schedule
     var schedBadge = makeBadge(S.schedule_enabled);
     var schedBody = el("div");
-    var fSchedToggle = field("");
-    var schedTr = el("div", "toggle-row");
-    schedTr.innerHTML = "<span>Schedule Screen Off</span>";
-    var schedTog = el("div", S.schedule_enabled ? "toggle on" : "toggle");
     var schedDetails = el("div");
     schedDetails.style.display = S.schedule_enabled ? "" : "none";
+    schedBody.appendChild(toggleSettingRow({
+      label: "Schedule Screen Off",
+      value: S.schedule_enabled,
+      getValue: function () { return S.schedule_enabled; },
+      setValue: function (value) { S.schedule_enabled = value; },
+      details: schedDetails,
+      badge: schedBadge,
+      onChange: function () { saveSetting("schedule_enabled", S.schedule_enabled); }
+    }).field);
 
-    schedTog.onclick = function () {
-      S.schedule_enabled = !S.schedule_enabled;
-      schedTog.className = S.schedule_enabled ? "toggle on" : "toggle";
-      schedDetails.style.display = S.schedule_enabled ? "" : "none";
-      schedBadge.className = "on-badge" + (S.schedule_enabled ? " active" : "");
-      saveSetting("schedule_enabled", S.schedule_enabled);
-    };
-    schedTr.appendChild(schedTog);
-    fSchedToggle.appendChild(schedTr);
-    schedBody.appendChild(fSchedToggle);
-
-    var fOnTime = field("On Time");
-    var onSel = document.createElement("select");
-    onSel.className = "select";
-    var scheduleOnMin = productNumberMin("schedule_on_hour", 0);
-    var scheduleOnMax = productNumberMax("schedule_on_hour", 23);
-    for (var h = scheduleOnMin; h <= scheduleOnMax; h++) {
-      var o = document.createElement("option");
-      o.value = h;
-      o.textContent = formatHour(h);
-      if (h === Math.round(S.schedule_on_hour)) o.selected = true;
-      onSel.appendChild(o);
-    }
-    onSel.onchange = function () {
-      saveSetting("schedule_on_hour", parseInt(onSel.value));
-    };
-    fOnTime.appendChild(onSel);
-    schedDetails.appendChild(fOnTime);
-
-    var fOffTime = field("Off Time");
-    var offSel = document.createElement("select");
-    offSel.className = "select";
-    var scheduleOffMin = productNumberMin("schedule_off_hour", 0);
-    var scheduleOffMax = productNumberMax("schedule_off_hour", 23);
-    for (var h2 = scheduleOffMin; h2 <= scheduleOffMax; h2++) {
-      var o2 = document.createElement("option");
-      o2.value = h2;
-      o2.textContent = formatHour(h2);
-      if (h2 === Math.round(S.schedule_off_hour)) o2.selected = true;
-      offSel.appendChild(o2);
-    }
-    offSel.onchange = function () {
-      saveSetting("schedule_off_hour", parseInt(offSel.value));
-    };
-    fOffTime.appendChild(offSel);
-    schedDetails.appendChild(fOffTime);
+    schedDetails.appendChild(hourSelectSettingField("On Time", "schedule_on_hour"));
+    schedDetails.appendChild(hourSelectSettingField("Off Time", "schedule_off_hour"));
 
     var fWakeTimeout = field("When Woken, Idle Time To Screen Off");
     var scheduleWakeMin = productNumberMin("schedule_wake_timeout", 10);
@@ -264,19 +158,14 @@
     // Clock
     var clockBadge = makeBadge(S.show_clock);
     var clkBody = el("div");
-    var f5 = field("");
-    var tr = el("div", "toggle-row");
-    tr.innerHTML = "<span>Show Clock</span>";
-    var tog = el("div", S.show_clock ? "toggle on" : "toggle");
-    tog.onclick = function () {
-      S.show_clock = !S.show_clock;
-      tog.className = S.show_clock ? "toggle on" : "toggle";
-      clockBadge.className = "on-badge" + (S.show_clock ? " active" : "");
-      saveSetting("show_clock", S.show_clock);
-    };
-    tr.appendChild(tog);
-    f5.appendChild(tr);
-    clkBody.appendChild(f5);
+    clkBody.appendChild(toggleSettingRow({
+      label: "Show Clock",
+      value: S.show_clock,
+      getValue: function () { return S.show_clock; },
+      setValue: function (value) { S.show_clock = value; },
+      badge: clockBadge,
+      onChange: function () { saveSetting("show_clock", S.show_clock); }
+    }).field);
 
     var f6 = field("Format");
     f6.appendChild(

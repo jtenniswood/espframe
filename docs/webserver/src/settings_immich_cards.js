@@ -5,16 +5,11 @@
     connStatus.id = "conn-status";
 
     function showSaved(msg) {
-      connStatus.innerHTML = '<span class="dot green"></span> ' + (msg || "Saved");
-      clearTimeout(connStatus._t);
-      connStatus._t = setTimeout(function () {
-        connStatus.textContent = "";
-      }, 3000);
+      setStatus(connStatus, msg || "Saved", "green", 3000);
     }
 
     function showConnectionError(msg) {
-      connStatus.innerHTML = '<span class="dot red"></span> ' + msg;
-      clearTimeout(connStatus._t);
+      setStatus(connStatus, msg, "red");
     }
 
     var urlField = makeConnectionUrlField(S.immich_url);
@@ -125,147 +120,102 @@
       schedulePhotoSourceApply(0, { source: true });
     });
 
-    var removeIdIcon = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18\"/><path d=\"M8 6V4h8v2\"/><path d=\"M19 6l-1 14H6L5 6\"/><path d=\"M10 11v5\"/><path d=\"M14 11v5\"/></svg>";
-
-    var albumField = field("Albums");
-    var albumIdList = el("div", "photo-id-list");
-    var albumInputs = [];
-    var albumLabelInputs = [];
-    var albumError = el("div", "field-error");
-    function getAlbumIdsValue() {
-      return albumInputs.map(function (inputEl) {
-        return inputEl.value.trim();
-      }).filter(Boolean).join(",");
-    }
-    function getAlbumLabelsValue() {
-      return buildPhotoLabelList(albumInputs, albumLabelInputs);
-    }
-    function refreshAlbumRemoveButtons() {
-      Array.prototype.forEach.call(albumIdList.querySelectorAll(".album-id-remove"), function (btn) {
-        btn.disabled = albumInputs.length <= 1;
-      });
-    }
-    function addAlbumIdRow(value, labelValue) {
-      var row = el("div", "photo-id-row");
-      var fields = el("div", "photo-id-fields");
-      var albumInput = input("text", value || "", "Paste album ID from Immich URL", MAX_PHOTO_ID_FIELD_LENGTH);
-      var albumLabelInput = input("text", labelValue || "", "What is it?", MAX_PHOTO_ID_FIELD_LENGTH);
-      var removeBtn = el("button", "btn btn-secondary btn-icon album-id-remove");
-      removeBtn.type = "button";
-      removeBtn.innerHTML = removeIdIcon;
-      removeBtn.title = "Remove album ID";
-      removeBtn.setAttribute("aria-label", "Remove album ID");
-      removeBtn.onclick = function () {
-        if (albumInputs.length <= 1) {
-          albumInput.value = "";
-          albumLabelInput.value = "";
-          schedulePhotoSourceApply(0, { album: true, albumLabel: true });
-          return;
-        }
-        var removeIndex = albumInputs.indexOf(albumInput);
-        albumInputs.splice(removeIndex, 1);
-        albumLabelInputs.splice(removeIndex, 1);
-        row.parentNode.removeChild(row);
-        refreshAlbumRemoveButtons();
-        schedulePhotoSourceApply(0, { album: true, albumLabel: true });
-      };
-      albumInput.oninput = function () {
-        schedulePhotoSourceApply(null, { album: true, albumLabel: true });
-      };
-      albumLabelInput.oninput = function () {
-        schedulePhotoSourceApply(null, { albumLabel: true });
-      };
-      fields.appendChild(albumInput);
-      fields.appendChild(albumLabelInput);
-      row.appendChild(fields);
-      row.appendChild(removeBtn);
-      albumIdList.appendChild(row);
-      albumInputs.push(albumInput);
-      albumLabelInputs.push(albumLabelInput);
-      refreshAlbumRemoveButtons();
-    }
-    var albumIds = splitPhotoIdList(S.album_ids);
-    var albumLabels = parsePhotoLabelList(S.album_labels);
-    for (var albumIndex = 0; albumIndex < Math.max(albumIds.length, albumLabels.length, 1); albumIndex++) {
-      addAlbumIdRow(albumIds[albumIndex] || "", albumLabels[albumIndex] || "");
-    }
-    var addAlbumRow = el("div", "photo-id-actions");
-    var addAlbumBtn = el("button", "btn btn-secondary");
-    addAlbumBtn.type = "button";
-    addAlbumBtn.textContent = "Add an album";
-    addAlbumBtn.title = "Add an album";
-    addAlbumBtn.setAttribute("aria-label", "Add an album");
-    addAlbumBtn.onclick = function () {
-      addAlbumIdRow("", "");
-      albumInputs[albumInputs.length - 1].focus();
-    };
-    addAlbumRow.appendChild(addAlbumBtn);
-    albumField.appendChild(albumIdList);
-    albumField.appendChild(addAlbumRow);
-    albumField.appendChild(albumError);
+    var albumList = photoIdListField({
+      label: "Albums",
+      idKey: "album_ids",
+      labelKey: "album_labels",
+      idPlaceholder: "Paste album ID from Immich URL",
+      labelPlaceholder: "What is it?",
+      addText: "Add an album",
+      removeTitle: "Remove album ID",
+      idChanges: { album: true, albumLabel: true },
+      labelChanges: { albumLabel: true },
+      clearChanges: { album: true, albumLabel: true },
+      onChange: function (changes, delayMs) { schedulePhotoSourceApply(delayMs, changes); }
+    });
+    var albumField = albumList.field;
     albumField.style.display = S.photo_source === "Album" ? "" : "none";
 
-    var personField = field("People");
-    var personIdList = el("div", "photo-id-list");
-    var personInputs = [];
-    var personLabelInputs = [];
-    var personError = el("div", "field-error");
-    function getPersonIdsValue() {
-      return personInputs.map(function (inputEl) {
-        return inputEl.value.trim();
-      }).filter(Boolean).join(",");
-    }
-    function getPersonLabelsValue() {
-      return buildPhotoLabelList(personInputs, personLabelInputs);
-    }
+    var personList = photoIdListField({
+      label: "People",
+      idKey: "person_ids",
+      labelKey: "person_labels",
+      idPlaceholder: "Paste person ID from Immich URL",
+      labelPlaceholder: "Who is it?",
+      addText: "Add a person",
+      removeTitle: "Remove person ID",
+      idChanges: { person: true, personLabel: true },
+      labelChanges: { personLabel: true },
+      clearChanges: { person: true, personLabel: true },
+      onChange: function (changes, delayMs) { schedulePhotoSourceApply(delayMs, changes); }
+    });
+    var personField = personList.field;
+    personField.style.display = S.photo_source === "Person" ? "" : "none";
+
+    var tagList = photoIdListField({
+      label: "Tags",
+      idKey: "tag_ids",
+      labelKey: "tag_labels",
+      idPlaceholder: "Paste tag ID from Immich URL",
+      labelPlaceholder: "What tag is it?",
+      addText: "Add a tag",
+      removeTitle: "Remove tag ID",
+      idChanges: { tag: true, tagLabel: true },
+      labelChanges: { tagLabel: true },
+      clearChanges: { tag: true, tagLabel: true },
+      onChange: function (changes, delayMs) { schedulePhotoSourceApply(delayMs, changes); }
+    });
+    var tagField = tagList.field;
+    tagField.style.display = S.photo_source === "Tag" ? "" : "none";
+
     function validatePhotoSourceInputs(changes) {
-      albumError.textContent = "";
-      personError.textContent = "";
-      tagError.textContent = "";
+      albumList.error.textContent = "";
+      personList.error.textContent = "";
+      tagList.error.textContent = "";
       var srcVal = srcSel.value;
-      var albumTrim = getAlbumIdsValue();
-      var albumLabels = getAlbumLabelsValue();
-      var personTrim = getPersonIdsValue();
-      var personLabels = getPersonLabelsValue();
-      var tagTrim = getTagIdsValue();
-      var tagLabels = getTagLabelsValue();
+      var albumTrim = albumList.getIdsValue();
+      var albumLabels = albumList.getLabelsValue();
+      var personTrim = personList.getIdsValue();
+      var personLabels = personList.getLabelsValue();
+      var tagTrim = tagList.getIdsValue();
+      var tagLabels = tagList.getLabelsValue();
       var shouldValidateAlbum = changes.album || srcVal === "Album";
       var shouldValidatePerson = changes.person || srcVal === "Person";
       var shouldValidateTag = changes.tag || srcVal === "Tag";
       if (shouldValidateAlbum && photoIdFieldTooLong(albumTrim)) {
-        albumError.textContent = PHOTO_ID_FIELD_TOO_LONG;
+        albumList.error.textContent = PHOTO_ID_FIELD_TOO_LONG;
         return null;
       }
       if (shouldValidatePerson && photoIdFieldTooLong(personTrim)) {
-        personError.textContent = PHOTO_ID_FIELD_TOO_LONG;
+        personList.error.textContent = PHOTO_ID_FIELD_TOO_LONG;
         return null;
       }
       if (shouldValidateTag && photoIdFieldTooLong(tagTrim)) {
-        tagError.textContent = PHOTO_ID_FIELD_TOO_LONG;
+        tagList.error.textContent = PHOTO_ID_FIELD_TOO_LONG;
         return null;
       }
       if (shouldValidateAlbum && !isValidUuidList(albumTrim)) {
-        albumError.textContent = "Invalid UUID format";
+        albumList.error.textContent = "Invalid UUID format";
         return null;
       }
       if (changes.albumLabel && photoLabelFieldTooLong(albumLabels)) {
-        albumError.textContent = PHOTO_LABEL_FIELD_TOO_LONG;
+        albumList.error.textContent = PHOTO_LABEL_FIELD_TOO_LONG;
         return null;
       }
       if (shouldValidatePerson && !isValidUuidList(personTrim)) {
-        personError.textContent = "Invalid UUID format";
+        personList.error.textContent = "Invalid UUID format";
         return null;
       }
       if (changes.personLabel && photoLabelFieldTooLong(personLabels)) {
-        personError.textContent = PHOTO_LABEL_FIELD_TOO_LONG;
+        personList.error.textContent = PHOTO_LABEL_FIELD_TOO_LONG;
         return null;
       }
       if (shouldValidateTag && !isValidUuidList(tagTrim)) {
-        tagError.textContent = "Invalid UUID format";
+        tagList.error.textContent = "Invalid UUID format";
         return null;
       }
       if (changes.tagLabel && photoLabelFieldTooLong(tagLabels)) {
-        tagError.textContent = PHOTO_LABEL_FIELD_TOO_LONG;
+        tagList.error.textContent = PHOTO_LABEL_FIELD_TOO_LONG;
         return null;
       }
       return {
@@ -340,148 +290,6 @@
       clearTimeout(photoSourceApplyTimer);
       photoSourceApplyTimer = setTimeout(applyPhotoSourceInputs, delayMs == null ? 600 : delayMs);
     }
-    function refreshPersonRemoveButtons() {
-      Array.prototype.forEach.call(personIdList.querySelectorAll(".person-id-remove"), function (btn) {
-        btn.disabled = personInputs.length <= 1;
-      });
-    }
-    function addPersonIdRow(value, labelValue) {
-      var row = el("div", "photo-id-row");
-      var fields = el("div", "photo-id-fields");
-      var personInput = input("text", value || "", "Paste person ID from Immich URL", MAX_PHOTO_ID_FIELD_LENGTH);
-      var personLabelInput = input("text", labelValue || "", "Who is it?", MAX_PHOTO_ID_FIELD_LENGTH);
-      var removeBtn = el("button", "btn btn-secondary btn-icon person-id-remove");
-      removeBtn.type = "button";
-      removeBtn.innerHTML = removeIdIcon;
-      removeBtn.title = "Remove person ID";
-      removeBtn.setAttribute("aria-label", "Remove person ID");
-      removeBtn.onclick = function () {
-        if (personInputs.length <= 1) {
-          personInput.value = "";
-          personLabelInput.value = "";
-          schedulePhotoSourceApply(0, { person: true, personLabel: true });
-          return;
-        }
-        var removeIndex = personInputs.indexOf(personInput);
-        personInputs.splice(removeIndex, 1);
-        personLabelInputs.splice(removeIndex, 1);
-        row.parentNode.removeChild(row);
-        refreshPersonRemoveButtons();
-        schedulePhotoSourceApply(0, { person: true, personLabel: true });
-      };
-      personInput.oninput = function () {
-        schedulePhotoSourceApply(null, { person: true, personLabel: true });
-      };
-      personLabelInput.oninput = function () {
-        schedulePhotoSourceApply(null, { personLabel: true });
-      };
-      fields.appendChild(personInput);
-      fields.appendChild(personLabelInput);
-      row.appendChild(fields);
-      row.appendChild(removeBtn);
-      personIdList.appendChild(row);
-      personInputs.push(personInput);
-      personLabelInputs.push(personLabelInput);
-      refreshPersonRemoveButtons();
-    }
-    var personIds = splitPhotoIdList(S.person_ids);
-    var personLabels = parsePhotoLabelList(S.person_labels);
-    for (var personIndex = 0; personIndex < Math.max(personIds.length, personLabels.length, 1); personIndex++) {
-      addPersonIdRow(personIds[personIndex] || "", personLabels[personIndex] || "");
-    }
-    var addPersonRow = el("div", "photo-id-actions");
-    var addPersonBtn = el("button", "btn btn-secondary");
-    addPersonBtn.type = "button";
-    addPersonBtn.textContent = "Add a person";
-    addPersonBtn.title = "Add a person";
-    addPersonBtn.setAttribute("aria-label", "Add a person");
-    addPersonBtn.onclick = function () {
-      addPersonIdRow("", "");
-      personInputs[personInputs.length - 1].focus();
-    };
-    addPersonRow.appendChild(addPersonBtn);
-    personField.appendChild(personIdList);
-    personField.appendChild(addPersonRow);
-    personField.appendChild(personError);
-    personField.style.display = S.photo_source === "Person" ? "" : "none";
-
-    var tagField = field("Tags");
-    var tagIdList = el("div", "photo-id-list");
-    var tagInputs = [];
-    var tagLabelInputs = [];
-    var tagError = el("div", "field-error");
-    function getTagIdsValue() {
-      return tagInputs.map(function (inputEl) {
-        return inputEl.value.trim();
-      }).filter(Boolean).join(",");
-    }
-    function getTagLabelsValue() {
-      return buildPhotoLabelList(tagInputs, tagLabelInputs);
-    }
-    function refreshTagRemoveButtons() {
-      Array.prototype.forEach.call(tagIdList.querySelectorAll(".tag-id-remove"), function (btn) {
-        btn.disabled = tagInputs.length <= 1;
-      });
-    }
-    function addTagIdRow(value, labelValue) {
-      var row = el("div", "photo-id-row");
-      var fields = el("div", "photo-id-fields");
-      var tagInput = input("text", value || "", "Paste tag ID from Immich URL", MAX_PHOTO_ID_FIELD_LENGTH);
-      var tagLabelInput = input("text", labelValue || "", "What tag is it?", MAX_PHOTO_ID_FIELD_LENGTH);
-      var removeBtn = el("button", "btn btn-secondary btn-icon tag-id-remove");
-      removeBtn.type = "button";
-      removeBtn.innerHTML = removeIdIcon;
-      removeBtn.title = "Remove tag ID";
-      removeBtn.setAttribute("aria-label", "Remove tag ID");
-      removeBtn.onclick = function () {
-        if (tagInputs.length <= 1) {
-          tagInput.value = "";
-          tagLabelInput.value = "";
-          schedulePhotoSourceApply(0, { tag: true, tagLabel: true });
-          return;
-        }
-        var removeIndex = tagInputs.indexOf(tagInput);
-        tagInputs.splice(removeIndex, 1);
-        tagLabelInputs.splice(removeIndex, 1);
-        row.parentNode.removeChild(row);
-        refreshTagRemoveButtons();
-        schedulePhotoSourceApply(0, { tag: true, tagLabel: true });
-      };
-      tagInput.oninput = function () {
-        schedulePhotoSourceApply(null, { tag: true, tagLabel: true });
-      };
-      tagLabelInput.oninput = function () {
-        schedulePhotoSourceApply(null, { tagLabel: true });
-      };
-      fields.appendChild(tagInput);
-      fields.appendChild(tagLabelInput);
-      row.appendChild(fields);
-      row.appendChild(removeBtn);
-      tagIdList.appendChild(row);
-      tagInputs.push(tagInput);
-      tagLabelInputs.push(tagLabelInput);
-      refreshTagRemoveButtons();
-    }
-    var tagIds = splitPhotoIdList(S.tag_ids);
-    var tagLabels = parsePhotoLabelList(S.tag_labels);
-    for (var tagIndex = 0; tagIndex < Math.max(tagIds.length, tagLabels.length, 1); tagIndex++) {
-      addTagIdRow(tagIds[tagIndex] || "", tagLabels[tagIndex] || "");
-    }
-    var addTagRow = el("div", "photo-id-actions");
-    var addTagBtn = el("button", "btn btn-secondary");
-    addTagBtn.type = "button";
-    addTagBtn.textContent = "Add a tag";
-    addTagBtn.title = "Add a tag";
-    addTagBtn.setAttribute("aria-label", "Add a tag");
-    addTagBtn.onclick = function () {
-      addTagIdRow("", "");
-      tagInputs[tagInputs.length - 1].focus();
-    };
-    addTagRow.appendChild(addTagBtn);
-    tagField.appendChild(tagIdList);
-    tagField.appendChild(addTagRow);
-    tagField.appendChild(tagError);
-    tagField.style.display = S.photo_source === "Tag" ? "" : "none";
 
     fSrc.appendChild(srcSel);
     srcBody.appendChild(fSrc);
@@ -508,22 +316,18 @@
     var filterBadge = makeBadge(isFilterActive(S.date_filter_enabled));
     var filterBody = el("div");
     var filterApplyTimer = null;
-    var fFilterToggle = field("");
-    var filterTr = el("div", "toggle-row");
-    filterTr.innerHTML = "<span>Filter by Date</span>";
-    var filterTog = el("div", S.date_filter_enabled ? "toggle on" : "toggle");
     var filterDetails = el("div");
     filterDetails.style.display = S.date_filter_enabled ? "" : "none";
-    filterTog.onclick = function () {
-      S.date_filter_enabled = !S.date_filter_enabled;
-      filterTog.className = S.date_filter_enabled ? "toggle on" : "toggle";
-      filterDetails.style.display = S.date_filter_enabled ? "" : "none";
-      filterBadge.className = "on-badge" + (isFilterActive(S.date_filter_enabled) ? " active" : "");
-      scheduleFilterApply();
-    };
-    filterTr.appendChild(filterTog);
-    fFilterToggle.appendChild(filterTr);
-    filterBody.appendChild(fFilterToggle);
+    filterBody.appendChild(toggleSettingRow({
+      label: "Filter by Date",
+      value: S.date_filter_enabled,
+      getValue: function () { return S.date_filter_enabled; },
+      setValue: function (value) { S.date_filter_enabled = value; },
+      details: filterDetails,
+      badge: filterBadge,
+      badgeActive: function () { return isFilterActive(S.date_filter_enabled); },
+      onChange: scheduleFilterApply
+    }).field);
 
     var fFilterMode = field("Mode");
     var modeVal = S.date_filter_mode;
@@ -659,26 +463,19 @@
     // Layout
     var photoBody = el("div");
 
-    var fPairToggle = field("");
     var portraitRotationActive = isPortraitScreenRotation(effectiveScreenRotationForUi());
     var pairingEnabled = S.portrait_pairing && !portraitRotationActive;
-    var pairTr = el("div", "toggle-row");
-    pairTr.innerHTML = "<span>Portrait Pairing</span>";
-    var pairTog = el("div", pairingEnabled ? "toggle on" : "toggle");
-    if (portraitRotationActive) {
-      pairTog.style.opacity = ".35";
-      pairTog.style.cursor = "not-allowed";
-      pairTog.title = "Portrait pairing is disabled while the screen is in portrait rotation";
-    }
-    pairTog.onclick = function () {
-      if (portraitRotationActive) return;
-      S.portrait_pairing = !S.portrait_pairing;
-      pairTog.className = S.portrait_pairing ? "toggle on" : "toggle";
-      saveSetting("portrait_pairing", S.portrait_pairing);
-    };
-    pairTr.appendChild(pairTog);
-    fPairToggle.appendChild(pairTr);
-    photoBody.appendChild(fPairToggle);
+    photoBody.appendChild(toggleSettingRow({
+      label: "Portrait Pairing",
+      value: pairingEnabled,
+      getValue: function () { return S.portrait_pairing; },
+      setValue: function (value) { S.portrait_pairing = value; },
+      disabled: portraitRotationActive,
+      disabledTitle: "Portrait pairing is disabled while the screen is in portrait rotation",
+      onChange: function () {
+        saveSetting("portrait_pairing", S.portrait_pairing);
+      }
+    }).field);
 
     var fPhotoOrientation = field("Photo Orientation");
     fPhotoOrientation.appendChild(
@@ -718,18 +515,16 @@
       metadataBadge.className = "on-badge" + (metadataIsActive() ? " active" : "");
     }
 
-    var fMetadataDate = field("");
-    var metadataDateTr = el("div", "toggle-row");
-    metadataDateTr.innerHTML = "<span>Date</span>";
-    var metadataDateTog = el("div", S.photo_metadata_date_enabled ? "toggle on" : "toggle");
-    metadataDateTog.onclick = function () {
-      S.photo_metadata_date_enabled = !S.photo_metadata_date_enabled;
-      metadataDateTog.className = S.photo_metadata_date_enabled ? "toggle on" : "toggle";
-      refreshMetadataDetails();
-      saveSetting("photo_metadata_date_enabled", S.photo_metadata_date_enabled);
-    };
-    metadataDateTr.appendChild(metadataDateTog);
-    fMetadataDate.appendChild(metadataDateTr);
+    var fMetadataDate = toggleSettingRow({
+      label: "Date",
+      value: S.photo_metadata_date_enabled,
+      getValue: function () { return S.photo_metadata_date_enabled; },
+      setValue: function (value) { S.photo_metadata_date_enabled = value; },
+      onChange: function () {
+        refreshMetadataDetails();
+        saveSetting("photo_metadata_date_enabled", S.photo_metadata_date_enabled);
+      }
+    }).field;
 
     var fMetadataDateFormat = field("Date Format");
     fMetadataDateFormat.appendChild(
@@ -748,18 +543,16 @@
     );
     metadataDateDetails.appendChild(fMetadataDateTakenFormat);
 
-    var fMetadataLocation = field("");
-    var metadataLocationTr = el("div", "toggle-row");
-    metadataLocationTr.innerHTML = "<span>Location</span>";
-    var metadataLocationTog = el("div", S.photo_metadata_location_enabled ? "toggle on" : "toggle");
-    metadataLocationTog.onclick = function () {
-      S.photo_metadata_location_enabled = !S.photo_metadata_location_enabled;
-      metadataLocationTog.className = S.photo_metadata_location_enabled ? "toggle on" : "toggle";
-      refreshMetadataDetails();
-      saveSetting("photo_metadata_location_enabled", S.photo_metadata_location_enabled);
-    };
-    metadataLocationTr.appendChild(metadataLocationTog);
-    fMetadataLocation.appendChild(metadataLocationTr);
+    var fMetadataLocation = toggleSettingRow({
+      label: "Location",
+      value: S.photo_metadata_location_enabled,
+      getValue: function () { return S.photo_metadata_location_enabled; },
+      setValue: function (value) { S.photo_metadata_location_enabled = value; },
+      onChange: function () {
+        refreshMetadataDetails();
+        saveSetting("photo_metadata_location_enabled", S.photo_metadata_location_enabled);
+      }
+    }).field;
     metadataBody.appendChild(fMetadataLocation);
     metadataBody.appendChild(fMetadataDate);
     metadataBody.appendChild(metadataDateDetails);

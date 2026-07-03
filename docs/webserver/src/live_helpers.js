@@ -165,6 +165,233 @@
     return badge;
   }
 
+  function setBadgeActive(badge, isActive) {
+    if (!badge) return;
+    badge.className = "on-badge" + (isActive ? " active" : "");
+  }
+
+  function setStatus(target, msg, type, clearAfterMs) {
+    if (!target) return;
+    target.innerHTML = "";
+    if (!msg) {
+      target.textContent = "";
+      return;
+    }
+    var dot = el("span", "dot " + (type || "green"));
+    target.appendChild(dot);
+    target.appendChild(document.createTextNode(" " + msg));
+    clearTimeout(target._t);
+    if (clearAfterMs) {
+      target._t = setTimeout(function () {
+        target.textContent = "";
+      }, clearAfterMs);
+    }
+  }
+
+  function button(text, cls, onClick) {
+    var btn = el("button", cls || "btn btn-secondary");
+    btn.type = "button";
+    btn.textContent = text;
+    if (onClick) btn.onclick = onClick;
+    return btn;
+  }
+
+  function actionRow(labelEl, actionEl) {
+    var row = el("div", "field fw-row");
+    row.appendChild(labelEl);
+    row.appendChild(actionEl);
+    return row;
+  }
+
+  function textLabel(prefix, value) {
+    var label = el("span", "fw-label");
+    if (prefix) {
+      var prefixEl = el("span");
+      prefixEl.style.color = "var(--text2)";
+      prefixEl.textContent = prefix;
+      label.appendChild(prefixEl);
+      label.appendChild(document.createTextNode(" " + value));
+    } else {
+      label.textContent = value;
+    }
+    return label;
+  }
+
+  function toggleSettingRow(options) {
+    var opts = options || {};
+    var f = field("");
+    var row = el("div", "toggle-row");
+    var label = el("span");
+    label.textContent = opts.label || "";
+    var getValue = opts.getValue || function () { return !!opts.value; };
+    var setValue = opts.setValue || function (value) { opts.value = value; };
+    var toggle = el("div", opts.value ? "toggle on" : "toggle");
+    if (opts.disabled) {
+      toggle.style.opacity = ".35";
+      toggle.style.cursor = "not-allowed";
+      if (opts.disabledTitle) toggle.title = opts.disabledTitle;
+    }
+    toggle.onclick = function () {
+      if (opts.disabled) return;
+      var next = !getValue();
+      setValue(next);
+      toggle.className = next ? "toggle on" : "toggle";
+      if (opts.details) opts.details.style.display = next ? "" : "none";
+      if (opts.badge) setBadgeActive(opts.badge, opts.badgeActive ? opts.badgeActive() : next);
+      if (opts.onChange) opts.onChange(next);
+    };
+    row.appendChild(label);
+    row.appendChild(toggle);
+    f.appendChild(row);
+    return { field: f, toggle: toggle };
+  }
+
+  function rangeSettingField(labelText, key, options) {
+    var opts = options || {};
+    var f = field(labelText || "");
+    var rw = el("div", "range-wrap");
+    if (opts.leftLabel) {
+      var left = el("span", "range-label");
+      left.textContent = opts.leftLabel;
+      rw.appendChild(left);
+    }
+    var slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = productNumberMin(key, opts.minFallback);
+    slider.max = productNumberMax(key, opts.maxFallback);
+    slider.step = productNumberStep(key, opts.stepFallback);
+    slider.value = S[key];
+    rw.appendChild(slider);
+    if (opts.rightLabel) {
+      var right = el("span", "range-label");
+      right.textContent = opts.rightLabel;
+      rw.appendChild(right);
+    }
+    if (opts.valueSuffix != null) {
+      var value = el("span", "range-val");
+      value.textContent = Math.round(S[key]) + opts.valueSuffix;
+      slider.oninput = function () {
+        value.textContent = slider.value + opts.valueSuffix;
+      };
+      rw.appendChild(value);
+    }
+    slider.onchange = function () {
+      saveSetting(key, slider.value);
+      if (opts.onChange) opts.onChange(slider.value);
+    };
+    f.appendChild(rw);
+    return { field: f, input: slider };
+  }
+
+  function hourSelectSettingField(labelText, key) {
+    var min = productNumberMin(key, 0);
+    var max = productNumberMax(key, 23);
+    var options = [];
+    for (var h = min; h <= max; h++) options.push(h);
+    var f = field(labelText);
+    f.appendChild(
+      selectFromOptions(options, Math.round(S[key]), function (v) {
+        saveSetting(key, parseInt(v));
+      }, formatHour)
+    );
+    return f;
+  }
+
+  function makeFieldError() {
+    return el("div", "field-error");
+  }
+
+  function photoIdListField(options) {
+    var opts = options || {};
+    var f = field(opts.label);
+    var list = el("div", "photo-id-list");
+    var idInputs = [];
+    var labelInputs = [];
+    var error = makeFieldError();
+    var removeIcon = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18\"/><path d=\"M8 6V4h8v2\"/><path d=\"M19 6l-1 14H6L5 6\"/><path d=\"M10 11v5\"/><path d=\"M14 11v5\"/></svg>";
+
+    function notify(changes, delayMs) {
+      if (opts.onChange) opts.onChange(changes, delayMs);
+    }
+
+    function refreshRemoveButtons() {
+      Array.prototype.forEach.call(list.querySelectorAll("button"), function (btn) {
+        btn.disabled = idInputs.length <= 1;
+      });
+    }
+
+    function addRow(value, labelValue) {
+      var row = el("div", "photo-id-row");
+      var fields = el("div", "photo-id-fields");
+      var idInput = input("text", value || "", opts.idPlaceholder, MAX_PHOTO_ID_FIELD_LENGTH);
+      var labelInput = input("text", labelValue || "", opts.labelPlaceholder, MAX_PHOTO_ID_FIELD_LENGTH);
+      var removeBtn = el("button", "btn btn-secondary btn-icon");
+      removeBtn.type = "button";
+      removeBtn.innerHTML = removeIcon;
+      removeBtn.title = opts.removeTitle;
+      removeBtn.setAttribute("aria-label", opts.removeTitle);
+      removeBtn.onclick = function () {
+        if (idInputs.length <= 1) {
+          idInput.value = "";
+          labelInput.value = "";
+          notify(opts.clearChanges, 0);
+          return;
+        }
+        var removeIndex = idInputs.indexOf(idInput);
+        idInputs.splice(removeIndex, 1);
+        labelInputs.splice(removeIndex, 1);
+        row.parentNode.removeChild(row);
+        refreshRemoveButtons();
+        notify(opts.clearChanges, 0);
+      };
+      idInput.oninput = function () {
+        notify(opts.idChanges);
+      };
+      labelInput.oninput = function () {
+        notify(opts.labelChanges);
+      };
+      fields.appendChild(idInput);
+      fields.appendChild(labelInput);
+      row.appendChild(fields);
+      row.appendChild(removeBtn);
+      list.appendChild(row);
+      idInputs.push(idInput);
+      labelInputs.push(labelInput);
+      refreshRemoveButtons();
+    }
+
+    var ids = splitPhotoIdList(S[opts.idKey]);
+    var labels = parsePhotoLabelList(S[opts.labelKey]);
+    for (var i = 0; i < Math.max(ids.length, labels.length, 1); i++) {
+      addRow(ids[i] || "", labels[i] || "");
+    }
+
+    var addRowWrap = el("div", "photo-id-actions");
+    var addBtn = button(opts.addText, "btn btn-secondary", function () {
+      addRow("", "");
+      idInputs[idInputs.length - 1].focus();
+    });
+    addBtn.title = opts.addText;
+    addBtn.setAttribute("aria-label", opts.addText);
+    addRowWrap.appendChild(addBtn);
+    f.appendChild(list);
+    f.appendChild(addRowWrap);
+    f.appendChild(error);
+
+    return {
+      field: f,
+      error: error,
+      getIdsValue: function () {
+        return idInputs.map(function (inputEl) {
+          return inputEl.value.trim();
+        }).filter(Boolean).join(",");
+      },
+      getLabelsValue: function () {
+        return buildPhotoLabelList(idInputs, labelInputs);
+      }
+    };
+  }
+
   function makeCollapsibleCard(title, bodyElement, defaultCollapsed, badgeEl) {
     var card = el("div", "card");
     var header = el("div", "card-header");
