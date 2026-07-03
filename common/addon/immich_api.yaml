@@ -280,11 +280,12 @@ script:
               - script.execute: immich_fetch_into_slot
 
   # ---------------------------------------------------------------------------
-  # Fetch a random asset from Album and Person sources using paged metadata search.
+  # Fetch a random asset from Album, Person, and Tag sources using statistics
+  # plus paged metadata search.
   #
-  # Metadata search is stable and supports page/size; the frame first reads the
-  # total, then asks for one small random page so large libraries are not limited
-  # to a tiny repeated random-search batch.
+  # Immich metadata page count can mirror the current page size in some server
+  # versions. Statistics returns the real matching total, then metadata fetches
+  # one small random page so large sources do not repeat a tiny subset.
   # ---------------------------------------------------------------------------
   - id: immich_fetch_metadata_into_slot
     mode: single
@@ -315,9 +316,9 @@ script:
             - script.stop: immich_fetch_metadata_into_slot
       - http_request.post:
           id: http_req
-          url: !lambda 'return id(immich_url).state + "/api/search/metadata";'
+          url: !lambda 'return id(immich_url).state + "/api/search/statistics";'
           capture_response: true
-          max_response_buffer_size: 24kB
+          max_response_buffer_size: 2kB
           request_headers:
             Content-Type: application/json
             Accept: application/json
@@ -339,14 +340,14 @@ script:
               ESP_LOGW("immich", "Relative date filter skipped because time is not valid");
             }
             std::string extra = build_immich_date_filter_extra(range);
-            return build_immich_metadata_search_body(
-              1, 1, true, source, id(immich_metadata_album_id),
+            return build_immich_statistics_search_body(
+              source, id(immich_metadata_album_id),
               id(immich_metadata_person_id), id(immich_metadata_tag_ids), extra);
           on_response:
             then:
               - lambda: |-
                   if (response->status_code != 200) {
-                    ESP_LOGW("immich", "Metadata count HTTP %d", response->status_code);
+                    ESP_LOGW("immich", "Statistics count HTTP %d", response->status_code);
                     clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
                     id(immich_last_http_status) = response->status_code;
                     id(immich_retry_cooldown_until_ms) = millis() + 30000;
@@ -354,42 +355,28 @@ script:
                   }
                   id(immich_fetch_started) = true;
                   id(immich_last_http_status) = 0;
-                  uint32_t total = parse_immich_metadata_total(body);
+                  uint32_t total = parse_immich_statistics_total(body);
                   if (total == 0) {
                     clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
-                    ESP_LOGW("immich", "Metadata source has no matching images");
+                    ESP_LOGW("immich", "Statistics source has no matching images");
                     id(immich_api_retries) = 0;
                     id(immich_retry_cooldown_until_ms) = millis() + 30000;
-                    return;
-                  }
-                  std::string source = id(photo_source_select).current_option();
-                  if (total <= 1 && (source == "Album" || source == "Person" || source == "Tag")) {
-                    // Metadata search returned an implausibly small count — this can
-                    // happen permanently for shared albums in some Immich versions.
-                    // Bypass the metadata path for 30 minutes so random search is
-                    // used consistently rather than retrying on every fetch cycle.
-                    ESP_LOGW("immich", "Metadata count for %s returned %u image(s); "
-                             "using random search for the next 30 minutes",
-                             source.c_str(), (unsigned) total);
-                    id(immich_metadata_bypass_until_ms) = millis() + 1800000;
-                    clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
-                    id(immich_fetch_with_metadata_bypass).execute();
                     return;
                   }
                   std::string orientation = id(photo_orientation_filter).current_option();
                   id(immich_metadata_page_size) = orientation == "Any" ? 1 : IMMICH_METADATA_PAGE_SIZE;
                   id(immich_metadata_page) = immich_metadata_page_for_total(
                     total, id(immich_metadata_page_size));
-                  ESP_LOGD("immich", "Metadata source selected: page %d size %d of %u images",
+                  ESP_LOGD("immich", "Metadata source selected: page %d size %d of %u matching images",
                            id(immich_metadata_page), id(immich_metadata_page_size), (unsigned) total);
                   id(immich_fetch_metadata_page).execute();
           on_error:
             then:
               - lambda: |-
                   id(immich_api_retries)++;
-                  ESP_LOGW("immich", "Metadata count request error for slot %d (attempt %d)", id(target_slot), id(immich_api_retries));
+                  ESP_LOGW("immich", "Statistics count request error for slot %d (attempt %d)", id(target_slot), id(immich_api_retries));
                   clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
-                  id(immich_diag_reason) = "metadata count request error";
+                  id(immich_diag_reason) = "statistics count request error";
                   id(log_immich_diag).execute();
               - if:
                   condition:

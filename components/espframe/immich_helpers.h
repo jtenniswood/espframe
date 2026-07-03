@@ -287,6 +287,26 @@ inline std::string build_immich_metadata_search_body(uint32_t page,
   return body;
 }
 
+inline std::string build_immich_statistics_search_body(const std::string &photo_source,
+                                                       const std::string &album_id,
+                                                       const std::string &person_id,
+                                                       const std::string &tag_ids,
+                                                       const std::string &extra = "") {
+  std::string body = "{\"type\":\"IMAGE\",\"visibility\":\"timeline\"";
+  if (!extra.empty()) body += "," + extra;
+  if (photo_source == "Favorites") {
+    body += ",\"isFavorite\":true";
+  } else if (photo_source == "Album" && !album_id.empty()) {
+    body += ",\"albumIds\":[\"" + album_id + "\"]";
+  } else if (photo_source == "Person" && !person_id.empty()) {
+    body += ",\"personIds\":[\"" + person_id + "\"]";
+  } else if (photo_source == "Tag" && !tag_ids.empty()) {
+    body += ",\"tagIds\":" + build_uuid_json_array(tag_ids);
+  }
+  body += "}";
+  return body;
+}
+
 inline bool photo_orientation_matches(const ImmichAssetMeta &meta, const std::string &filter) {
   if (filter == "Any" || filter.empty()) return true;
   if (!meta.orientation_known) return false;
@@ -500,6 +520,17 @@ inline uint32_t parse_immich_metadata_total(const std::string &body) {
   if (total <= 0 && assets["items"].is<JsonArray>()) {
     total = assets["items"].as<JsonArray>().size();
   }
+  return total > 0 ? static_cast<uint32_t>(total) : 0;
+}
+
+inline uint32_t parse_immich_statistics_total(const std::string &body) {
+  auto doc = esphome::json::parse_json(body);
+  if (doc.isNull() || !doc.is<JsonObject>()) return 0;
+
+  JsonObject root = doc.as<JsonObject>();
+  int total = 0;
+  if (root["total"].is<int>()) total = root["total"].as<int>();
+  if (total <= 0 && root["images"].is<int>()) total = root["images"].as<int>();
   return total > 0 ? static_cast<uint32_t>(total) : 0;
 }
 

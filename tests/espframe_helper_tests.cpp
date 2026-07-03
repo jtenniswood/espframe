@@ -212,6 +212,19 @@ static void test_immich_body_helpers() {
              .find("\"personIds\":[\"p1\"]") != std::string::npos);
   assert(build_immich_metadata_search_body(1, 1, false, "Tag", "", "", "t1,t2")
              .find("\"tagIds\":[\"t1\",\"t2\"]") != std::string::npos);
+  std::string album_statistics = build_immich_statistics_search_body(
+      "Album", "album-a", "", "", "\"takenAfter\":\"2026-01-01T00:00:00.000Z\"");
+  assert(album_statistics.find("\"type\":\"IMAGE\"") != std::string::npos);
+  assert(album_statistics.find("\"visibility\":\"timeline\"") != std::string::npos);
+  assert(album_statistics.find("\"albumIds\":[\"album-a\"]") != std::string::npos);
+  assert(album_statistics.find("\"takenAfter\":\"2026-01-01T00:00:00.000Z\"") !=
+         std::string::npos);
+  assert(album_statistics.find("\"page\"") == std::string::npos);
+  assert(album_statistics.find("\"size\"") == std::string::npos);
+  assert(build_immich_statistics_search_body("Person", "", "p1", "")
+             .find("\"personIds\":[\"p1\"]") != std::string::npos);
+  assert(build_immich_statistics_search_body("Tag", "", "", "t1,t2")
+             .find("\"tagIds\":[\"t1\",\"t2\"]") != std::string::npos);
 
   std::vector<ImmichTimelineBucketInfo> large_album_buckets = {
       {"2026-05-01", 848},
