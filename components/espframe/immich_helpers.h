@@ -228,7 +228,7 @@ inline std::string build_immich_search_body(int size, bool with_people,
   // Construct the small JSON request body by hand to keep this header usable
   // from ESPHome lambdas without bringing in another JSON writer.
   std::string body = "{\"size\":" + std::to_string(size) +
-                      ",\"type\":\"IMAGE\",\"withExif\":true";
+                      ",\"type\":\"IMAGE\",\"visibility\":\"timeline\",\"withExif\":true";
   if (with_people) body += ",\"withPeople\":true";
   if (!extra.empty()) body += "," + extra;
   if (photo_source == "Favorites") {
