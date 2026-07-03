@@ -98,9 +98,13 @@ def main() -> int:
             for instant in sample_instants:
                 if instant < VANCOUVER_PERMANENT_DST_START:
                     continue
+                # CI runners can lag behind current IANA tzdata for British
+                # Columbia's one-time 2026 permanent daylight time change.
+                # Validate the firmware rule directly instead of requiring the
+                # host OS timezone database to know about that future update.
                 assert_close(
                     posix_offset_hours(posix, instant),
-                    iana_offset_hours(tz, instant),
+                    -7.0,
                     f"{tz} POSIX offset after permanent DST switch on {instant.date()}",
                 )
             continue

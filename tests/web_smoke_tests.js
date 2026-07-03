@@ -5,14 +5,22 @@ const path = require("path");
 const { spawn } = require("child_process");
 
 const root = path.resolve(__dirname, "..");
-const chromePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const chromePathCandidates = [
+  process.env.CHROME_BIN,
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "/usr/bin/google-chrome",
+  "/usr/bin/google-chrome-stable",
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
+].filter(Boolean);
+const chromePath = chromePathCandidates.find((candidate) => fs.existsSync(candidate));
 const appSource = fs.readFileSync(path.join(root, "docs/public/webserver/app.js"), "utf8");
 const product = JSON.parse(fs.readFileSync(path.join(root, "product/espframe.json"), "utf8"));
 const expectedBackupGroups = product.project.backup_export_groups;
 const expectedBackupFields = product.project.backup_export_fields;
 
-if (!fs.existsSync(chromePath)) {
-  throw new Error("Google Chrome is required for browser smoke tests");
+if (!chromePath) {
+  throw new Error(`Google Chrome or Chromium is required for browser smoke tests. Checked: ${chromePathCandidates.join(", ")}`);
 }
 
 const validBackupFixture = {
