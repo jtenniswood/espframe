@@ -46,10 +46,11 @@ WEB_PRODUCT_HELPER_REF_RE = re.compile(
 WEB_PRODUCT_SETTINGS_REF_RE = re.compile(r"\bPRODUCT_SETTINGS\.([A-Za-z_$][A-Za-z0-9_$]*)")
 
 
-def require_web_card_render_call(web_text: str, function_name: str, errors: list[str]) -> None:
-    if re.search(rf"(?<!function )\b{re.escape(function_name)}\s*\(\s*\)", web_text):
+def require_web_card_renderer(web_text: str, function_name: str, errors: list[str]) -> None:
+    renderer_pattern = rf"\b{re.escape(function_name)}\s*:\s*{re.escape(function_name)}\b"
+    if re.search(renderer_pattern, web_text):
         return
-    errors.append(f"Missing generated web card render call {function_name}")
+    errors.append(f"Missing generated web card renderer {function_name}")
 
 
 def check_web_entity_metadata(product: dict, errors: list[str]) -> None:
@@ -479,7 +480,7 @@ def check_web_ui_card_metadata(product: dict, web_template: str, web_text: str, 
             errors.append(f"{card_label} function must name a make*Card function")
         else:
             require_contains(combined_web, f"function {function_name}()", f"web card function {function_name}", errors)
-            require_web_card_render_call(combined_web, function_name, errors)
+            require_web_card_renderer(combined_web, function_name, errors)
 
         for field, known_keys in (
             ("settings", product_keys),
