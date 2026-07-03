@@ -188,14 +188,6 @@
           trackBackupImportSave(saveSetting("firmware_manifest_url", importManifestUrl));
         }
         return true;
-      case "firmware_updates.beta_manifest_url":
-        var importBetaManifestUrl = normalizeFirmwareManifestUrl(value);
-        if (importBetaManifestUrl && !isValidHttpUrl(importBetaManifestUrl)) {
-          return skipBackupImportField("Beta firmware URL was invalid - not imported");
-        } else {
-          trackBackupImportSave(saveSetting("firmware_beta_manifest_url", importBetaManifestUrl));
-        }
-        return true;
       case "clock.timezone":
         trackBackupImportSave(saveSetting("timezone", normalizeTimezoneOption(value)));
         return true;

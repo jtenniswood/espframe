@@ -95,7 +95,13 @@ def device_public_manifest_urls(product: dict[str, Any] | None = None) -> dict[s
 def default_public_manifest_urls(product: dict[str, Any] | None = None) -> dict[str, str]:
     data = product if product is not None else load_product()
     first_device = data["devices"][0]
-    return device_public_manifest_urls(data)[str(first_device["slug"])]
+    urls = device_public_manifest_urls(data)[str(first_device["slug"])]
+    channels = data["project"].get("firmware_update_channels", [])
+    if isinstance(channels, list):
+        selected = {str(channel).strip(): urls[str(channel).strip()] for channel in channels if str(channel).strip() in urls}
+        if selected:
+            return selected
+    return {"stable": urls["stable"]}
 
 
 def build_yaml_stem(build_yaml: str) -> str:

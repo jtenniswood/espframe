@@ -127,14 +127,6 @@
         S.installed_version !== S.latest_version;
       return;
     }
-    if (id === "update/Firmware: Update Beta") {
-      S.beta_version = d.latest_version || "";
-      S.beta_available =
-        S.beta_version &&
-        d.current_version &&
-        S.beta_version !== d.current_version;
-      return;
-    }
     var spec = ENTITY_STATE_MAP[id];
     if (!spec) return;
     var v = d.value != null ? d.value : d.state;

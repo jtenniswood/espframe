@@ -135,7 +135,7 @@ def fixture_validation_errors(data: dict[str, Any], product: dict[str, Any]) -> 
 
     firmware_updates = data.get("firmware_updates", {})
     if isinstance(firmware_updates, dict):
-        for key in ("manifest_url", "beta_manifest_url"):
+        for key in ("manifest_url",):
             value = str(firmware_updates.get(key, "")).strip()
             if value and not (value.startswith("http://") or value.startswith("https://")):
                 errors.append(f"firmware_updates.{key} is not an HTTP URL")

@@ -2,9 +2,7 @@
   "version": 1,
   "firmware_updates": {
     "auto_update": true,
-    "beta_channel": true,
     "update_frequency": "Weekly",
-    "manifest_url": "https://firmware.example.com/manifest.json",
-    "beta_manifest_url": "https://firmware.example.com/beta/manifest.json"
+    "manifest_url": "https://firmware.example.com/manifest.json"
   }
 }

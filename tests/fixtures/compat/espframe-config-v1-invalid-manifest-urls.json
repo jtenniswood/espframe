@@ -1,7 +1,6 @@
 {
   "version": 1,
   "firmware_updates": {
-    "manifest_url": "ftp://firmware.example.com/manifest.json",
-    "beta_manifest_url": "javascript:alert(1)"
+    "manifest_url": "ftp://firmware.example.com/manifest.json"
   }
 }

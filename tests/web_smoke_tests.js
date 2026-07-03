@@ -93,10 +93,8 @@ const validBackupFixture = {
   },
   firmware_updates: {
     auto_update: true,
-    beta_channel: true,
     update_frequency: "Weekly",
     manifest_url: "https://firmware.example.com/manifest.json",
-    beta_manifest_url: "https://firmware.example.com/beta/manifest.json",
   },
   clock: {
     show: true,
@@ -271,10 +269,8 @@ function browserScriptForScenario(scenario) {
       "Clock: NTP Server 2": "1.pool.ntp.org",
       "Clock: NTP Server 3": "2.pool.ntp.org",
       "Firmware: Auto Update": true,
-      "Firmware: Beta Channel": true,
       "Firmware: Update Frequency": "Daily",
       "Firmware: Manifest URL": "",
-      "Firmware: Beta Manifest URL": "",
       "Screen: Daytime Brightness": 100,
       "Screen: Nighttime Brightness": 75,
       "Screen: Schedule Enabled": false,
@@ -294,13 +290,6 @@ function browserScriptForScenario(scenario) {
       const method = options && options.method ? options.method : "GET";
       const decoded = decodeURIComponent(String(url));
       if (method === "POST") window.__smoke.posts.push(decoded);
-      if (decoded.indexOf("Firmware: Update Beta") !== -1) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve({ value: "v1.1.0-beta.1", state: "UPDATE AVAILABLE", current_version: "v1.0.0", latest_version: "v1.1.0-beta.1" })
-        });
-      }
       if (decoded.indexOf("Firmware: Update") !== -1) {
         return Promise.resolve({
           ok: true,
@@ -441,7 +430,6 @@ function smokeAssertionsForScenario(scenario) {
           requireText("Firmware");
           requireText("Installed");
           requireText("Auto updates");
-          requireText("Beta Channel");
           requirePhotoSourceModes();
 
           if (${JSON.stringify(scenario.name)} === "settings" || ${JSON.stringify(scenario.name)} === "settings-mobile") {
@@ -454,8 +442,6 @@ function smokeAssertionsForScenario(scenario) {
             await waitFor(() => checkButton.textContent.trim() === "Check for Update", 7000, "firmware check");
             requireText("Stable");
             requireText("v1.0.1");
-            requireText("Pre-release");
-            requireText("v1.1.0-beta.1");
             const logsTab = Array.from(document.querySelectorAll(".sp-tab")).find((tab) => tab.textContent.trim() === "Logs");
             if (!logsTab) throw new Error("Logs tab not found");
             logsTab.click();

@@ -55,8 +55,13 @@ def check_public_manifest_urls(product: dict, errors: list[str]) -> None:
         if not package_yaml:
             continue
         package_text = read(ROOT / package_yaml, errors)
-        for url in urls_by_slug.get(slug, {}).values():
-            require_contains(package_text, url, package_yaml, errors)
+        update_channels = product["project"].get("firmware_update_channels", [])
+        if not isinstance(update_channels, list):
+            update_channels = []
+        for channel in update_channels:
+            url = urls_by_slug.get(slug, {}).get(str(channel).strip(), "")
+            if url:
+                require_contains(package_text, url, package_yaml, errors)
 
 
 def check_public_site_references(product: dict, errors: list[str]) -> None:

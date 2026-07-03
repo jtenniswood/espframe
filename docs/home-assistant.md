@@ -44,8 +44,7 @@ Under **Settings → Devices & Services → ESPHome** (device page):
 | **Screen: Wake** | Button | Wakes the display and resumes the slideshow. During scheduled off-hours, this is a temporary wake using the configured wake timeout. |
 | **Firmware: Auto Update** | Switch | Install updates when available |
 | **Firmware: Update Frequency** | Select | Hourly, Daily, Weekly, Monthly |
-| **Firmware: Beta Channel** | Switch | Opt in to pre-release firmware checks |
-| **Firmware: Check for Update** | Button | Manual check (stable + beta if enabled) |
+| **Firmware: Check for Update** | Button | Manual stable update check |
 | **Firmware: Version** | Text Sensor | Installed version |
 | **ESP32-C6: Update Available** | Text Sensor | Wi-Fi coprocessor update status |
 | **ESP32-C6: Current Firmware** | Text Sensor | Installed Wi-Fi coprocessor firmware version |
