@@ -245,6 +245,24 @@
     var availableLabel = el("span", "fw-label");
     availableLabel.innerHTML = '<span style="color:var(--text2)">Available firmware</span> ' +
       esc(displayVersion(S.c6_available_firmware, "Unknown"));
+    var actionWrap = el("div");
+    actionWrap.className = "check-wrap";
+    var checkBtn = el("button", "btn btn-secondary btn-sm");
+    checkBtn.textContent = "Check";
+    checkBtn.onclick = function () {
+      checkBtn.disabled = true;
+      checkBtn.textContent = "Checking\u2026";
+      post(endpoints.c6_firmware_check + "/press")
+        .catch(function () {
+          // Shared request helpers already surface failures in the UI.
+        })
+        .finally(function () {
+          setTimeout(function () {
+            checkBtn.disabled = false;
+            checkBtn.textContent = "Check";
+          }, 3000);
+        });
+    };
     var installBtn = el("button", "btn btn-primary btn-sm");
     installBtn.textContent = "Install";
     installBtn.onclick = function () {
@@ -261,8 +279,10 @@
           }, 3000);
         });
     };
+    actionWrap.appendChild(checkBtn);
+    actionWrap.appendChild(installBtn);
     availableRow.appendChild(availableLabel);
-    availableRow.appendChild(installBtn);
+    availableRow.appendChild(actionWrap);
     wifiBody.appendChild(availableRow);
 
     return makeCollapsibleCard("WiFi", wifiBody, true);

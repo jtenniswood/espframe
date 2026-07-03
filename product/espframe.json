@@ -421,7 +421,7 @@
         "tab": "settings",
         "function": "makeWifiCard",
         "static_entities": ["c6_current_firmware", "c6_available_firmware"],
-        "manual_entities": ["c6_firmware_install"]
+        "manual_entities": ["c6_firmware_check", "c6_firmware_install"]
       },
       {
         "id": "developer",
@@ -477,6 +477,7 @@
       "update_beta": { "entity": "update/Firmware: Update Beta", "firmware_file": "common/addon/firmware_update.yaml" },
       "apply_photo_source": { "entity": "button/Apply Photo Source", "firmware_file": "common/addon/immich_filter.yaml" },
       "firmware_check": { "entity": "button/Firmware: Check for Update", "firmware_file": "common/addon/firmware_update.yaml" },
+      "c6_firmware_check": { "entity": "button/Firmware ESP32-C6: Check for Update", "firmware_file": "common/addon/esp32_c6_firmware_update.yaml" },
       "c6_firmware_install": { "entity": "button/Firmware ESP32-C6: Install Update", "firmware_file": "common/addon/esp32_c6_firmware_update.yaml" },
       "reboot_screen": { "entity": "button/Device: Reboot Screen", "firmware_file": "common/addon/immich_config.yaml" }
     },

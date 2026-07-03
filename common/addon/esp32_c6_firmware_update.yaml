@@ -24,9 +24,15 @@ text_sensor:
     lambda: |-
       auto upd = id(esp32_c6_update);
       if (!upd) return std::string("Unknown");
+      if (upd->state == esphome::update::UpdateState::UPDATE_STATE_UNKNOWN)
+        return std::string("Unknown");
+      if (upd->state == esphome::update::UpdateState::UPDATE_STATE_INSTALLING)
+        return std::string("Installing");
       if (upd->state == esphome::update::UpdateState::UPDATE_STATE_AVAILABLE)
         return std::string("Update available");
-      return std::string("Up-to-date");
+      if (upd->state == esphome::update::UpdateState::UPDATE_STATE_NO_UPDATE)
+        return std::string("Up-to-date");
+      return std::string("Unknown");
     update_interval: 60s
 
   - platform: template
