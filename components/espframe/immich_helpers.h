@@ -579,11 +579,24 @@ inline std::string parse_immich_metadata_asset(const std::string &body,
   }
   if (items.isNull()) return "";
 
+  size_t matching = 0;
   for (size_t i = 0; i < items.size(); i++) {
     ImmichAssetMeta candidate;
     std::string img_url = parse_immich_asset_object(items[i].as<JsonObject>(), base_url, &candidate);
     if (img_url.empty()) continue;
     if (!photo_orientation_matches(candidate, orientation_filter)) continue;
+    matching++;
+  }
+  if (matching == 0) return "";
+
+  size_t pick = esp_random() % matching;
+  size_t seen = 0;
+  for (size_t i = 0; i < items.size(); i++) {
+    ImmichAssetMeta candidate;
+    std::string img_url = parse_immich_asset_object(items[i].as<JsonObject>(), base_url, &candidate);
+    if (img_url.empty()) continue;
+    if (!photo_orientation_matches(candidate, orientation_filter)) continue;
+    if (seen++ != pick) continue;
     *out_meta = candidate;
     return img_url;
   }

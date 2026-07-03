@@ -288,7 +288,8 @@ script:
   #
   # Immich metadata page count can mirror the current page size in some server
   # versions. Statistics returns the real matching total, then metadata fetches
-  # one small random page so large sources do not repeat a tiny subset.
+  # one random asset page for Any orientation, or a small candidate page when
+  # orientation filtering needs multiple candidates.
   # ---------------------------------------------------------------------------
   - id: immich_fetch_metadata_into_slot
     mode: single
