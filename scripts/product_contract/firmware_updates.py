@@ -119,6 +119,7 @@ def check_ota_update_metadata(product: dict, errors: list[str]) -> None:
     project = product["project"]
     platform = str(project.get("ota_update_platform", "")).strip()
     pre_update_action = str(project.get("ota_pre_update_action", "")).strip()
+
     firmware_docs = read(ROOT / "docs" / "firmware-update.md", errors)
     device_yaml_path = "devices/guition-esp32-p4-jc8012p4a1/device/device.yaml"
     device_yaml = read(ROOT / device_yaml_path, errors)
@@ -127,7 +128,13 @@ def check_ota_update_metadata(product: dict, errors: list[str]) -> None:
         require_contains(firmware_docs, pre_update_action, "docs/firmware-update.md", errors)
     if platform:
         require_contains(device_yaml, f"platform: {platform}", device_yaml_path, errors)
-    require_contains(device_yaml, "ota:", device_yaml_path, errors)
+    for needle in (
+        "ota:",
+        "on_begin:",
+        "firmware_update_reboot_pending",
+        "global_preferences->sync();",
+    ):
+        require_contains(device_yaml, needle, device_yaml_path, errors)
     forbidden_ota_needles = (
         "light.turn_off:\n            id: backlight",
         "transition_length: 300ms",
