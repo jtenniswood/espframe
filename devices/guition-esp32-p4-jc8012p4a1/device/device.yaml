@@ -118,6 +118,10 @@ ota:
     on_begin:
       then:
         - globals.set:
+            id: firmware_update_reboot_pending
+            value: 'true'
+        - lambda: 'global_preferences->sync();'
+        - globals.set:
             id: firmware_update_blank_active
             value: 'true'
         - light.turn_off:
