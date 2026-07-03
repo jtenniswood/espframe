@@ -242,6 +242,7 @@ script:
                 id: manual_wake_ms
                 value: '0'
             - script.execute: backlight_schedule_display_off
+            - script.execute: screen_schedule_boot_recover
           else:
             - if:
                 condition:
@@ -264,6 +265,20 @@ script:
                   - globals.set:
                       id: screen_schedule_asleep
                       value: 'false'
+
+  # Re-check the schedule soon after boot. OTA and power-on boots can start
+  # before SNTP has a valid clock, so the boot guard keeps the panel dark until
+  # one of these checks sees the current time and wakes the screen if it is
+  # inside the configured on-hours.
+  - id: screen_schedule_boot_recover
+    mode: restart
+    then:
+      - delay: 5s
+      - script.execute: screen_schedule_check
+      - delay: 10s
+      - script.execute: screen_schedule_check
+      - delay: 20s
+      - script.execute: screen_schedule_check
 
   # Restore the right visible page after waking from the black screen-off page.
   - id: screen_schedule_restore_page
@@ -365,7 +380,12 @@ script:
 
           if (in_window) {
             id(manual_wake_ms) = 0;
-            if (id(screen_schedule_asleep) && !id(backlight_manual_off)) {
+            bool should_wake = !id(backlight_manual_off) &&
+                               (id(screen_schedule_asleep) ||
+                                id(backlight_paused) ||
+                                id(screensaver_display_off_active) ||
+                                !id(backlight).current_values.is_on());
+            if (should_wake) {
               id(screen_schedule_wake).execute();
             }
             return;
