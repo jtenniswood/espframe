@@ -46,6 +46,11 @@ Under **Settings → Devices & Services → ESPHome** (device page):
 | **Firmware: Update Frequency** | Select | Hourly, Daily, Weekly, Monthly |
 | **Firmware: Check for Update** | Button | Manual stable update check |
 | **Firmware: Version** | Text Sensor | Installed version |
+| **ESP32-C6: Update Available** | Text Sensor | Wi-Fi coprocessor update status |
+| **ESP32-C6: Current Firmware** | Text Sensor | Installed Wi-Fi coprocessor firmware version |
+| **ESP32-C6: Latest Firmware** | Text Sensor | Latest compatible Wi-Fi coprocessor firmware version |
+| **Firmware ESP32-C6: Check for Update** | Button | Manual Wi-Fi coprocessor update check |
+| **Firmware ESP32-C6: Install Update** | Button | Install the available Wi-Fi coprocessor firmware update |
 | **Network: Online** | Binary Sensor | Connection status |
 | **Network: WiFi Strength** | Sensor | Signal % |
 | **Network: IP Address** | Text Sensor | Device IP |
