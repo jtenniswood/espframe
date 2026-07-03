@@ -58,8 +58,7 @@ light:
                 return !id(backlight_paused) &&
                        !id(screen_schedule_asleep) &&
                        !id(screensaver_display_off_active) &&
-                       !id(backlight_manual_off) &&
-                       !id(firmware_update_blank_active);
+                       !id(backlight_manual_off);
             then:
               - script.execute: screen_schedule_manual_sleep
 
