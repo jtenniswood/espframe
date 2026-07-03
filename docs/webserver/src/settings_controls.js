@@ -63,7 +63,8 @@
       makeFirmwareCard(),
       makeWifiCard(),
       makeDeveloperCard(),
-      makeBackupCard()
+      makeBackupCard(),
+      makeDeviceRebootCard()
     ];
     appendCards(wrap, settingsCards);
     app.appendChild(wrap);

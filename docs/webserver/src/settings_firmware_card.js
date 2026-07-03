@@ -185,6 +185,27 @@
     return makeCollapsibleCard("WiFi", wifiBody, true);
   }
 
+  function makeDeviceRebootCard() {
+    var rebootBody = el("div", "fw-body");
+    var rebootLabel = textLabel("", "Device Reboot");
+    var rebootBtn = button("Reboot Screen", "btn btn-secondary btn-sm", function () {
+      rebootBtn.disabled = true;
+      rebootBtn.textContent = "Rebooting...";
+      post(endpoints.reboot_screen + "/press")
+        .catch(function () {
+          // Shared request helpers already surface failures in the UI.
+        })
+        .finally(function () {
+          setTimeout(function () {
+            rebootBtn.disabled = false;
+            rebootBtn.textContent = "Reboot Screen";
+          }, 3000);
+        });
+    });
+    rebootBody.appendChild(actionRow(rebootLabel, rebootBtn));
+    return makeCollapsibleCard("Device Reboot", rebootBody, true);
+  }
+
   function makeDeveloperCard() {
     if (!developerPanelEnabledByUrl()) return null;
     var devBadge = makeBadge(S.developer_features_enabled);
