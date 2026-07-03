@@ -42,6 +42,9 @@ globals:
   - id: immich_metadata_page_size
     type: int
     initial_value: '1'
+  - id: immich_metadata_bypass_until_ms
+    type: uint32_t
+    initial_value: '0'
 
 script:
   - id: immich_register_fetch_failure
@@ -60,6 +63,15 @@ script:
           ESP_LOGW("immich",
                    "Fetch failure registered; pausing fetches for %us (consecutive failures=%d)",
                    (unsigned) (cooldown_ms / 1000), id(immich_consecutive_failures));
+
+  # ---------------------------------------------------------------------------
+  # Retry fetch after temporarily bypassing metadata search
+  # ---------------------------------------------------------------------------
+  - id: immich_fetch_with_metadata_bypass
+    mode: restart
+    then:
+      - delay: 120ms
+      - script.execute: immich_fetch_into_slot
 
   # ---------------------------------------------------------------------------
   # Display fallback when companion portrait search fails or finds nothing
@@ -350,6 +362,20 @@ script:
                     id(immich_retry_cooldown_until_ms) = millis() + 30000;
                     return;
                   }
+                  std::string source = id(photo_source_select).current_option();
+                  if (total <= 1 && (source == "Album" || source == "Person" || source == "Tag")) {
+                    // Metadata search returned an implausibly small count — this can
+                    // happen permanently for shared albums in some Immich versions.
+                    // Bypass the metadata path for 30 minutes so random search is
+                    // used consistently rather than retrying on every fetch cycle.
+                    ESP_LOGW("immich", "Metadata count for %s returned %u image(s); "
+                             "using random search for the next 30 minutes",
+                             source.c_str(), (unsigned) total);
+                    id(immich_metadata_bypass_until_ms) = millis() + 1800000;
+                    clear_slot_fetch_in_flight(id(target_slot), id(slot_flags));
+                    id(immich_fetch_with_metadata_bypass).execute();
+                    return;
+                  }
                   std::string orientation = id(photo_orientation_filter).current_option();
                   id(immich_metadata_page_size) = orientation == "Any" ? 1 : IMMICH_METADATA_PAGE_SIZE;
                   id(immich_metadata_page) = immich_metadata_page_for_total(
@@ -575,7 +601,9 @@ script:
       - lambda: 'id(immich_memory_fallback) = false;'
       - if:
           condition:
-            lambda: 'return immich_source_uses_metadata_search(id(photo_source_select).current_option());'
+            lambda: |-
+              return immich_source_uses_metadata_search(id(photo_source_select).current_option()) &&
+                     millis() >= id(immich_metadata_bypass_until_ms);
           then:
             - script.execute: immich_fetch_metadata_into_slot
             - script.stop: immich_fetch_into_slot

@@ -25,6 +25,29 @@
     updatesSection.appendChild(betaRow);
     fwBody.appendChild(updatesSection);
 
+    var rebootRow = el("div", "field fw-row");
+    var rebootLabel = el("span", "fw-label");
+    rebootLabel.textContent = "Device Reboot";
+    var rebootBtn = el("button", "btn btn-secondary btn-sm");
+    rebootBtn.textContent = "Reboot Screen";
+    rebootBtn.onclick = function () {
+      rebootBtn.disabled = true;
+      rebootBtn.textContent = "Rebooting...";
+      post(endpoints.reboot_screen + "/press")
+        .catch(function () {
+          // Shared request helpers already surface failures in the UI.
+        })
+        .finally(function () {
+          setTimeout(function () {
+            rebootBtn.disabled = false;
+            rebootBtn.textContent = "Reboot Screen";
+          }, 3000);
+        });
+    };
+    rebootRow.appendChild(rebootLabel);
+    rebootRow.appendChild(rebootBtn);
+    fwBody.appendChild(rebootRow);
+
     function renderUpdateRow() {
       updateRow.innerHTML = "";
       if (!S.update_available) return;

@@ -354,7 +354,8 @@
       "update": { "entity": "update/Firmware: Update", "firmware_file": "common/addon/firmware_update.yaml" },
       "update_beta": { "entity": "update/Firmware: Update Beta", "firmware_file": "common/addon/firmware_update.yaml" },
       "apply_photo_source": { "entity": "button/Apply Photo Source", "firmware_file": "common/addon/immich_filter.yaml" },
-      "firmware_check": { "entity": "button/Firmware: Check for Update", "firmware_file": "common/addon/firmware_update.yaml" }
+      "firmware_check": { "entity": "button/Firmware: Check for Update", "firmware_file": "common/addon/firmware_update.yaml" },
+      "reboot_screen": { "entity": "button/Device: Reboot Screen", "firmware_file": "common/addon/immich_config.yaml" }
     },
     "web_manual_state_keys": ["immich_url", "api_key"],
     "web_entity_aliases": {

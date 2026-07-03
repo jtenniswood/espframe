@@ -184,4 +184,6 @@ button:
   - platform: restart
     id: reboot_screen_button
     name: "Device: Reboot Screen"
-    internal: true
+    icon: "mdi:restart"
+    web_server:
+      sorting_group_id: sg_device
