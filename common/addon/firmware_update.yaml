@@ -21,6 +21,14 @@ esphome:
     name: jtenniswood.immich-frame
     version: "${firmware_version}"
   on_boot:
+    - priority: -50
+      then:
+        - if:
+            condition:
+              lambda: 'return id(firmware_update_reboot_pending);'
+            then:
+              - delay: 15s
+              - script.execute: firmware_update_recover_display
     - priority: -100
       then:
         - lambda: |-
@@ -37,6 +45,13 @@ globals:
   - id: manual_check_only
     type: bool
     initial_value: 'false'
+  - id: firmware_update_blank_active
+    type: bool
+    initial_value: 'false'
+  - id: firmware_update_reboot_pending
+    type: bool
+    restore_value: true
+    initial_value: 'false'
 
 script:
   - id: firmware_update_recover_display
@@ -46,6 +61,7 @@ script:
       - script.stop: backlight_schedule_display_off
       - script.stop: screen_schedule_wake_timeout_check
       - lambda: |-
+          id(firmware_update_reboot_pending) = false;
           id(backlight_manual_off) = false;
           id(screen_schedule_asleep) = false;
           id(screensaver_display_off_active) = false;
@@ -79,6 +95,20 @@ update:
             condition:
               lambda: 'return id(auto_update_switch).state && !id(manual_check_only);'
             then:
+              - globals.set:
+                  id: firmware_update_reboot_pending
+                  value: 'true'
+              - lambda: 'global_preferences->sync();'
+              - globals.set:
+                  id: firmware_update_blank_active
+                  value: 'true'
+              - light.turn_off:
+                  id: backlight
+                  transition_length: 300ms
+              - delay: 350ms
+              - globals.set:
+                  id: firmware_update_blank_active
+                  value: 'false'
               - update.perform: firmware_update
 
 # -----------------------------------------------------------------------------
