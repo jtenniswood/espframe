@@ -37,5 +37,6 @@ packages:
   immich_slide: !include ../../common/addon/immich_slideshow.yaml
   screen_slide: !include device/screen_slideshow.yaml
   fw_update: !include ../../common/addon/firmware_update.yaml
+  c6_fw_update: !include ../../common/addon/esp32_c6_firmware_update.yaml
   dev_features: !include ../../common/addon/developer_features.yaml
   network: !include ../../common/addon/network.yaml

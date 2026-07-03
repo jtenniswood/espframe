@@ -932,6 +932,7 @@
         { "alias": "immich_slide", "path": "../../common/addon/immich_slideshow.yaml" },
         { "alias": "screen_slide", "path": "device/screen_slideshow.yaml" },
         { "alias": "fw_update", "path": "../../common/addon/firmware_update.yaml" },
+        { "alias": "c6_fw_update", "path": "../../common/addon/esp32_c6_firmware_update.yaml" },
         { "alias": "dev_features", "path": "../../common/addon/developer_features.yaml" },
         { "alias": "network", "path": "../../common/addon/network.yaml" }
       ],
