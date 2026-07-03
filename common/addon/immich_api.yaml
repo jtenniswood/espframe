@@ -68,15 +68,6 @@ script:
                    (unsigned) (cooldown_ms / 1000), id(immich_consecutive_failures));
 
   # ---------------------------------------------------------------------------
-  # Retry fetch after temporarily bypassing metadata search
-  # ---------------------------------------------------------------------------
-  - id: immich_fetch_with_metadata_bypass
-    mode: restart
-    then:
-      - delay: 120ms
-      - script.execute: immich_fetch_into_slot
-
-  # ---------------------------------------------------------------------------
   # Display fallback when companion portrait search fails or finds nothing
   # ---------------------------------------------------------------------------
   - id: handle_companion_not_found
@@ -603,9 +594,7 @@ script:
       - lambda: 'id(immich_memory_fallback) = false;'
       - if:
           condition:
-            lambda: |-
-              return immich_source_uses_metadata_search(id(photo_source_select).current_option()) &&
-                     millis() >= id(immich_metadata_bypass_until_ms);
+            lambda: 'return immich_source_uses_metadata_search(id(photo_source_select).current_option());'
           then:
             - script.execute: immich_fetch_metadata_into_slot
             - script.stop: immich_fetch_into_slot
