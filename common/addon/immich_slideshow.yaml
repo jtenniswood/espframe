@@ -759,6 +759,7 @@ script:
   - id: immich_display_current
     mode: single
     then:
+      - lvgl.page.show: slideshow_page
       - script.execute: hide_connection_failed
       - lambda: |-
           lv_obj_clear_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
@@ -864,6 +865,7 @@ script:
   - id: immich_display_portrait_pair
     mode: single
     then:
+      - lvgl.page.show: slideshow_page
       - script.execute: hide_connection_failed
       - lambda: |-
           const bool portrait_screen = id(screen_rotation_select).current_option() == "90" ||
