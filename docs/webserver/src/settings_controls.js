@@ -28,7 +28,8 @@
       makeClockCard(),
       makeFirmwareCard(),
       makeDeveloperCard(),
-      makeBackupCard()
+      makeBackupCard(),
+      makeDeviceRebootCard()
     ]);
     app.appendChild(wrap);
   }

@@ -2165,7 +2165,8 @@ if (typeof module !== "undefined") {
       makeClockCard(),
       makeFirmwareCard(),
       makeDeveloperCard(),
-      makeBackupCard()
+      makeBackupCard(),
+      makeDeviceRebootCard()
     ]);
     app.appendChild(wrap);
   }
