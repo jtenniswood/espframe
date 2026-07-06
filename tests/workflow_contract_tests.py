@@ -22,6 +22,7 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_job_outputs,
     check_workflow_job_runner_usage,
     check_workflow_job_run_command,
+    check_workflow_job_strategy_matrix,
     check_workflow_job_timeout_usage,
     check_workflow_jobs,
     check_workflow_names,
@@ -51,6 +52,7 @@ from product_contract.workflows import (  # noqa: E402
     workflow_job_outputs,
     workflow_job_step_blocks,
     workflow_job_strategy_fail_fast,
+    workflow_job_strategy_matrix,
     workflow_job_runs_on,
     workflow_job_timeout_minutes,
     workflow_permissions,
@@ -690,6 +692,9 @@ def test_workflow_job_strategy_fail_fast_reads_strategy_value() -> None:
     assert workflow_job_strategy_fail_fast(
         workflow_job_block(STRATEGY_WORKFLOW, "build-firmware", "example.yml", errors)
     ) == "false"
+    assert workflow_job_strategy_matrix(
+        workflow_job_block(STRATEGY_WORKFLOW, "build-firmware", "example.yml", errors)
+    ) == "${{ fromJson(needs.release-metadata.outputs.release_matrix) }}"
     assert workflow_job_strategy_fail_fast(
         workflow_job_block(STRATEGY_WORKFLOW, "missing-strategy", "example.yml", errors)
     ) == ""
@@ -730,6 +735,36 @@ jobs:
 
     assert errors == [
         "release.yml job build-firmware strategy is missing fail-fast",
+    ]
+
+
+def test_workflow_job_strategy_matrix_rejects_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    check_workflow_job_strategy_matrix(
+        "release.build-firmware",
+        "${{ fromJson(needs.firmware-metadata.outputs.release_matrix) }}",
+        {"release": ("release.yml", STRATEGY_WORKFLOW)},
+        errors,
+    )
+
+    assert errors == [
+        (
+            "release.yml job build-firmware strategy.matrix must be "
+            "'${{ fromJson(needs.firmware-metadata.outputs.release_matrix) }}', found "
+            "'${{ fromJson(needs.release-metadata.outputs.release_matrix) }}'"
+        ),
+    ]
+
+    errors = []
+    check_workflow_job_strategy_matrix(
+        "release.missing-strategy",
+        "${{ fromJson(needs.release-metadata.outputs.release_matrix) }}",
+        {"release": ("release.yml", STRATEGY_WORKFLOW)},
+        errors,
+    )
+
+    assert errors == [
+        "release.yml job missing-strategy strategy is missing matrix",
     ]
 
 
@@ -1527,6 +1562,7 @@ def main() -> int:
     test_workflow_job_timeout_usage_rejects_drift_from_product_metadata()
     test_workflow_job_strategy_fail_fast_reads_strategy_value()
     test_workflow_release_build_fail_fast_rejects_drift_from_product_metadata()
+    test_workflow_job_strategy_matrix_rejects_drift_from_product_metadata()
     test_workflow_job_step_blocks_read_step_metadata()
     test_workflow_gh_cli_env_rejects_drift_from_product_metadata()
     test_workflow_step_uses_and_with_read_action_inputs()

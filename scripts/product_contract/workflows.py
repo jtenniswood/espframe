@@ -514,6 +514,10 @@ def workflow_job_strategy_fail_fast(job_block: str) -> str:
     return workflow_job_nested_field_value(job_block, "strategy", "fail-fast")
 
 
+def workflow_job_strategy_matrix(job_block: str) -> str:
+    return workflow_job_nested_field_value(job_block, "strategy", "matrix")
+
+
 def workflow_job_mapping(job_block: str, section_name: str) -> dict[str, str]:
     values: dict[str, str] = {}
     lines = job_block.splitlines()
@@ -835,6 +839,32 @@ def check_workflow_release_build_fail_fast(
         errors.append(
             f"{label} job build-firmware strategy.fail-fast must be {expected_fail_fast_value!r}, "
             f"found {actual_fail_fast!r}"
+        )
+
+
+def check_workflow_job_strategy_matrix(
+    target: str,
+    expected_matrix: str,
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    expected_matrix = expected_matrix.strip()
+    workflow_name, _, job_id = target.partition(".")
+    if not expected_matrix or workflow_name not in workflow_texts or not job_id:
+        return
+
+    label, text = workflow_texts[workflow_name]
+    job_block = workflow_job_block(text, job_id, label, errors)
+    if not job_block:
+        return
+
+    actual_matrix = workflow_job_strategy_matrix(job_block)
+    if not actual_matrix:
+        errors.append(f"{label} job {job_id} strategy is missing matrix")
+    elif actual_matrix != expected_matrix:
+        errors.append(
+            f"{label} job {job_id} strategy.matrix must be {expected_matrix!r}, "
+            f"found {actual_matrix!r}"
         )
 
 
@@ -1602,6 +1632,18 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         {"release": (".github/workflows/release.yml", release_workflow)},
         errors,
     )
+    check_workflow_job_strategy_matrix(
+        "compile.compile",
+        "${{ fromJson(needs.firmware-metadata.outputs.release_matrix) }}",
+        workflow_texts,
+        errors,
+    )
+    check_workflow_job_strategy_matrix(
+        "release.build-firmware",
+        "${{ fromJson(needs.release-metadata.outputs.release_matrix) }}",
+        workflow_texts,
+        errors,
+    )
     docs_release_lookup_needles = [
         "gh release view --json tagName",
         "python3 scripts/firmware_release.py verify-directory",
@@ -1620,18 +1662,6 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         return
 
     devices_by_slug = {str(device.get("slug", "")).strip(): device for device in product["devices"]}
-    require_contains(
-        release_workflow,
-        "release_matrix: ${{ steps.product.outputs.release_matrix }}",
-        ".github/workflows/release.yml",
-        errors,
-    )
-    require_contains(
-        release_workflow,
-        "matrix: ${{ fromJson(needs.release-metadata.outputs.release_matrix) }}",
-        ".github/workflows/release.yml",
-        errors,
-    )
     for release_device in release_devices:
         slug = release_device["slug"]
         build_yaml = str(devices_by_slug.get(slug, {}).get("build_yaml", "")).strip()
