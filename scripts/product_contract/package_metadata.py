@@ -69,6 +69,8 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
             errors.append("package.json test:web-smoke must run tests/web_smoke_tests.js")
         if scripts.get("test:release-ready") != "python3 tests/release_ready_tests.py":
             errors.append("package.json test:release-ready must run tests/release_ready_tests.py")
+        if scripts.get("test:workflow-contract") != "python3 tests/workflow_contract_tests.py":
+            errors.append("package.json test:workflow-contract must run tests/workflow_contract_tests.py")
         test_web = str(scripts.get("test:web", ""))
         if not script_includes_step(test_web, "npm run test:web-compat"):
             errors.append("package.json test:web must include test:web-compat")
@@ -107,6 +109,8 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
             errors.append("package.json check:pr must include test:web-smoke")
         if not script_includes_step(check_pr, "npm run test:release-ready"):
             errors.append("package.json check:pr must include test:release-ready")
+        if not script_includes_step(check_pr, "npm run test:workflow-contract"):
+            errors.append("package.json check:pr must include test:workflow-contract")
         if not script_includes_step(check_pr, "npm run test:firmware-logic"):
             errors.append("package.json check:pr must include test:firmware-logic")
         if not script_includes_step(check_pr, "npm run docs:build"):
