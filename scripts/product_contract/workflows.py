@@ -33,6 +33,12 @@ WORKFLOW_SPARSE_CHECKOUT_TARGETS = {
 }
 
 
+WORKFLOW_FIRMWARE_TIMEOUT_TARGETS = {
+    "compile.compile",
+    "release.build-firmware",
+}
+
+
 def workflow_event_names(text: str) -> list[str]:
     match = re.search(r"^on:\n(.*?)(?=^[A-Za-z0-9_-]+:|\Z)", text, re.DOTALL | re.MULTILINE)
     if not match:
@@ -436,6 +442,37 @@ def check_workflow_jobs(
 
 def workflow_job_runs_on(job_block: str) -> str:
     return workflow_job_field_value(job_block, "runs-on")
+
+
+def workflow_job_timeout_minutes(job_block: str) -> str:
+    return workflow_job_field_value(job_block, "timeout-minutes")
+
+
+def check_workflow_job_timeout_usage(
+    expected_timeout: object,
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    if not isinstance(expected_timeout, int) or isinstance(expected_timeout, bool):
+        return
+    expected_timeout_value = str(expected_timeout)
+
+    for target in sorted(WORKFLOW_FIRMWARE_TIMEOUT_TARGETS):
+        workflow_name, _, job_id = target.partition(".")
+        if workflow_name not in workflow_texts or not job_id:
+            continue
+        label, text = workflow_texts[workflow_name]
+        job_block = workflow_job_block(text, job_id, label, errors)
+        if not job_block:
+            continue
+        actual_timeout = workflow_job_timeout_minutes(job_block)
+        if not actual_timeout:
+            errors.append(f"{label} job {job_id} is missing timeout-minutes")
+        elif actual_timeout != expected_timeout_value:
+            errors.append(
+                f"{label} job {job_id} timeout-minutes must be {expected_timeout_value!r}, "
+                f"found {actual_timeout!r}"
+            )
 
 
 def check_workflow_job_runner_usage(
@@ -1017,12 +1054,14 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             f'gh release download "{prerelease_tag_ref}"',
         ):
             require_contains(docs_workflow, needle, ".github/workflows/docs.yml", errors)
-    if isinstance(firmware_compile_timeout, int) and not isinstance(firmware_compile_timeout, bool):
-        for label, text in (
-            (".github/workflows/release.yml", release_workflow),
-            (".github/workflows/compile.yml", compile_workflow),
-        ):
-            require_contains(text, f"timeout-minutes: {firmware_compile_timeout}", label, errors)
+    check_workflow_job_timeout_usage(
+        firmware_compile_timeout,
+        {
+            "compile": (".github/workflows/compile.yml", compile_workflow),
+            "release": (".github/workflows/release.yml", release_workflow),
+        },
+        errors,
+    )
     docs_release_lookup_needles = [
         "gh release view --json tagName",
         "python3 scripts/firmware_release.py verify-directory",

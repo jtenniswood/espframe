@@ -16,6 +16,7 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_events,
     check_workflow_job_dependency_usage,
     check_workflow_job_runner_usage,
+    check_workflow_job_timeout_usage,
     check_workflow_jobs,
     check_workflow_names,
     check_workflow_permissions,
@@ -39,6 +40,7 @@ from product_contract.workflows import (  # noqa: E402
     workflow_job_ids,
     workflow_job_needs,
     workflow_job_runs_on,
+    workflow_job_timeout_minutes,
     workflow_permissions,
     workflow_sparse_checkout_blocks,
     workflow_sparse_checkout_entries,
@@ -266,6 +268,26 @@ jobs:
 """
 
 
+TIMEOUT_WORKFLOW = """\
+name: Example
+
+jobs:
+  compile:
+    name: Compile Firmware
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+
+  build-firmware:
+    name: Build Firmware
+    timeout-minutes: 45
+    runs-on: ubuntu-latest
+
+  missing-timeout:
+    name: Missing Timeout
+    runs-on: ubuntu-latest
+"""
+
+
 PERMISSION_WORKFLOW = """\
 name: Example
 
@@ -401,6 +423,55 @@ def test_workflow_job_runner_usage_rejects_drift_from_product_metadata() -> None
     assert errors == [
         "example.yml job wrong runs-on must be 'ubuntu-latest', found 'macos-latest'",
         "example.yml job missing is missing runs-on",
+    ]
+
+
+def test_workflow_job_timeout_minutes_reads_job_timeout() -> None:
+    errors: list[str] = []
+    assert workflow_job_timeout_minutes(
+        workflow_job_block(TIMEOUT_WORKFLOW, "compile", "example.yml", errors)
+    ) == "30"
+    assert workflow_job_timeout_minutes(
+        workflow_job_block(TIMEOUT_WORKFLOW, "missing-timeout", "example.yml", errors)
+    ) == ""
+    assert errors == []
+
+
+def test_workflow_job_timeout_usage_rejects_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    check_workflow_job_timeout_usage(
+        30,
+        {
+            "compile": ("compile.yml", TIMEOUT_WORKFLOW),
+            "release": (
+                "release.yml",
+                """\
+jobs:
+  build-firmware:
+    name: Build Firmware
+    runs-on: ubuntu-latest
+""",
+            ),
+        },
+        errors,
+    )
+
+    assert errors == [
+        "release.yml job build-firmware is missing timeout-minutes",
+    ]
+
+    errors = []
+    check_workflow_job_timeout_usage(
+        30,
+        {
+            "compile": ("compile.yml", TIMEOUT_WORKFLOW),
+            "release": ("release.yml", TIMEOUT_WORKFLOW),
+        },
+        errors,
+    )
+
+    assert errors == [
+        "release.yml job build-firmware timeout-minutes must be '30', found '45'",
     ]
 
 
@@ -912,6 +983,8 @@ def main() -> int:
     test_workflow_job_needs_reads_supported_forms()
     test_workflow_job_runs_on_reads_job_runner()
     test_workflow_job_runner_usage_rejects_drift_from_product_metadata()
+    test_workflow_job_timeout_minutes_reads_job_timeout()
+    test_workflow_job_timeout_usage_rejects_drift_from_product_metadata()
     test_workflow_job_dependency_usage_rejects_drift_from_product_metadata()
     test_workflow_permissions_reads_top_level_permissions()
     test_workflow_permissions_reject_drift_from_product_metadata()
