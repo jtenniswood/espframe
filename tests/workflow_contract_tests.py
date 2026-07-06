@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from product_contract.workflows import (  # noqa: E402
+    check_workflow_action_usage,
     normalize_workflow_condition,
     workflow_job_block,
     workflow_job_condition,
@@ -109,6 +110,52 @@ def test_release_workflow_actions_require_expected_keys() -> None:
     ]
 
 
+def test_workflow_action_usage_checks_expected_workflows() -> None:
+    errors: list[str] = []
+    release_actions = {
+        "checkout": "actions/checkout@v7",
+        "cache": "actions/cache@v6",
+        "upload_artifact": "actions/upload-artifact@v7",
+        "download_artifact": "actions/download-artifact@v8",
+        "setup_node": "actions/setup-node@v6",
+        "upload_pages_artifact": "actions/upload-pages-artifact@v5",
+        "deploy_pages": "actions/deploy-pages@v5",
+    }
+    workflow_texts = {
+        ".github/workflows/release.yml": "\n".join(
+            [
+                "actions/checkout@v7",
+                "actions/cache@v6",
+                "actions/upload-artifact@v7",
+                "actions/download-artifact@v8",
+            ]
+        ),
+        ".github/workflows/docs.yml": "\n".join(
+            [
+                "actions/checkout@v7",
+                "actions/upload-artifact@v7",
+                "actions/download-artifact@v8",
+                "actions/setup-node@v6",
+                "actions/upload-pages-artifact@v5",
+            ]
+        ),
+        ".github/workflows/compile.yml": "\n".join(
+            [
+                "actions/checkout@v7",
+                "actions/cache@v6",
+                "actions/upload-artifact@v7",
+            ]
+        ),
+    }
+
+    check_workflow_action_usage(release_actions, workflow_texts, errors)
+
+    assert errors == [
+        ".github/workflows/docs.yml is missing 'actions/deploy-pages@v5'",
+        ".github/workflows/compile.yml is missing 'actions/setup-node@v6'",
+    ]
+
+
 def test_workflow_event_index_normalizes_declared_events() -> None:
     configured_events = workflow_event_index(
         {
@@ -184,6 +231,7 @@ def main() -> int:
     test_workflow_job_condition_handles_supported_forms()
     test_normalize_workflow_condition_collapses_whitespace()
     test_release_workflow_actions_require_expected_keys()
+    test_workflow_action_usage_checks_expected_workflows()
     test_workflow_event_index_normalizes_declared_events()
     test_workflow_event_types_reject_unknown_events()
     test_workflow_job_index_normalizes_declared_jobs()

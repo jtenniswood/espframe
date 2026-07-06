@@ -23,6 +23,34 @@ def require_workflow_needs(text: str, dependencies: list[str], label: str, error
     require_contains(text, needle, label, errors)
 
 
+WORKFLOW_ACTION_TARGETS = {
+    "cache": (".github/workflows/release.yml", ".github/workflows/compile.yml"),
+    "checkout": (".github/workflows/release.yml", ".github/workflows/docs.yml", ".github/workflows/compile.yml"),
+    "deploy_pages": (".github/workflows/docs.yml",),
+    "download_artifact": (".github/workflows/release.yml", ".github/workflows/docs.yml"),
+    "setup_node": (".github/workflows/docs.yml", ".github/workflows/compile.yml"),
+    "upload_artifact": (".github/workflows/release.yml", ".github/workflows/docs.yml", ".github/workflows/compile.yml"),
+    "upload_pages_artifact": (".github/workflows/docs.yml",),
+}
+
+
+def check_workflow_action_usage(
+    release_actions: object,
+    workflow_texts: dict[str, str],
+    errors: list[str],
+) -> None:
+    if not isinstance(release_actions, dict):
+        return
+
+    for action_key, labels in WORKFLOW_ACTION_TARGETS.items():
+        action = release_actions.get(action_key)
+        if not isinstance(action, str) or not action.strip():
+            continue
+        for label in labels:
+            text = workflow_texts.get(label, "")
+            require_contains(text, action.strip(), label, errors)
+
+
 def workflow_job_block(text: str, job_id: str, label: str, errors: list[str]) -> str:
     match = re.search(rf"^  {re.escape(job_id)}:\n(.*?)(?=^  [A-Za-z0-9_-]+:|\Z)", text, re.DOTALL | re.MULTILINE)
     if not match:
@@ -184,29 +212,15 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
                 require_contains(text, f"            {path}", label, errors)
         if isinstance(sparse_checkout_cone_mode, bool):
             require_contains(text, f"sparse-checkout-cone-mode: {str(sparse_checkout_cone_mode).lower()}", label, errors)
-    if isinstance(release_actions, dict):
-        for action in release_actions.values():
-            if not isinstance(action, str) or not action.strip():
-                continue
-            if (
-                "download-artifact" in action
-                or "upload-artifact" in action
-                or "cache" in action
-                or "upload-pages-artifact" in action
-                or "deploy-pages" in action
-                or "setup-node" in action
-            ):
-                if "upload-pages-artifact" in action or "deploy-pages" in action or "setup-node" in action:
-                    require_contains(docs_workflow, action.strip(), ".github/workflows/docs.yml", errors)
-                    continue
-                require_contains(release_workflow, action.strip(), ".github/workflows/release.yml", errors)
-            elif "checkout" in action:
-                for label, text in (
-                    (".github/workflows/release.yml", release_workflow),
-                    (".github/workflows/docs.yml", docs_workflow),
-                    (".github/workflows/compile.yml", compile_workflow),
-                ):
-                    require_contains(text, action.strip(), label, errors)
+    check_workflow_action_usage(
+        release_actions,
+        {
+            ".github/workflows/release.yml": release_workflow,
+            ".github/workflows/docs.yml": docs_workflow,
+            ".github/workflows/compile.yml": compile_workflow,
+        },
+        errors,
+    )
     if artifact_prefix:
         require_contains(release_workflow, f"name: {artifact_prefix}${{{{ matrix.slug }}}}", ".github/workflows/release.yml", errors)
         require_contains(release_workflow, f"pattern: {artifact_prefix}*", ".github/workflows/release.yml", errors)
@@ -290,12 +304,6 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             errors,
         )
     if compile_firmware_artifact_prefix:
-        require_contains(
-            compile_workflow,
-            "actions/upload-artifact@v7",
-            ".github/workflows/compile.yml",
-            errors,
-        )
         require_contains(
             compile_workflow,
             f"name: {compile_firmware_artifact_prefix}${{{{ matrix.slug }}}}",
