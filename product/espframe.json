@@ -709,6 +709,7 @@
     ],
     "generated_firmware_setting_fields": {
       "photo_source": {},
+      "album_order": {},
       "date_filter_mode": {},
       "relative_unit": {},
       "photo_orientation": {},
@@ -762,6 +763,7 @@
       "photo_metadata_date_enabled": {},
       "photo_metadata_location_enabled": {}
     },
+    "generated_firmware_deferred_setting_fields": [],
     "support_url": "https://www.buymeacoffee.com/jtenniswood",
     "support_button_image_url": "https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png",
     "node_version": "24",

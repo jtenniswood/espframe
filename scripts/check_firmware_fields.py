@@ -75,12 +75,28 @@ def check_marker_contexts(path: Path, text: str, settings: dict[str, dict[str, o
 
 def main() -> int:
     product = load_product()
+    project = product["project"]
     settings = generate_assets.setting_lookup()
     field_configs = generate_assets.generated_firmware_setting_fields(product)
+    has_deferred_allowlist = "generated_firmware_deferred_setting_fields" in project
+    raw_allowed_deferred = project.get("generated_firmware_deferred_setting_fields", [])
+    allowed_deferred_keys = [
+        str(key).strip()
+        for key in (raw_allowed_deferred if isinstance(raw_allowed_deferred, list) else [])
+        if str(key).strip()
+    ]
     errors: list[str] = []
 
     if not field_configs:
         errors.append("project.generated_firmware_setting_fields must be a non-empty object")
+    if not has_deferred_allowlist:
+        errors.append("project.generated_firmware_deferred_setting_fields is required")
+    elif not isinstance(raw_allowed_deferred, list):
+        errors.append("project.generated_firmware_deferred_setting_fields must be a list")
+    elif any(not isinstance(key, str) or not key.strip() for key in raw_allowed_deferred):
+        errors.append("project.generated_firmware_deferred_setting_fields must only contain non-empty strings")
+    if len(allowed_deferred_keys) != len(set(allowed_deferred_keys)):
+        errors.append("project.generated_firmware_deferred_setting_fields must not contain duplicate keys")
 
     for key, config in field_configs.items():
         setting = settings.get(key)
@@ -125,8 +141,29 @@ def main() -> int:
         key for key, setting in settings.items()
         if setting.get("firmware_files") and key not in generated_keys
     )
+    allowed_deferred = set(allowed_deferred_keys)
+    unexpected_deferred = sorted(set(deferred_keys) - allowed_deferred)
+    unknown_deferred_allowlist = sorted(key for key in allowed_deferred if key not in settings)
+    known_allowed_deferred = allowed_deferred - set(unknown_deferred_allowlist)
+    stale_deferred_allowlist = sorted(known_allowed_deferred - set(deferred_keys))
+    if unexpected_deferred:
+        errors.append("project.generated_firmware_deferred_setting_fields is missing: " + ", ".join(unexpected_deferred))
+    if stale_deferred_allowlist:
+        errors.append(
+            "project.generated_firmware_deferred_setting_fields includes generated settings: "
+            + ", ".join(stale_deferred_allowlist)
+        )
+    if unknown_deferred_allowlist:
+        errors.append(
+            "project.generated_firmware_deferred_setting_fields references unknown settings: "
+            + ", ".join(unknown_deferred_allowlist)
+        )
+    if errors:
+        for error in errors:
+            print(f"firmware field check failed: {error}", file=sys.stderr)
+        return 1
     if deferred_keys:
-        print("generated firmware field report: deferred settings: " + ", ".join(deferred_keys))
+        print("generated firmware field report: allowed deferred settings: " + ", ".join(deferred_keys))
     else:
         print("generated firmware field report: no product settings are deferred from field generation")
     print(f"generated firmware field checks passed ({len(generated_keys)} generated settings)")
