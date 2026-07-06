@@ -202,6 +202,55 @@ def check_workflow_action_usage(
             require_contains(text, action.strip(), label, errors)
 
 
+def workflow_top_level_mapping(text: str, section_name: str) -> dict[str, str]:
+    match = re.search(rf"^{re.escape(section_name)}:\n(.*?)(?=^[A-Za-z0-9_-]+:|\Z)", text, re.DOTALL | re.MULTILINE)
+    if not match:
+        return {}
+
+    values: dict[str, str] = {}
+    for line in match.group(1).splitlines():
+        item_match = re.match(r"^  ([A-Za-z0-9_-]+):\s*(.*?)\s*$", line)
+        if item_match:
+            values[item_match.group(1)] = unquote_workflow_value(item_match.group(2))
+    return values
+
+
+def workflow_permissions(text: str) -> dict[str, str]:
+    return workflow_top_level_mapping(text, "permissions")
+
+
+def check_workflow_permissions(
+    workflow_permissions_metadata: object,
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    if not isinstance(workflow_permissions_metadata, dict):
+        return
+
+    for workflow_name, (label, text) in workflow_texts.items():
+        raw_permissions = workflow_permissions_metadata.get(workflow_name)
+        if not isinstance(raw_permissions, dict):
+            continue
+        expected_permissions = {
+            str(scope).strip(): str(access).strip()
+            for scope, access in raw_permissions.items()
+            if str(scope).strip() and str(access).strip()
+        }
+        actual_permissions = workflow_permissions(text)
+        missing_scopes = [scope for scope in expected_permissions if scope not in actual_permissions]
+        extra_scopes = [scope for scope in actual_permissions if scope not in expected_permissions]
+        if missing_scopes:
+            errors.append(f"{label} permissions are missing product metadata scopes: {', '.join(missing_scopes)}")
+        if extra_scopes:
+            errors.append(f"{label} permissions contain scopes missing from product metadata: {', '.join(extra_scopes)}")
+        for scope, expected_access in expected_permissions.items():
+            actual_access = actual_permissions.get(scope)
+            if actual_access is not None and actual_access != expected_access:
+                errors.append(
+                    f"{label} permissions.{scope} must be {expected_access!r}, found {actual_access!r}"
+                )
+
+
 def workflow_job_ids(text: str) -> list[str]:
     match = re.search(r"^jobs:\n(.*?)(?=^[A-Za-z0-9_-]+:|\Z)", text, re.DOTALL | re.MULTILINE)
     if not match:
@@ -934,18 +983,7 @@ def check_workflows(product: dict, errors: list[str]) -> None:
         release_workflow_name = str(workflow_names.get("release", "")).strip()
         if release_workflow_name:
             require_contains(docs_workflow, f'workflows: ["{release_workflow_name}"]', ".github/workflows/docs.yml", errors)
-    if isinstance(workflow_permissions, dict):
-        for workflow, raw_permissions in workflow_permissions.items():
-            workflow_name = str(workflow).strip()
-            if workflow_name not in workflow_texts or not isinstance(raw_permissions, dict):
-                continue
-            label, text = workflow_texts[workflow_name]
-            require_contains(text, "permissions:", label, errors)
-            for raw_scope, raw_access in raw_permissions.items():
-                scope = str(raw_scope).strip()
-                access = str(raw_access).strip()
-                if scope and access:
-                    require_contains(text, f"  {scope}: {access}", label, errors)
+    check_workflow_permissions(workflow_permissions, workflow_texts, errors)
     for label, text in (
         (".github/workflows/docs.yml", docs_workflow),
         (".github/workflows/release.yml", release_workflow),

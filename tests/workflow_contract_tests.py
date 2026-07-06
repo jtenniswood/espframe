@@ -16,6 +16,7 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_events,
     check_workflow_job_dependency_usage,
     check_workflow_jobs,
+    check_workflow_permissions,
     check_workflow_path_filters,
     normalize_workflow_condition,
     workflow_event_names,
@@ -25,6 +26,7 @@ from product_contract.workflows import (  # noqa: E402
     workflow_job_condition,
     workflow_job_ids,
     workflow_job_needs,
+    workflow_permissions,
 )
 from product_contract.project_release_metadata import (  # noqa: E402
     check_release_workflow_actions,
@@ -134,6 +136,23 @@ jobs:
 """
 
 
+PERMISSION_WORKFLOW = """\
+name: Example
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+"""
+
+
 def test_workflow_job_block_finds_exact_job() -> None:
     errors: list[str] = []
     block = workflow_job_block(WORKFLOW, "folded", "example.yml", errors)
@@ -199,6 +218,36 @@ def test_workflow_job_dependency_usage_rejects_drift_from_product_metadata() -> 
         "example.yml job inline needs contain dependencies missing from product metadata: test",
         "example.yml job block needs are missing from product metadata: build, test",
         "example.yml job untracked needs are missing from product metadata: scalar",
+    ]
+
+
+def test_workflow_permissions_reads_top_level_permissions() -> None:
+    assert workflow_permissions(PERMISSION_WORKFLOW) == {
+        "contents": "read",
+        "pages": "write",
+        "id-token": "write",
+    }
+    assert workflow_permissions("name: Missing Permissions\n") == {}
+
+
+def test_workflow_permissions_reject_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    check_workflow_permissions(
+        {
+            "docs": {
+                "contents": "read",
+                "pages": "read",
+                "actions": "read",
+            }
+        },
+        {"docs": ("docs.yml", PERMISSION_WORKFLOW)},
+        errors,
+    )
+
+    assert errors == [
+        "docs.yml permissions are missing product metadata scopes: actions",
+        "docs.yml permissions contain scopes missing from product metadata: id-token",
+        "docs.yml permissions.pages must be 'read', found 'write'",
     ]
 
 
@@ -478,6 +527,8 @@ def main() -> int:
     test_workflow_jobs_reject_drift_from_product_metadata()
     test_workflow_job_needs_reads_supported_forms()
     test_workflow_job_dependency_usage_rejects_drift_from_product_metadata()
+    test_workflow_permissions_reads_top_level_permissions()
+    test_workflow_permissions_reject_drift_from_product_metadata()
     test_workflow_job_condition_handles_supported_forms()
     test_normalize_workflow_condition_collapses_whitespace()
     test_release_workflow_actions_require_expected_keys()
