@@ -93,7 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--compile",
         action="store_true",
-        help="Also compile factory firmware with ESPHome Docker before passing release readiness.",
+        help="Also compile factory and OTA firmware with ESPHome Docker before passing release readiness.",
     )
     return parser
 
@@ -102,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(sys.argv[1:] if argv is None else argv)
     print("Espframe release-readiness check")
     if args.compile:
-        print("This runs the normal local gate plus ESPHome factory compile.")
+        print("This runs the normal local gate plus ESPHome factory and OTA firmware compile.")
     else:
         print("This runs the normal local gate. Use --compile before firmware releases.")
     passed = run(["npm", "run", "check:all"], "Local validation gate")

@@ -33,6 +33,10 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
             errors.append("package.json check:compat must run scripts/check_compatibility.py")
         if scripts.get("check:firmware-fields") != "python3 scripts/check_firmware_fields.py":
             errors.append("package.json check:firmware-fields must run scripts/check_firmware_fields.py")
+        if scripts.get("check:release-ready") != "python3 scripts/check_release_ready.py":
+            errors.append("package.json check:release-ready must run scripts/check_release_ready.py")
+        if scripts.get("check:release-ready-with-compile") != "python3 scripts/check_release_ready.py --compile":
+            errors.append("package.json check:release-ready-with-compile must run scripts/check_release_ready.py --compile")
         if scripts.get("test:web-compat") != "node tests/web_compat_tests.js":
             errors.append("package.json test:web-compat must run tests/web_compat_tests.js")
         if scripts.get("test:web-modules") != "node tests/web_module_tests.js":
@@ -99,6 +103,11 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
             scenario_id = str(scenario).strip()
             if scenario_id:
                 require_contains(smoke_test, f'name: "{scenario_id}"', "tests/web_smoke_tests.js", errors)
+
+    release_ready = read(ROOT / "scripts" / "check_release_ready.py", errors)
+    require_contains(release_ready, "ESPHome factory compile", "scripts/check_release_ready.py", errors)
+    require_contains(release_ready, "ESPHome OTA compile", "scripts/check_release_ready.py", errors)
+    require_contains(release_ready, "factory and OTA firmware", "scripts/check_release_ready.py", errors)
 
 
 def check_license_metadata(product: dict, errors: list[str]) -> None:
