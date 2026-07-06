@@ -498,6 +498,43 @@ jobs:
 """
 
 
+RELEASE_BUILD_RUN_WORKFLOW = """\
+name: Example
+
+jobs:
+  build-firmware:
+    name: Build Firmware
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compile firmware
+        run: |
+          mkdir -p output
+          if [ ! -f "${BUILD_DIR}/wrong.factory.bin" ]; then
+            echo "::error::Firmware compilation failed - factory binary not found"
+            exit 1
+          fi
+          sudo cp "${BUILD_DIR}/wrong.factory.bin" "output/${{ matrix.slug }}.factory.bin"
+
+          docker run ${ESPHOME_DOCKER_REMOVE_FLAG} \
+            -s firmware_version "${VERSION}" \
+            compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml"
+
+      - name: Collect firmware files and generate manifest
+        run: |
+          mkdir -p output
+          if [ ! -f "${BUILD_DIR}/firmware.bin" ]; then
+            echo "::error::Firmware compilation failed - OTA binary not found"
+            exit 1
+          fi
+          sudo cp "${BUILD_DIR}/firmware.bin" "output/${{ matrix.slug }}.ota.bin"
+
+          python3 scripts/firmware_release.py manifest \
+            --version "${VERSION}" \
+            --ota "output/${{ matrix.slug }}.ota.bin" \
+            --out "output/${{ matrix.slug }}.manifest.json"
+"""
+
+
 RUN_COMMAND_WORKFLOW = """\
 name: Example
 
@@ -1030,6 +1067,45 @@ def test_workflow_named_step_run_contains_rejects_drift_from_product_metadata() 
             '\'--notes-file "$RUNNER_TEMP/release-notes.md"\''
         ),
         "release.yml job build-firmware is missing step 'Collect firmware files and generate manifest'",
+    ]
+
+
+def test_workflow_named_step_run_contains_checks_firmware_build_steps() -> None:
+    errors: list[str] = []
+    workflow_texts = {"release": ("release.yml", RELEASE_BUILD_RUN_WORKFLOW)}
+
+    check_workflow_named_step_run_contains(
+        "release.build-firmware",
+        "Compile firmware",
+        [
+            '"${BUILD_DIR}/firmware.factory.bin"',
+            '"output/${{ matrix.slug }}.factory.bin"',
+            '-s firmware_version "${VERSION}"',
+        ],
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_run_contains(
+        "release.build-firmware",
+        "Collect firmware files and generate manifest",
+        [
+            '"${BUILD_DIR}/firmware.bin"',
+            '"output/${{ matrix.slug }}.manifest.json"',
+            '--factory "output/${{ matrix.slug }}.factory.bin"',
+        ],
+        workflow_texts,
+        errors,
+    )
+
+    assert errors == [
+        (
+            "release.yml job build-firmware step 'Compile firmware' run is missing "
+            "'\"${BUILD_DIR}/firmware.factory.bin\"'"
+        ),
+        (
+            "release.yml job build-firmware step 'Collect firmware files and generate manifest' "
+            "run is missing '--factory \"output/${{ matrix.slug }}.factory.bin\"'"
+        ),
     ]
 
 
@@ -1672,6 +1748,7 @@ def main() -> int:
     test_workflow_action_step_inputs_rejects_drift_from_product_metadata()
     test_workflow_named_step_env_rejects_drift_from_product_metadata()
     test_workflow_named_step_run_contains_rejects_drift_from_product_metadata()
+    test_workflow_named_step_run_contains_checks_firmware_build_steps()
     test_workflow_job_run_command_rejects_drift_from_product_metadata()
     test_workflow_job_outputs_reads_job_outputs()
     test_workflow_job_outputs_rejects_drift_from_product_metadata()

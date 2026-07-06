@@ -1437,27 +1437,59 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             errors,
         )
     if release_build_output_dir:
-        for needle in (
-            f"mkdir -p {release_build_output_dir}",
-            f'"{release_build_output_dir}/${{{{ matrix.slug }}}}.factory.bin"',
-            f'"{release_build_output_dir}/${{{{ matrix.slug }}}}.ota.bin"',
-            f'"{release_build_output_dir}/${{{{ matrix.slug }}}}.manifest.json"',
-        ):
-            require_contains(release_workflow, needle, ".github/workflows/release.yml", errors)
+        check_workflow_named_step_run_contains(
+            "release.build-firmware",
+            "Compile firmware",
+            [
+                f"mkdir -p {release_build_output_dir}",
+                f'"{release_build_output_dir}/${{{{ matrix.slug }}}}.factory.bin"',
+            ],
+            workflow_texts,
+            errors,
+        )
+        check_workflow_named_step_run_contains(
+            "release.build-firmware",
+            "Collect firmware files and generate manifest",
+            [
+                f"mkdir -p {release_build_output_dir}",
+                f'"{release_build_output_dir}/${{{{ matrix.slug }}}}.ota.bin"',
+                f'"{release_build_output_dir}/${{{{ matrix.slug }}}}.manifest.json"',
+            ],
+            workflow_texts,
+            errors,
+        )
     if release_source_factory_binary:
-        for needle in (
-            f'"${{BUILD_DIR}}/{release_source_factory_binary}"',
-            f"factory binary not found",
-        ):
-            require_contains(release_workflow, needle, ".github/workflows/release.yml", errors)
+        check_workflow_named_step_run_contains(
+            "release.build-firmware",
+            "Compile firmware",
+            [
+                f'"${{BUILD_DIR}}/{release_source_factory_binary}"',
+                "factory binary not found",
+            ],
+            workflow_texts,
+            errors,
+        )
     if release_source_ota_binary:
-        for needle in (
-            '-s firmware_version "${VERSION}"',
-            'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml"',
-            f'"${{BUILD_DIR}}/{release_source_ota_binary}"',
-            f"OTA binary not found",
-        ):
-            require_contains(release_workflow, needle, ".github/workflows/release.yml", errors)
+        check_workflow_named_step_run_contains(
+            "release.build-firmware",
+            "Compile firmware",
+            [
+                '-s firmware_version "${VERSION}"',
+                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml"',
+            ],
+            workflow_texts,
+            errors,
+        )
+        check_workflow_named_step_run_contains(
+            "release.build-firmware",
+            "Collect firmware files and generate manifest",
+            [
+                f'"${{BUILD_DIR}}/{release_source_ota_binary}"',
+                "OTA binary not found",
+            ],
+            workflow_texts,
+            errors,
+        )
     if release_publish_dir:
         for needle in (
             f"--dir {release_publish_dir}",
