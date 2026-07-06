@@ -13,6 +13,7 @@ from tempfile import TemporaryDirectory
 from threading import Thread
 
 import firmware_release
+from script_test_discovery import run_discovered_tests
 
 
 SLUG = "demo-panel"
@@ -306,17 +307,7 @@ def test_public_pages_verification() -> None:
 
 
 def main() -> int:
-    test_valid_files_and_directory()
-    test_inject_replaces_factory_placeholder()
-    test_short_version_fails()
-    test_placeholder_fails()
-    test_unrelated_placeholder_strings_pass()
-    test_project_log_without_api_metadata_passes()
-    test_wrong_manifest_version_fails()
-    test_wrong_md5_fails()
-    test_missing_asset_fails()
-    test_wrong_slug_path_fails()
-    test_public_pages_verification()
+    run_discovered_tests(globals())
     print("Firmware release helper tests passed.")
     return 0
 

@@ -8,6 +8,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import release_changelog
+from script_test_discovery import run_discovered_tests
 
 
 def git(repo: Path, *args: str) -> str:
@@ -116,9 +117,7 @@ def test_bad_range_fails() -> None:
 
 
 def main() -> int:
-    test_future_release_uses_latest_stable_tag()
-    test_existing_tag_uses_previous_stable_tag()
-    test_bad_range_fails()
+    run_discovered_tests(globals())
     print("Release changelog tests passed.")
     return 0
 
