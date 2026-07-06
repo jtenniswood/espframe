@@ -613,6 +613,33 @@ jobs:
 """
 
 
+COMPILE_ARTIFACT_RUN_WORKFLOW = """\
+name: Example
+
+jobs:
+  compile:
+    name: Compile Firmware
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compile test firmware artifacts
+        run: |
+          TEST_VERSION="pr-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -p output
+
+          docker run ${ESPHOME_DOCKER_REMOVE_FLAG} \
+            -s firmware_version "${TEST_VERSION}" \
+            compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml"
+
+          sudo cp "${BUILD_DIR}/firmware.factory.bin" "output/${{ matrix.slug }}.factory.bin"
+          sudo cp "${BUILD_DIR}/firmware.bin" "wrong/${{ matrix.slug }}.ota.bin"
+
+          {
+            echo "version=${TEST_VERSION}"
+            echo "source_ref=${GITHUB_REF_NAME}"
+          } > "output/${{ matrix.slug }}.build.txt"
+"""
+
+
 RUN_COMMAND_WORKFLOW = """\
 name: Example
 
@@ -1336,6 +1363,37 @@ def test_workflow_named_step_helpers_check_cache_metadata() -> None:
     ]
 
 
+def test_workflow_named_step_run_contains_checks_compile_artifact_step() -> None:
+    errors: list[str] = []
+    workflow_texts = {"compile": ("compile.yml", COMPILE_ARTIFACT_RUN_WORKFLOW)}
+
+    check_workflow_named_step_run_contains(
+        "compile.compile",
+        "Compile test firmware artifacts",
+        [
+            'TEST_VERSION="pr-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
+            '-s firmware_version "${TEST_VERSION}"',
+            "mkdir -p output",
+            '"output/${{ matrix.slug }}.factory.bin"',
+            '"output/${{ matrix.slug }}.ota.bin"',
+            '"output/${{ matrix.slug }}.version.txt"',
+        ],
+        workflow_texts,
+        errors,
+    )
+
+    assert errors == [
+        (
+            "compile.yml job compile step 'Compile test firmware artifacts' run is missing "
+            "'\"output/${{ matrix.slug }}.ota.bin\"'"
+        ),
+        (
+            "compile.yml job compile step 'Compile test firmware artifacts' run is missing "
+            "'\"output/${{ matrix.slug }}.version.txt\"'"
+        ),
+    ]
+
+
 def test_workflow_job_run_command_rejects_drift_from_product_metadata() -> None:
     errors: list[str] = []
     workflow_texts = {
@@ -1978,6 +2036,7 @@ def main() -> int:
     test_workflow_named_step_run_contains_checks_firmware_build_steps()
     test_workflow_named_step_run_contains_checks_publish_steps()
     test_workflow_named_step_helpers_check_cache_metadata()
+    test_workflow_named_step_run_contains_checks_compile_artifact_step()
     test_workflow_job_run_command_rejects_drift_from_product_metadata()
     test_workflow_job_outputs_reads_job_outputs()
     test_workflow_job_outputs_rejects_drift_from_product_metadata()

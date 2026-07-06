@@ -1688,21 +1688,29 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             errors,
         )
     if compile_firmware_output_dir:
-        for needle in (
-            f"mkdir -p {compile_firmware_output_dir}",
-            f'"{compile_firmware_output_dir}/${{{{ matrix.slug }}}}.factory.bin"',
-            f'"{compile_firmware_output_dir}/${{{{ matrix.slug }}}}.ota.bin"',
-            f'"{compile_firmware_output_dir}/${{{{ matrix.slug }}}}.version.txt"',
-        ):
-            require_contains(compile_workflow, needle, ".github/workflows/compile.yml", errors)
-    if compile_firmware_version_prefix:
-        require_contains(
-            compile_workflow,
-            f'TEST_VERSION="{compile_firmware_version_prefix}-${{GITHUB_RUN_ID}}-${{GITHUB_RUN_ATTEMPT}}"',
-            ".github/workflows/compile.yml",
+        check_workflow_named_step_run_contains(
+            "compile.compile",
+            "Compile test firmware artifacts",
+            [
+                f"mkdir -p {compile_firmware_output_dir}",
+                f'"{compile_firmware_output_dir}/${{{{ matrix.slug }}}}.factory.bin"',
+                f'"{compile_firmware_output_dir}/${{{{ matrix.slug }}}}.ota.bin"',
+                f'"{compile_firmware_output_dir}/${{{{ matrix.slug }}}}.version.txt"',
+            ],
+            workflow_texts,
             errors,
         )
-        require_contains(compile_workflow, '-s firmware_version "${TEST_VERSION}"', ".github/workflows/compile.yml", errors)
+    if compile_firmware_version_prefix:
+        check_workflow_named_step_run_contains(
+            "compile.compile",
+            "Compile test firmware artifacts",
+            [
+                f'TEST_VERSION="{compile_firmware_version_prefix}-${{GITHUB_RUN_ID}}-${{GITHUB_RUN_ATTEMPT}}"',
+                '-s firmware_version "${TEST_VERSION}"',
+            ],
+            workflow_texts,
+            errors,
+        )
     for pattern in binary_download_patterns:
         require_contains(docs_workflow, f'--pattern "{pattern}"', ".github/workflows/docs.yml", errors)
     for pattern in manifest_download_patterns:
