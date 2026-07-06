@@ -12,7 +12,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from product_contract.workflows import (  # noqa: E402
     check_workflow_action_usage,
+    check_workflow_path_filters,
     normalize_workflow_condition,
+    workflow_event_path_filters,
     workflow_job_block,
     workflow_job_condition,
 )
@@ -51,6 +53,19 @@ jobs:
   unconditional:
     name: No Condition
     runs-on: ubuntu-latest
+"""
+
+
+PATH_WORKFLOW = """\
+name: Example
+
+on:
+  pull_request:
+    paths:
+      - "components/**"
+      - 'docs/**'
+      - scripts/**
+  workflow_dispatch:
 """
 
 
@@ -156,6 +171,52 @@ def test_workflow_action_usage_checks_expected_workflows() -> None:
     ]
 
 
+def test_workflow_event_path_filters_reads_quoted_paths() -> None:
+    assert workflow_event_path_filters(PATH_WORKFLOW, "pull_request") == [
+        "components/**",
+        "docs/**",
+        "scripts/**",
+    ]
+    assert workflow_event_path_filters(PATH_WORKFLOW, "workflow_dispatch") == []
+    assert workflow_event_path_filters(PATH_WORKFLOW, "missing") == []
+
+
+def test_workflow_path_filters_reject_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    workflow_texts = {
+        ".github/workflows/compile.yml": """\
+on:
+  pull_request:
+    paths:
+      - "components/**"
+      - "tests/**"
+  workflow_dispatch:
+""",
+        ".github/workflows/docs.yml": """\
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+  workflow_dispatch:
+""",
+    }
+
+    check_workflow_path_filters(
+        {
+            "compile_pull_request": ["components/**"],
+            "docs_push": ["docs/**", "product/**"],
+        },
+        workflow_texts,
+        errors,
+    )
+
+    assert errors == [
+        ".github/workflows/compile.yml pull_request paths contain filters missing from product metadata: tests/**",
+        ".github/workflows/docs.yml push paths are missing product filters: product/**",
+    ]
+
+
 def test_workflow_event_index_normalizes_declared_events() -> None:
     configured_events = workflow_event_index(
         {
@@ -232,6 +293,8 @@ def main() -> int:
     test_normalize_workflow_condition_collapses_whitespace()
     test_release_workflow_actions_require_expected_keys()
     test_workflow_action_usage_checks_expected_workflows()
+    test_workflow_event_path_filters_reads_quoted_paths()
+    test_workflow_path_filters_reject_drift_from_product_metadata()
     test_workflow_event_index_normalizes_declared_events()
     test_workflow_event_types_reject_unknown_events()
     test_workflow_job_index_normalizes_declared_jobs()

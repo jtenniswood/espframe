@@ -822,6 +822,7 @@
         "product/**",
         "scripts/**",
         "tests/**",
+        ".agents/**",
         ".github/workflows/**"
       ],
       "docs_push": [

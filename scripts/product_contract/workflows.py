@@ -9,12 +9,6 @@ from product_contract.common import ROOT, check_relative_path, read, rel, requir
 from product_config import public_base_url, release_matrix_devices
 
 
-def require_workflow_path_filter(text: str, path: str, label: str, errors: list[str]) -> None:
-    needles = (f'- "{path}"', f"- '{path}'", f"- {path}")
-    if not any(needle in text for needle in needles):
-        errors.append(f"{label} is missing workflow path filter {path!r}")
-
-
 def require_workflow_needs(text: str, dependencies: list[str], label: str, errors: list[str]) -> None:
     if len(dependencies) == 1:
         needle = f"    needs: {dependencies[0]}"
@@ -32,6 +26,64 @@ WORKFLOW_ACTION_TARGETS = {
     "upload_artifact": (".github/workflows/release.yml", ".github/workflows/docs.yml", ".github/workflows/compile.yml"),
     "upload_pages_artifact": (".github/workflows/docs.yml",),
 }
+
+
+WORKFLOW_PATH_FILTER_TARGETS = {
+    "compile_pull_request": (".github/workflows/compile.yml", "pull_request"),
+    "docs_push": (".github/workflows/docs.yml", "push"),
+}
+
+
+def unquote_workflow_value(value: str) -> str:
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+        return value[1:-1]
+    return value
+
+
+def workflow_event_path_filters(text: str, event_name: str) -> list[str]:
+    match = re.search(rf"^  {re.escape(event_name)}:\n(.*?)(?=^  [A-Za-z0-9_-]+:|\Z)", text, re.DOTALL | re.MULTILINE)
+    if not match:
+        return []
+
+    filters: list[str] = []
+    in_paths = False
+    for line in match.group(1).splitlines():
+        if line == "    paths:":
+            in_paths = True
+            continue
+        if not in_paths:
+            continue
+        if line.startswith("      - "):
+            filters.append(unquote_workflow_value(line.removeprefix("      - ")))
+            continue
+        if line.strip() and not line.startswith("      "):
+            break
+    return filters
+
+
+def check_workflow_path_filters(
+    workflow_path_filters: object,
+    workflow_texts: dict[str, str],
+    errors: list[str],
+) -> None:
+    if not isinstance(workflow_path_filters, dict):
+        return
+
+    for filter_set, (label, event_name) in WORKFLOW_PATH_FILTER_TARGETS.items():
+        raw_paths = workflow_path_filters.get(filter_set)
+        if not isinstance(raw_paths, list):
+            continue
+        expected_paths = [str(path).strip() for path in raw_paths if str(path).strip()]
+        actual_paths = workflow_event_path_filters(workflow_texts.get(label, ""), event_name)
+        missing_paths = [path for path in expected_paths if path not in actual_paths]
+        extra_paths = [path for path in actual_paths if path not in expected_paths]
+        if missing_paths:
+            errors.append(f"{label} {event_name} paths are missing product filters: {', '.join(missing_paths)}")
+        if extra_paths:
+            errors.append(
+                f"{label} {event_name} paths contain filters missing from product metadata: {', '.join(extra_paths)}"
+            )
 
 
 def check_workflow_action_usage(
@@ -634,13 +686,14 @@ def check_workflows(product: dict, errors: list[str]) -> None:
     if default_branch:
         require_contains(docs_workflow, f"branches: [{default_branch}]", ".github/workflows/docs.yml", errors)
     workflow_path_filters = project.get("github_workflow_path_filters", {})
-    if isinstance(workflow_path_filters, dict):
-        for path in workflow_path_filters.get("compile_pull_request", []):
-            if isinstance(path, str) and path.strip():
-                require_workflow_path_filter(compile_workflow, path.strip(), ".github/workflows/compile.yml", errors)
-        for path in workflow_path_filters.get("docs_push", []):
-            if isinstance(path, str) and path.strip():
-                require_workflow_path_filter(docs_workflow, path.strip(), ".github/workflows/docs.yml", errors)
+    check_workflow_path_filters(
+        workflow_path_filters,
+        {
+            ".github/workflows/compile.yml": compile_workflow,
+            ".github/workflows/docs.yml": docs_workflow,
+        },
+        errors,
+    )
     workflow_texts = {
         "compile": (".github/workflows/compile.yml", compile_workflow),
         "docs": (".github/workflows/docs.yml", docs_workflow),
