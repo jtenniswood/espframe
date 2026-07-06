@@ -202,6 +202,34 @@ def check_workflow_action_usage(
             require_contains(text, action.strip(), label, errors)
 
 
+def workflow_top_level_value(text: str, field_name: str) -> str:
+    match = re.search(rf"^{re.escape(field_name)}:\s*(.*?)\s*$", text, re.MULTILINE)
+    return unquote_workflow_value(match.group(1)) if match else ""
+
+
+def workflow_display_name(text: str) -> str:
+    return workflow_top_level_value(text, "name")
+
+
+def check_workflow_names(
+    workflow_names_metadata: object,
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    if not isinstance(workflow_names_metadata, dict):
+        return
+
+    for workflow_name, (label, text) in workflow_texts.items():
+        expected_name = str(workflow_names_metadata.get(workflow_name, "")).strip()
+        if not expected_name:
+            continue
+        actual_name = workflow_display_name(text)
+        if not actual_name:
+            errors.append(f"{label} is missing top-level workflow name")
+        elif actual_name != expected_name:
+            errors.append(f"{label} name must be {expected_name!r}, found {actual_name!r}")
+
+
 def workflow_top_level_mapping(text: str, section_name: str) -> dict[str, str]:
     match = re.search(rf"^{re.escape(section_name)}:\n(.*?)(?=^[A-Za-z0-9_-]+:|\Z)", text, re.DOTALL | re.MULTILINE)
     if not match:
@@ -973,13 +1001,7 @@ def check_workflows(product: dict, errors: list[str]) -> None:
     workflow_permissions = project.get("github_workflow_permissions", {})
     workflow_names = project.get("github_workflow_names", {})
     if isinstance(workflow_names, dict):
-        for workflow, raw_name in workflow_names.items():
-            workflow_name = str(workflow).strip()
-            name = str(raw_name).strip()
-            if workflow_name not in workflow_texts or not name:
-                continue
-            label, text = workflow_texts[workflow_name]
-            require_contains(text, f"name: {name}", label, errors)
+        check_workflow_names(workflow_names, workflow_texts, errors)
         release_workflow_name = str(workflow_names.get("release", "")).strip()
         if release_workflow_name:
             require_contains(docs_workflow, f'workflows: ["{release_workflow_name}"]', ".github/workflows/docs.yml", errors)

@@ -16,9 +16,11 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_events,
     check_workflow_job_dependency_usage,
     check_workflow_jobs,
+    check_workflow_names,
     check_workflow_permissions,
     check_workflow_path_filters,
     normalize_workflow_condition,
+    workflow_display_name,
     workflow_event_names,
     workflow_event_path_filters,
     workflow_event_type_filters,
@@ -248,6 +250,34 @@ def test_workflow_permissions_reject_drift_from_product_metadata() -> None:
         "docs.yml permissions are missing product metadata scopes: actions",
         "docs.yml permissions contain scopes missing from product metadata: id-token",
         "docs.yml permissions.pages must be 'read', found 'write'",
+    ]
+
+
+def test_workflow_display_name_reads_top_level_name() -> None:
+    assert workflow_display_name('name: "Compile Check"\n') == "Compile Check"
+    assert workflow_display_name("name: Deploy Docs\n") == "Deploy Docs"
+    assert workflow_display_name("jobs:\n") == ""
+
+
+def test_workflow_names_reject_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    check_workflow_names(
+        {
+            "compile": "Compile Check",
+            "docs": "Deploy Docs",
+            "release": "Build Release",
+        },
+        {
+            "compile": (".github/workflows/compile.yml", 'name: "Compile Check"\n'),
+            "docs": (".github/workflows/docs.yml", "name: Wrong Docs\n"),
+            "release": (".github/workflows/release.yml", "on:\n  workflow_dispatch:\n"),
+        },
+        errors,
+    )
+
+    assert errors == [
+        ".github/workflows/docs.yml name must be 'Deploy Docs', found 'Wrong Docs'",
+        ".github/workflows/release.yml is missing top-level workflow name",
     ]
 
 
@@ -529,6 +559,8 @@ def main() -> int:
     test_workflow_job_dependency_usage_rejects_drift_from_product_metadata()
     test_workflow_permissions_reads_top_level_permissions()
     test_workflow_permissions_reject_drift_from_product_metadata()
+    test_workflow_display_name_reads_top_level_name()
+    test_workflow_names_reject_drift_from_product_metadata()
     test_workflow_job_condition_handles_supported_forms()
     test_normalize_workflow_condition_collapses_whitespace()
     test_release_workflow_actions_require_expected_keys()
