@@ -120,6 +120,7 @@ def validate_fixture(
     if isinstance(photos, dict):
         for key, setting_key in (
             ("source", "photo_source"),
+            ("album_order", "album_order"),
             ("date_filter_mode", "date_filter_mode"),
             ("relative_unit", "relative_unit"),
             ("orientation", "photo_orientation"),

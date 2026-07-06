@@ -116,6 +116,7 @@ def fixture_validation_errors(data: dict[str, Any], product: dict[str, Any]) -> 
     if isinstance(photos, dict):
         for backup_key, setting_key in (
             ("source", "photo_source"),
+            ("album_order", "album_order"),
             ("date_filter_mode", "date_filter_mode"),
             ("relative_unit", "relative_unit"),
             ("orientation", "photo_orientation"),
@@ -147,8 +148,20 @@ def check_accepted_fixture_group_coverage(
     product: dict[str, Any],
     errors: list[str],
 ) -> None:
-    expected_groups = {str(group) for group in product["project"].get("backup_export_groups", [])}
+    project = product["project"]
+    backup_export_groups = [str(group) for group in project.get("backup_export_groups", [])]
+    backup_export_fields = project.get("backup_export_fields", {})
+    if not isinstance(backup_export_fields, dict):
+        backup_export_fields = {}
+
+    expected_groups = set(backup_export_groups)
+    expected_fields_by_group = {
+        str(group): {str(field) for field in fields}
+        for group, fields in backup_export_fields.items()
+        if isinstance(fields, list)
+    }
     covered_groups: set[str] = set()
+    covered_fields_by_group: dict[str, set[str]] = {group: set() for group in expected_groups}
     for raw_path in accepted_paths:
         path = ROOT / str(raw_path)
         data = load_json(path, errors)
@@ -158,12 +171,28 @@ def check_accepted_fixture_group_coverage(
             value = data.get(group)
             if isinstance(value, dict) and value:
                 covered_groups.add(group)
+                covered_fields_by_group.setdefault(group, set()).update(
+                    str(field) for field in value if str(field) in expected_fields_by_group.get(group, set())
+                )
 
     missing_groups = sorted(expected_groups - covered_groups)
     if missing_groups:
         errors.append(
             "Accepted compatibility fixtures must cover every backup group; missing: "
             + ", ".join(missing_groups)
+        )
+    missing_fields: list[str] = []
+    for group in backup_export_groups:
+        expected_fields = expected_fields_by_group.get(group, set())
+        covered_fields = covered_fields_by_group.get(group, set())
+        for field in backup_export_fields.get(group, []):
+            field_name = str(field)
+            if field_name in expected_fields and field_name not in covered_fields:
+                missing_fields.append(f"{group}.{field_name}")
+    if missing_fields:
+        errors.append(
+            "Accepted compatibility fixtures must cover every backup field; missing: "
+            + ", ".join(missing_fields)
         )
 
 

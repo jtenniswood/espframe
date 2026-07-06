@@ -2,6 +2,7 @@
   "version": 1,
   "photos": {
     "source": "Memories",
+    "album_order": "Album list order",
     "album_ids": "11111111-1111-4111-8111-111111111111",
     "album_labels": "Family",
     "person_ids": "22222222-2222-4222-8222-222222222222",
