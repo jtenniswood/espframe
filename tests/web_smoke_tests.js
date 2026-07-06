@@ -165,6 +165,7 @@ const scenarios = [
   { name: "settings", configured: true, width: 1280, height: 900 },
   { name: "settings-mobile", configured: true, width: 390, height: 900 },
   { name: "photo-source-reorder", configured: true, width: 1280, height: 900 },
+  { name: "screen-rotation-developer", configured: true, width: 1280, height: 900, query: "dev=experimental" },
   { name: "backup-import-success", configured: true, width: 1280, height: 900, importFixture: validBackupFixture },
   { name: "backup-import-partial", configured: true, width: 1280, height: 900, importFixture: partialBackupFixture },
   { name: "backup-import-rejected", configured: true, width: 1280, height: 900, importFixture: rejectedBackupFixture },
@@ -428,11 +429,36 @@ function smokeAssertionsForScenario(scenario) {
         select.value = value;
         select.dispatchEvent(new Event("change", { bubbles: true }));
       }
+      function requireSelectIncludes(labelText, values) {
+        const select = selectByLabel(labelText);
+        values.forEach((value) => {
+          if (!Array.from(select.options).some((option) => option.value === value)) {
+            throw new Error(labelText + " is missing option: " + value);
+          }
+        });
+      }
+      function requireSelectExcludes(labelText, values) {
+        const select = selectByLabel(labelText);
+        values.forEach((value) => {
+          if (Array.from(select.options).some((option) => option.value === value)) {
+            throw new Error(labelText + " should not include option: " + value);
+          }
+        });
+      }
       function fieldByLabel(labelText) {
         const labels = Array.from(document.querySelectorAll("label"));
         const label = labels.find((item) => item.textContent.trim() === labelText);
         if (!label || !label.parentElement) throw new Error("Field not found: " + labelText);
         return label.parentElement;
+      }
+      function toggleByText(text) {
+        const row = Array.from(document.querySelectorAll(".toggle-row")).find((item) =>
+          Array.from(item.querySelectorAll("span")).some((span) => span.textContent.trim() === text)
+        );
+        if (!row) throw new Error("Toggle not found: " + text);
+        const toggle = row.querySelector(".toggle");
+        if (!toggle) throw new Error("Toggle control not found: " + text);
+        return toggle;
       }
       function photoRows(labelText) {
         return Array.from(fieldByLabel(labelText).querySelectorAll(".photo-id-row"));
@@ -492,6 +518,50 @@ function smokeAssertionsForScenario(scenario) {
           }
         }, 8000, "album reorder save");
       }
+      async function requireScreenRotationDeveloperFlow() {
+        clickTab("Device");
+        await waitFor(() => pageText().indexOf("Rotation") !== -1, 8000, "device settings");
+        requireText("Screen Brightness");
+        requireText("Developer");
+        requireText("Enable in-development features");
+
+        requireSelectIncludes("Rotation", ["0", "180"]);
+        requireSelectExcludes("Rotation", ["90", "270"]);
+
+        toggleByText("Enable in-development features").click();
+        await waitFor(() => {
+          try {
+            requirePostContains("Developer features enable", "Developer: Features", "turn_on");
+            requireSelectIncludes("Rotation", ["0", "90", "180", "270"]);
+            return true;
+          } catch (_) {
+            return false;
+          }
+        }, 8000, "developer rotation options");
+
+        setSelect("Rotation", "90");
+        await waitFor(() => {
+          try {
+            requireLatestPostValue("Portrait rotation", "Screen: Rotation", "90");
+            return window.__smoke.posts.some((url) => url.indexOf("Photos: Portrait Pairing") !== -1 && url.indexOf("turn_off") !== -1);
+          } catch (_) {
+            return false;
+          }
+        }, 8000, "portrait rotation save");
+
+        toggleByText("Enable in-development features").click();
+        await waitFor(() => {
+          try {
+            requirePostContains("Developer features disable", "Developer: Features", "turn_off");
+            requireLatestPostValue("Rotation reset", "Screen: Rotation", "0");
+            requireSelectIncludes("Rotation", ["0", "180"]);
+            requireSelectExcludes("Rotation", ["90", "270"]);
+            return true;
+          } catch (_) {
+            return false;
+          }
+        }, 8000, "developer rotation reset");
+      }
 
       try {
         if (${JSON.stringify(scenario.name)} === "wizard") {
@@ -536,6 +606,10 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "photo-source-reorder") {
             await requireAlbumReorderSave();
+          }
+
+          if (${JSON.stringify(scenario.name)} === "screen-rotation-developer") {
+            await requireScreenRotationDeveloperFlow();
           }
 
           if (${JSON.stringify(scenario.name)} === "backup-import-success") {
@@ -675,6 +749,7 @@ async function runScenario(scenario) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "espframe-web-smoke-"));
   const htmlPath = path.join(tempDir, `${scenario.name}.html`);
   const userDataDir = path.join(tempDir, "chrome-profile");
+  const query = scenario.query ? `?${scenario.query}` : "";
   fs.writeFileSync(htmlPath, htmlForScenario(scenario));
   const result = await runChrome(
     [
@@ -692,7 +767,7 @@ async function runScenario(scenario) {
       `--window-size=${scenario.width},${scenario.height}`,
       "--virtual-time-budget=16000",
       "--dump-dom",
-      `file://${htmlPath}`,
+      `file://${htmlPath}${query}`,
     ],
     30000
   );
