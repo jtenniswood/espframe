@@ -15,6 +15,7 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_event_type_usage,
     check_workflow_events,
     check_workflow_concurrency,
+    check_workflow_gh_cli_env,
     check_workflow_job_dependency_usage,
     check_workflow_job_runner_usage,
     check_workflow_job_timeout_usage,
@@ -42,12 +43,17 @@ from product_contract.workflows import (  # noqa: E402
     workflow_job_display_name,
     workflow_job_ids,
     workflow_job_needs,
+    workflow_job_step_blocks,
     workflow_job_strategy_fail_fast,
     workflow_job_runs_on,
     workflow_job_timeout_minutes,
     workflow_permissions,
     workflow_sparse_checkout_blocks,
     workflow_sparse_checkout_entries,
+    workflow_step_display_name,
+    workflow_step_env,
+    workflow_step_run,
+    workflow_step_uses_gh_cli,
 )
 from product_contract.project_release_metadata import (  # noqa: E402
     check_release_workflow_actions,
@@ -358,6 +364,39 @@ jobs:
 """
 
 
+GH_CLI_WORKFLOW = """\
+name: Example
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release edit "$VERSION"
+
+      - name: Missing repo
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo start
+          gh release upload "$VERSION" firmware/*
+
+      - name: Wrong token
+        env:
+          GH_TOKEN: ${{ secrets.BAD_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          gh release download "$VERSION"
+
+      - name: Local shell
+        run: echo done
+"""
+
+
 def test_workflow_job_block_finds_exact_job() -> None:
     errors: list[str] = []
     block = workflow_job_block(WORKFLOW, "folded", "example.yml", errors)
@@ -560,6 +599,49 @@ jobs:
 
     assert errors == [
         "release.yml job build-firmware strategy is missing fail-fast",
+    ]
+
+
+def test_workflow_job_step_blocks_read_step_metadata() -> None:
+    errors: list[str] = []
+    job_block = workflow_job_block(GH_CLI_WORKFLOW, "release", "example.yml", errors)
+    step_blocks = workflow_job_step_blocks(job_block)
+
+    assert [workflow_step_display_name(block) for block in step_blocks] == [
+        "Update release notes",
+        "Missing repo",
+        "Wrong token",
+        "Local shell",
+    ]
+    assert workflow_step_env(step_blocks[0]) == {
+        "GH_TOKEN": "${{ github.token }}",
+        "GH_REPO": "${{ github.repository }}",
+    }
+    assert workflow_step_run(step_blocks[1]) == (
+        'echo start\ngh release upload "$VERSION" firmware/*'
+    )
+    assert workflow_step_uses_gh_cli(step_blocks[0]) is True
+    assert workflow_step_uses_gh_cli(step_blocks[3]) is False
+    assert errors == []
+
+
+def test_workflow_gh_cli_env_rejects_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    check_workflow_gh_cli_env(
+        {
+            "GH_TOKEN": "${{ github.token }}",
+            "GH_REPO": "${{ github.repository }}",
+        },
+        {"release": ("release.yml", GH_CLI_WORKFLOW)},
+        errors,
+    )
+
+    assert errors == [
+        "release.yml job release step 'Missing repo' env is missing GH_REPO",
+        (
+            "release.yml job release step 'Wrong token' env.GH_TOKEN "
+            "must be '${{ github.token }}', found '${{ secrets.BAD_TOKEN }}'"
+        ),
     ]
 
 
@@ -1111,6 +1193,8 @@ def main() -> int:
     test_workflow_job_timeout_usage_rejects_drift_from_product_metadata()
     test_workflow_job_strategy_fail_fast_reads_strategy_value()
     test_workflow_release_build_fail_fast_rejects_drift_from_product_metadata()
+    test_workflow_job_step_blocks_read_step_metadata()
+    test_workflow_gh_cli_env_rejects_drift_from_product_metadata()
     test_workflow_job_dependency_usage_rejects_drift_from_product_metadata()
     test_workflow_permissions_reads_top_level_permissions()
     test_workflow_permissions_reject_drift_from_product_metadata()

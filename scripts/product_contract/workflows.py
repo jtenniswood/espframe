@@ -514,6 +514,115 @@ def workflow_job_strategy_fail_fast(job_block: str) -> str:
     return workflow_job_nested_field_value(job_block, "strategy", "fail-fast")
 
 
+def workflow_job_step_blocks(job_block: str) -> list[str]:
+    blocks: list[str] = []
+    current: list[str] = []
+    in_steps = False
+    for line in job_block.splitlines():
+        if line.startswith("    steps:"):
+            in_steps = True
+            continue
+        if in_steps and re.match(r"^    [A-Za-z0-9_-]+:", line):
+            break
+        if not in_steps:
+            continue
+        if line.startswith("      - "):
+            if current:
+                blocks.append("\n".join(current))
+            current = [line]
+        elif current:
+            current.append(line)
+    if current:
+        blocks.append("\n".join(current))
+    return blocks
+
+
+def workflow_step_display_name(step_block: str) -> str:
+    for line in step_block.splitlines():
+        match = re.match(r"^      - name:\s*(.*?)\s*$", line)
+        if not match:
+            match = re.match(r"^        name:\s*(.*?)\s*$", line)
+        if match:
+            return unquote_workflow_value(match.group(1))
+    return ""
+
+
+def workflow_step_env(step_block: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    lines = step_block.splitlines()
+    for index, line in enumerate(lines):
+        if not line.startswith("        env:"):
+            continue
+        for continuation in lines[index + 1:]:
+            if continuation.strip() and not continuation.startswith("          "):
+                break
+            item_match = re.match(r"^          ([A-Za-z_][A-Za-z0-9_]*):\s*(.*?)\s*$", continuation)
+            if item_match:
+                values[item_match.group(1)] = unquote_workflow_value(item_match.group(2))
+        return values
+    return values
+
+
+def workflow_step_run(step_block: str) -> str:
+    lines = step_block.splitlines()
+    for index, line in enumerate(lines):
+        if not line.startswith("        run:"):
+            continue
+        command = line.removeprefix("        run:").strip()
+        if command in {">", ">-", "|", "|-"}:
+            run_lines: list[str] = []
+            for continuation in lines[index + 1:]:
+                if continuation.startswith("          "):
+                    run_lines.append(continuation.removeprefix("          "))
+                    continue
+                if continuation.strip():
+                    break
+            return "\n".join(run_lines)
+        return unquote_workflow_value(command)
+    return ""
+
+
+def workflow_step_uses_gh_cli(step_block: str) -> bool:
+    return re.search(r"(^|[\s;&|])gh\s+", workflow_step_run(step_block)) is not None
+
+
+def check_workflow_gh_cli_env(
+    github_cli_env: object,
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    if not isinstance(github_cli_env, dict):
+        return
+
+    expected_env = {
+        str(raw_name).strip(): str(raw_value).strip()
+        for raw_name, raw_value in github_cli_env.items()
+        if str(raw_name).strip() and str(raw_value).strip()
+    }
+    if not expected_env:
+        return
+
+    for label, text in workflow_texts.values():
+        for job_id in workflow_job_ids(text):
+            job_block = workflow_job_block(text, job_id, label, errors)
+            if not job_block:
+                continue
+            for step_block in workflow_job_step_blocks(job_block):
+                if not workflow_step_uses_gh_cli(step_block):
+                    continue
+                step_name = workflow_step_display_name(step_block) or "<unnamed>"
+                actual_env = workflow_step_env(step_block)
+                for name, expected_value in expected_env.items():
+                    actual_value = actual_env.get(name)
+                    if actual_value is None:
+                        errors.append(f"{label} job {job_id} step {step_name!r} env is missing {name}")
+                    elif actual_value != expected_value:
+                        errors.append(
+                            f"{label} job {job_id} step {step_name!r} env.{name} "
+                            f"must be {expected_value!r}, found {actual_value!r}"
+                        )
+
+
 def check_workflow_release_build_fail_fast(
     expected_fail_fast: object,
     workflow_texts: dict[str, tuple[str, str]],
@@ -854,12 +963,6 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         (".github/workflows/release.yml", release_workflow),
         (".github/workflows/docs.yml", docs_workflow),
     ):
-        if isinstance(github_cli_env, dict):
-            for raw_name, raw_value in github_cli_env.items():
-                name = str(raw_name).strip()
-                value = str(raw_value).strip()
-                if name and value:
-                    require_contains(text, f"{name}: {value}", label, errors)
         if label == ".github/workflows/release.yml":
             require_contains(text, "device_slugs: ${{ steps.product.outputs.device_slugs }}", label, errors)
             require_contains(text, "DEVICE_SLUGS: ${{ needs.release-metadata.outputs.device_slugs }}", label, errors)
@@ -868,6 +971,14 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             require_contains(text, "$DEVICE_SLUGS", label, errors)
         if f"DEVICE_SLUGS: {expected_slugs}" in text:
             errors.append(f"{label} must read DEVICE_SLUGS from product metadata, not a literal device list")
+    check_workflow_gh_cli_env(
+        github_cli_env,
+        {
+            "docs": (".github/workflows/docs.yml", docs_workflow),
+            "release": (".github/workflows/release.yml", release_workflow),
+        },
+        errors,
+    )
     check_workflow_sparse_checkout_usage(
         sparse_checkout_files,
         metadata_sparse_checkout_files,
