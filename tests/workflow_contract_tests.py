@@ -16,6 +16,7 @@ from product_contract.workflows import (  # noqa: E402
     workflow_job_condition,
 )
 from product_contract.project_release_metadata import (  # noqa: E402
+    check_release_workflow_actions,
     check_workflow_event_types,
     check_workflow_job_dependencies,
     workflow_event_index,
@@ -83,6 +84,29 @@ def test_workflow_job_condition_handles_supported_forms() -> None:
 
 def test_normalize_workflow_condition_collapses_whitespace() -> None:
     assert normalize_workflow_condition("  one\n  two\tthree  ") == "one two three"
+
+
+def test_release_workflow_actions_require_expected_keys() -> None:
+    errors: list[str] = []
+    check_release_workflow_actions(
+        {
+            "checkout": "actions/checkout@v7",
+            "cahce": "actions/cache@v6",
+            "upload_artifact": "actions/upload-artifact@v7",
+            "download_artifact": "actions/download-artifact@v8",
+            "setup_node": "actions/setup-node@v6",
+            "upload_pages_artifact": "actions/upload-pages-artifact@v5",
+            "deploy_pages": "actions/deploy-pages@v5",
+            "": "actions/cache@v6",
+        },
+        errors,
+    )
+
+    assert errors == [
+        "project.release_workflow_actions is missing actions: cache",
+        "project.release_workflow_actions contains unknown actions: cahce",
+        "project.release_workflow_actions keys must be non-empty strings",
+    ]
 
 
 def test_workflow_event_index_normalizes_declared_events() -> None:
@@ -159,6 +183,7 @@ def main() -> int:
     test_workflow_job_block_reports_missing_job()
     test_workflow_job_condition_handles_supported_forms()
     test_normalize_workflow_condition_collapses_whitespace()
+    test_release_workflow_actions_require_expected_keys()
     test_workflow_event_index_normalizes_declared_events()
     test_workflow_event_types_reject_unknown_events()
     test_workflow_job_index_normalizes_declared_jobs()

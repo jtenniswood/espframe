@@ -5,6 +5,37 @@ import re
 from product_contract.common import ROOT, check_relative_path, read
 
 
+EXPECTED_RELEASE_WORKFLOW_ACTIONS = {
+    "cache",
+    "checkout",
+    "deploy_pages",
+    "download_artifact",
+    "setup_node",
+    "upload_artifact",
+    "upload_pages_artifact",
+}
+
+
+def check_release_workflow_actions(release_actions: object, errors: list[str]) -> None:
+    if not isinstance(release_actions, dict) or not release_actions:
+        errors.append("project.release_workflow_actions must be a non-empty object")
+        return
+
+    configured_actions = {str(name).strip() for name in release_actions if str(name).strip()}
+    missing_actions = sorted(EXPECTED_RELEASE_WORKFLOW_ACTIONS - configured_actions)
+    extra_actions = sorted(configured_actions - EXPECTED_RELEASE_WORKFLOW_ACTIONS)
+    if missing_actions:
+        errors.append(f"project.release_workflow_actions is missing actions: {', '.join(missing_actions)}")
+    if extra_actions:
+        errors.append(f"project.release_workflow_actions contains unknown actions: {', '.join(extra_actions)}")
+    for raw_name, raw_action in release_actions.items():
+        name = str(raw_name).strip()
+        if not name:
+            errors.append("project.release_workflow_actions keys must be non-empty strings")
+        if not isinstance(raw_action, str) or not raw_action.strip():
+            errors.append(f"project.release_workflow_actions.{name or '<missing>'} must be a non-empty string")
+
+
 def workflow_event_index(workflow_events: object) -> set[str]:
     if not isinstance(workflow_events, dict):
         return set()
@@ -122,14 +153,7 @@ def check_project_release_metadata(product: dict, errors: list[str]) -> None:
         if len(options) != len(set(options)):
             errors.append("project.github_pull_request_device_testing_options must not contain duplicate options")
     release_actions = project.get("release_workflow_actions", {})
-    if not isinstance(release_actions, dict) or not release_actions:
-        errors.append("project.release_workflow_actions must be a non-empty object")
-    else:
-        for name, action in release_actions.items():
-            if not isinstance(name, str) or not name.strip():
-                errors.append("project.release_workflow_actions keys must be non-empty strings")
-            if not isinstance(action, str) or not action.strip():
-                errors.append(f"project.release_workflow_actions.{name} must be a non-empty string")
+    check_release_workflow_actions(release_actions, errors)
     workflow_permissions = project.get("github_workflow_permissions", {})
     expected_workflows = {"compile", "docs", "release"}
     github_cli_env = project.get("github_cli_env", {})
