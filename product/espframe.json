@@ -436,6 +436,7 @@
     "web_ui_logs_retained_lines": 1000,
     "web_smoke_required_scenarios": [
       "wizard",
+      "wizard-connection-save",
       "settings",
       "settings-mobile",
       "photo-source-reorder",

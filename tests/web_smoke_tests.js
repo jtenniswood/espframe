@@ -162,6 +162,7 @@ const unsupportedVersionBackupFixture = {
 
 const scenarios = [
   { name: "wizard", configured: false, width: 1280, height: 900 },
+  { name: "wizard-connection-save", configured: false, width: 1280, height: 900 },
   { name: "settings", configured: true, width: 1280, height: 900 },
   { name: "settings-mobile", configured: true, width: 390, height: 900 },
   { name: "photo-source-reorder", configured: true, width: 1280, height: 900 },
@@ -300,6 +301,34 @@ function browserScriptForScenario(scenario) {
       "Developer: Features": false
     };
 
+    function endpointNameForUrl(decoded) {
+      return Object.keys(endpointValues)
+        .sort((left, right) => right.length - left.length)
+        .find((name) => decoded.indexOf(name) !== -1) || "";
+    }
+
+    function requestParam(decoded, body, name) {
+      const queryIndex = decoded.indexOf("?");
+      const query = queryIndex === -1 ? "" : decoded.slice(queryIndex + 1);
+      const params = new URLSearchParams(body || query);
+      return params.get(name);
+    }
+
+    function updateEndpointValueFromPost(decoded, body) {
+      const endpointName = endpointNameForUrl(decoded);
+      if (!endpointName) return;
+      if (decoded.indexOf("/turn_on") !== -1) {
+        endpointValues[endpointName] = true;
+      } else if (decoded.indexOf("/turn_off") !== -1) {
+        endpointValues[endpointName] = false;
+      } else if (decoded.indexOf("/set") !== -1) {
+        const option = requestParam(decoded, body, "option");
+        const value = requestParam(decoded, body, "value");
+        if (option !== null) endpointValues[endpointName] = option;
+        else if (value !== null) endpointValues[endpointName] = value;
+      }
+    }
+
     window.fetch = function (url, options) {
       const method = options && options.method ? options.method : "GET";
       const decoded = decodeURIComponent(String(url));
@@ -307,6 +336,7 @@ function browserScriptForScenario(scenario) {
       if (method === "POST") {
         window.__smoke.posts.push(decoded);
         window.__smoke.postRecords.push({ url: decoded, body });
+        updateEndpointValueFromPost(decoded, body);
       }
       if (decoded.indexOf("Firmware: Update") !== -1) {
         return Promise.resolve({
@@ -315,10 +345,8 @@ function browserScriptForScenario(scenario) {
           json: () => Promise.resolve({ value: "v1.0.1", state: "UPDATE AVAILABLE", current_version: "v1.0.0", latest_version: "v1.0.1" })
         });
       }
-      let value = "";
-      Object.keys(endpointValues).forEach((name) => {
-        if (decoded.indexOf(name) !== -1) value = endpointValues[name];
-      });
+      const endpointName = endpointNameForUrl(decoded);
+      const value = endpointName ? endpointValues[endpointName] : "";
       const state = value === true ? "ON" : value === false ? "OFF" : String(value);
       return Promise.resolve({
         ok: true,
@@ -492,6 +520,17 @@ function smokeAssertionsForScenario(scenario) {
         const inputEl = inputs[index];
         if (!inputEl) throw new Error("Range input " + index + " not found in card: " + cardTitle);
         inputEl.value = String(value);
+        inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+        inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      function inputByLabel(labelText) {
+        const inputEl = fieldByLabel(labelText).querySelector("input");
+        if (!inputEl) throw new Error("Input not found for field: " + labelText);
+        return inputEl;
+      }
+      function setInputByLabel(labelText, value) {
+        const inputEl = inputByLabel(labelText);
+        inputEl.value = value;
         inputEl.dispatchEvent(new Event("input", { bubbles: true }));
         inputEl.dispatchEvent(new Event("change", { bubbles: true }));
       }
@@ -722,6 +761,22 @@ function smokeAssertionsForScenario(scenario) {
           }
         }, 8000, "daily settings saves");
       }
+      async function requireWizardConnectionSave() {
+        await waitFor(() => pageText().indexOf("connect your photo frame") !== -1, 8000, "wizard connection step");
+        requireText("Immich Server URL");
+        requireText("API Key");
+
+        setInputByLabel("Immich Server URL", "setup.photos.example.com/");
+        setInputByLabel("API Key", "setup-api-key");
+        clickButton("Connect");
+
+        await waitFor(() => pageText().indexOf("Clock & timezone") !== -1, 8000, "wizard clock step");
+        requireLatestPostValue("Wizard server URL", "Connection: Server URL", "https://setup.photos.example.com");
+        requireLatestPostValue("Wizard API key", "Connection: API Key", "setup-api-key");
+
+        clickButton("Done");
+        await waitFor(() => pageText().indexOf("Photo Source") !== -1, 8000, "settings after wizard");
+      }
 
       try {
         if (${JSON.stringify(scenario.name)} === "wizard") {
@@ -730,6 +785,8 @@ function smokeAssertionsForScenario(scenario) {
           requireText("API Key");
           clickTab("Device");
           requireText("Import Settings");
+        } else if (${JSON.stringify(scenario.name)} === "wizard-connection-save") {
+          await requireWizardConnectionSave();
         } else {
           await waitFor(() => pageText().indexOf("Photo Source") !== -1, 8000, "settings");
           requireText("Immich Server URL");
