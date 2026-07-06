@@ -12,7 +12,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from product_contract.package_metadata import (  # noqa: E402
     PACKAGE_SCRIPT_COMMANDS,
+    PACKAGE_SCRIPT_STEPS,
     check_package_script_commands,
+    check_package_script_steps,
     script_includes_step,
     web_smoke_scenario_names,
 )
@@ -23,6 +25,13 @@ def expected_package_scripts() -> dict[str, object]:
     return {
         script_name: expected_command
         for script_name, expected_command, _expected_label in PACKAGE_SCRIPT_COMMANDS
+    }
+
+
+def expected_composite_scripts() -> dict[str, object]:
+    return {
+        script_name: " && ".join(expected_steps)
+        for script_name, expected_steps in PACKAGE_SCRIPT_STEPS
     }
 
 
@@ -54,6 +63,28 @@ def test_check_package_script_commands_rejects_release_script_drift() -> None:
     assert errors == [
         "package.json check:firmware-release must run scripts/check_firmware_release.py",
         "package.json check:release-changelog must run scripts/check_release_changelog.py",
+    ]
+
+
+def test_check_package_script_steps_accepts_expected_steps() -> None:
+    errors: list[str] = []
+
+    check_package_script_steps(expected_composite_scripts(), errors)
+
+    assert errors == []
+
+
+def test_check_package_script_steps_rejects_missing_release_and_pr_steps() -> None:
+    errors: list[str] = []
+    scripts = expected_composite_scripts()
+    scripts["check:release"] = "npm run check:pr && npm run check:firmware-release"
+    scripts["check:pr"] = str(scripts["check:pr"]).replace(" && npm run docs:build", "")
+
+    check_package_script_steps(scripts, errors)
+
+    assert errors == [
+        "package.json check:pr must include docs:build",
+        "package.json check:release must include check:release-changelog",
     ]
 
 

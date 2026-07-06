@@ -29,6 +29,53 @@ PACKAGE_SCRIPT_COMMANDS = (
 )
 
 
+PACKAGE_SCRIPT_STEPS = (
+    (
+        "test:web",
+        (
+            "npm run test:web-compat",
+            "npm run test:web-modules",
+            "npm run test:web-smoke-cli",
+            "npm run test:web-smoke",
+        ),
+    ),
+    ("test:firmware-logic", ("npm run test:helpers", "npm run test:timezones")),
+    (
+        "check:fast",
+        (
+            "npm run check:generated",
+            "npm run check:product",
+            "npm run check:backup",
+            "npm run check:compat",
+            "npm run check:firmware-fields",
+        ),
+    ),
+    (
+        "check:pr",
+        (
+            "npm run check:fast",
+            "npm run test:web-compat",
+            "npm run test:web-modules",
+            "npm run test:web-smoke-cli",
+            "npm run test:web-smoke",
+            "npm run test:package-contract",
+            "npm run test:release-ready",
+            "npm run test:workflow-contract",
+            "npm run test:firmware-logic",
+            "npm run docs:build",
+        ),
+    ),
+    (
+        "check:release",
+        (
+            "npm run check:pr",
+            "npm run check:firmware-release",
+            "npm run check:release-changelog",
+        ),
+    ),
+)
+
+
 def web_smoke_scenario_names(smoke_test: str, errors: list[str]) -> set[str]:
     if not smoke_test:
         return set()
@@ -56,6 +103,15 @@ def check_package_script_commands(scripts: dict[str, object], errors: list[str])
             errors.append(f"package.json {script_name} must run {expected_label}")
 
 
+def check_package_script_steps(scripts: dict[str, object], errors: list[str]) -> None:
+    for script_name, expected_steps in PACKAGE_SCRIPT_STEPS:
+        script = str(scripts.get(script_name, ""))
+        for expected_step in expected_steps:
+            if not script_includes_step(script, expected_step):
+                expected_label = expected_step.removeprefix("npm run ")
+                errors.append(f"package.json {script_name} must include {expected_label}")
+
+
 def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
     expected_name = str(product["project"].get("npm_package_name", "")).strip()
     expected_license = str(product["project"].get("license_id", "")).strip()
@@ -79,59 +135,7 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
         errors.append("package.json scripts must be an object")
     else:
         check_package_script_commands(scripts, errors)
-        test_web = str(scripts.get("test:web", ""))
-        if not script_includes_step(test_web, "npm run test:web-compat"):
-            errors.append("package.json test:web must include test:web-compat")
-        if not script_includes_step(test_web, "npm run test:web-modules"):
-            errors.append("package.json test:web must include test:web-modules")
-        if not script_includes_step(test_web, "npm run test:web-smoke-cli"):
-            errors.append("package.json test:web must include test:web-smoke-cli")
-        if not script_includes_step(test_web, "npm run test:web-smoke"):
-            errors.append("package.json test:web must include test:web-smoke")
-        firmware_logic = str(scripts.get("test:firmware-logic", ""))
-        if not script_includes_step(firmware_logic, "npm run test:helpers"):
-            errors.append("package.json test:firmware-logic must include test:helpers")
-        if not script_includes_step(firmware_logic, "npm run test:timezones"):
-            errors.append("package.json test:firmware-logic must include test:timezones")
-        check_fast = str(scripts.get("check:fast", ""))
-        if not script_includes_step(check_fast, "npm run check:generated"):
-            errors.append("package.json check:fast must include check:generated")
-        if not script_includes_step(check_fast, "npm run check:product"):
-            errors.append("package.json check:fast must include check:product")
-        if not script_includes_step(check_fast, "npm run check:backup"):
-            errors.append("package.json check:fast must include check:backup")
-        if not script_includes_step(check_fast, "npm run check:compat"):
-            errors.append("package.json check:fast must include check:compat")
-        if not script_includes_step(check_fast, "npm run check:firmware-fields"):
-            errors.append("package.json check:fast must include check:firmware-fields")
-        check_pr = str(scripts.get("check:pr", ""))
-        if not script_includes_step(check_pr, "npm run check:fast"):
-            errors.append("package.json check:pr must include check:fast")
-        if not script_includes_step(check_pr, "npm run test:web-compat"):
-            errors.append("package.json check:pr must include test:web-compat")
-        if not script_includes_step(check_pr, "npm run test:web-modules"):
-            errors.append("package.json check:pr must include test:web-modules")
-        if not script_includes_step(check_pr, "npm run test:web-smoke-cli"):
-            errors.append("package.json check:pr must include test:web-smoke-cli")
-        if not script_includes_step(check_pr, "npm run test:web-smoke"):
-            errors.append("package.json check:pr must include test:web-smoke")
-        if not script_includes_step(check_pr, "npm run test:package-contract"):
-            errors.append("package.json check:pr must include test:package-contract")
-        if not script_includes_step(check_pr, "npm run test:release-ready"):
-            errors.append("package.json check:pr must include test:release-ready")
-        if not script_includes_step(check_pr, "npm run test:workflow-contract"):
-            errors.append("package.json check:pr must include test:workflow-contract")
-        if not script_includes_step(check_pr, "npm run test:firmware-logic"):
-            errors.append("package.json check:pr must include test:firmware-logic")
-        if not script_includes_step(check_pr, "npm run docs:build"):
-            errors.append("package.json check:pr must include docs:build")
-        check_release = str(scripts.get("check:release", ""))
-        if not script_includes_step(check_release, "npm run check:pr"):
-            errors.append("package.json check:release must include check:pr")
-        if not script_includes_step(check_release, "npm run check:firmware-release"):
-            errors.append("package.json check:release must include check:firmware-release")
-        if not script_includes_step(check_release, "npm run check:release-changelog"):
-            errors.append("package.json check:release must include check:release-changelog")
+        check_package_script_steps(scripts, errors)
         if scripts.get("check:all") != "npm run check:release":
             errors.append("package.json check:all must run check:release")
     if package_lock.get("name") != expected_name:
