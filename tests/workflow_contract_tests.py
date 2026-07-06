@@ -18,6 +18,7 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_concurrency,
     check_workflow_gh_cli_env,
     check_workflow_job_dependency_usage,
+    check_workflow_job_env,
     check_workflow_job_outputs,
     check_workflow_job_runner_usage,
     check_workflow_job_run_command,
@@ -44,6 +45,7 @@ from product_contract.workflows import (  # noqa: E402
     workflow_job_block,
     workflow_job_condition,
     workflow_job_display_name,
+    workflow_job_env,
     workflow_job_ids,
     workflow_job_needs,
     workflow_job_outputs,
@@ -506,6 +508,26 @@ jobs:
 """
 
 
+JOB_ENV_WORKFLOW = """\
+name: Example
+
+jobs:
+  compile:
+    name: Compile Firmware
+    runs-on: ubuntu-latest
+    env:
+      ESPHOME_DOCKER_IMAGE: ${{ needs.firmware-metadata.outputs.esphome_docker_image }}
+      ESPHOME_VERSION: ${{ needs.firmware-metadata.outputs.esphome_version }}
+      RELEASE_ESPHOME_CACHE_DIR: ${{ needs.firmware-metadata.outputs.release_esphome_cache_dir }}
+    steps:
+      - run: echo compile
+
+  missing:
+    name: Missing Env
+    runs-on: ubuntu-latest
+"""
+
+
 def test_workflow_job_block_finds_exact_job() -> None:
     errors: list[str] = []
     block = workflow_job_block(WORKFLOW, "folded", "example.yml", errors)
@@ -920,6 +942,40 @@ def test_workflow_job_outputs_rejects_drift_from_product_metadata() -> None:
             "'${{ steps.product.outputs.esphome_version }}'"
         ),
         "release.yml job metadata outputs is missing release_esphome_cache_dir",
+    ]
+
+
+def test_workflow_job_env_reads_job_env() -> None:
+    errors: list[str] = []
+    assert workflow_job_env(workflow_job_block(JOB_ENV_WORKFLOW, "compile", "example.yml", errors)) == {
+        "ESPHOME_DOCKER_IMAGE": "${{ needs.firmware-metadata.outputs.esphome_docker_image }}",
+        "ESPHOME_VERSION": "${{ needs.firmware-metadata.outputs.esphome_version }}",
+        "RELEASE_ESPHOME_CACHE_DIR": "${{ needs.firmware-metadata.outputs.release_esphome_cache_dir }}",
+    }
+    assert workflow_job_env(workflow_job_block(JOB_ENV_WORKFLOW, "missing", "example.yml", errors)) == {}
+    assert errors == []
+
+
+def test_workflow_job_env_rejects_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    check_workflow_job_env(
+        "compile.compile",
+        {
+            "ESPHOME_DOCKER_IMAGE": "${{ needs.firmware-metadata.outputs.esphome_docker_image }}",
+            "ESPHOME_VERSION": "${{ needs.release-metadata.outputs.esphome_version }}",
+            "ESPHOME_CONFIG_MOUNT": "${{ needs.firmware-metadata.outputs.esphome_config_mount }}",
+        },
+        {"compile": ("compile.yml", JOB_ENV_WORKFLOW)},
+        errors,
+    )
+
+    assert errors == [
+        (
+            "compile.yml job compile env.ESPHOME_VERSION must be "
+            "'${{ needs.release-metadata.outputs.esphome_version }}', found "
+            "'${{ needs.firmware-metadata.outputs.esphome_version }}'"
+        ),
+        "compile.yml job compile env is missing ESPHOME_CONFIG_MOUNT",
     ]
 
 
@@ -1478,6 +1534,8 @@ def main() -> int:
     test_workflow_job_run_command_rejects_drift_from_product_metadata()
     test_workflow_job_outputs_reads_job_outputs()
     test_workflow_job_outputs_rejects_drift_from_product_metadata()
+    test_workflow_job_env_reads_job_env()
+    test_workflow_job_env_rejects_drift_from_product_metadata()
     test_workflow_job_dependency_usage_rejects_drift_from_product_metadata()
     test_workflow_permissions_reads_top_level_permissions()
     test_workflow_permissions_reject_drift_from_product_metadata()

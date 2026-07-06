@@ -534,6 +534,10 @@ def workflow_job_outputs(job_block: str) -> dict[str, str]:
     return workflow_job_mapping(job_block, "outputs")
 
 
+def workflow_job_env(job_block: str) -> dict[str, str]:
+    return workflow_job_mapping(job_block, "env")
+
+
 def check_workflow_job_outputs(
     target: str,
     expected_outputs: dict[str, str],
@@ -562,6 +566,38 @@ def check_workflow_job_outputs(
         elif actual_value != expected_value:
             errors.append(
                 f"{label} job {job_id} outputs.{name} must be {expected_value!r}, "
+                f"found {actual_value!r}"
+            )
+
+
+def check_workflow_job_env(
+    target: str,
+    expected_env: dict[str, str],
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    expected_env = {
+        str(name).strip(): str(value).strip()
+        for name, value in expected_env.items()
+        if str(name).strip() and str(value).strip()
+    }
+    workflow_name, _, job_id = target.partition(".")
+    if not expected_env or workflow_name not in workflow_texts or not job_id:
+        return
+
+    label, text = workflow_texts[workflow_name]
+    job_block = workflow_job_block(text, job_id, label, errors)
+    if not job_block:
+        return
+
+    actual_env = workflow_job_env(job_block)
+    for name, expected_value in expected_env.items():
+        actual_value = actual_env.get(name)
+        if actual_value is None:
+            errors.append(f"{label} job {job_id} env is missing {name}")
+        elif actual_value != expected_value:
+            errors.append(
+                f"{label} job {job_id} env.{name} must be {expected_value!r}, "
                 f"found {actual_value!r}"
             )
 
@@ -1138,6 +1174,27 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         workflow_texts,
         errors,
     )
+    firmware_env_names = {
+        "ESPHOME_DOCKER_IMAGE": "esphome_docker_image",
+        "ESPHOME_VERSION": "esphome_version",
+        "ESPHOME_CONFIG_MOUNT": "esphome_config_mount",
+        "ESPHOME_DOCKER_REMOVE_FLAG": "esphome_docker_remove_flag",
+        "RELEASE_ESPHOME_CACHE_DIR": "release_esphome_cache_dir",
+        "RELEASE_ESPHOME_CACHE_KEY_PREFIX": "release_esphome_cache_key_prefix",
+    }
+    for target, metadata_job in (
+        ("compile.compile", "firmware-metadata"),
+        ("release.build-firmware", "release-metadata"),
+    ):
+        check_workflow_job_env(
+            target,
+            {
+                env_name: f"${{{{ needs.{metadata_job}.outputs.{output_name} }}}}"
+                for env_name, output_name in firmware_env_names.items()
+            },
+            workflow_texts,
+            errors,
+        )
     release_notes_checkout_inputs: dict[str, str] = {}
     if isinstance(release_notes_fetch_depth, int) and not isinstance(release_notes_fetch_depth, bool):
         release_notes_checkout_inputs["fetch-depth"] = str(release_notes_fetch_depth)
