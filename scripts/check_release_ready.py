@@ -12,6 +12,7 @@ from product_config import github_workflow_metadata, release_matrix_devices
 
 
 ROOT = Path(__file__).resolve().parent.parent
+TEST_FIRMWARE_VERSION = "v0.0.0"
 
 
 def run(command: list[str], label: str) -> bool:
@@ -42,6 +43,31 @@ def git_clean() -> bool:
     return True
 
 
+def esphome_compile_command(
+    image: str,
+    version: str,
+    mount: str,
+    remove_flag: str,
+    config_path: str,
+) -> list[str]:
+    command = ["docker", "run"]
+    if remove_flag:
+        command.append(remove_flag)
+    command.extend(
+        [
+            "-v",
+            f"{ROOT}:{mount}",
+            f"{image}:{version}",
+            "-s",
+            "firmware_version",
+            TEST_FIRMWARE_VERSION,
+            "compile",
+            config_path,
+        ]
+    )
+    return command
+
+
 def compile_firmware() -> bool:
     metadata = github_workflow_metadata()
     image = metadata["ESPHOME_DOCKER_IMAGE"]
@@ -55,37 +81,21 @@ def compile_firmware() -> bool:
 
     checks = []
     for device in release_matrix_devices():
-        factory_command = ["docker", "run"]
-        if remove_flag:
-            factory_command.append(remove_flag)
-        factory_command.extend(
-            [
-                "-v",
-                f"{ROOT}:{mount}",
-                f"{image}:{version}",
-                "-s",
-                "firmware_version",
-                "v0.0.0",
-                "compile",
-                f"{mount}/builds/{device['yaml']}.factory.yaml",
-            ]
+        factory_command = esphome_compile_command(
+            image,
+            version,
+            mount,
+            remove_flag,
+            f"{mount}/builds/{device['yaml']}.factory.yaml",
         )
         checks.append(run(factory_command, f"ESPHome factory compile ({device['slug']})"))
 
-        ota_command = ["docker", "run"]
-        if remove_flag:
-            ota_command.append(remove_flag)
-        ota_command.extend(
-            [
-                "-v",
-                f"{ROOT}:{mount}",
-                f"{image}:{version}",
-                "-s",
-                "firmware_version",
-                "v0.0.0",
-                "compile",
-                f"{mount}/builds/{device['yaml']}.yaml",
-            ]
+        ota_command = esphome_compile_command(
+            image,
+            version,
+            mount,
+            remove_flag,
+            f"{mount}/builds/{device['yaml']}.yaml",
         )
         checks.append(run(ota_command, f"ESPHome OTA compile ({device['slug']})"))
     return all(checks)

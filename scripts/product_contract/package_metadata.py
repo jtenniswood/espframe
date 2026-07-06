@@ -67,6 +67,8 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
             errors.append("package.json test:web-smoke-cli must run tests/web_smoke_cli_tests.js")
         if scripts.get("test:web-smoke") != "node tests/web_smoke_tests.js":
             errors.append("package.json test:web-smoke must run tests/web_smoke_tests.js")
+        if scripts.get("test:release-ready") != "python3 tests/release_ready_tests.py":
+            errors.append("package.json test:release-ready must run tests/release_ready_tests.py")
         test_web = str(scripts.get("test:web", ""))
         if not script_includes_step(test_web, "npm run test:web-compat"):
             errors.append("package.json test:web must include test:web-compat")
@@ -103,6 +105,8 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
             errors.append("package.json check:pr must include test:web-smoke-cli")
         if not script_includes_step(check_pr, "npm run test:web-smoke"):
             errors.append("package.json check:pr must include test:web-smoke")
+        if not script_includes_step(check_pr, "npm run test:release-ready"):
+            errors.append("package.json check:pr must include test:release-ready")
         if not script_includes_step(check_pr, "npm run test:firmware-logic"):
             errors.append("package.json check:pr must include test:firmware-logic")
         if not script_includes_step(check_pr, "npm run docs:build"):
@@ -145,8 +149,10 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
     require_contains(release_ready, "ESPHome factory compile", "scripts/check_release_ready.py", errors)
     require_contains(release_ready, "ESPHome OTA compile", "scripts/check_release_ready.py", errors)
     require_contains(release_ready, "factory and OTA firmware", "scripts/check_release_ready.py", errors)
-    if release_ready.count('"firmware_version"') < 2:
-        errors.append("scripts/check_release_ready.py must set firmware_version for factory and OTA compile checks")
+    require_contains(release_ready, "TEST_FIRMWARE_VERSION", "scripts/check_release_ready.py", errors)
+    release_ready_tests = read(ROOT / "tests" / "release_ready_tests.py", errors)
+    require_contains(release_ready_tests, "assert_versioned_compile(captured[0][1]", "tests/release_ready_tests.py", errors)
+    require_contains(release_ready_tests, "assert_versioned_compile(captured[1][1]", "tests/release_ready_tests.py", errors)
 
 
 def check_license_metadata(product: dict, errors: list[str]) -> None:
