@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 
@@ -2470,74 +2471,43 @@ def test_workflow_job_dependencies_reject_unknown_jobs() -> None:
     ]
 
 
+def workflow_contract_test_functions(
+    namespace: dict[str, object],
+) -> list[tuple[str, Callable[[], None]]]:
+    return [
+        (name, value)
+        for name, value in namespace.items()
+        if name.startswith("test_") and callable(value)
+    ]
+
+
+def test_workflow_contract_test_functions_discovers_named_callables() -> None:
+    calls: list[str] = []
+
+    def selected() -> None:
+        calls.append("selected")
+
+    def also_selected() -> None:
+        calls.append("also_selected")
+
+    discovered = workflow_contract_test_functions(
+        {
+            "helper": selected,
+            "test_selected": selected,
+            "test_value": "not callable",
+            "test_also_selected": also_selected,
+        }
+    )
+
+    assert [name for name, _ in discovered] == ["test_selected", "test_also_selected"]
+    for _, test_func in discovered:
+        test_func()
+    assert calls == ["selected", "also_selected"]
+
+
 def main() -> int:
-    test_workflow_job_block_finds_exact_job()
-    test_workflow_job_block_reports_missing_job()
-    test_workflow_job_ids_reads_top_level_jobs()
-    test_workflow_jobs_reject_drift_from_product_metadata()
-    test_workflow_job_display_name_reads_job_name()
-    test_workflow_jobs_match_job_name_not_step_name()
-    test_workflow_job_needs_reads_supported_forms()
-    test_workflow_job_runs_on_reads_job_runner()
-    test_workflow_job_runner_usage_rejects_drift_from_product_metadata()
-    test_workflow_job_timeout_minutes_reads_job_timeout()
-    test_workflow_job_timeout_usage_rejects_drift_from_product_metadata()
-    test_workflow_job_strategy_fail_fast_reads_strategy_value()
-    test_workflow_release_build_fail_fast_rejects_drift_from_product_metadata()
-    test_workflow_job_strategy_matrix_rejects_drift_from_product_metadata()
-    test_workflow_job_step_blocks_read_step_metadata()
-    test_workflow_gh_cli_env_rejects_drift_from_product_metadata()
-    test_workflow_step_uses_and_with_read_action_inputs()
-    test_workflow_action_step_inputs_rejects_drift_from_product_metadata()
-    test_workflow_named_step_env_rejects_drift_from_product_metadata()
-    test_workflow_named_step_run_contains_rejects_drift_from_product_metadata()
-    test_workflow_named_step_run_contains_checks_firmware_build_steps()
-    test_workflow_named_step_run_contains_checks_publish_steps()
-    test_workflow_named_step_helpers_check_cache_metadata()
-    test_workflow_named_step_run_contains_checks_compile_artifact_step()
-    test_workflow_named_step_run_contains_checks_compile_commands()
-    test_workflow_named_step_run_contains_checks_esphome_docker_invocation()
-    test_workflow_named_step_run_contains_checks_docs_download_steps()
-    test_workflow_named_step_run_contains_checks_docs_manifest_directories()
-    test_workflow_named_step_helpers_check_docs_release_metadata()
-    test_workflow_job_environment_and_named_step_id_reject_pages_deploy_drift()
-    test_workflow_job_run_command_rejects_drift_from_product_metadata()
-    test_workflow_job_outputs_reads_job_outputs()
-    test_workflow_job_outputs_rejects_drift_from_product_metadata()
-    test_workflow_job_env_reads_job_env()
-    test_workflow_job_env_rejects_drift_from_product_metadata()
-    test_workflow_job_dependency_usage_rejects_drift_from_product_metadata()
-    test_workflow_permissions_reads_top_level_permissions()
-    test_workflow_permissions_reject_drift_from_product_metadata()
-    test_workflow_concurrency_reads_top_level_concurrency()
-    test_workflow_concurrency_rejects_drift_from_product_metadata()
-    test_workflow_env_reads_top_level_env()
-    test_workflow_top_level_env_rejects_drift_from_product_metadata()
-    test_workflow_display_name_reads_top_level_name()
-    test_workflow_names_reject_drift_from_product_metadata()
-    test_workflow_job_condition_handles_supported_forms()
-    test_normalize_workflow_condition_collapses_whitespace()
-    test_release_workflow_actions_require_expected_keys()
-    test_workflow_action_usage_checks_expected_workflows()
-    test_workflow_action_references_reads_uses_lines()
-    test_workflow_event_names_reads_on_block()
-    test_workflow_events_reject_drift_from_product_metadata()
-    test_workflow_event_branch_filters_reads_inline_and_block_lists()
-    test_workflow_default_branch_rejects_drift_from_product_metadata()
-    test_workflow_event_type_filters_reads_inline_and_block_lists()
-    test_workflow_event_workflow_filters_reads_inline_and_block_lists()
-    test_workflow_run_targets_reject_drift_from_product_metadata()
-    test_workflow_event_type_usage_rejects_drift_from_product_metadata()
-    test_workflow_event_path_filters_reads_quoted_paths()
-    test_workflow_path_filters_reject_drift_from_product_metadata()
-    test_workflow_sparse_checkout_blocks_reads_checkout_paths()
-    test_workflow_sparse_checkout_entries_read_cone_mode()
-    test_workflow_sparse_checkout_usage_rejects_drift_from_product_metadata()
-    test_workflow_sparse_checkout_usage_rejects_cone_mode_drift()
-    test_workflow_event_index_normalizes_declared_events()
-    test_workflow_event_types_reject_unknown_events()
-    test_workflow_job_index_normalizes_declared_jobs()
-    test_workflow_job_dependencies_reject_unknown_jobs()
+    for _, test_func in workflow_contract_test_functions(globals()):
+        test_func()
     print("workflow contract tests passed")
     return 0
 
