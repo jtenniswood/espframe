@@ -205,6 +205,25 @@ def check_project_release_metadata(product: dict, errors: list[str]) -> None:
                 errors.append(f"project.github_workflow_job_dependencies.{key or '<missing>'} must only contain non-empty strings")
             if len(dependencies) != len(set(dependencies)):
                 errors.append(f"project.github_workflow_job_dependencies.{key or '<missing>'} must not contain duplicate jobs")
+    workflow_job_conditions = project.get("github_workflow_job_conditions", {})
+    if not isinstance(workflow_job_conditions, dict) or not workflow_job_conditions:
+        errors.append("project.github_workflow_job_conditions must be a non-empty object")
+    else:
+        configured_workflow_jobs = {
+            f"{workflow}.{job_id}"
+            for workflow, jobs in workflow_jobs.items()
+            if isinstance(jobs, dict)
+            for job_id in jobs
+        }
+        for raw_key, raw_condition in workflow_job_conditions.items():
+            key = str(raw_key).strip()
+            workflow, _, job_id = key.partition(".")
+            if not workflow or not job_id:
+                errors.append(f"project.github_workflow_job_conditions.{key or '<missing>'} must use workflow.job format")
+            if key not in configured_workflow_jobs:
+                errors.append(f"project.github_workflow_job_conditions.{key or '<missing>'} must point at a known workflow job")
+            if raw_condition is not None and (not isinstance(raw_condition, str) or not raw_condition.strip()):
+                errors.append(f"project.github_workflow_job_conditions.{key or '<missing>'} must be a non-empty string or null")
     sparse_checkout_files = project.get("github_sparse_checkout_files", [])
     if not isinstance(sparse_checkout_files, list) or not sparse_checkout_files:
         errors.append("project.github_sparse_checkout_files must be a non-empty list")

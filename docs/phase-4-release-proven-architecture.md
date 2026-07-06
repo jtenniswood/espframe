@@ -16,6 +16,7 @@ Phase 4 turns the reset architecture into a release-confidence system. The web U
 - Firmware generation checks now verify generated field markers stay in safe entity-field sections, not handwritten lambdas, scripts, actions, or LVGL layout blocks.
 - Product-owned firmware setting fields now use an explicit deferred-setting allow-list, which is empty for the current product contract.
 - The manual Compile Check workflow builds downloadable factory and OTA firmware artifacts for feature branches, so PR firmware can be tested on a device before merge without publishing it as release firmware.
+- Product contract checks now guard the Compile Check job conditions, keeping the PR validation job automatic and the firmware compile jobs manual-only.
 - The release-readiness command runs the normal local gate and reports whether the repository is clean before publishing. Firmware releases can use the compile-aware variant so ESPHome factory and OTA builds are not missed.
 
 ## Release checklist

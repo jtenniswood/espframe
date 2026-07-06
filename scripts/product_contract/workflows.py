@@ -23,6 +23,14 @@ def require_workflow_needs(text: str, dependencies: list[str], label: str, error
     require_contains(text, needle, label, errors)
 
 
+def workflow_job_block(text: str, job_id: str, label: str, errors: list[str]) -> str:
+    match = re.search(rf"^  {re.escape(job_id)}:\n(.*?)(?=^  [A-Za-z0-9_-]+:|\Z)", text, re.DOTALL | re.MULTILINE)
+    if not match:
+        errors.append(f"{label} is missing job {job_id}")
+        return ""
+    return match.group(1)
+
+
 def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     release_workflow = read(ROOT / ".github" / "workflows" / "release.yml", errors)
     docs_workflow = read(ROOT / ".github" / "workflows" / "docs.yml", errors)
@@ -657,6 +665,21 @@ def check_workflows(product: dict, errors: list[str]) -> None:
                 label, text = workflow_texts[workflow_name]
                 require_contains(text, f"  {job_id}:", label, errors)
                 require_workflow_needs(text, dependencies, label, errors)
+    workflow_job_conditions = project.get("github_workflow_job_conditions", {})
+    if isinstance(workflow_job_conditions, dict):
+        for key, raw_condition in workflow_job_conditions.items():
+            workflow_name, _, job_id = str(key).strip().partition(".")
+            if workflow_name not in workflow_texts or not job_id:
+                continue
+            label, text = workflow_texts[workflow_name]
+            job_block = workflow_job_block(text, job_id, label, errors)
+            if not job_block:
+                continue
+            condition = str(raw_condition).strip() if raw_condition is not None else ""
+            if condition:
+                require_contains(job_block, f"    if: {condition}", f"{label} job {job_id}", errors)
+            elif re.search(r"^    if:", job_block, re.MULTILINE):
+                errors.append(f"{label} job {job_id} must not define an if condition")
     workflow_permissions = project.get("github_workflow_permissions", {})
     workflow_names = project.get("github_workflow_names", {})
     if isinstance(workflow_names, dict):

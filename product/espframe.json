@@ -868,6 +868,11 @@
       "release.build-firmware": ["release-metadata"],
       "release.publish": ["build-firmware", "release-metadata"]
     },
+    "github_workflow_job_conditions": {
+      "compile.validate": null,
+      "compile.firmware-metadata": "github.event_name == 'workflow_dispatch'",
+      "compile.compile": "github.event_name == 'workflow_dispatch'"
+    },
     "github_sparse_checkout_files": [
       "scripts/firmware_release.py",
       "scripts/product_config.py",
