@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import check_release_ready  # noqa: E402
+from script_test_discovery import run_discovered_tests  # noqa: E402
 
 
 def assert_versioned_compile(command: list[str], config_path: str) -> None:
@@ -85,8 +86,7 @@ def test_compile_firmware_rejects_missing_metadata() -> None:
 
 
 def main() -> int:
-    test_compile_firmware_runs_versioned_factory_and_ota_commands()
-    test_compile_firmware_rejects_missing_metadata()
+    run_discovered_tests(globals())
     print("release readiness tests passed")
     return 0
 

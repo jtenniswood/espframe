@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from product_contract.package_metadata import script_includes_step, web_smoke_scenario_names  # noqa: E402
+from script_test_discovery import run_discovered_tests  # noqa: E402
 
 
 def test_script_includes_step_matches_whole_steps() -> None:
@@ -54,10 +55,7 @@ const scenarios = [
 
 
 def main() -> int:
-    test_script_includes_step_matches_whole_steps()
-    test_web_smoke_scenario_names_reads_registered_scenarios()
-    test_web_smoke_scenario_names_reports_missing_registry()
-    test_web_smoke_scenario_names_reports_duplicates()
+    run_discovered_tests(globals())
     print("package contract tests passed")
     return 0
 

@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import Callable
 from pathlib import Path
 
 
@@ -80,6 +79,7 @@ from product_contract.project_release_metadata import (  # noqa: E402
     workflow_event_index,
     workflow_job_index,
 )
+from script_test_discovery import discovered_test_functions, run_discovered_tests  # noqa: E402
 
 
 WORKFLOW = """\
@@ -2471,17 +2471,7 @@ def test_workflow_job_dependencies_reject_unknown_jobs() -> None:
     ]
 
 
-def workflow_contract_test_functions(
-    namespace: dict[str, object],
-) -> list[tuple[str, Callable[[], None]]]:
-    return [
-        (name, value)
-        for name, value in namespace.items()
-        if name.startswith("test_") and callable(value)
-    ]
-
-
-def test_workflow_contract_test_functions_discovers_named_callables() -> None:
+def test_discovered_test_functions_discovers_named_callables() -> None:
     calls: list[str] = []
 
     def selected() -> None:
@@ -2490,7 +2480,7 @@ def test_workflow_contract_test_functions_discovers_named_callables() -> None:
     def also_selected() -> None:
         calls.append("also_selected")
 
-    discovered = workflow_contract_test_functions(
+    discovered = discovered_test_functions(
         {
             "helper": selected,
             "test_selected": selected,
@@ -2506,8 +2496,7 @@ def test_workflow_contract_test_functions_discovers_named_callables() -> None:
 
 
 def main() -> int:
-    for _, test_func in workflow_contract_test_functions(globals()):
-        test_func()
+    run_discovered_tests(globals())
     print("workflow contract tests passed")
     return 0
 
