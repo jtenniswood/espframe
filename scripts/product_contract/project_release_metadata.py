@@ -236,7 +236,7 @@ def check_project_release_metadata(product: dict, errors: list[str]) -> None:
             if not label:
                 errors.append(f"project.github_workflow_names.{name or '<missing>'} must be a non-empty string")
     workflow_path_filters = project.get("github_workflow_path_filters", {})
-    expected_path_filter_sets = {"compile_pull_request", "docs_push"}
+    expected_path_filter_sets = {"docs_push"}
     if not isinstance(workflow_path_filters, dict) or not workflow_path_filters:
         errors.append("project.github_workflow_path_filters must be a non-empty object")
     else:

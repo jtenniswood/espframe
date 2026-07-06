@@ -240,6 +240,12 @@ def check_workflow_path_filters(
     for filter_set, (label, event_name) in WORKFLOW_PATH_FILTER_TARGETS.items():
         raw_paths = workflow_path_filters.get(filter_set)
         if not isinstance(raw_paths, list):
+            actual_paths = workflow_event_path_filters(workflow_texts.get(label, ""), event_name)
+            if actual_paths:
+                errors.append(
+                    f"{label} {event_name} paths are missing from product metadata: "
+                    + ", ".join(actual_paths)
+                )
             continue
         expected_paths = [str(path).strip() for path in raw_paths if str(path).strip()]
         actual_paths = workflow_event_path_filters(workflow_texts.get(label, ""), event_name)
@@ -2269,15 +2275,6 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     devices_by_slug = {str(device.get("slug", "")).strip(): device for device in product["devices"]}
     for release_device in release_devices:
         slug = release_device["slug"]
-        local_yaml = str(devices_by_slug.get(slug, {}).get("local_yaml", "")).strip()
-        device_dir = str(Path(local_yaml).parent) if local_yaml else ""
-        if device_dir:
-            require_contains(
-                compile_workflow,
-                f'"{device_dir}/**"',
-                ".github/workflows/compile.yml",
-                errors,
-            )
         public_manifest_dirs = []
         for field in ("public_manifest", "public_beta_manifest"):
             public_manifest = str(devices_by_slug.get(slug, {}).get(field, "")).strip()

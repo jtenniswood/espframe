@@ -19,6 +19,7 @@
       makeClockCard: makeClockCard,
       makeFirmwareCard: makeFirmwareCard,
       makeWifiCard: makeWifiCard,
+      makeDeviceRebootCard: makeDeviceRebootCard,
       makeDeveloperCard: makeDeveloperCard,
       makeBackupCard: makeBackupCard
     };

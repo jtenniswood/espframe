@@ -406,7 +406,16 @@
         "function": "makeFirmwareCard",
         "settings": ["update_frequency", "auto_update", "firmware_manifest_url"],
         "static_entities": ["firmware"],
-        "manual_entities": ["update", "firmware_check", "reboot_screen"]
+        "manual_entities": ["update", "firmware_check"]
+      },
+      {
+        "id": "device_reboot",
+        "label": "Device Reboot",
+        "tab": "settings",
+        "function": "makeDeviceRebootCard",
+        "settings": [],
+        "static_entities": [],
+        "manual_entities": ["reboot_screen"]
       },
       {
         "id": "wifi",
@@ -811,20 +820,6 @@
       "release": "Build Release"
     },
     "github_workflow_path_filters": {
-      "compile_pull_request": [
-        "components/**",
-        "common/**",
-        "devices/guition-esp32-p4-jc8012p4a1/**",
-        "builds/**",
-        "docs/**",
-        "package.json",
-        "package-lock.json",
-        "product/**",
-        "scripts/**",
-        "tests/**",
-        ".agents/**",
-        ".github/workflows/**"
-      ],
       "docs_push": [
         "docs/**",
         "product/**",

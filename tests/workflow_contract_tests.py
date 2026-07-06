@@ -2483,7 +2483,6 @@ on:
 
     check_workflow_path_filters(
         {
-            "compile_pull_request": ["components/**"],
             "docs_push": ["docs/**", "product/**"],
         },
         workflow_texts,
@@ -2491,7 +2490,7 @@ on:
     )
 
     assert errors == [
-        ".github/workflows/compile.yml pull_request paths contain filters missing from product metadata: tests/**",
+        ".github/workflows/compile.yml pull_request paths are missing from product metadata: components/**, tests/**",
         ".github/workflows/docs.yml push paths are missing product filters: product/**",
     ]
 
