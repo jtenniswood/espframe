@@ -63,6 +63,9 @@ def compile_firmware() -> bool:
                 "-v",
                 f"{ROOT}:{mount}",
                 f"{image}:{version}",
+                "-s",
+                "firmware_version",
+                "v0.0.0",
                 "compile",
                 f"{mount}/builds/{device['yaml']}.factory.yaml",
             ]

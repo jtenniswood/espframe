@@ -147,6 +147,8 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
     require_contains(release_ready, "ESPHome factory compile", "scripts/check_release_ready.py", errors)
     require_contains(release_ready, "ESPHome OTA compile", "scripts/check_release_ready.py", errors)
     require_contains(release_ready, "factory and OTA firmware", "scripts/check_release_ready.py", errors)
+    if release_ready.count('"firmware_version"') < 2:
+        errors.append("scripts/check_release_ready.py must set firmware_version for factory and OTA compile checks")
 
 
 def check_license_metadata(product: dict, errors: list[str]) -> None:
