@@ -317,6 +317,32 @@ def workflow_permissions(text: str) -> dict[str, str]:
     return workflow_top_level_mapping(text, "permissions")
 
 
+def workflow_env(text: str) -> dict[str, str]:
+    return workflow_top_level_mapping(text, "env")
+
+
+def check_workflow_top_level_env(
+    env_name: str,
+    expected_value: str,
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    env_name = env_name.strip()
+    expected_value = expected_value.strip()
+    if not env_name or not expected_value:
+        return
+
+    for label, text in workflow_texts.values():
+        actual_env = workflow_env(text)
+        actual_value = actual_env.get(env_name)
+        if actual_value is None:
+            errors.append(f"{label} top-level env is missing {env_name}")
+        elif actual_value != expected_value:
+            errors.append(
+                f"{label} top-level env {env_name} must be {expected_value!r}, found {actual_value!r}"
+            )
+
+
 def check_workflow_permissions(
     workflow_permissions_metadata: object,
     workflow_texts: dict[str, tuple[str, str]],
@@ -1168,6 +1194,9 @@ def check_workflows(product: dict, errors: list[str]) -> None:
     }
     workflow_events = project.get("github_workflow_events", {})
     check_workflow_events(workflow_events, workflow_texts, errors)
+    node24_env = str(project.get("github_actions_node24_env", "")).strip()
+    if str(project.get("node_version", "")).strip() == "24":
+        check_workflow_top_level_env(node24_env, "true", workflow_texts, errors)
     workflow_event_types = project.get("github_workflow_event_types", {})
     check_workflow_event_type_usage(workflow_event_types, workflow_texts, errors)
     workflow_jobs = project.get("github_workflow_jobs", {})
@@ -1266,8 +1295,6 @@ def check_node_version(product: dict, errors: list[str]) -> None:
             require_contains(text, f"cache: {package_cache}", rel(path), errors)
         if install_command:
             require_contains(text, f"run: {install_command}", rel(path), errors)
-        if version == "24" and node24_env:
-            require_contains(text, node24_env, rel(path), errors)
 
     compile_workflow = read(ROOT / ".github" / "workflows" / "compile.yml", errors)
     docs_workflow = read(ROOT / ".github" / "workflows" / "docs.yml", errors)
@@ -1275,7 +1302,3 @@ def check_node_version(product: dict, errors: list[str]) -> None:
         require_contains(compile_workflow, f"run: {local_check_command}", ".github/workflows/compile.yml", errors)
     if docs_build_command:
         require_contains(docs_workflow, f"run: {docs_build_command}", ".github/workflows/docs.yml", errors)
-
-    if version == "24" and node24_env:
-        release_workflow = read(ROOT / ".github" / "workflows" / "release.yml", errors)
-        require_contains(release_workflow, node24_env, ".github/workflows/release.yml", errors)

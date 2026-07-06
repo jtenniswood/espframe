@@ -23,9 +23,11 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_default_branch,
     check_workflow_run_targets,
     check_workflow_sparse_checkout_usage,
+    check_workflow_top_level_env,
     normalize_workflow_condition,
     workflow_display_name,
     workflow_action_references,
+    workflow_env,
     workflow_event_branch_filters,
     workflow_event_names,
     workflow_event_path_filters,
@@ -281,6 +283,19 @@ jobs:
 """
 
 
+ENV_WORKFLOW = """\
+name: Example
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  QUOTED_FLAG: "yes"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+"""
+
+
 def test_workflow_job_block_finds_exact_job() -> None:
     errors: list[str] = []
     block = workflow_job_block(WORKFLOW, "folded", "example.yml", errors)
@@ -435,6 +450,36 @@ def test_workflow_permissions_reject_drift_from_product_metadata() -> None:
         "docs.yml permissions are missing product metadata scopes: actions",
         "docs.yml permissions contain scopes missing from product metadata: id-token",
         "docs.yml permissions.pages must be 'read', found 'write'",
+    ]
+
+
+def test_workflow_env_reads_top_level_env() -> None:
+    assert workflow_env(ENV_WORKFLOW) == {
+        "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24": "true",
+        "QUOTED_FLAG": "yes",
+    }
+    assert workflow_env("name: Missing Env\n") == {}
+
+
+def test_workflow_top_level_env_rejects_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    check_workflow_top_level_env(
+        "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24",
+        "true",
+        {
+            "compile": (".github/workflows/compile.yml", ENV_WORKFLOW),
+            "docs": (
+                ".github/workflows/docs.yml",
+                "name: Docs\nenv:\n  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: false\n",
+            ),
+            "release": (".github/workflows/release.yml", "name: Release\njobs:\n"),
+        },
+        errors,
+    )
+
+    assert errors == [
+        ".github/workflows/docs.yml top-level env FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 must be 'true', found 'false'",
+        ".github/workflows/release.yml top-level env is missing FORCE_JAVASCRIPT_ACTIONS_TO_NODE24",
     ]
 
 
@@ -870,6 +915,8 @@ def main() -> int:
     test_workflow_job_dependency_usage_rejects_drift_from_product_metadata()
     test_workflow_permissions_reads_top_level_permissions()
     test_workflow_permissions_reject_drift_from_product_metadata()
+    test_workflow_env_reads_top_level_env()
+    test_workflow_top_level_env_rejects_drift_from_product_metadata()
     test_workflow_display_name_reads_top_level_name()
     test_workflow_names_reject_drift_from_product_metadata()
     test_workflow_job_condition_handles_supported_forms()
