@@ -1409,6 +1409,22 @@ def test_workflow_named_step_run_contains_rejects_drift_from_product_metadata() 
     ]
 
 
+def test_workflow_named_step_run_contains_reports_missing_run() -> None:
+    errors: list[str] = []
+
+    check_workflow_named_step_run_contains(
+        "docs.build-docs",
+        "Upload docs artifact",
+        ["npm run docs:build"],
+        {"docs": ("docs.yml", ACTION_INPUT_WORKFLOW)},
+        errors,
+    )
+
+    assert errors == [
+        "docs.yml job build-docs step 'Upload docs artifact' is missing run",
+    ]
+
+
 def test_workflow_named_step_run_contains_checks_firmware_build_steps() -> None:
     errors: list[str] = []
     workflow_texts = {"release": ("release.yml", RELEASE_BUILD_RUN_WORKFLOW)}

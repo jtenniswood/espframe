@@ -570,6 +570,10 @@ def normalized_workflow_mapping(values: dict[str, str]) -> dict[str, str]:
     }
 
 
+def normalized_workflow_strings(values: list[str]) -> list[str]:
+    return [str(value).strip() for value in values if str(value).strip()]
+
+
 def workflow_target_job_block(
     target: str,
     workflow_texts: dict[str, tuple[str, str]],
@@ -763,6 +767,10 @@ def workflow_step_run(step_block: str) -> str:
             return "\n".join(run_lines)
         return unquote_workflow_value(command)
     return ""
+
+
+def workflow_step_text(step_block: str) -> str:
+    return step_block
 
 
 def workflow_step_uses_gh_cli(step_block: str) -> bool:
@@ -973,15 +981,18 @@ def check_workflow_named_step_with(
     )
 
 
-def check_workflow_named_step_contains(
+def check_workflow_named_step_fragments(
     target: str,
     step_name: str,
     expected_fragments: list[str],
+    source_label: str,
+    read_source_text: Callable[[str], str],
     workflow_texts: dict[str, tuple[str, str]],
     errors: list[str],
+    missing_source_label: str = "",
 ) -> None:
     step_name = step_name.strip()
-    expected_fragments = [str(fragment).strip() for fragment in expected_fragments if str(fragment).strip()]
+    expected_fragments = normalized_workflow_strings(expected_fragments)
     if not step_name or not expected_fragments:
         return
 
@@ -989,9 +1000,36 @@ def check_workflow_named_step_contains(
     if not step_block:
         return
 
+    source_text = read_source_text(step_block)
+    if missing_source_label and not source_text:
+        errors.append(f"{label} job {job_id} step {step_name!r} is missing {missing_source_label}")
+        return
+
     for fragment in expected_fragments:
-        if fragment not in step_block:
+        if fragment in source_text:
+            continue
+        if source_label:
+            errors.append(f"{label} job {job_id} step {step_name!r} {source_label} is missing {fragment!r}")
+        else:
             errors.append(f"{label} job {job_id} step {step_name!r} is missing {fragment!r}")
+
+
+def check_workflow_named_step_contains(
+    target: str,
+    step_name: str,
+    expected_fragments: list[str],
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    check_workflow_named_step_fragments(
+        target,
+        step_name,
+        expected_fragments,
+        "",
+        workflow_step_text,
+        workflow_texts,
+        errors,
+    )
 
 
 def check_workflow_named_step_run_contains(
@@ -1001,23 +1039,16 @@ def check_workflow_named_step_run_contains(
     workflow_texts: dict[str, tuple[str, str]],
     errors: list[str],
 ) -> None:
-    step_name = step_name.strip()
-    expected_fragments = [str(fragment).strip() for fragment in expected_fragments if str(fragment).strip()]
-    if not step_name or not expected_fragments:
-        return
-
-    label, job_id, step_block = workflow_named_step_block(target, step_name, workflow_texts, errors)
-    if not step_block:
-        return
-
-    actual_run = workflow_step_run(step_block)
-    if not actual_run:
-        errors.append(f"{label} job {job_id} step {step_name!r} is missing run")
-        return
-
-    for fragment in expected_fragments:
-        if fragment not in actual_run:
-            errors.append(f"{label} job {job_id} step {step_name!r} run is missing {fragment!r}")
+    check_workflow_named_step_fragments(
+        target,
+        step_name,
+        expected_fragments,
+        "run",
+        workflow_step_run,
+        workflow_texts,
+        errors,
+        "run",
+    )
 
 
 def check_workflow_job_run_command(
