@@ -542,6 +542,10 @@ def workflow_job_env(job_block: str) -> dict[str, str]:
     return workflow_job_mapping(job_block, "env")
 
 
+def workflow_job_environment(job_block: str) -> dict[str, str]:
+    return workflow_job_mapping(job_block, "environment")
+
+
 def check_workflow_job_outputs(
     target: str,
     expected_outputs: dict[str, str],
@@ -571,6 +575,42 @@ def check_workflow_job_outputs(
             errors.append(
                 f"{label} job {job_id} outputs.{name} must be {expected_value!r}, "
                 f"found {actual_value!r}"
+            )
+
+
+def check_workflow_job_environment(
+    target: str,
+    expected_environment: dict[str, str],
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    expected_environment = {
+        str(name).strip(): str(value).strip()
+        for name, value in expected_environment.items()
+        if str(name).strip() and str(value).strip()
+    }
+    workflow_name, _, job_id = target.partition(".")
+    if not expected_environment or workflow_name not in workflow_texts or not job_id:
+        return
+
+    label, text = workflow_texts[workflow_name]
+    job_block = workflow_job_block(text, job_id, label, errors)
+    if not job_block:
+        return
+
+    actual_environment = workflow_job_environment(job_block)
+    if not actual_environment:
+        errors.append(f"{label} job {job_id} is missing environment")
+        return
+
+    for name, expected_value in expected_environment.items():
+        actual_value = actual_environment.get(name)
+        if actual_value is None:
+            errors.append(f"{label} job {job_id} environment is missing {name}")
+        elif actual_value != expected_value:
+            errors.append(
+                f"{label} job {job_id} environment.{name} "
+                f"must be {expected_value!r}, found {actual_value!r}"
             )
 
 
@@ -644,6 +684,16 @@ def workflow_step_uses(step_block: str) -> str:
         match = re.match(r"^      - uses:\s*(.*?)\s*$", line)
         if not match:
             match = re.match(r"^        uses:\s*(.*?)\s*$", line)
+        if match:
+            return unquote_workflow_value(match.group(1))
+    return ""
+
+
+def workflow_step_id(step_block: str) -> str:
+    for line in step_block.splitlines():
+        match = re.match(r"^      - id:\s*(.*?)\s*$", line)
+        if not match:
+            match = re.match(r"^        id:\s*(.*?)\s*$", line)
         if match:
             return unquote_workflow_value(match.group(1))
     return ""
@@ -837,6 +887,32 @@ def check_workflow_named_step_uses(
         errors.append(
             f"{label} job {job_id} step {step_name!r} uses must be {expected_action!r}, "
             f"found {actual_action!r}"
+        )
+
+
+def check_workflow_named_step_id(
+    target: str,
+    step_name: str,
+    expected_id: str,
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    step_name = step_name.strip()
+    expected_id = expected_id.strip()
+    if not step_name or not expected_id:
+        return
+
+    label, job_id, step_block = workflow_named_step_block(target, step_name, workflow_texts, errors)
+    if not step_block:
+        return
+
+    actual_id = workflow_step_id(step_block)
+    if not actual_id:
+        errors.append(f"{label} job {job_id} step {step_name!r} is missing id")
+    elif actual_id != expected_id:
+        errors.append(
+            f"{label} job {job_id} step {step_name!r} id must be {expected_id!r}, "
+            f"found {actual_id!r}"
         )
 
 
@@ -1299,6 +1375,9 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     )
     upload_pages_artifact_action = (
         str(release_actions.get("upload_pages_artifact", "")).strip() if isinstance(release_actions, dict) else ""
+    )
+    deploy_pages_action = (
+        str(release_actions.get("deploy_pages", "")).strip() if isinstance(release_actions, dict) else ""
     )
     docs_dist_output_path = str(project.get("docs_dist_output_path", "")).strip()
     docs_deploy_path = str(project.get("docs_deploy_path", "")).strip()
@@ -1868,15 +1947,32 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             docs_workflow_texts,
             errors,
         )
+    pages_environment_values: dict[str, str] = {}
     if pages_environment:
-        require_contains(docs_workflow, "environment:", ".github/workflows/docs.yml", errors)
-        require_contains(docs_workflow, f"name: {pages_environment}", ".github/workflows/docs.yml", errors)
+        pages_environment_values["name"] = pages_environment
     if pages_deployment_step_id and pages_url_output:
-        require_contains(docs_workflow, f"id: {pages_deployment_step_id}", ".github/workflows/docs.yml", errors)
-        require_contains(
-            docs_workflow,
-            f"url: ${{{{ steps.{pages_deployment_step_id}.outputs.{pages_url_output} }}}}",
-            ".github/workflows/docs.yml",
+        pages_environment_values["url"] = f"${{{{ steps.{pages_deployment_step_id}.outputs.{pages_url_output} }}}}"
+    if pages_environment_values:
+        check_workflow_job_environment(
+            "docs.deploy-docs",
+            pages_environment_values,
+            workflow_texts,
+            errors,
+        )
+    if pages_deployment_step_id:
+        check_workflow_named_step_id(
+            "docs.deploy-docs",
+            "Deploy to GitHub Pages",
+            pages_deployment_step_id,
+            workflow_texts,
+            errors,
+        )
+    if deploy_pages_action:
+        check_workflow_named_step_uses(
+            "docs.deploy-docs",
+            "Deploy to GitHub Pages",
+            deploy_pages_action,
+            workflow_texts,
             errors,
         )
     check_workflow_concurrency(

@@ -19,8 +19,10 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_gh_cli_env,
     check_workflow_job_dependency_usage,
     check_workflow_job_env,
+    check_workflow_job_environment,
     check_workflow_named_step_contains,
     check_workflow_named_step_env,
+    check_workflow_named_step_id,
     check_workflow_named_step_run_contains,
     check_workflow_named_step_uses,
     check_workflow_named_step_with,
@@ -715,6 +717,23 @@ jobs:
           python3 scripts/firmware_release.py verify-pages
           --version "${{ needs.download-firmware.outputs.wrong_tag }}"
           --retries 5
+"""
+
+
+DOCS_DEPLOY_WORKFLOW = """\
+name: Example
+
+jobs:
+  deploy-docs:
+    name: Deploy Docs
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.wrong-deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: wrong-deployment
+        uses: actions/deploy-pages@v4
 """
 
 
@@ -1602,6 +1621,48 @@ def test_workflow_named_step_helpers_check_docs_release_metadata() -> None:
     ]
 
 
+def test_workflow_job_environment_and_named_step_id_reject_pages_deploy_drift() -> None:
+    errors: list[str] = []
+    workflow_texts = {"docs": ("docs.yml", DOCS_DEPLOY_WORKFLOW)}
+
+    check_workflow_job_environment(
+        "docs.deploy-docs",
+        {
+            "name": "github-pages",
+            "url": "${{ steps.deployment.outputs.page_url }}",
+        },
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_id(
+        "docs.deploy-docs",
+        "Deploy to GitHub Pages",
+        "deployment",
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_uses(
+        "docs.deploy-docs",
+        "Deploy to GitHub Pages",
+        "actions/deploy-pages@v5",
+        workflow_texts,
+        errors,
+    )
+
+    assert errors == [
+        (
+            "docs.yml job deploy-docs environment.url must be "
+            "'${{ steps.deployment.outputs.page_url }}', found "
+            "'${{ steps.wrong-deployment.outputs.page_url }}'"
+        ),
+        "docs.yml job deploy-docs step 'Deploy to GitHub Pages' id must be 'deployment', found 'wrong-deployment'",
+        (
+            "docs.yml job deploy-docs step 'Deploy to GitHub Pages' uses must be "
+            "'actions/deploy-pages@v5', found 'actions/deploy-pages@v4'"
+        ),
+    ]
+
+
 def test_workflow_job_run_command_rejects_drift_from_product_metadata() -> None:
     errors: list[str] = []
     workflow_texts = {
@@ -2247,6 +2308,7 @@ def main() -> int:
     test_workflow_named_step_run_contains_checks_compile_artifact_step()
     test_workflow_named_step_run_contains_checks_docs_download_steps()
     test_workflow_named_step_helpers_check_docs_release_metadata()
+    test_workflow_job_environment_and_named_step_id_reject_pages_deploy_drift()
     test_workflow_job_run_command_rejects_drift_from_product_metadata()
     test_workflow_job_outputs_reads_job_outputs()
     test_workflow_job_outputs_rejects_drift_from_product_metadata()
