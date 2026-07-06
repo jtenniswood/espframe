@@ -38,6 +38,7 @@ from product_contract.workflows import (  # noqa: E402
     workflow_job_runs_on,
     workflow_permissions,
     workflow_sparse_checkout_blocks,
+    workflow_sparse_checkout_entries,
 )
 from product_contract.project_release_metadata import (  # noqa: E402
     check_release_workflow_actions,
@@ -166,6 +167,30 @@ jobs:
             scripts/product_config.py
             product/espframe.json
           sparse-checkout-cone-mode: false
+"""
+
+
+SPARSE_CHECKOUT_CONE_DRIFT_WORKFLOW = """\
+name: Example
+
+jobs:
+  metadata:
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            scripts/product_config.py
+            product/espframe.json
+          sparse-checkout-cone-mode: true
+
+  release:
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            scripts/firmware_release.py
+            scripts/product_config.py
+            product/espframe.json
 """
 
 
@@ -701,11 +726,20 @@ def test_workflow_sparse_checkout_blocks_reads_checkout_paths() -> None:
     assert workflow_sparse_checkout_blocks("name: Missing Sparse Checkout\n") == []
 
 
+def test_workflow_sparse_checkout_entries_read_cone_mode() -> None:
+    assert workflow_sparse_checkout_entries(SPARSE_CHECKOUT_WORKFLOW) == [
+        (["scripts/product_config.py", "product/espframe.json"], "false"),
+        (["scripts/firmware_release.py", "scripts/product_config.py", "product/espframe.json"], "false"),
+    ]
+    assert workflow_sparse_checkout_entries("name: Missing Sparse Checkout\n") == []
+
+
 def test_workflow_sparse_checkout_usage_rejects_drift_from_product_metadata() -> None:
     errors: list[str] = []
     check_workflow_sparse_checkout_usage(
         ["scripts/firmware_release.py", "scripts/product_config.py", "product/espframe.json"],
         ["scripts/product_config.py", "product/espframe.json"],
+        False,
         {
             "compile": (".github/workflows/compile.yml", "name: Compile\n"),
             "docs": (".github/workflows/docs.yml", SPARSE_CHECKOUT_WORKFLOW),
@@ -720,6 +754,22 @@ def test_workflow_sparse_checkout_usage_rejects_drift_from_product_metadata() ->
             "scripts/product_config.py, product/espframe.json"
         ),
         ".github/workflows/docs.yml sparse-checkout block metadata is not expected",
+    ]
+
+
+def test_workflow_sparse_checkout_usage_rejects_cone_mode_drift() -> None:
+    errors: list[str] = []
+    check_workflow_sparse_checkout_usage(
+        ["scripts/firmware_release.py", "scripts/product_config.py", "product/espframe.json"],
+        ["scripts/product_config.py", "product/espframe.json"],
+        False,
+        {"release": (".github/workflows/release.yml", SPARSE_CHECKOUT_CONE_DRIFT_WORKFLOW)},
+        errors,
+    )
+
+    assert errors == [
+        ".github/workflows/release.yml sparse-checkout block metadata cone mode must be 'false', found 'true'",
+        ".github/workflows/release.yml sparse-checkout block release cone mode must be 'false', found '<missing>'",
     ]
 
 
@@ -822,7 +872,9 @@ def main() -> int:
     test_workflow_event_path_filters_reads_quoted_paths()
     test_workflow_path_filters_reject_drift_from_product_metadata()
     test_workflow_sparse_checkout_blocks_reads_checkout_paths()
+    test_workflow_sparse_checkout_entries_read_cone_mode()
     test_workflow_sparse_checkout_usage_rejects_drift_from_product_metadata()
+    test_workflow_sparse_checkout_usage_rejects_cone_mode_drift()
     test_workflow_event_index_normalizes_declared_events()
     test_workflow_event_types_reject_unknown_events()
     test_workflow_job_index_normalizes_declared_jobs()

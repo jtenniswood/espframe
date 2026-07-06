@@ -472,21 +472,38 @@ def check_workflow_job_dependency_usage(
                 errors.append(f"{label} job {job_id} needs are missing from product metadata: {', '.join(actual_dependencies)}")
 
 
-def workflow_sparse_checkout_blocks(text: str) -> list[list[str]]:
-    blocks: list[list[str]] = []
+def workflow_sparse_checkout_entries(text: str) -> list[tuple[list[str], str]]:
+    entries: list[tuple[list[str], str]] = []
     lines = text.splitlines()
     for index, line in enumerate(lines):
         match = re.match(r"^(\s*)sparse-checkout:\s*\|\s*$", line)
         if not match:
             continue
-        value_prefix = f"{match.group(1)}  "
+        indent = match.group(1)
+        value_prefix = f"{indent}  "
         paths: list[str] = []
-        for continuation in lines[index + 1:]:
+        next_index = index + 1
+        while next_index < len(lines):
+            continuation = lines[next_index]
             if continuation.startswith(value_prefix):
                 paths.append(unquote_workflow_value(continuation.removeprefix(value_prefix)))
+                next_index += 1
                 continue
             if continuation.strip():
                 break
+            next_index += 1
+        cone_mode = ""
+        if next_index < len(lines):
+            cone_mode_prefix = f"{indent}sparse-checkout-cone-mode:"
+            if lines[next_index].startswith(cone_mode_prefix):
+                cone_mode = unquote_workflow_value(lines[next_index].removeprefix(cone_mode_prefix))
+        entries.append((paths, cone_mode))
+    return entries
+
+
+def workflow_sparse_checkout_blocks(text: str) -> list[list[str]]:
+    blocks: list[list[str]] = []
+    for paths, _ in workflow_sparse_checkout_entries(text):
         blocks.append(paths)
     return blocks
 
@@ -494,6 +511,7 @@ def workflow_sparse_checkout_blocks(text: str) -> list[list[str]]:
 def check_workflow_sparse_checkout_usage(
     release_checkout_files: list[str],
     metadata_checkout_files: list[str],
+    expected_cone_mode: object,
     workflow_texts: dict[str, tuple[str, str]],
     errors: list[str],
 ) -> None:
@@ -503,6 +521,9 @@ def check_workflow_sparse_checkout_usage(
     }
     if not expected_checkout_groups["metadata"] or not expected_checkout_groups["release"]:
         return
+    expected_cone_mode_value = (
+        str(expected_cone_mode).lower() if isinstance(expected_cone_mode, bool) else ""
+    )
 
     for workflow_name, (label, text) in workflow_texts.items():
         expected_groups = set(WORKFLOW_SPARSE_CHECKOUT_TARGETS.get(workflow_name, ()))
@@ -510,12 +531,20 @@ def check_workflow_sparse_checkout_usage(
             continue
 
         matched_groups: list[str] = []
-        for block in workflow_sparse_checkout_blocks(text):
+        for block, cone_mode in workflow_sparse_checkout_entries(text):
             matching_groups = [name for name, paths in expected_checkout_groups.items() if block == paths]
             if matching_groups:
-                matched_groups.append(matching_groups[0])
+                matched_group = matching_groups[0]
+                matched_groups.append(matched_group)
             else:
+                matched_group = "unknown"
                 errors.append(f"{label} sparse-checkout block must match product metadata, found: {', '.join(block)}")
+            if expected_cone_mode_value and cone_mode != expected_cone_mode_value:
+                found = cone_mode or "<missing>"
+                errors.append(
+                    f"{label} sparse-checkout block {matched_group} cone mode must be "
+                    f"{expected_cone_mode_value!r}, found {found!r}"
+                )
 
         for expected_group in sorted(expected_groups):
             if expected_group not in matched_groups:
@@ -670,11 +699,10 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             require_contains(text, "$DEVICE_SLUGS", label, errors)
         if f"DEVICE_SLUGS: {expected_slugs}" in text:
             errors.append(f"{label} must read DEVICE_SLUGS from product metadata, not a literal device list")
-        if isinstance(sparse_checkout_cone_mode, bool):
-            require_contains(text, f"sparse-checkout-cone-mode: {str(sparse_checkout_cone_mode).lower()}", label, errors)
     check_workflow_sparse_checkout_usage(
         sparse_checkout_files,
         metadata_sparse_checkout_files,
+        sparse_checkout_cone_mode,
         {
             "compile": (".github/workflows/compile.yml", compile_workflow),
             "docs": (".github/workflows/docs.yml", docs_workflow),
