@@ -1006,11 +1006,46 @@ async function runScenario(scenario) {
   assert.ok(output.includes(passToken), `Browser smoke scenario ${scenario.name} failed:\n${output}`);
 }
 
-async function main() {
-  for (const scenario of scenarios) {
+function selectedScenariosFromArgs(args) {
+  const selectedNames = [];
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (arg === "--list") {
+      scenarios.forEach((scenario) => console.log(scenario.name));
+      return [];
+    }
+    if (arg === "--scenario") {
+      const value = args[i + 1];
+      if (!value) throw new Error("--scenario requires a scenario name");
+      selectedNames.push(value);
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith("--scenario=")) {
+      const value = arg.slice("--scenario=".length);
+      if (!value) throw new Error("--scenario requires a scenario name");
+      selectedNames.push(value);
+      continue;
+    }
+    throw new Error(`Unknown browser smoke option: ${arg}`);
+  }
+  if (!selectedNames.length) return scenarios;
+  const scenarioByName = new Map(scenarios.map((scenario) => [scenario.name, scenario]));
+  return selectedNames.map((name) => {
+    const scenario = scenarioByName.get(name);
+    if (!scenario) {
+      throw new Error(`Unknown browser smoke scenario: ${name}. Run with --list to see available scenarios.`);
+    }
+    return scenario;
+  });
+}
+
+async function main(args = process.argv.slice(2)) {
+  const selectedScenarios = selectedScenariosFromArgs(args);
+  for (const scenario of selectedScenarios) {
     await runScenario(scenario);
   }
-  console.log("web browser smoke tests passed");
+  if (selectedScenarios.length) console.log("web browser smoke tests passed");
 }
 
 main().catch((error) => {

@@ -103,6 +103,14 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
             scenario_id = str(scenario).strip()
             if scenario_id:
                 require_contains(smoke_test, f'name: "{scenario_id}"', "tests/web_smoke_tests.js", errors)
+    require_contains(smoke_test, "--scenario", "tests/web_smoke_tests.js", errors)
+    require_contains(smoke_test, "--list", "tests/web_smoke_tests.js", errors)
+    require_contains(
+        read(ROOT / "docs" / "testing.md", errors),
+        "npm run test:web-smoke -- --scenario",
+        "docs/testing.md",
+        errors,
+    )
 
     release_ready = read(ROOT / "scripts" / "check_release_ready.py", errors)
     require_contains(release_ready, "ESPHome factory compile", "scripts/check_release_ready.py", errors)

@@ -46,6 +46,14 @@ npm run test:web
 
 This group checks the generated web app bundle, compatibility helpers, and browser smoke coverage. The browser smoke test opens the web UI in Chrome or Chromium and exercises the main setup, settings, firmware update, and backup import flows.
 
+When you are working on one browser flow, run a single smoke scenario while iterating:
+
+```sh
+npm run test:web-smoke -- --scenario wizard-connection-save
+```
+
+Use `npm run test:web-smoke -- --list` to see the available scenario names. Run the full `npm run test:web-smoke` suite before committing web UI behavior changes.
+
 ### Firmware Logic Checks
 
 ```sh
