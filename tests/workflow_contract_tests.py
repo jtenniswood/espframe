@@ -14,6 +14,7 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_action_usage,
     check_workflow_event_type_usage,
     check_workflow_events,
+    check_workflow_job_dependency_usage,
     check_workflow_jobs,
     check_workflow_path_filters,
     normalize_workflow_condition,
@@ -23,6 +24,7 @@ from product_contract.workflows import (  # noqa: E402
     workflow_job_block,
     workflow_job_condition,
     workflow_job_ids,
+    workflow_job_needs,
 )
 from product_contract.project_release_metadata import (  # noqa: E402
     check_release_workflow_actions,
@@ -104,6 +106,34 @@ on:
 """
 
 
+NEEDS_WORKFLOW = """\
+name: Example
+
+jobs:
+  scalar:
+    name: Scalar Dependency
+    needs: setup
+    runs-on: ubuntu-latest
+
+  inline:
+    name: Inline Dependencies
+    needs: [build, test]
+    runs-on: ubuntu-latest
+
+  block:
+    name: Block Dependencies
+    needs:
+      - build
+      - test
+    runs-on: ubuntu-latest
+
+  untracked:
+    name: Untracked Dependency
+    needs: scalar
+    runs-on: ubuntu-latest
+"""
+
+
 def test_workflow_job_block_finds_exact_job() -> None:
     errors: list[str] = []
     block = workflow_job_block(WORKFLOW, "folded", "example.yml", errors)
@@ -142,6 +172,33 @@ def test_workflow_jobs_reject_drift_from_product_metadata() -> None:
         "example.yml jobs contain jobs missing from product metadata: literal, unconditional",
         "example.yml is missing job missing",
         "example.yml job folded is missing '    name: Wrong Name'",
+    ]
+
+
+def test_workflow_job_needs_reads_supported_forms() -> None:
+    errors: list[str] = []
+    assert workflow_job_needs(workflow_job_block(NEEDS_WORKFLOW, "scalar", "example.yml", errors)) == ["setup"]
+    assert workflow_job_needs(workflow_job_block(NEEDS_WORKFLOW, "inline", "example.yml", errors)) == ["build", "test"]
+    assert workflow_job_needs(workflow_job_block(NEEDS_WORKFLOW, "block", "example.yml", errors)) == ["build", "test"]
+    assert errors == []
+
+
+def test_workflow_job_dependency_usage_rejects_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    check_workflow_job_dependency_usage(
+        {
+            "compile.scalar": ["setup"],
+            "compile.inline": ["build", "missing"],
+        },
+        {"compile": ("example.yml", NEEDS_WORKFLOW)},
+        errors,
+    )
+
+    assert errors == [
+        "example.yml job inline needs are missing dependencies: missing",
+        "example.yml job inline needs contain dependencies missing from product metadata: test",
+        "example.yml job block needs are missing from product metadata: build, test",
+        "example.yml job untracked needs are missing from product metadata: scalar",
     ]
 
 
@@ -419,6 +476,8 @@ def main() -> int:
     test_workflow_job_block_reports_missing_job()
     test_workflow_job_ids_reads_top_level_jobs()
     test_workflow_jobs_reject_drift_from_product_metadata()
+    test_workflow_job_needs_reads_supported_forms()
+    test_workflow_job_dependency_usage_rejects_drift_from_product_metadata()
     test_workflow_job_condition_handles_supported_forms()
     test_normalize_workflow_condition_collapses_whitespace()
     test_release_workflow_actions_require_expected_keys()

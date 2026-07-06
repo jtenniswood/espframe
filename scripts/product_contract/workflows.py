@@ -9,14 +9,6 @@ from product_contract.common import ROOT, check_relative_path, read, rel, requir
 from product_config import public_base_url, release_matrix_devices
 
 
-def require_workflow_needs(text: str, dependencies: list[str], label: str, errors: list[str]) -> None:
-    if len(dependencies) == 1:
-        needle = f"    needs: {dependencies[0]}"
-    else:
-        needle = f"    needs: [{', '.join(dependencies)}]"
-    require_contains(text, needle, label, errors)
-
-
 WORKFLOW_ACTION_TARGETS = {
     "cache": (".github/workflows/release.yml", ".github/workflows/compile.yml"),
     "checkout": (".github/workflows/release.yml", ".github/workflows/docs.yml", ".github/workflows/compile.yml"),
@@ -254,6 +246,65 @@ def check_workflow_jobs(
             job_block = workflow_job_block(text, job_id, label, errors)
             if job_block:
                 require_contains(job_block, f"    name: {job_name}", f"{label} job {job_id}", errors)
+
+
+def workflow_job_needs(job_block: str) -> list[str]:
+    lines = job_block.splitlines()
+    for index, line in enumerate(lines):
+        if not line.startswith("    needs:"):
+            continue
+        inline_needs = workflow_inline_list_values(line.removeprefix("    needs:"))
+        if inline_needs:
+            return inline_needs
+        dependencies: list[str] = []
+        for continuation in lines[index + 1:]:
+            if continuation.startswith("      - "):
+                dependencies.append(unquote_workflow_value(continuation.removeprefix("      - ")))
+                continue
+            if continuation.strip() and not continuation.startswith("      "):
+                break
+        return dependencies
+    return []
+
+
+def check_workflow_job_dependency_usage(
+    workflow_job_dependencies: object,
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    if not isinstance(workflow_job_dependencies, dict):
+        return
+
+    configured_keys = {str(key).strip() for key in workflow_job_dependencies if str(key).strip()}
+    for raw_key, raw_dependencies in workflow_job_dependencies.items():
+        key = str(raw_key).strip()
+        workflow_name, _, job_id = key.partition(".")
+        if workflow_name not in workflow_texts or not job_id or not isinstance(raw_dependencies, list):
+            continue
+        label, text = workflow_texts[workflow_name]
+        expected_dependencies = [str(dependency).strip() for dependency in raw_dependencies if str(dependency).strip()]
+        job_block = workflow_job_block(text, job_id, label, errors)
+        if not job_block:
+            continue
+        actual_dependencies = workflow_job_needs(job_block)
+        missing_dependencies = [dependency for dependency in expected_dependencies if dependency not in actual_dependencies]
+        extra_dependencies = [dependency for dependency in actual_dependencies if dependency not in expected_dependencies]
+        if missing_dependencies:
+            errors.append(f"{label} job {job_id} needs are missing dependencies: {', '.join(missing_dependencies)}")
+        if extra_dependencies:
+            errors.append(
+                f"{label} job {job_id} needs contain dependencies missing from product metadata: {', '.join(extra_dependencies)}"
+            )
+
+    for workflow_name, (label, text) in workflow_texts.items():
+        for job_id in workflow_job_ids(text):
+            key = f"{workflow_name}.{job_id}"
+            if key in configured_keys:
+                continue
+            job_block = workflow_job_block(text, job_id, label, errors)
+            actual_dependencies = workflow_job_needs(job_block)
+            if actual_dependencies:
+                errors.append(f"{label} job {job_id} needs are missing from product metadata: {', '.join(actual_dependencies)}")
 
 
 def normalize_workflow_condition(condition: str) -> str:
@@ -851,16 +902,7 @@ def check_workflows(product: dict, errors: list[str]) -> None:
     workflow_jobs = project.get("github_workflow_jobs", {})
     check_workflow_jobs(workflow_jobs, workflow_texts, errors)
     workflow_job_dependencies = project.get("github_workflow_job_dependencies", {})
-    if isinstance(workflow_job_dependencies, dict):
-        for key, raw_dependencies in workflow_job_dependencies.items():
-            workflow_name, _, job_id = str(key).strip().partition(".")
-            if workflow_name not in workflow_texts or not job_id or not isinstance(raw_dependencies, list):
-                continue
-            dependencies = [str(dependency).strip() for dependency in raw_dependencies if str(dependency).strip()]
-            if dependencies:
-                label, text = workflow_texts[workflow_name]
-                require_contains(text, f"  {job_id}:", label, errors)
-                require_workflow_needs(text, dependencies, label, errors)
+    check_workflow_job_dependency_usage(workflow_job_dependencies, workflow_texts, errors)
     workflow_job_conditions = project.get("github_workflow_job_conditions", {})
     if isinstance(workflow_job_conditions, dict):
         for key, raw_condition in workflow_job_conditions.items():
