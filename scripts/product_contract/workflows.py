@@ -570,6 +570,24 @@ def normalized_workflow_mapping(values: dict[str, str]) -> dict[str, str]:
     }
 
 
+def append_mapping_value_errors(
+    expected_values: dict[str, str],
+    actual_values: dict[str, str],
+    missing_prefix: str,
+    value_prefix: str,
+    errors: list[str],
+) -> None:
+    for name, expected_value in expected_values.items():
+        actual_value = actual_values.get(name)
+        if actual_value is None:
+            errors.append(f"{missing_prefix} is missing {name}")
+        elif actual_value != expected_value:
+            errors.append(
+                f"{value_prefix}.{name} must be {expected_value!r}, "
+                f"found {actual_value!r}"
+            )
+
+
 def normalized_workflow_strings(values: list[str]) -> list[str]:
     return [str(value).strip() for value in values if str(value).strip()]
 
@@ -613,15 +631,8 @@ def check_workflow_job_mapping(
         errors.append(f"{label} job {job_id} {missing_section_message}")
         return
 
-    for name, expected_value in expected_values.items():
-        actual_value = actual_values.get(name)
-        if actual_value is None:
-            errors.append(f"{label} job {job_id} {section_name} is missing {name}")
-        elif actual_value != expected_value:
-            errors.append(
-                f"{label} job {job_id} {section_name}.{name} must be {expected_value!r}, "
-                f"found {actual_value!r}"
-            )
+    message_prefix = f"{label} job {job_id} {section_name}"
+    append_mapping_value_errors(expected_values, actual_values, message_prefix, message_prefix, errors)
 
 
 def check_workflow_job_outputs(
@@ -816,15 +827,8 @@ def check_workflow_action_step_inputs(
 
     step_name = workflow_step_display_name(matching_step) or "<unnamed>"
     actual_inputs = workflow_step_with(matching_step)
-    for name, expected_value in expected_inputs.items():
-        actual_value = actual_inputs.get(name)
-        if actual_value is None:
-            errors.append(f"{label} job {job_id} step {step_name!r} with is missing {name}")
-        elif actual_value != expected_value:
-            errors.append(
-                f"{label} job {job_id} step {step_name!r} with.{name} "
-                f"must be {expected_value!r}, found {actual_value!r}"
-            )
+    message_prefix = f"{label} job {job_id} step {step_name!r} with"
+    append_mapping_value_errors(expected_inputs, actual_inputs, message_prefix, message_prefix, errors)
 
 
 def workflow_named_step_block(
@@ -870,15 +874,8 @@ def check_workflow_named_step_mapping(
         return
 
     actual_values = read_actual_values(step_block)
-    for name, expected_value in expected_values.items():
-        actual_value = actual_values.get(name)
-        if actual_value is None:
-            errors.append(f"{label} job {job_id} step {step_name!r} {section_name} is missing {name}")
-        elif actual_value != expected_value:
-            errors.append(
-                f"{label} job {job_id} step {step_name!r} {section_name}.{name} "
-                f"must be {expected_value!r}, found {actual_value!r}"
-            )
+    message_prefix = f"{label} job {job_id} step {step_name!r} {section_name}"
+    append_mapping_value_errors(expected_values, actual_values, message_prefix, message_prefix, errors)
 
 
 def check_workflow_named_step_value(
@@ -1098,15 +1095,8 @@ def check_workflow_gh_cli_env(
                     continue
                 step_name = workflow_step_display_name(step_block) or "<unnamed>"
                 actual_env = workflow_step_env(step_block)
-                for name, expected_value in expected_env.items():
-                    actual_value = actual_env.get(name)
-                    if actual_value is None:
-                        errors.append(f"{label} job {job_id} step {step_name!r} env is missing {name}")
-                    elif actual_value != expected_value:
-                        errors.append(
-                            f"{label} job {job_id} step {step_name!r} env.{name} "
-                            f"must be {expected_value!r}, found {actual_value!r}"
-                        )
+                message_prefix = f"{label} job {job_id} step {step_name!r} env"
+                append_mapping_value_errors(expected_env, actual_env, message_prefix, message_prefix, errors)
 
 
 def check_workflow_release_build_fail_fast(

@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from product_contract.workflows import (  # noqa: E402
     append_list_drift_errors,
+    append_mapping_value_errors,
     check_workflow_action_step_inputs,
     check_workflow_action_usage,
     check_workflow_event_type_usage,
@@ -97,6 +98,26 @@ def test_append_list_drift_errors_reports_ordered_missing_and_extra_values() -> 
     assert errors == [
         "workflow is missing expected values: release",
         "workflow contains unexpected values: deploy",
+    ]
+
+
+def test_append_mapping_value_errors_reports_missing_and_changed_values() -> None:
+    errors: list[str] = []
+
+    append_mapping_value_errors(
+        {"GH_TOKEN": "${{ github.token }}", "GH_REPO": "${{ github.repository }}"},
+        {"GH_TOKEN": "${{ secrets.BAD_TOKEN }}"},
+        "release.yml job release step 'Publish' env",
+        "release.yml job release step 'Publish' env",
+        errors,
+    )
+
+    assert errors == [
+        (
+            "release.yml job release step 'Publish' env.GH_TOKEN must be "
+            "'${{ github.token }}', found '${{ secrets.BAD_TOKEN }}'"
+        ),
+        "release.yml job release step 'Publish' env is missing GH_REPO",
     ]
 
 
