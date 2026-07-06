@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from product_contract.workflows import (  # noqa: E402
     append_list_drift_errors,
     append_mapping_value_errors,
+    append_scalar_value_error,
     check_workflow_action_step_inputs,
     check_workflow_action_usage,
     check_workflow_event_type_usage,
@@ -118,6 +119,30 @@ def test_append_mapping_value_errors_reports_missing_and_changed_values() -> Non
             "'${{ github.token }}', found '${{ secrets.BAD_TOKEN }}'"
         ),
         "release.yml job release step 'Publish' env is missing GH_REPO",
+    ]
+
+
+def test_append_scalar_value_error_reports_missing_and_changed_values() -> None:
+    errors: list[str] = []
+
+    append_scalar_value_error(
+        "",
+        "ubuntu-latest",
+        "example.yml job build is missing runs-on",
+        "example.yml job build runs-on",
+        errors,
+    )
+    append_scalar_value_error(
+        "macos-latest",
+        "ubuntu-latest",
+        "example.yml job build is missing runs-on",
+        "example.yml job build runs-on",
+        errors,
+    )
+
+    assert errors == [
+        "example.yml job build is missing runs-on",
+        "example.yml job build runs-on must be 'ubuntu-latest', found 'macos-latest'",
     ]
 
 

@@ -588,6 +588,19 @@ def append_mapping_value_errors(
             )
 
 
+def append_scalar_value_error(
+    actual_value: str,
+    expected_value: str,
+    missing_message: str,
+    value_prefix: str,
+    errors: list[str],
+) -> None:
+    if not actual_value:
+        errors.append(missing_message)
+    elif actual_value != expected_value:
+        errors.append(f"{value_prefix} must be {expected_value!r}, found {actual_value!r}")
+
+
 def normalized_workflow_strings(values: list[str]) -> list[str]:
     return [str(value).strip() for value in values if str(value).strip()]
 
@@ -897,13 +910,13 @@ def check_workflow_named_step_value(
         return
 
     actual_value = read_actual_value(step_block)
-    if not actual_value:
-        errors.append(f"{label} job {job_id} step {step_name!r} is missing {field_name}")
-    elif actual_value != expected_value:
-        errors.append(
-            f"{label} job {job_id} step {step_name!r} {field_name} must be {expected_value!r}, "
-            f"found {actual_value!r}"
-        )
+    append_scalar_value_error(
+        actual_value,
+        expected_value,
+        f"{label} job {job_id} step {step_name!r} is missing {field_name}",
+        f"{label} job {job_id} step {step_name!r} {field_name}",
+        errors,
+    )
 
 
 def check_workflow_named_step_env(
@@ -1115,13 +1128,13 @@ def check_workflow_release_build_fail_fast(
     if not job_block:
         return
     actual_fail_fast = workflow_job_strategy_fail_fast(job_block)
-    if not actual_fail_fast:
-        errors.append(f"{label} job build-firmware strategy is missing fail-fast")
-    elif actual_fail_fast != expected_fail_fast_value:
-        errors.append(
-            f"{label} job build-firmware strategy.fail-fast must be {expected_fail_fast_value!r}, "
-            f"found {actual_fail_fast!r}"
-        )
+    append_scalar_value_error(
+        actual_fail_fast,
+        expected_fail_fast_value,
+        f"{label} job build-firmware strategy is missing fail-fast",
+        f"{label} job build-firmware strategy.fail-fast",
+        errors,
+    )
 
 
 def check_workflow_job_strategy_matrix(
@@ -1141,13 +1154,13 @@ def check_workflow_job_strategy_matrix(
         return
 
     actual_matrix = workflow_job_strategy_matrix(job_block)
-    if not actual_matrix:
-        errors.append(f"{label} job {job_id} strategy is missing matrix")
-    elif actual_matrix != expected_matrix:
-        errors.append(
-            f"{label} job {job_id} strategy.matrix must be {expected_matrix!r}, "
-            f"found {actual_matrix!r}"
-        )
+    append_scalar_value_error(
+        actual_matrix,
+        expected_matrix,
+        f"{label} job {job_id} strategy is missing matrix",
+        f"{label} job {job_id} strategy.matrix",
+        errors,
+    )
 
 
 def check_workflow_job_timeout_usage(
@@ -1168,13 +1181,13 @@ def check_workflow_job_timeout_usage(
         if not job_block:
             continue
         actual_timeout = workflow_job_timeout_minutes(job_block)
-        if not actual_timeout:
-            errors.append(f"{label} job {job_id} is missing timeout-minutes")
-        elif actual_timeout != expected_timeout_value:
-            errors.append(
-                f"{label} job {job_id} timeout-minutes must be {expected_timeout_value!r}, "
-                f"found {actual_timeout!r}"
-            )
+        append_scalar_value_error(
+            actual_timeout,
+            expected_timeout_value,
+            f"{label} job {job_id} is missing timeout-minutes",
+            f"{label} job {job_id} timeout-minutes",
+            errors,
+        )
 
 
 def check_workflow_job_runner_usage(
@@ -1192,12 +1205,13 @@ def check_workflow_job_runner_usage(
             if not job_block:
                 continue
             actual_runner = workflow_job_runs_on(job_block)
-            if not actual_runner:
-                errors.append(f"{label} job {job_id} is missing runs-on")
-            elif actual_runner != expected_runner:
-                errors.append(
-                    f"{label} job {job_id} runs-on must be {expected_runner!r}, found {actual_runner!r}"
-                )
+            append_scalar_value_error(
+                actual_runner,
+                expected_runner,
+                f"{label} job {job_id} is missing runs-on",
+                f"{label} job {job_id} runs-on",
+                errors,
+            )
 
 
 def workflow_job_needs(job_block: str) -> list[str]:
