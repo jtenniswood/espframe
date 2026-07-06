@@ -44,7 +44,7 @@ This group checks generated files, product metadata, backup configuration, compa
 npm run test:web
 ```
 
-This group checks the generated web app bundle, compatibility helpers, and browser smoke coverage. The browser smoke test opens the web UI in Chrome or Chromium and exercises the main setup, settings, firmware update, and backup import flows.
+This group checks the generated web app bundle, compatibility helpers, focused smoke-test command options, and browser smoke coverage. The browser smoke test opens the web UI in Chrome or Chromium and exercises the main setup, settings, firmware update, and backup import flows.
 
 When you are working on one browser flow, run a single smoke scenario while iterating:
 

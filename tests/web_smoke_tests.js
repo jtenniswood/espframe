@@ -60,8 +60,11 @@ const chromePathCandidates = [
 ].filter(Boolean);
 const chromePath = resolveChromePath();
 
-if (!chromePath) {
-  throw new Error(`Google Chrome or Chromium is required for browser smoke tests. Checked: ${chromePathCandidates.join(", ")}`);
+function requireChromePath() {
+  if (!chromePath) {
+    throw new Error(`Google Chrome or Chromium is required for browser smoke tests. Checked: ${chromePathCandidates.join(", ")}`);
+  }
+  return chromePath;
 }
 
 function chromeSandboxArgs() {
@@ -917,7 +920,7 @@ function htmlForScenario(scenario) {
 function runChrome(args, timeoutMs) {
   return new Promise((resolve) => {
     const useProcessGroup = process.platform !== "win32";
-    const child = spawn(chromePath, args, {
+    const child = spawn(requireChromePath(), args, {
       detached: useProcessGroup,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -1048,7 +1051,15 @@ async function main(args = process.argv.slice(2)) {
   if (selectedScenarios.length) console.log("web browser smoke tests passed");
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  main,
+  scenarios,
+  selectedScenariosFromArgs,
+};

@@ -23,6 +23,10 @@ def web_smoke_scenario_names(smoke_test: str, errors: list[str]) -> set[str]:
     return set(names)
 
 
+def script_includes_step(script: str, expected_step: str) -> bool:
+    return expected_step in [step.strip() for step in script.split("&&")]
+
+
 def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
     expected_name = str(product["project"].get("npm_package_name", "")).strip()
     expected_license = str(product["project"].get("license_id", "")).strip()
@@ -59,50 +63,56 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
             errors.append("package.json test:web-compat must run tests/web_compat_tests.js")
         if scripts.get("test:web-modules") != "node tests/web_module_tests.js":
             errors.append("package.json test:web-modules must run tests/web_module_tests.js")
+        if scripts.get("test:web-smoke-cli") != "node tests/web_smoke_cli_tests.js":
+            errors.append("package.json test:web-smoke-cli must run tests/web_smoke_cli_tests.js")
         if scripts.get("test:web-smoke") != "node tests/web_smoke_tests.js":
             errors.append("package.json test:web-smoke must run tests/web_smoke_tests.js")
         test_web = str(scripts.get("test:web", ""))
-        if "npm run test:web-compat" not in test_web:
+        if not script_includes_step(test_web, "npm run test:web-compat"):
             errors.append("package.json test:web must include test:web-compat")
-        if "npm run test:web-modules" not in test_web:
+        if not script_includes_step(test_web, "npm run test:web-modules"):
             errors.append("package.json test:web must include test:web-modules")
-        if "npm run test:web-smoke" not in test_web:
+        if not script_includes_step(test_web, "npm run test:web-smoke-cli"):
+            errors.append("package.json test:web must include test:web-smoke-cli")
+        if not script_includes_step(test_web, "npm run test:web-smoke"):
             errors.append("package.json test:web must include test:web-smoke")
         firmware_logic = str(scripts.get("test:firmware-logic", ""))
-        if "npm run test:helpers" not in firmware_logic:
+        if not script_includes_step(firmware_logic, "npm run test:helpers"):
             errors.append("package.json test:firmware-logic must include test:helpers")
-        if "npm run test:timezones" not in firmware_logic:
+        if not script_includes_step(firmware_logic, "npm run test:timezones"):
             errors.append("package.json test:firmware-logic must include test:timezones")
         check_fast = str(scripts.get("check:fast", ""))
-        if "npm run check:generated" not in check_fast:
+        if not script_includes_step(check_fast, "npm run check:generated"):
             errors.append("package.json check:fast must include check:generated")
-        if "npm run check:product" not in check_fast:
+        if not script_includes_step(check_fast, "npm run check:product"):
             errors.append("package.json check:fast must include check:product")
-        if "npm run check:backup" not in check_fast:
+        if not script_includes_step(check_fast, "npm run check:backup"):
             errors.append("package.json check:fast must include check:backup")
-        if "npm run check:compat" not in check_fast:
+        if not script_includes_step(check_fast, "npm run check:compat"):
             errors.append("package.json check:fast must include check:compat")
-        if "npm run check:firmware-fields" not in check_fast:
+        if not script_includes_step(check_fast, "npm run check:firmware-fields"):
             errors.append("package.json check:fast must include check:firmware-fields")
         check_pr = str(scripts.get("check:pr", ""))
-        if "npm run check:fast" not in check_pr:
+        if not script_includes_step(check_pr, "npm run check:fast"):
             errors.append("package.json check:pr must include check:fast")
-        if "npm run test:web-compat" not in check_pr:
+        if not script_includes_step(check_pr, "npm run test:web-compat"):
             errors.append("package.json check:pr must include test:web-compat")
-        if "npm run test:web-modules" not in check_pr:
+        if not script_includes_step(check_pr, "npm run test:web-modules"):
             errors.append("package.json check:pr must include test:web-modules")
-        if "npm run test:web-smoke" not in check_pr:
+        if not script_includes_step(check_pr, "npm run test:web-smoke-cli"):
+            errors.append("package.json check:pr must include test:web-smoke-cli")
+        if not script_includes_step(check_pr, "npm run test:web-smoke"):
             errors.append("package.json check:pr must include test:web-smoke")
-        if "npm run test:firmware-logic" not in check_pr:
+        if not script_includes_step(check_pr, "npm run test:firmware-logic"):
             errors.append("package.json check:pr must include test:firmware-logic")
-        if "npm run docs:build" not in check_pr:
+        if not script_includes_step(check_pr, "npm run docs:build"):
             errors.append("package.json check:pr must include docs:build")
         check_release = str(scripts.get("check:release", ""))
-        if "npm run check:pr" not in check_release:
+        if not script_includes_step(check_release, "npm run check:pr"):
             errors.append("package.json check:release must include check:pr")
-        if "npm run check:firmware-release" not in check_release:
+        if not script_includes_step(check_release, "npm run check:firmware-release"):
             errors.append("package.json check:release must include check:firmware-release")
-        if "npm run check:release-changelog" not in check_release:
+        if not script_includes_step(check_release, "npm run check:release-changelog"):
             errors.append("package.json check:release must include check:release-changelog")
         if scripts.get("check:all") != "npm run check:release":
             errors.append("package.json check:all must run check:release")
