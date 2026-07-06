@@ -9,6 +9,11 @@ const appSource = fs.readFileSync(path.join(root, "docs/public/webserver/app.js"
 const product = JSON.parse(fs.readFileSync(path.join(root, "product/espframe.json"), "utf8"));
 const expectedBackupGroups = product.project.backup_export_groups;
 const expectedBackupFields = product.project.backup_export_fields;
+const smokeAlbumIds = [
+  "11111111-1111-4111-8111-111111111111",
+  "44444444-4444-4444-8444-444444444444",
+];
+const smokeAlbumLabels = ["Family", "Travel"];
 
 function findExecutable(name) {
   const pathDirs = String(process.env.PATH || "")
@@ -159,6 +164,7 @@ const scenarios = [
   { name: "wizard", configured: false, width: 1280, height: 900 },
   { name: "settings", configured: true, width: 1280, height: 900 },
   { name: "settings-mobile", configured: true, width: 390, height: 900 },
+  { name: "photo-source-reorder", configured: true, width: 1280, height: 900 },
   { name: "backup-import-success", configured: true, width: 1280, height: 900, importFixture: validBackupFixture },
   { name: "backup-import-partial", configured: true, width: 1280, height: 900, importFixture: partialBackupFixture },
   { name: "backup-import-rejected", configured: true, width: 1280, height: 900, importFixture: rejectedBackupFixture },
@@ -171,6 +177,7 @@ function browserScriptForScenario(scenario) {
   return `
     window.__smoke = {
       posts: [],
+      postRecords: [],
       errors: [],
       downloads: 0,
       exportPayloads: [],
@@ -245,8 +252,8 @@ function browserScriptForScenario(scenario) {
       "Connection: API Key": configured ? "fixture-api-key" : "",
       "Firmware: Version": "v1.0.0",
       "Photos: Source": "Album",
-      "Photos: Album IDs": "11111111-1111-4111-8111-111111111111",
-      "Photos: Album Labels": "Family",
+      "Photos: Album IDs": ${JSON.stringify(smokeAlbumIds.join(","))},
+      "Photos: Album Labels": ${JSON.stringify(smokeAlbumLabels.join(","))},
       "Photos: Person IDs": "22222222-2222-4222-8222-222222222222",
       "Photos: Person Labels": "Alex",
       "Photos: Tag IDs": "33333333-3333-4333-8333-333333333333",
@@ -289,7 +296,11 @@ function browserScriptForScenario(scenario) {
     window.fetch = function (url, options) {
       const method = options && options.method ? options.method : "GET";
       const decoded = decodeURIComponent(String(url));
-      if (method === "POST") window.__smoke.posts.push(decoded);
+      const body = options && options.body != null ? String(options.body) : "";
+      if (method === "POST") {
+        window.__smoke.posts.push(decoded);
+        window.__smoke.postRecords.push({ url: decoded, body });
+      }
       if (decoded.indexOf("Firmware: Update") !== -1) {
         return Promise.resolve({
           ok: true,
@@ -356,6 +367,25 @@ function smokeAssertionsForScenario(scenario) {
         );
         if (!found) throw new Error(label + " was not posted to the device");
       }
+      function latestPostRecord(fragment) {
+        for (let i = window.__smoke.postRecords.length - 1; i >= 0; i--) {
+          const record = window.__smoke.postRecords[i];
+          if (record.url.indexOf(fragment) !== -1) return record;
+        }
+        throw new Error("POST record not found: " + fragment);
+      }
+      function postRecordParam(record, name) {
+        const queryIndex = record.url.indexOf("?");
+        const query = queryIndex === -1 ? "" : record.url.slice(queryIndex + 1);
+        const params = new URLSearchParams(record.body || query);
+        return params.get(name);
+      }
+      function requireLatestPostValue(label, fragment, expected) {
+        const actual = postRecordParam(latestPostRecord(fragment), "value");
+        if (actual !== expected) {
+          throw new Error(label + " saved " + JSON.stringify(actual) + " instead of " + JSON.stringify(expected));
+        }
+      }
       function requireExportShape() {
         if (!window.__smoke.exportPayloads.length) throw new Error("Export payload was not captured");
         const exported = JSON.parse(window.__smoke.exportPayloads[0]);
@@ -398,6 +428,20 @@ function smokeAssertionsForScenario(scenario) {
         select.value = value;
         select.dispatchEvent(new Event("change", { bubbles: true }));
       }
+      function fieldByLabel(labelText) {
+        const labels = Array.from(document.querySelectorAll("label"));
+        const label = labels.find((item) => item.textContent.trim() === labelText);
+        if (!label || !label.parentElement) throw new Error("Field not found: " + labelText);
+        return label.parentElement;
+      }
+      function photoRows(labelText) {
+        return Array.from(fieldByLabel(labelText).querySelectorAll(".photo-id-row"));
+      }
+      function photoRowValues(labelText) {
+        return photoRows(labelText).map((row) =>
+          Array.from(row.querySelectorAll("input")).map((inputEl) => inputEl.value)
+        );
+      }
       function requirePhotoSourceModes() {
         const sourceSelect = selectByLabel("Source");
         ["All Photos", "Favorites", "Album", "Person", "Tag", "Memories"].forEach((mode) => {
@@ -411,6 +455,42 @@ function smokeAssertionsForScenario(scenario) {
         requireText("Add a person");
         setSelect("Source", "Tag");
         requireText("Add a tag");
+      }
+      async function requireAlbumReorderSave() {
+        const startingIds = ${JSON.stringify(smokeAlbumIds)};
+        const startingLabels = ${JSON.stringify(smokeAlbumLabels)};
+        const expectedIds = startingIds.slice().reverse().join(",");
+        const expectedLabels = startingLabels.slice().reverse().join(",");
+
+        setSelect("Source", "Album");
+        await waitFor(() => photoRows("Albums").length === 2, 3000, "album rows");
+
+        const before = photoRowValues("Albums");
+        if (JSON.stringify(before.map((row) => row[0])) !== JSON.stringify(startingIds)) {
+          throw new Error("Unexpected starting album ID order: " + JSON.stringify(before));
+        }
+        if (JSON.stringify(before.map((row) => row[1])) !== JSON.stringify(startingLabels)) {
+          throw new Error("Unexpected starting album label order: " + JSON.stringify(before));
+        }
+
+        const moveUp = photoRows("Albums")[1].querySelector('[aria-label="Move album up"]');
+        if (!moveUp || moveUp.disabled) throw new Error("Second album row cannot move up");
+        moveUp.click();
+
+        await waitFor(() => {
+          const values = photoRowValues("Albums");
+          return values[0] && values[0][0] === startingIds[1] && values[0][1] === startingLabels[1];
+        }, 3000, "album row visual reorder");
+
+        await waitFor(() => {
+          try {
+            requireLatestPostValue("Album IDs", "Photos: Album IDs", expectedIds);
+            requireLatestPostValue("Album labels", "Photos: Album Labels", expectedLabels);
+            return window.__smoke.posts.some((url) => url.indexOf("Apply Photo Source") !== -1);
+          } catch (_) {
+            return false;
+          }
+        }, 8000, "album reorder save");
       }
 
       try {
@@ -452,6 +532,10 @@ function smokeAssertionsForScenario(scenario) {
                 throw new Error("Mobile viewport has horizontal overflow");
               }
             }
+          }
+
+          if (${JSON.stringify(scenario.name)} === "photo-source-reorder") {
+            await requireAlbumReorderSave();
           }
 
           if (${JSON.stringify(scenario.name)} === "backup-import-success") {
