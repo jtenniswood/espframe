@@ -241,13 +241,35 @@ def check_workflow_action_usage(
     if not isinstance(release_actions, dict):
         return
 
+    expected_actions_by_label: dict[str, list[str]] = {}
     for action_key, labels in WORKFLOW_ACTION_TARGETS.items():
         action = release_actions.get(action_key)
         if not isinstance(action, str) or not action.strip():
             continue
+        action_name = action.strip()
         for label in labels:
-            text = workflow_texts.get(label, "")
-            require_contains(text, action.strip(), label, errors)
+            expected_actions_by_label.setdefault(label, []).append(action_name)
+
+    for label, text in workflow_texts.items():
+        expected_actions = expected_actions_by_label.get(label, [])
+        if not expected_actions:
+            continue
+        actual_actions = workflow_action_references(text)
+        missing_actions = [action for action in expected_actions if action not in actual_actions]
+        extra_actions = [action for action in actual_actions if action not in expected_actions]
+        if missing_actions:
+            errors.append(f"{label} uses are missing product metadata actions: {', '.join(missing_actions)}")
+        if extra_actions:
+            errors.append(f"{label} uses contain actions missing from product metadata: {', '.join(extra_actions)}")
+
+
+def workflow_action_references(text: str) -> list[str]:
+    actions: list[str] = []
+    for match in re.finditer(r"^\s*(?:-\s*)?uses:\s*(.*?)\s*$", text, re.MULTILINE):
+        action = unquote_workflow_value(match.group(1))
+        if action and action not in actions:
+            actions.append(action)
+    return actions
 
 
 def workflow_top_level_value(text: str, field_name: str) -> str:

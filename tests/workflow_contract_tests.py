@@ -25,6 +25,7 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_sparse_checkout_usage,
     normalize_workflow_condition,
     workflow_display_name,
+    workflow_action_references,
     workflow_event_branch_filters,
     workflow_event_names,
     workflow_event_path_filters,
@@ -521,26 +522,27 @@ def test_workflow_action_usage_checks_expected_workflows() -> None:
     workflow_texts = {
         ".github/workflows/release.yml": "\n".join(
             [
-                "actions/checkout@v7",
-                "actions/cache@v6",
-                "actions/upload-artifact@v7",
-                "actions/download-artifact@v8",
+                "      - uses: actions/checkout@v7",
+                "        uses: actions/cache@v6",
+                "        uses: actions/upload-artifact@v7",
+                "        uses: actions/download-artifact@v8",
             ]
         ),
         ".github/workflows/docs.yml": "\n".join(
             [
-                "actions/checkout@v7",
-                "actions/upload-artifact@v7",
-                "actions/download-artifact@v8",
-                "actions/setup-node@v6",
-                "actions/upload-pages-artifact@v5",
+                "      - uses: actions/checkout@v7",
+                "        uses: actions/upload-artifact@v7",
+                "        uses: actions/download-artifact@v8",
+                "      - uses: actions/setup-node@v6",
+                "        uses: actions/upload-pages-artifact@v5",
+                "        uses: actions/cache@v6",
             ]
         ),
         ".github/workflows/compile.yml": "\n".join(
             [
-                "actions/checkout@v7",
-                "actions/cache@v6",
-                "actions/upload-artifact@v7",
+                "      - uses: actions/checkout@v7",
+                "        uses: actions/cache@v6",
+                "        uses: actions/upload-artifact@v7",
             ]
         ),
     }
@@ -548,9 +550,22 @@ def test_workflow_action_usage_checks_expected_workflows() -> None:
     check_workflow_action_usage(release_actions, workflow_texts, errors)
 
     assert errors == [
-        ".github/workflows/docs.yml is missing 'actions/deploy-pages@v5'",
-        ".github/workflows/compile.yml is missing 'actions/setup-node@v6'",
+        ".github/workflows/docs.yml uses are missing product metadata actions: actions/deploy-pages@v5",
+        ".github/workflows/docs.yml uses contain actions missing from product metadata: actions/cache@v6",
+        ".github/workflows/compile.yml uses are missing product metadata actions: actions/setup-node@v6",
     ]
+
+
+def test_workflow_action_references_reads_uses_lines() -> None:
+    assert workflow_action_references(
+        """\
+steps:
+  - uses: actions/checkout@v7
+  - uses: "actions/setup-node@v6"
+  - uses: actions/checkout@v7
+  - run: npm ci
+"""
+    ) == ["actions/checkout@v7", "actions/setup-node@v6"]
 
 
 def test_workflow_event_names_reads_on_block() -> None:
@@ -861,6 +876,7 @@ def main() -> int:
     test_normalize_workflow_condition_collapses_whitespace()
     test_release_workflow_actions_require_expected_keys()
     test_workflow_action_usage_checks_expected_workflows()
+    test_workflow_action_references_reads_uses_lines()
     test_workflow_event_names_reads_on_block()
     test_workflow_events_reject_drift_from_product_metadata()
     test_workflow_event_branch_filters_reads_inline_and_block_lists()
