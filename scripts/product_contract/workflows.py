@@ -814,6 +814,85 @@ def check_workflow_named_step_env(
             )
 
 
+def check_workflow_named_step_uses(
+    target: str,
+    step_name: str,
+    expected_action: str,
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    step_name = step_name.strip()
+    expected_action = expected_action.strip()
+    if not step_name or not expected_action:
+        return
+
+    label, job_id, step_block = workflow_named_step_block(target, step_name, workflow_texts, errors)
+    if not step_block:
+        return
+
+    actual_action = workflow_step_uses(step_block)
+    if not actual_action:
+        errors.append(f"{label} job {job_id} step {step_name!r} is missing uses")
+    elif actual_action != expected_action:
+        errors.append(
+            f"{label} job {job_id} step {step_name!r} uses must be {expected_action!r}, "
+            f"found {actual_action!r}"
+        )
+
+
+def check_workflow_named_step_with(
+    target: str,
+    step_name: str,
+    expected_inputs: dict[str, str],
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    step_name = step_name.strip()
+    expected_inputs = {
+        str(name).strip(): str(value).strip()
+        for name, value in expected_inputs.items()
+        if str(name).strip() and str(value).strip()
+    }
+    if not step_name or not expected_inputs:
+        return
+
+    label, job_id, step_block = workflow_named_step_block(target, step_name, workflow_texts, errors)
+    if not step_block:
+        return
+
+    actual_inputs = workflow_step_with(step_block)
+    for name, expected_value in expected_inputs.items():
+        actual_value = actual_inputs.get(name)
+        if actual_value is None:
+            errors.append(f"{label} job {job_id} step {step_name!r} with is missing {name}")
+        elif actual_value != expected_value:
+            errors.append(
+                f"{label} job {job_id} step {step_name!r} with.{name} "
+                f"must be {expected_value!r}, found {actual_value!r}"
+            )
+
+
+def check_workflow_named_step_contains(
+    target: str,
+    step_name: str,
+    expected_fragments: list[str],
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    step_name = step_name.strip()
+    expected_fragments = [str(fragment).strip() for fragment in expected_fragments if str(fragment).strip()]
+    if not step_name or not expected_fragments:
+        return
+
+    label, job_id, step_block = workflow_named_step_block(target, step_name, workflow_texts, errors)
+    if not step_block:
+        return
+
+    for fragment in expected_fragments:
+        if fragment not in step_block:
+            errors.append(f"{label} job {job_id} step {step_name!r} is missing {fragment!r}")
+
+
 def check_workflow_named_step_run_contains(
     target: str,
     step_name: str,
@@ -1209,6 +1288,9 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     checkout_action = (
         str(release_actions.get("checkout", "")).strip() if isinstance(release_actions, dict) else ""
     )
+    cache_action = (
+        str(release_actions.get("cache", "")).strip() if isinstance(release_actions, dict) else ""
+    )
     upload_artifact_action = (
         str(release_actions.get("upload_artifact", "")).strip() if isinstance(release_actions, dict) else ""
     )
@@ -1517,41 +1599,80 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             errors,
         )
     if release_esphome_cache_dir:
-        for needle in (
-            "path: ${{ needs.release-metadata.outputs.release_esphome_cache_dir }}",
-            'if [ -d "${RELEASE_ESPHOME_CACHE_DIR}" ]; then',
-            'sudo chown -R "$USER:$USER" "${RELEASE_ESPHOME_CACHE_DIR}"',
-            'chmod -R u+rwX "${RELEASE_ESPHOME_CACHE_DIR}"',
-            'BUILD_DIR="${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}/.pioenvs/${{ matrix.build_name }}"',
+        build_dir_fragment = (
+            'BUILD_DIR="${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}/.pioenvs/'
+            '${{ matrix.build_name }}"'
+        )
+        for target, step_names in (
+            ("compile.compile", ("Compile test firmware artifacts",)),
+            ("release.build-firmware", ("Compile firmware", "Collect firmware files and generate manifest")),
         ):
-            require_contains(release_workflow, needle, ".github/workflows/release.yml", errors)
+            for step_name in step_names:
+                check_workflow_named_step_run_contains(
+                    target,
+                    step_name,
+                    [build_dir_fragment],
+                    workflow_texts,
+                    errors,
+                )
+        for target in ("compile.compile", "release.build-firmware"):
+            check_workflow_named_step_run_contains(
+                target,
+                "Fix ESPHome cache permissions",
+                [
+                    'if [ -d "${RELEASE_ESPHOME_CACHE_DIR}" ]; then',
+                    'sudo chown -R "$USER:$USER" "${RELEASE_ESPHOME_CACHE_DIR}"',
+                    'chmod -R u+rwX "${RELEASE_ESPHOME_CACHE_DIR}"',
+                ],
+                workflow_texts,
+                errors,
+            )
     if release_esphome_cache_key_prefix:
-        require_contains(
-            release_workflow,
-            "restore-keys: |",
-            ".github/workflows/release.yml",
-            errors,
-        )
-        require_contains(
-            release_workflow,
-            "${{ needs.release-metadata.outputs.release_esphome_cache_key_prefix }}-${{ matrix.slug }}-",
-            ".github/workflows/release.yml",
-            errors,
-        )
+        for target, metadata_job in (
+            ("compile.compile", "firmware-metadata"),
+            ("release.build-firmware", "release-metadata"),
+        ):
+            cache_step_fragments = [
+                (
+                    "restore-keys: |\n"
+                    f"            ${{{{ needs.{metadata_job}.outputs.release_esphome_cache_key_prefix }}}}-"
+                    f"${{{{ matrix.slug }}}}-"
+                ),
+            ]
+            check_workflow_named_step_contains(
+                target,
+                "Cache ESPHome build",
+                cache_step_fragments,
+                workflow_texts,
+                errors,
+            )
     if release_esphome_cache_hash_files:
         hash_files = "', '".join(release_esphome_cache_hash_files)
-        require_contains(
-            release_workflow,
-            f"hashFiles('{hash_files}')",
-            ".github/workflows/release.yml",
-            errors,
-        )
-        require_contains(
-            compile_workflow,
-            f"hashFiles('{hash_files}')",
-            ".github/workflows/compile.yml",
-            errors,
-        )
+        for target, metadata_job in (
+            ("compile.compile", "firmware-metadata"),
+            ("release.build-firmware", "release-metadata"),
+        ):
+            check_workflow_named_step_uses(
+                target,
+                "Cache ESPHome build",
+                cache_action,
+                workflow_texts,
+                errors,
+            )
+            cache_inputs = {
+                "path": f"${{{{ needs.{metadata_job}.outputs.release_esphome_cache_dir }}}}",
+                "key": (
+                    f"${{{{ needs.{metadata_job}.outputs.release_esphome_cache_key_prefix }}}}-"
+                    f"${{{{ matrix.slug }}}}-${{{{ hashFiles('{hash_files}') }}}}"
+                ),
+            }
+            check_workflow_named_step_with(
+                target,
+                "Cache ESPHome build",
+                cache_inputs,
+                workflow_texts,
+                errors,
+            )
     if compile_firmware_artifact_prefix:
         compile_artifact_name = f"{compile_firmware_artifact_prefix}${{{{ matrix.slug }}}}"
         compile_artifact_upload_inputs = {"name": compile_artifact_name}

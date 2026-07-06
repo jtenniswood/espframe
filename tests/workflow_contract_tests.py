@@ -19,8 +19,11 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_gh_cli_env,
     check_workflow_job_dependency_usage,
     check_workflow_job_env,
+    check_workflow_named_step_contains,
     check_workflow_named_step_env,
     check_workflow_named_step_run_contains,
+    check_workflow_named_step_uses,
+    check_workflow_named_step_with,
     check_workflow_job_outputs,
     check_workflow_job_runner_usage,
     check_workflow_job_run_command,
@@ -564,6 +567,49 @@ jobs:
             --version "${VERSION}" \
             --dir published \
             --slugs $DEVICE_SLUGS
+"""
+
+
+CACHE_WORKFLOW = """\
+name: Example
+
+jobs:
+  compile:
+    name: Compile Firmware
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cache ESPHome build
+        uses: actions/cache@v6
+        with:
+          path: ${{ needs.firmware-metadata.outputs.release_esphome_cache_dir }}
+          key: ${{ needs.firmware-metadata.outputs.release_esphome_cache_key_prefix }}-${{ matrix.slug }}-${{ hashFiles('builds/*.yaml', 'common/**') }}
+          restore-keys: |
+            ${{ needs.firmware-metadata.outputs.release_esphome_cache_key_prefix }}-${{ matrix.slug }}-
+
+      - name: Fix ESPHome cache permissions
+        run: |
+          if [ -d "${RELEASE_ESPHOME_CACHE_DIR}" ]; then
+            sudo chown -R "$USER:$USER" "${RELEASE_ESPHOME_CACHE_DIR}"
+            chmod -R u+rwX "${RELEASE_ESPHOME_CACHE_DIR}"
+          fi
+
+  build-firmware:
+    name: Build Firmware
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cache ESPHome build
+        uses: actions/cache@v5
+        with:
+          path: ${{ needs.release-metadata.outputs.wrong_cache_dir }}
+          key: ${{ needs.release-metadata.outputs.release_esphome_cache_key_prefix }}-${{ matrix.slug }}-${{ hashFiles('builds/*.yaml', 'common/**') }}
+          restore-keys: |
+            ${{ needs.release-metadata.outputs.wrong_cache_prefix }}-${{ matrix.slug }}-
+
+      - name: Fix ESPHome cache permissions
+        run: |
+          if [ -d "${RELEASE_ESPHOME_CACHE_DIR}" ]; then
+            sudo chown -R "$USER:$USER" "${RELEASE_ESPHOME_CACHE_DIR}"
+          fi
 """
 
 
@@ -1179,6 +1225,113 @@ def test_workflow_named_step_run_contains_checks_publish_steps() -> None:
         (
             "release.yml job publish step 'Verify uploaded release assets' run is missing "
             '\'--pattern "*.factory.bin"\''
+        ),
+    ]
+
+
+def test_workflow_named_step_helpers_check_cache_metadata() -> None:
+    errors: list[str] = []
+    workflow_texts = {"compile": ("compile.yml", CACHE_WORKFLOW), "release": ("release.yml", CACHE_WORKFLOW)}
+    cache_key = (
+        "${{ needs.firmware-metadata.outputs.release_esphome_cache_key_prefix }}-"
+        "${{ matrix.slug }}-${{ hashFiles('builds/*.yaml', 'common/**') }}"
+    )
+    release_cache_key = (
+        "${{ needs.release-metadata.outputs.release_esphome_cache_key_prefix }}-"
+        "${{ matrix.slug }}-${{ hashFiles('builds/*.yaml', 'common/**') }}"
+    )
+
+    check_workflow_named_step_uses(
+        "compile.compile",
+        "Cache ESPHome build",
+        "actions/cache@v6",
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_with(
+        "compile.compile",
+        "Cache ESPHome build",
+        {
+            "path": "${{ needs.firmware-metadata.outputs.release_esphome_cache_dir }}",
+            "key": cache_key,
+        },
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_contains(
+        "compile.compile",
+        "Cache ESPHome build",
+        [
+            (
+                "restore-keys: |\n"
+                "            ${{ needs.firmware-metadata.outputs.release_esphome_cache_key_prefix }}-${{ matrix.slug }}-"
+            ),
+        ],
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_run_contains(
+        "compile.compile",
+        "Fix ESPHome cache permissions",
+        ['chmod -R u+rwX "${RELEASE_ESPHOME_CACHE_DIR}"'],
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_uses(
+        "release.build-firmware",
+        "Cache ESPHome build",
+        "actions/cache@v6",
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_with(
+        "release.build-firmware",
+        "Cache ESPHome build",
+        {
+            "path": "${{ needs.release-metadata.outputs.release_esphome_cache_dir }}",
+            "key": release_cache_key,
+        },
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_contains(
+        "release.build-firmware",
+        "Cache ESPHome build",
+        [
+            (
+                "restore-keys: |\n"
+                "            ${{ needs.release-metadata.outputs.release_esphome_cache_key_prefix }}-${{ matrix.slug }}-"
+            ),
+        ],
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_run_contains(
+        "release.build-firmware",
+        "Fix ESPHome cache permissions",
+        ['chmod -R u+rwX "${RELEASE_ESPHOME_CACHE_DIR}"'],
+        workflow_texts,
+        errors,
+    )
+
+    assert errors == [
+        (
+            "release.yml job build-firmware step 'Cache ESPHome build' uses must be "
+            "'actions/cache@v6', found 'actions/cache@v5'"
+        ),
+        (
+            "release.yml job build-firmware step 'Cache ESPHome build' with.path must be "
+            "'${{ needs.release-metadata.outputs.release_esphome_cache_dir }}', found "
+            "'${{ needs.release-metadata.outputs.wrong_cache_dir }}'"
+        ),
+        (
+            "release.yml job build-firmware step 'Cache ESPHome build' is missing "
+            "'restore-keys: |\\n            "
+            "${{ needs.release-metadata.outputs.release_esphome_cache_key_prefix }}-${{ matrix.slug }}-'"
+        ),
+        (
+            "release.yml job build-firmware step 'Fix ESPHome cache permissions' run is missing "
+            '\'chmod -R u+rwX "${RELEASE_ESPHOME_CACHE_DIR}"\''
         ),
     ]
 
@@ -1824,6 +1977,7 @@ def main() -> int:
     test_workflow_named_step_run_contains_rejects_drift_from_product_metadata()
     test_workflow_named_step_run_contains_checks_firmware_build_steps()
     test_workflow_named_step_run_contains_checks_publish_steps()
+    test_workflow_named_step_helpers_check_cache_metadata()
     test_workflow_job_run_command_rejects_drift_from_product_metadata()
     test_workflow_job_outputs_reads_job_outputs()
     test_workflow_job_outputs_rejects_drift_from_product_metadata()
