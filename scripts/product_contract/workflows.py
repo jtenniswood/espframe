@@ -1089,12 +1089,38 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         errors,
     )
     if artifact_prefix:
-        require_contains(release_workflow, f"name: {artifact_prefix}${{{{ matrix.slug }}}}", ".github/workflows/release.yml", errors)
-        require_contains(release_workflow, f"pattern: {artifact_prefix}*", ".github/workflows/release.yml", errors)
+        release_artifact_name = f"{artifact_prefix}${{{{ matrix.slug }}}}"
+        release_artifact_upload_inputs = {"name": release_artifact_name}
+        if release_build_output_dir:
+            release_artifact_upload_inputs["path"] = f"{release_build_output_dir}/"
+        check_workflow_action_step_inputs(
+            "release.build-firmware",
+            upload_artifact_action,
+            "name",
+            release_artifact_name,
+            release_artifact_upload_inputs,
+            {"release": (".github/workflows/release.yml", release_workflow)},
+            errors,
+        )
+
+        release_artifact_download_inputs = {
+            "pattern": f"{artifact_prefix}*",
+            "merge-multiple": "true",
+        }
+        if release_publish_dir:
+            release_artifact_download_inputs["path"] = release_publish_dir
+        check_workflow_action_step_inputs(
+            "release.publish",
+            download_artifact_action,
+            "pattern",
+            f"{artifact_prefix}*",
+            release_artifact_download_inputs,
+            {"release": (".github/workflows/release.yml", release_workflow)},
+            errors,
+        )
     if release_build_output_dir:
         for needle in (
             f"mkdir -p {release_build_output_dir}",
-            f"path: {release_build_output_dir}/",
             f'"{release_build_output_dir}/${{{{ matrix.slug }}}}.factory.bin"',
             f'"{release_build_output_dir}/${{{{ matrix.slug }}}}.ota.bin"',
             f'"{release_build_output_dir}/${{{{ matrix.slug }}}}.manifest.json"',
@@ -1116,7 +1142,6 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             require_contains(release_workflow, needle, ".github/workflows/release.yml", errors)
     if release_publish_dir:
         for needle in (
-            f"path: {release_publish_dir}",
             f"--dir {release_publish_dir}",
             f"{release_publish_dir}/* --clobber",
         ):
@@ -1171,16 +1196,22 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             errors,
         )
     if compile_firmware_artifact_prefix:
-        require_contains(
-            compile_workflow,
-            f"name: {compile_firmware_artifact_prefix}${{{{ matrix.slug }}}}",
-            ".github/workflows/compile.yml",
+        compile_artifact_name = f"{compile_firmware_artifact_prefix}${{{{ matrix.slug }}}}"
+        compile_artifact_upload_inputs = {"name": compile_artifact_name}
+        if compile_firmware_output_dir:
+            compile_artifact_upload_inputs["path"] = f"{compile_firmware_output_dir}/"
+        check_workflow_action_step_inputs(
+            "compile.compile",
+            upload_artifact_action,
+            "name",
+            compile_artifact_name,
+            compile_artifact_upload_inputs,
+            {"compile": (".github/workflows/compile.yml", compile_workflow)},
             errors,
         )
     if compile_firmware_output_dir:
         for needle in (
             f"mkdir -p {compile_firmware_output_dir}",
-            f"path: {compile_firmware_output_dir}/",
             f'"{compile_firmware_output_dir}/${{{{ matrix.slug }}}}.factory.bin"',
             f'"{compile_firmware_output_dir}/${{{{ matrix.slug }}}}.ota.bin"',
             f'"{compile_firmware_output_dir}/${{{{ matrix.slug }}}}.version.txt"',

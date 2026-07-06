@@ -427,6 +427,17 @@ jobs:
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
+
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all firmware artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: firmware-*
+          merge-multiple: true
+          path: firmware
 """
 
 
@@ -692,6 +703,13 @@ def test_workflow_step_uses_and_with_read_action_inputs() -> None:
     }
     assert workflow_step_uses(deploy_steps[1]) == "actions/upload-pages-artifact@v5"
     assert workflow_step_with(deploy_steps[1]) == {"path": "dist"}
+    publish_block = workflow_job_block(ACTION_INPUT_WORKFLOW, "publish", "docs.yml", errors)
+    publish_steps = workflow_job_step_blocks(publish_block)
+    assert workflow_step_with(publish_steps[0]) == {
+        "pattern": "firmware-*",
+        "merge-multiple": "true",
+        "path": "firmware",
+    }
     assert errors == []
 
 
@@ -723,6 +741,19 @@ def test_workflow_action_step_inputs_rejects_drift_from_product_metadata() -> No
         workflow_texts,
         errors,
     )
+    check_workflow_action_step_inputs(
+        "docs.publish",
+        "actions/download-artifact@v8",
+        "pattern",
+        "firmware-*",
+        {
+            "pattern": "firmware-*",
+            "merge-multiple": "false",
+            "path": "firmware",
+        },
+        workflow_texts,
+        errors,
+    )
 
     assert errors == [
         (
@@ -730,6 +761,10 @@ def test_workflow_action_step_inputs_rejects_drift_from_product_metadata() -> No
             "must be 'wrong-dist', found 'docs/.vitepress/dist'"
         ),
         "docs.yml job deploy-docs is missing actions/download-artifact@v8 step with name 'firmware'",
+        (
+            "docs.yml job publish step 'Download all firmware artifacts' with.merge-multiple "
+            "must be 'false', found 'true'"
+        ),
     ]
 
 
