@@ -167,6 +167,7 @@ const scenarios = [
   { name: "photo-source-reorder", configured: true, width: 1280, height: 900 },
   { name: "screen-rotation-developer", configured: true, width: 1280, height: 900, query: "dev=experimental" },
   { name: "screen-tone-schedule", configured: true, width: 1280, height: 900 },
+  { name: "daily-settings-controls", configured: true, width: 1280, height: 900 },
   { name: "backup-import-success", configured: true, width: 1280, height: 900, importFixture: validBackupFixture },
   { name: "backup-import-partial", configured: true, width: 1280, height: 900, importFixture: partialBackupFixture },
   { name: "backup-import-rejected", configured: true, width: 1280, height: 900, importFixture: rejectedBackupFixture },
@@ -270,6 +271,10 @@ function browserScriptForScenario(scenario) {
       "Photos: Portrait Pairing": true,
       "Photos: Display Mode": "Fill",
       "Photos: Slideshow Interval": "15 seconds",
+      "Device: Metadata Date": true,
+      "Device: Metadata Location": true,
+      "Device: Metadata Date Format": "Date Taken",
+      "Device: Metadata Date Taken Format": "1 January, 2026",
       "Screen: Connection Timeout": "10 minutes",
       "Clock: Show": true,
       "Clock: Format": "24 Hour",
@@ -388,6 +393,12 @@ function smokeAssertionsForScenario(scenario) {
           throw new Error(label + " saved " + JSON.stringify(actual) + " instead of " + JSON.stringify(expected));
         }
       }
+      function requireLatestPostParam(label, fragment, param, expected) {
+        const actual = postRecordParam(latestPostRecord(fragment), param);
+        if (actual !== expected) {
+          throw new Error(label + " saved " + JSON.stringify(actual) + " instead of " + JSON.stringify(expected));
+        }
+      }
       function requireExportShape() {
         if (!window.__smoke.exportPayloads.length) throw new Error("Export payload was not captured");
         const exported = JSON.parse(window.__smoke.exportPayloads[0]);
@@ -481,6 +492,17 @@ function smokeAssertionsForScenario(scenario) {
         const inputEl = inputs[index];
         if (!inputEl) throw new Error("Range input " + index + " not found in card: " + cardTitle);
         inputEl.value = String(value);
+        inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+        inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      function inputByAriaLabel(labelText) {
+        const inputEl = document.querySelector('input[aria-label="' + labelText + '"]');
+        if (!inputEl) throw new Error("Input not found: " + labelText);
+        return inputEl;
+      }
+      function setInputByAriaLabel(labelText, value) {
+        const inputEl = inputByAriaLabel(labelText);
+        inputEl.value = value;
         inputEl.dispatchEvent(new Event("input", { bubbles: true }));
         inputEl.dispatchEvent(new Event("change", { bubbles: true }));
       }
@@ -641,6 +663,65 @@ function smokeAssertionsForScenario(scenario) {
           }
         }, 8000, "screen tone and schedule saves");
       }
+      async function requireDailySettingsControls() {
+        expandCard("Connection");
+        expandCard("Frequency");
+        expandCard("Layout");
+        expandCard("Metadata");
+
+        requireText("Connection Timeout");
+        requireText("Slideshow Interval");
+        requireText("Portrait Pairing");
+        requireText("Photo Orientation");
+        requireText("Display Mode");
+        requireText("Metadata");
+
+        setSelect("Connection Timeout", "5 minutes");
+        setSelect("Slideshow Interval", "30 seconds");
+        toggleByText("Portrait Pairing").click();
+        setSelect("Photo Orientation", "Landscape Only");
+        setSelect("Display Mode", "Fit");
+        setSelect("Date Taken Format", "January 1, 2026");
+        setSelect("Date Format", "Relative Date");
+        toggleByText("Location").click();
+        toggleByText("Date").click();
+
+        clickTab("Device");
+        await waitFor(() => pageText().indexOf("Clock") !== -1, 8000, "clock settings");
+        expandCard("Clock");
+        requireText("Show Clock");
+        requireText("NTP Servers");
+
+        toggleByText("Show Clock").click();
+        setSelect("Format", "12 Hour");
+        setSelect("Timezone", "UTC (GMT+0)");
+        setInputByAriaLabel("NTP Server 1", "time1.example.com");
+        setInputByAriaLabel("NTP Server 2", "time2.example.com");
+        setInputByAriaLabel("NTP Server 3", "time3.example.com");
+
+        await waitFor(() => {
+          try {
+            requireLatestPostParam("Connection timeout", "Screen: Connection Timeout", "option", "5 minutes");
+            requireLatestPostParam("Slideshow interval", "Photos: Slideshow Interval", "option", "30 seconds");
+            requirePostContains("Portrait pairing", "Photos: Portrait Pairing", "turn_off");
+            requireLatestPostParam("Photo orientation", "Photos: Orientation", "option", "Landscape Only");
+            requireLatestPostParam("Display mode", "Photos: Display Mode", "option", "Fit");
+            requireLatestPostParam("Metadata date taken format", "Device: Metadata Date Taken Format", "option", "January 1, 2026");
+            requireLatestPostParam("Metadata date format", "Device: Metadata Date Format", "option", "Relative Date");
+            requirePostContains("Metadata location toggle", "Device: Metadata Location", "turn_off");
+            requirePostContains("Metadata date toggle", "Device: Metadata Date", "turn_off");
+            requirePostContains("Show clock toggle", "Clock: Show", "turn_off");
+            requireLatestPostParam("Clock format", "Clock: Format", "option", "12 Hour");
+            requireLatestPostParam("Timezone", "Clock: Timezone", "option", "UTC (GMT+0)");
+            requireLatestPostValue("NTP server 1", "Clock: NTP Server 1", "time1.example.com");
+            requireLatestPostValue("NTP server 2", "Clock: NTP Server 2", "time2.example.com");
+            requireLatestPostValue("NTP server 3", "Clock: NTP Server 3", "time3.example.com");
+            return true;
+          } catch (_) {
+            return false;
+          }
+        }, 8000, "daily settings saves");
+      }
 
       try {
         if (${JSON.stringify(scenario.name)} === "wizard") {
@@ -693,6 +774,10 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "screen-tone-schedule") {
             await requireScreenToneScheduleControls();
+          }
+
+          if (${JSON.stringify(scenario.name)} === "daily-settings-controls") {
+            await requireDailySettingsControls();
           }
 
           if (${JSON.stringify(scenario.name)} === "backup-import-success") {
