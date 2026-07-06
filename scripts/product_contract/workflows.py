@@ -547,20 +547,38 @@ def workflow_step_display_name(step_block: str) -> str:
     return ""
 
 
-def workflow_step_env(step_block: str) -> dict[str, str]:
+def workflow_step_uses(step_block: str) -> str:
+    for line in step_block.splitlines():
+        match = re.match(r"^      - uses:\s*(.*?)\s*$", line)
+        if not match:
+            match = re.match(r"^        uses:\s*(.*?)\s*$", line)
+        if match:
+            return unquote_workflow_value(match.group(1))
+    return ""
+
+
+def workflow_step_mapping(step_block: str, section_name: str) -> dict[str, str]:
     values: dict[str, str] = {}
     lines = step_block.splitlines()
     for index, line in enumerate(lines):
-        if not line.startswith("        env:"):
+        if not line.startswith(f"        {section_name}:"):
             continue
         for continuation in lines[index + 1:]:
             if continuation.strip() and not continuation.startswith("          "):
                 break
-            item_match = re.match(r"^          ([A-Za-z_][A-Za-z0-9_]*):\s*(.*?)\s*$", continuation)
+            item_match = re.match(r"^          ([A-Za-z_][A-Za-z0-9_-]*):\s*(.*?)\s*$", continuation)
             if item_match:
                 values[item_match.group(1)] = unquote_workflow_value(item_match.group(2))
         return values
     return values
+
+
+def workflow_step_env(step_block: str) -> dict[str, str]:
+    return workflow_step_mapping(step_block, "env")
+
+
+def workflow_step_with(step_block: str) -> dict[str, str]:
+    return workflow_step_mapping(step_block, "with")
 
 
 def workflow_step_run(step_block: str) -> str:
@@ -584,6 +602,68 @@ def workflow_step_run(step_block: str) -> str:
 
 def workflow_step_uses_gh_cli(step_block: str) -> bool:
     return re.search(r"(^|[\s;&|])gh\s+", workflow_step_run(step_block)) is not None
+
+
+def check_workflow_action_step_inputs(
+    target: str,
+    action_ref: str,
+    match_input: str,
+    match_value: str,
+    expected_inputs: dict[str, str],
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    action_ref = action_ref.strip()
+    match_input = match_input.strip()
+    match_value = match_value.strip()
+    expected_inputs = {
+        str(name).strip(): str(value).strip()
+        for name, value in expected_inputs.items()
+        if str(name).strip() and str(value).strip()
+    }
+    workflow_name, _, job_id = target.partition(".")
+    if (
+        not action_ref
+        or not match_input
+        or not match_value
+        or not expected_inputs
+        or workflow_name not in workflow_texts
+        or not job_id
+    ):
+        return
+
+    label, text = workflow_texts[workflow_name]
+    job_block = workflow_job_block(text, job_id, label, errors)
+    if not job_block:
+        return
+
+    matching_step = ""
+    for step_block in workflow_job_step_blocks(job_block):
+        if workflow_step_uses(step_block) != action_ref:
+            continue
+        step_inputs = workflow_step_with(step_block)
+        if step_inputs.get(match_input) == match_value:
+            matching_step = step_block
+            break
+
+    if not matching_step:
+        errors.append(
+            f"{label} job {job_id} is missing {action_ref} step with "
+            f"{match_input} {match_value!r}"
+        )
+        return
+
+    step_name = workflow_step_display_name(matching_step) or "<unnamed>"
+    actual_inputs = workflow_step_with(matching_step)
+    for name, expected_value in expected_inputs.items():
+        actual_value = actual_inputs.get(name)
+        if actual_value is None:
+            errors.append(f"{label} job {job_id} step {step_name!r} with is missing {name}")
+        elif actual_value != expected_value:
+            errors.append(
+                f"{label} job {job_id} step {step_name!r} with.{name} "
+                f"must be {expected_value!r}, found {actual_value!r}"
+            )
 
 
 def check_workflow_gh_cli_env(
@@ -904,6 +984,15 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     compile_firmware_artifact_prefix = str(project.get("compile_firmware_artifact_prefix", "")).strip()
     compile_firmware_output_dir = str(project.get("compile_firmware_output_dir", "")).strip()
     compile_firmware_version_prefix = str(project.get("compile_firmware_version_prefix", "")).strip()
+    upload_artifact_action = (
+        str(release_actions.get("upload_artifact", "")).strip() if isinstance(release_actions, dict) else ""
+    )
+    download_artifact_action = (
+        str(release_actions.get("download_artifact", "")).strip() if isinstance(release_actions, dict) else ""
+    )
+    upload_pages_artifact_action = (
+        str(release_actions.get("upload_pages_artifact", "")).strip() if isinstance(release_actions, dict) else ""
+    )
     docs_dist_output_path = str(project.get("docs_dist_output_path", "")).strip()
     docs_deploy_path = str(project.get("docs_deploy_path", "")).strip()
     pages_environment = str(project.get("github_pages_environment", "")).strip()
@@ -1149,20 +1238,46 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             "common/addon/firmware_update.yaml",
             errors,
         )
+    docs_workflow_texts = {"docs": (".github/workflows/docs.yml", docs_workflow)}
     if docs_dist_artifact_name:
-        require_contains(docs_workflow, f"name: {docs_dist_artifact_name}", ".github/workflows/docs.yml", errors)
-    if docs_dist_output_path:
-        require_contains(docs_workflow, f"path: {docs_dist_output_path}", ".github/workflows/docs.yml", errors)
+        docs_dist_upload_inputs = {"name": docs_dist_artifact_name}
+        if docs_dist_output_path:
+            docs_dist_upload_inputs["path"] = docs_dist_output_path
+        check_workflow_action_step_inputs(
+            "docs.build-docs",
+            upload_artifact_action,
+            "name",
+            docs_dist_artifact_name,
+            docs_dist_upload_inputs,
+            docs_workflow_texts,
+            errors,
+        )
     if docs_firmware_artifact_name:
-        require_contains(docs_workflow, f"name: {docs_firmware_artifact_name}", ".github/workflows/docs.yml", errors)
         if f"mkdir -p {docs_firmware_artifact_name}" not in docs_workflow:
             require_contains(docs_workflow, 'mkdir -p "$STABLE_MANIFEST_DIR"', ".github/workflows/docs.yml", errors)
-        require_contains(docs_workflow, f"path: {docs_firmware_artifact_name}/", ".github/workflows/docs.yml", errors)
+        check_workflow_action_step_inputs(
+            "docs.download-firmware",
+            upload_artifact_action,
+            "name",
+            docs_firmware_artifact_name,
+            {
+                "name": docs_firmware_artifact_name,
+                "path": f"{docs_firmware_artifact_name}/",
+            },
+            docs_workflow_texts,
+            errors,
+        )
         if docs_deploy_path:
-            require_contains(
-                docs_workflow,
-                f"path: {docs_deploy_path}/{docs_firmware_artifact_name}",
-                ".github/workflows/docs.yml",
+            check_workflow_action_step_inputs(
+                "docs.deploy-docs",
+                download_artifact_action,
+                "name",
+                docs_firmware_artifact_name,
+                {
+                    "name": docs_firmware_artifact_name,
+                    "path": f"{docs_deploy_path}/{docs_firmware_artifact_name}",
+                },
+                docs_workflow_texts,
                 errors,
             )
             require_contains(
@@ -1172,7 +1287,28 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
                 errors,
             )
     if docs_deploy_path:
-        require_contains(docs_workflow, f"path: {docs_deploy_path}", ".github/workflows/docs.yml", errors)
+        if docs_dist_artifact_name:
+            check_workflow_action_step_inputs(
+                "docs.deploy-docs",
+                download_artifact_action,
+                "name",
+                docs_dist_artifact_name,
+                {
+                    "name": docs_dist_artifact_name,
+                    "path": docs_deploy_path,
+                },
+                docs_workflow_texts,
+                errors,
+            )
+        check_workflow_action_step_inputs(
+            "docs.deploy-docs",
+            upload_pages_artifact_action,
+            "path",
+            docs_deploy_path,
+            {"path": docs_deploy_path},
+            docs_workflow_texts,
+            errors,
+        )
     if pages_environment:
         require_contains(docs_workflow, "environment:", ".github/workflows/docs.yml", errors)
         require_contains(docs_workflow, f"name: {pages_environment}", ".github/workflows/docs.yml", errors)

@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from product_contract.workflows import (  # noqa: E402
+    check_workflow_action_step_inputs,
     check_workflow_action_usage,
     check_workflow_event_type_usage,
     check_workflow_events,
@@ -53,7 +54,9 @@ from product_contract.workflows import (  # noqa: E402
     workflow_step_display_name,
     workflow_step_env,
     workflow_step_run,
+    workflow_step_uses,
     workflow_step_uses_gh_cli,
+    workflow_step_with,
 )
 from product_contract.project_release_metadata import (  # noqa: E402
     check_release_workflow_actions,
@@ -397,6 +400,36 @@ jobs:
 """
 
 
+ACTION_INPUT_WORKFLOW = """\
+name: Example
+
+jobs:
+  build-docs:
+    name: Build Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: docs-dist
+          path: docs/.vitepress/dist
+
+  deploy-docs:
+    name: Deploy Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download docs artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: docs-dist
+          path: dist
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+"""
+
+
 def test_workflow_job_block_finds_exact_job() -> None:
     errors: list[str] = []
     block = workflow_job_block(WORKFLOW, "folded", "example.yml", errors)
@@ -642,6 +675,61 @@ def test_workflow_gh_cli_env_rejects_drift_from_product_metadata() -> None:
             "release.yml job release step 'Wrong token' env.GH_TOKEN "
             "must be '${{ github.token }}', found '${{ secrets.BAD_TOKEN }}'"
         ),
+    ]
+
+
+def test_workflow_step_uses_and_with_read_action_inputs() -> None:
+    errors: list[str] = []
+    build_block = workflow_job_block(ACTION_INPUT_WORKFLOW, "build-docs", "docs.yml", errors)
+    deploy_block = workflow_job_block(ACTION_INPUT_WORKFLOW, "deploy-docs", "docs.yml", errors)
+    build_steps = workflow_job_step_blocks(build_block)
+    deploy_steps = workflow_job_step_blocks(deploy_block)
+
+    assert workflow_step_uses(build_steps[0]) == "actions/upload-artifact@v7"
+    assert workflow_step_with(build_steps[0]) == {
+        "name": "docs-dist",
+        "path": "docs/.vitepress/dist",
+    }
+    assert workflow_step_uses(deploy_steps[1]) == "actions/upload-pages-artifact@v5"
+    assert workflow_step_with(deploy_steps[1]) == {"path": "dist"}
+    assert errors == []
+
+
+def test_workflow_action_step_inputs_rejects_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    workflow_texts = {"docs": ("docs.yml", ACTION_INPUT_WORKFLOW)}
+
+    check_workflow_action_step_inputs(
+        "docs.build-docs",
+        "actions/upload-artifact@v7",
+        "name",
+        "docs-dist",
+        {
+            "name": "docs-dist",
+            "path": "wrong-dist",
+        },
+        workflow_texts,
+        errors,
+    )
+    check_workflow_action_step_inputs(
+        "docs.deploy-docs",
+        "actions/download-artifact@v8",
+        "name",
+        "firmware",
+        {
+            "name": "firmware",
+            "path": "dist/firmware",
+        },
+        workflow_texts,
+        errors,
+    )
+
+    assert errors == [
+        (
+            "docs.yml job build-docs step 'Upload docs artifact' with.path "
+            "must be 'wrong-dist', found 'docs/.vitepress/dist'"
+        ),
+        "docs.yml job deploy-docs is missing actions/download-artifact@v8 step with name 'firmware'",
     ]
 
 
@@ -1195,6 +1283,8 @@ def main() -> int:
     test_workflow_release_build_fail_fast_rejects_drift_from_product_metadata()
     test_workflow_job_step_blocks_read_step_metadata()
     test_workflow_gh_cli_env_rejects_drift_from_product_metadata()
+    test_workflow_step_uses_and_with_read_action_inputs()
+    test_workflow_action_step_inputs_rejects_drift_from_product_metadata()
     test_workflow_job_dependency_usage_rejects_drift_from_product_metadata()
     test_workflow_permissions_reads_top_level_permissions()
     test_workflow_permissions_reject_drift_from_product_metadata()
