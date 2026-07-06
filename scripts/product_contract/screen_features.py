@@ -10,6 +10,7 @@ from product_contract.common import (
     rel,
     require_contains,
     require_firmware_text_entity_shape,
+    yaml_id_block,
 )
 from product_config import web_static_entities
 
@@ -60,6 +61,12 @@ def check_screen_schedule_metadata(product: dict, errors: list[str]) -> None:
     backup_docs = read(ROOT / "docs" / "backup.md", errors)
     backlight_schedule_yaml = read(ROOT / "common" / "addon" / "backlight_schedule.yaml", errors)
     web_template = read_web_source(errors)
+    boot_guard_block = yaml_id_block(
+        backlight_schedule_yaml,
+        "screen_schedule_boot_guard",
+        "common/addon/backlight_schedule.yaml",
+        errors,
+    )
 
     if day_night_source:
         require_contains(screen_settings_docs, day_night_source, "docs/screen-settings.md", errors)
@@ -95,6 +102,13 @@ def check_screen_schedule_metadata(product: dict, errors: list[str]) -> None:
         "backlight_recalc_sunrise_sunset",
     ):
         require_contains(backlight_schedule_yaml, needle, "common/addon/backlight_schedule.yaml", errors)
+    for needle in (
+        "id: screen_schedule_asleep\n                value: 'true'",
+        "global_preferences->sync();",
+        "script.execute: backlight_schedule_display_off",
+        "script.execute: screen_schedule_boot_recover",
+    ):
+        require_contains(boot_guard_block, needle, "common/addon/backlight_schedule.yaml screen_schedule_boot_guard", errors)
     for key in ("schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"):
         require_contains(web_template, key, rel(WEB_TEMPLATE), errors)
 

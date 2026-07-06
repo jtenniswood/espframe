@@ -8,6 +8,7 @@ from product_contract.common import (
     read_web_source,
     rel,
     require_contains,
+    yaml_id_block,
 )
 from product_config import default_public_manifest_urls
 
@@ -51,6 +52,12 @@ def check_firmware_update_metadata(product: dict, errors: list[str]) -> None:
     firmware_yaml = read(ROOT / "common" / "addon" / "firmware_update.yaml", errors)
     web_template = read_web_source(errors)
     web_text = read(WEB_APP, errors)
+    recovery_block = yaml_id_block(
+        firmware_yaml,
+        "firmware_update_recover_display",
+        "common/addon/firmware_update.yaml",
+        errors,
+    )
 
     for method in methods if isinstance(methods, list) else []:
         if isinstance(method, str) and method.strip():
@@ -94,9 +101,20 @@ def check_firmware_update_metadata(product: dict, errors: list[str]) -> None:
     for needle in (
         "update.perform: firmware_update",
         "id(auto_update_switch).state && !id(manual_check_only)",
+        "id(firmware_update_reboot_pending) = true;",
         "update_interval: never",
     ):
         require_contains(firmware_yaml, needle, "common/addon/firmware_update.yaml", errors)
+    for needle in (
+        "id(backlight_manual_off) ||",
+        "(id(schedule_enabled).state && id(screen_schedule_asleep))",
+        "id(backlight_paused) = true;",
+        "id(screensaver_display_off_active) = true;",
+        "Preserved display sleep state after firmware update",
+        "script.execute: backlight_schedule_display_off",
+        "script.execute: screen_schedule_boot_recover",
+    ):
+        require_contains(recovery_block, needle, "common/addon/firmware_update.yaml firmware_update_recover_display", errors)
     for needle in (
         "Auto updates",
         "Disabled",
@@ -132,6 +150,7 @@ def check_ota_update_metadata(product: dict, errors: list[str]) -> None:
         "ota:",
         "on_begin:",
         "firmware_update_reboot_pending",
+        "id(firmware_update_reboot_pending) = true;",
         "global_preferences->sync();",
     ):
         require_contains(device_yaml, needle, device_yaml_path, errors)

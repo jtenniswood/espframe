@@ -54,22 +54,50 @@ script:
   - id: firmware_update_recover_display
     mode: restart
     then:
-      - script.stop: screen_schedule_sleep
-      - script.stop: backlight_schedule_display_off
       - script.stop: screen_schedule_wake_timeout_check
-      - lambda: |-
-          id(firmware_update_reboot_pending) = false;
-          id(backlight_manual_off) = false;
-          id(screen_schedule_asleep) = false;
-          id(screensaver_display_off_active) = false;
-          id(backlight_paused) = false;
-          id(manual_wake_ms) = 0;
-          global_preferences->sync();
-          ESP_LOGI("firmware", "Recovered display state after firmware update");
-      - lvgl.resume:
-      - script.execute: screen_schedule_restore_page
-      - delay: 100ms
-      - script.execute: backlight_apply_brightness
+      - if:
+          condition:
+            lambda: |-
+              return id(backlight_manual_off) ||
+                     (id(schedule_enabled).state && id(screen_schedule_asleep));
+          then:
+            - lambda: |-
+                bool scheduled_sleep = id(schedule_enabled).state && id(screen_schedule_asleep);
+                id(firmware_update_reboot_pending) = false;
+                id(backlight_paused) = true;
+                id(screensaver_display_off_active) = true;
+                id(manual_wake_ms) = 0;
+                if (scheduled_sleep) {
+                  id(screen_schedule_asleep) = true;
+                  id(backlight_manual_off) = false;
+                } else {
+                  id(screen_schedule_asleep) = false;
+                  id(backlight_manual_off) = true;
+                }
+                global_preferences->sync();
+                ESP_LOGI("firmware", "Preserved display sleep state after firmware update");
+            - script.execute: backlight_schedule_display_off
+            - if:
+                condition:
+                  lambda: 'return id(schedule_enabled).state && id(screen_schedule_asleep);'
+                then:
+                  - script.execute: screen_schedule_boot_recover
+          else:
+            - script.stop: screen_schedule_sleep
+            - script.stop: backlight_schedule_display_off
+            - lambda: |-
+                id(firmware_update_reboot_pending) = false;
+                id(backlight_manual_off) = false;
+                id(screen_schedule_asleep) = false;
+                id(screensaver_display_off_active) = false;
+                id(backlight_paused) = false;
+                id(manual_wake_ms) = 0;
+                global_preferences->sync();
+                ESP_LOGI("firmware", "Recovered display state after firmware update");
+            - lvgl.resume:
+            - script.execute: screen_schedule_restore_page
+            - delay: 100ms
+            - script.execute: backlight_apply_brightness
       - delay: 2s
       - script.execute: immich_connection_config_changed
 
@@ -92,10 +120,9 @@ update:
             condition:
               lambda: 'return id(auto_update_switch).state && !id(manual_check_only);'
             then:
-              - globals.set:
-                  id: firmware_update_reboot_pending
-                  value: 'true'
-              - lambda: 'global_preferences->sync();'
+              - lambda: |-
+                  id(firmware_update_reboot_pending) = true;
+                  global_preferences->sync();
               - update.perform: firmware_update
 
 # -----------------------------------------------------------------------------

@@ -228,19 +228,21 @@ script:
           then:
             - globals.set:
                 id: backlight_paused
-                value: 'false'
+                value: 'true'
             - globals.set:
                 id: screensaver_display_off_active
-                value: 'false'
+                value: 'true'
             - globals.set:
                 id: screen_schedule_asleep
-                value: 'false'
+                value: 'true'
             - globals.set:
                 id: backlight_manual_off
                 value: 'false'
             - globals.set:
                 id: manual_wake_ms
                 value: '0'
+            - lambda: 'global_preferences->sync();'
+            - script.execute: backlight_schedule_display_off
             - script.execute: screen_schedule_boot_recover
           else:
             - if:

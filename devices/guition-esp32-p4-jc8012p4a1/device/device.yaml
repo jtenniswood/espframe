@@ -128,10 +128,9 @@ ota:
   - platform: esphome
     on_begin:
       then:
-        - globals.set:
-            id: firmware_update_reboot_pending
-            value: 'true'
-        - lambda: 'global_preferences->sync();'
+        - lambda: |-
+            id(firmware_update_reboot_pending) = true;
+            global_preferences->sync();
 
 # -----------------------------------------------------------------------------
 # External components (espframe: gsl3680, remote_image, espframe)

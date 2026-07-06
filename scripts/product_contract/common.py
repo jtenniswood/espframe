@@ -38,6 +38,28 @@ def require_contains(text: str, needle: str, label: str, errors: list[str]) -> N
         errors.append(f"{label} is missing {needle!r}")
 
 
+def yaml_id_block(text: str, item_id: str, filename: str, errors: list[str]) -> str:
+    needle = f"- id: {item_id}"
+    lines = text.splitlines()
+    start = next((index for index, line in enumerate(lines) if line.strip() == needle), None)
+    if start is None:
+        errors.append(f"{filename} is missing YAML item {item_id!r}")
+        return ""
+
+    indent = len(lines[start]) - len(lines[start].lstrip(" "))
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        line = lines[index]
+        line_indent = len(line) - len(line.lstrip(" "))
+        if line.strip().startswith("- ") and line_indent == indent:
+            end = index
+            break
+        if line and line_indent < indent:
+            end = index
+            break
+    return "\n".join(lines[start:end])
+
+
 def firmware_entity_block(text: str, name: str, filename: str, errors: list[str]) -> str:
     needle = f'name: "{name}"'
     lines = text.splitlines()
