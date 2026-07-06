@@ -745,6 +745,25 @@ jobs:
 """
 
 
+DOCS_MANIFEST_DIR_WORKFLOW = """\
+name: Example
+
+jobs:
+  download-firmware:
+    name: Download Firmware
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download firmware from latest release
+        run: |
+          STABLE_MANIFEST_DIR=$(dirname "$DEFAULT_PUBLIC_MANIFEST")
+          mkdir -p "$STABLE_MANIFEST_DIR"
+
+      - name: Download firmware from latest pre-release
+        run: |
+          BETA_MANIFEST_DIR=$(dirname "$DEFAULT_PUBLIC_BETA_MANIFEST")
+"""
+
+
 DOCS_RELEASE_METADATA_WORKFLOW = """\
 name: Example
 
@@ -1668,6 +1687,30 @@ def test_workflow_named_step_run_contains_checks_docs_download_steps() -> None:
     ]
 
 
+def test_workflow_named_step_run_contains_checks_docs_manifest_directories() -> None:
+    errors: list[str] = []
+    workflow_texts = {"docs": ("docs.yml", DOCS_MANIFEST_DIR_WORKFLOW)}
+
+    for step_name, dir_name in (
+        ("Download firmware from latest release", "STABLE_MANIFEST_DIR"),
+        ("Download firmware from latest pre-release", "BETA_MANIFEST_DIR"),
+    ):
+        check_workflow_named_step_run_contains(
+            "docs.download-firmware",
+            step_name,
+            [f'mkdir -p "${dir_name}"'],
+            workflow_texts,
+            errors,
+        )
+
+    assert errors == [
+        (
+            "docs.yml job download-firmware step 'Download firmware from latest pre-release' "
+            'run is missing \'mkdir -p "$BETA_MANIFEST_DIR"\''
+        ),
+    ]
+
+
 def test_workflow_named_step_helpers_check_docs_release_metadata() -> None:
     errors: list[str] = []
     workflow_texts = {"docs": ("docs.yml", DOCS_RELEASE_METADATA_WORKFLOW)}
@@ -2455,6 +2498,7 @@ def main() -> int:
     test_workflow_named_step_run_contains_checks_compile_commands()
     test_workflow_named_step_run_contains_checks_esphome_docker_invocation()
     test_workflow_named_step_run_contains_checks_docs_download_steps()
+    test_workflow_named_step_run_contains_checks_docs_manifest_directories()
     test_workflow_named_step_helpers_check_docs_release_metadata()
     test_workflow_job_environment_and_named_step_id_reject_pages_deploy_drift()
     test_workflow_job_run_command_rejects_drift_from_product_metadata()

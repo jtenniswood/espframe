@@ -1891,8 +1891,20 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             errors,
         )
     if docs_firmware_artifact_name:
-        if f"mkdir -p {docs_firmware_artifact_name}" not in docs_workflow:
-            require_contains(docs_workflow, 'mkdir -p "$STABLE_MANIFEST_DIR"', ".github/workflows/docs.yml", errors)
+        manifest_dir_checks: list[tuple[str, str]] = []
+        for device in product["devices"]:
+            if str(device.get("public_manifest", "")).strip():
+                manifest_dir_checks.append(("Download firmware from latest release", "STABLE_MANIFEST_DIR"))
+            if str(device.get("public_beta_manifest", "")).strip():
+                manifest_dir_checks.append(("Download firmware from latest pre-release", "BETA_MANIFEST_DIR"))
+        for step_name, dir_name in dict.fromkeys(manifest_dir_checks):
+            check_workflow_named_step_run_contains(
+                "docs.download-firmware",
+                step_name,
+                [f'mkdir -p "${dir_name}"'],
+                docs_workflow_texts,
+                errors,
+            )
         check_workflow_action_step_inputs(
             "docs.download-firmware",
             upload_artifact_action,
