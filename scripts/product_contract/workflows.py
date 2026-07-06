@@ -1846,12 +1846,25 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             workflow_texts,
             errors,
         )
-    for suffix in asset_suffixes:
-        require_contains(release_workflow, suffix, ".github/workflows/release.yml", errors)
-        if suffix == ".manifest.json":
-            require_contains(docs_workflow, suffix, ".github/workflows/docs.yml", errors)
-        require_contains(read(ROOT / "scripts" / "firmware_release.py", errors), suffix, "scripts/firmware_release.py", errors)
     firmware_release_script = read(ROOT / "scripts" / "firmware_release.py", errors)
+    for suffix in asset_suffixes:
+        check_workflow_named_step_run_contains(
+            "release.publish",
+            "Verify uploaded release assets",
+            [f'--pattern "*{suffix}"'],
+            workflow_texts,
+            errors,
+        )
+        if suffix == ".manifest.json":
+            for step_name in ("Download firmware from latest release", "Download firmware from latest pre-release"):
+                check_workflow_named_step_run_contains(
+                    "docs.download-firmware",
+                    step_name,
+                    [f'--pattern "${{SLUG}}{suffix}"'],
+                    workflow_texts,
+                    errors,
+                )
+        require_contains(firmware_release_script, suffix, "scripts/firmware_release.py", errors)
     release_changelog_script = read(ROOT / "scripts" / "release_changelog.py", errors)
     if release_version_pattern:
         require_contains(firmware_release_script, "release_version_pattern", "scripts/firmware_release.py", errors)
