@@ -758,6 +758,50 @@ def check_workflow_action_step_inputs(
             )
 
 
+def check_workflow_named_step_env(
+    target: str,
+    step_name: str,
+    expected_env: dict[str, str],
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    step_name = step_name.strip()
+    expected_env = {
+        str(name).strip(): str(value).strip()
+        for name, value in expected_env.items()
+        if str(name).strip() and str(value).strip()
+    }
+    workflow_name, _, job_id = target.partition(".")
+    if not step_name or not expected_env or workflow_name not in workflow_texts or not job_id:
+        return
+
+    label, text = workflow_texts[workflow_name]
+    job_block = workflow_job_block(text, job_id, label, errors)
+    if not job_block:
+        return
+
+    matching_step = ""
+    for step_block in workflow_job_step_blocks(job_block):
+        if workflow_step_display_name(step_block) == step_name:
+            matching_step = step_block
+            break
+
+    if not matching_step:
+        errors.append(f"{label} job {job_id} is missing step {step_name!r}")
+        return
+
+    actual_env = workflow_step_env(matching_step)
+    for name, expected_value in expected_env.items():
+        actual_value = actual_env.get(name)
+        if actual_value is None:
+            errors.append(f"{label} job {job_id} step {step_name!r} env is missing {name}")
+        elif actual_value != expected_value:
+            errors.append(
+                f"{label} job {job_id} step {step_name!r} env.{name} "
+                f"must be {expected_value!r}, found {actual_value!r}"
+            )
+
+
 def check_workflow_job_run_command(
     target: str,
     expected_run: str,
@@ -1253,9 +1297,23 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
                 errors,
             )
     if release_notes_version_ref:
-        require_contains(release_workflow, f"VERSION: {release_notes_version_ref}", ".github/workflows/release.yml", errors)
+        for step_name in ("Build detailed changelog", "Update GitHub release notes"):
+            check_workflow_named_step_env(
+                "release.release-notes",
+                step_name,
+                {"VERSION": release_notes_version_ref},
+                workflow_texts,
+                errors,
+            )
     if release_build_version_ref:
-        require_contains(release_workflow, f"VERSION: {release_build_version_ref}", ".github/workflows/release.yml", errors)
+        for step_name in ("Compile firmware", "Collect firmware files and generate manifest"):
+            check_workflow_named_step_env(
+                "release.build-firmware",
+                step_name,
+                {"VERSION": release_build_version_ref},
+                workflow_texts,
+                errors,
+            )
     if release_notes_output:
         for needle in (
             f'--output "{release_notes_output}"',
