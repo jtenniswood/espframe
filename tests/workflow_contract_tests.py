@@ -407,6 +407,23 @@ ACTION_INPUT_WORKFLOW = """\
 name: Example
 
 jobs:
+  release-notes:
+    name: Update Release Notes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+  build-firmware:
+    name: Build Firmware
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+
   build-docs:
     name: Build Docs
     runs-on: ubuntu-latest
@@ -739,11 +756,22 @@ def test_workflow_gh_cli_env_rejects_drift_from_product_metadata() -> None:
 
 def test_workflow_step_uses_and_with_read_action_inputs() -> None:
     errors: list[str] = []
+    release_notes_block = workflow_job_block(ACTION_INPUT_WORKFLOW, "release-notes", "docs.yml", errors)
+    build_firmware_block = workflow_job_block(ACTION_INPUT_WORKFLOW, "build-firmware", "docs.yml", errors)
     build_block = workflow_job_block(ACTION_INPUT_WORKFLOW, "build-docs", "docs.yml", errors)
     deploy_block = workflow_job_block(ACTION_INPUT_WORKFLOW, "deploy-docs", "docs.yml", errors)
+    release_notes_steps = workflow_job_step_blocks(release_notes_block)
+    build_firmware_steps = workflow_job_step_blocks(build_firmware_block)
     build_steps = workflow_job_step_blocks(build_block)
     deploy_steps = workflow_job_step_blocks(deploy_block)
 
+    assert workflow_step_with(release_notes_steps[0]) == {
+        "fetch-depth": "0",
+        "fetch-tags": "true",
+    }
+    assert workflow_step_with(build_firmware_steps[0]) == {
+        "ref": "${{ github.event.release.tag_name || github.ref }}",
+    }
     assert workflow_step_uses(build_steps[0]) == "actions/upload-artifact@v7"
     assert workflow_step_with(build_steps[0]) == {
         "name": "docs-dist",
@@ -802,6 +830,27 @@ def test_workflow_action_step_inputs_rejects_drift_from_product_metadata() -> No
         workflow_texts,
         errors,
     )
+    check_workflow_action_step_inputs(
+        "docs.release-notes",
+        "actions/checkout@v7",
+        "fetch-depth",
+        "0",
+        {
+            "fetch-depth": "0",
+            "fetch-tags": "false",
+        },
+        workflow_texts,
+        errors,
+    )
+    check_workflow_action_step_inputs(
+        "docs.build-firmware",
+        "actions/checkout@v7",
+        "ref",
+        "${{ github.ref }}",
+        {"ref": "${{ github.ref }}"},
+        workflow_texts,
+        errors,
+    )
 
     assert errors == [
         (
@@ -812,6 +861,14 @@ def test_workflow_action_step_inputs_rejects_drift_from_product_metadata() -> No
         (
             "docs.yml job publish step 'Download all firmware artifacts' with.merge-multiple "
             "must be 'false', found 'true'"
+        ),
+        (
+            "docs.yml job release-notes step '<unnamed>' with.fetch-tags "
+            "must be 'false', found 'true'"
+        ),
+        (
+            "docs.yml job build-firmware is missing actions/checkout@v7 step "
+            "with ref '${{ github.ref }}'"
         ),
     ]
 

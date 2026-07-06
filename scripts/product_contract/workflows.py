@@ -1058,6 +1058,9 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     compile_firmware_artifact_prefix = str(project.get("compile_firmware_artifact_prefix", "")).strip()
     compile_firmware_output_dir = str(project.get("compile_firmware_output_dir", "")).strip()
     compile_firmware_version_prefix = str(project.get("compile_firmware_version_prefix", "")).strip()
+    checkout_action = (
+        str(release_actions.get("checkout", "")).strip() if isinstance(release_actions, dict) else ""
+    )
     upload_artifact_action = (
         str(release_actions.get("upload_artifact", "")).strip() if isinstance(release_actions, dict) else ""
     )
@@ -1135,17 +1138,33 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         workflow_texts,
         errors,
     )
+    release_notes_checkout_inputs: dict[str, str] = {}
     if isinstance(release_notes_fetch_depth, int) and not isinstance(release_notes_fetch_depth, bool):
-        require_contains(release_workflow, f"fetch-depth: {release_notes_fetch_depth}", ".github/workflows/release.yml", errors)
+        release_notes_checkout_inputs["fetch-depth"] = str(release_notes_fetch_depth)
     if isinstance(release_notes_fetch_tags, bool):
-        require_contains(
-            release_workflow,
-            f"fetch-tags: {str(release_notes_fetch_tags).lower()}",
-            ".github/workflows/release.yml",
+        release_notes_checkout_inputs["fetch-tags"] = str(release_notes_fetch_tags).lower()
+    if release_notes_checkout_inputs:
+        match_input, match_value = next(iter(release_notes_checkout_inputs.items()))
+        check_workflow_action_step_inputs(
+            "release.release-notes",
+            checkout_action,
+            match_input,
+            match_value,
+            release_notes_checkout_inputs,
+            workflow_texts,
             errors,
         )
     if release_build_ref:
-        require_contains(release_workflow, f"ref: {release_build_ref}", ".github/workflows/release.yml", errors)
+        for target in ("release.release-metadata", "release.build-firmware"):
+            check_workflow_action_step_inputs(
+                target,
+                checkout_action,
+                "ref",
+                release_build_ref,
+                {"ref": release_build_ref},
+                workflow_texts,
+                errors,
+            )
     if release_notes_version_ref:
         require_contains(release_workflow, f"VERSION: {release_notes_version_ref}", ".github/workflows/release.yml", errors)
     if release_build_version_ref:
