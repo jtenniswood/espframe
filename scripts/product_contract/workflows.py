@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import re
 from pathlib import Path
 
@@ -561,36 +562,78 @@ def workflow_job_environment(job_block: str) -> dict[str, str]:
     return workflow_job_mapping(job_block, "environment")
 
 
+def normalized_workflow_mapping(values: dict[str, str]) -> dict[str, str]:
+    return {
+        str(name).strip(): str(value).strip()
+        for name, value in values.items()
+        if str(name).strip() and str(value).strip()
+    }
+
+
+def workflow_target_job_block(
+    target: str,
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> tuple[str, str, str] | None:
+    workflow_name, _, job_id = target.partition(".")
+    if workflow_name not in workflow_texts or not job_id:
+        return None
+
+    label, text = workflow_texts[workflow_name]
+    job_block = workflow_job_block(text, job_id, label, errors)
+    if not job_block:
+        return None
+    return label, job_id, job_block
+
+
+def check_workflow_job_mapping(
+    target: str,
+    expected_values: dict[str, str],
+    section_name: str,
+    read_actual_values: Callable[[str], dict[str, str]],
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+    missing_section_message: str = "",
+) -> None:
+    expected_values = normalized_workflow_mapping(expected_values)
+    if not expected_values:
+        return
+
+    target_job = workflow_target_job_block(target, workflow_texts, errors)
+    if target_job is None:
+        return
+
+    label, job_id, job_block = target_job
+    actual_values = read_actual_values(job_block)
+    if missing_section_message and not actual_values:
+        errors.append(f"{label} job {job_id} {missing_section_message}")
+        return
+
+    for name, expected_value in expected_values.items():
+        actual_value = actual_values.get(name)
+        if actual_value is None:
+            errors.append(f"{label} job {job_id} {section_name} is missing {name}")
+        elif actual_value != expected_value:
+            errors.append(
+                f"{label} job {job_id} {section_name}.{name} must be {expected_value!r}, "
+                f"found {actual_value!r}"
+            )
+
+
 def check_workflow_job_outputs(
     target: str,
     expected_outputs: dict[str, str],
     workflow_texts: dict[str, tuple[str, str]],
     errors: list[str],
 ) -> None:
-    expected_outputs = {
-        str(name).strip(): str(value).strip()
-        for name, value in expected_outputs.items()
-        if str(name).strip() and str(value).strip()
-    }
-    workflow_name, _, job_id = target.partition(".")
-    if not expected_outputs or workflow_name not in workflow_texts or not job_id:
-        return
-
-    label, text = workflow_texts[workflow_name]
-    job_block = workflow_job_block(text, job_id, label, errors)
-    if not job_block:
-        return
-
-    actual_outputs = workflow_job_outputs(job_block)
-    for name, expected_value in expected_outputs.items():
-        actual_value = actual_outputs.get(name)
-        if actual_value is None:
-            errors.append(f"{label} job {job_id} outputs is missing {name}")
-        elif actual_value != expected_value:
-            errors.append(
-                f"{label} job {job_id} outputs.{name} must be {expected_value!r}, "
-                f"found {actual_value!r}"
-            )
+    check_workflow_job_mapping(
+        target,
+        expected_outputs,
+        "outputs",
+        workflow_job_outputs,
+        workflow_texts,
+        errors,
+    )
 
 
 def check_workflow_job_environment(
@@ -599,34 +642,15 @@ def check_workflow_job_environment(
     workflow_texts: dict[str, tuple[str, str]],
     errors: list[str],
 ) -> None:
-    expected_environment = {
-        str(name).strip(): str(value).strip()
-        for name, value in expected_environment.items()
-        if str(name).strip() and str(value).strip()
-    }
-    workflow_name, _, job_id = target.partition(".")
-    if not expected_environment or workflow_name not in workflow_texts or not job_id:
-        return
-
-    label, text = workflow_texts[workflow_name]
-    job_block = workflow_job_block(text, job_id, label, errors)
-    if not job_block:
-        return
-
-    actual_environment = workflow_job_environment(job_block)
-    if not actual_environment:
-        errors.append(f"{label} job {job_id} is missing environment")
-        return
-
-    for name, expected_value in expected_environment.items():
-        actual_value = actual_environment.get(name)
-        if actual_value is None:
-            errors.append(f"{label} job {job_id} environment is missing {name}")
-        elif actual_value != expected_value:
-            errors.append(
-                f"{label} job {job_id} environment.{name} "
-                f"must be {expected_value!r}, found {actual_value!r}"
-            )
+    check_workflow_job_mapping(
+        target,
+        expected_environment,
+        "environment",
+        workflow_job_environment,
+        workflow_texts,
+        errors,
+        "is missing environment",
+    )
 
 
 def check_workflow_job_env(
@@ -635,30 +659,14 @@ def check_workflow_job_env(
     workflow_texts: dict[str, tuple[str, str]],
     errors: list[str],
 ) -> None:
-    expected_env = {
-        str(name).strip(): str(value).strip()
-        for name, value in expected_env.items()
-        if str(name).strip() and str(value).strip()
-    }
-    workflow_name, _, job_id = target.partition(".")
-    if not expected_env or workflow_name not in workflow_texts or not job_id:
-        return
-
-    label, text = workflow_texts[workflow_name]
-    job_block = workflow_job_block(text, job_id, label, errors)
-    if not job_block:
-        return
-
-    actual_env = workflow_job_env(job_block)
-    for name, expected_value in expected_env.items():
-        actual_value = actual_env.get(name)
-        if actual_value is None:
-            errors.append(f"{label} job {job_id} env is missing {name}")
-        elif actual_value != expected_value:
-            errors.append(
-                f"{label} job {job_id} env.{name} must be {expected_value!r}, "
-                f"found {actual_value!r}"
-            )
+    check_workflow_job_mapping(
+        target,
+        expected_env,
+        "env",
+        workflow_job_env,
+        workflow_texts,
+        errors,
+    )
 
 
 def workflow_job_step_blocks(job_block: str) -> list[str]:

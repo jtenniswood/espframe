@@ -1871,6 +1871,19 @@ def test_workflow_job_environment_and_named_step_id_reject_pages_deploy_drift() 
     ]
 
 
+def test_workflow_job_environment_reports_missing_environment() -> None:
+    errors: list[str] = []
+
+    check_workflow_job_environment(
+        "release.missing",
+        {"name": "github-pages"},
+        {"release": ("release.yml", OUTPUT_WORKFLOW)},
+        errors,
+    )
+
+    assert errors == ["release.yml job missing is missing environment"]
+
+
 def test_workflow_job_run_command_rejects_drift_from_product_metadata() -> None:
     errors: list[str] = []
     workflow_texts = {
