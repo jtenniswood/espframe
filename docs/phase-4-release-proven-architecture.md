@@ -9,7 +9,7 @@ Phase 4 turns the reset architecture into a release-confidence system. The web U
 
 ## What is now release-proven
 
-- Browser smoke coverage exercises first setup, existing-device settings, photo source modes, date filtering, screen rotation developer safeguards, backup export/import, rejected import behavior, firmware update states, logs, and a mobile-width render check.
+- Browser smoke coverage exercises first setup, existing-device settings, photo source modes, date filtering, screen tone and night schedule controls, screen rotation developer safeguards, backup export/import, rejected import behavior, firmware update states, logs, and a mobile-width render check.
 - Product contract checks now guard the required browser smoke scenarios, so release-critical web flows cannot be removed from coverage silently.
 - Compatibility fixtures now cover every exported backup group: connection, photos, frequency, firmware updates, clock, and screen.
 - Compatibility checks keep backup JSON at version 1 and verify that all product-owned backup fields still map to valid device endpoints.

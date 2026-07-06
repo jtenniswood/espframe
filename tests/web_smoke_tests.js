@@ -166,6 +166,7 @@ const scenarios = [
   { name: "settings-mobile", configured: true, width: 390, height: 900 },
   { name: "photo-source-reorder", configured: true, width: 1280, height: 900 },
   { name: "screen-rotation-developer", configured: true, width: 1280, height: 900, query: "dev=experimental" },
+  { name: "screen-tone-schedule", configured: true, width: 1280, height: 900 },
   { name: "backup-import-success", configured: true, width: 1280, height: 900, importFixture: validBackupFixture },
   { name: "backup-import-partial", configured: true, width: 1280, height: 900, importFixture: partialBackupFixture },
   { name: "backup-import-rejected", configured: true, width: 1280, height: 900, importFixture: rejectedBackupFixture },
@@ -451,6 +452,38 @@ function smokeAssertionsForScenario(scenario) {
         if (!label || !label.parentElement) throw new Error("Field not found: " + labelText);
         return label.parentElement;
       }
+      function cardByTitle(title) {
+        const card = Array.from(document.querySelectorAll(".card")).find((item) => {
+          const heading = item.querySelector("h3");
+          return heading && heading.textContent.trim() === title;
+        });
+        if (!card) throw new Error("Card not found: " + title);
+        return card;
+      }
+      function expandCard(title) {
+        const card = cardByTitle(title);
+        if (card.classList.contains("collapsed")) {
+          const header = card.querySelector(".card-header");
+          if (!header) throw new Error("Card header not found: " + title);
+          header.click();
+        }
+        return card;
+      }
+      function setRangeByLabel(labelText, value) {
+        const inputEl = fieldByLabel(labelText).querySelector('input[type="range"]');
+        if (!inputEl) throw new Error("Range input not found for field: " + labelText);
+        inputEl.value = String(value);
+        inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+        inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      function setCardRange(cardTitle, index, value) {
+        const inputs = Array.from(expandCard(cardTitle).querySelectorAll('input[type="range"]'));
+        const inputEl = inputs[index];
+        if (!inputEl) throw new Error("Range input " + index + " not found in card: " + cardTitle);
+        inputEl.value = String(value);
+        inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+        inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+      }
       function toggleByText(text) {
         const row = Array.from(document.querySelectorAll(".toggle-row")).find((item) =>
           Array.from(item.querySelectorAll("span")).some((span) => span.textContent.trim() === text)
@@ -562,6 +595,52 @@ function smokeAssertionsForScenario(scenario) {
           }
         }, 8000, "developer rotation reset");
       }
+      async function requireScreenToneScheduleControls() {
+        clickTab("Device");
+        await waitFor(() => pageText().indexOf("Night Schedule") !== -1, 8000, "device screen controls");
+        requireText("Screen Brightness");
+        requireText("Screen Tone");
+        requireText("Night Schedule");
+        requireText("Screen Tone Adjustment");
+        requireText("Night Tone Adjustment");
+        requireText("Schedule Screen Off");
+
+        expandCard("Screen Brightness");
+        setRangeByLabel("Daytime Brightness", 85);
+        setRangeByLabel("Nighttime Brightness", 55);
+
+        expandCard("Screen Tone");
+        toggleByText("Screen Tone Adjustment").click();
+        setCardRange("Screen Tone", 0, 25);
+        toggleByText("Night Tone Adjustment").click();
+        setCardRange("Screen Tone", 1, 65);
+        toggleByText("Turn on until sunrise").click();
+
+        expandCard("Night Schedule");
+        toggleByText("Schedule Screen Off").click();
+        setSelect("On Time", "7");
+        setSelect("Off Time", "21");
+        setSelect("When Woken, Idle Time To Screen Off", "120");
+
+        await waitFor(() => {
+          try {
+            requireLatestPostValue("Daytime brightness", "Screen: Daytime Brightness", "85");
+            requireLatestPostValue("Nighttime brightness", "Screen: Nighttime Brightness", "55");
+            requirePostContains("Base tone toggle", "Screen: Tone Adjustment", "turn_on");
+            requireLatestPostValue("Base tone", "Screen: Display Tone", "25");
+            requirePostContains("Night tone toggle", "Screen: Night Tone Adjustment", "turn_on");
+            requireLatestPostValue("Night tone intensity", "Screen: Warm Tone Intensity", "65");
+            requirePostContains("Warm tone override", "Screen: Warm Tone Override", "turn_on");
+            requirePostContains("Schedule toggle", "Screen: Schedule Enabled", "turn_on");
+            requireLatestPostValue("Schedule on hour", "Screen: Schedule On Hour", "7");
+            requireLatestPostValue("Schedule off hour", "Screen: Schedule Off Hour", "21");
+            requireLatestPostValue("Schedule wake timeout", "Screen: Schedule Wake Timeout", "120");
+            return true;
+          } catch (_) {
+            return false;
+          }
+        }, 8000, "screen tone and schedule saves");
+      }
 
       try {
         if (${JSON.stringify(scenario.name)} === "wizard") {
@@ -610,6 +689,10 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "screen-rotation-developer") {
             await requireScreenRotationDeveloperFlow();
+          }
+
+          if (${JSON.stringify(scenario.name)} === "screen-tone-schedule") {
+            await requireScreenToneScheduleControls();
           }
 
           if (${JSON.stringify(scenario.name)} === "backup-import-success") {
