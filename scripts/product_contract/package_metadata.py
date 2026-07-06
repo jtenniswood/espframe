@@ -92,6 +92,14 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
     if expected_license and root_package.get("license") != expected_license:
         errors.append("package-lock.json root package license must match project.license_id")
 
+    smoke_test = read(ROOT / "tests" / "web_smoke_tests.js", errors)
+    smoke_scenarios = product["project"].get("web_smoke_required_scenarios", [])
+    if isinstance(smoke_scenarios, list):
+        for scenario in smoke_scenarios:
+            scenario_id = str(scenario).strip()
+            if scenario_id:
+                require_contains(smoke_test, f'name: "{scenario_id}"', "tests/web_smoke_tests.js", errors)
+
 
 def check_license_metadata(product: dict, errors: list[str]) -> None:
     license_id = str(product["project"].get("license_id", "")).strip()

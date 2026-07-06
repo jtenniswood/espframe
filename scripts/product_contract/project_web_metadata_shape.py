@@ -126,6 +126,18 @@ def check_project_web_ui_metadata_shape(product: dict, errors: list[str]) -> Non
     retained_log_lines = project.get("web_ui_logs_retained_lines")
     if not isinstance(retained_log_lines, int) or isinstance(retained_log_lines, bool) or retained_log_lines < 1:
         errors.append("project.web_ui_logs_retained_lines must be a positive integer")
+    smoke_scenarios = project.get("web_smoke_required_scenarios", [])
+    if not isinstance(smoke_scenarios, list) or not smoke_scenarios:
+        errors.append("project.web_smoke_required_scenarios must be a non-empty list")
+    else:
+        scenario_ids = [str(scenario).strip() for scenario in smoke_scenarios]
+        if any(not scenario_id for scenario_id in scenario_ids):
+            errors.append("project.web_smoke_required_scenarios must only contain non-empty strings")
+        if len(scenario_ids) != len(set(scenario_ids)):
+            errors.append("project.web_smoke_required_scenarios must not contain duplicate scenarios")
+        for scenario_id in scenario_ids:
+            if scenario_id and not re.match(r"^[a-z0-9]+(?:-[a-z0-9]+)*$", scenario_id):
+                errors.append(f"project.web_smoke_required_scenarios contains unsupported scenario id: {scenario_id}")
     logs_event_source = str(project.get("web_ui_logs_event_source", "")).strip()
     logs_event_name = str(project.get("web_ui_logs_event_name", "")).strip()
     logs_clear_label = str(project.get("web_ui_logs_clear_label", "")).strip()
