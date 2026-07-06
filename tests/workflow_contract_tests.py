@@ -670,6 +670,45 @@ jobs:
 """
 
 
+ESPHOME_DOCKER_RUN_WORKFLOW = """\
+name: Example
+
+jobs:
+  firmware-metadata:
+    name: Read Firmware Build Metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read product metadata
+        run: python3 scripts/product_config.py github-output >> "$GITHUB_OUTPUT"
+
+  compile:
+    name: Compile Firmware
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compile test firmware artifacts
+        run: |
+          docker run ${ESPHOME_DOCKER_REMOVE_FLAG}
+          -v "${PWD}:${ESPHOME_CONFIG_MOUNT}"
+
+  release-metadata:
+    name: Read Product Release Metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read product metadata
+        run: python3 scripts/product_config.py github-output >> "$GITHUB_OUTPUT"
+
+  build-firmware:
+    name: Build Firmware
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compile firmware
+        run: |
+          docker run ${ESPHOME_DOCKER_REMOVE_FLAG}
+          -v "${PWD}:${ESPHOME_CONFIG_MOUNT}"
+          "${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}"
+"""
+
+
 DOCS_DOWNLOAD_RUN_WORKFLOW = """\
 name: Example
 
@@ -1552,6 +1591,45 @@ def test_workflow_named_step_run_contains_checks_compile_commands() -> None:
     ]
 
 
+def test_workflow_named_step_run_contains_checks_esphome_docker_invocation() -> None:
+    errors: list[str] = []
+    workflow_texts = {
+        "compile": ("compile.yml", ESPHOME_DOCKER_RUN_WORKFLOW),
+        "release": ("release.yml", ESPHOME_DOCKER_RUN_WORKFLOW),
+    }
+
+    for target in ("compile.firmware-metadata", "release.release-metadata"):
+        check_workflow_named_step_run_contains(
+            target,
+            "Read product metadata",
+            ['python3 scripts/product_config.py github-output >> "$GITHUB_OUTPUT"'],
+            workflow_texts,
+            errors,
+        )
+    for target, step_name in (
+        ("compile.compile", "Compile test firmware artifacts"),
+        ("release.build-firmware", "Compile firmware"),
+    ):
+        check_workflow_named_step_run_contains(
+            target,
+            step_name,
+            [
+                '"${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}"',
+                '-v "${PWD}:${ESPHOME_CONFIG_MOUNT}"',
+                "docker run ${ESPHOME_DOCKER_REMOVE_FLAG}",
+            ],
+            workflow_texts,
+            errors,
+        )
+
+    assert errors == [
+        (
+            "compile.yml job compile step 'Compile test firmware artifacts' run is missing "
+            "'\"${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}\"'"
+        ),
+    ]
+
+
 def test_workflow_named_step_run_contains_checks_docs_download_steps() -> None:
     errors: list[str] = []
     workflow_texts = {"docs": ("docs.yml", DOCS_DOWNLOAD_RUN_WORKFLOW)}
@@ -2375,6 +2453,7 @@ def main() -> int:
     test_workflow_named_step_helpers_check_cache_metadata()
     test_workflow_named_step_run_contains_checks_compile_artifact_step()
     test_workflow_named_step_run_contains_checks_compile_commands()
+    test_workflow_named_step_run_contains_checks_esphome_docker_invocation()
     test_workflow_named_step_run_contains_checks_docs_download_steps()
     test_workflow_named_step_helpers_check_docs_release_metadata()
     test_workflow_job_environment_and_named_step_id_reject_pages_deploy_drift()

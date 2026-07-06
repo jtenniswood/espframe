@@ -2224,33 +2224,39 @@ def check_esphome_version(product: dict, errors: list[str]) -> None:
         require_contains(readme, f"{docker_image}:{version}", "README.md", errors)
 
     compile_workflow = read(ROOT / ".github" / "workflows" / "compile.yml", errors)
-    require_contains(
-        compile_workflow,
-        'python3 scripts/product_config.py github-output >> "$GITHUB_OUTPUT"',
-        ".github/workflows/compile.yml",
-        errors,
-    )
-    require_contains(
-        compile_workflow,
-        '"${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}"',
-        ".github/workflows/compile.yml",
-        errors,
-    )
+    release_workflow = read(ROOT / ".github" / "workflows" / "release.yml", errors)
+    workflow_texts = {
+        "compile": (".github/workflows/compile.yml", compile_workflow),
+        "release": (".github/workflows/release.yml", release_workflow),
+    }
+    for target in ("compile.firmware-metadata", "release.release-metadata"):
+        check_workflow_named_step_run_contains(
+            target,
+            "Read product metadata",
+            ['python3 scripts/product_config.py github-output >> "$GITHUB_OUTPUT"'],
+            workflow_texts,
+            errors,
+        )
 
+    docker_run_fragments = ['"${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}"']
     if config_mount:
-        require_contains(compile_workflow, '-v "${PWD}:${ESPHOME_CONFIG_MOUNT}"', ".github/workflows/compile.yml", errors)
+        docker_run_fragments.append('-v "${PWD}:${ESPHOME_CONFIG_MOUNT}"')
         require_contains(readme, f'-v "${{PWD}}:{config_mount}"', "README.md", errors)
     if remove_container is True:
-        require_contains(compile_workflow, "docker run ${ESPHOME_DOCKER_REMOVE_FLAG}", ".github/workflows/compile.yml", errors)
+        docker_run_fragments.append("docker run ${ESPHOME_DOCKER_REMOVE_FLAG}")
         require_contains(readme, "docker run --rm", "README.md", errors)
 
-    release_workflow = read(ROOT / ".github" / "workflows" / "release.yml", errors)
-    for needle in (
-        '"${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}"',
-        '-v "${PWD}:${ESPHOME_CONFIG_MOUNT}"',
-        "docker run ${ESPHOME_DOCKER_REMOVE_FLAG}",
+    for target, step_name in (
+        ("compile.compile", "Compile test firmware artifacts"),
+        ("release.build-firmware", "Compile firmware"),
     ):
-        require_contains(release_workflow, needle, ".github/workflows/release.yml", errors)
+        check_workflow_named_step_run_contains(
+            target,
+            step_name,
+            docker_run_fragments,
+            workflow_texts,
+            errors,
+        )
 
 
 def check_workflows(product: dict, errors: list[str]) -> None:
