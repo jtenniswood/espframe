@@ -14,6 +14,7 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_action_usage,
     check_workflow_event_type_usage,
     check_workflow_events,
+    check_workflow_jobs,
     check_workflow_path_filters,
     normalize_workflow_condition,
     workflow_event_names,
@@ -21,6 +22,7 @@ from product_contract.workflows import (  # noqa: E402
     workflow_event_type_filters,
     workflow_job_block,
     workflow_job_condition,
+    workflow_job_ids,
 )
 from product_contract.project_release_metadata import (  # noqa: E402
     check_release_workflow_actions,
@@ -114,6 +116,33 @@ def test_workflow_job_block_reports_missing_job() -> None:
     errors: list[str] = []
     assert workflow_job_block(WORKFLOW, "missing", "example.yml", errors) == ""
     assert errors == ["example.yml is missing job missing"]
+
+
+def test_workflow_job_ids_reads_top_level_jobs() -> None:
+    assert workflow_job_ids(WORKFLOW) == ["direct", "folded", "literal", "unconditional"]
+    assert workflow_job_ids("name: Missing Jobs\n") == []
+
+
+def test_workflow_jobs_reject_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    check_workflow_jobs(
+        {
+            "compile": {
+                "direct": "Direct Condition",
+                "missing": "Missing Job",
+                "folded": "Wrong Name",
+            }
+        },
+        {"compile": ("example.yml", WORKFLOW)},
+        errors,
+    )
+
+    assert errors == [
+        "example.yml jobs are missing product metadata jobs: missing",
+        "example.yml jobs contain jobs missing from product metadata: literal, unconditional",
+        "example.yml is missing job missing",
+        "example.yml job folded is missing '    name: Wrong Name'",
+    ]
 
 
 def test_workflow_job_condition_handles_supported_forms() -> None:
@@ -388,6 +417,8 @@ def test_workflow_job_dependencies_reject_unknown_jobs() -> None:
 def main() -> int:
     test_workflow_job_block_finds_exact_job()
     test_workflow_job_block_reports_missing_job()
+    test_workflow_job_ids_reads_top_level_jobs()
+    test_workflow_jobs_reject_drift_from_product_metadata()
     test_workflow_job_condition_handles_supported_forms()
     test_normalize_workflow_condition_collapses_whitespace()
     test_release_workflow_actions_require_expected_keys()

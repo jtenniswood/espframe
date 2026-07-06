@@ -210,12 +210,50 @@ def check_workflow_action_usage(
             require_contains(text, action.strip(), label, errors)
 
 
+def workflow_job_ids(text: str) -> list[str]:
+    match = re.search(r"^jobs:\n(.*?)(?=^[A-Za-z0-9_-]+:|\Z)", text, re.DOTALL | re.MULTILINE)
+    if not match:
+        return []
+    return re.findall(r"^  ([A-Za-z0-9_-]+):", match.group(1), re.MULTILINE)
+
+
 def workflow_job_block(text: str, job_id: str, label: str, errors: list[str]) -> str:
     match = re.search(rf"^  {re.escape(job_id)}:\n(.*?)(?=^  [A-Za-z0-9_-]+:|\Z)", text, re.DOTALL | re.MULTILINE)
     if not match:
         errors.append(f"{label} is missing job {job_id}")
         return ""
     return match.group(1)
+
+
+def check_workflow_jobs(
+    workflow_jobs: object,
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    if not isinstance(workflow_jobs, dict):
+        return
+
+    for workflow_name, (label, text) in workflow_texts.items():
+        raw_jobs = workflow_jobs.get(workflow_name)
+        if not isinstance(raw_jobs, dict):
+            continue
+        expected_jobs = [str(job_id).strip() for job_id in raw_jobs if str(job_id).strip()]
+        actual_jobs = workflow_job_ids(text)
+        missing_jobs = [job_id for job_id in expected_jobs if job_id not in actual_jobs]
+        extra_jobs = [job_id for job_id in actual_jobs if job_id not in expected_jobs]
+        if missing_jobs:
+            errors.append(f"{label} jobs are missing product metadata jobs: {', '.join(missing_jobs)}")
+        if extra_jobs:
+            errors.append(f"{label} jobs contain jobs missing from product metadata: {', '.join(extra_jobs)}")
+
+        for raw_job_id, raw_job_name in raw_jobs.items():
+            job_id = str(raw_job_id).strip()
+            job_name = str(raw_job_name).strip()
+            if not job_id or not job_name:
+                continue
+            job_block = workflow_job_block(text, job_id, label, errors)
+            if job_block:
+                require_contains(job_block, f"    name: {job_name}", f"{label} job {job_id}", errors)
 
 
 def normalize_workflow_condition(condition: str) -> str:
@@ -811,19 +849,7 @@ def check_workflows(product: dict, errors: list[str]) -> None:
     workflow_event_types = project.get("github_workflow_event_types", {})
     check_workflow_event_type_usage(workflow_event_types, workflow_texts, errors)
     workflow_jobs = project.get("github_workflow_jobs", {})
-    if isinstance(workflow_jobs, dict):
-        for workflow, raw_jobs in workflow_jobs.items():
-            workflow_name = str(workflow).strip()
-            if workflow_name not in workflow_texts or not isinstance(raw_jobs, dict):
-                continue
-            label, text = workflow_texts[workflow_name]
-            for raw_job_id, raw_job_name in raw_jobs.items():
-                job_id = str(raw_job_id).strip()
-                job_name = str(raw_job_name).strip()
-                if job_id:
-                    require_contains(text, f"  {job_id}:", label, errors)
-                if job_name:
-                    require_contains(text, f"    name: {job_name}", label, errors)
+    check_workflow_jobs(workflow_jobs, workflow_texts, errors)
     workflow_job_dependencies = project.get("github_workflow_job_dependencies", {})
     if isinstance(workflow_job_dependencies, dict):
         for key, raw_dependencies in workflow_job_dependencies.items():
