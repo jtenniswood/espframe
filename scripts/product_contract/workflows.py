@@ -781,26 +781,14 @@ def check_workflow_action_step_inputs(
     action_ref = action_ref.strip()
     match_input = match_input.strip()
     match_value = match_value.strip()
-    expected_inputs = {
-        str(name).strip(): str(value).strip()
-        for name, value in expected_inputs.items()
-        if str(name).strip() and str(value).strip()
-    }
-    workflow_name, _, job_id = target.partition(".")
-    if (
-        not action_ref
-        or not match_input
-        or not match_value
-        or not expected_inputs
-        or workflow_name not in workflow_texts
-        or not job_id
-    ):
+    expected_inputs = normalized_workflow_mapping(expected_inputs)
+    if not action_ref or not match_input or not match_value or not expected_inputs:
         return
 
-    label, text = workflow_texts[workflow_name]
-    job_block = workflow_job_block(text, job_id, label, errors)
-    if not job_block:
+    target_job = workflow_target_job_block(target, workflow_texts, errors)
+    if target_job is None:
         return
+    label, job_id, job_block = target_job
 
     matching_step = ""
     for step_block in workflow_job_step_blocks(job_block):
@@ -1027,14 +1015,13 @@ def check_workflow_job_run_command(
     errors: list[str],
 ) -> None:
     expected_run = expected_run.strip()
-    workflow_name, _, job_id = target.partition(".")
-    if not expected_run or workflow_name not in workflow_texts or not job_id:
+    if not expected_run:
         return
 
-    label, text = workflow_texts[workflow_name]
-    job_block = workflow_job_block(text, job_id, label, errors)
-    if not job_block:
+    target_job = workflow_target_job_block(target, workflow_texts, errors)
+    if target_job is None:
         return
+    label, job_id, job_block = target_job
 
     for step_block in workflow_job_step_blocks(job_block):
         if workflow_step_run(step_block).strip() == expected_run:
