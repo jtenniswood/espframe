@@ -640,6 +640,42 @@ jobs:
 """
 
 
+DOCS_DOWNLOAD_RUN_WORKFLOW = """\
+name: Example
+
+jobs:
+  download-firmware:
+    name: Download Firmware
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download firmware from latest release
+        run: |
+          gh release download "$RELEASE_TAG" \
+            --pattern "*.factory.bin" \
+            --pattern "*.ota.bin" \
+            --clobber
+          for SLUG in $DEVICE_SLUGS; do
+            gh release download "$RELEASE_TAG" \
+              --pattern "${SLUG}.manifest.json" \
+              --clobber
+          done
+          gh release download "$RELEASE_TAG" \
+            --pattern "$(basename "$DEFAULT_PUBLIC_MANIFEST")" \
+            --clobber
+
+      - name: Download firmware from latest pre-release
+        run: |
+          gh release download "$BETA_TAG" \
+            --pattern "*.ota.bin"
+          for SLUG in $DEVICE_SLUGS; do
+            gh release download "$BETA_TAG" \
+              --pattern "${SLUG}.manifest.json"
+          done
+          gh release download "$BETA_TAG" \
+            --pattern "$(basename "$DEFAULT_PUBLIC_MANIFEST")"
+"""
+
+
 RUN_COMMAND_WORKFLOW = """\
 name: Example
 
@@ -1394,6 +1430,44 @@ def test_workflow_named_step_run_contains_checks_compile_artifact_step() -> None
     ]
 
 
+def test_workflow_named_step_run_contains_checks_docs_download_steps() -> None:
+    errors: list[str] = []
+    workflow_texts = {"docs": ("docs.yml", DOCS_DOWNLOAD_RUN_WORKFLOW)}
+
+    for step_name, manifest_env in (
+        ("Download firmware from latest release", "DEFAULT_PUBLIC_MANIFEST"),
+        ("Download firmware from latest pre-release", "DEFAULT_PUBLIC_BETA_MANIFEST"),
+    ):
+        check_workflow_named_step_run_contains(
+            "docs.download-firmware",
+            step_name,
+            [
+                '--pattern "*.factory.bin"',
+                '--pattern "*.ota.bin"',
+                '--pattern "${SLUG}.manifest.json"',
+                f'basename "${manifest_env}"',
+                "--clobber",
+            ],
+            workflow_texts,
+            errors,
+        )
+
+    assert errors == [
+        (
+            "docs.yml job download-firmware step 'Download firmware from latest pre-release' "
+            "run is missing '--pattern \"*.factory.bin\"'"
+        ),
+        (
+            "docs.yml job download-firmware step 'Download firmware from latest pre-release' "
+            "run is missing 'basename \"$DEFAULT_PUBLIC_BETA_MANIFEST\"'"
+        ),
+        (
+            "docs.yml job download-firmware step 'Download firmware from latest pre-release' "
+            "run is missing '--clobber'"
+        ),
+    ]
+
+
 def test_workflow_job_run_command_rejects_drift_from_product_metadata() -> None:
     errors: list[str] = []
     workflow_texts = {
@@ -2037,6 +2111,7 @@ def main() -> int:
     test_workflow_named_step_run_contains_checks_publish_steps()
     test_workflow_named_step_helpers_check_cache_metadata()
     test_workflow_named_step_run_contains_checks_compile_artifact_step()
+    test_workflow_named_step_run_contains_checks_docs_download_steps()
     test_workflow_job_run_command_rejects_drift_from_product_metadata()
     test_workflow_job_outputs_reads_job_outputs()
     test_workflow_job_outputs_rejects_drift_from_product_metadata()

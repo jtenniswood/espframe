@@ -1711,14 +1711,37 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             workflow_texts,
             errors,
         )
-    for pattern in binary_download_patterns:
-        require_contains(docs_workflow, f'--pattern "{pattern}"', ".github/workflows/docs.yml", errors)
-    for pattern in manifest_download_patterns:
-        if pattern == "manifest.json":
-            require_contains(docs_workflow, 'basename "$DEFAULT_PUBLIC_MANIFEST"', ".github/workflows/docs.yml", errors)
-            require_contains(docs_workflow, 'basename "$DEFAULT_PUBLIC_BETA_MANIFEST"', ".github/workflows/docs.yml", errors)
-        else:
-            require_contains(docs_workflow, f'--pattern "{pattern}"', ".github/workflows/docs.yml", errors)
+    for step_name in ("Download firmware from latest release", "Download firmware from latest pre-release"):
+        for pattern in binary_download_patterns:
+            check_workflow_named_step_run_contains(
+                "docs.download-firmware",
+                step_name,
+                [f'--pattern "{pattern}"'],
+                workflow_texts,
+                errors,
+            )
+        for pattern in manifest_download_patterns:
+            if pattern == "manifest.json":
+                manifest_env = (
+                    "DEFAULT_PUBLIC_BETA_MANIFEST"
+                    if step_name == "Download firmware from latest pre-release"
+                    else "DEFAULT_PUBLIC_MANIFEST"
+                )
+                check_workflow_named_step_run_contains(
+                    "docs.download-firmware",
+                    step_name,
+                    [f'basename "${manifest_env}"'],
+                    workflow_texts,
+                    errors,
+                )
+            else:
+                check_workflow_named_step_run_contains(
+                    "docs.download-firmware",
+                    step_name,
+                    [f'--pattern "{pattern}"'],
+                    workflow_texts,
+                    errors,
+                )
     for pattern in uploaded_verify_patterns:
         check_workflow_named_step_run_contains(
             "release.publish",
@@ -1728,7 +1751,14 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             errors,
         )
     if release_download_clobber is True:
-        require_contains(docs_workflow, "--clobber", ".github/workflows/docs.yml", errors)
+        for step_name in ("Download firmware from latest release", "Download firmware from latest pre-release"):
+            check_workflow_named_step_run_contains(
+                "docs.download-firmware",
+                step_name,
+                ["--clobber"],
+                workflow_texts,
+                errors,
+            )
     if release_upload_clobber is True:
         check_workflow_named_step_run_contains(
             "release.publish",
