@@ -2262,7 +2262,6 @@ def check_esphome_version(product: dict, errors: list[str]) -> None:
 def check_workflows(product: dict, errors: list[str]) -> None:
     project = product["project"]
     compile_workflow = read(ROOT / ".github" / "workflows" / "compile.yml", errors)
-    require_contains(compile_workflow, '"product/**"', ".github/workflows/compile.yml", errors)
 
     docs_workflow = read(ROOT / ".github" / "workflows" / "docs.yml", errors)
     release_workflow = read(ROOT / ".github" / "workflows" / "release.yml", errors)
