@@ -1900,47 +1900,87 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             errors,
         )
     if isinstance(docs_verify_retries, int) and not isinstance(docs_verify_retries, bool):
-        require_contains(docs_workflow, f"--retries {docs_verify_retries}", ".github/workflows/docs.yml", errors)
-    if isinstance(docs_verify_delay, int) and not isinstance(docs_verify_delay, bool):
-        require_contains(docs_workflow, f"--delay {docs_verify_delay}", ".github/workflows/docs.yml", errors)
-    if docs_release_tag_env:
-        release_tag_ref = f"${docs_release_tag_env}"
-        for needle in (
-            f"{docs_release_tag_env}=$(gh release view --json tagName -q .tagName)",
-            f'echo "{docs_release_tag_env}=${{{docs_release_tag_env}}}" >> "$GITHUB_ENV"',
-            f'gh release download "{release_tag_ref}"',
-            f'--version "{release_tag_ref}"',
-        ):
-            require_contains(docs_workflow, needle, ".github/workflows/docs.yml", errors)
-    if docs_release_tag_env and docs_release_tag_output:
-        if docs_release_meta_step_id:
-            require_contains(docs_workflow, f"id: {docs_release_meta_step_id}", ".github/workflows/docs.yml", errors)
-            require_contains(
-                docs_workflow,
-                f"{docs_release_tag_output}: ${{{{ steps.{docs_release_meta_step_id}.outputs.{docs_release_tag_output} }}}}",
-                ".github/workflows/docs.yml",
-                errors,
-            )
-        require_contains(
-            docs_workflow,
-            f'echo "{docs_release_tag_output}=${{{docs_release_tag_env}}}" >> "$GITHUB_OUTPUT"',
-            ".github/workflows/docs.yml",
+        check_workflow_named_step_run_contains(
+            "docs.deploy-docs",
+            "Verify public firmware",
+            [f"--retries {docs_verify_retries}"],
+            workflow_texts,
             errors,
         )
-        require_contains(
-            docs_workflow,
-            f"${{{{ needs.download-firmware.outputs.{docs_release_tag_output} }}}}",
-            ".github/workflows/docs.yml",
+    if isinstance(docs_verify_delay, int) and not isinstance(docs_verify_delay, bool):
+        check_workflow_named_step_run_contains(
+            "docs.deploy-docs",
+            "Verify public firmware",
+            [f"--delay {docs_verify_delay}"],
+            workflow_texts,
+            errors,
+        )
+    if docs_release_tag_env:
+        release_tag_ref = f"${docs_release_tag_env}"
+        check_workflow_named_step_run_contains(
+            "docs.download-firmware",
+            "Set release metadata",
+            [
+                f"{docs_release_tag_env}=$(gh release view --json tagName -q .tagName)",
+                f'echo "{docs_release_tag_env}=${{{docs_release_tag_env}}}" >> "$GITHUB_ENV"',
+            ],
+            workflow_texts,
+            errors,
+        )
+        for step_name in ("Download firmware from latest release", "Verify firmware assets"):
+            check_workflow_named_step_run_contains(
+                "docs.download-firmware",
+                step_name,
+                [release_tag_ref],
+                workflow_texts,
+                errors,
+            )
+    if docs_release_tag_env and docs_release_tag_output:
+        if docs_release_meta_step_id:
+            check_workflow_named_step_contains(
+                "docs.download-firmware",
+                "Set release metadata",
+                [f"id: {docs_release_meta_step_id}"],
+                workflow_texts,
+                errors,
+            )
+            check_workflow_job_outputs(
+                "docs.download-firmware",
+                {
+                    docs_release_tag_output: (
+                        f"${{{{ steps.{docs_release_meta_step_id}.outputs.{docs_release_tag_output} }}}}"
+                    ),
+                },
+                workflow_texts,
+                errors,
+            )
+        check_workflow_named_step_run_contains(
+            "docs.download-firmware",
+            "Set release metadata",
+            [f'echo "{docs_release_tag_output}=${{{docs_release_tag_env}}}" >> "$GITHUB_OUTPUT"'],
+            workflow_texts,
+            errors,
+        )
+        check_workflow_named_step_run_contains(
+            "docs.deploy-docs",
+            "Verify public firmware",
+            [f"${{{{ needs.download-firmware.outputs.{docs_release_tag_output} }}}}"],
+            workflow_texts,
             errors,
         )
     if docs_prerelease_tag_env:
         prerelease_tag_ref = f"${docs_prerelease_tag_env}"
-        for needle in (
-            f"{docs_prerelease_tag_env}=$(gh release list",
-            f'if [ -n "{prerelease_tag_ref}" ]; then',
-            f'gh release download "{prerelease_tag_ref}"',
-        ):
-            require_contains(docs_workflow, needle, ".github/workflows/docs.yml", errors)
+        check_workflow_named_step_run_contains(
+            "docs.download-firmware",
+            "Download firmware from latest pre-release",
+            [
+                f"{docs_prerelease_tag_env}=$(gh release list",
+                f'if [ -n "{prerelease_tag_ref}" ]; then',
+                f'gh release download "{prerelease_tag_ref}"',
+            ],
+            workflow_texts,
+            errors,
+        )
     check_workflow_job_timeout_usage(
         firmware_compile_timeout,
         {

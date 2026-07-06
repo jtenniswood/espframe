@@ -676,6 +676,48 @@ jobs:
 """
 
 
+DOCS_RELEASE_METADATA_WORKFLOW = """\
+name: Example
+
+jobs:
+  download-firmware:
+    name: Download Firmware
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.wrong-meta.outputs.release_tag }}
+    steps:
+      - name: Set release metadata
+        id: release-meta
+        run: |
+          RELEASE_TAG=$(gh release view --json tagName -q .tagName)
+          echo "RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"
+          echo "wrong_release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Download firmware from latest release
+        run: gh release download "$RELEASE_TAG"
+
+      - name: Download firmware from latest pre-release
+        run: |
+          BETA_TAG=$(gh release list --limit 20 --json tagName,isPrerelease)
+          if [ -n "$BETA_TAG" ]; then
+            echo skip
+          fi
+
+      - name: Verify firmware assets
+        run: python3 scripts/firmware_release.py verify-directory --version "$WRONG_TAG"
+
+  deploy-docs:
+    name: Deploy Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify public firmware
+        run: >-
+          python3 scripts/firmware_release.py verify-pages
+          --version "${{ needs.download-firmware.outputs.wrong_tag }}"
+          --retries 5
+"""
+
+
 RUN_COMMAND_WORKFLOW = """\
 name: Example
 
@@ -1468,6 +1510,98 @@ def test_workflow_named_step_run_contains_checks_docs_download_steps() -> None:
     ]
 
 
+def test_workflow_named_step_helpers_check_docs_release_metadata() -> None:
+    errors: list[str] = []
+    workflow_texts = {"docs": ("docs.yml", DOCS_RELEASE_METADATA_WORKFLOW)}
+
+    check_workflow_named_step_contains(
+        "docs.download-firmware",
+        "Set release metadata",
+        ["id: release-meta"],
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_run_contains(
+        "docs.download-firmware",
+        "Set release metadata",
+        [
+            "RELEASE_TAG=$(gh release view --json tagName -q .tagName)",
+            'echo "RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"',
+            'echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"',
+        ],
+        workflow_texts,
+        errors,
+    )
+    check_workflow_job_outputs(
+        "docs.download-firmware",
+        {"release_tag": "${{ steps.release-meta.outputs.release_tag }}"},
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_run_contains(
+        "docs.download-firmware",
+        "Download firmware from latest release",
+        ['$RELEASE_TAG'],
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_run_contains(
+        "docs.download-firmware",
+        "Verify firmware assets",
+        ['$RELEASE_TAG'],
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_run_contains(
+        "docs.download-firmware",
+        "Download firmware from latest pre-release",
+        [
+            "BETA_TAG=$(gh release list",
+            'if [ -n "$BETA_TAG" ]; then',
+            'gh release download "$BETA_TAG"',
+        ],
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_run_contains(
+        "docs.deploy-docs",
+        "Verify public firmware",
+        [
+            "${{ needs.download-firmware.outputs.release_tag }}",
+            "--retries 10",
+            "--delay 15",
+        ],
+        workflow_texts,
+        errors,
+    )
+
+    assert errors == [
+        (
+            "docs.yml job download-firmware step 'Set release metadata' run is missing "
+            "'echo \"release_tag=${RELEASE_TAG}\" >> \"$GITHUB_OUTPUT\"'"
+        ),
+        (
+            "docs.yml job download-firmware outputs.release_tag must be "
+            "'${{ steps.release-meta.outputs.release_tag }}', found "
+            "'${{ steps.wrong-meta.outputs.release_tag }}'"
+        ),
+        (
+            "docs.yml job download-firmware step 'Verify firmware assets' run is missing "
+            "'$RELEASE_TAG'"
+        ),
+        (
+            "docs.yml job download-firmware step 'Download firmware from latest pre-release' "
+            "run is missing 'gh release download \"$BETA_TAG\"'"
+        ),
+        (
+            "docs.yml job deploy-docs step 'Verify public firmware' run is missing "
+            "'${{ needs.download-firmware.outputs.release_tag }}'"
+        ),
+        "docs.yml job deploy-docs step 'Verify public firmware' run is missing '--retries 10'",
+        "docs.yml job deploy-docs step 'Verify public firmware' run is missing '--delay 15'",
+    ]
+
+
 def test_workflow_job_run_command_rejects_drift_from_product_metadata() -> None:
     errors: list[str] = []
     workflow_texts = {
@@ -2112,6 +2246,7 @@ def main() -> int:
     test_workflow_named_step_helpers_check_cache_metadata()
     test_workflow_named_step_run_contains_checks_compile_artifact_step()
     test_workflow_named_step_run_contains_checks_docs_download_steps()
+    test_workflow_named_step_helpers_check_docs_release_metadata()
     test_workflow_job_run_command_rejects_drift_from_product_metadata()
     test_workflow_job_outputs_reads_job_outputs()
     test_workflow_job_outputs_rejects_drift_from_product_metadata()
