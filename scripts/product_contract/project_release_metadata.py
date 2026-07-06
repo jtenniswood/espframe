@@ -5,6 +5,47 @@ import re
 from product_contract.common import ROOT, check_relative_path, read
 
 
+def workflow_event_index(workflow_events: object) -> set[str]:
+    if not isinstance(workflow_events, dict):
+        return set()
+
+    configured_workflow_events: set[str] = set()
+    for raw_workflow, raw_events in workflow_events.items():
+        workflow = str(raw_workflow).strip()
+        if not workflow or not isinstance(raw_events, list):
+            continue
+        events = {str(raw_event).strip() for raw_event in raw_events if str(raw_event).strip()}
+        configured_workflow_events.update(f"{workflow}.{event}" for event in events)
+    return configured_workflow_events
+
+
+def check_workflow_event_types(
+    workflow_event_types: object,
+    configured_workflow_events: set[str],
+    errors: list[str],
+) -> None:
+    if not isinstance(workflow_event_types, dict) or not workflow_event_types:
+        errors.append("project.github_workflow_event_types must be a non-empty object")
+        return
+
+    for raw_key, raw_types in workflow_event_types.items():
+        key = str(raw_key).strip()
+        label = f"project.github_workflow_event_types.{key or '<missing>'}"
+        workflow, _, event_name = key.partition(".")
+        if not workflow or not event_name:
+            errors.append(f"{label} must use workflow.event format")
+        elif key not in configured_workflow_events:
+            errors.append(f"{label} must point at a known workflow event")
+        if not isinstance(raw_types, list) or not raw_types:
+            errors.append(f"{label} must be a non-empty list")
+            continue
+        event_types = [str(event_type).strip() for event_type in raw_types]
+        if any(not event_type for event_type in event_types):
+            errors.append(f"{label} must only contain non-empty strings")
+        if len(event_types) != len(set(event_types)):
+            errors.append(f"{label} must not contain duplicate event types")
+
+
 def workflow_job_index(workflow_jobs: object) -> tuple[set[str], dict[str, set[str]]]:
     if not isinstance(workflow_jobs, dict):
         return set(), {}
@@ -201,22 +242,9 @@ def check_project_release_metadata(product: dict, errors: list[str]) -> None:
                 errors.append(f"project.github_workflow_events.{name or '<missing>'} must only contain non-empty strings")
             if len(events) != len(set(events)):
                 errors.append(f"project.github_workflow_events.{name or '<missing>'} must not contain duplicate events")
+    configured_workflow_events = workflow_event_index(workflow_events)
     workflow_event_types = project.get("github_workflow_event_types", {})
-    if not isinstance(workflow_event_types, dict) or not workflow_event_types:
-        errors.append("project.github_workflow_event_types must be a non-empty object")
-    else:
-        for raw_key, raw_types in workflow_event_types.items():
-            key = str(raw_key).strip()
-            if "." not in key:
-                errors.append(f"project.github_workflow_event_types.{key or '<missing>'} must use workflow.event format")
-            if not isinstance(raw_types, list) or not raw_types:
-                errors.append(f"project.github_workflow_event_types.{key or '<missing>'} must be a non-empty list")
-                continue
-            event_types = [str(event_type).strip() for event_type in raw_types]
-            if any(not event_type for event_type in event_types):
-                errors.append(f"project.github_workflow_event_types.{key or '<missing>'} must only contain non-empty strings")
-            if len(event_types) != len(set(event_types)):
-                errors.append(f"project.github_workflow_event_types.{key or '<missing>'} must not contain duplicate event types")
+    check_workflow_event_types(workflow_event_types, configured_workflow_events, errors)
     workflow_jobs = project.get("github_workflow_jobs", {})
     if not isinstance(workflow_jobs, dict) or not workflow_jobs:
         errors.append("project.github_workflow_jobs must be a non-empty object")

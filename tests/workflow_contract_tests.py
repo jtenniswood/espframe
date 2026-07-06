@@ -16,7 +16,9 @@ from product_contract.workflows import (  # noqa: E402
     workflow_job_condition,
 )
 from product_contract.project_release_metadata import (  # noqa: E402
+    check_workflow_event_types,
     check_workflow_job_dependencies,
+    workflow_event_index,
     workflow_job_index,
 )
 
@@ -83,6 +85,39 @@ def test_normalize_workflow_condition_collapses_whitespace() -> None:
     assert normalize_workflow_condition("  one\n  two\tthree  ") == "one two three"
 
 
+def test_workflow_event_index_normalizes_declared_events() -> None:
+    configured_events = workflow_event_index(
+        {
+            "compile": ["pull_request", " workflow_dispatch ", ""],
+            "": ["ignored"],
+            "invalid": {"not": "a list"},
+        }
+    )
+
+    assert configured_events == {"compile.pull_request", "compile.workflow_dispatch"}
+
+
+def test_workflow_event_types_reject_unknown_events() -> None:
+    errors: list[str] = []
+    check_workflow_event_types(
+        {
+            "docs.workflow_run": ["completed"],
+            "docs.pull_request": ["opened"],
+            "missing": ["completed"],
+            "release.release": [],
+        },
+        {"docs.workflow_run"},
+        errors,
+    )
+
+    assert errors == [
+        "project.github_workflow_event_types.docs.pull_request must point at a known workflow event",
+        "project.github_workflow_event_types.missing must use workflow.event format",
+        "project.github_workflow_event_types.release.release must point at a known workflow event",
+        "project.github_workflow_event_types.release.release must be a non-empty list",
+    ]
+
+
 def test_workflow_job_index_normalizes_declared_jobs() -> None:
     configured_jobs, jobs_by_workflow = workflow_job_index(
         {
@@ -124,6 +159,8 @@ def main() -> int:
     test_workflow_job_block_reports_missing_job()
     test_workflow_job_condition_handles_supported_forms()
     test_normalize_workflow_condition_collapses_whitespace()
+    test_workflow_event_index_normalizes_declared_events()
+    test_workflow_event_types_reject_unknown_events()
     test_workflow_job_index_normalizes_declared_jobs()
     test_workflow_job_dependencies_reject_unknown_jobs()
     print("workflow contract tests passed")
