@@ -639,7 +639,7 @@ function smokeAssertionsForScenario(scenario) {
         setSelect("Rotation", "90");
         await waitFor(() => {
           try {
-            requireLatestPostValue("Portrait rotation", "Screen: Rotation", "90");
+            requireLatestPostParam("Portrait rotation", "Screen: Rotation", "option", "90");
             return window.__smoke.posts.some((url) => url.indexOf("Photos: Portrait Pairing") !== -1 && url.indexOf("turn_off") !== -1);
           } catch (_) {
             return false;
@@ -650,7 +650,7 @@ function smokeAssertionsForScenario(scenario) {
         await waitFor(() => {
           try {
             requirePostContains("Developer features disable", "Developer: Features", "turn_off");
-            requireLatestPostValue("Rotation reset", "Screen: Rotation", "0");
+            requireLatestPostParam("Rotation reset", "Screen: Rotation", "option", "0");
             requireSelectIncludes("Rotation", ["0", "180"]);
             requireSelectExcludes("Rotation", ["90", "270"]);
             return true;
