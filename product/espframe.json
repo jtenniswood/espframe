@@ -565,7 +565,7 @@
     "github_pull_request_template_path": ".github/pull_request_template.md",
     "github_pull_request_device_testing_options": [
       "Not needed for this change",
-      "Compile Check artifact flashed to device",
+      "PR Validation artifact flashed to device",
       "Needs device testing before merge"
     ],
     "public_base_url": "https://jtenniswood.github.io/espframe",
@@ -806,7 +806,7 @@
       "release": { "contents": "write" }
     },
     "github_workflow_names": {
-      "compile": "Compile Check",
+      "compile": "PR Validation",
       "docs": "Deploy Docs",
       "release": "Build Release"
     },

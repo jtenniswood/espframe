@@ -2187,7 +2187,6 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     devices_by_slug = {str(device.get("slug", "")).strip(): device for device in product["devices"]}
     for release_device in release_devices:
         slug = release_device["slug"]
-        build_yaml = str(devices_by_slug.get(slug, {}).get("build_yaml", "")).strip()
         local_yaml = str(devices_by_slug.get(slug, {}).get("local_yaml", "")).strip()
         device_dir = str(Path(local_yaml).parent) if local_yaml else ""
         if device_dir:

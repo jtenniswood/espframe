@@ -10,10 +10,10 @@
 ## Device testing
 
 - [ ] Not needed for this change
-- [ ] Compile Check artifact flashed to device
+- [ ] PR Validation artifact flashed to device
 - [ ] Needs device testing before merge
 
-Compile Check workflow run/artifact:
+PR Validation workflow run/artifact:
 
 Firmware artifact (`firmware-test-<device>`):
 
