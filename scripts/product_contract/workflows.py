@@ -514,6 +514,58 @@ def workflow_job_strategy_fail_fast(job_block: str) -> str:
     return workflow_job_nested_field_value(job_block, "strategy", "fail-fast")
 
 
+def workflow_job_mapping(job_block: str, section_name: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    lines = job_block.splitlines()
+    for index, line in enumerate(lines):
+        if not line.startswith(f"    {section_name}:"):
+            continue
+        for continuation in lines[index + 1:]:
+            if continuation.strip() and not continuation.startswith("      "):
+                break
+            item_match = re.match(r"^      ([A-Za-z_][A-Za-z0-9_-]*):\s*(.*?)\s*$", continuation)
+            if item_match:
+                values[item_match.group(1)] = unquote_workflow_value(item_match.group(2))
+        return values
+    return values
+
+
+def workflow_job_outputs(job_block: str) -> dict[str, str]:
+    return workflow_job_mapping(job_block, "outputs")
+
+
+def check_workflow_job_outputs(
+    target: str,
+    expected_outputs: dict[str, str],
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    expected_outputs = {
+        str(name).strip(): str(value).strip()
+        for name, value in expected_outputs.items()
+        if str(name).strip() and str(value).strip()
+    }
+    workflow_name, _, job_id = target.partition(".")
+    if not expected_outputs or workflow_name not in workflow_texts or not job_id:
+        return
+
+    label, text = workflow_texts[workflow_name]
+    job_block = workflow_job_block(text, job_id, label, errors)
+    if not job_block:
+        return
+
+    actual_outputs = workflow_job_outputs(job_block)
+    for name, expected_value in expected_outputs.items():
+        actual_value = actual_outputs.get(name)
+        if actual_value is None:
+            errors.append(f"{label} job {job_id} outputs is missing {name}")
+        elif actual_value != expected_value:
+            errors.append(
+                f"{label} job {job_id} outputs.{name} must be {expected_value!r}, "
+                f"found {actual_value!r}"
+            )
+
+
 def workflow_job_step_blocks(job_block: str) -> list[str]:
     blocks: list[str] = []
     current: list[str] = []
@@ -1049,6 +1101,40 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     esphome_config_mount = str(project.get("esphome_config_mount", "")).strip()
     slugs = [str(device.get("slug", "")).strip() for device in product["devices"]]
     expected_slugs = " ".join(slugs)
+    workflow_texts = {
+        "compile": (".github/workflows/compile.yml", compile_workflow),
+        "docs": (".github/workflows/docs.yml", docs_workflow),
+        "release": (".github/workflows/release.yml", release_workflow),
+    }
+    product_output_names = [
+        "release_matrix",
+        "esphome_docker_image",
+        "esphome_version",
+        "esphome_config_mount",
+        "esphome_docker_remove_flag",
+        "release_esphome_cache_dir",
+        "release_esphome_cache_key_prefix",
+    ]
+    product_metadata_outputs = {
+        name: f"${{{{ steps.product.outputs.{name} }}}}"
+        for name in product_output_names
+    }
+    check_workflow_job_outputs(
+        "compile.firmware-metadata",
+        product_metadata_outputs,
+        workflow_texts,
+        errors,
+    )
+    release_metadata_outputs = {
+        **product_metadata_outputs,
+        "device_slugs": "${{ steps.product.outputs.device_slugs }}",
+    }
+    check_workflow_job_outputs(
+        "release.release-metadata",
+        release_metadata_outputs,
+        workflow_texts,
+        errors,
+    )
     if isinstance(release_notes_fetch_depth, int) and not isinstance(release_notes_fetch_depth, bool):
         require_contains(release_workflow, f"fetch-depth: {release_notes_fetch_depth}", ".github/workflows/release.yml", errors)
     if isinstance(release_notes_fetch_tags, bool):
@@ -1075,7 +1161,6 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         (".github/workflows/docs.yml", docs_workflow),
     ):
         if label == ".github/workflows/release.yml":
-            require_contains(text, "device_slugs: ${{ steps.product.outputs.device_slugs }}", label, errors)
             require_contains(text, "DEVICE_SLUGS: ${{ needs.release-metadata.outputs.device_slugs }}", label, errors)
         else:
             require_contains(text, "python3 scripts/product_config.py github-env >> \"$GITHUB_ENV\"", label, errors)
@@ -1176,7 +1261,6 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             require_contains(release_workflow, needle, ".github/workflows/release.yml", errors)
     if release_esphome_cache_dir:
         for needle in (
-            "release_esphome_cache_dir: ${{ steps.product.outputs.release_esphome_cache_dir }}",
             "path: ${{ needs.release-metadata.outputs.release_esphome_cache_dir }}",
             'if [ -d "${RELEASE_ESPHOME_CACHE_DIR}" ]; then',
             'sudo chown -R "$USER:$USER" "${RELEASE_ESPHOME_CACHE_DIR}"',
@@ -1185,12 +1269,6 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         ):
             require_contains(release_workflow, needle, ".github/workflows/release.yml", errors)
     if release_esphome_cache_key_prefix:
-        require_contains(
-            release_workflow,
-            "release_esphome_cache_key_prefix: ${{ steps.product.outputs.release_esphome_cache_key_prefix }}",
-            ".github/workflows/release.yml",
-            errors,
-        )
         require_contains(
             release_workflow,
             "restore-keys: |",
@@ -1583,10 +1661,6 @@ def check_esphome_version(product: dict, errors: list[str]) -> None:
 
     release_workflow = read(ROOT / ".github" / "workflows" / "release.yml", errors)
     for needle in (
-        "esphome_docker_image: ${{ steps.product.outputs.esphome_docker_image }}",
-        "esphome_version: ${{ steps.product.outputs.esphome_version }}",
-        "esphome_config_mount: ${{ steps.product.outputs.esphome_config_mount }}",
-        "esphome_docker_remove_flag: ${{ steps.product.outputs.esphome_docker_remove_flag }}",
         '"${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}"',
         '-v "${PWD}:${ESPHOME_CONFIG_MOUNT}"',
         "docker run ${ESPHOME_DOCKER_REMOVE_FLAG}",

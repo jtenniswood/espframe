@@ -18,6 +18,7 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_concurrency,
     check_workflow_gh_cli_env,
     check_workflow_job_dependency_usage,
+    check_workflow_job_outputs,
     check_workflow_job_runner_usage,
     check_workflow_job_run_command,
     check_workflow_job_timeout_usage,
@@ -45,6 +46,7 @@ from product_contract.workflows import (  # noqa: E402
     workflow_job_display_name,
     workflow_job_ids,
     workflow_job_needs,
+    workflow_job_outputs,
     workflow_job_step_blocks,
     workflow_job_strategy_fail_fast,
     workflow_job_runs_on,
@@ -465,6 +467,28 @@ jobs:
 """
 
 
+OUTPUT_WORKFLOW = """\
+name: Example
+
+jobs:
+  metadata:
+    name: Read Metadata
+    runs-on: ubuntu-latest
+    outputs:
+      release_matrix: ${{ steps.product.outputs.release_matrix }}
+      esphome_version: ${{ steps.product.outputs.esphome_version }}
+      device_slugs: ${{ steps.product.outputs.device_slugs }}
+    steps:
+      - name: Read product metadata
+        id: product
+        run: python3 scripts/product_config.py github-output >> "$GITHUB_OUTPUT"
+
+  missing:
+    name: Missing Outputs
+    runs-on: ubuntu-latest
+"""
+
+
 def test_workflow_job_block_finds_exact_job() -> None:
     errors: list[str] = []
     block = workflow_job_block(WORKFLOW, "folded", "example.yml", errors)
@@ -805,6 +829,40 @@ def test_workflow_job_run_command_rejects_drift_from_product_metadata() -> None:
 
     assert errors == [
         "compile.yml job validate is missing run command 'npm run docs:build'",
+    ]
+
+
+def test_workflow_job_outputs_reads_job_outputs() -> None:
+    errors: list[str] = []
+    assert workflow_job_outputs(workflow_job_block(OUTPUT_WORKFLOW, "metadata", "example.yml", errors)) == {
+        "release_matrix": "${{ steps.product.outputs.release_matrix }}",
+        "esphome_version": "${{ steps.product.outputs.esphome_version }}",
+        "device_slugs": "${{ steps.product.outputs.device_slugs }}",
+    }
+    assert workflow_job_outputs(workflow_job_block(OUTPUT_WORKFLOW, "missing", "example.yml", errors)) == {}
+    assert errors == []
+
+
+def test_workflow_job_outputs_rejects_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    check_workflow_job_outputs(
+        "release.metadata",
+        {
+            "release_matrix": "${{ steps.product.outputs.release_matrix }}",
+            "esphome_version": "${{ steps.product.outputs.wrong_version }}",
+            "release_esphome_cache_dir": "${{ steps.product.outputs.release_esphome_cache_dir }}",
+        },
+        {"release": ("release.yml", OUTPUT_WORKFLOW)},
+        errors,
+    )
+
+    assert errors == [
+        (
+            "release.yml job metadata outputs.esphome_version must be "
+            "'${{ steps.product.outputs.wrong_version }}', found "
+            "'${{ steps.product.outputs.esphome_version }}'"
+        ),
+        "release.yml job metadata outputs is missing release_esphome_cache_dir",
     ]
 
 
@@ -1361,6 +1419,8 @@ def main() -> int:
     test_workflow_step_uses_and_with_read_action_inputs()
     test_workflow_action_step_inputs_rejects_drift_from_product_metadata()
     test_workflow_job_run_command_rejects_drift_from_product_metadata()
+    test_workflow_job_outputs_reads_job_outputs()
+    test_workflow_job_outputs_rejects_drift_from_product_metadata()
     test_workflow_job_dependency_usage_rejects_drift_from_product_metadata()
     test_workflow_permissions_reads_top_level_permissions()
     test_workflow_permissions_reject_drift_from_product_metadata()
