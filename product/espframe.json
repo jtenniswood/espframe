@@ -871,7 +871,14 @@
     "github_workflow_job_conditions": {
       "compile.validate": null,
       "compile.firmware-metadata": "github.event_name == 'workflow_dispatch'",
-      "compile.compile": "github.event_name == 'workflow_dispatch'"
+      "compile.compile": "github.event_name == 'workflow_dispatch'",
+      "docs.build-docs": "github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'",
+      "docs.download-firmware": "github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'",
+      "docs.deploy-docs": null,
+      "release.release-metadata": null,
+      "release.release-notes": "github.event_name == 'release'",
+      "release.build-firmware": null,
+      "release.publish": "github.event_name == 'release'"
     },
     "github_sparse_checkout_files": [
       "scripts/firmware_release.py",

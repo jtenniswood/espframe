@@ -31,6 +31,27 @@ def workflow_job_block(text: str, job_id: str, label: str, errors: list[str]) ->
     return match.group(1)
 
 
+def normalize_workflow_condition(condition: str) -> str:
+    return re.sub(r"\s+", " ", condition).strip()
+
+
+def workflow_job_condition(job_block: str) -> str:
+    lines = job_block.splitlines()
+    for index, line in enumerate(lines):
+        if not line.startswith("    if:"):
+            continue
+        condition = line.removeprefix("    if:").strip()
+        if condition in {">", ">-", "|", "|-"}:
+            folded_lines = []
+            for continuation in lines[index + 1:]:
+                if not continuation.startswith("      "):
+                    break
+                folded_lines.append(continuation.strip())
+            return normalize_workflow_condition(" ".join(folded_lines))
+        return normalize_workflow_condition(condition)
+    return ""
+
+
 def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     release_workflow = read(ROOT / ".github" / "workflows" / "release.yml", errors)
     docs_workflow = read(ROOT / ".github" / "workflows" / "docs.yml", errors)
@@ -675,10 +696,13 @@ def check_workflows(product: dict, errors: list[str]) -> None:
             job_block = workflow_job_block(text, job_id, label, errors)
             if not job_block:
                 continue
-            condition = str(raw_condition).strip() if raw_condition is not None else ""
-            if condition:
-                require_contains(job_block, f"    if: {condition}", f"{label} job {job_id}", errors)
-            elif re.search(r"^    if:", job_block, re.MULTILINE):
+            expected_condition = normalize_workflow_condition(str(raw_condition)) if raw_condition is not None else ""
+            actual_condition = workflow_job_condition(job_block)
+            if expected_condition and actual_condition != expected_condition:
+                errors.append(
+                    f"{label} job {job_id} if condition must be {expected_condition!r}, found {actual_condition!r}"
+                )
+            elif not expected_condition and actual_condition:
                 errors.append(f"{label} job {job_id} must not define an if condition")
     workflow_permissions = project.get("github_workflow_permissions", {})
     workflow_names = project.get("github_workflow_names", {})

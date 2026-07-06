@@ -215,13 +215,22 @@ def check_project_release_metadata(product: dict, errors: list[str]) -> None:
             if isinstance(jobs, dict)
             for job_id in jobs
         }
+        configured_condition_jobs = {str(key).strip() for key in workflow_job_conditions}
+        missing_condition_jobs = sorted(configured_workflow_jobs - configured_condition_jobs)
+        extra_condition_jobs = sorted(configured_condition_jobs - configured_workflow_jobs)
+        if missing_condition_jobs:
+            errors.append(
+                "project.github_workflow_job_conditions is missing jobs: " + ", ".join(missing_condition_jobs)
+            )
+        if extra_condition_jobs:
+            errors.append(
+                "project.github_workflow_job_conditions contains unknown jobs: " + ", ".join(extra_condition_jobs)
+            )
         for raw_key, raw_condition in workflow_job_conditions.items():
             key = str(raw_key).strip()
             workflow, _, job_id = key.partition(".")
             if not workflow or not job_id:
                 errors.append(f"project.github_workflow_job_conditions.{key or '<missing>'} must use workflow.job format")
-            if key not in configured_workflow_jobs:
-                errors.append(f"project.github_workflow_job_conditions.{key or '<missing>'} must point at a known workflow job")
             if raw_condition is not None and (not isinstance(raw_condition, str) or not raw_condition.strip()):
                 errors.append(f"project.github_workflow_job_conditions.{key or '<missing>'} must be a non-empty string or null")
     sparse_checkout_files = project.get("github_sparse_checkout_files", [])
