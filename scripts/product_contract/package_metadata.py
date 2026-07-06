@@ -67,6 +67,8 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
             errors.append("package.json test:web-smoke-cli must run tests/web_smoke_cli_tests.js")
         if scripts.get("test:web-smoke") != "node tests/web_smoke_tests.js":
             errors.append("package.json test:web-smoke must run tests/web_smoke_tests.js")
+        if scripts.get("test:package-contract") != "python3 tests/package_contract_tests.py":
+            errors.append("package.json test:package-contract must run tests/package_contract_tests.py")
         if scripts.get("test:release-ready") != "python3 tests/release_ready_tests.py":
             errors.append("package.json test:release-ready must run tests/release_ready_tests.py")
         if scripts.get("test:workflow-contract") != "python3 tests/workflow_contract_tests.py":
@@ -107,6 +109,8 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
             errors.append("package.json check:pr must include test:web-smoke-cli")
         if not script_includes_step(check_pr, "npm run test:web-smoke"):
             errors.append("package.json check:pr must include test:web-smoke")
+        if not script_includes_step(check_pr, "npm run test:package-contract"):
+            errors.append("package.json check:pr must include test:package-contract")
         if not script_includes_step(check_pr, "npm run test:release-ready"):
             errors.append("package.json check:pr must include test:release-ready")
         if not script_includes_step(check_pr, "npm run test:workflow-contract"):
