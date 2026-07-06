@@ -1119,20 +1119,18 @@ def check_workflow_release_build_fail_fast(
 ) -> None:
     if not isinstance(expected_fail_fast, bool):
         return
-    if "release" not in workflow_texts:
-        return
 
     expected_fail_fast_value = str(expected_fail_fast).lower()
-    label, text = workflow_texts["release"]
-    job_block = workflow_job_block(text, "build-firmware", label, errors)
-    if not job_block:
+    target_job = workflow_target_job_block("release.build-firmware", workflow_texts, errors)
+    if target_job is None:
         return
+    label, job_id, job_block = target_job
     actual_fail_fast = workflow_job_strategy_fail_fast(job_block)
     append_scalar_value_error(
         actual_fail_fast,
         expected_fail_fast_value,
-        f"{label} job build-firmware strategy is missing fail-fast",
-        f"{label} job build-firmware strategy.fail-fast",
+        f"{label} job {job_id} strategy is missing fail-fast",
+        f"{label} job {job_id} strategy.fail-fast",
         errors,
     )
 
@@ -1144,14 +1142,13 @@ def check_workflow_job_strategy_matrix(
     errors: list[str],
 ) -> None:
     expected_matrix = expected_matrix.strip()
-    workflow_name, _, job_id = target.partition(".")
-    if not expected_matrix or workflow_name not in workflow_texts or not job_id:
+    if not expected_matrix:
         return
 
-    label, text = workflow_texts[workflow_name]
-    job_block = workflow_job_block(text, job_id, label, errors)
-    if not job_block:
+    target_job = workflow_target_job_block(target, workflow_texts, errors)
+    if target_job is None:
         return
+    label, job_id, job_block = target_job
 
     actual_matrix = workflow_job_strategy_matrix(job_block)
     append_scalar_value_error(
@@ -1173,13 +1170,10 @@ def check_workflow_job_timeout_usage(
     expected_timeout_value = str(expected_timeout)
 
     for target in sorted(WORKFLOW_FIRMWARE_TIMEOUT_TARGETS):
-        workflow_name, _, job_id = target.partition(".")
-        if workflow_name not in workflow_texts or not job_id:
+        target_job = workflow_target_job_block(target, workflow_texts, errors)
+        if target_job is None:
             continue
-        label, text = workflow_texts[workflow_name]
-        job_block = workflow_job_block(text, job_id, label, errors)
-        if not job_block:
-            continue
+        label, job_id, job_block = target_job
         actual_timeout = workflow_job_timeout_minutes(job_block)
         append_scalar_value_error(
             actual_timeout,
