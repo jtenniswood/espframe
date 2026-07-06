@@ -855,6 +855,36 @@ def workflow_named_step_block(
     return label, job_id, ""
 
 
+def check_workflow_named_step_mapping(
+    target: str,
+    step_name: str,
+    expected_values: dict[str, str],
+    section_name: str,
+    read_actual_values: Callable[[str], dict[str, str]],
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    step_name = step_name.strip()
+    expected_values = normalized_workflow_mapping(expected_values)
+    if not step_name or not expected_values:
+        return
+
+    label, job_id, step_block = workflow_named_step_block(target, step_name, workflow_texts, errors)
+    if not step_block:
+        return
+
+    actual_values = read_actual_values(step_block)
+    for name, expected_value in expected_values.items():
+        actual_value = actual_values.get(name)
+        if actual_value is None:
+            errors.append(f"{label} job {job_id} step {step_name!r} {section_name} is missing {name}")
+        elif actual_value != expected_value:
+            errors.append(
+                f"{label} job {job_id} step {step_name!r} {section_name}.{name} "
+                f"must be {expected_value!r}, found {actual_value!r}"
+            )
+
+
 def check_workflow_named_step_env(
     target: str,
     step_name: str,
@@ -862,29 +892,15 @@ def check_workflow_named_step_env(
     workflow_texts: dict[str, tuple[str, str]],
     errors: list[str],
 ) -> None:
-    step_name = step_name.strip()
-    expected_env = {
-        str(name).strip(): str(value).strip()
-        for name, value in expected_env.items()
-        if str(name).strip() and str(value).strip()
-    }
-    if not step_name or not expected_env:
-        return
-
-    label, job_id, step_block = workflow_named_step_block(target, step_name, workflow_texts, errors)
-    if not step_block:
-        return
-
-    actual_env = workflow_step_env(step_block)
-    for name, expected_value in expected_env.items():
-        actual_value = actual_env.get(name)
-        if actual_value is None:
-            errors.append(f"{label} job {job_id} step {step_name!r} env is missing {name}")
-        elif actual_value != expected_value:
-            errors.append(
-                f"{label} job {job_id} step {step_name!r} env.{name} "
-                f"must be {expected_value!r}, found {actual_value!r}"
-            )
+    check_workflow_named_step_mapping(
+        target,
+        step_name,
+        expected_env,
+        "env",
+        workflow_step_env,
+        workflow_texts,
+        errors,
+    )
 
 
 def check_workflow_named_step_uses(
@@ -946,29 +962,15 @@ def check_workflow_named_step_with(
     workflow_texts: dict[str, tuple[str, str]],
     errors: list[str],
 ) -> None:
-    step_name = step_name.strip()
-    expected_inputs = {
-        str(name).strip(): str(value).strip()
-        for name, value in expected_inputs.items()
-        if str(name).strip() and str(value).strip()
-    }
-    if not step_name or not expected_inputs:
-        return
-
-    label, job_id, step_block = workflow_named_step_block(target, step_name, workflow_texts, errors)
-    if not step_block:
-        return
-
-    actual_inputs = workflow_step_with(step_block)
-    for name, expected_value in expected_inputs.items():
-        actual_value = actual_inputs.get(name)
-        if actual_value is None:
-            errors.append(f"{label} job {job_id} step {step_name!r} with is missing {name}")
-        elif actual_value != expected_value:
-            errors.append(
-                f"{label} job {job_id} step {step_name!r} with.{name} "
-                f"must be {expected_value!r}, found {actual_value!r}"
-            )
+    check_workflow_named_step_mapping(
+        target,
+        step_name,
+        expected_inputs,
+        "with",
+        workflow_step_with,
+        workflow_texts,
+        errors,
+    )
 
 
 def check_workflow_named_step_contains(

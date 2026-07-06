@@ -1307,6 +1307,22 @@ def test_workflow_action_step_inputs_rejects_drift_from_product_metadata() -> No
     ]
 
 
+def test_workflow_named_step_with_reports_missing_input() -> None:
+    errors: list[str] = []
+
+    check_workflow_named_step_with(
+        "docs.build-docs",
+        "Upload docs artifact",
+        {"retention-days": "7"},
+        {"docs": ("docs.yml", ACTION_INPUT_WORKFLOW)},
+        errors,
+    )
+
+    assert errors == [
+        "docs.yml job build-docs step 'Upload docs artifact' with is missing retention-days",
+    ]
+
+
 def test_workflow_named_step_env_rejects_drift_from_product_metadata() -> None:
     errors: list[str] = []
     workflow_texts = {"release": ("release.yml", STEP_ENV_WORKFLOW)}
