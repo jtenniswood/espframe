@@ -758,6 +758,30 @@ def check_workflow_action_step_inputs(
             )
 
 
+def workflow_named_step_block(
+    target: str,
+    step_name: str,
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> tuple[str, str, str]:
+    step_name = step_name.strip()
+    workflow_name, _, job_id = target.partition(".")
+    if not step_name or workflow_name not in workflow_texts or not job_id:
+        return "", "", ""
+
+    label, text = workflow_texts[workflow_name]
+    job_block = workflow_job_block(text, job_id, label, errors)
+    if not job_block:
+        return label, job_id, ""
+
+    for step_block in workflow_job_step_blocks(job_block):
+        if workflow_step_display_name(step_block) == step_name:
+            return label, job_id, step_block
+
+    errors.append(f"{label} job {job_id} is missing step {step_name!r}")
+    return label, job_id, ""
+
+
 def check_workflow_named_step_env(
     target: str,
     step_name: str,
@@ -771,26 +795,14 @@ def check_workflow_named_step_env(
         for name, value in expected_env.items()
         if str(name).strip() and str(value).strip()
     }
-    workflow_name, _, job_id = target.partition(".")
-    if not step_name or not expected_env or workflow_name not in workflow_texts or not job_id:
+    if not step_name or not expected_env:
         return
 
-    label, text = workflow_texts[workflow_name]
-    job_block = workflow_job_block(text, job_id, label, errors)
-    if not job_block:
+    label, job_id, step_block = workflow_named_step_block(target, step_name, workflow_texts, errors)
+    if not step_block:
         return
 
-    matching_step = ""
-    for step_block in workflow_job_step_blocks(job_block):
-        if workflow_step_display_name(step_block) == step_name:
-            matching_step = step_block
-            break
-
-    if not matching_step:
-        errors.append(f"{label} job {job_id} is missing step {step_name!r}")
-        return
-
-    actual_env = workflow_step_env(matching_step)
+    actual_env = workflow_step_env(step_block)
     for name, expected_value in expected_env.items():
         actual_value = actual_env.get(name)
         if actual_value is None:
@@ -800,6 +812,32 @@ def check_workflow_named_step_env(
                 f"{label} job {job_id} step {step_name!r} env.{name} "
                 f"must be {expected_value!r}, found {actual_value!r}"
             )
+
+
+def check_workflow_named_step_run_contains(
+    target: str,
+    step_name: str,
+    expected_fragments: list[str],
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    step_name = step_name.strip()
+    expected_fragments = [str(fragment).strip() for fragment in expected_fragments if str(fragment).strip()]
+    if not step_name or not expected_fragments:
+        return
+
+    label, job_id, step_block = workflow_named_step_block(target, step_name, workflow_texts, errors)
+    if not step_block:
+        return
+
+    actual_run = workflow_step_run(step_block)
+    if not actual_run:
+        errors.append(f"{label} job {job_id} step {step_name!r} is missing run")
+        return
+
+    for fragment in expected_fragments:
+        if fragment not in actual_run:
+            errors.append(f"{label} job {job_id} step {step_name!r} run is missing {fragment!r}")
 
 
 def check_workflow_job_run_command(
@@ -1315,11 +1353,20 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
                 errors,
             )
     if release_notes_output:
-        for needle in (
-            f'--output "{release_notes_output}"',
-            f'--notes-file "{release_notes_output}"',
-        ):
-            require_contains(release_workflow, needle, ".github/workflows/release.yml", errors)
+        check_workflow_named_step_run_contains(
+            "release.release-notes",
+            "Build detailed changelog",
+            [f'--output "{release_notes_output}"'],
+            workflow_texts,
+            errors,
+        )
+        check_workflow_named_step_run_contains(
+            "release.release-notes",
+            "Update GitHub release notes",
+            [f'--notes-file "{release_notes_output}"'],
+            workflow_texts,
+            errors,
+        )
     for label, text in (
         (".github/workflows/release.yml", release_workflow),
         (".github/workflows/docs.yml", docs_workflow),

@@ -20,6 +20,7 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_job_dependency_usage,
     check_workflow_job_env,
     check_workflow_named_step_env,
+    check_workflow_named_step_run_contains,
     check_workflow_job_outputs,
     check_workflow_job_runner_usage,
     check_workflow_job_run_command,
@@ -477,14 +478,14 @@ jobs:
       - name: Build detailed changelog
         env:
           VERSION: ${{ github.event.release.tag_name }}
-        run: python3 scripts/release_changelog.py "$VERSION"
+        run: python3 scripts/release_changelog.py "$VERSION" --output "$RUNNER_TEMP/release-notes.md"
 
       - name: Update GitHub release notes
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ github.event.release.tag_name }}
-        run: gh release edit "$VERSION"
+        run: gh release edit "$VERSION" --notes-file "$RUNNER_TEMP/wrong-notes.md"
 
   build-firmware:
     name: Build Firmware
@@ -992,6 +993,41 @@ def test_workflow_named_step_env_rejects_drift_from_product_metadata() -> None:
         (
             "release.yml job release-notes step 'Update GitHub release notes' env.VERSION "
             "must be '${{ github.ref_name }}', found '${{ github.event.release.tag_name }}'"
+        ),
+        "release.yml job build-firmware is missing step 'Collect firmware files and generate manifest'",
+    ]
+
+
+def test_workflow_named_step_run_contains_rejects_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    workflow_texts = {"release": ("release.yml", STEP_ENV_WORKFLOW)}
+
+    check_workflow_named_step_run_contains(
+        "release.release-notes",
+        "Build detailed changelog",
+        ['--output "$RUNNER_TEMP/release-notes.md"'],
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_run_contains(
+        "release.release-notes",
+        "Update GitHub release notes",
+        ['--notes-file "$RUNNER_TEMP/release-notes.md"'],
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_run_contains(
+        "release.build-firmware",
+        "Collect firmware files and generate manifest",
+        ['--version "${VERSION}"'],
+        workflow_texts,
+        errors,
+    )
+
+    assert errors == [
+        (
+            "release.yml job release-notes step 'Update GitHub release notes' run is missing "
+            '\'--notes-file "$RUNNER_TEMP/release-notes.md"\''
         ),
         "release.yml job build-firmware is missing step 'Collect firmware files and generate manifest'",
     ]
@@ -1635,6 +1671,7 @@ def main() -> int:
     test_workflow_step_uses_and_with_read_action_inputs()
     test_workflow_action_step_inputs_rejects_drift_from_product_metadata()
     test_workflow_named_step_env_rejects_drift_from_product_metadata()
+    test_workflow_named_step_run_contains_rejects_drift_from_product_metadata()
     test_workflow_job_run_command_rejects_drift_from_product_metadata()
     test_workflow_job_outputs_reads_job_outputs()
     test_workflow_job_outputs_rejects_drift_from_product_metadata()
