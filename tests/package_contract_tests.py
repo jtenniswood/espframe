@@ -10,8 +10,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from product_contract.package_metadata import script_includes_step, web_smoke_scenario_names  # noqa: E402
+from product_contract.package_metadata import (  # noqa: E402
+    PACKAGE_SCRIPT_COMMANDS,
+    check_package_script_commands,
+    script_includes_step,
+    web_smoke_scenario_names,
+)
 from script_test_discovery import run_discovered_tests  # noqa: E402
+
+
+def expected_package_scripts() -> dict[str, object]:
+    return {
+        script_name: expected_command
+        for script_name, expected_command, _expected_label in PACKAGE_SCRIPT_COMMANDS
+    }
 
 
 def test_script_includes_step_matches_whole_steps() -> None:
@@ -21,6 +33,28 @@ def test_script_includes_step_matches_whole_steps() -> None:
     assert script_includes_step(script, "npm run docs:build") is True
     assert script_includes_step("npm run test:web-smoke-cli", "npm run test:web-smoke") is False
     assert script_includes_step(script, "npm run missing") is False
+
+
+def test_check_package_script_commands_accepts_expected_commands() -> None:
+    errors: list[str] = []
+
+    check_package_script_commands(expected_package_scripts(), errors)
+
+    assert errors == []
+
+
+def test_check_package_script_commands_rejects_release_script_drift() -> None:
+    errors: list[str] = []
+    scripts = expected_package_scripts()
+    scripts["check:firmware-release"] = "python3 scripts/wrong_release.py"
+    scripts["check:release-changelog"] = "python3 scripts/wrong_changelog.py"
+
+    check_package_script_commands(scripts, errors)
+
+    assert errors == [
+        "package.json check:firmware-release must run scripts/check_firmware_release.py",
+        "package.json check:release-changelog must run scripts/check_release_changelog.py",
+    ]
 
 
 def test_web_smoke_scenario_names_reads_registered_scenarios() -> None:

@@ -6,6 +6,29 @@ import re
 from product_contract.common import ROOT, read, require_contains
 
 
+PACKAGE_SCRIPT_COMMANDS = (
+    ("check:backup", "python3 scripts/check_backup_config.py", "scripts/check_backup_config.py"),
+    ("check:compat", "python3 scripts/check_compatibility.py", "scripts/check_compatibility.py"),
+    ("check:firmware-fields", "python3 scripts/check_firmware_fields.py", "scripts/check_firmware_fields.py"),
+    ("check:firmware-release", "python3 scripts/check_firmware_release.py", "scripts/check_firmware_release.py"),
+    ("check:release-changelog", "python3 scripts/check_release_changelog.py", "scripts/check_release_changelog.py"),
+    ("check:release-ready", "python3 scripts/check_release_ready.py", "scripts/check_release_ready.py"),
+    (
+        "check:release-ready-with-compile",
+        "python3 scripts/check_release_ready.py --compile",
+        "scripts/check_release_ready.py --compile",
+    ),
+    ("changelog:release", "python3 scripts/release_changelog.py", "scripts/release_changelog.py"),
+    ("test:package-contract", "python3 tests/package_contract_tests.py", "tests/package_contract_tests.py"),
+    ("test:release-ready", "python3 tests/release_ready_tests.py", "tests/release_ready_tests.py"),
+    ("test:web-compat", "node tests/web_compat_tests.js", "tests/web_compat_tests.js"),
+    ("test:web-modules", "node tests/web_module_tests.js", "tests/web_module_tests.js"),
+    ("test:web-smoke", "node tests/web_smoke_tests.js", "tests/web_smoke_tests.js"),
+    ("test:web-smoke-cli", "node tests/web_smoke_cli_tests.js", "tests/web_smoke_cli_tests.js"),
+    ("test:workflow-contract", "python3 tests/workflow_contract_tests.py", "tests/workflow_contract_tests.py"),
+)
+
+
 def web_smoke_scenario_names(smoke_test: str, errors: list[str]) -> set[str]:
     if not smoke_test:
         return set()
@@ -25,6 +48,12 @@ def web_smoke_scenario_names(smoke_test: str, errors: list[str]) -> set[str]:
 
 def script_includes_step(script: str, expected_step: str) -> bool:
     return expected_step in [step.strip() for step in script.split("&&")]
+
+
+def check_package_script_commands(scripts: dict[str, object], errors: list[str]) -> None:
+    for script_name, expected_command, expected_label in PACKAGE_SCRIPT_COMMANDS:
+        if scripts.get(script_name) != expected_command:
+            errors.append(f"package.json {script_name} must run {expected_label}")
 
 
 def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
@@ -49,30 +78,7 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
     if not isinstance(scripts, dict):
         errors.append("package.json scripts must be an object")
     else:
-        if scripts.get("check:backup") != "python3 scripts/check_backup_config.py":
-            errors.append("package.json check:backup must run scripts/check_backup_config.py")
-        if scripts.get("check:compat") != "python3 scripts/check_compatibility.py":
-            errors.append("package.json check:compat must run scripts/check_compatibility.py")
-        if scripts.get("check:firmware-fields") != "python3 scripts/check_firmware_fields.py":
-            errors.append("package.json check:firmware-fields must run scripts/check_firmware_fields.py")
-        if scripts.get("check:release-ready") != "python3 scripts/check_release_ready.py":
-            errors.append("package.json check:release-ready must run scripts/check_release_ready.py")
-        if scripts.get("check:release-ready-with-compile") != "python3 scripts/check_release_ready.py --compile":
-            errors.append("package.json check:release-ready-with-compile must run scripts/check_release_ready.py --compile")
-        if scripts.get("test:web-compat") != "node tests/web_compat_tests.js":
-            errors.append("package.json test:web-compat must run tests/web_compat_tests.js")
-        if scripts.get("test:web-modules") != "node tests/web_module_tests.js":
-            errors.append("package.json test:web-modules must run tests/web_module_tests.js")
-        if scripts.get("test:web-smoke-cli") != "node tests/web_smoke_cli_tests.js":
-            errors.append("package.json test:web-smoke-cli must run tests/web_smoke_cli_tests.js")
-        if scripts.get("test:web-smoke") != "node tests/web_smoke_tests.js":
-            errors.append("package.json test:web-smoke must run tests/web_smoke_tests.js")
-        if scripts.get("test:package-contract") != "python3 tests/package_contract_tests.py":
-            errors.append("package.json test:package-contract must run tests/package_contract_tests.py")
-        if scripts.get("test:release-ready") != "python3 tests/release_ready_tests.py":
-            errors.append("package.json test:release-ready must run tests/release_ready_tests.py")
-        if scripts.get("test:workflow-contract") != "python3 tests/workflow_contract_tests.py":
-            errors.append("package.json test:workflow-contract must run tests/workflow_contract_tests.py")
+        check_package_script_commands(scripts, errors)
         test_web = str(scripts.get("test:web", ""))
         if not script_includes_step(test_web, "npm run test:web-compat"):
             errors.append("package.json test:web must include test:web-compat")
