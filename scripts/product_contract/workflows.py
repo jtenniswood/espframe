@@ -1372,6 +1372,30 @@ def workflow_job_condition(job_block: str) -> str:
     return ""
 
 
+def check_workflow_job_condition_usage(
+    workflow_job_conditions: object,
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    if not isinstance(workflow_job_conditions, dict):
+        return
+
+    for raw_key, raw_condition in workflow_job_conditions.items():
+        key = str(raw_key).strip()
+        target_job = workflow_target_job_block(key, workflow_texts, errors)
+        if target_job is None:
+            continue
+        label, job_id, job_block = target_job
+        expected_condition = normalize_workflow_condition(str(raw_condition)) if raw_condition is not None else ""
+        actual_condition = workflow_job_condition(job_block)
+        if expected_condition and actual_condition != expected_condition:
+            errors.append(
+                f"{label} job {job_id} if condition must be {expected_condition!r}, found {actual_condition!r}"
+            )
+        elif not expected_condition and actual_condition:
+            errors.append(f"{label} job {job_id} must not define an if condition")
+
+
 def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     release_workflow = read(ROOT / ".github" / "workflows" / "release.yml", errors)
     docs_workflow = read(ROOT / ".github" / "workflows" / "docs.yml", errors)
@@ -2371,23 +2395,7 @@ def check_workflows(product: dict, errors: list[str]) -> None:
     workflow_job_dependencies = project.get("github_workflow_job_dependencies", {})
     check_workflow_job_dependency_usage(workflow_job_dependencies, workflow_texts, errors)
     workflow_job_conditions = project.get("github_workflow_job_conditions", {})
-    if isinstance(workflow_job_conditions, dict):
-        for key, raw_condition in workflow_job_conditions.items():
-            workflow_name, _, job_id = str(key).strip().partition(".")
-            if workflow_name not in workflow_texts or not job_id:
-                continue
-            label, text = workflow_texts[workflow_name]
-            job_block = workflow_job_block(text, job_id, label, errors)
-            if not job_block:
-                continue
-            expected_condition = normalize_workflow_condition(str(raw_condition)) if raw_condition is not None else ""
-            actual_condition = workflow_job_condition(job_block)
-            if expected_condition and actual_condition != expected_condition:
-                errors.append(
-                    f"{label} job {job_id} if condition must be {expected_condition!r}, found {actual_condition!r}"
-                )
-            elif not expected_condition and actual_condition:
-                errors.append(f"{label} job {job_id} must not define an if condition")
+    check_workflow_job_condition_usage(workflow_job_conditions, workflow_texts, errors)
     workflow_permissions = project.get("github_workflow_permissions", {})
     workflow_names = project.get("github_workflow_names", {})
     if isinstance(workflow_names, dict):

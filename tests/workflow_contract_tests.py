@@ -21,6 +21,7 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_concurrency,
     check_workflow_gh_cli_env,
     check_workflow_job_dependency_usage,
+    check_workflow_job_condition_usage,
     check_workflow_job_env,
     check_workflow_job_environment,
     check_workflow_named_step_contains,
@@ -2222,6 +2223,29 @@ def test_workflow_job_condition_handles_supported_forms() -> None:
 
 def test_normalize_workflow_condition_collapses_whitespace() -> None:
     assert normalize_workflow_condition("  one\n  two\tthree  ") == "one two three"
+
+
+def test_workflow_job_condition_usage_rejects_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+
+    check_workflow_job_condition_usage(
+        {
+            "example.direct": "github.event_name == 'workflow_dispatch'",
+            "example.unconditional": None,
+            "example.folded": "",
+        },
+        {"example": ("example.yml", WORKFLOW)},
+        errors,
+    )
+
+    assert errors == [
+        (
+            "example.yml job direct if condition must be "
+            "\"github.event_name == 'workflow_dispatch'\", found "
+            "\"github.event_name == 'release'\""
+        ),
+        "example.yml job folded must not define an if condition",
+    ]
 
 
 def test_release_workflow_actions_require_expected_keys() -> None:
