@@ -39,6 +39,21 @@ WORKFLOW_FIRMWARE_TIMEOUT_TARGETS = {
 }
 
 
+def append_list_drift_errors(
+    expected_values: list[str],
+    actual_values: list[str],
+    missing_prefix: str,
+    extra_prefix: str,
+    errors: list[str],
+) -> None:
+    missing_values = [value for value in expected_values if value not in actual_values]
+    extra_values = [value for value in actual_values if value not in expected_values]
+    if missing_values:
+        errors.append(f"{missing_prefix}: {', '.join(missing_values)}")
+    if extra_values:
+        errors.append(f"{extra_prefix}: {', '.join(extra_values)}")
+
+
 def workflow_event_names(text: str) -> list[str]:
     match = re.search(r"^on:\n(.*?)(?=^[A-Za-z0-9_-]+:|\Z)", text, re.DOTALL | re.MULTILINE)
     if not match:
@@ -66,12 +81,13 @@ def check_workflow_events(
             continue
         expected_events = [str(event).strip() for event in raw_events if str(event).strip()]
         actual_events = workflow_event_names(text)
-        missing_events = [event for event in expected_events if event not in actual_events]
-        extra_events = [event for event in actual_events if event not in expected_events]
-        if missing_events:
-            errors.append(f"{label} events are missing product metadata events: {', '.join(missing_events)}")
-        if extra_events:
-            errors.append(f"{label} events contain triggers missing from product metadata: {', '.join(extra_events)}")
+        append_list_drift_errors(
+            expected_events,
+            actual_events,
+            f"{label} events are missing product metadata events",
+            f"{label} events contain triggers missing from product metadata",
+            errors,
+        )
 
 
 def workflow_event_block(text: str, event_name: str) -> str:
@@ -153,12 +169,13 @@ def check_workflow_event_type_usage(
         label, text = workflow_texts[workflow_name]
         expected_types = [str(event_type).strip() for event_type in raw_types if str(event_type).strip()]
         actual_types = workflow_event_type_filters(text, event_name)
-        missing_types = [event_type for event_type in expected_types if event_type not in actual_types]
-        extra_types = [event_type for event_type in actual_types if event_type not in expected_types]
-        if missing_types:
-            errors.append(f"{label} {event_name} types are missing product metadata types: {', '.join(missing_types)}")
-        if extra_types:
-            errors.append(f"{label} {event_name} types contain values missing from product metadata: {', '.join(extra_types)}")
+        append_list_drift_errors(
+            expected_types,
+            actual_types,
+            f"{label} {event_name} types are missing product metadata types",
+            f"{label} {event_name} types contain values missing from product metadata",
+            errors,
+        )
 
     for workflow_name, (label, text) in workflow_texts.items():
         for event_name in workflow_event_names(text):
@@ -181,15 +198,13 @@ def check_workflow_run_targets(
         return
 
     actual_targets = workflow_event_workflow_filters(text, "workflow_run")
-    missing_targets = [workflow for workflow in expected_targets if workflow not in actual_targets]
-    extra_targets = [workflow for workflow in actual_targets if workflow not in expected_targets]
-    if missing_targets:
-        errors.append(f"{label} workflow_run workflows are missing targets: {', '.join(missing_targets)}")
-    if extra_targets:
-        errors.append(
-            f"{label} workflow_run workflows contain targets missing from product metadata: "
-            + ", ".join(extra_targets)
-        )
+    append_list_drift_errors(
+        expected_targets,
+        actual_targets,
+        f"{label} workflow_run workflows are missing targets",
+        f"{label} workflow_run workflows contain targets missing from product metadata",
+        errors,
+    )
 
 
 def check_workflow_default_branch(
@@ -204,15 +219,13 @@ def check_workflow_default_branch(
 
     expected_branches = [expected_branch]
     actual_branches = workflow_event_branch_filters(text, "push")
-    missing_branches = [branch for branch in expected_branches if branch not in actual_branches]
-    extra_branches = [branch for branch in actual_branches if branch not in expected_branches]
-    if missing_branches:
-        errors.append(f"{label} push branches are missing default branch: {', '.join(missing_branches)}")
-    if extra_branches:
-        errors.append(
-            f"{label} push branches contain branches missing from product metadata: "
-            + ", ".join(extra_branches)
-        )
+    append_list_drift_errors(
+        expected_branches,
+        actual_branches,
+        f"{label} push branches are missing default branch",
+        f"{label} push branches contain branches missing from product metadata",
+        errors,
+    )
 
 
 def check_workflow_path_filters(
@@ -229,14 +242,13 @@ def check_workflow_path_filters(
             continue
         expected_paths = [str(path).strip() for path in raw_paths if str(path).strip()]
         actual_paths = workflow_event_path_filters(workflow_texts.get(label, ""), event_name)
-        missing_paths = [path for path in expected_paths if path not in actual_paths]
-        extra_paths = [path for path in actual_paths if path not in expected_paths]
-        if missing_paths:
-            errors.append(f"{label} {event_name} paths are missing product filters: {', '.join(missing_paths)}")
-        if extra_paths:
-            errors.append(
-                f"{label} {event_name} paths contain filters missing from product metadata: {', '.join(extra_paths)}"
-            )
+        append_list_drift_errors(
+            expected_paths,
+            actual_paths,
+            f"{label} {event_name} paths are missing product filters",
+            f"{label} {event_name} paths contain filters missing from product metadata",
+            errors,
+        )
 
 
 def check_workflow_action_usage(
@@ -261,12 +273,13 @@ def check_workflow_action_usage(
         if not expected_actions:
             continue
         actual_actions = workflow_action_references(text)
-        missing_actions = [action for action in expected_actions if action not in actual_actions]
-        extra_actions = [action for action in actual_actions if action not in expected_actions]
-        if missing_actions:
-            errors.append(f"{label} uses are missing product metadata actions: {', '.join(missing_actions)}")
-        if extra_actions:
-            errors.append(f"{label} uses contain actions missing from product metadata: {', '.join(extra_actions)}")
+        append_list_drift_errors(
+            expected_actions,
+            actual_actions,
+            f"{label} uses are missing product metadata actions",
+            f"{label} uses contain actions missing from product metadata",
+            errors,
+        )
 
 
 def workflow_action_references(text: str) -> list[str]:
@@ -412,12 +425,13 @@ def check_workflow_permissions(
             if str(scope).strip() and str(access).strip()
         }
         actual_permissions = workflow_permissions(text)
-        missing_scopes = [scope for scope in expected_permissions if scope not in actual_permissions]
-        extra_scopes = [scope for scope in actual_permissions if scope not in expected_permissions]
-        if missing_scopes:
-            errors.append(f"{label} permissions are missing product metadata scopes: {', '.join(missing_scopes)}")
-        if extra_scopes:
-            errors.append(f"{label} permissions contain scopes missing from product metadata: {', '.join(extra_scopes)}")
+        append_list_drift_errors(
+            list(expected_permissions),
+            list(actual_permissions),
+            f"{label} permissions are missing product metadata scopes",
+            f"{label} permissions contain scopes missing from product metadata",
+            errors,
+        )
         for scope, expected_access in expected_permissions.items():
             actual_access = actual_permissions.get(scope)
             if actual_access is not None and actual_access != expected_access:
@@ -481,12 +495,13 @@ def check_workflow_jobs(
             continue
         expected_jobs = [str(job_id).strip() for job_id in raw_jobs if str(job_id).strip()]
         actual_jobs = workflow_job_ids(text)
-        missing_jobs = [job_id for job_id in expected_jobs if job_id not in actual_jobs]
-        extra_jobs = [job_id for job_id in actual_jobs if job_id not in expected_jobs]
-        if missing_jobs:
-            errors.append(f"{label} jobs are missing product metadata jobs: {', '.join(missing_jobs)}")
-        if extra_jobs:
-            errors.append(f"{label} jobs contain jobs missing from product metadata: {', '.join(extra_jobs)}")
+        append_list_drift_errors(
+            expected_jobs,
+            actual_jobs,
+            f"{label} jobs are missing product metadata jobs",
+            f"{label} jobs contain jobs missing from product metadata",
+            errors,
+        )
 
         for raw_job_id, raw_job_name in raw_jobs.items():
             job_id = str(raw_job_id).strip()
@@ -1194,14 +1209,13 @@ def check_workflow_job_dependency_usage(
         if not job_block:
             continue
         actual_dependencies = workflow_job_needs(job_block)
-        missing_dependencies = [dependency for dependency in expected_dependencies if dependency not in actual_dependencies]
-        extra_dependencies = [dependency for dependency in actual_dependencies if dependency not in expected_dependencies]
-        if missing_dependencies:
-            errors.append(f"{label} job {job_id} needs are missing dependencies: {', '.join(missing_dependencies)}")
-        if extra_dependencies:
-            errors.append(
-                f"{label} job {job_id} needs contain dependencies missing from product metadata: {', '.join(extra_dependencies)}"
-            )
+        append_list_drift_errors(
+            expected_dependencies,
+            actual_dependencies,
+            f"{label} job {job_id} needs are missing dependencies",
+            f"{label} job {job_id} needs contain dependencies missing from product metadata",
+            errors,
+        )
 
     for workflow_name, (label, text) in workflow_texts.items():
         for job_id in workflow_job_ids(text):

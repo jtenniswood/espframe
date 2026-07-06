@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from product_contract.workflows import (  # noqa: E402
+    append_list_drift_errors,
     check_workflow_action_step_inputs,
     check_workflow_action_usage,
     check_workflow_event_type_usage,
@@ -80,6 +81,23 @@ from product_contract.project_release_metadata import (  # noqa: E402
     workflow_job_index,
 )
 from script_test_discovery import discovered_test_functions, run_discovered_tests  # noqa: E402
+
+
+def test_append_list_drift_errors_reports_ordered_missing_and_extra_values() -> None:
+    errors: list[str] = []
+
+    append_list_drift_errors(
+        ["build", "test", "release"],
+        ["test", "build", "deploy"],
+        "workflow is missing expected values",
+        "workflow contains unexpected values",
+        errors,
+    )
+
+    assert errors == [
+        "workflow is missing expected values: release",
+        "workflow contains unexpected values: deploy",
+    ]
 
 
 WORKFLOW = """\
