@@ -327,6 +327,51 @@ def workflow_env(text: str) -> dict[str, str]:
     return workflow_top_level_mapping(text, "env")
 
 
+def workflow_concurrency(text: str) -> dict[str, str]:
+    return workflow_top_level_mapping(text, "concurrency")
+
+
+def check_workflow_concurrency(
+    expected_group: str,
+    expected_cancel_in_progress: object,
+    label: str,
+    text: str,
+    errors: list[str],
+) -> None:
+    expected_group = expected_group.strip()
+    expected_cancel = (
+        str(expected_cancel_in_progress).lower()
+        if isinstance(expected_cancel_in_progress, bool)
+        else ""
+    )
+    if not expected_group and not expected_cancel:
+        return
+
+    actual_concurrency = workflow_concurrency(text)
+    if not actual_concurrency:
+        errors.append(f"{label} is missing top-level concurrency")
+        return
+
+    if expected_group:
+        actual_group = actual_concurrency.get("group")
+        if actual_group is None:
+            errors.append(f"{label} concurrency is missing group")
+        elif actual_group != expected_group:
+            errors.append(
+                f"{label} concurrency.group must be {expected_group!r}, "
+                f"found {actual_group!r}"
+            )
+    if expected_cancel:
+        actual_cancel = actual_concurrency.get("cancel-in-progress")
+        if actual_cancel is None:
+            errors.append(f"{label} concurrency is missing cancel-in-progress")
+        elif actual_cancel != expected_cancel:
+            errors.append(
+                f"{label} concurrency.cancel-in-progress must be "
+                f"{expected_cancel!r}, found {actual_cancel!r}"
+            )
+
+
 def check_workflow_top_level_env(
     env_name: str,
     expected_value: str,
@@ -1028,16 +1073,13 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             ".github/workflows/docs.yml",
             errors,
         )
-    if pages_concurrency_group:
-        require_contains(docs_workflow, "concurrency:", ".github/workflows/docs.yml", errors)
-        require_contains(docs_workflow, f"group: {pages_concurrency_group}", ".github/workflows/docs.yml", errors)
-    if isinstance(pages_cancel_in_progress, bool):
-        require_contains(
-            docs_workflow,
-            f"cancel-in-progress: {str(pages_cancel_in_progress).lower()}",
-            ".github/workflows/docs.yml",
-            errors,
-        )
+    check_workflow_concurrency(
+        pages_concurrency_group,
+        pages_cancel_in_progress,
+        ".github/workflows/docs.yml",
+        docs_workflow,
+        errors,
+    )
     if docs_workflow_success_conclusion:
         require_contains(
             docs_workflow,
