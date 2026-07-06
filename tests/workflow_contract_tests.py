@@ -1576,6 +1576,7 @@ def test_workflow_named_step_helpers_check_docs_release_metadata() -> None:
         "Download firmware from latest pre-release",
         [
             "BETA_TAG=$(gh release list",
+            "gh release list --limit 20 --json tagName,isPrerelease",
             'if [ -n "$BETA_TAG" ]; then',
             'gh release download "$BETA_TAG"',
         ],
@@ -1586,7 +1587,9 @@ def test_workflow_named_step_helpers_check_docs_release_metadata() -> None:
         "docs.deploy-docs",
         "Verify public firmware",
         [
+            "python3 scripts/firmware_release.py verify-pages",
             "${{ needs.download-firmware.outputs.release_tag }}",
+            '--base-url "$PUBLIC_BASE_URL"',
             "--retries 10",
             "--delay 15",
         ],
@@ -1615,6 +1618,10 @@ def test_workflow_named_step_helpers_check_docs_release_metadata() -> None:
         (
             "docs.yml job deploy-docs step 'Verify public firmware' run is missing "
             "'${{ needs.download-firmware.outputs.release_tag }}'"
+        ),
+        (
+            "docs.yml job deploy-docs step 'Verify public firmware' run is missing "
+            '\'--base-url "$PUBLIC_BASE_URL"\''
         ),
         "docs.yml job deploy-docs step 'Verify public firmware' run is missing '--retries 10'",
         "docs.yml job deploy-docs step 'Verify public firmware' run is missing '--delay 15'",

@@ -2102,16 +2102,38 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         workflow_texts,
         errors,
     )
-    docs_release_lookup_needles = [
-        "gh release view --json tagName",
-        "python3 scripts/firmware_release.py verify-directory",
-        "python3 scripts/firmware_release.py verify-pages",
-        '--base-url "$PUBLIC_BASE_URL"',
-    ]
+    check_workflow_named_step_run_contains(
+        "docs.download-firmware",
+        "Set release metadata",
+        ["gh release view --json tagName"],
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_run_contains(
+        "docs.download-firmware",
+        "Verify firmware assets",
+        ["python3 scripts/firmware_release.py verify-directory"],
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_run_contains(
+        "docs.deploy-docs",
+        "Verify public firmware",
+        [
+            "python3 scripts/firmware_release.py verify-pages",
+            '--base-url "$PUBLIC_BASE_URL"',
+        ],
+        workflow_texts,
+        errors,
+    )
     if isinstance(prerelease_lookup_limit, int) and not isinstance(prerelease_lookup_limit, bool):
-        docs_release_lookup_needles.append(f"gh release list --limit {prerelease_lookup_limit} --json tagName,isPrerelease")
-    for needle in docs_release_lookup_needles:
-        require_contains(docs_workflow, needle, ".github/workflows/docs.yml", errors)
+        check_workflow_named_step_run_contains(
+            "docs.download-firmware",
+            "Download firmware from latest pre-release",
+            [f"gh release list --limit {prerelease_lookup_limit} --json tagName,isPrerelease"],
+            workflow_texts,
+            errors,
+        )
 
     try:
         release_devices = release_matrix_devices(product)
