@@ -20,11 +20,13 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_names,
     check_workflow_permissions,
     check_workflow_path_filters,
+    check_workflow_run_targets,
     normalize_workflow_condition,
     workflow_display_name,
     workflow_event_names,
     workflow_event_path_filters,
     workflow_event_type_filters,
+    workflow_event_workflow_filters,
     workflow_job_block,
     workflow_job_condition,
     workflow_job_display_name,
@@ -109,6 +111,19 @@ on:
     types:
       - published
       - prereleased
+  workflow_dispatch:
+"""
+
+
+WORKFLOW_RUN_TARGET_WORKFLOW = """\
+name: Example
+
+on:
+  workflow_run:
+    workflows:
+      - Build Release
+      - "Compile Check"
+    types: [completed]
   workflow_dispatch:
 """
 
@@ -515,6 +530,34 @@ def test_workflow_event_type_filters_reads_inline_and_block_lists() -> None:
     assert workflow_event_type_filters(EVENT_TYPE_WORKFLOW, "missing") == []
 
 
+def test_workflow_event_workflow_filters_reads_inline_and_block_lists() -> None:
+    assert workflow_event_workflow_filters(EVENT_TYPE_WORKFLOW, "workflow_run") == ["Build Release"]
+    assert workflow_event_workflow_filters(WORKFLOW_RUN_TARGET_WORKFLOW, "workflow_run") == [
+        "Build Release",
+        "Compile Check",
+    ]
+    assert workflow_event_workflow_filters(WORKFLOW_RUN_TARGET_WORKFLOW, "workflow_dispatch") == []
+    assert workflow_event_workflow_filters(WORKFLOW_RUN_TARGET_WORKFLOW, "missing") == []
+
+
+def test_workflow_run_targets_reject_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    check_workflow_run_targets(
+        ["Build Release", "Missing Workflow"],
+        ".github/workflows/docs.yml",
+        WORKFLOW_RUN_TARGET_WORKFLOW,
+        errors,
+    )
+
+    assert errors == [
+        ".github/workflows/docs.yml workflow_run workflows are missing targets: Missing Workflow",
+        (
+            ".github/workflows/docs.yml workflow_run workflows contain targets missing from product metadata: "
+            "Compile Check"
+        ),
+    ]
+
+
 def test_workflow_event_type_usage_rejects_drift_from_product_metadata() -> None:
     errors: list[str] = []
     check_workflow_event_type_usage(
@@ -675,6 +718,8 @@ def main() -> int:
     test_workflow_event_names_reads_on_block()
     test_workflow_events_reject_drift_from_product_metadata()
     test_workflow_event_type_filters_reads_inline_and_block_lists()
+    test_workflow_event_workflow_filters_reads_inline_and_block_lists()
+    test_workflow_run_targets_reject_drift_from_product_metadata()
     test_workflow_event_type_usage_rejects_drift_from_product_metadata()
     test_workflow_event_path_filters_reads_quoted_paths()
     test_workflow_path_filters_reject_drift_from_product_metadata()

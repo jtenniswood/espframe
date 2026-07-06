@@ -82,49 +82,41 @@ def workflow_inline_list_values(value: str) -> list[str]:
     return [unquote_workflow_value(value)]
 
 
-def workflow_event_path_filters(text: str, event_name: str) -> list[str]:
+def workflow_event_list_field_values(text: str, event_name: str, field_name: str) -> list[str]:
     block = workflow_event_block(text, event_name)
     if not block:
         return []
 
-    filters: list[str] = []
-    in_paths = False
+    values: list[str] = []
+    in_field = False
+    field_prefix = f"    {field_name}:"
     for line in block.splitlines():
-        if line == "    paths:":
-            in_paths = True
+        if line.startswith(field_prefix):
+            inline_values = workflow_inline_list_values(line.removeprefix(field_prefix))
+            if inline_values:
+                return inline_values
+            in_field = True
             continue
-        if not in_paths:
+        if not in_field:
             continue
         if line.startswith("      - "):
-            filters.append(unquote_workflow_value(line.removeprefix("      - ")))
+            values.append(unquote_workflow_value(line.removeprefix("      - ")))
             continue
         if line.strip() and not line.startswith("      "):
             break
-    return filters
+    return values
+
+
+def workflow_event_path_filters(text: str, event_name: str) -> list[str]:
+    return workflow_event_list_field_values(text, event_name, "paths")
 
 
 def workflow_event_type_filters(text: str, event_name: str) -> list[str]:
-    block = workflow_event_block(text, event_name)
-    if not block:
-        return []
+    return workflow_event_list_field_values(text, event_name, "types")
 
-    event_types: list[str] = []
-    in_types = False
-    for line in block.splitlines():
-        if line.startswith("    types:"):
-            inline_types = workflow_inline_list_values(line.removeprefix("    types:"))
-            if inline_types:
-                return inline_types
-            in_types = True
-            continue
-        if not in_types:
-            continue
-        if line.startswith("      - "):
-            event_types.append(unquote_workflow_value(line.removeprefix("      - ")))
-            continue
-        if line.strip() and not line.startswith("      "):
-            break
-    return event_types
+
+def workflow_event_workflow_filters(text: str, event_name: str) -> list[str]:
+    return workflow_event_list_field_values(text, event_name, "workflows")
 
 
 def check_workflow_event_type_usage(
@@ -159,6 +151,28 @@ def check_workflow_event_type_usage(
             actual_types = workflow_event_type_filters(text, event_name)
             if actual_types:
                 errors.append(f"{label} {event_name} types are missing from product metadata: {', '.join(actual_types)}")
+
+
+def check_workflow_run_targets(
+    expected_workflows: list[str],
+    label: str,
+    text: str,
+    errors: list[str],
+) -> None:
+    expected_targets = [workflow.strip() for workflow in expected_workflows if workflow.strip()]
+    if not expected_targets:
+        return
+
+    actual_targets = workflow_event_workflow_filters(text, "workflow_run")
+    missing_targets = [workflow for workflow in expected_targets if workflow not in actual_targets]
+    extra_targets = [workflow for workflow in actual_targets if workflow not in expected_targets]
+    if missing_targets:
+        errors.append(f"{label} workflow_run workflows are missing targets: {', '.join(missing_targets)}")
+    if extra_targets:
+        errors.append(
+            f"{label} workflow_run workflows contain targets missing from product metadata: "
+            + ", ".join(extra_targets)
+        )
 
 
 def check_workflow_path_filters(
@@ -1038,7 +1052,12 @@ def check_workflows(product: dict, errors: list[str]) -> None:
         check_workflow_names(workflow_names, workflow_texts, errors)
         release_workflow_name = str(workflow_names.get("release", "")).strip()
         if release_workflow_name:
-            require_contains(docs_workflow, f'workflows: ["{release_workflow_name}"]', ".github/workflows/docs.yml", errors)
+            check_workflow_run_targets(
+                [release_workflow_name],
+                ".github/workflows/docs.yml",
+                docs_workflow,
+                errors,
+            )
     check_workflow_permissions(workflow_permissions, workflow_texts, errors)
     for label, text in (
         (".github/workflows/docs.yml", docs_workflow),
