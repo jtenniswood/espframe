@@ -1323,6 +1323,22 @@ def test_workflow_named_step_with_reports_missing_input() -> None:
     ]
 
 
+def test_workflow_named_step_uses_reports_missing_uses() -> None:
+    errors: list[str] = []
+
+    check_workflow_named_step_uses(
+        "release.release-notes",
+        "Build detailed changelog",
+        "actions/checkout@v7",
+        {"release": ("release.yml", STEP_ENV_WORKFLOW)},
+        errors,
+    )
+
+    assert errors == [
+        "release.yml job release-notes step 'Build detailed changelog' is missing uses",
+    ]
+
+
 def test_workflow_named_step_env_rejects_drift_from_product_metadata() -> None:
     errors: list[str] = []
     workflow_texts = {"release": ("release.yml", STEP_ENV_WORKFLOW)}

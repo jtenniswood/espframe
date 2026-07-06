@@ -873,6 +873,34 @@ def check_workflow_named_step_mapping(
             )
 
 
+def check_workflow_named_step_value(
+    target: str,
+    step_name: str,
+    expected_value: str,
+    field_name: str,
+    read_actual_value: Callable[[str], str],
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    step_name = step_name.strip()
+    expected_value = expected_value.strip()
+    if not step_name or not expected_value:
+        return
+
+    label, job_id, step_block = workflow_named_step_block(target, step_name, workflow_texts, errors)
+    if not step_block:
+        return
+
+    actual_value = read_actual_value(step_block)
+    if not actual_value:
+        errors.append(f"{label} job {job_id} step {step_name!r} is missing {field_name}")
+    elif actual_value != expected_value:
+        errors.append(
+            f"{label} job {job_id} step {step_name!r} {field_name} must be {expected_value!r}, "
+            f"found {actual_value!r}"
+        )
+
+
 def check_workflow_named_step_env(
     target: str,
     step_name: str,
@@ -898,23 +926,15 @@ def check_workflow_named_step_uses(
     workflow_texts: dict[str, tuple[str, str]],
     errors: list[str],
 ) -> None:
-    step_name = step_name.strip()
-    expected_action = expected_action.strip()
-    if not step_name or not expected_action:
-        return
-
-    label, job_id, step_block = workflow_named_step_block(target, step_name, workflow_texts, errors)
-    if not step_block:
-        return
-
-    actual_action = workflow_step_uses(step_block)
-    if not actual_action:
-        errors.append(f"{label} job {job_id} step {step_name!r} is missing uses")
-    elif actual_action != expected_action:
-        errors.append(
-            f"{label} job {job_id} step {step_name!r} uses must be {expected_action!r}, "
-            f"found {actual_action!r}"
-        )
+    check_workflow_named_step_value(
+        target,
+        step_name,
+        expected_action,
+        "uses",
+        workflow_step_uses,
+        workflow_texts,
+        errors,
+    )
 
 
 def check_workflow_named_step_id(
@@ -924,23 +944,15 @@ def check_workflow_named_step_id(
     workflow_texts: dict[str, tuple[str, str]],
     errors: list[str],
 ) -> None:
-    step_name = step_name.strip()
-    expected_id = expected_id.strip()
-    if not step_name or not expected_id:
-        return
-
-    label, job_id, step_block = workflow_named_step_block(target, step_name, workflow_texts, errors)
-    if not step_block:
-        return
-
-    actual_id = workflow_step_id(step_block)
-    if not actual_id:
-        errors.append(f"{label} job {job_id} step {step_name!r} is missing id")
-    elif actual_id != expected_id:
-        errors.append(
-            f"{label} job {job_id} step {step_name!r} id must be {expected_id!r}, "
-            f"found {actual_id!r}"
-        )
+    check_workflow_named_step_value(
+        target,
+        step_name,
+        expected_id,
+        "id",
+        workflow_step_id,
+        workflow_texts,
+        errors,
+    )
 
 
 def check_workflow_named_step_with(
