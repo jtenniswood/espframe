@@ -587,15 +587,16 @@ def check_esphome_version(product: dict, errors: list[str]) -> None:
 
 
 def check_workflows(product: dict, errors: list[str]) -> None:
+    project = product["project"]
     compile_workflow = read(ROOT / ".github" / "workflows" / "compile.yml", errors)
     require_contains(compile_workflow, '"product/**"', ".github/workflows/compile.yml", errors)
 
     docs_workflow = read(ROOT / ".github" / "workflows" / "docs.yml", errors)
     release_workflow = read(ROOT / ".github" / "workflows" / "release.yml", errors)
-    default_branch = str(product["project"].get("github_default_branch", "")).strip()
+    default_branch = str(project.get("github_default_branch", "")).strip()
     if default_branch:
         require_contains(docs_workflow, f"branches: [{default_branch}]", ".github/workflows/docs.yml", errors)
-    workflow_path_filters = product["project"].get("github_workflow_path_filters", {})
+    workflow_path_filters = project.get("github_workflow_path_filters", {})
     if isinstance(workflow_path_filters, dict):
         for path in workflow_path_filters.get("compile_pull_request", []):
             if isinstance(path, str) and path.strip():
@@ -608,7 +609,7 @@ def check_workflows(product: dict, errors: list[str]) -> None:
         "docs": (".github/workflows/docs.yml", docs_workflow),
         "release": (".github/workflows/release.yml", release_workflow),
     }
-    workflow_events = product["project"].get("github_workflow_events", {})
+    workflow_events = project.get("github_workflow_events", {})
     if isinstance(workflow_events, dict):
         for workflow, raw_events in workflow_events.items():
             workflow_name = str(workflow).strip()
@@ -619,7 +620,7 @@ def check_workflows(product: dict, errors: list[str]) -> None:
                 event_name = str(event).strip()
                 if event_name:
                     require_contains(text, f"  {event_name}:", label, errors)
-    workflow_event_types = product["project"].get("github_workflow_event_types", {})
+    workflow_event_types = project.get("github_workflow_event_types", {})
     if isinstance(workflow_event_types, dict):
         for key, raw_types in workflow_event_types.items():
             workflow_name, _, event_name = str(key).strip().partition(".")
@@ -631,7 +632,7 @@ def check_workflows(product: dict, errors: list[str]) -> None:
                 event_type_name = str(event_type).strip()
                 if event_type_name:
                     require_contains(text, f"types: [{event_type_name}]", label, errors)
-    workflow_jobs = product["project"].get("github_workflow_jobs", {})
+    workflow_jobs = project.get("github_workflow_jobs", {})
     if isinstance(workflow_jobs, dict):
         for workflow, raw_jobs in workflow_jobs.items():
             workflow_name = str(workflow).strip()
@@ -645,7 +646,7 @@ def check_workflows(product: dict, errors: list[str]) -> None:
                     require_contains(text, f"  {job_id}:", label, errors)
                 if job_name:
                     require_contains(text, f"    name: {job_name}", label, errors)
-    workflow_job_dependencies = product["project"].get("github_workflow_job_dependencies", {})
+    workflow_job_dependencies = project.get("github_workflow_job_dependencies", {})
     if isinstance(workflow_job_dependencies, dict):
         for key, raw_dependencies in workflow_job_dependencies.items():
             workflow_name, _, job_id = str(key).strip().partition(".")
@@ -656,8 +657,8 @@ def check_workflows(product: dict, errors: list[str]) -> None:
                 label, text = workflow_texts[workflow_name]
                 require_contains(text, f"  {job_id}:", label, errors)
                 require_workflow_needs(text, dependencies, label, errors)
-    workflow_permissions = product["project"].get("github_workflow_permissions", {})
-    workflow_names = product["project"].get("github_workflow_names", {})
+    workflow_permissions = project.get("github_workflow_permissions", {})
+    workflow_names = project.get("github_workflow_names", {})
     if isinstance(workflow_names, dict):
         for workflow, raw_name in workflow_names.items():
             workflow_name = str(workflow).strip()
@@ -687,6 +688,34 @@ def check_workflows(product: dict, errors: list[str]) -> None:
     ):
         require_contains(text, "scripts/product_config.py", label, errors)
         require_contains(text, "product/espframe.json", label, errors)
+
+    pull_request_template_path = check_relative_path(
+        project.get("github_pull_request_template_path"),
+        "project.github_pull_request_template_path",
+        errors,
+    )
+    if pull_request_template_path:
+        label = pull_request_template_path
+        template = read(ROOT / pull_request_template_path, errors)
+        for heading in ("## Automated checks", "## Device testing", "## Notes for reviewers"):
+            require_contains(template, heading, label, errors)
+        local_check_command = str(project.get("local_check_command", "")).strip()
+        if local_check_command:
+            require_contains(template, f"`{local_check_command}`", label, errors)
+        compile_workflow_name = str(workflow_names.get("compile", "")).strip() if isinstance(workflow_names, dict) else ""
+        if compile_workflow_name:
+            require_contains(template, compile_workflow_name, label, errors)
+        compile_artifact_prefix = str(project.get("compile_firmware_artifact_prefix", "")).strip()
+        if compile_artifact_prefix:
+            require_contains(template, compile_artifact_prefix, label, errors)
+        for needle in ("workflow run/artifact", "Firmware artifact", "Device tested", "Result/notes"):
+            require_contains(template, needle, label, errors)
+        device_testing_options = project.get("github_pull_request_device_testing_options", [])
+        if isinstance(device_testing_options, list):
+            for option in device_testing_options:
+                option_text = str(option).strip()
+                if option_text:
+                    require_contains(template, f"- [ ] {option_text}", label, errors)
 
 
 def check_node_version(product: dict, errors: list[str]) -> None:

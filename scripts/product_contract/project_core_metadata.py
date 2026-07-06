@@ -58,6 +58,7 @@ def check_project_required_metadata(product: dict, errors: list[str]) -> None:
         "package_name",
         "repository_url",
         "github_default_branch",
+        "github_pull_request_template_path",
         "release_url_base",
         "release_artifact_prefix",
         "release_build_output_dir",
