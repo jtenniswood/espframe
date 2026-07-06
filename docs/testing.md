@@ -15,10 +15,10 @@ This is the normal confidence check for feature branches. It verifies generated 
 Before publishing a firmware release, run:
 
 ```sh
-npm run check:release
+npm run check:release-ready-with-compile
 ```
 
-This includes the pull request checks, then adds release-specific firmware manifest and changelog checks.
+This runs the full release validation, checks the working tree is clean, and compiles both factory and OTA firmware with ESPHome Docker. If you only need the non-compile release gate while iterating, run `npm run check:release`.
 
 For the fastest local check while editing metadata, generated assets, or compatibility fixtures, run:
 

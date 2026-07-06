@@ -136,12 +136,10 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
                 )
     require_contains(smoke_test, "--scenario", "tests/web_smoke_tests.js", errors)
     require_contains(smoke_test, "--list", "tests/web_smoke_tests.js", errors)
-    require_contains(
-        read(ROOT / "docs" / "testing.md", errors),
-        "npm run test:web-smoke -- --scenario",
-        "docs/testing.md",
-        errors,
-    )
+    testing_docs = read(ROOT / "docs" / "testing.md", errors)
+    require_contains(testing_docs, "npm run test:web-smoke -- --scenario", "docs/testing.md", errors)
+    require_contains(testing_docs, "npm run check:release-ready-with-compile", "docs/testing.md", errors)
+    require_contains(testing_docs, "npm run check:release", "docs/testing.md", errors)
 
     release_ready = read(ROOT / "scripts" / "check_release_ready.py", errors)
     require_contains(release_ready, "ESPHome factory compile", "scripts/check_release_ready.py", errors)
