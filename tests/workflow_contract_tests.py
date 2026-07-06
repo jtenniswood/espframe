@@ -15,6 +15,7 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_event_type_usage,
     check_workflow_events,
     check_workflow_job_dependency_usage,
+    check_workflow_job_runner_usage,
     check_workflow_jobs,
     check_workflow_names,
     check_workflow_permissions,
@@ -28,6 +29,7 @@ from product_contract.workflows import (  # noqa: E402
     workflow_job_condition,
     workflow_job_ids,
     workflow_job_needs,
+    workflow_job_runs_on,
     workflow_permissions,
 )
 from product_contract.project_release_metadata import (  # noqa: E402
@@ -138,6 +140,27 @@ jobs:
 """
 
 
+RUNNER_WORKFLOW = """\
+name: Example
+
+jobs:
+  right:
+    name: Expected Runner
+    runs-on: ubuntu-latest
+
+  quoted:
+    name: Quoted Runner
+    runs-on: "ubuntu-latest"
+
+  wrong:
+    name: Wrong Runner
+    runs-on: macos-latest
+
+  missing:
+    name: Missing Runner
+"""
+
+
 PERMISSION_WORKFLOW = """\
 name: Example
 
@@ -202,6 +225,34 @@ def test_workflow_job_needs_reads_supported_forms() -> None:
     assert workflow_job_needs(workflow_job_block(NEEDS_WORKFLOW, "inline", "example.yml", errors)) == ["build", "test"]
     assert workflow_job_needs(workflow_job_block(NEEDS_WORKFLOW, "block", "example.yml", errors)) == ["build", "test"]
     assert errors == []
+
+
+def test_workflow_job_runs_on_reads_job_runner() -> None:
+    errors: list[str] = []
+    assert workflow_job_runs_on(
+        workflow_job_block(RUNNER_WORKFLOW, "right", "example.yml", errors)
+    ) == "ubuntu-latest"
+    assert workflow_job_runs_on(
+        workflow_job_block(RUNNER_WORKFLOW, "quoted", "example.yml", errors)
+    ) == "ubuntu-latest"
+    assert workflow_job_runs_on(
+        workflow_job_block(RUNNER_WORKFLOW, "missing", "example.yml", errors)
+    ) == ""
+    assert errors == []
+
+
+def test_workflow_job_runner_usage_rejects_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    check_workflow_job_runner_usage(
+        "ubuntu-latest",
+        {"compile": ("example.yml", RUNNER_WORKFLOW)},
+        errors,
+    )
+
+    assert errors == [
+        "example.yml job wrong runs-on must be 'ubuntu-latest', found 'macos-latest'",
+        "example.yml job missing is missing runs-on",
+    ]
 
 
 def test_workflow_job_dependency_usage_rejects_drift_from_product_metadata() -> None:
@@ -556,6 +607,8 @@ def main() -> int:
     test_workflow_job_ids_reads_top_level_jobs()
     test_workflow_jobs_reject_drift_from_product_metadata()
     test_workflow_job_needs_reads_supported_forms()
+    test_workflow_job_runs_on_reads_job_runner()
+    test_workflow_job_runner_usage_rejects_drift_from_product_metadata()
     test_workflow_job_dependency_usage_rejects_drift_from_product_metadata()
     test_workflow_permissions_reads_top_level_permissions()
     test_workflow_permissions_reject_drift_from_product_metadata()

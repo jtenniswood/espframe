@@ -325,6 +325,38 @@ def check_workflow_jobs(
                 require_contains(job_block, f"    name: {job_name}", f"{label} job {job_id}", errors)
 
 
+def workflow_job_field_value(job_block: str, field_name: str) -> str:
+    match = re.search(rf"^    {re.escape(field_name)}:\s*(.*?)\s*$", job_block, re.MULTILINE)
+    return unquote_workflow_value(match.group(1)) if match else ""
+
+
+def workflow_job_runs_on(job_block: str) -> str:
+    return workflow_job_field_value(job_block, "runs-on")
+
+
+def check_workflow_job_runner_usage(
+    expected_runner: str,
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    expected_runner = expected_runner.strip()
+    if not expected_runner:
+        return
+
+    for label, text in workflow_texts.values():
+        for job_id in workflow_job_ids(text):
+            job_block = workflow_job_block(text, job_id, label, errors)
+            if not job_block:
+                continue
+            actual_runner = workflow_job_runs_on(job_block)
+            if not actual_runner:
+                errors.append(f"{label} job {job_id} is missing runs-on")
+            elif actual_runner != expected_runner:
+                errors.append(
+                    f"{label} job {job_id} runs-on must be {expected_runner!r}, found {actual_runner!r}"
+                )
+
+
 def workflow_job_needs(job_block: str) -> list[str]:
     lines = job_block.splitlines()
     for index, line in enumerate(lines):
@@ -472,19 +504,11 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     pages_deployment_step_id = str(project.get("github_pages_deployment_step_id", "")).strip()
     pages_url_output = str(project.get("github_pages_url_output", "")).strip()
     prerelease_lookup_limit = project.get("github_prerelease_lookup_limit")
-    actions_runner = str(project.get("github_actions_runner", "")).strip()
     github_cli_env = project.get("github_cli_env", {})
     firmware_compile_timeout = project.get("firmware_compile_timeout_minutes")
     esphome_config_mount = str(project.get("esphome_config_mount", "")).strip()
     slugs = [str(device.get("slug", "")).strip() for device in product["devices"]]
     expected_slugs = " ".join(slugs)
-    if actions_runner:
-        for label, text in (
-            (".github/workflows/release.yml", release_workflow),
-            (".github/workflows/docs.yml", docs_workflow),
-            (".github/workflows/compile.yml", compile_workflow),
-        ):
-            require_contains(text, f"runs-on: {actions_runner}", label, errors)
     if isinstance(release_notes_fetch_depth, int) and not isinstance(release_notes_fetch_depth, bool):
         require_contains(release_workflow, f"fetch-depth: {release_notes_fetch_depth}", ".github/workflows/release.yml", errors)
     if isinstance(release_notes_fetch_tags, bool):
@@ -978,6 +1002,8 @@ def check_workflows(product: dict, errors: list[str]) -> None:
     check_workflow_event_type_usage(workflow_event_types, workflow_texts, errors)
     workflow_jobs = project.get("github_workflow_jobs", {})
     check_workflow_jobs(workflow_jobs, workflow_texts, errors)
+    actions_runner = str(project.get("github_actions_runner", "")).strip()
+    check_workflow_job_runner_usage(actions_runner, workflow_texts, errors)
     workflow_job_dependencies = project.get("github_workflow_job_dependencies", {})
     check_workflow_job_dependency_usage(workflow_job_dependencies, workflow_texts, errors)
     workflow_job_conditions = project.get("github_workflow_job_conditions", {})
