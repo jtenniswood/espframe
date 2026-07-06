@@ -535,6 +535,38 @@ jobs:
 """
 
 
+RELEASE_PUBLISH_RUN_WORKFLOW = """\
+name: Example
+
+jobs:
+  publish:
+    name: Publish to Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify assembled release assets
+        run: >-
+          python3 scripts/firmware_release.py verify-directory
+          --version "${VERSION}"
+          --dir firmware
+          --slugs $DEVICE_SLUGS
+
+      - name: Upload firmware to release
+        run: gh release upload "${VERSION}" wrong/* --clobber
+
+      - name: Verify uploaded release assets
+        run: |
+          mkdir -p published
+          gh release download "${VERSION}" \
+            --pattern "*.manifest.json" \
+            --pattern "*.ota.bin" \
+            --dir published
+          python3 scripts/firmware_release.py verify-directory \
+            --version "${VERSION}" \
+            --dir published \
+            --slugs $DEVICE_SLUGS
+"""
+
+
 RUN_COMMAND_WORKFLOW = """\
 name: Example
 
@@ -1105,6 +1137,48 @@ def test_workflow_named_step_run_contains_checks_firmware_build_steps() -> None:
         (
             "release.yml job build-firmware step 'Collect firmware files and generate manifest' "
             "run is missing '--factory \"output/${{ matrix.slug }}.factory.bin\"'"
+        ),
+    ]
+
+
+def test_workflow_named_step_run_contains_checks_publish_steps() -> None:
+    errors: list[str] = []
+    workflow_texts = {"release": ("release.yml", RELEASE_PUBLISH_RUN_WORKFLOW)}
+
+    check_workflow_named_step_run_contains(
+        "release.publish",
+        "Verify assembled release assets",
+        ["--dir firmware"],
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_run_contains(
+        "release.publish",
+        "Upload firmware to release",
+        ["firmware/*", "firmware/* --clobber"],
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_run_contains(
+        "release.publish",
+        "Verify uploaded release assets",
+        [
+            "mkdir -p published",
+            '--pattern "*.manifest.json"',
+            '--pattern "*.factory.bin"',
+            '--pattern "*.ota.bin"',
+            "--dir published",
+        ],
+        workflow_texts,
+        errors,
+    )
+
+    assert errors == [
+        "release.yml job publish step 'Upload firmware to release' run is missing 'firmware/*'",
+        "release.yml job publish step 'Upload firmware to release' run is missing 'firmware/* --clobber'",
+        (
+            "release.yml job publish step 'Verify uploaded release assets' run is missing "
+            '\'--pattern "*.factory.bin"\''
         ),
     ]
 
@@ -1749,6 +1823,7 @@ def main() -> int:
     test_workflow_named_step_env_rejects_drift_from_product_metadata()
     test_workflow_named_step_run_contains_rejects_drift_from_product_metadata()
     test_workflow_named_step_run_contains_checks_firmware_build_steps()
+    test_workflow_named_step_run_contains_checks_publish_steps()
     test_workflow_job_run_command_rejects_drift_from_product_metadata()
     test_workflow_job_outputs_reads_job_outputs()
     test_workflow_job_outputs_rejects_drift_from_product_metadata()

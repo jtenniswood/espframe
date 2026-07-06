@@ -1491,17 +1491,31 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             errors,
         )
     if release_publish_dir:
-        for needle in (
-            f"--dir {release_publish_dir}",
-            f"{release_publish_dir}/* --clobber",
-        ):
-            require_contains(release_workflow, needle, ".github/workflows/release.yml", errors)
+        check_workflow_named_step_run_contains(
+            "release.publish",
+            "Verify assembled release assets",
+            [f"--dir {release_publish_dir}"],
+            workflow_texts,
+            errors,
+        )
+        check_workflow_named_step_run_contains(
+            "release.publish",
+            "Upload firmware to release",
+            [f"{release_publish_dir}/*"],
+            workflow_texts,
+            errors,
+        )
     if release_uploaded_verify_dir:
-        for needle in (
-            f"mkdir -p {release_uploaded_verify_dir}",
-            f"--dir {release_uploaded_verify_dir}",
-        ):
-            require_contains(release_workflow, needle, ".github/workflows/release.yml", errors)
+        check_workflow_named_step_run_contains(
+            "release.publish",
+            "Verify uploaded release assets",
+            [
+                f"mkdir -p {release_uploaded_verify_dir}",
+                f"--dir {release_uploaded_verify_dir}",
+            ],
+            workflow_texts,
+            errors,
+        )
     if release_esphome_cache_dir:
         for needle in (
             "path: ${{ needs.release-metadata.outputs.release_esphome_cache_dir }}",
@@ -1577,11 +1591,23 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         else:
             require_contains(docs_workflow, f'--pattern "{pattern}"', ".github/workflows/docs.yml", errors)
     for pattern in uploaded_verify_patterns:
-        require_contains(release_workflow, f'--pattern "{pattern}"', ".github/workflows/release.yml", errors)
+        check_workflow_named_step_run_contains(
+            "release.publish",
+            "Verify uploaded release assets",
+            [f'--pattern "{pattern}"'],
+            workflow_texts,
+            errors,
+        )
     if release_download_clobber is True:
         require_contains(docs_workflow, "--clobber", ".github/workflows/docs.yml", errors)
     if release_upload_clobber is True:
-        require_contains(release_workflow, f"{release_publish_dir}/* --clobber", ".github/workflows/release.yml", errors)
+        check_workflow_named_step_run_contains(
+            "release.publish",
+            "Upload firmware to release",
+            [f"{release_publish_dir}/* --clobber"],
+            workflow_texts,
+            errors,
+        )
     for suffix in asset_suffixes:
         require_contains(release_workflow, suffix, ".github/workflows/release.yml", errors)
         if suffix == ".manifest.json":
