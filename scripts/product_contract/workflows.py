@@ -2134,6 +2134,24 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             workflow_texts,
             errors,
         )
+    if esphome_config_mount:
+        check_workflow_named_step_run_contains(
+            "release.build-firmware",
+            "Compile firmware",
+            ['compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml"'],
+            workflow_texts,
+            errors,
+        )
+        check_workflow_named_step_run_contains(
+            "compile.compile",
+            "Compile test firmware artifacts",
+            [
+                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml"',
+                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml"',
+            ],
+            workflow_texts,
+            errors,
+        )
 
     try:
         release_devices = release_matrix_devices(product)
@@ -2147,25 +2165,6 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         build_yaml = str(devices_by_slug.get(slug, {}).get("build_yaml", "")).strip()
         local_yaml = str(devices_by_slug.get(slug, {}).get("local_yaml", "")).strip()
         device_dir = str(Path(local_yaml).parent) if local_yaml else ""
-        if esphome_config_mount:
-            require_contains(
-                release_workflow,
-                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml"',
-                ".github/workflows/release.yml",
-                errors,
-            )
-            require_contains(
-                compile_workflow,
-                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml"',
-                ".github/workflows/compile.yml",
-                errors,
-            )
-            require_contains(
-                compile_workflow,
-                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml"',
-                ".github/workflows/compile.yml",
-                errors,
-            )
         if device_dir:
             require_contains(
                 compile_workflow,

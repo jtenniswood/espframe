@@ -642,6 +642,34 @@ jobs:
 """
 
 
+COMPILE_COMMAND_RUN_WORKFLOW = """\
+name: Example
+
+jobs:
+  compile:
+    name: Compile Firmware
+    runs-on: ubuntu-latest
+    steps:
+      - name: Unrelated compile note
+        run: |
+          echo 'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml"'
+
+      - name: Compile test firmware artifacts
+        run: |
+          docker run ${ESPHOME_DOCKER_REMOVE_FLAG} \
+            compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml"
+
+  build-firmware:
+    name: Build Firmware
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compile firmware
+        run: |
+          docker run ${ESPHOME_DOCKER_REMOVE_FLAG} \
+            compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml"
+"""
+
+
 DOCS_DOWNLOAD_RUN_WORKFLOW = """\
 name: Example
 
@@ -1491,6 +1519,39 @@ def test_workflow_named_step_run_contains_checks_compile_artifact_step() -> None
     ]
 
 
+def test_workflow_named_step_run_contains_checks_compile_commands() -> None:
+    errors: list[str] = []
+    workflow_texts = {
+        "compile": ("compile.yml", COMPILE_COMMAND_RUN_WORKFLOW),
+        "release": ("release.yml", COMPILE_COMMAND_RUN_WORKFLOW),
+    }
+
+    check_workflow_named_step_run_contains(
+        "release.build-firmware",
+        "Compile firmware",
+        ['compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml"'],
+        workflow_texts,
+        errors,
+    )
+    check_workflow_named_step_run_contains(
+        "compile.compile",
+        "Compile test firmware artifacts",
+        [
+            'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml"',
+            'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml"',
+        ],
+        workflow_texts,
+        errors,
+    )
+
+    assert errors == [
+        (
+            "compile.yml job compile step 'Compile test firmware artifacts' run is missing "
+            '\'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml"\''
+        ),
+    ]
+
+
 def test_workflow_named_step_run_contains_checks_docs_download_steps() -> None:
     errors: list[str] = []
     workflow_texts = {"docs": ("docs.yml", DOCS_DOWNLOAD_RUN_WORKFLOW)}
@@ -2313,6 +2374,7 @@ def main() -> int:
     test_workflow_named_step_run_contains_checks_publish_steps()
     test_workflow_named_step_helpers_check_cache_metadata()
     test_workflow_named_step_run_contains_checks_compile_artifact_step()
+    test_workflow_named_step_run_contains_checks_compile_commands()
     test_workflow_named_step_run_contains_checks_docs_download_steps()
     test_workflow_named_step_helpers_check_docs_release_metadata()
     test_workflow_job_environment_and_named_step_id_reject_pages_deploy_drift()
