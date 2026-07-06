@@ -27,6 +27,7 @@ from product_contract.workflows import (  # noqa: E402
     workflow_event_type_filters,
     workflow_job_block,
     workflow_job_condition,
+    workflow_job_display_name,
     workflow_job_ids,
     workflow_job_needs,
     workflow_job_runs_on,
@@ -140,6 +141,26 @@ jobs:
 """
 
 
+JOB_NAME_WORKFLOW = """\
+name: Example
+
+jobs:
+  matching:
+    name: "Expected Name"
+    runs-on: ubuntu-latest
+
+  shadowed:
+    name: Actual Job Name
+    runs-on: ubuntu-latest
+    steps:
+      - name: Expected Step Name
+        run: echo ok
+
+  missing-name:
+    runs-on: ubuntu-latest
+"""
+
+
 RUNNER_WORKFLOW = """\
 name: Example
 
@@ -215,7 +236,38 @@ def test_workflow_jobs_reject_drift_from_product_metadata() -> None:
         "example.yml jobs are missing product metadata jobs: missing",
         "example.yml jobs contain jobs missing from product metadata: literal, unconditional",
         "example.yml is missing job missing",
-        "example.yml job folded is missing '    name: Wrong Name'",
+        "example.yml job folded name must be 'Wrong Name', found 'Folded Condition'",
+    ]
+
+
+def test_workflow_job_display_name_reads_job_name() -> None:
+    errors: list[str] = []
+    assert workflow_job_display_name(
+        workflow_job_block(JOB_NAME_WORKFLOW, "matching", "example.yml", errors)
+    ) == "Expected Name"
+    assert workflow_job_display_name(
+        workflow_job_block(JOB_NAME_WORKFLOW, "missing-name", "example.yml", errors)
+    ) == ""
+    assert errors == []
+
+
+def test_workflow_jobs_match_job_name_not_step_name() -> None:
+    errors: list[str] = []
+    check_workflow_jobs(
+        {
+            "compile": {
+                "matching": "Expected Name",
+                "shadowed": "Expected Step Name",
+                "missing-name": "Missing Name",
+            }
+        },
+        {"compile": ("example.yml", JOB_NAME_WORKFLOW)},
+        errors,
+    )
+
+    assert errors == [
+        "example.yml job shadowed name must be 'Expected Step Name', found 'Actual Job Name'",
+        "example.yml job missing-name is missing name",
     ]
 
 
@@ -606,6 +658,8 @@ def main() -> int:
     test_workflow_job_block_reports_missing_job()
     test_workflow_job_ids_reads_top_level_jobs()
     test_workflow_jobs_reject_drift_from_product_metadata()
+    test_workflow_job_display_name_reads_job_name()
+    test_workflow_jobs_match_job_name_not_step_name()
     test_workflow_job_needs_reads_supported_forms()
     test_workflow_job_runs_on_reads_job_runner()
     test_workflow_job_runner_usage_rejects_drift_from_product_metadata()

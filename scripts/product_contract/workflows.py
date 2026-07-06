@@ -294,6 +294,15 @@ def workflow_job_block(text: str, job_id: str, label: str, errors: list[str]) ->
     return match.group(1)
 
 
+def workflow_job_field_value(job_block: str, field_name: str) -> str:
+    match = re.search(rf"^    {re.escape(field_name)}:\s*(.*?)\s*$", job_block, re.MULTILINE)
+    return unquote_workflow_value(match.group(1)) if match else ""
+
+
+def workflow_job_display_name(job_block: str) -> str:
+    return workflow_job_field_value(job_block, "name")
+
+
 def check_workflow_jobs(
     workflow_jobs: object,
     workflow_texts: dict[str, tuple[str, str]],
@@ -322,12 +331,11 @@ def check_workflow_jobs(
                 continue
             job_block = workflow_job_block(text, job_id, label, errors)
             if job_block:
-                require_contains(job_block, f"    name: {job_name}", f"{label} job {job_id}", errors)
-
-
-def workflow_job_field_value(job_block: str, field_name: str) -> str:
-    match = re.search(rf"^    {re.escape(field_name)}:\s*(.*?)\s*$", job_block, re.MULTILINE)
-    return unquote_workflow_value(match.group(1)) if match else ""
+                actual_name = workflow_job_display_name(job_block)
+                if not actual_name:
+                    errors.append(f"{label} job {job_id} is missing name")
+                elif actual_name != job_name:
+                    errors.append(f"{label} job {job_id} name must be {job_name!r}, found {actual_name!r}")
 
 
 def workflow_job_runs_on(job_block: str) -> str:
