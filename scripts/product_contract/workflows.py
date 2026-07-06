@@ -69,6 +69,11 @@ def check_workflow_events(
             errors.append(f"{label} events contain triggers missing from product metadata: {', '.join(extra_events)}")
 
 
+def workflow_event_block(text: str, event_name: str) -> str:
+    match = re.search(rf"^  {re.escape(event_name)}:\n(.*?)(?=^  [A-Za-z0-9_-]+:|\Z)", text, re.DOTALL | re.MULTILINE)
+    return match.group(1) if match else ""
+
+
 def unquote_workflow_value(value: str) -> str:
     value = value.strip()
     if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
@@ -76,14 +81,23 @@ def unquote_workflow_value(value: str) -> str:
     return value
 
 
+def workflow_inline_list_values(value: str) -> list[str]:
+    value = value.strip()
+    if not value:
+        return []
+    if value.startswith("[") and value.endswith("]"):
+        return [unquote_workflow_value(item) for item in value[1:-1].split(",") if item.strip()]
+    return [unquote_workflow_value(value)]
+
+
 def workflow_event_path_filters(text: str, event_name: str) -> list[str]:
-    match = re.search(rf"^  {re.escape(event_name)}:\n(.*?)(?=^  [A-Za-z0-9_-]+:|\Z)", text, re.DOTALL | re.MULTILINE)
-    if not match:
+    block = workflow_event_block(text, event_name)
+    if not block:
         return []
 
     filters: list[str] = []
     in_paths = False
-    for line in match.group(1).splitlines():
+    for line in block.splitlines():
         if line == "    paths:":
             in_paths = True
             continue
@@ -95,6 +109,64 @@ def workflow_event_path_filters(text: str, event_name: str) -> list[str]:
         if line.strip() and not line.startswith("      "):
             break
     return filters
+
+
+def workflow_event_type_filters(text: str, event_name: str) -> list[str]:
+    block = workflow_event_block(text, event_name)
+    if not block:
+        return []
+
+    event_types: list[str] = []
+    in_types = False
+    for line in block.splitlines():
+        if line.startswith("    types:"):
+            inline_types = workflow_inline_list_values(line.removeprefix("    types:"))
+            if inline_types:
+                return inline_types
+            in_types = True
+            continue
+        if not in_types:
+            continue
+        if line.startswith("      - "):
+            event_types.append(unquote_workflow_value(line.removeprefix("      - ")))
+            continue
+        if line.strip() and not line.startswith("      "):
+            break
+    return event_types
+
+
+def check_workflow_event_type_usage(
+    workflow_event_types: object,
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    if not isinstance(workflow_event_types, dict):
+        return
+
+    configured_keys = {str(key).strip() for key in workflow_event_types if str(key).strip()}
+    for raw_key, raw_types in workflow_event_types.items():
+        key = str(raw_key).strip()
+        workflow_name, _, event_name = key.partition(".")
+        if workflow_name not in workflow_texts or not event_name or not isinstance(raw_types, list):
+            continue
+        label, text = workflow_texts[workflow_name]
+        expected_types = [str(event_type).strip() for event_type in raw_types if str(event_type).strip()]
+        actual_types = workflow_event_type_filters(text, event_name)
+        missing_types = [event_type for event_type in expected_types if event_type not in actual_types]
+        extra_types = [event_type for event_type in actual_types if event_type not in expected_types]
+        if missing_types:
+            errors.append(f"{label} {event_name} types are missing product metadata types: {', '.join(missing_types)}")
+        if extra_types:
+            errors.append(f"{label} {event_name} types contain values missing from product metadata: {', '.join(extra_types)}")
+
+    for workflow_name, (label, text) in workflow_texts.items():
+        for event_name in workflow_event_names(text):
+            key = f"{workflow_name}.{event_name}"
+            if key in configured_keys:
+                continue
+            actual_types = workflow_event_type_filters(text, event_name)
+            if actual_types:
+                errors.append(f"{label} {event_name} types are missing from product metadata: {', '.join(actual_types)}")
 
 
 def check_workflow_path_filters(
@@ -737,17 +809,7 @@ def check_workflows(product: dict, errors: list[str]) -> None:
     workflow_events = project.get("github_workflow_events", {})
     check_workflow_events(workflow_events, workflow_texts, errors)
     workflow_event_types = project.get("github_workflow_event_types", {})
-    if isinstance(workflow_event_types, dict):
-        for key, raw_types in workflow_event_types.items():
-            workflow_name, _, event_name = str(key).strip().partition(".")
-            if workflow_name not in workflow_texts or not event_name or not isinstance(raw_types, list):
-                continue
-            label, text = workflow_texts[workflow_name]
-            require_contains(text, f"  {event_name}:", label, errors)
-            for event_type in raw_types:
-                event_type_name = str(event_type).strip()
-                if event_type_name:
-                    require_contains(text, f"types: [{event_type_name}]", label, errors)
+    check_workflow_event_type_usage(workflow_event_types, workflow_texts, errors)
     workflow_jobs = project.get("github_workflow_jobs", {})
     if isinstance(workflow_jobs, dict):
         for workflow, raw_jobs in workflow_jobs.items():

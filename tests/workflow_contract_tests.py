@@ -12,11 +12,13 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from product_contract.workflows import (  # noqa: E402
     check_workflow_action_usage,
+    check_workflow_event_type_usage,
     check_workflow_events,
     check_workflow_path_filters,
     normalize_workflow_condition,
     workflow_event_names,
     workflow_event_path_filters,
+    workflow_event_type_filters,
     workflow_job_block,
     workflow_job_condition,
 )
@@ -82,6 +84,21 @@ on:
 
 permissions:
   contents: read
+"""
+
+
+EVENT_TYPE_WORKFLOW = """\
+name: Example
+
+on:
+  workflow_run:
+    workflows: ["Build Release"]
+    types: [completed, requested]
+  release:
+    types:
+      - published
+      - prereleased
+  workflow_dispatch:
 """
 
 
@@ -223,6 +240,36 @@ on:
     ]
 
 
+def test_workflow_event_type_filters_reads_inline_and_block_lists() -> None:
+    assert workflow_event_type_filters(EVENT_TYPE_WORKFLOW, "workflow_run") == ["completed", "requested"]
+    assert workflow_event_type_filters(EVENT_TYPE_WORKFLOW, "release") == ["published", "prereleased"]
+    assert workflow_event_type_filters(EVENT_TYPE_WORKFLOW, "workflow_dispatch") == []
+    assert workflow_event_type_filters(EVENT_TYPE_WORKFLOW, "missing") == []
+
+
+def test_workflow_event_type_usage_rejects_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    check_workflow_event_type_usage(
+        {
+            "docs.workflow_run": ["completed", "missing"],
+            "release.release": ["published"],
+        },
+        {
+            "docs": (".github/workflows/docs.yml", EVENT_TYPE_WORKFLOW),
+            "release": (".github/workflows/release.yml", EVENT_TYPE_WORKFLOW),
+        },
+        errors,
+    )
+
+    assert errors == [
+        ".github/workflows/docs.yml workflow_run types are missing product metadata types: missing",
+        ".github/workflows/docs.yml workflow_run types contain values missing from product metadata: requested",
+        ".github/workflows/release.yml release types contain values missing from product metadata: prereleased",
+        ".github/workflows/docs.yml release types are missing from product metadata: published, prereleased",
+        ".github/workflows/release.yml workflow_run types are missing from product metadata: completed, requested",
+    ]
+
+
 def test_workflow_event_path_filters_reads_quoted_paths() -> None:
     assert workflow_event_path_filters(PATH_WORKFLOW, "pull_request") == [
         "components/**",
@@ -347,6 +394,8 @@ def main() -> int:
     test_workflow_action_usage_checks_expected_workflows()
     test_workflow_event_names_reads_on_block()
     test_workflow_events_reject_drift_from_product_metadata()
+    test_workflow_event_type_filters_reads_inline_and_block_lists()
+    test_workflow_event_type_usage_rejects_drift_from_product_metadata()
     test_workflow_event_path_filters_reads_quoted_paths()
     test_workflow_path_filters_reject_drift_from_product_metadata()
     test_workflow_event_index_normalizes_declared_events()
