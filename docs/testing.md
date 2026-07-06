@@ -56,13 +56,21 @@ This group compiles and runs host-side C++ tests for firmware helper logic, then
 
 ### Full Firmware Compile
 
-The pull request workflow compiles the 10-inch P4 factory firmware after the PR checks pass. To run the same type of compile locally with Docker:
+Pull requests run the normal validation gate automatically. Full ESPHome firmware builds are slower, so they are available from the **Compile Check** workflow's manual run button. Run that workflow against a feature branch when you need firmware files to test on a device before merging.
+
+The manual workflow builds both factory and OTA firmware and uploads a `firmware-test-<device>` artifact containing:
+
+- `<device>.factory.bin` for USB/browser flashing
+- `<device>.ota.bin` for OTA testing
+- `<device>.version.txt` with the branch build version and source commit
+
+To run the same factory compile locally with Docker:
 
 ```sh
 docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.6.4 compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
 ```
 
-Use a full compile before firmware releases, after changing ESPHome YAML, and after changing C++ code that is not covered by the host-side helper tests.
+Use a full compile before firmware releases, after changing ESPHome YAML, after changing C++ code that is not covered by the host-side helper tests, and whenever you want a branch firmware build to flash to a test display.
 
 ## When To Add Tests
 
@@ -82,7 +90,7 @@ Automated checks do not prove everything that happens on the physical display. D
 
 A useful manual pass is:
 
-- flash the PR build to a test display
+- run the manual **Compile Check** workflow for the branch and flash the downloaded firmware artifact to a test display
 - confirm WiFi setup and Immich setup still work
 - confirm the slideshow starts and advances photos
 - check touch wake, sleep, and next-photo gestures

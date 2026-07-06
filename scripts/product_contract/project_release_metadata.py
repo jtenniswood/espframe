@@ -7,6 +7,9 @@ from product_contract.common import ROOT, check_relative_path, read
 def check_project_release_metadata(product: dict, errors: list[str]) -> None:
     project = product["project"]
     default_branch = str(project.get("github_default_branch", "")).strip()
+    for field in ("compile_firmware_artifact_prefix", "compile_firmware_output_dir", "compile_firmware_version_prefix"):
+        if not str(project.get(field, "")).strip():
+            errors.append(f"project.{field} is required")
     release_actions = project.get("release_workflow_actions", {})
     if not isinstance(release_actions, dict) or not release_actions:
         errors.append("project.release_workflow_actions must be a non-empty object")

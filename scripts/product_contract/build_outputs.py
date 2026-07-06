@@ -156,7 +156,13 @@ def check_factory_firmware_metadata(product: dict, errors: list[str]) -> None:
         if esphome_config_mount:
             require_contains(
                 compile_workflow,
-                f"compile {esphome_config_mount}/{build_yaml}",
+                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml"',
+                ".github/workflows/compile.yml",
+                errors,
+            )
+            require_contains(
+                compile_workflow,
+                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml"',
                 ".github/workflows/compile.yml",
                 errors,
             )

@@ -1333,9 +1333,12 @@ if (typeof module !== "undefined") {
       labelPlaceholder: "What is it?",
       addText: "Add an album",
       removeTitle: "Remove album ID",
+      moveUpTitle: "Move album up",
+      moveDownTitle: "Move album down",
       idChanges: { album: true, albumLabel: true },
       labelChanges: { albumLabel: true },
       clearChanges: { album: true, albumLabel: true },
+      reorderChanges: { album: true, albumLabel: true },
       onChange: function (changes, delayMs) { schedulePhotoSourceApply(delayMs, changes); }
     });
     var albumField = albumList.field;
@@ -1349,9 +1352,12 @@ if (typeof module !== "undefined") {
       labelPlaceholder: "Who is it?",
       addText: "Add a person",
       removeTitle: "Remove person ID",
+      moveUpTitle: "Move person up",
+      moveDownTitle: "Move person down",
       idChanges: { person: true, personLabel: true },
       labelChanges: { personLabel: true },
       clearChanges: { person: true, personLabel: true },
+      reorderChanges: { person: true, personLabel: true },
       onChange: function (changes, delayMs) { schedulePhotoSourceApply(delayMs, changes); }
     });
     var personField = personList.field;
@@ -1365,9 +1371,12 @@ if (typeof module !== "undefined") {
       labelPlaceholder: "What tag is it?",
       addText: "Add a tag",
       removeTitle: "Remove tag ID",
+      moveUpTitle: "Move tag up",
+      moveDownTitle: "Move tag down",
       idChanges: { tag: true, tagLabel: true },
       labelChanges: { tagLabel: true },
       clearChanges: { tag: true, tagLabel: true },
+      reorderChanges: { tag: true, tagLabel: true },
       onChange: function (changes, delayMs) { schedulePhotoSourceApply(delayMs, changes); }
     });
     var tagField = tagList.field;
@@ -2575,16 +2584,44 @@ if (typeof module !== "undefined") {
     var idInputs = [];
     var labelInputs = [];
     var error = makeFieldError();
+    var moveUpIcon = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 19V5\"/><path d=\"M5 12l7-7 7 7\"/></svg>";
+    var moveDownIcon = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14\"/><path d=\"M19 12l-7 7-7-7\"/></svg>";
     var removeIcon = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18\"/><path d=\"M8 6V4h8v2\"/><path d=\"M19 6l-1 14H6L5 6\"/><path d=\"M10 11v5\"/><path d=\"M14 11v5\"/></svg>";
 
     function notify(changes, delayMs) {
       if (opts.onChange) opts.onChange(changes, delayMs);
     }
 
-    function refreshRemoveButtons() {
-      Array.prototype.forEach.call(list.querySelectorAll("button"), function (btn) {
-        btn.disabled = idInputs.length <= 1;
+    function refreshRowButtons() {
+      var rows = Array.prototype.slice.call(list.querySelectorAll(".photo-id-row"));
+      rows.forEach(function (row, index) {
+        var removeBtn = row.querySelector(".photo-id-remove");
+        var moveUpBtn = row.querySelector(".photo-id-move-up");
+        var moveDownBtn = row.querySelector(".photo-id-move-down");
+        if (removeBtn) removeBtn.disabled = idInputs.length <= 1;
+        if (moveUpBtn) moveUpBtn.disabled = index === 0;
+        if (moveDownBtn) moveDownBtn.disabled = index === rows.length - 1;
       });
+    }
+
+    function movePhotoIdRow(row, direction) {
+      var rows = Array.prototype.slice.call(list.querySelectorAll(".photo-id-row"));
+      var fromIndex = rows.indexOf(row);
+      var toIndex = fromIndex + direction;
+      if (fromIndex < 0 || toIndex < 0 || toIndex >= rows.length) return;
+
+      var movedId = idInputs.splice(fromIndex, 1)[0];
+      var movedLabel = labelInputs.splice(fromIndex, 1)[0];
+      idInputs.splice(toIndex, 0, movedId);
+      labelInputs.splice(toIndex, 0, movedLabel);
+
+      if (direction < 0) {
+        list.insertBefore(row, rows[toIndex]);
+      } else {
+        list.insertBefore(rows[toIndex], row);
+      }
+      refreshRowButtons();
+      notify(opts.reorderChanges, 0);
     }
 
     function addRow(value, labelValue) {
@@ -2592,7 +2629,27 @@ if (typeof module !== "undefined") {
       var fields = el("div", "photo-id-fields");
       var idInput = input("text", value || "", opts.idPlaceholder, MAX_PHOTO_ID_FIELD_LENGTH);
       var labelInput = input("text", labelValue || "", opts.labelPlaceholder, MAX_PHOTO_ID_FIELD_LENGTH);
+      var actions = el("div", "photo-id-row-actions");
+      var moveUpTitle = opts.moveUpTitle || "Move up";
+      var moveDownTitle = opts.moveDownTitle || "Move down";
+      var moveUpBtn = el("button", "btn btn-secondary btn-icon photo-id-move-up");
+      moveUpBtn.type = "button";
+      moveUpBtn.innerHTML = moveUpIcon;
+      moveUpBtn.title = moveUpTitle;
+      moveUpBtn.setAttribute("aria-label", moveUpTitle);
+      moveUpBtn.onclick = function () {
+        movePhotoIdRow(row, -1);
+      };
+      var moveDownBtn = el("button", "btn btn-secondary btn-icon photo-id-move-down");
+      moveDownBtn.type = "button";
+      moveDownBtn.innerHTML = moveDownIcon;
+      moveDownBtn.title = moveDownTitle;
+      moveDownBtn.setAttribute("aria-label", moveDownTitle);
+      moveDownBtn.onclick = function () {
+        movePhotoIdRow(row, 1);
+      };
       var removeBtn = el("button", "btn btn-secondary btn-icon");
+      removeBtn.classList.add("photo-id-remove");
       removeBtn.type = "button";
       removeBtn.innerHTML = removeIcon;
       removeBtn.title = opts.removeTitle;
@@ -2608,7 +2665,7 @@ if (typeof module !== "undefined") {
         idInputs.splice(removeIndex, 1);
         labelInputs.splice(removeIndex, 1);
         row.parentNode.removeChild(row);
-        refreshRemoveButtons();
+        refreshRowButtons();
         notify(opts.clearChanges, 0);
       };
       idInput.oninput = function () {
@@ -2620,11 +2677,14 @@ if (typeof module !== "undefined") {
       fields.appendChild(idInput);
       fields.appendChild(labelInput);
       row.appendChild(fields);
-      row.appendChild(removeBtn);
+      actions.appendChild(moveUpBtn);
+      actions.appendChild(moveDownBtn);
+      actions.appendChild(removeBtn);
+      row.appendChild(actions);
       list.appendChild(row);
       idInputs.push(idInput);
       labelInputs.push(labelInput);
-      refreshRemoveButtons();
+      refreshRowButtons();
     }
 
     var ids = splitPhotoIdList(S[opts.idKey]);

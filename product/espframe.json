@@ -626,6 +626,9 @@
     "github_docs_prerelease_tag_env": "BETA_TAG",
     "docs_dist_artifact_name": "docs-dist",
     "docs_firmware_artifact_name": "firmware",
+    "compile_firmware_artifact_prefix": "firmware-test-",
+    "compile_firmware_output_dir": "output",
+    "compile_firmware_version_prefix": "pr",
     "docs_dist_output_path": "docs/.vitepress/dist",
     "docs_deploy_path": "dist",
     "github_pages_environment": "github-pages",
@@ -820,6 +823,7 @@
     "github_workflow_jobs": {
       "compile": {
         "validate": "Validate PR Gate",
+        "firmware-metadata": "Read Firmware Build Metadata",
         "compile": "Compile Firmware"
       },
       "docs": {
@@ -835,7 +839,7 @@
       }
     },
     "github_workflow_job_dependencies": {
-      "compile.compile": ["validate"],
+      "compile.compile": ["validate", "firmware-metadata"],
       "docs.deploy-docs": ["build-docs", "download-firmware"],
       "release.build-firmware": ["release-metadata"],
       "release.publish": ["build-firmware", "release-metadata"]

@@ -34,6 +34,6 @@ assert.ok(publicApp.includes("var BACKUP_SCHEMA = "), "public app should include
 assert.ok(publicApp.includes("function renderWizard()"), "public app should include the startup wizard");
 assert.ok(publicApp.includes('"album_order"'), "public app should include album order in photo-source apply keys");
 assert.ok(publicApp.includes("Move album up"), "public app should include album reorder controls");
-assert.ok(publicApp.includes("moveAlbumIdRow"), "public app should keep album ID and label rows reorderable");
+assert.ok(publicApp.includes("movePhotoIdRow"), "public app should keep photo ID and label rows reorderable");
 
 console.log("web module tests passed");

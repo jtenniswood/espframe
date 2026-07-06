@@ -139,9 +139,12 @@
       labelPlaceholder: "What is it?",
       addText: "Add an album",
       removeTitle: "Remove album ID",
+      moveUpTitle: "Move album up",
+      moveDownTitle: "Move album down",
       idChanges: { album: true, albumLabel: true },
       labelChanges: { albumLabel: true },
       clearChanges: { album: true, albumLabel: true },
+      reorderChanges: { album: true, albumLabel: true },
       onChange: function (changes, delayMs) { schedulePhotoSourceApply(delayMs, changes); }
     });
     var albumField = albumList.field;
@@ -155,9 +158,12 @@
       labelPlaceholder: "Who is it?",
       addText: "Add a person",
       removeTitle: "Remove person ID",
+      moveUpTitle: "Move person up",
+      moveDownTitle: "Move person down",
       idChanges: { person: true, personLabel: true },
       labelChanges: { personLabel: true },
       clearChanges: { person: true, personLabel: true },
+      reorderChanges: { person: true, personLabel: true },
       onChange: function (changes, delayMs) { schedulePhotoSourceApply(delayMs, changes); }
     });
     var personField = personList.field;
@@ -171,9 +177,12 @@
       labelPlaceholder: "What tag is it?",
       addText: "Add a tag",
       removeTitle: "Remove tag ID",
+      moveUpTitle: "Move tag up",
+      moveDownTitle: "Move tag down",
       idChanges: { tag: true, tagLabel: true },
       labelChanges: { tagLabel: true },
       clearChanges: { tag: true, tagLabel: true },
+      reorderChanges: { tag: true, tagLabel: true },
       onChange: function (changes, delayMs) { schedulePhotoSourceApply(delayMs, changes); }
     });
     var tagField = tagList.field;

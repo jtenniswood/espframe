@@ -41,21 +41,103 @@ jobs:
       - name: Run PR checks
         run: npm run check:pr
 
+  firmware-metadata:
+    name: Read Firmware Build Metadata
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      release_matrix: ${{ steps.product.outputs.release_matrix }}
+      esphome_docker_image: ${{ steps.product.outputs.esphome_docker_image }}
+      esphome_version: ${{ steps.product.outputs.esphome_version }}
+      esphome_config_mount: ${{ steps.product.outputs.esphome_config_mount }}
+      esphome_docker_remove_flag: ${{ steps.product.outputs.esphome_docker_remove_flag }}
+      release_esphome_cache_dir: ${{ steps.product.outputs.release_esphome_cache_dir }}
+      release_esphome_cache_key_prefix: ${{ steps.product.outputs.release_esphome_cache_key_prefix }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            scripts/product_config.py
+            product/espframe.json
+          sparse-checkout-cone-mode: false
+
+      - name: Read product metadata
+        id: product
+        run: python3 scripts/product_config.py github-output >> "$GITHUB_OUTPUT"
+
   compile:
     name: Compile Firmware
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    needs: validate
+    needs: [validate, firmware-metadata]
     timeout-minutes: 30
+    env:
+      ESPHOME_DOCKER_IMAGE: ${{ needs.firmware-metadata.outputs.esphome_docker_image }}
+      ESPHOME_VERSION: ${{ needs.firmware-metadata.outputs.esphome_version }}
+      ESPHOME_CONFIG_MOUNT: ${{ needs.firmware-metadata.outputs.esphome_config_mount }}
+      ESPHOME_DOCKER_REMOVE_FLAG: ${{ needs.firmware-metadata.outputs.esphome_docker_remove_flag }}
+      RELEASE_ESPHOME_CACHE_DIR: ${{ needs.firmware-metadata.outputs.release_esphome_cache_dir }}
+      RELEASE_ESPHOME_CACHE_KEY_PREFIX: ${{ needs.firmware-metadata.outputs.release_esphome_cache_key_prefix }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.firmware-metadata.outputs.release_matrix) }}
     steps:
       - uses: actions/checkout@v7
 
-      - name: Read product metadata
-        run: python3 scripts/product_config.py github-env >> "$GITHUB_ENV"
+      - name: Cache ESPHome build
+        uses: actions/cache@v6
+        with:
+          path: ${{ needs.firmware-metadata.outputs.release_esphome_cache_dir }}
+          key: ${{ needs.firmware-metadata.outputs.release_esphome_cache_key_prefix }}-${{ matrix.slug }}-${{ hashFiles('builds/*.yaml', 'common/**', 'devices/**', 'components/**') }}
+          restore-keys: |
+            ${{ needs.firmware-metadata.outputs.release_esphome_cache_key_prefix }}-${{ matrix.slug }}-
 
-      - name: Compile 10-inch P4 firmware
-        run: >-
-          docker run --rm
-          -v "${PWD}:/config"
-          "${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}"
-          compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
+      - name: Compile test firmware artifacts
+        run: |
+          TEST_VERSION="pr-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -p output
+
+          docker run ${ESPHOME_DOCKER_REMOVE_FLAG} \
+            -v "${PWD}:${ESPHOME_CONFIG_MOUNT}" \
+            "${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}" \
+            -s firmware_version "${TEST_VERSION}" \
+            compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml"
+
+          BUILD_DIR="${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}/.pioenvs/${{ matrix.build_name }}"
+          if [ ! -f "${BUILD_DIR}/firmware.factory.bin" ]; then
+            echo "::error::Firmware compilation failed - factory binary not found"
+            exit 1
+          fi
+          sudo cp "${BUILD_DIR}/firmware.factory.bin" "output/${{ matrix.slug }}.factory.bin"
+
+          docker run ${ESPHOME_DOCKER_REMOVE_FLAG} \
+            -v "${PWD}:${ESPHOME_CONFIG_MOUNT}" \
+            "${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}" \
+            -s firmware_version "${TEST_VERSION}" \
+            compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml"
+
+          if [ ! -f "${BUILD_DIR}/firmware.bin" ]; then
+            echo "::error::Firmware compilation failed - OTA binary not found"
+            exit 1
+          fi
+          sudo cp "${BUILD_DIR}/firmware.bin" "output/${{ matrix.slug }}.ota.bin"
+
+          {
+            echo "version=${TEST_VERSION}"
+            echo "source_ref=${GITHUB_REF_NAME}"
+            echo "source_sha=${GITHUB_SHA}"
+          } > "output/${{ matrix.slug }}.version.txt"
+
+      - name: Fix ESPHome cache permissions
+        if: always()
+        run: |
+          if [ -d "${RELEASE_ESPHOME_CACHE_DIR}" ]; then
+            sudo chown -R "$USER:$USER" "${RELEASE_ESPHOME_CACHE_DIR}"
+            chmod -R u+rwX "${RELEASE_ESPHOME_CACHE_DIR}"
+          fi
+
+      - name: Upload test firmware artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: firmware-test-${{ matrix.slug }}
+          path: output/

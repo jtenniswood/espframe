@@ -61,6 +61,9 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     changelog_fallback = str(project.get("release_changelog_fallback_category", "")).strip()
     docs_dist_artifact_name = str(project.get("docs_dist_artifact_name", "")).strip()
     docs_firmware_artifact_name = str(project.get("docs_firmware_artifact_name", "")).strip()
+    compile_firmware_artifact_prefix = str(project.get("compile_firmware_artifact_prefix", "")).strip()
+    compile_firmware_output_dir = str(project.get("compile_firmware_output_dir", "")).strip()
+    compile_firmware_version_prefix = str(project.get("compile_firmware_version_prefix", "")).strip()
     docs_dist_output_path = str(project.get("docs_dist_output_path", "")).strip()
     docs_deploy_path = str(project.get("docs_deploy_path", "")).strip()
     pages_environment = str(project.get("github_pages_environment", "")).strip()
@@ -251,6 +254,42 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             ".github/workflows/release.yml",
             errors,
         )
+        require_contains(
+            compile_workflow,
+            f"hashFiles('{hash_files}')",
+            ".github/workflows/compile.yml",
+            errors,
+        )
+    if compile_firmware_artifact_prefix:
+        require_contains(
+            compile_workflow,
+            "actions/upload-artifact@v7",
+            ".github/workflows/compile.yml",
+            errors,
+        )
+        require_contains(
+            compile_workflow,
+            f"name: {compile_firmware_artifact_prefix}${{{{ matrix.slug }}}}",
+            ".github/workflows/compile.yml",
+            errors,
+        )
+    if compile_firmware_output_dir:
+        for needle in (
+            f"mkdir -p {compile_firmware_output_dir}",
+            f"path: {compile_firmware_output_dir}/",
+            f'"{compile_firmware_output_dir}/${{{{ matrix.slug }}}}.factory.bin"',
+            f'"{compile_firmware_output_dir}/${{{{ matrix.slug }}}}.ota.bin"',
+            f'"{compile_firmware_output_dir}/${{{{ matrix.slug }}}}.version.txt"',
+        ):
+            require_contains(compile_workflow, needle, ".github/workflows/compile.yml", errors)
+    if compile_firmware_version_prefix:
+        require_contains(
+            compile_workflow,
+            f'TEST_VERSION="{compile_firmware_version_prefix}-${{GITHUB_RUN_ID}}-${{GITHUB_RUN_ATTEMPT}}"',
+            ".github/workflows/compile.yml",
+            errors,
+        )
+        require_contains(compile_workflow, '-s firmware_version "${TEST_VERSION}"', ".github/workflows/compile.yml", errors)
     for pattern in binary_download_patterns:
         require_contains(docs_workflow, f'--pattern "{pattern}"', ".github/workflows/docs.yml", errors)
     for pattern in manifest_download_patterns:
@@ -445,7 +484,13 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             )
             require_contains(
                 compile_workflow,
-                f"compile {esphome_config_mount}/{build_yaml}",
+                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml"',
+                ".github/workflows/compile.yml",
+                errors,
+            )
+            require_contains(
+                compile_workflow,
+                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml"',
                 ".github/workflows/compile.yml",
                 errors,
             )
@@ -510,7 +555,7 @@ def check_esphome_version(product: dict, errors: list[str]) -> None:
     compile_workflow = read(ROOT / ".github" / "workflows" / "compile.yml", errors)
     require_contains(
         compile_workflow,
-        'python3 scripts/product_config.py github-env >> "$GITHUB_ENV"',
+        'python3 scripts/product_config.py github-output >> "$GITHUB_OUTPUT"',
         ".github/workflows/compile.yml",
         errors,
     )
@@ -521,14 +566,12 @@ def check_esphome_version(product: dict, errors: list[str]) -> None:
         errors,
     )
 
-    for path, text in (
-        (ROOT / ".github" / "workflows" / "compile.yml", compile_workflow),
-        (ROOT / "README.md", readme),
-    ):
-        if config_mount:
-            require_contains(text, f'-v "${{PWD}}:{config_mount}"', rel(path), errors)
-        if remove_container is True:
-            require_contains(text, "docker run --rm", rel(path), errors)
+    if config_mount:
+        require_contains(compile_workflow, '-v "${PWD}:${ESPHOME_CONFIG_MOUNT}"', ".github/workflows/compile.yml", errors)
+        require_contains(readme, f'-v "${{PWD}}:{config_mount}"', "README.md", errors)
+    if remove_container is True:
+        require_contains(compile_workflow, "docker run ${ESPHOME_DOCKER_REMOVE_FLAG}", ".github/workflows/compile.yml", errors)
+        require_contains(readme, "docker run --rm", "README.md", errors)
 
     release_workflow = read(ROOT / ".github" / "workflows" / "release.yml", errors)
     for needle in (
