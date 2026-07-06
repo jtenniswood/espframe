@@ -12,8 +12,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from product_contract.workflows import (  # noqa: E402
     check_workflow_action_usage,
+    check_workflow_events,
     check_workflow_path_filters,
     normalize_workflow_condition,
+    workflow_event_names,
     workflow_event_path_filters,
     workflow_job_block,
     workflow_job_condition,
@@ -66,6 +68,20 @@ on:
       - 'docs/**'
       - scripts/**
   workflow_dispatch:
+"""
+
+
+EVENT_WORKFLOW = """\
+name: Example
+
+on:
+  pull_request:
+    paths:
+      - "components/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
 """
 
 
@@ -168,6 +184,42 @@ def test_workflow_action_usage_checks_expected_workflows() -> None:
     assert errors == [
         ".github/workflows/docs.yml is missing 'actions/deploy-pages@v5'",
         ".github/workflows/compile.yml is missing 'actions/setup-node@v6'",
+    ]
+
+
+def test_workflow_event_names_reads_on_block() -> None:
+    assert workflow_event_names(EVENT_WORKFLOW) == ["pull_request", "workflow_dispatch"]
+    assert workflow_event_names("name: Missing Events\n") == []
+
+
+def test_workflow_events_reject_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    check_workflow_events(
+        {
+            "compile": ["pull_request"],
+            "docs": ["push", "workflow_run"],
+        },
+        {
+            ".github/workflows/ignored.yml": ("ignored", ""),
+            "compile": (".github/workflows/compile.yml", EVENT_WORKFLOW),
+            "docs": (
+                ".github/workflows/docs.yml",
+                """\
+name: Docs
+
+on:
+  push:
+  workflow_dispatch:
+""",
+            ),
+        },
+        errors,
+    )
+
+    assert errors == [
+        ".github/workflows/compile.yml events contain triggers missing from product metadata: workflow_dispatch",
+        ".github/workflows/docs.yml events are missing product metadata events: workflow_run",
+        ".github/workflows/docs.yml events contain triggers missing from product metadata: workflow_dispatch",
     ]
 
 
@@ -293,6 +345,8 @@ def main() -> int:
     test_normalize_workflow_condition_collapses_whitespace()
     test_release_workflow_actions_require_expected_keys()
     test_workflow_action_usage_checks_expected_workflows()
+    test_workflow_event_names_reads_on_block()
+    test_workflow_events_reject_drift_from_product_metadata()
     test_workflow_event_path_filters_reads_quoted_paths()
     test_workflow_path_filters_reject_drift_from_product_metadata()
     test_workflow_event_index_normalizes_declared_events()

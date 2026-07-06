@@ -34,6 +34,41 @@ WORKFLOW_PATH_FILTER_TARGETS = {
 }
 
 
+def workflow_event_names(text: str) -> list[str]:
+    match = re.search(r"^on:\n(.*?)(?=^[A-Za-z0-9_-]+:|\Z)", text, re.DOTALL | re.MULTILINE)
+    if not match:
+        return []
+
+    events: list[str] = []
+    for line in match.group(1).splitlines():
+        event_match = re.match(r"^  ([A-Za-z0-9_-]+):", line)
+        if event_match:
+            events.append(event_match.group(1))
+    return events
+
+
+def check_workflow_events(
+    workflow_events: object,
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    if not isinstance(workflow_events, dict):
+        return
+
+    for workflow, (label, text) in workflow_texts.items():
+        raw_events = workflow_events.get(workflow)
+        if not isinstance(raw_events, list):
+            continue
+        expected_events = [str(event).strip() for event in raw_events if str(event).strip()]
+        actual_events = workflow_event_names(text)
+        missing_events = [event for event in expected_events if event not in actual_events]
+        extra_events = [event for event in actual_events if event not in expected_events]
+        if missing_events:
+            errors.append(f"{label} events are missing product metadata events: {', '.join(missing_events)}")
+        if extra_events:
+            errors.append(f"{label} events contain triggers missing from product metadata: {', '.join(extra_events)}")
+
+
 def unquote_workflow_value(value: str) -> str:
     value = value.strip()
     if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
@@ -700,16 +735,7 @@ def check_workflows(product: dict, errors: list[str]) -> None:
         "release": (".github/workflows/release.yml", release_workflow),
     }
     workflow_events = project.get("github_workflow_events", {})
-    if isinstance(workflow_events, dict):
-        for workflow, raw_events in workflow_events.items():
-            workflow_name = str(workflow).strip()
-            if workflow_name not in workflow_texts or not isinstance(raw_events, list):
-                continue
-            label, text = workflow_texts[workflow_name]
-            for event in raw_events:
-                event_name = str(event).strip()
-                if event_name:
-                    require_contains(text, f"  {event_name}:", label, errors)
+    check_workflow_events(workflow_events, workflow_texts, errors)
     workflow_event_types = project.get("github_workflow_event_types", {})
     if isinstance(workflow_event_types, dict):
         for key, raw_types in workflow_event_types.items():
