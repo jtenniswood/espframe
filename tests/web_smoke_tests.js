@@ -583,7 +583,7 @@ function smokeAssertionsForScenario(scenario) {
         const startingIds = ${JSON.stringify(smokeAlbumIds)};
         const startingLabels = ${JSON.stringify(smokeAlbumLabels)};
         const expectedIds = startingIds.slice().reverse().join(",");
-        const expectedLabels = startingLabels.slice().reverse().join(",");
+        const expectedLabels = JSON.stringify(startingLabels.slice().reverse());
 
         setSelect("Source", "Album");
         await waitFor(() => photoRows("Albums").length === 2, 3000, "album rows");
