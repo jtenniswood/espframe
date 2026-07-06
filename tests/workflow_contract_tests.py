@@ -23,6 +23,7 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_path_filters,
     check_workflow_default_branch,
     check_workflow_run_targets,
+    check_workflow_release_build_fail_fast,
     check_workflow_sparse_checkout_usage,
     check_workflow_top_level_env,
     normalize_workflow_condition,
@@ -39,6 +40,7 @@ from product_contract.workflows import (  # noqa: E402
     workflow_job_display_name,
     workflow_job_ids,
     workflow_job_needs,
+    workflow_job_strategy_fail_fast,
     workflow_job_runs_on,
     workflow_job_timeout_minutes,
     workflow_permissions,
@@ -288,6 +290,29 @@ jobs:
 """
 
 
+STRATEGY_WORKFLOW = """\
+name: Example
+
+jobs:
+  build-firmware:
+    name: Build Firmware
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.release-metadata.outputs.release_matrix) }}
+
+  missing-strategy:
+    name: Missing Strategy
+    runs-on: ubuntu-latest
+
+  missing-fail-fast:
+    name: Missing Fail Fast
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: []
+"""
+
+
 PERMISSION_WORKFLOW = """\
 name: Example
 
@@ -472,6 +497,54 @@ jobs:
 
     assert errors == [
         "release.yml job build-firmware timeout-minutes must be '30', found '45'",
+    ]
+
+
+def test_workflow_job_strategy_fail_fast_reads_strategy_value() -> None:
+    errors: list[str] = []
+    assert workflow_job_strategy_fail_fast(
+        workflow_job_block(STRATEGY_WORKFLOW, "build-firmware", "example.yml", errors)
+    ) == "false"
+    assert workflow_job_strategy_fail_fast(
+        workflow_job_block(STRATEGY_WORKFLOW, "missing-strategy", "example.yml", errors)
+    ) == ""
+    assert workflow_job_strategy_fail_fast(
+        workflow_job_block(STRATEGY_WORKFLOW, "missing-fail-fast", "example.yml", errors)
+    ) == ""
+    assert errors == []
+
+
+def test_workflow_release_build_fail_fast_rejects_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    check_workflow_release_build_fail_fast(
+        True,
+        {"release": ("release.yml", STRATEGY_WORKFLOW)},
+        errors,
+    )
+
+    assert errors == [
+        "release.yml job build-firmware strategy.fail-fast must be 'true', found 'false'",
+    ]
+
+    errors = []
+    check_workflow_release_build_fail_fast(
+        False,
+        {
+            "release": (
+                "release.yml",
+                """\
+jobs:
+  build-firmware:
+    name: Build Firmware
+    runs-on: ubuntu-latest
+""",
+            )
+        },
+        errors,
+    )
+
+    assert errors == [
+        "release.yml job build-firmware strategy is missing fail-fast",
     ]
 
 
@@ -985,6 +1058,8 @@ def main() -> int:
     test_workflow_job_runner_usage_rejects_drift_from_product_metadata()
     test_workflow_job_timeout_minutes_reads_job_timeout()
     test_workflow_job_timeout_usage_rejects_drift_from_product_metadata()
+    test_workflow_job_strategy_fail_fast_reads_strategy_value()
+    test_workflow_release_build_fail_fast_rejects_drift_from_product_metadata()
     test_workflow_job_dependency_usage_rejects_drift_from_product_metadata()
     test_workflow_permissions_reads_top_level_permissions()
     test_workflow_permissions_reject_drift_from_product_metadata()

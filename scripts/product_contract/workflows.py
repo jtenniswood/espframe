@@ -401,6 +401,23 @@ def workflow_job_field_value(job_block: str, field_name: str) -> str:
     return unquote_workflow_value(match.group(1)) if match else ""
 
 
+def workflow_job_nested_field_value(job_block: str, section_name: str, field_name: str) -> str:
+    match = re.search(
+        rf"^    {re.escape(section_name)}:\n(.*?)(?=^    [A-Za-z0-9_-]+:|\Z)",
+        job_block,
+        re.DOTALL | re.MULTILINE,
+    )
+    if not match:
+        return ""
+
+    field_match = re.search(
+        rf"^      {re.escape(field_name)}:\s*(.*?)\s*$",
+        match.group(1),
+        re.MULTILINE,
+    )
+    return unquote_workflow_value(field_match.group(1)) if field_match else ""
+
+
 def workflow_job_display_name(job_block: str) -> str:
     return workflow_job_field_value(job_block, "name")
 
@@ -446,6 +463,35 @@ def workflow_job_runs_on(job_block: str) -> str:
 
 def workflow_job_timeout_minutes(job_block: str) -> str:
     return workflow_job_field_value(job_block, "timeout-minutes")
+
+
+def workflow_job_strategy_fail_fast(job_block: str) -> str:
+    return workflow_job_nested_field_value(job_block, "strategy", "fail-fast")
+
+
+def check_workflow_release_build_fail_fast(
+    expected_fail_fast: object,
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    if not isinstance(expected_fail_fast, bool):
+        return
+    if "release" not in workflow_texts:
+        return
+
+    expected_fail_fast_value = str(expected_fail_fast).lower()
+    label, text = workflow_texts["release"]
+    job_block = workflow_job_block(text, "build-firmware", label, errors)
+    if not job_block:
+        return
+    actual_fail_fast = workflow_job_strategy_fail_fast(job_block)
+    if not actual_fail_fast:
+        errors.append(f"{label} job build-firmware strategy is missing fail-fast")
+    elif actual_fail_fast != expected_fail_fast_value:
+        errors.append(
+            f"{label} job build-firmware strategy.fail-fast must be {expected_fail_fast_value!r}, "
+            f"found {actual_fail_fast!r}"
+        )
 
 
 def check_workflow_job_timeout_usage(
@@ -749,13 +795,6 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         )
     if release_build_ref:
         require_contains(release_workflow, f"ref: {release_build_ref}", ".github/workflows/release.yml", errors)
-    if isinstance(release_build_fail_fast, bool):
-        require_contains(
-            release_workflow,
-            f"fail-fast: {str(release_build_fail_fast).lower()}",
-            ".github/workflows/release.yml",
-            errors,
-        )
     if release_notes_version_ref:
         require_contains(release_workflow, f"VERSION: {release_notes_version_ref}", ".github/workflows/release.yml", errors)
     if release_build_version_ref:
@@ -1060,6 +1099,11 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             "compile": (".github/workflows/compile.yml", compile_workflow),
             "release": (".github/workflows/release.yml", release_workflow),
         },
+        errors,
+    )
+    check_workflow_release_build_fail_fast(
+        release_build_fail_fast,
+        {"release": (".github/workflows/release.yml", release_workflow)},
         errors,
     )
     docs_release_lookup_needles = [
