@@ -15,6 +15,10 @@ from product_contract.workflows import (  # noqa: E402
     workflow_job_block,
     workflow_job_condition,
 )
+from product_contract.project_release_metadata import (  # noqa: E402
+    check_workflow_job_dependencies,
+    workflow_job_index,
+)
 
 
 WORKFLOW = """\
@@ -79,11 +83,49 @@ def test_normalize_workflow_condition_collapses_whitespace() -> None:
     assert normalize_workflow_condition("  one\n  two\tthree  ") == "one two three"
 
 
+def test_workflow_job_index_normalizes_declared_jobs() -> None:
+    configured_jobs, jobs_by_workflow = workflow_job_index(
+        {
+            "compile": {
+                "validate": "Validate",
+                " compile ": "Compile",
+            },
+            "": {"ignored": "Ignored"},
+            "invalid": ["not", "a", "mapping"],
+        }
+    )
+
+    assert configured_jobs == {"compile.validate", "compile.compile"}
+    assert jobs_by_workflow == {"compile": {"validate", "compile"}}
+
+
+def test_workflow_job_dependencies_reject_unknown_jobs() -> None:
+    errors: list[str] = []
+    check_workflow_job_dependencies(
+        {
+            "compile.compile": ["validate", "missing"],
+            "compile.unknown": ["validate"],
+            "release.publish": ["build-firmware"],
+        },
+        {"compile.validate", "compile.compile"},
+        {"compile": {"validate", "compile"}},
+        errors,
+    )
+
+    assert errors == [
+        "project.github_workflow_job_dependencies.compile.compile references unknown job: missing",
+        "project.github_workflow_job_dependencies.compile.unknown must point at a known workflow job",
+        "project.github_workflow_job_dependencies.release.publish must point at a known workflow job",
+    ]
+
+
 def main() -> int:
     test_workflow_job_block_finds_exact_job()
     test_workflow_job_block_reports_missing_job()
     test_workflow_job_condition_handles_supported_forms()
     test_normalize_workflow_condition_collapses_whitespace()
+    test_workflow_job_index_normalizes_declared_jobs()
+    test_workflow_job_dependencies_reject_unknown_jobs()
     print("workflow contract tests passed")
     return 0
 

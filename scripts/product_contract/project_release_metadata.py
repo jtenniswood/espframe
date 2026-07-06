@@ -4,6 +4,60 @@ import re
 
 from product_contract.common import ROOT, check_relative_path, read
 
+
+def workflow_job_index(workflow_jobs: object) -> tuple[set[str], dict[str, set[str]]]:
+    if not isinstance(workflow_jobs, dict):
+        return set(), {}
+
+    configured_workflow_jobs: set[str] = set()
+    jobs_by_workflow: dict[str, set[str]] = {}
+    for raw_workflow, raw_jobs in workflow_jobs.items():
+        workflow = str(raw_workflow).strip()
+        if not workflow or not isinstance(raw_jobs, dict):
+            continue
+        job_ids = {str(raw_job_id).strip() for raw_job_id in raw_jobs if str(raw_job_id).strip()}
+        if not job_ids:
+            continue
+        configured_workflow_jobs.update(f"{workflow}.{job_id}" for job_id in job_ids)
+        jobs_by_workflow[workflow] = job_ids
+    return configured_workflow_jobs, jobs_by_workflow
+
+
+def check_workflow_job_dependencies(
+    workflow_job_dependencies: object,
+    configured_workflow_jobs: set[str],
+    jobs_by_workflow: dict[str, set[str]],
+    errors: list[str],
+) -> None:
+    if not isinstance(workflow_job_dependencies, dict) or not workflow_job_dependencies:
+        errors.append("project.github_workflow_job_dependencies must be a non-empty object")
+        return
+
+    for raw_key, raw_dependencies in workflow_job_dependencies.items():
+        key = str(raw_key).strip()
+        label = f"project.github_workflow_job_dependencies.{key or '<missing>'}"
+        workflow, _, job_id = key.partition(".")
+        if not workflow or not job_id:
+            errors.append(f"{label} must use workflow.job format")
+        elif key not in configured_workflow_jobs:
+            errors.append(f"{label} must point at a known workflow job")
+        if not isinstance(raw_dependencies, list) or not raw_dependencies:
+            errors.append(f"{label} must be a non-empty list")
+            continue
+        dependencies = [str(dependency).strip() for dependency in raw_dependencies]
+        if any(not dependency for dependency in dependencies):
+            errors.append(f"{label} must only contain non-empty strings")
+        if len(dependencies) != len(set(dependencies)):
+            errors.append(f"{label} must not contain duplicate jobs")
+
+        known_jobs = jobs_by_workflow.get(workflow)
+        if known_jobs is None:
+            continue
+        unknown_dependencies = sorted({dependency for dependency in dependencies if dependency} - known_jobs)
+        for dependency in unknown_dependencies:
+            errors.append(f"{label} references unknown job: {dependency}")
+
+
 def check_project_release_metadata(product: dict, errors: list[str]) -> None:
     project = product["project"]
     default_branch = str(project.get("github_default_branch", "")).strip()
@@ -188,33 +242,13 @@ def check_project_release_metadata(product: dict, errors: list[str]) -> None:
                     errors.append(f"project.github_workflow_jobs.{workflow or '<missing>'} job ids must be non-empty strings")
                 if not job_name:
                     errors.append(f"project.github_workflow_jobs.{workflow or '<missing>'}.{job_id or '<missing>'} must be a non-empty string")
+    configured_workflow_jobs, jobs_by_workflow = workflow_job_index(workflow_jobs)
     workflow_job_dependencies = project.get("github_workflow_job_dependencies", {})
-    if not isinstance(workflow_job_dependencies, dict) or not workflow_job_dependencies:
-        errors.append("project.github_workflow_job_dependencies must be a non-empty object")
-    else:
-        for raw_key, raw_dependencies in workflow_job_dependencies.items():
-            key = str(raw_key).strip()
-            workflow, _, job_id = key.partition(".")
-            if not workflow or not job_id:
-                errors.append(f"project.github_workflow_job_dependencies.{key or '<missing>'} must use workflow.job format")
-            if not isinstance(raw_dependencies, list) or not raw_dependencies:
-                errors.append(f"project.github_workflow_job_dependencies.{key or '<missing>'} must be a non-empty list")
-                continue
-            dependencies = [str(dependency).strip() for dependency in raw_dependencies]
-            if any(not dependency for dependency in dependencies):
-                errors.append(f"project.github_workflow_job_dependencies.{key or '<missing>'} must only contain non-empty strings")
-            if len(dependencies) != len(set(dependencies)):
-                errors.append(f"project.github_workflow_job_dependencies.{key or '<missing>'} must not contain duplicate jobs")
+    check_workflow_job_dependencies(workflow_job_dependencies, configured_workflow_jobs, jobs_by_workflow, errors)
     workflow_job_conditions = project.get("github_workflow_job_conditions", {})
     if not isinstance(workflow_job_conditions, dict) or not workflow_job_conditions:
         errors.append("project.github_workflow_job_conditions must be a non-empty object")
     else:
-        configured_workflow_jobs = {
-            f"{workflow}.{job_id}"
-            for workflow, jobs in workflow_jobs.items()
-            if isinstance(jobs, dict)
-            for job_id in jobs
-        }
         configured_condition_jobs = {str(key).strip() for key in workflow_job_conditions}
         missing_condition_jobs = sorted(configured_workflow_jobs - configured_condition_jobs)
         extra_condition_jobs = sorted(configured_condition_jobs - configured_workflow_jobs)
