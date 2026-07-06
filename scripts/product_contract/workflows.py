@@ -621,6 +621,19 @@ def workflow_target_job_block(
     return label, job_id, job_block
 
 
+def workflow_job_blocks(
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> list[tuple[str, str, str, str]]:
+    blocks: list[tuple[str, str, str, str]] = []
+    for workflow_name, (label, text) in workflow_texts.items():
+        for job_id in workflow_job_ids(text):
+            job_block = workflow_job_block(text, job_id, label, errors)
+            if job_block:
+                blocks.append((workflow_name, label, job_id, job_block))
+    return blocks
+
+
 def check_workflow_job_mapping(
     target: str,
     expected_values: dict[str, str],
@@ -1193,19 +1206,15 @@ def check_workflow_job_runner_usage(
     if not expected_runner:
         return
 
-    for label, text in workflow_texts.values():
-        for job_id in workflow_job_ids(text):
-            job_block = workflow_job_block(text, job_id, label, errors)
-            if not job_block:
-                continue
-            actual_runner = workflow_job_runs_on(job_block)
-            append_scalar_value_error(
-                actual_runner,
-                expected_runner,
-                f"{label} job {job_id} is missing runs-on",
-                f"{label} job {job_id} runs-on",
-                errors,
-            )
+    for _, label, job_id, job_block in workflow_job_blocks(workflow_texts, errors):
+        actual_runner = workflow_job_runs_on(job_block)
+        append_scalar_value_error(
+            actual_runner,
+            expected_runner,
+            f"{label} job {job_id} is missing runs-on",
+            f"{label} job {job_id} runs-on",
+            errors,
+        )
 
 
 def workflow_job_needs(job_block: str) -> list[str]:
@@ -1238,14 +1247,13 @@ def check_workflow_job_dependency_usage(
     configured_keys = {str(key).strip() for key in workflow_job_dependencies if str(key).strip()}
     for raw_key, raw_dependencies in workflow_job_dependencies.items():
         key = str(raw_key).strip()
-        workflow_name, _, job_id = key.partition(".")
-        if workflow_name not in workflow_texts or not job_id or not isinstance(raw_dependencies, list):
+        if not isinstance(raw_dependencies, list):
             continue
-        label, text = workflow_texts[workflow_name]
         expected_dependencies = [str(dependency).strip() for dependency in raw_dependencies if str(dependency).strip()]
-        job_block = workflow_job_block(text, job_id, label, errors)
-        if not job_block:
+        target_job = workflow_target_job_block(key, workflow_texts, errors)
+        if target_job is None:
             continue
+        label, job_id, job_block = target_job
         actual_dependencies = workflow_job_needs(job_block)
         append_list_drift_errors(
             expected_dependencies,
@@ -1255,15 +1263,13 @@ def check_workflow_job_dependency_usage(
             errors,
         )
 
-    for workflow_name, (label, text) in workflow_texts.items():
-        for job_id in workflow_job_ids(text):
-            key = f"{workflow_name}.{job_id}"
-            if key in configured_keys:
-                continue
-            job_block = workflow_job_block(text, job_id, label, errors)
-            actual_dependencies = workflow_job_needs(job_block)
-            if actual_dependencies:
-                errors.append(f"{label} job {job_id} needs are missing from product metadata: {', '.join(actual_dependencies)}")
+    for workflow_name, label, job_id, job_block in workflow_job_blocks(workflow_texts, errors):
+        key = f"{workflow_name}.{job_id}"
+        if key in configured_keys:
+            continue
+        actual_dependencies = workflow_job_needs(job_block)
+        if actual_dependencies:
+            errors.append(f"{label} job {job_id} needs are missing from product metadata: {', '.join(actual_dependencies)}")
 
 
 def workflow_sparse_checkout_entries(text: str) -> list[tuple[list[str], str]]:
