@@ -1,8 +1,26 @@
 from __future__ import annotations
 
 import json
+import re
 
 from product_contract.common import ROOT, read, require_contains
+
+
+def web_smoke_scenario_names(smoke_test: str, errors: list[str]) -> set[str]:
+    if not smoke_test:
+        return set()
+
+    match = re.search(r"\bconst\s+scenarios\s*=\s*\[(.*?)\n\s*\];", smoke_test, re.DOTALL)
+    if not match:
+        errors.append("tests/web_smoke_tests.js must define const scenarios = [...]")
+        return set()
+
+    names = re.findall(r'\bname:\s*"([^"]+)"', match.group(1))
+    if not names:
+        errors.append("tests/web_smoke_tests.js scenarios must list at least one named scenario")
+    if len(names) != len(set(names)):
+        errors.append("tests/web_smoke_tests.js scenarios must not contain duplicate names")
+    return set(names)
 
 
 def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
@@ -97,12 +115,15 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
         errors.append("package-lock.json root package license must match project.license_id")
 
     smoke_test = read(ROOT / "tests" / "web_smoke_tests.js", errors)
+    smoke_scenario_names = web_smoke_scenario_names(smoke_test, errors)
     smoke_scenarios = product["project"].get("web_smoke_required_scenarios", [])
     if isinstance(smoke_scenarios, list):
         for scenario in smoke_scenarios:
             scenario_id = str(scenario).strip()
-            if scenario_id:
-                require_contains(smoke_test, f'name: "{scenario_id}"', "tests/web_smoke_tests.js", errors)
+            if scenario_id and scenario_id not in smoke_scenario_names:
+                errors.append(
+                    f"project.web_smoke_required_scenarios {scenario_id} must be listed in tests/web_smoke_tests.js scenarios"
+                )
     require_contains(smoke_test, "--scenario", "tests/web_smoke_tests.js", errors)
     require_contains(smoke_test, "--list", "tests/web_smoke_tests.js", errors)
     require_contains(
