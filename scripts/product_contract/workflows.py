@@ -111,6 +111,10 @@ def workflow_event_path_filters(text: str, event_name: str) -> list[str]:
     return workflow_event_list_field_values(text, event_name, "paths")
 
 
+def workflow_event_branch_filters(text: str, event_name: str) -> list[str]:
+    return workflow_event_list_field_values(text, event_name, "branches")
+
+
 def workflow_event_type_filters(text: str, event_name: str) -> list[str]:
     return workflow_event_list_field_values(text, event_name, "types")
 
@@ -172,6 +176,29 @@ def check_workflow_run_targets(
         errors.append(
             f"{label} workflow_run workflows contain targets missing from product metadata: "
             + ", ".join(extra_targets)
+        )
+
+
+def check_workflow_default_branch(
+    expected_branch: str,
+    label: str,
+    text: str,
+    errors: list[str],
+) -> None:
+    expected_branch = expected_branch.strip()
+    if not expected_branch:
+        return
+
+    expected_branches = [expected_branch]
+    actual_branches = workflow_event_branch_filters(text, "push")
+    missing_branches = [branch for branch in expected_branches if branch not in actual_branches]
+    extra_branches = [branch for branch in actual_branches if branch not in expected_branches]
+    if missing_branches:
+        errors.append(f"{label} push branches are missing default branch: {', '.join(missing_branches)}")
+    if extra_branches:
+        errors.append(
+            f"{label} push branches contain branches missing from product metadata: "
+            + ", ".join(extra_branches)
         )
 
 
@@ -1002,8 +1029,7 @@ def check_workflows(product: dict, errors: list[str]) -> None:
     docs_workflow = read(ROOT / ".github" / "workflows" / "docs.yml", errors)
     release_workflow = read(ROOT / ".github" / "workflows" / "release.yml", errors)
     default_branch = str(project.get("github_default_branch", "")).strip()
-    if default_branch:
-        require_contains(docs_workflow, f"branches: [{default_branch}]", ".github/workflows/docs.yml", errors)
+    check_workflow_default_branch(default_branch, ".github/workflows/docs.yml", docs_workflow, errors)
     workflow_path_filters = project.get("github_workflow_path_filters", {})
     check_workflow_path_filters(
         workflow_path_filters,

@@ -20,9 +20,11 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_names,
     check_workflow_permissions,
     check_workflow_path_filters,
+    check_workflow_default_branch,
     check_workflow_run_targets,
     normalize_workflow_condition,
     workflow_display_name,
+    workflow_event_branch_filters,
     workflow_event_names,
     workflow_event_path_filters,
     workflow_event_type_filters,
@@ -82,6 +84,18 @@ on:
       - "components/**"
       - 'docs/**'
       - scripts/**
+  workflow_dispatch:
+"""
+
+
+BRANCH_WORKFLOW = """\
+name: Example
+
+on:
+  push:
+    branches:
+      - main
+      - "release"
   workflow_dispatch:
 """
 
@@ -523,6 +537,31 @@ on:
     ]
 
 
+def test_workflow_event_branch_filters_reads_inline_and_block_lists() -> None:
+    assert workflow_event_branch_filters("on:\n  push:\n    branches: [main]\n", "push") == ["main"]
+    assert workflow_event_branch_filters(BRANCH_WORKFLOW, "push") == ["main", "release"]
+    assert workflow_event_branch_filters(BRANCH_WORKFLOW, "workflow_dispatch") == []
+    assert workflow_event_branch_filters(BRANCH_WORKFLOW, "missing") == []
+
+
+def test_workflow_default_branch_rejects_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    check_workflow_default_branch(
+        "develop",
+        ".github/workflows/docs.yml",
+        BRANCH_WORKFLOW,
+        errors,
+    )
+
+    assert errors == [
+        ".github/workflows/docs.yml push branches are missing default branch: develop",
+        (
+            ".github/workflows/docs.yml push branches contain branches missing from product metadata: "
+            "main, release"
+        ),
+    ]
+
+
 def test_workflow_event_type_filters_reads_inline_and_block_lists() -> None:
     assert workflow_event_type_filters(EVENT_TYPE_WORKFLOW, "workflow_run") == ["completed", "requested"]
     assert workflow_event_type_filters(EVENT_TYPE_WORKFLOW, "release") == ["published", "prereleased"]
@@ -717,6 +756,8 @@ def main() -> int:
     test_workflow_action_usage_checks_expected_workflows()
     test_workflow_event_names_reads_on_block()
     test_workflow_events_reject_drift_from_product_metadata()
+    test_workflow_event_branch_filters_reads_inline_and_block_lists()
+    test_workflow_default_branch_rejects_drift_from_product_metadata()
     test_workflow_event_type_filters_reads_inline_and_block_lists()
     test_workflow_event_workflow_filters_reads_inline_and_block_lists()
     test_workflow_run_targets_reject_drift_from_product_metadata()
