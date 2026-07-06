@@ -19,6 +19,7 @@ from product_contract.workflows import (  # noqa: E402
     check_workflow_gh_cli_env,
     check_workflow_job_dependency_usage,
     check_workflow_job_runner_usage,
+    check_workflow_job_run_command,
     check_workflow_job_timeout_usage,
     check_workflow_jobs,
     check_workflow_names,
@@ -441,6 +442,29 @@ jobs:
 """
 
 
+RUN_COMMAND_WORKFLOW = """\
+name: Example
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run PR checks
+        run: npm run check:pr
+
+  build-docs:
+    name: Build Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build docs
+        run: npm run docs:build
+"""
+
+
 def test_workflow_job_block_finds_exact_job() -> None:
     errors: list[str] = []
     block = workflow_job_block(WORKFLOW, "folded", "example.yml", errors)
@@ -765,6 +789,22 @@ def test_workflow_action_step_inputs_rejects_drift_from_product_metadata() -> No
             "docs.yml job publish step 'Download all firmware artifacts' with.merge-multiple "
             "must be 'false', found 'true'"
         ),
+    ]
+
+
+def test_workflow_job_run_command_rejects_drift_from_product_metadata() -> None:
+    errors: list[str] = []
+    workflow_texts = {
+        "compile": ("compile.yml", RUN_COMMAND_WORKFLOW),
+        "docs": ("docs.yml", RUN_COMMAND_WORKFLOW),
+    }
+
+    check_workflow_job_run_command("compile.validate", "npm ci", workflow_texts, errors)
+    check_workflow_job_run_command("docs.build-docs", "npm run docs:build", workflow_texts, errors)
+    check_workflow_job_run_command("compile.validate", "npm run docs:build", workflow_texts, errors)
+
+    assert errors == [
+        "compile.yml job validate is missing run command 'npm run docs:build'",
     ]
 
 
@@ -1320,6 +1360,7 @@ def main() -> int:
     test_workflow_gh_cli_env_rejects_drift_from_product_metadata()
     test_workflow_step_uses_and_with_read_action_inputs()
     test_workflow_action_step_inputs_rejects_drift_from_product_metadata()
+    test_workflow_job_run_command_rejects_drift_from_product_metadata()
     test_workflow_job_dependency_usage_rejects_drift_from_product_metadata()
     test_workflow_permissions_reads_top_level_permissions()
     test_workflow_permissions_reject_drift_from_product_metadata()

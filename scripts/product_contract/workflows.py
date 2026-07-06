@@ -666,6 +666,28 @@ def check_workflow_action_step_inputs(
             )
 
 
+def check_workflow_job_run_command(
+    target: str,
+    expected_run: str,
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    expected_run = expected_run.strip()
+    workflow_name, _, job_id = target.partition(".")
+    if not expected_run or workflow_name not in workflow_texts or not job_id:
+        return
+
+    label, text = workflow_texts[workflow_name]
+    job_block = workflow_job_block(text, job_id, label, errors)
+    if not job_block:
+        return
+
+    for step_block in workflow_job_step_blocks(job_block):
+        if workflow_step_run(step_block).strip() == expected_run:
+            return
+    errors.append(f"{label} job {job_id} is missing run command {expected_run!r}")
+
+
 def check_workflow_gh_cli_env(
     github_cli_env: object,
     workflow_texts: dict[str, tuple[str, str]],
@@ -1676,12 +1698,17 @@ def check_workflows(product: dict, errors: list[str]) -> None:
 
 
 def check_node_version(product: dict, errors: list[str]) -> None:
-    version = str(product["project"].get("node_version", "")).strip()
-    package_cache = str(product["project"].get("node_package_cache", "")).strip()
-    install_command = str(product["project"].get("node_install_command", "")).strip()
-    local_check_command = str(product["project"].get("local_check_command", "")).strip()
-    docs_build_command = str(product["project"].get("docs_build_command", "")).strip()
-    node24_env = str(product["project"].get("github_actions_node24_env", "")).strip()
+    project = product["project"]
+    version = str(project.get("node_version", "")).strip()
+    package_cache = str(project.get("node_package_cache", "")).strip()
+    install_command = str(project.get("node_install_command", "")).strip()
+    local_check_command = str(project.get("local_check_command", "")).strip()
+    docs_build_command = str(project.get("docs_build_command", "")).strip()
+    node24_env = str(project.get("github_actions_node24_env", "")).strip()
+    release_actions = project.get("release_workflow_actions", {})
+    setup_node_action = (
+        str(release_actions.get("setup_node", "")).strip() if isinstance(release_actions, dict) else ""
+    )
     if not version:
         errors.append("project.node_version is required")
         return
@@ -1690,18 +1717,29 @@ def check_node_version(product: dict, errors: list[str]) -> None:
     if version == "24" and not node24_env:
         errors.append("project.github_actions_node24_env is required when project.node_version is 24")
 
-    node_workflow_paths = (ROOT / ".github" / "workflows" / "compile.yml", ROOT / ".github" / "workflows" / "docs.yml")
-    for path in node_workflow_paths:
-        text = read(path, errors)
-        require_contains(text, f"node-version: {version}", rel(path), errors)
-        if package_cache:
-            require_contains(text, f"cache: {package_cache}", rel(path), errors)
-        if install_command:
-            require_contains(text, f"run: {install_command}", rel(path), errors)
-
     compile_workflow = read(ROOT / ".github" / "workflows" / "compile.yml", errors)
     docs_workflow = read(ROOT / ".github" / "workflows" / "docs.yml", errors)
+    workflow_texts = {
+        "compile": (".github/workflows/compile.yml", compile_workflow),
+        "docs": (".github/workflows/docs.yml", docs_workflow),
+    }
+    setup_node_inputs = {"node-version": version}
+    if package_cache:
+        setup_node_inputs["cache"] = package_cache
+    for target in ("compile.validate", "docs.build-docs"):
+        check_workflow_action_step_inputs(
+            target,
+            setup_node_action,
+            "node-version",
+            version,
+            setup_node_inputs,
+            workflow_texts,
+            errors,
+        )
+    if install_command:
+        for target in ("compile.validate", "docs.build-docs"):
+            check_workflow_job_run_command(target, install_command, workflow_texts, errors)
     if local_check_command:
-        require_contains(compile_workflow, f"run: {local_check_command}", ".github/workflows/compile.yml", errors)
+        check_workflow_job_run_command("compile.validate", local_check_command, workflow_texts, errors)
     if docs_build_command:
-        require_contains(docs_workflow, f"run: {docs_build_command}", ".github/workflows/docs.yml", errors)
+        check_workflow_job_run_command("docs.build-docs", docs_build_command, workflow_texts, errors)
