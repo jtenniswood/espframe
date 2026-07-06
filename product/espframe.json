@@ -886,6 +886,10 @@
       "scripts/product_config.py",
       "product/espframe.json"
     ],
+    "github_metadata_sparse_checkout_files": [
+      "scripts/product_config.py",
+      "product/espframe.json"
+    ],
     "github_sparse_checkout_cone_mode": false,
     "firmware_compile_timeout_minutes": 30,
     "esphome_docker_image": "ghcr.io/esphome/esphome",

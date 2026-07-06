@@ -26,6 +26,13 @@ WORKFLOW_PATH_FILTER_TARGETS = {
 }
 
 
+WORKFLOW_SPARSE_CHECKOUT_TARGETS = {
+    "compile": ("metadata",),
+    "docs": ("release",),
+    "release": ("metadata", "release"),
+}
+
+
 def workflow_event_names(text: str) -> list[str]:
     match = re.search(r"^on:\n(.*?)(?=^[A-Za-z0-9_-]+:|\Z)", text, re.DOTALL | re.MULTILINE)
     if not match:
@@ -465,6 +472,62 @@ def check_workflow_job_dependency_usage(
                 errors.append(f"{label} job {job_id} needs are missing from product metadata: {', '.join(actual_dependencies)}")
 
 
+def workflow_sparse_checkout_blocks(text: str) -> list[list[str]]:
+    blocks: list[list[str]] = []
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        match = re.match(r"^(\s*)sparse-checkout:\s*\|\s*$", line)
+        if not match:
+            continue
+        value_prefix = f"{match.group(1)}  "
+        paths: list[str] = []
+        for continuation in lines[index + 1:]:
+            if continuation.startswith(value_prefix):
+                paths.append(unquote_workflow_value(continuation.removeprefix(value_prefix)))
+                continue
+            if continuation.strip():
+                break
+        blocks.append(paths)
+    return blocks
+
+
+def check_workflow_sparse_checkout_usage(
+    release_checkout_files: list[str],
+    metadata_checkout_files: list[str],
+    workflow_texts: dict[str, tuple[str, str]],
+    errors: list[str],
+) -> None:
+    expected_checkout_groups = {
+        "metadata": [path.strip() for path in metadata_checkout_files if path.strip()],
+        "release": [path.strip() for path in release_checkout_files if path.strip()],
+    }
+    if not expected_checkout_groups["metadata"] or not expected_checkout_groups["release"]:
+        return
+
+    for workflow_name, (label, text) in workflow_texts.items():
+        expected_groups = set(WORKFLOW_SPARSE_CHECKOUT_TARGETS.get(workflow_name, ()))
+        if not expected_groups:
+            continue
+
+        matched_groups: list[str] = []
+        for block in workflow_sparse_checkout_blocks(text):
+            matching_groups = [name for name, paths in expected_checkout_groups.items() if block == paths]
+            if matching_groups:
+                matched_groups.append(matching_groups[0])
+            else:
+                errors.append(f"{label} sparse-checkout block must match product metadata, found: {', '.join(block)}")
+
+        for expected_group in sorted(expected_groups):
+            if expected_group not in matched_groups:
+                errors.append(
+                    f"{label} is missing {expected_group} sparse-checkout block: "
+                    + ", ".join(expected_checkout_groups[expected_group])
+                )
+        for matched_group in matched_groups:
+            if matched_group not in expected_groups:
+                errors.append(f"{label} sparse-checkout block {matched_group} is not expected")
+
+
 def normalize_workflow_condition(condition: str) -> str:
     return re.sub(r"\s+", " ", condition).strip()
 
@@ -543,6 +606,9 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     sparse_checkout_files = [
         str(path).strip() for path in project.get("github_sparse_checkout_files", []) if str(path).strip()
     ]
+    metadata_sparse_checkout_files = [
+        str(path).strip() for path in project.get("github_metadata_sparse_checkout_files", []) if str(path).strip()
+    ]
     sparse_checkout_cone_mode = project.get("github_sparse_checkout_cone_mode")
     docs_verify_retries = project.get("docs_firmware_verify_retries")
     docs_verify_delay = project.get("docs_firmware_verify_delay_seconds")
@@ -604,12 +670,18 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             require_contains(text, "$DEVICE_SLUGS", label, errors)
         if f"DEVICE_SLUGS: {expected_slugs}" in text:
             errors.append(f"{label} must read DEVICE_SLUGS from product metadata, not a literal device list")
-        if sparse_checkout_files:
-            require_contains(text, "sparse-checkout: |", label, errors)
-            for path in sparse_checkout_files:
-                require_contains(text, f"            {path}", label, errors)
         if isinstance(sparse_checkout_cone_mode, bool):
             require_contains(text, f"sparse-checkout-cone-mode: {str(sparse_checkout_cone_mode).lower()}", label, errors)
+    check_workflow_sparse_checkout_usage(
+        sparse_checkout_files,
+        metadata_sparse_checkout_files,
+        {
+            "compile": (".github/workflows/compile.yml", compile_workflow),
+            "docs": (".github/workflows/docs.yml", docs_workflow),
+            "release": (".github/workflows/release.yml", release_workflow),
+        },
+        errors,
+    )
     check_workflow_action_usage(
         release_actions,
         {

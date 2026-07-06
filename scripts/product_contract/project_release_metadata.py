@@ -130,6 +130,22 @@ def check_workflow_job_dependencies(
             errors.append(f"{label} references unknown job: {dependency}")
 
 
+def check_sparse_checkout_files(field_name: str, sparse_checkout_files: object, errors: list[str]) -> None:
+    if not isinstance(sparse_checkout_files, list) or not sparse_checkout_files:
+        errors.append(f"project.{field_name} must be a non-empty list")
+        return
+
+    paths = [str(path).strip() for path in sparse_checkout_files]
+    if any(not path for path in paths):
+        errors.append(f"project.{field_name} must only contain non-empty strings")
+    if len(paths) != len(set(paths)):
+        errors.append(f"project.{field_name} must not contain duplicate paths")
+    for raw_path in paths:
+        path = check_relative_path(raw_path, f"project.{field_name} entry", errors)
+        if path:
+            read(ROOT / path, errors)
+
+
 def check_project_release_metadata(product: dict, errors: list[str]) -> None:
     project = product["project"]
     default_branch = str(project.get("github_default_branch", "")).strip()
@@ -319,19 +335,12 @@ def check_project_release_metadata(product: dict, errors: list[str]) -> None:
                 errors.append(f"project.github_workflow_job_conditions.{key or '<missing>'} must use workflow.job format")
             if raw_condition is not None and (not isinstance(raw_condition, str) or not raw_condition.strip()):
                 errors.append(f"project.github_workflow_job_conditions.{key or '<missing>'} must be a non-empty string or null")
-    sparse_checkout_files = project.get("github_sparse_checkout_files", [])
-    if not isinstance(sparse_checkout_files, list) or not sparse_checkout_files:
-        errors.append("project.github_sparse_checkout_files must be a non-empty list")
-    else:
-        paths = [str(path).strip() for path in sparse_checkout_files]
-        if any(not path for path in paths):
-            errors.append("project.github_sparse_checkout_files must only contain non-empty strings")
-        if len(paths) != len(set(paths)):
-            errors.append("project.github_sparse_checkout_files must not contain duplicate paths")
-        for raw_path in paths:
-            path = check_relative_path(raw_path, "project.github_sparse_checkout_files entry", errors)
-            if path:
-                read(ROOT / path, errors)
+    check_sparse_checkout_files("github_sparse_checkout_files", project.get("github_sparse_checkout_files", []), errors)
+    check_sparse_checkout_files(
+        "github_metadata_sparse_checkout_files",
+        project.get("github_metadata_sparse_checkout_files", []),
+        errors,
+    )
     if not isinstance(project.get("github_sparse_checkout_cone_mode"), bool):
         errors.append("project.github_sparse_checkout_cone_mode must be true or false")
     release_notes_fetch_depth = project.get("github_release_notes_fetch_depth")
