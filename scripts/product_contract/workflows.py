@@ -449,13 +449,6 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
                 ".github/workflows/compile.yml",
                 errors,
             )
-        if device_dir:
-            require_contains(
-                compile_workflow,
-                f'"{device_dir}/**"',
-                ".github/workflows/compile.yml",
-                errors,
-            )
         public_manifest_dirs = []
         for field in ("public_manifest", "public_beta_manifest"):
             public_manifest = str(devices_by_slug.get(slug, {}).get(field, "")).strip()
@@ -545,7 +538,6 @@ def check_esphome_version(product: dict, errors: list[str]) -> None:
 
 def check_workflows(product: dict, errors: list[str]) -> None:
     compile_workflow = read(ROOT / ".github" / "workflows" / "compile.yml", errors)
-    require_contains(compile_workflow, '"product/**"', ".github/workflows/compile.yml", errors)
 
     docs_workflow = read(ROOT / ".github" / "workflows" / "docs.yml", errors)
     release_workflow = read(ROOT / ".github" / "workflows" / "release.yml", errors)
@@ -554,9 +546,6 @@ def check_workflows(product: dict, errors: list[str]) -> None:
         require_contains(docs_workflow, f"branches: [{default_branch}]", ".github/workflows/docs.yml", errors)
     workflow_path_filters = product["project"].get("github_workflow_path_filters", {})
     if isinstance(workflow_path_filters, dict):
-        for path in workflow_path_filters.get("compile_pull_request", []):
-            if isinstance(path, str) and path.strip():
-                require_workflow_path_filter(compile_workflow, path.strip(), ".github/workflows/compile.yml", errors)
         for path in workflow_path_filters.get("docs_push", []):
             if isinstance(path, str) and path.strip():
                 require_workflow_path_filter(docs_workflow, path.strip(), ".github/workflows/docs.yml", errors)

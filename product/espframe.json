@@ -796,24 +796,11 @@
       "release": { "contents": "write" }
     },
     "github_workflow_names": {
-      "compile": "Compile Check",
+      "compile": "PR Validation",
       "docs": "Deploy Docs",
       "release": "Build Release"
     },
     "github_workflow_path_filters": {
-      "compile_pull_request": [
-        "components/**",
-        "common/**",
-        "devices/guition-esp32-p4-jc8012p4a1/**",
-        "builds/**",
-        "docs/**",
-        "package.json",
-        "package-lock.json",
-        "product/**",
-        "scripts/**",
-        "tests/**",
-        ".github/workflows/**"
-      ],
       "docs_push": [
         "docs/**",
         "product/**",
@@ -825,7 +812,7 @@
       ]
     },
     "github_workflow_events": {
-      "compile": ["pull_request"],
+      "compile": ["pull_request", "workflow_dispatch"],
       "docs": ["push", "workflow_run", "workflow_dispatch"],
       "release": ["release", "workflow_dispatch"]
     },

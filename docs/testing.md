@@ -10,7 +10,7 @@ Before opening a pull request, run:
 npm run check:pr
 ```
 
-This is the normal confidence check for feature branches. It verifies generated files, product metadata, backup compatibility, web UI behavior, firmware helper logic, timezone data, and the documentation build.
+This is the normal confidence check for feature branches. It verifies generated files, product metadata, backup compatibility, web UI behavior, firmware helper logic, timezone data, and the documentation build. GitHub runs this automatically on every pull request as the `Validate PR Gate` check.
 
 Before publishing a firmware release, run:
 
@@ -56,7 +56,7 @@ This group compiles and runs host-side C++ tests for firmware helper logic, then
 
 ### Full Firmware Compile
 
-The pull request workflow compiles the 10-inch P4 factory firmware after the PR checks pass. To run the same type of compile locally with Docker:
+The pull request workflow compiles the 10-inch P4 factory firmware after the PR checks pass. GitHub runs this automatically on every pull request as the `Compile Firmware` check. To run the same type of compile locally with Docker:
 
 ```sh
 docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.6.4 compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml

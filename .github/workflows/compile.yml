@@ -1,26 +1,18 @@
-name: Compile Check
+name: PR Validation
 
 on:
   pull_request:
-    paths:
-      - "components/**"
-      - "common/**"
-      - "devices/guition-esp32-p4-jc8012p4a1/**"
-      - "builds/**"
-      - "docs/**"
-      - "package.json"
-      - "package-lock.json"
-      - "product/**"
-      - "scripts/**"
-      - "tests/**"
-      - ".agents/**"
-      - ".github/workflows/**"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
