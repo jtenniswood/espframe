@@ -1863,6 +1863,8 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
                 f'"{compile_firmware_output_dir}/${{{{ matrix.slug }}}}.factory.bin"',
                 f'"{compile_firmware_output_dir}/${{{{ matrix.slug }}}}.ota.bin"',
                 f'"{compile_firmware_output_dir}/${{{{ matrix.slug }}}}.version.txt"',
+                'echo "source_ref=${GITHUB_REF_NAME}"',
+                'echo "source_sha=${GITHUB_SHA}"',
             ],
             workflow_texts,
             errors,

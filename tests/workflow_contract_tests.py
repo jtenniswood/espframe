@@ -1674,6 +1674,8 @@ def test_workflow_named_step_run_contains_checks_compile_artifact_step() -> None
             '"output/${{ matrix.slug }}.factory.bin"',
             '"output/${{ matrix.slug }}.ota.bin"',
             '"output/${{ matrix.slug }}.version.txt"',
+            'echo "source_ref=${GITHUB_REF_NAME}"',
+            'echo "source_sha=${GITHUB_SHA}"',
         ],
         workflow_texts,
         errors,
@@ -1687,6 +1689,10 @@ def test_workflow_named_step_run_contains_checks_compile_artifact_step() -> None
         (
             "compile.yml job compile step 'Compile test firmware artifacts' run is missing "
             "'\"output/${{ matrix.slug }}.version.txt\"'"
+        ),
+        (
+            "compile.yml job compile step 'Compile test firmware artifacts' run is missing "
+            "'echo \"source_sha=${GITHUB_SHA}\"'"
         ),
     ]
 
