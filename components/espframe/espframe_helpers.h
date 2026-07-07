@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstring>
 #include <cmath>
+#include <type_traits>
 #include "esp_heap_caps.h"
 #include "esphome/core/hal.h"
 
@@ -109,12 +110,32 @@ inline bool any_slot_fetch_in_flight(const SlotFlags &f) {
 }
 
 
+template<typename Target>
+inline void set_url_on(Target &&image, const std::string &url) {
+  using Image = std::remove_reference_t<Target>;
+  if constexpr (std::is_pointer_v<Image>) {
+    image->set_url(url);
+  } else {
+    image.set_url(url);
+  }
+}
+
+template<typename Target>
+inline void execute_script_on(Target &&script) {
+  using Script = std::remove_reference_t<Target>;
+  if constexpr (std::is_pointer_v<Script>) {
+    script->execute();
+  } else {
+    script.execute();
+  }
+}
+
 template<typename Image0, typename Image1, typename Image2>
 inline void set_slot_image_url(int slot, const std::string &url,
                                Image0 &image0, Image1 &image1, Image2 &image2) {
-  if (slot == 0) image0.set_url(url);
-  else if (slot == 1) image1.set_url(url);
-  else image2.set_url(url);
+  if (slot == 0) set_url_on(image0, url);
+  else if (slot == 1) set_url_on(image1, url);
+  else set_url_on(image2, url);
 }
 
 template<typename Script0, typename Script1, typename Script2>
@@ -122,9 +143,9 @@ inline void execute_deferred_slot_image_update(int slot,
                                                Script0 &slot0_update,
                                                Script1 &slot1_update,
                                                Script2 &slot2_update) {
-  if (slot == 0) slot0_update.execute();
-  else if (slot == 1) slot1_update.execute();
-  else slot2_update.execute();
+  if (slot == 0) execute_script_on(slot0_update);
+  else if (slot == 1) execute_script_on(slot1_update);
+  else execute_script_on(slot2_update);
 }
 
 // Returns true if the slot is ready for display logic, false if stale/ignored.
