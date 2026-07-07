@@ -650,7 +650,6 @@ script:
                     id(immich_register_fetch_failure).execute();
                     return;
                   }
-                  id(immich_register_fetch_success).execute();
                   std::string orientation = id(photo_orientation_filter).current_option();
                   std::string img_url = parse_immich_asset_and_fill_slot(
                     body, id(immich_url).state, id(target_slot), id(slot0), id(slot1), id(slot2),
@@ -669,6 +668,7 @@ script:
                     id(immich_register_fetch_failure).execute();
                     return;
                   }
+                  id(immich_register_fetch_success).execute();
                   int slot = id(target_slot);
                   auto &meta = get_slot(slot, id(slot0), id(slot1), id(slot2));
                   ESP_LOGI("immich", "RANDOM slot %d: %s | %s | %s | %s | portrait=%d",

@@ -45,8 +45,6 @@
           return safeGet(endpoints.update);
         })
         .then(function (data) {
-          checkBtn.disabled = false;
-          checkBtn.textContent = "Check for Update";
           var hasUpdate = data && data.value &&
             (data.current_version
               ? data.current_version !== data.latest_version
@@ -60,6 +58,13 @@
             statusMsg.textContent = "Up to date";
             statusMsg.style.color = "var(--success)";
           }
+        })
+        .catch(function () {
+          // Shared request helpers already surface failures in the UI.
+        })
+        .finally(function () {
+          checkBtn.disabled = false;
+          checkBtn.textContent = "Check for Update";
         });
     };
 
