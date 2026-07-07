@@ -18,7 +18,7 @@
     fwBody.appendChild(updatesSection);
 
     function renderUpdateRow() {
-      updateRow.innerHTML = "";
+      updateRow.replaceChildren();
       if (!S.update_available) return;
       var label = textLabel("Stable", S.latest_version);
       var installBtn = button("Install", "btn btn-primary btn-sm", function () {
@@ -45,8 +45,6 @@
           return safeGet(endpoints.update);
         })
         .then(function (data) {
-          checkBtn.disabled = false;
-          checkBtn.textContent = "Check for Update";
           var hasUpdate = data && data.value &&
             (data.current_version
               ? data.current_version !== data.latest_version
@@ -60,6 +58,13 @@
             statusMsg.textContent = "Up to date";
             statusMsg.style.color = "var(--success)";
           }
+        })
+        .catch(function () {
+          // Shared request helpers already surface failures in the UI.
+        })
+        .finally(function () {
+          checkBtn.disabled = false;
+          checkBtn.textContent = "Check for Update";
         });
     };
 
@@ -85,7 +90,7 @@
 
     function makeFirmwareUrlField(label, key, placeholder) {
       var f = field(label);
-      var firmwareUrlInput = input("url", S[key], placeholder, MAX_FIRMWARE_URL_LENGTH);
+      var firmwareUrlInput = input("url", S[key], placeholder, productTextMaxLength(key, MAX_FIRMWARE_URL_LENGTH));
       var firmwareUrlError = makeFieldError();
       firmwareUrlInput.onchange = function () {
         var url = normalizeFirmwareManifestUrl(firmwareUrlInput.value);

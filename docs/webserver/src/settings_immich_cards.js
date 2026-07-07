@@ -36,9 +36,9 @@
     var keyWrap = el("div");
 
     function showKeyMasked() {
-      keyWrap.innerHTML = "";
+      keyWrap.replaceChildren();
       keyWrap.appendChild(makeMaskedApiKeyRow(function () {
-        keyWrap.innerHTML = "";
+        keyWrap.replaceChildren();
         keyWrap.appendChild(makeKeyInput());
       }));
     }
@@ -375,6 +375,7 @@
     dateFromInput.type = "date";
     dateFromInput.value = S.date_from || "";
     dateFromInput.placeholder = "YYYY-MM-DD";
+    dateFromInput.maxLength = productTextMaxLength("date_from", 10);
     var dateFromError = el("div", "field-error");
     fDateFrom.appendChild(dateFromInput);
     fDateFrom.appendChild(dateFromError);
@@ -385,6 +386,7 @@
     dateToInput.type = "date";
     dateToInput.value = S.date_to || "";
     dateToInput.placeholder = "YYYY-MM-DD";
+    dateToInput.maxLength = productTextMaxLength("date_to", 10);
     var dateToError = el("div", "field-error");
     fDateTo.appendChild(dateToInput);
     fDateTo.appendChild(dateToError);

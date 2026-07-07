@@ -150,14 +150,6 @@
     }
   }
 
-  function normalizeDateTakenFormat(value) {
-    if (value === "January 1, 2026" || value === "January 1, 2000" || value === "Month Day, Year" ||
-        value === "Month Day Ordinal, Year") {
-      return "January 1, 2026";
-    }
-    return "1 January, 2026";
-  }
-
   function collectState(d) {
     applyEntityToState(d);
   }

@@ -71,10 +71,14 @@
   function post(url, params) {
     var fullUrl = params ? url + "?" + new URLSearchParams(params).toString() : url;
     return fetch(fullUrl, { method: "POST" }).then(function (r) {
-      if (!r.ok) console.error("POST " + fullUrl + " failed: " + r.status);
+      if (!r.ok) {
+        console.error("POST " + fullUrl + " failed: " + r.status);
+        throw new Error("post_failed");
+      }
       return r;
     }).catch(function (err) {
       console.error("POST " + fullUrl + " error:", err);
       showBanner("Failed to save setting", "error");
+      throw err;
     });
   }

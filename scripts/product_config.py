@@ -302,8 +302,14 @@ def backup_schema(product: dict[str, Any] | None = None) -> list[dict[str, Any]]
 
 
 def web_settings_metadata(product_settings: list[dict[str, Any]] | None = None) -> dict[str, dict[str, Any]]:
+    data = load_product()
+    source_settings = product_settings if product_settings is not None else data["settings"]
+    field_configs = data["project"].get("generated_firmware_setting_fields", {})
+    if not isinstance(field_configs, dict):
+        field_configs = {}
+
     result: dict[str, dict[str, Any]] = {}
-    for setting in product_settings if product_settings is not None else settings():
+    for setting in source_settings:
         entity = setting["entity"]
         key = str(setting["key"])
         result[key] = {
@@ -317,6 +323,9 @@ def web_settings_metadata(product_settings: list[dict[str, Any]] | None = None) 
         for field in ("min", "max", "step"):
             if field in setting:
                 result[key][field] = setting[field]
+        field_config = field_configs.get(key, {})
+        if isinstance(field_config, dict) and "max_length" in field_config:
+            result[key]["maxLength"] = field_config["max_length"]
     return result
 
 

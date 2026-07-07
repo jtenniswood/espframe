@@ -82,6 +82,12 @@
     return productNumberSettingField(key, "step", fallback);
   }
 
+  function productTextMaxLength(key, fallback) {
+    var spec = PRODUCT_SETTINGS && PRODUCT_SETTINGS[key];
+    var value = spec && spec.maxLength !== undefined ? Number(spec.maxLength) : NaN;
+    return isFinite(value) && value > 0 ? value : fallback;
+  }
+
   function productSettingOptions(key, includeDeveloper) {
     var spec = PRODUCT_SETTINGS && PRODUCT_SETTINGS[key];
     var options = spec && Array.isArray(spec.options) ? spec.options.slice() : [];
@@ -136,11 +142,15 @@
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: encoded
     }).then(function (r) {
-      if (!r.ok) console.error("POST " + fullUrl + " failed: " + r.status);
+      if (!r.ok) {
+        console.error("POST " + fullUrl + " failed: " + r.status);
+        throw new Error("post_failed");
+      }
       return r;
     }).catch(function (err) {
       console.error("POST " + fullUrl + " error:", err);
       showBanner("Failed to save setting", "error");
+      throw err;
     });
   }
 
@@ -223,26 +233,34 @@
       if (isFinite(numberValue)) savedValue = numberValue;
     }
     if (domain === "select" || domain === "text") savedValue = value == null ? "" : String(value);
+    var previousValue = S[key];
     S[key] = savedValue;
+    var request = null;
     if (domain === "switch") {
-      return post(endpoints[key] + (savedValue ? "/turn_on" : "/turn_off"));
+      request = post(endpoints[key] + (savedValue ? "/turn_on" : "/turn_off"));
+    } else if (domain === "select") {
+      request = post(endpoints[key] + "/set", { option: savedValue });
+    } else if (domain === "number") {
+      request = post(endpoints[key] + "/set", { value: savedValue });
+    } else if (domain === "text") {
+      request = postTextValueSet(endpoints[key] + "/set", savedValue);
+    } else {
+      return Promise.resolve(null);
     }
-    if (domain === "select") {
-      return post(endpoints[key] + "/set", { option: savedValue });
-    }
-    if (domain === "number") {
-      return post(endpoints[key] + "/set", { value: savedValue });
-    }
-    if (domain === "text") {
-      return postTextValueSet(endpoints[key] + "/set", savedValue);
-    }
-    return Promise.resolve(null);
+    return Promise.resolve(request).catch(function (err) {
+      S[key] = previousValue;
+      throw err;
+    });
   }
 
   function saveNtpServer(key, value) {
     var server = normalizeNtpServer(value);
+    var previousValue = S[key];
     S[key] = server;
-    return postTextValueSet(endpoints[key] + "/set", server);
+    return postTextValueSet(endpoints[key] + "/set", server).catch(function (err) {
+      S[key] = previousValue;
+      throw err;
+    });
   }
 
   function saveScheduleWakeTimeoutSetting(key, value) {
@@ -252,12 +270,18 @@
   function saveScreenRotationSetting(key, value) {
     var rotation = String(value);
     if (screenRotationOptionsForUi().indexOf(rotation) === -1) return Promise.resolve(null);
+    var previousRotation = S.screen_rotation;
+    var previousPortraitPairing = S.portrait_pairing;
     S.screen_rotation = rotation;
     S.portrait_pairing = !isPortraitScreenRotation(rotation);
     return Promise.all([
       saveGenericSetting("screen_rotation", rotation),
       saveGenericSetting("portrait_pairing", S.portrait_pairing)
-    ]);
+    ]).catch(function (err) {
+      S.screen_rotation = previousRotation;
+      S.portrait_pairing = previousPortraitPairing;
+      throw err;
+    });
   }
 
   var SETTING_SAVE_ADAPTERS = {

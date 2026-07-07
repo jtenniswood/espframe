@@ -126,7 +126,7 @@
     var clearBtn = document.createElement("button");
     clearBtn.className = "sp-log-clear";
     clearBtn.textContent = "Clear";
-    clearBtn.addEventListener("click", function () { els.logOutput.innerHTML = ""; });
+    clearBtn.addEventListener("click", function () { els.logOutput.replaceChildren(); });
     toolbar.appendChild(clearBtn);
     page.appendChild(toolbar);
 

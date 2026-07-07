@@ -2,6 +2,17 @@
     return String(value == null ? "" : value).trim();
   }
 
+  var LEGACY_DATE_TAKEN_FORMATS = {
+    "January 1, 2000": "January 1, 2026",
+    "January 1, 2026": "January 1, 2026",
+    "Month Day, Year": "January 1, 2026",
+    "Month Day Ordinal, Year": "January 1, 2026"
+  };
+
+  function normalizeDateTakenFormat(value) {
+    return LEGACY_DATE_TAKEN_FORMATS[value] || "1 January, 2026";
+  }
+
   function stripUrlTrailingSlashes(value) {
     var url = String(value == null ? "" : value);
     while (url.length > 0 && url.charAt(url.length - 1) === "/" && !/^[a-z][a-z0-9+.-]*:\/\/$/i.test(url)) {
@@ -127,6 +138,7 @@ if (typeof module !== "undefined") {
     normalizeFirmwareManifestUrl: normalizeFirmwareManifestUrl,
     normalizeImmichUrl: normalizeImmichUrl,
     normalizeNtpServer: normalizeNtpServer,
+    normalizeDateTakenFormat: normalizeDateTakenFormat,
     parsePhotoLabelList: parsePhotoLabelList,
     photoIdFieldTooLong: photoIdFieldTooLong,
     photoLabelFieldTooLong: photoLabelFieldTooLong,

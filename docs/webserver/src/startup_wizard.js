@@ -1,7 +1,7 @@
   function renderWizard() {
     var step = 1;
-    immichApp.innerHTML = "";
-    app.innerHTML = "";
+    immichApp.replaceChildren();
+    app.replaceChildren();
     renderStartupDevicePage();
     var wrap = el("div", "fade-in");
     wrap.innerHTML =
@@ -18,7 +18,7 @@
     immichApp.appendChild(wrap);
 
     function showStep() {
-      body.innerHTML = "";
+      body.replaceChildren();
       if (step === 1) {
         s1.className = "step active";
         s2.className = "step";

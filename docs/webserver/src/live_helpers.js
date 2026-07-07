@@ -172,7 +172,7 @@
 
   function setStatus(target, msg, type, clearAfterMs) {
     if (!target) return;
-    target.innerHTML = "";
+    target.replaceChildren();
     if (!msg) {
       target.textContent = "";
       return;
@@ -468,10 +468,10 @@
     var backupBody = el("div");
     var backupRow = el("div", "backup-row");
     var exportBtn = el("button", "btn btn-secondary");
-    exportBtn.innerHTML = "Export";
+    exportBtn.textContent = "Export";
     exportBtn.onclick = exportConfig;
     var importBtn = el("button", "btn btn-secondary");
-    importBtn.innerHTML = "Import";
+    importBtn.textContent = "Import";
     importBtn.onclick = importConfig;
     backupRow.appendChild(exportBtn);
     backupRow.appendChild(importBtn);
@@ -482,7 +482,7 @@
   function makeImportSettingsCard() {
     var importBody = el("div");
     var importBtn = el("button", "btn btn-secondary btn-block");
-    importBtn.innerHTML = "Import Settings";
+    importBtn.textContent = "Import Settings";
     importBtn.onclick = importConfig;
     importBody.appendChild(importBtn);
     return makeCollapsibleCard("Import Settings", importBody, false);
