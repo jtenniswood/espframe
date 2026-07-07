@@ -3,6 +3,10 @@ const assert = require("assert/strict");
 const compat = require("../docs/webserver/src/compat.js");
 
 assert.equal(compat.normalizeNtpServer("  pool.ntp.org  "), "pool.ntp.org");
+assert.equal(compat.normalizeDateTakenFormat("January 1, 2000"), "January 1, 2026");
+assert.equal(compat.normalizeDateTakenFormat("Month Day, Year"), "January 1, 2026");
+assert.equal(compat.normalizeDateTakenFormat("Month Day Ordinal, Year"), "January 1, 2026");
+assert.equal(compat.normalizeDateTakenFormat("unknown"), "1 January, 2026");
 
 assert.equal(compat.normalizeImmichUrl(""), "");
 assert.equal(compat.normalizeImmichUrl("photos.example.com"), "https://photos.example.com");

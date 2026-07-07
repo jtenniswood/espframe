@@ -31,6 +31,9 @@ from product_config import (
 )
 
 
+PLACEHOLDER_RE = re.compile(r"__ESPFRAME_[A-Z0-9_]+__")
+
+
 def extract_first_array_block(text: str, var_name: str) -> tuple[int, int]:
     start = text.index(f"  var {var_name} = [")
     depth = 0
@@ -99,6 +102,19 @@ def bootstrap_webserver_sources() -> None:
     WEB_STYLE_PATH.write_text(css + "\n")
 
 
+def replace_placeholder_once(text: str, placeholder: str, value: str) -> str:
+    count = text.count(placeholder)
+    if count != 1:
+        raise RuntimeError(f"Expected exactly one {placeholder} placeholder, found {count}")
+    return text.replace(placeholder, value, 1)
+
+
+def assert_no_unreplaced_placeholders(text: str) -> None:
+    leftovers = sorted(set(PLACEHOLDER_RE.findall(text)))
+    if leftovers:
+        raise RuntimeError("Unreplaced web app placeholders: " + ", ".join(leftovers))
+
+
 def web_app_bundle() -> str:
     source_paths = [WEB_TEMPLATE_PATH, WEB_COMPAT_HELPERS_PATH, WEB_STYLE_PATH, *WEB_MODULE_PATHS.values()]
     if not all(path.exists() for path in source_paths):
@@ -133,28 +149,32 @@ def web_app_bundle() -> str:
     css_json = json.dumps(css, separators=(",", ":"))
     bundle = template
     for placeholder, module_source in web_modules.items():
-        bundle = bundle.replace(placeholder, module_source)
-    return (
-        bundle
-        .replace("__ESPFRAME_TIMEZONES__", timezones_json)
-        .replace("__ESPFRAME_TIMEZONE_LABELS__", timezone_labels_json)
-        .replace("__ESPFRAME_PRODUCT_SETTINGS__", product_settings_json)
-        .replace("__ESPFRAME_STATIC_ENTITIES__", static_entities_json)
-        .replace("__ESPFRAME_MANUAL_ENTITIES__", manual_entities_json)
-        .replace("__ESPFRAME_MANUAL_STATE_KEYS__", manual_state_keys_json)
-        .replace("__ESPFRAME_ENTITY_ALIASES__", entity_aliases_json)
-        .replace("__ESPFRAME_BACKUP_CONFIG_VERSION__", backup_config_version_json)
-        .replace("__ESPFRAME_BACKUP_SCHEMA__", backup_schema_json)
-        .replace("__ESPFRAME_INITIAL_FETCH_KEYS__", initial_fetch_keys_json)
-        .replace("__ESPFRAME_LIVE_RENDER_STATE_KEYS__", live_render_state_keys_json)
-        .replace("__ESPFRAME_LIVE_RENDER_STATE_PREFIXES__", live_render_state_prefixes_json)
-        .replace("__ESPFRAME_FIRMWARE_MANIFEST_URLS__", firmware_manifest_urls_json)
-        .replace("__ESPFRAME_DOCS_BASE_URL__", docs_base_url_json)
-        .replace("__ESPFRAME_WEB_UI_TABS__", web_ui_tabs_json)
-        .replace("__ESPFRAME_WEB_UI_CARDS__", web_ui_cards_json)
-        .replace("__ESPFRAME_WEB_UI_LOGS_RETAINED_LINES__", web_ui_logs_retained_lines_json)
-        .replace("__ESPFRAME_SUPPORT_URL__", support_url_json)
-        .replace("__ESPFRAME_SUPPORT_BUTTON_IMAGE_URL__", support_button_image_url_json)
-        .replace("__ESPFRAME_WEB_COMPAT_HELPERS__", compat_helpers)
-        .replace("__ESPFRAME_CSS__", css_json)
-    )
+        bundle = replace_placeholder_once(bundle, placeholder, module_source)
+
+    replacements = {
+        "__ESPFRAME_TIMEZONES__": timezones_json,
+        "__ESPFRAME_TIMEZONE_LABELS__": timezone_labels_json,
+        "__ESPFRAME_PRODUCT_SETTINGS__": product_settings_json,
+        "__ESPFRAME_STATIC_ENTITIES__": static_entities_json,
+        "__ESPFRAME_MANUAL_ENTITIES__": manual_entities_json,
+        "__ESPFRAME_MANUAL_STATE_KEYS__": manual_state_keys_json,
+        "__ESPFRAME_ENTITY_ALIASES__": entity_aliases_json,
+        "__ESPFRAME_BACKUP_CONFIG_VERSION__": backup_config_version_json,
+        "__ESPFRAME_BACKUP_SCHEMA__": backup_schema_json,
+        "__ESPFRAME_INITIAL_FETCH_KEYS__": initial_fetch_keys_json,
+        "__ESPFRAME_LIVE_RENDER_STATE_KEYS__": live_render_state_keys_json,
+        "__ESPFRAME_LIVE_RENDER_STATE_PREFIXES__": live_render_state_prefixes_json,
+        "__ESPFRAME_FIRMWARE_MANIFEST_URLS__": firmware_manifest_urls_json,
+        "__ESPFRAME_DOCS_BASE_URL__": docs_base_url_json,
+        "__ESPFRAME_WEB_UI_TABS__": web_ui_tabs_json,
+        "__ESPFRAME_WEB_UI_CARDS__": web_ui_cards_json,
+        "__ESPFRAME_WEB_UI_LOGS_RETAINED_LINES__": web_ui_logs_retained_lines_json,
+        "__ESPFRAME_SUPPORT_URL__": support_url_json,
+        "__ESPFRAME_SUPPORT_BUTTON_IMAGE_URL__": support_button_image_url_json,
+        "__ESPFRAME_WEB_COMPAT_HELPERS__": compat_helpers,
+        "__ESPFRAME_CSS__": css_json,
+    }
+    for placeholder, value in replacements.items():
+        bundle = replace_placeholder_once(bundle, placeholder, value)
+    assert_no_unreplaced_placeholders(bundle)
+    return bundle

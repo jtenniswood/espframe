@@ -173,6 +173,7 @@ const scenarios = [
   { name: "screen-tone-schedule", configured: true, width: 1280, height: 900 },
   { name: "daily-settings-controls", configured: true, width: 1280, height: 900 },
   { name: "backup-import-success", configured: true, width: 1280, height: 900, importFixture: validBackupFixture },
+  { name: "backup-import-save-failure", configured: true, width: 1280, height: 900, importFixture: validBackupFixture, failedPostEndpoint: "Screen: Daytime Brightness" },
   { name: "backup-import-partial", configured: true, width: 1280, height: 900, importFixture: partialBackupFixture },
   { name: "backup-import-rejected", configured: true, width: 1280, height: 900, importFixture: rejectedBackupFixture },
   { name: "backup-import-missing-version", configured: true, width: 1280, height: 900, importFixture: missingVersionBackupFixture },
@@ -189,7 +190,8 @@ function browserScriptForScenario(scenario) {
       downloads: 0,
       exportPayloads: [],
       inputClicks: 0,
-      importFixture: ${JSON.stringify(scenario.importFixture || null)}
+      importFixture: ${JSON.stringify(scenario.importFixture || null)},
+      failedPostEndpoint: ${JSON.stringify(scenario.failedPostEndpoint || "")}
     };
     window.addEventListener("error", function (event) {
       window.__smoke.errors.push(event.message || "browser error");
@@ -339,6 +341,9 @@ function browserScriptForScenario(scenario) {
       if (method === "POST") {
         window.__smoke.posts.push(decoded);
         window.__smoke.postRecords.push({ url: decoded, body });
+        if (window.__smoke.failedPostEndpoint && decoded.indexOf(window.__smoke.failedPostEndpoint) !== -1) {
+          return Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) });
+        }
         updateEndpointValueFromPost(decoded, body);
       }
       if (decoded.indexOf("Firmware: Update") !== -1) {
@@ -853,6 +858,12 @@ function smokeAssertionsForScenario(scenario) {
             requirePostContains("Import aggregate NTP field", "Clock: NTP Server 1");
             requirePostContains("Import URL field", "Firmware: Manifest URL");
             requirePostContains("Import normalized schedule setting", "Screen: Schedule Wake Timeout", "value=120");
+          }
+
+          if (${JSON.stringify(scenario.name)} === "backup-import-save-failure") {
+            clickButton("Import");
+            await waitFor(() => pageText().indexOf("Imported with 1 failed setting") !== -1, 8000, "failed import save");
+            requirePostContains("Failed import still attempted daytime brightness", "Screen: Daytime Brightness", "value=90");
           }
 
           if (${JSON.stringify(scenario.name)} === "backup-import-partial") {

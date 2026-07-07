@@ -453,6 +453,7 @@
       "screen-tone-schedule",
       "daily-settings-controls",
       "backup-import-success",
+      "backup-import-save-failure",
       "backup-import-partial",
       "backup-import-rejected",
       "backup-import-missing-version",
@@ -648,7 +649,6 @@
       }
     ],
     "release_changelog_fallback_category": "Other changes",
-    "phase_1_status_note": "docs/phase-1-product-metadata.md",
     "docs_firmware_verify_retries": 10,
     "docs_firmware_verify_delay_seconds": 15,
     "github_docs_release_meta_step_id": "release-meta",

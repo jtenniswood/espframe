@@ -18,7 +18,7 @@
     fwBody.appendChild(updatesSection);
 
     function renderUpdateRow() {
-      updateRow.innerHTML = "";
+      updateRow.replaceChildren();
       if (!S.update_available) return;
       var label = textLabel("Stable", S.latest_version);
       var installBtn = button("Install", "btn btn-primary btn-sm", function () {
@@ -85,7 +85,7 @@
 
     function makeFirmwareUrlField(label, key, placeholder) {
       var f = field(label);
-      var firmwareUrlInput = input("url", S[key], placeholder, MAX_FIRMWARE_URL_LENGTH);
+      var firmwareUrlInput = input("url", S[key], placeholder, productTextMaxLength(key, MAX_FIRMWARE_URL_LENGTH));
       var firmwareUrlError = makeFieldError();
       firmwareUrlInput.onchange = function () {
         var url = normalizeFirmwareManifestUrl(firmwareUrlInput.value);

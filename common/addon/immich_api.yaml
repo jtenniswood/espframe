@@ -67,6 +67,17 @@ script:
                    "Fetch failure registered; pausing fetches for %us (consecutive failures=%d)",
                    (unsigned) (cooldown_ms / 1000), id(immich_consecutive_failures));
 
+  - id: immich_register_fetch_success
+    mode: restart
+    then:
+      - lambda: |-
+          id(immich_fetch_started) = true;
+          id(immich_api_retries) = 0;
+          id(immich_consecutive_failures) = 0;
+          id(immich_failure_window_started_ms) = 0;
+          id(immich_last_http_status) = 0;
+          id(immich_retry_cooldown_until_ms) = 0;
+
   # ---------------------------------------------------------------------------
   # Display fallback when companion portrait search fails or finds nothing
   # ---------------------------------------------------------------------------
@@ -234,11 +245,7 @@ script:
                     id(immich_fetch_into_slot).execute();
                     return;
                   }
-                  id(immich_fetch_started) = true;
-                  id(immich_api_retries) = 0;
-                  id(immich_consecutive_failures) = 0;
-                  id(immich_failure_window_started_ms) = 0;
-                  id(immich_retry_cooldown_until_ms) = 0;
+                  id(immich_register_fetch_success).execute();
                   std::string img_url = parse_immich_asset_and_fill_slot(
                     body, id(immich_url).state, id(target_slot), id(slot0), id(slot1), id(slot2),
                     id(photo_orientation_filter).current_option());
@@ -257,14 +264,11 @@ script:
                     slot, id(portrait_preload_slot), id(portrait_preload_left_ready),
                     id(portrait_preload_right_ready), id(preload_noncritical_in_flight),
                     id(noncritical_remote_updates_in_flight));
-                  if (slot == 0) { id(immich_img_0).set_url(img_url); }
-                  else if (slot == 1) { id(immich_img_1).set_url(img_url); }
-                  else { id(immich_img_2).set_url(img_url); }
+                  set_slot_image_url(slot, img_url, id(immich_img_0), id(immich_img_1), id(immich_img_2));
               - lambda: |-
-                  int s = id(target_slot);
-                  if (s == 0) id(deferred_slot0_image_update).execute();
-                  else if (s == 1) id(deferred_slot1_image_update).execute();
-                  else id(deferred_slot2_image_update).execute();
+                  execute_deferred_slot_image_update(
+                    id(target_slot), id(deferred_slot0_image_update),
+                    id(deferred_slot1_image_update), id(deferred_slot2_image_update));
           on_error:
             then:
               - lambda: |-
@@ -466,10 +470,7 @@ script:
                     id(immich_register_fetch_failure).execute();
                     return;
                   }
-                  id(immich_api_retries) = 0;
-                  id(immich_consecutive_failures) = 0;
-                  id(immich_failure_window_started_ms) = 0;
-                  id(immich_retry_cooldown_until_ms) = 0;
+                  id(immich_register_fetch_success).execute();
                   int slot = id(target_slot);
                   auto &meta = get_slot(slot, id(slot0), id(slot1), id(slot2));
                   ESP_LOGI("immich", "METADATA slot %d: %s | %s | %s | %s | portrait=%d",
@@ -478,14 +479,11 @@ script:
                     slot, id(portrait_preload_slot), id(portrait_preload_left_ready),
                     id(portrait_preload_right_ready), id(preload_noncritical_in_flight),
                     id(noncritical_remote_updates_in_flight));
-                  if (slot == 0) { id(immich_img_0).set_url(img_url); }
-                  else if (slot == 1) { id(immich_img_1).set_url(img_url); }
-                  else { id(immich_img_2).set_url(img_url); }
+                  set_slot_image_url(slot, img_url, id(immich_img_0), id(immich_img_1), id(immich_img_2));
               - lambda: |-
-                  int s = id(target_slot);
-                  if (s == 0) id(deferred_slot0_image_update).execute();
-                  else if (s == 1) id(deferred_slot1_image_update).execute();
-                  else id(deferred_slot2_image_update).execute();
+                  execute_deferred_slot_image_update(
+                    id(target_slot), id(deferred_slot0_image_update),
+                    id(deferred_slot1_image_update), id(deferred_slot2_image_update));
           on_error:
             then:
               - lambda: |-
@@ -652,11 +650,7 @@ script:
                     id(immich_register_fetch_failure).execute();
                     return;
                   }
-                  id(immich_fetch_started) = true;
-                  id(immich_last_http_status) = 0;
-                  id(immich_consecutive_failures) = 0;
-                  id(immich_failure_window_started_ms) = 0;
-                  id(immich_retry_cooldown_until_ms) = 0;
+                  id(immich_register_fetch_success).execute();
                   std::string orientation = id(photo_orientation_filter).current_option();
                   std::string img_url = parse_immich_asset_and_fill_slot(
                     body, id(immich_url).state, id(target_slot), id(slot0), id(slot1), id(slot2),
@@ -675,7 +669,6 @@ script:
                     id(immich_register_fetch_failure).execute();
                     return;
                   }
-                  id(immich_api_retries) = 0;
                   int slot = id(target_slot);
                   auto &meta = get_slot(slot, id(slot0), id(slot1), id(slot2));
                   ESP_LOGI("immich", "RANDOM slot %d: %s | %s | %s | %s | portrait=%d",
@@ -684,14 +677,11 @@ script:
                     slot, id(portrait_preload_slot), id(portrait_preload_left_ready),
                     id(portrait_preload_right_ready), id(preload_noncritical_in_flight),
                     id(noncritical_remote_updates_in_flight));
-                  if (slot == 0) { id(immich_img_0).set_url(img_url); }
-                  else if (slot == 1) { id(immich_img_1).set_url(img_url); }
-                  else { id(immich_img_2).set_url(img_url); }
+                  set_slot_image_url(slot, img_url, id(immich_img_0), id(immich_img_1), id(immich_img_2));
               - lambda: |-
-                  int s = id(target_slot);
-                  if (s == 0) id(deferred_slot0_image_update).execute();
-                  else if (s == 1) id(deferred_slot1_image_update).execute();
-                  else id(deferred_slot2_image_update).execute();
+                  execute_deferred_slot_image_update(
+                    id(target_slot), id(deferred_slot0_image_update),
+                    id(deferred_slot1_image_update), id(deferred_slot2_image_update));
           on_error:
             then:
               - lambda: |-

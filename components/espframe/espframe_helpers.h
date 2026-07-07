@@ -108,6 +108,25 @@ inline bool any_slot_fetch_in_flight(const SlotFlags &f) {
   return f.fetch_in_flight[0] || f.fetch_in_flight[1] || f.fetch_in_flight[2];
 }
 
+
+template<typename Image0, typename Image1, typename Image2>
+inline void set_slot_image_url(int slot, const std::string &url,
+                               Image0 &image0, Image1 &image1, Image2 &image2) {
+  if (slot == 0) image0.set_url(url);
+  else if (slot == 1) image1.set_url(url);
+  else image2.set_url(url);
+}
+
+template<typename Script0, typename Script1, typename Script2>
+inline void execute_deferred_slot_image_update(int slot,
+                                               Script0 &slot0_update,
+                                               Script1 &slot1_update,
+                                               Script2 &slot2_update) {
+  if (slot == 0) slot0_update.execute();
+  else if (slot == 1) slot1_update.execute();
+  else slot2_update.execute();
+}
+
 // Returns true if the slot is ready for display logic, false if stale/ignored.
 inline bool handle_slot_download_complete(int slot, SlotMeta &meta,
     SlotFlags &flags, int &nc_count, int &retries) {

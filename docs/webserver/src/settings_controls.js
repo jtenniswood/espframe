@@ -37,8 +37,8 @@
   }
 
   function renderSettings() {
-    app.innerHTML = "";
-    immichApp.innerHTML = "";
+    app.replaceChildren();
+    immichApp.replaceChildren();
     var immichWrap = el("div", "fade-in");
     var wrap = el("div", "fade-in");
 

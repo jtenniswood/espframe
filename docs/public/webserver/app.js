@@ -4,7 +4,7 @@
 
   var TIMEZONES = ["Pacific/Midway (GMT-11)","Pacific/Pago_Pago (GMT-11)","Pacific/Honolulu (GMT-10)","America/Adak (GMT-10)","America/Anchorage (GMT-9)","America/Juneau (GMT-9)","America/Los_Angeles (GMT-8)","America/Vancouver (GMT-8)","America/Tijuana (GMT-8)","America/Denver (GMT-7)","America/Phoenix (GMT-7)","America/Edmonton (GMT-7)","America/Boise (GMT-7)","America/Chicago (GMT-6)","America/Mexico_City (GMT-6)","America/Winnipeg (GMT-6)","America/Guatemala (GMT-6)","America/Costa_Rica (GMT-6)","America/New_York (GMT-5)","America/Toronto (GMT-5)","America/Detroit (GMT-5)","America/Havana (GMT-5)","America/Bogota (GMT-5)","America/Lima (GMT-5)","America/Jamaica (GMT-5)","America/Panama (GMT-5)","America/Halifax (GMT-4)","America/Caracas (GMT-4)","America/Santiago (GMT-4)","America/La_Paz (GMT-4)","America/Manaus (GMT-4)","America/Barbados (GMT-4)","America/Puerto_Rico (GMT-4)","America/Santo_Domingo (GMT-4)","America/St_Johns (GMT-3:30)","America/Sao_Paulo (GMT-3)","America/Argentina/Buenos_Aires (GMT-3)","America/Montevideo (GMT-3)","America/Paramaribo (GMT-3)","Atlantic/South_Georgia (GMT-2)","Atlantic/Azores (GMT-1)","Atlantic/Cape_Verde (GMT-1)","UTC (GMT+0)","Europe/London (GMT+0)","Europe/Dublin (GMT+0)","Europe/Lisbon (GMT+0)","Africa/Casablanca (GMT+1)","Africa/Accra (GMT+0)","Atlantic/Reykjavik (GMT+0)","Europe/Paris (GMT+1)","Europe/Berlin (GMT+1)","Europe/Rome (GMT+1)","Europe/Madrid (GMT+1)","Europe/Amsterdam (GMT+1)","Europe/Brussels (GMT+1)","Europe/Vienna (GMT+1)","Europe/Zurich (GMT+1)","Europe/Stockholm (GMT+1)","Europe/Oslo (GMT+1)","Europe/Copenhagen (GMT+1)","Europe/Warsaw (GMT+1)","Europe/Prague (GMT+1)","Europe/Budapest (GMT+1)","Europe/Belgrade (GMT+1)","Africa/Lagos (GMT+1)","Africa/Tunis (GMT+1)","Africa/Cairo (GMT+2)","Europe/Athens (GMT+2)","Europe/Bucharest (GMT+2)","Europe/Helsinki (GMT+2)","Europe/Kyiv (GMT+2)","Europe/Istanbul (GMT+3)","Africa/Johannesburg (GMT+2)","Africa/Nairobi (GMT+3)","Asia/Jerusalem (GMT+2)","Asia/Amman (GMT+3)","Asia/Beirut (GMT+2)","Europe/Moscow (GMT+3)","Asia/Baghdad (GMT+3)","Asia/Riyadh (GMT+3)","Asia/Kuwait (GMT+3)","Asia/Qatar (GMT+3)","Africa/Addis_Ababa (GMT+3)","Asia/Tehran (GMT+3:30)","Asia/Dubai (GMT+4)","Asia/Muscat (GMT+4)","Asia/Baku (GMT+4)","Asia/Tbilisi (GMT+4)","Indian/Mauritius (GMT+4)","Asia/Kabul (GMT+4:30)","Asia/Karachi (GMT+5)","Asia/Tashkent (GMT+5)","Asia/Yekaterinburg (GMT+5)","Asia/Kolkata (GMT+5:30)","Asia/Colombo (GMT+5:30)","Asia/Kathmandu (GMT+5:45)","Asia/Dhaka (GMT+6)","Asia/Almaty (GMT+5)","Asia/Rangoon (GMT+6:30)","Asia/Bangkok (GMT+7)","Asia/Jakarta (GMT+7)","Asia/Ho_Chi_Minh (GMT+7)","Asia/Singapore (GMT+8)","Asia/Kuala_Lumpur (GMT+8)","Asia/Shanghai (GMT+8)","Asia/Hong_Kong (GMT+8)","Asia/Taipei (GMT+8)","Asia/Manila (GMT+8)","Australia/Perth (GMT+8)","Asia/Tokyo (GMT+9)","Asia/Seoul (GMT+9)","Asia/Pyongyang (GMT+9)","Australia/Adelaide (GMT+9:30)","Australia/Darwin (GMT+9:30)","Australia/Sydney (GMT+10)","Australia/Melbourne (GMT+10)","Australia/Brisbane (GMT+10)","Australia/Hobart (GMT+10)","Pacific/Guam (GMT+10)","Pacific/Port_Moresby (GMT+10)","Asia/Vladivostok (GMT+10)","Pacific/Noumea (GMT+11)","Pacific/Norfolk (GMT+11)","Asia/Magadan (GMT+11)","Pacific/Auckland (GMT+12)","Pacific/Fiji (GMT+12)","Pacific/Chatham (GMT+12:45)","Pacific/Tongatapu (GMT+13)","Pacific/Apia (GMT+13)","Pacific/Kiritimati (GMT+14)"];
   var TIMEZONE_LABELS = {"Pacific/Midway (GMT-11)":"Pacific/Midway (GMT-11)","Pacific/Pago_Pago (GMT-11)":"Pacific/Pago_Pago (GMT-11)","Pacific/Honolulu (GMT-10)":"Pacific/Honolulu (GMT-10)","America/Adak (GMT-10)":"America/Adak (GMT-10; daylight GMT-9)","America/Anchorage (GMT-9)":"America/Anchorage (GMT-9; daylight GMT-8)","America/Juneau (GMT-9)":"America/Juneau (GMT-9; daylight GMT-8)","America/Los_Angeles (GMT-8)":"America/Los_Angeles (GMT-8; daylight GMT-7)","America/Vancouver (GMT-8)":"America/Vancouver (GMT-8; active GMT-7)","America/Tijuana (GMT-8)":"America/Tijuana (GMT-8; daylight GMT-7)","America/Denver (GMT-7)":"America/Denver (GMT-7; daylight GMT-6)","America/Phoenix (GMT-7)":"America/Phoenix (GMT-7)","America/Edmonton (GMT-7)":"America/Edmonton (GMT-7; daylight GMT-6)","America/Boise (GMT-7)":"America/Boise (GMT-7; daylight GMT-6)","America/Chicago (GMT-6)":"America/Chicago (GMT-6; daylight GMT-5)","America/Mexico_City (GMT-6)":"America/Mexico_City (GMT-6)","America/Winnipeg (GMT-6)":"America/Winnipeg (GMT-6; daylight GMT-5)","America/Guatemala (GMT-6)":"America/Guatemala (GMT-6)","America/Costa_Rica (GMT-6)":"America/Costa_Rica (GMT-6)","America/New_York (GMT-5)":"America/New_York (GMT-5; daylight GMT-4)","America/Toronto (GMT-5)":"America/Toronto (GMT-5; daylight GMT-4)","America/Detroit (GMT-5)":"America/Detroit (GMT-5; daylight GMT-4)","America/Havana (GMT-5)":"America/Havana (GMT-5; daylight GMT-4)","America/Bogota (GMT-5)":"America/Bogota (GMT-5)","America/Lima (GMT-5)":"America/Lima (GMT-5)","America/Jamaica (GMT-5)":"America/Jamaica (GMT-5)","America/Panama (GMT-5)":"America/Panama (GMT-5)","America/Halifax (GMT-4)":"America/Halifax (GMT-4; daylight GMT-3)","America/Caracas (GMT-4)":"America/Caracas (GMT-4)","America/Santiago (GMT-4)":"America/Santiago (GMT-4; daylight GMT-3)","America/La_Paz (GMT-4)":"America/La_Paz (GMT-4)","America/Manaus (GMT-4)":"America/Manaus (GMT-4)","America/Barbados (GMT-4)":"America/Barbados (GMT-4)","America/Puerto_Rico (GMT-4)":"America/Puerto_Rico (GMT-4)","America/Santo_Domingo (GMT-4)":"America/Santo_Domingo (GMT-4)","America/St_Johns (GMT-3:30)":"America/St_Johns (GMT-3:30; daylight GMT-2:30)","America/Sao_Paulo (GMT-3)":"America/Sao_Paulo (GMT-3)","America/Argentina/Buenos_Aires (GMT-3)":"America/Argentina/Buenos_Aires (GMT-3)","America/Montevideo (GMT-3)":"America/Montevideo (GMT-3)","America/Paramaribo (GMT-3)":"America/Paramaribo (GMT-3)","Atlantic/South_Georgia (GMT-2)":"Atlantic/South_Georgia (GMT-2)","Atlantic/Azores (GMT-1)":"Atlantic/Azores (GMT-1; daylight GMT+0)","Atlantic/Cape_Verde (GMT-1)":"Atlantic/Cape_Verde (GMT-1)","UTC (GMT+0)":"UTC (GMT+0)","Europe/London (GMT+0)":"Europe/London (GMT+0; daylight GMT+1)","Europe/Dublin (GMT+0)":"Europe/Dublin (GMT+0; daylight GMT+1)","Europe/Lisbon (GMT+0)":"Europe/Lisbon (GMT+0; daylight GMT+1)","Africa/Casablanca (GMT+1)":"Africa/Casablanca (GMT+1)","Africa/Accra (GMT+0)":"Africa/Accra (GMT+0)","Atlantic/Reykjavik (GMT+0)":"Atlantic/Reykjavik (GMT+0)","Europe/Paris (GMT+1)":"Europe/Paris (GMT+1; daylight GMT+2)","Europe/Berlin (GMT+1)":"Europe/Berlin (GMT+1; daylight GMT+2)","Europe/Rome (GMT+1)":"Europe/Rome (GMT+1; daylight GMT+2)","Europe/Madrid (GMT+1)":"Europe/Madrid (GMT+1; daylight GMT+2)","Europe/Amsterdam (GMT+1)":"Europe/Amsterdam (GMT+1; daylight GMT+2)","Europe/Brussels (GMT+1)":"Europe/Brussels (GMT+1; daylight GMT+2)","Europe/Vienna (GMT+1)":"Europe/Vienna (GMT+1; daylight GMT+2)","Europe/Zurich (GMT+1)":"Europe/Zurich (GMT+1; daylight GMT+2)","Europe/Stockholm (GMT+1)":"Europe/Stockholm (GMT+1; daylight GMT+2)","Europe/Oslo (GMT+1)":"Europe/Oslo (GMT+1; daylight GMT+2)","Europe/Copenhagen (GMT+1)":"Europe/Copenhagen (GMT+1; daylight GMT+2)","Europe/Warsaw (GMT+1)":"Europe/Warsaw (GMT+1; daylight GMT+2)","Europe/Prague (GMT+1)":"Europe/Prague (GMT+1; daylight GMT+2)","Europe/Budapest (GMT+1)":"Europe/Budapest (GMT+1; daylight GMT+2)","Europe/Belgrade (GMT+1)":"Europe/Belgrade (GMT+1; daylight GMT+2)","Africa/Lagos (GMT+1)":"Africa/Lagos (GMT+1)","Africa/Tunis (GMT+1)":"Africa/Tunis (GMT+1)","Africa/Cairo (GMT+2)":"Africa/Cairo (GMT+2; daylight GMT+3)","Europe/Athens (GMT+2)":"Europe/Athens (GMT+2; daylight GMT+3)","Europe/Bucharest (GMT+2)":"Europe/Bucharest (GMT+2; daylight GMT+3)","Europe/Helsinki (GMT+2)":"Europe/Helsinki (GMT+2; daylight GMT+3)","Europe/Kyiv (GMT+2)":"Europe/Kyiv (GMT+2; daylight GMT+3)","Europe/Istanbul (GMT+3)":"Europe/Istanbul (GMT+3)","Africa/Johannesburg (GMT+2)":"Africa/Johannesburg (GMT+2)","Africa/Nairobi (GMT+3)":"Africa/Nairobi (GMT+3)","Asia/Jerusalem (GMT+2)":"Asia/Jerusalem (GMT+2; daylight GMT+3)","Asia/Amman (GMT+3)":"Asia/Amman (GMT+3)","Asia/Beirut (GMT+2)":"Asia/Beirut (GMT+2; daylight GMT+3)","Europe/Moscow (GMT+3)":"Europe/Moscow (GMT+3)","Asia/Baghdad (GMT+3)":"Asia/Baghdad (GMT+3)","Asia/Riyadh (GMT+3)":"Asia/Riyadh (GMT+3)","Asia/Kuwait (GMT+3)":"Asia/Kuwait (GMT+3)","Asia/Qatar (GMT+3)":"Asia/Qatar (GMT+3)","Africa/Addis_Ababa (GMT+3)":"Africa/Addis_Ababa (GMT+3)","Asia/Tehran (GMT+3:30)":"Asia/Tehran (GMT+3:30)","Asia/Dubai (GMT+4)":"Asia/Dubai (GMT+4)","Asia/Muscat (GMT+4)":"Asia/Muscat (GMT+4)","Asia/Baku (GMT+4)":"Asia/Baku (GMT+4)","Asia/Tbilisi (GMT+4)":"Asia/Tbilisi (GMT+4)","Indian/Mauritius (GMT+4)":"Indian/Mauritius (GMT+4)","Asia/Kabul (GMT+4:30)":"Asia/Kabul (GMT+4:30)","Asia/Karachi (GMT+5)":"Asia/Karachi (GMT+5)","Asia/Tashkent (GMT+5)":"Asia/Tashkent (GMT+5)","Asia/Yekaterinburg (GMT+5)":"Asia/Yekaterinburg (GMT+5)","Asia/Kolkata (GMT+5:30)":"Asia/Kolkata (GMT+5:30)","Asia/Colombo (GMT+5:30)":"Asia/Colombo (GMT+5:30)","Asia/Kathmandu (GMT+5:45)":"Asia/Kathmandu (GMT+5:45)","Asia/Dhaka (GMT+6)":"Asia/Dhaka (GMT+6)","Asia/Almaty (GMT+5)":"Asia/Almaty (GMT+5)","Asia/Rangoon (GMT+6:30)":"Asia/Rangoon (GMT+6:30)","Asia/Bangkok (GMT+7)":"Asia/Bangkok (GMT+7)","Asia/Jakarta (GMT+7)":"Asia/Jakarta (GMT+7)","Asia/Ho_Chi_Minh (GMT+7)":"Asia/Ho_Chi_Minh (GMT+7)","Asia/Singapore (GMT+8)":"Asia/Singapore (GMT+8)","Asia/Kuala_Lumpur (GMT+8)":"Asia/Kuala_Lumpur (GMT+8)","Asia/Shanghai (GMT+8)":"Asia/Shanghai (GMT+8)","Asia/Hong_Kong (GMT+8)":"Asia/Hong_Kong (GMT+8)","Asia/Taipei (GMT+8)":"Asia/Taipei (GMT+8)","Asia/Manila (GMT+8)":"Asia/Manila (GMT+8)","Australia/Perth (GMT+8)":"Australia/Perth (GMT+8)","Asia/Tokyo (GMT+9)":"Asia/Tokyo (GMT+9)","Asia/Seoul (GMT+9)":"Asia/Seoul (GMT+9)","Asia/Pyongyang (GMT+9)":"Asia/Pyongyang (GMT+9)","Australia/Adelaide (GMT+9:30)":"Australia/Adelaide (GMT+9:30; daylight GMT+10:30)","Australia/Darwin (GMT+9:30)":"Australia/Darwin (GMT+9:30)","Australia/Sydney (GMT+10)":"Australia/Sydney (GMT+10; daylight GMT+11)","Australia/Melbourne (GMT+10)":"Australia/Melbourne (GMT+10; daylight GMT+11)","Australia/Brisbane (GMT+10)":"Australia/Brisbane (GMT+10)","Australia/Hobart (GMT+10)":"Australia/Hobart (GMT+10; daylight GMT+11)","Pacific/Guam (GMT+10)":"Pacific/Guam (GMT+10)","Pacific/Port_Moresby (GMT+10)":"Pacific/Port_Moresby (GMT+10)","Asia/Vladivostok (GMT+10)":"Asia/Vladivostok (GMT+10)","Pacific/Noumea (GMT+11)":"Pacific/Noumea (GMT+11)","Pacific/Norfolk (GMT+11)":"Pacific/Norfolk (GMT+11; daylight GMT+12)","Asia/Magadan (GMT+11)":"Asia/Magadan (GMT+11)","Pacific/Auckland (GMT+12)":"Pacific/Auckland (GMT+12; daylight GMT+13)","Pacific/Fiji (GMT+12)":"Pacific/Fiji (GMT+12)","Pacific/Chatham (GMT+12:45)":"Pacific/Chatham (GMT+12:45; daylight GMT+13:45)","Pacific/Tongatapu (GMT+13)":"Pacific/Tongatapu (GMT+13)","Pacific/Apia (GMT+13)":"Pacific/Apia (GMT+13)","Pacific/Kiritimati (GMT+14)":"Pacific/Kiritimati (GMT+14)"};
-  var PRODUCT_SETTINGS = {"photo_source":{"entity":"select/Photos: Source","domain":"select","default":"All Photos","options":["All Photos","Favorites","Album","Person","Tag","Memories"]},"album_order":{"entity":"select/Photos: Album Order","domain":"select","default":"Random albums","options":["Random albums","Album list order"]},"date_filter_mode":{"entity":"select/Photos: Date Filter Mode","domain":"select","default":"Fixed Range","options":["Fixed Range","Relative Range"]},"relative_unit":{"entity":"select/Photos: Relative Unit","domain":"select","default":"Years","options":["Months","Years"]},"photo_orientation":{"entity":"select/Photos: Orientation","domain":"select","default":"Any","options":["Any","Portrait Only","Landscape Only"]},"display_mode":{"entity":"select/Photos: Display Mode","domain":"select","default":"Fill","options":["Fill","Fit"]},"interval":{"entity":"select/Photos: Slideshow Interval","domain":"select","default":"15 seconds","options":["10 seconds","15 seconds","20 seconds","30 seconds","45 seconds","1 minute","2 minutes","3 minutes","5 minutes","10 minutes"]},"conn_timeout":{"entity":"select/Screen: Connection Timeout","domain":"select","default":"10 minutes","options":["30 seconds","45 seconds","1 minute","2 minutes","3 minutes","5 minutes","10 minutes","15 minutes","20 minutes","30 minutes"]},"screen_rotation":{"entity":"select/Screen: Rotation","domain":"select","default":"0","options":["0","180"],"developerOptions":["90","270"]},"photo_metadata_date_format":{"entity":"select/Device: Metadata Date Format","domain":"select","default":"Date Taken","options":["Relative Date","Date Taken"]},"photo_metadata_date_taken_format":{"entity":"select/Device: Metadata Date Taken Format","domain":"select","default":"1 January, 2026","options":["1 January, 2026","January 1, 2026"]},"clock_format":{"entity":"select/Clock: Format","domain":"select","default":"24 Hour","options":["24 Hour","12 Hour"]},"update_frequency":{"entity":"select/Firmware: Update Frequency","domain":"select","default":"Daily","options":["Hourly","Daily","Weekly","Monthly"]},"auto_update":{"entity":"switch/Firmware: Auto Update","domain":"switch","default":true,"options":[]},"firmware_manifest_url":{"entity":"text/Firmware: Manifest URL","domain":"text","default":"","options":[]},"date_filter_enabled":{"entity":"switch/Photos: Date Filter","domain":"switch","default":false,"options":[]},"date_from":{"entity":"text/Photos: Date From","domain":"text","default":"","options":[]},"date_to":{"entity":"text/Photos: Date To","domain":"text","default":"","options":[]},"relative_amount":{"entity":"number/Photos: Relative Amount","domain":"number","default":1,"options":[],"min":1,"max":120,"step":1},"schedule_enabled":{"entity":"switch/Screen: Schedule Enabled","domain":"switch","default":false,"options":[]},"schedule_on_hour":{"entity":"number/Screen: Schedule On Hour","domain":"number","default":6,"options":[],"min":0,"max":23,"step":1},"schedule_off_hour":{"entity":"number/Screen: Schedule Off Hour","domain":"number","default":23,"options":[],"min":0,"max":23,"step":1},"schedule_wake_timeout":{"entity":"number/Screen: Schedule Wake Timeout","domain":"number","default":60,"options":[],"min":10,"max":3600,"step":10},"brightness_day":{"entity":"number/Screen: Daytime Brightness","domain":"number","default":100,"options":[],"min":10,"max":100,"step":5},"brightness_night":{"entity":"number/Screen: Nighttime Brightness","domain":"number","default":75,"options":[],"min":10,"max":100,"step":5},"base_tone_enabled":{"entity":"switch/Screen: Tone Adjustment","domain":"switch","default":false,"options":[]},"base_tone":{"entity":"number/Screen: Display Tone","domain":"number","default":0,"options":[],"min":0,"max":100,"step":5},"warm_tones_enabled":{"entity":"switch/Screen: Night Tone Adjustment","domain":"switch","default":false,"options":[]},"warm_tone_intensity":{"entity":"number/Screen: Warm Tone Intensity","domain":"number","default":50,"options":[],"min":10,"max":100,"step":5},"warm_tone_override":{"entity":"switch/Screen: Warm Tone Override","domain":"switch","default":false,"options":[]},"portrait_pairing":{"entity":"switch/Photos: Portrait Pairing","domain":"switch","default":true,"options":[]},"photo_metadata_date_enabled":{"entity":"switch/Device: Metadata Date","domain":"switch","default":true,"options":[]},"photo_metadata_location_enabled":{"entity":"switch/Device: Metadata Location","domain":"switch","default":true,"options":[]}};
+  var PRODUCT_SETTINGS = {"photo_source":{"entity":"select/Photos: Source","domain":"select","default":"All Photos","options":["All Photos","Favorites","Album","Person","Tag","Memories"]},"album_order":{"entity":"select/Photos: Album Order","domain":"select","default":"Random albums","options":["Random albums","Album list order"]},"date_filter_mode":{"entity":"select/Photos: Date Filter Mode","domain":"select","default":"Fixed Range","options":["Fixed Range","Relative Range"]},"relative_unit":{"entity":"select/Photos: Relative Unit","domain":"select","default":"Years","options":["Months","Years"]},"photo_orientation":{"entity":"select/Photos: Orientation","domain":"select","default":"Any","options":["Any","Portrait Only","Landscape Only"]},"display_mode":{"entity":"select/Photos: Display Mode","domain":"select","default":"Fill","options":["Fill","Fit"]},"interval":{"entity":"select/Photos: Slideshow Interval","domain":"select","default":"15 seconds","options":["10 seconds","15 seconds","20 seconds","30 seconds","45 seconds","1 minute","2 minutes","3 minutes","5 minutes","10 minutes"]},"conn_timeout":{"entity":"select/Screen: Connection Timeout","domain":"select","default":"10 minutes","options":["30 seconds","45 seconds","1 minute","2 minutes","3 minutes","5 minutes","10 minutes","15 minutes","20 minutes","30 minutes"]},"screen_rotation":{"entity":"select/Screen: Rotation","domain":"select","default":"0","options":["0","180"],"developerOptions":["90","270"]},"photo_metadata_date_format":{"entity":"select/Device: Metadata Date Format","domain":"select","default":"Date Taken","options":["Relative Date","Date Taken"]},"photo_metadata_date_taken_format":{"entity":"select/Device: Metadata Date Taken Format","domain":"select","default":"1 January, 2026","options":["1 January, 2026","January 1, 2026"]},"clock_format":{"entity":"select/Clock: Format","domain":"select","default":"24 Hour","options":["24 Hour","12 Hour"]},"update_frequency":{"entity":"select/Firmware: Update Frequency","domain":"select","default":"Daily","options":["Hourly","Daily","Weekly","Monthly"]},"auto_update":{"entity":"switch/Firmware: Auto Update","domain":"switch","default":true,"options":[]},"firmware_manifest_url":{"entity":"text/Firmware: Manifest URL","domain":"text","default":"","options":[],"maxLength":255},"date_filter_enabled":{"entity":"switch/Photos: Date Filter","domain":"switch","default":false,"options":[]},"date_from":{"entity":"text/Photos: Date From","domain":"text","default":"","options":[],"maxLength":10},"date_to":{"entity":"text/Photos: Date To","domain":"text","default":"","options":[],"maxLength":10},"relative_amount":{"entity":"number/Photos: Relative Amount","domain":"number","default":1,"options":[],"min":1,"max":120,"step":1},"schedule_enabled":{"entity":"switch/Screen: Schedule Enabled","domain":"switch","default":false,"options":[]},"schedule_on_hour":{"entity":"number/Screen: Schedule On Hour","domain":"number","default":6,"options":[],"min":0,"max":23,"step":1},"schedule_off_hour":{"entity":"number/Screen: Schedule Off Hour","domain":"number","default":23,"options":[],"min":0,"max":23,"step":1},"schedule_wake_timeout":{"entity":"number/Screen: Schedule Wake Timeout","domain":"number","default":60,"options":[],"min":10,"max":3600,"step":10},"brightness_day":{"entity":"number/Screen: Daytime Brightness","domain":"number","default":100,"options":[],"min":10,"max":100,"step":5},"brightness_night":{"entity":"number/Screen: Nighttime Brightness","domain":"number","default":75,"options":[],"min":10,"max":100,"step":5},"base_tone_enabled":{"entity":"switch/Screen: Tone Adjustment","domain":"switch","default":false,"options":[]},"base_tone":{"entity":"number/Screen: Display Tone","domain":"number","default":0,"options":[],"min":0,"max":100,"step":5},"warm_tones_enabled":{"entity":"switch/Screen: Night Tone Adjustment","domain":"switch","default":false,"options":[]},"warm_tone_intensity":{"entity":"number/Screen: Warm Tone Intensity","domain":"number","default":50,"options":[],"min":10,"max":100,"step":5},"warm_tone_override":{"entity":"switch/Screen: Warm Tone Override","domain":"switch","default":false,"options":[]},"portrait_pairing":{"entity":"switch/Photos: Portrait Pairing","domain":"switch","default":true,"options":[]},"photo_metadata_date_enabled":{"entity":"switch/Device: Metadata Date","domain":"switch","default":true,"options":[]},"photo_metadata_location_enabled":{"entity":"switch/Device: Metadata Location","domain":"switch","default":true,"options":[]}};
   var STATIC_ENTITIES = {"firmware":{"entity":"text_sensor/Firmware: Version"},"timezone":{"entity":"select/Clock: Timezone","optionsKey":"tz_options","default":"Europe/London (GMT+0)"},"ntp_server_1":{"entity":"text/Clock: NTP Server 1","default":"0.pool.ntp.org"},"ntp_server_2":{"entity":"text/Clock: NTP Server 2","default":"1.pool.ntp.org"},"ntp_server_3":{"entity":"text/Clock: NTP Server 3","default":"2.pool.ntp.org"},"album_ids":{"entity":"text/Photos: Album IDs"},"album_labels":{"entity":"text/Photos: Album Labels"},"person_ids":{"entity":"text/Photos: Person IDs"},"person_labels":{"entity":"text/Photos: Person Labels"},"tag_ids":{"entity":"text/Photos: Tag IDs"},"tag_labels":{"entity":"text/Photos: Tag Labels"},"sunrise":{"entity":"text_sensor/Screen: Sunrise"},"sunset":{"entity":"text_sensor/Screen: Sunset"},"developer_features_enabled":{"entity":"switch/Developer: Features","boolFromState":true},"show_clock":{"entity":"switch/Clock: Show","boolFromState":true,"default":true},"c6_current_firmware":{"entity":"text_sensor/ESP32-C6: Current Firmware","default":"Unknown"},"c6_available_firmware":{"entity":"text_sensor/ESP32-C6: Available Firmware","default":"Unknown"}};
   var MANUAL_ENTITIES = {"immich_url":{"entity":"text/Connection: Server URL"},"api_key":{"entity":"text/Connection: API Key"},"backlight":{"entity":"light/Screen: Backlight"},"update":{"entity":"update/Firmware: Update"},"apply_photo_source":{"entity":"button/Apply Photo Source"},"firmware_check":{"entity":"button/Firmware: Check for Update"},"c6_firmware_check":{"entity":"button/Firmware ESP32-C6: Check for Update"},"c6_firmware_install":{"entity":"button/Firmware ESP32-C6: Install Update"},"reboot_screen":{"entity":"button/Device: Reboot Screen"}};
   var MANUAL_STATE_KEYS = ["immich_url","api_key"];
@@ -83,6 +83,12 @@
     return productNumberSettingField(key, "step", fallback);
   }
 
+  function productTextMaxLength(key, fallback) {
+    var spec = PRODUCT_SETTINGS && PRODUCT_SETTINGS[key];
+    var value = spec && spec.maxLength !== undefined ? Number(spec.maxLength) : NaN;
+    return isFinite(value) && value > 0 ? value : fallback;
+  }
+
   function productSettingOptions(key, includeDeveloper) {
     var spec = PRODUCT_SETTINGS && PRODUCT_SETTINGS[key];
     var options = spec && Array.isArray(spec.options) ? spec.options.slice() : [];
@@ -94,7 +100,7 @@
     return options;
   }
 
-  var CSS = "*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}:root{--bg:#1b1b1f;--surface:#202127;--surface2:#2e2e32;--border:#3c3f44;--border-hover:rgba(255,255,255,.16);--text:#dfdfd6;--text2:#98989f;--text3:#6a6a71;--accent:#5c73e7;--accent-hover:#a8b1ff;--accent-soft:rgba(100,108,255,.16);--success:#30a46c;--success-soft:rgba(48,164,108,.14);--danger:#f14158;--radius:12px;--action-r:9999px;--gap:16px;--shadow-1:0 1px 2px rgba(0,0,0,.2),0 1px 2px rgba(0,0,0,.24);--shadow-2:0 3px 12px rgba(0,0,0,.28),0 1px 4px rgba(0,0,0,.2);--shadow-3:0 12px 32px rgba(0,0,0,.35),0 2px 6px rgba(0,0,0,.24)}esp-app{display:none !important}html{font-size:16px}body{font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;margin:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}#sp-app{width:100%;max-width:960px;margin:0 auto}.sp-header{display:flex;align-items:center;background:var(--bg);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;height:56px;padding:0 20px}.sp-brand{font-size:1rem;font-weight:600;color:var(--text);margin-right:auto;white-space:nowrap;letter-spacing:-.01em}.sp-nav{display:flex;align-items:center;height:100%}.sp-tab{padding:0 16px;height:100%;display:flex;align-items:center;color:var(--text2);cursor:pointer;font-size:.875rem;font-weight:500;border-bottom:2px solid transparent;text-decoration:none;transition:color .2s}.sp-tab:hover{color:var(--text)}.sp-tab.active{color:var(--accent);border-bottom-color:var(--accent)}.sp-tab-docs{position:relative;gap:6px;margin-left:8px;padding-left:24px}.sp-tab-docs::before{content:'';position:absolute;left:0;top:12px;bottom:12px;width:1px;background:var(--border)}.sp-docs-icon{font-size:16px;line-height:1;opacity:.7}.sp-page{display:none}.sp-page.active{display:block}.sp-settings-wrap{padding:var(--gap)}.brand{font-size:1.6rem;font-weight:700;letter-spacing:-.02em;background:linear-gradient(135deg,var(--accent) 0%,#a78bfa 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}h1{font-size:1.6rem;font-weight:700;margin-bottom:4px;letter-spacing:-.02em}h2{font-size:1rem;font-weight:500;margin-bottom:20px;color:var(--text2);letter-spacing:.01em}.subtitle{font-size:.9rem;color:var(--text2);margin-bottom:24px;line-height:1.6}.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:var(--gap);transition:border-color .25s}.card:hover{border-color:#4a4d54}.card h3{font-size:.875rem;font-weight:600;margin-bottom:14px;color:var(--text);letter-spacing:-.01em}.card-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;margin:-24px -24px 0 -24px;padding:24px 24px 0 24px}.card-header h3{margin:0}.card-body{padding-top:20px}.card-chevron{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;color:var(--text3);transition:transform .25s ease;flex-shrink:0}.card-chevron svg{width:100%;height:100%}.card.collapsed .card-chevron{transform:rotate(-90deg)}.card.collapsed .card-body{display:none}.card-header-right{display:flex;align-items:center;gap:8px}.on-badge{display:none;align-items:center;gap:4px;font-size:.6rem;font-weight:600;color:var(--success);padding:2px 8px 2px 6px;background:var(--success-soft);border-radius:999px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}.card.collapsed .on-badge.active{display:inline-flex}.on-badge::before{content:'';display:block;width:6px;height:6px;border-radius:50%;background:var(--success);flex-shrink:0}.field{margin-bottom:22px}.field:last-child{margin-bottom:0}label{display:block;font-size:.85rem;color:var(--text2);margin-bottom:6px;font-weight:500}.filter-relative-row{display:grid;grid-template-columns:minmax(84px,104px) minmax(0,1fr);gap:12px}.filter-relative-row .field{margin-bottom:0}input[type='text'],input[type='password'],input[type='url'],input[type='date'],input[type='number']{width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.9rem;letter-spacing:0;outline:none;transition:border-color .25s,box-shadow .25s;font-family:inherit;font-variant-numeric:tabular-nums;color-scheme:dark}input[type='text']:focus,input[type='password']:focus,input[type='url']:focus,input[type='date']:focus,input[type='number']:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}input[type='date']::-webkit-datetime-edit,input[type='date']::-webkit-date-and-time-value{color:var(--text);font:inherit;letter-spacing:0;text-align:left}input[type='date']::-webkit-datetime-edit-fields-wrapper,input[type='date']::-webkit-datetime-edit-text,input[type='date']::-webkit-datetime-edit-day-field,input[type='date']::-webkit-datetime-edit-month-field,input[type='date']::-webkit-datetime-edit-year-field{font:inherit;color:inherit;letter-spacing:0}input[type='date']::-webkit-calendar-picker-indicator{filter:invert(.7);cursor:pointer}input::placeholder{color:var(--text2);opacity:.7}.select,select{width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.9rem;outline:none;transition:border-color .25s,box-shadow .25s;-webkit-appearance:none;appearance:none;color-scheme:dark;font-family:inherit;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}.select:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}select option{background:var(--surface);color:var(--text)}.input-group{display:flex;gap:8px}.input-group input{flex:1}.photo-id-list{display:flex;flex-direction:column;gap:8px}.photo-id-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start}.photo-id-fields{display:grid;grid-template-columns:minmax(220px,2fr) minmax(160px,1fr);gap:8px}.photo-id-row-actions{display:flex;gap:6px}.photo-id-actions{display:flex;justify-content:flex-start;margin-top:18px}.btn.btn-icon{width:40px;height:40px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:20px;font-size:1.2rem;line-height:1;flex-shrink:0}.btn{padding:10px 20px;border:none;border-radius:20px;font-size:.875rem;font-weight:600;cursor:pointer;transition:background .25s,opacity .25s,box-shadow .25s;font-family:inherit;letter-spacing:.01em}.btn:active{opacity:.85}.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent-hover);box-shadow:0 2px 12px var(--accent-soft)}.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}.btn-secondary:hover{border-color:var(--border-hover);background:rgba(255,255,255,.06)}.btn-sm{padding:7px 14px;font-size:.8rem}.btn-block{width:100%;display:block}.btn:disabled{opacity:.35;cursor:not-allowed}.field-error{font-size:.75rem;color:var(--danger);margin-top:4px}.field-error:empty{display:none}.toggle-row{display:flex;justify-content:space-between;align-items:center;min-height:36px}.toggle-row span{font-size:.9rem}.toggle{position:relative;width:44px;height:24px;background:var(--surface2);border-radius:999px;cursor:pointer;transition:background .25s;border:1px solid var(--border)}.toggle.on{background:var(--accent);border-color:var(--accent)}.toggle::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .25s ease;box-shadow:0 1px 3px rgba(0,0,0,.3)}.toggle.on::after{transform:translateX(20px)}.segment{display:flex;border-radius:8px;overflow:hidden;border:1px solid var(--border)}.segment button{flex:1;padding:8px 0;background:var(--surface2);color:var(--text2);border:none;font-size:.85rem;cursor:pointer;transition:background .25s,color .25s;font-family:inherit}.segment button.active{background:var(--accent);color:#fff}.range-wrap{display:flex;align-items:center;gap:12px}.range-wrap input[type='range']{flex:1;-webkit-appearance:none;height:4px;background:var(--surface2);border-radius:2px;outline:none}.range-wrap input[type='range']::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 0 0 3px var(--accent-soft);transition:box-shadow .2s}.range-wrap input[type='range']::-webkit-slider-thumb:hover{box-shadow:0 0 0 5px var(--accent-soft)}.range-wrap input[type='range']::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--accent);cursor:pointer;border:none}.range-val{min-width:42px;text-align:right;font-size:.85rem;color:var(--text2);font-variant-numeric:tabular-nums}.range-label{font-size:.85rem;color:var(--text2);white-space:nowrap}.status{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text2);margin-top:4px}.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}.dot.green{background:var(--success)}.dot.red{background:var(--danger)}.dot.orange{background:#ff9800}.wizard-steps{display:flex;gap:8px;margin-bottom:24px}.wizard-steps .step{flex:1;height:3px;border-radius:2px;background:var(--surface2);transition:background .3s}.wizard-steps .step.active{background:var(--accent)}.wizard-steps .step.done{background:var(--success)}.wizard-nav{display:flex;gap:8px;margin-top:20px}.wizard-nav .btn{flex:1}.fade-in{animation:fadeIn .35s ease}@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}.sun-info{font-size:.8rem;color:var(--text2);padding:10px 14px;background:var(--surface2);border-radius:8px;text-align:center;border:1px solid var(--border)}.version{text-align:center;font-size:.75rem;color:var(--text2);margin-top:8px;opacity:.5}.fw-body{display:flex;flex-direction:column;gap:12px}.fw-body .field{margin-bottom:0}.fw-updates{display:flex;flex-direction:column;gap:12px}.fw-row{display:flex;align-items:center;justify-content:space-between;min-height:36px}.fw-label{font-size:.9rem}.fw-status{font-size:.8rem;color:var(--text2)}.field-hint{font-size:.75rem;color:var(--text2);margin-top:6px;margin-bottom:8px}.key-mask{flex:1;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text2);font-size:.9rem;letter-spacing:2px}.check-wrap{display:flex;align-items:center;gap:8px;flex-shrink:0}.sp-log-toolbar{display:flex;justify-content:flex-end;padding:12px var(--gap) 0}.sp-log-clear{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:.8rem;font-weight:500;cursor:pointer;font-family:inherit;transition:all .25s}.sp-log-clear:hover{background:var(--border);border-color:#4a4d54}.sp-log-output{margin:8px var(--gap) var(--gap);padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);font-family:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;font-size:.75rem;line-height:1.7;color:var(--text2);overflow-x:auto;overflow-y:auto;max-height:70vh;white-space:pre;word-break:break-all}.sp-log-line{padding:1px 0;border-left:3px solid transparent;padding-left:8px}.sp-log-error{color:#f66f81;border-left-color:#f14158;background:rgba(244,63,94,.08)}.sp-log-warn{color:#f9b44e;border-left-color:#da8b17;background:rgba(234,179,8,.06)}.sp-log-info{color:#3dd68c}.sp-log-config{color:#c8abfa}.sp-log-debug{color:#5c73e7}.sp-log-verbose{color:var(--text2)}.banner{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;padding:10px 24px;border-radius:var(--radius);font-size:.85rem;font-weight:600;color:#fff;box-shadow:var(--shadow-2);animation:bannerIn .25s ease;max-width:calc(100% - 32px);text-align:center}.banner-success{background:var(--success)}.banner-error{background:var(--danger)}@keyframes bannerIn{from{opacity:0;transform:translateX(-50%) translateY(-12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}.backup-row{display:flex;gap:8px}.backup-row .btn{flex:1}.sp-support-btn{position:fixed;right:28px;bottom:28px;z-index:150;display:inline-flex;align-items:center;justify-content:center;width:217px;height:60px;overflow:hidden;border-radius:999px;background:#ffdd00;color:#000;font-family:Arial,sans-serif;font-size:18px;font-weight:700;line-height:1;text-decoration:none;box-shadow:0 2px 5px rgba(0,0,0,.15)}.sp-support-btn span{position:absolute}.sp-support-btn img{position:absolute;inset:0;width:217px;height:60px;display:block;border-radius:999px}@media(max-width:768px){.sp-header{padding:0 12px;height:48px}.sp-brand{font-size:.875rem}.sp-tab{padding:0 12px;font-size:.8rem}.photo-id-row{grid-template-columns:1fr}.photo-id-fields{grid-template-columns:1fr}.photo-id-row-actions{justify-content:flex-end}}@media(max-width:480px){.sp-header{padding:0 10px}.sp-tab{padding:0 10px;font-size:.75rem}.sp-tab-docs{gap:4px}}.mb-8{margin-bottom:8px}.mb-12{margin-bottom:12px}.mb-20{margin-bottom:20px}.mb-24{margin-bottom:24px}.mt-12{margin-top:12px}";
+  var CSS = "*, *::before, *::after {\n  box-sizing:border-box;\n  margin:0;\n  padding:0\n}\n\n:root {\n  --bg:#1b1b1f;\n  --surface:#202127;\n  --surface2:#2e2e32;\n  --border:#3c3f44;\n  --border-hover:rgba(255, 255, 255, .16);\n  --text:#dfdfd6;\n  --text2:#98989f;\n  --text3:#6a6a71;\n  --accent:#5c73e7;\n  --accent-hover:#a8b1ff;\n  --accent-soft:rgba(100, 108, 255, .16);\n  --success:#30a46c;\n  --success-soft:rgba(48, 164, 108, .14);\n  --danger:#f14158;\n  --radius:12px;\n  --action-r:9999px;\n  --gap:16px;\n  --shadow-1:0 1px 2px rgba(0, 0, 0, .2), 0 1px 2px rgba(0, 0, 0, .24);\n  --shadow-2:0 3px 12px rgba(0, 0, 0, .28), 0 1px 4px rgba(0, 0, 0, .2);\n  --shadow-3:0 12px 32px rgba(0, 0, 0, .35), 0 2px 6px rgba(0, 0, 0, .24)\n}\n\nesp-app {\n  display:none !important\n}\n\nhtml {\n  font-size:16px\n}\n\nbody {\n  font-family:Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;\n  background:var(--bg);\n  color:var(--text);\n  line-height:1.7;\n  min-height:100vh;\n  margin:0;\n  -webkit-font-smoothing:antialiased;\n  -moz-osx-font-smoothing:grayscale\n}\n\n#sp-app {\n  width:100%;\n  max-width:960px;\n  margin:0 auto\n}\n\n.sp-header {\n  display:flex;\n  align-items:center;\n  background:var(--bg);\n  border-bottom:1px solid var(--border);\n  position:sticky;\n  top:0;\n  z-index:100;\n  height:56px;\n  padding:0 20px\n}\n\n.sp-brand {\n  font-size:1rem;\n  font-weight:600;\n  color:var(--text);\n  margin-right:auto;\n  white-space:nowrap;\n  letter-spacing:-.01em\n}\n\n.sp-nav {\n  display:flex;\n  align-items:center;\n  height:100%\n}\n\n.sp-tab {\n  padding:0 16px;\n  height:100%;\n  display:flex;\n  align-items:center;\n  color:var(--text2);\n  cursor:pointer;\n  font-size:.875rem;\n  font-weight:500;\n  border-bottom:2px solid transparent;\n  text-decoration:none;\n  transition:color .2s\n}\n\n.sp-tab:hover {\n  color:var(--text)\n}\n\n.sp-tab.active {\n  color:var(--accent);\n  border-bottom-color:var(--accent)\n}\n\n.sp-tab-docs {\n  position:relative;\n  gap:6px;\n  margin-left:8px;\n  padding-left:24px\n}\n\n.sp-tab-docs::before {\n  content:'';\n  position:absolute;\n  left:0;\n  top:12px;\n  bottom:12px;\n  width:1px;\n  background:var(--border)\n}\n\n.sp-docs-icon {\n  font-size:16px;\n  line-height:1;\n  opacity:.7\n}\n\n.sp-page {\n  display:none\n}\n\n.sp-page.active {\n  display:block\n}\n\n.sp-settings-wrap {\n  padding:var(--gap)\n}\n\n.brand {\n  font-size:1.6rem;\n  font-weight:700;\n  letter-spacing:-.02em;\n  background:linear-gradient(135deg, var(--accent) 0%, #a78bfa 100%);\n  -webkit-background-clip:text;\n  -webkit-text-fill-color:transparent;\n  background-clip:text\n}\n\nh1 {\n  font-size:1.6rem;\n  font-weight:700;\n  margin-bottom:4px;\n  letter-spacing:-.02em\n}\n\nh2 {\n  font-size:1rem;\n  font-weight:500;\n  margin-bottom:20px;\n  color:var(--text2);\n  letter-spacing:.01em\n}\n\n.subtitle {\n  font-size:.9rem;\n  color:var(--text2);\n  margin-bottom:24px;\n  line-height:1.6\n}\n\n.card {\n  background:var(--surface);\n  border:1px solid var(--border);\n  border-radius:var(--radius);\n  padding:24px;\n  margin-bottom:var(--gap);\n  transition:border-color .25s\n}\n\n.card:hover {\n  border-color:#4a4d54\n}\n\n.card h3 {\n  font-size:.875rem;\n  font-weight:600;\n  margin-bottom:14px;\n  color:var(--text);\n  letter-spacing:-.01em\n}\n\n.card-header {\n  display:flex;\n  justify-content:space-between;\n  align-items:center;\n  cursor:pointer;\n  user-select:none;\n  margin:-24px -24px 0 -24px;\n  padding:24px 24px 0 24px\n}\n\n.card-header h3 {\n  margin:0\n}\n\n.card-body {\n  padding-top:20px\n}\n\n.card-chevron {\n  display:inline-flex;\n  align-items:center;\n  justify-content:center;\n  width:24px;\n  height:24px;\n  color:var(--text3);\n  transition:transform .25s ease;\n  flex-shrink:0\n}\n\n.card-chevron svg {\n  width:100%;\n  height:100%\n}\n\n.card.collapsed .card-chevron {\n  transform:rotate(-90deg)\n}\n\n.card.collapsed .card-body {\n  display:none\n}\n\n.card-header-right {\n  display:flex;\n  align-items:center;\n  gap:8px\n}\n\n.on-badge {\n  display:none;\n  align-items:center;\n  gap:4px;\n  font-size:.6rem;\n  font-weight:600;\n  color:var(--success);\n  padding:2px 8px 2px 6px;\n  background:var(--success-soft);\n  border-radius:999px;\n  text-transform:uppercase;\n  letter-spacing:.06em;\n  white-space:nowrap\n}\n\n.card.collapsed .on-badge.active {\n  display:inline-flex\n}\n\n.on-badge::before {\n  content:'';\n  display:block;\n  width:6px;\n  height:6px;\n  border-radius:50%;\n  background:var(--success);\n  flex-shrink:0\n}\n\n.field {\n  margin-bottom:22px\n}\n\n.field:last-child {\n  margin-bottom:0\n}\n\nlabel {\n  display:block;\n  font-size:.85rem;\n  color:var(--text2);\n  margin-bottom:6px;\n  font-weight:500\n}\n\n.filter-relative-row {\n  display:grid;\n  grid-template-columns:minmax(84px, 104px) minmax(0, 1fr);\n  gap:12px\n}\n\n.filter-relative-row .field {\n  margin-bottom:0\n}\n\ninput[type='text'], input[type='password'], input[type='url'], input[type='date'], input[type='number'] {\n  width:100%;\n  padding:10px 14px;\n  background:var(--surface2);\n  border:1px solid var(--border);\n  border-radius:8px;\n  color:var(--text);\n  font-size:.9rem;\n  letter-spacing:0;\n  outline:none;\n  transition:border-color .25s, box-shadow .25s;\n  font-family:inherit;\n  font-variant-numeric:tabular-nums;\n  color-scheme:dark\n}\n\ninput[type='text']:focus, input[type='password']:focus, input[type='url']:focus, input[type='date']:focus, input[type='number']:focus {\n  border-color:var(--accent);\n  box-shadow:0 0 0 3px var(--accent-soft)\n}\n\ninput[type='date']::-webkit-datetime-edit, input[type='date']::-webkit-date-and-time-value {\n  color:var(--text);\n  font:inherit;\n  letter-spacing:0;\n  text-align:left\n}\n\ninput[type='date']::-webkit-datetime-edit-fields-wrapper, input[type='date']::-webkit-datetime-edit-text, input[type='date']::-webkit-datetime-edit-day-field, input[type='date']::-webkit-datetime-edit-month-field, input[type='date']::-webkit-datetime-edit-year-field {\n  font:inherit;\n  color:inherit;\n  letter-spacing:0\n}\n\ninput[type='date']::-webkit-calendar-picker-indicator {\n  filter:invert(.7);\n  cursor:pointer\n}\n\ninput::placeholder {\n  color:var(--text2);\n  opacity:.7\n}\n\n.select, select {\n  width:100%;\n  padding:10px 14px;\n  background:var(--surface2);\n  border:1px solid var(--border);\n  border-radius:8px;\n  color:var(--text);\n  font-size:.9rem;\n  outline:none;\n  transition:border-color .25s, box-shadow .25s;\n  -webkit-appearance:none;\n  appearance:none;\n  color-scheme:dark;\n  font-family:inherit;\n  background-image:url(\"data:image/svg+xml, %3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E\");\n  background-repeat:no-repeat;\n  background-position:right 14px center;\n  padding-right:36px\n}\n\n.select:focus, select:focus {\n  border-color:var(--accent);\n  box-shadow:0 0 0 3px var(--accent-soft)\n}\n\nselect option {\n  background:var(--surface);\n  color:var(--text)\n}\n\n.input-group {\n  display:flex;\n  gap:8px\n}\n\n.input-group input {\n  flex:1\n}\n\n.photo-id-list {\n  display:flex;\n  flex-direction:column;\n  gap:8px\n}\n\n.photo-id-row {\n  display:grid;\n  grid-template-columns:minmax(0, 1fr) auto;\n  gap:8px;\n  align-items:start\n}\n\n.photo-id-fields {\n  display:grid;\n  grid-template-columns:minmax(220px, 2fr) minmax(160px, 1fr);\n  gap:8px\n}\n\n.photo-id-row-actions {\n  display:flex;\n  gap:6px\n}\n\n.photo-id-actions {\n  display:flex;\n  justify-content:flex-start;\n  margin-top:18px\n}\n\n.btn.btn-icon {\n  width:40px;\n  height:40px;\n  padding:0;\n  display:inline-flex;\n  align-items:center;\n  justify-content:center;\n  border-radius:20px;\n  font-size:1.2rem;\n  line-height:1;\n  flex-shrink:0\n}\n\n.btn {\n  padding:10px 20px;\n  border:none;\n  border-radius:20px;\n  font-size:.875rem;\n  font-weight:600;\n  cursor:pointer;\n  transition:background .25s, opacity .25s, box-shadow .25s;\n  font-family:inherit;\n  letter-spacing:.01em\n}\n\n.btn:active {\n  opacity:.85\n}\n\n.btn-primary {\n  background:var(--accent);\n  color:#fff\n}\n\n.btn-primary:hover {\n  background:var(--accent-hover);\n  box-shadow:0 2px 12px var(--accent-soft)\n}\n\n.btn-secondary {\n  background:var(--surface2);\n  color:var(--text);\n  border:1px solid var(--border)\n}\n\n.btn-secondary:hover {\n  border-color:var(--border-hover);\n  background:rgba(255, 255, 255, .06)\n}\n\n.btn-sm {\n  padding:7px 14px;\n  font-size:.8rem\n}\n\n.btn-block {\n  width:100%;\n  display:block\n}\n\n.btn:disabled {\n  opacity:.35;\n  cursor:not-allowed\n}\n\n.field-error {\n  font-size:.75rem;\n  color:var(--danger);\n  margin-top:4px\n}\n\n.field-error:empty {\n  display:none\n}\n\n.toggle-row {\n  display:flex;\n  justify-content:space-between;\n  align-items:center;\n  min-height:36px\n}\n\n.toggle-row span {\n  font-size:.9rem\n}\n\n.toggle {\n  position:relative;\n  width:44px;\n  height:24px;\n  background:var(--surface2);\n  border-radius:999px;\n  cursor:pointer;\n  transition:background .25s;\n  border:1px solid var(--border)\n}\n\n.toggle.on {\n  background:var(--accent);\n  border-color:var(--accent)\n}\n\n.toggle::after {\n  content:'';\n  position:absolute;\n  top:2px;\n  left:2px;\n  width:18px;\n  height:18px;\n  border-radius:50%;\n  background:#fff;\n  transition:transform .25s ease;\n  box-shadow:0 1px 3px rgba(0, 0, 0, .3)\n}\n\n.toggle.on::after {\n  transform:translateX(20px)\n}\n\n.segment {\n  display:flex;\n  border-radius:8px;\n  overflow:hidden;\n  border:1px solid var(--border)\n}\n\n.segment button {\n  flex:1;\n  padding:8px 0;\n  background:var(--surface2);\n  color:var(--text2);\n  border:none;\n  font-size:.85rem;\n  cursor:pointer;\n  transition:background .25s, color .25s;\n  font-family:inherit\n}\n\n.segment button.active {\n  background:var(--accent);\n  color:#fff\n}\n\n.range-wrap {\n  display:flex;\n  align-items:center;\n  gap:12px\n}\n\n.range-wrap input[type='range'] {\n  flex:1;\n  -webkit-appearance:none;\n  height:4px;\n  background:var(--surface2);\n  border-radius:2px;\n  outline:none\n}\n\n.range-wrap input[type='range']::-webkit-slider-thumb {\n  -webkit-appearance:none;\n  width:18px;\n  height:18px;\n  border-radius:50%;\n  background:var(--accent);\n  cursor:pointer;\n  box-shadow:0 0 0 3px var(--accent-soft);\n  transition:box-shadow .2s\n}\n\n.range-wrap input[type='range']::-webkit-slider-thumb:hover {\n  box-shadow:0 0 0 5px var(--accent-soft)\n}\n\n.range-wrap input[type='range']::-moz-range-thumb {\n  width:18px;\n  height:18px;\n  border-radius:50%;\n  background:var(--accent);\n  cursor:pointer;\n  border:none\n}\n\n.range-val {\n  min-width:42px;\n  text-align:right;\n  font-size:.85rem;\n  color:var(--text2);\n  font-variant-numeric:tabular-nums\n}\n\n.range-label {\n  font-size:.85rem;\n  color:var(--text2);\n  white-space:nowrap\n}\n\n.status {\n  display:inline-flex;\n  align-items:center;\n  gap:6px;\n  font-size:.8rem;\n  color:var(--text2);\n  margin-top:4px\n}\n\n.dot {\n  width:8px;\n  height:8px;\n  border-radius:50%;\n  flex-shrink:0\n}\n\n.dot.green {\n  background:var(--success)\n}\n\n.dot.red {\n  background:var(--danger)\n}\n\n.dot.orange {\n  background:#ff9800\n}\n\n.wizard-steps {\n  display:flex;\n  gap:8px;\n  margin-bottom:24px\n}\n\n.wizard-steps .step {\n  flex:1;\n  height:3px;\n  border-radius:2px;\n  background:var(--surface2);\n  transition:background .3s\n}\n\n.wizard-steps .step.active {\n  background:var(--accent)\n}\n\n.wizard-steps .step.done {\n  background:var(--success)\n}\n\n.wizard-nav {\n  display:flex;\n  gap:8px;\n  margin-top:20px\n}\n\n.wizard-nav .btn {\n  flex:1\n}\n\n.fade-in {\n  animation:fadeIn .35s ease\n}\n\n@keyframes fadeIn {\n  from {\n  opacity:0;\n  transform:translateY(8px)\n}\n\nto {\n  opacity:1;\n  transform:translateY(0)\n}\n\n}\n\n.sun-info {\n  font-size:.8rem;\n  color:var(--text2);\n  padding:10px 14px;\n  background:var(--surface2);\n  border-radius:8px;\n  text-align:center;\n  border:1px solid var(--border)\n}\n\n.version {\n  text-align:center;\n  font-size:.75rem;\n  color:var(--text2);\n  margin-top:8px;\n  opacity:.5\n}\n\n.fw-body {\n  display:flex;\n  flex-direction:column;\n  gap:12px\n}\n\n.fw-body .field {\n  margin-bottom:0\n}\n\n.fw-updates {\n  display:flex;\n  flex-direction:column;\n  gap:12px\n}\n\n.fw-row {\n  display:flex;\n  align-items:center;\n  justify-content:space-between;\n  min-height:36px\n}\n\n.fw-label {\n  font-size:.9rem\n}\n\n.fw-status {\n  font-size:.8rem;\n  color:var(--text2)\n}\n\n.field-hint {\n  font-size:.75rem;\n  color:var(--text2);\n  margin-top:6px;\n  margin-bottom:8px\n}\n\n.key-mask {\n  flex:1;\n  padding:10px 14px;\n  background:var(--surface2);\n  border:1px solid var(--border);\n  border-radius:8px;\n  color:var(--text2);\n  font-size:.9rem;\n  letter-spacing:2px\n}\n\n.check-wrap {\n  display:flex;\n  align-items:center;\n  gap:8px;\n  flex-shrink:0\n}\n\n.sp-log-toolbar {\n  display:flex;\n  justify-content:flex-end;\n  padding:12px var(--gap) 0\n}\n\n.sp-log-clear {\n  background:var(--surface2);\n  color:var(--text);\n  border:1px solid var(--border);\n  border-radius:8px;\n  padding:8px 14px;\n  font-size:.8rem;\n  font-weight:500;\n  cursor:pointer;\n  font-family:inherit;\n  transition:all .25s\n}\n\n.sp-log-clear:hover {\n  background:var(--border);\n  border-color:#4a4d54\n}\n\n.sp-log-output {\n  margin:8px var(--gap) var(--gap);\n  padding:16px;\n  background:var(--surface);\n  border:1px solid var(--border);\n  border-radius:var(--radius);\n  font-family:ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;\n  font-size:.75rem;\n  line-height:1.7;\n  color:var(--text2);\n  overflow-x:auto;\n  overflow-y:auto;\n  max-height:70vh;\n  white-space:pre;\n  word-break:break-all\n}\n\n.sp-log-line {\n  padding:1px 0;\n  border-left:3px solid transparent;\n  padding-left:8px\n}\n\n.sp-log-error {\n  color:#f66f81;\n  border-left-color:#f14158;\n  background:rgba(244, 63, 94, .08)\n}\n\n.sp-log-warn {\n  color:#f9b44e;\n  border-left-color:#da8b17;\n  background:rgba(234, 179, 8, .06)\n}\n\n.sp-log-info {\n  color:#3dd68c\n}\n\n.sp-log-config {\n  color:#c8abfa\n}\n\n.sp-log-debug {\n  color:#5c73e7\n}\n\n.sp-log-verbose {\n  color:var(--text2)\n}\n\n.banner {\n  position:fixed;\n  top:16px;\n  left:50%;\n  transform:translateX(-50%);\n  z-index:9999;\n  padding:10px 24px;\n  border-radius:var(--radius);\n  font-size:.85rem;\n  font-weight:600;\n  color:#fff;\n  box-shadow:var(--shadow-2);\n  animation:bannerIn .25s ease;\n  max-width:calc(100% - 32px);\n  text-align:center\n}\n\n.banner-success {\n  background:var(--success)\n}\n\n.banner-error {\n  background:var(--danger)\n}\n\n@keyframes bannerIn {\n  from {\n  opacity:0;\n  transform:translateX(-50%) translateY(-12px)\n}\n\nto {\n  opacity:1;\n  transform:translateX(-50%) translateY(0)\n}\n\n}\n\n.backup-row {\n  display:flex;\n  gap:8px\n}\n\n.backup-row .btn {\n  flex:1\n}\n\n.sp-support-btn {\n  position:fixed;\n  right:28px;\n  bottom:28px;\n  z-index:150;\n  display:inline-flex;\n  align-items:center;\n  justify-content:center;\n  width:217px;\n  height:60px;\n  overflow:hidden;\n  border-radius:999px;\n  background:#ffdd00;\n  color:#000;\n  font-family:Arial, sans-serif;\n  font-size:18px;\n  font-weight:700;\n  line-height:1;\n  text-decoration:none;\n  box-shadow:0 2px 5px rgba(0, 0, 0, .15)\n}\n\n.sp-support-btn span {\n  position:absolute\n}\n\n.sp-support-btn img {\n  position:absolute;\n  inset:0;\n  width:217px;\n  height:60px;\n  display:block;\n  border-radius:999px\n}\n\n@media(max-width:768px) {\n  .sp-header {\n  padding:0 12px;\n  height:48px\n}\n\n.sp-brand {\n  font-size:.875rem\n}\n\n.sp-tab {\n  padding:0 12px;\n  font-size:.8rem\n}\n\n.photo-id-row {\n  grid-template-columns:1fr\n}\n\n.photo-id-fields {\n  grid-template-columns:1fr\n}\n\n.photo-id-row-actions {\n  justify-content:flex-end\n}\n\n}\n\n@media(max-width:480px) {\n  .sp-header {\n  padding:0 10px\n}\n\n.sp-tab {\n  padding:0 10px;\n  font-size:.75rem\n}\n\n.sp-tab-docs {\n  gap:4px\n}\n\n}\n\n.mb-8 {\n  margin-bottom:8px\n}\n\n.mb-12 {\n  margin-bottom:12px\n}\n\n.mb-20 {\n  margin-bottom:20px\n}\n\n.mb-24 {\n  margin-bottom:24px\n}\n\n.mt-12 {\n  margin-top:12px\n}";
   var FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" id="mdi-home-automation" viewBox="0 0 24 24"><path fill="#5c73e7" d="M12,3L2,12H5V20H19V12H22L12,3M12,8.5C14.34,8.5 16.46,9.43 18,10.94L16.8,12.12C15.58,10.91 13.88,10.17 12,10.17C10.12,10.17 8.42,10.91 7.2,12.12L6,10.94C7.54,9.43 9.66,8.5 12,8.5M12,11.83C13.4,11.83 14.67,12.39 15.6,13.3L14.4,14.47C13.79,13.87 12.94,13.5 12,13.5C11.06,13.5 10.21,13.87 9.6,14.47L8.4,13.3C9.33,12.39 10.6,11.83 12,11.83M12,15.17C12.94,15.17 13.7,15.91 13.7,16.83C13.7,17.75 12.94,18.5 12,18.5C11.06,18.5 10.3,17.75 10.3,16.83C10.3,15.91 11.06,15.17 12,15.17Z"/></svg>';
 
   var style = document.createElement("style");
@@ -238,7 +244,7 @@
     var clearBtn = document.createElement("button");
     clearBtn.className = "sp-log-clear";
     clearBtn.textContent = "Clear";
-    clearBtn.addEventListener("click", function () { els.logOutput.innerHTML = ""; });
+    clearBtn.addEventListener("click", function () { els.logOutput.replaceChildren(); });
     toolbar.appendChild(clearBtn);
     page.appendChild(toolbar);
 
@@ -335,11 +341,15 @@
   function post(url, params) {
     var fullUrl = params ? url + "?" + new URLSearchParams(params).toString() : url;
     return fetch(fullUrl, { method: "POST" }).then(function (r) {
-      if (!r.ok) console.error("POST " + fullUrl + " failed: " + r.status);
+      if (!r.ok) {
+        console.error("POST " + fullUrl + " failed: " + r.status);
+        throw new Error("post_failed");
+      }
       return r;
     }).catch(function (err) {
       console.error("POST " + fullUrl + " error:", err);
       showBanner("Failed to save setting", "error");
+      throw err;
     });
   }
 
@@ -366,11 +376,15 @@
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: encoded
     }).then(function (r) {
-      if (!r.ok) console.error("POST " + fullUrl + " failed: " + r.status);
+      if (!r.ok) {
+        console.error("POST " + fullUrl + " failed: " + r.status);
+        throw new Error("post_failed");
+      }
       return r;
     }).catch(function (err) {
       console.error("POST " + fullUrl + " error:", err);
       showBanner("Failed to save setting", "error");
+      throw err;
     });
   }
 
@@ -453,26 +467,34 @@
       if (isFinite(numberValue)) savedValue = numberValue;
     }
     if (domain === "select" || domain === "text") savedValue = value == null ? "" : String(value);
+    var previousValue = S[key];
     S[key] = savedValue;
+    var request = null;
     if (domain === "switch") {
-      return post(endpoints[key] + (savedValue ? "/turn_on" : "/turn_off"));
+      request = post(endpoints[key] + (savedValue ? "/turn_on" : "/turn_off"));
+    } else if (domain === "select") {
+      request = post(endpoints[key] + "/set", { option: savedValue });
+    } else if (domain === "number") {
+      request = post(endpoints[key] + "/set", { value: savedValue });
+    } else if (domain === "text") {
+      request = postTextValueSet(endpoints[key] + "/set", savedValue);
+    } else {
+      return Promise.resolve(null);
     }
-    if (domain === "select") {
-      return post(endpoints[key] + "/set", { option: savedValue });
-    }
-    if (domain === "number") {
-      return post(endpoints[key] + "/set", { value: savedValue });
-    }
-    if (domain === "text") {
-      return postTextValueSet(endpoints[key] + "/set", savedValue);
-    }
-    return Promise.resolve(null);
+    return Promise.resolve(request).catch(function (err) {
+      S[key] = previousValue;
+      throw err;
+    });
   }
 
   function saveNtpServer(key, value) {
     var server = normalizeNtpServer(value);
+    var previousValue = S[key];
     S[key] = server;
-    return postTextValueSet(endpoints[key] + "/set", server);
+    return postTextValueSet(endpoints[key] + "/set", server).catch(function (err) {
+      S[key] = previousValue;
+      throw err;
+    });
   }
 
   function saveScheduleWakeTimeoutSetting(key, value) {
@@ -482,12 +504,18 @@
   function saveScreenRotationSetting(key, value) {
     var rotation = String(value);
     if (screenRotationOptionsForUi().indexOf(rotation) === -1) return Promise.resolve(null);
+    var previousRotation = S.screen_rotation;
+    var previousPortraitPairing = S.portrait_pairing;
     S.screen_rotation = rotation;
     S.portrait_pairing = !isPortraitScreenRotation(rotation);
     return Promise.all([
       saveGenericSetting("screen_rotation", rotation),
       saveGenericSetting("portrait_pairing", S.portrait_pairing)
-    ]);
+    ]).catch(function (err) {
+      S.screen_rotation = previousRotation;
+      S.portrait_pairing = previousPortraitPairing;
+      throw err;
+    });
   }
 
   var SETTING_SAVE_ADAPTERS = {
@@ -563,6 +591,17 @@
 
     function normalizeNtpServer(value) {
     return String(value == null ? "" : value).trim();
+  }
+
+  var LEGACY_DATE_TAKEN_FORMATS = {
+    "January 1, 2000": "January 1, 2026",
+    "January 1, 2026": "January 1, 2026",
+    "Month Day, Year": "January 1, 2026",
+    "Month Day Ordinal, Year": "January 1, 2026"
+  };
+
+  function normalizeDateTakenFormat(value) {
+    return LEGACY_DATE_TAKEN_FORMATS[value] || "1 January, 2026";
   }
 
   function stripUrlTrailingSlashes(value) {
@@ -690,6 +729,7 @@ if (typeof module !== "undefined") {
     normalizeFirmwareManifestUrl: normalizeFirmwareManifestUrl,
     normalizeImmichUrl: normalizeImmichUrl,
     normalizeNtpServer: normalizeNtpServer,
+    normalizeDateTakenFormat: normalizeDateTakenFormat,
     parsePhotoLabelList: parsePhotoLabelList,
     photoIdFieldTooLong: photoIdFieldTooLong,
     photoLabelFieldTooLong: photoLabelFieldTooLong,
@@ -902,14 +942,6 @@ if (typeof module !== "undefined") {
     }
   }
 
-  function normalizeDateTakenFormat(value) {
-    if (value === "January 1, 2026" || value === "January 1, 2000" || value === "Month Day, Year" ||
-        value === "Month Day Ordinal, Year") {
-      return "January 1, 2026";
-    }
-    return "1 January, 2026";
-  }
-
   function collectState(d) {
     applyEntityToState(d);
   }
@@ -1066,8 +1098,8 @@ if (typeof module !== "undefined") {
 
     function renderWizard() {
     var step = 1;
-    immichApp.innerHTML = "";
-    app.innerHTML = "";
+    immichApp.replaceChildren();
+    app.replaceChildren();
     renderStartupDevicePage();
     var wrap = el("div", "fade-in");
     wrap.innerHTML =
@@ -1084,7 +1116,7 @@ if (typeof module !== "undefined") {
     immichApp.appendChild(wrap);
 
     function showStep() {
-      body.innerHTML = "";
+      body.replaceChildren();
       if (step === 1) {
         s1.className = "step active";
         s2.className = "step";
@@ -1230,9 +1262,9 @@ if (typeof module !== "undefined") {
     var keyWrap = el("div");
 
     function showKeyMasked() {
-      keyWrap.innerHTML = "";
+      keyWrap.replaceChildren();
       keyWrap.appendChild(makeMaskedApiKeyRow(function () {
-        keyWrap.innerHTML = "";
+        keyWrap.replaceChildren();
         keyWrap.appendChild(makeKeyInput());
       }));
     }
@@ -1569,6 +1601,7 @@ if (typeof module !== "undefined") {
     dateFromInput.type = "date";
     dateFromInput.value = S.date_from || "";
     dateFromInput.placeholder = "YYYY-MM-DD";
+    dateFromInput.maxLength = productTextMaxLength("date_from", 10);
     var dateFromError = el("div", "field-error");
     fDateFrom.appendChild(dateFromInput);
     fDateFrom.appendChild(dateFromError);
@@ -1579,6 +1612,7 @@ if (typeof module !== "undefined") {
     dateToInput.type = "date";
     dateToInput.value = S.date_to || "";
     dateToInput.placeholder = "YYYY-MM-DD";
+    dateToInput.maxLength = productTextMaxLength("date_to", 10);
     var dateToError = el("div", "field-error");
     fDateTo.appendChild(dateToInput);
     fDateTo.appendChild(dateToError);
@@ -1993,7 +2027,7 @@ if (typeof module !== "undefined") {
     fwBody.appendChild(updatesSection);
 
     function renderUpdateRow() {
-      updateRow.innerHTML = "";
+      updateRow.replaceChildren();
       if (!S.update_available) return;
       var label = textLabel("Stable", S.latest_version);
       var installBtn = button("Install", "btn btn-primary btn-sm", function () {
@@ -2060,7 +2094,7 @@ if (typeof module !== "undefined") {
 
     function makeFirmwareUrlField(label, key, placeholder) {
       var f = field(label);
-      var firmwareUrlInput = input("url", S[key], placeholder, MAX_FIRMWARE_URL_LENGTH);
+      var firmwareUrlInput = input("url", S[key], placeholder, productTextMaxLength(key, MAX_FIRMWARE_URL_LENGTH));
       var firmwareUrlError = makeFieldError();
       firmwareUrlInput.onchange = function () {
         var url = normalizeFirmwareManifestUrl(firmwareUrlInput.value);
@@ -2241,8 +2275,8 @@ if (typeof module !== "undefined") {
   }
 
   function renderSettings() {
-    app.innerHTML = "";
-    immichApp.innerHTML = "";
+    app.replaceChildren();
+    immichApp.replaceChildren();
     var immichWrap = el("div", "fade-in");
     var wrap = el("div", "fade-in");
 
@@ -2449,7 +2483,7 @@ if (typeof module !== "undefined") {
 
   function setStatus(target, msg, type, clearAfterMs) {
     if (!target) return;
-    target.innerHTML = "";
+    target.replaceChildren();
     if (!msg) {
       target.textContent = "";
       return;
@@ -2745,10 +2779,10 @@ if (typeof module !== "undefined") {
     var backupBody = el("div");
     var backupRow = el("div", "backup-row");
     var exportBtn = el("button", "btn btn-secondary");
-    exportBtn.innerHTML = "Export";
+    exportBtn.textContent = "Export";
     exportBtn.onclick = exportConfig;
     var importBtn = el("button", "btn btn-secondary");
-    importBtn.innerHTML = "Import";
+    importBtn.textContent = "Import";
     importBtn.onclick = importConfig;
     backupRow.appendChild(exportBtn);
     backupRow.appendChild(importBtn);
@@ -2759,7 +2793,7 @@ if (typeof module !== "undefined") {
   function makeImportSettingsCard() {
     var importBody = el("div");
     var importBtn = el("button", "btn btn-secondary btn-block");
-    importBtn.innerHTML = "Import Settings";
+    importBtn.textContent = "Import Settings";
     importBtn.onclick = importConfig;
     importBody.appendChild(importBtn);
     return makeCollapsibleCard("Import Settings", importBody, false);
@@ -2912,10 +2946,20 @@ if (typeof module !== "undefined") {
     return entry && Array.isArray(entry.state_keys) && entry.state_keys.length ? entry.state_keys[0] : "";
   }
 
-  var backupImportSavePromises = null;
+  var backupImportSaveTasks = null;
 
   function trackBackupImportSave(result) {
-    if (backupImportSavePromises) backupImportSavePromises.push(Promise.resolve(result));
+    if (!backupImportSaveTasks) return;
+    backupImportSaveTasks.push(
+      Promise.resolve(result)
+        .then(function (response) {
+          if (!response || response.ok === false) throw new Error("save_failed");
+          return true;
+        })
+        .catch(function () {
+          return false;
+        })
+    );
   }
 
   function backupImportEntryUsesPhotoSourceApply(entry) {
@@ -2923,10 +2967,93 @@ if (typeof module !== "undefined") {
       entry.state_keys.some(settingUsesPhotoSourceApply);
   }
 
-  function applyGenericBackupImportField(entry, value) {
+  function backupImportSettingSpec(entry) {
     var stateKey = backupImportStateKey(entry);
-    if (!stateKey || !endpoints[stateKey]) return false;
-    trackBackupImportSave(saveSetting(stateKey, value));
+    return stateKey && PRODUCT_SETTINGS ? PRODUCT_SETTINGS[stateKey] : null;
+  }
+
+  function backupImportFieldLabel(entry) {
+    return backupEntryKey(entry).replace(/_/g, " ");
+  }
+
+  function backupImportValidation(ok, value, message) {
+    return { ok: ok, value: value, message: message || "" };
+  }
+
+  function isValidBackupDate(value) {
+    if (value === "") return true;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    var parts = value.split("-").map(Number);
+    var date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    return date.getUTCFullYear() === parts[0] &&
+      date.getUTCMonth() === parts[1] - 1 &&
+      date.getUTCDate() === parts[2];
+  }
+
+  function backupNumberStepAligned(value, minimum, step) {
+    if (!step || step <= 0) return true;
+    var offset = (value - minimum) / step;
+    return Math.abs(offset - Math.round(offset)) < 1e-9;
+  }
+
+  function validateProductSettingBackupImport(entry, value) {
+    var stateKey = backupImportStateKey(entry);
+    var spec = backupImportSettingSpec(entry);
+    if (!stateKey || !endpoints[stateKey]) {
+      return backupImportValidation(false, value, backupImportFieldLabel(entry) + " is not supported");
+    }
+    if (!spec || !spec.domain) return backupImportValidation(true, value);
+
+    if (spec.domain === "switch") {
+      if (typeof value === "boolean") return backupImportValidation(true, value);
+      if (typeof value === "string") {
+        var normalizedSwitch = value.trim().toLowerCase();
+        if (normalizedSwitch === "true" || normalizedSwitch === "on") return backupImportValidation(true, true);
+        if (normalizedSwitch === "false" || normalizedSwitch === "off") return backupImportValidation(true, false);
+      }
+      return backupImportValidation(false, value, backupImportFieldLabel(entry) + " was invalid - not imported");
+    }
+
+    if (spec.domain === "number") {
+      var numberValue = Number(value);
+      if (!isFinite(numberValue)) {
+        return backupImportValidation(false, value, backupImportFieldLabel(entry) + " was not a number - not imported");
+      }
+      var minimum = spec.min !== undefined ? Number(spec.min) : -Infinity;
+      var maximum = spec.max !== undefined ? Number(spec.max) : Infinity;
+      var step = spec.step !== undefined ? Number(spec.step) : 0;
+      if (numberValue < minimum || numberValue > maximum || !backupNumberStepAligned(numberValue, minimum, step)) {
+        return backupImportValidation(false, value, backupImportFieldLabel(entry) + " was outside the device range - not imported");
+      }
+      return backupImportValidation(true, numberValue);
+    }
+
+    if (spec.domain === "select") {
+      var optionValue = String(value);
+      if (productSettingOptions(stateKey, true).indexOf(optionValue) === -1) {
+        return backupImportValidation(false, value, backupImportFieldLabel(entry) + " had an unsupported option - not imported");
+      }
+      return backupImportValidation(true, optionValue);
+    }
+
+    if (spec.domain === "text") {
+      var textValue = value == null ? "" : String(value).trim();
+      if (spec.maxLength !== undefined && textValue.length > Number(spec.maxLength)) {
+        return backupImportValidation(false, value, backupImportFieldLabel(entry) + " exceeded the device length limit - not imported");
+      }
+      if ((stateKey === "date_from" || stateKey === "date_to") && !isValidBackupDate(textValue)) {
+        return backupImportValidation(false, value, backupImportFieldLabel(entry) + " was not a valid date - not imported");
+      }
+      return backupImportValidation(true, textValue);
+    }
+
+    return backupImportValidation(true, value);
+  }
+
+  function applyGenericBackupImportField(entry, value) {
+    var validation = validateProductSettingBackupImport(entry, value);
+    if (!validation.ok) return skipBackupImportField(validation.message);
+    trackBackupImportSave(saveSetting(backupImportStateKey(entry), validation.value));
     return true;
   }
 
@@ -2935,9 +3062,16 @@ if (typeof module !== "undefined") {
     return false;
   }
 
-  function backupImportSummaryMessage(appliedCount, skippedCount) {
-    if (!skippedCount) return "Settings imported successfully";
+  function backupImportSummaryMessage(appliedCount, skippedCount, failedCount) {
     var skippedText = skippedCount + " skipped " + (skippedCount === 1 ? "setting" : "settings");
+    var failedText = failedCount + " failed " + (failedCount === 1 ? "setting" : "settings");
+    if (failedCount) {
+      if (appliedCount || skippedCount) {
+        return "Imported with " + failedText + (skippedCount ? " and " + skippedText : "");
+      }
+      return "Import failed for " + failedCount + " " + (failedCount === 1 ? "setting" : "settings");
+    }
+    if (!skippedCount) return "Settings imported successfully";
     if (appliedCount) return "Imported with " + skippedText;
     return "Import skipped " + skippedCount + " " + (skippedCount === 1 ? "setting" : "settings");
   }
@@ -2945,10 +3079,15 @@ if (typeof module !== "undefined") {
   function applyBackupImportField(entry, value) {
     switch (backupEntryKey(entry)) {
       case "connection.immich_url":
-        trackBackupImportSave(saveSetting("immich_url", normalizeImmichUrl(value)));
+        var importUrl = normalizeImmichUrl(value);
+        if (importUrl.length > 255) return skipBackupImportField("Immich URL exceeds 255 characters - not imported");
+        if (importUrl && !isValidHttpUrl(importUrl)) return skipBackupImportField("Immich URL was invalid - not imported");
+        trackBackupImportSave(saveSetting("immich_url", importUrl));
         return true;
       case "connection.api_key":
-        trackBackupImportSave(saveSetting("api_key", value));
+        var importApiKey = value == null ? "" : String(value).trim();
+        if (importApiKey.length > 255) return skipBackupImportField("API key exceeds 255 characters - not imported");
+        trackBackupImportSave(saveSetting("api_key", importApiKey));
         return true;
       case "photos.album_ids":
         var importAlbum = String(value).trim();
@@ -3006,17 +3145,29 @@ if (typeof module !== "undefined") {
         return true;
       case "firmware_updates.manifest_url":
         var importManifestUrl = normalizeFirmwareManifestUrl(value);
-        if (importManifestUrl && !isValidHttpUrl(importManifestUrl)) {
+        if (importManifestUrl.length > MAX_FIRMWARE_URL_LENGTH) {
+          return skipBackupImportField("Stable firmware URL exceeds 255 characters - not imported");
+        } else if (importManifestUrl && !isValidHttpUrl(importManifestUrl)) {
           return skipBackupImportField("Stable firmware URL was invalid - not imported");
         } else {
           trackBackupImportSave(saveSetting("firmware_manifest_url", importManifestUrl));
         }
         return true;
       case "clock.timezone":
-        trackBackupImportSave(saveSetting("timezone", normalizeTimezoneOption(value)));
+        var importedTimezone = normalizeTimezoneOption(value);
+        if (TIMEZONES.indexOf(importedTimezone) === -1) {
+          return skipBackupImportField("Timezone was invalid - not imported");
+        }
+        trackBackupImportSave(saveSetting("timezone", importedTimezone));
         return true;
       case "clock.ntp_servers":
-        if (Array.isArray(value)) {
+        if (Array.isArray(value) && value.length <= 3) {
+          for (var ntpIndex = 0; ntpIndex < value.length; ntpIndex++) {
+            var server = normalizeNtpServer(value[ntpIndex]);
+            if (server.length > MAX_NTP_SERVER_LENGTH) {
+              return skipBackupImportField("NTP servers exceeded 253 characters - not imported");
+            }
+          }
           ["ntp_server_1", "ntp_server_2", "ntp_server_3"].forEach(function (key, idx) {
             if (value[idx] === undefined) return;
             trackBackupImportSave(saveSetting(key, value[idx]));
@@ -3025,7 +3176,10 @@ if (typeof module !== "undefined") {
         }
         return skipBackupImportField("NTP servers were invalid - not imported");
       case "screen.schedule_wake_timeout":
-        trackBackupImportSave(saveSetting("schedule_wake_timeout", value));
+        var wakeTimeout = normalizeScheduleWakeTimeout(value);
+        var wakeValidation = validateProductSettingBackupImport(entry, wakeTimeout);
+        if (!wakeValidation.ok) return skipBackupImportField(wakeValidation.message);
+        trackBackupImportSave(saveSetting("schedule_wake_timeout", wakeValidation.value));
         return true;
       case "screen.rotation":
         var importedRotation = String(value);
@@ -3062,29 +3216,44 @@ if (typeof module !== "undefined") {
         }
         data = migrateBackupConfig(data);
 
-        backupImportSavePromises = [];
-        var appliedCount = 0;
+        backupImportSaveTasks = [];
+        var queuedCount = 0;
         var skippedCount = 0;
         var needsPhotoSourceApply = false;
         BACKUP_SCHEMA.forEach(function (entry) {
           if (!backupImportFieldPresent(data, entry)) return;
           if (applyBackupImportField(entry, backupImportFieldValue(data, entry))) {
-            appliedCount += 1;
+            queuedCount += 1;
             needsPhotoSourceApply = needsPhotoSourceApply || backupImportEntryUsesPhotoSourceApply(entry);
           } else {
             skippedCount += 1;
           }
         });
 
-        Promise.all(backupImportSavePromises)
-          .then(function () {
-            if (needsPhotoSourceApply) return post(endpoints.apply_photo_source + "/press");
-            return null;
+        Promise.all(backupImportSaveTasks)
+          .then(function (results) {
+            var failedCount = results.filter(function (ok) { return !ok; }).length;
+            var appliedCount = queuedCount - failedCount;
+            if (needsPhotoSourceApply && appliedCount) {
+              return post(endpoints.apply_photo_source + "/press")
+                .then(function () {
+                  return { appliedCount: appliedCount, failedCount: failedCount };
+                })
+                .catch(function () {
+                  return { appliedCount: appliedCount, failedCount: failedCount + 1 };
+                });
+            }
+            return { appliedCount: appliedCount, failedCount: failedCount };
           })
-          .then(function () {
-            showBanner(backupImportSummaryMessage(appliedCount, skippedCount), skippedCount ? "error" : "success");
+          .then(function (summary) {
+            var failedCount = summary.failedCount;
+            var appliedCount = summary.appliedCount;
+            showBanner(
+              backupImportSummaryMessage(appliedCount, skippedCount, failedCount),
+              skippedCount || failedCount ? "error" : "success"
+            );
             renderSettings();
-            backupImportSavePromises = null;
+            backupImportSaveTasks = null;
           });
       };
       reader.readAsText(fileInput.files[0]);
