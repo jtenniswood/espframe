@@ -9,14 +9,14 @@ description: Flash the Espframe 10-inch display firmware from this repository us
 
 Use the local development ESPHome config to flash the Espframe display from this checkout. This repository has one supported device: the Guition ESP32-P4 JC8012P4A1 10.1-inch Immich Frame.
 
-Flash over OTA by default using `192.168.10.199`, unless the user supplies a different IP address. Flash over USB when the user explicitly asks for USB, local USB, serial, or gives a `/dev/cu.*` target.
+Flash over OTA by default using `192.168.6.106`, unless the user supplies a different IP address. Flash over USB when the user explicitly asks for USB, local USB, serial, or gives a `/dev/cu.*` target.
 
 ## Target
 
 - Device: Guition ESP32-P4 JC8012P4A1 10.1-inch Immich Frame.
 - ESPHome config directory: `devices/guition-esp32-p4-jc8012p4a1`.
 - Default YAML: `dev.yaml`.
-- Default OTA target: `192.168.10.199`.
+- Default OTA target: `192.168.6.106`.
 
 ## YAML Selection
 
@@ -39,7 +39,7 @@ Use `dev.yaml` by default. If the user names another YAML file, use that file in
 3. Check that the selected config directory has a local `secrets.yaml` or another ESPHome-supported local secret source. If secrets are missing, stop and tell the user that WiFi credentials are needed beside the YAML before flashing.
 4. Resolve the upload target:
    - Use an explicit IP address from the user's request for OTA.
-   - If no target is provided and USB is not requested, use the default OTA target `192.168.10.199`.
+   - If no target is provided and USB is not requested, use the default OTA target `192.168.6.106`.
    - Use USB when the user says `USB`, `over USB`, `serial`, `local USB`, or gives a `/dev/cu.*` device.
 5. For OTA targets, check reachability first with `ping -c 2 -W 1000 <target>`.
 6. For USB flashing:
@@ -66,7 +66,7 @@ Examples:
 ```bash
 # OTA, using the default 10-inch display IP address
 cd /Users/jtenniswood/Git/espframe/devices/guition-esp32-p4-jc8012p4a1
-esphome -s espframe_component_url file:///Users/jtenniswood/Git/espframe -s espframe_component_ref HEAD run dev.yaml --device 192.168.10.199 --no-logs
+esphome -s espframe_component_url file:///Users/jtenniswood/Git/espframe -s espframe_component_ref HEAD run dev.yaml --device 192.168.6.106 --no-logs
 
 # USB, only when explicitly requested
 cd /Users/jtenniswood/Git/espframe/devices/guition-esp32-p4-jc8012p4a1
