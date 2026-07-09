@@ -890,7 +890,7 @@
     "esphome_docker_image": "ghcr.io/esphome/esphome",
     "esphome_config_mount": "/config",
     "esphome_docker_remove_container": true,
-    "esphome_version": "2026.6.4"
+    "esphome_version": "2026.6.5"
   },
   "devices": [
     {

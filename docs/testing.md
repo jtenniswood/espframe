@@ -75,7 +75,7 @@ The manual workflow builds both factory and OTA firmware and uploads a `firmware
 To run the same factory compile locally with Docker:
 
 ```sh
-docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.6.4 compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
+docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.6.5 compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
 ```
 
 Use a full compile before firmware releases, after changing ESPHome YAML, after changing C++ code that is not covered by the host-side helper tests, and whenever you want a branch firmware build to flash to a test display.
