@@ -4,6 +4,7 @@
 #include <string>
 
 #include "components/espframe/date_utils.h"
+#include "components/espframe/configuration_contract_generated.h"
 #include "components/espframe/duration_helpers.h"
 #include "components/espframe/immich_helpers.h"
 
@@ -275,6 +276,59 @@ static void test_immich_body_helpers() {
                                                        "Portrait Only").empty());
 }
 
+static void test_immich_request_state() {
+  ImmichRequestState state;
+  assert(!state.cooldown_active(100));
+  assert(state.retry_delay_ms == 2000);
+
+  state.begin_memory_search();
+  assert(state.memory_window_offset == -2);
+  state.add_memory_image("asset-a");
+  state.add_memory_image("");
+  state.add_memory_image("asset-b");
+  assert(state.memory_image_count == 2);
+  assert(state.select_memory_image(1));
+  assert(state.memory_asset_id == "asset-b");
+  assert(!state.select_memory_image(2));
+  assert(state.advance_memory_window());
+  assert(state.memory_window_offset == -1);
+
+  assert(state.register_request_error() == 1);
+  assert(state.prepare_retry_delay() == 2000);
+  assert(state.register_request_error() == 2);
+  assert(state.prepare_retry_delay() == 5000);
+  assert(state.retry_available(3));
+  assert(state.register_request_error() == 3);
+  assert(!state.retry_available(3));
+  assert(state.prepare_retry_delay() == 10000);
+
+  state.reset();
+  assert(state.register_fetch_failure(1000) == 3000);
+  assert(state.cooldown_active(3999));
+  assert(!state.cooldown_active(4000));
+  assert(state.register_fetch_failure(5000) == 3000);
+  assert(state.register_fetch_failure(9000) == 7000);
+  assert(state.consecutive_failures == 3);
+
+  state.register_success();
+  assert(state.consecutive_failures == 0);
+  assert(state.api_retries == 0);
+  assert(!state.cooldown_active(9001));
+
+  state.record_http_failure(503, 10000);
+  assert(state.last_http_status == 503);
+  assert(state.failure_window_started_ms == 10000);
+  assert(state.cooldown_active(39999));
+  state.reset_retries_and_pause(50000, 2500);
+  assert(state.api_retries == 0);
+  assert(state.cooldown_active(52499));
+
+  state.reset();
+  for (int i = 0; i < 4; i++) state.register_download_failure(60000 + i);
+  assert(state.consecutive_failures == 4);
+  assert(state.retry_cooldown_until_ms == 70003);
+}
+
 static SlotMeta make_slot(const std::string &asset_id, bool portrait) {
   SlotMeta meta;
   meta.asset_id = asset_id;
@@ -377,6 +431,16 @@ static void test_fetch_queue_and_error_handling() {
 static void test_slideshow_component_commands() {
   EspFrameSlideshow slideshow;
   assert(!slideshow.has_command());
+  slideshow.state().slot0 = make_slot("state-owned", false);
+  slideshow.state().active_slot = 2;
+  slideshow.state().portrait.workflow_busy = true;
+  assert(slideshow.emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT, 2));
+  slideshow.reset_state();
+  assert(slideshow.state().slot0.asset_id.empty());
+  assert(slideshow.state().active_slot == 0);
+  assert(!slideshow.state().portrait.workflow_busy);
+  assert(!slideshow.has_command());
+
   assert(slideshow.emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT, 1));
   assert(slideshow.emit_action(SLIDESHOW_ACTION_PREFETCH, 2));
   assert(slideshow.command_count() == 2);
@@ -831,10 +895,28 @@ static void test_slideshow_component_display_current_flow() {
   assert(noncritical_count == 0);
 }
 
+static void test_configuration_contract_capabilities() {
+  using namespace esphome::espframe::contract;
+  static_assert(CONTRACT_VERSION == 2);
+  static_assert(API_VERSION == 1);
+  static_assert(SETTING_COUNT == 33);
+  static_assert(CONFIGURATION_FIELD_COUNT == 47);
+  assert(std::string(CAPABILITIES_PATH) == "/espframe/api/v1/capabilities");
+  assert(std::string(CONFIGURATION_PATH) == "/espframe/api/v1/configuration");
+  const std::string capabilities(CAPABILITIES_JSON);
+  assert(capabilities.find("\"contract_version\":2") != std::string::npos);
+  assert(capabilities.find("\"backup_versions\":[1]") != std::string::npos);
+  assert(capabilities.find("\"legacy_entity_api\":true") != std::string::npos);
+  assert(capabilities.find("\"configuration_read\":true") != std::string::npos);
+  assert(capabilities.find("\"configuration_write\":true") != std::string::npos);
+  assert(capabilities.find("\"configuration_parameter\":\"configuration\"") != std::string::npos);
+}
+
 int main() {
   test_date_and_url_helpers();
   test_duration_helpers();
   test_immich_body_helpers();
+  test_immich_request_state();
   test_slideshow_slot_actions();
   test_fetch_queue_and_error_handling();
   test_slideshow_component_commands();
@@ -845,6 +927,7 @@ int main() {
   test_slideshow_component_previous_flow();
   test_slideshow_component_companion_result_flow();
   test_slideshow_component_display_current_flow();
+  test_configuration_contract_capabilities();
   std::cout << "espframe helper tests passed\n";
   return 0;
 }

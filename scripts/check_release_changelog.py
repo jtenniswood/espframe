@@ -53,7 +53,7 @@ def test_future_release_uses_latest_stable_tag() -> None:
     original_root = release_changelog.ROOT
     try:
         release_changelog.ROOT = repo
-        write(repo, "docs/webserver/src/app.template.js", "export const type = 'setup';\n")
+        write(repo, "docs/webserver/src/app.template.ts", "export const type = 'setup';\n")
         short_hash = commit(repo, "Improve firmware setup page (#12)")
         full_hash = git(repo, "rev-parse", "HEAD")
         text = release_changelog.build_changelog(

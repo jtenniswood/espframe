@@ -16,7 +16,7 @@ def render_device_packages_yaml(device: dict[str, object]) -> str:
         raise RuntimeError(f"Device {name or '<missing>'} package_includes must be a non-empty list")
 
     lines = [
-        "# ESPFRAME: generated from product/espframe.json; run `npm run generate` to update.",
+        "# ESPFRAME: generated from product/contract; run `npm run generate` to update.",
         "",
         "substitutions:",
     ]

@@ -7,7 +7,7 @@
   }
 
   function buildUI() {
-    var root = document.createElement("div");
+    var root = document.createElement("espframe-app");
     root.id = "sp-app";
 
     var banner = document.createElement("div");
@@ -39,8 +39,8 @@
     link.href = SUPPORT_URL;
     link.target = "_blank";
     link.rel = "noopener";
-    link.setAttribute("aria-label", "Buy Me A Coffee");
-    link.innerHTML = '<span>Buy Me A Coffee</span><img src="' + SUPPORT_BUTTON_IMAGE_URL + '" alt="Buy Me A Coffee" height="60" style="border-radius:999px;">';
+    link.setAttribute("aria-label", "Support Espframe");
+    link.innerHTML = '<span class="sp-support-icon" aria-hidden="true">&#9749;</span><span>Support Espframe</span>';
     document.body.appendChild(link);
   }
 

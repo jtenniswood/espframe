@@ -9,6 +9,20 @@ const appSource = fs.readFileSync(path.join(root, "docs/public/webserver/app.js"
 const product = JSON.parse(fs.readFileSync(path.join(root, "product/espframe.json"), "utf8"));
 const expectedBackupGroups = product.project.backup_export_groups;
 const expectedBackupFields = product.project.backup_export_fields;
+const configurationKeyByEndpointName = {};
+for (const setting of product.settings) {
+  configurationKeyByEndpointName[setting.entity.name] = setting.key;
+}
+for (const collectionName of ["web_static_entities", "web_manual_entities"]) {
+  for (const [key, spec] of Object.entries(product.project[collectionName] || {})) {
+    const entity = String(spec.entity || "");
+    const slash = entity.indexOf("/");
+    const domain = slash === -1 ? "" : entity.slice(0, slash);
+    if (["number", "select", "switch", "text"].includes(domain)) {
+      configurationKeyByEndpointName[entity.slice(slash + 1)] = key;
+    }
+  }
+}
 const smokeAlbumIds = [
   "11111111-1111-4111-8111-111111111111",
   "44444444-4444-4444-8444-444444444444",
@@ -305,6 +319,18 @@ function browserScriptForScenario(scenario) {
       "Screen: Rotation": "0",
       "Developer: Features": false
     };
+    const configurationKeyByEndpointName = ${JSON.stringify(configurationKeyByEndpointName)};
+    const configurationEndpointNameByKey = Object.fromEntries(
+      Object.entries(configurationKeyByEndpointName).map(([name, key]) => [key, name])
+    );
+
+    function configurationSnapshotValues() {
+      const values = {};
+      Object.entries(configurationEndpointNameByKey).forEach(([key, name]) => {
+        if (Object.prototype.hasOwnProperty.call(endpointValues, name)) values[key] = endpointValues[name];
+      });
+      return values;
+    }
 
     function endpointNameForUrl(decoded) {
       return Object.keys(endpointValues)
@@ -338,6 +364,52 @@ function browserScriptForScenario(scenario) {
       const method = options && options.method ? options.method : "GET";
       const decoded = decodeURIComponent(String(url));
       const body = options && options.body != null ? String(options.body) : "";
+      if (decoded === "/espframe/api/v1/configuration") {
+        if (method === "GET") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({ api_version: 1, values: configurationSnapshotValues(), unavailable: [] })
+          });
+        }
+        if (window.__smoke.configurationUpdateInFlight) {
+          return Promise.resolve({
+            ok: false,
+            status: 409,
+            json: () => Promise.resolve({ api_version: 1, status: "rejected", error: "update_in_progress" })
+          });
+        }
+        window.__smoke.configurationUpdateInFlight = true;
+        const encoded = new URLSearchParams(body).get("configuration");
+        const update = encoded ? JSON.parse(encoded) : { values: {} };
+        const failedKey = configurationKeyByEndpointName[window.__smoke.failedPostEndpoint];
+        if (failedKey && Object.prototype.hasOwnProperty.call(update.values, failedKey)) {
+          window.__smoke.posts.push(decoded);
+          window.__smoke.postRecords.push({ url: decoded, body });
+          return new Promise((resolve) => setTimeout(() => {
+            window.__smoke.configurationUpdateInFlight = false;
+            resolve({
+              ok: false,
+              status: 422,
+              json: () => Promise.resolve({ api_version: 1, status: "rejected", error: "smoke_failure", field: failedKey })
+            });
+          }, 0));
+        }
+        window.__smoke.posts.push(decoded);
+        window.__smoke.postRecords.push({ url: decoded, body });
+        return new Promise((resolve) => setTimeout(() => {
+          Object.entries(update.values || {}).forEach(([key, value]) => {
+            const endpointName = configurationEndpointNameByKey[key];
+            if (endpointName) endpointValues[endpointName] = value;
+          });
+          window.__smoke.configurationUpdateInFlight = false;
+          resolve({
+            ok: true,
+            status: 202,
+            json: () => Promise.resolve({ api_version: 1, status: "accepted", updated: Object.keys(update.values || {}).length })
+          });
+        }, 0));
+      }
       if (method === "POST") {
         window.__smoke.posts.push(decoded);
         window.__smoke.postRecords.push({ url: decoded, body });
@@ -405,10 +477,39 @@ function smokeAssertionsForScenario(scenario) {
         return tab;
       }
       function requirePostContains(label, fragment, extraFragment) {
+        const configured = latestConfigurationValue(fragment);
+        if (configured.found) {
+          let matches = true;
+          if (extraFragment === "turn_on") matches = configured.value === true;
+          else if (extraFragment === "turn_off") matches = configured.value === false;
+          else if (extraFragment && extraFragment.indexOf("option=") === 0) matches = String(configured.value) === extraFragment.slice(7);
+          else if (extraFragment && extraFragment.indexOf("value=") === 0) matches = String(configured.value) === extraFragment.slice(6);
+          if (matches) return;
+        }
         const found = window.__smoke.posts.some((url) =>
           url.indexOf(fragment) !== -1 && (!extraFragment || url.indexOf(extraFragment) !== -1)
         );
         if (!found) throw new Error(label + " was not posted to the device");
+      }
+      function configurationUpdates() {
+        return window.__smoke.postRecords.map((record) => {
+          if (record.url !== "/espframe/api/v1/configuration") return null;
+          const encoded = new URLSearchParams(record.body).get("configuration");
+          return encoded ? JSON.parse(encoded).values : null;
+        }).filter(Boolean);
+      }
+      function latestConfigurationValue(fragment) {
+        const endpoint = Object.keys(configurationKeyByEndpointName).find((name) => name.indexOf(fragment) !== -1);
+        const key = endpoint && configurationKeyByEndpointName[endpoint];
+        if (!key) return { found: false };
+        const updates = configurationUpdates();
+        for (let i = updates.length - 1; i >= 0; i--) {
+          if (Object.prototype.hasOwnProperty.call(updates[i], key)) return { found: true, value: updates[i][key] };
+        }
+        return { found: false };
+      }
+      function hasConfigurationPost(fragment) {
+        return latestConfigurationValue(fragment).found;
       }
       function latestPostRecord(fragment) {
         for (let i = window.__smoke.postRecords.length - 1; i >= 0; i--) {
@@ -424,13 +525,15 @@ function smokeAssertionsForScenario(scenario) {
         return params.get(name);
       }
       function requireLatestPostValue(label, fragment, expected) {
-        const actual = postRecordParam(latestPostRecord(fragment), "value");
+        const configured = latestConfigurationValue(fragment);
+        const actual = configured.found ? String(configured.value) : postRecordParam(latestPostRecord(fragment), "value");
         if (actual !== expected) {
           throw new Error(label + " saved " + JSON.stringify(actual) + " instead of " + JSON.stringify(expected));
         }
       }
       function requireLatestPostParam(label, fragment, param, expected) {
-        const actual = postRecordParam(latestPostRecord(fragment), param);
+        const configured = latestConfigurationValue(fragment);
+        const actual = configured.found ? String(configured.value) : postRecordParam(latestPostRecord(fragment), param);
         if (actual !== expected) {
           throw new Error(label + " saved " + JSON.stringify(actual) + " instead of " + JSON.stringify(expected));
         }
@@ -848,7 +951,7 @@ function smokeAssertionsForScenario(scenario) {
           if (${JSON.stringify(scenario.name)} === "backup-import-success") {
             clickButton("Import");
             await waitFor(() => pageText().indexOf("Settings imported successfully") !== -1, 8000, "successful import");
-            if (!window.__smoke.posts.some((url) => url.indexOf("Connection: Server URL") !== -1)) {
+            if (!hasConfigurationPost("Connection: Server URL")) {
               throw new Error("Import did not post connection URL");
             }
             requirePostContains("Import text field", "Connection: Server URL");
@@ -870,7 +973,7 @@ function smokeAssertionsForScenario(scenario) {
             clickButton("Import");
             await waitFor(() => pageText().indexOf("Imported with 1 skipped setting") !== -1, 8000, "partial import");
             requirePostContains("Partial import text field", "Connection: Server URL");
-            if (window.__smoke.posts.some((url) => url.indexOf("Photos: Album IDs") !== -1)) {
+            if (hasConfigurationPost("Photos: Album IDs")) {
               throw new Error("Skipped album IDs were posted to the device");
             }
           }
@@ -878,7 +981,7 @@ function smokeAssertionsForScenario(scenario) {
           if (${JSON.stringify(scenario.name)} === "backup-import-rejected") {
             clickButton("Import");
             await waitFor(() => pageText().indexOf("Import skipped 1 setting") !== -1, 8000, "rejected import");
-            if (window.__smoke.posts.some((url) => url.indexOf("Photos: Album IDs") !== -1)) {
+            if (hasConfigurationPost("Photos: Album IDs")) {
               throw new Error("Rejected album IDs were posted to the device");
             }
           }

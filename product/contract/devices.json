@@ -1,0 +1,229 @@
+[
+  {
+    "slug": "immich-frame",
+    "name": "Immich Frame",
+    "esphome_name": "immich-frame-10inch",
+    "friendly_name": "Immich Frame 10inch",
+    "chip": "ESP32-P4",
+    "model": "Guition ESP32-P4 JC8012P4A1",
+    "esp32_variant": "ESP32P4",
+    "flash_size": "16MB",
+    "framework_type": "esp-idf",
+    "engineering_sample": true,
+    "idf_experimental_features": true,
+    "sdkconfig_options": {
+      "CONFIG_HTTPD_MAX_URI_LEN": "128",
+      "CONFIG_ESP_TASK_WDT_TIMEOUT_S": "30"
+    },
+    "platformio_flash_mode": "dio",
+    "platformio_build_flags": [
+      "-DCONFIG_COMPILER_OPTIMIZATION_PERF=y",
+      "-DLV_USE_BIDI=1",
+      "-DLV_USE_ARABIC_PERSIAN_CHARS=1"
+    ],
+    "esp32_hosted_variant": "esp32c6",
+    "psram_mode": "hex",
+    "psram_speed": "200MHz",
+    "display_panel": "JC8012P4A1",
+    "display_native_width": 800,
+    "display_native_height": 1280,
+    "display_ui_width": 1280,
+    "display_ui_height": 800,
+    "lvgl_buffer_size": "6%",
+    "lvgl_byte_order": "little_endian",
+    "lvgl_rotation_substitution": "screen_rotation_0",
+    "lvgl_resume_on_input": true,
+    "touch_platform": "gsl3680",
+    "hardware_pins": {
+      "esp32_hosted_reset": "GPIO54",
+      "esp32_hosted_cmd": "GPIO19",
+      "esp32_hosted_clk": "GPIO18",
+      "esp32_hosted_d0": "GPIO14",
+      "esp32_hosted_d1": "GPIO15",
+      "esp32_hosted_d2": "GPIO16",
+      "esp32_hosted_d3": "GPIO17",
+      "backlight_pwm": "GPIO23",
+      "display_reset": "GPIO27",
+      "touch_reset": "GPIO22",
+      "touch_interrupt": "GPIO21",
+      "i2c_sda": "GPIO7",
+      "i2c_scl": "GPIO8"
+    },
+    "mipi_dsi_power_rail": {
+      "id": "dsi_phy_enable",
+      "channel": 3,
+      "voltage": "2.5V"
+    },
+    "i2c_frequency": "400kHz",
+    "package_includes": [
+      {
+        "alias": "device",
+        "path": "device/device.yaml"
+      },
+      {
+        "alias": "fonts",
+        "path": "assets/fonts.yaml"
+      },
+      {
+        "alias": "icons",
+        "path": "assets/icons.yaml"
+      },
+      {
+        "alias": "lvgl_base",
+        "path": "device/lvgl_base.yaml"
+      },
+      {
+        "alias": "screen_rotation",
+        "path": "../../common/addon/screen_rotation.yaml"
+      },
+      {
+        "alias": "connectivity",
+        "path": "../../common/addon/connectivity.yaml"
+      },
+      {
+        "alias": "immich_config",
+        "path": "../../common/addon/immich_config.yaml"
+      },
+      {
+        "alias": "immich_filter",
+        "path": "../../common/addon/immich_filter.yaml"
+      },
+      {
+        "alias": "backlight",
+        "path": "../../common/addon/backlight.yaml"
+      },
+      {
+        "alias": "backlight_sched",
+        "path": "../../common/addon/backlight_schedule.yaml"
+      },
+      {
+        "alias": "time_sync",
+        "path": "../../common/addon/time.yaml"
+      },
+      {
+        "alias": "accent_color",
+        "path": "../../common/addon/accent_color.yaml"
+      },
+      {
+        "alias": "warm_tones",
+        "path": "../../common/addon/warm_tones.yaml"
+      },
+      {
+        "alias": "screen_loading",
+        "path": "device/screen_loading.yaml"
+      },
+      {
+        "alias": "screen_wifi",
+        "path": "device/screen_wifi_setup.yaml"
+      },
+      {
+        "alias": "screen_setup",
+        "path": "device/screen_immich_setup.yaml"
+      },
+      {
+        "alias": "immich_api",
+        "path": "../../common/addon/immich_api.yaml"
+      },
+      {
+        "alias": "immich_slide",
+        "path": "../../common/addon/immich_slideshow.yaml"
+      },
+      {
+        "alias": "screen_slide",
+        "path": "device/screen_slideshow.yaml"
+      },
+      {
+        "alias": "fw_update",
+        "path": "../../common/addon/firmware_update.yaml"
+      },
+      {
+        "alias": "c6_fw_update",
+        "path": "../../common/addon/esp32_c6_firmware_update.yaml"
+      },
+      {
+        "alias": "dev_features",
+        "path": "../../common/addon/developer_features.yaml"
+      },
+      {
+        "alias": "network",
+        "path": "../../common/addon/network.yaml"
+      }
+    ],
+    "package_substitutions": {
+      "display_width": "1280",
+      "display_height": "800",
+      "portrait_display_width": "800",
+      "portrait_display_height": "1280",
+      "portrait_metadata_width": "710",
+      "portrait_half_width": "640",
+      "screen_rotation": "0",
+      "screen_rotation_0": "90",
+      "screen_rotation_90": "180",
+      "screen_rotation_180": "270",
+      "screen_rotation_270": "0",
+      "captive_portal_ip": "192.168.4.1",
+      "firmware_manifest_url": "https://jtenniswood.github.io/espframe/firmware/manifest.json"
+    },
+    "font_assets": [
+      {
+        "id": "noto_325_150_font",
+        "file": "gfonts://Noto Sans@325",
+        "size": 150,
+        "bpp": 4
+      },
+      {
+        "id": "noto_400_46_font",
+        "file": "gfonts://Noto Sans@400",
+        "size": 46,
+        "bpp": 4
+      },
+      {
+        "id": "noto_400_30_font",
+        "file": "gfonts://Noto Sans@400",
+        "size": 30,
+        "bpp": 4
+      },
+      {
+        "id": "noto_400_28_font",
+        "file": "gfonts://Noto Sans@400",
+        "size": 28,
+        "bpp": 4
+      },
+      {
+        "id": "noto_400_32_font",
+        "file": "gfonts://Noto Sans@400",
+        "size": 32,
+        "bpp": 4
+      },
+      {
+        "id": "noto_location_400_36_font",
+        "file": "gfonts://Noto Sans@400",
+        "size": 36,
+        "bpp": 4
+      }
+    ],
+    "location_font_extra_files": [
+      "gfonts://Noto Sans Arabic@400",
+      "gfonts://Noto Sans Hebrew@400"
+    ],
+    "icon_font": {
+      "id": "icon_font_setup",
+      "file": "https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf",
+      "size": 64,
+      "bpp": 4
+    },
+    "icon_substitutions": {
+      "icon_wifi": "\\U000F05A9",
+      "icon_cog": "\\U000F0493",
+      "icon_cloud_off": "\\U000F0164"
+    },
+    "panel_url": "https://s.click.aliexpress.com/e/_c4LLo3rH",
+    "stand_url": "https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046",
+    "build_yaml": "builds/guition-esp32-p4-jc8012p4a1.factory.yaml",
+    "package_yaml": "devices/guition-esp32-p4-jc8012p4a1/packages.yaml",
+    "local_yaml": "devices/guition-esp32-p4-jc8012p4a1/esphome.yaml",
+    "device_yaml": "devices/guition-esp32-p4-jc8012p4a1/device/device.yaml",
+    "public_manifest": "firmware/manifest.json",
+    "public_beta_manifest": "firmware/beta/manifest.json"
+  }
+]

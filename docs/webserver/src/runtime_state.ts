@@ -171,6 +171,15 @@
   });
 
   function fetchDeviceSettingsState() {
+    return getConfigurationSnapshot().then(function (snapshot) {
+      applyConfigurationSnapshot(snapshot);
+    }).catch(function (error) {
+      if (!isConfigurationApiUnavailable(error)) throw error;
+      return fetchLegacyDeviceSettingsState();
+    });
+  }
+
+  function fetchLegacyDeviceSettingsState() {
     var urls = INITIAL_FETCH_KEYS.map(function (k) {
       if (!endpoints[k]) {
         console.error("Missing endpoint for startup setting:", k);
@@ -242,20 +251,29 @@
       return;
     }
     renderAttemptInFlight = true;
-    Promise.all([
-      safeGet(endpoints.immich_url),
-      safeGet(endpoints.api_key)
-    ]).then(function (res) {
+    getConfigurationSnapshot().then(function (snapshot) {
+      applyConfigurationSnapshot(snapshot);
+      return null;
+    }).catch(function (error) {
+      if (!isConfigurationApiUnavailable(error)) throw error;
+      return Promise.all([
+        safeGet(endpoints.immich_url),
+        safeGet(endpoints.api_key)
+      ]);
+    }).then(function (res) {
       renderAttemptInFlight = false;
       if (rendered) return;
-      if (res[0]) S.immich_url = normalizeImmichUrl(res[0].value || res[0].state || "");
-      if (res[1]) S.api_key = res[1].value || res[1].state || "";
+      if (res && res[0]) S.immich_url = normalizeImmichUrl(res[0].value || res[0].state || "");
+      if (res && res[1]) S.api_key = res[1].value || res[1].state || "";
       if (S.immich_url) {
         showConfiguredSettings();
       } else {
         rendered = true;
         renderWizard();
       }
+    }).catch(function () {
+      renderAttemptInFlight = false;
+      scheduleTryRender(1000);
     });
   }
 

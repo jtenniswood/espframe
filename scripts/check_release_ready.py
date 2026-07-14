@@ -74,6 +74,7 @@ def compile_firmware() -> bool:
     version = metadata["ESPHOME_VERSION"]
     mount = metadata["ESPHOME_CONFIG_MOUNT"]
     remove_flag = metadata["ESPHOME_DOCKER_REMOVE_FLAG"]
+    cache_dir = str(metadata.get("RELEASE_ESPHOME_CACHE_DIR", "")).strip()
     if not image or not version or not mount:
         print("[FAIL] ESPHome compile metadata")
         print("Product metadata must define the ESPHome Docker image, version, and config mount.")
@@ -81,6 +82,11 @@ def compile_firmware() -> bool:
 
     checks = []
     for device in release_matrix_devices():
+        build_name = str(device.get("build_name", "")).strip()
+        if not cache_dir or not build_name:
+            print(f"[FAIL] Firmware budget metadata ({device['slug']})")
+            return False
+        build_dir = ROOT / cache_dir / "build" / build_name / ".pioenvs" / build_name
         factory_command = esphome_compile_command(
             image,
             version,
@@ -89,6 +95,19 @@ def compile_firmware() -> bool:
             f"{mount}/builds/{device['yaml']}.factory.yaml",
         )
         checks.append(run(factory_command, f"ESPHome factory compile ({device['slug']})"))
+        checks.append(
+            run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "check_build_budgets.py"),
+                    "--profile",
+                    "factory",
+                    "--binary",
+                    str(build_dir / "firmware.factory.bin"),
+                ],
+                f"Firmware factory budget ({device['slug']})",
+            )
+        )
 
         ota_command = esphome_compile_command(
             image,
@@ -98,6 +117,19 @@ def compile_firmware() -> bool:
             f"{mount}/builds/{device['yaml']}.yaml",
         )
         checks.append(run(ota_command, f"ESPHome OTA compile ({device['slug']})"))
+        checks.append(
+            run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "check_build_budgets.py"),
+                    "--profile",
+                    "ota",
+                    "--binary",
+                    str(build_dir / "firmware.bin"),
+                ],
+                f"Firmware OTA budget ({device['slug']})",
+            )
+        )
     return all(checks)
 
 

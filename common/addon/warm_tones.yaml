@@ -169,8 +169,8 @@ script:
           WarmToneLuts luts;
           build_warm_tone_luts(last_w, w, luts);
 
-          if (id(portrait).is_pair) {
-            if (id(portrait).using_preload) {
+          if (id(espframe_core).slideshow().state().portrait.is_pair) {
+            if (id(espframe_core).slideshow().state().portrait.using_preload) {
               tint_image_buffer(id(immich_portrait_preload_left), luts);
               tint_image_buffer(id(immich_portrait_preload_right), luts);
             } else {
@@ -180,7 +180,7 @@ script:
             lv_obj_invalidate(id(portrait_pair_container));
           } else {
             esphome::image::Image *imgs[] = { id(immich_img_0), id(immich_img_1), id(immich_img_2) };
-            tint_image_buffer(imgs[id(active_slot)], luts);
+            tint_image_buffer(imgs[id(espframe_core).slideshow().state().active_slot], luts);
             lv_obj_invalidate(id(slideshow_img));
           }
 

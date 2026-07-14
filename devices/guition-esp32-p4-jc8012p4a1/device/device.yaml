@@ -22,6 +22,7 @@ esp32:
   framework:
     type: esp-idf
     sdkconfig_options:
+      CONFIG_HTTPD_MAX_REQ_HDR_LEN: "8192"
       CONFIG_HTTPD_MAX_URI_LEN: "128"
       CONFIG_ESP_TASK_WDT_TIMEOUT_S: "30"
     advanced:
@@ -97,7 +98,11 @@ web_server:
   port: 80
   version: 3
   include_internal: true
-  js_url: "https://jtenniswood.github.io/espframe/webserver/app.js"
+  # Keep the control panel on the frame so setup and settings still work if
+  # GitHub Pages or the wider internet is unavailable.
+  js_url: ""
+  css_include: "../../../docs/public/webserver/style.css"
+  js_include: "../../../docs/public/webserver/app.js"
   sorting_groups:
     - id: sg_connection
       name: "Connection"
@@ -486,5 +491,4 @@ touchscreen:
           }
     on_release:
       - lambda: |-
-          id(photo_source_swipe_triggered) = false;
-          id(photo_source_menu_touch_handled) = false;
+          id(photo_source_swipe_triggered) = false; id(photo_source_menu_touch_handled) = false;
