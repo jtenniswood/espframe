@@ -36,7 +36,19 @@ This skips browser and documentation build work, so it is useful while iterating
 npm run check:fast
 ```
 
-This group validates the standard product-contract schema, then checks generated files, product metadata, backup configuration, compatibility fixtures, and generated firmware fields. These checks catch mistakes where the user-visible settings contract, generated web files, firmware fields, or docs metadata drift apart.
+This group validates the standard product-contract schema, then checks generated files, product metadata, backup configuration, compatibility fixtures, source ownership, embedded web size budgets, and generated firmware fields. These checks catch mistakes where the user-visible settings contract, generated web files, firmware fields, or docs metadata drift apart.
+
+### Build Budgets
+
+```sh
+npm run check:budgets
+```
+
+The limits in `product/budgets.json` protect the embedded web app's raw and
+compressed sizes. Full firmware builds additionally check the actual ESPHome
+flash and RAM report plus factory/OTA binary sizes. A budget increase must be
+an intentional contract change in the same pull request, not just a larger
+number added after a build fails.
 
 ### Web UI Checks
 
@@ -66,7 +78,8 @@ This group compiles and runs host-side C++ tests for firmware helper logic, then
 
 Pull requests run the normal validation gate automatically. Full ESPHome firmware builds are slower, so they are available from the **PR Validation** workflow's manual run button. Run that workflow against a feature branch when you need firmware files to test on a device before merging.
 
-The manual workflow builds both factory and OTA firmware and uploads a `firmware-test-<device>` artifact containing:
+The manual workflow builds both factory and OTA firmware, enforces the flash,
+RAM, and binary budgets, and uploads a `firmware-test-<device>` artifact containing:
 
 - `<device>.factory.bin` for USB/browser flashing
 - `<device>.ota.bin` for OTA testing

@@ -98,24 +98,40 @@ jobs:
             --slug "${{ matrix.slug }}" \
             --version "${VERSION}"
 
+          mkdir -p output
+
           docker run ${ESPHOME_DOCKER_REMOVE_FLAG} \
             -v "${PWD}:${ESPHOME_CONFIG_MOUNT}" \
             "${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}" \
-            compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml"
+            compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml" \
+            2>&1 | tee "output/${{ matrix.slug }}.factory.log"
 
           BUILD_DIR="${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}/.pioenvs/${{ matrix.build_name }}"
-          mkdir -p output
           if [ ! -f "${BUILD_DIR}/firmware.factory.bin" ]; then
             echo "::error::Firmware compilation failed - factory binary not found"
             exit 1
           fi
           sudo cp "${BUILD_DIR}/firmware.factory.bin" "output/${{ matrix.slug }}.factory.bin"
+          python3 scripts/check_build_budgets.py \
+            --compile-log "output/${{ matrix.slug }}.factory.log" \
+            --profile factory \
+            --binary "${BUILD_DIR}/firmware.factory.bin"
 
           docker run ${ESPHOME_DOCKER_REMOVE_FLAG} \
             -v "${PWD}:${ESPHOME_CONFIG_MOUNT}" \
             "${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}" \
             -s firmware_version "${VERSION}" \
-            compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml"
+            compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml" \
+            2>&1 | tee "output/${{ matrix.slug }}.ota.log"
+
+          if [ ! -f "${BUILD_DIR}/firmware.bin" ]; then
+            echo "::error::Firmware compilation failed - OTA binary not found"
+            exit 1
+          fi
+          python3 scripts/check_build_budgets.py \
+            --compile-log "output/${{ matrix.slug }}.ota.log" \
+            --profile ota \
+            --binary "${BUILD_DIR}/firmware.bin"
 
       - name: Fix ESPHome cache permissions
         if: always()
