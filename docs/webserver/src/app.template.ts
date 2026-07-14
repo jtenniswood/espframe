@@ -1,9 +1,11 @@
 (function () {
   "use strict";
 
+  __ESPFRAME_WEB_CONTRACTS__
+
   var TIMEZONES = __ESPFRAME_TIMEZONES__;
   var TIMEZONE_LABELS = __ESPFRAME_TIMEZONE_LABELS__;
-  var PRODUCT_SETTINGS = __ESPFRAME_PRODUCT_SETTINGS__;
+  var PRODUCT_SETTINGS: Record<string, ProductSetting> = __ESPFRAME_PRODUCT_SETTINGS__;
   var STATIC_ENTITIES = __ESPFRAME_STATIC_ENTITIES__;
   var MANUAL_ENTITIES = __ESPFRAME_MANUAL_ENTITIES__;
   var MANUAL_STATE_KEYS = __ESPFRAME_MANUAL_STATE_KEYS__;
@@ -18,9 +20,8 @@
   var WEB_UI_CARDS = __ESPFRAME_WEB_UI_CARDS__;
   var WEB_UI_LOGS_RETAINED_LINES = __ESPFRAME_WEB_UI_LOGS_RETAINED_LINES__;
   var SUPPORT_URL = __ESPFRAME_SUPPORT_URL__;
-  var SUPPORT_BUTTON_IMAGE_URL = __ESPFRAME_SUPPORT_BUTTON_IMAGE_URL__;
 
-  var S = {
+  var S: AppState = {
     tz_options: TIMEZONES,
     tz_labels: TIMEZONE_LABELS,
     brightness: 100,
@@ -107,13 +108,8 @@
   document.head.appendChild(style);
   ensureFavicon();
 
-  var fonts = document.createElement("link");
-  fonts.rel = "stylesheet";
-  fonts.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap";
-  document.head.appendChild(fonts);
-
-  var els = {};
-  var app;
+  var els: Record<string, any> = {};
+  var app: HTMLElement;
 
   __ESPFRAME_WEB_APP_SHELL__
 
@@ -185,19 +181,27 @@
     var normalizedUrl = normalizeImmichUrl(url);
     var apiKey = String(key || "").trim();
     if (!normalizedUrl || !apiKey) return Promise.reject(new Error("missing_connection"));
-    return saveConnectionValue(endpoints.immich_url, normalizedUrl, true)
-      .then(function () {
-        return saveConnectionValue(endpoints.api_key, apiKey, false);
+    return updateConfiguration({ immich_url: normalizedUrl, api_key: apiKey })
+      .then(function () { return delayMs(150); })
+      .then(function () { return getConfigurationSnapshot(); })
+      .catch(function (error) {
+        if (!isConfigurationApiUnavailable(error)) throw error;
+        return saveConnectionValue(endpoints.immich_url, normalizedUrl, true)
+          .then(function () { return saveConnectionValue(endpoints.api_key, apiKey, false); })
+          .then(function () {
+            return Promise.all([safeGet(endpoints.immich_url), safeGet(endpoints.api_key)]);
+          });
       })
-      .then(function () {
-        return Promise.all([
-          safeGet(endpoints.immich_url),
-          safeGet(endpoints.api_key)
-        ]);
-      })
-      .then(function (res) {
-        var savedUrl = normalizeImmichUrl(connectionResponseValue(res[0]));
-        var savedKey = connectionResponseValue(res[1]);
+      .then(function (result) {
+        var savedUrl;
+        var savedKey;
+        if (result && result.values) {
+          savedUrl = normalizeImmichUrl(result.values.immich_url);
+          savedKey = String(result.values.api_key || "");
+        } else {
+          savedUrl = normalizeImmichUrl(connectionResponseValue(result[0]));
+          savedKey = connectionResponseValue(result[1]);
+        }
         if (savedUrl !== normalizedUrl || !savedKey) throw new Error("verify_failed");
         S.immich_url = normalizedUrl;
         S.api_key = apiKey;
@@ -235,18 +239,14 @@
     if (domain === "select" || domain === "text") savedValue = value == null ? "" : String(value);
     var previousValue = S[key];
     S[key] = savedValue;
-    var request = null;
-    if (domain === "switch") {
-      request = post(endpoints[key] + (savedValue ? "/turn_on" : "/turn_off"));
-    } else if (domain === "select") {
-      request = post(endpoints[key] + "/set", { option: savedValue });
-    } else if (domain === "number") {
-      request = post(endpoints[key] + "/set", { value: savedValue });
-    } else if (domain === "text") {
-      request = postTextValueSet(endpoints[key] + "/set", savedValue);
-    } else {
-      return Promise.resolve(null);
-    }
+    var request = updateConfiguration({ [key]: savedValue }).catch(function (error) {
+      if (!isConfigurationApiUnavailable(error)) throw error;
+      if (domain === "switch") return post(endpoints[key] + (savedValue ? "/turn_on" : "/turn_off"));
+      if (domain === "select") return post(endpoints[key] + "/set", { option: savedValue });
+      if (domain === "number") return post(endpoints[key] + "/set", { value: savedValue });
+      if (domain === "text") return postTextValueSet(endpoints[key] + "/set", savedValue);
+      return null;
+    });
     return Promise.resolve(request).catch(function (err) {
       S[key] = previousValue;
       throw err;
@@ -257,7 +257,10 @@
     var server = normalizeNtpServer(value);
     var previousValue = S[key];
     S[key] = server;
-    return postTextValueSet(endpoints[key] + "/set", server).catch(function (err) {
+    return updateConfiguration({ [key]: server }).catch(function (error) {
+      if (!isConfigurationApiUnavailable(error)) throw error;
+      return postTextValueSet(endpoints[key] + "/set", server);
+    }).catch(function (err) {
       S[key] = previousValue;
       throw err;
     });
@@ -274,10 +277,16 @@
     var previousPortraitPairing = S.portrait_pairing;
     S.screen_rotation = rotation;
     S.portrait_pairing = !isPortraitScreenRotation(rotation);
-    return Promise.all([
-      saveGenericSetting("screen_rotation", rotation),
-      saveGenericSetting("portrait_pairing", S.portrait_pairing)
-    ]).catch(function (err) {
+    return updateConfiguration({
+      screen_rotation: rotation,
+      portrait_pairing: S.portrait_pairing
+    }).catch(function (error) {
+      if (!isConfigurationApiUnavailable(error)) throw error;
+      return Promise.all([
+        saveGenericSetting("screen_rotation", rotation),
+        saveGenericSetting("portrait_pairing", S.portrait_pairing)
+      ]);
+    }).catch(function (err) {
       S.screen_rotation = previousRotation;
       S.portrait_pairing = previousPortraitPairing;
       throw err;

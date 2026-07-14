@@ -9,7 +9,9 @@ Phase 1 of the reset is the product metadata foundation. The goal is to keep the
 
 ## Product-owned behavior
 
-`product/espframe.json` is now the source of truth for the stable product contract:
+The files under `product/contract/` are the source of truth for the stable product contract. They separate project and release policy, device profiles, settings, the contract version, and the standard JSON Schema used to validate them.
+
+`product/espframe.json` remains available as a generated compatibility file for existing tools while they migrate to the split contract.
 
 - project identity, public docs URLs, support links, license, repository, and release metadata
 - device identity, hardware details, build entrypoints, package includes, substitutions, pins, and workflow references
@@ -30,6 +32,7 @@ Phase 1 safely generates or verifies the parts that can be derived from product 
 
 The required Phase 1 release gates are:
 
+- `npm run check:schema`
 - `npm run check:product`
 - `npm run check:all`
 

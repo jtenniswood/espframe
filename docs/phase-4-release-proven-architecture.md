@@ -5,6 +5,9 @@ description: Phase 4 status for Espframe's release-confidence checks, expanded b
 
 # Phase 4 Release-Proven Architecture
 
+> This is a historical phase note. See [Current Reset Architecture](/reset-architecture-v2)
+> for the architecture that is now implemented.
+
 Phase 4 turns the reset architecture into a release-confidence system. The web UI, backup format, firmware entity names, web endpoints, and Home Assistant names remain unchanged.
 
 ## What is now release-proven

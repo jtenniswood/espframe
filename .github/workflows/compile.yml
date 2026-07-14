@@ -49,7 +49,10 @@ jobs:
         with:
           sparse-checkout: |
             scripts/product_config.py
-            product/espframe.json
+            product/contract/devices.json
+            product/contract/manifest.json
+            product/contract/project.json
+            product/contract/settings.json
           sparse-checkout-cone-mode: false
 
       - name: Read product metadata
@@ -92,7 +95,8 @@ jobs:
             -v "${PWD}:${ESPHOME_CONFIG_MOUNT}" \
             "${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}" \
             -s firmware_version "${TEST_VERSION}" \
-            compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml"
+            compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml" \
+            2>&1 | tee "output/${{ matrix.slug }}.factory.log"
 
           BUILD_DIR="${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}/.pioenvs/${{ matrix.build_name }}"
           if [ ! -f "${BUILD_DIR}/firmware.factory.bin" ]; then
@@ -100,18 +104,27 @@ jobs:
             exit 1
           fi
           sudo cp "${BUILD_DIR}/firmware.factory.bin" "output/${{ matrix.slug }}.factory.bin"
+          python3 scripts/check_build_budgets.py \
+            --compile-log "output/${{ matrix.slug }}.factory.log" \
+            --profile factory \
+            --binary "${BUILD_DIR}/firmware.factory.bin"
 
           docker run ${ESPHOME_DOCKER_REMOVE_FLAG} \
             -v "${PWD}:${ESPHOME_CONFIG_MOUNT}" \
             "${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}" \
             -s firmware_version "${TEST_VERSION}" \
-            compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml"
+            compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml" \
+            2>&1 | tee "output/${{ matrix.slug }}.ota.log"
 
           if [ ! -f "${BUILD_DIR}/firmware.bin" ]; then
             echo "::error::Firmware compilation failed - OTA binary not found"
             exit 1
           fi
           sudo cp "${BUILD_DIR}/firmware.bin" "output/${{ matrix.slug }}.ota.bin"
+          python3 scripts/check_build_budgets.py \
+            --compile-log "output/${{ matrix.slug }}.ota.log" \
+            --profile ota \
+            --binary "${BUILD_DIR}/firmware.bin"
 
           {
             echo "version=${TEST_VERSION}"

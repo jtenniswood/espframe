@@ -20,8 +20,8 @@ script:
     mode: restart
     then:
       - lambda: |-
-          if (id(portrait).is_pair) {
-            if (id(portrait).using_preload) {
+          if (id(espframe_core).slideshow().state().portrait.is_pair) {
+            if (id(espframe_core).slideshow().state().portrait.using_preload) {
               fill_accent_color(id(immich_portrait_preload_left));
               fill_accent_color(id(immich_portrait_preload_right));
             } else {
@@ -31,6 +31,6 @@ script:
             lv_obj_invalidate(id(portrait_pair_container));
           } else {
             esphome::image::Image *imgs[] = { id(immich_img_0), id(immich_img_1), id(immich_img_2) };
-            fill_accent_color(imgs[id(active_slot)]);
+            fill_accent_color(imgs[id(espframe_core).slideshow().state().active_slot]);
             lv_obj_invalidate(id(slideshow_img));
           }

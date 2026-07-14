@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 WEB_SRC_DIR = ROOT / "docs" / "webserver" / "src"
-WEB_TEMPLATE = ROOT / "docs" / "webserver" / "src" / "app.template.js"
+WEB_TEMPLATE = ROOT / "docs" / "webserver" / "src" / "app.template.ts"
 WEB_APP = ROOT / "docs" / "public" / "webserver" / "app.js"
 TIME_YAML = ROOT / "common" / "addon" / "time.yaml"
 
@@ -27,7 +27,7 @@ def read(path: Path, errors: list[str]) -> str:
 
 def read_web_source(errors: list[str]) -> str:
     files = [WEB_TEMPLATE] + sorted(
-        path for path in WEB_SRC_DIR.glob("*.js")
+        path for path in WEB_SRC_DIR.glob("*.ts")
         if path.name != WEB_TEMPLATE.name
     )
     return "\n".join(read(path, errors) for path in files)

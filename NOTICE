@@ -1,1 +1,6 @@
 Required Notice: Copyright 2025-2026 Espframe contributors
+
+Third-party source bundled with Espframe is listed in
+product/source-ownership.json together with its upstream revision, license,
+and local modifications. License texts are retained inside each vendored
+component directory.

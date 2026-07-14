@@ -69,7 +69,10 @@ jobs:
           sparse-checkout: |
             scripts/firmware_release.py
             scripts/product_config.py
-            product/espframe.json
+            product/contract/devices.json
+            product/contract/manifest.json
+            product/contract/project.json
+            product/contract/settings.json
           sparse-checkout-cone-mode: false
 
       - name: Load product firmware metadata
@@ -169,7 +172,10 @@ jobs:
           sparse-checkout: |
             scripts/firmware_release.py
             scripts/product_config.py
-            product/espframe.json
+            product/contract/devices.json
+            product/contract/manifest.json
+            product/contract/project.json
+            product/contract/settings.json
           sparse-checkout-cone-mode: false
 
       - name: Load product docs metadata
