@@ -28,6 +28,7 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
     package_json = read(ROOT / "package.json", errors)
 
     expected_outputs = {
+        "product/espframe.json",
         "components/espframe/tz_data_generated.h",
         "common/addon/time.yaml",
         "devices/guition-esp32-p4-jc8012p4a1/packages.yaml",
@@ -46,8 +47,13 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
         "docs/webserver/src/settings_controls.js",
         "docs/webserver/src/startup_wizard.js",
         "docs/webserver/src/style.css",
-        "product/espframe.json",
+        "product/contract/devices.json",
+        "product/contract/manifest.json",
+        "product/contract/project.json",
+        "product/contract/schema.json",
+        "product/contract/settings.json",
         "scripts/asset_generation/device_packages.py",
+        "scripts/asset_generation/product_manifest.py",
         "scripts/product_config.py",
     }
     missing_outputs = sorted(expected_outputs - set(outputs))
@@ -65,8 +71,10 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
         if path:
             read(ROOT / path, errors)
             path_name = Path(path).name
-            if path_name in {"espframe.json", "product_config.py"}:
+            if path_name in {"devices.json", "manifest.json", "project.json", "schema.json", "settings.json", "product_config.py"}:
                 require_contains(generator, "load_product", generator_label, errors)
+            elif path_name == "product_manifest.py":
+                require_contains(generator, "legacy_product_manifest", generator_label, errors)
             elif path_name in {"device_packages.py", "packages.yaml"}:
                 require_contains(generator, "generated_device_package_files", generator_label, errors)
             else:

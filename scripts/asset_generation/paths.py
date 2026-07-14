@@ -4,6 +4,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
+LEGACY_PRODUCT_PATH = ROOT / "product" / "espframe.json"
 TIMEZONES_PATH = ROOT / "components" / "espframe" / "timezones.py"
 TZ_HEADER_PATH = ROOT / "components" / "espframe" / "tz_data_generated.h"
 TIME_YAML_PATH = ROOT / "common" / "addon" / "time.yaml"

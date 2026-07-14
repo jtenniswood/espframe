@@ -5,11 +5,11 @@ description: Phase 3 status for Espframe's modular web source, generated firmwar
 
 # Phase 3 Reset Architecture
 
-Phase 3 finishes the reset architecture by making the Phase 1 product metadata and Phase 2 compatibility gates part of normal project structure. The user experience, backup format, firmware entity names, web endpoints, and Home Assistant names remain unchanged.
+Phase 3 established the first reset architecture by making product metadata and compatibility gates part of normal project structure. Later reset work split that metadata into the schema-validated `product/contract/` boundary while preserving the user experience, backup format, firmware entity names, web endpoints, and Home Assistant names.
 
 ## What is product-owned
 
-The product metadata now owns the stable settings contract used across the web UI, docs, compatibility checks, and generated firmware field sections.
+The product contract now owns the stable settings contract used across the web UI, docs, compatibility checks, and generated firmware field sections.
 
 - Web settings metadata, entity mappings, aliases, startup fetch keys, live state keys, tabs, support links, and firmware manifest URLs are generated from product metadata.
 - Firmware setting fields inside marked YAML sections are generated for safe repeated fields: select options/defaults, number ranges/defaults, text field shape/defaults, and switch restore defaults.

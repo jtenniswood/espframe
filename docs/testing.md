@@ -36,7 +36,7 @@ This skips browser and documentation build work, so it is useful while iterating
 npm run check:fast
 ```
 
-This group checks generated files, product metadata, backup configuration, compatibility fixtures, and generated firmware fields. These checks catch mistakes where the user-visible settings contract, generated web files, firmware fields, or docs metadata drift apart.
+This group validates the standard product-contract schema, then checks generated files, product metadata, backup configuration, compatibility fixtures, and generated firmware fields. These checks catch mistakes where the user-visible settings contract, generated web files, firmware fields, or docs metadata drift apart.
 
 ### Web UI Checks
 

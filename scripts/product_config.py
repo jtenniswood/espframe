@@ -16,16 +16,45 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 PRODUCT_PATH = ROOT / "product" / "espframe.json"
+PRODUCT_CONTRACT_DIR = ROOT / "product" / "contract"
+PRODUCT_PROJECT_PATH = PRODUCT_CONTRACT_DIR / "project.json"
+PRODUCT_DEVICES_PATH = PRODUCT_CONTRACT_DIR / "devices.json"
+PRODUCT_SETTINGS_PATH = PRODUCT_CONTRACT_DIR / "settings.json"
+PRODUCT_MANIFEST_PATH = PRODUCT_CONTRACT_DIR / "manifest.json"
 DOCS_SETTINGS_TABLE_COLUMNS = {"Control", "Default", "Description", "Format", "Setting", "Type"}
 
 
-def load_product(path: Path = PRODUCT_PATH) -> dict[str, Any]:
+def _load_json(path: Path, label: str) -> Any:
     try:
-        data = json.loads(path.read_text())
+        return json.loads(path.read_text())
     except FileNotFoundError as exc:
-        raise RuntimeError(f"Product metadata not found: {path}") from exc
+        raise RuntimeError(f"{label} not found: {path}") from exc
     except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Product metadata is not valid JSON: {exc}") from exc
+        raise RuntimeError(f"{label} is not valid JSON: {exc}") from exc
+
+
+def load_contract_manifest(path: Path = PRODUCT_MANIFEST_PATH) -> dict[str, Any]:
+    manifest = _load_json(path, "Product contract manifest")
+    if not isinstance(manifest, dict):
+        raise RuntimeError("Product contract manifest must be an object")
+    return manifest
+
+
+def load_product(path: Path | None = None) -> dict[str, Any]:
+    """Load the authored split contract, or an explicit legacy manifest.
+
+    The optional path keeps compatibility with callers that deliberately inspect
+    a combined manifest. Normal project code reads the independently owned
+    contract files so product, device, and setting changes have clear homes.
+    """
+    if path is not None:
+        data = _load_json(path, "Product metadata")
+    else:
+        data = {
+            "project": _load_json(PRODUCT_PROJECT_PATH, "Product project contract"),
+            "devices": _load_json(PRODUCT_DEVICES_PATH, "Product device contract"),
+            "settings": _load_json(PRODUCT_SETTINGS_PATH, "Product settings contract"),
+        }
 
     if not isinstance(data.get("project"), dict):
         raise RuntimeError("Product metadata must contain a project object")

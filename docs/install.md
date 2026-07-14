@@ -44,6 +44,8 @@ Requires **Chrome** or **Edge** on a desktop computer with [Web Serial](https://
 
 The setup wizard defaults to **24 Hour** clock format, **Europe/London (GMT+0)** timezone, shows the clock by default, and uses **0.pool.ntp.org**, **1.pool.ntp.org**, and **2.pool.ntp.org** for time sync. Pick your timezone during setup so the clock and sunrise/sunset based brightness and night tone are calculated for your location. The on-screen clock refreshes every **60 seconds**.
 
+Choose whether the on-screen clock uses a 24-hour or 12-hour format.
+
 ## Recent firmware notes
 
 - **Multiple Album, Person, or Tag IDs:** Saving comma-separated UUID lists uses a POST body so long lists no longer hit **414 URI Too Long**. Album IDs, Person IDs, and Tag IDs are still limited to **255 characters** each; see [Photo Sources](/photo-sources#album-person-and-tag-id-limits).

@@ -16,6 +16,7 @@ from asset_generation.firmware_fields import (
     generated_firmware_yaml,
 )
 from asset_generation.paths import (
+    LEGACY_PRODUCT_PATH,
     ROOT,
     TIME_YAML_PATH,
     TZ_HEADER_PATH,
@@ -23,12 +24,13 @@ from asset_generation.paths import (
     WEB_PUBLIC_STYLE_PATH,
     WEB_STYLE_PATH,
 )
+from asset_generation.product_manifest import legacy_product_manifest
 from asset_generation.timezones import replace_timezone_yaml, timezone_header, timezone_options
 from asset_generation.web_bundle import bootstrap_webserver_sources, web_app_bundle
 from product_config import docs_settings_tables, load_product
 
 
-GENERATED_JS_HEADER = "// ESPFRAME: generated from docs/webserver/src and product/espframe.json; run `npm run generate` to update.\n"
+GENERATED_JS_HEADER = "// ESPFRAME: generated from docs/webserver/src and product/contract; run `npm run generate` to update.\n"
 GENERATED_CSS_HEADER = "/* ESPFRAME: generated from docs/webserver/src/style.css; run `npm run generate` to update. */\n"
 
 
@@ -56,6 +58,7 @@ def write_or_check(path: Path, content: str, check: bool) -> bool:
 def generate(check: bool) -> int:
     changed = False
     product = load_product()
+    changed |= write_or_check(LEGACY_PRODUCT_PATH, legacy_product_manifest(product), check)
     all_settings = setting_lookup()
     firmware_field_configs = generated_firmware_setting_fields()
     changed |= write_or_check(TZ_HEADER_PATH, timezone_header(), check)

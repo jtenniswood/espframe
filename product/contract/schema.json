@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jtenniswood.github.io/espframe/schema/product-contract-v2.json",
+  "title": "Espframe product contract",
+  "type": "object",
+  "required": ["manifest", "project", "devices", "settings"],
+  "additionalProperties": false,
+  "properties": {
+    "manifest": { "$ref": "#/$defs/manifest" },
+    "project": { "$ref": "#/$defs/project" },
+    "devices": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/device" }
+    },
+    "settings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/setting" }
+    }
+  },
+  "$defs": {
+    "manifest": {
+      "type": "object",
+      "required": ["contract_version", "configuration_api", "compatibility"],
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": { "const": 2 },
+        "configuration_api": {
+          "type": "object",
+          "required": ["version", "base_path", "capabilities_path", "configuration_path", "update_mode"],
+          "additionalProperties": false,
+          "properties": {
+            "version": { "type": "integer", "minimum": 1 },
+            "base_path": { "type": "string", "pattern": "^/espframe/api/v[0-9]+$" },
+            "capabilities_path": { "type": "string", "pattern": "^/espframe/api/v[0-9]+/capabilities$" },
+            "configuration_path": { "type": "string", "pattern": "^/espframe/api/v[0-9]+/configuration$" },
+            "update_mode": { "const": "atomic" }
+          }
+        },
+        "compatibility": {
+          "type": "object",
+          "required": ["backup_versions", "preserve_esphome_entity_names", "preserve_saved_preferences"],
+          "additionalProperties": false,
+          "properties": {
+            "backup_versions": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "integer", "minimum": 1 },
+              "uniqueItems": true
+            },
+            "preserve_esphome_entity_names": { "const": true },
+            "preserve_saved_preferences": { "const": true }
+          }
+        }
+      }
+    },
+    "project": {
+      "type": "object",
+      "required": [
+        "name",
+        "site_description",
+        "backup_config_version",
+        "backup_export_groups",
+        "backup_export_fields",
+        "backup_field_state_keys",
+        "generated_asset_outputs",
+        "generated_asset_sources",
+        "public_base_url",
+        "repository_url",
+        "esphome_version"
+      ],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "site_description": { "type": "string", "minLength": 1 },
+        "backup_config_version": { "type": "integer", "minimum": 1 },
+        "backup_export_groups": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "backup_export_fields": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true } },
+        "backup_field_state_keys": { "type": "object" },
+        "generated_asset_outputs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "generated_asset_sources": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "public_base_url": { "type": "string", "format": "uri" },
+        "repository_url": { "type": "string", "format": "uri" },
+        "esphome_version": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]+\\.[0-9]+$" }
+      },
+      "additionalProperties": true
+    },
+    "device": {
+      "type": "object",
+      "required": [
+        "slug",
+        "name",
+        "esphome_name",
+        "chip",
+        "model",
+        "hardware_pins",
+        "package_includes",
+        "build_yaml",
+        "package_yaml",
+        "local_yaml",
+        "public_manifest"
+      ],
+      "properties": {
+        "slug": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "name": { "type": "string", "minLength": 1 },
+        "esphome_name": { "type": "string", "minLength": 1 },
+        "chip": { "type": "string", "minLength": 1 },
+        "model": { "type": "string", "minLength": 1 },
+        "hardware_pins": { "type": "object", "minProperties": 1 },
+        "package_includes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["alias", "path"],
+            "additionalProperties": false,
+            "properties": {
+              "alias": { "type": "string", "minLength": 1 },
+              "path": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "build_yaml": { "type": "string", "pattern": "\\.ya?ml$" },
+        "package_yaml": { "type": "string", "pattern": "\\.ya?ml$" },
+        "local_yaml": { "type": "string", "pattern": "\\.ya?ml$" },
+        "public_manifest": { "type": "string", "pattern": "\\.json$" }
+      },
+      "additionalProperties": true
+    },
+    "entity": {
+      "type": "object",
+      "required": ["domain", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "domain": { "enum": ["number", "select", "switch", "text"] },
+        "name": { "type": "string", "minLength": 1 }
+      }
+    },
+    "setting": {
+      "type": "object",
+      "required": ["key", "entity", "default", "docs_description", "firmware_files", "docs_files"],
+      "additionalProperties": false,
+      "properties": {
+        "key": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "entity": { "$ref": "#/$defs/entity" },
+        "default": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "number" },
+            { "type": "boolean" }
+          ]
+        },
+        "options": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true },
+        "developer_options": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "step": { "type": "number", "exclusiveMinimum": 0 },
+        "firmware_initial_option": { "type": "string" },
+        "docs_label": { "type": "string", "minLength": 1 },
+        "docs_default": { "type": "string" },
+        "docs_type": { "type": "string" },
+        "docs_format": { "type": "string" },
+        "docs_description": { "type": "string", "minLength": 1 },
+        "firmware_files": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "\\.ya?ml$" }, "uniqueItems": true },
+        "docs_files": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "\\.md$" }, "uniqueItems": true }
+      }
+    }
+  }
+}

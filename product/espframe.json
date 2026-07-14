@@ -7,38 +7,94 @@
     "social_image_alt": "Espframe displaying Immich photos on a Guition ESP32-P4 touchscreen",
     "usb_flashing_image": "usb-plug.png",
     "usb_flashing_image_alt": "USB-C cable plugged into the bottom USB-C flashing port on the Guition ESP32-P4 display",
-    "web_installer_required_browsers": ["Chrome", "Edge"],
+    "web_installer_required_browsers": [
+      "Chrome",
+      "Edge"
+    ],
     "web_installer_required_api": "Web Serial",
     "web_installer_computer_requirement": "desktop computer",
-    "web_installer_unsupported_browsers": ["Safari", "Firefox"],
+    "web_installer_unsupported_browsers": [
+      "Safari",
+      "Firefox"
+    ],
     "usb_cable_requirement": "USB-C data cable",
     "usb_cable_warning": "not a charge-only cable",
     "immich_api_key_mode": "read-only",
     "immich_api_key_privacy_promise": "never modifies or uploads",
     "immich_api_key_permissions": [
-      { "name": "asset.read", "purpose": "Search for random photos and read metadata (date, location, EXIF)" },
-      { "name": "asset.view", "purpose": "Download photo thumbnails for display" },
-      { "name": "person.read", "purpose": "Show people's names on the photo overlay" },
-      { "name": "album.read", "purpose": "Album names a photo belongs to" },
-      { "name": "tag.read", "purpose": "Tags assigned to photos" },
-      { "name": "memory.read", "purpose": "\"On this day\" memories and groupings" },
-      { "name": "map.read", "purpose": "Additional GPS/map data beyond EXIF" }
+      {
+        "name": "asset.read",
+        "purpose": "Search for random photos and read metadata (date, location, EXIF)"
+      },
+      {
+        "name": "asset.view",
+        "purpose": "Download photo thumbnails for display"
+      },
+      {
+        "name": "person.read",
+        "purpose": "Show people's names on the photo overlay"
+      },
+      {
+        "name": "album.read",
+        "purpose": "Album names a photo belongs to"
+      },
+      {
+        "name": "tag.read",
+        "purpose": "Tags assigned to photos"
+      },
+      {
+        "name": "memory.read",
+        "purpose": "\"On this day\" memories and groupings"
+      },
+      {
+        "name": "map.read",
+        "purpose": "Additional GPS/map data beyond EXIF"
+      }
     ],
-    "immich_server_url_schemes": ["http://", "https://"],
-    "immich_server_url_targets": ["IP address", "domain"],
-    "immich_server_url_examples": ["http://192.168.1.30:2283", "https://photos.example.com"],
+    "immich_server_url_schemes": [
+      "http://",
+      "https://"
+    ],
+    "immich_server_url_targets": [
+      "IP address",
+      "domain"
+    ],
+    "immich_server_url_examples": [
+      "http://192.168.1.30:2283",
+      "https://photos.example.com"
+    ],
     "home_assistant_name": "Home Assistant",
     "home_assistant_url": "https://www.home-assistant.io/",
     "home_assistant_requirement": "not required",
     "home_assistant_integration_platform": "ESPHome",
-    "home_assistant_integration_features": ["updates", "dashboard control", "automations"],
+    "home_assistant_integration_features": [
+      "updates",
+      "dashboard control",
+      "automations"
+    ],
     "home_assistant_network_entities": [
-      { "name": "Network: Online", "type": "Binary Sensor", "description": "Connection status" },
-      { "name": "Network: WiFi Strength", "type": "Sensor", "description": "Signal %" },
-      { "name": "Network: IP Address", "type": "Text Sensor", "description": "Device IP" }
+      {
+        "name": "Network: Online",
+        "type": "Binary Sensor",
+        "description": "Connection status"
+      },
+      {
+        "name": "Network: WiFi Strength",
+        "type": "Sensor",
+        "description": "Signal %"
+      },
+      {
+        "name": "Network: IP Address",
+        "type": "Text Sensor",
+        "description": "Device IP"
+      }
     ],
     "home_assistant_diagnostic_entities": [
-      { "name": "Reset Reason", "type": "Text Sensor", "description": "Last reboot reason" }
+      {
+        "name": "Reset Reason",
+        "type": "Text Sensor",
+        "description": "Last reboot reason"
+      }
     ],
     "device_log_level_default": "INFO",
     "device_log_component_levels": {
@@ -51,23 +107,48 @@
     "device_debug_update_interval": "60s",
     "network_wifi_strength_source": "Network: WiFi Signal dB",
     "network_wifi_strength_update_interval": "60s",
-    "firmware_update_methods": ["OTA", "HTTP"],
+    "firmware_update_methods": [
+      "OTA",
+      "HTTP"
+    ],
     "firmware_update_source": "GitHub Pages",
-    "firmware_update_channels": ["stable"],
+    "firmware_update_channels": [
+      "stable"
+    ],
     "firmware_manual_check_behavior": "only checks for updates; it does not install",
     "firmware_custom_manifest_requirement": "full http:// or https:// URL",
     "firmware_manifest_url_length_limit": 255,
-    "firmware_update_frequency_hours": { "Hourly": 1, "Daily": 24, "Weekly": 168, "Monthly": 720 },
+    "firmware_update_frequency_hours": {
+      "Hourly": 1,
+      "Daily": 24,
+      "Weekly": 168,
+      "Monthly": 720
+    },
     "ota_update_platform": "esphome",
     "ota_pre_update_action": "keeps the current backlight state while the update starts",
     "backup_config_version": 1,
     "backup_filename_prefix": "espframe-config-",
     "backup_filename_date_format": "YYYY-MM-DD",
     "backup_import_photo_id_limit": 255,
-    "backup_excluded_runtime_values": ["Firmware version", "update status", "sunrise/sunset", "current brightness"],
-    "backup_export_groups": ["connection", "photos", "frequency", "firmware_updates", "clock", "screen"],
+    "backup_excluded_runtime_values": [
+      "Firmware version",
+      "update status",
+      "sunrise/sunset",
+      "current brightness"
+    ],
+    "backup_export_groups": [
+      "connection",
+      "photos",
+      "frequency",
+      "firmware_updates",
+      "clock",
+      "screen"
+    ],
     "backup_export_fields": {
-      "connection": ["immich_url", "api_key"],
+      "connection": [
+        "immich_url",
+        "api_key"
+      ],
       "photos": [
         "source",
         "album_order",
@@ -87,9 +168,21 @@
         "portrait_pairing",
         "display_mode"
       ],
-      "frequency": ["interval", "conn_timeout"],
-      "firmware_updates": ["auto_update", "update_frequency", "manifest_url"],
-      "clock": ["show", "format", "timezone", "ntp_servers"],
+      "frequency": [
+        "interval",
+        "conn_timeout"
+      ],
+      "firmware_updates": [
+        "auto_update",
+        "update_frequency",
+        "manifest_url"
+      ],
+      "clock": [
+        "show",
+        "format",
+        "timezone",
+        "ntp_servers"
+      ],
       "screen": [
         "brightness_day",
         "brightness_night",
@@ -142,7 +235,11 @@
         "show": "show_clock",
         "format": "clock_format",
         "timezone": "timezone",
-        "ntp_servers": ["ntp_server_1", "ntp_server_2", "ntp_server_3"]
+        "ntp_servers": [
+          "ntp_server_1",
+          "ntp_server_2",
+          "ntp_server_3"
+        ]
       },
       "screen": {
         "brightness_day": "brightness_day",
@@ -184,7 +281,11 @@
       "rejected_fields": [
         {
           "path": "tests/fixtures/compat/espframe-config-v1-invalid-photo-ids.json",
-          "messages": ["Import skipped invalid album IDs", "Import skipped invalid person IDs", "Import skipped invalid tag IDs"]
+          "messages": [
+            "Import skipped invalid album IDs",
+            "Import skipped invalid person IDs",
+            "Import skipped invalid tag IDs"
+          ]
         },
         {
           "path": "tests/fixtures/compat/espframe-config-v1-invalid-manifest-urls.json",
@@ -215,20 +316,48 @@
     "privacy_no_uploads": "does not upload photos",
     "privacy_no_hosted_service": "hosted service",
     "touch_controls": [
-      { "action": "Wake", "gesture": "Tap the screen when it's off" },
-      { "action": "Sleep", "gesture": "Press and hold for 3 seconds, then release" },
-      { "action": "Next photo", "gesture": "Double-tap on the photo" }
+      {
+        "action": "Wake",
+        "gesture": "Tap the screen when it's off"
+      },
+      {
+        "action": "Sleep",
+        "gesture": "Press and hold for 3 seconds, then release"
+      },
+      {
+        "action": "Next photo",
+        "gesture": "Double-tap on the photo"
+      }
     ],
     "screen_brightness_day_night_source": "sunrise/sunset",
     "screen_schedule_behavior": "turns the display fully off outside a time window",
-    "screen_schedule_off_effects": ["switches to a black page", "pauses LVGL", "turns the backlight light off", "forces the physical PWM output off"],
-    "screen_rotation_user_options": ["0", "180"],
-    "screen_rotation_developer_options": ["90", "270"],
-    "screen_rotation_native_mapping": { "0": "90", "90": "180", "180": "270", "270": "0" },
+    "screen_schedule_off_effects": [
+      "switches to a black page",
+      "pauses LVGL",
+      "turns the backlight light off",
+      "forces the physical PWM output off"
+    ],
+    "screen_rotation_user_options": [
+      "0",
+      "180"
+    ],
+    "screen_rotation_developer_options": [
+      "90",
+      "270"
+    ],
+    "screen_rotation_native_mapping": {
+      "0": "90",
+      "90": "180",
+      "180": "270",
+      "270": "0"
+    },
     "screen_rotation_feature_source": "ESPHome 2026.4's LVGL rotation support",
     "screen_rotation_behavior": "picture and touch input turn together",
     "screen_rotation_developer_behavior": "90 and 270 degree rotations are hidden unless Developer Features is enabled",
-    "developer_features_query_params": ["developer", "dev"],
+    "developer_features_query_params": [
+      "developer",
+      "dev"
+    ],
     "developer_features_query_value": "experimental",
     "developer_features_label": "Enable in-development features",
     "developer_features_entity": "Developer: Features",
@@ -239,14 +368,32 @@
     "screen_tone_night_recovery": "60 minutes after sunrise",
     "screen_tone_override_duration": "until sunrise",
     "clock_default_format": "24 Hour",
-    "clock_format_options": ["24 Hour", "12 Hour"],
+    "clock_format_options": [
+      "24 Hour",
+      "12 Hour"
+    ],
     "clock_default_timezone": "Europe/London (GMT+0)",
     "clock_default_show": true,
     "clock_update_interval": "60 seconds",
-    "ntp_default_servers": ["0.pool.ntp.org", "1.pool.ntp.org", "2.pool.ntp.org"],
+    "ntp_default_servers": [
+      "0.pool.ntp.org",
+      "1.pool.ntp.org",
+      "2.pool.ntp.org"
+    ],
     "ntp_server_length_limit": 253,
-    "timezone_change_effects": ["updates clock display", "recalculates sunrise/sunset", "checks screen schedule"],
-    "photo_source_modes": ["All Photos", "Favorites", "Album", "Person", "Tag", "Memories"],
+    "timezone_change_effects": [
+      "updates clock display",
+      "recalculates sunrise/sunset",
+      "checks screen schedule"
+    ],
+    "photo_source_modes": [
+      "All Photos",
+      "Favorites",
+      "Album",
+      "Person",
+      "Tag",
+      "Memories"
+    ],
     "photo_source_auto_apply_behavior": "Changes apply automatically shortly after you change a control",
     "photo_source_id_limit": 255,
     "photo_source_memories_window": "two days before and two days after today's date",
@@ -254,30 +401,58 @@
     "photo_source_album_person_sampling": "sampled through paged Immich search",
     "slideshow_check_interval": "2s",
     "slideshow_interval_default_seconds": 15,
-    "slideshow_interval_range_seconds": [10, 600],
+    "slideshow_interval_range_seconds": [
+      10,
+      600
+    ],
     "connection_timeout_default": "10 minutes",
     "connection_timeout_default_seconds": 600,
-    "connection_timeout_range_seconds": [30, 1800],
+    "connection_timeout_range_seconds": [
+      30,
+      1800
+    ],
     "connection_timeout_range": "30 seconds to 30 minutes",
     "connection_failure_trigger": "without successfully displaying a new photo",
     "connection_invalid_api_key_title": "Invalid API Key",
     "connection_unavailable_title": "Unable to connect to Immich",
     "immich_max_error_retries": 3,
-    "immich_api_retry_delay_ms": [2000, 5000, 10000],
-    "immich_retryable_http_statuses": ["HTTP 5xx", "429"],
+    "immich_api_retry_delay_ms": [
+      2000,
+      5000,
+      10000
+    ],
+    "immich_retryable_http_statuses": [
+      "HTTP 5xx",
+      "429"
+    ],
     "immich_auth_error_status": 401,
     "setup_captive_portal_ip": "192.168.4.1",
-    "setup_wizard_steps": ["Connection", "Clock & timezone"],
-    "setup_required_connection_fields": ["Immich Server URL", "API Key"],
-    "setup_skip_substitutions": ["immich_base_url", "immich_api_key"],
+    "setup_wizard_steps": [
+      "Connection",
+      "Clock & timezone"
+    ],
+    "setup_required_connection_fields": [
+      "Immich Server URL",
+      "API Key"
+    ],
+    "setup_skip_substitutions": [
+      "immich_base_url",
+      "immich_api_key"
+    ],
     "setup_connection_ready_condition": "valid Immich URL and API key",
     "setup_screen_dim_delay": "120s",
     "setup_screen_dim_brightness": "50%",
     "setup_screen_dim_transition": "2s",
     "setup_loading_backlight_brightness": "90%",
     "setup_loading_backlight_transition": "500ms",
-    "manual_setup_required_substitutions": ["name", "friendly_name"],
-    "manual_setup_wifi_secrets": ["wifi_ssid", "wifi_password"],
+    "manual_setup_required_substitutions": [
+      "name",
+      "friendly_name"
+    ],
+    "manual_setup_wifi_secrets": [
+      "wifi_ssid",
+      "wifi_password"
+    ],
     "manual_setup_package_ref": "main",
     "manual_setup_package_refresh": "1s",
     "factory_firmware_purpose": "ESPHome web installer",
@@ -293,25 +468,70 @@
     "web_server_factory_css_include": "../docs/public/webserver/style.css",
     "web_server_factory_js_include": "../docs/public/webserver/app.js",
     "web_server_sorting_groups": [
-      { "id": "sg_connection", "name": "Connection", "sorting_weight": 10 },
-      { "id": "sg_photos", "name": "Photos", "sorting_weight": 20 },
-      { "id": "sg_device", "name": "Device", "sorting_weight": 25 },
-      { "id": "sg_screen", "name": "Screen", "sorting_weight": 30 },
-      { "id": "sg_clock", "name": "Clock", "sorting_weight": 35 },
-      { "id": "sg_firmware", "name": "Firmware", "sorting_weight": 40 },
-      { "id": "sg_wifi", "name": "WiFi", "sorting_weight": 45 },
-      { "id": "sg_developer", "name": "Developer", "sorting_weight": 90 }
+      {
+        "id": "sg_connection",
+        "name": "Connection",
+        "sorting_weight": 10
+      },
+      {
+        "id": "sg_photos",
+        "name": "Photos",
+        "sorting_weight": 20
+      },
+      {
+        "id": "sg_device",
+        "name": "Device",
+        "sorting_weight": 25
+      },
+      {
+        "id": "sg_screen",
+        "name": "Screen",
+        "sorting_weight": 30
+      },
+      {
+        "id": "sg_clock",
+        "name": "Clock",
+        "sorting_weight": 35
+      },
+      {
+        "id": "sg_firmware",
+        "name": "Firmware",
+        "sorting_weight": 40
+      },
+      {
+        "id": "sg_wifi",
+        "name": "WiFi",
+        "sorting_weight": 45
+      },
+      {
+        "id": "sg_developer",
+        "name": "Developer",
+        "sorting_weight": 90
+      }
     ],
-    "external_component_names": ["gsl3680", "remote_image", "espframe"],
+    "external_component_names": [
+      "gsl3680",
+      "remote_image",
+      "espframe"
+    ],
     "external_component_git_source_type": "git",
     "external_component_local_source_type": "local",
     "external_component_git_path": "components",
     "external_component_local_path": "../components",
     "external_component_ref": "main",
     "web_ui_tabs": [
-      { "id": "immich", "label": "Immich" },
-      { "id": "settings", "label": "Device" },
-      { "id": "logs", "label": "Logs" }
+      {
+        "id": "immich",
+        "label": "Immich"
+      },
+      {
+        "id": "settings",
+        "label": "Device"
+      },
+      {
+        "id": "logs",
+        "label": "Logs"
+      }
     ],
     "web_ui_cards": [
       {
@@ -319,94 +539,172 @@
         "label": "Connection",
         "tab": "immich",
         "function": "makeConnectionCard",
-        "settings": ["conn_timeout"],
-        "manual_entities": ["immich_url", "api_key"]
+        "settings": [
+          "conn_timeout"
+        ],
+        "manual_entities": [
+          "immich_url",
+          "api_key"
+        ]
       },
       {
         "id": "frequency",
         "label": "Frequency",
         "tab": "immich",
         "function": "makeFrequencyCard",
-        "settings": ["interval"]
+        "settings": [
+          "interval"
+        ]
       },
       {
         "id": "photo_source",
         "label": "Photo Source",
         "tab": "immich",
         "function": "makePhotoSourceCard",
-        "settings": ["photo_source", "album_order"],
-        "static_entities": ["album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels"],
-        "manual_entities": ["apply_photo_source"]
+        "settings": [
+          "photo_source",
+          "album_order"
+        ],
+        "static_entities": [
+          "album_ids",
+          "album_labels",
+          "person_ids",
+          "person_labels",
+          "tag_ids",
+          "tag_labels"
+        ],
+        "manual_entities": [
+          "apply_photo_source"
+        ]
       },
       {
         "id": "advanced_filters",
         "label": "Advanced Filters",
         "tab": "immich",
         "function": "makeAdvancedFiltersCard",
-        "settings": ["date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit"],
-        "manual_entities": ["apply_photo_source"]
+        "settings": [
+          "date_filter_enabled",
+          "date_filter_mode",
+          "date_from",
+          "date_to",
+          "relative_amount",
+          "relative_unit"
+        ],
+        "manual_entities": [
+          "apply_photo_source"
+        ]
       },
       {
         "id": "layout",
         "label": "Layout",
         "tab": "immich",
         "function": "makeLayoutCard",
-        "settings": ["portrait_pairing", "photo_orientation", "display_mode"]
+        "settings": [
+          "portrait_pairing",
+          "photo_orientation",
+          "display_mode"
+        ]
       },
       {
         "id": "metadata",
         "label": "Metadata",
         "tab": "immich",
         "function": "makeMetadataCard",
-        "settings": ["photo_metadata_date_enabled", "photo_metadata_location_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format"]
+        "settings": [
+          "photo_metadata_date_enabled",
+          "photo_metadata_location_enabled",
+          "photo_metadata_date_format",
+          "photo_metadata_date_taken_format"
+        ]
       },
       {
         "id": "screen_brightness",
         "label": "Screen Brightness",
         "tab": "settings",
         "function": "makeScreenBrightnessCard",
-        "settings": ["brightness_day", "brightness_night"],
-        "static_entities": ["sunrise", "sunset"]
+        "settings": [
+          "brightness_day",
+          "brightness_night"
+        ],
+        "static_entities": [
+          "sunrise",
+          "sunset"
+        ]
       },
       {
         "id": "screen_tone",
         "label": "Screen Tone",
         "tab": "settings",
         "function": "makeScreenToneCard",
-        "settings": ["base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"]
+        "settings": [
+          "base_tone_enabled",
+          "base_tone",
+          "warm_tones_enabled",
+          "warm_tone_intensity",
+          "warm_tone_override"
+        ]
       },
       {
         "id": "night_schedule",
         "label": "Night Schedule",
         "tab": "settings",
         "function": "makeNightScheduleCard",
-        "settings": ["schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"],
-        "static_entities": ["sunrise", "sunset"]
+        "settings": [
+          "schedule_enabled",
+          "schedule_on_hour",
+          "schedule_off_hour",
+          "schedule_wake_timeout"
+        ],
+        "static_entities": [
+          "sunrise",
+          "sunset"
+        ]
       },
       {
         "id": "rotation",
         "label": "Rotation",
         "tab": "settings",
         "function": "makeRotationCard",
-        "settings": ["screen_rotation"],
-        "static_entities": ["developer_features_enabled"]
+        "settings": [
+          "screen_rotation"
+        ],
+        "static_entities": [
+          "developer_features_enabled"
+        ]
       },
       {
         "id": "clock",
         "label": "Clock",
         "tab": "settings",
         "function": "makeClockCard",
-        "settings": ["clock_format"],
-        "static_entities": ["show_clock", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"]
+        "settings": [
+          "clock_format"
+        ],
+        "static_entities": [
+          "show_clock",
+          "timezone",
+          "ntp_server_1",
+          "ntp_server_2",
+          "ntp_server_3"
+        ]
       },
       {
         "id": "firmware",
         "label": "Firmware",
         "tab": "settings",
         "function": "makeFirmwareCard",
-        "settings": ["update_frequency", "auto_update", "firmware_manifest_url"],
-        "static_entities": ["firmware"],
-        "manual_entities": ["update", "firmware_check"]
+        "settings": [
+          "update_frequency",
+          "auto_update",
+          "firmware_manifest_url"
+        ],
+        "static_entities": [
+          "firmware"
+        ],
+        "manual_entities": [
+          "update",
+          "firmware_check"
+        ]
       },
       {
         "id": "device_reboot",
@@ -415,22 +713,32 @@
         "function": "makeDeviceRebootCard",
         "settings": [],
         "static_entities": [],
-        "manual_entities": ["reboot_screen"]
+        "manual_entities": [
+          "reboot_screen"
+        ]
       },
       {
         "id": "wifi",
         "label": "WiFi",
         "tab": "settings",
         "function": "makeWifiCard",
-        "static_entities": ["c6_current_firmware", "c6_available_firmware"],
-        "manual_entities": ["c6_firmware_check", "c6_firmware_install"]
+        "static_entities": [
+          "c6_current_firmware",
+          "c6_available_firmware"
+        ],
+        "manual_entities": [
+          "c6_firmware_check",
+          "c6_firmware_install"
+        ]
       },
       {
         "id": "developer",
         "label": "Developer",
         "tab": "settings",
         "function": "makeDeveloperCard",
-        "static_entities": ["developer_features_enabled"]
+        "static_entities": [
+          "developer_features_enabled"
+        ]
       },
       {
         "id": "backup",
@@ -460,11 +768,24 @@
       "backup-import-future-version",
       "backup-import-unsupported-version"
     ],
-    "web_live_render_state_keys": ["screen_rotation", "portrait_pairing", "developer_features_enabled"],
-    "web_live_render_state_prefixes": ["photo_metadata_", "schedule_"],
-    "web_initial_fetch_first_keys": ["firmware"],
+    "web_live_render_state_keys": [
+      "screen_rotation",
+      "portrait_pairing",
+      "developer_features_enabled"
+    ],
+    "web_live_render_state_prefixes": [
+      "photo_metadata_",
+      "schedule_"
+    ],
+    "web_initial_fetch_first_keys": [
+      "firmware"
+    ],
     "web_static_entities": {
-      "firmware": { "entity": "text_sensor/Firmware: Version", "firmware_file": "common/addon/firmware_update.yaml", "fetch": true },
+      "firmware": {
+        "entity": "text_sensor/Firmware: Version",
+        "firmware_file": "common/addon/firmware_update.yaml",
+        "fetch": true
+      },
       "timezone": {
         "entity": "select/Clock: Timezone",
         "firmware_file": "common/addon/time.yaml",
@@ -472,62 +793,230 @@
         "default": "Europe/London (GMT+0)",
         "fetch": true
       },
-      "ntp_server_1": { "entity": "text/Clock: NTP Server 1", "firmware_file": "common/addon/time.yaml", "default": "0.pool.ntp.org", "fetch": true },
-      "ntp_server_2": { "entity": "text/Clock: NTP Server 2", "firmware_file": "common/addon/time.yaml", "default": "1.pool.ntp.org", "fetch": true },
-      "ntp_server_3": { "entity": "text/Clock: NTP Server 3", "firmware_file": "common/addon/time.yaml", "default": "2.pool.ntp.org", "fetch": true },
-      "album_ids": { "entity": "text/Photos: Album IDs", "firmware_file": "common/addon/immich_filter.yaml", "fetch": true },
-      "album_labels": { "entity": "text/Photos: Album Labels", "firmware_file": "common/addon/immich_filter.yaml", "fetch": true },
-      "person_ids": { "entity": "text/Photos: Person IDs", "firmware_file": "common/addon/immich_filter.yaml", "fetch": true },
-      "person_labels": { "entity": "text/Photos: Person Labels", "firmware_file": "common/addon/immich_filter.yaml", "fetch": true },
-      "tag_ids": { "entity": "text/Photos: Tag IDs", "firmware_file": "common/addon/immich_filter.yaml", "fetch": true },
-      "tag_labels": { "entity": "text/Photos: Tag Labels", "firmware_file": "common/addon/immich_filter.yaml", "fetch": true },
-      "sunrise": { "entity": "text_sensor/Screen: Sunrise", "firmware_file": "common/addon/backlight_schedule.yaml", "fetch": true },
-      "sunset": { "entity": "text_sensor/Screen: Sunset", "firmware_file": "common/addon/backlight_schedule.yaml", "fetch": true },
-      "developer_features_enabled": { "entity": "switch/Developer: Features", "firmware_file": "common/addon/developer_features.yaml", "boolFromState": true, "fetch": true },
-      "show_clock": { "entity": "switch/Clock: Show", "firmware_file": "common/addon/time.yaml", "boolFromState": true, "default": true },
-      "c6_current_firmware": { "entity": "text_sensor/ESP32-C6: Current Firmware", "firmware_file": "common/addon/esp32_c6_firmware_update.yaml", "default": "Unknown", "fetch": true },
-      "c6_available_firmware": { "entity": "text_sensor/ESP32-C6: Available Firmware", "firmware_file": "common/addon/esp32_c6_firmware_update.yaml", "default": "Unknown", "fetch": true }
+      "ntp_server_1": {
+        "entity": "text/Clock: NTP Server 1",
+        "firmware_file": "common/addon/time.yaml",
+        "default": "0.pool.ntp.org",
+        "fetch": true
+      },
+      "ntp_server_2": {
+        "entity": "text/Clock: NTP Server 2",
+        "firmware_file": "common/addon/time.yaml",
+        "default": "1.pool.ntp.org",
+        "fetch": true
+      },
+      "ntp_server_3": {
+        "entity": "text/Clock: NTP Server 3",
+        "firmware_file": "common/addon/time.yaml",
+        "default": "2.pool.ntp.org",
+        "fetch": true
+      },
+      "album_ids": {
+        "entity": "text/Photos: Album IDs",
+        "firmware_file": "common/addon/immich_filter.yaml",
+        "fetch": true
+      },
+      "album_labels": {
+        "entity": "text/Photos: Album Labels",
+        "firmware_file": "common/addon/immich_filter.yaml",
+        "fetch": true
+      },
+      "person_ids": {
+        "entity": "text/Photos: Person IDs",
+        "firmware_file": "common/addon/immich_filter.yaml",
+        "fetch": true
+      },
+      "person_labels": {
+        "entity": "text/Photos: Person Labels",
+        "firmware_file": "common/addon/immich_filter.yaml",
+        "fetch": true
+      },
+      "tag_ids": {
+        "entity": "text/Photos: Tag IDs",
+        "firmware_file": "common/addon/immich_filter.yaml",
+        "fetch": true
+      },
+      "tag_labels": {
+        "entity": "text/Photos: Tag Labels",
+        "firmware_file": "common/addon/immich_filter.yaml",
+        "fetch": true
+      },
+      "sunrise": {
+        "entity": "text_sensor/Screen: Sunrise",
+        "firmware_file": "common/addon/backlight_schedule.yaml",
+        "fetch": true
+      },
+      "sunset": {
+        "entity": "text_sensor/Screen: Sunset",
+        "firmware_file": "common/addon/backlight_schedule.yaml",
+        "fetch": true
+      },
+      "developer_features_enabled": {
+        "entity": "switch/Developer: Features",
+        "firmware_file": "common/addon/developer_features.yaml",
+        "boolFromState": true,
+        "fetch": true
+      },
+      "show_clock": {
+        "entity": "switch/Clock: Show",
+        "firmware_file": "common/addon/time.yaml",
+        "boolFromState": true,
+        "default": true
+      },
+      "c6_current_firmware": {
+        "entity": "text_sensor/ESP32-C6: Current Firmware",
+        "firmware_file": "common/addon/esp32_c6_firmware_update.yaml",
+        "default": "Unknown",
+        "fetch": true
+      },
+      "c6_available_firmware": {
+        "entity": "text_sensor/ESP32-C6: Available Firmware",
+        "firmware_file": "common/addon/esp32_c6_firmware_update.yaml",
+        "default": "Unknown",
+        "fetch": true
+      }
     },
     "web_manual_entities": {
-      "immich_url": { "entity": "text/Connection: Server URL", "firmware_file": "common/addon/immich_config.yaml" },
-      "api_key": { "entity": "text/Connection: API Key", "firmware_file": "common/addon/immich_config.yaml" },
-      "backlight": { "entity": "light/Screen: Backlight", "firmware_file": "common/addon/backlight.yaml" },
-      "update": { "entity": "update/Firmware: Update", "firmware_file": "common/addon/firmware_update.yaml" },
-      "apply_photo_source": { "entity": "button/Apply Photo Source", "firmware_file": "common/addon/immich_filter.yaml" },
-      "firmware_check": { "entity": "button/Firmware: Check for Update", "firmware_file": "common/addon/firmware_update.yaml" },
-      "c6_firmware_check": { "entity": "button/Firmware ESP32-C6: Check for Update", "firmware_file": "common/addon/esp32_c6_firmware_update.yaml" },
-      "c6_firmware_install": { "entity": "button/Firmware ESP32-C6: Install Update", "firmware_file": "common/addon/esp32_c6_firmware_update.yaml" },
-      "reboot_screen": { "entity": "button/Device: Reboot Screen", "firmware_file": "common/addon/immich_config.yaml" }
+      "immich_url": {
+        "entity": "text/Connection: Server URL",
+        "firmware_file": "common/addon/immich_config.yaml"
+      },
+      "api_key": {
+        "entity": "text/Connection: API Key",
+        "firmware_file": "common/addon/immich_config.yaml"
+      },
+      "backlight": {
+        "entity": "light/Screen: Backlight",
+        "firmware_file": "common/addon/backlight.yaml"
+      },
+      "update": {
+        "entity": "update/Firmware: Update",
+        "firmware_file": "common/addon/firmware_update.yaml"
+      },
+      "apply_photo_source": {
+        "entity": "button/Apply Photo Source",
+        "firmware_file": "common/addon/immich_filter.yaml"
+      },
+      "firmware_check": {
+        "entity": "button/Firmware: Check for Update",
+        "firmware_file": "common/addon/firmware_update.yaml"
+      },
+      "c6_firmware_check": {
+        "entity": "button/Firmware ESP32-C6: Check for Update",
+        "firmware_file": "common/addon/esp32_c6_firmware_update.yaml"
+      },
+      "c6_firmware_install": {
+        "entity": "button/Firmware ESP32-C6: Install Update",
+        "firmware_file": "common/addon/esp32_c6_firmware_update.yaml"
+      },
+      "reboot_screen": {
+        "entity": "button/Device: Reboot Screen",
+        "firmware_file": "common/addon/immich_config.yaml"
+      }
     },
-    "web_manual_state_keys": ["immich_url", "api_key"],
+    "web_manual_state_keys": [
+      "immich_url",
+      "api_key"
+    ],
     "web_entity_aliases": {
-      "schedule_enabled": [{ "entity": "switch/Screen: Schedule", "boolFromState": true }],
-      "schedule_on_hour": [{ "entity": "number/Screen: Schedule On", "default": 6, "number": true }],
-      "schedule_off_hour": [{ "entity": "number/Screen: Schedule Off", "default": 23, "number": true }]
+      "schedule_enabled": [
+        {
+          "entity": "switch/Screen: Schedule",
+          "boolFromState": true
+        }
+      ],
+      "schedule_on_hour": [
+        {
+          "entity": "number/Screen: Schedule On",
+          "default": 6,
+          "number": true
+        }
+      ],
+      "schedule_off_hour": [
+        {
+          "entity": "number/Screen: Schedule Off",
+          "default": 23,
+          "number": true
+        }
+      ]
     },
     "docs_settings_tables": {
       "docs/screen-settings.md": {
-        "screen_brightness": { "settings": ["brightness_day", "brightness_night"] },
-        "night_schedule": {
-          "settings": ["schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"]
+        "screen_brightness": {
+          "settings": [
+            "brightness_day",
+            "brightness_night"
+          ]
         },
-        "screen_rotation": { "settings": ["screen_rotation"] }
+        "night_schedule": {
+          "settings": [
+            "schedule_enabled",
+            "schedule_on_hour",
+            "schedule_off_hour",
+            "schedule_wake_timeout"
+          ]
+        },
+        "screen_rotation": {
+          "settings": [
+            "screen_rotation"
+          ]
+        }
       },
       "docs/screen-tone.md": {
-        "screen_tone": { "settings": ["base_tone_enabled", "base_tone"] },
-        "night_tone": { "settings": ["warm_tones_enabled", "warm_tone_intensity"] },
-        "warm_tone_override": { "settings": ["warm_tone_override"] }
+        "screen_tone": {
+          "settings": [
+            "base_tone_enabled",
+            "base_tone"
+          ]
+        },
+        "night_tone": {
+          "settings": [
+            "warm_tones_enabled",
+            "warm_tone_intensity"
+          ]
+        },
+        "warm_tone_override": {
+          "settings": [
+            "warm_tone_override"
+          ]
+        }
       },
       "docs/photo-sources.md": {
         "source": {
-          "columns": ["Setting", "Default", "Format", "Description"],
-          "settings": ["photo_source", "album_order"]
+          "columns": [
+            "Setting",
+            "Default",
+            "Format",
+            "Description"
+          ],
+          "settings": [
+            "photo_source",
+            "album_order"
+          ]
         },
         "date_filtering": {
-          "columns": ["Setting", "Default", "Format", "Description"],
-          "settings": ["date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit"]
+          "columns": [
+            "Setting",
+            "Default",
+            "Format",
+            "Description"
+          ],
+          "settings": [
+            "date_filter_enabled",
+            "date_filter_mode",
+            "date_from",
+            "date_to",
+            "relative_amount",
+            "relative_unit"
+          ]
         },
-        "layout": { "settings": ["portrait_pairing", "photo_orientation", "display_mode"] },
+        "layout": {
+          "settings": [
+            "portrait_pairing",
+            "photo_orientation",
+            "display_mode"
+          ]
+        },
         "metadata": {
           "settings": [
             "photo_metadata_location_enabled",
@@ -536,12 +1025,26 @@
             "photo_metadata_date_taken_format"
           ]
         },
-        "frequency": { "settings": ["interval", "conn_timeout"] }
+        "frequency": {
+          "settings": [
+            "interval",
+            "conn_timeout"
+          ]
+        }
       },
       "docs/firmware-update.md": {
         "firmware_controls": {
-          "columns": ["Control", "Type", "Default", "Description"],
-          "settings": ["auto_update", "update_frequency", "firmware_manifest_url"]
+          "columns": [
+            "Control",
+            "Type",
+            "Default",
+            "Description"
+          ],
+          "settings": [
+            "auto_update",
+            "update_frequency",
+            "firmware_manifest_url"
+          ]
         }
       }
     },
@@ -557,12 +1060,18 @@
       "tz_options",
       "update_available"
     ],
-    "date_filter_modes": ["Fixed Range", "Relative Range"],
+    "date_filter_modes": [
+      "Fixed Range",
+      "Relative Range"
+    ],
     "date_filter_relative_anchor": "ending today",
     "date_filter_time_source": "frame's configured time",
     "portrait_pairing_behavior": "pair portrait photos from the same day side-by-side",
     "portrait_pairing_rotation_behavior": "disabled while the screen is in portrait rotation",
-    "metadata_overlay_fields": ["Date", "Location"],
+    "metadata_overlay_fields": [
+      "Date",
+      "Location"
+    ],
     "favicon": "favicon.svg",
     "npm_package_name": "immich-frame",
     "license_id": "PolyForm-Noncommercial-1.0.0",
@@ -595,35 +1104,96 @@
     "release_uploaded_verify_dir": "published",
     "release_source_factory_binary": "firmware.factory.bin",
     "release_source_ota_binary": "firmware.bin",
-    "release_asset_suffixes": [".factory.bin", ".ota.bin", ".manifest.json"],
-    "release_binary_download_patterns": ["*.factory.bin", "*.ota.bin"],
-    "release_manifest_download_patterns": ["${SLUG}.manifest.json", "manifest.json"],
-    "release_uploaded_verify_patterns": ["*.manifest.json", "*.factory.bin", "*.ota.bin"],
+    "release_asset_suffixes": [
+      ".factory.bin",
+      ".ota.bin",
+      ".manifest.json"
+    ],
+    "release_binary_download_patterns": [
+      "*.factory.bin",
+      "*.ota.bin"
+    ],
+    "release_manifest_download_patterns": [
+      "${SLUG}.manifest.json",
+      "manifest.json"
+    ],
+    "release_uploaded_verify_patterns": [
+      "*.manifest.json",
+      "*.factory.bin",
+      "*.ota.bin"
+    ],
     "github_release_download_clobber": true,
     "github_release_upload_clobber": true,
     "release_esphome_cache_dir": "builds/.esphome",
     "release_esphome_cache_key_prefix": "esphome-release",
-    "release_esphome_cache_hash_files": ["builds/*.yaml", "common/**", "devices/**", "components/**"],
+    "release_esphome_cache_hash_files": [
+      "builds/*.yaml",
+      "common/**",
+      "devices/**",
+      "components/**"
+    ],
     "release_version_pattern": "^v\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$",
     "stable_release_version_pattern": "^v\\d+\\.\\d+\\.\\d+$",
     "firmware_version_placeholder_line": "  firmware_version: \"0.0.0\"",
     "firmware_local_build_version": "dev",
-    "firmware_placeholder_versions": ["dev", "0.0.0", "main"],
+    "firmware_placeholder_versions": [
+      "dev",
+      "0.0.0",
+      "main"
+    ],
     "release_changelog_categories": [
       {
         "title": "Setup page and device web UI",
-        "paths": ["docs/webserver/", "docs/public/webserver/"],
-        "keywords": ["api key", "backup", "button", "config", "date filter", "firmware", "photo source", "settings", "setup", "web ui"]
+        "paths": [
+          "docs/webserver/",
+          "docs/public/webserver/"
+        ],
+        "keywords": [
+          "api key",
+          "backup",
+          "button",
+          "config",
+          "date filter",
+          "firmware",
+          "photo source",
+          "settings",
+          "setup",
+          "web ui"
+        ]
       },
       {
         "title": "Immich slideshow and photo handling",
-        "paths": ["common/addon/immich_", "devices/guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml", "components/remote_image/"],
-        "keywords": ["album", "immich", "photo", "slideshow", "timeline"]
+        "paths": [
+          "common/addon/immich_",
+          "devices/guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml",
+          "components/remote_image/"
+        ],
+        "keywords": [
+          "album",
+          "immich",
+          "photo",
+          "slideshow",
+          "timeline"
+        ]
       },
       {
         "title": "Firmware and device behavior",
-        "paths": ["builds/", "common/addon/", "components/", "devices/"],
-        "keywords": ["backlight", "compile", "device", "esp32", "firmware", "lvgl", "screen", "wifi"]
+        "paths": [
+          "builds/",
+          "common/addon/",
+          "components/",
+          "devices/"
+        ],
+        "keywords": [
+          "backlight",
+          "compile",
+          "device",
+          "esp32",
+          "firmware",
+          "lvgl",
+          "screen",
+          "wifi"
+        ]
       },
       {
         "title": "Firmware releases and updates",
@@ -635,17 +1205,49 @@
           "scripts/firmware_release.py",
           "scripts/check_firmware_release.py"
         ],
-        "keywords": ["asset", "ota", "release", "tag", "update", "version"]
+        "keywords": [
+          "asset",
+          "ota",
+          "release",
+          "tag",
+          "update",
+          "version"
+        ]
       },
       {
         "title": "Documentation and install guide",
-        "paths": ["docs/", "README.md"],
-        "keywords": ["doc", "docs", "install", "readme", "troubleshooting", "usb"]
+        "paths": [
+          "docs/",
+          "README.md"
+        ],
+        "keywords": [
+          "doc",
+          "docs",
+          "install",
+          "readme",
+          "troubleshooting",
+          "usb"
+        ]
       },
       {
         "title": "Build, tests, and maintenance",
-        "paths": [".github/", ".agents/", "package.json", "package-lock.json", "renovate.json", "scripts/", "tests/"],
-        "keywords": ["ci", "check", "license", "maintenance", "refactor", "test"]
+        "paths": [
+          ".github/",
+          ".agents/",
+          "package.json",
+          "package-lock.json",
+          "renovate.json",
+          "scripts/",
+          "tests/"
+        ],
+        "keywords": [
+          "ci",
+          "check",
+          "license",
+          "maintenance",
+          "refactor",
+          "test"
+        ]
       }
     ],
     "release_changelog_fallback_category": "Other changes",
@@ -669,6 +1271,7 @@
     "github_pages_url_output": "page_url",
     "github_prerelease_lookup_limit": 20,
     "generated_asset_outputs": [
+      "product/espframe.json",
       "components/espframe/tz_data_generated.h",
       "common/addon/time.yaml",
       "devices/guition-esp32-p4-jc8012p4a1/packages.yaml",
@@ -676,8 +1279,8 @@
       "docs/public/webserver/style.css"
     ],
     "generated_asset_output_headers": {
-      "devices/guition-esp32-p4-jc8012p4a1/packages.yaml": "# ESPFRAME: generated from product/espframe.json; run `npm run generate` to update.",
-      "docs/public/webserver/app.js": "// ESPFRAME: generated from docs/webserver/src and product/espframe.json; run `npm run generate` to update.",
+      "devices/guition-esp32-p4-jc8012p4a1/packages.yaml": "# ESPFRAME: generated from product/contract; run `npm run generate` to update.",
+      "docs/public/webserver/app.js": "// ESPFRAME: generated from docs/webserver/src and product/contract; run `npm run generate` to update.",
       "docs/public/webserver/style.css": "/* ESPFRAME: generated from docs/webserver/src/style.css; run `npm run generate` to update. */"
     },
     "generated_asset_sources": [
@@ -695,8 +1298,13 @@
       "docs/webserver/src/settings_controls.js",
       "docs/webserver/src/startup_wizard.js",
       "docs/webserver/src/style.css",
-      "product/espframe.json",
+      "product/contract/devices.json",
+      "product/contract/manifest.json",
+      "product/contract/project.json",
+      "product/contract/schema.json",
+      "product/contract/settings.json",
       "scripts/asset_generation/device_packages.py",
+      "scripts/asset_generation/product_manifest.py",
       "scripts/product_config.py"
     ],
     "web_template_placeholders": [
@@ -742,7 +1350,12 @@
       "interval": {},
       "conn_timeout": {},
       "screen_rotation": {
-        "options": ["0", "90", "180", "270"]
+        "options": [
+          "0",
+          "90",
+          "180",
+          "270"
+        ]
       },
       "photo_metadata_date_format": {},
       "photo_metadata_date_taken_format": {},
@@ -810,9 +1423,17 @@
     "github_release_build_fail_fast": false,
     "github_release_notes_output": "$RUNNER_TEMP/release-notes.md",
     "github_workflow_permissions": {
-      "compile": { "contents": "read" },
-      "docs": { "contents": "read", "pages": "write", "id-token": "write" },
-      "release": { "contents": "write" }
+      "compile": {
+        "contents": "read"
+      },
+      "docs": {
+        "contents": "read",
+        "pages": "write",
+        "id-token": "write"
+      },
+      "release": {
+        "contents": "write"
+      }
     },
     "github_workflow_names": {
       "compile": "PR Validation",
@@ -831,13 +1452,27 @@
       ]
     },
     "github_workflow_events": {
-      "compile": ["pull_request", "workflow_dispatch"],
-      "docs": ["push", "workflow_run", "workflow_dispatch"],
-      "release": ["release", "workflow_dispatch"]
+      "compile": [
+        "pull_request",
+        "workflow_dispatch"
+      ],
+      "docs": [
+        "push",
+        "workflow_run",
+        "workflow_dispatch"
+      ],
+      "release": [
+        "release",
+        "workflow_dispatch"
+      ]
     },
     "github_workflow_event_types": {
-      "docs.workflow_run": ["completed"],
-      "release.release": ["published"]
+      "docs.workflow_run": [
+        "completed"
+      ],
+      "release.release": [
+        "published"
+      ]
     },
     "github_docs_workflow_run_success_conclusion": "success",
     "github_workflow_jobs": {
@@ -859,10 +1494,21 @@
       }
     },
     "github_workflow_job_dependencies": {
-      "compile.compile": ["validate", "firmware-metadata"],
-      "docs.deploy-docs": ["build-docs", "download-firmware"],
-      "release.build-firmware": ["release-metadata"],
-      "release.publish": ["build-firmware", "release-metadata"]
+      "compile.compile": [
+        "validate",
+        "firmware-metadata"
+      ],
+      "docs.deploy-docs": [
+        "build-docs",
+        "download-firmware"
+      ],
+      "release.build-firmware": [
+        "release-metadata"
+      ],
+      "release.publish": [
+        "build-firmware",
+        "release-metadata"
+      ]
     },
     "github_workflow_job_conditions": {
       "compile.validate": null,
@@ -879,11 +1525,17 @@
     "github_sparse_checkout_files": [
       "scripts/firmware_release.py",
       "scripts/product_config.py",
-      "product/espframe.json"
+      "product/contract/devices.json",
+      "product/contract/manifest.json",
+      "product/contract/project.json",
+      "product/contract/settings.json"
     ],
     "github_metadata_sparse_checkout_files": [
       "scripts/product_config.py",
-      "product/espframe.json"
+      "product/contract/devices.json",
+      "product/contract/manifest.json",
+      "product/contract/project.json",
+      "product/contract/settings.json"
     ],
     "github_sparse_checkout_cone_mode": false,
     "firmware_compile_timeout_minutes": 30,
@@ -943,32 +1595,105 @@
         "i2c_sda": "GPIO7",
         "i2c_scl": "GPIO8"
       },
-      "mipi_dsi_power_rail": { "id": "dsi_phy_enable", "channel": 3, "voltage": "2.5V" },
+      "mipi_dsi_power_rail": {
+        "id": "dsi_phy_enable",
+        "channel": 3,
+        "voltage": "2.5V"
+      },
       "i2c_frequency": "400kHz",
       "package_includes": [
-        { "alias": "device", "path": "device/device.yaml" },
-        { "alias": "fonts", "path": "assets/fonts.yaml" },
-        { "alias": "icons", "path": "assets/icons.yaml" },
-        { "alias": "lvgl_base", "path": "device/lvgl_base.yaml" },
-        { "alias": "screen_rotation", "path": "../../common/addon/screen_rotation.yaml" },
-        { "alias": "connectivity", "path": "../../common/addon/connectivity.yaml" },
-        { "alias": "immich_config", "path": "../../common/addon/immich_config.yaml" },
-        { "alias": "immich_filter", "path": "../../common/addon/immich_filter.yaml" },
-        { "alias": "backlight", "path": "../../common/addon/backlight.yaml" },
-        { "alias": "backlight_sched", "path": "../../common/addon/backlight_schedule.yaml" },
-        { "alias": "time_sync", "path": "../../common/addon/time.yaml" },
-        { "alias": "accent_color", "path": "../../common/addon/accent_color.yaml" },
-        { "alias": "warm_tones", "path": "../../common/addon/warm_tones.yaml" },
-        { "alias": "screen_loading", "path": "device/screen_loading.yaml" },
-        { "alias": "screen_wifi", "path": "device/screen_wifi_setup.yaml" },
-        { "alias": "screen_setup", "path": "device/screen_immich_setup.yaml" },
-        { "alias": "immich_api", "path": "../../common/addon/immich_api.yaml" },
-        { "alias": "immich_slide", "path": "../../common/addon/immich_slideshow.yaml" },
-        { "alias": "screen_slide", "path": "device/screen_slideshow.yaml" },
-        { "alias": "fw_update", "path": "../../common/addon/firmware_update.yaml" },
-        { "alias": "c6_fw_update", "path": "../../common/addon/esp32_c6_firmware_update.yaml" },
-        { "alias": "dev_features", "path": "../../common/addon/developer_features.yaml" },
-        { "alias": "network", "path": "../../common/addon/network.yaml" }
+        {
+          "alias": "device",
+          "path": "device/device.yaml"
+        },
+        {
+          "alias": "fonts",
+          "path": "assets/fonts.yaml"
+        },
+        {
+          "alias": "icons",
+          "path": "assets/icons.yaml"
+        },
+        {
+          "alias": "lvgl_base",
+          "path": "device/lvgl_base.yaml"
+        },
+        {
+          "alias": "screen_rotation",
+          "path": "../../common/addon/screen_rotation.yaml"
+        },
+        {
+          "alias": "connectivity",
+          "path": "../../common/addon/connectivity.yaml"
+        },
+        {
+          "alias": "immich_config",
+          "path": "../../common/addon/immich_config.yaml"
+        },
+        {
+          "alias": "immich_filter",
+          "path": "../../common/addon/immich_filter.yaml"
+        },
+        {
+          "alias": "backlight",
+          "path": "../../common/addon/backlight.yaml"
+        },
+        {
+          "alias": "backlight_sched",
+          "path": "../../common/addon/backlight_schedule.yaml"
+        },
+        {
+          "alias": "time_sync",
+          "path": "../../common/addon/time.yaml"
+        },
+        {
+          "alias": "accent_color",
+          "path": "../../common/addon/accent_color.yaml"
+        },
+        {
+          "alias": "warm_tones",
+          "path": "../../common/addon/warm_tones.yaml"
+        },
+        {
+          "alias": "screen_loading",
+          "path": "device/screen_loading.yaml"
+        },
+        {
+          "alias": "screen_wifi",
+          "path": "device/screen_wifi_setup.yaml"
+        },
+        {
+          "alias": "screen_setup",
+          "path": "device/screen_immich_setup.yaml"
+        },
+        {
+          "alias": "immich_api",
+          "path": "../../common/addon/immich_api.yaml"
+        },
+        {
+          "alias": "immich_slide",
+          "path": "../../common/addon/immich_slideshow.yaml"
+        },
+        {
+          "alias": "screen_slide",
+          "path": "device/screen_slideshow.yaml"
+        },
+        {
+          "alias": "fw_update",
+          "path": "../../common/addon/firmware_update.yaml"
+        },
+        {
+          "alias": "c6_fw_update",
+          "path": "../../common/addon/esp32_c6_firmware_update.yaml"
+        },
+        {
+          "alias": "dev_features",
+          "path": "../../common/addon/developer_features.yaml"
+        },
+        {
+          "alias": "network",
+          "path": "../../common/addon/network.yaml"
+        }
       ],
       "package_substitutions": {
         "display_width": "1280",
@@ -986,14 +1711,47 @@
         "firmware_manifest_url": "https://jtenniswood.github.io/espframe/firmware/manifest.json"
       },
       "font_assets": [
-        { "id": "noto_325_150_font", "file": "gfonts://Noto Sans@325", "size": 150, "bpp": 4 },
-        { "id": "noto_400_46_font", "file": "gfonts://Noto Sans@400", "size": 46, "bpp": 4 },
-        { "id": "noto_400_30_font", "file": "gfonts://Noto Sans@400", "size": 30, "bpp": 4 },
-        { "id": "noto_400_28_font", "file": "gfonts://Noto Sans@400", "size": 28, "bpp": 4 },
-        { "id": "noto_400_32_font", "file": "gfonts://Noto Sans@400", "size": 32, "bpp": 4 },
-        { "id": "noto_location_400_36_font", "file": "gfonts://Noto Sans@400", "size": 36, "bpp": 4 }
+        {
+          "id": "noto_325_150_font",
+          "file": "gfonts://Noto Sans@325",
+          "size": 150,
+          "bpp": 4
+        },
+        {
+          "id": "noto_400_46_font",
+          "file": "gfonts://Noto Sans@400",
+          "size": 46,
+          "bpp": 4
+        },
+        {
+          "id": "noto_400_30_font",
+          "file": "gfonts://Noto Sans@400",
+          "size": 30,
+          "bpp": 4
+        },
+        {
+          "id": "noto_400_28_font",
+          "file": "gfonts://Noto Sans@400",
+          "size": 28,
+          "bpp": 4
+        },
+        {
+          "id": "noto_400_32_font",
+          "file": "gfonts://Noto Sans@400",
+          "size": 32,
+          "bpp": 4
+        },
+        {
+          "id": "noto_location_400_36_font",
+          "file": "gfonts://Noto Sans@400",
+          "size": 36,
+          "bpp": 4
+        }
       ],
-      "location_font_extra_files": ["gfonts://Noto Sans Arabic@400", "gfonts://Noto Sans Hebrew@400"],
+      "location_font_extra_files": [
+        "gfonts://Noto Sans Arabic@400",
+        "gfonts://Noto Sans Hebrew@400"
+      ],
       "icon_font": {
         "id": "icon_font_setup",
         "file": "https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf",
@@ -1018,195 +1776,390 @@
   "settings": [
     {
       "key": "photo_source",
-      "entity": { "domain": "select", "name": "Photos: Source" },
+      "entity": {
+        "domain": "select",
+        "name": "Photos: Source"
+      },
       "default": "All Photos",
       "docs_description": "Choose all photos, favorites, albums, people, tags, or Immich memories.",
-      "options": ["All Photos", "Favorites", "Album", "Person", "Tag", "Memories"],
-      "firmware_files": ["common/addon/immich_filter.yaml"],
-      "docs_files": ["docs/photo-sources.md"]
+      "options": [
+        "All Photos",
+        "Favorites",
+        "Album",
+        "Person",
+        "Tag",
+        "Memories"
+      ],
+      "firmware_files": [
+        "common/addon/immich_filter.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
     },
     {
       "key": "album_order",
-      "entity": { "domain": "select", "name": "Photos: Album Order" },
+      "entity": {
+        "domain": "select",
+        "name": "Photos: Album Order"
+      },
       "default": "Random albums",
       "docs_label": "Album Order",
       "docs_description": "Choose whether multiple albums are sampled randomly or cycled in the order shown in the Albums list.",
-      "options": ["Random albums", "Album list order"],
-      "firmware_files": ["common/addon/immich_filter.yaml"],
-      "docs_files": ["docs/photo-sources.md"]
+      "options": [
+        "Random albums",
+        "Album list order"
+      ],
+      "firmware_files": [
+        "common/addon/immich_filter.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
     },
     {
       "key": "date_filter_mode",
-      "entity": { "domain": "select", "name": "Photos: Date Filter Mode" },
+      "entity": {
+        "domain": "select",
+        "name": "Photos: Date Filter Mode"
+      },
       "default": "Fixed Range",
       "docs_label": "Mode",
       "docs_default": "`Fixed Range`",
       "docs_description": "Choose whether to use fixed dates or a relative range ending today.",
-      "options": ["Fixed Range", "Relative Range"],
-      "firmware_files": ["common/addon/immich_filter.yaml"],
-      "docs_files": ["docs/photo-sources.md"]
+      "options": [
+        "Fixed Range",
+        "Relative Range"
+      ],
+      "firmware_files": [
+        "common/addon/immich_filter.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
     },
     {
       "key": "relative_unit",
-      "entity": { "domain": "select", "name": "Photos: Relative Unit" },
+      "entity": {
+        "domain": "select",
+        "name": "Photos: Relative Unit"
+      },
       "default": "Years",
       "docs_label": "Unit",
       "docs_default": "`Years`",
       "docs_format": "`Months` or `Years`",
       "docs_description": "In relative mode, whether the amount is counted in months or years.",
-      "options": ["Months", "Years"],
-      "firmware_files": ["common/addon/immich_filter.yaml"],
-      "docs_files": ["docs/photo-sources.md"]
+      "options": [
+        "Months",
+        "Years"
+      ],
+      "firmware_files": [
+        "common/addon/immich_filter.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
     },
     {
       "key": "photo_orientation",
-      "entity": { "domain": "select", "name": "Photos: Orientation" },
+      "entity": {
+        "domain": "select",
+        "name": "Photos: Orientation"
+      },
       "default": "Any",
       "docs_label": "Photo Orientation",
       "docs_description": "Choose any photo, portrait-only photos, or landscape-only photos. Portrait-only is useful when the frame is mounted vertically.",
-      "options": ["Any", "Portrait Only", "Landscape Only"],
-      "firmware_files": ["common/addon/immich_filter.yaml"],
-      "docs_files": ["docs/photo-sources.md"]
+      "options": [
+        "Any",
+        "Portrait Only",
+        "Landscape Only"
+      ],
+      "firmware_files": [
+        "common/addon/immich_filter.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
     },
     {
       "key": "display_mode",
-      "entity": { "domain": "select", "name": "Photos: Display Mode" },
+      "entity": {
+        "domain": "select",
+        "name": "Photos: Display Mode"
+      },
       "default": "Fill",
       "docs_label": "Display Mode",
       "docs_description": "Fill crops to cover the screen; Fit letterboxes without cropping.",
-      "options": ["Fill", "Fit"],
-      "firmware_files": ["common/addon/immich_config.yaml"],
-      "docs_files": ["docs/photo-sources.md"]
+      "options": [
+        "Fill",
+        "Fit"
+      ],
+      "firmware_files": [
+        "common/addon/immich_config.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
     },
     {
       "key": "interval",
-      "entity": { "domain": "select", "name": "Photos: Slideshow Interval" },
+      "entity": {
+        "domain": "select",
+        "name": "Photos: Slideshow Interval"
+      },
       "default": "15 seconds",
       "docs_label": "Slideshow Interval",
       "docs_description": "How long each photo is shown before advancing (10 seconds to 10 minutes).",
       "firmware_initial_option": "${immich_slide_interval}",
-      "options": ["10 seconds", "15 seconds", "20 seconds", "30 seconds", "45 seconds", "1 minute", "2 minutes", "3 minutes", "5 minutes", "10 minutes"],
-      "firmware_files": ["devices/guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml"],
-      "docs_files": ["docs/photo-sources.md"]
+      "options": [
+        "10 seconds",
+        "15 seconds",
+        "20 seconds",
+        "30 seconds",
+        "45 seconds",
+        "1 minute",
+        "2 minutes",
+        "3 minutes",
+        "5 minutes",
+        "10 minutes"
+      ],
+      "firmware_files": [
+        "devices/guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
     },
     {
       "key": "conn_timeout",
-      "entity": { "domain": "select", "name": "Screen: Connection Timeout" },
+      "entity": {
+        "domain": "select",
+        "name": "Screen: Connection Timeout"
+      },
       "default": "10 minutes",
       "docs_label": "Connection Timeout",
       "docs_description": "How long the frame waits without successfully displaying a new photo before showing the connection-failed screen (30 seconds to 30 minutes).",
-      "options": ["30 seconds", "45 seconds", "1 minute", "2 minutes", "3 minutes", "5 minutes", "10 minutes", "15 minutes", "20 minutes", "30 minutes"],
-      "firmware_files": ["devices/guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml"],
-      "docs_files": ["docs/photo-sources.md"]
+      "options": [
+        "30 seconds",
+        "45 seconds",
+        "1 minute",
+        "2 minutes",
+        "3 minutes",
+        "5 minutes",
+        "10 minutes",
+        "15 minutes",
+        "20 minutes",
+        "30 minutes"
+      ],
+      "firmware_files": [
+        "devices/guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
     },
     {
       "key": "screen_rotation",
-      "entity": { "domain": "select", "name": "Screen: Rotation" },
+      "entity": {
+        "domain": "select",
+        "name": "Screen: Rotation"
+      },
       "default": "0",
       "docs_label": "Rotation",
       "docs_default": "0 degrees",
       "docs_description": "Rotate the screen to 0 or 180 degrees.",
       "firmware_initial_option": "${screen_rotation}",
-      "options": ["0", "180"],
-      "developer_options": ["90", "270"],
-      "firmware_files": ["common/addon/screen_rotation.yaml"],
-      "docs_files": ["docs/screen-settings.md"]
+      "options": [
+        "0",
+        "180"
+      ],
+      "developer_options": [
+        "90",
+        "270"
+      ],
+      "firmware_files": [
+        "common/addon/screen_rotation.yaml"
+      ],
+      "docs_files": [
+        "docs/screen-settings.md"
+      ]
     },
     {
       "key": "photo_metadata_date_format",
-      "entity": { "domain": "select", "name": "Device: Metadata Date Format" },
+      "entity": {
+        "domain": "select",
+        "name": "Device: Metadata Date Format"
+      },
       "default": "Date Taken",
       "docs_label": "Date Format",
       "docs_description": "Choose whether the date uses the photo's taken date or a relative age.",
-      "options": ["Relative Date", "Date Taken"],
-      "firmware_files": ["common/addon/immich_slideshow.yaml"],
-      "docs_files": ["docs/photo-sources.md"]
+      "options": [
+        "Relative Date",
+        "Date Taken"
+      ],
+      "firmware_files": [
+        "common/addon/immich_slideshow.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
     },
     {
       "key": "photo_metadata_date_taken_format",
-      "entity": { "domain": "select", "name": "Device: Metadata Date Taken Format" },
+      "entity": {
+        "domain": "select",
+        "name": "Device: Metadata Date Taken Format"
+      },
       "default": "1 January, 2026",
       "docs_label": "Date Taken Format",
       "docs_default": "`1 January, 2026`",
       "docs_description": "Choose the display style used when **Date Format** is set to **Date Taken**.",
-      "options": ["1 January, 2026", "January 1, 2026"],
-      "firmware_files": ["common/addon/immich_slideshow.yaml"],
-      "docs_files": ["docs/photo-sources.md"]
+      "options": [
+        "1 January, 2026",
+        "January 1, 2026"
+      ],
+      "firmware_files": [
+        "common/addon/immich_slideshow.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
     },
     {
       "key": "clock_format",
-      "entity": { "domain": "select", "name": "Clock: Format" },
+      "entity": {
+        "domain": "select",
+        "name": "Clock: Format"
+      },
       "default": "24 Hour",
-      "options": ["24 Hour", "12 Hour"],
-      "firmware_files": ["common/addon/time.yaml"],
-      "docs_files": ["docs/install.md"]
+      "options": [
+        "24 Hour",
+        "12 Hour"
+      ],
+      "docs_description": "Choose whether the on-screen clock uses a 24-hour or 12-hour format.",
+      "firmware_files": [
+        "common/addon/time.yaml"
+      ],
+      "docs_files": [
+        "docs/install.md"
+      ]
     },
     {
       "key": "update_frequency",
-      "entity": { "domain": "select", "name": "Firmware: Update Frequency" },
+      "entity": {
+        "domain": "select",
+        "name": "Firmware: Update Frequency"
+      },
       "default": "Daily",
       "docs_label": "Update Frequency",
       "docs_description": "Hourly, Daily, Weekly, or Monthly",
-      "options": ["Hourly", "Daily", "Weekly", "Monthly"],
-      "firmware_files": ["common/addon/firmware_update.yaml"],
-      "docs_files": ["docs/firmware-update.md"]
+      "options": [
+        "Hourly",
+        "Daily",
+        "Weekly",
+        "Monthly"
+      ],
+      "firmware_files": [
+        "common/addon/firmware_update.yaml"
+      ],
+      "docs_files": [
+        "docs/firmware-update.md"
+      ]
     },
     {
       "key": "auto_update",
-      "entity": { "domain": "switch", "name": "Firmware: Auto Update" },
+      "entity": {
+        "domain": "switch",
+        "name": "Firmware: Auto Update"
+      },
       "default": true,
       "docs_label": "Auto Update",
       "docs_default": "On",
       "docs_description": "Check at selected frequency and install when available",
-      "firmware_files": ["common/addon/firmware_update.yaml"],
-      "docs_files": ["docs/firmware-update.md"]
+      "firmware_files": [
+        "common/addon/firmware_update.yaml"
+      ],
+      "docs_files": [
+        "docs/firmware-update.md"
+      ]
     },
     {
       "key": "firmware_manifest_url",
-      "entity": { "domain": "text", "name": "Firmware: Manifest URL" },
+      "entity": {
+        "domain": "text",
+        "name": "Firmware: Manifest URL"
+      },
       "default": "",
       "docs_label": "Stable Manifest URL",
       "docs_default": "Device default",
       "docs_type": "Text",
       "docs_description": "Advanced: custom stable update manifest",
-      "firmware_files": ["common/addon/firmware_update.yaml"],
-      "docs_files": ["docs/firmware-update.md"]
+      "firmware_files": [
+        "common/addon/firmware_update.yaml"
+      ],
+      "docs_files": [
+        "docs/firmware-update.md"
+      ]
     },
     {
       "key": "date_filter_enabled",
-      "entity": { "domain": "switch", "name": "Photos: Date Filter" },
+      "entity": {
+        "domain": "switch",
+        "name": "Photos: Date Filter"
+      },
       "default": false,
       "docs_label": "Filter by Date",
       "docs_default": "Off",
       "docs_description": "Turns date filtering on or off. When off, saved date values are ignored.",
-      "firmware_files": ["common/addon/immich_filter.yaml"],
-      "docs_files": ["docs/photo-sources.md"]
+      "firmware_files": [
+        "common/addon/immich_filter.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
     },
     {
       "key": "date_from",
-      "entity": { "domain": "text", "name": "Photos: Date From" },
+      "entity": {
+        "domain": "text",
+        "name": "Photos: Date From"
+      },
       "default": "",
       "docs_label": "From",
       "docs_default": "*(empty)*",
       "docs_format": "`YYYY-MM-DD`",
       "docs_description": "In fixed mode, only show photos taken on or after this date. Leave empty for no lower bound.",
-      "firmware_files": ["common/addon/immich_filter.yaml"],
-      "docs_files": ["docs/photo-sources.md"]
+      "firmware_files": [
+        "common/addon/immich_filter.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
     },
     {
       "key": "date_to",
-      "entity": { "domain": "text", "name": "Photos: Date To" },
+      "entity": {
+        "domain": "text",
+        "name": "Photos: Date To"
+      },
       "default": "",
       "docs_label": "Until",
       "docs_default": "*(empty)*",
       "docs_format": "`YYYY-MM-DD`",
       "docs_description": "In fixed mode, only show photos taken on or before this date. Leave empty for no upper bound.",
-      "firmware_files": ["common/addon/immich_filter.yaml"],
-      "docs_files": ["docs/photo-sources.md"]
+      "firmware_files": [
+        "common/addon/immich_filter.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
     },
     {
       "key": "relative_amount",
-      "entity": { "domain": "number", "name": "Photos: Relative Amount" },
+      "entity": {
+        "domain": "number",
+        "name": "Photos: Relative Amount"
+      },
       "default": 1,
       "docs_label": "Last",
       "docs_default": "`1`",
@@ -1214,46 +2167,74 @@
       "min": 1,
       "max": 120,
       "step": 1,
-      "firmware_files": ["common/addon/immich_filter.yaml"],
-      "docs_files": ["docs/photo-sources.md"]
+      "firmware_files": [
+        "common/addon/immich_filter.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
     },
     {
       "key": "schedule_enabled",
-      "entity": { "domain": "switch", "name": "Screen: Schedule Enabled" },
+      "entity": {
+        "domain": "switch",
+        "name": "Screen: Schedule Enabled"
+      },
       "default": false,
       "docs_label": "Schedule Screen Off",
       "docs_default": "Off",
       "docs_description": "Use scheduled on/off",
-      "firmware_files": ["common/addon/backlight_schedule.yaml"],
-      "docs_files": ["docs/screen-settings.md"]
+      "firmware_files": [
+        "common/addon/backlight_schedule.yaml"
+      ],
+      "docs_files": [
+        "docs/screen-settings.md"
+      ]
     },
     {
       "key": "schedule_on_hour",
-      "entity": { "domain": "number", "name": "Screen: Schedule On Hour" },
+      "entity": {
+        "domain": "number",
+        "name": "Screen: Schedule On Hour"
+      },
       "default": 6,
       "docs_label": "On Time",
       "docs_description": "Backlight on (hour)",
       "min": 0,
       "max": 23,
       "step": 1,
-      "firmware_files": ["common/addon/backlight_schedule.yaml"],
-      "docs_files": ["docs/screen-settings.md"]
+      "firmware_files": [
+        "common/addon/backlight_schedule.yaml"
+      ],
+      "docs_files": [
+        "docs/screen-settings.md"
+      ]
     },
     {
       "key": "schedule_off_hour",
-      "entity": { "domain": "number", "name": "Screen: Schedule Off Hour" },
+      "entity": {
+        "domain": "number",
+        "name": "Screen: Schedule Off Hour"
+      },
       "default": 23,
       "docs_label": "Off Time",
       "docs_description": "Backlight off (hour)",
       "min": 0,
       "max": 23,
       "step": 1,
-      "firmware_files": ["common/addon/backlight_schedule.yaml"],
-      "docs_files": ["docs/screen-settings.md"]
+      "firmware_files": [
+        "common/addon/backlight_schedule.yaml"
+      ],
+      "docs_files": [
+        "docs/screen-settings.md"
+      ]
     },
     {
       "key": "schedule_wake_timeout",
-      "entity": { "domain": "number", "name": "Screen: Schedule Wake Timeout" },
+      "entity": {
+        "domain": "number",
+        "name": "Screen: Schedule Wake Timeout"
+      },
       "default": 60,
       "docs_label": "When Woken, Idle Time To Screen Off",
       "docs_default": "60 seconds",
@@ -1261,12 +2242,19 @@
       "min": 10,
       "max": 3600,
       "step": 10,
-      "firmware_files": ["common/addon/backlight_schedule.yaml"],
-      "docs_files": ["docs/screen-settings.md"]
+      "firmware_files": [
+        "common/addon/backlight_schedule.yaml"
+      ],
+      "docs_files": [
+        "docs/screen-settings.md"
+      ]
     },
     {
       "key": "brightness_day",
-      "entity": { "domain": "number", "name": "Screen: Daytime Brightness" },
+      "entity": {
+        "domain": "number",
+        "name": "Screen: Daytime Brightness"
+      },
       "default": 100,
       "docs_label": "Daytime Brightness",
       "docs_default": "100%",
@@ -1274,12 +2262,19 @@
       "min": 10,
       "max": 100,
       "step": 5,
-      "firmware_files": ["common/addon/backlight_schedule.yaml"],
-      "docs_files": ["docs/screen-settings.md"]
+      "firmware_files": [
+        "common/addon/backlight_schedule.yaml"
+      ],
+      "docs_files": [
+        "docs/screen-settings.md"
+      ]
     },
     {
       "key": "brightness_night",
-      "entity": { "domain": "number", "name": "Screen: Nighttime Brightness" },
+      "entity": {
+        "domain": "number",
+        "name": "Screen: Nighttime Brightness"
+      },
       "default": 75,
       "docs_label": "Nighttime Brightness",
       "docs_default": "75%",
@@ -1287,22 +2282,36 @@
       "min": 10,
       "max": 100,
       "step": 5,
-      "firmware_files": ["common/addon/backlight_schedule.yaml"],
-      "docs_files": ["docs/screen-settings.md"]
+      "firmware_files": [
+        "common/addon/backlight_schedule.yaml"
+      ],
+      "docs_files": [
+        "docs/screen-settings.md"
+      ]
     },
     {
       "key": "base_tone_enabled",
-      "entity": { "domain": "switch", "name": "Screen: Tone Adjustment" },
+      "entity": {
+        "domain": "switch",
+        "name": "Screen: Tone Adjustment"
+      },
       "default": false,
       "docs_label": "Screen Tone Adjustment",
       "docs_default": "Off",
       "docs_description": "Enable base colour correction",
-      "firmware_files": ["common/addon/warm_tones.yaml"],
-      "docs_files": ["docs/screen-tone.md"]
+      "firmware_files": [
+        "common/addon/warm_tones.yaml"
+      ],
+      "docs_files": [
+        "docs/screen-tone.md"
+      ]
     },
     {
       "key": "base_tone",
-      "entity": { "domain": "number", "name": "Screen: Display Tone" },
+      "entity": {
+        "domain": "number",
+        "name": "Screen: Display Tone"
+      },
       "default": 0,
       "docs_label": "Intensity",
       "docs_default": "Cooler (0%)",
@@ -1310,22 +2319,36 @@
       "min": 0,
       "max": 100,
       "step": 5,
-      "firmware_files": ["common/addon/warm_tones.yaml"],
-      "docs_files": ["docs/screen-tone.md"]
+      "firmware_files": [
+        "common/addon/warm_tones.yaml"
+      ],
+      "docs_files": [
+        "docs/screen-tone.md"
+      ]
     },
     {
       "key": "warm_tones_enabled",
-      "entity": { "domain": "switch", "name": "Screen: Night Tone Adjustment" },
+      "entity": {
+        "domain": "switch",
+        "name": "Screen: Night Tone Adjustment"
+      },
       "default": false,
       "docs_label": "Night Tone Adjustment",
       "docs_default": "Off",
       "docs_description": "Enable sunset/sunrise warm shift",
-      "firmware_files": ["common/addon/warm_tones.yaml"],
-      "docs_files": ["docs/screen-tone.md"]
+      "firmware_files": [
+        "common/addon/warm_tones.yaml"
+      ],
+      "docs_files": [
+        "docs/screen-tone.md"
+      ]
     },
     {
       "key": "warm_tone_intensity",
-      "entity": { "domain": "number", "name": "Screen: Warm Tone Intensity" },
+      "entity": {
+        "domain": "number",
+        "name": "Screen: Warm Tone Intensity"
+      },
       "default": 50,
       "docs_label": "Intensity",
       "docs_default": "Mid (50%)",
@@ -1333,48 +2356,80 @@
       "min": 10,
       "max": 100,
       "step": 5,
-      "firmware_files": ["common/addon/warm_tones.yaml"],
-      "docs_files": ["docs/screen-tone.md"]
+      "firmware_files": [
+        "common/addon/warm_tones.yaml"
+      ],
+      "docs_files": [
+        "docs/screen-tone.md"
+      ]
     },
     {
       "key": "warm_tone_override",
-      "entity": { "domain": "switch", "name": "Screen: Warm Tone Override" },
+      "entity": {
+        "domain": "switch",
+        "name": "Screen: Warm Tone Override"
+      },
       "default": false,
       "docs_label": "Turn On Until Sunrise",
       "docs_default": "Off",
       "docs_description": "Force night warm tone until the next sunrise",
-      "firmware_files": ["common/addon/warm_tones.yaml"],
-      "docs_files": ["docs/screen-tone.md"]
+      "firmware_files": [
+        "common/addon/warm_tones.yaml"
+      ],
+      "docs_files": [
+        "docs/screen-tone.md"
+      ]
     },
     {
       "key": "portrait_pairing",
-      "entity": { "domain": "switch", "name": "Photos: Portrait Pairing" },
+      "entity": {
+        "domain": "switch",
+        "name": "Photos: Portrait Pairing"
+      },
       "default": true,
       "docs_label": "Portrait Pairing",
       "docs_default": "On",
       "docs_description": "Pairs compatible portrait photos side-by-side on landscape screens.",
-      "firmware_files": ["common/addon/immich_slideshow.yaml"],
-      "docs_files": ["docs/photo-sources.md"]
+      "firmware_files": [
+        "common/addon/immich_slideshow.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
     },
     {
       "key": "photo_metadata_date_enabled",
-      "entity": { "domain": "switch", "name": "Device: Metadata Date" },
+      "entity": {
+        "domain": "switch",
+        "name": "Device: Metadata Date"
+      },
       "default": true,
       "docs_label": "Date",
       "docs_default": "On",
       "docs_description": "Shows the photo date.",
-      "firmware_files": ["common/addon/immich_slideshow.yaml"],
-      "docs_files": ["docs/photo-sources.md"]
+      "firmware_files": [
+        "common/addon/immich_slideshow.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
     },
     {
       "key": "photo_metadata_location_enabled",
-      "entity": { "domain": "switch", "name": "Device: Metadata Location" },
+      "entity": {
+        "domain": "switch",
+        "name": "Device: Metadata Location"
+      },
       "default": true,
       "docs_label": "Location",
       "docs_default": "On",
       "docs_description": "Shows the photo location when Immich has location data for the image.",
-      "firmware_files": ["common/addon/immich_slideshow.yaml"],
-      "docs_files": ["docs/photo-sources.md"]
+      "firmware_files": [
+        "common/addon/immich_slideshow.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
     }
   ]
 }

@@ -1,4 +1,4 @@
-// ESPFRAME: generated from docs/webserver/src and product/espframe.json; run `npm run generate` to update.
+// ESPFRAME: generated from docs/webserver/src and product/contract; run `npm run generate` to update.
 (function () {
   "use strict";
 
