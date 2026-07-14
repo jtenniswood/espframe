@@ -845,6 +845,8 @@ static void test_configuration_contract_capabilities() {
   assert(capabilities.find("\"backup_versions\":[1]") != std::string::npos);
   assert(capabilities.find("\"legacy_entity_api\":true") != std::string::npos);
   assert(capabilities.find("\"configuration_read\":true") != std::string::npos);
+  assert(capabilities.find("\"configuration_write\":true") != std::string::npos);
+  assert(capabilities.find("\"configuration_parameter\":\"configuration\"") != std::string::npos);
 }
 
 int main() {

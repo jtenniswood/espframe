@@ -22,6 +22,7 @@ esp32:
   framework:
     type: esp-idf
     sdkconfig_options:
+      CONFIG_HTTPD_MAX_REQ_HDR_LEN: "8192"
       CONFIG_HTTPD_MAX_URI_LEN: "128"
       CONFIG_ESP_TASK_WDT_TIMEOUT_S: "30"
     advanced:
@@ -278,5 +279,4 @@ touchscreen:
           }
     on_release:
       - lambda: |-
-          id(photo_source_swipe_triggered) = false;
-          id(photo_source_menu_touch_handled) = false;
+          id(photo_source_swipe_triggered) = false; id(photo_source_menu_touch_handled) = false;
