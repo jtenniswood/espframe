@@ -20,6 +20,11 @@ files and makes bundled third-party code explicit.
 - **External build assets** are downloaded by ESPHome while compiling. They
   are not runtime dependencies of the finished device.
 
+Authored roots can contain a more specific generated or vendored path. The
+specific entry takes precedence: for example, the documentation is authored,
+but its bundled web app is generated from the typed source and product
+contract.
+
 ## Runtime network boundary
 
 The device web control panel, fonts, styles, scripts, and initial image state

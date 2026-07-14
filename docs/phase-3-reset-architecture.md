@@ -5,6 +5,9 @@ description: Phase 3 status for Espframe's modular web source, generated firmwar
 
 # Phase 3 Reset Architecture
 
+> This is a historical phase note. See [Current Reset Architecture](/reset-architecture-v2)
+> for the architecture that is now implemented.
+
 Phase 3 established the first reset architecture by making product metadata and compatibility gates part of normal project structure. Later reset work split that metadata into the schema-validated `product/contract/` boundary while preserving the user experience, backup format, firmware entity names, web endpoints, and Home Assistant names.
 
 ## What is product-owned

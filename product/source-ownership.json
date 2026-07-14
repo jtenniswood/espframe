@@ -9,8 +9,8 @@
   "authored_roots": [
     "common",
     "devices",
-    "docs/webserver/src",
-    "product/contract",
+    "docs",
+    "product",
     "scripts",
     "tests",
     "components/espframe"
