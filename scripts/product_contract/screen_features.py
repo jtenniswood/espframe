@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from product_contract.common import (
     ROOT,
     TIME_YAML,
@@ -225,7 +227,8 @@ def check_developer_features_metadata(product: dict, errors: list[str]) -> None:
         require_contains(web_text, label, rel(WEB_APP), errors)
     if entity:
         require_contains(developer_yaml, f'name: "{entity}"', "common/addon/developer_features.yaml", errors)
-        require_contains(web_text, f'"entity":"switch/{entity}"', rel(WEB_APP), errors)
+        if not re.search(rf'"entity"\s*:\s*"switch/{re.escape(entity)}"', web_text):
+            errors.append(f"{rel(WEB_APP)} is missing the Developer Features entity metadata")
     if guard:
         require_contains(readme, guard, "README.md", errors)
     if persistence:

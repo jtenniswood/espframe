@@ -1,0 +1,15 @@
+{
+  "contract_version": 2,
+  "configuration_api": {
+    "version": 1,
+    "base_path": "/espframe/api/v1",
+    "capabilities_path": "/espframe/api/v1/capabilities",
+    "configuration_path": "/espframe/api/v1/configuration",
+    "update_mode": "atomic"
+  },
+  "compatibility": {
+    "backup_versions": [1],
+    "preserve_esphome_entity_names": true,
+    "preserve_saved_preferences": true
+  }
+}

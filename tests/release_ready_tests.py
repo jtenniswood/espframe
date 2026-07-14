@@ -41,9 +41,10 @@ def test_compile_firmware_runs_versioned_factory_and_ota_commands() -> None:
         "ESPHOME_VERSION": "1.2.3",
         "ESPHOME_CONFIG_MOUNT": "/config",
         "ESPHOME_DOCKER_REMOVE_FLAG": "--rm",
+        "RELEASE_ESPHOME_CACHE_DIR": "builds/.esphome",
     }
     check_release_ready.release_matrix_devices = lambda: [
-        {"slug": "test-frame", "yaml": "test-frame"}
+        {"slug": "test-frame", "yaml": "test-frame", "build_name": "test-frame-build"}
     ]
     check_release_ready.run = fake_run
     try:
@@ -55,10 +56,16 @@ def test_compile_firmware_runs_versioned_factory_and_ota_commands() -> None:
 
     assert [label for label, _ in captured] == [
         "ESPHome factory compile (test-frame)",
+        "Firmware factory budget (test-frame)",
         "ESPHome OTA compile (test-frame)",
+        "Firmware OTA budget (test-frame)",
     ]
     assert_versioned_compile(captured[0][1], "/config/builds/test-frame.factory.yaml")
-    assert_versioned_compile(captured[1][1], "/config/builds/test-frame.yaml")
+    assert captured[1][1][-4:-2] == ["--profile", "factory"]
+    assert captured[1][1][-1].endswith("test-frame-build/firmware.factory.bin")
+    assert_versioned_compile(captured[2][1], "/config/builds/test-frame.yaml")
+    assert captured[3][1][-4:-2] == ["--profile", "ota"]
+    assert captured[3][1][-1].endswith("test-frame-build/firmware.bin")
 
 
 def test_compile_firmware_rejects_missing_metadata() -> None:
@@ -73,6 +80,7 @@ def test_compile_firmware_rejects_missing_metadata() -> None:
         "ESPHOME_VERSION": "1.2.3",
         "ESPHOME_CONFIG_MOUNT": "/config",
         "ESPHOME_DOCKER_REMOVE_FLAG": "--rm",
+        "RELEASE_ESPHOME_CACHE_DIR": "builds/.esphome",
     }
     check_release_ready.run = fail_run
     try:

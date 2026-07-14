@@ -28,6 +28,8 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
     package_json = read(ROOT / "package.json", errors)
 
     expected_outputs = {
+        "product/espframe.json",
+        "components/espframe/configuration_contract_generated.h",
         "components/espframe/tz_data_generated.h",
         "common/addon/time.yaml",
         "devices/guition-esp32-p4-jc8012p4a1/packages.yaml",
@@ -36,18 +38,26 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
     }
     expected_sources = {
         "components/espframe/timezones.py",
-        "docs/webserver/src/app.template.js",
-        "docs/webserver/src/app_shell.js",
-        "docs/webserver/src/backup_import.js",
-        "docs/webserver/src/compat.js",
-        "docs/webserver/src/endpoints.js",
-        "docs/webserver/src/live_helpers.js",
-        "docs/webserver/src/runtime_state.js",
-        "docs/webserver/src/settings_controls.js",
-        "docs/webserver/src/startup_wizard.js",
+        "docs/webserver/src/app.template.ts",
+        "docs/webserver/src/app_shell.ts",
+        "docs/webserver/src/backup_import.ts",
+        "docs/webserver/src/compat.ts",
+        "docs/webserver/src/endpoints.ts",
+        "docs/webserver/src/live_helpers.ts",
+        "docs/webserver/src/runtime_state.ts",
+        "docs/webserver/src/settings_controls.ts",
+        "docs/webserver/src/startup_wizard.ts",
+        "docs/webserver/src/web_contracts.ts",
         "docs/webserver/src/style.css",
-        "product/espframe.json",
+        "product/contract/devices.json",
+        "product/contract/manifest.json",
+        "product/contract/project.json",
+        "product/contract/schema.json",
+        "product/contract/settings.json",
         "scripts/asset_generation/device_packages.py",
+        "scripts/asset_generation/configuration_api.py",
+        "scripts/asset_generation/product_manifest.py",
+        "scripts/build_web_app.mjs",
         "scripts/product_config.py",
     }
     missing_outputs = sorted(expected_outputs - set(outputs))
@@ -65,8 +75,12 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
         if path:
             read(ROOT / path, errors)
             path_name = Path(path).name
-            if path_name in {"espframe.json", "product_config.py"}:
+            if path_name in {"devices.json", "manifest.json", "project.json", "schema.json", "settings.json", "product_config.py"}:
                 require_contains(generator, "load_product", generator_label, errors)
+            elif path_name == "product_manifest.py":
+                require_contains(generator, "legacy_product_manifest", generator_label, errors)
+            elif path_name == "configuration_api.py":
+                require_contains(generator, "generated_configuration_api_files", generator_label, errors)
             elif path_name in {"device_packages.py", "packages.yaml"}:
                 require_contains(generator, "generated_device_package_files", generator_label, errors)
             else:
@@ -98,6 +112,7 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
     for needle in (
         "write_or_check",
         "generated_device_package_files",
+        "generated_configuration_api_files",
         "replace_timezone_yaml",
         "web_app_bundle",
         "render_settings_table",
@@ -195,6 +210,9 @@ def check_web_server_metadata(product: dict, errors: list[str]) -> None:
     version = project.get("web_server_version")
     include_internal = project.get("web_server_include_internal")
     public_app_path = str(project.get("web_server_public_app_path", "")).strip()
+    device_js_url = str(project.get("web_server_device_js_url", ""))
+    device_css_include = str(project.get("web_server_device_css_include", "")).strip()
+    device_js_include = str(project.get("web_server_device_js_include", "")).strip()
     factory_js_url = str(project.get("web_server_factory_js_url", ""))
     factory_css_include = str(project.get("web_server_factory_css_include", "")).strip()
     factory_js_include = str(project.get("web_server_factory_js_include", "")).strip()
@@ -221,8 +239,11 @@ def check_web_server_metadata(product: dict, errors: list[str]) -> None:
                 require_contains(device_text, f"  version: {version}", device_yaml, errors)
             if isinstance(include_internal, bool):
                 require_contains(device_text, f"  include_internal: {str(include_internal).lower()}", device_yaml, errors)
-            if public_app_url:
-                require_contains(device_text, f'  js_url: "{public_app_url}"', device_yaml, errors)
+            require_contains(device_text, f'  js_url: "{device_js_url}"', device_yaml, errors)
+            if device_css_include:
+                require_contains(device_text, f'  css_include: "{device_css_include}"', device_yaml, errors)
+            if device_js_include:
+                require_contains(device_text, f'  js_include: "{device_js_include}"', device_yaml, errors)
             for group in sorting_groups if isinstance(sorting_groups, list) else []:
                 if not isinstance(group, dict):
                     continue
@@ -254,7 +275,7 @@ def check_web_server_metadata(product: dict, errors: list[str]) -> None:
                 if group_id not in group_ids:
                     errors.append(f"{rel(yaml_path)} references unknown web_server sorting group {group_id}")
 
-    for include_path in (factory_css_include, factory_js_include):
+    for include_path in (device_css_include, device_js_include, factory_css_include, factory_js_include):
         if not include_path:
             continue
         normalized = include_path
@@ -308,14 +329,25 @@ def check_external_components_metadata(product: dict, errors: list[str]) -> None
             require_contains(device_text, "espframe:", device_yaml, errors)
             require_contains(device_text, "  id: espframe_core", device_yaml, errors)
         if build_yaml:
-            build_text = read(ROOT / build_yaml, errors)
-            require_contains(build_text, "external_components:", build_yaml, errors)
-            if local_source_type:
-                require_contains(build_text, f"      type: {local_source_type}", build_yaml, errors)
-            if local_path:
-                require_contains(build_text, f"      path: {local_path}", build_yaml, errors)
-            if components_inline:
-                require_contains(build_text, f"    {components_inline}", build_yaml, errors)
+            build_paths = [build_yaml]
+            if build_yaml.endswith(".factory.yaml"):
+                build_paths.append(build_yaml.replace(".factory.yaml", ".yaml"))
+            for build_path in build_paths:
+                checked_build_path = check_relative_path(
+                    build_path,
+                    f"Device {slug} branch build YAML",
+                    errors,
+                )
+                if not checked_build_path:
+                    continue
+                build_text = read(ROOT / checked_build_path, errors)
+                require_contains(build_text, "external_components:", checked_build_path, errors)
+                if local_source_type:
+                    require_contains(build_text, f"      type: {local_source_type}", checked_build_path, errors)
+                if local_path:
+                    require_contains(build_text, f"      path: {local_path}", checked_build_path, errors)
+                if components_inline:
+                    require_contains(build_text, f"    {components_inline}", checked_build_path, errors)
 
     if local_path:
         normalized = local_path

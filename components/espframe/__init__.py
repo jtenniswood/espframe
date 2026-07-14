@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
 CODEOWNERS = ["@jtenniswood"]
-DEPENDENCIES = ["json"]
+DEPENDENCIES = ["json", "web_server_base"]
 
 espframe_ns = cg.esphome_ns.namespace("espframe")
 EspFrameComponent = espframe_ns.class_("EspFrameComponent", cg.Component)

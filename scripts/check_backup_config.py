@@ -14,7 +14,7 @@ from product_config import backup_schema, load_product
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB_SRC_DIR = ROOT / "docs" / "webserver" / "src"
-WEB_TEMPLATE = ROOT / "docs" / "webserver" / "src" / "app.template.js"
+WEB_TEMPLATE = ROOT / "docs" / "webserver" / "src" / "app.template.ts"
 WEB_APP = ROOT / "docs" / "public" / "webserver" / "app.js"
 UUID_LIST_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
@@ -47,7 +47,7 @@ def require_contains(text: str, needle: str, label: str, errors: list[str]) -> N
 
 def web_source_text() -> str:
     files = [WEB_TEMPLATE] + sorted(
-        path for path in WEB_SRC_DIR.glob("*.js")
+        path for path in WEB_SRC_DIR.glob("*.ts")
         if path.name != WEB_TEMPLATE.name
     )
     return "\n".join(path.read_text() for path in files)

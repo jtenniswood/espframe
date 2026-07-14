@@ -1,4 +1,4 @@
-# ESPFRAME: generated from product/espframe.json; run `npm run generate` to update.
+# ESPFRAME: generated from product/contract; run `npm run generate` to update.
 
 substitutions:
   display_width: "1280"

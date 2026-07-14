@@ -549,9 +549,7 @@ script:
           }
           lv_obj_add_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
           id(last_photo_displayed_ms) = millis();
-          id(immich_failure_window_started_ms) = 0;
-          id(immich_consecutive_failures) = 0;
-          id(immich_last_http_status) = 0;
+          id(immich_request_state).clear_failures();
 
   - id: connection_failed_dim
     mode: restart
@@ -673,7 +671,7 @@ interval:
               if (id(photo_source_menu_open)) return false;
               id(slideshow_interval_sec) = parse_duration_option_seconds(
                 id(slideshow_interval).current_option(), id(slideshow_interval_sec), 10, 600);
-              if (id(active_slot_displayed)) {
+              if (id(espframe_core).slideshow().state().active_slot_displayed) {
                 bool image_busy = id(immich_img_0).is_downloading() ||
                                   id(immich_img_1).is_downloading() ||
                                   id(immich_img_2).is_downloading() ||
@@ -681,11 +679,11 @@ interval:
                                   id(immich_portrait_right).is_downloading() ||
                                   id(immich_portrait_preload_left).is_downloading() ||
                                   id(immich_portrait_preload_right).is_downloading();
-                if (any_slot_fetch_in_flight(id(slot_flags)) || image_busy ||
-                    id(portrait).workflow_busy || id(preload_noncritical_in_flight) ||
-                    id(noncritical_remote_updates_in_flight) > 0) return false;
+                if (any_slot_fetch_in_flight(id(espframe_core).slideshow().state().slot_flags) || image_busy ||
+                    id(espframe_core).slideshow().state().portrait.workflow_busy || id(espframe_core).slideshow().state().preload_noncritical_in_flight ||
+                    id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight > 0) return false;
               }
-              return (millis() - id(immich_last_advance_ms)) >= (id(slideshow_interval_sec) * 1000);
+              return (millis() - id(espframe_core).slideshow().state().last_advance_ms) >= (id(slideshow_interval_sec) * 1000);
           then:
             - script.execute: immich_advance_forward
       - if:
@@ -694,14 +692,14 @@ interval:
               if (!id(immich_fetch_started)) return false;
               if (id(backlight_paused)) return false;
               if (id(photo_source_menu_open)) return false;
-              if (!id(active_slot_displayed)) return false;
-              bool any_inflight = any_slot_fetch_in_flight(id(slot_flags));
-              if (any_inflight || id(portrait).workflow_busy || id(preload_noncritical_in_flight) ||
-                  id(noncritical_remote_updates_in_flight) > 0) return false;
-              int next1 = (id(active_slot) + 1) % 3;
-              int next2 = (id(active_slot) + 2) % 3;
-              auto &n1 = get_slot(next1, id(slot0), id(slot1), id(slot2));
-              auto &n2 = get_slot(next2, id(slot0), id(slot1), id(slot2));
+              if (!id(espframe_core).slideshow().state().active_slot_displayed) return false;
+              bool any_inflight = any_slot_fetch_in_flight(id(espframe_core).slideshow().state().slot_flags);
+              if (any_inflight || id(espframe_core).slideshow().state().portrait.workflow_busy || id(espframe_core).slideshow().state().preload_noncritical_in_flight ||
+                  id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight > 0) return false;
+              int next1 = (id(espframe_core).slideshow().state().active_slot + 1) % 3;
+              int next2 = (id(espframe_core).slideshow().state().active_slot + 2) % 3;
+              auto &n1 = get_slot(next1, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2);
+              auto &n2 = get_slot(next2, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2);
               return !n1.ready || !n2.ready;
           then:
             - script.execute: immich_prefetch_chain
@@ -710,10 +708,11 @@ interval:
             lambda: |-
               if (id(backlight_paused)) return false;
               if (id(photo_source_menu_open)) return false;
-              if (id(active_slot_displayed)) return false;
-              uint32_t failure_start_ms = id(immich_failure_window_started_ms);
+              if (id(espframe_core).slideshow().state().active_slot_displayed) return false;
+              uint32_t failure_start_ms = id(immich_request_state).failure_window_started_ms;
               if (failure_start_ms == 0) return false;
-              if (id(immich_consecutive_failures) <= 0 && id(immich_last_http_status) == 0) return false;
+              if (id(immich_request_state).consecutive_failures <= 0 &&
+                  id(immich_request_state).last_http_status == 0) return false;
               id(connection_timeout_sec) = parse_duration_option_seconds(
                 id(connection_timeout).current_option(), id(connection_timeout_sec), 30, 1800);
               bool image_busy = id(immich_img_0).is_downloading() ||
@@ -723,15 +722,15 @@ interval:
                                 id(immich_portrait_right).is_downloading() ||
                                 id(immich_portrait_preload_left).is_downloading() ||
                                 id(immich_portrait_preload_right).is_downloading();
-              if (any_slot_fetch_in_flight(id(slot_flags)) || image_busy ||
-                  id(portrait).workflow_busy || id(preload_noncritical_in_flight) ||
-                  id(noncritical_remote_updates_in_flight) > 0) return false;
+              if (any_slot_fetch_in_flight(id(espframe_core).slideshow().state().slot_flags) || image_busy ||
+                  id(espframe_core).slideshow().state().portrait.workflow_busy || id(espframe_core).slideshow().state().preload_noncritical_in_flight ||
+                  id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight > 0) return false;
               return (millis() - failure_start_ms) >= (id(connection_timeout_sec) * 1000);
           then:
             - lambda: |-
                 if (lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN)) {
                   ESP_LOGE("immich", "No photo displayed for %s, showing connection failed screen", id(connection_timeout).current_option().c_str());
-                  if (id(immich_last_http_status) == 401) {
+                  if (id(immich_request_state).last_http_status == 401) {
                     lv_label_set_text(id(connection_failed_title), "Invalid API Key");
                     lv_label_set_text(id(connection_failed_subtitle), "Check your Immich API key in\nthe espframe settings.");
                   } else {
@@ -740,11 +739,11 @@ interval:
                   }
                 }
                 lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
-                id(immich_download_retries) = 0;
+                id(espframe_core).slideshow().state().download_retries = 0;
             - script.execute: connection_failed_dim
             - script.execute: connection_failed_shift
             - lambda: |-
-                if (!id(slot_flags).fetch_in_flight[id(active_slot)]) {
-                  id(target_slot) = id(active_slot);
+                if (!id(espframe_core).slideshow().state().slot_flags.fetch_in_flight[id(espframe_core).slideshow().state().active_slot]) {
+                  id(espframe_core).slideshow().state().target_slot = id(espframe_core).slideshow().state().active_slot;
                   id(immich_fetch_into_slot).execute();
                 }
