@@ -15,6 +15,14 @@ esphome:
 packages:
   espframe: !include ../devices/guition-esp32-p4-jc8012p4a1/packages.yaml
 
+# CI and PR artifacts must compile the checked-out branch's components rather
+# than the remote component reference used by end-user package installs.
+external_components:
+  - source:
+      type: local
+      path: ../components
+    components: [gsl3680, remote_image, espframe]
+
 wifi:
   ap:
 

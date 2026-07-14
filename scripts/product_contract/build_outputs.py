@@ -329,14 +329,25 @@ def check_external_components_metadata(product: dict, errors: list[str]) -> None
             require_contains(device_text, "espframe:", device_yaml, errors)
             require_contains(device_text, "  id: espframe_core", device_yaml, errors)
         if build_yaml:
-            build_text = read(ROOT / build_yaml, errors)
-            require_contains(build_text, "external_components:", build_yaml, errors)
-            if local_source_type:
-                require_contains(build_text, f"      type: {local_source_type}", build_yaml, errors)
-            if local_path:
-                require_contains(build_text, f"      path: {local_path}", build_yaml, errors)
-            if components_inline:
-                require_contains(build_text, f"    {components_inline}", build_yaml, errors)
+            build_paths = [build_yaml]
+            if build_yaml.endswith(".factory.yaml"):
+                build_paths.append(build_yaml.replace(".factory.yaml", ".yaml"))
+            for build_path in build_paths:
+                checked_build_path = check_relative_path(
+                    build_path,
+                    f"Device {slug} branch build YAML",
+                    errors,
+                )
+                if not checked_build_path:
+                    continue
+                build_text = read(ROOT / checked_build_path, errors)
+                require_contains(build_text, "external_components:", checked_build_path, errors)
+                if local_source_type:
+                    require_contains(build_text, f"      type: {local_source_type}", checked_build_path, errors)
+                if local_path:
+                    require_contains(build_text, f"      path: {local_path}", checked_build_path, errors)
+                if components_inline:
+                    require_contains(build_text, f"    {components_inline}", checked_build_path, errors)
 
     if local_path:
         normalized = local_path
