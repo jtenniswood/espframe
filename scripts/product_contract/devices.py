@@ -5,6 +5,30 @@ from __future__ import annotations
 from product_contract.common import ROOT, check_relative_path, read, rel, require_contains
 
 
+def _require_display_panel_contract(device: dict, device_yaml: str, device_yaml_label: str, errors: list[str]) -> None:
+    display_panel = str(device.get("display_panel", "")).strip()
+    if not display_panel:
+        return
+
+    stock_model = f"model: {display_panel}"
+    if stock_model in device_yaml:
+        return
+
+    custom_panel_markers = {
+        "JC8012P4A1": (
+            "model: CUSTOM",
+            "pixel_mode: 16bit",
+            "color_depth: 16",
+            "init_sequence:",
+        ),
+    }
+    markers = custom_panel_markers.get(display_panel)
+    if markers and all(marker in device_yaml for marker in markers):
+        return
+
+    errors.append(f"{device_yaml_label} is missing {stock_model!r}")
+
+
 def check_devices(product: dict, errors: list[str]) -> None:
     seen: set[str] = set()
     for device in product["devices"]:
@@ -186,11 +210,11 @@ def check_devices(product: dict, errors: list[str]) -> None:
             ("esp32_hosted_variant", f'variant: {device.get("esp32_hosted_variant", "")}'),
             ("psram_mode", f'mode: {device.get("psram_mode", "")}'),
             ("psram_speed", f'speed: {device.get("psram_speed", "")}'),
-            ("display_panel", f'model: {device.get("display_panel", "")}'),
             ("touch_platform", f'platform: {device.get("touch_platform", "")}'),
         ):
             if str(device.get(field, "")).strip():
                 require_contains(device_yaml, needle, rel(ROOT / device_yaml_path), errors)
+        _require_display_panel_contract(device, device_yaml, rel(ROOT / device_yaml_path), errors)
         for field, needle in (
             ("engineering_sample", "engineering_sample: true"),
             ("idf_experimental_features", "enable_idf_experimental_features: true"),
@@ -358,4 +382,3 @@ def check_devices(product: dict, errors: list[str]) -> None:
             "color_order: RGB",
         ):
             require_contains(device_yaml, needle, rel(ROOT / device_yaml_path), errors)
-
