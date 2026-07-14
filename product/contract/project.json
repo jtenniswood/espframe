@@ -1271,6 +1271,7 @@
   "github_prerelease_lookup_limit": 20,
   "generated_asset_outputs": [
     "product/espframe.json",
+    "components/espframe/configuration_contract_generated.h",
     "components/espframe/tz_data_generated.h",
     "common/addon/time.yaml",
     "devices/guition-esp32-p4-jc8012p4a1/packages.yaml",
@@ -1278,6 +1279,7 @@
     "docs/public/webserver/style.css"
   ],
   "generated_asset_output_headers": {
+    "components/espframe/configuration_contract_generated.h": "// ESPFRAME: generated from product/contract; run `npm run generate` to update.",
     "devices/guition-esp32-p4-jc8012p4a1/packages.yaml": "# ESPFRAME: generated from product/contract; run `npm run generate` to update.",
     "docs/public/webserver/app.js": "// ESPFRAME: generated from docs/webserver/src and product/contract; run `npm run generate` to update.",
     "docs/public/webserver/style.css": "/* ESPFRAME: generated from docs/webserver/src/style.css; run `npm run generate` to update. */"
@@ -1303,6 +1305,7 @@
     "product/contract/schema.json",
     "product/contract/settings.json",
     "scripts/asset_generation/device_packages.py",
+    "scripts/asset_generation/configuration_api.py",
     "scripts/asset_generation/product_manifest.py",
     "scripts/product_config.py"
   ],

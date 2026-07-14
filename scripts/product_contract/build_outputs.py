@@ -29,6 +29,7 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
 
     expected_outputs = {
         "product/espframe.json",
+        "components/espframe/configuration_contract_generated.h",
         "components/espframe/tz_data_generated.h",
         "common/addon/time.yaml",
         "devices/guition-esp32-p4-jc8012p4a1/packages.yaml",
@@ -53,6 +54,7 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
         "product/contract/schema.json",
         "product/contract/settings.json",
         "scripts/asset_generation/device_packages.py",
+        "scripts/asset_generation/configuration_api.py",
         "scripts/asset_generation/product_manifest.py",
         "scripts/product_config.py",
     }
@@ -75,6 +77,8 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
                 require_contains(generator, "load_product", generator_label, errors)
             elif path_name == "product_manifest.py":
                 require_contains(generator, "legacy_product_manifest", generator_label, errors)
+            elif path_name == "configuration_api.py":
+                require_contains(generator, "generated_configuration_api_files", generator_label, errors)
             elif path_name in {"device_packages.py", "packages.yaml"}:
                 require_contains(generator, "generated_device_package_files", generator_label, errors)
             else:
@@ -106,6 +110,7 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
     for needle in (
         "write_or_check",
         "generated_device_package_files",
+        "generated_configuration_api_files",
         "replace_timezone_yaml",
         "web_app_bundle",
         "render_settings_table",

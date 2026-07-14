@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from asset_generation.device_packages import generated_device_package_files
+from asset_generation.configuration_api import generated_configuration_api_files
 from asset_generation.docs_tables import generated_docs, render_settings_table, setting_lookup
 from asset_generation.firmware_fields import (
     generated_firmware_field_files,
@@ -59,6 +60,8 @@ def generate(check: bool) -> int:
     changed = False
     product = load_product()
     changed |= write_or_check(LEGACY_PRODUCT_PATH, legacy_product_manifest(product), check)
+    for path, content in generated_configuration_api_files().items():
+        changed |= write_or_check(path, content, check)
     all_settings = setting_lookup()
     firmware_field_configs = generated_firmware_setting_fields()
     changed |= write_or_check(TZ_HEADER_PATH, timezone_header(), check)

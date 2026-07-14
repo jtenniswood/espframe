@@ -4,6 +4,7 @@
 #include <string>
 
 #include "components/espframe/date_utils.h"
+#include "components/espframe/configuration_contract_generated.h"
 #include "components/espframe/duration_helpers.h"
 #include "components/espframe/immich_helpers.h"
 
@@ -831,6 +832,19 @@ static void test_slideshow_component_display_current_flow() {
   assert(noncritical_count == 0);
 }
 
+static void test_configuration_contract_capabilities() {
+  using namespace esphome::espframe::contract;
+  static_assert(CONTRACT_VERSION == 2);
+  static_assert(API_VERSION == 1);
+  static_assert(SETTING_COUNT == 33);
+  assert(std::string(CAPABILITIES_PATH) == "/espframe/api/v1/capabilities");
+  assert(std::string(CONFIGURATION_PATH) == "/espframe/api/v1/configuration");
+  const std::string capabilities(CAPABILITIES_JSON);
+  assert(capabilities.find("\"contract_version\":2") != std::string::npos);
+  assert(capabilities.find("\"backup_versions\":[1]") != std::string::npos);
+  assert(capabilities.find("\"legacy_entity_api\":true") != std::string::npos);
+}
+
 int main() {
   test_date_and_url_helpers();
   test_duration_helpers();
@@ -845,6 +859,7 @@ int main() {
   test_slideshow_component_previous_flow();
   test_slideshow_component_companion_result_flow();
   test_slideshow_component_display_current_flow();
+  test_configuration_contract_capabilities();
   std::cout << "espframe helper tests passed\n";
   return 0;
 }
