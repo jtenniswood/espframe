@@ -242,13 +242,15 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
       send_error_(request, 409, "update_in_progress");
       return;
     }
-    auto *parameter = request->getParam("configuration");
-    if (parameter == nullptr) {
+    // ESPHome's IDF request wrapper searches the captured form body before the
+    // URL query when hasArg()/arg() are used.
+    if (!request->hasArg("configuration")) {
       send_error_(request, 400, "missing_configuration");
       return;
     }
+    std::string configuration = request->arg("configuration");
 
-    JsonDocument document = json::parse_json(parameter->value());
+    JsonDocument document = json::parse_json(configuration);
     if (!document.is<JsonObject>()) {
       send_error_(request, 400, "invalid_json");
       return;

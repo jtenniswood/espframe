@@ -66,6 +66,13 @@ def test_contract_manifest_preserves_upgrade_boundaries() -> None:
     assert manifest["compatibility"]["preserve_saved_preferences"] is True
 
 
+def test_configuration_api_reads_form_post_body() -> None:
+    source = (ROOT / "components" / "espframe" / "configuration_api.h").read_text(encoding="utf-8")
+
+    assert 'request->hasArg("configuration")' in source
+    assert 'request->arg("configuration")' in source
+
+
 def main() -> int:
     run_discovered_tests(globals())
     print("product contract common tests passed")

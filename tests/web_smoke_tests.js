@@ -372,29 +372,43 @@ function browserScriptForScenario(scenario) {
             json: () => Promise.resolve({ api_version: 1, values: configurationSnapshotValues(), unavailable: [] })
           });
         }
+        if (window.__smoke.configurationUpdateInFlight) {
+          return Promise.resolve({
+            ok: false,
+            status: 409,
+            json: () => Promise.resolve({ api_version: 1, status: "rejected", error: "update_in_progress" })
+          });
+        }
+        window.__smoke.configurationUpdateInFlight = true;
         const encoded = new URLSearchParams(body).get("configuration");
         const update = encoded ? JSON.parse(encoded) : { values: {} };
         const failedKey = configurationKeyByEndpointName[window.__smoke.failedPostEndpoint];
         if (failedKey && Object.prototype.hasOwnProperty.call(update.values, failedKey)) {
           window.__smoke.posts.push(decoded);
           window.__smoke.postRecords.push({ url: decoded, body });
-          return Promise.resolve({
-            ok: false,
-            status: 422,
-            json: () => Promise.resolve({ api_version: 1, status: "rejected", error: "smoke_failure", field: failedKey })
-          });
+          return new Promise((resolve) => setTimeout(() => {
+            window.__smoke.configurationUpdateInFlight = false;
+            resolve({
+              ok: false,
+              status: 422,
+              json: () => Promise.resolve({ api_version: 1, status: "rejected", error: "smoke_failure", field: failedKey })
+            });
+          }, 0));
         }
         window.__smoke.posts.push(decoded);
         window.__smoke.postRecords.push({ url: decoded, body });
-        Object.entries(update.values || {}).forEach(([key, value]) => {
-          const endpointName = configurationEndpointNameByKey[key];
-          if (endpointName) endpointValues[endpointName] = value;
-        });
-        return Promise.resolve({
-          ok: true,
-          status: 202,
-          json: () => Promise.resolve({ api_version: 1, status: "accepted", updated: Object.keys(update.values || {}).length })
-        });
+        return new Promise((resolve) => setTimeout(() => {
+          Object.entries(update.values || {}).forEach(([key, value]) => {
+            const endpointName = configurationEndpointNameByKey[key];
+            if (endpointName) endpointValues[endpointName] = value;
+          });
+          window.__smoke.configurationUpdateInFlight = false;
+          resolve({
+            ok: true,
+            status: 202,
+            json: () => Promise.resolve({ api_version: 1, status: "accepted", updated: Object.keys(update.values || {}).length })
+          });
+        }, 0));
       }
       if (method === "POST") {
         window.__smoke.posts.push(decoded);

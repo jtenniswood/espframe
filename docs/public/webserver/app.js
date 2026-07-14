@@ -1256,6 +1256,7 @@ to {
   }
   var endpoints = {};
   var CONFIGURATION_API_PATH = "/espframe/api/v1/configuration";
+  var configurationUpdateQueue = Promise.resolve();
   function configurationApiUnavailable(message) {
     var error = new Error(message || "configuration_api_unavailable");
     error.configurationApiUnavailable = true;
@@ -1277,7 +1278,7 @@ to {
       throw configurationApiUnavailable("configuration_api_request_failed");
     });
   }
-  function updateConfiguration(values) {
+  function sendConfigurationUpdate(values) {
     var encoded = configurationUpdateBody(values);
     return fetch(CONFIGURATION_API_PATH, {
       method: "POST",
@@ -1306,6 +1307,15 @@ to {
       }
       throw configurationApiUnavailable("configuration_api_request_failed");
     });
+  }
+  function updateConfiguration(values) {
+    var request = configurationUpdateQueue.then(function() {
+      return sendConfigurationUpdate(values);
+    });
+    configurationUpdateQueue = request.catch(function() {
+      return null;
+    });
+    return request;
   }
   function applyConfigurationSnapshot(snapshot) {
     Object.keys(snapshot.values).forEach(function(key) {
