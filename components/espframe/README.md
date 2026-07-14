@@ -14,7 +14,7 @@ ESPHome component that provides shared C++ helpers for the Espframe-for-Immich d
 | `espframe_helpers.h` | Main entry: data types (`PhotoMeta`, `SlotMeta`, `DisplayMeta`), copy helpers, and `parse_immich_asset_and_fill_slot`. Include this from YAML lambdas when you need slot/display types or Immich parsing. |
 | `slideshow_controller.h` | Typed slideshow slot decisions and a small priority queue used by the Immich prefetch path. Included by `espframe_helpers.h`. |
 | `date_utils.h` | Month names, URL normalization, and human‑readable date/time-ago formatting. |
-| `immich_helpers.h` | Immich API: search body builder, UUID array builder, and JSON asset parser filling `ImmichAssetMeta`. |
+| `immich_helpers.h` | Immich API request state, retry/cooldown transitions, search body builders, UUID helpers, and JSON asset parsing. |
 | `sun_calc.h` | Timezone coordinate lookup and NOAA-based sunrise/sunset calculation. |
 
 ## Constants
@@ -78,6 +78,15 @@ The YAML layer is now mostly an action bridge. It still performs ESPHome-only ac
 ### `ImmichAssetMeta` (immich_helpers.h)
 
 Filled by `parse_immich_asset` from Immich JSON. Same logical fields as `PhotoMeta` plus `datetime` and `is_portrait` (see `immich_helpers.h`).
+
+### `ImmichRequestState` (immich_helpers.h)
+
+Owns the Immich request pipeline's retry count, connection-failure window,
+cooldown, memory-search window, and metadata pagination. YAML keeps one typed
+instance and calls explicit transitions such as `register_fetch_failure()`,
+`register_success()`, `prepare_retry_delay()`, and `begin_memory_search()`.
+This prevents connection resets or retry paths from updating only part of the
+request state.
 
 ### `TzInfo` (sun_calc.h)
 

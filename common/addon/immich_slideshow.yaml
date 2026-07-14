@@ -60,18 +60,6 @@ globals:
   - id: immich_download_retries
     type: int
     initial_value: '0'
-  - id: immich_consecutive_failures
-    type: int
-    initial_value: '0'
-  - id: immich_failure_window_started_ms
-    type: uint32_t
-    initial_value: '0'
-  - id: immich_api_retry_delay_ms
-    type: uint32_t
-    initial_value: '2000'
-  - id: immich_retry_cooldown_until_ms
-    type: uint32_t
-    initial_value: '0'
   - id: slot_flags
     type: SlotFlags
   - id: fetch_queue
@@ -706,8 +694,8 @@ script:
             id(active_slot), id(target_slot), id(active_slot_displayed), id(slot_flags), id(portrait),
             id(noncritical_remote_updates_in_flight), id(preload_noncritical_in_flight),
             id(portrait_preload_slot), id(portrait_preload_left_ready), id(portrait_preload_right_ready),
-            id(companion_target_slot), id(immich_api_retries), id(immich_download_retries),
-            id(immich_retry_cooldown_until_ms));
+            id(companion_target_slot), id(immich_request_state).api_retries, id(immich_download_retries),
+            id(immich_request_state).retry_cooldown_until_ms);
 
   # Shared handler for any slot's on_error (retry up to MAX_ERROR_RETRIES)
   - id: handle_slot_download_error
@@ -731,17 +719,10 @@ script:
           else:
             - lambda: 'id(immich_download_retries) = 0;'
             - lambda: |-
-                id(immich_consecutive_failures)++;
-                if (id(immich_failure_window_started_ms) == 0) {
-                  id(immich_failure_window_started_ms) = millis();
-                }
-                uint32_t cooldown_ms = 5000;
-                if (id(immich_consecutive_failures) >= 4) cooldown_ms = 10000;
-                if (id(immich_consecutive_failures) >= 8) cooldown_ms = 20000;
-                id(immich_retry_cooldown_until_ms) = millis() + cooldown_ms;
+                uint32_t cooldown_ms = id(immich_request_state).register_download_failure(millis());
                 ESP_LOGW("immich",
                          "Download retries exhausted; pausing fetches for %us (consecutive failures=%d)",
-                         (unsigned) (cooldown_ms / 1000), id(immich_consecutive_failures));
+                         (unsigned) (cooldown_ms / 1000), id(immich_request_state).consecutive_failures);
 
   # Start portrait pair download for the active slot (left then right or companion search)
   - id: immich_start_portrait_active
@@ -841,7 +822,7 @@ script:
       - lambda: |-
           id(espframe_core).slideshow().advance_forward(
             millis(),
-            id(immich_retry_cooldown_until_ms) != 0 && millis() < id(immich_retry_cooldown_until_ms),
+            id(immich_request_state).cooldown_active(millis()),
             id(active_slot), id(target_slot), id(active_slot_displayed),
             id(immich_last_advance_ms), id(slot0), id(slot1), id(slot2),
             id(current_display), id(prev_display), id(portrait), id(slot_flags),
@@ -1013,7 +994,7 @@ script:
           if (id(photo_source_menu_open)) return;
           id(espframe_core).slideshow().request_prefetch(
             id(backlight_paused),
-            id(immich_retry_cooldown_until_ms) != 0 && millis() < id(immich_retry_cooldown_until_ms),
+            id(immich_request_state).cooldown_active(millis()),
             millis(), id(last_prefetch_start_ms), id(active_slot), id(target_slot),
             id(slot0), id(slot1), id(slot2), id(slot_flags), id(fetch_queue), id(portrait),
             id(active_slot_displayed), id(noncritical_remote_updates_in_flight), id(portrait_preload_slot),

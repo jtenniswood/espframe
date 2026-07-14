@@ -549,9 +549,7 @@ script:
           }
           lv_obj_add_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
           id(last_photo_displayed_ms) = millis();
-          id(immich_failure_window_started_ms) = 0;
-          id(immich_consecutive_failures) = 0;
-          id(immich_last_http_status) = 0;
+          id(immich_request_state).clear_failures();
 
   - id: connection_failed_dim
     mode: restart
@@ -711,9 +709,10 @@ interval:
               if (id(backlight_paused)) return false;
               if (id(photo_source_menu_open)) return false;
               if (id(active_slot_displayed)) return false;
-              uint32_t failure_start_ms = id(immich_failure_window_started_ms);
+              uint32_t failure_start_ms = id(immich_request_state).failure_window_started_ms;
               if (failure_start_ms == 0) return false;
-              if (id(immich_consecutive_failures) <= 0 && id(immich_last_http_status) == 0) return false;
+              if (id(immich_request_state).consecutive_failures <= 0 &&
+                  id(immich_request_state).last_http_status == 0) return false;
               id(connection_timeout_sec) = parse_duration_option_seconds(
                 id(connection_timeout).current_option(), id(connection_timeout_sec), 30, 1800);
               bool image_busy = id(immich_img_0).is_downloading() ||
@@ -731,7 +730,7 @@ interval:
             - lambda: |-
                 if (lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN)) {
                   ESP_LOGE("immich", "No photo displayed for %s, showing connection failed screen", id(connection_timeout).current_option().c_str());
-                  if (id(immich_last_http_status) == 401) {
+                  if (id(immich_request_state).last_http_status == 401) {
                     lv_label_set_text(id(connection_failed_title), "Invalid API Key");
                     lv_label_set_text(id(connection_failed_subtitle), "Check your Immich API key in\nthe espframe settings.");
                   } else {

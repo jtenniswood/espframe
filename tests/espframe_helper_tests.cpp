@@ -276,6 +276,59 @@ static void test_immich_body_helpers() {
                                                        "Portrait Only").empty());
 }
 
+static void test_immich_request_state() {
+  ImmichRequestState state;
+  assert(!state.cooldown_active(100));
+  assert(state.retry_delay_ms == 2000);
+
+  state.begin_memory_search();
+  assert(state.memory_window_offset == -2);
+  state.add_memory_image("asset-a");
+  state.add_memory_image("");
+  state.add_memory_image("asset-b");
+  assert(state.memory_image_count == 2);
+  assert(state.select_memory_image(1));
+  assert(state.memory_asset_id == "asset-b");
+  assert(!state.select_memory_image(2));
+  assert(state.advance_memory_window());
+  assert(state.memory_window_offset == -1);
+
+  assert(state.register_request_error() == 1);
+  assert(state.prepare_retry_delay() == 2000);
+  assert(state.register_request_error() == 2);
+  assert(state.prepare_retry_delay() == 5000);
+  assert(state.retry_available(3));
+  assert(state.register_request_error() == 3);
+  assert(!state.retry_available(3));
+  assert(state.prepare_retry_delay() == 10000);
+
+  state.reset();
+  assert(state.register_fetch_failure(1000) == 3000);
+  assert(state.cooldown_active(3999));
+  assert(!state.cooldown_active(4000));
+  assert(state.register_fetch_failure(5000) == 3000);
+  assert(state.register_fetch_failure(9000) == 7000);
+  assert(state.consecutive_failures == 3);
+
+  state.register_success();
+  assert(state.consecutive_failures == 0);
+  assert(state.api_retries == 0);
+  assert(!state.cooldown_active(9001));
+
+  state.record_http_failure(503, 10000);
+  assert(state.last_http_status == 503);
+  assert(state.failure_window_started_ms == 10000);
+  assert(state.cooldown_active(39999));
+  state.reset_retries_and_pause(50000, 2500);
+  assert(state.api_retries == 0);
+  assert(state.cooldown_active(52499));
+
+  state.reset();
+  for (int i = 0; i < 4; i++) state.register_download_failure(60000 + i);
+  assert(state.consecutive_failures == 4);
+  assert(state.retry_cooldown_until_ms == 70003);
+}
+
 static SlotMeta make_slot(const std::string &asset_id, bool portrait) {
   SlotMeta meta;
   meta.asset_id = asset_id;
@@ -853,6 +906,7 @@ int main() {
   test_date_and_url_helpers();
   test_duration_helpers();
   test_immich_body_helpers();
+  test_immich_request_state();
   test_slideshow_slot_actions();
   test_fetch_queue_and_error_handling();
   test_slideshow_component_commands();

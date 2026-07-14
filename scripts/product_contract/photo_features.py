@@ -103,9 +103,9 @@ def check_photo_source_metadata(product: dict, errors: list[str]) -> None:
     for name in ("Photos: Album IDs", "Photos: Album Labels", "Photos: Person IDs", "Photos: Person Labels", "Photos: Tag IDs", "Photos: Tag Labels"):
         require_firmware_text_entity_shape(filter_yaml, name, "common/addon/immich_filter.yaml", errors)
     for needle in (
-        "immich_memory_window_offset",
-        "id(immich_memory_window_offset) = -2",
-        "id(immich_memory_window_offset) <= 2",
+        "immich_request_state",
+        "begin_memory_search",
+        "advance_memory_window",
         "build_immich_search_body",
         "pick_album_id_for_metadata_search",
         "pick_one_person_id_for_random_search",
@@ -173,6 +173,7 @@ def check_connection_resilience_metadata(product: dict, errors: list[str]) -> No
     slideshow_yaml = read(ROOT / "common" / "addon" / "immich_slideshow.yaml", errors)
     immich_config_yaml = read(ROOT / "common" / "addon" / "immich_config.yaml", errors)
     helper_header = read(ROOT / "components" / "espframe" / "espframe_helpers.h", errors)
+    immich_helper_header = read(ROOT / "components" / "espframe" / "immich_helpers.h", errors)
     helper_tests = read(ROOT / "tests" / "espframe_helper_tests.cpp", errors)
     web_template = read_web_source(errors)
 
@@ -240,7 +241,12 @@ def check_connection_resilience_metadata(product: dict, errors: list[str]) -> No
     if isinstance(retry_delays, list):
         for delay in retry_delays:
             if isinstance(delay, int) and not isinstance(delay, bool):
-                require_contains(api_yaml, f"delay_ms = {delay}", "common/addon/immich_api.yaml", errors)
+                require_contains(
+                    api_yaml + immich_helper_header,
+                    f"delay_ms = {delay}",
+                    "Immich request state",
+                    errors,
+                )
     for status in retryable_statuses:
         if status == "HTTP 5xx":
             require_contains(helper_header, "status >= 500", "components/espframe/espframe_helpers.h", errors)
@@ -260,8 +266,8 @@ def check_connection_resilience_metadata(product: dict, errors: list[str]) -> No
     ):
         require_contains(api_yaml, needle, "common/addon/immich_api.yaml", errors)
     for needle in (
-        "immich_consecutive_failures",
-        "immich_retry_cooldown_until_ms",
+        "register_download_failure",
+        "cooldown_active",
         "Download retries exhausted",
         "hide_connection_failed",
     ):
@@ -269,11 +275,18 @@ def check_connection_resilience_metadata(product: dict, errors: list[str]) -> No
     for needle in (
         "Connection settings changed; retrying Immich connection",
         "connection_failed_overlay",
-        "immich_api_retries",
+        "immich_request_state).reset()",
         "immich_download_retries",
-        "immich_consecutive_failures",
     ):
         require_contains(immich_config_yaml, needle, "common/addon/immich_config.yaml", errors)
+    for needle in (
+        "struct ImmichRequestState",
+        "register_fetch_failure",
+        "register_success",
+        "prepare_retry_delay",
+        "record_http_failure",
+    ):
+        require_contains(immich_helper_header, needle, "components/espframe/immich_helpers.h", errors)
     for needle in (
         "Connection Timeout",
         'productSelectSettingField("Connection Timeout", "conn_timeout")',
