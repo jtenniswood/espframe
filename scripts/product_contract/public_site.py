@@ -70,6 +70,7 @@ def check_public_site_references(product: dict, errors: list[str]) -> None:
     install_url = public_url("install", product)
     web_app_path = str(product["project"].get("web_server_public_app_path", "")).strip()
     web_app_url = public_url(web_app_path, product) if web_app_path else ""
+    device_js_url = str(product["project"].get("web_server_device_js_url", ""))
     project_name = str(product["project"].get("name", "")).strip()
     social_image_alt = str(product["project"].get("social_image_alt", "")).strip()
     usb_flashing_image = str(product["project"].get("usb_flashing_image", "")).strip()
@@ -239,7 +240,7 @@ def check_public_site_references(product: dict, errors: list[str]) -> None:
             require_contains(local_text, f"url: {repository_url}", local_yaml, errors)
         if device_yaml:
             device_text = read(ROOT / device_yaml, errors)
-            require_contains(device_text, f'js_url: "{web_app_url}"', device_yaml, errors)
+            require_contains(device_text, f'js_url: "{device_js_url}"', device_yaml, errors)
             if repository_url:
                 require_contains(device_text, f'espframe_component_url: "{repository_url}"', device_yaml, errors)
 

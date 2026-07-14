@@ -333,9 +333,6 @@ def check_generated_web_metadata(product: dict, web_text: str, errors: list[str]
     if support_url is not None and support_url != product["project"].get("support_url"):
         errors.append("Generated web SUPPORT_URL does not match product/espframe.json")
 
-    support_button_image_url = extract_js_json_var(web_text, "SUPPORT_BUTTON_IMAGE_URL", errors)
-    if support_button_image_url is not None and support_button_image_url != product["project"].get("support_button_image_url"):
-        errors.append("Generated web SUPPORT_BUTTON_IMAGE_URL does not match product/espframe.json")
 
 
 def check_static_web_defaults_against_firmware(product: dict, errors: list[str]) -> None:
@@ -420,7 +417,7 @@ def check_web_ui_metadata(product: dict, web_template: str, web_text: str, error
             if tab_id:
                 require_contains(web_template + web_text, f"{tab_id}Page", f"web UI page for {tab_id}", errors)
             if tab_label:
-                require_contains(web_text, f'"label":"{tab_label}"', f"generated web UI tab {tab_label}", errors)
+                require_contains(re.sub(r"\s+", "", web_text), f'"label":"{tab_label}"', f"generated web UI tab {tab_label}", errors)
     else:
         errors.append("project.web_ui_tabs must be a list")
 

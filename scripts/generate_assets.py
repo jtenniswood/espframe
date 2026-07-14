@@ -31,7 +31,7 @@ from asset_generation.web_bundle import bootstrap_webserver_sources, web_app_bun
 from product_config import docs_settings_tables, load_product
 
 
-GENERATED_JS_HEADER = "// ESPFRAME: generated from docs/webserver/src and product/contract; run `npm run generate` to update.\n"
+GENERATED_JS_HEADER = "// ESPFRAME: generated from typed docs/webserver/src and product/contract; run `npm run generate` to update.\n"
 GENERATED_CSS_HEADER = "/* ESPFRAME: generated from docs/webserver/src/style.css; run `npm run generate` to update. */\n"
 
 

@@ -36,6 +36,67 @@
   }
 
   var endpoints = {};
+  var CONFIGURATION_API_PATH = "/espframe/api/v1/configuration";
+
+  function configurationApiUnavailable(message) {
+    var error = new Error(message || "configuration_api_unavailable");
+    error.configurationApiUnavailable = true;
+    return error;
+  }
+
+  function isConfigurationApiUnavailable(error) {
+    return !!(error && error.configurationApiUnavailable);
+  }
+
+  function getConfigurationSnapshot() {
+    return fetch(CONFIGURATION_API_PATH)
+      .then(function (response) {
+        if (!response.ok) throw configurationApiUnavailable("configuration_api_" + response.status);
+        return response.json();
+      })
+      .then(function (payload) {
+        var snapshot = parseConfigurationSnapshot(payload);
+        if (!snapshot) throw configurationApiUnavailable("invalid_configuration_snapshot");
+        return snapshot;
+      })
+      .catch(function (error) {
+        if (isConfigurationApiUnavailable(error)) throw error;
+        throw configurationApiUnavailable("configuration_api_request_failed");
+      });
+  }
+
+  function updateConfiguration(values) {
+    var encoded = configurationUpdateBody(values);
+    return fetch(CONFIGURATION_API_PATH, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: encoded
+    }).then(function (response) {
+      if (response.status === 404 || response.status === 405) {
+        throw configurationApiUnavailable("configuration_api_" + response.status);
+      }
+      return response.json().catch(function () { return null; }).then(function (payload) {
+        if (!response.ok || !payload || payload.status !== "accepted") {
+          var error = new Error(payload && payload.error ? payload.error : "configuration_update_failed");
+          error.field = payload && payload.field;
+          error.configurationApiResponse = true;
+          throw error;
+        }
+        return delayMs(100).then(function () { return payload; });
+      });
+    }).catch(function (error) {
+      if (isConfigurationApiUnavailable(error) || error.configurationApiResponse) {
+        throw error;
+      }
+      throw configurationApiUnavailable("configuration_api_request_failed");
+    });
+  }
+
+  function applyConfigurationSnapshot(snapshot) {
+    Object.keys(snapshot.values).forEach(function (key) {
+      S[key] = snapshot.values[key];
+    });
+  }
 
   function registerManualEntityEndpoints() {
     if (!MANUAL_ENTITIES) return;

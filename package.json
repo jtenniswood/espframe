@@ -28,10 +28,11 @@
     "test:helpers": "g++ -std=c++17 -I. -Itests/stubs tests/espframe_helper_tests.cpp -o /tmp/espframe_helper_tests && /tmp/espframe_helper_tests",
     "test:firmware-logic": "npm run test:helpers && npm run test:timezones",
     "check:fast": "npm run check:schema && npm run check:generated && npm run check:product && npm run check:backup && npm run check:compat && npm run check:firmware-fields",
-    "check:pr": "npm run check:fast && npm run test:web-compat && npm run test:web-modules && npm run test:web-smoke-cli && npm run test:web-smoke && npm run test:package-contract && npm run test:product-contract-common && npm run test:release-ready && npm run test:workflow-contract && npm run test:firmware-logic && npm run docs:build",
+    "check:pr": "npm run check:fast && npm run webserver:typecheck && npm run test:web-compat && npm run test:web-modules && npm run test:web-smoke-cli && npm run test:web-smoke && npm run test:package-contract && npm run test:product-contract-common && npm run test:release-ready && npm run test:workflow-contract && npm run test:firmware-logic && npm run docs:build",
     "check:release": "npm run check:pr && npm run check:firmware-release && npm run check:release-changelog",
     "check:all": "npm run check:release",
     "webserver:build": "python3 scripts/generate_assets.py",
+    "webserver:typecheck": "tsc --noEmit --strict --target ES2018 --lib ES2018,DOM --skipLibCheck docs/webserver/src/web_contracts.ts",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"
@@ -39,6 +40,8 @@
   "devDependencies": {
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
+    "esbuild": "^0.28.1",
+    "typescript": "^7.0.2",
     "vitepress": "^1.6.3"
   }
 }
