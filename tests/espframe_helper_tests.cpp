@@ -431,6 +431,16 @@ static void test_fetch_queue_and_error_handling() {
 static void test_slideshow_component_commands() {
   EspFrameSlideshow slideshow;
   assert(!slideshow.has_command());
+  slideshow.state().slot0 = make_slot("state-owned", false);
+  slideshow.state().active_slot = 2;
+  slideshow.state().portrait.workflow_busy = true;
+  assert(slideshow.emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT, 2));
+  slideshow.reset_state();
+  assert(slideshow.state().slot0.asset_id.empty());
+  assert(slideshow.state().active_slot == 0);
+  assert(!slideshow.state().portrait.workflow_busy);
+  assert(!slideshow.has_command());
+
   assert(slideshow.emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT, 1));
   assert(slideshow.emit_action(SLIDESHOW_ACTION_PREFETCH, 2));
   assert(slideshow.command_count() == 2);

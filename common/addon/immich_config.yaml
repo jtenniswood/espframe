@@ -125,30 +125,8 @@ script:
       - lambda: |-
           id(immich_fetch_started) = false;
           id(immich_request_state).reset();
-          id(immich_download_retries) = 0;
-          id(active_slot) = 0;
-          id(target_slot) = 0;
-          id(active_slot_displayed) = false;
-          id(last_prefetch_start_ms) = 0;
-          id(last_downloaded_slot) = -1;
+          id(espframe_core).slideshow().reset_state();
           id(last_photo_displayed_ms) = 0;
-          id(slot0) = SlotMeta{};
-          id(slot1) = SlotMeta{};
-          id(slot2) = SlotMeta{};
-          id(current_display) = DisplayMeta{};
-          id(prev_display) = DisplayMeta{};
-          id(slot_flags) = SlotFlags{};
-          id(fetch_queue) = FetchQueue{};
-          id(portrait) = PortraitState{};
-          id(portrait_search_datetime) = "";
-          id(portrait_primary_asset_id) = "";
-          id(companion_target_slot) = 0;
-          id(portrait_companion_url) = "";
-          id(portrait_preload_slot) = -1;
-          id(portrait_preload_left_ready) = false;
-          id(portrait_preload_right_ready) = false;
-          id(preload_noncritical_in_flight) = false;
-          id(noncritical_remote_updates_in_flight) = 0;
           lv_obj_add_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
           ESP_LOGI("immich", "Connection settings changed; retrying Immich connection");
       - script.execute: immich_check_config_ready
@@ -181,10 +159,10 @@ script:
                 condition:
                   lambda: |-
                     if (!id(immich_fetch_started)) return true;
-                    if (id(active_slot_displayed)) return false;
-                    return !any_slot_fetch_in_flight(id(slot_flags));
+                    if (id(espframe_core).slideshow().state().active_slot_displayed) return false;
+                    return !any_slot_fetch_in_flight(id(espframe_core).slideshow().state().slot_flags);
                 then:
-                  - lambda: 'id(target_slot) = id(active_slot);'
+                  - lambda: 'id(espframe_core).slideshow().state().target_slot = id(espframe_core).slideshow().state().active_slot;'
                   - script.execute: immich_fetch_into_slot
 
   - id: immich_retry_config_ready

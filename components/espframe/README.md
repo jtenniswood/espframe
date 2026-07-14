@@ -71,7 +71,7 @@ Extends `PhotoMeta` for the currently displayed photo.
 
 ### `FetchQueue`, `SlideshowController`, and `EspFrameSlideshow`
 
-`FetchQueue` is a fixed-size, no-allocation queue for choosing the next image fetch by priority. `SlideshowController` keeps the small slot completion primitives, while `EspFrameSlideshow` owns the higher-level slideshow state machine: slot completion, forward/back navigation, prefetch gating, portrait companion handling, preload handling, and deferred image update decisions.
+`FetchQueue` is a fixed-size, no-allocation queue for choosing the next image fetch by priority. `SlideshowController` keeps the small slot completion primitives, while `EspFrameSlideshow` owns both `SlideshowRuntimeState` and the higher-level state machine: slot completion, forward/back navigation, prefetch gating, portrait companion handling, preload handling, and deferred image update decisions.
 
 The YAML layer is now mostly an action bridge. It still performs ESPHome-only actions such as `remote_image.update()`, LVGL image updates, and HTTP requests, but those actions are selected by C++ `SlideshowCommand` values instead of scattered YAML branches.
 
@@ -109,8 +109,9 @@ Copies the `PhotoMeta` part of `slot` into `disp`. Slot-only fields (`datetime`,
 **Use when:** Moving from a preload slot to “current display” state.
 
 ```cpp
-copy_slot_to_display(id(slot0), id(current_display));
-id(current_display).valid = true;
+auto &state = id(espframe_core).slideshow().state();
+copy_slot_to_display(state.slot0, state.current_display);
+state.current_display.valid = true;
 ```
 
 #### `copy_display_to_slot(const DisplayMeta &disp, SlotMeta &slot)`
@@ -120,7 +121,8 @@ Copies the `PhotoMeta` part of `disp` into `slot`. Display-only field `valid` is
 **Use when:** Copying the currently displayed photo back into a slot (e.g. for “previous” or comparison).
 
 ```cpp
-copy_display_to_slot(id(current_display), id(slot0));
+auto &state = id(espframe_core).slideshow().state();
+copy_display_to_slot(state.current_display, state.slot0);
 ```
 
 #### `SlideshowController::handle_slot_download_finished(...)`
@@ -133,7 +135,7 @@ Adds the next eligible ring-buffer slots to `FetchQueue`, with the immediate nex
 
 #### `EspFrameSlideshow`
 
-Owns the Immich slideshow decisions that used to live in long ESPHome lambdas. It exposes event-style methods such as `advance_forward(...)`, `show_previous(...)`, `start_active_portrait(...)`, `on_companion_found(...)`, and `request_deferred_slot_update(...)`. Those methods mutate the shared state structs and push `SlideshowCommand` items for YAML to execute.
+Owns the Immich slideshow state and decisions that used to live in long ESPHome lambdas and independent globals. `state()` exposes the model where hardware-facing YAML needs to read it, while `reset_state()` atomically clears slots, navigation, portrait/preload state, diagnostics, and queued commands.
 
 #### `parse_immich_asset_and_fill_slot(body, base_url, slot, s0, s1, s2, orientation_filter)`
 **Signature:**
@@ -144,13 +146,16 @@ Parses Immich JSON (single asset object or array), fills the corresponding slot 
 - **body** — JSON response body (e.g. from `/api/assets/{id}` or `/api/search/random`).
 - **base_url** — Immich base URL with no trailing slash (e.g. `id(immich_url).state`).
 - **slot** — Which slot to fill: 0, 1, or 2.
-- **s0, s1, s2** — References to your three `SlotMeta` globals (e.g. `id(slot0)`, `id(slot1)`, `id(slot2)`).
+- **s0, s1, s2** — References to the three slots in `SlideshowRuntimeState`.
 - **orientation_filter** — Optional: `"Any"`, `"Portrait Only"`, or `"Landscape Only"`.
 
 **Use when:** Handling Immich API responses in HTTP request lambdas.
 
 ```cpp
-std::string img_url = parse_immich_asset_and_fill_slot(body, id(immich_url).state, id(target_slot), id(slot0), id(slot1), id(slot2));
+auto &state = id(espframe_core).slideshow().state();
+std::string img_url = parse_immich_asset_and_fill_slot(
+    body, id(immich_url).state, state.target_slot,
+    state.slot0, state.slot1, state.slot2);
 if (!img_url.empty()) {
   // use img_url to load image; slot meta is already filled
 }
@@ -307,16 +312,18 @@ float tz_offset = parse_tz_offset(id(timezone_select).current_option());
 ## How to use in ESPHome YAML
 
 1. Add the espframe component (e.g. from this repo) and include it in `external_components` / `packages` so that `components: [..., espframe]` is used and `espframe:` appears in your config.
-2. In lambdas that need slot/display types or Immich parsing, the build will have the component’s directory on the include path; include the main header:
+2. Read slideshow state from the component in hardware-facing lambdas:
 
    ```yaml
    lambda: |-
-     #include "espframe_helpers.h"
-     auto &meta = id(slot0);
-     std::string img_url = parse_immich_asset_and_fill_slot(body, id(immich_url).state, id(target_slot), id(slot0), id(slot1), id(slot2));
+     auto &state = id(espframe_core).slideshow().state();
+     auto &meta = state.slot0;
+     std::string img_url = parse_immich_asset_and_fill_slot(
+       body, id(immich_url).state, state.target_slot,
+       state.slot0, state.slot1, state.slot2);
    ```
 
-3. Define globals with the component’s types (e.g. `SlotMeta`, `DisplayMeta`) and pass them by reference into the functions above. See the addons in this repo (e.g. `immich_api.yaml`, `immich_slideshow.yaml`) for full examples.
+3. Keep device-only actions—HTTP requests, `remote_image.update()`, and LVGL calls—in YAML. Do not duplicate slideshow runtime fields as globals; `EspFrameSlideshow` owns and resets them together.
 
 ## License
 

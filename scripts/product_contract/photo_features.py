@@ -276,7 +276,7 @@ def check_connection_resilience_metadata(product: dict, errors: list[str]) -> No
         "Connection settings changed; retrying Immich connection",
         "connection_failed_overlay",
         "immich_request_state).reset()",
-        "immich_download_retries",
+        "slideshow().reset_state()",
     ):
         require_contains(immich_config_yaml, needle, "common/addon/immich_config.yaml", errors)
     for needle in (
