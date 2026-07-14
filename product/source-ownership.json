@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "policy": {
+    "authored": "Edit directly and review as Espframe source.",
+    "generated": "Edit the listed sources and regenerate; never hand-edit outputs.",
+    "vendored": "Update only from the recorded upstream revision and retain its license plus local-change notes.",
+    "external_build_asset": "Fetched only while building and must have a recorded upstream and license."
+  },
+  "authored_roots": [
+    "common",
+    "devices",
+    "docs/webserver/src",
+    "product/contract",
+    "scripts",
+    "tests",
+    "components/espframe"
+  ],
+  "generated": [
+    {
+      "path": "product/espframe.json",
+      "sources": ["product/contract"],
+      "generator": "scripts/generate_assets.py"
+    },
+    {
+      "path": "components/espframe/configuration_contract_generated.h",
+      "sources": ["product/contract"],
+      "generator": "scripts/generate_assets.py"
+    },
+    {
+      "path": "components/espframe/tz_data_generated.h",
+      "sources": ["components/espframe/timezones.py"],
+      "generator": "scripts/generate_assets.py"
+    },
+    {
+      "path": "common/addon/time.yaml",
+      "sources": ["components/espframe/timezones.py", "product/contract"],
+      "generator": "scripts/generate_assets.py"
+    },
+    {
+      "path": "devices/guition-esp32-p4-jc8012p4a1/packages.yaml",
+      "sources": ["product/contract"],
+      "generator": "scripts/generate_assets.py"
+    },
+    {
+      "path": "docs/public/webserver/app.js",
+      "sources": ["docs/webserver/src", "product/contract"],
+      "generator": "scripts/generate_assets.py"
+    },
+    {
+      "path": "docs/public/webserver/style.css",
+      "sources": ["docs/webserver/src/style.css"],
+      "generator": "scripts/generate_assets.py"
+    }
+  ],
+  "vendored": [
+    {
+      "path": "components/gsl3680",
+      "name": "GSL3680 ESPHome touchscreen component",
+      "upstream": "https://github.com/kvj/esphome",
+      "revision": "dca6f3eed895ee03b894a7d172855c919ee7eda1",
+      "license": "GPL-3.0-or-later for C/C++ and MIT for Python",
+      "license_file": "components/gsl3680/LICENSE.md",
+      "local_changes": "ESPHome API compatibility, boot timing, watchdog feeding, touch-count clamping, and device firmware table."
+    },
+    {
+      "path": "components/libjpeg-turbo-esp32",
+      "name": "libjpeg-turbo ESP32 decode subset",
+      "upstream": "https://github.com/libjpeg-turbo/libjpeg-turbo",
+      "revision": "3.1.1",
+      "license": "IJG and BSD-3-Clause",
+      "license_file": "components/libjpeg-turbo-esp32/LICENSE.md",
+      "local_changes": "Trimmed ESP32 decoder build, RGB565 support, generated configuration, and architecture wrappers."
+    },
+    {
+      "path": "components/libwebp-esp32",
+      "name": "libwebp ESP32 decode subset",
+      "upstream": "https://chromium.googlesource.com/webm/libwebp",
+      "revision": "v1.6.0",
+      "license": "BSD-3-Clause",
+      "license_file": "components/libwebp-esp32/LICENSE",
+      "local_changes": "Decode-only source subset with ESP32 PSRAM, watchdog, scaling, and error-handling adaptations."
+    },
+    {
+      "path": "components/remote_image",
+      "name": "Remote Image ESPHome component",
+      "upstream": "https://github.com/esphome/esphome/tree/dev/esphome/components/online_image",
+      "revision": "Project-maintained derivative; original import revision is not preserved",
+      "license": "MIT",
+      "license_file": "components/remote_image/LICENSE",
+      "local_changes": "Renamed component with JPEG/WebP decoders, reliability fixes, buffer controls, and Espframe display behavior."
+    }
+  ],
+  "external_build_assets": [
+    {
+      "usage": "Device text fonts",
+      "declarations": ["devices/guition-esp32-p4-jc8012p4a1/assets/fonts.yaml"],
+      "upstream": "https://fonts.google.com/noto",
+      "revision": "ESPHome gfonts provider family and weight selector",
+      "license": "OFL-1.1"
+    },
+    {
+      "usage": "Device icon font",
+      "declarations": ["devices/guition-esp32-p4-jc8012p4a1/assets/icons.yaml"],
+      "upstream": "https://github.com/Templarian/MaterialDesign-Webfont",
+      "revision": "v7.4.47",
+      "license": "Apache-2.0"
+    }
+  ],
+  "runtime_network_policy": {
+    "allowed": [
+      "The user-configured Immich server",
+      "The versioned Espframe firmware manifest and firmware assets",
+      "The ESPHome ESP32-C6 hosted-firmware manifest and assets",
+      "The configured NTP time servers",
+      "Home Assistant and ESPHome API clients configured by the user"
+    ],
+    "forbidden": [
+      "Public placeholder images",
+      "Hosted fonts, scripts, stylesheets, or tracking pixels required by the device control panel"
+    ],
+    "remote_image_initial_url": "http://127.0.0.1/espframe/image-not-loaded"
+  }
+}

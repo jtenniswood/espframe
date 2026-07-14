@@ -8,6 +8,11 @@
 # (SlotMeta, DisplayMeta) defined in device config.
 # =============================================================================
 
+substitutions:
+  # remote_image requires a syntactically valid initial URL. Keep it on the
+  # device so boot never depends on a public placeholder service.
+  immich_image_initial_url: "http://127.0.0.1/espframe/image-not-loaded"
+
 # -----------------------------------------------------------------------------
 # Globals: local interaction state only. The C++ slideshow service owns the
 # ring buffer, display, portrait, preload, navigation, and diagnostic state.
@@ -131,7 +136,7 @@ switch:
 # -----------------------------------------------------------------------------
 remote_image:
   - id: immich_img_0
-    url: "https://via.placeholder.com/1x1.jpg"
+    url: "${immich_image_initial_url}"
     resize: ${display_width}x${display_height}
     type: RGB565
     byte_order: little_endian
@@ -159,7 +164,7 @@ remote_image:
             id(espframe_slideshow_dispatch).execute();
 
   - id: immich_img_1
-    url: "https://via.placeholder.com/1x1.jpg"
+    url: "${immich_image_initial_url}"
     resize: ${display_width}x${display_height}
     type: RGB565
     byte_order: little_endian
@@ -187,7 +192,7 @@ remote_image:
             id(espframe_slideshow_dispatch).execute();
 
   - id: immich_img_2
-    url: "https://via.placeholder.com/1x1.jpg"
+    url: "${immich_image_initial_url}"
     resize: ${display_width}x${display_height}
     type: RGB565
     byte_order: little_endian
@@ -216,7 +221,7 @@ remote_image:
 
   # Portrait pair half-width components (640x800 each, side-by-side)
   - id: immich_portrait_left
-    url: "https://via.placeholder.com/1x1.jpg"
+    url: "${immich_image_initial_url}"
     resize: ${portrait_half_width}x${display_height}
     fill: true
     horizontal_align: END
@@ -240,7 +245,7 @@ remote_image:
             id(espframe_slideshow_dispatch).execute();
 
   - id: immich_portrait_right
-    url: "https://via.placeholder.com/1x1.jpg"
+    url: "${immich_image_initial_url}"
     resize: ${portrait_half_width}x${display_height}
     fill: true
     horizontal_align: START
@@ -265,7 +270,7 @@ remote_image:
 
   # Portrait preload components (downloaded during prefetch for instant pair display)
   - id: immich_portrait_preload_left
-    url: "https://via.placeholder.com/1x1.jpg"
+    url: "${immich_image_initial_url}"
     resize: ${portrait_half_width}x${display_height}
     fill: true
     horizontal_align: END
@@ -293,7 +298,7 @@ remote_image:
             id(espframe_slideshow_dispatch).execute();
 
   - id: immich_portrait_preload_right
-    url: "https://via.placeholder.com/1x1.jpg"
+    url: "${immich_image_initial_url}"
     resize: ${portrait_half_width}x${display_height}
     fill: true
     horizontal_align: START
