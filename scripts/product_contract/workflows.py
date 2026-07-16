@@ -2420,7 +2420,13 @@ def check_workflows(product: dict, errors: list[str]) -> None:
         (".github/workflows/release.yml", release_workflow),
     ):
         require_contains(text, "scripts/product_config.py", label, errors)
-        require_contains(text, "product/espframe.json", label, errors)
+        for contract_path in (
+            "product/contract/devices.json",
+            "product/contract/manifest.json",
+            "product/contract/project.json",
+            "product/contract/settings.json",
+        ):
+            require_contains(text, contract_path, label, errors)
 
     check_pull_request_template_contract(project, workflow_names, errors)
 

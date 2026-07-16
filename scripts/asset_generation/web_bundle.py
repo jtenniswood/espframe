@@ -3,8 +3,11 @@ from __future__ import annotations
 import ast
 import json
 import re
+import subprocess
+import tempfile
 
 from asset_generation.paths import (
+    ROOT,
     WEB_APP_PATH,
     WEB_COMPAT_HELPERS_PATH,
     WEB_MODULE_PATHS,
@@ -115,6 +118,21 @@ def assert_no_unreplaced_placeholders(text: str) -> None:
         raise RuntimeError("Unreplaced web app placeholders: " + ", ".join(leftovers))
 
 
+def compile_typescript(source: str) -> str:
+    with tempfile.NamedTemporaryFile("w", suffix=".ts", encoding="utf-8") as source_file:
+        source_file.write(source)
+        source_file.flush()
+        compiled = subprocess.run(
+            ["node", str(ROOT / "scripts" / "build_web_app.mjs"), source_file.name],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if compiled.returncode:
+            raise RuntimeError("Web app bundle failed:\n" + compiled.stdout + compiled.stderr)
+        return compiled.stdout
+
+
 def web_app_bundle() -> str:
     source_paths = [WEB_TEMPLATE_PATH, WEB_COMPAT_HELPERS_PATH, WEB_STYLE_PATH, *WEB_MODULE_PATHS.values()]
     if not all(path.exists() for path in source_paths):
@@ -145,7 +163,6 @@ def web_app_bundle() -> str:
     web_ui_cards_json = json.dumps(web_ui_cards_metadata(), separators=(",", ":"))
     web_ui_logs_retained_lines_json = json.dumps(load_product()["project"].get("web_ui_logs_retained_lines"), separators=(",", ":"))
     support_url_json = json.dumps(project_value("support_url"), separators=(",", ":"))
-    support_button_image_url_json = json.dumps(project_value("support_button_image_url"), separators=(",", ":"))
     css_json = json.dumps(css, separators=(",", ":"))
     bundle = template
     for placeholder, module_source in web_modules.items():
@@ -170,11 +187,10 @@ def web_app_bundle() -> str:
         "__ESPFRAME_WEB_UI_CARDS__": web_ui_cards_json,
         "__ESPFRAME_WEB_UI_LOGS_RETAINED_LINES__": web_ui_logs_retained_lines_json,
         "__ESPFRAME_SUPPORT_URL__": support_url_json,
-        "__ESPFRAME_SUPPORT_BUTTON_IMAGE_URL__": support_button_image_url_json,
         "__ESPFRAME_WEB_COMPAT_HELPERS__": compat_helpers,
         "__ESPFRAME_CSS__": css_json,
     }
     for placeholder, value in replacements.items():
         bundle = replace_placeholder_once(bundle, placeholder, value)
     assert_no_unreplaced_placeholders(bundle)
-    return bundle
+    return compile_typescript(bundle)

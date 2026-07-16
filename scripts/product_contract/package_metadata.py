@@ -9,6 +9,8 @@ from product_contract.common import ROOT, read, require_contains
 PACKAGE_SCRIPT_COMMANDS = (
     ("check:backup", "python3 scripts/check_backup_config.py", "scripts/check_backup_config.py"),
     ("check:compat", "python3 scripts/check_compatibility.py", "scripts/check_compatibility.py"),
+    ("check:ownership", "python3 scripts/check_source_ownership.py", "scripts/check_source_ownership.py"),
+    ("check:budgets", "python3 scripts/check_build_budgets.py", "scripts/check_build_budgets.py"),
     ("check:firmware-fields", "python3 scripts/check_firmware_fields.py", "scripts/check_firmware_fields.py"),
     ("check:firmware-release", "python3 scripts/check_firmware_release.py", "scripts/check_firmware_release.py"),
     ("check:release-changelog", "python3 scripts/check_release_changelog.py", "scripts/check_release_changelog.py"),
@@ -26,6 +28,7 @@ PACKAGE_SCRIPT_COMMANDS = (
         "tests/product_contract_common_tests.py",
     ),
     ("test:release-ready", "python3 tests/release_ready_tests.py", "tests/release_ready_tests.py"),
+    ("test:budgets", "python3 tests/build_budget_tests.py", "tests/build_budget_tests.py"),
     ("test:web-compat", "node tests/web_compat_tests.js", "tests/web_compat_tests.js"),
     ("test:web-modules", "node tests/web_module_tests.js", "tests/web_module_tests.js"),
     ("test:web-smoke", "node tests/web_smoke_tests.js", "tests/web_smoke_tests.js"),
@@ -52,6 +55,8 @@ PACKAGE_SCRIPT_STEPS = (
             "npm run check:product",
             "npm run check:backup",
             "npm run check:compat",
+            "npm run check:ownership",
+            "npm run check:budgets",
             "npm run check:firmware-fields",
         ),
     ),
@@ -67,6 +72,7 @@ PACKAGE_SCRIPT_STEPS = (
             "npm run test:product-contract-common",
             "npm run test:release-ready",
             "npm run test:workflow-contract",
+            "npm run test:budgets",
             "npm run test:firmware-logic",
             "npm run docs:build",
         ),
@@ -176,7 +182,9 @@ def check_npm_package_metadata(product: dict, errors: list[str]) -> None:
     require_contains(release_ready, "TEST_FIRMWARE_VERSION", "scripts/check_release_ready.py", errors)
     release_ready_tests = read(ROOT / "tests" / "release_ready_tests.py", errors)
     require_contains(release_ready_tests, "assert_versioned_compile(captured[0][1]", "tests/release_ready_tests.py", errors)
-    require_contains(release_ready_tests, "assert_versioned_compile(captured[1][1]", "tests/release_ready_tests.py", errors)
+    require_contains(release_ready_tests, "assert_versioned_compile(captured[2][1]", "tests/release_ready_tests.py", errors)
+    for needle in ("check_build_budgets.py", '"--profile"', '"factory"', '"ota"'):
+        require_contains(release_ready, needle, "scripts/check_release_ready.py", errors)
 
 
 def check_license_metadata(product: dict, errors: list[str]) -> None:

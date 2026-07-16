@@ -79,7 +79,7 @@ Status: Done.
 
 What changed:
 
-- Legacy date-taken format normalization moved into `docs/webserver/src/compat.js`.
+- Legacy date-taken format normalization moved into `docs/webserver/src/compat.ts`.
 - Compatibility tests now directly cover old and current date-format values.
 
 ### 9. Public docs sidebar includes internal phase documents

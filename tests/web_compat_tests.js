@@ -1,6 +1,6 @@
 const assert = require("assert/strict");
 
-const compat = require("../docs/webserver/src/compat.js");
+const compat = require("../docs/webserver/src/compat.ts");
 
 assert.equal(compat.normalizeNtpServer("  pool.ntp.org  "), "pool.ntp.org");
 assert.equal(compat.normalizeDateTakenFormat("January 1, 2000"), "January 1, 2026");

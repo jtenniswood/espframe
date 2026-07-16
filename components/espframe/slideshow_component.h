@@ -75,8 +75,62 @@ class SlideshowCommandQueue {
   size_t count_ = 0;
 };
 
+// Complete mutable state for the slideshow pipeline. The ESPHome YAML layer
+// triggers hardware actions, while this model owns navigation, slot, portrait,
+// preload, retry, and diagnostic data as one resettable unit.
+struct SlideshowRuntimeState {
+  SlotMeta slot0;
+  SlotMeta slot1;
+  SlotMeta slot2;
+  DisplayMeta current_display;
+  DisplayMeta previous_display;
+
+  int active_slot = 0;
+  int target_slot = 0;
+  bool active_slot_displayed = false;
+  uint32_t last_advance_ms = 0;
+  uint32_t last_prefetch_start_ms = 0;
+  uint32_t last_short_tap_ms = 0;
+  int last_downloaded_slot = -1;
+  std::string diagnostic_reason;
+  uint32_t last_diagnostic_ms = 0;
+  int deferred_fetch_target = 0;
+  int download_retries = 0;
+
+  SlotFlags slot_flags;
+  FetchQueue fetch_queue;
+  bool preload_noncritical_in_flight = false;
+  int noncritical_remote_updates_in_flight = 0;
+
+  PortraitState portrait;
+  std::string portrait_search_datetime;
+  std::string portrait_primary_asset_id;
+  int companion_target_slot = 0;
+  std::string portrait_companion_url;
+  int portrait_preload_slot = -1;
+  bool portrait_preload_left_ready = false;
+  bool portrait_preload_right_ready = false;
+
+  void reset() { *this = SlideshowRuntimeState{}; }
+
+  SlotMeta &slot(int index) {
+    return index == 0 ? this->slot0 : (index == 1 ? this->slot1 : this->slot2);
+  }
+
+  const SlotMeta &slot(int index) const {
+    return index == 0 ? this->slot0 : (index == 1 ? this->slot1 : this->slot2);
+  }
+};
+
 class EspFrameSlideshow {
  public:
+  SlideshowRuntimeState &state() { return this->state_; }
+  const SlideshowRuntimeState &state() const { return this->state_; }
+  void reset_state() {
+    this->state_.reset();
+    this->commands_.clear();
+  }
+
   bool has_command() const { return !this->commands_.empty(); }
   size_t command_count() const { return this->commands_.size(); }
   void clear_commands() { this->commands_.clear(); }
@@ -587,4 +641,5 @@ class EspFrameSlideshow {
   }
 
   SlideshowCommandQueue commands_{};
+  SlideshowRuntimeState state_{};
 };

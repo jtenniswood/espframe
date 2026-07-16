@@ -11,6 +11,144 @@ static constexpr uint16_t ZOOM_IDENTITY = 256;
 static constexpr uint16_t IMMICH_ALBUM_PAGE_SIZE = 16;
 static constexpr uint16_t IMMICH_METADATA_PAGE_SIZE = 5;
 
+// Owns the complete state of the Immich request pipeline. Keeping these values
+// together makes reset, retry, and cooldown transitions atomic instead of
+// relying on loosely related YAML globals being updated in the right order.
+struct ImmichRequestState {
+  int api_retries = 0;
+  int last_http_status = 0;
+  int consecutive_failures = 0;
+  uint32_t failure_window_started_ms = 0;
+  uint32_t retry_delay_ms = 2000;
+  uint32_t retry_cooldown_until_ms = 0;
+
+  bool memory_fallback = false;
+  std::string memory_asset_id;
+  int memory_window_offset = -2;
+  std::string memory_image_ids;
+  int memory_image_count = 0;
+
+  std::string metadata_album_id;
+  std::string metadata_person_id;
+  std::string metadata_tag_ids;
+  int metadata_page = 1;
+  int metadata_page_size = 1;
+  uint32_t metadata_bypass_until_ms = 0;
+  int album_order_index = 0;
+
+  void reset() { *this = ImmichRequestState{}; }
+
+  void begin_memory_search() {
+    this->memory_fallback = false;
+    this->memory_asset_id.clear();
+    this->memory_window_offset = -2;
+    this->memory_image_ids.clear();
+    this->memory_image_count = 0;
+  }
+
+  bool advance_memory_window() {
+    this->memory_window_offset++;
+    return this->memory_window_offset <= 2;
+  }
+
+  void add_memory_image(const std::string &asset_id) {
+    if (asset_id.empty()) return;
+    if (!this->memory_image_ids.empty()) this->memory_image_ids += ",";
+    this->memory_image_ids += asset_id;
+    this->memory_image_count++;
+  }
+
+  bool select_memory_image(int index) {
+    if (index < 0 || index >= this->memory_image_count) return false;
+    size_t start = 0;
+    for (int i = 0; i < index; i++) {
+      start = this->memory_image_ids.find(',', start);
+      if (start == std::string::npos) return false;
+      start++;
+    }
+    size_t end = this->memory_image_ids.find(',', start);
+    if (end == std::string::npos) end = this->memory_image_ids.size();
+    this->memory_asset_id = this->memory_image_ids.substr(start, end - start);
+    return !this->memory_asset_id.empty();
+  }
+
+  bool cooldown_active(uint32_t now_ms) const {
+    return this->retry_cooldown_until_ms != 0 && now_ms < this->retry_cooldown_until_ms;
+  }
+
+  void pause_for(uint32_t now_ms, uint32_t duration_ms) {
+    this->retry_cooldown_until_ms = now_ms + duration_ms;
+  }
+
+  uint32_t register_fetch_failure(uint32_t now_ms) {
+    this->api_retries = 0;
+    this->record_failure_(now_ms);
+    uint32_t cooldown_ms = 3000;
+    if (this->consecutive_failures >= 3) cooldown_ms = 7000;
+    if (this->consecutive_failures >= 6) cooldown_ms = 15000;
+    this->pause_for(now_ms, cooldown_ms);
+    return cooldown_ms;
+  }
+
+  uint32_t register_download_failure(uint32_t now_ms) {
+    this->record_failure_(now_ms);
+    uint32_t cooldown_ms = 5000;
+    if (this->consecutive_failures >= 4) cooldown_ms = 10000;
+    if (this->consecutive_failures >= 8) cooldown_ms = 20000;
+    this->pause_for(now_ms, cooldown_ms);
+    return cooldown_ms;
+  }
+
+  void register_success() {
+    this->api_retries = 0;
+    this->clear_failures();
+    this->retry_delay_ms = 2000;
+    this->retry_cooldown_until_ms = 0;
+  }
+
+  int register_request_error() { return ++this->api_retries; }
+
+  bool retry_available(int max_retries) const { return this->api_retries < max_retries; }
+
+  void clear_http_status() { this->last_http_status = 0; }
+
+  void clear_failures() {
+    this->last_http_status = 0;
+    this->consecutive_failures = 0;
+    this->failure_window_started_ms = 0;
+  }
+
+  void note_http_failure(int status, uint32_t now_ms) {
+    this->last_http_status = status;
+    if (this->failure_window_started_ms == 0) this->failure_window_started_ms = now_ms;
+  }
+
+  void reset_retries_and_pause(uint32_t now_ms, uint32_t cooldown_ms = 30000) {
+    this->api_retries = 0;
+    this->pause_for(now_ms, cooldown_ms);
+  }
+
+  uint32_t prepare_retry_delay() {
+    uint32_t delay_ms = 2000;
+    if (this->api_retries >= 2) delay_ms = 5000;
+    if (this->api_retries >= 3) delay_ms = 10000;
+    if (this->consecutive_failures >= 5 && delay_ms < 10000) delay_ms = 10000;
+    this->retry_delay_ms = delay_ms;
+    return delay_ms;
+  }
+
+  void record_http_failure(int status, uint32_t now_ms, uint32_t cooldown_ms = 30000) {
+    this->note_http_failure(status, now_ms);
+    this->pause_for(now_ms, cooldown_ms);
+  }
+
+ private:
+  void record_failure_(uint32_t now_ms) {
+    this->consecutive_failures++;
+    if (this->failure_window_started_ms == 0) this->failure_window_started_ms = now_ms;
+  }
+};
+
 struct ImmichAssetMeta {
   // Normalized subset of the Immich asset response used by the slideshow UI.
   // Keeping a compact struct avoids spreading JSON field names through YAML
