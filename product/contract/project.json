@@ -1096,7 +1096,7 @@
     "cache": "actions/cache@v6",
     "upload_artifact": "actions/upload-artifact@v7",
     "download_artifact": "actions/download-artifact@v8",
-    "setup_node": "actions/setup-node@v6",
+    "setup_node": "actions/setup-node@v7",
     "upload_pages_artifact": "actions/upload-pages-artifact@v5",
     "deploy_pages": "actions/deploy-pages@v5"
   },
@@ -1549,5 +1549,5 @@
   "esphome_docker_image": "ghcr.io/esphome/esphome",
   "esphome_config_mount": "/config",
   "esphome_docker_remove_container": true,
-  "esphome_version": "2026.6.4"
+  "esphome_version": "2026.6.5"
 }
