@@ -73,8 +73,11 @@ script:
             std::string day = immich_format_iso_date_offset(
               now.year, now.month, now.day_of_month, id(immich_request_state).memory_window_offset);
             return id(immich_url).state + "/api/memories?type=on_this_day&for=" + day + "T00:00:00.000Z";
-          capture_response: true
-          max_response_buffer_size: 192kB
+          # Deliberately no capture_response: an on_this_day response can reach
+          # tens or hundreds of kB depending on how many memories the library
+          # holds for that day, and capture_response copies the whole body into a
+          # std::string, which allocates from internal DRAM. The body is streamed
+          # into the filtered parser below instead. See on_response.
           request_headers:
             Accept: application/json
             x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
@@ -91,9 +94,69 @@ script:
                   filter[0]["assets"][0]["id"] = true;
                   filter[0]["assets"][0]["type"] = true;
 
+                  // Pulls the response straight off the HTTP container in 512B
+                  // chunks so the body is never held in memory in full. Only the
+                  // filtered document survives, and that stays a few kB no matter
+                  // how large the response is. HttpContainer::read() does not have
+                  // BSD socket semantics (0 means "nothing yet" OR "all read", <0
+                  // is an error), so completion goes through http_read_loop_result.
+                  struct MemoriesStreamReader {
+                    esphome::http_request::HttpContainer *container;
+                    uint32_t last_data_time;
+                    uint32_t read_timeout;
+                    uint8_t buf[512];
+                    size_t buf_len{0};
+                    size_t buf_pos{0};
+                    bool eof{false};
+
+                    bool fill() {
+                      if (this->buf_pos < this->buf_len) return true;
+                      if (this->eof) return false;
+                      this->buf_pos = 0;
+                      this->buf_len = 0;
+                      while (true) {
+                        int r = this->container->read(this->buf, sizeof(this->buf));
+                        esphome::App.feed_wdt();
+                        esphome::yield();
+                        auto res = esphome::http_request::http_read_loop_result(
+                          r, this->last_data_time, this->read_timeout,
+                          this->container->is_read_complete());
+                        if (res == esphome::http_request::HttpReadLoopResult::RETRY) continue;
+                        if (res != esphome::http_request::HttpReadLoopResult::DATA) {
+                          this->eof = true;
+                          return false;
+                        }
+                        this->buf_len = (size_t) r;
+                        return true;
+                      }
+                    }
+
+                    int read() {
+                      if (!this->fill()) return -1;
+                      return this->buf[this->buf_pos++];
+                    }
+
+                    size_t readBytes(char *dst, size_t len) {
+                      size_t n = 0;
+                      while (n < len) {
+                        if (!this->fill()) break;
+                        size_t take = std::min(this->buf_len - this->buf_pos, len - n);
+                        memcpy(dst + n, this->buf + this->buf_pos, take);
+                        this->buf_pos += take;
+                        n += take;
+                      }
+                      return n;
+                    }
+                  };
+
+                  MemoriesStreamReader reader;
+                  reader.container = response.get();
+                  reader.last_data_time = millis();
+                  reader.read_timeout = id(http_req)->get_timeout();
+
                   JsonDocument doc;
                   DeserializationError err = deserializeJson(
-                    doc, body.c_str(), DeserializationOption::Filter(filter));
+                    doc, reader, DeserializationOption::Filter(filter));
                   if (err || !doc.is<JsonArray>()) {
                     ESP_LOGD("immich", "No memories for offset %+d", id(immich_request_state).memory_window_offset);
                     return;
@@ -128,10 +191,9 @@ script:
                     return;
                   }
 
-                  int pick = rand() % id(immich_request_state).memory_image_count;
-                  id(immich_request_state).select_memory_image(pick);
-                  ESP_LOGD("immich", "Memory picked: %s (%d of %d across today +/- 2 days)",
-                           id(immich_request_state).memory_asset_id.c_str(), pick + 1, id(immich_request_state).memory_image_count);
+                  // memory_asset_id already holds the sampled pick.
+                  ESP_LOGD("immich", "Memory picked: %s (1 of %d across today +/- 2 days)",
+                           id(immich_request_state).memory_asset_id.c_str(), id(immich_request_state).memory_image_count);
                   id(immich_fetch_memory_asset).execute();
           on_error:
             then:
@@ -148,8 +210,7 @@ script:
                     id(immich_fetch_into_slot).execute();
                     return;
                   }
-                  int pick = rand() % id(immich_request_state).memory_image_count;
-                  id(immich_request_state).select_memory_image(pick);
+                  // memory_asset_id already holds the sampled pick.
                   id(immich_fetch_memory_asset).execute();
 
   # ---------------------------------------------------------------------------
