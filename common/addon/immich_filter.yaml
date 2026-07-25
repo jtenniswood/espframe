@@ -350,6 +350,22 @@ script:
             - script.execute: immich_retry_config_ready
             - script.stop: flush_slots_and_refetch
       - lambda: |-
+          // A flush discards every slot, so it has to discard the work that was
+          // filling them too. Clearing `ready` while leaving fetch_in_flight set
+          // orphans the flag: request_prefetch() and the slideshow interval both
+          // gate on it, so the refill this flush is about to request either
+          // defers or never runs at all. Abort the downloads and clear the
+          // tracking first.
+          id(immich_img_0).abort_download();
+          id(immich_img_1).abort_download();
+          id(immich_img_2).abort_download();
+          id(immich_portrait_left).abort_download();
+          id(immich_portrait_right).abort_download();
+          id(immich_portrait_preload_left).abort_download();
+          id(immich_portrait_preload_right).abort_download();
+          clear_slot_fetch_in_flight(0, id(espframe_core).slideshow().state().slot_flags);
+          clear_slot_fetch_in_flight(1, id(espframe_core).slideshow().state().slot_flags);
+          clear_slot_fetch_in_flight(2, id(espframe_core).slideshow().state().slot_flags);
           id(espframe_core).slideshow().state().slot0.ready = false;
           id(espframe_core).slideshow().state().slot1.ready = false;
           id(espframe_core).slideshow().state().slot2.ready = false;
