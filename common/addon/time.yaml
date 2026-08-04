@@ -305,7 +305,7 @@ script:
           auto now = id(sntp_time).now();
           if (!now.is_valid()) return;
           int hour = now.hour;
-          char buf[6];
+          char buf[16];
           if (id(clock_format_select).current_option() == "12 Hour") {
             hour = hour % 12;
             if (hour == 0) hour = 12;
