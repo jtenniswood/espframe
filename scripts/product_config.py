@@ -436,6 +436,7 @@ def web_ui_cards_metadata(product: dict[str, Any] | None = None) -> list[dict[st
                 "id": str(card.get("id", "")).strip(),
                 "label": str(card.get("label", "")).strip(),
                 "tab": str(card.get("tab", "")).strip(),
+                "section": str(card.get("section", "")).strip(),
                 "function": str(card.get("function", "")).strip(),
                 "settings": [str(value).strip() for value in card.get("settings", []) if str(value).strip()],
                 "staticEntities": [

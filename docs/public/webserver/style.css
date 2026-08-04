@@ -170,6 +170,28 @@ h2 {
   line-height:1.6
 }
 
+.settings-section {
+  margin-bottom:32px
+}
+
+.settings-section:last-child {
+  margin-bottom:0
+}
+
+.settings-section-title {
+  color:var(--text2);
+  font-size:.72rem;
+  font-weight:700;
+  line-height:1.2;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  margin:4px 4px 14px
+}
+
+.settings-section .card:last-child {
+  margin-bottom:0
+}
+
 .card {
   background:var(--surface);
   border:1px solid var(--border);
@@ -1079,6 +1101,14 @@ to {
 
 .sp-tab-docs {
   gap:4px
+}
+
+.settings-section {
+  margin-bottom:24px
+}
+
+.settings-section-title {
+  margin:2px 2px 12px
 }
 
 .fw-row {

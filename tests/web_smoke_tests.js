@@ -659,6 +659,34 @@ function smokeAssertionsForScenario(scenario) {
         }
         return card;
       }
+      function requireSettingsSections() {
+        clickTab("Device");
+        const expected = [
+          ["Display", ["Screen Brightness", "Screen Tone", "Rotation"]],
+          ["Sleep & Schedule", ["Night Schedule"]],
+          ["Preferences", ["Clock"]],
+          ["System", ["Backup", "Firmware", "Device Reboot"]]
+        ];
+        const sections = Array.from(document.querySelectorAll("#sp-settings .settings-section"));
+        const sectionNames = sections.map((section) => {
+          const heading = section.querySelector(":scope > .settings-section-title");
+          if (!heading || heading.tagName !== "H2" || section.getAttribute("aria-labelledby") !== heading.id) {
+            throw new Error("Settings section is missing its accessible heading");
+          }
+          return heading.textContent.trim();
+        });
+        if (sectionNames.join("|") !== expected.map((entry) => entry[0]).join("|")) {
+          throw new Error("Unexpected settings section order: " + sectionNames.join(", "));
+        }
+        expected.forEach(([name, expectedCards]) => {
+          const section = sections.find((item) => item.querySelector(":scope > .settings-section-title").textContent.trim() === name);
+          const cardNames = Array.from(section.querySelectorAll(":scope > .card > .card-header > h3"))
+            .map((heading) => heading.textContent.trim());
+          if (cardNames.join("|") !== expectedCards.join("|")) {
+            throw new Error(name + " cards are not logically ordered: " + cardNames.join(", "));
+          }
+        });
+      }
       function disclosureByTitle(title) {
         const disclosure = Array.from(document.querySelectorAll(".inline-disclosure")).find((item) => {
           const button = item.querySelector(".inline-disclosure-button");
@@ -1008,10 +1036,14 @@ function smokeAssertionsForScenario(scenario) {
           requirePhotoSourceModes();
 
           if (${JSON.stringify(scenario.name)} === "settings" || ${JSON.stringify(scenario.name)} === "settings-mobile") {
+            requireSettingsSections();
             await requireFirmwarePanels();
             toggleInDisclosure("Auto updates", "Auto Update").click();
             toggleInDisclosure("WiFi firmware", "Auto Update").click();
             await waitFor(() => hasConfigurationPost("Firmware: Auto Update") && hasConfigurationPost("WiFi Firmware: Auto Update"), 4000, "firmware automatic update saves");
+            if (${JSON.stringify(scenario.name)} === "settings-mobile" && document.documentElement.scrollWidth > window.innerWidth + 4) {
+              throw new Error("Grouped settings overflow the mobile viewport");
+            }
             clickButton("Export");
             clickButton("Import");
             if (window.__smoke.downloads !== 1) throw new Error("Export did not trigger a download");

@@ -46,7 +46,7 @@
   var FIRMWARE_DEVICE_SLUG = "immich-frame";
   var DOCS_BASE_URL = "https://jtenniswood.github.io/espframe";
   var WEB_UI_TABS = [{ "id": "immich", "label": "Immich" }, { "id": "settings", "label": "Device" }, { "id": "logs", "label": "Logs" }];
-  var WEB_UI_CARDS = [{ "id": "connection", "label": "Connection", "tab": "immich", "function": "makeConnectionCard", "settings": ["conn_timeout"], "staticEntities": [], "manualEntities": ["immich_url", "api_key"] }, { "id": "frequency", "label": "Frequency", "tab": "immich", "function": "makeFrequencyCard", "settings": ["interval"], "staticEntities": [], "manualEntities": [] }, { "id": "photo_source", "label": "Photo Source", "tab": "immich", "function": "makePhotoSourceCard", "settings": ["photo_source", "album_order"], "staticEntities": ["album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels"], "manualEntities": ["apply_photo_source"] }, { "id": "advanced_filters", "label": "Advanced Filters", "tab": "immich", "function": "makeAdvancedFiltersCard", "settings": ["date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit"], "staticEntities": [], "manualEntities": ["apply_photo_source"] }, { "id": "layout", "label": "Layout", "tab": "immich", "function": "makeLayoutCard", "settings": ["portrait_pairing", "photo_orientation", "display_mode"], "staticEntities": [], "manualEntities": [] }, { "id": "metadata", "label": "Metadata", "tab": "immich", "function": "makeMetadataCard", "settings": ["photo_metadata_date_enabled", "photo_metadata_location_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format"], "staticEntities": [], "manualEntities": [] }, { "id": "screen_brightness", "label": "Screen Brightness", "tab": "settings", "function": "makeScreenBrightnessCard", "settings": ["brightness_day", "brightness_night"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "screen_tone", "label": "Screen Tone", "tab": "settings", "function": "makeScreenToneCard", "settings": ["base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"], "staticEntities": [], "manualEntities": [] }, { "id": "night_schedule", "label": "Night Schedule", "tab": "settings", "function": "makeNightScheduleCard", "settings": ["schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "rotation", "label": "Rotation", "tab": "settings", "function": "makeRotationCard", "settings": ["screen_rotation"], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "clock", "label": "Clock", "tab": "settings", "function": "makeClockCard", "settings": ["clock_format"], "staticEntities": ["show_clock", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"], "manualEntities": [] }, { "id": "firmware", "label": "Firmware", "tab": "settings", "function": "makeFirmwareCard", "settings": ["update_frequency", "auto_update", "c6_auto_update"], "staticEntities": ["firmware", "c6_current_firmware", "c6_available_firmware", "c6_update_status"], "manualEntities": ["update", "firmware_check", "c6_firmware_check", "c6_firmware_install"] }, { "id": "device_reboot", "label": "Device Reboot", "tab": "settings", "function": "makeDeviceRebootCard", "settings": [], "staticEntities": [], "manualEntities": ["reboot_screen"] }, { "id": "developer", "label": "Developer", "tab": "settings", "function": "makeDeveloperCard", "settings": [], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "backup", "label": "Backup", "tab": "settings", "function": "makeBackupCard", "settings": [], "staticEntities": [], "manualEntities": [] }];
+  var WEB_UI_CARDS = [{ "id": "connection", "label": "Connection", "tab": "immich", "section": "", "function": "makeConnectionCard", "settings": ["conn_timeout"], "staticEntities": [], "manualEntities": ["immich_url", "api_key"] }, { "id": "frequency", "label": "Frequency", "tab": "immich", "section": "", "function": "makeFrequencyCard", "settings": ["interval"], "staticEntities": [], "manualEntities": [] }, { "id": "photo_source", "label": "Photo Source", "tab": "immich", "section": "", "function": "makePhotoSourceCard", "settings": ["photo_source", "album_order"], "staticEntities": ["album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels"], "manualEntities": ["apply_photo_source"] }, { "id": "advanced_filters", "label": "Advanced Filters", "tab": "immich", "section": "", "function": "makeAdvancedFiltersCard", "settings": ["date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit"], "staticEntities": [], "manualEntities": ["apply_photo_source"] }, { "id": "layout", "label": "Layout", "tab": "immich", "section": "", "function": "makeLayoutCard", "settings": ["portrait_pairing", "photo_orientation", "display_mode"], "staticEntities": [], "manualEntities": [] }, { "id": "metadata", "label": "Metadata", "tab": "immich", "section": "", "function": "makeMetadataCard", "settings": ["photo_metadata_date_enabled", "photo_metadata_location_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format"], "staticEntities": [], "manualEntities": [] }, { "id": "screen_brightness", "label": "Screen Brightness", "tab": "settings", "section": "Display", "function": "makeScreenBrightnessCard", "settings": ["brightness_day", "brightness_night"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "screen_tone", "label": "Screen Tone", "tab": "settings", "section": "Display", "function": "makeScreenToneCard", "settings": ["base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"], "staticEntities": [], "manualEntities": [] }, { "id": "rotation", "label": "Rotation", "tab": "settings", "section": "Display", "function": "makeRotationCard", "settings": ["screen_rotation"], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "night_schedule", "label": "Night Schedule", "tab": "settings", "section": "Sleep & Schedule", "function": "makeNightScheduleCard", "settings": ["schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "clock", "label": "Clock", "tab": "settings", "section": "Preferences", "function": "makeClockCard", "settings": ["clock_format"], "staticEntities": ["show_clock", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"], "manualEntities": [] }, { "id": "backup", "label": "Backup", "tab": "settings", "section": "System", "function": "makeBackupCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "firmware", "label": "Firmware", "tab": "settings", "section": "System", "function": "makeFirmwareCard", "settings": ["update_frequency", "auto_update", "c6_auto_update"], "staticEntities": ["firmware", "c6_current_firmware", "c6_available_firmware", "c6_update_status"], "manualEntities": ["update", "firmware_check", "c6_firmware_check", "c6_firmware_install"] }, { "id": "device_reboot", "label": "Device Reboot", "tab": "settings", "section": "System", "function": "makeDeviceRebootCard", "settings": [], "staticEntities": [], "manualEntities": ["reboot_screen"] }, { "id": "developer", "label": "Developer", "tab": "settings", "section": "System", "function": "makeDeveloperCard", "settings": [], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }];
   var WEB_UI_LOGS_RETAINED_LINES = 1e3;
   var SUPPORT_URL = "https://www.buymeacoffee.com/jtenniswood";
   var SUPPORT_BUTTON_IMAGE_DATA_URI = "data:image/webp;base64,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";
@@ -299,6 +299,28 @@ h2 {
   color:var(--text2);
   margin-bottom:24px;
   line-height:1.6
+}
+
+.settings-section {
+  margin-bottom:32px
+}
+
+.settings-section:last-child {
+  margin-bottom:0
+}
+
+.settings-section-title {
+  color:var(--text2);
+  font-size:.72rem;
+  font-weight:700;
+  line-height:1.2;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  margin:4px 4px 14px
+}
+
+.settings-section .card:last-child {
+  margin-bottom:0
 }
 
 .card {
@@ -1210,6 +1232,14 @@ to {
 
 .sp-tab-docs {
   gap:4px
+}
+
+.settings-section {
+  margin-bottom:24px
+}
+
+.settings-section-title {
+  margin:2px 2px 12px
 }
 
 .fw-row {
@@ -3620,13 +3650,43 @@ to {
     };
   }
   function renderSettingsCardsForTab(tabId) {
+    return renderSettingsCardEntriesForTab(tabId).map(function(entry) {
+      return entry.element;
+    });
+  }
+  function renderSettingsCardEntriesForTab(tabId) {
     var renderers = settingsCardRenderers();
     if (!Array.isArray(WEB_UI_CARDS) || !WEB_UI_CARDS.length) return [];
     return WEB_UI_CARDS.filter(function(card) {
       return card && card.tab === tabId;
     }).map(function(card) {
       var renderer = renderers[card.function];
-      return renderer ? renderer() : null;
+      return renderer ? { section: card.section || "", element: renderer() } : null;
+    }).filter(function(entry) {
+      return entry && entry.element;
+    });
+  }
+  function appendSettingsSections(parent, entries) {
+    var sections = {};
+    entries.forEach(function(entry) {
+      if (!entry || !entry.element) return;
+      var sectionName = String(entry.section || "").trim();
+      if (!sectionName) {
+        parent.appendChild(entry.element);
+        return;
+      }
+      if (!sections[sectionName]) {
+        var section = el("section", "settings-section");
+        var heading = document.createElement("h2");
+        heading.className = "settings-section-title";
+        heading.id = "settings-section-" + sectionName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        heading.textContent = sectionName;
+        section.setAttribute("aria-labelledby", heading.id);
+        section.appendChild(heading);
+        sections[sectionName] = section;
+        parent.appendChild(section);
+      }
+      sections[sectionName].appendChild(entry.element);
     });
   }
   function renderSettings() {
@@ -3635,7 +3695,7 @@ to {
     var immichWrap = el("div", "fade-in");
     var wrap = el("div", "fade-in");
     var immichCards = renderSettingsCardsForTab("immich");
-    var settingsCards = renderSettingsCardsForTab("settings");
+    var settingsCardEntries = renderSettingsCardEntriesForTab("settings");
     if (!immichCards.length) immichCards = [
       makeConnectionCard(),
       makeFrequencyCard(),
@@ -3646,18 +3706,18 @@ to {
     ];
     appendCards(immichWrap, immichCards);
     immichApp.appendChild(immichWrap);
-    if (!settingsCards.length) settingsCards = [
-      makeScreenBrightnessCard(),
-      makeScreenToneCard(),
-      makeNightScheduleCard(),
-      makeRotationCard(),
-      makeClockCard(),
-      makeFirmwareCard(),
-      makeDeveloperCard(),
-      makeBackupCard(),
-      makeDeviceRebootCard()
+    if (!settingsCardEntries.length) settingsCardEntries = [
+      { section: "Display", element: makeScreenBrightnessCard() },
+      { section: "Display", element: makeScreenToneCard() },
+      { section: "Display", element: makeRotationCard() },
+      { section: "Sleep & Schedule", element: makeNightScheduleCard() },
+      { section: "Preferences", element: makeClockCard() },
+      { section: "System", element: makeBackupCard() },
+      { section: "System", element: makeFirmwareCard() },
+      { section: "System", element: makeDeviceRebootCard() },
+      { section: "System", element: makeDeveloperCard() }
     ];
-    appendCards(wrap, settingsCards);
+    appendSettingsSections(wrap, settingsCardEntries);
     app.appendChild(wrap);
   }
   function handleLiveEvent(d) {

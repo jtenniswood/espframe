@@ -5,7 +5,7 @@ description: Check, install, automate, and roll back Espframe and Wi-Fi firmware
 
 # Espframe Firmware Updates
 
-OTA and HTTP updates from GitHub Pages. The 10-inch model uses the fixed stable manifest at `https://jtenniswood.github.io/espframe/firmware/manifest.json`. Open the device web UI at `http://<device-ip>/` and expand **Firmware** to manage display and Wi-Fi firmware.
+OTA and HTTP updates from GitHub Pages. The 10-inch model uses the fixed stable manifest at `https://jtenniswood.github.io/espframe/firmware/manifest.json`. Open the device web UI at `http://<device-ip>/`, choose **Device**, then expand **Firmware** in the **System** section to manage display and Wi-Fi firmware.
 
 During OTA updates, Espframe keeps the current backlight state while the update starts. If Home Assistant or the screen sleep control had already turned the display off, the screen stays off after the update reboot until it is woken again.
 

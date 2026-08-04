@@ -615,6 +615,7 @@
       "id": "screen_brightness",
       "label": "Screen Brightness",
       "tab": "settings",
+      "section": "Display",
       "function": "makeScreenBrightnessCard",
       "settings": [
         "brightness_day",
@@ -629,6 +630,7 @@
       "id": "screen_tone",
       "label": "Screen Tone",
       "tab": "settings",
+      "section": "Display",
       "function": "makeScreenToneCard",
       "settings": [
         "base_tone_enabled",
@@ -639,9 +641,23 @@
       ]
     },
     {
+      "id": "rotation",
+      "label": "Rotation",
+      "tab": "settings",
+      "section": "Display",
+      "function": "makeRotationCard",
+      "settings": [
+        "screen_rotation"
+      ],
+      "static_entities": [
+        "developer_features_enabled"
+      ]
+    },
+    {
       "id": "night_schedule",
       "label": "Night Schedule",
       "tab": "settings",
+      "section": "Sleep & Schedule",
       "function": "makeNightScheduleCard",
       "settings": [
         "schedule_enabled",
@@ -655,21 +671,10 @@
       ]
     },
     {
-      "id": "rotation",
-      "label": "Rotation",
-      "tab": "settings",
-      "function": "makeRotationCard",
-      "settings": [
-        "screen_rotation"
-      ],
-      "static_entities": [
-        "developer_features_enabled"
-      ]
-    },
-    {
       "id": "clock",
       "label": "Clock",
       "tab": "settings",
+      "section": "Preferences",
       "function": "makeClockCard",
       "settings": [
         "clock_format"
@@ -683,9 +688,17 @@
       ]
     },
     {
+      "id": "backup",
+      "label": "Backup",
+      "tab": "settings",
+      "section": "System",
+      "function": "makeBackupCard"
+    },
+    {
       "id": "firmware",
       "label": "Firmware",
       "tab": "settings",
+      "section": "System",
       "function": "makeFirmwareCard",
       "settings": [
         "update_frequency",
@@ -709,6 +722,7 @@
       "id": "device_reboot",
       "label": "Device Reboot",
       "tab": "settings",
+      "section": "System",
       "function": "makeDeviceRebootCard",
       "settings": [],
       "static_entities": [],
@@ -720,16 +734,11 @@
       "id": "developer",
       "label": "Developer",
       "tab": "settings",
+      "section": "System",
       "function": "makeDeveloperCard",
       "static_entities": [
         "developer_features_enabled"
       ]
-    },
-    {
-      "id": "backup",
-      "label": "Backup",
-      "tab": "settings",
-      "function": "makeBackupCard"
     }
   ],
   "web_ui_logs_event_source": "/events",
