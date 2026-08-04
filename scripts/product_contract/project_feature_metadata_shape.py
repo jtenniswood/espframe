@@ -19,9 +19,6 @@ def check_project_integration_feature_metadata_shape(product: dict, errors: list
         elif any(not isinstance(value, str) or not value.strip() for value in values):
             errors.append(f"project.{field} must only contain non-empty strings")
     frequency_hours = project.get("firmware_update_frequency_hours", {})
-    manifest_url_length_limit = project.get("firmware_manifest_url_length_limit")
-    if not isinstance(manifest_url_length_limit, int) or isinstance(manifest_url_length_limit, bool) or manifest_url_length_limit < 1:
-        errors.append("project.firmware_manifest_url_length_limit must be a positive integer")
     if not isinstance(frequency_hours, dict) or not frequency_hours:
         errors.append("project.firmware_update_frequency_hours must be a non-empty object")
     else:

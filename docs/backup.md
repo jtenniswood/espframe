@@ -20,7 +20,7 @@ The export captures all user-facing settings from the current session:
 | **Connection** | Immich server URL, API key |
 | **Photos** | Source, album IDs, album labels, person IDs, person labels, tag IDs, tag labels, date filter settings, orientation, portrait pairing, display mode |
 | **Frequency** | Slideshow interval, connection timeout |
-| **Firmware Updates** | Auto update, update frequency, custom manifest URL |
+| **Firmware Updates** | Display auto update, update frequency, WiFi firmware auto update |
 | **Clock** | Show clock, format, timezone |
 | **Screen Brightness** | Daytime brightness, nighttime brightness |
 | **Night Schedule** | Enable, on time, off time, wake timeout |
@@ -72,7 +72,7 @@ The export is a standard JSON file with a `version` field and grouped settings:
   "firmware_updates": {
     "auto_update": true,
     "update_frequency": "Daily",
-    "manifest_url": "https://jtenniswood.github.io/espframe/firmware/manifest.json"
+    "wifi_auto_update": true
   },
   "clock": { "show": true, "format": "24 Hour", "timezone": "..." },
   "screen": {

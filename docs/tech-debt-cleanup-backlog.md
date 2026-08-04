@@ -23,7 +23,7 @@ Status: Done.
 What changed:
 
 - Runtime backup import validation now covers product-backed select, number, switch, text, and date settings.
-- Immich URL, API key, firmware manifest URL, photo ID/label fields, NTP servers, timezone, schedule wake timeout, and rotation now validate before save.
+- Immich URL, API key, photo ID/label fields, NTP servers, timezone, schedule wake timeout, and rotation now validate before save.
 - Firmware text max lengths are exposed through generated web metadata so the web UI and device limits stay aligned.
 
 ### 3. Immich fetch flow has repeated slot update and error handling logic
@@ -70,7 +70,7 @@ Status: Done as a conservative first cleanup.
 What changed:
 
 - Text input max-length behavior now reads product metadata where available.
-- Firmware manifest URL and date fields now use metadata-backed limits instead of only local constants.
+- Text and date fields now use metadata-backed limits instead of only local constants.
 - Larger card generation was deliberately avoided to keep the UI unchanged.
 
 ### 8. Compatibility aliasing for metadata date format is hidden in runtime state code

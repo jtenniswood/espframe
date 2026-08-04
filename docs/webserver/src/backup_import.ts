@@ -285,16 +285,6 @@
           trackBackupImportSave(saveSetting("tag_labels", importTagLabels));
         }
         return true;
-      case "firmware_updates.manifest_url":
-        var importManifestUrl = normalizeFirmwareManifestUrl(value);
-        if (importManifestUrl.length > MAX_FIRMWARE_URL_LENGTH) {
-          return skipBackupImportField("Stable firmware URL exceeds 255 characters - not imported");
-        } else if (importManifestUrl && !isValidHttpUrl(importManifestUrl)) {
-          return skipBackupImportField("Stable firmware URL was invalid - not imported");
-        } else {
-          trackBackupImportSave(saveSetting("firmware_manifest_url", importManifestUrl));
-        }
-        return true;
       case "clock.timezone":
         var importedTimezone = normalizeTimezoneOption(value);
         if (TIMEZONES.indexOf(importedTimezone) === -1) {

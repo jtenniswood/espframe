@@ -54,11 +54,6 @@ def check_backup_metadata(product: dict, errors: list[str]) -> None:
         for label in ("album IDs", "person IDs", "tag IDs"):
             require_contains(web_template, f"Import skipped invalid {label}", rel(WEB_TEMPLATE), errors)
             require_contains(web_text, f"Import skipped invalid {label}", rel(WEB_APP), errors)
-    for message in (
-        "Stable firmware URL was invalid - not imported",
-    ):
-        require_contains(web_template, message, rel(WEB_TEMPLATE), errors)
-        require_contains(web_text, message, rel(WEB_APP), errors)
 
     for needle in (
         "display_mode",
@@ -75,7 +70,7 @@ def check_backup_metadata(product: dict, errors: list[str]) -> None:
         "backupEntryKey(entry)",
         "photos.album_ids",
         "photos.tag_ids",
-        "firmware_updates.manifest_url",
+        "wifi_auto_update",
         "clock.ntp_servers",
         "screen.schedule_wake_timeout",
     ):
@@ -91,11 +86,12 @@ def check_backup_metadata(product: dict, errors: list[str]) -> None:
             "backupEntryKey(entry)",
             "photos.album_ids",
             "photos.tag_ids",
-            "firmware_updates.manifest_url",
+            "wifi_auto_update",
             "clock.ntp_servers",
             "screen.schedule_wake_timeout",
         }:
-            require_contains(web_template, needle, rel(WEB_TEMPLATE), errors)
+            if needle != "wifi_auto_update":
+                require_contains(web_template, needle, rel(WEB_TEMPLATE), errors)
             require_contains(web_text, needle, rel(WEB_APP), errors)
         else:
             require_contains(backup_docs, needle, "docs/backup.md", errors)

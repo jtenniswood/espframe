@@ -3,6 +3,7 @@
   "firmware_updates": {
     "auto_update": true,
     "update_frequency": "Weekly",
+    "wifi_auto_update": true,
     "manifest_url": "https://firmware.example.com/manifest.json"
   }
 }

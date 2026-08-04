@@ -18,7 +18,6 @@
       makeRotationCard: makeRotationCard,
       makeClockCard: makeClockCard,
       makeFirmwareCard: makeFirmwareCard,
-      makeWifiCard: makeWifiCard,
       makeDeviceRebootCard: makeDeviceRebootCard,
       makeDeveloperCard: makeDeveloperCard,
       makeBackupCard: makeBackupCard
@@ -62,7 +61,6 @@
       makeRotationCard(),
       makeClockCard(),
       makeFirmwareCard(),
-      makeWifiCard(),
       makeDeveloperCard(),
       makeBackupCard(),
       makeDeviceRebootCard()

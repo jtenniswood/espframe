@@ -42,14 +42,13 @@ def check_firmware_update_metadata(product: dict, errors: list[str]) -> None:
     source = str(project.get("firmware_update_source", "")).strip()
     channels = project.get("firmware_update_channels", [])
     manual_check_behavior = str(project.get("firmware_manual_check_behavior", "")).strip()
-    custom_manifest_requirement = str(project.get("firmware_custom_manifest_requirement", "")).strip()
-    manifest_url_length_limit = project.get("firmware_manifest_url_length_limit")
     frequency_hours = project.get("firmware_update_frequency_hours", {})
     default_urls = default_public_manifest_urls(product)
 
     firmware_docs = read(ROOT / "docs" / "firmware-update.md", errors)
     backup_docs = read(ROOT / "docs" / "backup.md", errors)
     firmware_yaml = read(ROOT / "common" / "addon" / "firmware_update.yaml", errors)
+    c6_firmware_yaml = read(ROOT / "common" / "addon" / "esp32_c6_firmware_update.yaml", errors)
     web_template = read_web_source(errors)
     web_text = read(WEB_APP, errors)
     recovery_block = yaml_id_block(
@@ -75,18 +74,6 @@ def check_firmware_update_metadata(product: dict, errors: list[str]) -> None:
         require_contains(firmware_yaml, "manual_check_only", "common/addon/firmware_update.yaml", errors)
         require_contains(firmware_yaml, "component.update: firmware_update", "common/addon/firmware_update.yaml", errors)
         require_contains(web_template, 'post(endpoints.firmware_check + "/press")', rel(WEB_TEMPLATE), errors)
-    if custom_manifest_requirement:
-        require_contains(firmware_docs, custom_manifest_requirement, "docs/firmware-update.md", errors)
-        require_contains(web_template, custom_manifest_requirement, rel(WEB_TEMPLATE), errors)
-        require_contains(firmware_yaml, "is_valid_http_url(url)", "common/addon/firmware_update.yaml", errors)
-        require_contains(firmware_yaml, "strip_trailing_slashes", "common/addon/firmware_update.yaml", errors)
-    if isinstance(manifest_url_length_limit, int) and not isinstance(manifest_url_length_limit, bool):
-        if firmware_yaml.count(f"max_length: {manifest_url_length_limit}") < 1:
-            errors.append(
-                "common/addon/firmware_update.yaml must use project.firmware_manifest_url_length_limit for the manifest URL text field"
-            )
-        require_contains(web_template, f"MAX_FIRMWARE_URL_LENGTH = {manifest_url_length_limit}", rel(WEB_TEMPLATE), errors)
-        require_contains(web_text, f"MAX_FIRMWARE_URL_LENGTH = {manifest_url_length_limit}", rel(WEB_APP), errors)
     if isinstance(frequency_hours, dict):
         for label, hours in frequency_hours.items():
             if not isinstance(label, str) or not isinstance(hours, int) or isinstance(hours, bool):
@@ -117,17 +104,33 @@ def check_firmware_update_metadata(product: dict, errors: list[str]) -> None:
         require_contains(recovery_block, needle, "common/addon/firmware_update.yaml firmware_update_recover_display", errors)
     for needle in (
         "Auto updates",
-        "Disabled",
         'productSettingOptions("update_frequency")',
         "Check for Update",
-        "Install",
+        "Install Update",
         'post(endpoints.update + "/install")',
-        "Stable Manifest URL",
+        "WiFi firmware",
+        "Previous firmware",
     ):
         require_contains(web_template, needle, rel(WEB_TEMPLATE), errors)
+    for needle in (
+        "update_interval: 24h",
+        "on_update_available:",
+        "switch.is_on: c6_auto_update_switch",
+        "update.perform:",
+        "name: \"WiFi Firmware: Auto Update\"",
+        "optimistic: true",
+        "restore_mode: RESTORE_DEFAULT_ON",
+        "on_turn_on:",
+        "update.check:",
+    ):
+        require_contains(
+            c6_firmware_yaml,
+            needle,
+            "common/addon/esp32_c6_firmware_update.yaml",
+            errors,
+        )
     for label, url in default_urls.items():
         require_contains(firmware_docs, url, "docs/firmware-update.md", errors)
-        require_contains(backup_docs, url, "docs/backup.md", errors)
         require_contains(firmware_yaml, url, "common/addon/firmware_update.yaml", errors)
         require_contains(web_text, url, rel(WEB_APP), errors)
         require_contains(web_template, f"FIRMWARE_MANIFEST_URLS.{label}", rel(WEB_TEMPLATE), errors)

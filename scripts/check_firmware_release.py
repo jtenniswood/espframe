@@ -88,6 +88,25 @@ def make_release_files(base: Path, slug: str = SLUG, version: str = VERSION) -> 
     return manifest, factory, ota
 
 
+def write_versions_index(base: Path, slug: str, versions: list[str]) -> None:
+    entries = []
+    for position, version in enumerate(versions):
+        if position == 0:
+            ota_path = f"{slug}.ota.bin"
+            image = base / ota_path
+        else:
+            ota_path = f"versions/{version}/{slug}.ota.bin"
+            image = base / ota_path
+            image.parent.mkdir(parents=True, exist_ok=True)
+            write_release_image(image, version)
+        entries.append({
+            "version": version,
+            "release_url": firmware_release.RELEASE_URL_BASE + version,
+            "ota": {"path": ota_path, "md5": firmware_release.md5sum(image)},
+        })
+    (base / "versions.json").write_text(json.dumps({"device": slug, "versions": entries}))
+
+
 def test_valid_files_and_directory() -> None:
     with TemporaryDirectory() as tmp:
         base = Path(tmp)
@@ -101,6 +120,38 @@ def test_valid_files_and_directory() -> None:
             "--ota", str(ota),
         ])
         run_ok(["verify-directory", "--version", VERSION, "--dir", str(base), "--slugs", SLUG])
+
+
+def test_versions_index_accepts_current_plus_four_previous_releases() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        make_release_files(base)
+        versions = [VERSION, "v9.8.6", "v9.8.5", "v9.8.4", "v9.8.3"]
+        write_versions_index(base, SLUG, versions)
+        run_ok(["verify-directory", "--version", VERSION, "--dir", str(base), "--slugs", SLUG])
+
+
+def test_versions_index_rejects_duplicate_malformed_and_missing_assets() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        make_release_files(base)
+        write_versions_index(base, SLUG, [VERSION, "v9.8.6"])
+        index_path = base / "versions.json"
+
+        index = json.loads(index_path.read_text())
+        index["versions"].append(dict(index["versions"][1]))
+        index_path.write_text(json.dumps(index))
+        run_fails(["verify-directory", "--version", VERSION, "--dir", str(base), "--slugs", SLUG])
+
+        write_versions_index(base, SLUG, [VERSION, "v9.8.6"])
+        index = json.loads(index_path.read_text())
+        index["versions"][1]["version"] = "v9.8"
+        index_path.write_text(json.dumps(index))
+        run_fails(["verify-directory", "--version", VERSION, "--dir", str(base), "--slugs", SLUG])
+
+        write_versions_index(base, SLUG, [VERSION, "v9.8.6"])
+        (base / "versions" / "v9.8.6" / f"{SLUG}.ota.bin").unlink()
+        run_fails(["verify-directory", "--version", VERSION, "--dir", str(base), "--slugs", SLUG])
 
 
 def test_inject_replaces_factory_placeholder() -> None:
@@ -277,6 +328,7 @@ def test_public_pages_verification() -> None:
 
         manifest, _, _ = make_release_files(firmware_dir, slug=REAL_SLUG)
         manifest.rename(firmware_dir / firmware_release.public_manifest_name(REAL_SLUG))
+        write_versions_index(firmware_dir, REAL_SLUG, [VERSION, "v9.8.6"])
 
         beta_dir = firmware_dir / "beta"
         beta_dir.mkdir()

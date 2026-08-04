@@ -703,6 +703,107 @@ to {
   gap:12px
 }
 
+.fw-subpanels {
+  display:grid;
+  gap:12px
+}
+
+.inline-disclosure {
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:var(--surface)
+}
+
+.inline-disclosure-button {
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:12px 14px;
+  background:transparent;
+  border:0;
+  color:var(--text);
+  font:inherit;
+  font-size:.875rem;
+  font-weight:500;
+  cursor:pointer;
+  text-align:left
+}
+
+.inline-disclosure-button:hover {
+  background:rgba(255,255,255,.03)
+}
+
+.inline-disclosure-button:focus-visible {
+  outline:none;
+  box-shadow:0 0 0 2px var(--accent-soft) inset
+}
+
+.inline-disclosure-right {
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  margin-left:auto
+}
+
+.disclosure-badge {
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  min-height:22px;
+  padding:0 10px 0 9px;
+  border-radius:999px;
+  background:var(--success-soft);
+  color:var(--success);
+  font-size:.66rem;
+  font-weight:500;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  line-height:1;
+  white-space:nowrap
+}
+
+.disclosure-badge-dot {
+  width:7px;
+  height:7px;
+  border-radius:999px;
+  background:var(--success);
+  flex-shrink:0
+}
+
+.inline-disclosure.open .disclosure-badge,
+.disclosure-badge.hidden {
+  display:none
+}
+
+.inline-disclosure-chevron {
+  display:inline-flex;
+  width:20px;
+  height:20px;
+  color:var(--text3);
+  transition:transform .25s ease;
+  flex-shrink:0
+}
+
+.inline-disclosure-chevron svg {
+  width:100%;
+  height:100%
+}
+
+.inline-disclosure-body {
+  display:none;
+  padding:18px 14px 16px
+}
+
+.inline-disclosure.open .inline-disclosure-chevron {
+  transform:rotate(180deg)
+}
+
+.inline-disclosure.open .inline-disclosure-body {
+  display:block
+}
+
 .fw-body .field {
   margin-bottom:0
 }
@@ -717,7 +818,9 @@ to {
   display:flex;
   align-items:center;
   justify-content:space-between;
-  min-height:36px
+  gap:8px;
+  min-height:36px;
+  margin-bottom:8px
 }
 
 .fw-label {
@@ -726,7 +829,30 @@ to {
 
 .fw-status {
   font-size:.8rem;
-  color:var(--text2)
+  color:var(--text2);
+  line-height:1.4;
+  margin-top:8px;
+  text-align:right
+}
+
+.fw-status:empty {
+  display:none
+}
+
+.fw-status.error {
+  color:var(--danger)
+}
+
+.fw-actions,
+.fw-previous-actions {
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+  margin-top:12px
+}
+
+.fw-body .toggle-row {
+  margin-bottom:12px
 }
 
 .field-hint {
@@ -952,6 +1078,26 @@ to {
 
 .sp-tab-docs {
   gap:4px
+}
+
+.fw-row {
+  flex-direction:column;
+  align-items:flex-start;
+  gap:8px
+}
+
+.fw-actions,
+.fw-previous-actions {
+  justify-content:flex-start
+}
+
+.fw-actions .btn,
+.fw-previous-actions .btn {
+  width:100%
+}
+
+.fw-status {
+  text-align:left
 }
 
 }

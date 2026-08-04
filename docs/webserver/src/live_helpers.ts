@@ -4,7 +4,18 @@
     if (!d || !d.id) return;
     var id = d.id;
     var stateSpec = ENTITY_STATE_MAP[id];
-    if (id === "light/Screen: Backlight") {
+    if (id === "update/Firmware: Update") {
+      refreshFirmwareUi();
+    } else if (id === "text_sensor/Firmware: Version") {
+      refreshFirmwareUi();
+    } else if (stateSpec && (
+      stateSpec.key === "c6_current_firmware" ||
+      stateSpec.key === "c6_available_firmware" ||
+      stateSpec.key === "c6_update_status" ||
+      stateSpec.key === "c6_auto_update"
+    )) {
+      refreshC6FirmwareUi();
+    } else if (id === "light/Screen: Backlight") {
       S.backlight_on = d.state === "ON";
       if (d.brightness != null) {
         S.brightness = Math.round((d.brightness / 255) * 100);
@@ -159,15 +170,55 @@
     return e;
   }
 
-  function makeBadge(isActive) {
+  function makeBadge(isActive, text, label) {
     var badge = el("span", "on-badge" + (isActive ? " active" : ""));
-    badge.textContent = "On";
+    badge.textContent = text || "On";
+    if (label) badge.setAttribute("aria-label", label);
     return badge;
   }
 
   function setBadgeActive(badge, isActive) {
     if (!badge) return;
     badge.className = "on-badge" + (isActive ? " active" : "");
+  }
+
+  function makeDisclosureBadge(text, label) {
+    var badge = el("span", "disclosure-badge");
+    if (label) badge.setAttribute("aria-label", label);
+    badge.appendChild(el("span", "disclosure-badge-dot"));
+    badge.appendChild(document.createTextNode(text));
+    return badge;
+  }
+
+  function setDisclosureBadgeActive(badge, isActive) {
+    if (!badge) return;
+    badge.className = "disclosure-badge" + (isActive ? " active" : " hidden");
+  }
+
+  function makeInlineDisclosure(title, bodyElement, defaultOpen, badgeEl) {
+    var panel = el("div", "inline-disclosure" + (defaultOpen ? " open" : ""));
+    var disclosureButton = el("button", "inline-disclosure-button");
+    disclosureButton.type = "button";
+    disclosureButton.setAttribute("aria-expanded", defaultOpen ? "true" : "false");
+    var titleEl = el("span");
+    titleEl.textContent = title;
+    var rightWrap = el("span", "inline-disclosure-right");
+    if (badgeEl) rightWrap.appendChild(badgeEl);
+    var chevron = el("span", "inline-disclosure-chevron");
+    chevron.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 9l6 6 6-6\"/></svg>";
+    rightWrap.appendChild(chevron);
+    disclosureButton.appendChild(titleEl);
+    disclosureButton.appendChild(rightWrap);
+    var body = el("div", "inline-disclosure-body");
+    body.appendChild(bodyElement);
+    disclosureButton.onclick = function () {
+      var open = !panel.classList.contains("open");
+      panel.classList.toggle("open", open);
+      disclosureButton.setAttribute("aria-expanded", open ? "true" : "false");
+    };
+    panel.appendChild(disclosureButton);
+    panel.appendChild(body);
+    return panel;
   }
 
   function setStatus(target, msg, type, clearAfterMs) {

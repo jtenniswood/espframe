@@ -14,9 +14,9 @@ Phase 3 established the first reset architecture by making product metadata and 
 
 The product contract now owns the stable settings contract used across the web UI, docs, compatibility checks, and generated firmware field sections.
 
-- Web settings metadata, entity mappings, aliases, startup fetch keys, live state keys, tabs, support links, and firmware manifest URLs are generated from product metadata.
+- Web settings metadata, entity mappings, aliases, startup fetch keys, live state keys, tabs, support links, and fixed public firmware sources are generated from product metadata.
 - Firmware setting fields inside marked YAML sections are generated for safe repeated fields: select options/defaults, number ranges/defaults, text field shape/defaults, and switch restore defaults.
-- Backup compatibility fixtures cover full and partial v1 configs, old saved settings, future unknown fields, missing groups, developer-only values, malformed noncritical values, invalid photo IDs, and invalid firmware manifest URLs.
+- Backup compatibility fixtures cover full and partial v1 configs, old saved settings, future unknown fields, missing groups, developer-only values, malformed noncritical values, retired fields, and invalid photo IDs.
 - Release gates check generated assets, product contracts, backup compatibility, generated firmware fields, web modules, browser smoke coverage, docs, release helpers, and firmware release contracts.
 
 ## What was modularized

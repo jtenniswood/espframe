@@ -115,8 +115,6 @@
     "stable"
   ],
   "firmware_manual_check_behavior": "only checks for updates; it does not install",
-  "firmware_custom_manifest_requirement": "full http:// or https:// URL",
-  "firmware_manifest_url_length_limit": 255,
   "firmware_update_frequency_hours": {
     "Hourly": 1,
     "Daily": 24,
@@ -174,7 +172,7 @@
     "firmware_updates": [
       "auto_update",
       "update_frequency",
-      "manifest_url"
+      "wifi_auto_update"
     ],
     "clock": [
       "show",
@@ -228,7 +226,7 @@
     "firmware_updates": {
       "auto_update": "auto_update",
       "update_frequency": "update_frequency",
-      "manifest_url": "firmware_manifest_url"
+      "wifi_auto_update": "c6_auto_update"
     },
     "clock": {
       "show": "show_clock",
@@ -284,12 +282,6 @@
           "Import skipped invalid album IDs",
           "Import skipped invalid person IDs",
           "Import skipped invalid tag IDs"
-        ]
-      },
-      {
-        "path": "tests/fixtures/compat/espframe-config-v1-invalid-manifest-urls.json",
-        "messages": [
-          "Stable firmware URL was invalid - not imported"
         ]
       }
     ],
@@ -698,14 +690,19 @@
       "settings": [
         "update_frequency",
         "auto_update",
-        "firmware_manifest_url"
+        "c6_auto_update"
       ],
       "static_entities": [
-        "firmware"
+        "firmware",
+        "c6_current_firmware",
+        "c6_available_firmware",
+        "c6_update_status"
       ],
       "manual_entities": [
         "update",
-        "firmware_check"
+        "firmware_check",
+        "c6_firmware_check",
+        "c6_firmware_install"
       ]
     },
     {
@@ -717,20 +714,6 @@
       "static_entities": [],
       "manual_entities": [
         "reboot_screen"
-      ]
-    },
-    {
-      "id": "wifi",
-      "label": "WiFi",
-      "tab": "settings",
-      "function": "makeWifiCard",
-      "static_entities": [
-        "c6_current_firmware",
-        "c6_available_firmware"
-      ],
-      "manual_entities": [
-        "c6_firmware_check",
-        "c6_firmware_install"
       ]
     },
     {
@@ -873,6 +856,12 @@
     },
     "c6_available_firmware": {
       "entity": "text_sensor/ESP32-C6: Available Firmware",
+      "firmware_file": "common/addon/esp32_c6_firmware_update.yaml",
+      "default": "Unknown",
+      "fetch": true
+    },
+    "c6_update_status": {
+      "entity": "text_sensor/ESP32-C6: Update Available",
       "firmware_file": "common/addon/esp32_c6_firmware_update.yaml",
       "default": "Unknown",
       "fetch": true
@@ -1045,7 +1034,7 @@
         "settings": [
           "auto_update",
           "update_frequency",
-          "firmware_manifest_url"
+          "c6_auto_update"
         ]
       }
     }
@@ -1058,6 +1047,17 @@
     "immich_url",
     "installed_version",
     "latest_version",
+    "firmware_checking",
+    "firmware_install_error",
+    "firmware_installing",
+    "firmware_restart_pending",
+    "firmware_selected_version",
+    "firmware_uploading",
+    "firmware_version_options",
+    "firmware_versions_loaded",
+    "firmware_versions_loading",
+    "c6_firmware_checking",
+    "c6_firmware_installing",
     "tz_labels",
     "tz_options",
     "update_available"
@@ -1328,6 +1328,7 @@
     "__ESPFRAME_LIVE_RENDER_STATE_KEYS__",
     "__ESPFRAME_LIVE_RENDER_STATE_PREFIXES__",
     "__ESPFRAME_FIRMWARE_MANIFEST_URLS__",
+    "__ESPFRAME_FIRMWARE_DEVICE_SLUG__",
     "__ESPFRAME_DOCS_BASE_URL__",
     "__ESPFRAME_WEB_UI_TABS__",
     "__ESPFRAME_WEB_UI_CARDS__",
@@ -1370,14 +1371,7 @@
     "clock_format": {},
     "update_frequency": {},
     "auto_update": {},
-    "firmware_manifest_url": {
-      "optimistic": false,
-      "restore_value": true,
-      "initial_value": "${firmware_manifest_url}",
-      "min_length": 0,
-      "max_length": 255,
-      "mode": "text"
-    },
+    "c6_auto_update": {},
     "date_filter_enabled": {},
     "date_from": {
       "optimistic": false,

@@ -34,7 +34,7 @@ inline constexpr ConfigurationField CONFIGURATION_FIELDS[] = {
     {"clock_format", "select", "Clock: Format", false},
     {"update_frequency", "select", "Firmware: Update Frequency", false},
     {"auto_update", "switch", "Firmware: Auto Update", false},
-    {"firmware_manifest_url", "text", "Firmware: Manifest URL", false},
+    {"c6_auto_update", "switch", "WiFi Firmware: Auto Update", false},
     {"date_filter_enabled", "switch", "Photos: Date Filter", false},
     {"date_from", "text", "Photos: Date From", false},
     {"date_to", "text", "Photos: Date To", false},

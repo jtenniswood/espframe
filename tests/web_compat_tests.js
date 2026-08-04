@@ -14,7 +14,6 @@ assert.equal(compat.normalizeImmichUrl("192.168.1.30:2283/"), "http://192.168.1.
 assert.equal(compat.normalizeImmichUrl("//photos.example.com/"), "https://photos.example.com");
 assert.equal(compat.normalizeImmichUrl("HTTP://LOCALHOST:2283///"), "http://LOCALHOST:2283");
 
-assert.equal(compat.normalizeFirmwareManifestUrl(" https://example.com/manifest.json/// "), "https://example.com/manifest.json");
 assert.equal(compat.isValidHttpUrl("https://example.com/manifest.json"), true);
 assert.equal(compat.isValidHttpUrl("http://192.168.1.30:80/manifest.json"), true);
 assert.equal(compat.isValidHttpUrl("ftp://example.com/manifest.json"), false);

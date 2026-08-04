@@ -34,6 +34,8 @@ PLACEHOLDER_STRINGS = {
 RELEASE_URL_BASE = project_value("release_url_base", "https://github.com/jtenniswood/espframe/releases/tag/")
 PROJECT_NAME = project_value("package_name", "jtenniswood.immich-frame")
 RELEASE_VERSION_RE = re.compile(str(PROJECT.get("release_version_pattern", r"^v\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$")))
+STABLE_RELEASE_VERSION_RE = re.compile(r"^v\d+\.\d+\.\d+$")
+MD5_RE = re.compile(r"^[0-9a-f]{32}$")
 
 
 @dataclass(frozen=True)
@@ -321,10 +323,73 @@ def manifest_version(path: Path) -> str:
     return version
 
 
+def versions_index_path(manifest_path: Path) -> Path:
+    return manifest_path.parent / "versions.json"
+
+
+def verify_versions_index(index_path: Path, slug: str, current_version: str) -> None:
+    require_file(index_path, "firmware versions index")
+    try:
+        index = json.loads(index_path.read_text())
+    except json.JSONDecodeError as exc:
+        raise FirmwareReleaseError(f"{index_path} is not valid JSON: {exc}") from exc
+
+    if not isinstance(index, dict) or index.get("device") != slug:
+        raise FirmwareReleaseError(f"{index_path} device must be {slug}")
+    versions = index.get("versions")
+    if not isinstance(versions, list) or not versions or len(versions) > 5:
+        raise FirmwareReleaseError(f"{index_path} must contain between one and five versions")
+
+    seen: set[str] = set()
+    for position, entry in enumerate(versions):
+        if not isinstance(entry, dict):
+            raise FirmwareReleaseError(f"{index_path} version {position + 1} is not an object")
+        version = str(entry.get("version", "")).strip()
+        if not STABLE_RELEASE_VERSION_RE.fullmatch(version):
+            raise FirmwareReleaseError(f"{index_path} contains invalid stable version {version!r}")
+        if version in seen:
+            raise FirmwareReleaseError(f"{index_path} contains duplicate version {version}")
+        seen.add(version)
+        if position == 0 and version != current_version:
+            raise FirmwareReleaseError(
+                f"{index_path} current version {version!r} does not match {current_version!r}"
+            )
+
+        release_url = str(entry.get("release_url", "")).strip()
+        expected_release_url = RELEASE_URL_BASE + version
+        if release_url != expected_release_url:
+            raise FirmwareReleaseError(f"{index_path} release_url must be {expected_release_url}")
+
+        ota = entry.get("ota")
+        if not isinstance(ota, dict):
+            raise FirmwareReleaseError(f"{index_path} version {version} has no ota object")
+        ota_path_value = str(ota.get("path", "")).strip()
+        ota_path = Path(ota_path_value)
+        if (
+            not ota_path_value
+            or ota_path.is_absolute()
+            or ".." in ota_path.parts
+            or ota_path.name != f"{slug}.ota.bin"
+        ):
+            raise FirmwareReleaseError(f"{index_path} version {version} has an invalid OTA path")
+        expected_md5 = str(ota.get("md5", "")).strip().lower()
+        if not MD5_RE.fullmatch(expected_md5):
+            raise FirmwareReleaseError(f"{index_path} version {version} has an invalid OTA md5")
+        image_path = index_path.parent / ota_path
+        require_file(image_path, f"OTA firmware for {version}")
+        if md5sum(image_path) != expected_md5:
+            raise FirmwareReleaseError(f"{index_path} OTA md5 does not match {ota_path_value}")
+        assert_binary_version(image_path, version)
+
+
 def verify_directory(base_dir: Path, slugs: list[str], version: str) -> None:
     for slug in slugs:
         manifest, factory, ota = locate_release_files(base_dir, slug)
         verify_files(slug, version, manifest, factory, ota)
+
+        index_path = versions_index_path(manifest)
+        if index_path.is_file():
+            verify_versions_index(index_path, slug, version)
 
         beta = locate_beta_files(base_dir, slug)
         if beta is not None:
@@ -346,6 +411,25 @@ def download(url: str, path: Path) -> None:
 def public_manifest_url(base_url: str, slug: str, beta: bool = False) -> str:
     path = public_manifest_path(slug, beta=beta)
     return base_url.rstrip("/") + "/" + path
+
+
+def download_and_verify_public_versions(
+    base_url: str, slug: str, version: str, out_dir: Path
+) -> None:
+    manifest_url = public_manifest_url(base_url, slug)
+    index_url = urljoin(manifest_url, "versions.json")
+    index_path = out_dir / slug / "versions.json"
+    download(index_url, index_path)
+    index = load_manifest(index_path)
+    versions = index.get("versions")
+    if isinstance(versions, list):
+        for entry in versions:
+            if not isinstance(entry, dict) or not isinstance(entry.get("ota"), dict):
+                continue
+            ota_path = str(entry["ota"].get("path", "")).strip()
+            if ota_path:
+                download(urljoin(index_url, ota_path), index_path.parent / ota_path)
+    verify_versions_index(index_path, slug, version)
 
 
 def download_and_verify_public_slug(base_url: str, slug: str, version: str, out_dir: Path, beta: bool = False) -> None:
@@ -381,6 +465,7 @@ def verify_pages(base_url: str, slugs: list[str], version: str, retries: int, de
                 out_dir = Path(tmp)
                 for slug in slugs:
                     download_and_verify_public_slug(base_url, slug, version, out_dir, beta=False)
+                    download_and_verify_public_versions(base_url, slug, version, out_dir)
                     try:
                         download_and_verify_public_slug(base_url, slug, version, out_dir, beta=True)
                     except urllib.error.HTTPError as exc:

@@ -35,7 +35,6 @@ def check_project_required_metadata(product: dict, errors: list[str]) -> None:
         "device_debug_update_interval",
         "firmware_update_source",
         "firmware_manual_check_behavior",
-        "firmware_custom_manifest_requirement",
         "ota_update_platform",
         "ota_pre_update_action",
         "backup_filename_prefix",

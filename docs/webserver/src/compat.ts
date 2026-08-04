@@ -21,10 +21,6 @@
     return url;
   }
 
-  function normalizeFirmwareManifestUrl(value) {
-    return stripUrlTrailingSlashes(String(value == null ? "" : value).trim());
-  }
-
   function isValidHttpUrl(value) {
     try {
       var url = new URL(value);
@@ -135,7 +131,6 @@ if (typeof module !== "undefined") {
     extractUrlHost: extractUrlHost,
     extractUrlPort: extractUrlPort,
     isValidHttpUrl: isValidHttpUrl,
-    normalizeFirmwareManifestUrl: normalizeFirmwareManifestUrl,
     normalizeImmichUrl: normalizeImmichUrl,
     normalizeNtpServer: normalizeNtpServer,
     normalizeDateTakenFormat: normalizeDateTakenFormat,

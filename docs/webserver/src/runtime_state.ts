@@ -309,7 +309,9 @@
         }
       };
 
-      evtSource.onopen = function () {};
+      evtSource.onopen = function () {
+        handleFirmwareReconnect();
+      };
     } catch (_) {
       tryRender();
     }

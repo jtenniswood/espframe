@@ -24,7 +24,7 @@ The files under `product/contract/` are the source of truth for the stable produ
 
 Phase 1 safely generates or verifies the parts that can be derived from product metadata without redesigning the application:
 
-- web settings metadata, endpoint registration, state registration, manual/static entities, aliases, startup fetch keys, live render metadata, and firmware manifest URLs
+- web settings metadata, endpoint registration, state registration, manual/static entities, aliases, startup fetch keys, live render metadata, and fixed public firmware sources
 - settings documentation tables between `ESPFRAME:SETTINGS_TABLE` markers
 - timezone assets, public webserver bundle, and generated style output freshness
 

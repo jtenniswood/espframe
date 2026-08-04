@@ -31,7 +31,7 @@
   "firmware_updates": {
     "auto_update": true,
     "update_frequency": "Daily",
-    "manifest_url": "https://jtenniswood.github.io/espframe/firmware/manifest.json"
+    "wifi_auto_update": true
   },
   "clock": {
     "show": true,

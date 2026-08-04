@@ -175,7 +175,6 @@ def validate_web_support(product: dict[str, Any], errors: list[str]) -> None:
             "photos.person_labels",
             "photos.tag_ids",
             "photos.tag_labels",
-            "firmware_updates.manifest_url",
             "clock.timezone",
             "clock.ntp_servers",
             "screen.schedule_wake_timeout",

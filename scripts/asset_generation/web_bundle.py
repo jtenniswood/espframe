@@ -165,6 +165,7 @@ def web_app_bundle() -> str:
     live_render_state_keys_json = json.dumps(web_live_render_state_keys(), separators=(",", ":"))
     live_render_state_prefixes_json = json.dumps(web_live_render_state_prefixes(), separators=(",", ":"))
     firmware_manifest_urls_json = json.dumps(default_public_manifest_urls(), separators=(",", ":"))
+    firmware_device_slug_json = json.dumps(str(load_product()["devices"][0]["slug"]), separators=(",", ":"))
     docs_base_url_json = json.dumps(public_base_url(), separators=(",", ":"))
     web_ui_tabs_json = json.dumps(load_product()["project"].get("web_ui_tabs", []), separators=(",", ":"))
     web_ui_cards_json = json.dumps(web_ui_cards_metadata(), separators=(",", ":"))
@@ -193,6 +194,7 @@ def web_app_bundle() -> str:
         "__ESPFRAME_LIVE_RENDER_STATE_KEYS__": live_render_state_keys_json,
         "__ESPFRAME_LIVE_RENDER_STATE_PREFIXES__": live_render_state_prefixes_json,
         "__ESPFRAME_FIRMWARE_MANIFEST_URLS__": firmware_manifest_urls_json,
+        "__ESPFRAME_FIRMWARE_DEVICE_SLUG__": firmware_device_slug_json,
         "__ESPFRAME_DOCS_BASE_URL__": docs_base_url_json,
         "__ESPFRAME_WEB_UI_TABS__": web_ui_tabs_json,
         "__ESPFRAME_WEB_UI_CARDS__": web_ui_cards_json,

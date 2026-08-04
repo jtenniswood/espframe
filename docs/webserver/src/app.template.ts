@@ -15,6 +15,7 @@
   var LIVE_RENDER_STATE_KEYS = __ESPFRAME_LIVE_RENDER_STATE_KEYS__;
   var LIVE_RENDER_STATE_PREFIXES = __ESPFRAME_LIVE_RENDER_STATE_PREFIXES__;
   var FIRMWARE_MANIFEST_URLS = __ESPFRAME_FIRMWARE_MANIFEST_URLS__;
+  var FIRMWARE_DEVICE_SLUG = __ESPFRAME_FIRMWARE_DEVICE_SLUG__;
   var DOCS_BASE_URL = __ESPFRAME_DOCS_BASE_URL__;
   var WEB_UI_TABS = __ESPFRAME_WEB_UI_TABS__;
   var WEB_UI_CARDS = __ESPFRAME_WEB_UI_CARDS__;
@@ -33,6 +34,17 @@
     installed_version: "",
     latest_version: "",
     update_available: false,
+    firmware_version_options: [],
+    firmware_versions_loaded: false,
+    firmware_versions_loading: false,
+    firmware_selected_version: "",
+    firmware_checking: false,
+    firmware_installing: false,
+    firmware_uploading: false,
+    firmware_restart_pending: false,
+    firmware_install_error: "",
+    c6_firmware_checking: false,
+    c6_firmware_installing: false,
     brightness_current: 0,
     sunrise: "",
     sunset: "",
@@ -119,7 +131,6 @@
   // Matches the ESPHome template text max_length for album/person/tag ID and label lists.
   var MAX_PHOTO_ID_FIELD_LENGTH = 255;
   var MAX_NTP_SERVER_LENGTH = 253;
-  var MAX_FIRMWARE_URL_LENGTH = 255;
   var PHOTO_ID_FIELD_TOO_LONG =
     "List exceeds 255 characters (device limit). Remove IDs or shorten the list.";
   var PHOTO_LABEL_FIELD_TOO_LONG =

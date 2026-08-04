@@ -309,18 +309,17 @@
     ]
   },
   {
-    "key": "firmware_manifest_url",
+    "key": "c6_auto_update",
     "entity": {
-      "domain": "text",
-      "name": "Firmware: Manifest URL"
+      "domain": "switch",
+      "name": "WiFi Firmware: Auto Update"
     },
-    "default": "",
-    "docs_label": "Stable Manifest URL",
-    "docs_default": "Device default",
-    "docs_type": "Text",
-    "docs_description": "Advanced: custom stable update manifest",
+    "default": true,
+    "docs_label": "WiFi Firmware Auto Update",
+    "docs_default": "On",
+    "docs_description": "Check daily and install compatible ESP32-C6 WiFi firmware automatically",
     "firmware_files": [
-      "common/addon/firmware_update.yaml"
+      "common/addon/esp32_c6_firmware_update.yaml"
     ],
     "docs_files": [
       "docs/firmware-update.md"

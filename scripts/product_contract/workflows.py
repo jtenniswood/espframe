@@ -1881,7 +1881,7 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             workflow_texts,
             errors,
         )
-    for step_name in ("Download firmware from latest release", "Download firmware from latest pre-release"):
+    for step_name in ("Download firmware from latest pre-release",):
         for pattern in binary_download_patterns:
             check_workflow_named_step_run_contains(
                 "docs.download-firmware",
@@ -1947,7 +1947,7 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             errors,
         )
         if suffix == ".manifest.json":
-            for step_name in ("Download firmware from latest release", "Download firmware from latest pre-release"):
+            for step_name in ("Download firmware from latest pre-release",):
                 check_workflow_named_step_run_contains(
                     "docs.download-firmware",
                     step_name,
@@ -2133,7 +2133,6 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             "docs.download-firmware",
             "Set release metadata",
             [
-                f"{docs_release_tag_env}=$(gh release view --json tagName -q .tagName)",
                 f'echo "{docs_release_tag_env}=${{{docs_release_tag_env}}}" >> "$GITHUB_ENV"',
             ],
             workflow_texts,
@@ -2220,13 +2219,6 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     )
     check_workflow_named_step_run_contains(
         "docs.download-firmware",
-        "Set release metadata",
-        ["gh release view --json tagName"],
-        workflow_texts,
-        errors,
-    )
-    check_workflow_named_step_run_contains(
-        "docs.download-firmware",
         "Verify firmware assets",
         ["python3 scripts/firmware_release.py verify-directory"],
         workflow_texts,
@@ -2292,18 +2284,33 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
                 ".github/workflows/docs.yml",
                 errors,
             )
-            require_contains(
-                docs_workflow,
-                f'if [ -f "${{{dir_name}}}/${{DEFAULT_DEVICE_SLUG}}.manifest.json" ]; then',
-                ".github/workflows/docs.yml",
-                errors,
-            )
-            require_contains(
-                docs_workflow,
-                f'cp "${{{dir_name}}}/${{DEFAULT_DEVICE_SLUG}}.manifest.json" "${env_name}"',
-                ".github/workflows/docs.yml",
-                errors,
-            )
+            if prefix.endswith("/beta"):
+                require_contains(
+                    docs_workflow,
+                    f'if [ -f "${{{dir_name}}}/${{DEFAULT_DEVICE_SLUG}}.manifest.json" ]; then',
+                    ".github/workflows/docs.yml",
+                    errors,
+                )
+                require_contains(
+                    docs_workflow,
+                    f'cp "${{{dir_name}}}/${{DEFAULT_DEVICE_SLUG}}.manifest.json" "${env_name}"',
+                    ".github/workflows/docs.yml",
+                    errors,
+                )
+            else:
+                for needle in (
+                    "gh release list --limit 30 --json tagName,isDraft,isPrerelease",
+                    '[[ ! "$CANDIDATE_TAG" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$ ]]',
+                    '[ "$VERSION" != "$CANDIDATE_TAG" ]',
+                    '[ "$OTA_MD5" != "$ACTUAL_OTA_MD5" ]',
+                    'select(.version == $version)',
+                    '[ "$RELEASE_URL" != "$EXPECTED_RELEASE_URL" ]',
+                    'cp "$MANIFEST_PATH" "$DEFAULT_PUBLIC_MANIFEST"',
+                    '"${STABLE_MANIFEST_DIR}/versions.json"',
+                    'versions/${VERSION_PATH}/${SLUG}.ota.bin',
+                    'if [ "$VALID_COUNT" -ge 5 ]; then break; fi',
+                ):
+                    require_contains(docs_workflow, needle, ".github/workflows/docs.yml", errors)
 
 
 def check_esphome_version(product: dict, errors: list[str]) -> None:

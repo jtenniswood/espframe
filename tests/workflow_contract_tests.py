@@ -2649,6 +2649,32 @@ def test_discovered_test_functions_discovers_named_callables() -> None:
     assert calls == ["selected", "also_selected"]
 
 
+def test_docs_workflow_retains_only_five_complete_stable_releases() -> None:
+    workflow_text = (ROOT / ".github" / "workflows" / "docs.yml").read_text()
+    workflow_texts = {"docs": ("docs.yml", workflow_text)}
+    errors: list[str] = []
+
+    check_workflow_named_step_run_contains(
+        "docs.download-firmware",
+        "Download firmware from latest release",
+        [
+            "gh release list --limit 30 --json tagName,isDraft,isPrerelease",
+            '[[ ! "$CANDIDATE_TAG" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$ ]]',
+            '[ "$VERSION" != "$CANDIDATE_TAG" ]',
+            '[ "$OTA_MD5" != "$ACTUAL_OTA_MD5" ]',
+            'select(.version == $version)',
+            '[ "$RELEASE_URL" != "$EXPECTED_RELEASE_URL" ]',
+            'if [ "$VALID_COUNT" -ge 5 ]; then break; fi',
+            'versions/${VERSION_PATH}/${SLUG}.ota.bin',
+            '"${STABLE_MANIFEST_DIR}/versions.json"',
+        ],
+        workflow_texts,
+        errors,
+    )
+
+    assert errors == []
+
+
 def main() -> int:
     run_discovered_tests(globals())
     print("workflow contract tests passed")

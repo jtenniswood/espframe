@@ -33,19 +33,20 @@
   }
   var TIMEZONES = ["Pacific/Midway (GMT-11)", "Pacific/Pago_Pago (GMT-11)", "Pacific/Honolulu (GMT-10)", "America/Adak (GMT-10)", "America/Anchorage (GMT-9)", "America/Juneau (GMT-9)", "America/Los_Angeles (GMT-8)", "America/Vancouver (GMT-8)", "America/Tijuana (GMT-8)", "America/Denver (GMT-7)", "America/Phoenix (GMT-7)", "America/Edmonton (GMT-7)", "America/Boise (GMT-7)", "America/Chicago (GMT-6)", "America/Mexico_City (GMT-6)", "America/Winnipeg (GMT-6)", "America/Guatemala (GMT-6)", "America/Costa_Rica (GMT-6)", "America/New_York (GMT-5)", "America/Toronto (GMT-5)", "America/Detroit (GMT-5)", "America/Havana (GMT-5)", "America/Bogota (GMT-5)", "America/Lima (GMT-5)", "America/Jamaica (GMT-5)", "America/Panama (GMT-5)", "America/Halifax (GMT-4)", "America/Caracas (GMT-4)", "America/Santiago (GMT-4)", "America/La_Paz (GMT-4)", "America/Manaus (GMT-4)", "America/Barbados (GMT-4)", "America/Puerto_Rico (GMT-4)", "America/Santo_Domingo (GMT-4)", "America/St_Johns (GMT-3:30)", "America/Sao_Paulo (GMT-3)", "America/Argentina/Buenos_Aires (GMT-3)", "America/Montevideo (GMT-3)", "America/Paramaribo (GMT-3)", "Atlantic/South_Georgia (GMT-2)", "Atlantic/Azores (GMT-1)", "Atlantic/Cape_Verde (GMT-1)", "UTC (GMT+0)", "Europe/London (GMT+0)", "Europe/Dublin (GMT+0)", "Europe/Lisbon (GMT+0)", "Africa/Casablanca (GMT+1)", "Africa/Accra (GMT+0)", "Atlantic/Reykjavik (GMT+0)", "Europe/Paris (GMT+1)", "Europe/Berlin (GMT+1)", "Europe/Rome (GMT+1)", "Europe/Madrid (GMT+1)", "Europe/Amsterdam (GMT+1)", "Europe/Brussels (GMT+1)", "Europe/Vienna (GMT+1)", "Europe/Zurich (GMT+1)", "Europe/Stockholm (GMT+1)", "Europe/Oslo (GMT+1)", "Europe/Copenhagen (GMT+1)", "Europe/Warsaw (GMT+1)", "Europe/Prague (GMT+1)", "Europe/Budapest (GMT+1)", "Europe/Belgrade (GMT+1)", "Africa/Lagos (GMT+1)", "Africa/Tunis (GMT+1)", "Africa/Cairo (GMT+2)", "Europe/Athens (GMT+2)", "Europe/Bucharest (GMT+2)", "Europe/Helsinki (GMT+2)", "Europe/Kyiv (GMT+2)", "Europe/Istanbul (GMT+3)", "Africa/Johannesburg (GMT+2)", "Africa/Nairobi (GMT+3)", "Asia/Jerusalem (GMT+2)", "Asia/Amman (GMT+3)", "Asia/Beirut (GMT+2)", "Europe/Moscow (GMT+3)", "Asia/Baghdad (GMT+3)", "Asia/Riyadh (GMT+3)", "Asia/Kuwait (GMT+3)", "Asia/Qatar (GMT+3)", "Africa/Addis_Ababa (GMT+3)", "Asia/Tehran (GMT+3:30)", "Asia/Dubai (GMT+4)", "Asia/Muscat (GMT+4)", "Asia/Baku (GMT+4)", "Asia/Tbilisi (GMT+4)", "Indian/Mauritius (GMT+4)", "Asia/Kabul (GMT+4:30)", "Asia/Karachi (GMT+5)", "Asia/Tashkent (GMT+5)", "Asia/Yekaterinburg (GMT+5)", "Asia/Kolkata (GMT+5:30)", "Asia/Colombo (GMT+5:30)", "Asia/Kathmandu (GMT+5:45)", "Asia/Dhaka (GMT+6)", "Asia/Almaty (GMT+5)", "Asia/Rangoon (GMT+6:30)", "Asia/Bangkok (GMT+7)", "Asia/Jakarta (GMT+7)", "Asia/Ho_Chi_Minh (GMT+7)", "Asia/Singapore (GMT+8)", "Asia/Kuala_Lumpur (GMT+8)", "Asia/Shanghai (GMT+8)", "Asia/Hong_Kong (GMT+8)", "Asia/Taipei (GMT+8)", "Asia/Manila (GMT+8)", "Australia/Perth (GMT+8)", "Asia/Tokyo (GMT+9)", "Asia/Seoul (GMT+9)", "Asia/Pyongyang (GMT+9)", "Australia/Adelaide (GMT+9:30)", "Australia/Darwin (GMT+9:30)", "Australia/Sydney (GMT+10)", "Australia/Melbourne (GMT+10)", "Australia/Brisbane (GMT+10)", "Australia/Hobart (GMT+10)", "Pacific/Guam (GMT+10)", "Pacific/Port_Moresby (GMT+10)", "Asia/Vladivostok (GMT+10)", "Pacific/Noumea (GMT+11)", "Pacific/Norfolk (GMT+11)", "Asia/Magadan (GMT+11)", "Pacific/Auckland (GMT+12)", "Pacific/Fiji (GMT+12)", "Pacific/Chatham (GMT+12:45)", "Pacific/Tongatapu (GMT+13)", "Pacific/Apia (GMT+13)", "Pacific/Kiritimati (GMT+14)"];
   var TIMEZONE_LABELS = { "Pacific/Midway (GMT-11)": "Pacific/Midway (GMT-11)", "Pacific/Pago_Pago (GMT-11)": "Pacific/Pago_Pago (GMT-11)", "Pacific/Honolulu (GMT-10)": "Pacific/Honolulu (GMT-10)", "America/Adak (GMT-10)": "America/Adak (GMT-10; daylight GMT-9)", "America/Anchorage (GMT-9)": "America/Anchorage (GMT-9; daylight GMT-8)", "America/Juneau (GMT-9)": "America/Juneau (GMT-9; daylight GMT-8)", "America/Los_Angeles (GMT-8)": "America/Los_Angeles (GMT-8; daylight GMT-7)", "America/Vancouver (GMT-8)": "America/Vancouver (GMT-8; active GMT-7)", "America/Tijuana (GMT-8)": "America/Tijuana (GMT-8; daylight GMT-7)", "America/Denver (GMT-7)": "America/Denver (GMT-7; daylight GMT-6)", "America/Phoenix (GMT-7)": "America/Phoenix (GMT-7)", "America/Edmonton (GMT-7)": "America/Edmonton (GMT-7; daylight GMT-6)", "America/Boise (GMT-7)": "America/Boise (GMT-7; daylight GMT-6)", "America/Chicago (GMT-6)": "America/Chicago (GMT-6; daylight GMT-5)", "America/Mexico_City (GMT-6)": "America/Mexico_City (GMT-6)", "America/Winnipeg (GMT-6)": "America/Winnipeg (GMT-6; daylight GMT-5)", "America/Guatemala (GMT-6)": "America/Guatemala (GMT-6)", "America/Costa_Rica (GMT-6)": "America/Costa_Rica (GMT-6)", "America/New_York (GMT-5)": "America/New_York (GMT-5; daylight GMT-4)", "America/Toronto (GMT-5)": "America/Toronto (GMT-5; daylight GMT-4)", "America/Detroit (GMT-5)": "America/Detroit (GMT-5; daylight GMT-4)", "America/Havana (GMT-5)": "America/Havana (GMT-5; daylight GMT-4)", "America/Bogota (GMT-5)": "America/Bogota (GMT-5)", "America/Lima (GMT-5)": "America/Lima (GMT-5)", "America/Jamaica (GMT-5)": "America/Jamaica (GMT-5)", "America/Panama (GMT-5)": "America/Panama (GMT-5)", "America/Halifax (GMT-4)": "America/Halifax (GMT-4; daylight GMT-3)", "America/Caracas (GMT-4)": "America/Caracas (GMT-4)", "America/Santiago (GMT-4)": "America/Santiago (GMT-4; daylight GMT-3)", "America/La_Paz (GMT-4)": "America/La_Paz (GMT-4)", "America/Manaus (GMT-4)": "America/Manaus (GMT-4)", "America/Barbados (GMT-4)": "America/Barbados (GMT-4)", "America/Puerto_Rico (GMT-4)": "America/Puerto_Rico (GMT-4)", "America/Santo_Domingo (GMT-4)": "America/Santo_Domingo (GMT-4)", "America/St_Johns (GMT-3:30)": "America/St_Johns (GMT-3:30; daylight GMT-2:30)", "America/Sao_Paulo (GMT-3)": "America/Sao_Paulo (GMT-3)", "America/Argentina/Buenos_Aires (GMT-3)": "America/Argentina/Buenos_Aires (GMT-3)", "America/Montevideo (GMT-3)": "America/Montevideo (GMT-3)", "America/Paramaribo (GMT-3)": "America/Paramaribo (GMT-3)", "Atlantic/South_Georgia (GMT-2)": "Atlantic/South_Georgia (GMT-2)", "Atlantic/Azores (GMT-1)": "Atlantic/Azores (GMT-1; daylight GMT+0)", "Atlantic/Cape_Verde (GMT-1)": "Atlantic/Cape_Verde (GMT-1)", "UTC (GMT+0)": "UTC (GMT+0)", "Europe/London (GMT+0)": "Europe/London (GMT+0; daylight GMT+1)", "Europe/Dublin (GMT+0)": "Europe/Dublin (GMT+0; daylight GMT+1)", "Europe/Lisbon (GMT+0)": "Europe/Lisbon (GMT+0; daylight GMT+1)", "Africa/Casablanca (GMT+1)": "Africa/Casablanca (GMT+1)", "Africa/Accra (GMT+0)": "Africa/Accra (GMT+0)", "Atlantic/Reykjavik (GMT+0)": "Atlantic/Reykjavik (GMT+0)", "Europe/Paris (GMT+1)": "Europe/Paris (GMT+1; daylight GMT+2)", "Europe/Berlin (GMT+1)": "Europe/Berlin (GMT+1; daylight GMT+2)", "Europe/Rome (GMT+1)": "Europe/Rome (GMT+1; daylight GMT+2)", "Europe/Madrid (GMT+1)": "Europe/Madrid (GMT+1; daylight GMT+2)", "Europe/Amsterdam (GMT+1)": "Europe/Amsterdam (GMT+1; daylight GMT+2)", "Europe/Brussels (GMT+1)": "Europe/Brussels (GMT+1; daylight GMT+2)", "Europe/Vienna (GMT+1)": "Europe/Vienna (GMT+1; daylight GMT+2)", "Europe/Zurich (GMT+1)": "Europe/Zurich (GMT+1; daylight GMT+2)", "Europe/Stockholm (GMT+1)": "Europe/Stockholm (GMT+1; daylight GMT+2)", "Europe/Oslo (GMT+1)": "Europe/Oslo (GMT+1; daylight GMT+2)", "Europe/Copenhagen (GMT+1)": "Europe/Copenhagen (GMT+1; daylight GMT+2)", "Europe/Warsaw (GMT+1)": "Europe/Warsaw (GMT+1; daylight GMT+2)", "Europe/Prague (GMT+1)": "Europe/Prague (GMT+1; daylight GMT+2)", "Europe/Budapest (GMT+1)": "Europe/Budapest (GMT+1; daylight GMT+2)", "Europe/Belgrade (GMT+1)": "Europe/Belgrade (GMT+1; daylight GMT+2)", "Africa/Lagos (GMT+1)": "Africa/Lagos (GMT+1)", "Africa/Tunis (GMT+1)": "Africa/Tunis (GMT+1)", "Africa/Cairo (GMT+2)": "Africa/Cairo (GMT+2; daylight GMT+3)", "Europe/Athens (GMT+2)": "Europe/Athens (GMT+2; daylight GMT+3)", "Europe/Bucharest (GMT+2)": "Europe/Bucharest (GMT+2; daylight GMT+3)", "Europe/Helsinki (GMT+2)": "Europe/Helsinki (GMT+2; daylight GMT+3)", "Europe/Kyiv (GMT+2)": "Europe/Kyiv (GMT+2; daylight GMT+3)", "Europe/Istanbul (GMT+3)": "Europe/Istanbul (GMT+3)", "Africa/Johannesburg (GMT+2)": "Africa/Johannesburg (GMT+2)", "Africa/Nairobi (GMT+3)": "Africa/Nairobi (GMT+3)", "Asia/Jerusalem (GMT+2)": "Asia/Jerusalem (GMT+2; daylight GMT+3)", "Asia/Amman (GMT+3)": "Asia/Amman (GMT+3)", "Asia/Beirut (GMT+2)": "Asia/Beirut (GMT+2; daylight GMT+3)", "Europe/Moscow (GMT+3)": "Europe/Moscow (GMT+3)", "Asia/Baghdad (GMT+3)": "Asia/Baghdad (GMT+3)", "Asia/Riyadh (GMT+3)": "Asia/Riyadh (GMT+3)", "Asia/Kuwait (GMT+3)": "Asia/Kuwait (GMT+3)", "Asia/Qatar (GMT+3)": "Asia/Qatar (GMT+3)", "Africa/Addis_Ababa (GMT+3)": "Africa/Addis_Ababa (GMT+3)", "Asia/Tehran (GMT+3:30)": "Asia/Tehran (GMT+3:30)", "Asia/Dubai (GMT+4)": "Asia/Dubai (GMT+4)", "Asia/Muscat (GMT+4)": "Asia/Muscat (GMT+4)", "Asia/Baku (GMT+4)": "Asia/Baku (GMT+4)", "Asia/Tbilisi (GMT+4)": "Asia/Tbilisi (GMT+4)", "Indian/Mauritius (GMT+4)": "Indian/Mauritius (GMT+4)", "Asia/Kabul (GMT+4:30)": "Asia/Kabul (GMT+4:30)", "Asia/Karachi (GMT+5)": "Asia/Karachi (GMT+5)", "Asia/Tashkent (GMT+5)": "Asia/Tashkent (GMT+5)", "Asia/Yekaterinburg (GMT+5)": "Asia/Yekaterinburg (GMT+5)", "Asia/Kolkata (GMT+5:30)": "Asia/Kolkata (GMT+5:30)", "Asia/Colombo (GMT+5:30)": "Asia/Colombo (GMT+5:30)", "Asia/Kathmandu (GMT+5:45)": "Asia/Kathmandu (GMT+5:45)", "Asia/Dhaka (GMT+6)": "Asia/Dhaka (GMT+6)", "Asia/Almaty (GMT+5)": "Asia/Almaty (GMT+5)", "Asia/Rangoon (GMT+6:30)": "Asia/Rangoon (GMT+6:30)", "Asia/Bangkok (GMT+7)": "Asia/Bangkok (GMT+7)", "Asia/Jakarta (GMT+7)": "Asia/Jakarta (GMT+7)", "Asia/Ho_Chi_Minh (GMT+7)": "Asia/Ho_Chi_Minh (GMT+7)", "Asia/Singapore (GMT+8)": "Asia/Singapore (GMT+8)", "Asia/Kuala_Lumpur (GMT+8)": "Asia/Kuala_Lumpur (GMT+8)", "Asia/Shanghai (GMT+8)": "Asia/Shanghai (GMT+8)", "Asia/Hong_Kong (GMT+8)": "Asia/Hong_Kong (GMT+8)", "Asia/Taipei (GMT+8)": "Asia/Taipei (GMT+8)", "Asia/Manila (GMT+8)": "Asia/Manila (GMT+8)", "Australia/Perth (GMT+8)": "Australia/Perth (GMT+8)", "Asia/Tokyo (GMT+9)": "Asia/Tokyo (GMT+9)", "Asia/Seoul (GMT+9)": "Asia/Seoul (GMT+9)", "Asia/Pyongyang (GMT+9)": "Asia/Pyongyang (GMT+9)", "Australia/Adelaide (GMT+9:30)": "Australia/Adelaide (GMT+9:30; daylight GMT+10:30)", "Australia/Darwin (GMT+9:30)": "Australia/Darwin (GMT+9:30)", "Australia/Sydney (GMT+10)": "Australia/Sydney (GMT+10; daylight GMT+11)", "Australia/Melbourne (GMT+10)": "Australia/Melbourne (GMT+10; daylight GMT+11)", "Australia/Brisbane (GMT+10)": "Australia/Brisbane (GMT+10)", "Australia/Hobart (GMT+10)": "Australia/Hobart (GMT+10; daylight GMT+11)", "Pacific/Guam (GMT+10)": "Pacific/Guam (GMT+10)", "Pacific/Port_Moresby (GMT+10)": "Pacific/Port_Moresby (GMT+10)", "Asia/Vladivostok (GMT+10)": "Asia/Vladivostok (GMT+10)", "Pacific/Noumea (GMT+11)": "Pacific/Noumea (GMT+11)", "Pacific/Norfolk (GMT+11)": "Pacific/Norfolk (GMT+11; daylight GMT+12)", "Asia/Magadan (GMT+11)": "Asia/Magadan (GMT+11)", "Pacific/Auckland (GMT+12)": "Pacific/Auckland (GMT+12; daylight GMT+13)", "Pacific/Fiji (GMT+12)": "Pacific/Fiji (GMT+12)", "Pacific/Chatham (GMT+12:45)": "Pacific/Chatham (GMT+12:45; daylight GMT+13:45)", "Pacific/Tongatapu (GMT+13)": "Pacific/Tongatapu (GMT+13)", "Pacific/Apia (GMT+13)": "Pacific/Apia (GMT+13)", "Pacific/Kiritimati (GMT+14)": "Pacific/Kiritimati (GMT+14)" };
-  var PRODUCT_SETTINGS = { "photo_source": { "entity": "select/Photos: Source", "domain": "select", "default": "All Photos", "options": ["All Photos", "Favorites", "Album", "Person", "Tag", "Memories"] }, "album_order": { "entity": "select/Photos: Album Order", "domain": "select", "default": "Random albums", "options": ["Random albums", "Album list order"] }, "date_filter_mode": { "entity": "select/Photos: Date Filter Mode", "domain": "select", "default": "Fixed Range", "options": ["Fixed Range", "Relative Range"] }, "relative_unit": { "entity": "select/Photos: Relative Unit", "domain": "select", "default": "Years", "options": ["Months", "Years"] }, "photo_orientation": { "entity": "select/Photos: Orientation", "domain": "select", "default": "Any", "options": ["Any", "Portrait Only", "Landscape Only"] }, "display_mode": { "entity": "select/Photos: Display Mode", "domain": "select", "default": "Fill", "options": ["Fill", "Fit"] }, "interval": { "entity": "select/Photos: Slideshow Interval", "domain": "select", "default": "15 seconds", "options": ["10 seconds", "15 seconds", "20 seconds", "30 seconds", "45 seconds", "1 minute", "2 minutes", "3 minutes", "5 minutes", "10 minutes"] }, "conn_timeout": { "entity": "select/Screen: Connection Timeout", "domain": "select", "default": "10 minutes", "options": ["30 seconds", "45 seconds", "1 minute", "2 minutes", "3 minutes", "5 minutes", "10 minutes", "15 minutes", "20 minutes", "30 minutes"] }, "screen_rotation": { "entity": "select/Screen: Rotation", "domain": "select", "default": "0", "options": ["0", "180"], "developerOptions": ["90", "270"] }, "photo_metadata_date_format": { "entity": "select/Device: Metadata Date Format", "domain": "select", "default": "Date Taken", "options": ["Relative Date", "Date Taken"] }, "photo_metadata_date_taken_format": { "entity": "select/Device: Metadata Date Taken Format", "domain": "select", "default": "1 January, 2026", "options": ["1 January, 2026", "January 1, 2026"] }, "clock_format": { "entity": "select/Clock: Format", "domain": "select", "default": "24 Hour", "options": ["24 Hour", "12 Hour"] }, "update_frequency": { "entity": "select/Firmware: Update Frequency", "domain": "select", "default": "Daily", "options": ["Hourly", "Daily", "Weekly", "Monthly"] }, "auto_update": { "entity": "switch/Firmware: Auto Update", "domain": "switch", "default": true, "options": [] }, "firmware_manifest_url": { "entity": "text/Firmware: Manifest URL", "domain": "text", "default": "", "options": [], "maxLength": 255 }, "date_filter_enabled": { "entity": "switch/Photos: Date Filter", "domain": "switch", "default": false, "options": [] }, "date_from": { "entity": "text/Photos: Date From", "domain": "text", "default": "", "options": [], "maxLength": 10 }, "date_to": { "entity": "text/Photos: Date To", "domain": "text", "default": "", "options": [], "maxLength": 10 }, "relative_amount": { "entity": "number/Photos: Relative Amount", "domain": "number", "default": 1, "options": [], "min": 1, "max": 120, "step": 1 }, "schedule_enabled": { "entity": "switch/Screen: Schedule Enabled", "domain": "switch", "default": false, "options": [] }, "schedule_on_hour": { "entity": "number/Screen: Schedule On Hour", "domain": "number", "default": 6, "options": [], "min": 0, "max": 23, "step": 1 }, "schedule_off_hour": { "entity": "number/Screen: Schedule Off Hour", "domain": "number", "default": 23, "options": [], "min": 0, "max": 23, "step": 1 }, "schedule_wake_timeout": { "entity": "number/Screen: Schedule Wake Timeout", "domain": "number", "default": 60, "options": [], "min": 10, "max": 3600, "step": 10 }, "brightness_day": { "entity": "number/Screen: Daytime Brightness", "domain": "number", "default": 100, "options": [], "min": 10, "max": 100, "step": 5 }, "brightness_night": { "entity": "number/Screen: Nighttime Brightness", "domain": "number", "default": 75, "options": [], "min": 10, "max": 100, "step": 5 }, "base_tone_enabled": { "entity": "switch/Screen: Tone Adjustment", "domain": "switch", "default": false, "options": [] }, "base_tone": { "entity": "number/Screen: Display Tone", "domain": "number", "default": 0, "options": [], "min": 0, "max": 100, "step": 5 }, "warm_tones_enabled": { "entity": "switch/Screen: Night Tone Adjustment", "domain": "switch", "default": false, "options": [] }, "warm_tone_intensity": { "entity": "number/Screen: Warm Tone Intensity", "domain": "number", "default": 50, "options": [], "min": 10, "max": 100, "step": 5 }, "warm_tone_override": { "entity": "switch/Screen: Warm Tone Override", "domain": "switch", "default": false, "options": [] }, "portrait_pairing": { "entity": "switch/Photos: Portrait Pairing", "domain": "switch", "default": true, "options": [] }, "photo_metadata_date_enabled": { "entity": "switch/Device: Metadata Date", "domain": "switch", "default": true, "options": [] }, "photo_metadata_location_enabled": { "entity": "switch/Device: Metadata Location", "domain": "switch", "default": true, "options": [] } };
-  var STATIC_ENTITIES = { "firmware": { "entity": "text_sensor/Firmware: Version" }, "timezone": { "entity": "select/Clock: Timezone", "optionsKey": "tz_options", "default": "Europe/London (GMT+0)" }, "ntp_server_1": { "entity": "text/Clock: NTP Server 1", "default": "0.pool.ntp.org" }, "ntp_server_2": { "entity": "text/Clock: NTP Server 2", "default": "1.pool.ntp.org" }, "ntp_server_3": { "entity": "text/Clock: NTP Server 3", "default": "2.pool.ntp.org" }, "album_ids": { "entity": "text/Photos: Album IDs" }, "album_labels": { "entity": "text/Photos: Album Labels" }, "person_ids": { "entity": "text/Photos: Person IDs" }, "person_labels": { "entity": "text/Photos: Person Labels" }, "tag_ids": { "entity": "text/Photos: Tag IDs" }, "tag_labels": { "entity": "text/Photos: Tag Labels" }, "sunrise": { "entity": "text_sensor/Screen: Sunrise" }, "sunset": { "entity": "text_sensor/Screen: Sunset" }, "developer_features_enabled": { "entity": "switch/Developer: Features", "boolFromState": true }, "show_clock": { "entity": "switch/Clock: Show", "boolFromState": true, "default": true }, "c6_current_firmware": { "entity": "text_sensor/ESP32-C6: Current Firmware", "default": "Unknown" }, "c6_available_firmware": { "entity": "text_sensor/ESP32-C6: Available Firmware", "default": "Unknown" } };
+  var PRODUCT_SETTINGS = { "photo_source": { "entity": "select/Photos: Source", "domain": "select", "default": "All Photos", "options": ["All Photos", "Favorites", "Album", "Person", "Tag", "Memories"] }, "album_order": { "entity": "select/Photos: Album Order", "domain": "select", "default": "Random albums", "options": ["Random albums", "Album list order"] }, "date_filter_mode": { "entity": "select/Photos: Date Filter Mode", "domain": "select", "default": "Fixed Range", "options": ["Fixed Range", "Relative Range"] }, "relative_unit": { "entity": "select/Photos: Relative Unit", "domain": "select", "default": "Years", "options": ["Months", "Years"] }, "photo_orientation": { "entity": "select/Photos: Orientation", "domain": "select", "default": "Any", "options": ["Any", "Portrait Only", "Landscape Only"] }, "display_mode": { "entity": "select/Photos: Display Mode", "domain": "select", "default": "Fill", "options": ["Fill", "Fit"] }, "interval": { "entity": "select/Photos: Slideshow Interval", "domain": "select", "default": "15 seconds", "options": ["10 seconds", "15 seconds", "20 seconds", "30 seconds", "45 seconds", "1 minute", "2 minutes", "3 minutes", "5 minutes", "10 minutes"] }, "conn_timeout": { "entity": "select/Screen: Connection Timeout", "domain": "select", "default": "10 minutes", "options": ["30 seconds", "45 seconds", "1 minute", "2 minutes", "3 minutes", "5 minutes", "10 minutes", "15 minutes", "20 minutes", "30 minutes"] }, "screen_rotation": { "entity": "select/Screen: Rotation", "domain": "select", "default": "0", "options": ["0", "180"], "developerOptions": ["90", "270"] }, "photo_metadata_date_format": { "entity": "select/Device: Metadata Date Format", "domain": "select", "default": "Date Taken", "options": ["Relative Date", "Date Taken"] }, "photo_metadata_date_taken_format": { "entity": "select/Device: Metadata Date Taken Format", "domain": "select", "default": "1 January, 2026", "options": ["1 January, 2026", "January 1, 2026"] }, "clock_format": { "entity": "select/Clock: Format", "domain": "select", "default": "24 Hour", "options": ["24 Hour", "12 Hour"] }, "update_frequency": { "entity": "select/Firmware: Update Frequency", "domain": "select", "default": "Daily", "options": ["Hourly", "Daily", "Weekly", "Monthly"] }, "auto_update": { "entity": "switch/Firmware: Auto Update", "domain": "switch", "default": true, "options": [] }, "c6_auto_update": { "entity": "switch/WiFi Firmware: Auto Update", "domain": "switch", "default": true, "options": [] }, "date_filter_enabled": { "entity": "switch/Photos: Date Filter", "domain": "switch", "default": false, "options": [] }, "date_from": { "entity": "text/Photos: Date From", "domain": "text", "default": "", "options": [], "maxLength": 10 }, "date_to": { "entity": "text/Photos: Date To", "domain": "text", "default": "", "options": [], "maxLength": 10 }, "relative_amount": { "entity": "number/Photos: Relative Amount", "domain": "number", "default": 1, "options": [], "min": 1, "max": 120, "step": 1 }, "schedule_enabled": { "entity": "switch/Screen: Schedule Enabled", "domain": "switch", "default": false, "options": [] }, "schedule_on_hour": { "entity": "number/Screen: Schedule On Hour", "domain": "number", "default": 6, "options": [], "min": 0, "max": 23, "step": 1 }, "schedule_off_hour": { "entity": "number/Screen: Schedule Off Hour", "domain": "number", "default": 23, "options": [], "min": 0, "max": 23, "step": 1 }, "schedule_wake_timeout": { "entity": "number/Screen: Schedule Wake Timeout", "domain": "number", "default": 60, "options": [], "min": 10, "max": 3600, "step": 10 }, "brightness_day": { "entity": "number/Screen: Daytime Brightness", "domain": "number", "default": 100, "options": [], "min": 10, "max": 100, "step": 5 }, "brightness_night": { "entity": "number/Screen: Nighttime Brightness", "domain": "number", "default": 75, "options": [], "min": 10, "max": 100, "step": 5 }, "base_tone_enabled": { "entity": "switch/Screen: Tone Adjustment", "domain": "switch", "default": false, "options": [] }, "base_tone": { "entity": "number/Screen: Display Tone", "domain": "number", "default": 0, "options": [], "min": 0, "max": 100, "step": 5 }, "warm_tones_enabled": { "entity": "switch/Screen: Night Tone Adjustment", "domain": "switch", "default": false, "options": [] }, "warm_tone_intensity": { "entity": "number/Screen: Warm Tone Intensity", "domain": "number", "default": 50, "options": [], "min": 10, "max": 100, "step": 5 }, "warm_tone_override": { "entity": "switch/Screen: Warm Tone Override", "domain": "switch", "default": false, "options": [] }, "portrait_pairing": { "entity": "switch/Photos: Portrait Pairing", "domain": "switch", "default": true, "options": [] }, "photo_metadata_date_enabled": { "entity": "switch/Device: Metadata Date", "domain": "switch", "default": true, "options": [] }, "photo_metadata_location_enabled": { "entity": "switch/Device: Metadata Location", "domain": "switch", "default": true, "options": [] } };
+  var STATIC_ENTITIES = { "firmware": { "entity": "text_sensor/Firmware: Version" }, "timezone": { "entity": "select/Clock: Timezone", "optionsKey": "tz_options", "default": "Europe/London (GMT+0)" }, "ntp_server_1": { "entity": "text/Clock: NTP Server 1", "default": "0.pool.ntp.org" }, "ntp_server_2": { "entity": "text/Clock: NTP Server 2", "default": "1.pool.ntp.org" }, "ntp_server_3": { "entity": "text/Clock: NTP Server 3", "default": "2.pool.ntp.org" }, "album_ids": { "entity": "text/Photos: Album IDs" }, "album_labels": { "entity": "text/Photos: Album Labels" }, "person_ids": { "entity": "text/Photos: Person IDs" }, "person_labels": { "entity": "text/Photos: Person Labels" }, "tag_ids": { "entity": "text/Photos: Tag IDs" }, "tag_labels": { "entity": "text/Photos: Tag Labels" }, "sunrise": { "entity": "text_sensor/Screen: Sunrise" }, "sunset": { "entity": "text_sensor/Screen: Sunset" }, "developer_features_enabled": { "entity": "switch/Developer: Features", "boolFromState": true }, "show_clock": { "entity": "switch/Clock: Show", "boolFromState": true, "default": true }, "c6_current_firmware": { "entity": "text_sensor/ESP32-C6: Current Firmware", "default": "Unknown" }, "c6_available_firmware": { "entity": "text_sensor/ESP32-C6: Available Firmware", "default": "Unknown" }, "c6_update_status": { "entity": "text_sensor/ESP32-C6: Update Available", "default": "Unknown" } };
   var MANUAL_ENTITIES = { "immich_url": { "entity": "text/Connection: Server URL" }, "api_key": { "entity": "text/Connection: API Key" }, "backlight": { "entity": "light/Screen: Backlight" }, "update": { "entity": "update/Firmware: Update" }, "apply_photo_source": { "entity": "button/Apply Photo Source" }, "firmware_check": { "entity": "button/Firmware: Check for Update" }, "c6_firmware_check": { "entity": "button/Firmware ESP32-C6: Check for Update" }, "c6_firmware_install": { "entity": "button/Firmware ESP32-C6: Install Update" }, "reboot_screen": { "entity": "button/Device: Reboot Screen" } };
   var MANUAL_STATE_KEYS = ["immich_url", "api_key"];
   var ENTITY_ALIASES = { "schedule_enabled": [{ "entity": "switch/Screen: Schedule", "boolFromState": true }], "schedule_on_hour": [{ "entity": "number/Screen: Schedule On", "default": 6, "number": true }], "schedule_off_hour": [{ "entity": "number/Screen: Schedule Off", "default": 23, "number": true }] };
   var BACKUP_CONFIG_VERSION = 1;
-  var BACKUP_SCHEMA = [{ "group": "connection", "field": "immich_url", "state_keys": ["immich_url"] }, { "group": "connection", "field": "api_key", "state_keys": ["api_key"] }, { "group": "photos", "field": "source", "state_keys": ["photo_source"] }, { "group": "photos", "field": "album_order", "state_keys": ["album_order"] }, { "group": "photos", "field": "album_ids", "state_keys": ["album_ids"] }, { "group": "photos", "field": "album_labels", "state_keys": ["album_labels"] }, { "group": "photos", "field": "person_ids", "state_keys": ["person_ids"] }, { "group": "photos", "field": "person_labels", "state_keys": ["person_labels"] }, { "group": "photos", "field": "tag_ids", "state_keys": ["tag_ids"] }, { "group": "photos", "field": "tag_labels", "state_keys": ["tag_labels"] }, { "group": "photos", "field": "date_filter_enabled", "state_keys": ["date_filter_enabled"] }, { "group": "photos", "field": "date_filter_mode", "state_keys": ["date_filter_mode"] }, { "group": "photos", "field": "date_from", "state_keys": ["date_from"] }, { "group": "photos", "field": "date_to", "state_keys": ["date_to"] }, { "group": "photos", "field": "relative_amount", "state_keys": ["relative_amount"] }, { "group": "photos", "field": "relative_unit", "state_keys": ["relative_unit"] }, { "group": "photos", "field": "orientation", "state_keys": ["photo_orientation"] }, { "group": "photos", "field": "portrait_pairing", "state_keys": ["portrait_pairing"] }, { "group": "photos", "field": "display_mode", "state_keys": ["display_mode"] }, { "group": "frequency", "field": "interval", "state_keys": ["interval"] }, { "group": "frequency", "field": "conn_timeout", "state_keys": ["conn_timeout"] }, { "group": "firmware_updates", "field": "auto_update", "state_keys": ["auto_update"] }, { "group": "firmware_updates", "field": "update_frequency", "state_keys": ["update_frequency"] }, { "group": "firmware_updates", "field": "manifest_url", "state_keys": ["firmware_manifest_url"] }, { "group": "clock", "field": "show", "state_keys": ["show_clock"] }, { "group": "clock", "field": "format", "state_keys": ["clock_format"] }, { "group": "clock", "field": "timezone", "state_keys": ["timezone"] }, { "group": "clock", "field": "ntp_servers", "state_keys": ["ntp_server_1", "ntp_server_2", "ntp_server_3"] }, { "group": "screen", "field": "brightness_day", "state_keys": ["brightness_day"] }, { "group": "screen", "field": "brightness_night", "state_keys": ["brightness_night"] }, { "group": "screen", "field": "schedule_enabled", "state_keys": ["schedule_enabled"] }, { "group": "screen", "field": "schedule_on_hour", "state_keys": ["schedule_on_hour"] }, { "group": "screen", "field": "schedule_off_hour", "state_keys": ["schedule_off_hour"] }, { "group": "screen", "field": "schedule_wake_timeout", "state_keys": ["schedule_wake_timeout"] }, { "group": "screen", "field": "base_tone_enabled", "state_keys": ["base_tone_enabled"] }, { "group": "screen", "field": "base_tone", "state_keys": ["base_tone"] }, { "group": "screen", "field": "warm_tones_enabled", "state_keys": ["warm_tones_enabled"] }, { "group": "screen", "field": "warm_tone_intensity", "state_keys": ["warm_tone_intensity"] }, { "group": "screen", "field": "warm_tone_override", "state_keys": ["warm_tone_override"] }, { "group": "screen", "field": "rotation", "state_keys": ["screen_rotation"] }];
+  var BACKUP_SCHEMA = [{ "group": "connection", "field": "immich_url", "state_keys": ["immich_url"] }, { "group": "connection", "field": "api_key", "state_keys": ["api_key"] }, { "group": "photos", "field": "source", "state_keys": ["photo_source"] }, { "group": "photos", "field": "album_order", "state_keys": ["album_order"] }, { "group": "photos", "field": "album_ids", "state_keys": ["album_ids"] }, { "group": "photos", "field": "album_labels", "state_keys": ["album_labels"] }, { "group": "photos", "field": "person_ids", "state_keys": ["person_ids"] }, { "group": "photos", "field": "person_labels", "state_keys": ["person_labels"] }, { "group": "photos", "field": "tag_ids", "state_keys": ["tag_ids"] }, { "group": "photos", "field": "tag_labels", "state_keys": ["tag_labels"] }, { "group": "photos", "field": "date_filter_enabled", "state_keys": ["date_filter_enabled"] }, { "group": "photos", "field": "date_filter_mode", "state_keys": ["date_filter_mode"] }, { "group": "photos", "field": "date_from", "state_keys": ["date_from"] }, { "group": "photos", "field": "date_to", "state_keys": ["date_to"] }, { "group": "photos", "field": "relative_amount", "state_keys": ["relative_amount"] }, { "group": "photos", "field": "relative_unit", "state_keys": ["relative_unit"] }, { "group": "photos", "field": "orientation", "state_keys": ["photo_orientation"] }, { "group": "photos", "field": "portrait_pairing", "state_keys": ["portrait_pairing"] }, { "group": "photos", "field": "display_mode", "state_keys": ["display_mode"] }, { "group": "frequency", "field": "interval", "state_keys": ["interval"] }, { "group": "frequency", "field": "conn_timeout", "state_keys": ["conn_timeout"] }, { "group": "firmware_updates", "field": "auto_update", "state_keys": ["auto_update"] }, { "group": "firmware_updates", "field": "update_frequency", "state_keys": ["update_frequency"] }, { "group": "firmware_updates", "field": "wifi_auto_update", "state_keys": ["c6_auto_update"] }, { "group": "clock", "field": "show", "state_keys": ["show_clock"] }, { "group": "clock", "field": "format", "state_keys": ["clock_format"] }, { "group": "clock", "field": "timezone", "state_keys": ["timezone"] }, { "group": "clock", "field": "ntp_servers", "state_keys": ["ntp_server_1", "ntp_server_2", "ntp_server_3"] }, { "group": "screen", "field": "brightness_day", "state_keys": ["brightness_day"] }, { "group": "screen", "field": "brightness_night", "state_keys": ["brightness_night"] }, { "group": "screen", "field": "schedule_enabled", "state_keys": ["schedule_enabled"] }, { "group": "screen", "field": "schedule_on_hour", "state_keys": ["schedule_on_hour"] }, { "group": "screen", "field": "schedule_off_hour", "state_keys": ["schedule_off_hour"] }, { "group": "screen", "field": "schedule_wake_timeout", "state_keys": ["schedule_wake_timeout"] }, { "group": "screen", "field": "base_tone_enabled", "state_keys": ["base_tone_enabled"] }, { "group": "screen", "field": "base_tone", "state_keys": ["base_tone"] }, { "group": "screen", "field": "warm_tones_enabled", "state_keys": ["warm_tones_enabled"] }, { "group": "screen", "field": "warm_tone_intensity", "state_keys": ["warm_tone_intensity"] }, { "group": "screen", "field": "warm_tone_override", "state_keys": ["warm_tone_override"] }, { "group": "screen", "field": "rotation", "state_keys": ["screen_rotation"] }];
   var LIVE_RENDER_STATE_KEYS = ["screen_rotation", "portrait_pairing", "developer_features_enabled"];
   var LIVE_RENDER_STATE_PREFIXES = ["photo_metadata_", "schedule_"];
   var FIRMWARE_MANIFEST_URLS = { "stable": "https://jtenniswood.github.io/espframe/firmware/manifest.json" };
+  var FIRMWARE_DEVICE_SLUG = "immich-frame";
   var DOCS_BASE_URL = "https://jtenniswood.github.io/espframe";
   var WEB_UI_TABS = [{ "id": "immich", "label": "Immich" }, { "id": "settings", "label": "Device" }, { "id": "logs", "label": "Logs" }];
-  var WEB_UI_CARDS = [{ "id": "connection", "label": "Connection", "tab": "immich", "function": "makeConnectionCard", "settings": ["conn_timeout"], "staticEntities": [], "manualEntities": ["immich_url", "api_key"] }, { "id": "frequency", "label": "Frequency", "tab": "immich", "function": "makeFrequencyCard", "settings": ["interval"], "staticEntities": [], "manualEntities": [] }, { "id": "photo_source", "label": "Photo Source", "tab": "immich", "function": "makePhotoSourceCard", "settings": ["photo_source", "album_order"], "staticEntities": ["album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels"], "manualEntities": ["apply_photo_source"] }, { "id": "advanced_filters", "label": "Advanced Filters", "tab": "immich", "function": "makeAdvancedFiltersCard", "settings": ["date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit"], "staticEntities": [], "manualEntities": ["apply_photo_source"] }, { "id": "layout", "label": "Layout", "tab": "immich", "function": "makeLayoutCard", "settings": ["portrait_pairing", "photo_orientation", "display_mode"], "staticEntities": [], "manualEntities": [] }, { "id": "metadata", "label": "Metadata", "tab": "immich", "function": "makeMetadataCard", "settings": ["photo_metadata_date_enabled", "photo_metadata_location_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format"], "staticEntities": [], "manualEntities": [] }, { "id": "screen_brightness", "label": "Screen Brightness", "tab": "settings", "function": "makeScreenBrightnessCard", "settings": ["brightness_day", "brightness_night"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "screen_tone", "label": "Screen Tone", "tab": "settings", "function": "makeScreenToneCard", "settings": ["base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"], "staticEntities": [], "manualEntities": [] }, { "id": "night_schedule", "label": "Night Schedule", "tab": "settings", "function": "makeNightScheduleCard", "settings": ["schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "rotation", "label": "Rotation", "tab": "settings", "function": "makeRotationCard", "settings": ["screen_rotation"], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "clock", "label": "Clock", "tab": "settings", "function": "makeClockCard", "settings": ["clock_format"], "staticEntities": ["show_clock", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"], "manualEntities": [] }, { "id": "firmware", "label": "Firmware", "tab": "settings", "function": "makeFirmwareCard", "settings": ["update_frequency", "auto_update", "firmware_manifest_url"], "staticEntities": ["firmware"], "manualEntities": ["update", "firmware_check"] }, { "id": "device_reboot", "label": "Device Reboot", "tab": "settings", "function": "makeDeviceRebootCard", "settings": [], "staticEntities": [], "manualEntities": ["reboot_screen"] }, { "id": "wifi", "label": "WiFi", "tab": "settings", "function": "makeWifiCard", "settings": [], "staticEntities": ["c6_current_firmware", "c6_available_firmware"], "manualEntities": ["c6_firmware_check", "c6_firmware_install"] }, { "id": "developer", "label": "Developer", "tab": "settings", "function": "makeDeveloperCard", "settings": [], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "backup", "label": "Backup", "tab": "settings", "function": "makeBackupCard", "settings": [], "staticEntities": [], "manualEntities": [] }];
+  var WEB_UI_CARDS = [{ "id": "connection", "label": "Connection", "tab": "immich", "function": "makeConnectionCard", "settings": ["conn_timeout"], "staticEntities": [], "manualEntities": ["immich_url", "api_key"] }, { "id": "frequency", "label": "Frequency", "tab": "immich", "function": "makeFrequencyCard", "settings": ["interval"], "staticEntities": [], "manualEntities": [] }, { "id": "photo_source", "label": "Photo Source", "tab": "immich", "function": "makePhotoSourceCard", "settings": ["photo_source", "album_order"], "staticEntities": ["album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels"], "manualEntities": ["apply_photo_source"] }, { "id": "advanced_filters", "label": "Advanced Filters", "tab": "immich", "function": "makeAdvancedFiltersCard", "settings": ["date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit"], "staticEntities": [], "manualEntities": ["apply_photo_source"] }, { "id": "layout", "label": "Layout", "tab": "immich", "function": "makeLayoutCard", "settings": ["portrait_pairing", "photo_orientation", "display_mode"], "staticEntities": [], "manualEntities": [] }, { "id": "metadata", "label": "Metadata", "tab": "immich", "function": "makeMetadataCard", "settings": ["photo_metadata_date_enabled", "photo_metadata_location_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format"], "staticEntities": [], "manualEntities": [] }, { "id": "screen_brightness", "label": "Screen Brightness", "tab": "settings", "function": "makeScreenBrightnessCard", "settings": ["brightness_day", "brightness_night"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "screen_tone", "label": "Screen Tone", "tab": "settings", "function": "makeScreenToneCard", "settings": ["base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"], "staticEntities": [], "manualEntities": [] }, { "id": "night_schedule", "label": "Night Schedule", "tab": "settings", "function": "makeNightScheduleCard", "settings": ["schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "rotation", "label": "Rotation", "tab": "settings", "function": "makeRotationCard", "settings": ["screen_rotation"], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "clock", "label": "Clock", "tab": "settings", "function": "makeClockCard", "settings": ["clock_format"], "staticEntities": ["show_clock", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"], "manualEntities": [] }, { "id": "firmware", "label": "Firmware", "tab": "settings", "function": "makeFirmwareCard", "settings": ["update_frequency", "auto_update", "c6_auto_update"], "staticEntities": ["firmware", "c6_current_firmware", "c6_available_firmware", "c6_update_status"], "manualEntities": ["update", "firmware_check", "c6_firmware_check", "c6_firmware_install"] }, { "id": "device_reboot", "label": "Device Reboot", "tab": "settings", "function": "makeDeviceRebootCard", "settings": [], "staticEntities": [], "manualEntities": ["reboot_screen"] }, { "id": "developer", "label": "Developer", "tab": "settings", "function": "makeDeveloperCard", "settings": [], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "backup", "label": "Backup", "tab": "settings", "function": "makeBackupCard", "settings": [], "staticEntities": [], "manualEntities": [] }];
   var WEB_UI_LOGS_RETAINED_LINES = 1e3;
   var SUPPORT_URL = "https://www.buymeacoffee.com/jtenniswood";
   var SUPPORT_BUTTON_IMAGE_DATA_URI = "data:image/webp;base64,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";
@@ -60,6 +61,17 @@
     installed_version: "",
     latest_version: "",
     update_available: false,
+    firmware_version_options: [],
+    firmware_versions_loaded: false,
+    firmware_versions_loading: false,
+    firmware_selected_version: "",
+    firmware_checking: false,
+    firmware_installing: false,
+    firmware_uploading: false,
+    firmware_restart_pending: false,
+    firmware_install_error: "",
+    c6_firmware_checking: false,
+    c6_firmware_installing: false,
     brightness_current: 0,
     sunrise: "",
     sunset: "",
@@ -823,6 +835,107 @@ to {
   gap:12px
 }
 
+.fw-subpanels {
+  display:grid;
+  gap:12px
+}
+
+.inline-disclosure {
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:var(--surface)
+}
+
+.inline-disclosure-button {
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:12px 14px;
+  background:transparent;
+  border:0;
+  color:var(--text);
+  font:inherit;
+  font-size:.875rem;
+  font-weight:500;
+  cursor:pointer;
+  text-align:left
+}
+
+.inline-disclosure-button:hover {
+  background:rgba(255,255,255,.03)
+}
+
+.inline-disclosure-button:focus-visible {
+  outline:none;
+  box-shadow:0 0 0 2px var(--accent-soft) inset
+}
+
+.inline-disclosure-right {
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  margin-left:auto
+}
+
+.disclosure-badge {
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  min-height:22px;
+  padding:0 10px 0 9px;
+  border-radius:999px;
+  background:var(--success-soft);
+  color:var(--success);
+  font-size:.66rem;
+  font-weight:500;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  line-height:1;
+  white-space:nowrap
+}
+
+.disclosure-badge-dot {
+  width:7px;
+  height:7px;
+  border-radius:999px;
+  background:var(--success);
+  flex-shrink:0
+}
+
+.inline-disclosure.open .disclosure-badge,
+.disclosure-badge.hidden {
+  display:none
+}
+
+.inline-disclosure-chevron {
+  display:inline-flex;
+  width:20px;
+  height:20px;
+  color:var(--text3);
+  transition:transform .25s ease;
+  flex-shrink:0
+}
+
+.inline-disclosure-chevron svg {
+  width:100%;
+  height:100%
+}
+
+.inline-disclosure-body {
+  display:none;
+  padding:18px 14px 16px
+}
+
+.inline-disclosure.open .inline-disclosure-chevron {
+  transform:rotate(180deg)
+}
+
+.inline-disclosure.open .inline-disclosure-body {
+  display:block
+}
+
 .fw-body .field {
   margin-bottom:0
 }
@@ -837,7 +950,9 @@ to {
   display:flex;
   align-items:center;
   justify-content:space-between;
-  min-height:36px
+  gap:8px;
+  min-height:36px;
+  margin-bottom:8px
 }
 
 .fw-label {
@@ -846,7 +961,30 @@ to {
 
 .fw-status {
   font-size:.8rem;
-  color:var(--text2)
+  color:var(--text2);
+  line-height:1.4;
+  margin-top:8px;
+  text-align:right
+}
+
+.fw-status:empty {
+  display:none
+}
+
+.fw-status.error {
+  color:var(--danger)
+}
+
+.fw-actions,
+.fw-previous-actions {
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+  margin-top:12px
+}
+
+.fw-body .toggle-row {
+  margin-bottom:12px
 }
 
 .field-hint {
@@ -1072,6 +1210,26 @@ to {
 
 .sp-tab-docs {
   gap:4px
+}
+
+.fw-row {
+  flex-direction:column;
+  align-items:flex-start;
+  gap:8px
+}
+
+.fw-actions,
+.fw-previous-actions {
+  justify-content:flex-start
+}
+
+.fw-actions .btn,
+.fw-previous-actions .btn {
+  width:100%
+}
+
+.fw-status {
+  text-align:left
 }
 
 }
@@ -1381,7 +1539,6 @@ to {
   }
   var MAX_PHOTO_ID_FIELD_LENGTH = 255;
   var MAX_NTP_SERVER_LENGTH = 253;
-  var MAX_FIRMWARE_URL_LENGTH = 255;
   var PHOTO_ID_FIELD_TOO_LONG = "List exceeds 255 characters (device limit). Remove IDs or shorten the list.";
   var PHOTO_LABEL_FIELD_TOO_LONG = "Labels exceed 255 characters (device limit). Shorten or remove labels.";
   function postTextValueSet(url, value, useQueryFallback) {
@@ -1626,9 +1783,6 @@ to {
     }
     return url;
   }
-  function normalizeFirmwareManifestUrl(value) {
-    return stripUrlTrailingSlashes(String(value == null ? "" : value).trim());
-  }
   function isValidHttpUrl(value) {
     try {
       var url = new URL(value);
@@ -1733,7 +1887,6 @@ to {
       extractUrlHost,
       extractUrlPort,
       isValidHttpUrl,
-      normalizeFirmwareManifestUrl,
       normalizeImmichUrl,
       normalizeNtpServer,
       normalizeDateTakenFormat,
@@ -1920,7 +2073,7 @@ to {
   function collectState(d) {
     applyEntityToState(d);
   }
-  var INITIAL_FETCH_KEYS = ["firmware", "photo_source", "album_order", "date_filter_mode", "relative_unit", "photo_orientation", "display_mode", "interval", "conn_timeout", "screen_rotation", "photo_metadata_date_format", "photo_metadata_date_taken_format", "clock_format", "update_frequency", "auto_update", "firmware_manifest_url", "date_filter_enabled", "date_from", "date_to", "relative_amount", "schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout", "brightness_day", "brightness_night", "base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override", "portrait_pairing", "photo_metadata_date_enabled", "photo_metadata_location_enabled", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3", "album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels", "sunrise", "sunset", "developer_features_enabled", "c6_current_firmware", "c6_available_firmware"];
+  var INITIAL_FETCH_KEYS = ["firmware", "photo_source", "album_order", "date_filter_mode", "relative_unit", "photo_orientation", "display_mode", "interval", "conn_timeout", "screen_rotation", "photo_metadata_date_format", "photo_metadata_date_taken_format", "clock_format", "update_frequency", "auto_update", "c6_auto_update", "date_filter_enabled", "date_from", "date_to", "relative_amount", "schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout", "brightness_day", "brightness_night", "base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override", "portrait_pairing", "photo_metadata_date_enabled", "photo_metadata_location_enabled", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3", "album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels", "sunrise", "sunset", "developer_features_enabled", "c6_current_firmware", "c6_available_firmware", "c6_update_status"];
   function getEntityIdForStateKey(key) {
     var productSpec = PRODUCT_SETTINGS && PRODUCT_SETTINGS[key];
     if (productSpec && typeof productSpec.entity === "string") return productSpec.entity;
@@ -2062,6 +2215,7 @@ to {
         }
       };
       evtSource.onopen = function() {
+        handleFirmwareReconnect();
       };
     } catch (_) {
       tryRender();
@@ -2940,162 +3094,465 @@ to {
     clkBody.appendChild(ntpServersField());
     return makeCollapsibleCard("Clock", clkBody, true, clockBadge);
   }
+  function isSpecificFirmwareVersion(value) {
+    return /^v[0-9]+(\.[0-9]+){2}([-+][0-9A-Za-z.-]+)?$/i.test(String(value || "").trim());
+  }
+  function firmwareVersionsSame(a, b) {
+    return String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+  }
+  function installedFirmwareVersion() {
+    return String(S.firmware || S.installed_version || "").trim();
+  }
+  function firmwarePublicVersionsUrl() {
+    return new URL("versions.json", FIRMWARE_MANIFEST_URLS.stable).href;
+  }
+  function firmwarePublicAssetUrl(path, baseUrl) {
+    try {
+      var base = new URL(baseUrl);
+      var resolved = new URL(String(path || ""), base);
+      var baseDirectory = base.pathname.slice(0, base.pathname.lastIndexOf("/") + 1);
+      if (resolved.origin !== base.origin || resolved.pathname.indexOf(baseDirectory) !== 0) return "";
+      return resolved.href;
+    } catch (_) {
+      return "";
+    }
+  }
+  function firmwareInfoFromVersionEntry(entry) {
+    if (!entry || typeof entry !== "object") return null;
+    var version = String(entry.version || "").trim();
+    var ota = entry.ota && typeof entry.ota === "object" ? entry.ota : {};
+    var otaPath = String(ota.path || "").trim();
+    var expectedFilename = FIRMWARE_DEVICE_SLUG + ".ota.bin";
+    if (!/^v[0-9]+(\.[0-9]+){2}$/i.test(version) || !otaPath || otaPath.split("/").pop() !== expectedFilename) return null;
+    var otaUrl = firmwarePublicAssetUrl(otaPath, firmwarePublicVersionsUrl());
+    if (!otaUrl) return null;
+    return {
+      version,
+      release_url: String(entry.release_url || ota.release_url || "").trim(),
+      ota_url: otaUrl,
+      ota_filename: expectedFilename,
+      ota_md5: String(ota.md5 || "").trim()
+    };
+  }
+  function firmwareInfosFromVersionsIndex(data) {
+    if (!data || typeof data !== "object" || data.device !== FIRMWARE_DEVICE_SLUG || !Array.isArray(data.versions)) return [];
+    var seen = {};
+    var infos = [];
+    data.versions.some(function(entry) {
+      var info = firmwareInfoFromVersionEntry(entry);
+      var key = info && info.version.toLowerCase();
+      if (!info || seen[key]) return false;
+      seen[key] = true;
+      infos.push(info);
+      return infos.length >= 5;
+    });
+    return infos;
+  }
+  function previousFirmwareInfos() {
+    var installed = installedFirmwareVersion();
+    var latest = S.firmware_version_options && S.firmware_version_options.length ? S.firmware_version_options[0].version : S.latest_version;
+    return (S.firmware_version_options || []).filter(function(info) {
+      return !firmwareVersionsSame(info.version, latest) && !firmwareVersionsSame(info.version, installed);
+    });
+  }
+  function selectedPreviousFirmwareInfo() {
+    var infos = previousFirmwareInfos();
+    for (var i = 0; i < infos.length; i++) {
+      if (firmwareVersionsSame(infos[i].version, S.firmware_selected_version)) return infos[i];
+    }
+    return infos.length ? infos[0] : null;
+  }
+  function latestFirmwareInfo() {
+    return S.firmware_version_options && S.firmware_version_options.length ? S.firmware_version_options[0] : null;
+  }
+  function firmwareUpdateKnownAvailable() {
+    var installed = installedFirmwareVersion();
+    var latest = String(S.latest_version || "").trim();
+    return isSpecificFirmwareVersion(installed) && isSpecificFirmwareVersion(latest) && !firmwareVersionsSame(installed, latest);
+  }
+  function c6FirmwareUpdateKnownAvailable() {
+    var current = String(S.c6_current_firmware || "").trim();
+    var latest = String(S.c6_available_firmware || "").trim();
+    return /\d/.test(current) && /\d/.test(latest) && !firmwareVersionsSame(current, latest);
+  }
+  function refreshPreviousFirmwareUi() {
+    if (!els.fwPreviousPanel || !els.fwVersionSelect) return;
+    var infos = previousFirmwareInfos();
+    var currentOptions = Array.from(els.fwVersionSelect.options).map(function(option) {
+      return option.value;
+    });
+    var nextOptions = infos.map(function(info) {
+      return info.version;
+    });
+    if (currentOptions.join("|") !== nextOptions.join("|")) {
+      els.fwVersionSelect.replaceChildren();
+      infos.forEach(function(info) {
+        var option = document.createElement("option");
+        option.value = info.version;
+        option.textContent = info.version;
+        els.fwVersionSelect.appendChild(option);
+      });
+    }
+    var selected = selectedPreviousFirmwareInfo();
+    S.firmware_selected_version = selected ? selected.version : "";
+    els.fwVersionSelect.value = S.firmware_selected_version;
+    els.fwPreviousPanel.style.display = S.firmware_versions_loaded && infos.length ? "" : "none";
+    var busy = !!(S.firmware_checking || S.firmware_installing || S.firmware_uploading);
+    els.fwVersionSelect.disabled = busy;
+    if (els.fwPreviousInstallBtn) {
+      els.fwPreviousInstallBtn.disabled = busy || !selected;
+      if (S.firmware_uploading) els.fwPreviousInstallBtn.textContent = "Uploading\u2026";
+      else if (S.firmware_installing) els.fwPreviousInstallBtn.textContent = "Installing\u2026";
+      else els.fwPreviousInstallBtn.textContent = "Install";
+    }
+  }
+  function refreshFirmwareUi() {
+    if (els.fwCurrentVersion) els.fwCurrentVersion.textContent = displayVersion(installedFirmwareVersion(), "Dev");
+    if (els.fwLatestVersion) {
+      els.fwLatestVersion.textContent = isSpecificFirmwareVersion(S.latest_version) ? S.latest_version : S.firmware_checking ? "Checking\u2026" : "Not checked";
+    }
+    var available = firmwareUpdateKnownAvailable();
+    setDisclosureBadgeActive(els.firmwareUpdatesBadge, available);
+    setDisclosureBadgeActive(els.autoUpdateBadge, !!S.auto_update);
+    setBadgeActive(els.firmwareCardBadge, available || c6FirmwareUpdateKnownAvailable());
+    if (els.fwAutoToggle) els.fwAutoToggle.className = S.auto_update ? "toggle on" : "toggle";
+    if (els.fwFrequencyField) els.fwFrequencyField.style.display = S.auto_update ? "" : "none";
+    if (els.fwStatus) {
+      els.fwStatus.className = "fw-status" + (S.firmware_install_error ? " error" : "");
+      els.fwStatus.textContent = S.firmware_install_error || "";
+    }
+    if (els.fwActionBtn) {
+      var busy = !!(S.firmware_checking || S.firmware_installing || S.firmware_uploading);
+      els.fwActionBtn.disabled = busy;
+      if (S.firmware_uploading) els.fwActionBtn.textContent = "Uploading\u2026";
+      else if (S.firmware_installing) els.fwActionBtn.textContent = "Installing\u2026";
+      else if (S.firmware_checking) els.fwActionBtn.textContent = "Checking\u2026";
+      else els.fwActionBtn.textContent = available ? "Install Update" : "Check for Update";
+    }
+    refreshPreviousFirmwareUi();
+  }
+  function refreshC6FirmwareUi() {
+    if (els.c6FirmwareCurrent) els.c6FirmwareCurrent.textContent = displayVersion(S.c6_current_firmware, "Unknown");
+    if (els.c6FirmwareLatest) els.c6FirmwareLatest.textContent = displayVersion(S.c6_available_firmware, "Unknown");
+    var available = c6FirmwareUpdateKnownAvailable();
+    setDisclosureBadgeActive(els.c6FirmwareBadge, available);
+    setBadgeActive(els.firmwareCardBadge, firmwareUpdateKnownAvailable() || available);
+    if (els.c6AutoToggle) els.c6AutoToggle.className = S.c6_auto_update ? "toggle on" : "toggle";
+    if (els.c6FirmwareStatus) {
+      var status = String(S.c6_update_status || "");
+      if (S.c6_firmware_installing) els.c6FirmwareStatus.textContent = "Installing\u2026";
+      else if (S.c6_firmware_checking) els.c6FirmwareStatus.textContent = "Checking\u2026";
+      else els.c6FirmwareStatus.textContent = (!available || /^Could not/.test(status)) && status && status !== "Unknown" ? status : "";
+    }
+    if (els.c6FirmwareActionBtn) {
+      var busy = !!(S.c6_firmware_checking || S.c6_firmware_installing);
+      els.c6FirmwareActionBtn.disabled = busy;
+      if (S.c6_firmware_installing) els.c6FirmwareActionBtn.textContent = "Installing\u2026";
+      else if (S.c6_firmware_checking) els.c6FirmwareActionBtn.textContent = "Checking\u2026";
+      else els.c6FirmwareActionBtn.textContent = available ? "Update WiFi Firmware" : "Check for Update";
+    }
+  }
+  function fetchPublicFirmwareVersions() {
+    if (S.firmware_versions_loading) return Promise.resolve(S.firmware_version_options || []);
+    S.firmware_versions_loading = true;
+    return fetch(firmwarePublicVersionsUrl(), { cache: "no-store" }).then(function(response) {
+      if (!response.ok) throw new Error("version_index_unavailable");
+      return response.json();
+    }).then(function(data) {
+      var infos = firmwareInfosFromVersionsIndex(data);
+      S.firmware_version_options = infos;
+      S.firmware_versions_loaded = true;
+      if (infos.length) S.latest_version = infos[0].version;
+      refreshFirmwareUi();
+      return infos;
+    }).catch(function() {
+      S.firmware_version_options = [];
+      S.firmware_versions_loaded = true;
+      refreshFirmwareUi();
+      return [];
+    }).finally(function() {
+      S.firmware_versions_loading = false;
+    });
+  }
+  function applyFirmwareUpdateResponse(data) {
+    if (!data) return false;
+    if (data.current_version) S.installed_version = String(data.current_version);
+    if (data.latest_version || data.value) S.latest_version = String(data.latest_version || data.value);
+    S.update_available = data.state === "UPDATE AVAILABLE" || firmwareUpdateKnownAvailable();
+    refreshFirmwareUi();
+    return S.update_available;
+  }
+  function markFirmwareRestartPending() {
+    S.firmware_uploading = false;
+    S.firmware_installing = true;
+    S.firmware_restart_pending = true;
+    showBanner("Firmware uploaded. Waiting for the display to restart\u2026", "success");
+    refreshFirmwareUi();
+  }
+  function failFirmwareInstall(message) {
+    S.firmware_uploading = false;
+    S.firmware_installing = false;
+    S.firmware_install_error = message || "Firmware update failed.";
+    showBanner(S.firmware_install_error, "error");
+    refreshFirmwareUi();
+  }
+  function installPublicFirmware(info) {
+    if (!info || !info.ota_url || S.firmware_uploading || S.firmware_installing) return Promise.resolve(false);
+    S.firmware_install_error = "";
+    S.firmware_uploading = true;
+    refreshFirmwareUi();
+    var uploadStarted = false;
+    var uploadResponseReceived = false;
+    return fetch(info.ota_url, { cache: "no-store" }).then(function(response) {
+      if (!response.ok) throw new Error("Could not download firmware file (" + response.status + ").");
+      return response.blob();
+    }).then(function(blob) {
+      var form = new FormData();
+      form.append("file", blob, info.ota_filename);
+      uploadStarted = true;
+      return fetch("/update", { method: "POST", body: form });
+    }).then(function(response) {
+      uploadResponseReceived = true;
+      return response.text().catch(function() {
+        return "";
+      }).then(function(responseText) {
+        if (!response.ok) throw new Error("Device rejected firmware upload (" + response.status + ").");
+        if (/update failed/i.test(responseText)) throw new Error("The display reported that the firmware upload failed.");
+        markFirmwareRestartPending();
+        return true;
+      });
+    }).catch(function(error) {
+      if (uploadStarted && !uploadResponseReceived) {
+        markFirmwareRestartPending();
+        return true;
+      }
+      failFirmwareInstall(error && error.message ? error.message : "Could not upload firmware update.");
+      return false;
+    });
+  }
+  function startFirmwareInstall() {
+    if (!firmwareUpdateKnownAvailable()) return;
+    S.firmware_install_error = "";
+    S.firmware_installing = true;
+    refreshFirmwareUi();
+    post(endpoints.update + "/install").then(function() {
+      S.firmware_restart_pending = true;
+    }).catch(function() {
+      var info = latestFirmwareInfo();
+      S.firmware_installing = false;
+      if (info) return installPublicFirmware(info);
+      failFirmwareInstall("Could not start the firmware update.");
+    });
+  }
+  function checkFirmwareUpdate(installAfterCheck) {
+    if (S.firmware_checking || S.firmware_installing) return;
+    S.firmware_install_error = "";
+    S.firmware_checking = true;
+    refreshFirmwareUi();
+    post(endpoints.firmware_check + "/press").then(function() {
+      return delayMs(4e3);
+    }).then(function() {
+      return safeGet(endpoints.update);
+    }).then(function(data) {
+      var available = applyFirmwareUpdateResponse(data);
+      S.firmware_checking = false;
+      if (installAfterCheck && available) startFirmwareInstall();
+      else if (installAfterCheck && latestFirmwareInfo()) installPublicFirmware(latestFirmwareInfo());
+      else refreshFirmwareUi();
+    }).catch(function() {
+      S.firmware_checking = false;
+      failFirmwareInstall("Could not check for a firmware update.");
+    });
+    fetchPublicFirmwareVersions();
+  }
+  function refreshC6FirmwareState() {
+    return Promise.all([
+      safeGet(endpoints.c6_current_firmware),
+      safeGet(endpoints.c6_available_firmware),
+      safeGet(endpoints.c6_update_status)
+    ]).then(function(responses) {
+      if (responses[0]) S.c6_current_firmware = responses[0].value || responses[0].state || S.c6_current_firmware;
+      if (responses[1]) S.c6_available_firmware = responses[1].value || responses[1].state || S.c6_available_firmware;
+      if (responses[2]) S.c6_update_status = responses[2].value || responses[2].state || S.c6_update_status;
+      refreshC6FirmwareUi();
+    });
+  }
+  function handleFirmwareReconnect() {
+    if (!S.firmware_restart_pending) return;
+    S.firmware_restart_pending = false;
+    S.firmware_installing = false;
+    S.firmware_uploading = false;
+    S.firmware_install_error = "";
+    fetchDeviceSettingsState().then(function() {
+      showBanner("Firmware update complete.", "success");
+      if (!isEditingSetting()) renderSettings();
+    }).catch(function() {
+      refreshFirmwareUi();
+    });
+  }
   function makeFirmwareCard() {
     var fwBody = el("div", "fw-body");
-    var versionLabel = textLabel("Installed", displayVersion(S.firmware || S.installed_version, "Dev"));
-    var checkBtn = button("Check for Update", "btn btn-secondary btn-sm");
-    var statusMsg = el("span", "fw-status");
-    var checkWrap = el("div");
-    checkWrap.className = "check-wrap";
-    checkWrap.appendChild(statusMsg);
-    checkWrap.appendChild(checkBtn);
-    var versionBlock = el("div");
-    versionBlock.appendChild(actionRow(versionLabel, checkWrap));
-    fwBody.appendChild(versionBlock);
-    var updatesSection = el("div", "fw-updates");
-    var updateRow = el("div");
-    updatesSection.appendChild(updateRow);
-    fwBody.appendChild(updatesSection);
-    function renderUpdateRow() {
-      updateRow.replaceChildren();
-      if (!S.update_available) return;
-      var label = textLabel("Stable", S.latest_version);
-      var installBtn = button("Install", "btn btn-primary btn-sm", function() {
-        installBtn.disabled = true;
-        installBtn.textContent = "Installing\u2026";
-        post(endpoints.update + "/install");
-      });
-      updateRow.appendChild(actionRow(label, installBtn));
-    }
-    renderUpdateRow();
-    checkBtn.onclick = function() {
-      checkBtn.disabled = true;
-      checkBtn.textContent = "Checking\u2026";
-      statusMsg.textContent = "";
-      post(endpoints.firmware_check + "/press").then(function() {
-        return new Promise(function(r) {
-          setTimeout(r, 4e3);
+    var subpanels = el("div", "fw-subpanels");
+    var updateBody = el("div");
+    var currentRow = el("div", "fw-row");
+    currentRow.appendChild(textLabel("Current version", ""));
+    var currentValue = el("span", "fw-label");
+    currentRow.appendChild(currentValue);
+    updateBody.appendChild(currentRow);
+    els.fwCurrentVersion = currentValue;
+    var latestRow = el("div", "fw-row");
+    latestRow.appendChild(textLabel("Available version", ""));
+    var latestValue = el("span", "fw-label");
+    latestRow.appendChild(latestValue);
+    updateBody.appendChild(latestRow);
+    els.fwLatestVersion = latestValue;
+    var updateActions = el("div", "fw-actions");
+    var updateButton = button("Check for Update", "btn btn-secondary btn-sm", function() {
+      if (firmwareUpdateKnownAvailable()) {
+        if (S.update_available) startFirmwareInstall();
+        else checkFirmwareUpdate(true);
+      } else {
+        checkFirmwareUpdate(false);
+      }
+    });
+    updateActions.appendChild(updateButton);
+    updateBody.appendChild(updateActions);
+    els.fwActionBtn = updateButton;
+    var updateStatus = el("div", "fw-status");
+    updateBody.appendChild(updateStatus);
+    els.fwStatus = updateStatus;
+    var updateBadge = makeDisclosureBadge("Update available", "Firmware update available");
+    els.firmwareUpdatesBadge = updateBadge;
+    subpanels.appendChild(makeInlineDisclosure("Firmware updates", updateBody, false, updateBadge));
+    var autoBody = el("div");
+    var autoBadge = makeDisclosureBadge("On", "Automatic firmware updates on");
+    var autoToggle = toggleSettingRow({
+      label: "Auto Update",
+      value: !!S.auto_update,
+      getValue: function() {
+        return !!S.auto_update;
+      },
+      setValue: function(value) {
+        S.auto_update = value;
+      },
+      onChange: function() {
+        saveSetting("auto_update", S.auto_update).catch(function() {
+          S.auto_update = !S.auto_update;
         });
-      }).then(function() {
-        return safeGet(endpoints.update);
-      }).then(function(data) {
-        var hasUpdate = data && data.value && (data.current_version ? data.current_version !== data.latest_version : data.state === "UPDATE AVAILABLE");
-        if (hasUpdate) {
-          S.update_available = true;
-          S.latest_version = data.latest_version || data.value;
-          renderUpdateRow();
-        }
-        if (!S.update_available) {
-          statusMsg.textContent = "Up to date";
-          statusMsg.style.color = "var(--success)";
-        }
-      }).catch(function() {
-      }).finally(function() {
-        checkBtn.disabled = false;
-        checkBtn.textContent = "Check for Update";
-      });
+        refreshFirmwareUi();
+      }
+    });
+    autoBody.appendChild(autoToggle.field);
+    els.fwAutoToggle = autoToggle.toggle;
+    var frequencyField = field("Update Frequency");
+    frequencyField.appendChild(selectFromOptions(productSettingOptions("update_frequency"), S.update_frequency, function(value) {
+      S.update_frequency = value;
+      saveSetting("update_frequency", value);
+    }));
+    autoBody.appendChild(frequencyField);
+    els.fwFrequencyField = frequencyField;
+    els.autoUpdateBadge = autoBadge;
+    subpanels.appendChild(makeInlineDisclosure("Auto updates", autoBody, false, autoBadge));
+    var wifiBody = el("div");
+    var c6CurrentRow = el("div", "fw-row");
+    c6CurrentRow.appendChild(textLabel("Current", ""));
+    var c6CurrentValue = el("span", "fw-label");
+    c6CurrentRow.appendChild(c6CurrentValue);
+    wifiBody.appendChild(c6CurrentRow);
+    els.c6FirmwareCurrent = c6CurrentValue;
+    var c6LatestRow = el("div", "fw-row");
+    c6LatestRow.appendChild(textLabel("Available", ""));
+    var c6LatestValue = el("span", "fw-label");
+    c6LatestRow.appendChild(c6LatestValue);
+    wifiBody.appendChild(c6LatestRow);
+    els.c6FirmwareLatest = c6LatestValue;
+    var c6AutoToggle = toggleSettingRow({
+      label: "Auto Update",
+      value: !!S.c6_auto_update,
+      getValue: function() {
+        return !!S.c6_auto_update;
+      },
+      setValue: function(value) {
+        S.c6_auto_update = value;
+      },
+      onChange: function() {
+        saveSetting("c6_auto_update", S.c6_auto_update).catch(function() {
+          S.c6_auto_update = !S.c6_auto_update;
+        });
+        refreshC6FirmwareUi();
+      }
+    });
+    wifiBody.appendChild(c6AutoToggle.field);
+    els.c6AutoToggle = c6AutoToggle.toggle;
+    var c6Actions = el("div", "fw-actions");
+    var c6Button = button("Check for Update", "btn btn-secondary btn-sm", function() {
+      if (S.c6_firmware_checking || S.c6_firmware_installing) return;
+      if (c6FirmwareUpdateKnownAvailable()) {
+        S.c6_firmware_installing = true;
+        refreshC6FirmwareUi();
+        post(endpoints.c6_firmware_install + "/press").then(function() {
+          return delayMs(5e3);
+        }).then(refreshC6FirmwareState).catch(function() {
+          S.c6_update_status = "Could not install the WiFi firmware update.";
+          showBanner(S.c6_update_status, "error");
+        }).finally(function() {
+          S.c6_firmware_installing = false;
+          refreshC6FirmwareUi();
+        });
+      } else {
+        S.c6_firmware_checking = true;
+        refreshC6FirmwareUi();
+        post(endpoints.c6_firmware_check + "/press").then(function() {
+          return delayMs(4e3);
+        }).then(refreshC6FirmwareState).catch(function() {
+          S.c6_update_status = "Could not check WiFi firmware.";
+          showBanner(S.c6_update_status, "error");
+        }).finally(function() {
+          S.c6_firmware_checking = false;
+          refreshC6FirmwareUi();
+        });
+      }
+    });
+    c6Actions.appendChild(c6Button);
+    wifiBody.appendChild(c6Actions);
+    els.c6FirmwareActionBtn = c6Button;
+    var c6Status = el("div", "fw-status");
+    wifiBody.appendChild(c6Status);
+    els.c6FirmwareStatus = c6Status;
+    var c6Badge = makeDisclosureBadge("Update available", "WiFi firmware update available");
+    els.c6FirmwareBadge = c6Badge;
+    subpanels.appendChild(makeInlineDisclosure("WiFi firmware", wifiBody, false, c6Badge));
+    var previousBody = el("div");
+    var versionField = field("Version");
+    var versionSelect = document.createElement("select");
+    versionSelect.onchange = function() {
+      S.firmware_selected_version = versionSelect.value;
+      refreshPreviousFirmwareUi();
     };
-    var autoUpdateOptions = ["Disabled"].concat(productSettingOptions("update_frequency"));
-    var currentAutoUpdate = S.auto_update ? S.update_frequency : "Disabled";
-    var freqField = field("Auto updates");
-    freqField.appendChild(
-      selectFromOptions(autoUpdateOptions, currentAutoUpdate, function(v) {
-        if (v === "Disabled") {
-          saveSetting("auto_update", false);
-        } else {
-          saveSetting("auto_update", true);
-          saveSetting("update_frequency", v);
-        }
-      })
-    );
-    fwBody.appendChild(freqField);
-    var firmwareUrlStatus = el("div", "status");
-    function setFirmwareUrlStatus(msg, ok) {
-      setStatus(firmwareUrlStatus, msg, ok ? "green" : "red", ok ? 3e3 : null);
-    }
-    function makeFirmwareUrlField(label, key, placeholder) {
-      var f = field(label);
-      var firmwareUrlInput = input("url", S[key], placeholder, productTextMaxLength(key, MAX_FIRMWARE_URL_LENGTH));
-      var firmwareUrlError = makeFieldError();
-      firmwareUrlInput.onchange = function() {
-        var url = normalizeFirmwareManifestUrl(firmwareUrlInput.value);
-        firmwareUrlError.textContent = "";
-        if (url && !isValidHttpUrl(url)) {
-          firmwareUrlError.textContent = "Use a full http:// or https:// URL";
-          return;
-        }
-        saveSetting(key, url).then(function(r) {
-          if (!r || !r.ok) throw new Error("save_failed");
-          return delayMs(500);
-        }).then(function() {
-          return safeGet(endpoints[key]);
-        }).then(function(resp) {
-          var saved = normalizeFirmwareManifestUrl(resp && (resp.value || resp.state) || url);
-          S[key] = saved;
-          firmwareUrlInput.value = saved;
-          setFirmwareUrlStatus("Update URL saved", true);
-        }).catch(function() {
-          setFirmwareUrlStatus("Failed to save update URL", false);
-        });
-      };
-      f.appendChild(firmwareUrlInput);
-      f.appendChild(firmwareUrlError);
-      return f;
-    }
-    var advancedBody = el("div", "fw-advanced-body");
-    var firmwareUrlsHint = el("div", "field-hint");
-    firmwareUrlsHint.textContent = "Use a custom manifest to check and install firmware from another location.";
-    advancedBody.appendChild(firmwareUrlsHint);
-    advancedBody.appendChild(makeFirmwareUrlField(
-      "Stable Manifest URL",
-      "firmware_manifest_url",
-      FIRMWARE_MANIFEST_URLS.stable
-    ));
-    advancedBody.appendChild(firmwareUrlStatus);
-    var advancedPanel = document.createElement("details");
-    advancedPanel.className = "inline-expander";
-    var advancedSummary = document.createElement("summary");
-    advancedSummary.textContent = "Advanced";
-    advancedPanel.appendChild(advancedSummary);
-    advancedPanel.appendChild(advancedBody);
-    fwBody.appendChild(advancedPanel);
-    return makeCollapsibleCard("Firmware", fwBody, true);
-  }
-  function makeWifiCard() {
-    var wifiBody = el("div", "fw-body");
-    wifiBody.appendChild(actionRow(
-      textLabel("Current C6 firmware", displayVersion(S.c6_current_firmware, "Unknown")),
-      document.createElement("span")
-    ));
-    var availableLabel = textLabel("Available firmware", displayVersion(S.c6_available_firmware, "Unknown"));
-    var actionWrap = el("div");
-    actionWrap.className = "check-wrap";
-    var checkBtn = button("Check", "btn btn-secondary btn-sm", function() {
-      checkBtn.disabled = true;
-      checkBtn.textContent = "Checking...";
-      post(endpoints.c6_firmware_check + "/press").catch(function() {
-      }).finally(function() {
-        setTimeout(function() {
-          checkBtn.disabled = false;
-          checkBtn.textContent = "Check";
-        }, 3e3);
-      });
+    versionField.appendChild(versionSelect);
+    previousBody.appendChild(versionField);
+    els.fwVersionSelect = versionSelect;
+    var previousActions = el("div", "fw-previous-actions");
+    var previousInstall = button("Install", "btn btn-secondary btn-sm", function() {
+      var info = selectedPreviousFirmwareInfo();
+      if (!info) return;
+      if (!window.confirm("Install older firmware " + info.version + "? The display will restart during installation.")) return;
+      installPublicFirmware(info);
     });
-    var installBtn = button("Install", "btn btn-primary btn-sm", function() {
-      installBtn.disabled = true;
-      installBtn.textContent = "Installing...";
-      post(endpoints.c6_firmware_install + "/press").catch(function() {
-      }).finally(function() {
-        setTimeout(function() {
-          installBtn.disabled = false;
-          installBtn.textContent = "Install";
-        }, 3e3);
-      });
-    });
-    actionWrap.appendChild(checkBtn);
-    actionWrap.appendChild(installBtn);
-    wifiBody.appendChild(actionRow(availableLabel, actionWrap));
-    return makeCollapsibleCard("WiFi", wifiBody, true);
+    previousActions.appendChild(previousInstall);
+    previousBody.appendChild(previousActions);
+    els.fwPreviousInstallBtn = previousInstall;
+    var previousPanel = makeInlineDisclosure("Previous firmware", previousBody, false);
+    els.fwPreviousPanel = previousPanel;
+    subpanels.appendChild(previousPanel);
+    fwBody.appendChild(subpanels);
+    var cardBadge = makeBadge(false, "Update available", "Firmware update available");
+    els.firmwareCardBadge = cardBadge;
+    var firmwareCard = makeCollapsibleCard("Firmware", fwBody, true, cardBadge);
+    refreshFirmwareUi();
+    refreshC6FirmwareUi();
+    fetchPublicFirmwareVersions();
+    return firmwareCard;
   }
   function makeDeviceRebootCard() {
     var rebootBody = el("div", "fw-body");
@@ -3157,7 +3614,6 @@ to {
       makeRotationCard,
       makeClockCard,
       makeFirmwareCard,
-      makeWifiCard,
       makeDeviceRebootCard,
       makeDeveloperCard,
       makeBackupCard
@@ -3197,7 +3653,6 @@ to {
       makeRotationCard(),
       makeClockCard(),
       makeFirmwareCard(),
-      makeWifiCard(),
       makeDeveloperCard(),
       makeBackupCard(),
       makeDeviceRebootCard()
@@ -3209,7 +3664,13 @@ to {
     if (!d || !d.id) return;
     var id = d.id;
     var stateSpec = ENTITY_STATE_MAP[id];
-    if (id === "light/Screen: Backlight") {
+    if (id === "update/Firmware: Update") {
+      refreshFirmwareUi();
+    } else if (id === "text_sensor/Firmware: Version") {
+      refreshFirmwareUi();
+    } else if (stateSpec && (stateSpec.key === "c6_current_firmware" || stateSpec.key === "c6_available_firmware" || stateSpec.key === "c6_update_status" || stateSpec.key === "c6_auto_update")) {
+      refreshC6FirmwareUi();
+    } else if (id === "light/Screen: Backlight") {
       S.backlight_on = d.state === "ON";
       if (d.brightness != null) {
         S.brightness = Math.round(d.brightness / 255 * 100);
@@ -3347,14 +3808,51 @@ to {
     if (cls) e.className = cls;
     return e;
   }
-  function makeBadge(isActive) {
+  function makeBadge(isActive, text, label) {
     var badge = el("span", "on-badge" + (isActive ? " active" : ""));
-    badge.textContent = "On";
+    badge.textContent = text || "On";
+    if (label) badge.setAttribute("aria-label", label);
     return badge;
   }
   function setBadgeActive(badge, isActive) {
     if (!badge) return;
     badge.className = "on-badge" + (isActive ? " active" : "");
+  }
+  function makeDisclosureBadge(text, label) {
+    var badge = el("span", "disclosure-badge");
+    if (label) badge.setAttribute("aria-label", label);
+    badge.appendChild(el("span", "disclosure-badge-dot"));
+    badge.appendChild(document.createTextNode(text));
+    return badge;
+  }
+  function setDisclosureBadgeActive(badge, isActive) {
+    if (!badge) return;
+    badge.className = "disclosure-badge" + (isActive ? " active" : " hidden");
+  }
+  function makeInlineDisclosure(title, bodyElement, defaultOpen, badgeEl) {
+    var panel = el("div", "inline-disclosure" + (defaultOpen ? " open" : ""));
+    var disclosureButton = el("button", "inline-disclosure-button");
+    disclosureButton.type = "button";
+    disclosureButton.setAttribute("aria-expanded", defaultOpen ? "true" : "false");
+    var titleEl = el("span");
+    titleEl.textContent = title;
+    var rightWrap = el("span", "inline-disclosure-right");
+    if (badgeEl) rightWrap.appendChild(badgeEl);
+    var chevron = el("span", "inline-disclosure-chevron");
+    chevron.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+    rightWrap.appendChild(chevron);
+    disclosureButton.appendChild(titleEl);
+    disclosureButton.appendChild(rightWrap);
+    var body = el("div", "inline-disclosure-body");
+    body.appendChild(bodyElement);
+    disclosureButton.onclick = function() {
+      var open = !panel.classList.contains("open");
+      panel.classList.toggle("open", open);
+      disclosureButton.setAttribute("aria-expanded", open ? "true" : "false");
+    };
+    panel.appendChild(disclosureButton);
+    panel.appendChild(body);
+    return panel;
   }
   function setStatus(target, msg, type, clearAfterMs) {
     if (!target) return;
@@ -3959,16 +4457,6 @@ to {
           return skipBackupImportField("Tag labels exceed 255 characters - not imported");
         } else {
           trackBackupImportSave(saveSetting("tag_labels", importTagLabels));
-        }
-        return true;
-      case "firmware_updates.manifest_url":
-        var importManifestUrl = normalizeFirmwareManifestUrl(value);
-        if (importManifestUrl.length > MAX_FIRMWARE_URL_LENGTH) {
-          return skipBackupImportField("Stable firmware URL exceeds 255 characters - not imported");
-        } else if (importManifestUrl && !isValidHttpUrl(importManifestUrl)) {
-          return skipBackupImportField("Stable firmware URL was invalid - not imported");
-        } else {
-          trackBackupImportSave(saveSetting("firmware_manifest_url", importManifestUrl));
         }
         return true;
       case "clock.timezone":

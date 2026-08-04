@@ -35,16 +35,11 @@ def check_public_manifest_urls(product: dict, errors: list[str]) -> None:
 
     default_urls = default_public_manifest_urls(product)
     firmware_update = read(ROOT / "common" / "addon" / "firmware_update.yaml", errors)
-    backup_docs = read(ROOT / "docs" / "backup.md", errors)
     docs_workflow = read(ROOT / ".github" / "workflows" / "docs.yml", errors)
     for label, url in default_urls.items():
         if not url.startswith("https://"):
             errors.append(f"Default {label} firmware manifest URL must be an https URL")
-        for filename, text in (
-            ("common/addon/firmware_update.yaml", firmware_update),
-            ("docs/backup.md", backup_docs),
-        ):
-            require_contains(text, url, filename, errors)
+        require_contains(firmware_update, url, "common/addon/firmware_update.yaml", errors)
     require_contains(docs_workflow, "PUBLIC_BASE_URL", ".github/workflows/docs.yml", errors)
     require_contains(docs_workflow, '--base-url "$PUBLIC_BASE_URL"', ".github/workflows/docs.yml", errors)
 
