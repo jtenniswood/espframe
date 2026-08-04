@@ -49,8 +49,6 @@ def check_project_web_server_metadata_shape(product: dict, errors: list[str]) ->
         "factory_firmware_setup_method",
         "factory_firmware_local_use",
         "web_server_public_app_path",
-        "web_server_device_css_include",
-        "web_server_device_js_include",
         "web_server_factory_css_include",
         "web_server_factory_js_include",
         "external_component_git_source_type",
@@ -75,10 +73,14 @@ def check_project_web_server_metadata_shape(product: dict, errors: list[str]) ->
     for field in ("github_release_download_clobber", "github_release_upload_clobber"):
         if not isinstance(project.get(field), bool):
             errors.append(f"project.{field} must be true or false")
-    if "web_server_factory_js_url" not in project or not isinstance(project.get("web_server_factory_js_url"), str):
-        errors.append("project.web_server_factory_js_url must be a string")
-    if "web_server_device_js_url" not in project or not isinstance(project.get("web_server_device_js_url"), str):
-        errors.append("project.web_server_device_js_url must be a string")
+    for field in (
+        "web_server_factory_js_url",
+        "web_server_device_js_url",
+        "web_server_device_css_include",
+        "web_server_device_js_include",
+    ):
+        if field not in project or not isinstance(project.get(field), str):
+            errors.append(f"project.{field} must be a string")
     sorting_groups = project.get("web_server_sorting_groups", [])
     if not isinstance(sorting_groups, list) or not sorting_groups:
         errors.append("project.web_server_sorting_groups must be a non-empty list")
