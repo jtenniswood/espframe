@@ -16,12 +16,22 @@ from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestCom
 from esphome.components.image import (
     CONF_INVERT_ALPHA,
     CONF_TRANSPARENCY,
-    IMAGE_SCHEMA,
     Image_,
     get_image_type_enum,
     get_transparency_enum,
     validate_settings,
 )
+
+try:
+    from esphome.components.image import IMAGE_SCHEMA as _LEGACY_IMAGE_SCHEMA
+except ImportError:
+    from esphome.components.image import (
+        IMAGE_TYPE,
+        validate_transparency,
+        validate_type,
+    )
+
+    _LEGACY_IMAGE_SCHEMA = None
 
 try:
     from esphome.components.image import add_metadata as _add_image_metadata
@@ -204,8 +214,27 @@ def remove_options(*options):
     }
 
 
+if _LEGACY_IMAGE_SCHEMA is not None:
+    _REMOTE_IMAGE_BASE_SCHEMA = _LEGACY_IMAGE_SCHEMA.extend(
+        remove_options(CONF_FILE, CONF_INVERT_ALPHA, CONF_DITHER)
+    )
+else:
+    # ESPHome 2026.7 made images platform components and removed IMAGE_SCHEMA.
+    # Runtime-backed images now define their own common image options.
+    _REMOTE_IMAGE_BASE_SCHEMA = cv.Schema(
+        {
+            cv.Optional(CONF_RESIZE): cv.dimensions,
+            cv.Required(CONF_TYPE): validate_type(IMAGE_TYPE),
+            cv.Optional(CONF_BYTE_ORDER): cv.one_of(
+                "BIG_ENDIAN", "LITTLE_ENDIAN", upper=True
+            ),
+            cv.Optional(CONF_TRANSPARENCY, default="OPAQUE"): validate_transparency(),
+        }
+    )
+
+
 ONLINE_IMAGE_SCHEMA = (
-    IMAGE_SCHEMA.extend(remove_options(CONF_FILE, CONF_INVERT_ALPHA, CONF_DITHER))
+    _REMOTE_IMAGE_BASE_SCHEMA
     .extend(
         {
             cv.Required(CONF_ID): cv.declare_id(OnlineImage),

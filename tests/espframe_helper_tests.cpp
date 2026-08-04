@@ -283,13 +283,18 @@ static void test_immich_request_state() {
 
   state.begin_memory_search();
   assert(state.memory_window_offset == -2);
+  assert(state.memory_asset_id.empty());
   state.add_memory_image("asset-a");
+  assert(state.memory_image_count == 1);
+  assert(state.memory_asset_id == "asset-a");
   state.add_memory_image("");
+  assert(state.memory_image_count == 1);
   state.add_memory_image("asset-b");
   assert(state.memory_image_count == 2);
-  assert(state.select_memory_image(1));
+  // One candidate is kept and replaced with probability 1/n; the stubbed
+  // esp_random() always returns zero, so every replacement roll succeeds and the
+  // most recent asset wins.
   assert(state.memory_asset_id == "asset-b");
-  assert(!state.select_memory_image(2));
   assert(state.advance_memory_window());
   assert(state.memory_window_offset == -1);
 
