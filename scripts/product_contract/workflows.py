@@ -2230,7 +2230,7 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         "Verify firmware assets",
         [
             "python3 scripts/firmware_release.py verify-directory",
-            "--allow-missing",
+            "--allow-missing-slugs immich-frame-v2",
         ],
         workflow_texts,
         errors,
@@ -2241,7 +2241,7 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         [
             "python3 scripts/firmware_release.py verify-pages",
             '--base-url "$PUBLIC_BASE_URL"',
-            "--allow-missing",
+            "--allow-missing-slugs immich-frame-v2",
         ],
         workflow_texts,
         errors,
@@ -2309,6 +2309,12 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         require_contains(
             docs_workflow,
             '--slugs $DEVICE_SLUGS',
+            ".github/workflows/docs.yml",
+            errors,
+        )
+        require_contains(
+            docs_workflow,
+            "--allow-missing-slugs immich-frame-v2",
             ".github/workflows/docs.yml",
             errors,
         )

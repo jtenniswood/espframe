@@ -110,7 +110,7 @@ jobs:
             --source "$STABLE_MANIFEST_DIR" \
             --dir . \
             --slugs $DEVICE_SLUGS \
-            --allow-missing
+            --allow-missing-slugs immich-frame-v2
 
       - name: Download firmware from latest pre-release
         env:
@@ -147,7 +147,7 @@ jobs:
           --version "$RELEASE_TAG"
           --dir firmware
           --slugs $DEVICE_SLUGS
-          --allow-missing
+          --allow-missing-slugs immich-frame-v2
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v7
@@ -209,4 +209,4 @@ jobs:
           --slugs $DEVICE_SLUGS
           --retries 10
           --delay 15
-          --allow-missing
+          --allow-missing-slugs immich-frame-v2

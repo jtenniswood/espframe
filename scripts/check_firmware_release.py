@@ -212,7 +212,7 @@ def test_optional_stable_verification_skips_fully_missing_device() -> None:
             "--version", VERSION,
             "--dir", str(base),
             "--slugs", REAL_DEVICE.slug, NESTED_DEVICE.slug,
-            "--allow-missing",
+            "--allow-missing-slugs", NESTED_DEVICE.slug,
         ])
 
 
@@ -226,7 +226,18 @@ def test_optional_stable_verification_rejects_partial_device_assets() -> None:
             "--version", VERSION,
             "--dir", str(base),
             "--slugs", NESTED_DEVICE.slug,
-            "--allow-missing",
+            "--allow-missing-slugs", NESTED_DEVICE.slug,
+        ])
+
+
+def test_optional_stable_verification_requires_existing_device() -> None:
+    with TemporaryDirectory() as tmp:
+        run_fails([
+            "verify-directory",
+            "--version", VERSION,
+            "--dir", tmp,
+            "--slugs", REAL_DEVICE.slug, NESTED_DEVICE.slug,
+            "--allow-missing-slugs", NESTED_DEVICE.slug,
         ])
 
 
@@ -452,7 +463,26 @@ def test_public_pages_verification_allows_unreleased_device() -> None:
                 "--version", VERSION,
                 "--base-url", f"http://127.0.0.1:{server.server_port}",
                 "--slugs", REAL_SLUG, NESTED_DEVICE.slug,
-                "--allow-missing",
+                "--allow-missing-slugs", NESTED_DEVICE.slug,
+            ])
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+
+
+def test_public_pages_verification_requires_existing_device() -> None:
+    with TemporaryDirectory() as tmp:
+        handler = partial(QuietHandler, directory=tmp)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            run_fails([
+                "verify-pages",
+                "--version", VERSION,
+                "--base-url", f"http://127.0.0.1:{server.server_port}",
+                "--slugs", REAL_SLUG, NESTED_DEVICE.slug,
+                "--allow-missing-slugs", NESTED_DEVICE.slug,
             ])
         finally:
             server.shutdown()

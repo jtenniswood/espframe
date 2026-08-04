@@ -349,9 +349,15 @@ def manifest_version(path: Path) -> str:
     return version
 
 
-def verify_directory(base_dir: Path, slugs: list[str], version: str, allow_missing: bool = False) -> None:
+def verify_directory(
+    base_dir: Path,
+    slugs: list[str],
+    version: str,
+    allow_missing_slugs: set[str] | None = None,
+) -> None:
+    optional_slugs = allow_missing_slugs or set()
     for slug in slugs:
-        release_files = locate_release_files(base_dir, slug, allow_missing=allow_missing)
+        release_files = locate_release_files(base_dir, slug, allow_missing=slug in optional_slugs)
         if release_files is None:
             continue
         manifest, factory, ota = release_files
@@ -369,8 +375,10 @@ def stage_release_assets(
     slugs: list[str],
     beta: bool = False,
     allow_missing: bool = False,
+    allow_missing_slugs: set[str] | None = None,
 ) -> None:
     target_root = target_root.resolve()
+    optional_slugs = allow_missing_slugs or set()
     for slug in slugs:
         source_manifest = source_dir / f"{slug}.manifest.json"
         source_factory = source_dir / f"{slug}.factory.bin"
@@ -380,7 +388,7 @@ def stage_release_assets(
             (source_factory, "factory firmware"),
             (source_ota, "OTA firmware"),
         )
-        if allow_missing and not any(source.is_file() for source, _ in sources):
+        if (allow_missing or slug in optional_slugs) and not any(source.is_file() for source, _ in sources):
             continue
         for source, label in sources:
             require_file(source, label)
@@ -447,8 +455,9 @@ def verify_pages(
     version: str,
     retries: int,
     delay: float,
-    allow_missing: bool = False,
+    allow_missing_slugs: set[str] | None = None,
 ) -> None:
+    optional_slugs = allow_missing_slugs or set()
     last_error: Exception | None = None
     for attempt in range(1, retries + 1):
         try:
@@ -458,7 +467,7 @@ def verify_pages(
                     try:
                         download_and_verify_public_slug(base_url, slug, version, out_dir, beta=False)
                     except urllib.error.HTTPError as exc:
-                        if allow_missing and exc.code == 404:
+                        if slug in optional_slugs and exc.code == 404:
                             continue
                         raise
                     try:
@@ -524,7 +533,12 @@ def cmd_verify_files(args: argparse.Namespace) -> None:
 
 
 def cmd_verify_directory(args: argparse.Namespace) -> None:
-    verify_directory(Path(args.dir), args.slugs, args.version, allow_missing=args.allow_missing)
+    verify_directory(
+        Path(args.dir),
+        args.slugs,
+        args.version,
+        allow_missing_slugs=set(args.allow_missing_slugs),
+    )
 
 
 def cmd_stage_directory(args: argparse.Namespace) -> None:
@@ -534,6 +548,7 @@ def cmd_stage_directory(args: argparse.Namespace) -> None:
         args.slugs,
         beta=args.beta,
         allow_missing=args.allow_missing,
+        allow_missing_slugs=set(args.allow_missing_slugs),
     )
 
 
@@ -544,7 +559,7 @@ def cmd_verify_pages(args: argparse.Namespace) -> None:
         args.version,
         args.retries,
         args.delay,
-        allow_missing=args.allow_missing,
+        allow_missing_slugs=set(args.allow_missing_slugs),
     )
 
 
@@ -578,7 +593,7 @@ def build_parser() -> argparse.ArgumentParser:
     verify_directory_cmd.add_argument("--version", required=True)
     verify_directory_cmd.add_argument("--dir", required=True)
     verify_directory_cmd.add_argument("--slugs", nargs="+", required=True)
-    verify_directory_cmd.add_argument("--allow-missing", action="store_true")
+    verify_directory_cmd.add_argument("--allow-missing-slugs", nargs="+", default=[])
     verify_directory_cmd.set_defaults(func=cmd_verify_directory)
 
     stage_directory_cmd = sub.add_parser("stage-directory", help="Stage release assets at their public paths")
@@ -587,6 +602,7 @@ def build_parser() -> argparse.ArgumentParser:
     stage_directory_cmd.add_argument("--slugs", nargs="+", required=True)
     stage_directory_cmd.add_argument("--beta", action="store_true")
     stage_directory_cmd.add_argument("--allow-missing", action="store_true")
+    stage_directory_cmd.add_argument("--allow-missing-slugs", nargs="+", default=[])
     stage_directory_cmd.set_defaults(func=cmd_stage_directory)
 
     verify_pages_cmd = sub.add_parser("verify-pages", help="Verify public GitHub Pages firmware")
@@ -595,7 +611,7 @@ def build_parser() -> argparse.ArgumentParser:
     verify_pages_cmd.add_argument("--slugs", nargs="+", required=True)
     verify_pages_cmd.add_argument("--retries", type=int, default=1)
     verify_pages_cmd.add_argument("--delay", type=float, default=15)
-    verify_pages_cmd.add_argument("--allow-missing", action="store_true")
+    verify_pages_cmd.add_argument("--allow-missing-slugs", nargs="+", default=[])
     verify_pages_cmd.set_defaults(func=cmd_verify_pages)
 
     return parser
