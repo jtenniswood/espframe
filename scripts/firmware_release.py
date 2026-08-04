@@ -111,11 +111,11 @@ def public_manifest_name(slug: str, beta: bool = False) -> str:
     return Path(public_manifest_path(slug, beta=beta)).name
 
 
-def manifest_names(slug: str, beta: bool = False) -> list[str]:
+def manifest_names(slug: str, beta: bool = False, include_public_name: bool = True) -> list[str]:
     public_name = public_manifest_name(slug, beta=beta)
-    names = [f"{slug}.manifest.json", public_name]
-    if slug not in DEVICES or public_name == "manifest.json":
-        names.append("manifest.json")
+    names = [f"{slug}.manifest.json"]
+    if include_public_name:
+        names.append(public_name)
     result: list[str] = []
     for name in names:
         if name not in result:
@@ -278,12 +278,16 @@ def public_manifest_directory(base_dir: Path, slug: str, beta: bool = False) -> 
 
 
 def locate_release_files(base_dir: Path, slug: str) -> tuple[Path, Path, Path]:
-    dirs = list(dict.fromkeys([public_manifest_directory(base_dir, slug), base_dir / slug, base_dir]))
+    public_dir = public_manifest_directory(base_dir, slug)
+    dirs = list(dict.fromkeys([public_dir, base_dir / slug, base_dir]))
     manifests = []
     factories = []
     otas = []
     for directory in dirs:
-        manifests.extend(directory / name for name in manifest_names(slug))
+        manifests.extend(
+            directory / name
+            for name in manifest_names(slug, include_public_name=directory == public_dir)
+        )
         factories.append(directory / f"{slug}.factory.bin")
         otas.append(directory / f"{slug}.ota.bin")
 
@@ -300,8 +304,9 @@ def locate_release_files(base_dir: Path, slug: str) -> tuple[Path, Path, Path]:
 
 
 def locate_beta_files(base_dir: Path, slug: str) -> tuple[Path, Path | None, Path] | None:
+    public_dir = public_manifest_directory(base_dir, slug, beta=True)
     dirs = list(dict.fromkeys([
-        public_manifest_directory(base_dir, slug, beta=True),
+        public_dir,
         base_dir / slug / "beta",
         base_dir / "beta" / slug,
         base_dir / "beta",
@@ -310,7 +315,10 @@ def locate_beta_files(base_dir: Path, slug: str) -> tuple[Path, Path | None, Pat
     factories = []
     otas = []
     for directory in dirs:
-        manifests.extend(directory / name for name in manifest_names(slug, beta=True))
+        manifests.extend(
+            directory / name
+            for name in manifest_names(slug, beta=True, include_public_name=directory == public_dir)
+        )
         factories.append(directory / f"{slug}.factory.bin")
         otas.append(directory / f"{slug}.ota.bin")
 

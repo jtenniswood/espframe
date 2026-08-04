@@ -153,20 +153,36 @@ def test_stage_directory_uses_each_devices_public_paths() -> None:
 def test_optional_beta_staging_skips_fully_missing_device() -> None:
     with TemporaryDirectory() as tmp:
         base = Path(tmp)
+        stable_source = base / "firmware"
         beta_source = base / "firmware" / "beta"
         beta_source.mkdir(parents=True)
+        slugs = [REAL_DEVICE.slug, NESTED_DEVICE.slug]
+        for slug in slugs:
+            make_release_files(stable_source, slug=slug)
         make_release_files(beta_source, slug=REAL_DEVICE.slug, version=BETA_VERSION)
 
         run_ok([
             "stage-directory",
+            "--source", str(stable_source),
+            "--dir", str(base),
+            "--slugs", *slugs,
+        ])
+        run_ok([
+            "stage-directory",
             "--source", str(beta_source),
             "--dir", str(base),
-            "--slugs", REAL_DEVICE.slug, NESTED_DEVICE.slug,
+            "--slugs", *slugs,
             "--beta",
             "--allow-missing",
         ])
         assert (base / REAL_DEVICE.public_beta_manifest).is_file()
         assert not (base / NESTED_DEVICE.public_beta_manifest).exists()
+        run_ok([
+            "verify-directory",
+            "--version", VERSION,
+            "--dir", str(stable_source),
+            "--slugs", *slugs,
+        ])
 
 
 def test_optional_beta_staging_rejects_partial_device_assets() -> None:
