@@ -117,13 +117,15 @@ def check_firmware_update_metadata(product: dict, errors: list[str]) -> None:
     for needle in (
         "update_interval: 24h",
         "on_update_available:",
-        "switch.is_on: c6_auto_update_switch",
+        "id(c6_auto_update_switch).state && !id(c6_manual_check_only)",
         "update.perform:",
         "name: \"WiFi Firmware: Auto Update\"",
         "optimistic: true",
         "restore_mode: RESTORE_DEFAULT_ON",
         "on_turn_on:",
         "update.check:",
+        "id(c6_manual_check_only) = true;",
+        "id(c6_manual_check_only) = false;",
     ):
         require_contains(
             c6_firmware_yaml,

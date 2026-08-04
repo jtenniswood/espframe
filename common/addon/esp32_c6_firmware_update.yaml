@@ -6,6 +6,11 @@
 # enabled by default and can be disabled from the setup page or Home Assistant.
 # =============================================================================
 
+globals:
+  - id: c6_manual_check_only
+    type: bool
+    initial_value: 'false'
+
 update:
   - platform: esp32_hosted
     id: esp32_c6_update
@@ -17,7 +22,7 @@ update:
       then:
         - if:
             condition:
-              switch.is_on: c6_auto_update_switch
+              lambda: 'return id(c6_auto_update_switch).state && !id(c6_manual_check_only);'
             then:
               - logger.log:
                   level: WARN
@@ -119,5 +124,8 @@ button:
         - logger.log:
             level: WARN
             format: "Checking if ESP32-C6 firmware update is available..."
+        - lambda: 'id(c6_manual_check_only) = true;'
         - update.check:
             id: esp32_c6_update
+        - delay: 15s
+        - lambda: 'id(c6_manual_check_only) = false;'
