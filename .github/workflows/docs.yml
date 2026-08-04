@@ -106,14 +106,10 @@ jobs:
               --dir "$STABLE_MANIFEST_DIR" \
               --clobber 2>/dev/null || true
           done
-          if [ -f "${STABLE_MANIFEST_DIR}/${DEFAULT_DEVICE_SLUG}.manifest.json" ]; then
-            cp "${STABLE_MANIFEST_DIR}/${DEFAULT_DEVICE_SLUG}.manifest.json" "$DEFAULT_PUBLIC_MANIFEST"
-          else
-            gh release download "$RELEASE_TAG" \
-              --pattern "$(basename "$DEFAULT_PUBLIC_MANIFEST")" \
-              --dir "$STABLE_MANIFEST_DIR" \
-              --clobber
-          fi
+          python3 scripts/firmware_release.py stage-directory \
+            --source "$STABLE_MANIFEST_DIR" \
+            --dir . \
+            --slugs $DEVICE_SLUGS
 
       - name: Download firmware from latest pre-release
         env:
@@ -136,14 +132,11 @@ jobs:
                 --dir "$BETA_MANIFEST_DIR" \
                 --clobber 2>/dev/null || true
             done
-            if [ -f "${BETA_MANIFEST_DIR}/${DEFAULT_DEVICE_SLUG}.manifest.json" ]; then
-              cp "${BETA_MANIFEST_DIR}/${DEFAULT_DEVICE_SLUG}.manifest.json" "$DEFAULT_PUBLIC_BETA_MANIFEST"
-            else
-              gh release download "$BETA_TAG" \
-                --pattern "$(basename "$DEFAULT_PUBLIC_BETA_MANIFEST")" \
-                --dir "$BETA_MANIFEST_DIR" \
-                --clobber 2>/dev/null || true
-            fi
+            python3 scripts/firmware_release.py stage-directory \
+              --source "$BETA_MANIFEST_DIR" \
+              --dir . \
+              --slugs $DEVICE_SLUGS \
+              --beta
           fi
 
       - name: Verify firmware assets

@@ -2284,23 +2284,45 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             if public_manifest:
                 public_manifest_dirs.append(Path(public_manifest).parent.as_posix())
         for prefix in dict.fromkeys(public_manifest_dirs):
-            env_name = "DEFAULT_PUBLIC_BETA_MANIFEST" if prefix.endswith("/beta") else "DEFAULT_PUBLIC_MANIFEST"
             dir_name = "BETA_MANIFEST_DIR" if prefix.endswith("/beta") else "STABLE_MANIFEST_DIR"
+            env_name = "DEFAULT_PUBLIC_BETA_MANIFEST" if prefix.endswith("/beta") else "DEFAULT_PUBLIC_MANIFEST"
             require_contains(
                 docs_workflow,
                 f'{dir_name}=$(dirname "${env_name}")',
                 ".github/workflows/docs.yml",
                 errors,
             )
+        has_beta_manifests = any(
+            str(devices_by_slug.get(slug, {}).get("public_beta_manifest", "")).strip()
+            for slug in devices_by_slug
+        )
+        require_contains(
+            docs_workflow,
+            'python3 scripts/firmware_release.py stage-directory',
+            ".github/workflows/docs.yml",
+            errors,
+        )
+        require_contains(
+            docs_workflow,
+            '--slugs $DEVICE_SLUGS',
+            ".github/workflows/docs.yml",
+            errors,
+        )
+        for stage_argument in (
+            '--source "$STABLE_MANIFEST_DIR"',
+            '--source "$BETA_MANIFEST_DIR"',
+            "--dir .",
+        ):
             require_contains(
                 docs_workflow,
-                f'if [ -f "${{{dir_name}}}/${{DEFAULT_DEVICE_SLUG}}.manifest.json" ]; then',
+                stage_argument,
                 ".github/workflows/docs.yml",
                 errors,
             )
+        if has_beta_manifests:
             require_contains(
                 docs_workflow,
-                f'cp "${{{dir_name}}}/${{DEFAULT_DEVICE_SLUG}}.manifest.json" "${env_name}"',
+                "--beta",
                 ".github/workflows/docs.yml",
                 errors,
             )

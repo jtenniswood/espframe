@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import re
+import shutil
 import sys
 import time
 import urllib.error
@@ -269,8 +270,15 @@ def find_first(paths: list[Path]) -> Path | None:
     return None
 
 
+def public_manifest_directory(base_dir: Path, slug: str, beta: bool = False) -> Path:
+    path = Path(public_manifest_path(slug, beta=beta))
+    if path.parts and path.parts[0] == base_dir.name:
+        path = Path(*path.parts[1:])
+    return base_dir / path.parent
+
+
 def locate_release_files(base_dir: Path, slug: str) -> tuple[Path, Path, Path]:
-    dirs = [base_dir / slug, base_dir]
+    dirs = list(dict.fromkeys([public_manifest_directory(base_dir, slug), base_dir / slug, base_dir]))
     manifests = []
     factories = []
     otas = []
@@ -292,7 +300,12 @@ def locate_release_files(base_dir: Path, slug: str) -> tuple[Path, Path, Path]:
 
 
 def locate_beta_files(base_dir: Path, slug: str) -> tuple[Path, Path | None, Path] | None:
-    dirs = [base_dir / slug / "beta", base_dir / "beta" / slug, base_dir / "beta"]
+    dirs = list(dict.fromkeys([
+        public_manifest_directory(base_dir, slug, beta=True),
+        base_dir / slug / "beta",
+        base_dir / "beta" / slug,
+        base_dir / "beta",
+    ]))
     manifests = []
     factories = []
     otas = []
@@ -330,6 +343,34 @@ def verify_directory(base_dir: Path, slugs: list[str], version: str) -> None:
         if beta is not None:
             beta_manifest, beta_factory, beta_ota = beta
             verify_files(slug, manifest_version(beta_manifest), beta_manifest, beta_factory, beta_ota)
+
+
+def stage_release_assets(source_dir: Path, target_root: Path, slugs: list[str], beta: bool = False) -> None:
+    target_root = target_root.resolve()
+    for slug in slugs:
+        source_manifest = source_dir / f"{slug}.manifest.json"
+        source_factory = source_dir / f"{slug}.factory.bin"
+        source_ota = source_dir / f"{slug}.ota.bin"
+        for source, label in (
+            (source_manifest, "firmware manifest"),
+            (source_factory, "factory firmware"),
+            (source_ota, "OTA firmware"),
+        ):
+            require_file(source, label)
+
+        target_manifest = (target_root / public_manifest_path(slug, beta=beta)).resolve()
+        if target_root != target_manifest and target_root not in target_manifest.parents:
+            raise FirmwareReleaseError(f"Public manifest path escapes output directory: {target_manifest}")
+        target_dir = target_manifest.parent
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        for source, target in (
+            (source_manifest, target_manifest),
+            (source_factory, target_dir / source_factory.name),
+            (source_ota, target_dir / source_ota.name),
+        ):
+            if source.resolve() != target.resolve():
+                shutil.copy2(source, target)
 
 
 def fetch_url(url: str, timeout: int = 30) -> bytes:
@@ -447,6 +488,10 @@ def cmd_verify_directory(args: argparse.Namespace) -> None:
     verify_directory(Path(args.dir), args.slugs, args.version)
 
 
+def cmd_stage_directory(args: argparse.Namespace) -> None:
+    stage_release_assets(Path(args.source), Path(args.dir), args.slugs, beta=args.beta)
+
+
 def cmd_verify_pages(args: argparse.Namespace) -> None:
     verify_pages(args.base_url, args.slugs, args.version, args.retries, args.delay)
 
@@ -482,6 +527,13 @@ def build_parser() -> argparse.ArgumentParser:
     verify_directory_cmd.add_argument("--dir", required=True)
     verify_directory_cmd.add_argument("--slugs", nargs="+", required=True)
     verify_directory_cmd.set_defaults(func=cmd_verify_directory)
+
+    stage_directory_cmd = sub.add_parser("stage-directory", help="Stage release assets at their public paths")
+    stage_directory_cmd.add_argument("--source", required=True)
+    stage_directory_cmd.add_argument("--dir", required=True)
+    stage_directory_cmd.add_argument("--slugs", nargs="+", required=True)
+    stage_directory_cmd.add_argument("--beta", action="store_true")
+    stage_directory_cmd.set_defaults(func=cmd_stage_directory)
 
     verify_pages_cmd = sub.add_parser("verify-pages", help="Verify public GitHub Pages firmware")
     verify_pages_cmd.add_argument("--version", required=True)

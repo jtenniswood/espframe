@@ -1116,8 +1116,7 @@
     "*.ota.bin"
   ],
   "release_manifest_download_patterns": [
-    "${SLUG}.manifest.json",
-    "manifest.json"
+    "${SLUG}.manifest.json"
   ],
   "release_uploaded_verify_patterns": [
     "*.manifest.json",

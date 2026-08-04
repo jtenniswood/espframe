@@ -23,6 +23,10 @@ CHIP = "ESP32-S3"
 PROJECT_NAME = firmware_release.PROJECT_NAME
 REAL_DEVICE = next(iter(firmware_release.DEVICES.values()))
 REAL_SLUG = REAL_DEVICE.slug
+NESTED_DEVICE = next(
+    device for device in firmware_release.DEVICES.values()
+    if len(Path(device.public_manifest).parts) > 2
+)
 
 
 class QuietHandler(SimpleHTTPRequestHandler):
@@ -101,6 +105,49 @@ def test_valid_files_and_directory() -> None:
             "--ota", str(ota),
         ])
         run_ok(["verify-directory", "--version", VERSION, "--dir", str(base), "--slugs", SLUG])
+
+
+def test_stage_directory_uses_each_devices_public_paths() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        stable_source = base / "firmware"
+        beta_source = stable_source / "beta"
+        stable_source.mkdir()
+        beta_source.mkdir()
+        slugs = [REAL_DEVICE.slug, NESTED_DEVICE.slug]
+        for slug in slugs:
+            make_release_files(stable_source, slug=slug)
+            make_release_files(beta_source, slug=slug, version=BETA_VERSION)
+
+        run_ok([
+            "stage-directory",
+            "--source", str(stable_source),
+            "--dir", str(base),
+            "--slugs", *slugs,
+        ])
+        run_ok([
+            "stage-directory",
+            "--source", str(beta_source),
+            "--dir", str(base),
+            "--slugs", *slugs,
+            "--beta",
+        ])
+
+        stable_manifest = base / NESTED_DEVICE.public_manifest
+        beta_manifest = base / NESTED_DEVICE.public_beta_manifest
+        assert stable_manifest.is_file()
+        assert beta_manifest.is_file()
+        assert (stable_manifest.parent / f"{NESTED_DEVICE.slug}.factory.bin").is_file()
+        assert (stable_manifest.parent / f"{NESTED_DEVICE.slug}.ota.bin").is_file()
+        assert (beta_manifest.parent / f"{NESTED_DEVICE.slug}.factory.bin").is_file()
+        assert (beta_manifest.parent / f"{NESTED_DEVICE.slug}.ota.bin").is_file()
+
+        run_ok([
+            "verify-directory",
+            "--version", VERSION,
+            "--dir", str(base / "firmware"),
+            "--slugs", *slugs,
+        ])
 
 
 def test_inject_replaces_factory_placeholder() -> None:
