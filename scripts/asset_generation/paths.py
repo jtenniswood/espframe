@@ -25,5 +25,6 @@ WEB_MODULE_PATHS = {
 }
 WEB_COMPAT_HELPERS_PATH = WEB_SRC_DIR / "compat.ts"
 WEB_STYLE_PATH = WEB_SRC_DIR / "style.css"
+WEB_SUPPORT_BUTTON_IMAGE_PATH = WEB_SRC_DIR / "buy_me_a_coffee_button.webp.b64"
 WEB_PUBLIC_STYLE_PATH = ROOT / "docs" / "public" / "webserver" / "style.css"
 WEB_APP_PATH = ROOT / "docs" / "public" / "webserver" / "app.js"

@@ -13,6 +13,7 @@ from asset_generation.paths import (
     WEB_MODULE_PATHS,
     WEB_SRC_DIR,
     WEB_STYLE_PATH,
+    WEB_SUPPORT_BUTTON_IMAGE_PATH,
     WEB_TEMPLATE_PATH,
 )
 from asset_generation.timezones import timezone_labels, timezone_options
@@ -134,7 +135,13 @@ def compile_typescript(source: str) -> str:
 
 
 def web_app_bundle() -> str:
-    source_paths = [WEB_TEMPLATE_PATH, WEB_COMPAT_HELPERS_PATH, WEB_STYLE_PATH, *WEB_MODULE_PATHS.values()]
+    source_paths = [
+        WEB_TEMPLATE_PATH,
+        WEB_COMPAT_HELPERS_PATH,
+        WEB_STYLE_PATH,
+        WEB_SUPPORT_BUTTON_IMAGE_PATH,
+        *WEB_MODULE_PATHS.values(),
+    ]
     if not all(path.exists() for path in source_paths):
         raise RuntimeError("Webserver sources are missing. Run with --bootstrap-webserver once.")
 
@@ -163,6 +170,10 @@ def web_app_bundle() -> str:
     web_ui_cards_json = json.dumps(web_ui_cards_metadata(), separators=(",", ":"))
     web_ui_logs_retained_lines_json = json.dumps(load_product()["project"].get("web_ui_logs_retained_lines"), separators=(",", ":"))
     support_url_json = json.dumps(project_value("support_url"), separators=(",", ":"))
+    support_button_image_data_uri_json = json.dumps(
+        "data:image/webp;base64," + WEB_SUPPORT_BUTTON_IMAGE_PATH.read_text().strip(),
+        separators=(",", ":"),
+    )
     css_json = json.dumps(css, separators=(",", ":"))
     bundle = template
     for placeholder, module_source in web_modules.items():
@@ -187,6 +198,7 @@ def web_app_bundle() -> str:
         "__ESPFRAME_WEB_UI_CARDS__": web_ui_cards_json,
         "__ESPFRAME_WEB_UI_LOGS_RETAINED_LINES__": web_ui_logs_retained_lines_json,
         "__ESPFRAME_SUPPORT_URL__": support_url_json,
+        "__ESPFRAME_SUPPORT_BUTTON_IMAGE_DATA_URI__": support_button_image_data_uri_json,
         "__ESPFRAME_WEB_COMPAT_HELPERS__": compat_helpers,
         "__ESPFRAME_CSS__": css_json,
     }

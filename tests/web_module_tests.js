@@ -6,6 +6,11 @@ const root = path.resolve(__dirname, "..");
 const template = fs.readFileSync(path.join(root, "docs/webserver/src/app.template.ts"), "utf8");
 const publicApp = fs.readFileSync(path.join(root, "docs/public/webserver/app.js"), "utf8");
 const endpointsSource = fs.readFileSync(path.join(root, "docs/webserver/src/endpoints.ts"), "utf8");
+const product = JSON.parse(fs.readFileSync(path.join(root, "product/espframe.json"), "utf8"));
+const supportButtonImage = fs.readFileSync(
+  path.join(root, "docs/webserver/src/buy_me_a_coffee_button.webp.b64"),
+  "utf8"
+).trim();
 
 const modules = {
   "__ESPFRAME_WEB_CONTRACTS__": "web_contracts.ts",
@@ -41,5 +46,16 @@ assert.ok(publicApp.includes("customElements.define"), "public app should regist
 assert.ok(publicApp.includes('"album_order"'), "public app should include album order in photo-source apply keys");
 assert.ok(publicApp.includes("Move album up"), "public app should include album reorder controls");
 assert.ok(publicApp.includes("movePhotoIdRow"), "public app should keep photo ID and label rows reorderable");
+assert.match(supportButtonImage, /^UklGR/, "support button asset should be a base64-encoded WebP image");
+assert.ok(
+  publicApp.includes(`data:image/webp;base64,${supportButtonImage}`),
+  "public app should embed the Buy Me a Coffee button image"
+);
+assert.equal(
+  publicApp.includes(product.project.support_button_image_url),
+  false,
+  "embedded dashboard should not fetch the support button from a third party"
+);
+assert.ok(publicApp.includes('image.alt = "Buy Me A Coffee"'), "support button image should have accessible text");
 
 console.log("web module tests passed");

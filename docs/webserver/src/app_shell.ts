@@ -39,8 +39,15 @@
     link.href = SUPPORT_URL;
     link.target = "_blank";
     link.rel = "noopener";
-    link.setAttribute("aria-label", "Support Espframe");
-    link.innerHTML = '<span class="sp-support-icon" aria-hidden="true">&#9749;</span><span>Support Espframe</span>';
+    link.setAttribute("aria-label", "Buy Me A Coffee");
+    var fallback = document.createElement("span");
+    fallback.textContent = "Buy Me A Coffee";
+    link.appendChild(fallback);
+    var image = document.createElement("img");
+    image.src = SUPPORT_BUTTON_IMAGE_DATA_URI;
+    image.alt = "Buy Me A Coffee";
+    image.height = 60;
+    link.appendChild(image);
     document.body.appendChild(link);
   }
 
