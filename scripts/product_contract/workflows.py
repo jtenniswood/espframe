@@ -2326,6 +2326,12 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
                 ".github/workflows/docs.yml",
                 errors,
             )
+            require_contains(
+                docs_workflow,
+                "--allow-missing",
+                ".github/workflows/docs.yml",
+                errors,
+            )
 
 
 def check_esphome_version(product: dict, errors: list[str]) -> None:

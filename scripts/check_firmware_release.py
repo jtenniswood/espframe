@@ -150,6 +150,42 @@ def test_stage_directory_uses_each_devices_public_paths() -> None:
         ])
 
 
+def test_optional_beta_staging_skips_fully_missing_device() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        beta_source = base / "firmware" / "beta"
+        beta_source.mkdir(parents=True)
+        make_release_files(beta_source, slug=REAL_DEVICE.slug, version=BETA_VERSION)
+
+        run_ok([
+            "stage-directory",
+            "--source", str(beta_source),
+            "--dir", str(base),
+            "--slugs", REAL_DEVICE.slug, NESTED_DEVICE.slug,
+            "--beta",
+            "--allow-missing",
+        ])
+        assert (base / REAL_DEVICE.public_beta_manifest).is_file()
+        assert not (base / NESTED_DEVICE.public_beta_manifest).exists()
+
+
+def test_optional_beta_staging_rejects_partial_device_assets() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        beta_source = base / "firmware" / "beta"
+        beta_source.mkdir(parents=True)
+        (beta_source / f"{NESTED_DEVICE.slug}.manifest.json").write_text("{}")
+
+        run_fails([
+            "stage-directory",
+            "--source", str(beta_source),
+            "--dir", str(base),
+            "--slugs", NESTED_DEVICE.slug,
+            "--beta",
+            "--allow-missing",
+        ])
+
+
 def test_inject_replaces_factory_placeholder() -> None:
     with TemporaryDirectory() as tmp:
         root = Path(tmp)

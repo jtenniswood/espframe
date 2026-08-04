@@ -136,7 +136,8 @@ jobs:
               --source "$BETA_MANIFEST_DIR" \
               --dir . \
               --slugs $DEVICE_SLUGS \
-              --beta
+              --beta \
+              --allow-missing
           fi
 
       - name: Verify firmware assets

@@ -345,17 +345,26 @@ def verify_directory(base_dir: Path, slugs: list[str], version: str) -> None:
             verify_files(slug, manifest_version(beta_manifest), beta_manifest, beta_factory, beta_ota)
 
 
-def stage_release_assets(source_dir: Path, target_root: Path, slugs: list[str], beta: bool = False) -> None:
+def stage_release_assets(
+    source_dir: Path,
+    target_root: Path,
+    slugs: list[str],
+    beta: bool = False,
+    allow_missing: bool = False,
+) -> None:
     target_root = target_root.resolve()
     for slug in slugs:
         source_manifest = source_dir / f"{slug}.manifest.json"
         source_factory = source_dir / f"{slug}.factory.bin"
         source_ota = source_dir / f"{slug}.ota.bin"
-        for source, label in (
+        sources = (
             (source_manifest, "firmware manifest"),
             (source_factory, "factory firmware"),
             (source_ota, "OTA firmware"),
-        ):
+        )
+        if allow_missing and not any(source.is_file() for source, _ in sources):
+            continue
+        for source, label in sources:
             require_file(source, label)
 
         target_manifest = (target_root / public_manifest_path(slug, beta=beta)).resolve()
@@ -489,7 +498,13 @@ def cmd_verify_directory(args: argparse.Namespace) -> None:
 
 
 def cmd_stage_directory(args: argparse.Namespace) -> None:
-    stage_release_assets(Path(args.source), Path(args.dir), args.slugs, beta=args.beta)
+    stage_release_assets(
+        Path(args.source),
+        Path(args.dir),
+        args.slugs,
+        beta=args.beta,
+        allow_missing=args.allow_missing,
+    )
 
 
 def cmd_verify_pages(args: argparse.Namespace) -> None:
@@ -533,6 +548,7 @@ def build_parser() -> argparse.ArgumentParser:
     stage_directory_cmd.add_argument("--dir", required=True)
     stage_directory_cmd.add_argument("--slugs", nargs="+", required=True)
     stage_directory_cmd.add_argument("--beta", action="store_true")
+    stage_directory_cmd.add_argument("--allow-missing", action="store_true")
     stage_directory_cmd.set_defaults(func=cmd_stage_directory)
 
     verify_pages_cmd = sub.add_parser("verify-pages", help="Verify public GitHub Pages firmware")
