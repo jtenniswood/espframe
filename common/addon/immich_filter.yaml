@@ -350,16 +350,42 @@ script:
             - script.execute: immich_retry_config_ready
             - script.stop: flush_slots_and_refetch
       - lambda: |-
+          // A flush discards every slot, so it has to discard the work that was
+          // filling them too. Clearing `ready` while leaving fetch_in_flight set
+          // orphans the flag: request_prefetch() and the slideshow interval both
+          // gate on it, so the refill this flush is about to request either
+          // defers or never runs at all. Abort the downloads and clear the
+          // tracking first.
+          id(immich_img_0).abort_download();
+          id(immich_img_1).abort_download();
+          id(immich_img_2).abort_download();
+          id(immich_portrait_left).abort_download();
+          id(immich_portrait_right).abort_download();
+          id(immich_portrait_preload_left).abort_download();
+          id(immich_portrait_preload_right).abort_download();
+          clear_slot_fetch_in_flight(0, id(espframe_core).slideshow().state().slot_flags);
+          clear_slot_fetch_in_flight(1, id(espframe_core).slideshow().state().slot_flags);
+          clear_slot_fetch_in_flight(2, id(espframe_core).slideshow().state().slot_flags);
           id(espframe_core).slideshow().state().slot0.ready = false;
           id(espframe_core).slideshow().state().slot1.ready = false;
           id(espframe_core).slideshow().state().slot2.ready = false;
           id(espframe_core).slideshow().state().portrait_preload_slot = -1;
           id(espframe_core).slideshow().state().portrait_preload_left_ready = false;
           id(espframe_core).slideshow().state().portrait_preload_right_ready = false;
-          if (id(espframe_core).slideshow().state().preload_noncritical_in_flight) {
-            id(espframe_core).slideshow().state().preload_noncritical_in_flight = false;
-            if (id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight > 0) id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight--;
-          }
+          // Same reasoning for the non-critical update tracking: the flush
+          // cancels every outstanding update, so the per-slot flags and the
+          // counter both have to go, not just the preload flag. Clearing them
+          // together is what makes zeroing the counter safe — clear_noncritical()
+          // only decrements when the slot's flag is still set, so a completion
+          // arriving after the flush finds the flag already false and leaves the
+          // counter alone. Left partially reset, a stuck non-zero count makes
+          // both request_prefetch() and prepare_deferred_slot_update() refuse to
+          // do any further work.
+          id(espframe_core).slideshow().state().slot_flags.noncritical_update[0] = false;
+          id(espframe_core).slideshow().state().slot_flags.noncritical_update[1] = false;
+          id(espframe_core).slideshow().state().slot_flags.noncritical_update[2] = false;
+          id(espframe_core).slideshow().state().preload_noncritical_in_flight = false;
+          id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight = 0;
           id(espframe_core).slideshow().state().active_slot_displayed = false;
           id(espframe_core).slideshow().state().target_slot = id(espframe_core).slideshow().state().active_slot;
       - script.execute: immich_fetch_into_slot

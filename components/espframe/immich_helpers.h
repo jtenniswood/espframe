@@ -25,7 +25,6 @@ struct ImmichRequestState {
   bool memory_fallback = false;
   std::string memory_asset_id;
   int memory_window_offset = -2;
-  std::string memory_image_ids;
   int memory_image_count = 0;
 
   std::string metadata_album_id;
@@ -42,7 +41,6 @@ struct ImmichRequestState {
     this->memory_fallback = false;
     this->memory_asset_id.clear();
     this->memory_window_offset = -2;
-    this->memory_image_ids.clear();
     this->memory_image_count = 0;
   }
 
@@ -51,25 +49,20 @@ struct ImmichRequestState {
     return this->memory_window_offset <= 2;
   }
 
+  // Reservoir sampling (Algorithm R, k=1): keep one candidate and replace it with
+  // probability 1/n as each asset is seen. Collecting every id first and indexing
+  // into the collection afterwards needs memory proportional to the window size —
+  // a five-day window can hold several hundred assets, which is a ~15kB string
+  // grown by repeated reallocation, and each reallocation needs the old and new
+  // buffers alive at the same time. That aborts on devices whose largest free
+  // internal-DRAM block is smaller than the pair. This is O(1) and picks
+  // uniformly, exactly as selecting a random index into the full list did.
   void add_memory_image(const std::string &asset_id) {
     if (asset_id.empty()) return;
-    if (!this->memory_image_ids.empty()) this->memory_image_ids += ",";
-    this->memory_image_ids += asset_id;
     this->memory_image_count++;
-  }
-
-  bool select_memory_image(int index) {
-    if (index < 0 || index >= this->memory_image_count) return false;
-    size_t start = 0;
-    for (int i = 0; i < index; i++) {
-      start = this->memory_image_ids.find(',', start);
-      if (start == std::string::npos) return false;
-      start++;
+    if (esp_random() % static_cast<uint32_t>(this->memory_image_count) == 0) {
+      this->memory_asset_id = asset_id;
     }
-    size_t end = this->memory_image_ids.find(',', start);
-    if (end == std::string::npos) end = this->memory_image_ids.size();
-    this->memory_asset_id = this->memory_image_ids.substr(start, end - start);
-    return !this->memory_asset_id.empty();
   }
 
   bool cooldown_active(uint32_t now_ms) const {
