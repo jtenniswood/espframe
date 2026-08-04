@@ -1278,12 +1278,14 @@
     "components/espframe/tz_data_generated.h",
     "common/addon/time.yaml",
     "devices/guition-esp32-p4-jc8012p4a1/packages.yaml",
+    "devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml",
     "docs/public/webserver/app.js",
     "docs/public/webserver/style.css"
   ],
   "generated_asset_output_headers": {
     "components/espframe/configuration_contract_generated.h": "// ESPFRAME: generated from product/contract; run `npm run generate` to update.",
     "devices/guition-esp32-p4-jc8012p4a1/packages.yaml": "# ESPFRAME: generated from product/contract; run `npm run generate` to update.",
+    "devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml": "# ESPFRAME: generated from product/contract; run `npm run generate` to update.",
     "docs/public/webserver/app.js": "// ESPFRAME: generated from typed docs/webserver/src and product/contract; run `npm run generate` to update.",
     "docs/public/webserver/style.css": "/* ESPFRAME: generated from docs/webserver/src/style.css; run `npm run generate` to update. */"
   },

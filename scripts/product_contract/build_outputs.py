@@ -33,6 +33,7 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
         "components/espframe/tz_data_generated.h",
         "common/addon/time.yaml",
         "devices/guition-esp32-p4-jc8012p4a1/packages.yaml",
+        "devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml",
         "docs/public/webserver/app.js",
         "docs/public/webserver/style.css",
     }

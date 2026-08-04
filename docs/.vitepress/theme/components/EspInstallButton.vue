@@ -33,11 +33,18 @@ import { computed, ref, onMounted, watch } from 'vue'
 
 const devices = [
   {
-    id: 'jc8012p4a1',
-    label: 'Guition ESP32-P4 10-inch',
-    model: 'JC8012P4A1',
-    buttonLabel: '10-inch Espframe',
+    id: 'jc8012p4a1-original',
+    label: 'Original panel',
+    model: 'JC8012P4A1 — rear case 2627 or lower',
+    buttonLabel: 'Espframe for original panel',
     manifest: './firmware/manifest.json',
+  },
+  {
+    id: 'jc8012p4a1-new',
+    label: 'New panel',
+    model: 'JC8012P4A1 — rear case 2628 or higher',
+    buttonLabel: 'Espframe for new panel',
+    manifest: './firmware/jc8012p4a1-v2/manifest.json',
   },
 ]
 

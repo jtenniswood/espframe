@@ -9,7 +9,14 @@ For advanced users: install via the ESPHome dashboard instead of the web install
 
 ## Create a configuration
 
-New YAML in the ESPHome dashboard (example for Guition ESP32-P4 10"):
+First choose the package matching the four-digit number printed on the rear case:
+
+| Rear-case marking | Panel profile | Package file |
+|---|---|---|
+| `2627` or lower | Original panel | `devices/guition-esp32-p4-jc8012p4a1/packages.yaml` |
+| `2628` or higher | New panel | `devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml` |
+
+The newer panel may not say `V2`; use the rear-case number rather than the visible model name. New YAML in the ESPHome dashboard for the original panel:
 
 ```yaml
 substitutions:
@@ -24,6 +31,25 @@ packages:
   espframe:
     url: https://github.com/jtenniswood/espframe
     files: [devices/guition-esp32-p4-jc8012p4a1/packages.yaml]
+    ref: main
+    refresh: 1s
+```
+
+For the new panel, use the matching package instead:
+
+```yaml
+substitutions:
+  name: "immich-frame"
+  friendly_name: "Espframe for Immich"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+packages:
+  espframe:
+    url: https://github.com/jtenniswood/espframe
+    files: [devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml]
     ref: main
     refresh: 1s
 ```

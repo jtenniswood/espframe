@@ -5,7 +5,7 @@ description: Configure Espframe over-the-air and HTTP firmware updates from GitH
 
 # Espframe Firmware Updates
 
-OTA and HTTP updates from GitHub. The device checks the stable firmware manifest on GitHub Pages. The 10-inch model uses `https://jtenniswood.github.io/espframe/firmware/manifest.json`. Controls: device web UI at `http://<device-ip>/` under **Firmware** (and in Home Assistant).
+OTA and HTTP updates come from GitHub Pages. The original panel checks `https://jtenniswood.github.io/espframe/firmware/manifest.json`; the new panel checks `https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v2/manifest.json`. Controls: device web UI at `http://<device-ip>/` under **Firmware** (and in Home Assistant).
 
 During OTA updates, Espframe keeps the current backlight state while the update starts. If Home Assistant or the screen sleep control had already turned the display off, the screen stays off after the update reboot until it is woken again.
 

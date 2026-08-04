@@ -1,0 +1,41 @@
+# ESPFRAME: generated from product/contract; run `npm run generate` to update.
+
+substitutions:
+  display_width: "1280"
+  display_height: "800"
+  portrait_display_width: "800"
+  portrait_display_height: "1280"
+  portrait_metadata_width: "710"
+  portrait_half_width: "640"
+  screen_rotation: "0"
+  screen_rotation_0: "90"
+  screen_rotation_90: "180"
+  screen_rotation_180: "270"
+  screen_rotation_270: "0"
+  captive_portal_ip: "192.168.4.1"
+  firmware_manifest_url: "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v2/manifest.json"
+
+packages:
+  device: !include device/device.yaml
+  fonts: !include ../guition-esp32-p4-jc8012p4a1/assets/fonts.yaml
+  icons: !include ../guition-esp32-p4-jc8012p4a1/assets/icons.yaml
+  lvgl_base: !include ../guition-esp32-p4-jc8012p4a1/device/lvgl_base.yaml
+  screen_rotation: !include ../../common/addon/screen_rotation.yaml
+  connectivity: !include ../../common/addon/connectivity.yaml
+  immich_config: !include ../../common/addon/immich_config.yaml
+  immich_filter: !include ../../common/addon/immich_filter.yaml
+  backlight: !include ../../common/addon/backlight.yaml
+  backlight_sched: !include ../../common/addon/backlight_schedule.yaml
+  time_sync: !include ../../common/addon/time.yaml
+  accent_color: !include ../../common/addon/accent_color.yaml
+  warm_tones: !include ../../common/addon/warm_tones.yaml
+  screen_loading: !include ../guition-esp32-p4-jc8012p4a1/device/screen_loading.yaml
+  screen_wifi: !include ../guition-esp32-p4-jc8012p4a1/device/screen_wifi_setup.yaml
+  screen_setup: !include ../guition-esp32-p4-jc8012p4a1/device/screen_immich_setup.yaml
+  immich_api: !include ../../common/addon/immich_api.yaml
+  immich_slide: !include ../../common/addon/immich_slideshow.yaml
+  screen_slide: !include ../guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml
+  fw_update: !include ../../common/addon/firmware_update.yaml
+  c6_fw_update: !include ../../common/addon/esp32_c6_firmware_update.yaml
+  dev_features: !include ../../common/addon/developer_features.yaml
+  network: !include ../../common/addon/network.yaml

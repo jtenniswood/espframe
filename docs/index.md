@@ -27,7 +27,7 @@ The firmware runs on ESP32-P4 hardware with [ESPHome](https://esphome.io/) and c
 
 | Model | Panel | Stand |
 |-------|-------|-------|
-| Guition ESP32-P4 10" `JC8012P4A1` | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) | [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046) |
+| Guition ESP32-P4 10" `JC8012P4A1`, original (`2627` or lower) and new (`2628` or higher) panels | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) | [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046) |
 
 ## Support This Project
 
