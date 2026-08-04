@@ -227,6 +227,17 @@ def check_web_server_metadata(product: dict, errors: list[str]) -> None:
         errors.append("project.web_server_public_app_path must be a relative public asset path")
     public_app_url = public_url(public_app_path, product) if public_app_path else ""
 
+    # ESPHome resolves css_include/js_include relative to the user's top-level
+    # configuration directory, even when the web_server block came from a
+    # remote package. Device packages therefore have to use the published app.
+    if device_css_include or device_js_include:
+        errors.append(
+            "project device web server assets must use web_server_device_js_url; "
+            "remote ESPHome packages cannot use repository-relative includes"
+        )
+    if public_app_url and device_js_url != public_app_url:
+        errors.append("project.web_server_device_js_url must match the published web app URL")
+
     for device in product["devices"]:
         slug = str(device.get("slug", "")).strip()
         device_yaml = check_relative_path(device.get("device_yaml"), f"Device {slug} device_yaml", errors)

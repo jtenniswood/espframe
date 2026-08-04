@@ -98,11 +98,10 @@ web_server:
   port: 80
   version: 3
   include_internal: true
-  # Keep the control panel on the frame so setup and settings still work if
-  # GitHub Pages or the wider internet is unavailable.
-  js_url: ""
-  css_include: "../../../docs/public/webserver/style.css"
-  js_include: "../../../docs/public/webserver/app.js"
+  # ESPHome resolves asset includes from the user's main /config directory,
+  # not from this remote package checkout. Use the published app here; local
+  # factory and CI builds override this and embed the same app for offline use.
+  js_url: "https://jtenniswood.github.io/espframe/webserver/app.js"
   sorting_groups:
     - id: sg_connection
       name: "Connection"
