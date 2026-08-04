@@ -202,6 +202,34 @@ def test_optional_beta_staging_rejects_partial_device_assets() -> None:
         ])
 
 
+def test_optional_stable_verification_skips_fully_missing_device() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        make_release_files(base, slug=REAL_DEVICE.slug)
+
+        run_ok([
+            "verify-directory",
+            "--version", VERSION,
+            "--dir", str(base),
+            "--slugs", REAL_DEVICE.slug, NESTED_DEVICE.slug,
+            "--allow-missing",
+        ])
+
+
+def test_optional_stable_verification_rejects_partial_device_assets() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        (base / f"{NESTED_DEVICE.slug}.manifest.json").write_text("{}")
+
+        run_fails([
+            "verify-directory",
+            "--version", VERSION,
+            "--dir", str(base),
+            "--slugs", NESTED_DEVICE.slug,
+            "--allow-missing",
+        ])
+
+
 def test_inject_replaces_factory_placeholder() -> None:
     with TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -399,6 +427,32 @@ def test_public_pages_verification() -> None:
                 "--version", VERSION,
                 "--base-url", f"http://127.0.0.1:{server.server_port}",
                 "--slugs", REAL_SLUG,
+            ])
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+
+
+def test_public_pages_verification_allows_unreleased_device() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        firmware_dir = base / "firmware"
+        firmware_dir.mkdir(parents=True)
+
+        manifest, _, _ = make_release_files(firmware_dir, slug=REAL_SLUG)
+        manifest.rename(firmware_dir / firmware_release.public_manifest_name(REAL_SLUG))
+
+        handler = partial(QuietHandler, directory=str(base))
+        server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            run_ok([
+                "verify-pages",
+                "--version", VERSION,
+                "--base-url", f"http://127.0.0.1:{server.server_port}",
+                "--slugs", REAL_SLUG, NESTED_DEVICE.slug,
+                "--allow-missing",
             ])
         finally:
             server.shutdown()

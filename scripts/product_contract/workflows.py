@@ -2228,7 +2228,10 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     check_workflow_named_step_run_contains(
         "docs.download-firmware",
         "Verify firmware assets",
-        ["python3 scripts/firmware_release.py verify-directory"],
+        [
+            "python3 scripts/firmware_release.py verify-directory",
+            "--allow-missing",
+        ],
         workflow_texts,
         errors,
     )
@@ -2238,6 +2241,7 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         [
             "python3 scripts/firmware_release.py verify-pages",
             '--base-url "$PUBLIC_BASE_URL"',
+            "--allow-missing",
         ],
         workflow_texts,
         errors,

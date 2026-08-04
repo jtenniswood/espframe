@@ -277,7 +277,11 @@ def public_manifest_directory(base_dir: Path, slug: str, beta: bool = False) -> 
     return base_dir / path.parent
 
 
-def locate_release_files(base_dir: Path, slug: str) -> tuple[Path, Path, Path]:
+def locate_release_files(
+    base_dir: Path,
+    slug: str,
+    allow_missing: bool = False,
+) -> tuple[Path, Path, Path] | None:
     public_dir = public_manifest_directory(base_dir, slug)
     dirs = list(dict.fromkeys([public_dir, base_dir / slug, base_dir]))
     manifests = []
@@ -290,6 +294,9 @@ def locate_release_files(base_dir: Path, slug: str) -> tuple[Path, Path, Path]:
         )
         factories.append(directory / f"{slug}.factory.bin")
         otas.append(directory / f"{slug}.ota.bin")
+
+    if allow_missing and not any(path.is_file() for path in [*manifests, *factories, *otas]):
+        return None
 
     manifest = find_first(manifests)
     factory = find_first(factories)
@@ -342,9 +349,12 @@ def manifest_version(path: Path) -> str:
     return version
 
 
-def verify_directory(base_dir: Path, slugs: list[str], version: str) -> None:
+def verify_directory(base_dir: Path, slugs: list[str], version: str, allow_missing: bool = False) -> None:
     for slug in slugs:
-        manifest, factory, ota = locate_release_files(base_dir, slug)
+        release_files = locate_release_files(base_dir, slug, allow_missing=allow_missing)
+        if release_files is None:
+            continue
+        manifest, factory, ota = release_files
         verify_files(slug, version, manifest, factory, ota)
 
         beta = locate_beta_files(base_dir, slug)
@@ -431,14 +441,26 @@ def download_and_verify_public_slug(base_url: str, slug: str, version: str, out_
     verify_files(slug, expected_version, manifest_path, factory_path, ota_path)
 
 
-def verify_pages(base_url: str, slugs: list[str], version: str, retries: int, delay: float) -> None:
+def verify_pages(
+    base_url: str,
+    slugs: list[str],
+    version: str,
+    retries: int,
+    delay: float,
+    allow_missing: bool = False,
+) -> None:
     last_error: Exception | None = None
     for attempt in range(1, retries + 1):
         try:
             with TemporaryDirectory() as tmp:
                 out_dir = Path(tmp)
                 for slug in slugs:
-                    download_and_verify_public_slug(base_url, slug, version, out_dir, beta=False)
+                    try:
+                        download_and_verify_public_slug(base_url, slug, version, out_dir, beta=False)
+                    except urllib.error.HTTPError as exc:
+                        if allow_missing and exc.code == 404:
+                            continue
+                        raise
                     try:
                         download_and_verify_public_slug(base_url, slug, version, out_dir, beta=True)
                     except urllib.error.HTTPError as exc:
@@ -502,7 +524,7 @@ def cmd_verify_files(args: argparse.Namespace) -> None:
 
 
 def cmd_verify_directory(args: argparse.Namespace) -> None:
-    verify_directory(Path(args.dir), args.slugs, args.version)
+    verify_directory(Path(args.dir), args.slugs, args.version, allow_missing=args.allow_missing)
 
 
 def cmd_stage_directory(args: argparse.Namespace) -> None:
@@ -516,7 +538,14 @@ def cmd_stage_directory(args: argparse.Namespace) -> None:
 
 
 def cmd_verify_pages(args: argparse.Namespace) -> None:
-    verify_pages(args.base_url, args.slugs, args.version, args.retries, args.delay)
+    verify_pages(
+        args.base_url,
+        args.slugs,
+        args.version,
+        args.retries,
+        args.delay,
+        allow_missing=args.allow_missing,
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -549,6 +578,7 @@ def build_parser() -> argparse.ArgumentParser:
     verify_directory_cmd.add_argument("--version", required=True)
     verify_directory_cmd.add_argument("--dir", required=True)
     verify_directory_cmd.add_argument("--slugs", nargs="+", required=True)
+    verify_directory_cmd.add_argument("--allow-missing", action="store_true")
     verify_directory_cmd.set_defaults(func=cmd_verify_directory)
 
     stage_directory_cmd = sub.add_parser("stage-directory", help="Stage release assets at their public paths")
@@ -565,6 +595,7 @@ def build_parser() -> argparse.ArgumentParser:
     verify_pages_cmd.add_argument("--slugs", nargs="+", required=True)
     verify_pages_cmd.add_argument("--retries", type=int, default=1)
     verify_pages_cmd.add_argument("--delay", type=float, default=15)
+    verify_pages_cmd.add_argument("--allow-missing", action="store_true")
     verify_pages_cmd.set_defaults(func=cmd_verify_pages)
 
     return parser
