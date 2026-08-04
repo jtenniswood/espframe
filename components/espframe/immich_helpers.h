@@ -203,7 +203,7 @@ inline int immich_days_in_month(int year, int month) {
 }
 
 inline std::string immich_format_iso_date(int year, int month, int day) {
-  char buf[11];
+  char buf[40];
   snprintf(buf, sizeof(buf), "%04d-%02d-%02d", year, month, day);
   return std::string(buf);
 }
