@@ -44,6 +44,7 @@ remote_image:
   - id: my_remote_image
     url: "https://example.com/image.jpg"
     format: JPEG
+    type: RGB565
     http_request_id: http_request_id
 ```
 
@@ -62,7 +63,7 @@ remote_image:
 | `horizontal_align` | optional | `CENTER` | For fitted images, place visible content at `START`, `CENTER`, or `END` within the resized area. |
 | `buffer_size` | optional | `65536` | Download buffer size in bytes (256–524288). |
 | `resize` | optional | — | `[width, height]` to fix display size; omit for auto (image native size). |
-| `type` | optional | — | Image type (e.g. RGB565, RGB, BINARY, GRAYSCALE) per ESPHome image schema. |
+| `type` | required | — | Image type (e.g. RGB565, RGB, BINARY, GRAYSCALE) per ESPHome image schema. |
 | `transparency` | optional | — | Transparency mode per ESPHome image schema. |
 | `byte_order` | optional | — | Byte order for 16-bit (e.g. LITTLE_ENDIAN). |
 | `on_download_finished` | optional | — | Automation when download finishes (receives `cached`: true if 304 Not Modified). |
@@ -75,6 +76,7 @@ remote_image:
   - id: photo
     url: "https://example.com/photo.jpg"
     format: JPEG
+    type: RGB565
     http_request_id: http_request_id
     resize: [800, 480]
     placeholder: id(placeholder_image)
@@ -238,7 +240,7 @@ Ring-style buffer for incoming HTTP data. Used by `OnlineImage` and decoders.
 ## How to use in a display pipeline
 
 1. Add `http_request:` and give it an `id`.
-2. Add a `remote_image:` block with `url`, `format`, and `http_request_id`; set `id` for actions/triggers.
+2. Add a `remote_image:` block with `url`, `format`, `type`, and `http_request_id`; set `id` for actions/triggers.
 3. Use the `remote_image` ID wherever an image is needed (e.g. LVGL image source, or draw calls).
 4. To change the image at runtime, use `remote_image.set_url` with the new URL and `update: true`.
 5. Optionally use `on_download_finished` and `on_error` for loading state or fallbacks.
