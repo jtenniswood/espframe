@@ -44,7 +44,7 @@
     fallback.textContent = "Buy Me A Coffee";
     link.appendChild(fallback);
     var image = document.createElement("img");
-    image.src = SUPPORT_BUTTON_IMAGE_URL;
+    image.src = SUPPORT_BUTTON_IMAGE_DATA_URI;
     image.alt = "Buy Me A Coffee";
     image.height = 60;
     link.appendChild(image);

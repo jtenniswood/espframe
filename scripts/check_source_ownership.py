@@ -157,6 +157,7 @@ def check_runtime_policy(manifest: dict[str, object], errors: list[str]) -> None
         "via.placeholder.com",
         "fonts.googleapis.com",
         "fonts.gstatic.com",
+        "cdn.buymeacoffee.com",
         '<script src="http',
         '<link href="http',
     )
