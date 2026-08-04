@@ -36,7 +36,7 @@ html {
 }
 
 body {
-  font-family:'Avenir Next', Avenir, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family:Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   background:var(--bg);
   color:var(--text);
   line-height:1.7;
