@@ -23,6 +23,10 @@ CHIP = "ESP32-S3"
 PROJECT_NAME = firmware_release.PROJECT_NAME
 REAL_DEVICE = next(iter(firmware_release.DEVICES.values()))
 REAL_SLUG = REAL_DEVICE.slug
+NESTED_DEVICE = next(
+    device for device in firmware_release.DEVICES.values()
+    if len(Path(device.public_manifest).parts) > 2
+)
 
 
 class QuietHandler(SimpleHTTPRequestHandler):
@@ -152,6 +156,140 @@ def test_versions_index_rejects_duplicate_malformed_and_missing_assets() -> None
         write_versions_index(base, SLUG, [VERSION, "v9.8.6"])
         (base / "versions" / "v9.8.6" / f"{SLUG}.ota.bin").unlink()
         run_fails(["verify-directory", "--version", VERSION, "--dir", str(base), "--slugs", SLUG])
+
+
+def test_stage_directory_uses_each_devices_public_paths() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        stable_source = base / "firmware"
+        beta_source = stable_source / "beta"
+        stable_source.mkdir()
+        beta_source.mkdir()
+        slugs = [REAL_DEVICE.slug, NESTED_DEVICE.slug]
+        for slug in slugs:
+            make_release_files(stable_source, slug=slug)
+            make_release_files(beta_source, slug=slug, version=BETA_VERSION)
+
+        run_ok([
+            "stage-directory",
+            "--source", str(stable_source),
+            "--dir", str(base),
+            "--slugs", *slugs,
+        ])
+        run_ok([
+            "stage-directory",
+            "--source", str(beta_source),
+            "--dir", str(base),
+            "--slugs", *slugs,
+            "--beta",
+        ])
+
+        stable_manifest = base / NESTED_DEVICE.public_manifest
+        beta_manifest = base / NESTED_DEVICE.public_beta_manifest
+        assert stable_manifest.is_file()
+        assert beta_manifest.is_file()
+        assert (stable_manifest.parent / f"{NESTED_DEVICE.slug}.factory.bin").is_file()
+        assert (stable_manifest.parent / f"{NESTED_DEVICE.slug}.ota.bin").is_file()
+        assert (beta_manifest.parent / f"{NESTED_DEVICE.slug}.factory.bin").is_file()
+        assert (beta_manifest.parent / f"{NESTED_DEVICE.slug}.ota.bin").is_file()
+
+        run_ok([
+            "verify-directory",
+            "--version", VERSION,
+            "--dir", str(base / "firmware"),
+            "--slugs", *slugs,
+        ])
+
+
+def test_optional_beta_staging_skips_fully_missing_device() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        stable_source = base / "firmware"
+        beta_source = base / "firmware" / "beta"
+        beta_source.mkdir(parents=True)
+        slugs = [REAL_DEVICE.slug, NESTED_DEVICE.slug]
+        for slug in slugs:
+            make_release_files(stable_source, slug=slug)
+        make_release_files(beta_source, slug=REAL_DEVICE.slug, version=BETA_VERSION)
+
+        run_ok([
+            "stage-directory",
+            "--source", str(stable_source),
+            "--dir", str(base),
+            "--slugs", *slugs,
+        ])
+        run_ok([
+            "stage-directory",
+            "--source", str(beta_source),
+            "--dir", str(base),
+            "--slugs", *slugs,
+            "--beta",
+            "--allow-missing",
+        ])
+        assert (base / REAL_DEVICE.public_beta_manifest).is_file()
+        assert not (base / NESTED_DEVICE.public_beta_manifest).exists()
+        run_ok([
+            "verify-directory",
+            "--version", VERSION,
+            "--dir", str(stable_source),
+            "--slugs", *slugs,
+        ])
+
+
+def test_optional_beta_staging_rejects_partial_device_assets() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        beta_source = base / "firmware" / "beta"
+        beta_source.mkdir(parents=True)
+        (beta_source / f"{NESTED_DEVICE.slug}.manifest.json").write_text("{}")
+
+        run_fails([
+            "stage-directory",
+            "--source", str(beta_source),
+            "--dir", str(base),
+            "--slugs", NESTED_DEVICE.slug,
+            "--beta",
+            "--allow-missing",
+        ])
+
+
+def test_optional_stable_verification_skips_fully_missing_device() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        make_release_files(base, slug=REAL_DEVICE.slug)
+
+        run_ok([
+            "verify-directory",
+            "--version", VERSION,
+            "--dir", str(base),
+            "--slugs", REAL_DEVICE.slug, NESTED_DEVICE.slug,
+            "--allow-missing-slugs", NESTED_DEVICE.slug,
+        ])
+
+
+def test_optional_stable_verification_rejects_partial_device_assets() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        (base / f"{NESTED_DEVICE.slug}.manifest.json").write_text("{}")
+
+        run_fails([
+            "verify-directory",
+            "--version", VERSION,
+            "--dir", str(base),
+            "--slugs", NESTED_DEVICE.slug,
+            "--allow-missing-slugs", NESTED_DEVICE.slug,
+        ])
+
+
+def test_optional_stable_verification_requires_existing_device() -> None:
+    with TemporaryDirectory() as tmp:
+        run_fails([
+            "verify-directory",
+            "--version", VERSION,
+            "--dir", tmp,
+            "--slugs", REAL_DEVICE.slug, NESTED_DEVICE.slug,
+            "--allow-missing-slugs", NESTED_DEVICE.slug,
+        ])
 
 
 def test_inject_replaces_factory_placeholder() -> None:
@@ -352,6 +490,78 @@ def test_public_pages_verification() -> None:
                 "--version", VERSION,
                 "--base-url", f"http://127.0.0.1:{server.server_port}",
                 "--slugs", REAL_SLUG,
+            ])
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+
+
+def test_public_pages_verification_allows_unreleased_device() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        firmware_dir = base / "firmware"
+        firmware_dir.mkdir(parents=True)
+
+        manifest, _, _ = make_release_files(firmware_dir, slug=REAL_SLUG)
+        manifest.rename(firmware_dir / firmware_release.public_manifest_name(REAL_SLUG))
+        write_versions_index(firmware_dir, REAL_SLUG, [VERSION])
+
+        handler = partial(QuietHandler, directory=str(base))
+        server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            run_ok([
+                "verify-pages",
+                "--version", VERSION,
+                "--base-url", f"http://127.0.0.1:{server.server_port}",
+                "--slugs", REAL_SLUG, NESTED_DEVICE.slug,
+                "--allow-missing-slugs", NESTED_DEVICE.slug,
+            ])
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+
+
+def test_public_pages_verification_requires_existing_device() -> None:
+    with TemporaryDirectory() as tmp:
+        handler = partial(QuietHandler, directory=tmp)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            run_fails([
+                "verify-pages",
+                "--version", VERSION,
+                "--base-url", f"http://127.0.0.1:{server.server_port}",
+                "--slugs", REAL_SLUG, NESTED_DEVICE.slug,
+                "--allow-missing-slugs", NESTED_DEVICE.slug,
+            ])
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+
+
+def test_public_pages_verification_rejects_missing_optional_device_binary() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        public_manifest = base / NESTED_DEVICE.public_manifest
+        public_manifest.parent.mkdir(parents=True)
+        manifest, _, ota = make_release_files(public_manifest.parent, slug=NESTED_DEVICE.slug)
+        manifest.rename(public_manifest)
+        ota.unlink()
+
+        handler = partial(QuietHandler, directory=str(base))
+        server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            run_fails([
+                "verify-pages",
+                "--version", VERSION,
+                "--base-url", f"http://127.0.0.1:{server.server_port}",
+                "--slugs", NESTED_DEVICE.slug,
+                "--allow-missing-slugs", NESTED_DEVICE.slug,
             ])
         finally:
             server.shutdown()

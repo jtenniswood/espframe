@@ -133,6 +133,14 @@ def default_public_manifest_urls(product: dict[str, Any] | None = None) -> dict[
     return {"stable": urls["stable"]}
 
 
+def web_firmware_manifest_urls(product: dict[str, Any] | None = None) -> dict[str, Any]:
+    data = product if product is not None else load_product()
+    return {
+        **default_public_manifest_urls(data),
+        "devices": device_public_manifest_urls(data),
+    }
+
+
 def build_yaml_stem(build_yaml: str) -> str:
     name = Path(build_yaml).name
     if name.endswith(".factory.yaml"):

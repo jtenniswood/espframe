@@ -187,6 +187,9 @@ const scenarios = [
   { name: "firmware-rollback", configured: true, width: 1280, height: 900 },
   { name: "firmware-rollback-failure", configured: true, width: 1280, height: 900, firmwareUploadFails: true },
   { name: "firmware-index-unavailable", configured: true, width: 1280, height: 900, firmwareIndexUnavailable: true },
+  ...(product.devices[1]
+    ? [{ name: "firmware-second-device-index", configured: true, width: 1280, height: 900, firmwareDeviceSlug: product.devices[1].slug }]
+    : []),
   { name: "photo-source-reorder", configured: true, width: 1280, height: 900 },
   { name: "screen-rotation-developer", configured: true, width: 1280, height: 900, query: "dev=experimental" },
   { name: "screen-tone-schedule", configured: true, width: 1280, height: 900 },
@@ -201,11 +204,13 @@ const scenarios = [
 ];
 
 function browserScriptForScenario(scenario) {
+  const firmwareDeviceSlug = scenario.firmwareDeviceSlug || product.devices[0].slug;
   return `
     window.__smoke = {
       posts: [],
       postRecords: [],
       errors: [],
+      fetchedUrls: [],
       downloads: 0,
       exportPayloads: [],
       inputClicks: 0,
@@ -281,6 +286,7 @@ function browserScriptForScenario(scenario) {
       "Connection: Server URL": configured ? "https://photos.example.com" : "",
       "Connection: API Key": configured ? "fixture-api-key" : "",
       "Firmware: Version": "v1.0.0",
+      "Firmware: Device": ${JSON.stringify(firmwareDeviceSlug)},
       "Photos: Source": "Album",
       "Photos: Album IDs": ${JSON.stringify(smokeAlbumIds.join(","))},
       "Photos: Album Labels": ${JSON.stringify(smokeAlbumLabels.join(","))},
@@ -373,6 +379,7 @@ function browserScriptForScenario(scenario) {
     window.fetch = function (url, options) {
       const method = options && options.method ? options.method : "GET";
       const decoded = decodeURIComponent(String(url));
+      window.__smoke.fetchedUrls.push(decoded);
       const body = options && options.body != null ? String(options.body) : "";
       if (decoded.indexOf("versions.json") !== -1) {
         if (window.__smoke.firmwareIndexUnavailable) {
@@ -382,12 +389,12 @@ function browserScriptForScenario(scenario) {
           ok: true,
           status: 200,
           json: () => Promise.resolve({
-            device: ${JSON.stringify(product.devices[0].slug)},
+            device: ${JSON.stringify(firmwareDeviceSlug)},
             versions: [
               { version: "not-a-version", ota: { path: "bad.ota.bin", md5: "bad" } },
-              { version: "v1.0.1", release_url: "https://github.com/jtenniswood/espframe/releases/tag/v1.0.1", ota: { path: ${JSON.stringify(product.devices[0].slug + ".ota.bin")}, md5: "11111111111111111111111111111111" } },
-              { version: "v1.0.0", release_url: "https://github.com/jtenniswood/espframe/releases/tag/v1.0.0", ota: { path: "versions/v1.0.0/${product.devices[0].slug}.ota.bin", md5: "22222222222222222222222222222222" } },
-              { version: "v0.9.0", release_url: "https://github.com/jtenniswood/espframe/releases/tag/v0.9.0", ota: { path: "versions/v0.9.0/${product.devices[0].slug}.ota.bin", md5: "33333333333333333333333333333333" } }
+              { version: "v1.0.1", release_url: "https://github.com/jtenniswood/espframe/releases/tag/v1.0.1", ota: { path: ${JSON.stringify(firmwareDeviceSlug + ".ota.bin")}, md5: "11111111111111111111111111111111" } },
+              { version: "v1.0.0", release_url: "https://github.com/jtenniswood/espframe/releases/tag/v1.0.0", ota: { path: "versions/v1.0.0/${firmwareDeviceSlug}.ota.bin", md5: "22222222222222222222222222222222" } },
+              { version: "v0.9.0", release_url: "https://github.com/jtenniswood/espframe/releases/tag/v0.9.0", ota: { path: "versions/v0.9.0/${firmwareDeviceSlug}.ota.bin", md5: "33333333333333333333333333333333" } }
             ]
           })
         });
@@ -478,6 +485,10 @@ function browserScriptForScenario(scenario) {
 }
 
 function smokeAssertionsForScenario(scenario) {
+  const expectedFirmwareVersionsPath = scenario.firmwareDeviceSlug
+    ? String(product.devices.find((device) => device.slug === scenario.firmwareDeviceSlug).public_manifest)
+        .replace(/[^/]+$/, "versions.json")
+    : "";
   return `
     (async function () {
       function waitFor(check, timeoutMs, label) {
@@ -1102,6 +1113,13 @@ function smokeAssertionsForScenario(scenario) {
             const updates = expandDisclosure("Firmware updates");
             if (!Array.from(updates.querySelectorAll("button")).some((button) => button.textContent.trim() === "Check for Update")) {
               throw new Error("Manual firmware check is unavailable without the public version index");
+            }
+          }
+
+          if (${JSON.stringify(scenario.name)} === "firmware-second-device-index") {
+            await requireFirmwarePanels();
+            if (!window.__smoke.fetchedUrls.some((url) => url.indexOf(${JSON.stringify(expectedFirmwareVersionsPath)}) !== -1)) {
+              throw new Error("Firmware history was not loaded from the installed panel's release index");
             }
           }
 

@@ -8,7 +8,7 @@
     </div>
     <div v-else class="install-button">
       <div class="device-picker" role="radiogroup" aria-label="Choose device model">
-        <label v-for="device in devices" :key="device.id" class="device-option">
+        <label v-for="device in availableDevices" :key="device.id" class="device-option">
           <input v-model="selectedDeviceId" type="radio" name="espframe-device" :value="device.id">
           <span>
             <strong>{{ device.label }}</strong>
@@ -33,18 +33,28 @@ import { computed, ref, onMounted, watch } from 'vue'
 
 const devices = [
   {
-    id: 'jc8012p4a1',
-    label: 'Guition ESP32-P4 10-inch',
-    model: 'JC8012P4A1',
-    buttonLabel: '10-inch Espframe',
+    id: 'jc8012p4a1-original',
+    label: 'Original panel',
+    model: 'JC8012P4A1 — rear case 2627 or lower',
+    buttonLabel: 'Espframe for original panel',
     manifest: './firmware/manifest.json',
+  },
+  {
+    id: 'jc8012p4a1-new',
+    label: 'New panel',
+    model: 'JC8012P4A1 — rear case 2628 or higher',
+    buttonLabel: 'Espframe for new panel',
+    manifest: './firmware/jc8012p4a1-v2/manifest.json',
+    requirePublishedManifest: true,
   },
 ]
 
 const selectedDeviceId = ref(devices[0].id)
+const availableDeviceIds = ref(new Set(devices.filter((device) => !device.requirePublishedManifest).map((device) => device.id)))
 const supported = ref(false)
 const loadError = ref(null)
 const manifestVersion = ref('')
+const availableDevices = computed(() => devices.filter((device) => availableDeviceIds.value.has(device.id)))
 const selectedDevice = computed(() => devices.find((device) => device.id === selectedDeviceId.value) || devices[0])
 const manifestUrl = computed(() => selectedDevice.value.manifest)
 
@@ -60,9 +70,22 @@ async function loadManifestVersion() {
   }
 }
 
+async function discoverPublishedDevices() {
+  const available = new Set(availableDeviceIds.value)
+  await Promise.all(devices.filter((device) => device.requirePublishedManifest).map(async (device) => {
+    try {
+      const response = await fetch(device.manifest, { cache: 'no-store' })
+      if (response.ok) available.add(device.id)
+    } catch (_) {
+      // Keep unreleased device profiles hidden until their manifest is published.
+    }
+  }))
+  availableDeviceIds.value = available
+}
+
 onMounted(async () => {
   supported.value = 'serial' in navigator
-  await loadManifestVersion()
+  await Promise.all([loadManifestVersion(), discoverPublishedDevices()])
   if (!supported.value) return
   try {
     await import('https://unpkg.com/esp-web-tools@10.2.1/dist/web/install-button.js')

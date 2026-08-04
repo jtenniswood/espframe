@@ -78,14 +78,38 @@ jobs:
       - name: Load product firmware metadata
         run: python3 scripts/product_config.py github-env >> "$GITHUB_ENV"
 
-      - name: Download firmware from latest release
-        id: download-stable
+      - name: Set release metadata
+        id: release-meta
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          STABLE_MANIFEST_DIR=$(dirname "$DEFAULT_PUBLIC_MANIFEST")
-          mkdir -p "$STABLE_MANIFEST_DIR"
+          RELEASE_TAG=$(gh release view --json tagName -q .tagName)
+          echo "RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"
+          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Download firmware from latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          STABLE_SOURCE_DIR=$(mktemp -d)
+          gh release download "$RELEASE_TAG" \
+            --pattern "*.factory.bin" \
+            --pattern "*.ota.bin" \
+            --dir "$STABLE_SOURCE_DIR" \
+            --clobber
+          for SLUG in $DEVICE_SLUGS; do
+            gh release download "$RELEASE_TAG" \
+              --pattern "${SLUG}.manifest.json" \
+              --dir "$STABLE_SOURCE_DIR" \
+              --clobber 2>/dev/null || true
+          done
+          python3 scripts/firmware_release.py stage-directory \
+            --source "$STABLE_SOURCE_DIR" \
+            --dir . \
+            --slugs $DEVICE_SLUGS \
+            --allow-missing-slugs immich-frame-v2
 
           STABLE_RELEASE_TAGS=$(gh release list --limit 30 --json tagName,isDraft,isPrerelease \
             -q '[.[] | select((.isDraft | not) and (.isPrerelease | not))] | .[].tagName')
@@ -106,6 +130,12 @@ jobs:
           }
 
           for SLUG in $DEVICE_SLUGS; do
+            PUBLIC_MANIFEST=$(jq -r --arg slug "$SLUG" \
+              '.[] | select(.slug == $slug) | .public_manifest' product/contract/devices.json)
+            if [ ! -f "$PUBLIC_MANIFEST" ]; then
+              continue
+            fi
+            PUBLIC_MANIFEST_DIR=$(dirname "$PUBLIC_MANIFEST")
             INDEX_ENTRIES=$(mktemp)
             : > "$INDEX_ENTRIES"
             VALID_COUNT=0
@@ -135,40 +165,33 @@ jobs:
                 'first((.builds // [])[]?.ota | select((.path // "") == $path) | (.md5 // "")) // ""' \
                 "$MANIFEST_PATH")
               ACTUAL_OTA_MD5=$(md5sum "${RELEASE_DIR}/${SLUG}.ota.bin" | awk '{print $1}')
-              if [ "$VERSION" != "$CANDIDATE_TAG" ] || \
-                 [[ ! "$OTA_MD5" =~ ^[0-9a-f]{32}$ ]] || \
-                 [ "$OTA_MD5" != "$ACTUAL_OTA_MD5" ] || \
-                 jq -e --arg version "$VERSION" 'select(.version == $version)' \
-                   "$INDEX_ENTRIES" >/dev/null 2>&1; then
-                continue
-              fi
-
-              VERSION_PATH=$(printf '%s' "$VERSION" | sed 's/[^A-Za-z0-9._-]/_/g')
-              if [ "$VALID_COUNT" -eq 0 ]; then
-                if ! download_release_asset "$CANDIDATE_TAG" "${SLUG}.factory.bin" "$RELEASE_DIR"; then
-                  continue
-                fi
-                OTA_INDEX_PATH="${SLUG}.ota.bin"
-                cp "$MANIFEST_PATH" "$DEFAULT_PUBLIC_MANIFEST"
-                cp "${RELEASE_DIR}/${SLUG}.ota.bin" "${STABLE_MANIFEST_DIR}/${SLUG}.ota.bin"
-                cp "${RELEASE_DIR}/${SLUG}.factory.bin" "${STABLE_MANIFEST_DIR}/${SLUG}.factory.bin"
-                RELEASE_TAG="$CANDIDATE_TAG"
-              else
-                OTA_INDEX_PATH="versions/${VERSION_PATH}/${SLUG}.ota.bin"
-                mkdir -p "${STABLE_MANIFEST_DIR}/versions/${VERSION_PATH}"
-                cp "${RELEASE_DIR}/${SLUG}.ota.bin" \
-                  "${STABLE_MANIFEST_DIR}/versions/${VERSION_PATH}/${SLUG}.ota.bin"
-              fi
-
               RELEASE_URL=$(jq -r --arg path "${SLUG}.ota.bin" \
                 'first((.builds // [])[]?.ota | select((.path // "") == $path) | (.release_url // "")) // ""' \
                 "$MANIFEST_PATH")
               EXPECTED_RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${CANDIDATE_TAG}"
-              if [ -n "$RELEASE_URL" ] && [ "$RELEASE_URL" != "$EXPECTED_RELEASE_URL" ]; then
+              if [ "$VERSION" != "$CANDIDATE_TAG" ] || \
+                 [[ ! "$OTA_MD5" =~ ^[0-9a-f]{32}$ ]] || \
+                 [ "$OTA_MD5" != "$ACTUAL_OTA_MD5" ] || \
+                 { [ -n "$RELEASE_URL" ] && [ "$RELEASE_URL" != "$EXPECTED_RELEASE_URL" ]; } || \
+                 jq -e --arg version "$VERSION" 'select(.version == $version)' \
+                   "$INDEX_ENTRIES" >/dev/null 2>&1; then
+                continue
+              fi
+              if [ "$VALID_COUNT" -eq 0 ] && [ "$CANDIDATE_TAG" != "$RELEASE_TAG" ]; then
                 continue
               fi
               if [ -z "$RELEASE_URL" ]; then
                 RELEASE_URL="$EXPECTED_RELEASE_URL"
+              fi
+
+              VERSION_PATH=$(printf '%s' "$VERSION" | sed 's/[^A-Za-z0-9._-]/_/g')
+              if [ "$VALID_COUNT" -eq 0 ]; then
+                OTA_INDEX_PATH="${SLUG}.ota.bin"
+              else
+                OTA_INDEX_PATH="versions/${VERSION_PATH}/${SLUG}.ota.bin"
+                mkdir -p "${PUBLIC_MANIFEST_DIR}/versions/${VERSION_PATH}"
+                cp "${RELEASE_DIR}/${SLUG}.ota.bin" \
+                  "${PUBLIC_MANIFEST_DIR}/versions/${VERSION_PATH}/${SLUG}.ota.bin"
               fi
 
               jq -n \
@@ -188,17 +211,8 @@ jobs:
             fi
 
             jq -s --arg device "$SLUG" '{device:$device,versions:.}' \
-              "$INDEX_ENTRIES" > "${STABLE_MANIFEST_DIR}/versions.json"
+              "$INDEX_ENTRIES" > "${PUBLIC_MANIFEST_DIR}/versions.json"
           done
-
-          echo "RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"
-          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
-
-      - name: Set release metadata
-        id: release-meta
-        run: |
-          echo "RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"
-          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Download firmware from latest pre-release
         env:
@@ -221,14 +235,12 @@ jobs:
                 --dir "$BETA_MANIFEST_DIR" \
                 --clobber 2>/dev/null || true
             done
-            if [ -f "${BETA_MANIFEST_DIR}/${DEFAULT_DEVICE_SLUG}.manifest.json" ]; then
-              cp "${BETA_MANIFEST_DIR}/${DEFAULT_DEVICE_SLUG}.manifest.json" "$DEFAULT_PUBLIC_BETA_MANIFEST"
-            else
-              gh release download "$BETA_TAG" \
-                --pattern "$(basename "$DEFAULT_PUBLIC_BETA_MANIFEST")" \
-                --dir "$BETA_MANIFEST_DIR" \
-                --clobber 2>/dev/null || true
-            fi
+            python3 scripts/firmware_release.py stage-directory \
+              --source "$BETA_MANIFEST_DIR" \
+              --dir . \
+              --slugs $DEVICE_SLUGS \
+              --beta \
+              --allow-missing
           fi
 
       - name: Verify firmware assets
@@ -237,6 +249,7 @@ jobs:
           --version "$RELEASE_TAG"
           --dir firmware
           --slugs $DEVICE_SLUGS
+          --allow-missing-slugs immich-frame-v2
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v7
@@ -298,3 +311,4 @@ jobs:
           --slugs $DEVICE_SLUGS
           --retries 10
           --delay 15
+          --allow-missing-slugs immich-frame-v2

@@ -1,0 +1,18 @@
+# =============================================================================
+# DEV CONFIG - Local development entry point (JC8012P4A1 new panel, 2628+)
+# =============================================================================
+# Flash with: esphome run dev.yaml
+# =============================================================================
+
+substitutions:
+  name: "immich-frame-10inch-v2-dev"
+  friendly_name: "Immich Frame 10inch New Panel Dev"
+  espframe_component_url: "../.."
+  espframe_component_ref: "HEAD"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+packages:
+  espframe: !include packages.yaml

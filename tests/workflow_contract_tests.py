@@ -2666,7 +2666,7 @@ def test_docs_workflow_retains_only_five_complete_stable_releases() -> None:
             '[ "$RELEASE_URL" != "$EXPECTED_RELEASE_URL" ]',
             'if [ "$VALID_COUNT" -ge 5 ]; then break; fi',
             'versions/${VERSION_PATH}/${SLUG}.ota.bin',
-            '"${STABLE_MANIFEST_DIR}/versions.json"',
+            '"${PUBLIC_MANIFEST_DIR}/versions.json"',
         ],
         workflow_texts,
         errors,

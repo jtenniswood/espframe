@@ -358,4 +358,3 @@ def check_devices(product: dict, errors: list[str]) -> None:
             "color_order: RGB",
         ):
             require_contains(device_yaml, needle, rel(ROOT / device_yaml_path), errors)
-

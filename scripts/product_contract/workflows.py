@@ -1997,8 +1997,6 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     if docs_firmware_artifact_name:
         manifest_dir_checks: list[tuple[str, str]] = []
         for device in product["devices"]:
-            if str(device.get("public_manifest", "")).strip():
-                manifest_dir_checks.append(("Download firmware from latest release", "STABLE_MANIFEST_DIR"))
             if str(device.get("public_beta_manifest", "")).strip():
                 manifest_dir_checks.append(("Download firmware from latest pre-release", "BETA_MANIFEST_DIR"))
         for step_name, dir_name in dict.fromkeys(manifest_dir_checks):
@@ -2220,7 +2218,10 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
     check_workflow_named_step_run_contains(
         "docs.download-firmware",
         "Verify firmware assets",
-        ["python3 scripts/firmware_release.py verify-directory"],
+        [
+            "python3 scripts/firmware_release.py verify-directory",
+            "--allow-missing-slugs immich-frame-v2",
+        ],
         workflow_texts,
         errors,
     )
@@ -2230,6 +2231,7 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         [
             "python3 scripts/firmware_release.py verify-pages",
             '--base-url "$PUBLIC_BASE_URL"',
+            "--allow-missing-slugs immich-frame-v2",
         ],
         workflow_texts,
         errors,
@@ -2268,49 +2270,67 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         return
 
     devices_by_slug = {str(device.get("slug", "")).strip(): device for device in product["devices"]}
-    for release_device in release_devices:
-        slug = release_device["slug"]
-        public_manifest_dirs = []
-        for field in ("public_manifest", "public_beta_manifest"):
-            public_manifest = str(devices_by_slug.get(slug, {}).get(field, "")).strip()
-            if public_manifest:
-                public_manifest_dirs.append(Path(public_manifest).parent.as_posix())
-        for prefix in dict.fromkeys(public_manifest_dirs):
-            env_name = "DEFAULT_PUBLIC_BETA_MANIFEST" if prefix.endswith("/beta") else "DEFAULT_PUBLIC_MANIFEST"
-            dir_name = "BETA_MANIFEST_DIR" if prefix.endswith("/beta") else "STABLE_MANIFEST_DIR"
+    if release_devices:
+        has_beta_manifests = any(
+            str(devices_by_slug.get(slug, {}).get("public_beta_manifest", "")).strip()
+            for slug in devices_by_slug
+        )
+        require_contains(
+            docs_workflow,
+            'python3 scripts/firmware_release.py stage-directory',
+            ".github/workflows/docs.yml",
+            errors,
+        )
+        require_contains(
+            docs_workflow,
+            '--slugs $DEVICE_SLUGS',
+            ".github/workflows/docs.yml",
+            errors,
+        )
+        require_contains(
+            docs_workflow,
+            "--allow-missing-slugs immich-frame-v2",
+            ".github/workflows/docs.yml",
+            errors,
+        )
+        for stage_argument in (
+            '--source "$STABLE_SOURCE_DIR"',
+            '--source "$BETA_MANIFEST_DIR"',
+            "--dir .",
+        ):
             require_contains(
                 docs_workflow,
-                f'{dir_name}=$(dirname "${env_name}")',
+                stage_argument,
                 ".github/workflows/docs.yml",
                 errors,
             )
-            if prefix.endswith("/beta"):
-                require_contains(
-                    docs_workflow,
-                    f'if [ -f "${{{dir_name}}}/${{DEFAULT_DEVICE_SLUG}}.manifest.json" ]; then',
-                    ".github/workflows/docs.yml",
-                    errors,
-                )
-                require_contains(
-                    docs_workflow,
-                    f'cp "${{{dir_name}}}/${{DEFAULT_DEVICE_SLUG}}.manifest.json" "${env_name}"',
-                    ".github/workflows/docs.yml",
-                    errors,
-                )
-            else:
-                for needle in (
-                    "gh release list --limit 30 --json tagName,isDraft,isPrerelease",
-                    '[[ ! "$CANDIDATE_TAG" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$ ]]',
-                    '[ "$VERSION" != "$CANDIDATE_TAG" ]',
-                    '[ "$OTA_MD5" != "$ACTUAL_OTA_MD5" ]',
-                    'select(.version == $version)',
-                    '[ "$RELEASE_URL" != "$EXPECTED_RELEASE_URL" ]',
-                    'cp "$MANIFEST_PATH" "$DEFAULT_PUBLIC_MANIFEST"',
-                    '"${STABLE_MANIFEST_DIR}/versions.json"',
-                    'versions/${VERSION_PATH}/${SLUG}.ota.bin',
-                    'if [ "$VALID_COUNT" -ge 5 ]; then break; fi',
-                ):
-                    require_contains(docs_workflow, needle, ".github/workflows/docs.yml", errors)
+        if has_beta_manifests:
+            require_contains(
+                docs_workflow,
+                "--beta",
+                ".github/workflows/docs.yml",
+                errors,
+            )
+            require_contains(
+                docs_workflow,
+                "--allow-missing",
+                ".github/workflows/docs.yml",
+                errors,
+            )
+        for needle in (
+            "gh release list --limit 30 --json tagName,isDraft,isPrerelease",
+            '[[ ! "$CANDIDATE_TAG" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$ ]]',
+            'PUBLIC_MANIFEST=$(jq -r --arg slug "$SLUG"',
+            '[ "$VERSION" != "$CANDIDATE_TAG" ]',
+            '[ "$OTA_MD5" != "$ACTUAL_OTA_MD5" ]',
+            'select(.version == $version)',
+            '[ "$RELEASE_URL" != "$EXPECTED_RELEASE_URL" ]',
+            '[ "$CANDIDATE_TAG" != "$RELEASE_TAG" ]',
+            '"${PUBLIC_MANIFEST_DIR}/versions.json"',
+            'versions/${VERSION_PATH}/${SLUG}.ota.bin',
+            'if [ "$VALID_COUNT" -ge 5 ]; then break; fi',
+        ):
+            require_contains(docs_workflow, needle, ".github/workflows/docs.yml", errors)
 
 
 def check_esphome_version(product: dict, errors: list[str]) -> None:

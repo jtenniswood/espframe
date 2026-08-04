@@ -11,10 +11,10 @@ from typing import Any
 
 from product_config import (
     backup_schema,
-    default_public_manifest_urls,
     load_product,
     public_base_url,
     web_entity_aliases_metadata,
+    web_firmware_manifest_urls,
     web_initial_fetch_keys,
     web_live_render_state_keys,
     web_live_render_state_prefixes,
@@ -81,7 +81,7 @@ def check_generated_web_metadata(product: dict[str, Any], errors: list[str]) -> 
         "INITIAL_FETCH_KEYS": web_initial_fetch_keys(product["settings"]),
         "LIVE_RENDER_STATE_KEYS": web_live_render_state_keys(product),
         "LIVE_RENDER_STATE_PREFIXES": web_live_render_state_prefixes(product),
-        "FIRMWARE_MANIFEST_URLS": default_public_manifest_urls(product),
+        "FIRMWARE_MANIFEST_URLS": web_firmware_manifest_urls(product),
         "DOCS_BASE_URL": public_base_url(product),
         "WEB_UI_TABS": product["project"].get("web_ui_tabs"),
         "WEB_UI_LOGS_RETAINED_LINES": product["project"].get("web_ui_logs_retained_lines"),

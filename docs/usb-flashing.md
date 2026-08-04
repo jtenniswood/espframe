@@ -36,7 +36,7 @@ Safari and Firefox do not support the required browser flashing flow.
 - Keep the browser tab open until the install completes.
 - Avoid moving the cable or display during flashing.
 - Disconnect and reconnect the display, then start the installer again.
-- If WiFi setup does not appear after flashing, look for the setup hotspot named **immich-frame-10inch**, connect to it, then visit `http://192.168.4.1`.
+- If WiFi setup does not appear after flashing, look for **immich-frame-10inch** (original panel) or **immich-frame-10inch-v2** (new panel), connect to it, then visit `http://192.168.4.1`.
 
 ## After Flashing
 

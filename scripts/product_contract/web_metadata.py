@@ -19,10 +19,10 @@ from product_contract.common import (
 )
 from product_config import (
     backup_schema,
-    default_public_manifest_urls,
     public_base_url,
     web_entity_aliases,
     web_entity_aliases_metadata,
+    web_firmware_manifest_urls,
     web_initial_fetch_keys,
     web_initial_fetch_first_keys,
     web_live_render_state_keys,
@@ -310,7 +310,7 @@ def check_generated_web_metadata(product: dict, web_text: str, errors: list[str]
         errors.append("Generated web LIVE_RENDER_STATE_PREFIXES does not match product/espframe.json")
 
     firmware_manifest_urls = extract_js_json_var(web_text, "FIRMWARE_MANIFEST_URLS", errors)
-    if firmware_manifest_urls is not None and firmware_manifest_urls != default_public_manifest_urls(product):
+    if firmware_manifest_urls is not None and firmware_manifest_urls != web_firmware_manifest_urls(product):
         errors.append("Generated web FIRMWARE_MANIFEST_URLS does not match product/espframe.json")
 
     docs_base_url = extract_js_json_var(web_text, "DOCS_BASE_URL", errors)

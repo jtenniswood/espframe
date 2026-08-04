@@ -19,11 +19,11 @@ from asset_generation.paths import (
 from asset_generation.timezones import timezone_labels, timezone_options
 from product_config import (
     backup_schema,
-    default_public_manifest_urls,
     load_product,
     project_value,
     public_base_url,
     web_entity_aliases_metadata,
+    web_firmware_manifest_urls,
     web_initial_fetch_keys,
     web_live_render_state_keys,
     web_live_render_state_prefixes,
@@ -164,7 +164,7 @@ def web_app_bundle() -> str:
     initial_fetch_keys_json = json.dumps(web_initial_fetch_keys(), separators=(",", ":"))
     live_render_state_keys_json = json.dumps(web_live_render_state_keys(), separators=(",", ":"))
     live_render_state_prefixes_json = json.dumps(web_live_render_state_prefixes(), separators=(",", ":"))
-    firmware_manifest_urls_json = json.dumps(default_public_manifest_urls(), separators=(",", ":"))
+    firmware_manifest_urls_json = json.dumps(web_firmware_manifest_urls(), separators=(",", ":"))
     firmware_device_slug_json = json.dumps(str(load_product()["devices"][0]["slug"]), separators=(",", ":"))
     docs_base_url_json = json.dumps(public_base_url(), separators=(",", ":"))
     web_ui_tabs_json = json.dumps(load_product()["project"].get("web_ui_tabs", []), separators=(",", ":"))

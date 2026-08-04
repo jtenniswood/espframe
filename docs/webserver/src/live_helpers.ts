@@ -6,6 +6,10 @@
     var stateSpec = ENTITY_STATE_MAP[id];
     if (id === "update/Firmware: Update") {
       refreshFirmwareUi();
+    } else if (stateSpec && stateSpec.key === "firmware_device") {
+      S.firmware_versions_loaded = false;
+      S.firmware_version_options = [];
+      fetchPublicFirmwareVersions();
     } else if (id === "text_sensor/Firmware: Version") {
       refreshFirmwareUi();
     } else if (stateSpec && (

@@ -14,6 +14,7 @@
 
 substitutions:
   firmware_version: "dev"
+  firmware_device_slug: "immich-frame"
   firmware_manifest_url: "https://jtenniswood.github.io/espframe/firmware/manifest.json"
 
 esphome:
@@ -31,6 +32,7 @@ esphome:
               - script.execute: firmware_update_recover_display
     - priority: -100
       then:
+        - component.update: firmware_device_sensor
         - component.update: firmware_version_sensor
 
 # -----------------------------------------------------------------------------
@@ -181,6 +183,16 @@ interval:
 # Exposed version and manual check button
 # -----------------------------------------------------------------------------
 text_sensor:
+  - platform: template
+    name: "Firmware: Device"
+    id: firmware_device_sensor
+    entity_category: diagnostic
+    icon: "mdi:devices"
+    web_server:
+      sorting_group_id: sg_firmware
+    update_interval: never
+    lambda: 'return {"${firmware_device_slug}"};'
+
   - platform: template
     name: "Firmware: Version"
     id: firmware_version_sensor

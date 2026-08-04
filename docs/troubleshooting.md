@@ -20,13 +20,13 @@ See [USB Flashing Help for Guition ESP32-P4](/usb-flashing) for more detail.
 
 ## WiFi Setup Problems
 
-After flashing, Espframe should either ask for WiFi details or create a setup hotspot named **immich-frame-10inch**.
+After flashing, Espframe should either ask for WiFi details or create **immich-frame-10inch** (original panel) or **immich-frame-10inch-v2** (new panel).
 
 If you do not see the frame on your network:
 
 - Check that the WiFi name and password were entered correctly.
 - Make sure the frame is close enough to the access point.
-- Look again for the **immich-frame-10inch** hotspot from a phone or laptop.
+- Look again for the **immich-frame-10inch** or **immich-frame-10inch-v2** hotspot from a phone or laptop.
 - Reboot the frame and wait for the setup screen to appear.
 
 ## Immich Connection Problems
@@ -62,6 +62,8 @@ If the frame connects but does not show the photos you expect:
 - Disable date filtering temporarily if the selected range may exclude all photos.
 
 ## Screen or Display Issues
+
+If the image is distorted immediately after boot, the wrong panel firmware is probably installed. Check the four-digit rear-case marking: `2627` or lower uses the original-panel firmware; `2628` or higher uses the new-panel firmware. Reinstall the matching profile from the [web installer](/install).
 
 Display behavior is configured from the frame web UI:
 

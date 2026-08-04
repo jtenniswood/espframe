@@ -1,0 +1,37 @@
+# =============================================================================
+# BUILD - Guition ESP32-P4 JC8012P4A1 new panel
+# =============================================================================
+# Thin CI wrapper: sets product name, enables AP mode for captive portal,
+# and pulls the full config from the new-panel package.
+# =============================================================================
+
+substitutions:
+  name: "immich-frame-10inch-v2"
+  friendly_name: "Immich Frame 10inch New Panel"
+
+esphome:
+  name_add_mac_suffix: true
+
+packages:
+  espframe: !include ../devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml
+
+# CI and PR artifacts must compile the checked-out branch's components rather
+# than the remote component reference used by end-user package installs.
+external_components:
+  - source:
+      type: local
+      path: ../components
+    components: [gsl3680, remote_image, espframe]
+
+wifi:
+  ap:
+
+captive_portal:
+
+web_server:
+  port: 80
+  version: 3
+  include_internal: true
+  js_url: ""
+  css_include: "../docs/public/webserver/style.css"
+  js_include: "../docs/public/webserver/app.js"

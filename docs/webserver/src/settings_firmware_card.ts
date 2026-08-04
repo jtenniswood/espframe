@@ -10,8 +10,21 @@
     return String(S.firmware || S.installed_version || "").trim();
   }
 
+  function firmwareDeviceSlug() {
+    return String(S.firmware_device || "").trim();
+  }
+
+  function firmwarePublicManifestUrl() {
+    var slug = firmwareDeviceSlug();
+    var devices = FIRMWARE_MANIFEST_URLS && FIRMWARE_MANIFEST_URLS.devices;
+    if (slug && devices && devices[slug] && devices[slug].stable) return devices[slug].stable;
+    if (!devices || Object.keys(devices).length <= 1) return FIRMWARE_MANIFEST_URLS.stable || "";
+    return "";
+  }
+
   function firmwarePublicVersionsUrl() {
-    return new URL("versions.json", FIRMWARE_MANIFEST_URLS.stable).href;
+    var manifestUrl = firmwarePublicManifestUrl();
+    return manifestUrl ? new URL("versions.json", manifestUrl).href : "";
   }
 
   function firmwarePublicAssetUrl(path, baseUrl) {
@@ -31,7 +44,9 @@
     var version = String(entry.version || "").trim();
     var ota = entry.ota && typeof entry.ota === "object" ? entry.ota : {};
     var otaPath = String(ota.path || "").trim();
-    var expectedFilename = FIRMWARE_DEVICE_SLUG + ".ota.bin";
+    var slug = firmwareDeviceSlug();
+    var expectedFilename = slug + ".ota.bin";
+    if (!slug) return null;
     if (!/^v[0-9]+(\.[0-9]+){2}$/i.test(version) || !otaPath || otaPath.split("/").pop() !== expectedFilename) return null;
     var otaUrl = firmwarePublicAssetUrl(otaPath, firmwarePublicVersionsUrl());
     if (!otaUrl) return null;
@@ -45,7 +60,7 @@
   }
 
   function firmwareInfosFromVersionsIndex(data) {
-    if (!data || typeof data !== "object" || data.device !== FIRMWARE_DEVICE_SLUG || !Array.isArray(data.versions)) return [];
+    if (!data || typeof data !== "object" || data.device !== firmwareDeviceSlug() || !Array.isArray(data.versions)) return [];
     var seen = {};
     var infos = [];
     data.versions.some(function (entry) {
@@ -173,8 +188,10 @@
 
   function fetchPublicFirmwareVersions() {
     if (S.firmware_versions_loading) return Promise.resolve(S.firmware_version_options || []);
+    var versionsUrl = firmwarePublicVersionsUrl();
+    if (!versionsUrl) return Promise.resolve([]);
     S.firmware_versions_loading = true;
-    return fetch(firmwarePublicVersionsUrl(), { cache: "no-store" })
+    return fetch(versionsUrl, { cache: "no-store" })
       .then(function (response) {
         if (!response.ok) throw new Error("version_index_unavailable");
         return response.json();
