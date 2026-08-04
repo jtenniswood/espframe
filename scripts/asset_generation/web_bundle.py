@@ -163,6 +163,7 @@ def web_app_bundle() -> str:
     web_ui_cards_json = json.dumps(web_ui_cards_metadata(), separators=(",", ":"))
     web_ui_logs_retained_lines_json = json.dumps(load_product()["project"].get("web_ui_logs_retained_lines"), separators=(",", ":"))
     support_url_json = json.dumps(project_value("support_url"), separators=(",", ":"))
+    support_button_image_url_json = json.dumps(project_value("support_button_image_url"), separators=(",", ":"))
     css_json = json.dumps(css, separators=(",", ":"))
     bundle = template
     for placeholder, module_source in web_modules.items():
@@ -187,6 +188,7 @@ def web_app_bundle() -> str:
         "__ESPFRAME_WEB_UI_CARDS__": web_ui_cards_json,
         "__ESPFRAME_WEB_UI_LOGS_RETAINED_LINES__": web_ui_logs_retained_lines_json,
         "__ESPFRAME_SUPPORT_URL__": support_url_json,
+        "__ESPFRAME_SUPPORT_BUTTON_IMAGE_URL__": support_button_image_url_json,
         "__ESPFRAME_WEB_COMPAT_HELPERS__": compat_helpers,
         "__ESPFRAME_CSS__": css_json,
     }

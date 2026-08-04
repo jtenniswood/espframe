@@ -48,6 +48,7 @@
   var WEB_UI_CARDS = [{ "id": "connection", "label": "Connection", "tab": "immich", "function": "makeConnectionCard", "settings": ["conn_timeout"], "staticEntities": [], "manualEntities": ["immich_url", "api_key"] }, { "id": "frequency", "label": "Frequency", "tab": "immich", "function": "makeFrequencyCard", "settings": ["interval"], "staticEntities": [], "manualEntities": [] }, { "id": "photo_source", "label": "Photo Source", "tab": "immich", "function": "makePhotoSourceCard", "settings": ["photo_source", "album_order"], "staticEntities": ["album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels"], "manualEntities": ["apply_photo_source"] }, { "id": "advanced_filters", "label": "Advanced Filters", "tab": "immich", "function": "makeAdvancedFiltersCard", "settings": ["date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit"], "staticEntities": [], "manualEntities": ["apply_photo_source"] }, { "id": "layout", "label": "Layout", "tab": "immich", "function": "makeLayoutCard", "settings": ["portrait_pairing", "photo_orientation", "display_mode"], "staticEntities": [], "manualEntities": [] }, { "id": "metadata", "label": "Metadata", "tab": "immich", "function": "makeMetadataCard", "settings": ["photo_metadata_date_enabled", "photo_metadata_location_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format"], "staticEntities": [], "manualEntities": [] }, { "id": "screen_brightness", "label": "Screen Brightness", "tab": "settings", "function": "makeScreenBrightnessCard", "settings": ["brightness_day", "brightness_night"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "screen_tone", "label": "Screen Tone", "tab": "settings", "function": "makeScreenToneCard", "settings": ["base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"], "staticEntities": [], "manualEntities": [] }, { "id": "night_schedule", "label": "Night Schedule", "tab": "settings", "function": "makeNightScheduleCard", "settings": ["schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "rotation", "label": "Rotation", "tab": "settings", "function": "makeRotationCard", "settings": ["screen_rotation"], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "clock", "label": "Clock", "tab": "settings", "function": "makeClockCard", "settings": ["clock_format"], "staticEntities": ["show_clock", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"], "manualEntities": [] }, { "id": "firmware", "label": "Firmware", "tab": "settings", "function": "makeFirmwareCard", "settings": ["update_frequency", "auto_update", "firmware_manifest_url"], "staticEntities": ["firmware"], "manualEntities": ["update", "firmware_check"] }, { "id": "device_reboot", "label": "Device Reboot", "tab": "settings", "function": "makeDeviceRebootCard", "settings": [], "staticEntities": [], "manualEntities": ["reboot_screen"] }, { "id": "wifi", "label": "WiFi", "tab": "settings", "function": "makeWifiCard", "settings": [], "staticEntities": ["c6_current_firmware", "c6_available_firmware"], "manualEntities": ["c6_firmware_check", "c6_firmware_install"] }, { "id": "developer", "label": "Developer", "tab": "settings", "function": "makeDeveloperCard", "settings": [], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "backup", "label": "Backup", "tab": "settings", "function": "makeBackupCard", "settings": [], "staticEntities": [], "manualEntities": [] }];
   var WEB_UI_LOGS_RETAINED_LINES = 1e3;
   var SUPPORT_URL = "https://www.buymeacoffee.com/jtenniswood";
+  var SUPPORT_BUTTON_IMAGE_URL = "https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png";
   var S = {
     tz_options: TIMEZONES,
     tz_labels: TIMEZONE_LABELS,
@@ -1003,23 +1004,31 @@ to {
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  min-height:48px;
-  gap:8px;
-  padding:0 18px;
+  width:217px;
+  height:60px;
+  overflow:hidden;
   border-radius:999px;
   background:#ffdd00;
   color:#000;
-  font-family:inherit;
-  font-size:14px;
-  font-weight:650;
+  font-family:Arial, sans-serif;
+  font-size:18px;
+  font-weight:700;
   line-height:1;
   text-decoration:none;
   box-shadow:0 2px 5px rgba(0, 0, 0, .15)
 }
 
-.sp-support-icon {
-  font-size:19px;
-  line-height:1
+.sp-support-btn span {
+  position:absolute
+}
+
+.sp-support-btn img {
+  position:absolute;
+  inset:0;
+  width:217px;
+  height:60px;
+  display:block;
+  border-radius:999px
 }
 
 @media(max-width:768px) {
@@ -1129,8 +1138,15 @@ to {
     link.href = SUPPORT_URL;
     link.target = "_blank";
     link.rel = "noopener";
-    link.setAttribute("aria-label", "Support Espframe");
-    link.innerHTML = '<span class="sp-support-icon" aria-hidden="true">&#9749;</span><span>Support Espframe</span>';
+    link.setAttribute("aria-label", "Buy Me A Coffee");
+    var fallback = document.createElement("span");
+    fallback.textContent = "Buy Me A Coffee";
+    link.appendChild(fallback);
+    var image = document.createElement("img");
+    image.src = SUPPORT_BUTTON_IMAGE_URL;
+    image.alt = "Buy Me A Coffee";
+    image.height = 60;
+    link.appendChild(image);
     document.body.appendChild(link);
   }
   function buildHeader(parent) {
