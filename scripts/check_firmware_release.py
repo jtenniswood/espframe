@@ -489,6 +489,32 @@ def test_public_pages_verification_requires_existing_device() -> None:
             thread.join(timeout=5)
 
 
+def test_public_pages_verification_rejects_missing_optional_device_binary() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        public_manifest = base / NESTED_DEVICE.public_manifest
+        public_manifest.parent.mkdir(parents=True)
+        manifest, _, ota = make_release_files(public_manifest.parent, slug=NESTED_DEVICE.slug)
+        manifest.rename(public_manifest)
+        ota.unlink()
+
+        handler = partial(QuietHandler, directory=str(base))
+        server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            run_fails([
+                "verify-pages",
+                "--version", VERSION,
+                "--base-url", f"http://127.0.0.1:{server.server_port}",
+                "--slugs", NESTED_DEVICE.slug,
+                "--allow-missing-slugs", NESTED_DEVICE.slug,
+            ])
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+
+
 def main() -> int:
     run_discovered_tests(globals())
     print("Firmware release helper tests passed.")

@@ -467,7 +467,8 @@ def verify_pages(
                     try:
                         download_and_verify_public_slug(base_url, slug, version, out_dir, beta=False)
                     except urllib.error.HTTPError as exc:
-                        if slug in optional_slugs and exc.code == 404:
+                        expected_manifest_url = public_manifest_url(base_url, slug, beta=False)
+                        if slug in optional_slugs and exc.code == 404 and exc.geturl() == expected_manifest_url:
                             continue
                         raise
                     try:
