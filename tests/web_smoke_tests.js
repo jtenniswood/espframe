@@ -187,6 +187,7 @@ const scenarios = [
   { name: "firmware-rollback", configured: true, width: 1280, height: 900 },
   { name: "firmware-rollback-failure", configured: true, width: 1280, height: 900, firmwareUploadFails: true },
   { name: "firmware-index-unavailable", configured: true, width: 1280, height: 900, firmwareIndexUnavailable: true },
+  { name: "firmware-newer-prerelease", configured: true, width: 1280, height: 900, installedFirmwareVersion: "v1.2.0-beta.1" },
   ...(product.devices[1]
     ? [{ name: "firmware-second-device-index", configured: true, width: 1280, height: 900, firmwareDeviceSlug: product.devices[1].slug }]
     : []),
@@ -205,6 +206,7 @@ const scenarios = [
 
 function browserScriptForScenario(scenario) {
   const firmwareDeviceSlug = scenario.firmwareDeviceSlug || product.devices[0].slug;
+  const installedFirmwareVersion = scenario.installedFirmwareVersion || "v1.0.0";
   return `
     window.__smoke = {
       posts: [],
@@ -285,7 +287,7 @@ function browserScriptForScenario(scenario) {
     const endpointValues = {
       "Connection: Server URL": configured ? "https://photos.example.com" : "",
       "Connection: API Key": configured ? "fixture-api-key" : "",
-      "Firmware: Version": "v1.0.0",
+      "Firmware: Version": ${JSON.stringify(installedFirmwareVersion)},
       "Firmware: Device": ${JSON.stringify(firmwareDeviceSlug)},
       "Photos: Source": "Album",
       "Photos: Album IDs": ${JSON.stringify(smokeAlbumIds.join(","))},
@@ -469,7 +471,7 @@ function browserScriptForScenario(scenario) {
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: () => Promise.resolve({ value: "v1.0.1", state: "UPDATE AVAILABLE", current_version: "v1.0.0", latest_version: "v1.0.1" })
+          json: () => Promise.resolve({ value: "v1.0.1", state: "UPDATE AVAILABLE", current_version: ${JSON.stringify(installedFirmwareVersion)}, latest_version: "v1.0.1" })
         });
       }
       const endpointName = endpointNameForUrl(decoded);
@@ -1097,6 +1099,11 @@ function smokeAssertionsForScenario(scenario) {
             window.confirm = () => true;
             disclosureByTitle("Previous firmware").querySelector(".fw-previous-actions button").click();
             await waitFor(() => window.__smoke.posts.includes("/update"), 4000, "rollback upload");
+            const prepareIndex = window.__smoke.posts.findIndex((url) => url.indexOf("Firmware: Prepare Browser Update/press") !== -1);
+            const uploadIndex = window.__smoke.posts.indexOf("/update");
+            if (prepareIndex === -1 || prepareIndex > uploadIndex) {
+              throw new Error("Rollback upload did not persist reboot recovery state first");
+            }
             if (${JSON.stringify(scenario.name)} === "firmware-rollback-failure") {
               await waitFor(() => pageText().indexOf("Device rejected firmware upload (500)") !== -1, 4000, "rollback upload failure");
             } else {
@@ -1113,6 +1120,25 @@ function smokeAssertionsForScenario(scenario) {
             const updates = expandDisclosure("Firmware updates");
             if (!Array.from(updates.querySelectorAll("button")).some((button) => button.textContent.trim() === "Check for Update")) {
               throw new Error("Manual firmware check is unavailable without the public version index");
+            }
+          }
+
+          if (${JSON.stringify(scenario.name)} === "firmware-newer-prerelease") {
+            const card = expandCard("Firmware");
+            await waitFor(() => card.textContent.indexOf("v1.0.1") !== -1, 4000, "stable firmware version index");
+            const updates = expandDisclosure("Firmware updates");
+            const action = updates.querySelector(".fw-actions button");
+            if (!action || action.textContent.trim() !== "Check for Update") {
+              throw new Error("An older stable release was offered as an update to a newer prerelease");
+            }
+            if (updates.querySelector(".disclosure-badge.active")) {
+              throw new Error("An older stable release activated the update badge");
+            }
+            action.click();
+            await waitFor(() => window.__smoke.posts.some((url) => url.indexOf("Firmware: Check for Update/press") !== -1), 4000, "prerelease update check");
+            await new Promise((resolve) => setTimeout(resolve, 4500));
+            if (window.__smoke.posts.includes("/update") || window.__smoke.posts.some((url) => url.indexOf("Firmware: Update/install") !== -1)) {
+              throw new Error("Checking from a newer prerelease started a downgrade");
             }
           }
 

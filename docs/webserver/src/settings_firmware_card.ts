@@ -1,5 +1,39 @@
+  function parseFirmwareVersion(value) {
+    var match = /^v([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/i.exec(String(value || "").trim());
+    if (!match) return null;
+    return {
+      core: [Number(match[1]), Number(match[2]), Number(match[3])],
+      prerelease: match[4] ? match[4].split(".") : []
+    };
+  }
+
   function isSpecificFirmwareVersion(value) {
-    return /^v[0-9]+(\.[0-9]+){2}([-+][0-9A-Za-z.-]+)?$/i.test(String(value || "").trim());
+    return !!parseFirmwareVersion(value);
+  }
+
+  function compareFirmwareVersions(left, right) {
+    var a = parseFirmwareVersion(left);
+    var b = parseFirmwareVersion(right);
+    if (!a || !b) return null;
+    for (var i = 0; i < a.core.length; i++) {
+      if (a.core[i] !== b.core[i]) return a.core[i] > b.core[i] ? 1 : -1;
+    }
+    if (!a.prerelease.length || !b.prerelease.length) {
+      if (a.prerelease.length === b.prerelease.length) return 0;
+      return a.prerelease.length ? -1 : 1;
+    }
+    var length = Math.max(a.prerelease.length, b.prerelease.length);
+    for (var index = 0; index < length; index++) {
+      if (a.prerelease[index] === undefined) return -1;
+      if (b.prerelease[index] === undefined) return 1;
+      if (a.prerelease[index] === b.prerelease[index]) continue;
+      var aNumeric = /^[0-9]+$/.test(a.prerelease[index]);
+      var bNumeric = /^[0-9]+$/.test(b.prerelease[index]);
+      if (aNumeric && bNumeric) return Number(a.prerelease[index]) > Number(b.prerelease[index]) ? 1 : -1;
+      if (aNumeric !== bNumeric) return aNumeric ? -1 : 1;
+      return a.prerelease[index] > b.prerelease[index] ? 1 : -1;
+    }
+    return 0;
   }
 
   function firmwareVersionsSame(a, b) {
@@ -99,7 +133,7 @@
   function firmwareUpdateKnownAvailable() {
     var installed = installedFirmwareVersion();
     var latest = String(S.latest_version || "").trim();
-    return isSpecificFirmwareVersion(installed) && isSpecificFirmwareVersion(latest) && !firmwareVersionsSame(installed, latest);
+    return compareFirmwareVersions(latest, installed) > 0;
   }
 
   function c6FirmwareUpdateKnownAvailable() {
@@ -251,6 +285,9 @@
         return response.blob();
       })
       .then(function (blob) {
+        return post(endpoints.firmware_prepare_upload + "/press").then(function () { return blob; });
+      })
+      .then(function (blob) {
         var form = new FormData();
         form.append("file", blob, info.ota_filename);
         uploadStarted = true;
@@ -302,7 +339,6 @@
         var available = applyFirmwareUpdateResponse(data);
         S.firmware_checking = false;
         if (installAfterCheck && available) startFirmwareInstall();
-        else if (installAfterCheck && latestFirmwareInfo()) installPublicFirmware(latestFirmwareInfo());
         else refreshFirmwareUi();
       })
       .catch(function () {
