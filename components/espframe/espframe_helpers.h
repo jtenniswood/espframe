@@ -63,6 +63,8 @@ struct SlotMeta : PhotoMeta {
 };
 
 struct DisplayMeta : PhotoMeta {
+  std::string datetime, companion_url;
+  bool is_portrait = false;
   bool valid = false;
 };
 
@@ -229,10 +231,16 @@ inline SlotMeta& get_slot(int s, SlotMeta &s0, SlotMeta &s1, SlotMeta &s2) {
 
 inline void copy_slot_to_display(const SlotMeta &slot, DisplayMeta &disp) {
   static_cast<PhotoMeta&>(disp) = static_cast<const PhotoMeta&>(slot);
+  disp.datetime = slot.datetime;
+  disp.companion_url = slot.companion_url;
+  disp.is_portrait = slot.is_portrait;
 }
 
 inline void copy_display_to_slot(const DisplayMeta &disp, SlotMeta &slot) {
   static_cast<PhotoMeta&>(slot) = static_cast<const PhotoMeta&>(disp);
+  slot.datetime = disp.datetime;
+  slot.companion_url = disp.companion_url;
+  slot.is_portrait = disp.is_portrait;
 }
 
 #include "slideshow_controller.h"

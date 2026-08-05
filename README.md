@@ -20,7 +20,7 @@ Espframe is for people who want their photos out in the room, not hidden on a ph
   Show your whole library, favorites, specific albums, specific people, specific tags, "on this day" memories, or photos from a chosen date range.
 
 - **Make portrait photos look better on a wide screen**  
-  Espframe can pair portrait photos from the same day side-by-side, so the display feels more like a composed frame and less like a single narrow image with empty space.
+  Espframe can pair portrait photos from a configurable nearby-day range side-by-side, so the display feels more like a composed frame and less like a single narrow image with empty space. You can also hide portraits when a complete pair is not available.
 
 - **Tune the screen for your room**  
   Adjust brightness, warm up a panel that looks too blue, use a softer night tone after sunset, and schedule the display to turn off overnight.

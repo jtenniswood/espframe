@@ -109,9 +109,9 @@ class SlideshowController {
 
     bool is_active = active_slot == slot;
     bool pair = meta.is_portrait && portrait_pairing_enabled;
-    if (is_active) {
+    if (is_active && !pair) {
       copy_slot_to_display(meta, current_display);
-      if (!pair) active_slot_displayed = true;
+      active_slot_displayed = true;
     }
 
     if (is_active && !pair) {

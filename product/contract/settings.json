@@ -622,6 +622,45 @@
     ]
   },
   {
+    "key": "portrait_pairing_range",
+    "entity": {
+      "domain": "select",
+      "name": "Photos: Portrait Pairing Range"
+    },
+    "default": "Same Day",
+    "docs_label": "Pairing Range",
+    "docs_default": "Same Day",
+    "docs_description": "Choose whether portrait companions can be taken on the same day or up to one or two calendar days either side.",
+    "options": [
+      "Same Day",
+      "Within 1 Day",
+      "Within 2 Days"
+    ],
+    "firmware_files": [
+      "common/addon/immich_slideshow.yaml"
+    ],
+    "docs_files": [
+      "docs/photo-sources.md"
+    ]
+  },
+  {
+    "key": "portrait_pairs_only",
+    "entity": {
+      "domain": "switch",
+      "name": "Photos: Paired Portraits Only"
+    },
+    "default": false,
+    "docs_label": "Paired Portraits Only",
+    "docs_default": "Off",
+    "docs_description": "Skip portrait photos unless both images in a compatible pair are ready; landscape photos are unaffected.",
+    "firmware_files": [
+      "common/addon/immich_slideshow.yaml"
+    ],
+    "docs_files": [
+      "docs/photo-sources.md"
+    ]
+  },
+  {
     "key": "photo_metadata_date_enabled",
     "entity": {
       "domain": "switch",

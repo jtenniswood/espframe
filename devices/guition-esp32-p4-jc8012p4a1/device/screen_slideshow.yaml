@@ -671,6 +671,7 @@ interval:
               if (id(photo_source_menu_open)) return false;
               id(slideshow_interval_sec) = parse_duration_option_seconds(
                 id(slideshow_interval).current_option(), id(slideshow_interval_sec), 10, 600);
+              if (id(espframe_core).slideshow().state().portrait.workflow_busy) return false;
               if (id(espframe_core).slideshow().state().active_slot_displayed) {
                 bool image_busy = id(immich_img_0).is_downloading() ||
                                   id(immich_img_1).is_downloading() ||

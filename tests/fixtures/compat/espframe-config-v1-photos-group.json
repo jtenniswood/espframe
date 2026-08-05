@@ -17,6 +17,8 @@
     "relative_unit": "Years",
     "orientation": "Portrait Only",
     "portrait_pairing": true,
+    "portrait_pairing_range": "Within 1 Day",
+    "portrait_pairs_only": true,
     "display_mode": "Fill"
   }
 }

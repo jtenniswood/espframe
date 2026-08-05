@@ -79,6 +79,23 @@ select:
       then:
         - script.execute: update_photo_metadata_display
 
+  - platform: template
+    name: "Photos: Portrait Pairing Range"
+    id: portrait_pairing_range
+    internal: true
+    # ESPFRAME:SETTING_FIELDS portrait_pairing_range START
+    options:
+      - "Same Day"
+      - "Within 1 Day"
+      - "Within 2 Days"
+    initial_option: "Same Day"
+    optimistic: true
+    restore_value: true
+    # ESPFRAME:SETTING_FIELDS portrait_pairing_range END
+    icon: "mdi:calendar-range"
+    web_server:
+      sorting_group_id: sg_photos
+
 # -----------------------------------------------------------------------------
 # Portrait pairing and metadata toggles (persisted across reboots)
 # -----------------------------------------------------------------------------
@@ -92,6 +109,18 @@ switch:
     restore_mode: RESTORE_DEFAULT_ON
     # ESPFRAME:SETTING_FIELDS portrait_pairing END
     icon: "mdi:image-multiple"
+    web_server:
+      sorting_group_id: sg_photos
+
+  - platform: template
+    name: "Photos: Paired Portraits Only"
+    id: portrait_pairs_only
+    internal: true
+    optimistic: true
+    # ESPFRAME:SETTING_FIELDS portrait_pairs_only START
+    restore_mode: RESTORE_DEFAULT_OFF
+    # ESPFRAME:SETTING_FIELDS portrait_pairs_only END
+    icon: "mdi:image-check"
     web_server:
       sorting_group_id: sg_photos
 
@@ -239,9 +268,10 @@ remote_image:
     on_error:
       then:
         - lambda: |-
-            ESP_LOGE("immich", "Portrait left decode failed, falling back to single");
+            ESP_LOGE("immich", "Portrait left decode failed");
             id(espframe_core).slideshow().on_portrait_left_error(
-              id(espframe_core).slideshow().state().portrait, id(espframe_core).slideshow().state().diagnostic_reason, id(espframe_core).slideshow().state().active_slot_displayed);
+              id(espframe_core).slideshow().state().portrait, id(espframe_core).slideshow().state().diagnostic_reason,
+              id(espframe_core).slideshow().state().active_slot_displayed, id(portrait_pairs_only).state);
             id(espframe_slideshow_dispatch).execute();
 
   - id: immich_portrait_right
@@ -263,9 +293,10 @@ remote_image:
     on_error:
       then:
         - lambda: |-
-            ESP_LOGE("immich", "Portrait right decode failed, falling back to single");
+            ESP_LOGE("immich", "Portrait right decode failed");
             id(espframe_core).slideshow().on_portrait_right_error(
-              id(espframe_core).slideshow().state().portrait, id(espframe_core).slideshow().state().diagnostic_reason, id(espframe_core).slideshow().state().active_slot_displayed);
+              id(espframe_core).slideshow().state().portrait, id(espframe_core).slideshow().state().diagnostic_reason,
+              id(espframe_core).slideshow().state().active_slot_displayed, id(portrait_pairs_only).state);
             id(espframe_slideshow_dispatch).execute();
 
   # Portrait preload components (downloaded during prefetch for instant pair display)
@@ -295,6 +326,10 @@ remote_image:
             id(espframe_core).slideshow().on_preload_left_error(
               id(espframe_core).slideshow().state().diagnostic_reason, id(espframe_core).slideshow().state().portrait_preload_left_ready,
               id(espframe_core).slideshow().state().preload_noncritical_in_flight, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+            if (id(portrait_pairs_only).state && id(espframe_core).slideshow().state().portrait_preload_slot >= 0) {
+              id(espframe_core).slideshow().reject_portrait_slot(
+                millis(), id(espframe_core).slideshow().state().portrait_preload_slot);
+            }
             id(espframe_slideshow_dispatch).execute();
 
   - id: immich_portrait_preload_right
@@ -321,6 +356,10 @@ remote_image:
             id(espframe_core).slideshow().on_preload_right_error(
               id(espframe_core).slideshow().state().diagnostic_reason, id(espframe_core).slideshow().state().portrait_preload_right_ready,
               id(espframe_core).slideshow().state().preload_noncritical_in_flight, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+            if (id(portrait_pairs_only).state && id(espframe_core).slideshow().state().portrait_preload_slot >= 0) {
+              id(espframe_core).slideshow().reject_portrait_slot(
+                millis(), id(espframe_core).slideshow().state().portrait_preload_slot);
+            }
             id(espframe_slideshow_dispatch).execute();
 
 # -----------------------------------------------------------------------------
@@ -478,9 +517,6 @@ script:
                   id(delayed_prefetch_chain).execute();
                   break;
                 }
-                lv_img_set_zoom(id(slideshow_img), ZOOM_IDENTITY);
-                lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
-                lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
                 {
                   auto *left_dsc = get_lv_image_descriptor_(id(immich_portrait_preload_left), 0);
                   auto *right_dsc = get_lv_image_descriptor_(id(immich_portrait_preload_right), 0);
@@ -491,14 +527,33 @@ script:
                     ESP_LOGW("immich", "Preloaded portrait descriptor not ready; deferring pair display");
                     id(espframe_core).slideshow().state().diagnostic_reason = "preloaded pair descriptor not ready";
                     id(log_immich_diag).execute();
-                    id(delayed_prefetch_chain).execute();
+                    if (id(portrait_pairs_only).state) {
+                      id(espframe_core).slideshow().reject_portrait_slot(
+                        millis(), id(espframe_core).slideshow().state().active_slot);
+                    } else {
+                      id(delayed_prefetch_chain).execute();
+                    }
                     break;
                   }
                   lv_img_set_src(id(portrait_left_img), left_dsc);
                   lv_img_set_src(id(portrait_right_img), right_dsc);
                 }
+                lv_img_set_zoom(id(slideshow_img), ZOOM_IDENTITY);
+                lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
+                lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
+                id(espframe_core).slideshow().mark_portrait_pair_displayed(true);
                 id(extract_accent_color).execute();
                 id(apply_warm_tones).execute();
+                id(update_clock_display).execute();
+                id(update_photo_metadata_display).execute();
+                id(delayed_prefetch_chain).execute();
+                break;
+              case SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT:
+                id(espframe_core).slideshow().reject_portrait_slot(millis(), cmd.slot);
+                break;
+              case SLIDESHOW_COMMAND_REFETCH_REJECTED_SLOT:
+                id(espframe_core).slideshow().state().target_slot = cmd.slot;
+                id(deferred_rejected_slot_fetch).execute();
                 break;
               case SLIDESHOW_COMMAND_NONE:
               default:
@@ -658,7 +713,8 @@ script:
             id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().portrait,
             id(espframe_core).slideshow().state().active_slot_displayed, id(espframe_core).slideshow().state().portrait_primary_asset_id,
             id(espframe_core).slideshow().state().portrait_companion_url, id(espframe_core).slideshow().state().portrait_search_datetime,
-            id(espframe_core).slideshow().state().companion_target_slot);
+            id(espframe_core).slideshow().state().companion_target_slot,
+            id(espframe_core).slideshow().state().portrait_search_expanded);
           id(espframe_slideshow_dispatch).execute();
 
   # Display whichever slot is active (single image or portrait pair; accent + warm tones)
@@ -687,7 +743,8 @@ script:
           ESP_LOGI("immich", "SHOW slot %d: %s | %s | %s | portrait=%d", s, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.is_portrait);
           id(espframe_core).slideshow().begin_display_current(
             s, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().portrait,
-            id(portrait_pairing_enabled).state, id(espframe_core).slideshow().state().active_slot_displayed);
+            id(portrait_pairing_enabled).state, id(espframe_core).slideshow().state().active_slot_displayed,
+            id(espframe_core).slideshow().state().current_display);
       - script.execute: extract_accent_color
       - script.execute: apply_warm_tones
       - lambda: |-
@@ -751,7 +808,7 @@ script:
             id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().active_slot_displayed,
             id(espframe_core).slideshow().state().last_advance_ms, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2,
             id(espframe_core).slideshow().state().current_display, id(espframe_core).slideshow().state().previous_display, id(espframe_core).slideshow().state().portrait, id(espframe_core).slideshow().state().slot_flags,
-            id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight, id(portrait_pairing_enabled).state,
+            id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight, id(portrait_pairing_enabled).state, id(portrait_pairs_only).state,
             id(espframe_core).slideshow().state().portrait_preload_slot, id(espframe_core).slideshow().state().portrait_preload_left_ready,
             id(espframe_core).slideshow().state().portrait_preload_right_ready, id(espframe_core).slideshow().state().diagnostic_reason);
           id(espframe_slideshow_dispatch).execute();
@@ -795,22 +852,26 @@ script:
               left_dsc->data == nullptr || right_dsc->data == nullptr ||
               id(immich_portrait_left).get_width() <= 0 || id(immich_portrait_left).get_height() <= 0 ||
               id(immich_portrait_right).get_width() <= 0 || id(immich_portrait_right).get_height() <= 0) {
-            ESP_LOGW("immich", "Portrait pair descriptors not ready; falling back to single display");
+            ESP_LOGW("immich", "Portrait pair descriptors not ready");
             id(espframe_core).slideshow().state().diagnostic_reason = "portrait pair descriptor not ready";
             id(log_immich_diag).execute();
             id(espframe_core).slideshow().state().portrait.left_ready = false;
             id(espframe_core).slideshow().state().portrait.right_ready = false;
             id(espframe_core).slideshow().state().portrait.is_pair = false;
             id(espframe_core).slideshow().state().portrait.workflow_busy = false;
-            id(espframe_core).slideshow().state().active_slot_displayed = true;
-            id(immich_display_current).execute();
+            if (id(portrait_pairs_only).state) {
+              id(espframe_core).slideshow().reject_portrait_slot(
+                millis(), id(espframe_core).slideshow().state().active_slot);
+              id(espframe_slideshow_dispatch).execute();
+            } else {
+              id(espframe_core).slideshow().state().active_slot_displayed = true;
+              id(immich_display_current).execute();
+            }
             return;
           }
           lv_img_set_src(id(portrait_left_img), left_dsc);
           lv_img_set_src(id(portrait_right_img), right_dsc);
-          id(espframe_core).slideshow().state().portrait.is_pair = true;
-          id(espframe_core).slideshow().state().active_slot_displayed = true;
-          id(espframe_core).slideshow().state().portrait.workflow_busy = false;
+          id(espframe_core).slideshow().mark_portrait_pair_displayed(false);
           lv_img_set_zoom(id(slideshow_img), ZOOM_IDENTITY);
           lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
           lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
@@ -946,6 +1007,14 @@ script:
     then:
       - lambda: 'id(espframe_core).slideshow().state().deferred_fetch_target = id(espframe_core).slideshow().state().target_slot;'
       - delay: 400ms
+      - lambda: 'id(espframe_core).slideshow().state().target_slot = id(espframe_core).slideshow().state().deferred_fetch_target;'
+      - script.execute: immich_fetch_into_slot
+
+  - id: deferred_rejected_slot_fetch
+    mode: restart
+    then:
+      - lambda: 'id(espframe_core).slideshow().state().deferred_fetch_target = id(espframe_core).slideshow().state().target_slot;'
+      - delay: 1200ms
       - lambda: 'id(espframe_core).slideshow().state().target_slot = id(espframe_core).slideshow().state().deferred_fetch_target;'
       - script.execute: immich_fetch_into_slot
 

@@ -168,6 +168,8 @@
         "relative_unit",
         "orientation",
         "portrait_pairing",
+        "portrait_pairing_range",
+        "portrait_pairs_only",
         "display_mode"
       ],
       "frequency": [
@@ -222,6 +224,8 @@
         "relative_unit": "relative_unit",
         "orientation": "photo_orientation",
         "portrait_pairing": "portrait_pairing",
+        "portrait_pairing_range": "portrait_pairing_range",
+        "portrait_pairs_only": "portrait_pairs_only",
         "display_mode": "display_mode"
       },
       "frequency": {
@@ -600,6 +604,8 @@
         "function": "makeLayoutCard",
         "settings": [
           "portrait_pairing",
+          "portrait_pairing_range",
+          "portrait_pairs_only",
           "photo_orientation",
           "display_mode"
         ]
@@ -1035,6 +1041,8 @@
         "layout": {
           "settings": [
             "portrait_pairing",
+            "portrait_pairing_range",
+            "portrait_pairs_only",
             "photo_orientation",
             "display_mode"
           ]
@@ -1099,7 +1107,7 @@
     ],
     "date_filter_relative_anchor": "ending today",
     "date_filter_time_source": "frame's configured time",
-    "portrait_pairing_behavior": "pair portrait photos from the same day side-by-side",
+    "portrait_pairing_behavior": "pair portrait photos from a configurable nearby-day range side-by-side",
     "portrait_pairing_rotation_behavior": "disabled while the screen is in portrait rotation",
     "metadata_overlay_fields": [
       "Date",
@@ -1432,6 +1440,8 @@
       "warm_tone_intensity": {},
       "warm_tone_override": {},
       "portrait_pairing": {},
+      "portrait_pairing_range": {},
+      "portrait_pairs_only": {},
       "photo_metadata_date_enabled": {},
       "photo_metadata_location_enabled": {}
     },
@@ -2658,6 +2668,45 @@
       "docs_label": "Portrait Pairing",
       "docs_default": "On",
       "docs_description": "Pairs compatible portrait photos side-by-side on landscape screens.",
+      "firmware_files": [
+        "common/addon/immich_slideshow.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
+    },
+    {
+      "key": "portrait_pairing_range",
+      "entity": {
+        "domain": "select",
+        "name": "Photos: Portrait Pairing Range"
+      },
+      "default": "Same Day",
+      "docs_label": "Pairing Range",
+      "docs_default": "Same Day",
+      "docs_description": "Choose whether portrait companions can be taken on the same day or up to one or two calendar days either side.",
+      "options": [
+        "Same Day",
+        "Within 1 Day",
+        "Within 2 Days"
+      ],
+      "firmware_files": [
+        "common/addon/immich_slideshow.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
+    },
+    {
+      "key": "portrait_pairs_only",
+      "entity": {
+        "domain": "switch",
+        "name": "Photos: Paired Portraits Only"
+      },
+      "default": false,
+      "docs_label": "Paired Portraits Only",
+      "docs_default": "Off",
+      "docs_description": "Skip portrait photos unless both images in a compatible pair are ready; landscape photos are unaffected.",
       "firmware_files": [
         "common/addon/immich_slideshow.yaml"
       ],

@@ -22,6 +22,8 @@
     "relative_unit": "Years",
     "orientation": "Any",
     "portrait_pairing": true,
+    "portrait_pairing_range": "Within 2 Days",
+    "portrait_pairs_only": true,
     "display_mode": "Fill"
   },
   "frequency": {

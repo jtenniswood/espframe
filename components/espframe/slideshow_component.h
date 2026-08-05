@@ -29,6 +29,8 @@ enum SlideshowCommandKind : uint8_t {
   SLIDESHOW_COMMAND_LOAD_PREVIOUS_SLOT = 21,
   SLIDESHOW_COMMAND_LOG_NO_PREVIOUS = 22,
   SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR = 23,
+  SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT = 24,
+  SLIDESHOW_COMMAND_REFETCH_REJECTED_SLOT = 25,
 };
 
 struct SlideshowCommand {
@@ -110,6 +112,7 @@ struct SlideshowRuntimeState {
   int portrait_preload_slot = -1;
   bool portrait_preload_left_ready = false;
   bool portrait_preload_right_ready = false;
+  bool portrait_search_expanded = false;
 
   void reset() { *this = SlideshowRuntimeState{}; }
 
@@ -169,6 +172,7 @@ class EspFrameSlideshow {
         portrait_pairing_enabled, active_slot_displayed, current_display, portrait,
         companion_target_slot, portrait_preload_slot, portrait_search_datetime,
         portrait_primary_asset_id);
+    if (action == SLIDESHOW_ACTION_FETCH_COMPANION) this->state_.portrait_search_expanded = false;
     this->emit_action(action, slot);
     return action;
   }
@@ -187,7 +191,8 @@ class EspFrameSlideshow {
                              std::string &portrait_primary_asset_id,
                              std::string &portrait_companion_url,
                              std::string &portrait_search_datetime,
-                             int &companion_target_slot) {
+                             int &companion_target_slot,
+                             bool &portrait_search_expanded) {
     if (active_slot_displayed && portrait.is_pair && portrait.using_preload) return false;
 
     SlotMeta &meta = this->slot_mut_(active_slot, slot0, slot1, slot2);
@@ -214,6 +219,7 @@ class EspFrameSlideshow {
     portrait_companion_url = "";
     portrait_search_datetime = meta.datetime;
     companion_target_slot = active_slot;
+    portrait_search_expanded = false;
     this->emit_command(SLIDESHOW_COMMAND_DEFER_COMPANION_SEARCH, active_slot, 200);
     return true;
   }
@@ -239,7 +245,7 @@ class EspFrameSlideshow {
   }
 
   void on_portrait_left_error(PortraitState &portrait, std::string &diag_reason,
-                              bool &active_slot_displayed) {
+                              bool &active_slot_displayed, bool portrait_pairs_only) {
     portrait.left_ready = false;
     portrait.left_requested = false;
     portrait.companion_found = false;
@@ -247,14 +253,18 @@ class EspFrameSlideshow {
     diag_reason = "portrait left error";
     this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG);
     if (!active_slot_displayed) {
-      active_slot_displayed = true;
       portrait.workflow_busy = false;
-      this->emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT);
+      if (portrait_pairs_only) {
+        this->emit_command(SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT, this->state_.active_slot);
+      } else {
+        active_slot_displayed = true;
+        this->emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT);
+      }
     }
   }
 
   void on_portrait_right_error(PortraitState &portrait, std::string &diag_reason,
-                               bool &active_slot_displayed) {
+                               bool &active_slot_displayed, bool portrait_pairs_only) {
     portrait.right_ready = false;
     portrait.right_requested = false;
     portrait.companion_found = false;
@@ -262,9 +272,13 @@ class EspFrameSlideshow {
     diag_reason = "portrait right error";
     this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG);
     if (!active_slot_displayed) {
-      active_slot_displayed = true;
       portrait.workflow_busy = false;
-      this->emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT);
+      if (portrait_pairs_only) {
+        this->emit_command(SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT, this->state_.active_slot);
+      } else {
+        active_slot_displayed = true;
+        this->emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT);
+      }
     }
   }
 
@@ -313,13 +327,15 @@ class EspFrameSlideshow {
                        SlotMeta &slot2, DisplayMeta &current_display,
                        DisplayMeta &prev_display, PortraitState &portrait,
                        SlotFlags &flags, int &noncritical_count,
-                       bool portrait_pairing_enabled, int portrait_preload_slot,
+                       bool portrait_pairing_enabled, bool portrait_pairs_only,
+                       int portrait_preload_slot,
                        bool portrait_preload_left_ready, bool portrait_preload_right_ready,
                        std::string &diag_reason) {
     if (!active_slot_displayed) {
       int slot = active_slot;
       SlotMeta &meta = this->slot_mut_(slot, slot0, slot1, slot2);
       if (meta.ready && portrait.workflow_busy) {
+        if (meta.is_portrait && portrait_pairing_enabled && portrait_pairs_only) return;
         portrait.workflow_busy = false;
         portrait.left_ready = false;
         portrait.right_ready = false;
@@ -369,14 +385,18 @@ class EspFrameSlideshow {
 
     SlotMeta &meta = this->slot_mut_(active_slot, slot0, slot1, slot2);
     if (meta.ready) {
-      copy_slot_to_display(meta, current_display);
       bool pair = meta.is_portrait && portrait_pairing_enabled;
-      if (!pair) active_slot_displayed = true;
+      if (!pair) {
+        copy_slot_to_display(meta, current_display);
+        active_slot_displayed = true;
+      }
 
       bool preload_ready = pair && portrait_preload_slot == active_slot &&
                            portrait_preload_left_ready && portrait_preload_right_ready;
-      if (!pair || preload_ready) {
+      if (!pair) {
         this->emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT, active_slot);
+      } else if (preload_ready) {
+        this->emit_command(SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR, active_slot);
       } else {
         this->emit_command(SLIDESHOW_COMMAND_START_ACTIVE_PAIR, active_slot);
       }
@@ -414,9 +434,6 @@ class EspFrameSlideshow {
 
     SlotMeta &meta = this->slot_mut_(previous_slot, slot0, slot1, slot2);
     meta.ready = false;
-    meta.is_portrait = false;
-    meta.companion_url = "";
-    meta.datetime = "";
     copy_display_to_slot(current_display, meta);
     meta.pending_asset_id = current_display.asset_id;
     mark_slot_fetch_in_flight(previous_slot, flags, now_ms);
@@ -429,13 +446,18 @@ class EspFrameSlideshow {
                                   std::string &portrait_companion_url,
                                   int companion_target_slot, int active_slot,
                                   SlotMeta &slot0, SlotMeta &slot1, SlotMeta &slot2,
-                                  bool &active_slot_displayed) {
+                                  bool &active_slot_displayed, bool portrait_pairs_only) {
     portrait.companion_found = false;
     portrait_companion_url = "";
     portrait.left_requested = false;
     portrait.right_requested = false;
     SlotMeta &meta = this->slot_mut_(companion_target_slot, slot0, slot1, slot2);
     meta.companion_url = "";
+    if (portrait_pairs_only) {
+      portrait.workflow_busy = false;
+      this->emit_command(SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT, companion_target_slot);
+      return;
+    }
     if (companion_target_slot == active_slot) {
       portrait.no_companion_active = true;
       portrait.workflow_busy = false;
@@ -482,8 +504,10 @@ class EspFrameSlideshow {
 
   bool begin_display_current(int active_slot, SlotMeta &slot0, SlotMeta &slot1,
                              SlotMeta &slot2, PortraitState &portrait,
-                             bool portrait_pairing_enabled, bool &active_slot_displayed) {
+                             bool portrait_pairing_enabled, bool &active_slot_displayed,
+                             DisplayMeta &current_display) {
     SlotMeta &meta = this->slot_mut_(active_slot, slot0, slot1, slot2);
+    copy_slot_to_display(meta, current_display);
     portrait.is_pair = false;
     bool pair = meta.is_portrait && portrait_pairing_enabled;
     if (!pair) {
@@ -507,9 +531,6 @@ class EspFrameSlideshow {
         portrait_preload_right_ready) {
       portrait.is_pair = true;
       portrait.using_preload = true;
-      portrait_preload_slot = -1;
-      active_slot_displayed = true;
-      portrait.workflow_busy = false;
       this->emit_command(SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR, active_slot);
       return;
     }
@@ -530,6 +551,45 @@ class EspFrameSlideshow {
     portrait_preload_right_ready = false;
     this->clear_preload_noncritical_(preload_noncritical_in_flight, noncritical_count);
     return true;
+  }
+
+  void reject_portrait_slot(uint32_t now_ms, int slot) {
+    if (slot < 0 || slot > 2) return;
+    SlotMeta &meta = this->state_.slot(slot);
+    meta.ready = false;
+    meta.companion_url.clear();
+    meta.pending_asset_id.clear();
+    if (this->state_.portrait_preload_slot == slot) {
+      this->state_.portrait_preload_slot = -1;
+      this->state_.portrait_preload_left_ready = false;
+      this->state_.portrait_preload_right_ready = false;
+      this->clear_preload_noncritical_(this->state_.preload_noncritical_in_flight,
+                                      this->state_.noncritical_remote_updates_in_flight);
+    }
+    if (slot == this->state_.active_slot) {
+      this->state_.active_slot_displayed = false;
+      this->state_.portrait = PortraitState{};
+    }
+    if (this->state_.companion_target_slot == slot) this->state_.companion_target_slot = -1;
+    this->state_.portrait_companion_url.clear();
+    this->state_.target_slot = slot;
+    this->state_.last_advance_ms = now_ms;
+    this->state_.portrait_search_expanded = false;
+    this->emit_command(SLIDESHOW_COMMAND_REFETCH_REJECTED_SLOT, slot, 1200);
+  }
+
+  void mark_portrait_pair_displayed(bool using_preload) {
+    SlotMeta &meta = this->state_.slot(this->state_.active_slot);
+    copy_slot_to_display(meta, this->state_.current_display);
+    this->state_.portrait.is_pair = true;
+    this->state_.portrait.using_preload = using_preload;
+    this->state_.portrait.workflow_busy = false;
+    this->state_.active_slot_displayed = true;
+    if (using_preload) {
+      this->state_.portrait_preload_slot = -1;
+      this->state_.portrait_preload_left_ready = false;
+      this->state_.portrait_preload_right_ready = false;
+    }
   }
 
   bool request_prefetch(bool backlight_paused, bool retry_cooldown_active, uint32_t now_ms,

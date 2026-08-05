@@ -18,7 +18,7 @@ The export captures all user-facing settings from the current session:
 | Category | Settings |
 |----------|----------|
 | **Connection** | Immich server URL, API key |
-| **Photos** | Source, album IDs, album labels, person IDs, person labels, tag IDs, tag labels, date filter settings, orientation, portrait pairing, display mode |
+| **Photos** | Source, album IDs, album labels, person IDs, person labels, tag IDs, tag labels, date filter settings, orientation, portrait pairing, pairing range, paired-only mode, display mode |
 | **Frequency** | Slideshow interval, connection timeout |
 | **Firmware Updates** | Display auto update, update frequency, WiFi firmware auto update |
 | **Clock** | Show clock, format, timezone |
@@ -66,6 +66,8 @@ The export is a standard JSON file with a `version` field and grouped settings:
     "relative_unit": "Years",
     "orientation": "Any",
     "portrait_pairing": true,
+    "portrait_pairing_range": "Same Day",
+    "portrait_pairs_only": false,
     "display_mode": "Fill"
   },
   "frequency": { "interval": "15 seconds", "conn_timeout": "10 minutes" },

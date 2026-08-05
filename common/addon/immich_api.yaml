@@ -36,7 +36,7 @@ script:
           id(espframe_core).slideshow().handle_companion_not_found(
             id(espframe_core).slideshow().state().portrait, id(espframe_core).slideshow().state().portrait_companion_url, id(espframe_core).slideshow().state().companion_target_slot,
             id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2,
-            id(espframe_core).slideshow().state().active_slot_displayed);
+            id(espframe_core).slideshow().state().active_slot_displayed, id(portrait_pairs_only).state);
           id(espframe_slideshow_dispatch).execute();
 
   # ---------------------------------------------------------------------------
@@ -840,9 +840,10 @@ script:
             return;
           }
           std::string day = dt.substr(0, 10);
-          id(espframe_core).slideshow().state().portrait_search_datetime = day;
-          ESP_LOGD("immich", "Searching companion portrait for slot %d, date %s",
-                   id(espframe_core).slideshow().state().companion_target_slot, day.c_str());
+          int range_days = id(espframe_core).slideshow().state().portrait_search_expanded
+            ? portrait_pairing_range_days(id(portrait_pairing_range).current_option()) : 0;
+          ESP_LOGD("immich", "Searching companion portrait for slot %d, date %s, range +/- %d day(s)",
+                   id(espframe_core).slideshow().state().companion_target_slot, day.c_str(), range_days);
       - http_request.post:
           id: http_req
           url: !lambda 'return id(immich_url).state + "/api/search/random";'
@@ -853,7 +854,8 @@ script:
             Accept: application/json
             x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
           body: !lambda |-
-            std::string day = id(espframe_core).slideshow().state().portrait_search_datetime;
+            std::string datetime = id(espframe_core).slideshow().state().portrait_search_datetime;
+            std::string day = datetime.substr(0, 10);
             auto now = id(sntp_time).now();
             ImmichDateRange range = resolve_immich_date_filter(
               id(immich_date_filter_enabled).state,
@@ -865,7 +867,9 @@ script:
             if (range.relative_skipped_for_invalid_time) {
               ESP_LOGW("immich", "Relative date filter skipped for companion search because time is not valid");
             }
-            std::string extra = build_immich_companion_date_filter_extra(day, range);
+            int range_days = id(espframe_core).slideshow().state().portrait_search_expanded
+              ? portrait_pairing_range_days(id(portrait_pairing_range).current_option()) : 0;
+            std::string extra = build_immich_companion_date_filter_extra(day, range, range_days);
             return build_immich_search_body(5, false, id(photo_source_select).current_option(), id(immich_album_ids).state, id(immich_person_ids).state, id(immich_tag_ids).state, extra);
           on_response:
             then:
@@ -878,9 +882,17 @@ script:
                     return;
                   }
                   std::string companion_url = find_immich_portrait_companion_url(
-                    body, id(immich_url).state, id(espframe_core).slideshow().state().portrait_primary_asset_id);
+                    body, id(immich_url).state, id(espframe_core).slideshow().state().portrait_primary_asset_id,
+                    id(espframe_core).slideshow().state().portrait_search_datetime);
 
                   if (companion_url.empty()) {
+                    int configured_range_days = portrait_pairing_range_days(id(portrait_pairing_range).current_option());
+                    if (!id(espframe_core).slideshow().state().portrait_search_expanded && configured_range_days > 0) {
+                      id(espframe_core).slideshow().state().portrait_search_expanded = true;
+                      ESP_LOGD("immich", "No same-day companion; expanding search to +/- %d day(s)", configured_range_days);
+                      id(deferred_companion_search).execute();
+                      return;
+                    }
                     ESP_LOGI("immich", "NO COMPANION found for slot %d", id(espframe_core).slideshow().state().companion_target_slot);
                     id(handle_companion_not_found).execute();
                     return;

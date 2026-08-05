@@ -37,6 +37,8 @@ Under **Settings → Devices & Services → ESPHome** (device page):
 | **Photos: Display Mode** | Select | Fill crops to cover the screen; Fit letterboxes without cropping |
 | **Photos: Slideshow Interval** | Select | 10s–10min between photos |
 | **Photos: Portrait Pairing** | Switch | Pair compatible portrait photos side-by-side |
+| **Photos: Portrait Pairing Range** | Select | Match portraits from the same day, ±1 day, or ±2 days |
+| **Photos: Paired Portraits Only** | Switch | Skip portrait photos unless a complete pair is ready |
 | **Screen: Connection Timeout** | Select | 30s–30min before showing connection-failed screen |
 | **Screen: Rotation** | Select | LVGL screen rotation: 0 or 180 degrees |
 | **Screen: Backlight** | Light | On/off and brightness (0–100%). Turning it off puts the frame to sleep; turning it on wakes manual sleep unless scheduled off-hours are active. |

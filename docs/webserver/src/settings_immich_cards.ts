@@ -507,6 +507,37 @@
       }
     }).field);
 
+    var pairingOptionsDisabledTitle = portraitRotationActive
+      ? "Portrait pairing is disabled while the screen is in portrait rotation"
+      : "Turn on Portrait Pairing to use this option";
+    var fPairingRange = field("Pairing Range");
+    var pairingRangeSelect = selectFromOptions(
+      productSettingOptions("portrait_pairing_range"),
+      S.portrait_pairing_range,
+      function (v) { saveSetting("portrait_pairing_range", v); },
+      function (v) {
+        if (v === "Within 1 Day") return "±1 Day";
+        if (v === "Within 2 Days") return "±2 Days";
+        return v;
+      }
+    );
+    pairingRangeSelect.disabled = !pairingEnabled;
+    if (!pairingEnabled) pairingRangeSelect.title = pairingOptionsDisabledTitle;
+    fPairingRange.appendChild(pairingRangeSelect);
+    photoBody.appendChild(fPairingRange);
+
+    photoBody.appendChild(toggleSettingRow({
+      label: "Paired Portraits Only",
+      value: S.portrait_pairs_only,
+      getValue: function () { return S.portrait_pairs_only; },
+      setValue: function (value) { S.portrait_pairs_only = value; },
+      disabled: !pairingEnabled,
+      disabledTitle: pairingOptionsDisabledTitle,
+      onChange: function () {
+        saveSetting("portrait_pairs_only", S.portrait_pairs_only);
+      }
+    }).field);
+
     var fPhotoOrientation = field("Photo Orientation");
     fPhotoOrientation.appendChild(
       selectFromOptions(productSettingOptions("photo_orientation"), S.photo_orientation, function (v) {

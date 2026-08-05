@@ -107,6 +107,8 @@ const validBackupFixture = {
     relative_unit: "Years",
     orientation: "Portrait Only",
     portrait_pairing: true,
+    portrait_pairing_range: "Within 2 Days",
+    portrait_pairs_only: true,
     display_mode: "Fill",
   },
   frequency: {
@@ -309,6 +311,8 @@ function browserScriptForScenario(scenario) {
       "Photos: Relative Unit": "Years",
       "Photos: Orientation": "Any",
       "Photos: Portrait Pairing": true,
+      "Photos: Portrait Pairing Range": "Same Day",
+      "Photos: Paired Portraits Only": false,
       "Photos: Display Mode": "Fill",
       "Photos: Slideshow Interval": "15 seconds",
       "Device: Metadata Date": true,
@@ -654,6 +658,13 @@ function smokeAssertionsForScenario(scenario) {
           }
         });
       }
+      function requireSelectDisabled(labelText) {
+        if (!selectByLabel(labelText).disabled) throw new Error(labelText + " should be disabled");
+      }
+      function requireToggleDisabled(labelText) {
+        const toggle = toggleByText(labelText);
+        if (toggle.style.cursor !== "not-allowed") throw new Error(labelText + " should be disabled");
+      }
       function fieldByLabel(labelText) {
         const labels = Array.from(document.querySelectorAll("label"));
         const label = labels.find((item) => item.textContent.trim() === labelText);
@@ -966,12 +977,16 @@ function smokeAssertionsForScenario(scenario) {
         requireText("Connection Timeout");
         requireText("Slideshow Interval");
         requireText("Portrait Pairing");
+        requireText("Pairing Range");
+        requireText("Paired Portraits Only");
         requireText("Photo Orientation");
         requireText("Display Mode");
         requireText("Metadata");
 
         setSelect("Connection Timeout", "5 minutes");
         setSelect("Slideshow Interval", "30 seconds");
+        setSelect("Pairing Range", "Within 2 Days");
+        toggleByText("Paired Portraits Only").click();
         toggleByText("Portrait Pairing").click();
         setSelect("Photo Orientation", "Landscape Only");
         setSelect("Display Mode", "Fit");
@@ -982,6 +997,13 @@ function smokeAssertionsForScenario(scenario) {
 
         clickTab("Device");
         await waitFor(() => pageText().indexOf("Clock") !== -1, 8000, "clock settings");
+        clickTab("Immich");
+        await waitFor(() => pageText().indexOf("Layout") !== -1, 8000, "pairing disabled state");
+        expandCard("Layout");
+        requireSelectDisabled("Pairing Range");
+        requireToggleDisabled("Paired Portraits Only");
+        clickTab("Device");
+        await waitFor(() => pageText().indexOf("Clock") !== -1, 8000, "clock settings return");
         expandCard("Clock");
         requireText("Show Clock");
         requireText("NTP Servers");
@@ -997,6 +1019,8 @@ function smokeAssertionsForScenario(scenario) {
           try {
             requireLatestPostParam("Connection timeout", "Screen: Connection Timeout", "option", "5 minutes");
             requireLatestPostParam("Slideshow interval", "Photos: Slideshow Interval", "option", "30 seconds");
+            requireLatestPostParam("Portrait pairing range", "Photos: Portrait Pairing Range", "option", "Within 2 Days");
+            requirePostContains("Paired portraits only", "Photos: Paired Portraits Only", "turn_on");
             requirePostContains("Portrait pairing", "Photos: Portrait Pairing", "turn_off");
             requireLatestPostParam("Photo orientation", "Photos: Orientation", "option", "Landscape Only");
             requireLatestPostParam("Display mode", "Photos: Display Mode", "option", "Fit");

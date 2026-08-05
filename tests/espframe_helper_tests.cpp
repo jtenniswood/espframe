@@ -20,6 +20,8 @@ struct SlotMeta : PhotoMeta {
 };
 
 struct DisplayMeta : PhotoMeta {
+  std::string datetime, companion_url;
+  bool is_portrait = false;
   bool valid = false;
 };
 
@@ -98,10 +100,16 @@ inline bool prepare_deferred_slot_update(int slot, int active_slot, SlotFlags &f
 
 inline void copy_slot_to_display(const SlotMeta &slot, DisplayMeta &disp) {
   static_cast<PhotoMeta &>(disp) = static_cast<const PhotoMeta &>(slot);
+  disp.datetime = slot.datetime;
+  disp.companion_url = slot.companion_url;
+  disp.is_portrait = slot.is_portrait;
 }
 
 inline void copy_display_to_slot(const DisplayMeta &disp, SlotMeta &slot) {
   static_cast<PhotoMeta &>(slot) = static_cast<const PhotoMeta &>(disp);
+  slot.datetime = disp.datetime;
+  slot.companion_url = disp.companion_url;
+  slot.is_portrait = disp.is_portrait;
 }
 
 #include "components/espframe/slideshow_controller.h"
@@ -177,6 +185,31 @@ static void test_immich_body_helpers() {
   assert(build_immich_companion_date_filter_extra("2024-05-10", fixed) ==
          "\"takenAfter\":\"2024-05-10T00:00:00.000Z\","
          "\"takenBefore\":\"2024-05-10T23:59:59.999Z\"");
+  assert(portrait_pairing_range_days("Same Day") == 0);
+  assert(portrait_pairing_range_days("Within 1 Day") == 1);
+  assert(portrait_pairing_range_days("Within 2 Days") == 2);
+  ImmichDateRange no_filter;
+  assert(build_immich_companion_date_filter_extra("2026-01-01", no_filter, 2) ==
+         "\"takenAfter\":\"2025-12-30T00:00:00.000Z\","
+         "\"takenBefore\":\"2026-01-03T23:59:59.999Z\"");
+  assert(build_immich_companion_date_filter_extra("2024-03-01", no_filter, 1) ==
+         "\"takenAfter\":\"2024-02-29T00:00:00.000Z\","
+         "\"takenBefore\":\"2024-03-02T23:59:59.999Z\"");
+  ImmichDateRange clipped{"2026-04-20", "2026-04-22", false};
+  assert(build_immich_companion_date_filter_extra("2026-04-21", clipped, 2) ==
+         "\"takenAfter\":\"2026-04-20T00:00:00.000Z\","
+         "\"takenBefore\":\"2026-04-22T23:59:59.999Z\"");
+
+  std::vector<ImmichPortraitCompanionCandidate> companion_candidates = {
+      {"primary", "2026-04-21T12:00:00", true},
+      {"landscape-near", "2026-04-21T12:01:00", false},
+      {"portrait-far", "2026-04-23T12:00:00", true},
+      {"portrait-close", "2026-04-21T13:00:00", true},
+      {"portrait-tie", "2026-04-21T11:00:00", true},
+  };
+  assert(pick_closest_immich_portrait_companion_asset_id(
+             companion_candidates, "primary", "2026-04-21T12:00:00") ==
+         "portrait-close");
 
   assert(build_uuid_json_array(" a, b ,, c ") == "[\"a\",\"b\",\"c\"]");
   assert(immich_source_has_required_ids("All Photos", "", "", ""));
@@ -421,7 +454,7 @@ static void test_slideshow_slot_actions() {
       portrait, companion_slot, -1, search_datetime, primary_asset_id);
   assert(action == SLIDESHOW_ACTION_START_ACTIVE_PAIR);
   assert(!displayed);
-  assert(current.asset_id == "portrait-active");
+  assert(current.asset_id.empty());
 
   SlotMeta queued_portrait = make_slot("portrait-prefetch", true);
   action = SlideshowController::handle_slot_download_finished(
@@ -634,10 +667,11 @@ static void test_slideshow_component_portrait_flow() {
   std::string companion_url;
   std::string search_datetime;
   int companion_slot = -1;
+  bool search_expanded = false;
 
   bool started = slideshow.start_active_portrait(
       0, slot0, slot1, slot2, portrait, displayed, primary_id, companion_url,
-      search_datetime, companion_slot);
+      search_datetime, companion_slot, search_expanded);
   assert(started);
   assert(portrait.workflow_busy);
   assert(portrait.companion_found);
@@ -668,7 +702,7 @@ static void test_slideshow_component_portrait_flow() {
   no_companion.companion_url = "";
   bool search_started = slideshow.start_active_portrait(
       0, no_companion, slot1, slot2, searching, displayed, primary_id, companion_url,
-      search_datetime, companion_slot);
+      search_datetime, companion_slot, search_expanded);
   assert(search_started);
   assert(searching.workflow_busy);
   assert(!searching.companion_found);
@@ -679,7 +713,7 @@ static void test_slideshow_component_portrait_flow() {
   assert(cmd.kind == SLIDESHOW_COMMAND_DEFER_COMPANION_SEARCH);
 
   std::string reason;
-  slideshow.on_portrait_left_error(searching, reason, displayed);
+  slideshow.on_portrait_left_error(searching, reason, displayed, false);
   assert(reason == "portrait left error");
   assert(displayed);
   assert(!searching.workflow_busy);
@@ -697,7 +731,7 @@ static void test_slideshow_component_portrait_flow() {
   right_error.companion_found = true;
   right_error.left_ready = true;
   displayed = false;
-  slideshow.on_portrait_right_error(right_error, reason, displayed);
+  slideshow.on_portrait_right_error(right_error, reason, displayed, false);
   assert(reason == "portrait right error");
   assert(displayed);
   assert(!right_error.workflow_busy);
@@ -771,7 +805,7 @@ static void test_slideshow_component_navigation_flow() {
 
   slideshow.advance_forward(2000, false, active_slot, target_slot, displayed, last_advance,
                              slot0, slot1, slot2, current, previous, portrait, flags,
-                             noncritical_count, true, -1, false, false, reason);
+                             noncritical_count, true, false, -1, false, false, reason);
   assert(active_slot == 1);
   assert(displayed);
   assert(previous.valid);
@@ -785,7 +819,7 @@ static void test_slideshow_component_navigation_flow() {
 
   slideshow.advance_forward(3000, false, active_slot, target_slot, displayed, last_advance,
                              slot0, slot1, slot2, current, previous, portrait, flags,
-                             noncritical_count, true, -1, false, false, reason);
+                             noncritical_count, true, false, -1, false, false, reason);
   assert(active_slot == 2);
   assert(!displayed);
   assert(slideshow.pop_command(cmd));
@@ -799,7 +833,7 @@ static void test_slideshow_component_navigation_flow() {
   flags.fetch_started_ms[2] = 1000;
   slideshow.advance_forward(20000, false, active_slot, target_slot, displayed, last_advance,
                              slot0, slot1, slot2, current, previous, portrait, flags,
-                             noncritical_count, true, -1, false, false, reason);
+                             noncritical_count, true, false, -1, false, false, reason);
   assert(reason == "h3 stuck slot");
   assert(!flags.fetch_in_flight[2]);
   assert(target_slot == 2);
@@ -821,6 +855,9 @@ static void test_slideshow_component_previous_flow() {
   DisplayMeta previous;
   previous.asset_id = "previous";
   previous.image_url = "https://example.test/previous";
+  previous.datetime = "2026-04-20T10:00:00";
+  previous.companion_url = "https://example.test/previous-companion";
+  previous.is_portrait = true;
   previous.valid = true;
   PortraitState portrait;
   SlotFlags flags;
@@ -834,6 +871,9 @@ static void test_slideshow_component_previous_flow() {
   assert(!displayed);
   assert(current.asset_id == "previous");
   assert(slot2.pending_asset_id == "previous");
+  assert(slot2.is_portrait);
+  assert(slot2.datetime == "2026-04-20T10:00:00");
+  assert(slot2.companion_url == "https://example.test/previous-companion");
   assert(flags.fetch_in_flight[2]);
   SlideshowCommand cmd;
   assert(slideshow.pop_command(cmd));
@@ -888,7 +928,7 @@ static void test_slideshow_component_companion_result_flow() {
   bool displayed = false;
   portrait.workflow_busy = true;
   slideshow.handle_companion_not_found(
-      portrait, companion_url, 0, 0, slot0, slot1, slot2, displayed);
+      portrait, companion_url, 0, 0, slot0, slot1, slot2, displayed, false);
   assert(!portrait.companion_found);
   assert(portrait.no_companion_active);
   assert(!portrait.workflow_busy);
@@ -906,7 +946,8 @@ static void test_slideshow_component_display_current_flow() {
   PortraitState portrait;
   bool displayed = false;
 
-  bool pair = slideshow.begin_display_current(0, slot0, slot1, slot2, portrait, true, displayed);
+  DisplayMeta current;
+  bool pair = slideshow.begin_display_current(0, slot0, slot1, slot2, portrait, true, displayed, current);
   assert(!pair);
   assert(displayed);
   assert(!portrait.workflow_busy);
@@ -915,15 +956,15 @@ static void test_slideshow_component_display_current_flow() {
   portrait = PortraitState{};
   portrait.workflow_busy = true;
   int preload_slot = 1;
-  pair = slideshow.begin_display_current(1, slot0, slot1, slot2, portrait, true, displayed);
+  pair = slideshow.begin_display_current(1, slot0, slot1, slot2, portrait, true, displayed, current);
   assert(pair);
   assert(!displayed);
   slideshow.after_display_current(1, slot0, slot1, slot2, portrait, true, displayed,
                                   preload_slot, true, true);
-  assert(displayed);
+  assert(!displayed);
   assert(portrait.is_pair);
   assert(portrait.using_preload);
-  assert(preload_slot == -1);
+  assert(preload_slot == 1);
   SlideshowCommand cmd;
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR);
@@ -934,10 +975,6 @@ static void test_slideshow_component_display_current_flow() {
   int noncritical_count = 1;
   bool cleared = slideshow.clear_preload_for_slot(
       1, preload_slot, preload_left, preload_right, preload_in_flight, noncritical_count);
-  assert(!cleared);
-  preload_slot = 1;
-  cleared = slideshow.clear_preload_for_slot(
-      1, preload_slot, preload_left, preload_right, preload_in_flight, noncritical_count);
   assert(cleared);
   assert(preload_slot == -1);
   assert(!preload_left);
@@ -946,12 +983,114 @@ static void test_slideshow_component_display_current_flow() {
   assert(noncritical_count == 0);
 }
 
+static void test_slideshow_component_paired_only_flow() {
+  EspFrameSlideshow slideshow;
+  auto &state = slideshow.state();
+  state.active_slot = 1;
+  state.active_slot_displayed = false;
+  state.current_display.asset_id = "last-visible";
+  state.current_display.valid = true;
+  state.slot1 = make_slot("unpaired-active", true);
+  state.slot1.ready = true;
+  state.portrait.workflow_busy = true;
+  state.companion_target_slot = 1;
+  state.portrait_preload_slot = 1;
+  state.portrait_preload_left_ready = true;
+  state.portrait_preload_right_ready = false;
+  state.preload_noncritical_in_flight = true;
+  state.noncritical_remote_updates_in_flight = 1;
+
+  slideshow.reject_portrait_slot(5000, 1);
+  assert(!state.slot1.ready);
+  assert(state.slot1.companion_url.empty());
+  assert(!state.active_slot_displayed);
+  assert(state.current_display.asset_id == "last-visible");
+  assert(!state.portrait.workflow_busy);
+  assert(state.portrait_preload_slot == -1);
+  assert(!state.preload_noncritical_in_flight);
+  assert(state.noncritical_remote_updates_in_flight == 0);
+  assert(state.target_slot == 1);
+  assert(state.last_advance_ms == 5000);
+  SlideshowCommand cmd;
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_REFETCH_REJECTED_SLOT);
+  assert(cmd.slot == 1);
+  assert(cmd.delay_ms == 1200);
+
+  state.slot0 = make_slot("unpaired-prefetch", true);
+  state.slot0.ready = true;
+  state.active_slot = 1;
+  state.active_slot_displayed = true;
+  slideshow.reject_portrait_slot(6000, 0);
+  assert(!state.slot0.ready);
+  assert(state.active_slot_displayed);
+  assert(state.current_display.asset_id == "last-visible");
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_REFETCH_REJECTED_SLOT);
+  assert(cmd.slot == 0);
+
+  slideshow.clear_commands();
+  PortraitState portrait;
+  portrait.workflow_busy = true;
+  std::string companion_url;
+  bool displayed = false;
+  SlotMeta slot0 = make_slot("unpaired", true);
+  SlotMeta slot1 = make_slot("slot1", false);
+  SlotMeta slot2 = make_slot("slot2", false);
+  slideshow.handle_companion_not_found(
+      portrait, companion_url, 0, 0, slot0, slot1, slot2, displayed, true);
+  assert(!displayed);
+  assert(!portrait.workflow_busy);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT);
+  assert(cmd.slot == 0);
+
+  slideshow.clear_commands();
+  portrait = PortraitState{};
+  portrait.workflow_busy = true;
+  std::string reason;
+  slideshow.on_portrait_right_error(portrait, reason, displayed, true);
+  assert(!displayed);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT);
+
+  slideshow.clear_commands();
+  int active_slot = 0;
+  int target_slot = 0;
+  uint32_t last_advance = 0;
+  DisplayMeta current;
+  DisplayMeta previous;
+  SlotFlags flags;
+  int noncritical_count = 0;
+  portrait = PortraitState{};
+  portrait.workflow_busy = true;
+  slot0.ready = true;
+  slideshow.advance_forward(
+      7000, false, active_slot, target_slot, displayed, last_advance,
+      slot0, slot1, slot2, current, previous, portrait, flags, noncritical_count,
+      true, true, -1, false, false, reason);
+  assert(!displayed);
+  assert(portrait.workflow_busy);
+  assert(!slideshow.has_command());
+
+  state.active_slot = 2;
+  state.slot2 = make_slot("complete-pair", true);
+  state.portrait.workflow_busy = true;
+  slideshow.mark_portrait_pair_displayed(false);
+  assert(state.active_slot_displayed);
+  assert(state.current_display.asset_id == "complete-pair");
+  assert(state.portrait.is_pair);
+  assert(!state.portrait.workflow_busy);
+}
+
 static void test_configuration_contract_capabilities() {
   using namespace esphome::espframe::contract;
   static_assert(CONTRACT_VERSION == 2);
   static_assert(API_VERSION == 1);
-  static_assert(SETTING_COUNT == 33);
-  static_assert(CONFIGURATION_FIELD_COUNT == 47);
+  static_assert(SETTING_COUNT == 35);
+  static_assert(CONFIGURATION_FIELD_COUNT == 49);
   assert(std::string(CAPABILITIES_PATH) == "/espframe/api/v1/capabilities");
   assert(std::string(CONFIGURATION_PATH) == "/espframe/api/v1/configuration");
   const std::string capabilities(CAPABILITIES_JSON);
@@ -978,6 +1117,7 @@ int main() {
   test_slideshow_component_previous_flow();
   test_slideshow_component_companion_result_flow();
   test_slideshow_component_display_current_flow();
+  test_slideshow_component_paired_only_flow();
   test_configuration_contract_capabilities();
   std::cout << "espframe helper tests passed\n";
   return 0;

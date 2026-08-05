@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -285,6 +286,12 @@ struct ImmichTimelineAssetCandidate {
   float ratio = 0.0f;
 };
 
+struct ImmichPortraitCompanionCandidate {
+  std::string asset_id;
+  std::string datetime;
+  bool is_portrait = false;
+};
+
 inline int immich_days_in_month(int year, int month) {
   static const int days[] = {31,28,31,30,31,30,31,31,30,31,30,31};
   if (month == 2) {
@@ -308,6 +315,12 @@ inline std::string immich_format_iso_date_offset(int year, int month, int day, i
   civil_from_days(days_from_civil(year, month, day) + offset_days,
                   shifted_year, shifted_month, shifted_day);
   return immich_format_iso_date(shifted_year, shifted_month, shifted_day);
+}
+
+inline int portrait_pairing_range_days(const std::string &option) {
+  if (option.find('2') != std::string::npos) return 2;
+  if (option.find('1') != std::string::npos) return 1;
+  return 0;
 }
 
 inline void append_csv_value(std::string &csv, const std::string &value) {
@@ -389,12 +402,71 @@ inline std::string build_immich_date_filter_extra(const ImmichDateRange &range) 
 }
 
 inline std::string build_immich_companion_date_filter_extra(const std::string &day,
-                                                           const ImmichDateRange &range) {
-  std::string after = day + "T00:00:00.000Z";
-  std::string before = day + "T23:59:59.999Z";
-  if (!range.from.empty() && range.from > day) after = range.from + "T00:00:00.000Z";
-  if (!range.to.empty() && range.to < day) before = range.to + "T23:59:59.999Z";
+                                                           const ImmichDateRange &range,
+                                                           int range_days = 0) {
+  if (range_days < 0) range_days = 0;
+  int year = day.size() >= 10 ? atoi(day.substr(0, 4).c_str()) : 0;
+  int month = day.size() >= 10 ? atoi(day.substr(5, 2).c_str()) : 0;
+  int day_of_month = day.size() >= 10 ? atoi(day.substr(8, 2).c_str()) : 0;
+  std::string from_day = day;
+  std::string to_day = day;
+  if (is_valid_date_parts(year, month, day_of_month) && range_days > 0) {
+    from_day = immich_format_iso_date_offset(year, month, day_of_month, -range_days);
+    to_day = immich_format_iso_date_offset(year, month, day_of_month, range_days);
+  }
+  if (!range.from.empty() && range.from > from_day) from_day = range.from;
+  if (!range.to.empty() && range.to < to_day) to_day = range.to;
+  std::string after = from_day + "T00:00:00.000Z";
+  std::string before = to_day + "T23:59:59.999Z";
   return "\"takenAfter\":\"" + after + "\",\"takenBefore\":\"" + before + "\"";
+}
+
+inline bool immich_datetime_sort_value(const std::string &raw, int64_t &value) {
+  if (raw.size() < 10) return false;
+  int year = atoi(raw.substr(0, 4).c_str());
+  int month = atoi(raw.substr(5, 2).c_str());
+  int day = atoi(raw.substr(8, 2).c_str());
+  if (!is_valid_date_parts(year, month, day)) return false;
+  int hour = raw.size() >= 13 ? atoi(raw.substr(11, 2).c_str()) : 0;
+  int minute = raw.size() >= 16 ? atoi(raw.substr(14, 2).c_str()) : 0;
+  int second = raw.size() >= 19 ? atoi(raw.substr(17, 2).c_str()) : 0;
+  value = static_cast<int64_t>(days_from_civil(year, month, day)) * 86400 +
+          hour * 3600 + minute * 60 + second;
+  return true;
+}
+
+inline std::string pick_closest_immich_portrait_companion_asset_id(
+    const std::vector<ImmichPortraitCompanionCandidate> &candidates,
+    const std::string &primary_asset_id,
+    const std::string &primary_datetime) {
+  int64_t primary_sort_value = 0;
+  bool primary_has_sort_value = immich_datetime_sort_value(primary_datetime, primary_sort_value);
+  bool found = false;
+  bool best_has_distance = false;
+  int64_t best_distance = std::numeric_limits<int64_t>::max();
+  std::string best_asset_id;
+  for (const auto &candidate : candidates) {
+    if (candidate.asset_id.empty() || candidate.asset_id == primary_asset_id ||
+        !candidate.is_portrait) {
+      continue;
+    }
+    int64_t candidate_sort_value = 0;
+    bool candidate_has_sort_value = primary_has_sort_value &&
+        immich_datetime_sort_value(candidate.datetime, candidate_sort_value);
+    int64_t distance = candidate_has_sort_value
+                           ? (candidate_sort_value >= primary_sort_value
+                                  ? candidate_sort_value - primary_sort_value
+                                  : primary_sort_value - candidate_sort_value)
+                           : std::numeric_limits<int64_t>::max();
+    if (!found || (candidate_has_sort_value &&
+                   (!best_has_distance || distance < best_distance))) {
+      found = true;
+      best_has_distance = candidate_has_sort_value;
+      best_distance = distance;
+      best_asset_id = candidate.asset_id;
+    }
+  }
+  return best_asset_id;
 }
 
 inline std::vector<std::string> split_uuid_csv(const std::string &csv) {
@@ -947,18 +1019,18 @@ inline std::string pick_immich_timeline_asset_id(const std::string &body,
 
 inline std::string find_immich_portrait_companion_url(const std::string &body,
                                                       const std::string &base_url,
-                                                      const std::string &primary_asset_id) {
+                                                      const std::string &primary_asset_id,
+                                                      const std::string &primary_datetime = "") {
   auto doc = esphome::json::parse_json(body);
   if (doc.isNull() || !doc.is<JsonArray>()) return "";
 
+  std::vector<ImmichPortraitCompanionCandidate> candidates;
   JsonArray arr = doc.as<JsonArray>();
   for (size_t i = 0; i < arr.size(); i++) {
     JsonObject asset = arr[i].as<JsonObject>();
     if (asset.isNull() || !asset["id"].is<const char *>()) continue;
 
     std::string asset_id = asset["id"].as<std::string>();
-    if (asset_id == primary_asset_id) continue;
-
     JsonObject exif = asset["exifInfo"].as<JsonObject>();
     if (exif.isNull()) continue;
 
@@ -972,11 +1044,20 @@ inline std::string find_immich_portrait_companion_url(const std::string &body,
     if (orientation == "5" || orientation == "6" || orientation == "7" || orientation == "8")
       std::swap(width, height);
 
-    if (width <= 0 || height <= 0 || height <= width) continue;
-    return base_url + "/api/assets/" + asset_id + "/thumbnail?size=preview";
+    std::string candidate_datetime;
+    if (asset["localDateTime"].is<const char *>()) {
+      candidate_datetime = asset["localDateTime"].as<std::string>();
+    } else if (exif["dateTimeOriginal"].is<const char *>()) {
+      candidate_datetime = exif["dateTimeOriginal"].as<std::string>();
+    }
+    candidates.push_back({asset_id, candidate_datetime,
+                          width > 0 && height > 0 && height > width});
   }
 
-  return "";
+  std::string asset_id = pick_closest_immich_portrait_companion_asset_id(
+      candidates, primary_asset_id, primary_datetime);
+  if (asset_id.empty()) return "";
+  return base_url + "/api/assets/" + asset_id + "/thumbnail?size=preview";
 }
 
 #endif  // USE_JSON
