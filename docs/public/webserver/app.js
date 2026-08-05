@@ -3226,8 +3226,10 @@ to {
   function previousFirmwareInfos() {
     var installed = installedFirmwareVersion();
     var latest = S.firmware_version_options && S.firmware_version_options.length ? S.firmware_version_options[0].version : S.latest_version;
+    var latestIsUpdate = compareFirmwareVersions(latest, installed) > 0;
     return (S.firmware_version_options || []).filter(function(info) {
-      return !firmwareVersionsSame(info.version, latest) && !firmwareVersionsSame(info.version, installed);
+      if (firmwareVersionsSame(info.version, installed)) return false;
+      return !latestIsUpdate || !firmwareVersionsSame(info.version, latest);
     });
   }
   function selectedPreviousFirmwareInfo() {

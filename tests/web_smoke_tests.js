@@ -268,6 +268,11 @@ function browserScriptForScenario(scenario) {
           this.dispatch("log", { msg: "Smoke log line", lvl: 3 });
           this.dispatch("state", { id: "text_sensor/Screen: Sunrise", value: "06:30" });
           this.dispatch("state", { id: "text_sensor/Screen: Sunset", value: "21:45" });
+          this.dispatch("state", { id: "text_sensor/Firmware: Version", value: ${JSON.stringify(installedFirmwareVersion)} });
+          this.dispatch("state", { id: "text_sensor/Firmware: Device", value: ${JSON.stringify(firmwareDeviceSlug)} });
+          this.dispatch("state", { id: "text_sensor/ESP32-C6: Current Firmware", value: "2.0.0" });
+          this.dispatch("state", { id: "text_sensor/ESP32-C6: Available Firmware", value: "2.0.1" });
+          this.dispatch("state", { id: "text_sensor/ESP32-C6: Update Available", value: "Update available" });
         }, 25);
       }
       addEventListener(type, listener) {
@@ -1140,6 +1145,11 @@ function smokeAssertionsForScenario(scenario) {
             }
             if (updates.querySelector(".disclosure-badge.active")) {
               throw new Error("An older stable release activated the update badge");
+            }
+            const previous = expandDisclosure("Previous firmware");
+            const stableRollback = Array.from(previous.querySelectorAll("option")).find((option) => option.value === "v1.0.1");
+            if (!stableRollback) {
+              throw new Error("The latest stable release was missing from prerelease rollback choices");
             }
             action.click();
             await waitFor(() => window.__smoke.posts.some((url) => url.indexOf("Firmware: Check for Update/press") !== -1), 4000, "prerelease update check");
