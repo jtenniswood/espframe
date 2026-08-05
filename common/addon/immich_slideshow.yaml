@@ -515,7 +515,7 @@ script:
                 id(espframe_core).slideshow().reject_portrait_slot(millis(), cmd.slot);
                 break;
               case SLIDESHOW_COMMAND_REFETCH_REJECTED_SLOT:
-                id(espframe_core).slideshow().state().target_slot = cmd.slot;
+                id(espframe_core).slideshow().state().rejected_fetch_target = cmd.slot;
                 id(deferred_rejected_slot_fetch).execute();
                 break;
               case SLIDESHOW_COMMAND_NONE:
@@ -1027,9 +1027,15 @@ script:
   - id: deferred_rejected_slot_fetch
     mode: restart
     then:
-      - lambda: 'id(espframe_core).slideshow().state().deferred_fetch_target = id(espframe_core).slideshow().state().target_slot;'
       - delay: 1200ms
-      - lambda: 'id(espframe_core).slideshow().state().target_slot = id(espframe_core).slideshow().state().deferred_fetch_target;'
+      - wait_until:
+          condition:
+            lambda: 'return !any_slot_fetch_in_flight(id(espframe_core).slideshow().state().slot_flags);'
+      - lambda: |-
+          int slot = id(espframe_core).slideshow().state().rejected_fetch_target;
+          if (slot < 0 || slot > 2) return;
+          id(espframe_core).slideshow().state().target_slot = slot;
+          id(espframe_core).slideshow().state().rejected_fetch_target = -1;
       - script.execute: immich_fetch_into_slot
 
   # Per-slot deferred update scripts — split from a single shared script to avoid

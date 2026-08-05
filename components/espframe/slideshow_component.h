@@ -97,6 +97,7 @@ struct SlideshowRuntimeState {
   std::string diagnostic_reason;
   uint32_t last_diagnostic_ms = 0;
   int deferred_fetch_target = 0;
+  int rejected_fetch_target = -1;
   int download_retries = 0;
 
   SlotFlags slot_flags;
@@ -584,7 +585,10 @@ class EspFrameSlideshow {
     }
     if (this->state_.companion_target_slot == slot) this->state_.companion_target_slot = -1;
     this->state_.portrait_companion_url.clear();
-    this->state_.target_slot = slot;
+    // Keep target_slot bound to any request already in flight. The delayed
+    // rejected-slot fetch claims target_slot only after the current request
+    // has completed.
+    this->state_.rejected_fetch_target = slot;
     this->state_.last_advance_ms = now_ms;
     this->state_.portrait_search_expanded = false;
     this->state_.portrait_search_generation++;

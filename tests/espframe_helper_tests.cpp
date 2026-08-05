@@ -999,6 +999,8 @@ static void test_slideshow_component_paired_only_flow() {
   state.portrait_preload_right_ready = false;
   state.preload_noncritical_in_flight = true;
   state.noncritical_remote_updates_in_flight = 1;
+  state.target_slot = 2;
+  state.slot_flags.fetch_in_flight[2] = true;
 
   slideshow.reject_portrait_slot(5000, 1);
   assert(!state.slot1.ready);
@@ -1010,7 +1012,11 @@ static void test_slideshow_component_paired_only_flow() {
   assert(state.portrait_preload_slot == -1);
   assert(!state.preload_noncritical_in_flight);
   assert(state.noncritical_remote_updates_in_flight == 0);
-  assert(state.target_slot == 1);
+  // Rejecting a portrait must not retarget the unrelated request already in
+  // flight. The rejected slot is claimed by the delayed serialized fetch.
+  assert(state.target_slot == 2);
+  assert(state.rejected_fetch_target == 1);
+  assert(state.slot_flags.fetch_in_flight[2]);
   assert(state.last_advance_ms == 5000);
   SlideshowCommand cmd;
   assert(slideshow.pop_command(cmd));
