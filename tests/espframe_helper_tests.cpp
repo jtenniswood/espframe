@@ -1072,8 +1072,10 @@ static void test_slideshow_component_paired_only_flow() {
       slot0, slot1, slot2, current, previous, portrait, flags, noncritical_count,
       true, true, -1, false, false, reason);
   assert(!displayed);
-  assert(portrait.workflow_busy);
-  assert(!slideshow.has_command());
+  assert(!portrait.workflow_busy);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT);
+  assert(cmd.slot == 0);
 
   state.active_slot = 2;
   state.slot2 = make_slot("complete-pair", true);

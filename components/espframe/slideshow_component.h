@@ -335,7 +335,11 @@ class EspFrameSlideshow {
       int slot = active_slot;
       SlotMeta &meta = this->slot_mut_(slot, slot0, slot1, slot2);
       if (meta.ready && portrait.workflow_busy) {
-        if (meta.is_portrait && portrait_pairing_enabled && portrait_pairs_only) return;
+        if (meta.is_portrait && portrait_pairing_enabled && portrait_pairs_only) {
+          portrait.workflow_busy = false;
+          this->emit_command(SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT, slot);
+          return;
+        }
         portrait.workflow_busy = false;
         portrait.left_ready = false;
         portrait.right_ready = false;
