@@ -111,8 +111,11 @@ jobs:
             --slugs $DEVICE_SLUGS \
             --allow-missing-slugs immich-frame-v2
 
-          STABLE_RELEASE_TAGS=$(gh release list --limit 30 --json tagName,isDraft,isPrerelease \
-            -q '[.[] | select((.isDraft | not) and (.isPrerelease | not))] | .[].tagName')
+          STABLE_RELEASE_TAGS=$(gh release list --limit 30 \
+            --exclude-drafts \
+            --exclude-pre-releases \
+            --json tagName \
+            -q '.[].tagName')
 
           if [ -z "$STABLE_RELEASE_TAGS" ]; then
             echo "::error::No stable firmware releases found"
@@ -120,12 +123,12 @@ jobs:
           fi
 
           download_release_asset() {
-            RELEASE_TAG="$1"
-            ASSET_NAME="$2"
-            OUTPUT_DIR="$3"
-            gh release download "$RELEASE_TAG" \
-              --pattern "$ASSET_NAME" \
-              --dir "$OUTPUT_DIR" \
+            local release_tag="$1"
+            local asset_name="$2"
+            local output_dir="$3"
+            gh release download "$release_tag" \
+              --pattern "$asset_name" \
+              --dir "$output_dir" \
               --clobber >/dev/null 2>&1
           }
 

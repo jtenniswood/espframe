@@ -2658,7 +2658,11 @@ def test_docs_workflow_retains_only_five_complete_stable_releases() -> None:
         "docs.download-firmware",
         "Download firmware from latest release",
         [
-            "gh release list --limit 30 --json tagName,isDraft,isPrerelease",
+            "gh release list --limit 30",
+            "--exclude-drafts",
+            "--exclude-pre-releases",
+            'local release_tag="$1"',
+            'gh release download "$release_tag"',
             '[[ ! "$CANDIDATE_TAG" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$ ]]',
             '[ "$VERSION" != "$CANDIDATE_TAG" ]',
             '[ "$OTA_MD5" != "$ACTUAL_OTA_MD5" ]',

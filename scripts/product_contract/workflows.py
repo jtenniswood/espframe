@@ -2318,7 +2318,11 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
                 errors,
             )
         for needle in (
-            "gh release list --limit 30 --json tagName,isDraft,isPrerelease",
+            "gh release list --limit 30",
+            "--exclude-drafts",
+            "--exclude-pre-releases",
+            "local release_tag=\"$1\"",
+            "gh release download \"$release_tag\"",
             '[[ ! "$CANDIDATE_TAG" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$ ]]',
             'PUBLIC_MANIFEST=$(jq -r --arg slug "$SLUG"',
             '[ "$VERSION" != "$CANDIDATE_TAG" ]',
