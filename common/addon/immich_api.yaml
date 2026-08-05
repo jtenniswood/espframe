@@ -283,8 +283,9 @@ script:
               - script.execute: immich_fetch_into_slot
 
   # ---------------------------------------------------------------------------
-  # Fetch a random asset from Album, Person, and Tag sources using statistics
-  # plus paged metadata search.
+  # Fetch a random asset from Album, Person, and Tag sources using paged metadata search.
+  # Album counts come from the album endpoint so shared-album
+  # contributors are included; Person and Tag counts use search statistics.
   #
   # Immich metadata page count can mirror the current page size in some server
   # versions. Statistics returns the real matching total, then metadata fetches
@@ -324,6 +325,96 @@ script:
                 then:
                   - script.execute: immich_retry_config_ready
             - script.stop: immich_fetch_metadata_into_slot
+      - lambda: |-
+          std::string source = id(photo_source_select).current_option();
+          id(immich_request_state).metadata_album_id = source == "Album"
+            ? pick_album_id_for_metadata_search(
+                id(immich_album_ids).state,
+                id(immich_album_order).current_option(),
+                id(immich_request_state).album_order_index)
+            : "";
+          id(immich_request_state).metadata_person_id = source == "Person" ? pick_one_person_id_for_random_search(id(immich_person_ids).state) : "";
+          id(immich_request_state).metadata_tag_ids = source == "Tag" ? id(immich_tag_ids).state : "";
+          id(immich_request_state).metadata_page = 1;
+          id(immich_request_state).metadata_max_page = 1;
+          id(immich_request_state).metadata_empty_page_probes = 0;
+          id(immich_request_state).metadata_page_bound_is_upper = false;
+          id(immich_request_state).metadata_page1_fallback_attempted = false;
+          id(immich_request_state).metadata_page_size =
+            id(photo_orientation_filter).current_option() == "Any" ? 1 : IMMICH_METADATA_PAGE_SIZE;
+      - if:
+          condition:
+            lambda: 'return id(photo_source_select).current_option() == "Album";'
+          then:
+            - script.execute: immich_fetch_album_count
+            - script.stop: immich_fetch_metadata_into_slot
+      - script.execute: immich_fetch_statistics_count
+
+  - id: immich_fetch_album_count
+    mode: single
+    then:
+      - http_request.get:
+          id: http_req
+          # Immich v1 returned every asset unless this query was supplied;
+          # current versions ignore it because album info no longer embeds assets.
+          url: !lambda 'return id(immich_url).state + "/api/albums/" + id(immich_request_state).metadata_album_id + "?withoutAssets=true";'
+          capture_response: true
+          max_response_buffer_size: 24kB
+          request_headers:
+            Accept: application/json
+            x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
+          on_response:
+            then:
+              - lambda: |-
+                  if (response->status_code != 200) {
+                    ESP_LOGW("immich", "Album count HTTP %d", response->status_code);
+                    clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
+                    id(immich_request_state).record_http_failure(response->status_code, millis());
+                    return;
+                  }
+                  uint32_t total = 0;
+                  if (!parse_immich_album_asset_count(body, &total)) {
+                    clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
+                    ESP_LOGW("immich", "Album count response did not contain assetCount");
+                    id(espframe_core).slideshow().state().diagnostic_reason = "album count response invalid";
+                    id(log_immich_diag).execute();
+                    id(immich_register_fetch_failure).execute();
+                    return;
+                  }
+                  id(immich_fetch_started) = true;
+                  id(immich_request_state).clear_http_status();
+                  if (total == 0) {
+                    clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
+                    ESP_LOGW("immich", "Album source has no assets");
+                    id(immich_request_state).reset_retries_and_pause(millis());
+                    return;
+                  }
+                  initialize_immich_metadata_page_range(
+                    id(immich_request_state), total, id(immich_request_state).metadata_page_size, true);
+                  ESP_LOGD("immich", "Album source selected: page %d size %d of %u assets",
+                           id(immich_request_state).metadata_page, id(immich_request_state).metadata_page_size, (unsigned) total);
+                  id(immich_fetch_metadata_page).execute();
+          on_error:
+            then:
+              - lambda: |-
+                  id(immich_request_state).register_request_error();
+                  ESP_LOGW("immich", "Album count request error for slot %d (attempt %d)", id(espframe_core).slideshow().state().target_slot, id(immich_request_state).api_retries);
+                  clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
+                  id(espframe_core).slideshow().state().diagnostic_reason = "album count request error";
+                  id(log_immich_diag).execute();
+              - if:
+                  condition:
+                    lambda: 'return id(immich_request_state).retry_available(MAX_ERROR_RETRIES);'
+                  then:
+                    - script.execute: immich_fetch_retry
+                  else:
+                    - lambda: |-
+                        id(immich_request_state).reset_retries_and_pause(millis());
+                        ESP_LOGW("immich", "Album count retries exhausted; pausing Immich fetches for 30s");
+
+  - id: immich_fetch_statistics_count
+    mode: single
+    then:
       - http_request.post:
           id: http_req
           url: !lambda 'return id(immich_url).state + "/api/search/statistics";'
@@ -334,15 +425,6 @@ script:
             Accept: application/json
             x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
           body: !lambda |-
-            std::string source = id(photo_source_select).current_option();
-            id(immich_request_state).metadata_album_id = source == "Album"
-              ? pick_album_id_for_metadata_search(
-                  id(immich_album_ids).state,
-                  id(immich_album_order).current_option(),
-                  id(immich_request_state).album_order_index)
-              : "";
-            id(immich_request_state).metadata_person_id = source == "Person" ? pick_one_person_id_for_random_search(id(immich_person_ids).state) : "";
-            id(immich_request_state).metadata_tag_ids = source == "Tag" ? id(immich_tag_ids).state : "";
             auto now = id(sntp_time).now();
             ImmichDateRange range = resolve_immich_date_filter(
               id(immich_date_filter_enabled).state,
@@ -356,7 +438,7 @@ script:
             }
             std::string extra = build_immich_date_filter_extra(range);
             return build_immich_statistics_search_body(
-              source, id(immich_request_state).metadata_album_id,
+              id(photo_source_select).current_option(), id(immich_request_state).metadata_album_id,
               id(immich_request_state).metadata_person_id, id(immich_request_state).metadata_tag_ids, extra);
           on_response:
             then:
@@ -376,10 +458,8 @@ script:
                     id(immich_request_state).reset_retries_and_pause(millis());
                     return;
                   }
-                  std::string orientation = id(photo_orientation_filter).current_option();
-                  id(immich_request_state).metadata_page_size = orientation == "Any" ? 1 : IMMICH_METADATA_PAGE_SIZE;
-                  id(immich_request_state).metadata_page = immich_metadata_page_for_total(
-                    total, id(immich_request_state).metadata_page_size);
+                  initialize_immich_metadata_page_range(
+                    id(immich_request_state), total, id(immich_request_state).metadata_page_size, false);
                   ESP_LOGD("immich", "Metadata source selected: page %d size %d of %u matching images",
                            id(immich_request_state).metadata_page, id(immich_request_state).metadata_page_size, (unsigned) total);
                   id(immich_fetch_metadata_page).execute();
@@ -400,6 +480,15 @@ script:
                     - lambda: |-
                         id(immich_request_state).reset_retries_and_pause(millis());
                         ESP_LOGW("immich", "Metadata retries exhausted; pausing Immich fetches for 30s");
+
+  - id: immich_fetch_metadata_page_probe
+    mode: restart
+    then:
+      - delay: 250ms
+      - lambda: |-
+          mark_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot,
+                                    id(espframe_core).slideshow().state().slot_flags, millis());
+      - script.execute: immich_fetch_metadata_page
 
   - id: immich_fetch_metadata_page
     mode: single
@@ -454,12 +543,32 @@ script:
                     return;
                   }
                   std::string orientation = id(photo_orientation_filter).current_option();
+                  size_t metadata_item_count = 0;
+                  bool metadata_response_valid = parse_immich_metadata_item_count(body, &metadata_item_count);
                   std::string img_url = parse_immich_metadata_asset_and_fill_slot(
                     body, id(immich_url).state, id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2,
                     orientation);
                   if (img_url.empty()) {
+                    if (!metadata_response_valid) {
+                      clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
+                      ESP_LOGW("immich", "Metadata page response had an unknown shape");
+                      id(espframe_core).slideshow().state().diagnostic_reason = "metadata page response invalid";
+                      id(log_immich_diag).execute();
+                      id(immich_register_fetch_failure).execute();
+                      return;
+                    }
+                    if (metadata_item_count == 0 &&
+                        retry_empty_immich_metadata_page(id(immich_request_state))) {
+                      ESP_LOGD("immich", "Empty album metadata page; retrying page %d of %u (probe %u/%u)",
+                               id(immich_request_state).metadata_page,
+                               (unsigned) id(immich_request_state).metadata_max_page,
+                               (unsigned) id(immich_request_state).metadata_empty_page_probes,
+                               (unsigned) MAX_EMPTY_METADATA_PAGE_PROBES);
+                      id(immich_fetch_metadata_page_probe).execute();
+                      return;
+                    }
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
-                    if (orientation != "Any" && id(immich_request_state).retry_available(MAX_ERROR_RETRIES)) {
+                    if (metadata_item_count > 0 && orientation != "Any" && id(immich_request_state).retry_available(MAX_ERROR_RETRIES)) {
                       id(immich_request_state).register_request_error();
                       ESP_LOGW("immich", "No %s image in metadata page; retrying", orientation.c_str());
                       id(immich_fetch_retry).execute();

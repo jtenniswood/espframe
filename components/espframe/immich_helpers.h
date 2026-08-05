@@ -1,6 +1,7 @@
 #pragma once
 #include "date_utils.h"
 #include "esp_random.h"
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -10,6 +11,7 @@
 static constexpr uint16_t ZOOM_IDENTITY = 256;
 static constexpr uint16_t IMMICH_ALBUM_PAGE_SIZE = 16;
 static constexpr uint16_t IMMICH_METADATA_PAGE_SIZE = 5;
+static constexpr uint8_t MAX_EMPTY_METADATA_PAGE_PROBES = 8;
 
 // Owns the complete state of the Immich request pipeline. Keeping these values
 // together makes reset, retry, and cooldown transitions atomic instead of
@@ -32,6 +34,10 @@ struct ImmichRequestState {
   std::string metadata_tag_ids;
   int metadata_page = 1;
   int metadata_page_size = 1;
+  uint32_t metadata_max_page = 1;
+  uint8_t metadata_empty_page_probes = 0;
+  bool metadata_page_bound_is_upper = false;
+  bool metadata_page1_fallback_attempted = false;
   uint32_t metadata_bypass_until_ms = 0;
   int album_order_index = 0;
 
@@ -97,6 +103,10 @@ struct ImmichRequestState {
     this->clear_failures();
     this->retry_delay_ms = 2000;
     this->retry_cooldown_until_ms = 0;
+    this->metadata_max_page = 1;
+    this->metadata_empty_page_probes = 0;
+    this->metadata_page_bound_is_upper = false;
+    this->metadata_page1_fallback_attempted = false;
   }
 
   int register_request_error() { return ++this->api_retries; }
@@ -420,6 +430,53 @@ inline uint32_t immich_metadata_page_for_total(uint32_t total,
   return (esp_random() % pages) + 1;
 }
 
+inline uint32_t immich_metadata_page_count_for_total(uint32_t total,
+                                                      uint16_t page_size = IMMICH_METADATA_PAGE_SIZE) {
+  if (page_size == 0) page_size = IMMICH_METADATA_PAGE_SIZE;
+  if (total == 0) return 1;
+  uint32_t pages = (total + page_size - 1) / page_size;
+  if (pages == 0) pages = 1;
+  return pages;
+}
+
+inline void initialize_immich_metadata_page_range(ImmichRequestState &state,
+                                                   uint32_t total,
+                                                   uint16_t page_size,
+                                                   bool count_is_upper_bound) {
+  if (page_size == 0) page_size = IMMICH_METADATA_PAGE_SIZE;
+  state.metadata_page_size = page_size;
+  state.metadata_max_page = immich_metadata_page_count_for_total(total, page_size);
+  state.metadata_page = (esp_random() % state.metadata_max_page) + 1;
+  state.metadata_empty_page_probes = 0;
+  state.metadata_page_bound_is_upper = count_is_upper_bound;
+  state.metadata_page1_fallback_attempted = false;
+}
+
+// Album assetCount includes videos plus assets hidden by Immich or excluded by
+// Espframe's date filter. It is therefore an upper bound rather than an exact
+// metadata-search total. An empty metadata page proves every later page is
+// empty too, so reduce the range and sample again without changing albums.
+inline bool retry_empty_immich_metadata_page(ImmichRequestState &state) {
+  if (!state.metadata_page_bound_is_upper) return false;
+
+  if (state.metadata_page > 1 && state.metadata_empty_page_probes < MAX_EMPTY_METADATA_PAGE_PROBES) {
+    uint32_t previous_page = static_cast<uint32_t>(state.metadata_page);
+    state.metadata_max_page = std::min(state.metadata_max_page, previous_page - 1);
+    if (state.metadata_max_page == 0) return false;
+    state.metadata_page = (esp_random() % state.metadata_max_page) + 1;
+    state.metadata_empty_page_probes++;
+    return true;
+  }
+
+  if (!state.metadata_page1_fallback_attempted && state.metadata_page != 1) {
+    state.metadata_page = 1;
+    state.metadata_page1_fallback_attempted = true;
+    return true;
+  }
+
+  return false;
+}
+
 inline bool immich_source_uses_metadata_search(const std::string &photo_source) {
   return photo_source == "Album" || photo_source == "Person" || photo_source == "Tag";
 }
@@ -697,6 +754,46 @@ inline uint32_t parse_immich_statistics_total(const std::string &body) {
   if (root["total"].is<int>()) total = root["total"].as<int>();
   if (total <= 0 && root["images"].is<int>()) total = root["images"].as<int>();
   return total > 0 ? static_cast<uint32_t>(total) : 0;
+}
+
+inline bool parse_immich_album_asset_count(const std::string &body, uint32_t *out_count) {
+  if (out_count == nullptr) return false;
+  auto doc = esphome::json::parse_json(body);
+  if (doc.isNull() || !doc.is<JsonObject>()) return false;
+
+  JsonObject root = doc.as<JsonObject>();
+  if (!root["assetCount"].is<int>()) return false;
+  int count = root["assetCount"].as<int>();
+  if (count < 0) return false;
+  *out_count = static_cast<uint32_t>(count);
+  return true;
+}
+
+// Return true only when the response has a recognised metadata result shape.
+// This lets the caller distinguish an empty result page from malformed JSON or
+// a page whose images simply do not match the requested orientation.
+inline bool parse_immich_metadata_item_count(const std::string &body, size_t *out_count) {
+  if (out_count == nullptr) return false;
+  auto doc = esphome::json::parse_json(body);
+  if (doc.isNull()) return false;
+
+  if (doc.is<JsonArray>()) {
+    *out_count = doc.as<JsonArray>().size();
+    return true;
+  }
+  if (!doc.is<JsonObject>()) return false;
+
+  JsonObject root = doc.as<JsonObject>();
+  JsonObject assets = root["assets"].as<JsonObject>();
+  if (assets.isNull()) return false;
+
+  JsonArray items = assets["items"].as<JsonArray>();
+  if (items.isNull() && assets["assets"].is<JsonArray>()) {
+    items = assets["assets"].as<JsonArray>();
+  }
+  if (items.isNull()) return false;
+  *out_count = items.size();
+  return true;
 }
 
 inline std::string parse_immich_metadata_asset(const std::string &body,

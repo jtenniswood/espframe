@@ -40,6 +40,7 @@ Shows photos from one or more Immich albums. **Get the UUID:** open the album in
 The descriptions are saved with the IDs so the web UI can show friendly labels later. They do not affect which photos Immich returns.
 
 Album photos are sampled through paged Immich search, so large albums are not limited to the first small batch of results.
+Shared albums are sampled across photos added by every contributor, not only the account used by the frame's API key.
 
 When you add more than one album, **Album Order** can either keep sampling albums randomly or cycle through the Albums list from top to bottom. Use the move buttons beside each album to set the list order. Photos inside each selected album are still chosen randomly.
 
