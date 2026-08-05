@@ -27,6 +27,10 @@
         "purpose": "Search for random photos and read metadata (date, location, EXIF)"
       },
       {
+        "name": "asset.statistics",
+        "purpose": "Count matching photos for album, person, and tag sources"
+      },
+      {
         "name": "asset.view",
         "purpose": "Download photo thumbnails for display"
       },
