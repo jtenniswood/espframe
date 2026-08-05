@@ -350,6 +350,9 @@ script:
             - script.execute: immich_retry_config_ready
             - script.stop: flush_slots_and_refetch
       - lambda: |-
+          // Album metadata fallback pages depend on the active source and
+          // filters, so discard their RAM-only cursors whenever this applies.
+          id(immich_request_state).reset_album_metadata_fallbacks();
           // A flush discards every slot, so it has to discard the work that was
           // filling them too. Clearing `ready` while leaving fetch_in_flight set
           // orphans the flag: request_prefetch() and the slideshow interval both
