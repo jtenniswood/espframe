@@ -1106,8 +1106,15 @@ function smokeAssertionsForScenario(scenario) {
             }
             if (${JSON.stringify(scenario.name)} === "firmware-rollback-failure") {
               await waitFor(() => pageText().indexOf("Device rejected firmware upload (500)") !== -1, 4000, "rollback upload failure");
+              const cancelIndex = window.__smoke.posts.findIndex((url) => url.indexOf("Firmware: Cancel Browser Update/press") !== -1);
+              if (cancelIndex === -1 || cancelIndex < uploadIndex) {
+                throw new Error("Rejected rollback upload did not clear reboot recovery state");
+              }
             } else {
               await waitFor(() => pageText().indexOf("Waiting for the display to restart") !== -1, 4000, "rollback reboot wait");
+              if (window.__smoke.posts.some((url) => url.indexOf("Firmware: Cancel Browser Update/press") !== -1)) {
+                throw new Error("Successful rollback upload unexpectedly cleared reboot recovery state");
+              }
             }
           }
 

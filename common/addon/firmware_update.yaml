@@ -218,6 +218,19 @@ button:
           global_preferences->sync();
 
   - platform: template
+    name: "Firmware: Cancel Browser Update"
+    id: firmware_cancel_browser_update
+    entity_category: diagnostic
+    icon: "mdi:progress-close"
+    disabled_by_default: true
+    web_server:
+      sorting_group_id: sg_firmware
+    on_press:
+      - lambda: |-
+          id(firmware_update_reboot_pending) = false;
+          global_preferences->sync();
+
+  - platform: template
     name: "Firmware: Check for Update"
     entity_category: config
     icon: "mdi:update"

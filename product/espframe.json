@@ -716,6 +716,7 @@
         "manual_entities": [
           "update",
           "firmware_prepare_upload",
+          "firmware_cancel_upload",
           "firmware_check",
           "c6_firmware_check",
           "c6_firmware_install"
@@ -912,6 +913,10 @@
       },
       "firmware_prepare_upload": {
         "entity": "button/Firmware: Prepare Browser Update",
+        "firmware_file": "common/addon/firmware_update.yaml"
+      },
+      "firmware_cancel_upload": {
+        "entity": "button/Firmware: Cancel Browser Update",
         "firmware_file": "common/addon/firmware_update.yaml"
       },
       "c6_firmware_check": {

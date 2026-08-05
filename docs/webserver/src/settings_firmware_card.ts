@@ -307,8 +307,19 @@
           markFirmwareRestartPending();
           return true;
         }
-        failFirmwareInstall(error && error.message ? error.message : "Could not upload firmware update.");
-        return false;
+        var message = error && error.message ? error.message : "Could not upload firmware update.";
+        if (!uploadResponseReceived) {
+          failFirmwareInstall(message);
+          return false;
+        }
+        return post(endpoints.firmware_cancel_upload + "/press")
+          .catch(function () {
+            message += " The display's update recovery state could not be cleared; restart it before trying again.";
+          })
+          .then(function () {
+            failFirmwareInstall(message);
+            return false;
+          });
       });
   }
 

@@ -112,6 +112,7 @@ def check_firmware_update_metadata(product: dict, errors: list[str]) -> None:
         "Previous firmware",
         "compareFirmwareVersions(latest, installed) > 0",
         'post(endpoints.firmware_prepare_upload + "/press")',
+        'post(endpoints.firmware_cancel_upload + "/press")',
     ):
         require_contains(web_template, needle, rel(WEB_TEMPLATE), errors)
     for needle in (
