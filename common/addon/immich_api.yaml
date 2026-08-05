@@ -324,6 +324,52 @@ script:
                 then:
                   - script.execute: immich_retry_config_ready
             - script.stop: immich_fetch_metadata_into_slot
+      - lambda: |-
+          std::string source = id(photo_source_select).current_option();
+          bool resume_album_fallback = source == "Album" &&
+            id(immich_request_state).should_resume_album_metadata_fallback(millis());
+          id(immich_request_state).clear_album_metadata_fallback_request();
+          if (source == "Album" && !resume_album_fallback) {
+            id(immich_request_state).metadata_album_id = pick_album_id_for_metadata_search(
+              id(immich_album_ids).state,
+              id(immich_album_order).current_option(),
+              id(immich_request_state).album_order_index);
+          } else if (source != "Album") {
+            id(immich_request_state).metadata_album_id = "";
+          }
+          id(immich_request_state).metadata_person_id = source == "Person"
+            ? pick_one_person_id_for_random_search(id(immich_person_ids).state)
+            : "";
+          id(immich_request_state).metadata_tag_ids = source == "Tag"
+            ? id(immich_tag_ids).state
+            : "";
+          if (resume_album_fallback) {
+            id(immich_request_state).begin_album_metadata_fallback(
+              id(immich_request_state).metadata_album_id);
+            ESP_LOGD("immich", "Album statistics fallback retry: metadata page %d",
+                     id(immich_request_state).metadata_page);
+            id(immich_fetch_metadata_page).execute();
+          }
+      - if:
+          condition:
+            lambda: |-
+              return id(immich_request_state).metadata_album_fallback;
+          then:
+            - script.stop: immich_fetch_metadata_into_slot
+      - if:
+          condition:
+            lambda: |-
+              return id(photo_source_select).current_option() == "Album" &&
+                     id(immich_request_state).album_metadata_fallback_active(
+                       id(immich_request_state).metadata_album_id, millis());
+          then:
+            - lambda: |-
+                id(immich_request_state).begin_album_metadata_fallback(
+                  id(immich_request_state).metadata_album_id);
+                ESP_LOGD("immich", "Album statistics fallback: metadata page %d",
+                         id(immich_request_state).metadata_page);
+            - script.execute: immich_fetch_metadata_page
+            - script.stop: immich_fetch_metadata_into_slot
       - http_request.post:
           id: http_req
           url: !lambda 'return id(immich_url).state + "/api/search/statistics";'
@@ -335,14 +381,6 @@ script:
             x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
           body: !lambda |-
             std::string source = id(photo_source_select).current_option();
-            id(immich_request_state).metadata_album_id = source == "Album"
-              ? pick_album_id_for_metadata_search(
-                  id(immich_album_ids).state,
-                  id(immich_album_order).current_option(),
-                  id(immich_request_state).album_order_index)
-              : "";
-            id(immich_request_state).metadata_person_id = source == "Person" ? pick_one_person_id_for_random_search(id(immich_person_ids).state) : "";
-            id(immich_request_state).metadata_tag_ids = source == "Tag" ? id(immich_tag_ids).state : "";
             auto now = id(sntp_time).now();
             ImmichDateRange range = resolve_immich_date_filter(
               id(immich_date_filter_enabled).state,
@@ -371,6 +409,12 @@ script:
                   id(immich_request_state).clear_http_status();
                   uint32_t total = parse_immich_statistics_total(body);
                   if (total == 0) {
+                    if (id(photo_source_select).current_option() == "Album") {
+                      id(immich_request_state).begin_album_statistics_probe();
+                      ESP_LOGI("immich", "Album statistics returned zero; checking metadata");
+                      id(immich_fetch_metadata_page).execute();
+                      return;
+                    }
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
                     ESP_LOGW("immich", "Statistics source has no matching images");
                     id(immich_request_state).reset_retries_and_pause(millis());
@@ -449,9 +493,33 @@ script:
               - lambda: |-
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Metadata page HTTP %d", response->status_code);
+                    if (id(immich_request_state).metadata_album_fallback) {
+                      id(immich_request_state).retry_album_metadata_fallback();
+                    }
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
                     id(immich_request_state).record_http_failure(response->status_code, millis());
                     return;
+                  }
+                  bool album_statistics_probe = id(immich_request_state).metadata_album_statistics_probe;
+                  bool album_metadata_fallback = id(immich_request_state).metadata_album_fallback;
+                  ImmichMetadataPageInfo page_info = parse_immich_metadata_page_info(body);
+                  bool statistics_mismatch = false;
+                  if (album_metadata_fallback) {
+                    statistics_mismatch = id(immich_request_state).finish_album_metadata_page(
+                      page_info.item_count > 0, page_info.next_page, millis());
+                    if (statistics_mismatch) {
+                      ESP_LOGI("immich", "Album statistics mismatch; using metadata paging for 30 minutes");
+                    }
+                    if (page_info.item_count == 0) {
+                      clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
+                      if (album_statistics_probe) {
+                        ESP_LOGW("immich", "Album metadata has no matching images");
+                      } else {
+                        ESP_LOGW("immich", "Album metadata fallback page is empty; resetting to page 1");
+                      }
+                      id(immich_request_state).reset_retries_and_pause(millis());
+                      return;
+                    }
                   }
                   std::string orientation = id(photo_orientation_filter).current_option();
                   std::string img_url = parse_immich_metadata_asset_and_fill_slot(
@@ -460,6 +528,9 @@ script:
                   if (img_url.empty()) {
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
                     if (orientation != "Any" && id(immich_request_state).retry_available(MAX_ERROR_RETRIES)) {
+                      if (album_metadata_fallback) {
+                        id(immich_request_state).retry_album_metadata_fallback();
+                      }
                       id(immich_request_state).register_request_error();
                       ESP_LOGW("immich", "No %s image in metadata page; retrying", orientation.c_str());
                       id(immich_fetch_retry).execute();
@@ -488,6 +559,9 @@ script:
           on_error:
             then:
               - lambda: |-
+                  if (id(immich_request_state).metadata_album_fallback) {
+                    id(immich_request_state).retry_album_metadata_fallback();
+                  }
                   id(immich_request_state).register_request_error();
                   ESP_LOGW("immich", "Metadata page request error for slot %d (attempt %d)", id(espframe_core).slideshow().state().target_slot, id(immich_request_state).api_retries);
                   clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
