@@ -1030,7 +1030,15 @@ script:
       - delay: 1200ms
       - wait_until:
           condition:
-            lambda: 'return !any_slot_fetch_in_flight(id(espframe_core).slideshow().state().slot_flags);'
+            lambda: |-
+              return !any_slot_fetch_in_flight(id(espframe_core).slideshow().state().slot_flags) &&
+                     !id(immich_img_0).is_downloading() &&
+                     !id(immich_img_1).is_downloading() &&
+                     !id(immich_img_2).is_downloading() &&
+                     !id(immich_portrait_left).is_downloading() &&
+                     !id(immich_portrait_right).is_downloading() &&
+                     !id(immich_portrait_preload_left).is_downloading() &&
+                     !id(immich_portrait_preload_right).is_downloading();
       - lambda: |-
           int slot = id(espframe_core).slideshow().state().rejected_fetch_target;
           if (slot < 0 || slot > 2) return;
