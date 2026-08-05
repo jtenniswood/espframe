@@ -509,44 +509,7 @@ script:
                 ESP_LOGI("immich", "No previous image available");
                 break;
               case SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR:
-                if (id(espframe_core).slideshow().state().portrait_preload_slot != id(espframe_core).slideshow().state().active_slot ||
-                    !id(espframe_core).slideshow().state().portrait_preload_left_ready || !id(espframe_core).slideshow().state().portrait_preload_right_ready) {
-                  ESP_LOGW("immich", "Preloaded pair not fully ready for active slot %d; deferring display", id(espframe_core).slideshow().state().active_slot);
-                  id(espframe_core).slideshow().state().diagnostic_reason = "preloaded pair not ready";
-                  id(log_immich_diag).execute();
-                  id(delayed_prefetch_chain).execute();
-                  break;
-                }
-                {
-                  auto *left_dsc = get_lv_image_descriptor_(id(immich_portrait_preload_left), 0);
-                  auto *right_dsc = get_lv_image_descriptor_(id(immich_portrait_preload_right), 0);
-                  if (left_dsc == nullptr || right_dsc == nullptr ||
-                      left_dsc->data == nullptr || right_dsc->data == nullptr ||
-                      id(immich_portrait_preload_left).get_width() <= 0 || id(immich_portrait_preload_left).get_height() <= 0 ||
-                      id(immich_portrait_preload_right).get_width() <= 0 || id(immich_portrait_preload_right).get_height() <= 0) {
-                    ESP_LOGW("immich", "Preloaded portrait descriptor not ready; deferring pair display");
-                    id(espframe_core).slideshow().state().diagnostic_reason = "preloaded pair descriptor not ready";
-                    id(log_immich_diag).execute();
-                    if (id(portrait_pairs_only).state) {
-                      id(espframe_core).slideshow().reject_portrait_slot(
-                        millis(), id(espframe_core).slideshow().state().active_slot);
-                    } else {
-                      id(delayed_prefetch_chain).execute();
-                    }
-                    break;
-                  }
-                  lv_img_set_src(id(portrait_left_img), left_dsc);
-                  lv_img_set_src(id(portrait_right_img), right_dsc);
-                }
-                lv_img_set_zoom(id(slideshow_img), ZOOM_IDENTITY);
-                lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
-                lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
-                id(espframe_core).slideshow().mark_portrait_pair_displayed(true);
-                id(extract_accent_color).execute();
-                id(apply_warm_tones).execute();
-                id(update_clock_display).execute();
-                id(update_photo_metadata_display).execute();
-                id(delayed_prefetch_chain).execute();
+                id(immich_display_preloaded_portrait_pair).execute();
                 break;
               case SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT:
                 id(espframe_core).slideshow().reject_portrait_slot(millis(), cmd.slot);
@@ -560,6 +523,57 @@ script:
                 break;
             }
           }
+
+  - id: immich_display_preloaded_portrait_pair
+    mode: single
+    then:
+      - lvgl.page.show: slideshow_page
+      - script.execute: hide_connection_failed
+      - lambda: |-
+          const int active_slot = id(espframe_core).slideshow().state().active_slot;
+          auto reject_or_fallback = [&]() {
+            if (id(portrait_pairs_only).state) {
+              id(espframe_core).slideshow().reject_portrait_slot(millis(), active_slot);
+            } else {
+              id(espframe_core).slideshow().fallback_preloaded_pair_to_single(active_slot);
+            }
+            id(espframe_slideshow_dispatch).execute();
+          };
+
+          if (id(espframe_core).slideshow().state().portrait_preload_slot != active_slot ||
+              !id(espframe_core).slideshow().state().portrait_preload_left_ready ||
+              !id(espframe_core).slideshow().state().portrait_preload_right_ready) {
+            ESP_LOGW("immich", "Preloaded pair not fully ready for active slot %d", active_slot);
+            id(espframe_core).slideshow().state().diagnostic_reason = "preloaded pair not ready";
+            id(log_immich_diag).execute();
+            reject_or_fallback();
+            return;
+          }
+
+          auto *left_dsc = get_lv_image_descriptor_(id(immich_portrait_preload_left), 0);
+          auto *right_dsc = get_lv_image_descriptor_(id(immich_portrait_preload_right), 0);
+          if (left_dsc == nullptr || right_dsc == nullptr ||
+              left_dsc->data == nullptr || right_dsc->data == nullptr ||
+              id(immich_portrait_preload_left).get_width() <= 0 || id(immich_portrait_preload_left).get_height() <= 0 ||
+              id(immich_portrait_preload_right).get_width() <= 0 || id(immich_portrait_preload_right).get_height() <= 0) {
+            ESP_LOGW("immich", "Preloaded portrait descriptor not ready");
+            id(espframe_core).slideshow().state().diagnostic_reason = "preloaded pair descriptor not ready";
+            id(log_immich_diag).execute();
+            reject_or_fallback();
+            return;
+          }
+
+          lv_img_set_src(id(portrait_left_img), left_dsc);
+          lv_img_set_src(id(portrait_right_img), right_dsc);
+          lv_img_set_zoom(id(slideshow_img), ZOOM_IDENTITY);
+          lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
+          id(espframe_core).slideshow().mark_portrait_pair_displayed(true);
+          id(extract_accent_color).execute();
+          id(apply_warm_tones).execute();
+          id(update_clock_display).execute();
+          id(update_photo_metadata_display).execute();
+          id(delayed_prefetch_chain).execute();
 
   - id: show_photo_source_menu
     mode: single

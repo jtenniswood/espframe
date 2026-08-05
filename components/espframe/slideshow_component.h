@@ -592,6 +592,20 @@ class EspFrameSlideshow {
     }
   }
 
+  void fallback_preloaded_pair_to_single(int slot) {
+    if (slot < 0 || slot > 2) return;
+    this->clear_preload_for_slot(
+        slot, this->state_.portrait_preload_slot,
+        this->state_.portrait_preload_left_ready,
+        this->state_.portrait_preload_right_ready,
+        this->state_.preload_noncritical_in_flight,
+        this->state_.noncritical_remote_updates_in_flight);
+    this->state_.portrait = PortraitState{};
+    this->state_.portrait.no_companion_active = true;
+    this->state_.active_slot_displayed = true;
+    this->emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT, slot);
+  }
+
   bool request_prefetch(bool backlight_paused, bool retry_cooldown_active, uint32_t now_ms,
                         uint32_t &last_prefetch_start_ms, int active_slot, int &target_slot,
                         const SlotMeta &slot0, const SlotMeta &slot1, const SlotMeta &slot2,

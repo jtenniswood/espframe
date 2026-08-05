@@ -1083,6 +1083,24 @@ static void test_slideshow_component_paired_only_flow() {
   assert(state.current_display.asset_id == "complete-pair");
   assert(state.portrait.is_pair);
   assert(!state.portrait.workflow_busy);
+
+  slideshow.clear_commands();
+  state.active_slot = 0;
+  state.active_slot_displayed = false;
+  state.slot0 = make_slot("invalid-preload-fallback", true);
+  state.portrait_preload_slot = 0;
+  state.portrait_preload_left_ready = true;
+  state.portrait_preload_right_ready = true;
+  state.portrait.workflow_busy = true;
+  slideshow.fallback_preloaded_pair_to_single(0);
+  assert(state.portrait_preload_slot == -1);
+  assert(!state.portrait_preload_left_ready);
+  assert(!state.portrait_preload_right_ready);
+  assert(state.portrait.no_companion_active);
+  assert(state.active_slot_displayed);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
+  assert(cmd.slot == 0);
 }
 
 static void test_configuration_contract_capabilities() {
