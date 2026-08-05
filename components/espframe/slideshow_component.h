@@ -113,6 +113,8 @@ struct SlideshowRuntimeState {
   bool portrait_preload_left_ready = false;
   bool portrait_preload_right_ready = false;
   bool portrait_search_expanded = false;
+  uint32_t portrait_search_generation = 0;
+  uint32_t portrait_search_request_generation = 0;
 
   void reset() { *this = SlideshowRuntimeState{}; }
 
@@ -172,7 +174,10 @@ class EspFrameSlideshow {
         portrait_pairing_enabled, active_slot_displayed, current_display, portrait,
         companion_target_slot, portrait_preload_slot, portrait_search_datetime,
         portrait_primary_asset_id);
-    if (action == SLIDESHOW_ACTION_FETCH_COMPANION) this->state_.portrait_search_expanded = false;
+    if (action == SLIDESHOW_ACTION_FETCH_COMPANION) {
+      this->state_.portrait_search_expanded = false;
+      this->state_.portrait_search_generation++;
+    }
     this->emit_action(action, slot);
     return action;
   }
@@ -220,6 +225,7 @@ class EspFrameSlideshow {
     portrait_search_datetime = meta.datetime;
     companion_target_slot = active_slot;
     portrait_search_expanded = false;
+    this->state_.portrait_search_generation++;
     this->emit_command(SLIDESHOW_COMMAND_DEFER_COMPANION_SEARCH, active_slot, 200);
     return true;
   }
@@ -451,6 +457,7 @@ class EspFrameSlideshow {
                                   int companion_target_slot, int active_slot,
                                   SlotMeta &slot0, SlotMeta &slot1, SlotMeta &slot2,
                                   bool &active_slot_displayed, bool portrait_pairs_only) {
+    if (companion_target_slot < 0 || companion_target_slot > 2) return;
     portrait.companion_found = false;
     portrait_companion_url = "";
     portrait.left_requested = false;
@@ -478,7 +485,8 @@ class EspFrameSlideshow {
                           SlotMeta &slot2, int &portrait_preload_slot,
                           bool &portrait_preload_left_ready,
                           bool &portrait_preload_right_ready) {
-    if (companion_url.empty()) return false;
+    if (companion_url.empty() || companion_target_slot < 0 || companion_target_slot > 2)
+      return false;
 
     portrait.no_companion_active = false;
     portrait.companion_found = true;
@@ -579,7 +587,20 @@ class EspFrameSlideshow {
     this->state_.target_slot = slot;
     this->state_.last_advance_ms = now_ms;
     this->state_.portrait_search_expanded = false;
+    this->state_.portrait_search_generation++;
     this->emit_command(SLIDESHOW_COMMAND_REFETCH_REJECTED_SLOT, slot, 1200);
+  }
+
+  void mark_portrait_search_request_started() {
+    this->state_.portrait_search_request_generation =
+        this->state_.portrait_search_generation;
+  }
+
+  bool portrait_search_response_is_current() const {
+    return this->state_.companion_target_slot >= 0 &&
+           this->state_.companion_target_slot <= 2 &&
+           this->state_.portrait_search_request_generation ==
+               this->state_.portrait_search_generation;
   }
 
   void mark_portrait_pair_displayed(bool using_preload) {

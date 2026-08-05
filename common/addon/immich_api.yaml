@@ -844,6 +844,7 @@ script:
             ? portrait_pairing_range_days(id(portrait_pairing_range).current_option()) : 0;
           ESP_LOGD("immich", "Searching companion portrait for slot %d, date %s, range +/- %d day(s)",
                    id(espframe_core).slideshow().state().companion_target_slot, day.c_str(), range_days);
+          id(espframe_core).slideshow().mark_portrait_search_request_started();
       - http_request.post:
           id: http_req
           url: !lambda 'return id(immich_url).state + "/api/search/random";'
@@ -874,6 +875,10 @@ script:
           on_response:
             then:
               - lambda: |-
+                  if (!id(espframe_core).slideshow().portrait_search_response_is_current()) {
+                    ESP_LOGD("immich", "Ignoring stale companion search response");
+                    return;
+                  }
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Companion search HTTP %d", response->status_code);
                     id(espframe_core).slideshow().state().diagnostic_reason = "companion search http";
@@ -906,8 +911,12 @@ script:
           on_error:
             then:
               - lambda: |-
+                  if (!id(espframe_core).slideshow().portrait_search_response_is_current()) {
+                    ESP_LOGD("immich", "Ignoring stale companion search error");
+                    return;
+                  }
                   ESP_LOGW("immich", "Companion search request failed");
                   id(espframe_core).slideshow().state().diagnostic_reason = "companion search error";
                   id(log_immich_diag).execute();
-              - script.execute: handle_companion_not_found
+                  id(handle_companion_not_found).execute();
       - script.execute: delayed_prefetch_chain

@@ -1006,6 +1006,7 @@ static void test_slideshow_component_paired_only_flow() {
   assert(!state.active_slot_displayed);
   assert(state.current_display.asset_id == "last-visible");
   assert(!state.portrait.workflow_busy);
+  assert(!slideshow.portrait_search_response_is_current());
   assert(state.portrait_preload_slot == -1);
   assert(!state.preload_noncritical_in_flight);
   assert(state.noncritical_remote_updates_in_flight == 0);
@@ -1103,6 +1104,33 @@ static void test_slideshow_component_paired_only_flow() {
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
   assert(cmd.slot == 0);
+
+  slideshow.clear_commands();
+  state.companion_target_slot = 1;
+  state.portrait_search_generation = 10;
+  slideshow.mark_portrait_search_request_started();
+  assert(slideshow.portrait_search_response_is_current());
+  slideshow.reject_portrait_slot(8000, 1);
+  assert(!slideshow.portrait_search_response_is_current());
+
+  SlotMeta stale0 = make_slot("stale0", true);
+  SlotMeta stale1 = make_slot("stale1", true);
+  SlotMeta stale2 = make_slot("stale2", true);
+  PortraitState stale_portrait;
+  std::string stale_url;
+  bool stale_displayed = false;
+  bool stale_handled = slideshow.on_companion_found(
+      "https://example.test/stale", stale_portrait, stale_url, -1, 0,
+      stale0, stale1, stale2, state.portrait_preload_slot,
+      state.portrait_preload_left_ready, state.portrait_preload_right_ready);
+  assert(!stale_handled);
+  assert(stale2.companion_url.empty());
+  slideshow.clear_commands();
+  slideshow.handle_companion_not_found(
+      stale_portrait, stale_url, -1, 0, stale0, stale1, stale2,
+      stale_displayed, true);
+  assert(!slideshow.has_command());
+  assert(stale2.companion_url.empty());
 }
 
 static void test_configuration_contract_capabilities() {
