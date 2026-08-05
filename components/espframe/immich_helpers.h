@@ -11,7 +11,9 @@
 static constexpr uint16_t ZOOM_IDENTITY = 256;
 static constexpr uint16_t IMMICH_ALBUM_PAGE_SIZE = 16;
 static constexpr uint16_t IMMICH_METADATA_PAGE_SIZE = 5;
-static constexpr uint8_t MAX_EMPTY_METADATA_PAGE_PROBES = 8;
+// Sixteen midpoint probes reduce a 10,000-page upper bound below one page,
+// covering very sparse date-filtered albums without a first-page bias.
+static constexpr uint8_t MAX_EMPTY_METADATA_PAGE_PROBES = 16;
 
 // Owns the complete state of the Immich request pipeline. Keeping these values
 // together makes reset, retry, and cooldown transitions atomic instead of
@@ -42,6 +44,16 @@ struct ImmichRequestState {
   int album_order_index = 0;
 
   void reset() { *this = ImmichRequestState{}; }
+
+  // Kept for the photo-source flush path. Album pagination no longer has a
+  // statistics fallback cache, but applying a source must still clear its
+  // in-progress page-bound probes.
+  void reset_album_metadata_fallbacks() {
+    this->metadata_max_page = 1;
+    this->metadata_empty_page_probes = 0;
+    this->metadata_page_bound_is_upper = false;
+    this->metadata_page1_fallback_attempted = false;
+  }
 
   void begin_memory_search() {
     this->memory_fallback = false;
