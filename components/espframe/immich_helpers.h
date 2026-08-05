@@ -455,7 +455,9 @@ inline void initialize_immich_metadata_page_range(ImmichRequestState &state,
 // Album assetCount includes videos plus assets hidden by Immich or excluded by
 // Espframe's date filter. It is therefore an upper bound rather than an exact
 // metadata-search total. An empty metadata page proves every later page is
-// empty too, so reduce the range and sample again without changing albums.
+// empty too, so reduce the range and probe its midpoint without changing
+// albums. Midpoint probes converge on a selective filter's actual last page,
+// whereas repeated random probes can keep landing above that boundary.
 inline bool retry_empty_immich_metadata_page(ImmichRequestState &state) {
   if (!state.metadata_page_bound_is_upper) return false;
 
@@ -463,7 +465,7 @@ inline bool retry_empty_immich_metadata_page(ImmichRequestState &state) {
     uint32_t previous_page = static_cast<uint32_t>(state.metadata_page);
     state.metadata_max_page = std::min(state.metadata_max_page, previous_page - 1);
     if (state.metadata_max_page == 0) return false;
-    state.metadata_page = (esp_random() % state.metadata_max_page) + 1;
+    state.metadata_page = static_cast<int>((state.metadata_max_page + 1) / 2);
     state.metadata_empty_page_probes++;
     return true;
   }

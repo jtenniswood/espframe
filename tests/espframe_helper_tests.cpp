@@ -228,7 +228,7 @@ static void test_immich_body_helpers() {
   metadata_state.metadata_max_page = 151;
   assert(retry_empty_immich_metadata_page(metadata_state));
   assert(metadata_state.metadata_max_page == 150);
-  assert(metadata_state.metadata_page == 1);
+  assert(metadata_state.metadata_page == 75);
   assert(metadata_state.metadata_empty_page_probes == 1);
   // Probing is internal to the chosen album; it must not advance list order.
   assert(album_order_index == 1);
