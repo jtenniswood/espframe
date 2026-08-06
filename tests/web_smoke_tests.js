@@ -691,9 +691,8 @@ function smokeAssertionsForScenario(scenario) {
       function requireSettingsSections() {
         clickTab("Device");
         const expected = [
-          ["Display", ["Screen Brightness", "Screen Tone", "Rotation"]],
+          ["Display", ["Screen Brightness", "Screen Tone", "Rotation", "Clock"]],
           ["Sleep & Schedule", ["Night Schedule"]],
-          ["Preferences", ["Clock"]],
           ["System", ["Backup", "Firmware", "Device Reboot"]]
         ];
         const sections = Array.from(document.querySelectorAll("#sp-settings .settings-section"));
@@ -1006,6 +1005,12 @@ function smokeAssertionsForScenario(scenario) {
         await waitFor(() => pageText().indexOf("Clock") !== -1, 8000, "clock settings return");
         expandCard("Clock");
         requireText("Show Clock");
+        const advancedClockSettings = disclosureByTitle("Advanced");
+        const advancedClockButton = advancedClockSettings.querySelector(".inline-disclosure-button");
+        if (advancedClockButton.tagName !== "BUTTON" || advancedClockButton.getAttribute("aria-expanded") !== "false") {
+          throw new Error("Clock advanced settings disclosure is not an accessible collapsed button");
+        }
+        expandDisclosure("Advanced");
         requireText("NTP Servers");
 
         toggleByText("Show Clock").click();

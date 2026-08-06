@@ -1,7 +1,7 @@
 #pragma once
 #include "date_utils.h"
 #include "esp_random.h"
-#include <array>
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -12,14 +12,9 @@
 static constexpr uint16_t ZOOM_IDENTITY = 256;
 static constexpr uint16_t IMMICH_ALBUM_PAGE_SIZE = 16;
 static constexpr uint16_t IMMICH_METADATA_PAGE_SIZE = 5;
-static constexpr uint32_t IMMICH_ALBUM_METADATA_FALLBACK_MS = 30 * 60 * 1000;
-static constexpr size_t IMMICH_MAX_ALBUM_METADATA_FALLBACKS = 6;
-
-struct ImmichAlbumMetadataFallback {
-  std::string album_id;
-  uint32_t next_page = 1;
-  uint32_t active_until_ms = 0;
-};
+// Sixteen midpoint probes reduce a 10,000-page upper bound below one page,
+// covering very sparse date-filtered albums without a first-page bias.
+static constexpr uint8_t MAX_EMPTY_METADATA_PAGE_PROBES = 16;
 
 // Owns the complete state of the Immich request pipeline. Keeping these values
 // together makes reset, retry, and cooldown transitions atomic instead of
@@ -42,85 +37,30 @@ struct ImmichRequestState {
   std::string metadata_tag_ids;
   int metadata_page = 1;
   int metadata_page_size = 1;
-  bool metadata_album_fallback = false;
-  bool metadata_album_statistics_probe = false;
-  bool metadata_album_fallback_retry = false;
-  std::array<ImmichAlbumMetadataFallback, IMMICH_MAX_ALBUM_METADATA_FALLBACKS>
-      album_metadata_fallbacks{};
+  uint32_t metadata_max_page = 1;
+  uint8_t metadata_empty_page_probes = 0;
+  bool metadata_page_bound_is_upper = false;
+  bool metadata_page1_fallback_attempted = false;
+  uint32_t metadata_bypass_until_ms = 0;
   int album_order_index = 0;
 
   void reset() { *this = ImmichRequestState{}; }
+
+  // Kept for the photo-source flush path. Album pagination no longer has a
+  // statistics fallback cache, but applying a source must still clear its
+  // in-progress page-bound probes.
+  void reset_album_metadata_fallbacks() {
+    this->metadata_max_page = 1;
+    this->metadata_empty_page_probes = 0;
+    this->metadata_page_bound_is_upper = false;
+    this->metadata_page1_fallback_attempted = false;
+  }
 
   void begin_memory_search() {
     this->memory_fallback = false;
     this->memory_asset_id.clear();
     this->memory_window_offset = -2;
     this->memory_image_count = 0;
-  }
-
-  void reset_album_metadata_fallbacks() {
-    for (auto &fallback : this->album_metadata_fallbacks) {
-      fallback = {};
-    }
-    this->metadata_album_fallback = false;
-    this->metadata_album_statistics_probe = false;
-    this->metadata_album_fallback_retry = false;
-  }
-
-  void clear_album_metadata_fallback_request() {
-    this->metadata_album_fallback = false;
-    this->metadata_album_statistics_probe = false;
-    this->metadata_album_fallback_retry = false;
-  }
-
-  bool should_resume_album_metadata_fallback(uint32_t now_ms) const {
-    return this->metadata_album_fallback_retry &&
-           this->album_metadata_fallback_active(this->metadata_album_id, now_ms);
-  }
-
-  void retry_album_metadata_fallback() {
-    this->metadata_album_fallback_retry = true;
-    this->metadata_album_statistics_probe = false;
-  }
-
-  bool album_metadata_fallback_active(const std::string &album_id, uint32_t now_ms) const {
-    const auto *fallback = this->find_album_metadata_fallback_(album_id);
-    return fallback != nullptr && fallback->active_until_ms != 0 && now_ms < fallback->active_until_ms;
-  }
-
-  void begin_album_metadata_fallback(const std::string &album_id) {
-    this->metadata_album_fallback = true;
-    this->metadata_album_statistics_probe = false;
-    this->metadata_album_fallback_retry = false;
-    const auto *fallback = this->find_album_metadata_fallback_(album_id);
-    this->metadata_page = fallback != nullptr && fallback->next_page > 0 ? fallback->next_page : 1;
-    this->metadata_page_size = IMMICH_METADATA_PAGE_SIZE;
-  }
-
-  void begin_album_statistics_probe() {
-    this->metadata_album_fallback = true;
-    this->metadata_album_statistics_probe = true;
-    this->metadata_album_fallback_retry = false;
-    this->metadata_page = 1;
-    this->metadata_page_size = IMMICH_METADATA_PAGE_SIZE;
-  }
-
-  // Store the next metadata page for this album. A non-empty probe response
-  // confirms Immich's statistics endpoint cannot count this readable album.
-  bool finish_album_metadata_page(bool has_items, uint32_t next_page, uint32_t now_ms) {
-    if (!this->metadata_album_fallback || this->metadata_album_id.empty()) return false;
-
-    bool statistics_mismatch = this->metadata_album_statistics_probe && has_items;
-    auto *fallback = this->find_or_create_album_metadata_fallback_(this->metadata_album_id);
-    if (fallback != nullptr) {
-      fallback->next_page = has_items && next_page > 0 ? next_page : 1;
-      if (statistics_mismatch) {
-        fallback->active_until_ms = now_ms + IMMICH_ALBUM_METADATA_FALLBACK_MS;
-      }
-    }
-    this->metadata_album_fallback = false;
-    this->metadata_album_statistics_probe = false;
-    return statistics_mismatch;
   }
 
   bool advance_memory_window() {
@@ -176,6 +116,10 @@ struct ImmichRequestState {
     this->clear_failures();
     this->retry_delay_ms = 2000;
     this->retry_cooldown_until_ms = 0;
+    this->metadata_max_page = 1;
+    this->metadata_empty_page_probes = 0;
+    this->metadata_page_bound_is_upper = false;
+    this->metadata_page1_fallback_attempted = false;
   }
 
   int register_request_error() { return ++this->api_retries; }
@@ -215,28 +159,6 @@ struct ImmichRequestState {
   }
 
  private:
-  const ImmichAlbumMetadataFallback *find_album_metadata_fallback_(const std::string &album_id) const {
-    if (album_id.empty()) return nullptr;
-    for (const auto &fallback : this->album_metadata_fallbacks) {
-      if (fallback.album_id == album_id) return &fallback;
-    }
-    return nullptr;
-  }
-
-  ImmichAlbumMetadataFallback *find_or_create_album_metadata_fallback_(const std::string &album_id) {
-    if (album_id.empty()) return nullptr;
-    for (auto &fallback : this->album_metadata_fallbacks) {
-      if (fallback.album_id == album_id) return &fallback;
-    }
-    for (auto &fallback : this->album_metadata_fallbacks) {
-      if (fallback.album_id.empty()) {
-        fallback.album_id = album_id;
-        return &fallback;
-      }
-    }
-    return nullptr;
-  }
-
   void record_failure_(uint32_t now_ms) {
     this->consecutive_failures++;
     if (this->failure_window_started_ms == 0) this->failure_window_started_ms = now_ms;
@@ -592,6 +514,55 @@ inline uint32_t immich_metadata_page_for_total(uint32_t total,
   return (esp_random() % pages) + 1;
 }
 
+inline uint32_t immich_metadata_page_count_for_total(uint32_t total,
+                                                      uint16_t page_size = IMMICH_METADATA_PAGE_SIZE) {
+  if (page_size == 0) page_size = IMMICH_METADATA_PAGE_SIZE;
+  if (total == 0) return 1;
+  uint32_t pages = (total + page_size - 1) / page_size;
+  if (pages == 0) pages = 1;
+  return pages;
+}
+
+inline void initialize_immich_metadata_page_range(ImmichRequestState &state,
+                                                   uint32_t total,
+                                                   uint16_t page_size,
+                                                   bool count_is_upper_bound) {
+  if (page_size == 0) page_size = IMMICH_METADATA_PAGE_SIZE;
+  state.metadata_page_size = page_size;
+  state.metadata_max_page = immich_metadata_page_count_for_total(total, page_size);
+  state.metadata_page = (esp_random() % state.metadata_max_page) + 1;
+  state.metadata_empty_page_probes = 0;
+  state.metadata_page_bound_is_upper = count_is_upper_bound;
+  state.metadata_page1_fallback_attempted = false;
+}
+
+// Album assetCount includes videos plus assets hidden by Immich or excluded by
+// Espframe's date filter. It is therefore an upper bound rather than an exact
+// metadata-search total. An empty metadata page proves every later page is
+// empty too, so reduce the range and probe its midpoint without changing
+// albums. Midpoint probes converge on a selective filter's actual last page,
+// whereas repeated random probes can keep landing above that boundary.
+inline bool retry_empty_immich_metadata_page(ImmichRequestState &state) {
+  if (!state.metadata_page_bound_is_upper) return false;
+
+  if (state.metadata_page > 1 && state.metadata_empty_page_probes < MAX_EMPTY_METADATA_PAGE_PROBES) {
+    uint32_t previous_page = static_cast<uint32_t>(state.metadata_page);
+    state.metadata_max_page = std::min(state.metadata_max_page, previous_page - 1);
+    if (state.metadata_max_page == 0) return false;
+    state.metadata_page = static_cast<int>((state.metadata_max_page + 1) / 2);
+    state.metadata_empty_page_probes++;
+    return true;
+  }
+
+  if (!state.metadata_page1_fallback_attempted && state.metadata_page != 1) {
+    state.metadata_page = 1;
+    state.metadata_page1_fallback_attempted = true;
+    return true;
+  }
+
+  return false;
+}
+
 inline bool immich_source_uses_metadata_search(const std::string &photo_source) {
   return photo_source == "Album" || photo_source == "Person" || photo_source == "Tag";
 }
@@ -711,17 +682,6 @@ inline std::string pick_immich_timeline_asset_id_from_candidates(
 
   if (candidates.empty()) return "";
   return candidates[esp_random() % candidates.size()];
-}
-
-inline uint32_t parse_immich_metadata_next_page_value(const std::string &value) {
-  if (value.empty()) return 0;
-  char *end = nullptr;
-  unsigned long page = strtoul(value.c_str(), &end, 10);
-  if (end == value.c_str() || *end != '\0' || page == 0 ||
-      page > static_cast<unsigned long>(UINT32_MAX)) {
-    return 0;
-  }
-  return static_cast<uint32_t>(page);
 }
 
 // ============================================================================
@@ -882,33 +842,44 @@ inline uint32_t parse_immich_statistics_total(const std::string &body) {
   return total > 0 ? static_cast<uint32_t>(total) : 0;
 }
 
-struct ImmichMetadataPageInfo {
-  size_t item_count = 0;
-  uint32_t next_page = 0;
-};
-
-inline ImmichMetadataPageInfo parse_immich_metadata_page_info(const std::string &body) {
+inline bool parse_immich_album_asset_count(const std::string &body, uint32_t *out_count) {
+  if (out_count == nullptr) return false;
   auto doc = esphome::json::parse_json(body);
-  if (doc.isNull() || !doc.is<JsonObject>()) return {};
+  if (doc.isNull() || !doc.is<JsonObject>()) return false;
 
-  JsonObject assets = doc.as<JsonObject>()["assets"].as<JsonObject>();
-  if (assets.isNull()) return {};
+  JsonObject root = doc.as<JsonObject>();
+  if (!root["assetCount"].is<int>()) return false;
+  int count = root["assetCount"].as<int>();
+  if (count < 0) return false;
+  *out_count = static_cast<uint32_t>(count);
+  return true;
+}
+
+// Return true only when the response has a recognised metadata result shape.
+// This lets the caller distinguish an empty result page from malformed JSON or
+// a page whose images simply do not match the requested orientation.
+inline bool parse_immich_metadata_item_count(const std::string &body, size_t *out_count) {
+  if (out_count == nullptr) return false;
+  auto doc = esphome::json::parse_json(body);
+  if (doc.isNull()) return false;
+
+  if (doc.is<JsonArray>()) {
+    *out_count = doc.as<JsonArray>().size();
+    return true;
+  }
+  if (!doc.is<JsonObject>()) return false;
+
+  JsonObject root = doc.as<JsonObject>();
+  JsonObject assets = root["assets"].as<JsonObject>();
+  if (assets.isNull()) return false;
 
   JsonArray items = assets["items"].as<JsonArray>();
   if (items.isNull() && assets["assets"].is<JsonArray>()) {
     items = assets["assets"].as<JsonArray>();
   }
-
-  ImmichMetadataPageInfo info;
-  if (!items.isNull()) info.item_count = items.size();
-  if (assets["nextPage"].is<int>()) {
-    info.next_page = parse_immich_metadata_next_page_value(
-        std::to_string(assets["nextPage"].as<int>()));
-  } else if (assets["nextPage"].is<const char *>()) {
-    info.next_page = parse_immich_metadata_next_page_value(
-        assets["nextPage"].as<const char *>());
-  }
-  return info;
+  if (items.isNull()) return false;
+  *out_count = items.size();
+  return true;
 }
 
 inline std::string parse_immich_metadata_asset(const std::string &body,

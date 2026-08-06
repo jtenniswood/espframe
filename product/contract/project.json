@@ -664,6 +664,23 @@
       ]
     },
     {
+      "id": "clock",
+      "label": "Clock",
+      "tab": "settings",
+      "section": "Display",
+      "function": "makeClockCard",
+      "settings": [
+        "clock_format"
+      ],
+      "static_entities": [
+        "show_clock",
+        "timezone",
+        "ntp_server_1",
+        "ntp_server_2",
+        "ntp_server_3"
+      ]
+    },
+    {
       "id": "night_schedule",
       "label": "Night Schedule",
       "tab": "settings",
@@ -678,23 +695,6 @@
       "static_entities": [
         "sunrise",
         "sunset"
-      ]
-    },
-    {
-      "id": "clock",
-      "label": "Clock",
-      "tab": "settings",
-      "section": "Preferences",
-      "function": "makeClockCard",
-      "settings": [
-        "clock_format"
-      ],
-      "static_entities": [
-        "show_clock",
-        "timezone",
-        "ntp_server_1",
-        "ntp_server_2",
-        "ntp_server_3"
       ]
     },
     {
@@ -1585,5 +1585,5 @@
   "esphome_docker_image": "ghcr.io/esphome/esphome",
   "esphome_config_mount": "/config",
   "esphome_docker_remove_container": true,
-  "esphome_version": "2026.6.5"
+  "esphome_version": "2026.7.4"
 }

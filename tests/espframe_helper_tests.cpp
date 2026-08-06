@@ -248,6 +248,45 @@ static void test_immich_body_helpers() {
   assert(immich_metadata_page_for_total(0) == 1);
   assert(immich_metadata_page_for_total(848) == 1);
   assert(immich_metadata_page_for_total(848, 5) <= 170);
+  assert(immich_metadata_page_count_for_total(0) == 1);
+  assert(immich_metadata_page_count_for_total(753, 1) == 753);
+  assert(immich_metadata_page_count_for_total(753, 5) == 151);
+  ImmichRequestState metadata_state;
+  initialize_immich_metadata_page_range(metadata_state, 753, 1, true);
+  assert(metadata_state.metadata_page_size == 1);
+  assert(metadata_state.metadata_max_page == 753);
+  assert(metadata_state.metadata_page == 1);
+  assert(metadata_state.metadata_page_bound_is_upper);
+  metadata_state.metadata_page = 151;
+  metadata_state.metadata_max_page = 151;
+  assert(retry_empty_immich_metadata_page(metadata_state));
+  assert(metadata_state.metadata_max_page == 150);
+  assert(metadata_state.metadata_page == 75);
+  assert(metadata_state.metadata_empty_page_probes == 1);
+  // Probing is internal to the chosen album; it must not advance list order.
+  assert(album_order_index == 1);
+  metadata_state.metadata_page = 10;
+  metadata_state.metadata_max_page = 10;
+  for (uint8_t probe = metadata_state.metadata_empty_page_probes;
+       probe < MAX_EMPTY_METADATA_PAGE_PROBES; probe++) {
+    metadata_state.metadata_page = 10;
+    metadata_state.metadata_max_page = 10;
+    assert(retry_empty_immich_metadata_page(metadata_state));
+  }
+  assert(metadata_state.metadata_empty_page_probes == MAX_EMPTY_METADATA_PAGE_PROBES);
+  metadata_state.metadata_page = 42;
+  metadata_state.metadata_empty_page_probes = MAX_EMPTY_METADATA_PAGE_PROBES;
+  assert(retry_empty_immich_metadata_page(metadata_state));
+  assert(metadata_state.metadata_page == 1);
+  assert(metadata_state.metadata_page1_fallback_attempted);
+  assert(!retry_empty_immich_metadata_page(metadata_state));
+  metadata_state.register_success();
+  assert(metadata_state.metadata_empty_page_probes == 0);
+  assert(!metadata_state.metadata_page_bound_is_upper);
+  assert(!metadata_state.metadata_page1_fallback_attempted);
+  initialize_immich_metadata_page_range(metadata_state, 109, 5, false);
+  assert(metadata_state.metadata_max_page == 22);
+  assert(!retry_empty_immich_metadata_page(metadata_state));
   assert(!immich_source_uses_metadata_search("All Photos"));
   assert(!immich_source_uses_metadata_search("Favorites"));
   assert(immich_source_uses_metadata_search("Album"));
@@ -283,12 +322,6 @@ static void test_immich_body_helpers() {
              .find("\"personIds\":[\"p1\"]") != std::string::npos);
   assert(build_immich_statistics_search_body("Tag", "", "", "t1,t2")
              .find("\"tagIds\":[\"t1\",\"t2\"]") != std::string::npos);
-
-  assert(parse_immich_metadata_next_page_value("7") == 7);
-  assert(parse_immich_metadata_next_page_value("3") == 3);
-  assert(parse_immich_metadata_next_page_value("") == 0);
-  assert(parse_immich_metadata_next_page_value("null") == 0);
-  assert(parse_immich_metadata_next_page_value("1x") == 0);
 
   std::vector<ImmichTimelineBucketInfo> large_album_buckets = {
       {"2026-05-01", 848},
@@ -336,46 +369,6 @@ static void test_immich_request_state() {
   assert(state.memory_asset_id == "asset-b");
   assert(state.advance_memory_window());
   assert(state.memory_window_offset == -1);
-
-  state.metadata_album_id = "album-a";
-  state.begin_album_statistics_probe();
-  assert(state.metadata_album_fallback);
-  assert(state.metadata_album_statistics_probe);
-  assert(state.metadata_page == 1);
-  assert(state.metadata_page_size == IMMICH_METADATA_PAGE_SIZE);
-  assert(state.finish_album_metadata_page(true, 4, 1000));
-  assert(state.album_metadata_fallback_active("album-a", 1001));
-  state.begin_album_metadata_fallback("album-a");
-  assert(state.metadata_page == 4);
-  assert(!state.metadata_album_statistics_probe);
-  state.retry_album_metadata_fallback();
-  assert(state.should_resume_album_metadata_fallback(1002));
-  state.clear_album_metadata_fallback_request();
-  assert(!state.should_resume_album_metadata_fallback(1002));
-
-  state.metadata_album_id = "album-b";
-  state.begin_album_statistics_probe();
-  assert(state.finish_album_metadata_page(true, 2, 2000));
-  state.begin_album_metadata_fallback("album-b");
-  assert(state.metadata_page == 2);
-  state.begin_album_metadata_fallback("album-a");
-  assert(state.metadata_page == 4);
-
-  state.metadata_album_id = "album-a";
-  state.begin_album_metadata_fallback("album-a");
-  assert(!state.finish_album_metadata_page(true, 0, 3000));
-  state.begin_album_metadata_fallback("album-a");
-  assert(state.metadata_page == 1);
-  assert(!state.album_metadata_fallback_active("album-a", 1000 + IMMICH_ALBUM_METADATA_FALLBACK_MS));
-
-  state.metadata_album_id = "empty-album";
-  state.begin_album_statistics_probe();
-  assert(!state.finish_album_metadata_page(false, 0, 4000));
-  assert(!state.album_metadata_fallback_active("empty-album", 4001));
-
-  state.reset_album_metadata_fallbacks();
-  assert(!state.album_metadata_fallback_active("album-a", 3001));
-  assert(!state.album_metadata_fallback_active("album-b", 3001));
 
   assert(state.register_request_error() == 1);
   assert(state.prepare_retry_delay() == 2000);
