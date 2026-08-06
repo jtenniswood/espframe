@@ -983,6 +983,12 @@ function smokeAssertionsForScenario(scenario) {
         await waitFor(() => pageText().indexOf("Clock") !== -1, 8000, "clock settings");
         expandCard("Clock");
         requireText("Show Clock");
+        const advancedClockSettings = disclosureByTitle("Advanced");
+        const advancedClockButton = advancedClockSettings.querySelector(".inline-disclosure-button");
+        if (advancedClockButton.tagName !== "BUTTON" || advancedClockButton.getAttribute("aria-expanded") !== "false") {
+          throw new Error("Clock advanced settings disclosure is not an accessible collapsed button");
+        }
+        expandDisclosure("Advanced");
         requireText("NTP Servers");
 
         toggleByText("Show Clock").click();

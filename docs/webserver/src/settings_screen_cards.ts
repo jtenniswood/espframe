@@ -182,7 +182,7 @@
       })
     );
     clkBody.appendChild(f7);
-    clkBody.appendChild(ntpServersField());
+    clkBody.appendChild(makeInlineDisclosure("Advanced", ntpServersField(), false));
     return makeCollapsibleCard("Clock", clkBody, true, clockBadge);
 
   }
