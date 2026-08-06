@@ -680,9 +680,8 @@ function smokeAssertionsForScenario(scenario) {
       function requireSettingsSections() {
         clickTab("Device");
         const expected = [
-          ["Display", ["Screen Brightness", "Screen Tone", "Rotation"]],
+          ["Display", ["Screen Brightness", "Screen Tone", "Rotation", "Clock"]],
           ["Sleep & Schedule", ["Night Schedule"]],
-          ["Preferences", ["Clock"]],
           ["System", ["Backup", "Firmware", "Device Reboot"]]
         ];
         const sections = Array.from(document.querySelectorAll("#sp-settings .settings-section"));

@@ -532,7 +532,7 @@ def check_web_ui_card_metadata(product: dict, web_template: str, web_text: str, 
     if missing_settings:
         errors.append("Product settings missing from project.web_ui_cards: " + ", ".join(missing_settings))
 
-    for section in ("Display", "Sleep & Schedule", "Preferences", "System"):
+    for section in ("Display", "Sleep & Schedule", "System"):
         if section not in seen_settings_sections:
             errors.append(f"project.web_ui_cards is missing settings section {section!r}")
 
