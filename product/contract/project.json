@@ -398,7 +398,7 @@
   "slideshow_interval_default_seconds": 15,
   "slideshow_interval_range_seconds": [
     10,
-    600
+    86400
   ],
   "connection_timeout_default": "10 minutes",
   "connection_timeout_default_seconds": 600,
