@@ -403,7 +403,7 @@
     "slideshow_interval_default_seconds": 15,
     "slideshow_interval_range_seconds": [
       10,
-      600
+      86400
     ],
     "connection_timeout_default": "10 minutes",
     "connection_timeout_default_seconds": 600,
@@ -2188,7 +2188,7 @@
       },
       "default": "15 seconds",
       "docs_label": "Slideshow Interval",
-      "docs_description": "How long each photo is shown before advancing (10 seconds to 10 minutes).",
+      "docs_description": "How long each photo is shown before advancing (10 seconds to 24 hours).",
       "firmware_initial_option": "${immich_slide_interval}",
       "options": [
         "10 seconds",
@@ -2200,7 +2200,15 @@
         "2 minutes",
         "3 minutes",
         "5 minutes",
-        "10 minutes"
+        "10 minutes",
+        "15 minutes",
+        "30 minutes",
+        "1 hour",
+        "2 hours",
+        "4 hours",
+        "8 hours",
+        "16 hours",
+        "24 hours"
       ],
       "firmware_files": [
         "devices/guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml"

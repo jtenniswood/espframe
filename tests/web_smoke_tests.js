@@ -983,7 +983,7 @@ function smokeAssertionsForScenario(scenario) {
         requireText("Metadata");
 
         setSelect("Connection Timeout", "5 minutes");
-        setSelect("Slideshow Interval", "30 seconds");
+        setSelect("Slideshow Interval", "24 hours");
         setSelect("Pairing Range", "Within 2 Days");
         toggleByText("Paired Portraits Only").click();
         toggleByText("Portrait Pairing").click();
@@ -1023,7 +1023,7 @@ function smokeAssertionsForScenario(scenario) {
         await waitFor(() => {
           try {
             requireLatestPostParam("Connection timeout", "Screen: Connection Timeout", "option", "5 minutes");
-            requireLatestPostParam("Slideshow interval", "Photos: Slideshow Interval", "option", "30 seconds");
+            requireLatestPostParam("Slideshow interval", "Photos: Slideshow Interval", "option", "24 hours");
             requireLatestPostParam("Portrait pairing range", "Photos: Portrait Pairing Range", "option", "Within 2 Days");
             requirePostContains("Paired portraits only", "Photos: Paired Portraits Only", "turn_on");
             requirePostContains("Portrait pairing", "Photos: Portrait Pairing", "turn_off");

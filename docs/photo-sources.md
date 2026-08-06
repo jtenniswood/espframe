@@ -159,7 +159,7 @@ Use **Frequency** in the web UI to control slideshow timing and disconnect handl
 <!-- ESPFRAME:SETTINGS_TABLE frequency START -->
 | Setting | Default | Description |
 |---------|---------|-------------|
-| **Slideshow Interval** | 15 seconds | How long each photo is shown before advancing (10 seconds to 10 minutes). |
+| **Slideshow Interval** | 15 seconds | How long each photo is shown before advancing (10 seconds to 24 hours). |
 | **Connection Timeout** | 10 minutes | How long the frame waits without successfully displaying a new photo before showing the connection-failed screen (30 seconds to 30 minutes). |
 <!-- ESPFRAME:SETTINGS_TABLE frequency END -->
 

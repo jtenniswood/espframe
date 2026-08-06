@@ -35,7 +35,7 @@ Under **Settings → Devices & Services → ESPHome** (device page):
 | **Photos: Relative Unit** | Select | Months or Years for the rolling date range |
 | **Photos: Orientation** | Select | Any, Portrait Only, or Landscape Only |
 | **Photos: Display Mode** | Select | Fill crops to cover the screen; Fit letterboxes without cropping |
-| **Photos: Slideshow Interval** | Select | 10s–10min between photos |
+| **Photos: Slideshow Interval** | Select | 10s–24h between photos |
 | **Photos: Portrait Pairing** | Switch | Pair compatible portrait photos side-by-side |
 | **Photos: Portrait Pairing Range** | Select | Match portraits from the same day, ±1 day, or ±2 days |
 | **Photos: Paired Portraits Only** | Switch | Skip portrait photos unless a complete pair is ready |

@@ -143,14 +143,17 @@ static void test_date_and_url_helpers() {
 }
 
 static void test_duration_helpers() {
-  assert(parse_duration_option_seconds("10 seconds", 15, 10, 600) == 10);
-  assert(parse_duration_option_seconds("15 seconds", 15, 10, 600) == 15);
-  assert(parse_duration_option_seconds("1 minute", 15, 10, 600) == 60);
-  assert(parse_duration_option_seconds("2 minutes", 15, 10, 600) == 120);
-  assert(parse_duration_option_seconds("10 minutes", 15, 10, 600) == 600);
-  assert(parse_duration_option_seconds("5 seconds", 15, 10, 600) == 10);
-  assert(parse_duration_option_seconds("20 minutes", 15, 10, 600) == 600);
-  assert(parse_duration_option_seconds("", 15, 10, 600) == 15);
+  assert(parse_duration_option_seconds("10 seconds", 15, 10, 86400) == 10);
+  assert(parse_duration_option_seconds("15 seconds", 15, 10, 86400) == 15);
+  assert(parse_duration_option_seconds("1 minute", 15, 10, 86400) == 60);
+  assert(parse_duration_option_seconds("2 minutes", 15, 10, 86400) == 120);
+  assert(parse_duration_option_seconds("10 minutes", 15, 10, 86400) == 600);
+  assert(parse_duration_option_seconds("20 minutes", 15, 10, 86400) == 1200);
+  assert(parse_duration_option_seconds("1 hour", 15, 10, 86400) == 3600);
+  assert(parse_duration_option_seconds("24 hours", 15, 10, 86400) == 86400);
+  assert(parse_duration_option_seconds("5 seconds", 15, 10, 86400) == 10);
+  assert(parse_duration_option_seconds("48 hours", 15, 10, 86400) == 86400);
+  assert(parse_duration_option_seconds("", 15, 10, 86400) == 15);
 }
 
 static void test_immich_body_helpers() {

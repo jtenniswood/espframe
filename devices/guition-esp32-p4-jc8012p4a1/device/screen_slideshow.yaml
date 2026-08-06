@@ -616,6 +616,14 @@ select:
       - "3 minutes"
       - "5 minutes"
       - "10 minutes"
+      - "15 minutes"
+      - "30 minutes"
+      - "1 hour"
+      - "2 hours"
+      - "4 hours"
+      - "8 hours"
+      - "16 hours"
+      - "24 hours"
     initial_option: "${immich_slide_interval}"
     optimistic: true
     restore_value: true
@@ -624,7 +632,7 @@ select:
     on_value:
       then:
         - lambda: |-
-            id(slideshow_interval_sec) = parse_duration_option_seconds(x, 15, 10, 600);
+            id(slideshow_interval_sec) = parse_duration_option_seconds(x, 15, 10, 86400);
     web_server:
       sorting_group_id: sg_photos
 
@@ -670,7 +678,7 @@ interval:
               if (id(backlight_paused)) return false;
               if (id(photo_source_menu_open)) return false;
               id(slideshow_interval_sec) = parse_duration_option_seconds(
-                id(slideshow_interval).current_option(), id(slideshow_interval_sec), 10, 600);
+                id(slideshow_interval).current_option(), id(slideshow_interval_sec), 10, 86400);
               if (id(espframe_core).slideshow().state().active_slot_displayed) {
                 bool image_busy = id(immich_img_0).is_downloading() ||
                                   id(immich_img_1).is_downloading() ||
