@@ -33,6 +33,7 @@ sensor:
   - platform: copy
     source_id: wifi_signal_db
     name: "Network: WiFi Strength"
+    id: wifi_signal_strength
     filters:
       - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
     unit_of_measurement: "%"
@@ -48,6 +49,7 @@ text_sensor:
   - platform: wifi_info
     ip_address:
       name: "Network: IP Address"
+      id: network_ip_address
       icon: mdi:ip-network
       entity_category: diagnostic
       web_server:

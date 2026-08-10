@@ -64,6 +64,7 @@ light:
 button:
   - platform: template
     name: "Screen: Sleep"
+    id: sleep_screen
     icon: "mdi:power-sleep"
     web_server:
       sorting_group_id: sg_screen
@@ -72,6 +73,7 @@ button:
 
   - platform: template
     name: "Screen: Wake"
+    id: wake_screen
     icon: "mdi:power"
     web_server:
       sorting_group_id: sg_screen
