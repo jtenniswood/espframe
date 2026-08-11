@@ -13,7 +13,7 @@ static const TzInfo TZ_DATA[] = {
   {"America/Tijuana",    32.51f,  -117.04f, "PST8PDT,M3.2.0,M11.1.0"},
   {"America/Denver",    39.74f,  -104.98f, "MST7MDT,M3.2.0,M11.1.0"},
   {"America/Phoenix",    33.45f,  -112.07f, "MST7"},
-  {"America/Edmonton",    53.55f,  -113.49f, "MST7MDT,M3.2.0,M11.1.0"},
+  {"America/Edmonton",    53.55f,  -113.49f, "<-06>6"},
   {"America/Boise",    43.62f,  -116.21f, "MST7MDT,M3.2.0,M11.1.0"},
   {"America/Chicago",    41.88f,   -87.63f, "CST6CDT,M3.2.0,M11.1.0"},
   {"America/Mexico_City",    19.43f,   -99.13f, "CST6"},

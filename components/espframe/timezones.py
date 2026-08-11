@@ -22,7 +22,11 @@ TIMEZONES = [
     ("America/Tijuana",                 "GMT-8",      32.51, -117.04, "PST8PDT,M3.2.0,M11.1.0"),
     ("America/Denver",                  "GMT-7",      39.74, -104.98, "MST7MDT,M3.2.0,M11.1.0"),
     ("America/Phoenix",                 "GMT-7",      33.45, -112.07, "MST7"),
-    ("America/Edmonton",                "GMT-7",      53.55, -113.49, "MST7MDT,M3.2.0,M11.1.0"),
+    # Alberta moved Edmonton to permanent daylight time after the 2026
+    # spring-forward. POSIX TZ strings cannot express that one-time
+    # transition, so use the current/future fixed UTC-6 rule while keeping the
+    # existing GMT-7 option value for saved-setting compatibility.
+    ("America/Edmonton",                "GMT-7",      53.55, -113.49, "<-06>6"),
     ("America/Boise",                   "GMT-7",      43.62, -116.21, "MST7MDT,M3.2.0,M11.1.0"),
     ("America/Chicago",                 "GMT-6",      41.88,  -87.63, "CST6CDT,M3.2.0,M11.1.0"),
     ("America/Mexico_City",             "GMT-6",      19.43,  -99.13, "CST6"),
