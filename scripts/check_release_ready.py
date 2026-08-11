@@ -86,7 +86,10 @@ def compile_firmware() -> bool:
         if not cache_dir or not build_name:
             print(f"[FAIL] Firmware budget metadata ({device['slug']})")
             return False
-        build_dir = ROOT / cache_dir / "build" / build_name / ".pioenvs" / build_name
+        # ESPHome 2026 writes firmware artifacts directly into the named
+        # ESP-IDF build directory; PlatformIO's former .pioenvs subdirectory
+        # is no longer created.
+        build_dir = ROOT / cache_dir / "build" / build_name
         factory_command = esphome_compile_command(
             image,
             version,

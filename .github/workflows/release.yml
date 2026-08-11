@@ -106,7 +106,7 @@ jobs:
             compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml" \
             2>&1 | tee "output/${{ matrix.slug }}.factory.log"
 
-          BUILD_DIR="${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}/.pioenvs/${{ matrix.build_name }}"
+          BUILD_DIR="${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}"
           if [ ! -f "${BUILD_DIR}/firmware.factory.bin" ]; then
             echo "::error::Firmware compilation failed - factory binary not found"
             exit 1
@@ -145,7 +145,7 @@ jobs:
         env:
           VERSION: ${{ github.event.release.tag_name || github.ref_name }}
         run: |
-          BUILD_DIR="${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}/.pioenvs/${{ matrix.build_name }}"
+          BUILD_DIR="${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}"
           mkdir -p output
 
           if [ ! -f "${BUILD_DIR}/firmware.bin" ]; then
