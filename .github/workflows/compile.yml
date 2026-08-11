@@ -116,15 +116,15 @@ jobs:
             compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml" \
             2>&1 | tee "output/${{ matrix.slug }}.ota.log"
 
-          if [ ! -f "${BUILD_DIR}/firmware.bin" ]; then
+          if [ ! -f "${BUILD_DIR}/firmware.ota.bin" ]; then
             echo "::error::Firmware compilation failed - OTA binary not found"
             exit 1
           fi
-          sudo cp "${BUILD_DIR}/firmware.bin" "output/${{ matrix.slug }}.ota.bin"
+          sudo cp "${BUILD_DIR}/firmware.ota.bin" "output/${{ matrix.slug }}.ota.bin"
           python3 scripts/check_build_budgets.py \
             --compile-log "output/${{ matrix.slug }}.ota.log" \
             --profile ota \
-            --binary "${BUILD_DIR}/firmware.bin"
+            --binary "${BUILD_DIR}/firmware.ota.bin"
 
           {
             echo "version=${TEST_VERSION}"

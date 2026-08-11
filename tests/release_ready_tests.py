@@ -65,7 +65,7 @@ def test_compile_firmware_runs_versioned_factory_and_ota_commands() -> None:
     assert captured[1][1][-1].endswith("build/test-frame-build/build/firmware.factory.bin")
     assert_versioned_compile(captured[2][1], "/config/builds/test-frame.yaml")
     assert captured[3][1][-4:-2] == ["--profile", "ota"]
-    assert captured[3][1][-1].endswith("build/test-frame-build/build/firmware.bin")
+    assert captured[3][1][-1].endswith("build/test-frame-build/build/firmware.ota.bin")
 
 
 def test_compile_firmware_rejects_missing_metadata() -> None:

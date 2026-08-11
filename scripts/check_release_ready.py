@@ -128,7 +128,7 @@ def compile_firmware() -> bool:
                     "--profile",
                     "ota",
                     "--binary",
-                    str(build_dir / "firmware.bin"),
+                    str(build_dir / "firmware.ota.bin"),
                 ],
                 f"Firmware OTA budget ({device['slug']})",
             )

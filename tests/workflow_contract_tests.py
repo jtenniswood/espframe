@@ -1491,7 +1491,7 @@ def test_workflow_named_step_run_contains_checks_firmware_build_steps() -> None:
         "release.build-firmware",
         "Collect firmware files and generate manifest",
         [
-            '"${BUILD_DIR}/firmware.bin"',
+            '"${BUILD_DIR}/firmware.ota.bin"',
             '"output/${{ matrix.slug }}.manifest.json"',
             '--factory "output/${{ matrix.slug }}.factory.bin"',
         ],
@@ -1503,6 +1503,10 @@ def test_workflow_named_step_run_contains_checks_firmware_build_steps() -> None:
         (
             "release.yml job build-firmware step 'Compile firmware' run is missing "
             "'\"${BUILD_DIR}/firmware.factory.bin\"'"
+        ),
+        (
+            "release.yml job build-firmware step 'Collect firmware files and generate manifest' "
+            "run is missing '\"${BUILD_DIR}/firmware.ota.bin\"'"
         ),
         (
             "release.yml job build-firmware step 'Collect firmware files and generate manifest' "
