@@ -185,6 +185,7 @@ const scenarios = [
   { name: "settings", configured: true, width: 1280, height: 900 },
   { name: "settings-mobile", configured: true, width: 390, height: 900 },
   { name: "firmware-main-install", configured: true, width: 1280, height: 900 },
+  { name: "firmware-main-install-from-development-build", configured: true, width: 1280, height: 900, installedFirmwareVersion: "dev" },
   { name: "firmware-c6-install", configured: true, width: 1280, height: 900 },
   { name: "firmware-rollback", configured: true, width: 1280, height: 900 },
   { name: "firmware-rollback-failure", configured: true, width: 1280, height: 900, firmwareUploadFails: true },
@@ -1108,9 +1109,14 @@ function smokeAssertionsForScenario(scenario) {
             }
           }
 
-          if (${JSON.stringify(scenario.name)} === "firmware-main-install") {
+          if (${JSON.stringify(scenario.name)} === "firmware-main-install" || ${JSON.stringify(scenario.name)} === "firmware-main-install-from-development-build") {
             await requireFirmwarePanels();
             const install = disclosureByTitle("Firmware updates").querySelector(".fw-actions button");
+            if (${JSON.stringify(scenario.name)} === "firmware-main-install-from-development-build") {
+              if (install.textContent.trim() !== "Check for Update") throw new Error("Development build should require a device update check");
+              install.click();
+              await waitFor(() => install.textContent.trim() === "Install Update", 8000, "install action after development build update check");
+            }
             install.click();
             install.click();
             await waitFor(() => window.__smoke.posts.some((url) => url.indexOf("Firmware: Update/install") !== -1), 8000, "main firmware install");
