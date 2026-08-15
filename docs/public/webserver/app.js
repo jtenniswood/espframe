@@ -2218,6 +2218,7 @@ to {
       evtSource.addEventListener("state", function(e) {
         try {
           var d = JSON.parse(e.data);
+          if (d && d.name_id) d.id = d.name_id;
           collectState(d);
           if (rendered) handleLiveEvent(d);
         } catch (_) {

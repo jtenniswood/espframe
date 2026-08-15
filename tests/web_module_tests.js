@@ -58,4 +58,12 @@ assert.equal(
 );
 assert.ok(publicApp.includes('image.alt = "Buy Me A Coffee"'), "support button image should have accessible text");
 
+// The web server identifies each entity with name_id ("domain/Friendly Name") plus a
+// legacy id ("domain-object_id"). ENTITY_STATE_MAP and the REST endpoints both use the
+// name form, so live events must be resolved via name_id or nothing ever matches.
+assert.ok(
+  publicApp.includes("d.name_id"),
+  "live state events should be resolved by name_id, not the legacy object-id form"
+);
+
 console.log("web module tests passed");

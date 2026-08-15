@@ -284,6 +284,12 @@
       evtSource.addEventListener("state", function (e) {
         try {
           var d = JSON.parse(e.data);
+          // Normalise the entity key at ingress. The web server sends name_id
+          // ("domain/Friendly Name" - the shape ENTITY_STATE_MAP and the REST
+          // endpoints use) alongside a legacy id ("domain-object_id"). ESPHome
+          // 2026.8.0 drops name_id and switches id to the name form, so preferring
+          // name_id and otherwise leaving id alone is correct either side of that.
+          if (d && d.name_id) d.id = d.name_id;
           collectState(d);
           if (rendered) handleLiveEvent(d);
         } catch (_) {}
