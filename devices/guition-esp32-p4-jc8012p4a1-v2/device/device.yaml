@@ -25,6 +25,9 @@ esp32:
       CONFIG_HTTPD_MAX_REQ_HDR_LEN: "8192"
       CONFIG_HTTPD_MAX_URI_LEN: "128"
       CONFIG_ESP_TASK_WDT_TIMEOUT_S: "30"
+      # Some modern reverse proxies offer TLS 1.3 only. Enable it alongside
+      # TLS 1.2 so HTTPS photo downloads work with those servers.
+      CONFIG_MBEDTLS_SSL_PROTO_TLS1_3: "y"
     advanced:
       enable_idf_experimental_features: true
 

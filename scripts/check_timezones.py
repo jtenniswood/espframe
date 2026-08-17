@@ -21,6 +21,10 @@ VANCOUVER_PERMANENT_DST = (
     "is not fully representable by a compact POSIX string"
 )
 VANCOUVER_PERMANENT_DST_START = dt.datetime(2026, 3, 8, 10, tzinfo=dt.timezone.utc)
+EDMONTON = "America/Edmonton"
+EDMONTON_PERMANENT_DST = (
+    "Alberta's 2026 permanent UTC-6 switch is not fully representable by a compact POSIX string"
+)
 
 
 def load_timezones():
@@ -103,6 +107,20 @@ def main() -> int:
                 assert_close(
                     posix_offset_hours(posix, instant),
                     -7.0,
+                    f"{tz} compact POSIX offset on {instant.date()}",
+                )
+            continue
+
+        if tz == EDMONTON:
+            assert EDMONTON in row_by_tz, EDMONTON_PERMANENT_DST
+            for instant in sample_instants:
+                # Alberta's last spring-forward in 2026 was followed by a
+                # permanent UTC-6 rule. POSIX TZ strings cannot retain the
+                # earlier seasonal schedule and express that one-time change,
+                # so validate the firmware's intentional fixed UTC-6 rule.
+                assert_close(
+                    posix_offset_hours(posix, instant),
+                    -6.0,
                     f"{tz} compact POSIX offset on {instant.date()}",
                 )
             continue

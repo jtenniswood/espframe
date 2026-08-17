@@ -1491,7 +1491,7 @@ def test_workflow_named_step_run_contains_checks_firmware_build_steps() -> None:
         "release.build-firmware",
         "Collect firmware files and generate manifest",
         [
-            '"${BUILD_DIR}/firmware.bin"',
+            '"${BUILD_DIR}/firmware.ota.bin"',
             '"output/${{ matrix.slug }}.manifest.json"',
             '--factory "output/${{ matrix.slug }}.factory.bin"',
         ],
@@ -1503,6 +1503,10 @@ def test_workflow_named_step_run_contains_checks_firmware_build_steps() -> None:
         (
             "release.yml job build-firmware step 'Compile firmware' run is missing "
             "'\"${BUILD_DIR}/firmware.factory.bin\"'"
+        ),
+        (
+            "release.yml job build-firmware step 'Collect firmware files and generate manifest' "
+            "run is missing '\"${BUILD_DIR}/firmware.ota.bin\"'"
         ),
         (
             "release.yml job build-firmware step 'Collect firmware files and generate manifest' "
@@ -1695,6 +1699,15 @@ def test_workflow_named_step_run_contains_checks_compile_artifact_step() -> None
             "'echo \"source_sha=${GITHUB_SHA}\"'"
         ),
     ]
+
+
+def test_workflows_use_esphome_2026_build_artifact_directory() -> None:
+    artifact_dir = 'BUILD_DIR="${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}/build"'
+    compile_workflow = (ROOT / ".github" / "workflows" / "compile.yml").read_text()
+    release_workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text()
+
+    assert artifact_dir in compile_workflow
+    assert release_workflow.count(artifact_dir) == 2
 
 
 def test_workflow_named_step_run_contains_checks_compile_commands() -> None:

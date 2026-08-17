@@ -1144,7 +1144,7 @@
     "release_publish_dir": "firmware",
     "release_uploaded_verify_dir": "published",
     "release_source_factory_binary": "firmware.factory.bin",
-    "release_source_ota_binary": "firmware.bin",
+    "release_source_ota_binary": "firmware.ota.bin",
     "release_asset_suffixes": [
       ".factory.bin",
       ".ota.bin",

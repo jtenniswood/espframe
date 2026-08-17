@@ -106,7 +106,7 @@ jobs:
             compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml" \
             2>&1 | tee "output/${{ matrix.slug }}.factory.log"
 
-          BUILD_DIR="${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}/.pioenvs/${{ matrix.build_name }}"
+          BUILD_DIR="${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}/build"
           if [ ! -f "${BUILD_DIR}/firmware.factory.bin" ]; then
             echo "::error::Firmware compilation failed - factory binary not found"
             exit 1
@@ -124,14 +124,14 @@ jobs:
             compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml" \
             2>&1 | tee "output/${{ matrix.slug }}.ota.log"
 
-          if [ ! -f "${BUILD_DIR}/firmware.bin" ]; then
+          if [ ! -f "${BUILD_DIR}/firmware.ota.bin" ]; then
             echo "::error::Firmware compilation failed - OTA binary not found"
             exit 1
           fi
           python3 scripts/check_build_budgets.py \
             --compile-log "output/${{ matrix.slug }}.ota.log" \
             --profile ota \
-            --binary "${BUILD_DIR}/firmware.bin"
+            --binary "${BUILD_DIR}/firmware.ota.bin"
 
       - name: Fix ESPHome cache permissions
         if: always()
@@ -145,15 +145,15 @@ jobs:
         env:
           VERSION: ${{ github.event.release.tag_name || github.ref_name }}
         run: |
-          BUILD_DIR="${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}/.pioenvs/${{ matrix.build_name }}"
+          BUILD_DIR="${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}/build"
           mkdir -p output
 
-          if [ ! -f "${BUILD_DIR}/firmware.bin" ]; then
+          if [ ! -f "${BUILD_DIR}/firmware.ota.bin" ]; then
             echo "::error::Firmware compilation failed - OTA binary not found"
             exit 1
           fi
 
-          sudo cp "${BUILD_DIR}/firmware.bin" "output/${{ matrix.slug }}.ota.bin"
+          sudo cp "${BUILD_DIR}/firmware.ota.bin" "output/${{ matrix.slug }}.ota.bin"
 
           python3 scripts/firmware_release.py manifest \
             --slug "${{ matrix.slug }}" \

@@ -86,7 +86,10 @@ def compile_firmware() -> bool:
         if not cache_dir or not build_name:
             print(f"[FAIL] Firmware budget metadata ({device['slug']})")
             return False
-        build_dir = ROOT / cache_dir / "build" / build_name / ".pioenvs" / build_name
+        # ESPHome 2026 writes firmware artifacts into ESP-IDF's `build`
+        # subdirectory; PlatformIO's former .pioenvs directory is no longer
+        # created.
+        build_dir = ROOT / cache_dir / "build" / build_name / "build"
         factory_command = esphome_compile_command(
             image,
             version,
@@ -125,7 +128,7 @@ def compile_firmware() -> bool:
                     "--profile",
                     "ota",
                     "--binary",
-                    str(build_dir / "firmware.bin"),
+                    str(build_dir / "firmware.ota.bin"),
                 ],
                 f"Firmware OTA budget ({device['slug']})",
             )
