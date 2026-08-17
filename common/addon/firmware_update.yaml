@@ -232,6 +232,7 @@ button:
 
   - platform: template
     name: "Firmware: Check for Update"
+    id: firmware_check_for_update
     entity_category: config
     icon: "mdi:update"
     web_server:

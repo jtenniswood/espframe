@@ -101,6 +101,7 @@ text_sensor:
 button:
   - platform: template
     name: "Firmware ESP32-C6: Install Update"
+    id: c6_install_update
     entity_category: config
     icon: "mdi:download"
     web_server:
@@ -115,6 +116,7 @@ button:
 
   - platform: template
     name: "Firmware ESP32-C6: Check for Update"
+    id: c6_check_for_update
     entity_category: config
     icon: "mdi:update"
     web_server:
