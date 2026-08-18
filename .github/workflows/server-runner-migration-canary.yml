@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "${RUNNER_CLEANUP_WORKSPACE:-}" = false
+          test "${RUNNER_CLEANUP_WORKSPACE:-}" = true
           test "${RUNNER_CLEANUP_TMP:-}" = true
           test "${RUNNER_CLEANUP_DOCKER:-}" = false
           test -f "${ACTIONS_RUNNER_HOOK_JOB_COMPLETED}"
