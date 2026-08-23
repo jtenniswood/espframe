@@ -696,6 +696,18 @@ script:
   - id: recover_stalled_slideshow
     mode: single
     then:
+      # Stop every API worker before clearing target_slot and request flags. Their
+      # late callbacks read shared slideshow state and must not outlive recovery.
+      - script.stop: immich_fetch_memory_into_slot
+      - script.stop: immich_fetch_memory_window_day
+      - script.stop: immich_fetch_memory_asset
+      - script.stop: immich_fetch_metadata_into_slot
+      - script.stop: immich_fetch_album_count
+      - script.stop: immich_fetch_statistics_count
+      - script.stop: immich_fetch_metadata_page_probe
+      - script.stop: immich_fetch_metadata_page
+      - script.stop: immich_fetch_into_slot
+      - script.stop: immich_fetch_portrait_companion
       - script.stop: delayed_prefetch_chain
       - script.stop: deferred_companion_search
       - script.stop: deferred_fetch_into_slot
