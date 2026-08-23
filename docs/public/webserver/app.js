@@ -3397,6 +3397,21 @@ to {
     refreshFirmwareUi();
     return S.update_available;
   }
+  function firmwareUpdateResponseResolved(data) {
+    if (!data) return false;
+    var state = String(data.state || "").trim().toUpperCase();
+    return state === "UPDATE AVAILABLE" || state === "NO UPDATE" || state === "INSTALLING" || !!String(data.latest_version || data.value || "").trim();
+  }
+  function waitForFirmwareUpdateResponse(attemptsRemaining) {
+    return delayMs(2e3).then(function() {
+      return safeGet(endpoints.update);
+    }).catch(function() {
+      return null;
+    }).then(function(data) {
+      if (firmwareUpdateResponseResolved(data) || attemptsRemaining <= 1) return data;
+      return waitForFirmwareUpdateResponse(attemptsRemaining - 1);
+    });
+  }
   function markFirmwareRestartPending() {
     S.firmware_uploading = false;
     S.firmware_installing = true;
@@ -3477,12 +3492,19 @@ to {
     S.firmware_install_error = "";
     S.firmware_checking = true;
     refreshFirmwareUi();
-    post(endpoints.firmware_check + "/press").then(function() {
-      return delayMs(4e3);
-    }).then(function() {
-      return safeGet(endpoints.update);
-    }).then(function(data) {
-      var available = applyFirmwareUpdateResponse(data);
+    var deviceCheck = post(endpoints.firmware_check + "/press").then(function() {
+      return waitForFirmwareUpdateResponse(12);
+    }).catch(function() {
+      return null;
+    });
+    var publicCheck = fetchPublicFirmwareVersions();
+    Promise.all([deviceCheck, publicCheck]).then(function(results) {
+      var data = firmwareUpdateResponseResolved(results[0]) ? results[0] : null;
+      var publicVersions = results[1];
+      if (!data && !publicVersions.length) {
+        throw new Error("firmware_check_unavailable");
+      }
+      var available = data ? applyFirmwareUpdateResponse(data) : firmwareUpdateKnownAvailable();
       S.firmware_checking = false;
       if (installAfterCheck && available) startFirmwareInstall();
       else refreshFirmwareUi();
@@ -3490,7 +3512,6 @@ to {
       S.firmware_checking = false;
       failFirmwareInstall("Could not check for a firmware update.");
     });
-    fetchPublicFirmwareVersions();
   }
   function refreshC6FirmwareState() {
     return Promise.all([

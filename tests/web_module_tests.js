@@ -66,4 +66,13 @@ assert.ok(
   "live state events should be resolved by name_id, not the legacy object-id form"
 );
 
+assert.ok(
+  publicApp.includes("Promise.all([deviceCheck, publicCheck])"),
+  "firmware checks should accept the public release index when the device update entity is slow or unavailable"
+);
+assert.ok(
+  publicApp.includes("waitForFirmwareUpdateResponse(12)"),
+  "firmware checks should wait for the asynchronous device update result instead of reading UNKNOWN once"
+);
+
 console.log("web module tests passed");

@@ -268,6 +268,23 @@ def check_web_server_metadata(product: dict, errors: list[str]) -> None:
                     require_contains(device_text, f'      name: "{name}"', device_yaml, errors)
                 if isinstance(weight, int) and not isinstance(weight, bool):
                     require_contains(device_text, f"      sorting_weight: {weight}", device_yaml, errors)
+            dev_yaml_path = (ROOT / device_yaml).parent.parent / "dev.yaml"
+            if dev_yaml_path.is_file():
+                dev_yaml = rel(dev_yaml_path)
+                dev_text = read(dev_yaml_path, errors)
+                require_contains(dev_text, '  js_url: ""', dev_yaml, errors)
+                require_contains(
+                    dev_text,
+                    '  css_include: "../../docs/public/webserver/style.css"',
+                    dev_yaml,
+                    errors,
+                )
+                require_contains(
+                    dev_text,
+                    '  js_include: "../../docs/public/webserver/app.js"',
+                    dev_yaml,
+                    errors,
+                )
         if build_yaml:
             build_text = read(ROOT / build_yaml, errors)
             if isinstance(port, int) and not isinstance(port, bool):

@@ -16,3 +16,14 @@ wifi:
 
 packages:
   espframe: !include packages.yaml
+
+# Development flashes must serve the web bundle from this checkout so UI
+# changes can be tested on the display before they are published to GitHub
+# Pages. Release build wrappers apply the same local-bundle override.
+web_server:
+  port: 80
+  version: 3
+  include_internal: true
+  js_url: ""
+  css_include: "../../docs/public/webserver/style.css"
+  js_include: "../../docs/public/webserver/app.js"

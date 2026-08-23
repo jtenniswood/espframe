@@ -72,7 +72,7 @@ def check_firmware_update_metadata(product: dict, errors: list[str]) -> None:
     if manual_check_behavior:
         require_contains(firmware_docs, manual_check_behavior, "docs/firmware-update.md", errors)
         require_contains(firmware_yaml, "manual_check_only", "common/addon/firmware_update.yaml", errors)
-        require_contains(firmware_yaml, "component.update: firmware_update", "common/addon/firmware_update.yaml", errors)
+        require_contains(firmware_yaml, "update.check: firmware_update", "common/addon/firmware_update.yaml", errors)
         require_contains(web_template, 'post(endpoints.firmware_check + "/press")', rel(WEB_TEMPLATE), errors)
     if isinstance(frequency_hours, dict):
         for label, hours in frequency_hours.items():
@@ -87,7 +87,10 @@ def check_firmware_update_metadata(product: dict, errors: list[str]) -> None:
             require_contains(firmware_yaml, f"threshold = {hours}", "common/addon/firmware_update.yaml", errors)
     for needle in (
         "update.perform: firmware_update",
-        "id(auto_update_switch).state && !id(manual_check_only)",
+        "firmware_auto_install_available_update",
+        "update.is_available: firmware_update",
+        "switch.is_on: auto_update_switch",
+        "return !id(manual_check_only);",
         "id(firmware_update_reboot_pending) = true;",
         "update_interval: never",
     ):
