@@ -674,6 +674,37 @@ interval:
       - if:
           condition:
             lambda: |-
+              const uint32_t now = millis();
+              const bool eligible = id(immich_fetch_started) && !id(backlight_paused) && !id(photo_source_menu_open);
+              if (!eligible) {
+                id(espframe_core).slideshow().pipeline_watchdog_timed_out(now, false, false);
+                return false;
+              }
+              id(slideshow_interval_sec) = parse_duration_option_seconds(
+                id(slideshow_interval).current_option(), id(slideshow_interval_sec), 10, 86400);
+              const bool advance_due =
+                (now - id(espframe_core).slideshow().state().last_advance_ms) >= (id(slideshow_interval_sec) * 1000);
+              if (!id(espframe_core).slideshow().state().active_slot_displayed) {
+                id(espframe_core).slideshow().pipeline_watchdog_timed_out(now, advance_due, false);
+                return false;
+              }
+              const bool image_busy = id(immich_img_0).is_downloading() ||
+                                      id(immich_img_1).is_downloading() ||
+                                      id(immich_img_2).is_downloading() ||
+                                      id(immich_portrait_left).is_downloading() ||
+                                      id(immich_portrait_right).is_downloading() ||
+                                      id(immich_portrait_preload_left).is_downloading() ||
+                                      id(immich_portrait_preload_right).is_downloading();
+              const bool blocked = any_slot_fetch_in_flight(id(espframe_core).slideshow().state().slot_flags) || image_busy ||
+                                   id(espframe_core).slideshow().state().portrait.workflow_busy ||
+                                   id(espframe_core).slideshow().state().preload_noncritical_in_flight ||
+                                   id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight > 0;
+              return id(espframe_core).slideshow().pipeline_watchdog_timed_out(now, advance_due, blocked);
+          then:
+            - script.execute: recover_stalled_slideshow
+      - if:
+          condition:
+            lambda: |-
               if (!id(immich_fetch_started)) return false;
               if (id(backlight_paused)) return false;
               if (id(photo_source_menu_open)) return false;

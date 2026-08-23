@@ -408,7 +408,9 @@ script:
                   // Non-active slot updates are best-effort; defer them if network/decoder work
                   // is already active to avoid cascaded cancel/restart churn.
                   if (any_downloading && cmd.slot != id(espframe_core).slideshow().state().active_slot) {
-                    id(delayed_prefetch_chain).execute();
+                    id(espframe_core).slideshow().defer_slot_update_due_to_busy(
+                      cmd.slot, id(espframe_core).slideshow().state().slot_flags,
+                      id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
                     break;
                   }
                   bool portrait_screen = id(screen_rotation_select).current_option() == "90" ||
@@ -690,6 +692,41 @@ script:
             id(espframe_core).slideshow().state().portrait_preload_slot, id(espframe_core).slideshow().state().portrait_preload_left_ready, id(espframe_core).slideshow().state().portrait_preload_right_ready,
             id(espframe_core).slideshow().state().companion_target_slot, id(immich_request_state).api_retries, id(espframe_core).slideshow().state().download_retries,
             id(immich_request_state).retry_cooldown_until_ms);
+
+  - id: recover_stalled_slideshow
+    mode: single
+    then:
+      - script.stop: delayed_prefetch_chain
+      - script.stop: deferred_companion_search
+      - script.stop: deferred_fetch_into_slot
+      - script.stop: deferred_rejected_slot_fetch
+      - script.stop: deferred_slot0_image_update
+      - script.stop: deferred_slot1_image_update
+      - script.stop: deferred_slot2_image_update
+      - script.stop: deferred_portrait_left_update
+      - script.stop: deferred_portrait_right_update
+      - script.stop: deferred_preload_left_update
+      - script.stop: deferred_preload_right_update
+      - script.stop: immich_fetch_retry
+      - lambda: |-
+          auto &state = id(espframe_core).slideshow().state();
+          state.diagnostic_reason = "pipeline watchdog timeout";
+          state.last_diagnostic_ms = 0;
+          log_immich_pipeline_diag(state.diagnostic_reason.c_str(), millis(), state.last_diagnostic_ms,
+            state.active_slot, state.target_slot, state.active_slot_displayed, state.slot_flags, state.portrait,
+            state.noncritical_remote_updates_in_flight, state.preload_noncritical_in_flight,
+            state.portrait_preload_slot, state.portrait_preload_left_ready, state.portrait_preload_right_ready,
+            state.companion_target_slot, id(immich_request_state).api_retries, state.download_retries,
+            id(immich_request_state).retry_cooldown_until_ms);
+          id(immich_img_0).abort_download();
+          id(immich_img_1).abort_download();
+          id(immich_img_2).abort_download();
+          id(immich_portrait_left).abort_download();
+          id(immich_portrait_right).abort_download();
+          id(immich_portrait_preload_left).abort_download();
+          id(immich_portrait_preload_right).abort_download();
+          id(espframe_core).slideshow().recover_stalled_pipeline();
+      - script.execute: delayed_prefetch_chain
 
   # Shared handler for any slot's on_error (retry up to MAX_ERROR_RETRIES)
   - id: handle_slot_download_error

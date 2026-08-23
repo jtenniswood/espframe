@@ -628,8 +628,15 @@ static void test_slideshow_component_prefetch_and_deferred_updates() {
   assert(cmd.kind == SLIDESHOW_COMMAND_UPDATE_SLOT_IMAGE);
   assert(cmd.slot == 1);
 
-  clear_slot_fetch_in_flight(1, flags);
-  clear_noncritical(1, flags, noncritical_count);
+  slideshow.defer_slot_update_due_to_busy(1, flags, noncritical_count);
+  assert(!flags.fetch_in_flight[1]);
+  assert(flags.fetch_started_ms[1] == 0);
+  assert(!flags.noncritical_update[1]);
+  assert(noncritical_count == 0);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY);
+  assert(cmd.slot == 1);
+
   update = slideshow.request_deferred_slot_update(2, 0, flags, true, noncritical_count);
   assert(!update);
   assert(slideshow.pop_command(cmd));
@@ -649,6 +656,68 @@ static void test_slideshow_component_prefetch_and_deferred_updates() {
   assert(noncritical_count == 0);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY);
+}
+
+static void test_slideshow_pipeline_watchdog() {
+  EspFrameSlideshow slideshow;
+  auto &state = slideshow.state();
+  state.active_slot = 1;
+  state.target_slot = 2;
+  state.active_slot_displayed = true;
+  state.slot1 = make_slot("visible", false);
+  state.slot1.ready = true;
+  copy_slot_to_display(state.slot1, state.current_display);
+  state.slot_flags.fetch_in_flight[2] = true;
+  state.slot_flags.fetch_started_ms[2] = 1000;
+  state.slot_flags.noncritical_update[2] = true;
+  state.noncritical_remote_updates_in_flight = 2;
+  state.preload_noncritical_in_flight = true;
+  state.portrait.workflow_busy = true;
+  state.portrait_preload_slot = 2;
+  state.portrait_preload_left_ready = true;
+  state.portrait_preload_right_ready = false;
+  state.companion_target_slot = 2;
+  state.portrait_companion_url = "https://example.test/companion";
+  state.rejected_fetch_target = 0;
+  assert(slideshow.emit_command(SLIDESHOW_COMMAND_FETCH_INTO_SLOT, 2));
+
+  assert(!slideshow.pipeline_watchdog_timed_out(1000, true, true));
+  assert(state.pipeline_blocked_tracking);
+  assert(!slideshow.pipeline_watchdog_timed_out(
+      1000 + EspFrameSlideshow::PIPELINE_STALL_TIMEOUT_MS - 1, true, true));
+  assert(slideshow.pipeline_watchdog_timed_out(
+      1000 + EspFrameSlideshow::PIPELINE_STALL_TIMEOUT_MS, true, true));
+
+  slideshow.recover_stalled_pipeline();
+  assert(state.active_slot == 1);
+  assert(state.active_slot_displayed);
+  assert(state.slot1.ready);
+  assert(state.current_display.asset_id == "visible");
+  assert(state.target_slot == 1);
+  assert(!any_slot_fetch_in_flight(state.slot_flags));
+  assert(!state.slot_flags.noncritical_update[2]);
+  assert(state.noncritical_remote_updates_in_flight == 0);
+  assert(!state.preload_noncritical_in_flight);
+  assert(!state.portrait.workflow_busy);
+  assert(state.portrait_preload_slot == -1);
+  assert(state.companion_target_slot == -1);
+  assert(state.portrait_companion_url.empty());
+  assert(state.rejected_fetch_target == -1);
+  assert(!state.pipeline_blocked_tracking);
+  assert(!slideshow.has_command());
+
+  assert(!slideshow.pipeline_watchdog_timed_out(5000, true, true));
+  assert(state.pipeline_blocked_tracking);
+  assert(!slideshow.pipeline_watchdog_timed_out(6000, false, true));
+  assert(!state.pipeline_blocked_tracking);
+  assert(!slideshow.pipeline_watchdog_timed_out(7000, true, true));
+  assert(!slideshow.pipeline_watchdog_timed_out(8000, true, false));
+  assert(!state.pipeline_blocked_tracking);
+
+  const uint32_t wrap_start = 0xFFFFFF00u;
+  assert(!slideshow.pipeline_watchdog_timed_out(wrap_start, true, true));
+  const uint32_t wrap_timeout = wrap_start + EspFrameSlideshow::PIPELINE_STALL_TIMEOUT_MS;
+  assert(slideshow.pipeline_watchdog_timed_out(wrap_timeout, true, true));
 }
 
 static void test_slideshow_component_portrait_flow() {
@@ -1161,6 +1230,7 @@ int main() {
   test_fetch_queue_and_error_handling();
   test_slideshow_component_commands();
   test_slideshow_component_prefetch_and_deferred_updates();
+  test_slideshow_pipeline_watchdog();
   test_slideshow_component_portrait_flow();
   test_slideshow_component_preload_flow();
   test_slideshow_component_navigation_flow();

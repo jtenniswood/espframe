@@ -92,6 +92,8 @@ struct SlideshowRuntimeState {
   bool active_slot_displayed = false;
   uint32_t last_advance_ms = 0;
   uint32_t last_prefetch_start_ms = 0;
+  uint32_t pipeline_blocked_since_ms = 0;
+  bool pipeline_blocked_tracking = false;
   uint32_t last_short_tap_ms = 0;
   int last_downloaded_slot = -1;
   std::string diagnostic_reason;
@@ -130,6 +132,8 @@ struct SlideshowRuntimeState {
 
 class EspFrameSlideshow {
  public:
+  static constexpr uint32_t PIPELINE_STALL_TIMEOUT_MS = 90000;
+
   SlideshowRuntimeState &state() { return this->state_; }
   const SlideshowRuntimeState &state() const { return this->state_; }
   void reset_state() {
@@ -681,6 +685,52 @@ class EspFrameSlideshow {
     }
     this->emit_command(SLIDESHOW_COMMAND_UPDATE_SLOT_IMAGE, slot);
     return true;
+  }
+
+  void defer_slot_update_due_to_busy(int slot, SlotFlags &flags, int &noncritical_count) {
+    if (slot < 0 || slot > 2) return;
+    clear_noncritical(slot, flags, noncritical_count);
+    clear_slot_fetch_in_flight(slot, flags);
+    this->emit_command(SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY, slot, 500);
+  }
+
+  bool pipeline_watchdog_timed_out(uint32_t now_ms, bool advance_due, bool blocked) {
+    if (!advance_due || !blocked) {
+      this->state_.pipeline_blocked_since_ms = 0;
+      this->state_.pipeline_blocked_tracking = false;
+      return false;
+    }
+    if (!this->state_.pipeline_blocked_tracking) {
+      this->state_.pipeline_blocked_since_ms = now_ms;
+      this->state_.pipeline_blocked_tracking = true;
+      return false;
+    }
+    return (now_ms - this->state_.pipeline_blocked_since_ms) >= PIPELINE_STALL_TIMEOUT_MS;
+  }
+
+  void recover_stalled_pipeline() {
+    this->commands_.clear();
+    this->state_.fetch_queue.clear();
+    this->state_.slot_flags = SlotFlags{};
+    this->state_.preload_noncritical_in_flight = false;
+    this->state_.noncritical_remote_updates_in_flight = 0;
+    this->state_.portrait = PortraitState{};
+    this->state_.portrait_search_datetime.clear();
+    this->state_.portrait_primary_asset_id.clear();
+    this->state_.companion_target_slot = -1;
+    this->state_.portrait_companion_url.clear();
+    this->state_.portrait_preload_slot = -1;
+    this->state_.portrait_preload_left_ready = false;
+    this->state_.portrait_preload_right_ready = false;
+    this->state_.portrait_search_expanded = false;
+    this->state_.portrait_search_generation++;
+    this->state_.portrait_search_request_generation = 0;
+    this->state_.rejected_fetch_target = -1;
+    this->state_.download_retries = 0;
+    this->state_.last_prefetch_start_ms = 0;
+    this->state_.pipeline_blocked_since_ms = 0;
+    this->state_.pipeline_blocked_tracking = false;
+    this->state_.target_slot = this->state_.active_slot;
   }
 
   bool request_portrait_left_update(const PortraitState &portrait) {
