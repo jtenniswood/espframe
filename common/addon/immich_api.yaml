@@ -8,6 +8,8 @@
 globals:
   - id: immich_request_state
     type: ImmichRequestState
+  - id: immich_candidate_pool
+    type: std::vector<ImmichAssetMeta>
 
 script:
   - id: immich_register_fetch_failure
@@ -283,14 +285,13 @@ script:
               - script.execute: immich_fetch_into_slot
 
   # ---------------------------------------------------------------------------
-  # Fetch a random asset from Album, Person, and Tag sources using paged metadata search.
-  # Album counts come from the album endpoint so shared-album
-  # contributors are included; Person and Tag counts use search statistics.
+  # Fetch a random asset from Album sources using paged metadata search.
+  # Album counts come from the album endpoint so shared-album contributors are
+  # included. Person and Tag sources use Immich's random search directly.
   #
-  # Immich metadata page count can mirror the current page size in some server
-  # versions. Statistics returns the real matching total, then metadata fetches
-  # one random asset page for Any orientation, or a small candidate page when
-  # orientation filtering needs multiple candidates.
+  # The count is cached in RAM until the active photo filters change. Metadata
+  # then fetches one random asset page for Any orientation, or a small candidate
+  # page when orientation filtering needs multiple candidates.
   # ---------------------------------------------------------------------------
   - id: immich_fetch_metadata_into_slot
     mode: single
@@ -334,7 +335,8 @@ script:
                 id(immich_request_state).album_order_index)
             : "";
           id(immich_request_state).metadata_person_id = source == "Person" ? pick_one_person_id_for_random_search(id(immich_person_ids).state) : "";
-          id(immich_request_state).metadata_tag_ids = source == "Tag" ? id(immich_tag_ids).state : "";
+          id(immich_request_state).metadata_tag_ids = source == "Tag"
+            ? select_immich_tag_ids(id(immich_tag_ids).state, id(immich_tag_matching).current_option()) : "";
           id(immich_request_state).metadata_page = 1;
           id(immich_request_state).metadata_max_page = 1;
           id(immich_request_state).metadata_empty_page_probes = 0;
@@ -342,6 +344,39 @@ script:
           id(immich_request_state).metadata_page1_fallback_attempted = false;
           id(immich_request_state).metadata_page_size =
             id(photo_orientation_filter).current_option() == "Any" ? 1 : IMMICH_METADATA_PAGE_SIZE;
+          auto now = id(sntp_time).now();
+          ImmichDateRange range = resolve_immich_date_filter(
+            id(immich_date_filter_enabled).state,
+            id(immich_date_filter_mode).current_option(),
+            (int) (id(immich_relative_amount).state + 0.5f),
+            id(immich_relative_unit).current_option(),
+            now.is_valid(), now.year, now.month, now.day_of_month,
+            id(immich_date_from).state, id(immich_date_to).state);
+          std::string extra = build_immich_date_filter_extra(range);
+          id(immich_request_state).metadata_count_cache_key =
+            build_immich_metadata_count_cache_key(
+              source, id(immich_request_state).metadata_album_id,
+              id(immich_request_state).metadata_person_id,
+              id(immich_request_state).metadata_tag_ids, extra);
+          uint32_t cached_total = 0;
+          bool cached_upper_bound = false;
+          id(immich_request_state).metadata_count_cache_hit =
+            id(immich_request_state).find_metadata_count(
+              id(immich_request_state).metadata_count_cache_key,
+              &cached_total, &cached_upper_bound);
+          if (id(immich_request_state).metadata_count_cache_hit) {
+            initialize_immich_metadata_page_range(
+              id(immich_request_state), cached_total,
+              id(immich_request_state).metadata_page_size, cached_upper_bound);
+            ESP_LOGD("immich", "Reusing cached metadata count (%u assets)",
+                     (unsigned) cached_total);
+          }
+      - if:
+          condition:
+            lambda: 'return id(immich_request_state).metadata_count_cache_hit;'
+          then:
+            - script.execute: immich_fetch_metadata_page
+            - script.stop: immich_fetch_metadata_into_slot
       - if:
           condition:
             lambda: 'return id(photo_source_select).current_option() == "Album";'
@@ -391,6 +426,8 @@ script:
                   }
                   initialize_immich_metadata_page_range(
                     id(immich_request_state), total, id(immich_request_state).metadata_page_size, true);
+                  id(immich_request_state).remember_metadata_count(
+                    id(immich_request_state).metadata_count_cache_key, total, true);
                   ESP_LOGD("immich", "Album source selected: page %d size %d of %u assets",
                            id(immich_request_state).metadata_page, id(immich_request_state).metadata_page_size, (unsigned) total);
                   id(immich_fetch_metadata_page).execute();
@@ -460,6 +497,8 @@ script:
                   }
                   initialize_immich_metadata_page_range(
                     id(immich_request_state), total, id(immich_request_state).metadata_page_size, false);
+                  id(immich_request_state).remember_metadata_count(
+                    id(immich_request_state).metadata_count_cache_key, total, false);
                   ESP_LOGD("immich", "Metadata source selected: page %d size %d of %u matching images",
                            id(immich_request_state).metadata_page, id(immich_request_state).metadata_page_size, (unsigned) total);
                   id(immich_fetch_metadata_page).execute();
@@ -583,6 +622,7 @@ script:
                   id(immich_register_fetch_success).execute();
                   int slot = id(espframe_core).slideshow().state().target_slot;
                   auto &meta = get_slot(slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2);
+                  meta.source_filter_id = id(immich_request_state).metadata_album_id;
                   ESP_LOGI("immich", "METADATA slot %d: %s | %s | %s | %s | portrait=%d",
                            slot, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.location.c_str(), meta.is_portrait);
                   id(espframe_core).slideshow().clear_preload_for_slot(
@@ -705,11 +745,57 @@ script:
           then:
             - script.execute: immich_fetch_metadata_into_slot
             - script.stop: immich_fetch_into_slot
+      - lambda: |-
+          std::string source = id(photo_source_select).current_option();
+          bool batchable = source == "All Photos" || source == "Favorites";
+          id(immich_request_state).candidate_pool_hit = false;
+          if (batchable && !id(immich_candidate_pool).empty()) {
+            int slot = id(espframe_core).slideshow().state().target_slot;
+            std::string img_url = take_immich_candidate_and_fill_slot(
+              id(immich_candidate_pool), id(immich_request_state).candidate_pool_source_filter_id,
+              slot, id(espframe_core).slideshow().state().slot0,
+              id(espframe_core).slideshow().state().slot1,
+              id(espframe_core).slideshow().state().slot2);
+            if (!img_url.empty()) {
+              id(immich_request_state).candidate_pool_hit = true;
+              id(immich_fetch_started) = true;
+              id(immich_request_state).register_success();
+              id(espframe_core).slideshow().clear_preload_for_slot(
+                slot, id(espframe_core).slideshow().state().portrait_preload_slot,
+                id(espframe_core).slideshow().state().portrait_preload_left_ready,
+                id(espframe_core).slideshow().state().portrait_preload_right_ready,
+                id(espframe_core).slideshow().state().preload_noncritical_in_flight,
+                id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+              set_slot_image_url(slot, img_url, id(immich_img_0), id(immich_img_1), id(immich_img_2));
+              ESP_LOGD("immich", "Candidate pool served slot %d (%u remain)",
+                       slot, (unsigned) id(immich_candidate_pool).size());
+            }
+          }
+          if (!id(immich_request_state).candidate_pool_hit) {
+            id(immich_request_state).metadata_person_id = source == "Person"
+              ? pick_one_person_id_for_random_search(id(immich_person_ids).state) : "";
+            id(immich_request_state).metadata_tag_ids = source == "Tag"
+              ? select_immich_tag_ids(id(immich_tag_ids).state,
+                                      id(immich_tag_matching).current_option()) : "";
+            id(immich_request_state).candidate_pool_source_filter_id =
+              source == "Person" ? id(immich_request_state).metadata_person_id :
+              source == "Tag" ? id(immich_request_state).metadata_tag_ids : "";
+          }
+      - if:
+          condition:
+            lambda: 'return id(immich_request_state).candidate_pool_hit;'
+          then:
+            - lambda: |-
+                execute_deferred_slot_image_update(
+                  id(espframe_core).slideshow().state().target_slot,
+                  id(deferred_slot0_image_update), id(deferred_slot1_image_update),
+                  id(deferred_slot2_image_update));
+            - script.stop: immich_fetch_into_slot
       - http_request.post:
           id: http_req
           url: !lambda 'return id(immich_url).state + "/api/search/random";'
           capture_response: true
-          max_response_buffer_size: 24kB
+          max_response_buffer_size: 32kB
           request_headers:
             Content-Type: application/json
             Accept: application/json
@@ -727,8 +813,14 @@ script:
               ESP_LOGW("immich", "Relative date filter skipped because time is not valid");
             }
             std::string extra = build_immich_date_filter_extra(range);
-            int search_size = id(photo_orientation_filter).current_option() == "Any" ? 1 : 10;
-            return build_immich_search_body(search_size, true, id(photo_source_select).current_option(), id(immich_album_ids).state, id(immich_person_ids).state, id(immich_tag_ids).state, extra);
+            std::string source = id(photo_source_select).current_option();
+            bool batchable = source == "All Photos" || source == "Favorites";
+            int search_size = batchable ? IMMICH_RANDOM_POOL_SIZE :
+              (id(photo_orientation_filter).current_option() == "Any" ? 1 : 10);
+            return build_immich_search_body(
+              search_size, true, source, id(immich_album_ids).state,
+              id(immich_request_state).metadata_person_id,
+              id(immich_request_state).metadata_tag_ids, extra);
           on_response:
             then:
               - lambda: |-
@@ -757,9 +849,34 @@ script:
                     return;
                   }
                   std::string orientation = id(photo_orientation_filter).current_option();
-                  std::string img_url = parse_immich_asset_and_fill_slot(
-                    body, id(immich_url).state, id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2,
-                    orientation);
+                  std::string source = id(photo_source_select).current_option();
+                  bool batchable = source == "All Photos" || source == "Favorites";
+                  int slot = id(espframe_core).slideshow().state().target_slot;
+                  std::string img_url;
+                  if (batchable) {
+                    id(immich_candidate_pool).clear();
+                    append_immich_asset_candidates(
+                      body, id(immich_url).state, id(immich_candidate_pool), orientation,
+                      IMMICH_RANDOM_POOL_SIZE);
+                    img_url = take_immich_candidate_and_fill_slot(
+                      id(immich_candidate_pool),
+                      id(immich_request_state).candidate_pool_source_filter_id,
+                      slot, id(espframe_core).slideshow().state().slot0,
+                      id(espframe_core).slideshow().state().slot1,
+                      id(espframe_core).slideshow().state().slot2);
+                  } else {
+                    img_url = parse_immich_asset_and_fill_slot(
+                      body, id(immich_url).state, slot,
+                      id(espframe_core).slideshow().state().slot0,
+                      id(espframe_core).slideshow().state().slot1,
+                      id(espframe_core).slideshow().state().slot2, orientation);
+                    if (!img_url.empty()) {
+                      get_slot(slot, id(espframe_core).slideshow().state().slot0,
+                               id(espframe_core).slideshow().state().slot1,
+                               id(espframe_core).slideshow().state().slot2).source_filter_id =
+                        id(immich_request_state).candidate_pool_source_filter_id;
+                    }
+                  }
                   if (img_url.empty()) {
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
                     if (orientation != "Any" && id(immich_request_state).retry_available(MAX_ERROR_RETRIES)) {
@@ -775,7 +892,6 @@ script:
                     return;
                   }
                   id(immich_register_fetch_success).execute();
-                  int slot = id(espframe_core).slideshow().state().target_slot;
                   auto &meta = get_slot(slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2);
                   ESP_LOGI("immich", "RANDOM slot %d: %s | %s | %s | %s | portrait=%d",
                            slot, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.location.c_str(), meta.is_portrait);
@@ -884,7 +1000,7 @@ script:
           id: http_req
           url: !lambda 'return id(immich_url).state + "/api/search/random";'
           capture_response: true
-          max_response_buffer_size: 32kB
+          max_response_buffer_size: 48kB
           request_headers:
             Content-Type: application/json
             Accept: application/json
@@ -906,7 +1022,14 @@ script:
             int range_days = id(espframe_core).slideshow().state().portrait_search_expanded
               ? portrait_pairing_range_days(id(portrait_pairing_range).current_option()) : 0;
             std::string extra = build_immich_companion_date_filter_extra(day, range, range_days);
-            return build_immich_search_body(5, false, id(photo_source_select).current_option(), id(immich_album_ids).state, id(immich_person_ids).state, id(immich_tag_ids).state, extra);
+            const auto &primary = get_slot(
+              id(espframe_core).slideshow().state().companion_target_slot,
+              id(espframe_core).slideshow().state().slot0,
+              id(espframe_core).slideshow().state().slot1,
+              id(espframe_core).slideshow().state().slot2);
+            return build_immich_companion_search_body(
+              IMMICH_COMPANION_SEARCH_SIZE,
+              id(photo_source_select).current_option(), primary.source_filter_id, extra);
           on_response:
             then:
               - lambda: |-

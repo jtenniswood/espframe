@@ -110,7 +110,8 @@
       person: false,
       personLabel: false,
       tag: false,
-      tagLabel: false
+      tagLabel: false,
+      tagMatching: false
     };
     var fSrc = field("Source");
     var srcSel = selectFromOptions(productSettingOptions("photo_source"), S.photo_source, function (v) {
@@ -119,6 +120,7 @@
       albumOrderField.style.display = v === "Album" ? "" : "none";
       personField.style.display = v === "Person" ? "" : "none";
       tagField.style.display = v === "Tag" ? "" : "none";
+      tagMatchingField.style.display = v === "Tag" ? "" : "none";
       schedulePhotoSourceApply(0, { source: true });
     });
 
@@ -188,6 +190,15 @@
     var tagField = tagList.field;
     tagField.style.display = S.photo_source === "Tag" ? "" : "none";
 
+    var tagMatchingField = field("Tag Matching");
+    tagMatchingField.appendChild(
+      selectFromOptions(productSettingOptions("tag_matching"), S.tag_matching, function (v) {
+        S.tag_matching = v;
+        schedulePhotoSourceApply(0, { tagMatching: true });
+      })
+    );
+    tagMatchingField.style.display = S.photo_source === "Tag" ? "" : "none";
+
     function validatePhotoSourceInputs(changes) {
       albumList.error.textContent = "";
       personList.error.textContent = "";
@@ -212,6 +223,18 @@
       }
       if (shouldValidateTag && photoIdFieldTooLong(tagTrim)) {
         tagList.error.textContent = PHOTO_ID_FIELD_TOO_LONG;
+        return null;
+      }
+      if (srcVal === "Album" && !albumTrim) {
+        albumList.error.textContent = "Add at least one album";
+        return null;
+      }
+      if (srcVal === "Person" && !personTrim) {
+        personList.error.textContent = "Add at least one person";
+        return null;
+      }
+      if (srcVal === "Tag" && !tagTrim) {
+        tagList.error.textContent = "Add at least one tag";
         return null;
       }
       if (shouldValidateAlbum && !isValidUuidList(albumTrim)) {
@@ -246,7 +269,8 @@
         personIds: personTrim,
         personLabels: personLabels,
         tagIds: tagTrim,
-        tagLabels: tagLabels
+        tagLabels: tagLabels,
+        tagMatching: S.tag_matching
       };
     }
     function applyPhotoSourceInputs() {
@@ -258,7 +282,8 @@
         person: pendingPhotoSourceSave.person,
         personLabel: pendingPhotoSourceSave.personLabel,
         tag: pendingPhotoSourceSave.tag,
-        tagLabel: pendingPhotoSourceSave.tagLabel
+        tagLabel: pendingPhotoSourceSave.tagLabel,
+        tagMatching: pendingPhotoSourceSave.tagMatching
       };
       pendingPhotoSourceSave = {
         source: false,
@@ -268,7 +293,8 @@
         person: false,
         personLabel: false,
         tag: false,
-        tagLabel: false
+        tagLabel: false,
+        tagMatching: false
       };
       var vals = validatePhotoSourceInputs(changes);
       if (!vals) return;
@@ -297,9 +323,13 @@
       if (changes.tagLabel) {
         requests.push(saveSetting("tag_labels", vals.tagLabels));
       }
+      if (changes.tagMatching) {
+        requests.push(saveSetting("tag_matching", vals.tagMatching));
+      }
       if (!requests.length) return;
       Promise.all(requests).then(function () {
-        if (changes.source || changes.album || changes.albumOrder || changes.person || changes.tag)
+        if (changes.source || changes.album || changes.albumOrder || changes.person ||
+            changes.tag || changes.tagMatching)
           post(endpoints.apply_photo_source + "/press");
       });
     }
@@ -313,6 +343,7 @@
         pendingPhotoSourceSave.personLabel = pendingPhotoSourceSave.personLabel || !!changes.personLabel;
         pendingPhotoSourceSave.tag = pendingPhotoSourceSave.tag || !!changes.tag;
         pendingPhotoSourceSave.tagLabel = pendingPhotoSourceSave.tagLabel || !!changes.tagLabel;
+        pendingPhotoSourceSave.tagMatching = pendingPhotoSourceSave.tagMatching || !!changes.tagMatching;
       }
       clearTimeout(photoSourceApplyTimer);
       photoSourceApplyTimer = setTimeout(applyPhotoSourceInputs, delayMs == null ? 600 : delayMs);
@@ -324,6 +355,7 @@
     srcBody.appendChild(albumField);
     srcBody.appendChild(personField);
     srcBody.appendChild(tagField);
+    srcBody.appendChild(tagMatchingField);
 
     return makeCollapsibleCard("Photo Source", srcBody, true);
 

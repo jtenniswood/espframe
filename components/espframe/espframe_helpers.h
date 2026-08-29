@@ -58,7 +58,7 @@ struct PhotoMeta {
 
 struct SlotMeta : PhotoMeta {
   // Runtime state for one slot in the 3-image ring buffer.
-  std::string datetime, companion_url, pending_asset_id;
+  std::string datetime, companion_url, pending_asset_id, source_filter_id;
   bool ready = false, is_portrait = false;
 };
 
@@ -488,9 +488,29 @@ inline void fill_slot_from_immich_meta(const ImmichAssetMeta &tmp,
   meta->day = tmp.day;
   meta->zoom = tmp.zoom;
   meta->datetime = tmp.datetime;
+  meta->source_filter_id = tmp.source_filter_id;
   meta->companion_url = "";
   meta->pending_asset_id = tmp.asset_id;
   meta->is_portrait = tmp.is_portrait;
+}
+
+inline std::string take_immich_candidate_and_fill_slot(
+    std::vector<ImmichAssetMeta> &pool, const std::string &source_filter_id,
+    int slot, SlotMeta &s0, SlotMeta &s1, SlotMeta &s2) {
+  while (!pool.empty()) {
+    ImmichAssetMeta candidate = std::move(pool.back());
+    pool.pop_back();
+    if (candidate.asset_id.empty()) continue;
+    if (candidate.asset_id == s0.asset_id || candidate.asset_id == s1.asset_id ||
+        candidate.asset_id == s2.asset_id || candidate.asset_id == s0.pending_asset_id ||
+        candidate.asset_id == s1.pending_asset_id || candidate.asset_id == s2.pending_asset_id) {
+      continue;
+    }
+    candidate.source_filter_id = source_filter_id;
+    fill_slot_from_immich_meta(candidate, slot, s0, s1, s2);
+    return candidate.image_url;
+  }
+  return "";
 }
 
 inline std::string parse_immich_asset_and_fill_slot(const std::string &body,

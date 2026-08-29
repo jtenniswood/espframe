@@ -12,6 +12,7 @@ Choose the **Source** in the device web UI at `http://<device-ip>/` under **Phot
 |---------|---------|--------|-------------|
 | **Source** | All Photos | Select | Choose all photos, favorites, albums, people, tags, or Immich memories. |
 | **Album Order** | Random albums | Select | Choose whether multiple albums are sampled randomly or cycled in the order shown in the Albums list. |
+| **Tag Matching** | Any selected tag | Select | Choose whether a photo may contain any selected tag or must contain every selected tag. |
 <!-- ESPFRAME:SETTINGS_TABLE source END -->
 
 | Source | Extra setup | Best for |
@@ -50,13 +51,18 @@ Shows photos where specific people (faces) appear. Requires face recognition in 
 
 The names are saved with the IDs so the web UI can show friendly labels later. They do not need to match the name stored in Immich.
 
-Person photos are sampled through paged Immich search, so large libraries are not limited to the first small batch of results.
+Person photos use Immich's random search across the selected person. When you add several people, Espframe chooses one person for each photo instead of asking Immich for photos containing every selected person.
 
 ## Tag
 
 Shows photos assigned to one or more Immich tags. **Get the UUID:** open the tag in Immich — the URL is typically `.../tags/<uuid>`. Paste one UUID into **Tags**, then optionally add a short description in **What tag is it?**. Use **Add a tag** to add another tag if needed. Your [API key](/api-key) needs `tag.read`.
 
-Tag photos are sampled through paged Immich search, so large tag sets are not limited to the first small batch of results.
+Use **Tag Matching** to choose the behavior for multiple tags:
+
+- **Any selected tag** chooses one selected tag for each photo, so the slideshow includes photos from across the selected tags.
+- **All selected tags** asks Immich for photos carrying every selected tag.
+
+This is explicit because Immich combines multiple tag IDs with AND semantics; treating a comma-separated list as an OR filter can otherwise make valid photos appear to be missing.
 
 ## Album, Person, and Tag ID limits
 
@@ -131,7 +137,7 @@ Use **Layout** to control how photos are chosen and fitted to the screen.
 
 Portrait pairing is disabled while the screen is in portrait rotation.
 
-**Pairing Range** always checks the same calendar day first. With **±1 Day** or **±2 Days**, Espframe broadens the search only when it cannot find a same-day companion, then prefers the closest capture time in the wider range. The range is kept inside any date filter you have configured.
+**Pairing Range** always checks the same calendar day first. Espframe samples up to 20 assets across the requested window and chooses the compatible portrait closest to the primary photo's capture time. With **±1 Day** or **±2 Days**, it broadens the search only when it cannot find a same-day companion. The range is kept inside any date filter you have configured, and the companion uses the exact album, person, or tag chosen for the primary photo.
 
 Turn on **Paired Portraits Only** to skip a portrait when a complete pair cannot be loaded. Landscape photos continue to display normally. While Espframe searches for another eligible photo, the last successfully displayed photo stays on screen.
 

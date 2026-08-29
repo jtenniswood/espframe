@@ -297,13 +297,22 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
     response["status"] = "accepted";
     response["updated"] = updated;
     auto payload = builder.serialize();
-    request->send(202, "application/json", payload.c_str());
+    // ESPHome's IDF web server currently maps unrecognized response codes to
+    // 500; its built-in status table does not include 202. The update is still
+    // asynchronous and the JSON status remains "accepted", while 200 keeps the
+    // browser from treating a successfully queued update as a failure.
+    request->send(200, "application/json", payload.c_str());
   }
 
   static void apply_pending_(PendingValue &pending) {
     switch (pending.domain) {
       case PendingDomain::SELECT: {
-        auto call = static_cast<select::Select *>(pending.entity)->make_call();
+        auto *entity = static_cast<select::Select *>(pending.entity);
+        // Avoid firing on_value automations for idempotent saves. In
+        // particular, re-saving the active photo filter must not flush image
+        // slots while firmware-update display recovery is still in flight.
+        if (entity->current_option() == pending.string_value) break;
+        auto call = entity->make_call();
         call.set_option(pending.string_value.c_str(), pending.string_value.size());
         call.perform();
         break;

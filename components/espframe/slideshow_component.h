@@ -261,10 +261,10 @@ class EspFrameSlideshow {
     portrait.left_requested = false;
     portrait.companion_found = false;
     portrait.no_companion_active = true;
+    portrait.workflow_busy = false;
     diag_reason = "portrait left error";
     this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG);
     if (!active_slot_displayed) {
-      portrait.workflow_busy = false;
       if (portrait_pairs_only) {
         this->emit_command(SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT, this->state_.active_slot);
       } else {
@@ -280,10 +280,10 @@ class EspFrameSlideshow {
     portrait.right_requested = false;
     portrait.companion_found = false;
     portrait.no_companion_active = true;
+    portrait.workflow_busy = false;
     diag_reason = "portrait right error";
     this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG);
     if (!active_slot_displayed) {
-      portrait.workflow_busy = false;
       if (portrait_pairs_only) {
         this->emit_command(SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT, this->state_.active_slot);
       } else {

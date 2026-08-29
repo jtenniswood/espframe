@@ -14,6 +14,7 @@
     "person_labels": "Alex",
     "tag_ids": "33333333-3333-4333-8333-333333333333",
     "tag_labels": "Espframe",
+    "tag_matching": "Any selected tag",
     "date_filter_enabled": true,
     "date_filter_mode": "Relative Range",
     "date_from": "2024-01-01",

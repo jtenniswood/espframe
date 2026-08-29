@@ -125,6 +125,7 @@ script:
       - lambda: |-
           id(immich_fetch_started) = false;
           id(immich_request_state).reset();
+          id(immich_candidate_pool).clear();
           id(espframe_core).slideshow().reset_state();
           id(last_photo_displayed_ms) = 0;
           lv_obj_add_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);

@@ -7,14 +7,23 @@
 #include <cstdlib>
 #include <limits>
 #include <string>
+#include <utility>
 #include <vector>
 
 static constexpr uint16_t ZOOM_IDENTITY = 256;
 static constexpr uint16_t IMMICH_ALBUM_PAGE_SIZE = 16;
 static constexpr uint16_t IMMICH_METADATA_PAGE_SIZE = 5;
+static constexpr uint16_t IMMICH_RANDOM_POOL_SIZE = 6;
+static constexpr uint16_t IMMICH_COMPANION_SEARCH_SIZE = 20;
 // Sixteen midpoint probes reduce a 10,000-page upper bound below one page,
 // covering very sparse date-filtered albums without a first-page bias.
 static constexpr uint8_t MAX_EMPTY_METADATA_PAGE_PROBES = 16;
+
+struct ImmichMetadataCountCacheEntry {
+  std::string key;
+  uint32_t total = 0;
+  bool count_is_upper_bound = false;
+};
 
 // Owns the complete state of the Immich request pipeline. Keeping these values
 // together makes reset, retry, and cooldown transitions atomic instead of
@@ -43,6 +52,11 @@ struct ImmichRequestState {
   bool metadata_page1_fallback_attempted = false;
   uint32_t metadata_bypass_until_ms = 0;
   int album_order_index = 0;
+  std::string metadata_count_cache_key;
+  bool metadata_count_cache_hit = false;
+  std::vector<ImmichMetadataCountCacheEntry> metadata_count_cache;
+  bool candidate_pool_hit = false;
+  std::string candidate_pool_source_filter_id;
 
   void reset() { *this = ImmichRequestState{}; }
 
@@ -54,6 +68,38 @@ struct ImmichRequestState {
     this->metadata_empty_page_probes = 0;
     this->metadata_page_bound_is_upper = false;
     this->metadata_page1_fallback_attempted = false;
+    this->metadata_count_cache.clear();
+    this->metadata_count_cache_key.clear();
+    this->metadata_count_cache_hit = false;
+  }
+
+  bool find_metadata_count(const std::string &key, uint32_t *total,
+                           bool *count_is_upper_bound) const {
+    if (total == nullptr || count_is_upper_bound == nullptr) return false;
+    for (const auto &entry : this->metadata_count_cache) {
+      if (entry.key != key) continue;
+      *total = entry.total;
+      *count_is_upper_bound = entry.count_is_upper_bound;
+      return entry.total > 0;
+    }
+    return false;
+  }
+
+  void remember_metadata_count(const std::string &key, uint32_t total,
+                               bool count_is_upper_bound) {
+    if (key.empty() || total == 0) return;
+    for (auto &entry : this->metadata_count_cache) {
+      if (entry.key != key) continue;
+      entry.total = total;
+      entry.count_is_upper_bound = count_is_upper_bound;
+      return;
+    }
+    // Keep this cache deliberately small and FIFO. A miss costs one count
+    // request but never changes the selected photos.
+    if (this->metadata_count_cache.size() >= 12) {
+      this->metadata_count_cache.erase(this->metadata_count_cache.begin());
+    }
+    this->metadata_count_cache.push_back({key, total, count_is_upper_bound});
   }
 
   void begin_memory_search() {
@@ -171,6 +217,7 @@ struct ImmichAssetMeta {
   // lambdas.
   std::string asset_id, image_url, date, location, person;
   std::string datetime;  // localDateTime from asset, for slot display
+  std::string source_filter_id;  // exact album/person/tag selection for companion searches
   int year = 0, month = 0, day = 0;
   bool is_portrait = false;
   bool orientation_known = false;
@@ -432,6 +479,20 @@ inline std::string pick_one_uuid_from_csv(const std::string &csv) {
   return ids[esp_random() % ids.size()];
 }
 
+inline std::string select_immich_tag_ids(const std::string &csv,
+                                         const std::string &matching_mode) {
+  if (matching_mode == "All selected tags") return csv;
+  return pick_one_uuid_from_csv(csv);
+}
+
+inline std::string build_immich_metadata_count_cache_key(
+    const std::string &photo_source, const std::string &album_id,
+    const std::string &person_id, const std::string &tag_ids,
+    const std::string &filter_extra) {
+  return photo_source + "|" + album_id + "|" + person_id + "|" +
+         tag_ids + "|" + filter_extra;
+}
+
 inline std::string pick_album_id_for_metadata_search(const std::string &csv,
                                                      const std::string &album_order,
                                                      int &next_index) {
@@ -564,7 +625,9 @@ inline bool retry_empty_immich_metadata_page(ImmichRequestState &state) {
 }
 
 inline bool immich_source_uses_metadata_search(const std::string &photo_source) {
-  return photo_source == "Album" || photo_source == "Person" || photo_source == "Tag";
+  // Album metadata search is retained because, unlike random search, Immich
+  // authorizes the album first and can include assets contributed by others.
+  return photo_source == "Album";
 }
 
 inline std::string build_immich_metadata_search_body(uint32_t page,
@@ -593,6 +656,19 @@ inline std::string build_immich_metadata_search_body(uint32_t page,
   }
   body += "}";
   return body;
+}
+
+inline std::string build_immich_companion_search_body(
+    uint16_t size, const std::string &photo_source,
+    const std::string &source_filter_id, const std::string &extra = "") {
+  std::string album_id = photo_source == "Album" ? source_filter_id : "";
+  std::string person_id = photo_source == "Person" ? source_filter_id : "";
+  std::string tag_ids = photo_source == "Tag" ? source_filter_id : "";
+  // Random sampling covers the full date window without capturing a large,
+  // chronologically ordered metadata page in the device's internal RAM. The
+  // client evaluates every returned portrait by capture-time distance.
+  return build_immich_search_body(
+      size, false, photo_source, album_id, person_id, tag_ids, extra);
 }
 
 inline std::string build_immich_statistics_search_body(const std::string &photo_source,
@@ -757,6 +833,17 @@ inline std::string parse_immich_asset_object(JsonObject asset,
     }
   }
 
+  // Immich 3 exposes normalized display dimensions on the asset itself. They
+  // remain available when EXIF extraction did not produce dimensions.
+  if (!orientation_known) {
+    int width = asset["width"].is<int>() ? asset["width"].as<int>() : 0;
+    int height = asset["height"].is<int>() ? asset["height"].as<int>() : 0;
+    if (width > 0 && height > 0) {
+      is_portrait = height > width;
+      orientation_known = true;
+    }
+  }
+
   if (asset["people"].is<JsonArray>()) {
     JsonArray people = asset["people"].as<JsonArray>();
     if (people.size() > 0) {
@@ -812,6 +899,44 @@ inline std::string parse_immich_asset(const std::string &body,
   }
 
   return "";
+}
+
+inline JsonArray immich_asset_array_from_document(JsonDocument &doc) {
+  if (doc.is<JsonArray>()) return doc.as<JsonArray>();
+  if (!doc.is<JsonObject>()) return JsonArray();
+  JsonObject assets = doc.as<JsonObject>()["assets"].as<JsonObject>();
+  if (assets.isNull()) return JsonArray();
+  JsonArray items = assets["items"].as<JsonArray>();
+  if (items.isNull()) items = assets["assets"].as<JsonArray>();
+  return items;
+}
+
+inline size_t append_immich_asset_candidates(
+    const std::string &body, const std::string &base_url,
+    std::vector<ImmichAssetMeta> &pool,
+    const std::string &orientation_filter = "Any",
+    size_t max_pool_size = IMMICH_RANDOM_POOL_SIZE) {
+  auto doc = esphome::json::parse_json(body);
+  if (doc.isNull()) return 0;
+  JsonArray assets = immich_asset_array_from_document(doc);
+  if (assets.isNull()) return 0;
+
+  size_t before = pool.size();
+  if (pool.capacity() < max_pool_size) pool.reserve(max_pool_size);
+  for (size_t i = 0; i < assets.size() && pool.size() < max_pool_size; i++) {
+    ImmichAssetMeta candidate;
+    if (parse_immich_asset_object(assets[i].as<JsonObject>(), base_url, &candidate).empty()) continue;
+    if (!photo_orientation_matches(candidate, orientation_filter)) continue;
+    bool duplicate = false;
+    for (const auto &existing : pool) {
+      if (existing.asset_id == candidate.asset_id) {
+        duplicate = true;
+        break;
+      }
+    }
+    if (!duplicate) pool.push_back(std::move(candidate));
+  }
+  return pool.size() - before;
 }
 
 inline uint32_t parse_immich_metadata_total(const std::string &body) {
@@ -993,10 +1118,11 @@ inline std::string find_immich_portrait_companion_url(const std::string &body,
                                                       const std::string &primary_asset_id,
                                                       const std::string &primary_datetime = "") {
   auto doc = esphome::json::parse_json(body);
-  if (doc.isNull() || !doc.is<JsonArray>()) return "";
+  if (doc.isNull()) return "";
 
   std::vector<ImmichPortraitCompanionCandidate> candidates;
-  JsonArray arr = doc.as<JsonArray>();
+  JsonArray arr = immich_asset_array_from_document(doc);
+  if (arr.isNull()) return "";
   for (size_t i = 0; i < arr.size(); i++) {
     JsonObject asset = arr[i].as<JsonObject>();
     if (asset.isNull() || !asset["id"].is<const char *>()) continue;
@@ -1005,8 +1131,8 @@ inline std::string find_immich_portrait_companion_url(const std::string &body,
     JsonObject exif = asset["exifInfo"].as<JsonObject>();
     if (exif.isNull()) continue;
 
-    int width = 0;
-    int height = 0;
+    int width = asset["width"].is<int>() ? asset["width"].as<int>() : 0;
+    int height = asset["height"].is<int>() ? asset["height"].as<int>() : 0;
     if (exif["exifImageWidth"].is<int>()) width = exif["exifImageWidth"].as<int>();
     if (exif["exifImageHeight"].is<int>()) height = exif["exifImageHeight"].as<int>();
 

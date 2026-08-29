@@ -159,6 +159,7 @@
       "person_labels",
       "tag_ids",
       "tag_labels",
+      "tag_matching",
       "date_filter_enabled",
       "date_filter_mode",
       "date_from",
@@ -215,6 +216,7 @@
       "person_labels": "person_labels",
       "tag_ids": "tag_ids",
       "tag_labels": "tag_labels",
+      "tag_matching": "tag_matching",
       "date_filter_enabled": "date_filter_enabled",
       "date_filter_mode": "date_filter_mode",
       "date_from": "date_from",
@@ -565,7 +567,8 @@
       "function": "makePhotoSourceCard",
       "settings": [
         "photo_source",
-        "album_order"
+        "album_order",
+        "tag_matching"
       ],
       "static_entities": [
         "album_ids",
@@ -1018,7 +1021,8 @@
         ],
         "settings": [
           "photo_source",
-          "album_order"
+          "album_order",
+          "tag_matching"
         ]
       },
       "date_filtering": {
@@ -1391,6 +1395,7 @@
   "generated_firmware_setting_fields": {
     "photo_source": {},
     "album_order": {},
+    "tag_matching": {},
     "date_filter_mode": {},
     "relative_unit": {},
     "photo_orientation": {},

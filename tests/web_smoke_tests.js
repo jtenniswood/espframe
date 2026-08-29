@@ -464,7 +464,7 @@ function browserScriptForScenario(scenario) {
           window.__smoke.configurationUpdateInFlight = false;
           resolve({
             ok: true,
-            status: 202,
+            status: 200,
             json: () => Promise.resolve({ api_version: 1, status: "accepted", updated: Object.keys(update.values || {}).length })
           });
         }, 0));

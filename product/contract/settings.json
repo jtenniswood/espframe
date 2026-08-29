@@ -43,6 +43,26 @@
     ]
   },
   {
+    "key": "tag_matching",
+    "entity": {
+      "domain": "select",
+      "name": "Photos: Tag Matching"
+    },
+    "default": "Any selected tag",
+    "docs_label": "Tag Matching",
+    "docs_description": "Choose whether a photo may contain any selected tag or must contain every selected tag.",
+    "options": [
+      "Any selected tag",
+      "All selected tags"
+    ],
+    "firmware_files": [
+      "common/addon/immich_filter.yaml"
+    ],
+    "docs_files": [
+      "docs/photo-sources.md"
+    ]
+  },
+  {
     "key": "date_filter_mode",
     "entity": {
       "domain": "select",

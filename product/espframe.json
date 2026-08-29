@@ -160,6 +160,7 @@
         "person_labels",
         "tag_ids",
         "tag_labels",
+        "tag_matching",
         "date_filter_enabled",
         "date_filter_mode",
         "date_from",
@@ -216,6 +217,7 @@
         "person_labels": "person_labels",
         "tag_ids": "tag_ids",
         "tag_labels": "tag_labels",
+        "tag_matching": "tag_matching",
         "date_filter_enabled": "date_filter_enabled",
         "date_filter_mode": "date_filter_mode",
         "date_from": "date_from",
@@ -566,7 +568,8 @@
         "function": "makePhotoSourceCard",
         "settings": [
           "photo_source",
-          "album_order"
+          "album_order",
+          "tag_matching"
         ],
         "static_entities": [
           "album_ids",
@@ -1019,7 +1022,8 @@
           ],
           "settings": [
             "photo_source",
-            "album_order"
+            "album_order",
+            "tag_matching"
           ]
         },
         "date_filtering": {
@@ -1392,6 +1396,7 @@
     "generated_firmware_setting_fields": {
       "photo_source": {},
       "album_order": {},
+      "tag_matching": {},
       "date_filter_mode": {},
       "relative_unit": {},
       "photo_orientation": {},
@@ -2088,6 +2093,26 @@
       "options": [
         "Random albums",
         "Album list order"
+      ],
+      "firmware_files": [
+        "common/addon/immich_filter.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
+    },
+    {
+      "key": "tag_matching",
+      "entity": {
+        "domain": "select",
+        "name": "Photos: Tag Matching"
+      },
+      "default": "Any selected tag",
+      "docs_label": "Tag Matching",
+      "docs_description": "Choose whether a photo may contain any selected tag or must contain every selected tag.",
+      "options": [
+        "Any selected tag",
+        "All selected tags"
       ],
       "firmware_files": [
         "common/addon/immich_filter.yaml"

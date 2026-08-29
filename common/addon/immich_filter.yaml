@@ -92,6 +92,26 @@ select:
         - script.execute: auto_apply_photo_source
 
   - platform: template
+    name: "Photos: Tag Matching"
+    id: immich_tag_matching
+    internal: true
+    # ESPFRAME:SETTING_FIELDS tag_matching START
+    options:
+      - "Any selected tag"
+      - "All selected tags"
+    initial_option: "Any selected tag"
+    optimistic: true
+    restore_value: true
+    # ESPFRAME:SETTING_FIELDS tag_matching END
+    icon: "mdi:tag-multiple"
+    web_server:
+      sorting_group_id: sg_photos
+    on_value:
+      then:
+        - lambda: 'ESP_LOGI("immich", "Tag matching: %s", x.c_str());'
+        - script.execute: auto_apply_photo_source
+
+  - platform: template
     name: "Photos: Relative Unit"
     id: immich_relative_unit
     internal: true
@@ -353,6 +373,8 @@ script:
           // Album metadata fallback pages depend on the active source and
           // filters, so discard their RAM-only cursors whenever this applies.
           id(immich_request_state).reset_album_metadata_fallbacks();
+          id(immich_candidate_pool).clear();
+          id(immich_request_state).candidate_pool_source_filter_id.clear();
           // A flush discards every slot, so it has to discard the work that was
           // filling them too. Clearing `ready` while leaving fetch_in_flight set
           // orphans the flag: request_prefetch() and the slideshow interval both
