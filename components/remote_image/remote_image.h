@@ -249,6 +249,7 @@ class OnlineImage : public PollingComponent,
   friend void ImageDecoder::draw_rgb565_block(int x, int y, int w, int h, const uint8_t *data);
   friend void ImageDecoder::draw_rgb888_scaled(int src_y, int src_w, const uint8_t *rgb888, bool big_endian);
   friend void ImageDecoder::fill_row_gap(int gap_start, int gap_end, int src_row_y);
+  friend void ImageDecoder::fill_trailing_row_gap(int gap_start);
 };
 
 template<typename... Ts> class OnlineImageSetUrlAction : public Action<Ts...> {

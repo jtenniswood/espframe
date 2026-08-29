@@ -830,6 +830,7 @@ script:
                     id(immich_request_state).note_http_failure(code, millis());
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
                     if (is_http_auth_error(code)) {
+                      id(immich_source_setup_visible) = false;
                       lv_label_set_text(id(connection_failed_title), "Invalid API Key");
                       lv_label_set_text(id(connection_failed_subtitle), "Check your Immich API key in\nthe espframe settings.");
                       lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);

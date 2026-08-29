@@ -367,8 +367,10 @@ script:
                 level: DEBUG
                 tag: immich
                 format: "Photo source apply deferred until source IDs are restored"
+            - script.execute: show_photo_source_empty_state
             - script.execute: immich_retry_config_ready
             - script.stop: flush_slots_and_refetch
+      - script.execute: hide_photo_source_empty_state
       - lambda: |-
           // Album metadata fallback pages depend on the active source and
           // filters, so discard their RAM-only cursors whenever this applies.

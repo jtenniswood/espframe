@@ -769,6 +769,7 @@ interval:
             - lambda: |-
                 if (lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN)) {
                   ESP_LOGE("immich", "No photo displayed for %s, showing connection failed screen", id(connection_timeout).current_option().c_str());
+                  id(immich_source_setup_visible) = false;
                   if (id(immich_request_state).last_http_status == 401) {
                     lv_label_set_text(id(connection_failed_title), "Invalid API Key");
                     lv_label_set_text(id(connection_failed_subtitle), "Check your Immich API key in\nthe espframe settings.");

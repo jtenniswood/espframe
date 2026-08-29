@@ -539,6 +539,36 @@ inline bool immich_source_has_required_ids(const std::string &photo_source,
   return true;
 }
 
+inline std::string immich_source_setup_title(const std::string &photo_source) {
+  if (photo_source == "Album") return "Album source needs setup";
+  if (photo_source == "Person") return "Person source needs setup";
+  if (photo_source == "Tag") return "Tag source needs setup";
+  return "Photo source needs setup";
+}
+
+inline std::string immich_source_setup_message(const std::string &photo_source) {
+  std::string item = "photo source";
+  if (photo_source == "Album") item = "album";
+  else if (photo_source == "Person") item = "person";
+  else if (photo_source == "Tag") item = "tag";
+  return "Open ESPFrame settings and add at least one " + item +
+         ",\nor choose All Photos.";
+}
+
+inline bool immich_dimensions_are_portrait(int width, int height,
+                                           const std::string &orientation,
+                                           bool dimensions_are_raw_exif) {
+  if (width <= 0 || height <= 0) return false;
+  // Immich's top-level width/height are already normalized for display. Only
+  // raw EXIF dimensions still need the orientation transform.
+  if (dimensions_are_raw_exif &&
+      (orientation == "5" || orientation == "6" ||
+       orientation == "7" || orientation == "8")) {
+    std::swap(width, height);
+  }
+  return height > width;
+}
+
 inline std::string build_immich_search_body(int size, bool with_people,
                                              const std::string &photo_source,
                                              const std::string &album_ids,
@@ -823,12 +853,9 @@ inline std::string parse_immich_asset_object(JsonObject asset,
     if (exif["exifImageHeight"].is<int>()) exif_h = exif["exifImageHeight"].as<int>();
     std::string orientation;
     if (exif["orientation"].is<const char *>()) orientation = exif["orientation"].as<std::string>();
-    // EXIF orientations 5-8 mean the stored dimensions are rotated relative to
-    // the displayed photo, so swap before deciding whether it is portrait.
-    if (orientation == "5" || orientation == "6" || orientation == "7" || orientation == "8")
-      std::swap(exif_w, exif_h);
     if (exif_w > 0 && exif_h > 0) {
-      is_portrait = (exif_h > exif_w);
+      is_portrait = immich_dimensions_are_portrait(
+        exif_w, exif_h, orientation, true);
       orientation_known = true;
     }
   }
@@ -1133,13 +1160,18 @@ inline std::string find_immich_portrait_companion_url(const std::string &body,
 
     int width = asset["width"].is<int>() ? asset["width"].as<int>() : 0;
     int height = asset["height"].is<int>() ? asset["height"].as<int>() : 0;
-    if (exif["exifImageWidth"].is<int>()) width = exif["exifImageWidth"].as<int>();
-    if (exif["exifImageHeight"].is<int>()) height = exif["exifImageHeight"].as<int>();
+    int exif_width = exif["exifImageWidth"].is<int>()
+      ? exif["exifImageWidth"].as<int>() : 0;
+    int exif_height = exif["exifImageHeight"].is<int>()
+      ? exif["exifImageHeight"].as<int>() : 0;
+    const bool dimensions_are_raw_exif = exif_width > 0 && exif_height > 0;
+    if (dimensions_are_raw_exif) {
+      width = exif_width;
+      height = exif_height;
+    }
 
     std::string orientation;
     if (exif["orientation"].is<const char *>()) orientation = exif["orientation"].as<std::string>();
-    if (orientation == "5" || orientation == "6" || orientation == "7" || orientation == "8")
-      std::swap(width, height);
 
     std::string candidate_datetime;
     if (asset["localDateTime"].is<const char *>()) {
@@ -1147,8 +1179,10 @@ inline std::string find_immich_portrait_companion_url(const std::string &body,
     } else if (exif["dateTimeOriginal"].is<const char *>()) {
       candidate_datetime = exif["dateTimeOriginal"].as<std::string>();
     }
-    candidates.push_back({asset_id, candidate_datetime,
-                          width > 0 && height > 0 && height > width});
+    candidates.push_back({
+      asset_id, candidate_datetime,
+      immich_dimensions_are_portrait(
+        width, height, orientation, dimensions_are_raw_exif)});
   }
 
   std::string asset_id = pick_closest_immich_portrait_companion_asset_id(

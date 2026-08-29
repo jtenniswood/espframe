@@ -224,6 +224,18 @@ static void test_immich_body_helpers() {
   assert(!immich_source_has_required_ids("Person", "", "", ""));
   assert(immich_source_has_required_ids("Tag", "", "", " t1,t2 "));
   assert(!immich_source_has_required_ids("Tag", "", "", " , "));
+  assert(immich_source_setup_title("Album") == "Album source needs setup");
+  assert(immich_source_setup_title("Person") == "Person source needs setup");
+  assert(immich_source_setup_title("Tag") == "Tag source needs setup");
+  assert(immich_source_setup_message("Album") ==
+         "Open ESPFrame settings and add at least one album,\nor choose All Photos.");
+  assert(immich_source_setup_message("Person") ==
+         "Open ESPFrame settings and add at least one person,\nor choose All Photos.");
+  assert(immich_source_setup_message("Tag") ==
+         "Open ESPFrame settings and add at least one tag,\nor choose All Photos.");
+  assert(!immich_dimensions_are_portrait(1920, 1080, "6", false));
+  assert(immich_dimensions_are_portrait(1920, 1080, "6", true));
+  assert(immich_dimensions_are_portrait(1080, 1920, "6", false));
   assert(pick_one_uuid_from_csv(" a, b ,, c ") == "a");
   assert(select_immich_tag_ids("t1,t2", "Any selected tag") == "t1");
   assert(select_immich_tag_ids("t1,t2", "All selected tags") == "t1,t2");

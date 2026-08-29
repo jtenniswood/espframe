@@ -193,6 +193,8 @@ int HOT WebpDecoder::decode(uint8_t *buffer, size_t size) {
     }
   }
 
+  this->fill_trailing_row_gap(prev_gap_end);
+
   this->cleanup_();
   this->finished_ = true;
   this->decoded_bytes_ = size;

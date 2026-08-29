@@ -16,6 +16,9 @@ globals:
   - id: immich_fetch_started
     type: bool
     initial_value: 'false'
+  - id: immich_source_setup_visible
+    type: bool
+    initial_value: 'false'
 
 esphome:
   on_boot:
@@ -128,9 +131,45 @@ script:
           id(immich_candidate_pool).clear();
           id(espframe_core).slideshow().reset_state();
           id(last_photo_displayed_ms) = 0;
+          id(immich_source_setup_visible) = false;
+          id(connection_failed_dim).stop();
+          id(connection_failed_shift).stop();
+          lv_obj_align(id(connection_failed_content), LV_ALIGN_CENTER, 0, 0);
           lv_obj_add_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
           ESP_LOGI("immich", "Connection settings changed; retrying Immich connection");
       - script.execute: immich_check_config_ready
+
+  - id: show_photo_source_empty_state
+    mode: single
+    then:
+      - lambda: |-
+          const std::string source = id(photo_source_select).current_option();
+          const std::string title = immich_source_setup_title(source);
+          const std::string message = immich_source_setup_message(source);
+          const bool was_hidden =
+            lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
+          lv_label_set_text(id(connection_failed_title), title.c_str());
+          lv_label_set_text(id(connection_failed_subtitle), message.c_str());
+          id(immich_source_setup_visible) = true;
+          lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
+          if (was_hidden) {
+            lv_obj_align(id(connection_failed_content), LV_ALIGN_CENTER, 0, 0);
+            id(backlight_apply_brightness).execute();
+            id(connection_failed_dim).execute();
+            id(connection_failed_shift).execute();
+          }
+
+  - id: hide_photo_source_empty_state
+    mode: single
+    then:
+      - lambda: |-
+          if (!id(immich_source_setup_visible)) return;
+          id(immich_source_setup_visible) = false;
+          id(connection_failed_dim).stop();
+          id(connection_failed_shift).stop();
+          lv_obj_align(id(connection_failed_content), LV_ALIGN_CENTER, 0, 0);
+          lv_obj_add_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
+          id(backlight_apply_brightness).execute();
 
   - id: immich_check_config_ready
     mode: restart
@@ -154,8 +193,10 @@ script:
                       level: DEBUG
                       tag: immich
                       format: "Photo source is waiting for restored source IDs"
+                  - script.execute: show_photo_source_empty_state
                   - script.execute: immich_retry_config_ready
                   - script.stop: immich_check_config_ready
+            - script.execute: hide_photo_source_empty_state
             - if:
                 condition:
                   lambda: |-

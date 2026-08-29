@@ -108,6 +108,13 @@ class ImageDecoder {
    */
   void fill_row_gap(int gap_start, int gap_end, int src_row_y);
 
+  /**
+   * @brief Fill the final skipped rows after an upscaled decoder has emitted
+   * its last source scanline. The fill stops at the scaled image boundary so
+   * fit-mode letterboxing remains untouched.
+   */
+  void fill_trailing_row_gap(int gap_start);
+
  protected:
   OnlineImage *image_;
   // Initializing to 1, to ensure it is distinguishable from initial "decoded_bytes_".

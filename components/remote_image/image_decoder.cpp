@@ -219,6 +219,16 @@ void ImageDecoder::fill_row_gap(int gap_start, int gap_end, int src_row_y) {
   }
 }
 
+void ImageDecoder::fill_trailing_row_gap(int gap_start) {
+  if (this->y_scale_ <= 1.0 || gap_start <= 0) return;
+  int content_end = std::min(
+      std::max(this->y_offset_ + this->scaled_height_, 0),
+      this->image_->buffer_height_);
+  if (gap_start >= content_end) return;
+  int src_row_y = std::min(gap_start - 1, this->image_->buffer_height_ - 1);
+  this->fill_row_gap(gap_start, content_end, src_row_y);
+}
+
 DownloadBuffer::DownloadBuffer(size_t size) : size_(size) {
   this->buffer_ = this->allocator_.allocate(size);
   this->reset();

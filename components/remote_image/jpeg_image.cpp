@@ -471,6 +471,7 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
                       this->x_offset_ != 0 || this->y_offset_ != 0);
     this->current_scanline_ = 0;
     this->prev_dst_y_ = -1;
+    this->prev_gap_end_ = 0;
     this->phase_ = DECOMPRESSING;
   }
 
@@ -522,6 +523,7 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   }
 
   if (this->cinfo_->output_scanline >= this->cinfo_->output_height) {
+    this->fill_trailing_row_gap(this->prev_gap_end_);
     jpeg_finish_decompress(this->cinfo_);
     this->cleanup_();
     this->phase_ = FINISHED;
