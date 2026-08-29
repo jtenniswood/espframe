@@ -1,0 +1,4 @@
+interface:
+  display_name: "API Review"
+  short_description: "Review and improve the Immich API integration"
+  default_prompt: "Use $api-review to review this project’s Immich API integration, filtering, and portrait-pair matching."
