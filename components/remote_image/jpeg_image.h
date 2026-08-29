@@ -39,8 +39,9 @@ class JpegDecoder : public ImageDecoder {
   bool use_rgb565_ = false;
   bool big_endian_ = false;
   bool scaling_ = false;
-
-  static constexpr int SCANLINES_PER_CHUNK = 100;
+  // Keep each decode slice short enough that touch, LVGL, and network work can
+  // run between batches. The total decoded pixels and output are unchanged.
+  static constexpr int SCANLINES_PER_CHUNK = 32;
 };
 
 }  // namespace remote_image

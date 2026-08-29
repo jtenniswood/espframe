@@ -129,7 +129,11 @@ size_t OnlineImage::resize_(int width_in, int height_in) {
   size_t new_size = this->get_buffer_size_(width, height);
   if (this->buffer_) {
     if (new_size <= this->get_buffer_size_()) {
-      memset(this->buffer_, 0, this->get_buffer_size_());
+      // ImageDecoder::set_size() owns destination initialization. It clears
+      // fit-mode buffers so letterbox regions stay black, while fill-mode
+      // decoders overwrite every visible RGB565 pixel and can skip the clear.
+      // Clearing here as well would write the full PSRAM buffer twice for fit
+      // images and once unnecessarily for fill images.
       this->buffer_width_ = width;
       this->buffer_height_ = height;
       this->data_start_ = nullptr;
