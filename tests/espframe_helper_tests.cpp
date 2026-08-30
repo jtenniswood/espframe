@@ -541,6 +541,40 @@ static void test_smart_filter_helpers() {
   intersecting_any.inclusion_matching = "Match any enabled group";
   assert(!immich_filter_requires_v32(intersecting_any));
 
+  ImmichFilterConfig retry_any_person;
+  retry_any_person.people_enabled = true;
+  retry_any_person.person_ids = person1 + "," + excluded;
+  retry_any_person.person_matching = "Any selected person";
+  retry_any_person.inclusion_matching = "Match any enabled group";
+  uint8_t retry_group_index = 0;
+  int retry_album_index = 0;
+  ImmichFilterBranch structured_any_person = select_immich_filter_branch(
+      retry_any_person, retry_group_index, retry_album_index, "Random albums",
+      ImmichApiGeneration::V32_STRUCTURED);
+  assert(split_valid_uuid_csv(structured_any_person.person_ids).size() == 1);
+  uint8_t empty_id_attempts = 0;
+  assert(retry_next_any_selected_id(
+      retry_any_person, ImmichApiGeneration::V32_STRUCTURED,
+      empty_id_attempts, structured_any_person));
+  assert(structured_any_person.person_ids == retry_any_person.person_ids);
+  assert(!retry_next_any_selected_id(
+      retry_any_person, ImmichApiGeneration::V32_STRUCTURED,
+      empty_id_attempts, structured_any_person));
+
+  retry_group_index = 0;
+  ImmichFilterBranch flat_any_person = select_immich_filter_branch(
+      retry_any_person, retry_group_index, retry_album_index, "Random albums",
+      ImmichApiGeneration::V31_FLAT);
+  const std::string first_flat_person = flat_any_person.person_ids;
+  empty_id_attempts = 0;
+  assert(retry_next_any_selected_id(
+      retry_any_person, ImmichApiGeneration::V31_FLAT,
+      empty_id_attempts, flat_any_person));
+  assert(flat_any_person.person_ids != first_flat_person);
+  assert(!retry_next_any_selected_id(
+      retry_any_person, ImmichApiGeneration::V31_FLAT,
+      empty_id_attempts, flat_any_person));
+
   ImmichFilterConfig all_albums_only;
   all_albums_only.albums_enabled = true;
   all_albums_only.album_ids = album1 + "," + album2;

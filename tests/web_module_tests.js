@@ -7,6 +7,7 @@ const template = fs.readFileSync(path.join(root, "docs/webserver/src/app.templat
 const publicApp = fs.readFileSync(path.join(root, "docs/public/webserver/app.js"), "utf8");
 const endpointsSource = fs.readFileSync(path.join(root, "docs/webserver/src/endpoints.ts"), "utf8");
 const backupImportSource = fs.readFileSync(path.join(root, "docs/webserver/src/backup_import.ts"), "utf8");
+const immichApiSource = fs.readFileSync(path.join(root, "common/addon/immich_api.yaml"), "utf8");
 const immichFilterSource = fs.readFileSync(path.join(root, "common/addon/immich_filter.yaml"), "utf8");
 const immichConfigSource = fs.readFileSync(path.join(root, "common/addon/immich_config.yaml"), "utf8");
 const slideshowScreenSource = fs.readFileSync(
@@ -89,6 +90,12 @@ const filterFlush = immichFilterSource.slice(
 assert.ok(
   filterFlush.includes("id(immich_request_state).empty_branch_attempts = 0"),
   "applying a photo filter should reset exhausted inclusion-branch attempts"
+);
+assert.ok(
+  filterFlush.includes("id(immich_request_state).empty_id_attempts = 0") &&
+    immichFilterSource.includes("reuse_active_filter_branch = false") &&
+    (immichApiSource.match(/prepare_any_id_retry/g) || []).length === 4,
+  "applying a photo filter should reset any-selected ID retry state"
 );
 assert.ok(
   filterFlush.includes("previous_display = DisplayMeta{}"),

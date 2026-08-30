@@ -34,6 +34,7 @@ script:
           id(immich_fetch_started) = true;
           id(immich_request_state).register_success();
           id(immich_request_state).empty_branch_attempts = 0;
+          id(immich_request_state).empty_id_attempts = 0;
 
   - id: immich_try_next_filter_branch
     mode: restart
@@ -419,6 +420,10 @@ script:
                   if (total == 0) {
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
                     ESP_LOGW("immich", "Album source has no assets");
+                    if (id(immich_request_state).prepare_any_id_retry(id(immich_filter_config))) {
+                      id(immich_try_next_filter_branch).execute();
+                      return;
+                    }
                     auto groups = immich_enabled_inclusion_groups(id(immich_filter_config));
                     if (id(immich_filter_config).inclusion_matching == "Match any enabled group" &&
                         groups.size() > 1 && ++id(immich_request_state).empty_branch_attempts < groups.size()) {
@@ -484,6 +489,10 @@ script:
                   if (total == 0) {
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
                     ESP_LOGW("immich", "Statistics source has no matching images");
+                    if (id(immich_request_state).prepare_any_id_retry(id(immich_filter_config))) {
+                      id(immich_try_next_filter_branch).execute();
+                      return;
+                    }
                     auto groups = immich_enabled_inclusion_groups(id(immich_filter_config));
                     if (id(immich_filter_config).inclusion_matching == "Match any enabled group" &&
                         groups.size() > 1 && ++id(immich_request_state).empty_branch_attempts < groups.size()) {
@@ -591,6 +600,11 @@ script:
                       return;
                     }
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
+                    if (metadata_item_count == 0 &&
+                        id(immich_request_state).prepare_any_id_retry(id(immich_filter_config))) {
+                      id(immich_try_next_filter_branch).execute();
+                      return;
+                    }
                     auto groups = immich_enabled_inclusion_groups(id(immich_filter_config));
                     if (metadata_item_count == 0 &&
                         id(immich_filter_config).inclusion_matching == "Match any enabled group" &&
@@ -744,11 +758,16 @@ script:
             - script.execute: immich_check_config_ready
             - script.stop: immich_fetch_into_slot
       - lambda: |-
-          id(immich_request_state).active_filter_branch = select_immich_filter_branch(
-            id(immich_filter_config), id(immich_request_state).inclusion_group_index,
-            id(immich_request_state).album_order_index,
-            id(immich_album_order).current_option(),
-            id(immich_request_state).api_generation);
+          if (id(immich_request_state).reuse_active_filter_branch) {
+            id(immich_request_state).reuse_active_filter_branch = false;
+          } else {
+            id(immich_request_state).empty_id_attempts = 0;
+            id(immich_request_state).active_filter_branch = select_immich_filter_branch(
+              id(immich_filter_config), id(immich_request_state).inclusion_group_index,
+              id(immich_request_state).album_order_index,
+              id(immich_album_order).current_option(),
+              id(immich_request_state).api_generation);
+          }
           id(immich_request_state).metadata_album_id =
             id(immich_request_state).active_filter_branch.album_ids;
           id(immich_request_state).metadata_person_id =
@@ -874,6 +893,10 @@ script:
                   }
                   if (img_url.empty()) {
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
+                    if (id(immich_request_state).prepare_any_id_retry(id(immich_filter_config))) {
+                      id(immich_try_next_filter_branch).execute();
+                      return;
+                    }
                     auto groups = immich_enabled_inclusion_groups(id(immich_filter_config));
                     if (id(immich_filter_config).inclusion_matching == "Match any enabled group" &&
                         groups.size() > 1 && ++id(immich_request_state).empty_branch_attempts < groups.size()) {

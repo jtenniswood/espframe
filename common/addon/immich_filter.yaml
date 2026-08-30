@@ -747,6 +747,8 @@ script:
       - delay: 1ms
       - lambda: |-
           id(immich_request_state).empty_branch_attempts = 0;
+          id(immich_request_state).empty_id_attempts = 0;
+          id(immich_request_state).reuse_active_filter_branch = false;
           id(immich_request_state).filter_apply_pending = true;
       - if:
           condition:

@@ -251,6 +251,38 @@ inline ImmichFilterBranch select_immich_filter_branch(const ImmichFilterConfig &
   return branch;
 }
 
+inline bool retry_next_any_selected_id(const ImmichFilterConfig &config,
+                                       ImmichApiGeneration generation,
+                                       uint8_t &empty_id_attempts,
+                                       ImmichFilterBranch &branch) {
+  auto retry_group = [&](const std::string &configured, const std::string &matching,
+                         std::string &selected) {
+    if (immich_matching_is_all(matching)) return false;
+    const auto ids = split_valid_uuid_csv(configured);
+    const auto selected_ids = split_valid_uuid_csv(selected);
+    if (ids.size() < 2 || selected_ids.size() != 1) return false;
+    if (generation == ImmichApiGeneration::V32_STRUCTURED) {
+      selected = valid_uuid_csv(configured);
+      empty_id_attempts = 1;
+      return true;
+    }
+    if (++empty_id_attempts >= ids.size()) {
+      empty_id_attempts = 0;
+      return false;
+    }
+    auto current = std::find(ids.begin(), ids.end(), selected_ids.front());
+    const size_t current_index = current == ids.end()
+      ? 0 : static_cast<size_t>(std::distance(ids.begin(), current));
+    selected = ids[(current_index + 1) % ids.size()];
+    return true;
+  };
+  if (retry_group(config.album_ids, config.album_matching, branch.album_ids)) return true;
+  if (retry_group(config.person_ids, config.person_matching, branch.person_ids)) return true;
+  if (retry_group(config.tag_ids, config.tag_matching, branch.tag_ids)) return true;
+  empty_id_attempts = 0;
+  return false;
+}
+
 inline bool immich_filter_branch_uses_album(const ImmichFilterBranch &branch) {
   return !split_valid_uuid_csv(branch.album_ids).empty();
 }
@@ -387,6 +419,8 @@ struct ImmichRequestState {
   uint8_t capability_discovery_failures = 0;
   uint8_t inclusion_group_index = 0;
   uint8_t empty_branch_attempts = 0;
+  uint8_t empty_id_attempts = 0;
+  bool reuse_active_filter_branch = false;
   bool filter_apply_pending = false;
   ImmichFilterBranch active_filter_branch;
 
@@ -404,6 +438,14 @@ struct ImmichRequestState {
 
   bool random_request_is_current() const {
     return this->random_request_generation == this->photo_source_generation;
+  }
+
+  bool prepare_any_id_retry(const ImmichFilterConfig &config) {
+    if (!retry_next_any_selected_id(
+          config, this->api_generation, this->empty_id_attempts,
+          this->active_filter_branch)) return false;
+    this->reuse_active_filter_branch = true;
+    return true;
   }
 
   void register_capability_discovery_success() {
