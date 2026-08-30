@@ -331,6 +331,34 @@ lvgl:
                         text_font: noto_400_30_font
                         text_color: 0x888888
                         text_align: center
+                    - obj:
+                        id: photo_source_show_all_button
+                        width: 320
+                        height: 68
+                        radius: 12
+                        bg_color: 0xFFD166
+                        bg_opa: 100%
+                        border_width: 0
+                        pad_all: 0
+                        scrollable: false
+                        clickable: true
+                        hidden: true
+                        on_click:
+                          then:
+                            - script.stop: immich_retry_config_ready
+                            - script.execute: hide_photo_source_empty_state
+                            - lambda: |-
+                                if (id(photo_source_select).current_option() == "All Photos") return;
+                                id(espframe_core).slideshow().clear_commands();
+                                auto call = id(photo_source_select).make_call();
+                                call.set_option("All Photos");
+                                call.perform();
+                        widgets:
+                          - label:
+                              align: CENTER
+                              text: "Show all photos"
+                              text_font: noto_400_30_font
+                              text_color: 0x1A1A1A
         - obj:
             id: photo_source_menu_overlay
             align: CENTER
@@ -547,6 +575,7 @@ script:
             lv_obj_align(id(connection_failed_content), LV_ALIGN_CENTER, 0, 0);
             id(backlight_apply_brightness).execute();
           }
+          lv_obj_add_flag(id(photo_source_show_all_button), LV_OBJ_FLAG_HIDDEN);
           lv_obj_add_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
           id(last_photo_displayed_ms) = millis();
           id(immich_request_state).clear_failures();
@@ -770,6 +799,7 @@ interval:
                 if (lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN)) {
                   ESP_LOGE("immich", "No photo displayed for %s, showing connection failed screen", id(connection_timeout).current_option().c_str());
                   id(immich_source_setup_visible) = false;
+                  lv_obj_add_flag(id(photo_source_show_all_button), LV_OBJ_FLAG_HIDDEN);
                   if (id(immich_request_state).last_http_status == 401) {
                     lv_label_set_text(id(connection_failed_title), "Invalid API Key");
                     lv_label_set_text(id(connection_failed_subtitle), "Check your Immich API key in\nthe espframe settings.");

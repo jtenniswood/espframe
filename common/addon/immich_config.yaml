@@ -132,6 +132,7 @@ script:
           id(espframe_core).slideshow().reset_state();
           id(last_photo_displayed_ms) = 0;
           id(immich_source_setup_visible) = false;
+          lv_obj_add_flag(id(photo_source_show_all_button), LV_OBJ_FLAG_HIDDEN);
           id(connection_failed_dim).stop();
           id(connection_failed_shift).stop();
           lv_obj_align(id(connection_failed_content), LV_ALIGN_CENTER, 0, 0);
@@ -151,6 +152,7 @@ script:
           lv_label_set_text(id(connection_failed_title), title.c_str());
           lv_label_set_text(id(connection_failed_subtitle), message.c_str());
           id(immich_source_setup_visible) = true;
+          lv_obj_clear_flag(id(photo_source_show_all_button), LV_OBJ_FLAG_HIDDEN);
           lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
           if (was_hidden) {
             lv_obj_align(id(connection_failed_content), LV_ALIGN_CENTER, 0, 0);
@@ -165,6 +167,7 @@ script:
       - lambda: |-
           if (!id(immich_source_setup_visible)) return;
           id(immich_source_setup_visible) = false;
+          lv_obj_add_flag(id(photo_source_show_all_button), LV_OBJ_FLAG_HIDDEN);
           id(connection_failed_dim).stop();
           id(connection_failed_shift).stop();
           lv_obj_align(id(connection_failed_content), LV_ALIGN_CENTER, 0, 0);
