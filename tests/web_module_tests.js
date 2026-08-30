@@ -8,6 +8,7 @@ const publicApp = fs.readFileSync(path.join(root, "docs/public/webserver/app.js"
 const endpointsSource = fs.readFileSync(path.join(root, "docs/webserver/src/endpoints.ts"), "utf8");
 const backupImportSource = fs.readFileSync(path.join(root, "docs/webserver/src/backup_import.ts"), "utf8");
 const immichFilterSource = fs.readFileSync(path.join(root, "common/addon/immich_filter.yaml"), "utf8");
+const immichConfigSource = fs.readFileSync(path.join(root, "common/addon/immich_config.yaml"), "utf8");
 const product = JSON.parse(fs.readFileSync(path.join(root, "product/espframe.json"), "utf8"));
 const supportButtonImage = fs.readFileSync(
   path.join(root, "docs/webserver/src/buy_me_a_coffee_button.webp.b64"),
@@ -70,6 +71,13 @@ const filterFlush = immichFilterSource.slice(
 assert.ok(
   filterFlush.includes("id(immich_request_state).empty_branch_attempts = 0"),
   "applying a photo filter should reset exhausted inclusion-branch attempts"
+);
+assert.ok(
+  filterFlush.includes("filter_apply_pending = true") &&
+    filterFlush.includes("filter_apply_pending = false") &&
+    immichConfigSource.includes("return id(immich_request_state).filter_apply_pending") &&
+    immichConfigSource.includes("script.execute: flush_slots_and_refetch"),
+  "capability recovery should flush a photo-filter apply deferred by compatibility mode"
 );
 const legacyPreset = immichFilterSource.slice(
   immichFilterSource.indexOf("- id: apply_legacy_photo_source_preset"),

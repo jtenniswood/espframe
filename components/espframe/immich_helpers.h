@@ -387,6 +387,7 @@ struct ImmichRequestState {
   uint8_t capability_discovery_failures = 0;
   uint8_t inclusion_group_index = 0;
   uint8_t empty_branch_attempts = 0;
+  bool filter_apply_pending = false;
   ImmichFilterBranch active_filter_branch;
 
   void reset() {

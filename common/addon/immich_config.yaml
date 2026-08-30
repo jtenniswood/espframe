@@ -314,6 +314,16 @@ script:
             - script.execute: hide_photo_source_empty_state
             - if:
                 condition:
+                  lambda: 'return id(immich_request_state).filter_apply_pending;'
+                then:
+                  - logger.log:
+                      level: DEBUG
+                      tag: immich
+                      format: "Applying deferred photo filter after capability recovery"
+                  - script.execute: flush_slots_and_refetch
+                  - script.stop: immich_check_config_ready
+            - if:
+                condition:
                   lambda: |-
                     if (!id(immich_fetch_started)) return true;
                     if (id(espframe_core).slideshow().state().active_slot_displayed) return false;

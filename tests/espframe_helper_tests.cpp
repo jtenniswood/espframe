@@ -627,6 +627,10 @@ static void test_immich_request_state() {
   state.reset();
   assert(state.photo_source_generation == source_generation + 1);
   assert(!state.random_request_is_current());
+  assert(!state.filter_apply_pending);
+  state.filter_apply_pending = true;
+  state.reset();
+  assert(!state.filter_apply_pending);
   assert(!state.register_capability_discovery_failure());
   assert(!state.register_capability_discovery_failure());
   assert(state.register_capability_discovery_failure());

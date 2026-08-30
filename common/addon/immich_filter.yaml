@@ -745,7 +745,9 @@ script:
     then:
       - script.execute: sync_immich_filter_config
       - delay: 1ms
-      - lambda: 'id(immich_request_state).empty_branch_attempts = 0;'
+      - lambda: |-
+          id(immich_request_state).empty_branch_attempts = 0;
+          id(immich_request_state).filter_apply_pending = true;
       - if:
           condition:
             lambda: |-
@@ -764,6 +766,7 @@ script:
             - script.stop: flush_slots_and_refetch
       - script.execute: hide_photo_source_empty_state
       - lambda: |-
+          id(immich_request_state).filter_apply_pending = false;
           // Album metadata fallback pages depend on the active source and
           // filters, so discard their RAM-only cursors whenever this applies.
           id(immich_request_state).reset_album_metadata_fallbacks();
