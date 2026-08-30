@@ -60,7 +60,7 @@ wifi:
           lambda: 'return is_valid_http_url(id(immich_url).state) && !id(immich_api_key_text).state.empty();'
         then:
           - delay: 2s
-          - script.execute: immich_check_config_ready
+          - script.execute: immich_discover_capabilities
         else:
           - lambda: |-
               auto ips = wifi::global_wifi_component->get_ip_addresses();

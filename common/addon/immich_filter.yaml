@@ -740,10 +740,8 @@ script:
           condition:
             lambda: |-
               const auto &config = id(immich_filter_config);
-              if (config.albums_enabled && split_valid_uuid_csv(config.album_ids).empty()) return true;
-              if (config.people_enabled && split_valid_uuid_csv(config.person_ids).empty()) return true;
-              if (config.tags_enabled && split_valid_uuid_csv(config.tag_ids).empty()) return true;
-              return !immich_filter_location_is_valid(config) ||
+              return !immich_filter_has_required_ids(config) ||
+                !immich_filter_location_is_valid(config) ||
                 (id(immich_request_state).api_generation == ImmichApiGeneration::V31_FLAT &&
                  immich_filter_requires_v32(config));
           then:

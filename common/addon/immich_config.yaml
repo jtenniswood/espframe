@@ -205,8 +205,19 @@ script:
     then:
       - lambda: |-
           const std::string source = id(photo_source_select).current_option();
-          const std::string title = immich_source_setup_title(source);
-          const std::string message = immich_source_setup_message(source);
+          std::string missing_source = source;
+          if (id(immich_albums_enabled).state &&
+              split_valid_uuid_csv(id(immich_album_ids).state).empty()) {
+            missing_source = "Album";
+          } else if (id(immich_people_enabled).state &&
+                     split_valid_uuid_csv(id(immich_person_ids).state).empty()) {
+            missing_source = "Person";
+          } else if (id(immich_tags_enabled).state &&
+                     split_valid_uuid_csv(id(immich_tag_ids).state).empty()) {
+            missing_source = "Tag";
+          }
+          const std::string title = immich_source_setup_title(missing_source);
+          const std::string message = immich_source_setup_message(missing_source);
           const bool was_hidden =
             lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
           lv_label_set_text(id(connection_failed_title), title.c_str());
@@ -269,7 +280,15 @@ script:
             - if:
                 condition:
                   lambda: |-
-                    return !immich_source_has_required_ids(
+                    ImmichFilterConfig config;
+                    config.albums_enabled = id(immich_albums_enabled).state;
+                    config.people_enabled = id(immich_people_enabled).state;
+                    config.tags_enabled = id(immich_tags_enabled).state;
+                    config.album_ids = id(immich_album_ids).state;
+                    config.person_ids = id(immich_person_ids).state;
+                    config.tag_ids = id(immich_tag_ids).state;
+                    return !immich_filter_has_required_ids(config) ||
+                      !immich_source_has_required_ids(
                       id(photo_source_select).current_option(),
                       id(immich_album_ids).state,
                       id(immich_person_ids).state,

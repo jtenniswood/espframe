@@ -154,6 +154,13 @@ inline bool immich_filter_location_is_valid(const ImmichFilterConfig &config) {
   return true;
 }
 
+inline bool immich_filter_has_required_ids(const ImmichFilterConfig &config) {
+  if (config.albums_enabled && split_valid_uuid_csv(config.album_ids).empty()) return false;
+  if (config.people_enabled && split_valid_uuid_csv(config.person_ids).empty()) return false;
+  if (config.tags_enabled && split_valid_uuid_csv(config.tag_ids).empty()) return false;
+  return true;
+}
+
 inline std::vector<std::string> immich_enabled_inclusion_groups(const ImmichFilterConfig &config) {
   std::vector<std::string> groups;
   if (config.albums_enabled && !split_valid_uuid_csv(config.album_ids).empty()) groups.push_back("Album");
