@@ -1100,17 +1100,18 @@ script:
                       id(deferred_companion_search).execute();
                       return;
                     }
-                    int configured_range_days = portrait_pairing_range_days(id(portrait_pairing_range).current_option());
-                    if (!id(espframe_core).slideshow().state().portrait_search_expanded && configured_range_days > 0) {
-                      id(espframe_core).slideshow().state().portrait_search_expanded = true;
-                      ESP_LOGD("immich", "No same-day companion; expanding search to +/- %d day(s)", configured_range_days);
-                      id(deferred_companion_search).execute();
-                      return;
-                    }
                     if (!id(espframe_core).slideshow().state().portrait_search_exhaustive) {
                       id(espframe_core).slideshow().state().portrait_search_exhaustive = true;
                       id(espframe_core).slideshow().state().portrait_search_page = 1;
-                      ESP_LOGD("immich", "Random companion sample missed; scanning eligible metadata pages");
+                      ESP_LOGD("immich", "Random same-day sample missed; scanning same-day metadata pages");
+                      id(deferred_companion_search).execute();
+                      return;
+                    }
+                    int configured_range_days = portrait_pairing_range_days(id(portrait_pairing_range).current_option());
+                    if (!id(espframe_core).slideshow().state().portrait_search_expanded && configured_range_days > 0) {
+                      id(espframe_core).slideshow().state().portrait_search_expanded = true;
+                      id(espframe_core).slideshow().state().portrait_search_page = 1;
+                      ESP_LOGD("immich", "No same-day companion; scanning +/- %d day metadata pages", configured_range_days);
                       id(deferred_companion_search).execute();
                       return;
                     }

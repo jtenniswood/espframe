@@ -843,7 +843,8 @@
     "web_live_render_state_keys": [
       "screen_rotation",
       "portrait_pairing",
-      "developer_features_enabled"
+      "developer_features_enabled",
+      "immich_server_version"
     ],
     "web_live_render_state_prefixes": [
       "photo_metadata_",
