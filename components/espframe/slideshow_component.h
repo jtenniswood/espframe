@@ -440,6 +440,11 @@ class EspFrameSlideshow {
       return false;
     }
 
+    const int previous_slot = (active_slot + 2) % 3;
+    // An API or image callback for this slot could overwrite the history that
+    // is about to be restored. Let that refill finish before accepting back.
+    if (flags.fetch_in_flight[previous_slot]) return false;
+
     int current_slot = active_slot;
     SlotMeta &current_meta = this->slot_mut_(current_slot, slot0, slot1, slot2);
     DisplayMeta tmp = current_display;
@@ -449,7 +454,6 @@ class EspFrameSlideshow {
     prev_display = tmp;
 
     portrait = PortraitState{};
-    int previous_slot = (active_slot + 2) % 3;
     active_slot = previous_slot;
     active_slot_displayed = false;
 

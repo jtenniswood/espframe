@@ -101,6 +101,27 @@ assert.ok(
   filterFlush.includes("previous_display = DisplayMeta{}"),
   "applying a photo filter should invalidate backward-navigation history"
 );
+const statisticsFetch = immichApiSource.slice(
+  immichApiSource.indexOf("- id: immich_fetch_statistics_count"),
+  immichApiSource.indexOf("- id: immich_fetch_metadata_page_probe")
+);
+const albumCountFetch = immichApiSource.slice(
+  immichApiSource.indexOf("- id: immich_fetch_album_count"),
+  immichApiSource.indexOf("- id: immich_fetch_statistics_count")
+);
+const metadataPageFetch = immichApiSource.slice(
+  immichApiSource.indexOf("- id: immich_fetch_metadata_page\n"),
+  immichApiSource.indexOf("- id: immich_fetch_into_slot")
+);
+assert.ok(
+  [albumCountFetch, statisticsFetch, metadataPageFetch].every(
+    (fetch) =>
+      fetch.includes("note_http_failure(response->status_code") &&
+      fetch.includes("register_request_error()") &&
+      fetch.includes("id(immich_fetch_retry).execute()")
+  ),
+  "metadata HTTP failures should enter the bounded retry path"
+);
 assert.ok(
   filterFlush.includes("filter_apply_pending = true") &&
     filterFlush.includes("filter_apply_pending = false") &&

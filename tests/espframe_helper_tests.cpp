@@ -1296,8 +1296,17 @@ static void test_slideshow_component_previous_flow() {
   int active_slot = 0;
   bool displayed = true;
 
-  bool shown = slideshow.show_previous(1234, active_slot, displayed, slot0, slot1, slot2,
+  flags.fetch_in_flight[2] = true;
+  bool shown = slideshow.show_previous(1200, active_slot, displayed, slot0, slot1, slot2,
                                        current, previous, portrait, flags);
+  assert(!shown);
+  assert(active_slot == 0);
+  assert(current.asset_id == "current");
+  assert(previous.asset_id == "previous");
+  flags.fetch_in_flight[2] = false;
+
+  shown = slideshow.show_previous(1234, active_slot, displayed, slot0, slot1, slot2,
+                                  current, previous, portrait, flags);
   assert(shown);
   assert(active_slot == 2);
   assert(!displayed);

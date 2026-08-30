@@ -403,7 +403,14 @@ script:
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Album count HTTP %d", response->status_code);
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
-                    id(immich_request_state).record_http_failure(response->status_code, millis());
+                    id(immich_request_state).note_http_failure(response->status_code, millis());
+                    id(immich_request_state).register_request_error();
+                    if (id(immich_request_state).retry_available(MAX_ERROR_RETRIES)) {
+                      id(immich_fetch_retry).execute();
+                    } else {
+                      id(immich_request_state).reset_retries_and_pause(millis());
+                      ESP_LOGW("immich", "Album count HTTP retries exhausted; pausing fetches for 30s");
+                    }
                     return;
                   }
                   uint32_t total = 0;
@@ -480,7 +487,14 @@ script:
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Statistics count HTTP %d", response->status_code);
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
-                    id(immich_request_state).record_http_failure(response->status_code, millis());
+                    id(immich_request_state).note_http_failure(response->status_code, millis());
+                    id(immich_request_state).register_request_error();
+                    if (id(immich_request_state).retry_available(MAX_ERROR_RETRIES)) {
+                      id(immich_fetch_retry).execute();
+                    } else {
+                      id(immich_request_state).reset_retries_and_pause(millis());
+                      ESP_LOGW("immich", "Statistics HTTP retries exhausted; pausing fetches for 30s");
+                    }
                     return;
                   }
                   id(immich_fetch_started) = true;
@@ -571,7 +585,14 @@ script:
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Metadata page HTTP %d", response->status_code);
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
-                    id(immich_request_state).record_http_failure(response->status_code, millis());
+                    id(immich_request_state).note_http_failure(response->status_code, millis());
+                    id(immich_request_state).register_request_error();
+                    if (id(immich_request_state).retry_available(MAX_ERROR_RETRIES)) {
+                      id(immich_fetch_retry).execute();
+                    } else {
+                      id(immich_request_state).reset_retries_and_pause(millis());
+                      ESP_LOGW("immich", "Metadata page HTTP retries exhausted; pausing fetches for 30s");
+                    }
                     return;
                   }
                   std::string orientation = id(photo_orientation_filter).current_option();
