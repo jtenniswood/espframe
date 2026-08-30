@@ -759,7 +759,6 @@ script:
           id(immich_request_state).reset_album_metadata_fallbacks();
           id(immich_request_state).invalidate_photo_source_requests();
           id(immich_candidate_pool).clear();
-          id(immich_request_state).candidate_pool_source_filter_id.clear();
           // A flush discards every slot, so it has to discard the work that was
           // filling them too. Clearing `ready` while leaving fetch_in_flight set
           // orphans the flag: request_prefetch() and the slideshow interval both

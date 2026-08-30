@@ -591,7 +591,6 @@ struct ImmichAssetMeta {
   // lambdas.
   std::string asset_id, image_url, date, location, person;
   std::string datetime;  // localDateTime from asset, for slot display
-  std::string source_filter_id;  // exact album/person/tag selection for companion searches
   std::string filter_album_ids, filter_person_ids, filter_tag_ids;
   int year = 0, month = 0, day = 0;
   bool is_portrait = false;

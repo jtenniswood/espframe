@@ -58,13 +58,14 @@ struct PhotoMeta {
 
 struct SlotMeta : PhotoMeta {
   // Runtime state for one slot in the 3-image ring buffer.
-  std::string datetime, companion_url, pending_asset_id, source_filter_id;
+  std::string datetime, companion_url, pending_asset_id;
   std::string filter_album_ids, filter_person_ids, filter_tag_ids;
   bool ready = false, is_portrait = false;
 };
 
 struct DisplayMeta : PhotoMeta {
-  std::string datetime, companion_url, source_filter_id;
+  std::string datetime, companion_url;
+  std::string filter_album_ids, filter_person_ids, filter_tag_ids;
   bool is_portrait = false;
   bool valid = false;
 };
@@ -240,7 +241,9 @@ inline void copy_slot_to_display(const SlotMeta &slot, DisplayMeta &disp) {
   static_cast<PhotoMeta&>(disp) = static_cast<const PhotoMeta&>(slot);
   disp.datetime = slot.datetime;
   disp.companion_url = slot.companion_url;
-  disp.source_filter_id = slot.source_filter_id;
+  disp.filter_album_ids = slot.filter_album_ids;
+  disp.filter_person_ids = slot.filter_person_ids;
+  disp.filter_tag_ids = slot.filter_tag_ids;
   disp.is_portrait = slot.is_portrait;
 }
 
@@ -248,7 +251,9 @@ inline void copy_display_to_slot(const DisplayMeta &disp, SlotMeta &slot) {
   static_cast<PhotoMeta&>(slot) = static_cast<const PhotoMeta&>(disp);
   slot.datetime = disp.datetime;
   slot.companion_url = disp.companion_url;
-  slot.source_filter_id = disp.source_filter_id;
+  slot.filter_album_ids = disp.filter_album_ids;
+  slot.filter_person_ids = disp.filter_person_ids;
+  slot.filter_tag_ids = disp.filter_tag_ids;
   slot.is_portrait = disp.is_portrait;
 }
 
@@ -497,15 +502,17 @@ inline void fill_slot_from_immich_meta(const ImmichAssetMeta &tmp,
   meta->day = tmp.day;
   meta->zoom = tmp.zoom;
   meta->datetime = tmp.datetime;
-  meta->source_filter_id = tmp.source_filter_id;
+  meta->filter_album_ids = tmp.filter_album_ids;
+  meta->filter_person_ids = tmp.filter_person_ids;
+  meta->filter_tag_ids = tmp.filter_tag_ids;
   meta->companion_url = "";
   meta->pending_asset_id = tmp.asset_id;
   meta->is_portrait = tmp.is_portrait;
 }
 
 inline std::string take_immich_candidate_and_fill_slot(
-    std::vector<ImmichAssetMeta> &pool, const std::string &source_filter_id,
-    int slot, SlotMeta &s0, SlotMeta &s1, SlotMeta &s2) {
+    std::vector<ImmichAssetMeta> &pool, int slot,
+    SlotMeta &s0, SlotMeta &s1, SlotMeta &s2) {
   while (!pool.empty()) {
     ImmichAssetMeta candidate = std::move(pool.back());
     pool.pop_back();
@@ -515,7 +522,6 @@ inline std::string take_immich_candidate_and_fill_slot(
         candidate.asset_id == s1.pending_asset_id || candidate.asset_id == s2.pending_asset_id) {
       continue;
     }
-    candidate.source_filter_id = source_filter_id;
     fill_slot_from_immich_meta(candidate, slot, s0, s1, s2);
     return candidate.image_url;
   }

@@ -15,12 +15,14 @@ struct PhotoMeta {
 };
 
 struct SlotMeta : PhotoMeta {
-  std::string datetime, companion_url, pending_asset_id, source_filter_id;
+  std::string datetime, companion_url, pending_asset_id;
+  std::string filter_album_ids, filter_person_ids, filter_tag_ids;
   bool ready = false, is_portrait = false;
 };
 
 struct DisplayMeta : PhotoMeta {
-  std::string datetime, companion_url, source_filter_id;
+  std::string datetime, companion_url;
+  std::string filter_album_ids, filter_person_ids, filter_tag_ids;
   bool is_portrait = false;
   bool valid = false;
 };
@@ -102,7 +104,9 @@ inline void copy_slot_to_display(const SlotMeta &slot, DisplayMeta &disp) {
   static_cast<PhotoMeta &>(disp) = static_cast<const PhotoMeta &>(slot);
   disp.datetime = slot.datetime;
   disp.companion_url = slot.companion_url;
-  disp.source_filter_id = slot.source_filter_id;
+  disp.filter_album_ids = slot.filter_album_ids;
+  disp.filter_person_ids = slot.filter_person_ids;
+  disp.filter_tag_ids = slot.filter_tag_ids;
   disp.is_portrait = slot.is_portrait;
 }
 
@@ -110,7 +114,9 @@ inline void copy_display_to_slot(const DisplayMeta &disp, SlotMeta &slot) {
   static_cast<PhotoMeta &>(slot) = static_cast<const PhotoMeta &>(disp);
   slot.datetime = disp.datetime;
   slot.companion_url = disp.companion_url;
-  slot.source_filter_id = disp.source_filter_id;
+  slot.filter_album_ids = disp.filter_album_ids;
+  slot.filter_person_ids = disp.filter_person_ids;
+  slot.filter_tag_ids = disp.filter_tag_ids;
   slot.is_portrait = disp.is_portrait;
 }
 
@@ -1170,18 +1176,19 @@ static void test_slideshow_component_navigation_flow() {
 static void test_slideshow_component_previous_flow() {
   EspFrameSlideshow slideshow;
   SlotMeta slot0 = make_slot("current", false);
-  slot0.source_filter_id = "person-456";
+  slot0.filter_person_ids = "person-456,person-789";
   SlotMeta slot1 = make_slot("slot1", false);
   SlotMeta slot2 = make_slot("slot2", false);
   DisplayMeta current;
   copy_slot_to_display(slot0, current);
-  assert(current.source_filter_id == "person-456");
+  assert(current.filter_person_ids == "person-456,person-789");
   DisplayMeta previous;
   previous.asset_id = "previous";
   previous.image_url = "https://example.test/previous";
   previous.datetime = "2026-04-20T10:00:00";
   previous.companion_url = "https://example.test/previous-companion";
-  previous.source_filter_id = "album-123";
+  previous.filter_album_ids = "album-123";
+  previous.filter_tag_ids = "tag-456";
   previous.is_portrait = true;
   previous.valid = true;
   PortraitState portrait;
@@ -1195,13 +1202,16 @@ static void test_slideshow_component_previous_flow() {
   assert(active_slot == 2);
   assert(!displayed);
   assert(current.asset_id == "previous");
-  assert(current.source_filter_id == "album-123");
-  assert(previous.source_filter_id == "person-456");
+  assert(current.filter_album_ids == "album-123");
+  assert(current.filter_tag_ids == "tag-456");
+  assert(previous.filter_person_ids == "person-456,person-789");
   assert(slot2.pending_asset_id == "previous");
   assert(slot2.is_portrait);
   assert(slot2.datetime == "2026-04-20T10:00:00");
   assert(slot2.companion_url == "https://example.test/previous-companion");
-  assert(slot2.source_filter_id == "album-123");
+  assert(slot2.filter_album_ids == "album-123");
+  assert(slot2.filter_person_ids.empty());
+  assert(slot2.filter_tag_ids == "tag-456");
   assert(flags.fetch_in_flight[2]);
   SlideshowCommand cmd;
   assert(slideshow.pop_command(cmd));

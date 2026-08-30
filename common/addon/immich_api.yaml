@@ -612,7 +612,6 @@ script:
                   id(immich_register_fetch_success).execute();
                   int slot = id(espframe_core).slideshow().state().target_slot;
                   auto &meta = get_slot(slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2);
-                  meta.source_filter_id = id(immich_request_state).metadata_album_id;
                   meta.filter_album_ids = id(immich_request_state).active_filter_branch.album_ids;
                   meta.filter_person_ids = id(immich_request_state).active_filter_branch.person_ids;
                   meta.filter_tag_ids = id(immich_request_state).active_filter_branch.tag_ids;
@@ -765,8 +764,7 @@ script:
           if (batchable && !id(immich_candidate_pool).empty()) {
             int slot = id(espframe_core).slideshow().state().target_slot;
             std::string img_url = take_immich_candidate_and_fill_slot(
-              id(immich_candidate_pool), id(immich_request_state).candidate_pool_source_filter_id,
-              slot, id(espframe_core).slideshow().state().slot0,
+              id(immich_candidate_pool), slot, id(espframe_core).slideshow().state().slot0,
               id(espframe_core).slideshow().state().slot1,
               id(espframe_core).slideshow().state().slot2);
             if (!img_url.empty()) {
@@ -783,14 +781,6 @@ script:
               ESP_LOGD("immich", "Candidate pool served slot %d (%u remain)",
                        slot, (unsigned) id(immich_candidate_pool).size());
             }
-          }
-          if (!id(immich_request_state).candidate_pool_hit) {
-            id(immich_request_state).candidate_pool_source_filter_id =
-              !id(immich_request_state).metadata_album_id.empty()
-                ? id(immich_request_state).metadata_album_id :
-              !id(immich_request_state).metadata_person_id.empty()
-                ? id(immich_request_state).metadata_person_id :
-                id(immich_request_state).metadata_tag_ids;
           }
       - if:
           condition:
@@ -868,9 +858,8 @@ script:
                       body, id(immich_url).state, id(immich_candidate_pool), orientation,
                       IMMICH_RANDOM_POOL_SIZE);
                     img_url = take_immich_candidate_and_fill_slot(
-                      id(immich_candidate_pool),
-                      id(immich_request_state).candidate_pool_source_filter_id,
-                      slot, id(espframe_core).slideshow().state().slot0,
+                      id(immich_candidate_pool), slot,
+                      id(espframe_core).slideshow().state().slot0,
                       id(espframe_core).slideshow().state().slot1,
                       id(espframe_core).slideshow().state().slot2);
                   } else {
@@ -879,12 +868,6 @@ script:
                       id(espframe_core).slideshow().state().slot0,
                       id(espframe_core).slideshow().state().slot1,
                       id(espframe_core).slideshow().state().slot2, orientation);
-                    if (!img_url.empty()) {
-                      get_slot(slot, id(espframe_core).slideshow().state().slot0,
-                               id(espframe_core).slideshow().state().slot1,
-                               id(espframe_core).slideshow().state().slot2).source_filter_id =
-                        id(immich_request_state).candidate_pool_source_filter_id;
-                    }
                   }
                   if (img_url.empty()) {
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
