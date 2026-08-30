@@ -500,6 +500,8 @@ touchscreen:
             if (horizontal_delta < 0) {
               id(show_slideshow_navigation_feedback).execute(1);
               id(immich_advance_forward).execute();
+            } else if (any_slot_fetch_in_flight(id(espframe_core).slideshow().state().slot_flags)) {
+              id(show_slideshow_navigation_feedback).execute(0);
             } else {
               id(show_slideshow_navigation_feedback).execute(-1);
               id(immich_show_previous).execute();
@@ -515,4 +517,8 @@ touchscreen:
           }
     on_release:
       - lambda: |-
-          id(photo_source_swipe_triggered) = false; id(photo_source_menu_touch_handled) = false;
+          if (id(photo_source_swipe_triggered)) {
+            id(slideshow_swipe_suppress_tap_until_ms) = millis() + 250;
+          }
+          id(photo_source_swipe_triggered) = false;
+          id(photo_source_menu_touch_handled) = false;

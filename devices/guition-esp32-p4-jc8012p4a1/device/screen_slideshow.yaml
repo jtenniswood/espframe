@@ -533,15 +533,17 @@ script:
           if (direction > 0) {
             lv_label_set_text(id(slideshow_navigation_feedback_label), "Next  >");
             lv_obj_align(id(slideshow_navigation_feedback), LV_ALIGN_RIGHT_MID, -36, 0);
-          } else {
+          } else if (direction < 0) {
             lv_label_set_text(id(slideshow_navigation_feedback_label), "<  Previous");
             lv_obj_align(id(slideshow_navigation_feedback), LV_ALIGN_LEFT_MID, 36, 0);
+          } else {
+            lv_label_set_text(id(slideshow_navigation_feedback_label), "Please wait");
+            lv_obj_align(id(slideshow_navigation_feedback), LV_ALIGN_CENTER, 0, 0);
           }
           lv_obj_clear_flag(id(slideshow_navigation_feedback), LV_OBJ_FLAG_HIDDEN);
       - delay: 650ms
       - lambda: |-
           lv_obj_add_flag(id(slideshow_navigation_feedback), LV_OBJ_FLAG_HIDDEN);
-          id(slideshow_swipe_suppress_tap_until_ms) = 0;
 
   - id: slideshow_on_press
     mode: single

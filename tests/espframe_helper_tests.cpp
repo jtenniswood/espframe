@@ -928,6 +928,18 @@ static void test_slideshow_component_previous_flow() {
   SlotFlags flags;
   int active_slot = 0;
   bool displayed = true;
+  SlideshowCommand cmd;
+
+  flags.fetch_in_flight[1] = true;
+  bool blocked = slideshow.show_previous(1200, active_slot, displayed, slot0, slot1, slot2,
+                                         current, previous, portrait, flags);
+  assert(!blocked);
+  assert(active_slot == 0);
+  assert(displayed);
+  assert(current.asset_id == "current");
+  assert(previous.asset_id == "previous");
+  assert(!slideshow.pop_command(cmd));
+  flags.fetch_in_flight[1] = false;
 
   bool shown = slideshow.show_previous(1234, active_slot, displayed, slot0, slot1, slot2,
                                        current, previous, portrait, flags);
@@ -940,7 +952,6 @@ static void test_slideshow_component_previous_flow() {
   assert(slot2.datetime == "2026-04-20T10:00:00");
   assert(slot2.companion_url == "https://example.test/previous-companion");
   assert(flags.fetch_in_flight[2]);
-  SlideshowCommand cmd;
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_LOAD_PREVIOUS_SLOT);
   assert(cmd.slot == 2);

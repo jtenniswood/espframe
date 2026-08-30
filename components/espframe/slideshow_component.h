@@ -433,6 +433,7 @@ class EspFrameSlideshow {
       this->emit_command(SLIDESHOW_COMMAND_LOG_NO_PREVIOUS);
       return false;
     }
+    if (any_slot_fetch_in_flight(flags)) return false;
 
     int current_slot = active_slot;
     SlotMeta &current_meta = this->slot_mut_(current_slot, slot0, slot1, slot2);

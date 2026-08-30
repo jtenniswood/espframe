@@ -53,7 +53,13 @@ def check_touch_controls_metadata(product: dict, errors: list[str]) -> None:
         ("devices/guition-esp32-p4-jc8012p4a1/device/device.yaml", original_device_yaml),
         ("devices/guition-esp32-p4-jc8012p4a1-v2/device/device.yaml", v2_device_yaml),
     ):
-        for needle in ("horizontal_distance >= 120", "immich_advance_forward", "immich_show_previous"):
+        for needle in (
+            "horizontal_distance >= 120",
+            "immich_advance_forward",
+            "immich_show_previous",
+            "any_slot_fetch_in_flight",
+            "millis() + 250",
+        ):
             require_contains(device_yaml, needle, path, errors)
     for needle in ("3-second hold timer", "delay: 3s", "screen_schedule_manual_sleep"):
         require_contains(backlight_schedule_yaml, needle, "common/addon/backlight_schedule.yaml", errors)
