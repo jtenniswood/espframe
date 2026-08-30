@@ -363,7 +363,7 @@ script:
           id(immich_request_state).metadata_count_cache_hit =
             id(immich_request_state).find_metadata_count(
               id(immich_request_state).metadata_count_cache_key,
-              &cached_total, &cached_upper_bound);
+              millis(), &cached_total, &cached_upper_bound);
           if (id(immich_request_state).metadata_count_cache_hit) {
             initialize_immich_metadata_page_range(
               id(immich_request_state), cached_total,
@@ -427,7 +427,7 @@ script:
                   initialize_immich_metadata_page_range(
                     id(immich_request_state), total, id(immich_request_state).metadata_page_size, true);
                   id(immich_request_state).remember_metadata_count(
-                    id(immich_request_state).metadata_count_cache_key, total, true);
+                    id(immich_request_state).metadata_count_cache_key, total, true, millis());
                   ESP_LOGD("immich", "Album source selected: page %d size %d of %u assets",
                            id(immich_request_state).metadata_page, id(immich_request_state).metadata_page_size, (unsigned) total);
                   id(immich_fetch_metadata_page).execute();
@@ -498,7 +498,7 @@ script:
                   initialize_immich_metadata_page_range(
                     id(immich_request_state), total, id(immich_request_state).metadata_page_size, false);
                   id(immich_request_state).remember_metadata_count(
-                    id(immich_request_state).metadata_count_cache_key, total, false);
+                    id(immich_request_state).metadata_count_cache_key, total, false, millis());
                   ESP_LOGD("immich", "Metadata source selected: page %d size %d of %u matching images",
                            id(immich_request_state).metadata_page, id(immich_request_state).metadata_page_size, (unsigned) total);
                   id(immich_fetch_metadata_page).execute();

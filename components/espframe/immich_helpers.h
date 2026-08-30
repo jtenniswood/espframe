@@ -15,6 +15,9 @@ static constexpr uint16_t IMMICH_ALBUM_PAGE_SIZE = 16;
 static constexpr uint16_t IMMICH_METADATA_PAGE_SIZE = 5;
 static constexpr uint16_t IMMICH_RANDOM_POOL_SIZE = 6;
 static constexpr uint16_t IMMICH_COMPANION_SEARCH_SIZE = 20;
+// Refresh server-derived counts so album additions and removals become visible
+// without sacrificing the request savings across normal slideshow advances.
+static constexpr uint32_t IMMICH_METADATA_COUNT_CACHE_TTL_MS = 15UL * 60UL * 1000UL;
 // Sixteen midpoint probes reduce a 10,000-page upper bound below one page,
 // covering very sparse date-filtered albums without a first-page bias.
 static constexpr uint8_t MAX_EMPTY_METADATA_PAGE_PROBES = 16;
@@ -23,6 +26,7 @@ struct ImmichMetadataCountCacheEntry {
   std::string key;
   uint32_t total = 0;
   bool count_is_upper_bound = false;
+  uint32_t cached_at_ms = 0;
 };
 
 // Owns the complete state of the Immich request pipeline. Keeping these values
@@ -73,11 +77,12 @@ struct ImmichRequestState {
     this->metadata_count_cache_hit = false;
   }
 
-  bool find_metadata_count(const std::string &key, uint32_t *total,
+  bool find_metadata_count(const std::string &key, uint32_t now_ms, uint32_t *total,
                            bool *count_is_upper_bound) const {
     if (total == nullptr || count_is_upper_bound == nullptr) return false;
     for (const auto &entry : this->metadata_count_cache) {
       if (entry.key != key) continue;
+      if ((now_ms - entry.cached_at_ms) >= IMMICH_METADATA_COUNT_CACHE_TTL_MS) return false;
       *total = entry.total;
       *count_is_upper_bound = entry.count_is_upper_bound;
       return entry.total > 0;
@@ -86,12 +91,13 @@ struct ImmichRequestState {
   }
 
   void remember_metadata_count(const std::string &key, uint32_t total,
-                               bool count_is_upper_bound) {
+                               bool count_is_upper_bound, uint32_t now_ms) {
     if (key.empty() || total == 0) return;
     for (auto &entry : this->metadata_count_cache) {
       if (entry.key != key) continue;
       entry.total = total;
       entry.count_is_upper_bound = count_is_upper_bound;
+      entry.cached_at_ms = now_ms;
       return;
     }
     // Keep this cache deliberately small and FIFO. A miss costs one count
@@ -99,7 +105,7 @@ struct ImmichRequestState {
     if (this->metadata_count_cache.size() >= 12) {
       this->metadata_count_cache.erase(this->metadata_count_cache.begin());
     }
-    this->metadata_count_cache.push_back({key, total, count_is_upper_bound});
+    this->metadata_count_cache.push_back({key, total, count_is_upper_bound, now_ms});
   }
 
   void begin_memory_search() {

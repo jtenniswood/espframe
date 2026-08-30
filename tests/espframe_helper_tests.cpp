@@ -383,13 +383,19 @@ static void test_immich_request_state() {
   assert(state.retry_delay_ms == 2000);
   uint32_t cached_total = 0;
   bool cached_upper_bound = false;
-  assert(!state.find_metadata_count("album-a", &cached_total, &cached_upper_bound));
-  state.remember_metadata_count("album-a", 123, true);
-  assert(state.find_metadata_count("album-a", &cached_total, &cached_upper_bound));
+  assert(!state.find_metadata_count("album-a", 1000, &cached_total, &cached_upper_bound));
+  state.remember_metadata_count("album-a", 123, true, 1000);
+  assert(state.find_metadata_count("album-a", 1000, &cached_total, &cached_upper_bound));
   assert(cached_total == 123);
   assert(cached_upper_bound);
-  state.remember_metadata_count("album-a", 99, false);
-  assert(state.find_metadata_count("album-a", &cached_total, &cached_upper_bound));
+  assert(state.find_metadata_count(
+      "album-a", 1000 + IMMICH_METADATA_COUNT_CACHE_TTL_MS - 1,
+      &cached_total, &cached_upper_bound));
+  assert(!state.find_metadata_count(
+      "album-a", 1000 + IMMICH_METADATA_COUNT_CACHE_TTL_MS,
+      &cached_total, &cached_upper_bound));
+  state.remember_metadata_count("album-a", 99, false, 2000);
+  assert(state.find_metadata_count("album-a", 2000, &cached_total, &cached_upper_bound));
   assert(cached_total == 99);
   assert(!cached_upper_bound);
 
