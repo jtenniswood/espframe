@@ -1208,16 +1208,22 @@ def check_workflow_job_runner_usage(
     expected_runner: str,
     workflow_texts: dict[str, tuple[str, str]],
     errors: list[str],
+    expected_job_runners: object = None,
 ) -> None:
     expected_runner = expected_runner.strip()
-    if not expected_runner:
+    job_runners = normalized_workflow_mapping(expected_job_runners) if isinstance(expected_job_runners, dict) else {}
+    if not expected_runner and not job_runners:
         return
 
-    for _, label, job_id, job_block in workflow_job_blocks(workflow_texts, errors):
+    for workflow_name, label, job_id, job_block in workflow_job_blocks(workflow_texts, errors):
+        target = f"{workflow_name}.{job_id}"
+        target_runner = job_runners.get(target, expected_runner)
+        if not target_runner:
+            continue
         actual_runner = workflow_job_runs_on(job_block)
         append_scalar_value_error(
             actual_runner,
-            expected_runner,
+            target_runner,
             f"{label} job {job_id} is missing runs-on",
             f"{label} job {job_id} runs-on",
             errors,
@@ -1713,8 +1719,8 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             "release.build-firmware",
             "Compile firmware",
             [
-                f'"${{BUILD_DIR}}/{release_source_factory_binary}"',
-                "factory binary not found",
+                f'factory {release_source_factory_binary}',
+                f'"{release_build_output_dir}/${{{{ matrix.slug }}}}.factory.bin"',
             ],
             workflow_texts,
             errors,
@@ -1725,7 +1731,8 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             "Compile firmware",
             [
                 '-s firmware_version "${VERSION}"',
-                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml"',
+                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${config_file}"',
+                '"${{ matrix.yaml }}.yaml" ota firmware.ota.bin',
             ],
             workflow_texts,
             errors,
@@ -1734,7 +1741,7 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             "release.build-firmware",
             "Collect firmware files and generate manifest",
             [
-                f'"${{BUILD_DIR}}/{release_source_ota_binary}"',
+                f'"{release_build_output_dir}/${{{{ matrix.slug }}}}.ota.bin"',
                 "OTA binary not found",
             ],
             workflow_texts,
@@ -1767,26 +1774,24 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             errors,
         )
     if release_esphome_cache_dir:
-        build_dir_fragment = 'BUILD_DIR="${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}/build"'
-        for target, step_names in (
-            ("compile.compile", ("Compile test firmware artifacts",)),
-            ("release.build-firmware", ("Compile firmware", "Collect firmware files and generate manifest")),
-        ):
-            for step_name in step_names:
-                check_workflow_named_step_run_contains(
-                    target,
-                    step_name,
-                    [build_dir_fragment],
-                    workflow_texts,
-                    errors,
-                )
+        build_dir_fragment = (
+            'local container_build_dir="${ESPHOME_CONFIG_MOUNT}/${RELEASE_ESPHOME_CACHE_DIR}'
+            '/build/${{ matrix.build_name }}/build"'
+        )
+        for target in ("compile.compile", "release.build-firmware"):
+            check_workflow_named_step_run_contains(
+                target,
+                "Compile test firmware artifacts" if target == "compile.compile" else "Compile firmware",
+                [build_dir_fragment],
+                workflow_texts,
+                errors,
+            )
         for target in ("compile.compile", "release.build-firmware"):
             check_workflow_named_step_run_contains(
                 target,
                 "Fix ESPHome cache permissions",
                 [
                     'if [ -d "${RELEASE_ESPHOME_CACHE_DIR}" ]; then',
-                    'sudo chown -R "$USER:$USER" "${RELEASE_ESPHOME_CACHE_DIR}"',
                     'chmod -R u+rwX "${RELEASE_ESPHOME_CACHE_DIR}"',
                 ],
                 workflow_texts,
@@ -2245,7 +2250,10 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         check_workflow_named_step_run_contains(
             "release.build-firmware",
             "Compile firmware",
-            ['compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml"'],
+            [
+                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${config_file}"',
+                '"${{ matrix.yaml }}.factory.yaml" factory firmware.factory.bin',
+            ],
             workflow_texts,
             errors,
         )
@@ -2253,8 +2261,9 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             "compile.compile",
             "Compile test firmware artifacts",
             [
-                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml"',
-                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml"',
+                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${config_file}"',
+                '"${{ matrix.yaml }}.factory.yaml" factory firmware.factory.bin',
+                '"${{ matrix.yaml }}.yaml" ota firmware.ota.bin',
             ],
             workflow_texts,
             errors,
@@ -2372,12 +2381,16 @@ def check_esphome_version(product: dict, errors: list[str]) -> None:
             errors,
         )
 
-    docker_run_fragments = ['"${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}"']
+    docker_run_fragments = [
+        'image="${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}"',
+        'docker volume create "${workspace_volume}"',
+        "container=$(docker create",
+        'docker cp --archive "${PWD}/." "${staging_container}:${ESPHOME_CONFIG_MOUNT}"',
+    ]
     if config_mount:
-        docker_run_fragments.append('-v "${PWD}:${ESPHOME_CONFIG_MOUNT}"')
         require_contains(readme, f'-v "${{PWD}}:{config_mount}"', "README.md", errors)
     if remove_container is True:
-        docker_run_fragments.append("docker run ${ESPHOME_DOCKER_REMOVE_FLAG}")
+        docker_run_fragments.append('docker rm -f "${container}"')
         require_contains(readme, "docker run --rm", "README.md", errors)
 
     for target, step_name in (
@@ -2425,7 +2438,12 @@ def check_workflows(product: dict, errors: list[str]) -> None:
     workflow_jobs = project.get("github_workflow_jobs", {})
     check_workflow_jobs(workflow_jobs, workflow_texts, errors)
     actions_runner = str(project.get("github_actions_runner", "")).strip()
-    check_workflow_job_runner_usage(actions_runner, workflow_texts, errors)
+    check_workflow_job_runner_usage(
+        actions_runner,
+        workflow_texts,
+        errors,
+        project.get("github_workflow_job_runners", {}),
+    )
     workflow_job_dependencies = project.get("github_workflow_job_dependencies", {})
     check_workflow_job_dependency_usage(workflow_job_dependencies, workflow_texts, errors)
     workflow_job_conditions = project.get("github_workflow_job_conditions", {})

@@ -1062,6 +1062,18 @@ def test_workflow_job_runner_usage_rejects_drift_from_product_metadata() -> None
     ]
 
 
+def test_workflow_job_runner_usage_supports_per_job_runners() -> None:
+    errors: list[str] = []
+    check_workflow_job_runner_usage(
+        "ubuntu-latest",
+        {"compile": ("example.yml", RUNNER_WORKFLOW)},
+        errors,
+        {"compile.wrong": "macos-latest"},
+    )
+
+    assert errors == ["example.yml job missing is missing runs-on"]
+
+
 def test_workflow_job_timeout_minutes_reads_job_timeout() -> None:
     errors: list[str] = []
     assert workflow_job_timeout_minutes(
@@ -1702,12 +1714,15 @@ def test_workflow_named_step_run_contains_checks_compile_artifact_step() -> None
 
 
 def test_workflows_use_esphome_2026_build_artifact_directory() -> None:
-    artifact_dir = 'BUILD_DIR="${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}/build"'
+    artifact_dir = (
+        'local container_build_dir="${ESPHOME_CONFIG_MOUNT}/${RELEASE_ESPHOME_CACHE_DIR}'
+        '/build/${{ matrix.build_name }}/build"'
+    )
     compile_workflow = (ROOT / ".github" / "workflows" / "compile.yml").read_text()
     release_workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text()
 
     assert artifact_dir in compile_workflow
-    assert release_workflow.count(artifact_dir) == 2
+    assert artifact_dir in release_workflow
 
 
 def test_workflow_named_step_run_contains_checks_compile_commands() -> None:
@@ -2690,6 +2705,38 @@ def test_docs_workflow_retains_only_five_complete_stable_releases() -> None:
     )
 
     assert errors == []
+
+
+def test_trusted_workflows_target_the_dedicated_runner() -> None:
+    compile_workflow = (ROOT / ".github" / "workflows" / "compile.yml").read_text()
+    docs_workflow = (ROOT / ".github" / "workflows" / "docs.yml").read_text()
+    release_workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text()
+    cleanup_workflow = (ROOT / ".github" / "workflows" / "runner-cleanup.yml").read_text()
+
+    assert "runs-on: ubuntu-latest" in compile_workflow
+    assert compile_workflow.count("runs-on: espframe") == 2
+    assert "github.workflow }}-${{ github.event_name }}" in compile_workflow
+    assert "runs-on: ubuntu-latest" not in docs_workflow
+    assert "runs-on: ubuntu-latest" not in release_workflow
+    assert docs_workflow.count("runs-on: espframe") == 3
+    assert release_workflow.count("runs-on: espframe") == 4
+    assert cleanup_workflow.count("runs-on: espframe") == 1
+    assert "docker volume prune --all --force" in cleanup_workflow
+    assert '"tzdata==2026.3"' in compile_workflow
+
+
+def test_firmware_workflows_copy_sources_into_isolated_docker() -> None:
+    for workflow_name in ("compile.yml", "release.yml"):
+        workflow_text = (ROOT / ".github" / "workflows" / workflow_name).read_text()
+        assert "max-parallel: 1" in workflow_text
+        assert "docker builder prune -af --keep-storage 2GB" in workflow_text
+        assert "docker volume prune --all --force" in workflow_text
+        assert 'docker cp --archive "${PWD}/." "${staging_container}:${ESPHOME_CONFIG_MOUNT}"' in workflow_text
+        assert 'docker volume create "${workspace_volume}"' in workflow_text
+        assert 'docker volume rm -f "${workspace_volume}"' in workflow_text
+        assert "type=volume,source=${workspace_volume}" in workflow_text
+        assert 'rm -rf "${RELEASE_ESPHOME_CACHE_DIR}"' in workflow_text
+        assert '-v "${PWD}:${ESPHOME_CONFIG_MOUNT}"' not in workflow_text
 
 
 def main() -> int:

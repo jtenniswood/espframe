@@ -1459,6 +1459,17 @@
   "docs_build_command": "npm run docs:build",
   "github_actions_node24_env": "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24",
   "github_actions_runner": "ubuntu-latest",
+  "github_workflow_job_runners": {
+    "compile.firmware-metadata": "espframe",
+    "compile.compile": "espframe",
+    "docs.build-docs": "espframe",
+    "docs.download-firmware": "espframe",
+    "docs.deploy-docs": "espframe",
+    "release.release-metadata": "espframe",
+    "release.release-notes": "espframe",
+    "release.build-firmware": "espframe",
+    "release.publish": "espframe"
+  },
   "github_cli_env": {
     "GH_TOKEN": "${{ github.token }}",
     "GH_REPO": "${{ github.repository }}"
@@ -1502,6 +1513,8 @@
   "github_workflow_events": {
     "compile": [
       "pull_request",
+      "push",
+      "schedule",
       "workflow_dispatch"
     ],
     "docs": [
@@ -1560,8 +1573,8 @@
   },
   "github_workflow_job_conditions": {
     "compile.validate": null,
-    "compile.firmware-metadata": "github.event_name == 'workflow_dispatch'",
-    "compile.compile": "github.event_name == 'workflow_dispatch'",
+    "compile.firmware-metadata": "github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'",
+    "compile.compile": "github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'",
     "docs.build-docs": "github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'",
     "docs.download-firmware": "github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'",
     "docs.deploy-docs": null,

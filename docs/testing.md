@@ -76,7 +76,11 @@ This group compiles and runs host-side C++ tests for firmware helper logic, then
 
 ### Full Firmware Compile
 
-Pull requests run the normal validation gate automatically. Full ESPHome firmware builds are slower, so they are available from the **PR Validation** workflow's manual run button. Run that workflow against a feature branch when you need firmware files to test on a device before merging.
+Pull requests run the normal validation gate automatically. Full ESPHome
+firmware builds are slower, so they run weekly on the dedicated Espframe CI
+runner and remain available from the **PR Validation** workflow's manual run
+button. Run that workflow against a feature branch when you need firmware files
+to test on a device before merging.
 
 The manual workflow builds both factory and OTA firmware, enforces the flash,
 RAM, and binary budgets, and uploads a `firmware-test-<device>` artifact containing:
