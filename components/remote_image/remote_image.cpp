@@ -194,7 +194,7 @@ void OnlineImage::update() {
   // device; the largest-block check still protects the allocation that failed
   // during the original crash loop.
   constexpr size_t MIN_INTERNAL_FREE = 64 * 1024;
-  constexpr size_t MIN_INTERNAL_BLOCK = 32 * 1024;
+  constexpr size_t MIN_INTERNAL_BLOCK = 16 * 1024;
   size_t internal_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   size_t internal_largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   if (internal_free < MIN_INTERNAL_FREE || internal_largest < MIN_INTERNAL_BLOCK) {
