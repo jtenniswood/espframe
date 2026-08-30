@@ -19,6 +19,7 @@ static constexpr uint16_t IMMICH_ALBUM_PAGE_SIZE = 16;
 static constexpr uint16_t IMMICH_METADATA_PAGE_SIZE = 5;
 static constexpr uint16_t IMMICH_RANDOM_POOL_SIZE = 6;
 static constexpr uint16_t IMMICH_COMPANION_SEARCH_SIZE = 20;
+static constexpr uint8_t IMMICH_CAPABILITY_DISCOVERY_MAX_ATTEMPTS = 3;
 // Refresh server-derived counts so album additions and removals become visible
 // without sacrificing the request savings across normal slideshow advances.
 static constexpr uint32_t IMMICH_METADATA_COUNT_CACHE_TTL_MS = 15UL * 60UL * 1000UL;
@@ -346,6 +347,7 @@ struct ImmichRequestState {
   std::string server_version;
   ImmichApiGeneration api_generation = ImmichApiGeneration::V31_FLAT;
   bool server_version_discovered = false;
+  uint8_t capability_discovery_failures = 0;
   uint8_t inclusion_group_index = 0;
   uint8_t empty_branch_attempts = 0;
   ImmichFilterBranch active_filter_branch;
@@ -364,6 +366,24 @@ struct ImmichRequestState {
 
   bool random_request_is_current() const {
     return this->random_request_generation == this->photo_source_generation;
+  }
+
+  void register_capability_discovery_success() {
+    this->server_version_discovered = true;
+    this->capability_discovery_failures = 0;
+  }
+
+  bool register_capability_discovery_failure() {
+    if (this->capability_discovery_failures < IMMICH_CAPABILITY_DISCOVERY_MAX_ATTEMPTS) {
+      this->capability_discovery_failures++;
+    }
+    const bool fallback_ready =
+        this->capability_discovery_failures >= IMMICH_CAPABILITY_DISCOVERY_MAX_ATTEMPTS;
+    // This flag means capability resolution is complete. A bounded fallback is
+    // complete too, and prevents invalid photo settings from restarting version
+    // discovery every time their readiness check retries.
+    this->server_version_discovered = fallback_ready;
+    return fallback_ready;
   }
 
   // Kept for the photo-source flush path. Album pagination no longer has a

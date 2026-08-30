@@ -176,7 +176,11 @@ script:
                   ImmichApiGeneration generation = ImmichApiGeneration::V31_FLAT;
                   const bool valid = response->status_code == 200 &&
                     parse_immich_server_version(body, &version, &generation);
-                  id(immich_request_state).server_version_discovered = valid;
+                  const bool use_flat_fallback = !valid &&
+                    id(immich_request_state).register_capability_discovery_failure();
+                  if (valid) {
+                    id(immich_request_state).register_capability_discovery_success();
+                  }
                   id(immich_request_state).server_version = valid ? version : "Unknown";
                   id(immich_request_state).api_generation = valid
                     ? generation : ImmichApiGeneration::V31_FLAT;
@@ -184,12 +188,18 @@ script:
                   id(immich_capability_status).publish_state(
                     id(immich_request_state).api_generation == ImmichApiGeneration::V32_STRUCTURED
                       ? "Structured filters (Immich 3.2+)"
-                      : (valid ? "Immich 3.1 compatibility" : "Version unavailable; retrying"));
+                      : (valid ? "Immich 3.1 compatibility"
+                               : (use_flat_fallback ? "Version unavailable; using 3.1 compatibility"
+                                                    : "Version unavailable; retrying")));
                   ESP_LOGI("immich", "Server version %s; %s filters",
                            id(immich_request_state).server_version.c_str(),
                            id(immich_request_state).api_generation == ImmichApiGeneration::V32_STRUCTURED
                              ? "structured" : "flat");
-                  if (valid) {
+                  if (valid || use_flat_fallback) {
+                    if (use_flat_fallback) {
+                      ESP_LOGW("immich", "Server version unavailable after %u attempts; using flat compatibility",
+                               (unsigned) id(immich_request_state).capability_discovery_failures);
+                    }
                     id(immich_check_config_ready).execute();
                   } else {
                     ESP_LOGW("immich", "Server version response unavailable; retrying capability discovery");
@@ -198,12 +208,21 @@ script:
           on_error:
             then:
               - lambda: |-
-                  id(immich_request_state).server_version_discovered = false;
+                  const bool use_flat_fallback =
+                    id(immich_request_state).register_capability_discovery_failure();
                   id(immich_request_state).server_version = "Unknown";
                   id(immich_request_state).api_generation = ImmichApiGeneration::V31_FLAT;
                   id(immich_server_version).publish_state("Unknown");
-                  id(immich_capability_status).publish_state("Version unavailable; retrying");
-                  id(immich_retry_config_ready).execute();
+                  id(immich_capability_status).publish_state(
+                    use_flat_fallback ? "Version unavailable; using 3.1 compatibility"
+                                      : "Version unavailable; retrying");
+                  if (use_flat_fallback) {
+                    ESP_LOGW("immich", "Server version request failed after %u attempts; using flat compatibility",
+                             (unsigned) id(immich_request_state).capability_discovery_failures);
+                    id(immich_check_config_ready).execute();
+                  } else {
+                    id(immich_retry_config_ready).execute();
+                  }
 
   - id: show_photo_source_empty_state
     mode: single

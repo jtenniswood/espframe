@@ -573,6 +573,14 @@ static void test_immich_request_state() {
   state.reset();
   assert(state.photo_source_generation == source_generation + 1);
   assert(!state.random_request_is_current());
+  assert(!state.register_capability_discovery_failure());
+  assert(!state.register_capability_discovery_failure());
+  assert(state.register_capability_discovery_failure());
+  assert(state.capability_discovery_failures == IMMICH_CAPABILITY_DISCOVERY_MAX_ATTEMPTS);
+  assert(state.server_version_discovered);
+  state.register_capability_discovery_success();
+  assert(state.capability_discovery_failures == 0);
+  assert(state.server_version_discovered);
   uint32_t cached_total = 0;
   bool cached_upper_bound = false;
   assert(!state.find_metadata_count("album-a", 1000, &cached_total, &cached_upper_bound));
