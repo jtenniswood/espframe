@@ -11,6 +11,12 @@ namespace remote_image {
 // the final ESPHome image buffer, including fit/fill scaling and centering.
 static const char *const TAG = "remote_image.decoder";
 
+ImageDecoder::~ImageDecoder() {
+  if (this->src_x_lut_ != nullptr) {
+    this->src_x_allocator_.deallocate(this->src_x_lut_, this->src_x_lut_capacity_);
+  }
+}
+
 bool ImageDecoder::set_size(int width, int height) {
   if (width <= 0 || height <= 0) {
     ESP_LOGE(TAG, "Invalid image dimensions: %dx%d", width, height);
@@ -86,8 +92,23 @@ bool ImageDecoder::set_size(int width, int height) {
 
   // Horizontal lookup table lets row decoders scale by indexing into a prepared
   // map instead of recalculating source columns for every output pixel.
+  if (this->scaled_width_ <= 0) {
+    ESP_LOGE(TAG, "Invalid scaled image width: %d", this->scaled_width_);
+    return false;
+  }
+  if (static_cast<size_t>(this->scaled_width_) > this->src_x_lut_capacity_) {
+    auto *new_lut = this->src_x_allocator_.allocate(this->scaled_width_);
+    if (new_lut == nullptr) {
+      ESP_LOGE(TAG, "Unable to allocate %d-pixel scaling lookup in PSRAM", this->scaled_width_);
+      return false;
+    }
+    if (this->src_x_lut_ != nullptr) {
+      this->src_x_allocator_.deallocate(this->src_x_lut_, this->src_x_lut_capacity_);
+    }
+    this->src_x_lut_ = new_lut;
+    this->src_x_lut_capacity_ = this->scaled_width_;
+  }
   double inv = (this->x_scale_ > 0) ? 1.0 / this->x_scale_ : 1.0;
-  this->src_x_lut_.resize(this->scaled_width_);
   for (int i = 0; i < this->scaled_width_; i++) {
     this->src_x_lut_[i] = std::min(static_cast<int>(i * inv), width - 1);
   }

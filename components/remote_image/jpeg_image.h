@@ -20,6 +20,7 @@ class JpegDecoder : public ImageDecoder {
   JpegDecoder(OnlineImage *image) : ImageDecoder(image) {}
   ~JpegDecoder() override { cleanup_(); }
 
+  void reset() override;
   int prepare(size_t download_size) override;
   int HOT decode(uint8_t *buffer, size_t size) override;
 
@@ -35,6 +36,7 @@ class JpegDecoder : public ImageDecoder {
 
   Phase phase_ = WAITING;
   jpeg_decompress_struct *cinfo_ = nullptr;
+  bool cinfo_created_ = false;
   JpegErrorMgr *jerr_ = nullptr;
   uint8_t *row_buffer_ = nullptr;
   int out_w_ = 0;
@@ -49,7 +51,6 @@ class JpegDecoder : public ImageDecoder {
   bool hardware_attempted_ = false;
   uint8_t *hardware_decoded_ = nullptr;
   uint8_t *hardware_stage_ = nullptr;
-  void *hardware_ppa_ = nullptr;
   size_t hardware_stage_capacity_ = 0;
   uint32_t hardware_src_w_ = 0;
   uint32_t hardware_src_h_ = 0;

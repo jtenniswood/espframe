@@ -29,6 +29,33 @@ namespace remote_image {
 // one complete JPEG at a time while leaving later downloads intact and ready.
 static JpegDecoder *active_decoder_owner = nullptr;
 
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+// The ESP-IDF JPEG and PPA handles own internal-RAM queues, semaphores, and DMA
+// bookkeeping. Recreating them for every slideshow image fragments the small
+// internal heap until TLS can no longer allocate its session state. Hardware
+// decode is already serialized by active_decoder_owner, so one process-lifetime
+// handle for each peripheral is both safe and substantially cheaper.
+static jpeg_decoder_handle_t shared_jpeg_decoder = nullptr;
+static ppa_client_handle_t shared_ppa_client = nullptr;
+static uint32_t hardware_decode_attempts = 0;
+static uint32_t hardware_decode_successes = 0;
+static uint32_t hardware_decode_fallbacks = 0;
+
+static void reset_shared_jpeg_decoder() {
+  if (shared_jpeg_decoder != nullptr) {
+    jpeg_del_decoder_engine(shared_jpeg_decoder);
+    shared_jpeg_decoder = nullptr;
+  }
+}
+
+static void reset_shared_ppa_client() {
+  if (shared_ppa_client != nullptr) {
+    ppa_unregister_client(shared_ppa_client);
+    shared_ppa_client = nullptr;
+  }
+}
+#endif
+
 static void jpeg_error_exit(j_common_ptr cinfo) {
   auto *err = reinterpret_cast<JpegErrorMgr *>(cinfo->err);
   (*(cinfo->err->format_message))(cinfo, err->message);
@@ -40,12 +67,13 @@ void JpegDecoder::cleanup_() {
   this->cleanup_hardware_();
 #endif
   if (this->cinfo_) {
-    jpeg_destroy_decompress(this->cinfo_);
-    delete this->cinfo_;
+    if (this->cinfo_created_) jpeg_destroy_decompress(this->cinfo_);
+    free(this->cinfo_);
     this->cinfo_ = nullptr;
+    this->cinfo_created_ = false;
   }
   if (this->jerr_) {
-    delete this->jerr_;
+    free(this->jerr_);
     this->jerr_ = nullptr;
   }
   if (this->row_buffer_) {
@@ -67,6 +95,14 @@ int JpegDecoder::prepare(size_t download_size) {
     return DECODE_ERROR_OUT_OF_MEMORY;
   }
   return 0;
+}
+
+void JpegDecoder::reset() {
+  this->cleanup_();
+  ImageDecoder::reset();
+  this->current_scanline_ = 0;
+  this->prev_dst_y_ = -1;
+  this->prev_gap_end_ = 0;
 }
 
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
@@ -101,10 +137,6 @@ static uint8_t *allocate_hardware_buffer(size_t requested, size_t *capacity) {
 }
 
 void JpegDecoder::cleanup_hardware_() {
-  if (this->hardware_ppa_ != nullptr) {
-    ppa_unregister_client(static_cast<ppa_client_handle_t>(this->hardware_ppa_));
-    this->hardware_ppa_ = nullptr;
-  }
   if (this->hardware_stage_ != nullptr) {
     free(this->hardware_stage_);
     this->hardware_stage_ = nullptr;
@@ -122,6 +154,7 @@ bool JpegDecoder::try_start_hardware_decode_(uint8_t *buffer, size_t size) {
   // end so fit/fill dimensions and alignment remain pixel-for-pixel compatible
   // with the software decoder despite PPA's 1/16 scaling resolution.
   this->hardware_attempted_ = true;
+  hardware_decode_attempts++;
   if (this->image_->image_type() != image::ImageType::IMAGE_TYPE_RGB565 || size > UINT32_MAX) {
     return false;
   }
@@ -182,7 +215,6 @@ bool JpegDecoder::try_start_hardware_decode_(uint8_t *buffer, size_t size) {
     return false;
   }
 
-  jpeg_decoder_handle_t decoder = nullptr;
   this->hardware_started_us_ = micros();
   size_t decoded_capacity = 0;
   this->hardware_decoded_ = allocate_hardware_buffer(static_cast<size_t>(decoded_bytes_64), &decoded_capacity);
@@ -196,13 +228,17 @@ bool JpegDecoder::try_start_hardware_decode_(uint8_t *buffer, size_t size) {
   uint32_t allocated_us = micros();
   this->hardware_alloc_us_ = allocated_us - this->hardware_started_us_;
 
-  jpeg_decode_engine_cfg_t engine_cfg{};
-  engine_cfg.timeout_ms = 1000;
-  err = jpeg_new_decoder_engine(&engine_cfg, &decoder);
-  if (err != ESP_OK) {
-    ESP_LOGD(TAG, "Hardware JPEG engine unavailable (%s); using software decoder", esp_err_to_name(err));
-    this->cleanup_hardware_();
-    return false;
+  if (shared_jpeg_decoder == nullptr) {
+    jpeg_decode_engine_cfg_t engine_cfg{};
+    engine_cfg.timeout_ms = 1000;
+    err = jpeg_new_decoder_engine(&engine_cfg, &shared_jpeg_decoder);
+    if (err != ESP_OK) {
+      shared_jpeg_decoder = nullptr;
+      ESP_LOGD(TAG, "Hardware JPEG engine unavailable (%s); using software decoder", esp_err_to_name(err));
+      this->cleanup_hardware_();
+      return false;
+    }
+    ESP_LOGI(TAG, "Initialized reusable ESP32-P4 JPEG engine");
   }
 
   jpeg_decode_cfg_t decode_cfg{};
@@ -211,29 +247,46 @@ bool JpegDecoder::try_start_hardware_decode_(uint8_t *buffer, size_t size) {
                                                         : JPEG_DEC_RGB_ELEMENT_ORDER_BGR;
   decode_cfg.conv_std = JPEG_YUV_RGB_CONV_STD_BT601;
   uint32_t decoded_size = 0;
-  err = jpeg_decoder_process(decoder, &decode_cfg, buffer, static_cast<uint32_t>(size),
+  err = jpeg_decoder_process(shared_jpeg_decoder, &decode_cfg, buffer, static_cast<uint32_t>(size),
                              this->hardware_decoded_, static_cast<uint32_t>(decoded_capacity), &decoded_size);
-  jpeg_del_decoder_engine(decoder);
-  decoder = nullptr;
   if (err != ESP_OK) {
+    hardware_decode_fallbacks++;
     ESP_LOGD(TAG, "Hardware JPEG decode rejected image (%s); using software decoder", esp_err_to_name(err));
+    // Invalid input must not destroy and recreate the process-lifetime engine.
+    // That recreate cycle was the original source of internal-heap fragmentation.
+    // Only a broken engine state warrants resetting the shared peripheral.
+    if (err == ESP_ERR_INVALID_STATE || err == ESP_ERR_TIMEOUT) reset_shared_jpeg_decoder();
     this->cleanup_hardware_();
     return false;
   }
+  hardware_decode_successes++;
   this->hardware_decode_us_ = micros() - allocated_us;
 
-  ppa_client_config_t client_cfg{};
-  client_cfg.oper_type = PPA_OPERATION_SRM;
-  client_cfg.max_pending_trans_num = 1;
-  client_cfg.data_burst_length = PPA_DATA_BURST_LENGTH_128;
-  ppa_client_handle_t ppa = nullptr;
-  err = ppa_register_client(&client_cfg, &ppa);
-  if (err != ESP_OK) {
-    ESP_LOGD(TAG, "PPA scaler unavailable (%s); using software decoder", esp_err_to_name(err));
-    this->cleanup_hardware_();
-    return false;
+  if ((hardware_decode_attempts % 25) == 0) {
+    ESP_LOGI(TAG,
+             "JPEG stress stats attempts=%" PRIu32 " hardware=%" PRIu32 " fallback=%" PRIu32
+             " internal=%zu/%zu psram=%zu/%zu",
+             hardware_decode_attempts, hardware_decode_successes, hardware_decode_fallbacks,
+             heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+             heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+             heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+             heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
   }
-  this->hardware_ppa_ = ppa;
+
+  if (shared_ppa_client == nullptr) {
+    ppa_client_config_t client_cfg{};
+    client_cfg.oper_type = PPA_OPERATION_SRM;
+    client_cfg.max_pending_trans_num = 1;
+    client_cfg.data_burst_length = PPA_DATA_BURST_LENGTH_128;
+    err = ppa_register_client(&client_cfg, &shared_ppa_client);
+    if (err != ESP_OK) {
+      shared_ppa_client = nullptr;
+      ESP_LOGD(TAG, "PPA scaler unavailable (%s); using software decoder", esp_err_to_name(err));
+      this->cleanup_hardware_();
+      return false;
+    }
+    ESP_LOGI(TAG, "Initialized reusable ESP32-P4 PPA scaler");
+  }
   this->hardware_src_w_ = info.width;
   this->hardware_src_h_ = info.height;
   this->hardware_padded_w_ = padded_w;
@@ -282,12 +335,13 @@ bool JpegDecoder::continue_hardware_decode_() {
     scale_cfg.scale_y = ppa_scale;
     scale_cfg.mode = PPA_TRANS_MODE_BLOCKING;
     esp_err_t err = ppa_do_scale_rotate_mirror(
-        static_cast<ppa_client_handle_t>(this->hardware_ppa_), &scale_cfg);
+        shared_ppa_client, &scale_cfg);
     uint32_t chunk_us = micros() - chunk_started_us;
     this->hardware_scale_us_ += chunk_us;
     this->hardware_worst_chunk_us_ = std::max(this->hardware_worst_chunk_us_, chunk_us);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "PPA scale failed (%s); restarting with software decoder", esp_err_to_name(err));
+      reset_shared_ppa_client();
       this->cleanup_hardware_();
       this->phase_ = WAITING;
       return false;
@@ -297,8 +351,6 @@ bool JpegDecoder::continue_hardware_decode_() {
     if (this->hardware_scale_y_ < this->hardware_src_h_) return true;
 
     // PPA has finished consuming the large decode buffer.
-    ppa_unregister_client(static_cast<ppa_client_handle_t>(this->hardware_ppa_));
-    this->hardware_ppa_ = nullptr;
     free(this->hardware_decoded_);
     this->hardware_decoded_ = nullptr;
     if (!this->set_size(static_cast<int>(this->hardware_stage_w_),
@@ -380,8 +432,20 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
     // marker; the software fallback still needs the same serialization.
     active_decoder_owner = this;
 
-    this->cinfo_ = new jpeg_decompress_struct();
-    this->jerr_ = new JpegErrorMgr();
+    // ESP-IDF disables C++ exception unwinding. A failed throwing new therefore
+    // aborts the firmware instead of returning a decoder error. Use checked C
+    // allocations so memory pressure degrades to a skipped image, not a reboot.
+    this->cinfo_ = static_cast<jpeg_decompress_struct *>(calloc(1, sizeof(jpeg_decompress_struct)));
+    this->jerr_ = static_cast<JpegErrorMgr *>(calloc(1, sizeof(JpegErrorMgr)));
+    if (this->cinfo_ == nullptr || this->jerr_ == nullptr) {
+      ESP_LOGE(TAG, "Unable to allocate software JPEG decoder state");
+      if (this->cinfo_ != nullptr) free(this->cinfo_);
+      if (this->jerr_ != nullptr) free(this->jerr_);
+      this->cinfo_ = nullptr;
+      this->jerr_ = nullptr;
+      if (active_decoder_owner == this) active_decoder_owner = nullptr;
+      return DECODE_ERROR_OUT_OF_MEMORY;
+    }
 
     this->cinfo_->err = jpeg_std_error(&this->jerr_->pub);
     this->jerr_->pub.error_exit = jpeg_error_exit;
@@ -393,6 +457,7 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
     }
 
     jpeg_create_decompress(this->cinfo_);
+    this->cinfo_created_ = true;
     jpeg_mem_src(this->cinfo_, buffer, size);
 
     if (jpeg_read_header(this->cinfo_, TRUE) != JPEG_HEADER_OK) {

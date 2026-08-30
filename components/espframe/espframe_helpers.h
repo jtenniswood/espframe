@@ -199,16 +199,22 @@ inline void log_immich_pipeline_diag(const char *reason, uint32_t now_ms, uint32
 
   size_t free_heap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
   size_t largest_heap = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+  size_t free_internal = heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL);
+  size_t largest_internal = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL);
+  size_t free_psram = heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
+  size_t largest_psram = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
   uint32_t cooldown_left = (retry_cooldown_until_ms != 0 && now_ms < retry_cooldown_until_ms)
                                ? (retry_cooldown_until_ms - now_ms)
                                : 0;
 
   ESP_LOGW("diag",
-           "IMMICH-DIAG %s heap=%u largest=%u active=%d target=%d displayed=%d "
+           "IMMICH-DIAG %s heap=%u/%u internal=%u/%u psram=%u/%u active=%d target=%d displayed=%d "
            "slot_flight=%d%d%d nc=%d preload_nc=%d portrait_busy=%d left_req=%d "
            "left_ready=%d right_req=%d right_ready=%d companion=%d pair=%d "
            "preload_slot=%d preload_ready=%d/%d companion_slot=%d retries=%d/%d cooldown=%u",
-           reason, (unsigned) free_heap, (unsigned) largest_heap, active_slot, target_slot,
+           reason, (unsigned) free_heap, (unsigned) largest_heap,
+           (unsigned) free_internal, (unsigned) largest_internal,
+           (unsigned) free_psram, (unsigned) largest_psram, active_slot, target_slot,
            active_displayed, flags.fetch_in_flight[0], flags.fetch_in_flight[1],
            flags.fetch_in_flight[2], nc_count, preload_nc_in_flight, portrait.workflow_busy,
            portrait.left_requested, portrait.left_ready, portrait.right_requested,

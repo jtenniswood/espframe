@@ -182,6 +182,13 @@ class OnlineImage : public PollingComponent,
 
   std::shared_ptr<http_request::HttpContainer> downloader_{nullptr};
   std::unique_ptr<ImageDecoder> decoder_{nullptr};
+#ifdef USE_REMOTE_IMAGE_JPEG_SUPPORT
+  // Each configured image slot keeps one JPEG decoder for its lifetime. This
+  // retains its PSRAM scaling lookup and avoids repeated new/delete traffic in
+  // the small internal heap during fast slideshows.
+  std::unique_ptr<ImageDecoder> cached_jpeg_decoder_{nullptr};
+#endif
+  ImageFormat decoder_format_{ImageFormat::AUTO};
 
   uint8_t *buffer_;
   DownloadBuffer download_buffer_;
@@ -198,6 +205,9 @@ class OnlineImage : public PollingComponent,
   std::string url_{""};
 
   std::vector<std::pair<std::string, TemplatableValue<std::string> > > request_headers_;
+  // Reused for every HTTP request so a fast slideshow does not allocate and
+  // free a short-lived header vector for every image.
+  std::vector<http_request::Header> update_headers_;
 
   /** width requested on configuration, or 0 if non specified. */
   const int fixed_width_;
