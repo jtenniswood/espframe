@@ -154,6 +154,38 @@ void ImageDecoder::draw_rgb565_block(int x, int y, int w, int h, const uint8_t *
   }
 }
 
+bool ImageDecoder::draw_rgb565_scaled_chunk(const uint8_t *data, int src_stride, int src_height,
+                                            int &next_dst_y, int max_rows) {
+  if (data == nullptr || src_stride <= 0 || src_height <= 0 || max_rows <= 0 || this->y_scale_ <= 0) {
+    return true;
+  }
+
+  const int dst_y_start = std::max(0, this->y_offset_);
+  const int dst_y_end = std::min(this->image_->buffer_height_, this->y_offset_ + this->scaled_height_);
+  if (next_dst_y < dst_y_start) next_dst_y = dst_y_start;
+  if (next_dst_y >= dst_y_end) return true;
+
+  const int dst_x_start = std::max(0, this->x_offset_);
+  const int dst_x_end = std::min(this->image_->buffer_width_, this->x_offset_ + this->scaled_width_);
+  const int chunk_end = std::min(dst_y_end, next_dst_y + max_rows);
+  auto *dst_pixels = reinterpret_cast<uint16_t *>(this->image_->buffer_);
+  const auto *src_pixels = reinterpret_cast<const uint16_t *>(data);
+
+  for (; next_dst_y < chunk_end; next_dst_y++) {
+    const int relative_y = next_dst_y - this->y_offset_;
+    // Match the existing source-row renderer: when multiple source rows map to
+    // one destination row, the last source row wins.
+    int src_y = static_cast<int>(std::ceil((relative_y + 1) / this->y_scale_)) - 1;
+    src_y = std::max(0, std::min(src_y, src_height - 1));
+    const uint16_t *src_row = src_pixels + static_cast<size_t>(src_y) * src_stride;
+    uint16_t *dst_row = dst_pixels + static_cast<size_t>(next_dst_y) * this->image_->buffer_width_;
+    for (int dst_x = dst_x_start; dst_x < dst_x_end; dst_x++) {
+      dst_row[dst_x] = src_row[this->src_x_lut_[dst_x - this->x_offset_]];
+    }
+  }
+  return next_dst_y >= dst_y_end;
+}
+
 void ImageDecoder::draw_rgb888_scaled(int src_y, int src_w, const uint8_t *rgb888, bool big_endian) {
   int dst_y = static_cast<int>(src_y * this->y_scale_) + this->y_offset_;
   if (dst_y < 0 || dst_y >= this->image_->buffer_height_)

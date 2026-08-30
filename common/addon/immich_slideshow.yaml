@@ -166,6 +166,10 @@ switch:
 # -----------------------------------------------------------------------------
 # 3-slot full-size ring buffer and portrait pair / preload remote_image components
 # -----------------------------------------------------------------------------
+# Immich's preview endpoint serves JPEG when explicitly requested. Pinning the
+# decoder avoids AUTO's format-selection race when several P4 slots finish near
+# each other, while `formats` keeps the software WebP decoder available to
+# configurations that opt back into AUTO.
 remote_image:
   - id: immich_img_0
     url: "${immich_image_initial_url}"
@@ -173,6 +177,7 @@ remote_image:
     type: RGB565
     byte_order: little_endian
     formats: [JPEG, WEBP]
+    format: JPEG
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
@@ -201,6 +206,7 @@ remote_image:
     type: RGB565
     byte_order: little_endian
     formats: [JPEG, WEBP]
+    format: JPEG
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
@@ -229,6 +235,7 @@ remote_image:
     type: RGB565
     byte_order: little_endian
     formats: [JPEG, WEBP]
+    format: JPEG
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
@@ -260,6 +267,7 @@ remote_image:
     type: RGB565
     byte_order: little_endian
     formats: [JPEG, WEBP]
+    format: JPEG
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
@@ -285,6 +293,7 @@ remote_image:
     type: RGB565
     byte_order: little_endian
     formats: [JPEG, WEBP]
+    format: JPEG
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
@@ -311,6 +320,7 @@ remote_image:
     type: RGB565
     byte_order: little_endian
     formats: [JPEG, WEBP]
+    format: JPEG
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
@@ -343,6 +353,7 @@ remote_image:
     type: RGB565
     byte_order: little_endian
     formats: [JPEG, WEBP]
+    format: JPEG
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:

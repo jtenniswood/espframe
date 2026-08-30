@@ -2,11 +2,13 @@
 #include <cstdint>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include "components/espframe/date_utils.h"
 #include "components/espframe/configuration_contract_generated.h"
 #include "components/espframe/duration_helpers.h"
 #include "components/espframe/immich_helpers.h"
+#include "components/remote_image/jpeg_accelerator_helpers.h"
 
 struct PhotoMeta {
   std::string asset_id, image_url, date, location, person;
@@ -162,6 +164,49 @@ static void test_duration_helpers() {
   assert(parse_duration_option_seconds("5 seconds", 15, 10, 86400) == 10);
   assert(parse_duration_option_seconds("48 hours", 15, 10, 86400) == 86400);
   assert(parse_duration_option_seconds("", 15, 10, 86400) == 15);
+}
+
+static void test_p4_jpeg_accelerator_helpers() {
+  const std::vector<uint8_t> baseline{
+      0xFF, 0xD8,
+      0xFF, 0xE0, 0x00, 0x04, 0x00, 0x00,
+      0xFF, 0xC0, 0x00, 0x11, 0x08, 0x05, 0xA0, 0x07, 0x7E, 0x03,
+      0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01,
+      0xFF, 0xDA,
+  };
+  esphome::remote_image::P4JpegInfo info;
+  assert(esphome::remote_image::parse_p4_baseline_jpeg(baseline.data(), baseline.size(), &info));
+  assert(info.width == 1918);
+  assert(info.height == 1440);
+  assert(info.padded_width == 1920);
+  assert(info.padded_height == 1440);
+  assert(info.decoded_bytes == 1920u * 1440u * 2u);
+  assert(esphome::remote_image::p4_jpeg_fits_workspace(info, baseline.size()));
+  const auto baseline_info = info;
+
+  esphome::remote_image::P4JpegInfo largest_live_preview{
+      2160, 1440, 2160, 1440, 2160u * 1440u * 2u};
+  assert(esphome::remote_image::p4_jpeg_fits_workspace(largest_live_preview, baseline.size()));
+
+  auto progressive = baseline;
+  progressive[9] = 0xC2;
+  assert(!esphome::remote_image::parse_p4_baseline_jpeg(
+      progressive.data(), progressive.size(), &info));
+
+  auto grayscale = baseline;
+  grayscale[17] = 0x01;
+  assert(!esphome::remote_image::parse_p4_baseline_jpeg(grayscale.data(), grayscale.size(), &info));
+
+  auto invalid_segment = baseline;
+  invalid_segment[10] = 0x00;
+  invalid_segment[11] = 0x01;
+  assert(!esphome::remote_image::parse_p4_baseline_jpeg(
+      invalid_segment.data(), invalid_segment.size(), &info));
+
+  esphome::remote_image::P4JpegInfo oversized{4096, 4096, 4096, 4096, 4096u * 4096u * 2u};
+  assert(!esphome::remote_image::p4_jpeg_fits_workspace(oversized, baseline.size()));
+  assert(!esphome::remote_image::p4_jpeg_fits_workspace(
+      baseline_info, esphome::remote_image::P4_JPEG_MAX_INPUT_BYTES + 1));
 }
 
 static void test_immich_body_helpers() {
@@ -1606,6 +1651,7 @@ static void test_configuration_contract_capabilities() {
 int main() {
   test_date_and_url_helpers();
   test_duration_helpers();
+  test_p4_jpeg_accelerator_helpers();
   test_immich_body_helpers();
   test_smart_filter_helpers();
   test_immich_request_state();

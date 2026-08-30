@@ -24,9 +24,13 @@ class JpegDecoder : public ImageDecoder {
   int HOT decode(uint8_t *buffer, size_t size) override;
 
  private:
-  enum Phase { WAITING, DECOMPRESSING, FINISHED };
+  enum Phase { WAITING, HARDWARE_DRAWING, DECOMPRESSING, FINISHED };
 
   void cleanup_();
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+  bool try_start_hardware_decode_(uint8_t *buffer, size_t size);
+  void continue_hardware_draw_();
+#endif
 
   Phase phase_ = WAITING;
   jpeg_decompress_struct *cinfo_ = nullptr;
@@ -39,8 +43,19 @@ class JpegDecoder : public ImageDecoder {
   bool use_rgb565_ = false;
   bool big_endian_ = false;
   bool scaling_ = false;
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+  bool hardware_attempted_ = false;
+  uint32_t hardware_src_width_ = 0;
+  uint32_t hardware_src_height_ = 0;
+  uint32_t hardware_stride_ = 0;
+  int hardware_draw_y_ = -1;
+  uint32_t hardware_started_us_ = 0;
+  uint32_t hardware_decode_us_ = 0;
+  uint32_t hardware_draw_us_ = 0;
+#endif
 
   static constexpr int SCANLINES_PER_CHUNK = 100;
+  static constexpr int HARDWARE_DRAW_ROWS_PER_CHUNK = 32;
 };
 
 }  // namespace remote_image

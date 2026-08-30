@@ -88,6 +88,22 @@ class ImageDecoder {
   void draw_rgb565_block(int x, int y, int w, int h, const uint8_t *data);
 
   /**
+   * @brief Copy a bounded number of destination rows from a complete RGB565
+   * source image. Unlike draw_rgb565_block(), this walks destination rows, so
+   * downscaling touches each displayed pixel once instead of revisiting rows
+   * that will be discarded.
+   *
+   * @param data Complete source image buffer.
+   * @param src_stride Source row stride in pixels.
+   * @param src_height Source image height in pixels.
+   * @param next_dst_y In/out destination row cursor; initialize to -1.
+   * @param max_rows Maximum destination rows to copy in this call.
+   * @return true when every visible destination row has been copied.
+   */
+  bool draw_rgb565_scaled_chunk(const uint8_t *data, int src_stride, int src_height,
+                                int &next_dst_y, int max_rows);
+
+  /**
    * @brief Convert RGB888 source pixels to RGB565 and write only the sampled
    * destination pixels. Combines color conversion with nearest-neighbor
    * downscaling in a single pass, avoiding work on source pixels that would
