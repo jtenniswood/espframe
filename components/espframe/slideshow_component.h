@@ -438,6 +438,14 @@ class EspFrameSlideshow {
     }
     if (this->previous_navigation_blocked(active_slot, portrait, flags)) return false;
 
+    int previous_slot = (active_slot + 2) % 3;
+    this->clear_preload_for_slot(
+        previous_slot, this->state_.portrait_preload_slot,
+        this->state_.portrait_preload_left_ready,
+        this->state_.portrait_preload_right_ready,
+        this->state_.preload_noncritical_in_flight,
+        this->state_.noncritical_remote_updates_in_flight);
+
     int current_slot = active_slot;
     SlotMeta &current_meta = this->slot_mut_(current_slot, slot0, slot1, slot2);
     DisplayMeta tmp = current_display;
@@ -447,7 +455,6 @@ class EspFrameSlideshow {
     prev_display = tmp;
 
     portrait = PortraitState{};
-    int previous_slot = (active_slot + 2) % 3;
     active_slot = previous_slot;
     active_slot_displayed = false;
 
@@ -464,10 +471,14 @@ class EspFrameSlideshow {
   bool previous_navigation_blocked(int active_slot, const PortraitState &portrait,
                                    const SlotFlags &flags) const {
     int previous_slot = (active_slot + 2) % 3;
+    bool incomplete_preload_targets_previous =
+        this->state_.portrait_preload_slot == previous_slot &&
+        !(this->state_.portrait_preload_left_ready &&
+          this->state_.portrait_preload_right_ready);
     return any_slot_fetch_in_flight(flags) || portrait.workflow_busy ||
            (this->state_.portrait_search_in_flight &&
             this->state_.companion_target_slot == previous_slot) ||
-           this->state_.portrait_preload_slot == previous_slot;
+           incomplete_preload_targets_previous;
   }
 
   void handle_companion_not_found(PortraitState &portrait,

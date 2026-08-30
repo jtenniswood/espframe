@@ -960,16 +960,19 @@ static void test_slideshow_component_previous_flow() {
 
   slideshow.state().portrait_preload_slot = 2;
   slideshow.state().portrait_preload_left_ready = true;
-  slideshow.state().portrait_preload_right_ready = true;
+  slideshow.state().portrait_preload_right_ready = false;
   blocked = slideshow.show_previous(1203, active_slot, displayed, slot0, slot1, slot2,
                                     current, previous, portrait, flags);
   assert(!blocked);
   assert(!slideshow.pop_command(cmd));
-  slideshow.state().portrait_preload_slot = -1;
+  slideshow.state().portrait_preload_right_ready = true;
 
   bool shown = slideshow.show_previous(1234, active_slot, displayed, slot0, slot1, slot2,
                                        current, previous, portrait, flags);
   assert(shown);
+  assert(slideshow.state().portrait_preload_slot == -1);
+  assert(!slideshow.state().portrait_preload_left_ready);
+  assert(!slideshow.state().portrait_preload_right_ready);
   assert(active_slot == 2);
   assert(!displayed);
   assert(current.asset_id == "previous");
