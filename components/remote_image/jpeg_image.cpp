@@ -30,6 +30,12 @@ namespace remote_image {
 static JpegDecoder *active_decoder_owner = nullptr;
 
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
+// The JPEG/PPA driver handles retain enough fragmented internal RAM that later
+// TLS and STL allocations can abort the device after several slideshow turns.
+// Keep the accelerator implementation available for further work, but prefer
+// the stable software decoder until those driver allocations can be isolated.
+static constexpr bool USE_HARDWARE_JPEG_DECODER = false;
+
 // The ESP-IDF JPEG and PPA handles own internal-RAM queues, semaphores, and DMA
 // bookkeeping. Recreating them for every slideshow image fragments the small
 // internal heap until TLS can no longer allocate its session state. Hardware
@@ -424,7 +430,8 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
     active_decoder_owner = this;
 
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
-    if (!this->hardware_attempted_ && this->try_start_hardware_decode_(buffer, size)) {
+    if (USE_HARDWARE_JPEG_DECODER && !this->hardware_attempted_ &&
+        this->try_start_hardware_decode_(buffer, size)) {
       return 0;
     }
 #endif
