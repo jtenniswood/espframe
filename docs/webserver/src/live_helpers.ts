@@ -377,9 +377,9 @@
         var removeBtn = row.querySelector(".photo-id-remove");
         var moveUpBtn = row.querySelector(".photo-id-move-up");
         var moveDownBtn = row.querySelector(".photo-id-move-down");
-        if (removeBtn) removeBtn.disabled = idInputs.length <= 1;
-        if (moveUpBtn) moveUpBtn.disabled = index === 0;
-        if (moveDownBtn) moveDownBtn.disabled = index === rows.length - 1;
+        if (removeBtn) removeBtn.disabled = idInputs.length <= 1 && !opts.allowClearLast;
+        if (moveUpBtn) moveUpBtn.disabled = !!opts.disableEditing || index === 0;
+        if (moveDownBtn) moveDownBtn.disabled = !!opts.disableEditing || index === rows.length - 1;
       });
     }
 
@@ -408,6 +408,8 @@
       var fields = el("div", "photo-id-fields");
       var idInput = input("text", value || "", opts.idPlaceholder, MAX_PHOTO_ID_FIELD_LENGTH);
       var labelInput = input("text", labelValue || "", opts.labelPlaceholder, MAX_PHOTO_ID_FIELD_LENGTH);
+      idInput.readOnly = !!opts.disableEditing;
+      labelInput.readOnly = !!opts.disableEditing;
       var actions = el("div", "photo-id-row-actions");
       var moveUpTitle = opts.moveUpTitle || "Move up";
       var moveDownTitle = opts.moveDownTitle || "Move down";
@@ -479,6 +481,7 @@
     });
     addBtn.title = opts.addText;
     addBtn.setAttribute("aria-label", opts.addText);
+    addBtn.disabled = !!opts.disableEditing;
     addRowWrap.appendChild(addBtn);
     f.appendChild(list);
     f.appendChild(addRowWrap);

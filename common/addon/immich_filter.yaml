@@ -736,6 +736,7 @@ script:
     then:
       - script.execute: sync_immich_filter_config
       - delay: 1ms
+      - lambda: 'id(immich_request_state).empty_branch_attempts = 0;'
       - if:
           condition:
             lambda: |-

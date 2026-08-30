@@ -125,13 +125,18 @@
     function applySetting(key, value) {
       return saveSetting(key, value, { applyPhotoSource: true });
     }
-    function addSelect(label, key, disabled, reason) {
+    function addSelect(label, key, disabled, reason, recoveryValue) {
       var f = field(label);
       var control = selectFromOptions(productSettingOptions(key), S[key], function (value) {
         S[key] = value;
         applySetting(key, value);
       });
-      control.disabled = !!disabled;
+      control.disabled = !!disabled && recoveryValue == null;
+      if (disabled && recoveryValue != null) {
+        Array.prototype.forEach.call(control.options, function (optionEl) {
+          optionEl.disabled = String(optionEl.value) !== String(recoveryValue);
+        });
+      }
       if (disabled && reason) control.title = reason;
       f.appendChild(control);
       if (disabled && reason) {
@@ -214,7 +219,7 @@
     addGroup("Tags", "tags_enabled", "tag_matching", "tag_ids", "tag_labels", "tag");
     addSelect("Favorites", "favorite_mode", false, "");
     addSelect("Minimum Rating", "minimum_rating", !supportsStructured,
-      "Minimum rating requires Immich 3.2 or newer. Your saved value is preserved.");
+      "Minimum rating requires Immich 3.2 or newer. Choose Any to clear a saved value.", "Any");
 
     [
       ["Country", "filter_country"],
@@ -240,7 +245,7 @@
       body.appendChild(f);
     });
 
-    var exclusionReason = "Exclusions require Immich 3.2 or newer. Saved values are preserved.";
+    var exclusionReason = "Exclusions require Immich 3.2 or newer. Saved exclusions can still be removed.";
     [["Excluded Albums", "excluded_album_ids", "excluded_album_labels", "album"],
      ["Excluded People", "excluded_person_ids", "excluded_person_labels", "person"],
      ["Excluded Tags", "excluded_tag_ids", "excluded_tag_labels", "tag"]].forEach(function (spec) {
@@ -250,15 +255,15 @@
         idPlaceholder: "Paste excluded " + spec[3] + " UUID", labelPlaceholder: "Optional label",
         addText: "Exclude " + spec[3], removeTitle: "Remove exclusion",
         moveUpTitle: "Move up", moveDownTitle: "Move down",
+        disableEditing: !supportsStructured,
+        allowClearLast: !supportsStructured,
         idChanges: {}, labelChanges: {}, clearChanges: {}, reorderChanges: {},
         onChange: function (_changes, delayMs) {
-          if (!supportsStructured) return;
           clearTimeout(timer);
           timer = setTimeout(function () { saveList(editor, spec[1], spec[2]); }, delayMs == null ? 600 : delayMs);
         }
       });
       if (!supportsStructured) {
-        editor.field.style.opacity = ".55";
         editor.field.title = exclusionReason;
         var hint = el("div", "setting-hint");
         hint.textContent = exclusionReason;

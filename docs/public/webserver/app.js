@@ -2490,13 +2490,18 @@ to {
     function applySetting(key, value) {
       return saveSetting(key, value, { applyPhotoSource: true });
     }
-    function addSelect(label, key, disabled, reason) {
+    function addSelect(label, key, disabled, reason, recoveryValue) {
       var f = field(label);
       var control = selectFromOptions(productSettingOptions(key), S[key], function(value) {
         S[key] = value;
         applySetting(key, value);
       });
-      control.disabled = !!disabled;
+      control.disabled = !!disabled && recoveryValue == null;
+      if (disabled && recoveryValue != null) {
+        Array.prototype.forEach.call(control.options, function(optionEl) {
+          optionEl.disabled = String(optionEl.value) !== String(recoveryValue);
+        });
+      }
       if (disabled && reason) control.title = reason;
       f.appendChild(control);
       if (disabled && reason) {
@@ -2592,7 +2597,8 @@ to {
       "Minimum Rating",
       "minimum_rating",
       !supportsStructured,
-      "Minimum rating requires Immich 3.2 or newer. Your saved value is preserved."
+      "Minimum rating requires Immich 3.2 or newer. Choose Any to clear a saved value.",
+      "Any"
     );
     [
       ["Country", "filter_country"],
@@ -2617,7 +2623,7 @@ to {
       f.appendChild(inputEl);
       body.appendChild(f);
     });
-    var exclusionReason = "Exclusions require Immich 3.2 or newer. Saved values are preserved.";
+    var exclusionReason = "Exclusions require Immich 3.2 or newer. Saved exclusions can still be removed.";
     [
       ["Excluded Albums", "excluded_album_ids", "excluded_album_labels", "album"],
       ["Excluded People", "excluded_person_ids", "excluded_person_labels", "person"],
@@ -2634,12 +2640,13 @@ to {
         removeTitle: "Remove exclusion",
         moveUpTitle: "Move up",
         moveDownTitle: "Move down",
+        disableEditing: !supportsStructured,
+        allowClearLast: !supportsStructured,
         idChanges: {},
         labelChanges: {},
         clearChanges: {},
         reorderChanges: {},
         onChange: function(_changes, delayMs2) {
-          if (!supportsStructured) return;
           clearTimeout(timer);
           timer = setTimeout(function() {
             saveList(editor, spec[1], spec[2]);
@@ -2647,7 +2654,6 @@ to {
         }
       });
       if (!supportsStructured) {
-        editor.field.style.opacity = ".55";
         editor.field.title = exclusionReason;
         var hint = el("div", "setting-hint");
         hint.textContent = exclusionReason;
@@ -4419,9 +4425,9 @@ to {
         var removeBtn = row.querySelector(".photo-id-remove");
         var moveUpBtn = row.querySelector(".photo-id-move-up");
         var moveDownBtn = row.querySelector(".photo-id-move-down");
-        if (removeBtn) removeBtn.disabled = idInputs.length <= 1;
-        if (moveUpBtn) moveUpBtn.disabled = index === 0;
-        if (moveDownBtn) moveDownBtn.disabled = index === rows.length - 1;
+        if (removeBtn) removeBtn.disabled = idInputs.length <= 1 && !opts.allowClearLast;
+        if (moveUpBtn) moveUpBtn.disabled = !!opts.disableEditing || index === 0;
+        if (moveDownBtn) moveDownBtn.disabled = !!opts.disableEditing || index === rows.length - 1;
       });
     }
     function movePhotoIdRow(row, direction) {
@@ -4446,6 +4452,8 @@ to {
       var fields = el("div", "photo-id-fields");
       var idInput = input("text", value || "", opts.idPlaceholder, MAX_PHOTO_ID_FIELD_LENGTH);
       var labelInput = input("text", labelValue || "", opts.labelPlaceholder, MAX_PHOTO_ID_FIELD_LENGTH);
+      idInput.readOnly = !!opts.disableEditing;
+      labelInput.readOnly = !!opts.disableEditing;
       var actions = el("div", "photo-id-row-actions");
       var moveUpTitle = opts.moveUpTitle || "Move up";
       var moveDownTitle = opts.moveDownTitle || "Move down";
@@ -4515,6 +4523,7 @@ to {
     });
     addBtn.title = opts.addText;
     addBtn.setAttribute("aria-label", opts.addText);
+    addBtn.disabled = !!opts.disableEditing;
     addRowWrap.appendChild(addBtn);
     f.appendChild(list);
     f.appendChild(addRowWrap);

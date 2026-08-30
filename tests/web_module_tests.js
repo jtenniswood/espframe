@@ -7,6 +7,7 @@ const template = fs.readFileSync(path.join(root, "docs/webserver/src/app.templat
 const publicApp = fs.readFileSync(path.join(root, "docs/public/webserver/app.js"), "utf8");
 const endpointsSource = fs.readFileSync(path.join(root, "docs/webserver/src/endpoints.ts"), "utf8");
 const backupImportSource = fs.readFileSync(path.join(root, "docs/webserver/src/backup_import.ts"), "utf8");
+const immichFilterSource = fs.readFileSync(path.join(root, "common/addon/immich_filter.yaml"), "utf8");
 const product = JSON.parse(fs.readFileSync(path.join(root, "product/espframe.json"), "utf8"));
 const supportButtonImage = fs.readFileSync(
   path.join(root, "docs/webserver/src/buy_me_a_coffee_button.webp.b64"),
@@ -50,6 +51,25 @@ assert.ok(publicApp.includes("movePhotoIdRow"), "public app should keep photo ID
 assert.ok(
   publicApp.includes("All selected albums require Immich 3.2 or newer"),
   "flat-filter servers should explain why all-album matching is unavailable"
+);
+assert.ok(
+  publicApp.includes("Choose Any to clear a saved value") &&
+    publicApp.includes("String(optionEl.value) !== String(recoveryValue)"),
+  "compatibility mode should allow a saved unsupported rating to be cleared"
+);
+assert.ok(
+  publicApp.includes("disableEditing: !supportsStructured") &&
+    publicApp.includes("allowClearLast: !supportsStructured") &&
+    publicApp.includes("Saved exclusions can still be removed"),
+  "compatibility mode should prevent new exclusions while allowing saved exclusions to be removed"
+);
+const filterFlush = immichFilterSource.slice(
+  immichFilterSource.indexOf("- id: flush_slots_and_refetch"),
+  immichFilterSource.indexOf("- id: auto_apply_photo_source")
+);
+assert.ok(
+  filterFlush.includes("id(immich_request_state).empty_branch_attempts = 0"),
+  "applying a photo filter should reset exhausted inclusion-branch attempts"
 );
 const photoSourceApply = publicApp.slice(
   publicApp.indexOf("function applyPhotoSourceInputs()"),
