@@ -4,6 +4,9 @@ globals:
   - id: immich_filter_preset_adapter_active
     type: bool
     initial_value: 'false'
+  - id: immich_filter_boot_restore_complete
+    type: bool
+    initial_value: 'false'
   - id: immich_filter_schema_version
     type: uint8_t
     restore_value: true
@@ -24,6 +27,7 @@ esphome:
               - lambda: |-
                   id(immich_filter_schema_version) = 1;
                   global_preferences->sync();
+        - lambda: 'id(immich_filter_boot_restore_complete) = true;'
 
 # IMMICH FILTER - Photo source selection and filtering
 # =============================================================================
@@ -58,10 +62,14 @@ select:
     on_value:
       then:
         - lambda: 'ESP_LOGI("immich", "Photo source: %s", x.c_str());'
-        - script.execute:
-            id: apply_legacy_photo_source_preset
-            preserve_tag_matching: false
-        - script.execute: auto_apply_photo_source
+        - if:
+            condition:
+              lambda: 'return id(immich_filter_boot_restore_complete);'
+            then:
+              - script.execute:
+                  id: apply_legacy_photo_source_preset
+                  preserve_tag_matching: false
+              - script.execute: auto_apply_photo_source
 
   - platform: template
     name: "Photos: Inclusion Groups"

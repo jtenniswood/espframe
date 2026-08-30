@@ -174,8 +174,15 @@ assert.ok(
   "legacy schema migration should preserve the restored tag-matching preference"
 );
 assert.ok(
-  legacySourceSelect.includes("preserve_tag_matching: false"),
-  "explicit legacy source selections should reset tag matching to the preset default"
+  legacySourceSelect.includes("immich_filter_boot_restore_complete") &&
+    legacySourceSelect.includes("preserve_tag_matching: false"),
+  "only explicit post-restore legacy source selections should reset preset defaults"
+);
+assert.ok(
+  legacyMigration.includes("immich_filter_boot_restore_complete) = true") &&
+    legacyMigration.indexOf("immich_filter_boot_restore_complete) = true") >
+      legacyMigration.indexOf("preserve_tag_matching: true"),
+  "boot restoration should remain guarded until legacy filter migration finishes"
 );
 assert.ok(
   legacyPreset.includes("if (!preserve_tag_matching)") &&
