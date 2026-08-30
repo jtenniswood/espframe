@@ -189,7 +189,11 @@ void OnlineImage::update() {
   // unwinding is disabled on firmware builds, so calling it under severe
   // internal-memory pressure aborts the device. Defer this one image and let
   // the slideshow retry after in-flight decode/TLS resources are released.
-  constexpr size_t MIN_INTERNAL_FREE = 96 * 1024;
+  // A fully initialized P4 display normally has roughly 90 KiB free here.
+  // Keep enough headroom for TLS without rejecting every image on a healthy
+  // device; the largest-block check still protects the allocation that failed
+  // during the original crash loop.
+  constexpr size_t MIN_INTERNAL_FREE = 64 * 1024;
   constexpr size_t MIN_INTERNAL_BLOCK = 32 * 1024;
   size_t internal_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   size_t internal_largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
