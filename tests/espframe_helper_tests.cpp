@@ -381,6 +381,17 @@ static void test_immich_request_state() {
   ImmichRequestState state;
   assert(!state.cooldown_active(100));
   assert(state.retry_delay_ms == 2000);
+  assert(state.random_request_is_current());
+  state.begin_random_request();
+  assert(state.random_request_is_current());
+  state.invalidate_photo_source_requests();
+  assert(!state.random_request_is_current());
+  state.begin_random_request();
+  assert(state.random_request_is_current());
+  uint32_t source_generation = state.photo_source_generation;
+  state.reset();
+  assert(state.photo_source_generation == source_generation + 1);
+  assert(!state.random_request_is_current());
   uint32_t cached_total = 0;
   bool cached_upper_bound = false;
   assert(!state.find_metadata_count("album-a", 1000, &cached_total, &cached_upper_bound));

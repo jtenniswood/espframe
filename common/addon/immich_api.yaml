@@ -791,6 +791,7 @@ script:
                   id(deferred_slot0_image_update), id(deferred_slot1_image_update),
                   id(deferred_slot2_image_update));
             - script.stop: immich_fetch_into_slot
+      - lambda: 'id(immich_request_state).begin_random_request();'
       - http_request.post:
           id: http_req
           url: !lambda 'return id(immich_url).state + "/api/search/random";'
@@ -823,6 +824,16 @@ script:
               id(immich_request_state).metadata_tag_ids, extra);
           on_response:
             then:
+              - if:
+                  condition:
+                    lambda: 'return !id(immich_request_state).random_request_is_current();'
+                  then:
+                    - logger.log:
+                        level: DEBUG
+                        tag: immich
+                        format: "Discarding response from previous photo source"
+                    - script.execute: delayed_prefetch_chain
+                    - script.stop: immich_fetch_into_slot
               - lambda: |-
                   if (response->status_code != 200) {
                     int code = response->status_code;
@@ -908,6 +919,16 @@ script:
                     id(deferred_slot1_image_update), id(deferred_slot2_image_update));
           on_error:
             then:
+              - if:
+                  condition:
+                    lambda: 'return !id(immich_request_state).random_request_is_current();'
+                  then:
+                    - logger.log:
+                        level: DEBUG
+                        tag: immich
+                        format: "Discarding request error from previous photo source"
+                    - script.execute: delayed_prefetch_chain
+                    - script.stop: immich_fetch_into_slot
               - lambda: |-
                   id(immich_request_state).register_request_error();
                   ESP_LOGW("immich", "API request error for slot %d (attempt %d)", id(espframe_core).slideshow().state().target_slot, id(immich_request_state).api_retries);

@@ -61,8 +61,24 @@ struct ImmichRequestState {
   std::vector<ImmichMetadataCountCacheEntry> metadata_count_cache;
   bool candidate_pool_hit = false;
   std::string candidate_pool_source_filter_id;
+  uint32_t photo_source_generation = 0;
+  uint32_t random_request_generation = 0;
 
-  void reset() { *this = ImmichRequestState{}; }
+  void reset() {
+    uint32_t next_photo_source_generation = this->photo_source_generation + 1;
+    *this = ImmichRequestState{};
+    this->photo_source_generation = next_photo_source_generation;
+  }
+
+  void invalidate_photo_source_requests() { this->photo_source_generation++; }
+
+  void begin_random_request() {
+    this->random_request_generation = this->photo_source_generation;
+  }
+
+  bool random_request_is_current() const {
+    return this->random_request_generation == this->photo_source_generation;
+  }
 
   // Kept for the photo-source flush path. Album pagination no longer has a
   // statistics fallback cache, but applying a source must still clear its

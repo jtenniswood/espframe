@@ -375,6 +375,7 @@ script:
           // Album metadata fallback pages depend on the active source and
           // filters, so discard their RAM-only cursors whenever this applies.
           id(immich_request_state).reset_album_metadata_fallbacks();
+          id(immich_request_state).invalidate_photo_source_requests();
           id(immich_candidate_pool).clear();
           id(immich_request_state).candidate_pool_source_filter_id.clear();
           // A flush discards every slot, so it has to discard the work that was
