@@ -11,6 +11,7 @@ from typing import Any
 
 from product_config import (
     backup_schema,
+    load_contract_manifest,
     load_product,
     public_base_url,
     web_entity_aliases_metadata,
@@ -94,8 +95,8 @@ def check_generated_web_metadata(product: dict[str, Any], errors: list[str]) -> 
 
 def check_backup_version_contract(product: dict[str, Any], errors: list[str]) -> None:
     version = product["project"].get("backup_config_version")
-    if version != 1:
-        errors.append("Phase 4 compatibility keeps backup_config_version at 1")
+    if version != 2:
+        errors.append("Smart Filter V1 requires backup_config_version 2")
     web_text = WEB_APP.read_text()
     require_contains(web_text, "var BACKUP_CONFIG_VERSION = ", rel(WEB_APP), errors)
     require_contains(web_text, "validateBackupConfigVersion", rel(WEB_APP), errors)
@@ -105,7 +106,8 @@ def check_backup_version_contract(product: dict[str, Any], errors: list[str]) ->
 def fixture_validation_errors(data: dict[str, Any], product: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     project = product["project"]
-    if data.get("version") != project.get("backup_config_version"):
+    supported_versions = set(load_contract_manifest().get("compatibility", {}).get("backup_versions", []))
+    if data.get("version") not in supported_versions:
         errors.append("missing or unsupported version")
 
     options = {
@@ -116,6 +118,11 @@ def fixture_validation_errors(data: dict[str, Any], product: dict[str, Any]) -> 
     if isinstance(photos, dict):
         for backup_key, setting_key in (
             ("source", "photo_source"),
+            ("inclusion_matching", "inclusion_matching"),
+            ("album_matching", "album_matching"),
+            ("person_matching", "person_matching"),
+            ("favorite_mode", "favorite_mode"),
+            ("minimum_rating", "minimum_rating"),
             ("album_order", "album_order"),
             ("date_filter_mode", "date_filter_mode"),
             ("relative_unit", "relative_unit"),
@@ -126,10 +133,13 @@ def fixture_validation_errors(data: dict[str, Any], product: dict[str, Any]) -> 
             if value is not None and str(value) not in options.get(setting_key, set()):
                 errors.append(f"photos.{backup_key} has unsupported option")
         limit = int(project.get("backup_import_photo_id_limit", 255))
-        for key in ("album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels"):
+        for key in ("album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels",
+                    "excluded_album_ids", "excluded_album_labels", "excluded_person_ids",
+                    "excluded_person_labels", "excluded_tag_ids", "excluded_tag_labels"):
             if len(str(photos.get(key, ""))) > limit:
                 errors.append(f"photos.{key} exceeds {limit} characters")
-        for key in ("album_ids", "person_ids", "tag_ids"):
+        for key in ("album_ids", "person_ids", "tag_ids", "excluded_album_ids",
+                    "excluded_person_ids", "excluded_tag_ids"):
             value = str(photos.get(key, "")).strip()
             if value and not UUID_LIST_RE.match(value):
                 errors.append(f"photos.{key} is not a UUID list")

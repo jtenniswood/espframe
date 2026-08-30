@@ -14,11 +14,11 @@ struct ConfigurationField {
 
 inline constexpr unsigned int CONTRACT_VERSION = 2;
 inline constexpr unsigned int API_VERSION = 1;
-inline constexpr unsigned int SETTING_COUNT = 36;
-inline constexpr unsigned int CONFIGURATION_FIELD_COUNT = 50;
+inline constexpr unsigned int SETTING_COUNT = 47;
+inline constexpr unsigned int CONFIGURATION_FIELD_COUNT = 68;
 inline constexpr const char CAPABILITIES_PATH[] = "/espframe/api/v1/capabilities";
 inline constexpr const char CONFIGURATION_PATH[] = "/espframe/api/v1/configuration";
-inline constexpr const char CAPABILITIES_JSON[] = R"ESPFRAME_JSON({"contract_version":2,"api_version":1,"base_path":"/espframe/api/v1","capabilities_path":"/espframe/api/v1/capabilities","configuration_path":"/espframe/api/v1/configuration","update_mode":"atomic","configuration_available":true,"configuration_read":true,"configuration_write":true,"configuration_encoding":"application/x-www-form-urlencoded","configuration_parameter":"configuration","legacy_entity_api":true,"backup_versions":[1],"setting_count":36})ESPFRAME_JSON";
+inline constexpr const char CAPABILITIES_JSON[] = R"ESPFRAME_JSON({"contract_version":2,"api_version":1,"base_path":"/espframe/api/v1","capabilities_path":"/espframe/api/v1/capabilities","configuration_path":"/espframe/api/v1/configuration","update_mode":"atomic","configuration_available":true,"configuration_read":true,"configuration_write":true,"configuration_encoding":"application/x-www-form-urlencoded","configuration_parameter":"configuration","legacy_entity_api":true,"backup_versions":[1,2],"setting_count":47})ESPFRAME_JSON";
 inline constexpr ConfigurationField CONFIGURATION_FIELDS[] = {
     {"photo_source", "select", "Photos: Source", false},
     {"album_order", "select", "Photos: Album Order", false},
@@ -56,6 +56,17 @@ inline constexpr ConfigurationField CONFIGURATION_FIELDS[] = {
     {"portrait_pairs_only", "switch", "Photos: Paired Portraits Only", false},
     {"photo_metadata_date_enabled", "switch", "Device: Metadata Date", false},
     {"photo_metadata_location_enabled", "switch", "Device: Metadata Location", false},
+    {"albums_enabled", "switch", "Photos: Albums Enabled", false},
+    {"people_enabled", "switch", "Photos: People Enabled", false},
+    {"tags_enabled", "switch", "Photos: Tags Enabled", false},
+    {"inclusion_matching", "select", "Photos: Inclusion Groups", false},
+    {"album_matching", "select", "Photos: Album Matching", false},
+    {"person_matching", "select", "Photos: Person Matching", false},
+    {"favorite_mode", "select", "Photos: Favorites", false},
+    {"minimum_rating", "select", "Photos: Minimum Rating", false},
+    {"filter_country", "text", "Photos: Country", false},
+    {"filter_state", "text", "Photos: State or Province", false},
+    {"filter_city", "text", "Photos: City", false},
     {"timezone", "select", "Clock: Timezone", false},
     {"ntp_server_1", "text", "Clock: NTP Server 1", false},
     {"ntp_server_2", "text", "Clock: NTP Server 2", false},
@@ -66,6 +77,13 @@ inline constexpr ConfigurationField CONFIGURATION_FIELDS[] = {
     {"person_labels", "text", "Photos: Person Labels", false},
     {"tag_ids", "text", "Photos: Tag IDs", false},
     {"tag_labels", "text", "Photos: Tag Labels", false},
+    {"excluded_album_ids", "text", "Photos: Excluded Album IDs", false},
+    {"excluded_album_labels", "text", "Photos: Excluded Album Labels", false},
+    {"excluded_person_ids", "text", "Photos: Excluded Person IDs", false},
+    {"excluded_person_labels", "text", "Photos: Excluded Person Labels", false},
+    {"excluded_tag_ids", "text", "Photos: Excluded Tag IDs", false},
+    {"excluded_tag_labels", "text", "Photos: Excluded Tag Labels", false},
+    {"memories_migration_notice", "switch", "Photos: Memories Migration Notice", false},
     {"developer_features_enabled", "switch", "Developer: Features", false},
     {"show_clock", "switch", "Clock: Show", false},
     {"immich_url", "text", "Connection: Server URL", false},

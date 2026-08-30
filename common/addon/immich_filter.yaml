@@ -1,4 +1,28 @@
 # =============================================================================
+
+globals:
+  - id: immich_filter_preset_adapter_active
+    type: bool
+    initial_value: 'false'
+  - id: immich_filter_schema_version
+    type: uint8_t
+    restore_value: true
+    initial_value: '0'
+
+esphome:
+  on_boot:
+    - priority: -250
+      then:
+        - delay: 2s
+        - if:
+            condition:
+              lambda: 'return id(immich_filter_schema_version) == 0;'
+            then:
+              - script.execute: apply_legacy_photo_source_preset
+              - lambda: |-
+                  id(immich_filter_schema_version) = 1;
+                  global_preferences->sync();
+
 # IMMICH FILTER - Photo source selection and filtering
 # =============================================================================
 # Controls which photos the frame displays: all photos, favorites only,
@@ -6,7 +30,8 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Photo source (All / Favorites / Album / Person / Tag / Memories)
+# Deprecated photo-source preset adapter. The web UI uses the composable filter;
+# this entity remains for one compatibility release for Home Assistant clients.
 # -----------------------------------------------------------------------------
 select:
   - platform: template
@@ -20,6 +45,7 @@ select:
       - "Person"
       - "Tag"
       - "Memories"
+      - "Custom"
     initial_option: "All Photos"
     optimistic: true
     restore_value: true
@@ -30,6 +56,97 @@ select:
     on_value:
       then:
         - lambda: 'ESP_LOGI("immich", "Photo source: %s", x.c_str());'
+        - script.execute: apply_legacy_photo_source_preset
+        - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: Inclusion Groups"
+    id: immich_inclusion_matching
+    internal: true
+    # ESPFRAME:SETTING_FIELDS inclusion_matching START
+    options:
+      - "Match all enabled groups"
+      - "Match any enabled group"
+    initial_option: "Match all enabled groups"
+    optimistic: true
+    restore_value: true
+    # ESPFRAME:SETTING_FIELDS inclusion_matching END
+    on_value:
+      then:
+        - script.execute: mark_photo_filter_custom
+        - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: Album Matching"
+    id: immich_album_matching
+    internal: true
+    # ESPFRAME:SETTING_FIELDS album_matching START
+    options:
+      - "Any selected album"
+      - "All selected albums"
+    initial_option: "Any selected album"
+    optimistic: true
+    restore_value: true
+    # ESPFRAME:SETTING_FIELDS album_matching END
+    on_value:
+      then:
+        - script.execute: mark_photo_filter_custom
+        - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: Person Matching"
+    id: immich_person_matching
+    internal: true
+    # ESPFRAME:SETTING_FIELDS person_matching START
+    options:
+      - "Any selected person"
+      - "All selected people"
+    initial_option: "Any selected person"
+    optimistic: true
+    restore_value: true
+    # ESPFRAME:SETTING_FIELDS person_matching END
+    on_value:
+      then:
+        - script.execute: mark_photo_filter_custom
+        - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: Favorites"
+    id: immich_favorite_mode
+    internal: true
+    # ESPFRAME:SETTING_FIELDS favorite_mode START
+    options:
+      - "Any"
+      - "Favorites only"
+      - "Exclude favorites"
+    initial_option: "Any"
+    optimistic: true
+    restore_value: true
+    # ESPFRAME:SETTING_FIELDS favorite_mode END
+    on_value:
+      then:
+        - script.execute: mark_photo_filter_custom
+        - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: Minimum Rating"
+    id: immich_minimum_rating
+    internal: true
+    # ESPFRAME:SETTING_FIELDS minimum_rating START
+    options:
+      - "Any"
+      - "1+"
+      - "2+"
+      - "3+"
+      - "4+"
+      - "5+"
+    initial_option: "Any"
+    optimistic: true
+    restore_value: true
+    # ESPFRAME:SETTING_FIELDS minimum_rating END
+    on_value:
+      then:
+        - script.execute: mark_photo_filter_custom
         - script.execute: auto_apply_photo_source
 
   - platform: template
@@ -157,6 +274,64 @@ number:
 # -----------------------------------------------------------------------------
 switch:
   - platform: template
+    name: "Photos: Albums Enabled"
+    id: immich_albums_enabled
+    internal: true
+    optimistic: true
+    # ESPFRAME:SETTING_FIELDS albums_enabled START
+    restore_mode: RESTORE_DEFAULT_OFF
+    # ESPFRAME:SETTING_FIELDS albums_enabled END
+    on_turn_on:
+      then:
+        - script.execute: mark_photo_filter_custom
+        - script.execute: auto_apply_photo_source
+    on_turn_off:
+      then:
+        - script.execute: mark_photo_filter_custom
+        - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: People Enabled"
+    id: immich_people_enabled
+    internal: true
+    optimistic: true
+    # ESPFRAME:SETTING_FIELDS people_enabled START
+    restore_mode: RESTORE_DEFAULT_OFF
+    # ESPFRAME:SETTING_FIELDS people_enabled END
+    on_turn_on:
+      then:
+        - script.execute: mark_photo_filter_custom
+        - script.execute: auto_apply_photo_source
+    on_turn_off:
+      then:
+        - script.execute: mark_photo_filter_custom
+        - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: Tags Enabled"
+    id: immich_tags_enabled
+    internal: true
+    optimistic: true
+    # ESPFRAME:SETTING_FIELDS tags_enabled START
+    restore_mode: RESTORE_DEFAULT_OFF
+    # ESPFRAME:SETTING_FIELDS tags_enabled END
+    on_turn_on:
+      then:
+        - script.execute: mark_photo_filter_custom
+        - script.execute: auto_apply_photo_source
+    on_turn_off:
+      then:
+        - script.execute: mark_photo_filter_custom
+        - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: Memories Migration Notice"
+    id: immich_memories_migration_notice
+    internal: true
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: template
     name: "Photos: Date Filter"
     id: immich_date_filter_enabled
     internal: true
@@ -178,6 +353,132 @@ switch:
 # Date range filter (optional, YYYY-MM-DD; empty = no bound)
 # -----------------------------------------------------------------------------
 text:
+  - platform: template
+    name: "Photos: Country"
+    id: immich_filter_country
+    internal: true
+    # ESPFRAME:SETTING_FIELDS filter_country START
+    optimistic: false
+    restore_value: true
+    min_length: 0
+    max_length: 96
+    mode: text
+    # ESPFRAME:SETTING_FIELDS filter_country END
+    set_action:
+      - lambda: 'id(immich_filter_country).publish_state(x);'
+      - script.execute: mark_photo_filter_custom
+      - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: State or Province"
+    id: immich_filter_state
+    internal: true
+    # ESPFRAME:SETTING_FIELDS filter_state START
+    optimistic: false
+    restore_value: true
+    min_length: 0
+    max_length: 96
+    mode: text
+    # ESPFRAME:SETTING_FIELDS filter_state END
+    set_action:
+      - lambda: 'id(immich_filter_state).publish_state(x);'
+      - script.execute: mark_photo_filter_custom
+      - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: City"
+    id: immich_filter_city
+    internal: true
+    # ESPFRAME:SETTING_FIELDS filter_city START
+    optimistic: false
+    restore_value: true
+    min_length: 0
+    max_length: 96
+    mode: text
+    # ESPFRAME:SETTING_FIELDS filter_city END
+    set_action:
+      - lambda: 'id(immich_filter_city).publish_state(x);'
+      - script.execute: mark_photo_filter_custom
+      - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: Excluded Album IDs"
+    id: immich_excluded_album_ids
+    internal: true
+    optimistic: false
+    restore_value: true
+    min_length: 0
+    max_length: 255
+    mode: text
+    set_action:
+      - lambda: 'id(immich_excluded_album_ids).publish_state(decode_url_commas(x));'
+      - script.execute: mark_photo_filter_custom
+      - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: Excluded Album Labels"
+    id: immich_excluded_album_labels
+    internal: true
+    optimistic: false
+    restore_value: true
+    min_length: 0
+    max_length: 255
+    mode: text
+    set_action:
+      - lambda: 'id(immich_excluded_album_labels).publish_state(x);'
+
+  - platform: template
+    name: "Photos: Excluded Person IDs"
+    id: immich_excluded_person_ids
+    internal: true
+    optimistic: false
+    restore_value: true
+    min_length: 0
+    max_length: 255
+    mode: text
+    set_action:
+      - lambda: 'id(immich_excluded_person_ids).publish_state(decode_url_commas(x));'
+      - script.execute: mark_photo_filter_custom
+      - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: Excluded Person Labels"
+    id: immich_excluded_person_labels
+    internal: true
+    optimistic: false
+    restore_value: true
+    min_length: 0
+    max_length: 255
+    mode: text
+    set_action:
+      - lambda: 'id(immich_excluded_person_labels).publish_state(x);'
+
+  - platform: template
+    name: "Photos: Excluded Tag IDs"
+    id: immich_excluded_tag_ids
+    internal: true
+    optimistic: false
+    restore_value: true
+    min_length: 0
+    max_length: 255
+    mode: text
+    set_action:
+      - lambda: 'id(immich_excluded_tag_ids).publish_state(decode_url_commas(x));'
+      - script.execute: mark_photo_filter_custom
+      - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: Excluded Tag Labels"
+    id: immich_excluded_tag_labels
+    internal: true
+    optimistic: false
+    restore_value: true
+    min_length: 0
+    max_length: 255
+    mode: text
+    set_action:
+      - lambda: 'id(immich_excluded_tag_labels).publish_state(x);'
+
   - platform: template
     name: "Photos: Date From"
     id: immich_date_from
@@ -351,17 +652,101 @@ button:
 # Delayed auto-apply after source/album/person/tag change
 # -----------------------------------------------------------------------------
 script:
+  - id: sync_immich_filter_config
+    mode: restart
+    then:
+      - lambda: |-
+          ImmichFilterConfig config;
+          config.albums_enabled = id(immich_albums_enabled).state;
+          config.people_enabled = id(immich_people_enabled).state;
+          config.tags_enabled = id(immich_tags_enabled).state;
+          config.album_ids = id(immich_album_ids).state;
+          config.person_ids = id(immich_person_ids).state;
+          config.tag_ids = id(immich_tag_ids).state;
+          config.album_matching = id(immich_album_matching).current_option();
+          config.person_matching = id(immich_person_matching).current_option();
+          config.tag_matching = id(immich_tag_matching).current_option();
+          config.inclusion_matching = id(immich_inclusion_matching).current_option();
+          config.favorite_mode = id(immich_favorite_mode).current_option();
+          config.minimum_rating = id(immich_minimum_rating).current_option() == "Any"
+            ? 0 : static_cast<uint8_t>(atoi(id(immich_minimum_rating).current_option().c_str()));
+          config.country = id(immich_filter_country).state;
+          config.state = id(immich_filter_state).state;
+          config.city = id(immich_filter_city).state;
+          config.excluded_album_ids = id(immich_excluded_album_ids).state;
+          config.excluded_person_ids = id(immich_excluded_person_ids).state;
+          config.excluded_tag_ids = id(immich_excluded_tag_ids).state;
+          auto now = id(sntp_time).now();
+          ImmichDateRange range = resolve_immich_date_filter(
+            id(immich_date_filter_enabled).state,
+            id(immich_date_filter_mode).current_option(),
+            (int) (id(immich_relative_amount).state + 0.5f),
+            id(immich_relative_unit).current_option(),
+            now.is_valid(), now.year, now.month, now.day_of_month,
+            id(immich_date_from).state, id(immich_date_to).state);
+          config.taken_after = range.from;
+          config.taken_before = range.to;
+          id(immich_filter_config) = config;
+
+  - id: mark_photo_filter_custom
+    mode: restart
+    then:
+      - lambda: |-
+          if (id(immich_filter_preset_adapter_active)) return;
+          if (id(photo_source_select).current_option() == "Custom") return;
+          auto call = id(photo_source_select).make_call();
+          call.set_option("Custom");
+          call.perform();
+
+  - id: apply_legacy_photo_source_preset
+    mode: restart
+    then:
+      - lambda: |-
+          const std::string source = id(photo_source_select).current_option();
+          if (source == "Custom") return;
+          id(immich_filter_preset_adapter_active) = true;
+          auto set_switch = [](auto *control, bool enabled) {
+            if (enabled) control->turn_on(); else control->turn_off();
+          };
+          set_switch(id(immich_albums_enabled), source == "Album");
+          set_switch(id(immich_people_enabled), source == "Person");
+          set_switch(id(immich_tags_enabled), source == "Tag");
+          auto favorite = id(immich_favorite_mode).make_call();
+          favorite.set_option(source == "Favorites" ? "Favorites only" : "Any");
+          favorite.perform();
+          auto rating = id(immich_minimum_rating).make_call();
+          rating.set_option("Any");
+          rating.perform();
+          id(immich_filter_country).publish_state("");
+          id(immich_filter_state).publish_state("");
+          id(immich_filter_city).publish_state("");
+          id(immich_excluded_album_ids).publish_state("");
+          id(immich_excluded_person_ids).publish_state("");
+          id(immich_excluded_tag_ids).publish_state("");
+          global_preferences->sync();
+          if (source == "Memories") {
+            id(immich_memories_migration_notice).turn_on();
+            auto all_photos = id(photo_source_select).make_call();
+            all_photos.set_option("All Photos");
+            all_photos.perform();
+          }
+          id(immich_filter_preset_adapter_active) = false;
+
   - id: flush_slots_and_refetch
     mode: single
     then:
+      - script.execute: sync_immich_filter_config
+      - delay: 1ms
       - if:
           condition:
             lambda: |-
-              return !immich_source_has_required_ids(
-                id(photo_source_select).current_option(),
-                id(immich_album_ids).state,
-                id(immich_person_ids).state,
-                id(immich_tag_ids).state);
+              const auto &config = id(immich_filter_config);
+              if (config.albums_enabled && split_valid_uuid_csv(config.album_ids).empty()) return true;
+              if (config.people_enabled && split_valid_uuid_csv(config.person_ids).empty()) return true;
+              if (config.tags_enabled && split_valid_uuid_csv(config.tag_ids).empty()) return true;
+              return !immich_filter_location_is_valid(config) ||
+                (id(immich_request_state).api_generation == ImmichApiGeneration::V31_FLAT &&
+                 immich_filter_requires_v32(config));
           then:
             - logger.log:
                 level: DEBUG

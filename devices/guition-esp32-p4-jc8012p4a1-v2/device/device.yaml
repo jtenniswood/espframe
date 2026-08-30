@@ -426,7 +426,6 @@ touchscreen:
       - script.execute: backlight_wake
     on_update:
       - lambda: |-
-          if (!id(developer_features_enabled).state) return;
           if (touches.empty()) return;
           const auto &touch = touches.front();
           auto map_visible = [](int x, int y, int &screen_x, int &screen_y) {
@@ -445,7 +444,7 @@ touchscreen:
               screen_y = y;
             }
           };
-          if (id(photo_source_menu_open)) {
+          if (id(photo_source_menu_open) && id(developer_features_enabled).state) {
             if (id(photo_source_swipe_triggered) || id(photo_source_menu_touch_handled)) return;
             auto hit_at = [&](lv_obj_t *obj, int x, int y) -> bool {
               lv_area_t coords;
@@ -485,6 +484,29 @@ touchscreen:
           int start_x, start_y, current_x, current_y;
           map_visible(touch.x_org, touch.y_org, start_x, start_y);
           map_visible(touch.x, touch.y, current_x, current_y);
+          const int horizontal_delta = current_x - start_x;
+          const int vertical_delta = current_y - start_y;
+          const int horizontal_distance = std::abs(horizontal_delta);
+          const int vertical_distance = std::abs(vertical_delta);
+          const bool slideshow_visible = lv_scr_act() == id(slideshow_page)->obj &&
+            lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN) &&
+            !id(photo_source_menu_open);
+          if (slideshow_visible && !id(touch_started_while_off) &&
+              horizontal_distance >= 120 && horizontal_distance > (vertical_distance * 3) / 2) {
+            id(photo_source_swipe_triggered) = true;
+            id(slideshow_swipe_suppress_tap_until_ms) = millis() + 700;
+            id(last_short_tap_ms) = 0;
+            id(backlight_hold_timer).stop();
+            if (horizontal_delta < 0) {
+              id(show_slideshow_navigation_feedback).execute(1);
+              id(immich_advance_forward).execute();
+            } else {
+              id(show_slideshow_navigation_feedback).execute(-1);
+              id(immich_show_previous).execute();
+            }
+            return;
+          }
+          if (!id(developer_features_enabled).state) return;
           const int dy = current_y - start_y;
           const int dx = std::abs(current_x - start_x);
           if (start_y <= 140 && dy >= 110 && dx <= 220) {

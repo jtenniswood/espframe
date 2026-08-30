@@ -276,6 +276,29 @@ lvgl:
                               text_color: 0xFFFFFF
                               text_font: noto_400_28_font
         - obj:
+            id: slideshow_navigation_feedback
+            align: RIGHT_MID
+            x: -36
+            width: 230
+            height: 82
+            radius: 41
+            bg_color: 0x000000
+            bg_opa: 65%
+            border_width: 2
+            border_color: 0xFFFFFF
+            border_opa: 35%
+            pad_all: 0
+            scrollable: false
+            clickable: false
+            hidden: true
+            widgets:
+              - label:
+                  id: slideshow_navigation_feedback_label
+                  align: CENTER
+                  text: "Next  >"
+                  text_color: 0xFFFFFF
+                  text_font: noto_400_30_font
+        - obj:
             id: connection_failed_overlay
             align: CENTER
             width: ${display_width}
@@ -529,6 +552,25 @@ lvgl:
 # =============================================================================
 
 script:
+  - id: show_slideshow_navigation_feedback
+    mode: restart
+    parameters:
+      direction: int
+    then:
+      - lambda: |-
+          if (direction > 0) {
+            lv_label_set_text(id(slideshow_navigation_feedback_label), "Next  >");
+            lv_obj_align(id(slideshow_navigation_feedback), LV_ALIGN_RIGHT_MID, -36, 0);
+          } else {
+            lv_label_set_text(id(slideshow_navigation_feedback_label), "<  Previous");
+            lv_obj_align(id(slideshow_navigation_feedback), LV_ALIGN_LEFT_MID, 36, 0);
+          }
+          lv_obj_clear_flag(id(slideshow_navigation_feedback), LV_OBJ_FLAG_HIDDEN);
+      - delay: 650ms
+      - lambda: |-
+          lv_obj_add_flag(id(slideshow_navigation_feedback), LV_OBJ_FLAG_HIDDEN);
+          id(slideshow_swipe_suppress_tap_until_ms) = 0;
+
   - id: slideshow_on_press
     mode: single
     then:
@@ -546,7 +588,10 @@ script:
     then:
       - if:
           condition:
-            lambda: 'return !id(touch_started_while_off);'
+            lambda: |-
+              return !id(touch_started_while_off) &&
+                     (id(slideshow_swipe_suppress_tap_until_ms) == 0 ||
+                      (int32_t) (millis() - id(slideshow_swipe_suppress_tap_until_ms)) >= 0);
           then:
             - lambda: |-
                 uint32_t now = millis();

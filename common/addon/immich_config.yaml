@@ -39,7 +39,20 @@ esphome:
             condition:
               wifi.connected:
             then:
-              - script.execute: immich_check_config_ready
+              - script.execute: immich_discover_capabilities
+
+text_sensor:
+  - platform: template
+    name: "Immich: Server Version"
+    id: immich_server_version
+    internal: true
+    update_interval: never
+
+  - platform: template
+    name: "Immich: Filter Capabilities"
+    id: immich_capability_status
+    internal: true
+    update_interval: never
 
 # -----------------------------------------------------------------------------
 # Server URL and API key (persisted via NVS)
@@ -138,7 +151,54 @@ script:
           lv_obj_align(id(connection_failed_content), LV_ALIGN_CENTER, 0, 0);
           lv_obj_add_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
           ESP_LOGI("immich", "Connection settings changed; retrying Immich connection");
-      - script.execute: immich_check_config_ready
+      - script.execute: immich_discover_capabilities
+
+  - id: immich_discover_capabilities
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: 'return !is_valid_http_url(id(immich_url).state);'
+          then:
+            - script.execute: immich_check_config_ready
+            - script.stop: immich_discover_capabilities
+      - http_request.get:
+          id: http_req
+          url: !lambda 'return id(immich_url).state + "/api/server/version";'
+          capture_response: true
+          max_response_buffer_size: 2kB
+          request_headers:
+            Accept: application/json
+          on_response:
+            then:
+              - lambda: |-
+                  std::string version;
+                  ImmichApiGeneration generation = ImmichApiGeneration::V31_FLAT;
+                  const bool valid = response->status_code == 200 &&
+                    parse_immich_server_version(body, &version, &generation);
+                  id(immich_request_state).server_version_discovered = true;
+                  id(immich_request_state).server_version = valid ? version : "Unknown";
+                  id(immich_request_state).api_generation = valid
+                    ? generation : ImmichApiGeneration::V31_FLAT;
+                  id(immich_server_version).publish_state(id(immich_request_state).server_version);
+                  id(immich_capability_status).publish_state(
+                    id(immich_request_state).api_generation == ImmichApiGeneration::V32_STRUCTURED
+                      ? "Structured filters (Immich 3.2+)"
+                      : (valid ? "Immich 3.1 compatibility" : "Version unknown; Immich 3.1 compatibility"));
+                  ESP_LOGI("immich", "Server version %s; %s filters",
+                           id(immich_request_state).server_version.c_str(),
+                           id(immich_request_state).api_generation == ImmichApiGeneration::V32_STRUCTURED
+                             ? "structured" : "flat");
+              - script.execute: immich_check_config_ready
+          on_error:
+            then:
+              - lambda: |-
+                  id(immich_request_state).server_version_discovered = true;
+                  id(immich_request_state).server_version = "Unknown";
+                  id(immich_request_state).api_generation = ImmichApiGeneration::V31_FLAT;
+                  id(immich_server_version).publish_state("Unknown");
+                  id(immich_capability_status).publish_state("Version unknown; Immich 3.1 compatibility");
+              - script.execute: immich_check_config_ready
 
   - id: show_photo_source_empty_state
     mode: single
@@ -181,6 +241,26 @@ script:
           condition:
             lambda: 'return is_valid_http_url(id(immich_url).state) && !id(immich_api_key_text).state.empty();'
           then:
+            - if:
+                condition:
+                  lambda: |-
+                    ImmichFilterConfig config;
+                    config.minimum_rating = id(immich_minimum_rating).current_option() == "Any"
+                      ? 0 : static_cast<uint8_t>(atoi(id(immich_minimum_rating).current_option().c_str()));
+                    config.excluded_album_ids = id(immich_excluded_album_ids).state;
+                    config.excluded_person_ids = id(immich_excluded_person_ids).state;
+                    config.excluded_tag_ids = id(immich_excluded_tag_ids).state;
+                    return id(immich_request_state).api_generation == ImmichApiGeneration::V31_FLAT &&
+                           immich_filter_requires_v32(config);
+                then:
+                  - lambda: |-
+                      lv_label_set_text(id(connection_failed_title), "Filter needs Immich 3.2+");
+                      lv_label_set_text(id(connection_failed_subtitle),
+                        "Minimum rating and exclusions\nare saved but not applied.");
+                      lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
+                      clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot,
+                                                 id(espframe_core).slideshow().state().slot_flags);
+                  - script.stop: immich_check_config_ready
             - script.stop: setup_screen_dim
             - lvgl.page.show: slideshow_page
             - if:

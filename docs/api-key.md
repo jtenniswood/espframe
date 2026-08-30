@@ -17,9 +17,8 @@ Espframe needs a read-only API key; it never modifies or uploads. **Account Sett
 | `person.read` | Show people's names on the photo overlay |
 | `album.read` | Album names a photo belongs to |
 | `tag.read` | Tags assigned to photos |
-| `memory.read` | "On this day" memories and groupings |
 | `map.read` | Additional GPS/map data beyond EXIF |
 
 ## Next steps
 
-After creating the key, add the **Immich server URL** and paste this key in the frame’s web UI (or during [Install](/install)). The URL can use `http://` or `https://`, and can be either an IP address or a domain name, for example `http://192.168.1.30:2283` or `https://photos.example.com`. Then choose a [Photo Source](/photo-sources) and your photos will start loading.
+After creating the key, add the **Immich server URL** and paste this key in the frame’s web UI (or during [Install](/install)). The URL can use `http://` or `https://`, and can be either an IP address or a domain name, for example `http://192.168.1.30:2283` or `https://photos.example.com`. Then configure the [Photo Filter](/photo-sources) and your photos will start loading.

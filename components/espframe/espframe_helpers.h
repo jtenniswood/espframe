@@ -59,6 +59,7 @@ struct PhotoMeta {
 struct SlotMeta : PhotoMeta {
   // Runtime state for one slot in the 3-image ring buffer.
   std::string datetime, companion_url, pending_asset_id, source_filter_id;
+  std::string filter_album_ids, filter_person_ids, filter_tag_ids;
   bool ready = false, is_portrait = false;
 };
 

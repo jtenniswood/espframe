@@ -118,7 +118,7 @@ A useful manual pass is:
 - run the manual **PR Validation** workflow for the branch and flash the downloaded firmware artifact to a test display
 - confirm WiFi setup and Immich setup still work
 - confirm the slideshow starts and advances photos
-- check touch wake, sleep, and next-photo gestures
+- check touch wake, sleep, next-photo, previous-image-set, and next-image-set gestures, including the on-screen feedback
 - open the device web UI and change a setting
 - export a backup, restore it, and confirm important settings survive
 - check firmware update status if release/update behavior changed

@@ -338,6 +338,12 @@ static void test_immich_body_helpers() {
   assert(companion_search.find("\"albumIds\":[\"album-a\"]") != std::string::npos);
   assert(companion_search.find("\"page\"") == std::string::npos);
   assert(companion_search.find("\"withPeople\"") == std::string::npos);
+  std::string companion_metadata = build_immich_companion_metadata_search_body(
+      3, IMMICH_COMPANION_SEARCH_SIZE, "Album", "album-a",
+      "\"takenAfter\":\"2026-01-01T00:00:00.000Z\"");
+  assert(companion_metadata.find("\"page\":3") != std::string::npos);
+  assert(companion_metadata.find("\"size\":20") != std::string::npos);
+  assert(companion_metadata.find("\"albumIds\":[\"album-a\"]") != std::string::npos);
   std::string album_statistics = build_immich_statistics_search_body(
       "Album", "album-a", "", "", "\"takenAfter\":\"2026-01-01T00:00:00.000Z\"");
   assert(album_statistics.find("\"type\":\"IMAGE\"") != std::string::npos);
@@ -375,6 +381,137 @@ static void test_immich_body_helpers() {
   assert(pick_immich_timeline_asset_id_from_candidates({}, "Any").empty());
   assert(pick_immich_timeline_asset_id_from_candidates({{"no-ratio", true, false, 0.0f}},
                                                        "Portrait Only").empty());
+}
+
+static void test_smart_filter_helpers() {
+  const std::string album1 = "11111111-1111-4111-8111-111111111111";
+  const std::string album2 = "22222222-2222-4222-8222-222222222222";
+  const std::string person1 = "33333333-3333-4333-8333-333333333333";
+  const std::string tag1 = "44444444-4444-4444-8444-444444444444";
+  const std::string excluded = "55555555-5555-4555-8555-555555555555";
+
+  assert(immich_api_generation_for_version("3.1.9") == ImmichApiGeneration::V31_FLAT);
+  assert(immich_api_generation_for_version("3.2.0") == ImmichApiGeneration::V32_STRUCTURED);
+  assert(immich_api_generation_for_version("4.0.0") == ImmichApiGeneration::V32_STRUCTURED);
+  assert(immich_api_generation_for_version("unknown") == ImmichApiGeneration::V31_FLAT);
+  std::string discovered_version;
+  ImmichApiGeneration discovered_generation = ImmichApiGeneration::V31_FLAT;
+  assert(parse_immich_server_version(
+      "{\"major\":3,\"minor\":2,\"patch\":7}", &discovered_version,
+      &discovered_generation));
+  assert(discovered_version == "3.2.7");
+  assert(discovered_generation == ImmichApiGeneration::V32_STRUCTURED);
+  assert(!parse_immich_server_version("{}", &discovered_version, &discovered_generation));
+  assert(immich_json_escape("A\"B\\C\n") == "A\\\"B\\\\C\\n");
+  assert(is_valid_immich_uuid(album1));
+  assert(!is_valid_immich_uuid("not-a-uuid"));
+  assert(build_valid_uuid_json_array(album1 + ",bad").find("bad") == std::string::npos);
+
+  ImmichFilterConfig empty;
+  ImmichFilterBranch no_branch;
+  std::string flat_empty = build_immich_filter_search_body(
+      empty, no_branch, ImmichApiGeneration::V31_FLAT, 6, true);
+  assert(flat_empty.find("\"type\":\"IMAGE\"") != std::string::npos);
+  assert(flat_empty.find("\"visibility\":\"timeline\"") != std::string::npos);
+  assert(flat_empty.find("\"filter\"") == std::string::npos);
+
+  ImmichFilterConfig constrained;
+  constrained.favorite_mode = "Exclude favorites";
+  constrained.taken_after = "2026-01-01T00:00:00.000Z";
+  constrained.taken_before = "2026-12-31T23:59:59.999Z";
+  constrained.country = "New » Zealand";
+  constrained.state = "Wellington";
+  constrained.city = "Te Aro";
+  std::string flat = build_immich_filter_search_body(
+      constrained, no_branch, ImmichApiGeneration::V31_FLAT, 1, false);
+  assert(flat.find("\"isFavorite\":false") != std::string::npos);
+  assert(flat.find("\"takenAfter\"") != std::string::npos);
+  assert(flat.find("\"country\":\"New » Zealand\"") != std::string::npos);
+  assert(flat.find("\"filter\"") == std::string::npos);
+  assert(immich_filter_location_is_valid(constrained));
+  constrained.country.clear();
+  assert(!immich_filter_location_is_valid(constrained));
+
+  ImmichFilterConfig combined;
+  combined.albums_enabled = true;
+  combined.people_enabled = true;
+  combined.tags_enabled = true;
+  combined.album_ids = album1 + "," + album2;
+  combined.person_ids = person1;
+  combined.tag_ids = tag1;
+  combined.album_matching = "All selected";
+  combined.person_matching = "All selected";
+  combined.tag_matching = "Any selected";
+  combined.minimum_rating = 4;
+  combined.excluded_album_ids = excluded;
+  combined.favorite_mode = "Favorites only";
+  uint8_t group_index = 0;
+  int album_index = 0;
+  ImmichFilterBranch all = select_immich_filter_branch(
+      combined, group_index, album_index, "Album list order");
+  assert(all.group == "All");
+  assert(all.album_ids == combined.album_ids);
+  std::string structured = build_immich_filter_search_body(
+      combined, all, ImmichApiGeneration::V32_STRUCTURED, 10, true, true, 3);
+  assert(structured.find("\"page\":3") != std::string::npos);
+  assert(structured.find("\"filter\":{") != std::string::npos);
+  assert(structured.find("\"type\":{\"eq\":\"IMAGE\"}") != std::string::npos);
+  assert(structured.find("\"rating\":{\"gte\":4}") != std::string::npos);
+  assert(structured.find("\"albumIds\":{\"all\"") != std::string::npos);
+  assert(structured.find("\"none\":[\"" + excluded + "\"]") != std::string::npos);
+  assert(structured.find("\"visibility\":\"timeline\"") == std::string::npos);
+  std::string statistics = build_immich_filter_statistics_body(
+      combined, all, ImmichApiGeneration::V32_STRUCTURED);
+  assert(statistics.find("\"size\"") == std::string::npos);
+  assert(statistics.find("\"withExif\"") == std::string::npos);
+  assert(statistics.find("\"filter\":{") != std::string::npos);
+  assert(immich_filter_requires_v32(combined));
+  assert(immich_filter_branch_uses_album(all));
+
+  combined.inclusion_matching = "Match any enabled group";
+  ImmichFilterBranch first = select_immich_filter_branch(
+      combined, group_index, album_index, "Album list order");
+  ImmichFilterBranch second = select_immich_filter_branch(
+      combined, group_index, album_index, "Album list order");
+  ImmichFilterBranch third = select_immich_filter_branch(
+      combined, group_index, album_index, "Album list order");
+  ImmichFilterBranch fourth = select_immich_filter_branch(
+      combined, group_index, album_index, "Album list order");
+  assert(first.group == "Album");
+  assert(second.group == "Person");
+  assert(third.group == "Tag");
+  assert(fourth.group == "Album");
+  assert(first.album_ids == combined.album_ids);  // All-selected within the sampled group.
+  assert(second.album_ids.empty() && !second.person_ids.empty());
+  assert(third.person_ids.empty() && !third.tag_ids.empty());
+
+  ImmichFilterConfig legacy;
+  assert(legacy_source_for_filter(legacy) == "All Photos");
+  legacy.favorite_mode = "Favorites only";
+  assert(legacy_source_for_filter(legacy) == "Favorites");
+  legacy.favorite_mode = "Any";
+  legacy.albums_enabled = true;
+  legacy.album_ids = album1;
+  assert(legacy_source_for_filter(legacy) == "Album");
+  legacy.minimum_rating = 1;
+  assert(legacy_source_for_filter(legacy) == "Custom");
+
+  for (const std::string &source : {"All Photos", "Favorites", "Album", "Person", "Tag", "Memories"}) {
+    ImmichFilterConfig migrated;
+    migrated.album_ids = album1;
+    migrated.person_ids = person1;
+    migrated.tag_ids = tag1;
+    migrated.taken_after = "2020-01-01T00:00:00.000Z";
+    bool notice = false;
+    apply_legacy_source_to_filter(source, &migrated, &notice);
+    assert(migrated.albums_enabled == (source == "Album"));
+    assert(migrated.people_enabled == (source == "Person"));
+    assert(migrated.tags_enabled == (source == "Tag"));
+    assert(migrated.favorite_mode == (source == "Favorites" ? "Favorites only" : "Any"));
+    assert(notice == (source == "Memories"));
+    assert(migrated.album_ids == album1 && migrated.person_ids == person1 && migrated.tag_ids == tag1);
+    assert(!migrated.taken_after.empty());
+  }
 }
 
 static void test_immich_request_state() {
@@ -1296,13 +1433,13 @@ static void test_configuration_contract_capabilities() {
   using namespace esphome::espframe::contract;
   static_assert(CONTRACT_VERSION == 2);
   static_assert(API_VERSION == 1);
-  static_assert(SETTING_COUNT == 36);
-  static_assert(CONFIGURATION_FIELD_COUNT == 50);
+  static_assert(SETTING_COUNT == 47);
+  static_assert(CONFIGURATION_FIELD_COUNT == 68);
   assert(std::string(CAPABILITIES_PATH) == "/espframe/api/v1/capabilities");
   assert(std::string(CONFIGURATION_PATH) == "/espframe/api/v1/configuration");
   const std::string capabilities(CAPABILITIES_JSON);
   assert(capabilities.find("\"contract_version\":2") != std::string::npos);
-  assert(capabilities.find("\"backup_versions\":[1]") != std::string::npos);
+  assert(capabilities.find("\"backup_versions\":[1,2]") != std::string::npos);
   assert(capabilities.find("\"legacy_entity_api\":true") != std::string::npos);
   assert(capabilities.find("\"configuration_read\":true") != std::string::npos);
   assert(capabilities.find("\"configuration_write\":true") != std::string::npos);
@@ -1313,6 +1450,7 @@ int main() {
   test_date_and_url_helpers();
   test_duration_helpers();
   test_immich_body_helpers();
+  test_smart_filter_helpers();
   test_immich_request_state();
   test_slideshow_slot_actions();
   test_fetch_queue_and_error_handling();

@@ -154,6 +154,7 @@
         "min": { "type": "number" },
         "max": { "type": "number" },
         "step": { "type": "number", "exclusiveMinimum": 0 },
+        "maxLength": { "type": "integer", "minimum": 1 },
         "firmware_initial_option": { "type": "string" },
         "docs_label": { "type": "string", "minLength": 1 },
         "docs_default": { "type": "string" },

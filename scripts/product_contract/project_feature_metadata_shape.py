@@ -155,8 +155,6 @@ def check_project_screen_feature_metadata_shape(product: dict, errors: list[str]
         errors.append("project.photo_source_modes must only contain non-empty strings")
     for field in (
         "photo_source_auto_apply_behavior",
-        "photo_source_memories_window",
-        "photo_source_memories_fallback",
         "photo_source_album_person_sampling",
     ):
         if not str(project.get(field, "")).strip():

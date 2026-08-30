@@ -17,7 +17,7 @@ Espframe is for people who want their photos out in the room, not hidden on a ph
   The frame connects directly to your Immich server over your own network. There is no Espframe cloud service and no extra account to trust with your pictures.
 
 - **Choose what appears on the frame**  
-  Show your whole library, favorites, specific albums, specific people, specific tags, "on this day" memories, or photos from a chosen date range.
+  Combine albums, people, tags, favorites, ratings, dates, locations, exclusions, and orientation in one smart playlist.
 
 - **Make portrait photos look better on a wide screen**  
   Espframe can pair portrait photos from a configurable nearby-day range side-by-side, so the display feels more like a composed frame and less like a single narrow image with empty space. You can also hide portraits when a complete pair is not available.
@@ -26,7 +26,7 @@ Espframe is for people who want their photos out in the room, not hidden on a ph
   Adjust brightness, warm up a panel that looks too blue, use a softer night tone after sunset, and schedule the display to turn off overnight.
 
 - **Control it from the frame or a browser**  
-  Use simple touch gestures to wake, sleep, or advance to the next photo. Open the built-in web page on your phone or computer to change photo sources, timing, brightness, Immich settings, and display options.
+  Use simple touch gestures to wake, sleep, or advance to the next photo, and swipe between image sets. Open the built-in web page on your phone or computer to change the photo filter, timing, brightness, Immich settings, and display options.
 
 - **Use Home Assistant if you want to, but it is not required**  
   Espframe works by itself. If you already use Home Assistant, it can also appear there as an ESPHome device for dashboard controls, automations, and updates.
@@ -75,8 +75,8 @@ The full setup guide is here:
 
 Once installed, the frame has two main control surfaces:
 
-- **On the touchscreen:** tap to wake, double-tap to advance to the next photo, and press-and-hold to sleep.
-- **In the web settings page:** change the photo source, slideshow speed, date filters, brightness, screen tone, rotation, WiFi, Immich connection, and firmware update options.
+- **On the touchscreen:** tap to wake, double-tap to advance to the next photo, swipe left for the next image set, swipe right for the previous image set, and press-and-hold to sleep.
+- **In the web settings page:** change the smart photo filter, slideshow speed, brightness, screen tone, rotation, WiFi, Immich connection, and firmware update options.
 
 ## Development
 

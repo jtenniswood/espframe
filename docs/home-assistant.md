@@ -20,7 +20,7 @@ Under **Settings → Devices & Services → ESPHome** (device page):
 
 | Entity | Type | Description |
 |--------|------|-------------|
-| **Photos: Source** | Select | All Photos, Favorites, Album, Person, Tag, Memories — see [Photo Sources](/photo-sources) |
+| **Photos: Source** | Select | Deprecated preset adapter: All Photos, Favorites, Album, Person, Tag, Memories, or Custom — see [Smart Photo Filters](/photo-sources) |
 | **Photos: Album IDs** | Text | Comma-separated Immich album UUIDs |
 | **Photos: Album Labels** | Text | Optional friendly labels for saved album IDs |
 | **Photos: Person IDs** | Text | Comma-separated Immich person UUIDs |

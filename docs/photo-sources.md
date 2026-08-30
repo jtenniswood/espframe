@@ -1,16 +1,27 @@
 ---
-title: Espframe Photo Sources for Immich
-description: Configure which Immich photos Espframe displays, including all photos, favorites, albums, people, tags, memories, and date filters.
+title: Espframe Smart Photo Filters for Immich
+description: Combine Immich albums, people, tags, favorites, ratings, dates, locations, exclusions, and orientation in one photo filter.
 ---
 
-# Espframe Photo Sources for Immich
+# Espframe Smart Photo Filters for Immich
 
-Choose the **Source** in the device web UI at `http://<device-ip>/` under **Photo Source**. Changes apply automatically shortly after you change a control.
+Open the device web UI at `http://<device-ip>/` and use **Photo Filter**. Albums, people, and tags can be enabled independently, while favorites, dates, location, rating, exclusions, and orientation act as required constraints. Changes apply automatically shortly after you change a control.
 
 <!-- ESPFRAME:SETTINGS_TABLE source START -->
 | Setting | Default | Format | Description |
 |---------|---------|--------|-------------|
 | **Source** | All Photos | Select | Choose all photos, favorites, albums, people, tags, or Immich memories. |
+| **Albums Enabled** | False | Toggle | Include the configured albums as an independently enabled filter group. |
+| **People Enabled** | False | Toggle | Include the configured people as an independently enabled filter group. |
+| **Tags Enabled** | False | Toggle | Include the configured tags as an independently enabled filter group. |
+| **Inclusion Groups** | Match all enabled groups | Select | Require every enabled album, people, and tag group, or rotate evenly through one enabled group per request. |
+| **Album Matching** | Any selected album | Select | Choose whether an album group samples one selected album or requires all selected albums. |
+| **Person Matching** | Any selected person | Select | Choose whether photos may contain any selected person or must contain all selected people. |
+| **Favorites** | Any | Select | Include any photo, require favorites, or exclude favorites. |
+| **Minimum Rating** | Any | Select | Require at least the selected Immich rating; available with Immich 3.2 or newer. |
+| **Country** |  | Exact text, up to 96 characters | Require an exact Immich country value. |
+| **State or Province** |  | Exact text, up to 96 characters | Require an exact state or province; country must also be set. |
+| **City** |  | Exact text, up to 96 characters | Require an exact city; country and state or province must also be set. |
 | **Album Order** | Random albums | Select | Choose whether multiple albums are sampled randomly or cycled in the order shown in the Albums list. |
 | **Tag Matching** | Any selected tag | Select | Choose whether a photo may contain any selected tag or must contain every selected tag. |
 <!-- ESPFRAME:SETTINGS_TABLE source END -->
@@ -22,7 +33,7 @@ Choose the **Source** in the device web UI at `http://<device-ip>/` under **Phot
 | **Album** | One or more album UUIDs | Specific albums |
 | **Person** | One or more person UUIDs | Photos of specific people |
 | **Tag** | One or more tag UUIDs | Photos with specific Immich tags |
-| **Memories** | None | "On this day" from past years |
+| **Custom** | Combine any controls | A composed smart filter |
 
 ---
 
@@ -70,9 +81,11 @@ The device stores each of **Album IDs**, **Album Labels**, **Person IDs**, **Per
 
 Saving multiple IDs uses an HTTP POST body for the value, so the request stays within URL length limits and avoids errors such as **414 URI Too Long**.
 
-## Memories
+## Immich compatibility
 
-Shows "On this day" photos from past years, including two days before and two days after today's date; falls back to random if none. Set **Source** to **Memories**. No IDs needed. API key needs **memory.read**. Set **Timezone** (Clock) correctly so "today" matches.
+Espframe discovers the server version from Immich's public server-version endpoint. Immich 3.1 uses flat search fields. Immich 3.2 and newer use structured filters and add minimum-rating and exclusion rules. On older or unknown versions those controls are disabled, their saved values remain intact, and the frame refuses to silently omit an active unsupported rule.
+
+The former **Memories** source is migrated to an empty filter (equivalent to All Photos) and shown once as a dismissible notice. The deprecated **Photos: Source** Home Assistant entity remains for one compatibility release as a preset adapter; selecting a legacy source resets the smart filter to that preset, while a composed filter reports **Custom**.
 
 ---
 
@@ -137,7 +150,7 @@ Use **Layout** to control how photos are chosen and fitted to the screen.
 
 Portrait pairing is disabled while the screen is in portrait rotation.
 
-**Pairing Range** always checks the same calendar day first. Espframe samples up to 20 assets across the requested window and chooses the compatible portrait closest to the primary photo's capture time. With **±1 Day** or **±2 Days**, it broadens the search only when it cannot find a same-day companion. The range is kept inside any date filter you have configured, and the companion uses the exact album, person, or tag chosen for the primary photo.
+**Pairing Range** always checks the same calendar day first. Espframe first samples up to 20 assets and chooses the compatible portrait closest to the primary photo's capture time. With **±1 Day** or **±2 Days**, it broadens the search only when it cannot find a same-day companion. If those fast samples miss, Espframe pages through every eligible asset until it finds a compatible portrait, so large or shared albums do not produce false "no companion" results. The range is kept inside any date filter you have configured, and the companion uses the exact album, person, or tag chosen for the primary photo.
 
 Turn on **Paired Portraits Only** to skip a portrait when a complete pair cannot be loaded. Landscape photos continue to display normally. While Espframe searches for another eligible photo, the last successfully displayed photo stays on screen.
 

@@ -98,7 +98,173 @@
 
   }
 
+  function makeSmartPhotoFilterCard() {
+    var body = el("div");
+    var version = String(S.immich_server_version || "Unknown");
+    var parts = version.split(".").map(Number);
+    var supportsStructured = parts.length >= 2 && isFinite(parts[0]) && isFinite(parts[1]) &&
+      (parts[0] > 3 || (parts[0] === 3 && parts[1] >= 2));
+    var capability = el("div", "setting-hint");
+    capability.textContent = "Immich " + version + " · " +
+      (supportsStructured ? "structured filters available" : "3.1 compatibility mode");
+    body.appendChild(capability);
+
+    if (S.memories_migration_notice) {
+      var notice = el("div", "banner warning");
+      notice.textContent = "Memories was replaced by an empty filter (All Photos). Use date rules to create a similar playlist. ";
+      var dismiss = button("Dismiss", "btn btn-secondary", function () {
+        post(endpoints.memories_migration_notice + "/turn_off").then(function () {
+          S.memories_migration_notice = false;
+          notice.style.display = "none";
+        });
+      });
+      notice.appendChild(dismiss);
+      body.appendChild(notice);
+    }
+
+    function applySetting(key, value) {
+      return saveSetting(key, value, { applyPhotoSource: true });
+    }
+    function addSelect(label, key, disabled, reason) {
+      var f = field(label);
+      var control = selectFromOptions(productSettingOptions(key), S[key], function (value) {
+        S[key] = value;
+        applySetting(key, value);
+      });
+      control.disabled = !!disabled;
+      if (disabled && reason) control.title = reason;
+      f.appendChild(control);
+      if (disabled && reason) {
+        var hint = el("div", "setting-hint");
+        hint.textContent = reason;
+        f.appendChild(hint);
+      }
+      body.appendChild(f);
+      return f;
+    }
+    function saveList(editor, idKey, labelKey) {
+      var ids = editor.getIdsValue();
+      var labels = editor.getLabelsValue();
+      editor.error.textContent = "";
+      if (photoIdFieldTooLong(ids) || photoLabelFieldTooLong(labels)) {
+        editor.error.textContent = "List exceeds the 255-character device limit.";
+        return;
+      }
+      if (ids && !isValidUuidList(ids)) {
+        editor.error.textContent = "Invalid UUID format";
+        return;
+      }
+      S[idKey] = ids;
+      S[labelKey] = labels;
+      Promise.all([saveSetting(idKey, ids), saveSetting(labelKey, labels)]).then(function () {
+        post(endpoints.apply_photo_source + "/press");
+      });
+    }
+    function addGroup(label, enabledKey, matchingKey, idKey, labelKey, noun) {
+      var details = el("div");
+      body.appendChild(toggleSettingRow({
+        label: "Enable " + label,
+        value: !!S[enabledKey],
+        getValue: function () { return !!S[enabledKey]; },
+        setValue: function (value) { S[enabledKey] = value; },
+        details: details,
+        onChange: function (value) { applySetting(enabledKey, value); }
+      }).field);
+      var matching = field(label + " Matching");
+      matching.appendChild(selectFromOptions(productSettingOptions(matchingKey), S[matchingKey], function (value) {
+        S[matchingKey] = value;
+        applySetting(matchingKey, value);
+      }));
+      details.appendChild(matching);
+      var timer = null;
+      var editor = photoIdListField({
+        label: label,
+        idKey: idKey,
+        labelKey: labelKey,
+        idPlaceholder: "Paste " + noun + " UUID from Immich",
+        labelPlaceholder: "Optional label",
+        addText: "Add " + noun,
+        removeTitle: "Remove " + noun,
+        moveUpTitle: "Move up",
+        moveDownTitle: "Move down",
+        idChanges: {}, labelChanges: {}, clearChanges: {}, reorderChanges: {},
+        onChange: function (_changes, delayMs) {
+          clearTimeout(timer);
+          timer = setTimeout(function () { saveList(editor, idKey, labelKey); }, delayMs == null ? 600 : delayMs);
+        }
+      });
+      details.appendChild(editor.field);
+      details.style.display = S[enabledKey] ? "" : "none";
+      body.appendChild(details);
+    }
+
+    addSelect("Inclusion Groups", "inclusion_matching", false, "");
+    addGroup("Albums", "albums_enabled", "album_matching", "album_ids", "album_labels", "album");
+    addSelect("Album Order", "album_order", false, "");
+    addGroup("People", "people_enabled", "person_matching", "person_ids", "person_labels", "person");
+    addGroup("Tags", "tags_enabled", "tag_matching", "tag_ids", "tag_labels", "tag");
+    addSelect("Favorites", "favorite_mode", false, "");
+    addSelect("Minimum Rating", "minimum_rating", !supportsStructured,
+      "Minimum rating requires Immich 3.2 or newer. Your saved value is preserved.");
+
+    [
+      ["Country", "filter_country"],
+      ["State / Province", "filter_state"],
+      ["City", "filter_city"]
+    ].forEach(function (spec, index) {
+      var f = field(spec[0]);
+      var inputEl = input("text", S[spec[1]] || "", "Exact Immich value", productTextMaxLength(spec[1], 96));
+      var timer = null;
+      inputEl.oninput = function () {
+        if (index > 0 && !String((index === 1 ? S.filter_country : S.filter_state) || "").trim()) {
+          inputEl.setCustomValidity(index === 1 ? "Set country first" : "Set state or province first");
+          return;
+        }
+        inputEl.setCustomValidity("");
+        clearTimeout(timer);
+        timer = setTimeout(function () {
+          S[spec[1]] = inputEl.value.trim();
+          applySetting(spec[1], S[spec[1]]);
+        }, 600);
+      };
+      f.appendChild(inputEl);
+      body.appendChild(f);
+    });
+
+    var exclusionReason = "Exclusions require Immich 3.2 or newer. Saved values are preserved.";
+    [["Excluded Albums", "excluded_album_ids", "excluded_album_labels", "album"],
+     ["Excluded People", "excluded_person_ids", "excluded_person_labels", "person"],
+     ["Excluded Tags", "excluded_tag_ids", "excluded_tag_labels", "tag"]].forEach(function (spec) {
+      var timer = null;
+      var editor = photoIdListField({
+        label: spec[0], idKey: spec[1], labelKey: spec[2],
+        idPlaceholder: "Paste excluded " + spec[3] + " UUID", labelPlaceholder: "Optional label",
+        addText: "Exclude " + spec[3], removeTitle: "Remove exclusion",
+        moveUpTitle: "Move up", moveDownTitle: "Move down",
+        idChanges: {}, labelChanges: {}, clearChanges: {}, reorderChanges: {},
+        onChange: function (_changes, delayMs) {
+          if (!supportsStructured) return;
+          clearTimeout(timer);
+          timer = setTimeout(function () { saveList(editor, spec[1], spec[2]); }, delayMs == null ? 600 : delayMs);
+        }
+      });
+      if (!supportsStructured) {
+        editor.field.style.opacity = ".55";
+        editor.field.title = exclusionReason;
+        var hint = el("div", "setting-hint");
+        hint.textContent = exclusionReason;
+        editor.field.appendChild(hint);
+      }
+      body.appendChild(editor.field);
+    });
+    return makeCollapsibleCard("Photo Filter", body, true);
+  }
+
   function makePhotoSourceCard() {
+    return makeSmartPhotoFilterCard();
+  }
+
+  function makeLegacyPhotoSourceCard() {
     // Photo Source
     var srcBody = el("div");
     var photoSourceApplyTimer = null;

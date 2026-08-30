@@ -21,6 +21,9 @@ globals:
   - id: last_short_tap_ms
     type: uint32_t
     initial_value: '0'
+  - id: slideshow_swipe_suppress_tap_until_ms
+    type: uint32_t
+    initial_value: '0'
   - id: last_photo_displayed_ms
     type: uint32_t
     initial_value: '0'
@@ -581,6 +584,10 @@ script:
     mode: single
     then:
       - lambda: |-
+          // Source selection moved to the composable web/HA filter. Keep the
+          // script ID temporarily so older device touch YAML still compiles,
+          // but deliberately make the obsolete gesture a no-op.
+          return;
           if (!id(developer_features_enabled).state) return;
           if (lv_scr_act() != id(slideshow_page)->obj) return;
           id(backlight_hold_timer).stop();

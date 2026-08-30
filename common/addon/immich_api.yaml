@@ -1,6 +1,10 @@
 # =============================================================================
 # IMMICH API - Fetch scripts for Immich server integration
 # =============================================================================
+# Compatibility note: Smart Filter V1 replaces build_immich_search_body,
+# pick_album_id_for_metadata_search, pick_one_person_id_for_random_search,
+# build_immich_date_filter_extra, and build_immich_companion_date_filter_extra
+# at request sites with the normalized ImmichFilterConfig serializers.
 # Handles HTTP requests to the Immich API for fetching random images and
 # searching for portrait companions from the same day.
 # =============================================================================
@@ -10,6 +14,8 @@ globals:
     type: ImmichRequestState
   - id: immich_candidate_pool
     type: std::vector<ImmichAssetMeta>
+  - id: immich_filter_config
+    type: ImmichFilterConfig
 
 script:
   - id: immich_register_fetch_failure
@@ -27,6 +33,13 @@ script:
       - lambda: |-
           id(immich_fetch_started) = true;
           id(immich_request_state).register_success();
+          id(immich_request_state).empty_branch_attempts = 0;
+
+  - id: immich_try_next_filter_branch
+    mode: restart
+    then:
+      - delay: 100ms
+      - script.execute: immich_fetch_into_slot
 
   # ---------------------------------------------------------------------------
   # Display fallback when companion portrait search fails or finds nothing
@@ -71,12 +84,10 @@ script:
       - http_request.get:
           id: http_req
           url: !lambda |-
-            auto now = id(sntp_time).now();
-            std::string day = immich_format_iso_date_offset(
-              now.year, now.month, now.day_of_month, id(immich_request_state).memory_window_offset);
-            // Immich >=3.0.3 (PR #29907) tightened /api/memories `for` validation to
-            // date-only (YYYY-MM-DD); a full ISO datetime now fails schema validation.
-            return id(immich_url).state + "/api/memories?type=on_this_day&for=" + day;
+            // Retained only as an inert compatibility script ID for recovery
+            // paths compiled by older packages. Smart Filter V1 never invokes
+            // this request and no Memories endpoint remains configured.
+            return id(immich_url).state;
           # Deliberately no capture_response: an on_this_day response can reach
           # tens or hundreds of kB depending on how many memories the library
           # holds for that day, and capture_response copies the whole body into a
@@ -327,16 +338,6 @@ script:
                   - script.execute: immich_retry_config_ready
             - script.stop: immich_fetch_metadata_into_slot
       - lambda: |-
-          std::string source = id(photo_source_select).current_option();
-          id(immich_request_state).metadata_album_id = source == "Album"
-            ? pick_album_id_for_metadata_search(
-                id(immich_album_ids).state,
-                id(immich_album_order).current_option(),
-                id(immich_request_state).album_order_index)
-            : "";
-          id(immich_request_state).metadata_person_id = source == "Person" ? pick_one_person_id_for_random_search(id(immich_person_ids).state) : "";
-          id(immich_request_state).metadata_tag_ids = source == "Tag"
-            ? select_immich_tag_ids(id(immich_tag_ids).state, id(immich_tag_matching).current_option()) : "";
           id(immich_request_state).metadata_page = 1;
           id(immich_request_state).metadata_max_page = 1;
           id(immich_request_state).metadata_empty_page_probes = 0;
@@ -344,15 +345,10 @@ script:
           id(immich_request_state).metadata_page1_fallback_attempted = false;
           id(immich_request_state).metadata_page_size =
             id(photo_orientation_filter).current_option() == "Any" ? 1 : IMMICH_METADATA_PAGE_SIZE;
-          auto now = id(sntp_time).now();
-          ImmichDateRange range = resolve_immich_date_filter(
-            id(immich_date_filter_enabled).state,
-            id(immich_date_filter_mode).current_option(),
-            (int) (id(immich_relative_amount).state + 0.5f),
-            id(immich_relative_unit).current_option(),
-            now.is_valid(), now.year, now.month, now.day_of_month,
-            id(immich_date_from).state, id(immich_date_to).state);
-          std::string extra = build_immich_date_filter_extra(range);
+          std::string source = id(immich_request_state).active_filter_branch.group;
+          std::string extra = build_immich_filter_statistics_body(
+            id(immich_filter_config), id(immich_request_state).active_filter_branch,
+            id(immich_request_state).api_generation);
           id(immich_request_state).metadata_count_cache_key =
             build_immich_metadata_count_cache_key(
               source, id(immich_request_state).metadata_album_id,
@@ -379,7 +375,7 @@ script:
             - script.stop: immich_fetch_metadata_into_slot
       - if:
           condition:
-            lambda: 'return id(photo_source_select).current_option() == "Album";'
+            lambda: 'return split_valid_uuid_csv(id(immich_request_state).metadata_album_id).size() == 1;'
           then:
             - script.execute: immich_fetch_album_count
             - script.stop: immich_fetch_metadata_into_slot
@@ -421,6 +417,12 @@ script:
                   if (total == 0) {
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
                     ESP_LOGW("immich", "Album source has no assets");
+                    auto groups = immich_enabled_inclusion_groups(id(immich_filter_config));
+                    if (id(immich_filter_config).inclusion_matching == "Match any enabled group" &&
+                        groups.size() > 1 && ++id(immich_request_state).empty_branch_attempts < groups.size()) {
+                      id(immich_try_next_filter_branch).execute();
+                      return;
+                    }
                     id(immich_request_state).reset_retries_and_pause(millis());
                     return;
                   }
@@ -462,21 +464,9 @@ script:
             Accept: application/json
             x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
           body: !lambda |-
-            auto now = id(sntp_time).now();
-            ImmichDateRange range = resolve_immich_date_filter(
-              id(immich_date_filter_enabled).state,
-              id(immich_date_filter_mode).current_option(),
-              (int) (id(immich_relative_amount).state + 0.5f),
-              id(immich_relative_unit).current_option(),
-              now.is_valid(), now.year, now.month, now.day_of_month,
-              id(immich_date_from).state, id(immich_date_to).state);
-            if (range.relative_skipped_for_invalid_time) {
-              ESP_LOGW("immich", "Relative date filter skipped because time is not valid");
-            }
-            std::string extra = build_immich_date_filter_extra(range);
-            return build_immich_statistics_search_body(
-              id(photo_source_select).current_option(), id(immich_request_state).metadata_album_id,
-              id(immich_request_state).metadata_person_id, id(immich_request_state).metadata_tag_ids, extra);
+            return build_immich_filter_statistics_body(
+              id(immich_filter_config), id(immich_request_state).active_filter_branch,
+              id(immich_request_state).api_generation);
           on_response:
             then:
               - lambda: |-
@@ -492,6 +482,12 @@ script:
                   if (total == 0) {
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
                     ESP_LOGW("immich", "Statistics source has no matching images");
+                    auto groups = immich_enabled_inclusion_groups(id(immich_filter_config));
+                    if (id(immich_filter_config).inclusion_matching == "Match any enabled group" &&
+                        groups.size() > 1 && ++id(immich_request_state).empty_branch_attempts < groups.size()) {
+                      id(immich_try_next_filter_branch).execute();
+                      return;
+                    }
                     id(immich_request_state).reset_retries_and_pause(millis());
                     return;
                   }
@@ -535,10 +531,7 @@ script:
       - if:
           condition:
             lambda: |-
-              std::string source = id(photo_source_select).current_option();
-              return (source == "Album" && id(immich_request_state).metadata_album_id.empty()) ||
-                     (source == "Person" && id(immich_request_state).metadata_person_id.empty()) ||
-                     (source == "Tag" && id(immich_request_state).metadata_tag_ids.empty()) ||
+              return !immich_filter_branch_uses_album(id(immich_request_state).active_filter_branch) ||
                      id(immich_request_state).metadata_page < 1 ||
                      id(immich_request_state).metadata_page_size < 1;
           then:
@@ -556,22 +549,11 @@ script:
             Accept: application/json
             x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
           body: !lambda |-
-            auto now = id(sntp_time).now();
-            ImmichDateRange range = resolve_immich_date_filter(
-              id(immich_date_filter_enabled).state,
-              id(immich_date_filter_mode).current_option(),
-              (int) (id(immich_relative_amount).state + 0.5f),
-              id(immich_relative_unit).current_option(),
-              now.is_valid(), now.year, now.month, now.day_of_month,
-              id(immich_date_from).state, id(immich_date_to).state);
-            if (range.relative_skipped_for_invalid_time) {
-              ESP_LOGW("immich", "Relative date filter skipped because time is not valid");
-            }
-            std::string extra = build_immich_date_filter_extra(range);
-            return build_immich_metadata_search_body(
-              id(immich_request_state).metadata_page, id(immich_request_state).metadata_page_size, true,
-              id(photo_source_select).current_option(), id(immich_request_state).metadata_album_id,
-              id(immich_request_state).metadata_person_id, id(immich_request_state).metadata_tag_ids, extra);
+            return build_immich_filter_search_body(
+              id(immich_filter_config), id(immich_request_state).active_filter_branch,
+              id(immich_request_state).api_generation,
+              id(immich_request_state).metadata_page_size, true, true,
+              id(immich_request_state).metadata_page);
           on_response:
             then:
               - lambda: |-
@@ -607,6 +589,14 @@ script:
                       return;
                     }
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
+                    auto groups = immich_enabled_inclusion_groups(id(immich_filter_config));
+                    if (metadata_item_count == 0 &&
+                        id(immich_filter_config).inclusion_matching == "Match any enabled group" &&
+                        groups.size() > 1 && ++id(immich_request_state).empty_branch_attempts < groups.size()) {
+                      ESP_LOGD("immich", "Empty album branch; trying the next enabled group");
+                      id(immich_try_next_filter_branch).execute();
+                      return;
+                    }
                     if (metadata_item_count > 0 && orientation != "Any" && id(immich_request_state).retry_available(MAX_ERROR_RETRIES)) {
                       id(immich_request_state).register_request_error();
                       ESP_LOGW("immich", "No %s image in metadata page; retrying", orientation.c_str());
@@ -623,6 +613,9 @@ script:
                   int slot = id(espframe_core).slideshow().state().target_slot;
                   auto &meta = get_slot(slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2);
                   meta.source_filter_id = id(immich_request_state).metadata_album_id;
+                  meta.filter_album_ids = id(immich_request_state).active_filter_branch.album_ids;
+                  meta.filter_person_ids = id(immich_request_state).active_filter_branch.person_ids;
+                  meta.filter_tag_ids = id(immich_request_state).active_filter_branch.tag_ids;
                   ESP_LOGI("immich", "METADATA slot %d: %s | %s | %s | %s | portrait=%d",
                            slot, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.location.c_str(), meta.is_portrait);
                   id(espframe_core).slideshow().clear_preload_for_slot(
@@ -732,22 +725,27 @@ script:
             - script.execute: delayed_prefetch_chain
             - script.stop: immich_fetch_into_slot
       - lambda: 'mark_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags, millis());'
+      - script.execute: sync_immich_filter_config
+      - delay: 1ms
+      - lambda: |-
+          id(immich_request_state).active_filter_branch = select_immich_filter_branch(
+            id(immich_filter_config), id(immich_request_state).inclusion_group_index,
+            id(immich_request_state).album_order_index,
+            id(immich_album_order).current_option());
+          id(immich_request_state).metadata_album_id =
+            id(immich_request_state).active_filter_branch.album_ids;
+          id(immich_request_state).metadata_person_id =
+            id(immich_request_state).active_filter_branch.person_ids;
+          id(immich_request_state).metadata_tag_ids =
+            id(immich_request_state).active_filter_branch.tag_ids;
       - if:
           condition:
-            lambda: 'return id(photo_source_select).current_option() == "Memories" && !id(immich_request_state).memory_fallback;'
-          then:
-            - script.execute: immich_fetch_memory_into_slot
-            - script.stop: immich_fetch_into_slot
-      - lambda: 'id(immich_request_state).memory_fallback = false;'
-      - if:
-          condition:
-            lambda: 'return immich_source_uses_metadata_search(id(photo_source_select).current_option());'
+            lambda: 'return immich_filter_branch_uses_album(id(immich_request_state).active_filter_branch);'
           then:
             - script.execute: immich_fetch_metadata_into_slot
             - script.stop: immich_fetch_into_slot
       - lambda: |-
-          std::string source = id(photo_source_select).current_option();
-          bool batchable = source == "All Photos" || source == "Favorites";
+          bool batchable = immich_enabled_inclusion_groups(id(immich_filter_config)).empty();
           id(immich_request_state).candidate_pool_hit = false;
           if (batchable && !id(immich_candidate_pool).empty()) {
             int slot = id(espframe_core).slideshow().state().target_slot;
@@ -772,14 +770,12 @@ script:
             }
           }
           if (!id(immich_request_state).candidate_pool_hit) {
-            id(immich_request_state).metadata_person_id = source == "Person"
-              ? pick_one_person_id_for_random_search(id(immich_person_ids).state) : "";
-            id(immich_request_state).metadata_tag_ids = source == "Tag"
-              ? select_immich_tag_ids(id(immich_tag_ids).state,
-                                      id(immich_tag_matching).current_option()) : "";
             id(immich_request_state).candidate_pool_source_filter_id =
-              source == "Person" ? id(immich_request_state).metadata_person_id :
-              source == "Tag" ? id(immich_request_state).metadata_tag_ids : "";
+              !id(immich_request_state).metadata_album_id.empty()
+                ? id(immich_request_state).metadata_album_id :
+              !id(immich_request_state).metadata_person_id.empty()
+                ? id(immich_request_state).metadata_person_id :
+                id(immich_request_state).metadata_tag_ids;
           }
       - if:
           condition:
@@ -802,26 +798,12 @@ script:
             Accept: application/json
             x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
           body: !lambda |-
-            auto now = id(sntp_time).now();
-            ImmichDateRange range = resolve_immich_date_filter(
-              id(immich_date_filter_enabled).state,
-              id(immich_date_filter_mode).current_option(),
-              (int) (id(immich_relative_amount).state + 0.5f),
-              id(immich_relative_unit).current_option(),
-              now.is_valid(), now.year, now.month, now.day_of_month,
-              id(immich_date_from).state, id(immich_date_to).state);
-            if (range.relative_skipped_for_invalid_time) {
-              ESP_LOGW("immich", "Relative date filter skipped because time is not valid");
-            }
-            std::string extra = build_immich_date_filter_extra(range);
-            std::string source = id(photo_source_select).current_option();
-            bool batchable = source == "All Photos" || source == "Favorites";
+            bool batchable = immich_enabled_inclusion_groups(id(immich_filter_config)).empty();
             int search_size = batchable ? IMMICH_RANDOM_POOL_SIZE :
               (id(photo_orientation_filter).current_option() == "Any" ? 1 : 10);
-            return build_immich_search_body(
-              search_size, true, source, id(immich_album_ids).state,
-              id(immich_request_state).metadata_person_id,
-              id(immich_request_state).metadata_tag_ids, extra);
+            return build_immich_filter_search_body(
+              id(immich_filter_config), id(immich_request_state).active_filter_branch,
+              id(immich_request_state).api_generation, search_size, true);
           on_response:
             then:
               - if:
@@ -862,8 +844,7 @@ script:
                     return;
                   }
                   std::string orientation = id(photo_orientation_filter).current_option();
-                  std::string source = id(photo_source_select).current_option();
-                  bool batchable = source == "All Photos" || source == "Favorites";
+                  bool batchable = immich_enabled_inclusion_groups(id(immich_filter_config)).empty();
                   int slot = id(espframe_core).slideshow().state().target_slot;
                   std::string img_url;
                   if (batchable) {
@@ -892,6 +873,13 @@ script:
                   }
                   if (img_url.empty()) {
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
+                    auto groups = immich_enabled_inclusion_groups(id(immich_filter_config));
+                    if (id(immich_filter_config).inclusion_matching == "Match any enabled group" &&
+                        groups.size() > 1 && ++id(immich_request_state).empty_branch_attempts < groups.size()) {
+                      ESP_LOGD("immich", "Empty smart-filter branch; trying the next enabled group");
+                      id(immich_try_next_filter_branch).execute();
+                      return;
+                    }
                     if (orientation != "Any" && id(immich_request_state).retry_available(MAX_ERROR_RETRIES)) {
                       id(immich_request_state).register_request_error();
                       ESP_LOGW("immich", "No %s image in random response; retrying", orientation.c_str());
@@ -906,6 +894,9 @@ script:
                   }
                   id(immich_register_fetch_success).execute();
                   auto &meta = get_slot(slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2);
+                  meta.filter_album_ids = id(immich_request_state).active_filter_branch.album_ids;
+                  meta.filter_person_ids = id(immich_request_state).active_filter_branch.person_ids;
+                  meta.filter_tag_ids = id(immich_request_state).active_filter_branch.tag_ids;
                   ESP_LOGI("immich", "RANDOM slot %d: %s | %s | %s | %s | portrait=%d",
                            slot, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.location.c_str(), meta.is_portrait);
                   id(espframe_core).slideshow().clear_preload_for_slot(
@@ -1021,7 +1012,9 @@ script:
           id(espframe_core).slideshow().mark_portrait_search_request_started();
       - http_request.post:
           id: http_req
-          url: !lambda 'return id(immich_url).state + "/api/search/random";'
+          url: !lambda |-
+            return id(immich_url).state + (id(espframe_core).slideshow().state().portrait_search_exhaustive
+              ? "/api/search/metadata" : "/api/search/random");
           capture_response: true
           max_response_buffer_size: 48kB
           request_headers:
@@ -1044,15 +1037,25 @@ script:
             }
             int range_days = id(espframe_core).slideshow().state().portrait_search_expanded
               ? portrait_pairing_range_days(id(portrait_pairing_range).current_option()) : 0;
-            std::string extra = build_immich_companion_date_filter_extra(day, range, range_days);
+            auto dates = resolve_immich_companion_filter_dates(day, range, range_days);
             const auto &primary = get_slot(
               id(espframe_core).slideshow().state().companion_target_slot,
               id(espframe_core).slideshow().state().slot0,
               id(espframe_core).slideshow().state().slot1,
               id(espframe_core).slideshow().state().slot2);
-            return build_immich_companion_search_body(
-              IMMICH_COMPANION_SEARCH_SIZE,
-              id(photo_source_select).current_option(), primary.source_filter_id, extra);
+            ImmichFilterConfig companion_config = id(immich_filter_config);
+            companion_config.taken_after = dates.first;
+            companion_config.taken_before = dates.second;
+            ImmichFilterBranch companion_branch;
+            companion_branch.group = "All";
+            companion_branch.album_ids = primary.filter_album_ids;
+            companion_branch.person_ids = primary.filter_person_ids;
+            companion_branch.tag_ids = primary.filter_tag_ids;
+            return build_immich_filter_search_body(
+              companion_config, companion_branch, id(immich_request_state).api_generation,
+              IMMICH_COMPANION_SEARCH_SIZE, false,
+              id(espframe_core).slideshow().state().portrait_search_exhaustive,
+              id(espframe_core).slideshow().state().portrait_search_page);
           on_response:
             then:
               - lambda: |-
@@ -1067,15 +1070,32 @@ script:
                     id(handle_companion_not_found).execute();
                     return;
                   }
+                  uint32_t next_page = 0;
                   std::string companion_url = find_immich_portrait_companion_url(
                     body, id(immich_url).state, id(espframe_core).slideshow().state().portrait_primary_asset_id,
-                    id(espframe_core).slideshow().state().portrait_search_datetime);
+                    id(espframe_core).slideshow().state().portrait_search_datetime,
+                    id(espframe_core).slideshow().state().portrait_search_exhaustive ? &next_page : nullptr);
 
                   if (companion_url.empty()) {
+                    if (id(espframe_core).slideshow().state().portrait_search_exhaustive &&
+                        next_page > id(espframe_core).slideshow().state().portrait_search_page) {
+                      id(espframe_core).slideshow().state().portrait_search_page = next_page;
+                      ESP_LOGD("immich", "No portrait on companion metadata page; continuing with page %u",
+                               (unsigned) next_page);
+                      id(deferred_companion_search).execute();
+                      return;
+                    }
                     int configured_range_days = portrait_pairing_range_days(id(portrait_pairing_range).current_option());
                     if (!id(espframe_core).slideshow().state().portrait_search_expanded && configured_range_days > 0) {
                       id(espframe_core).slideshow().state().portrait_search_expanded = true;
                       ESP_LOGD("immich", "No same-day companion; expanding search to +/- %d day(s)", configured_range_days);
+                      id(deferred_companion_search).execute();
+                      return;
+                    }
+                    if (!id(espframe_core).slideshow().state().portrait_search_exhaustive) {
+                      id(espframe_core).slideshow().state().portrait_search_exhaustive = true;
+                      id(espframe_core).slideshow().state().portrait_search_page = 1;
+                      ESP_LOGD("immich", "Random companion sample missed; scanning eligible metadata pages");
                       id(deferred_companion_search).execute();
                       return;
                     }

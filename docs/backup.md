@@ -18,7 +18,7 @@ The export captures all user-facing settings from the current session:
 | Category | Settings |
 |----------|----------|
 | **Connection** | Immich server URL, API key |
-| **Photos** | Source, album IDs, album labels, person IDs, person labels, tag IDs, tag labels, date filter settings, orientation, portrait pairing, pairing range, paired-only mode, display mode |
+| **Photos** | Smart-filter groups and matching, favorites, rating, location, inclusions and exclusions, dates, orientation, portrait pairing, and display mode |
 | **Frequency** | Slideshow interval, connection timeout |
 | **Firmware Updates** | Display auto update, update frequency, WiFi firmware auto update |
 | **Clock** | Show clock, format, timezone |
@@ -46,11 +46,17 @@ The export is a standard JSON file with a `version` field and grouped settings:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "exported_at": "2026-03-29T12:00:00.000Z",
   "connection": { "immich_url": "...", "api_key": "..." },
   "photos": {
-    "source": "All Photos",
+    "source": "Custom",
+    "albums_enabled": false,
+    "people_enabled": false,
+    "tags_enabled": false,
+    "inclusion_matching": "Match all enabled groups",
+    "favorite_mode": "Any",
+    "minimum_rating": "Any",
     "album_order": "Random albums",
     "album_ids": "",
     "album_labels": "",

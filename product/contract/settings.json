@@ -13,7 +13,8 @@
       "Album",
       "Person",
       "Tag",
-      "Memories"
+      "Memories",
+      "Custom"
     ],
     "firmware_files": [
       "common/addon/immich_filter.yaml"
@@ -721,5 +722,104 @@
     "docs_files": [
       "docs/photo-sources.md"
     ]
+  },
+  {
+    "key": "albums_enabled",
+    "entity": { "domain": "switch", "name": "Photos: Albums Enabled" },
+    "default": false,
+    "docs_description": "Include the configured albums as an independently enabled filter group.",
+    "firmware_files": ["common/addon/immich_filter.yaml"],
+    "docs_files": ["docs/photo-sources.md"]
+  },
+  {
+    "key": "people_enabled",
+    "entity": { "domain": "switch", "name": "Photos: People Enabled" },
+    "default": false,
+    "docs_description": "Include the configured people as an independently enabled filter group.",
+    "firmware_files": ["common/addon/immich_filter.yaml"],
+    "docs_files": ["docs/photo-sources.md"]
+  },
+  {
+    "key": "tags_enabled",
+    "entity": { "domain": "switch", "name": "Photos: Tags Enabled" },
+    "default": false,
+    "docs_description": "Include the configured tags as an independently enabled filter group.",
+    "firmware_files": ["common/addon/immich_filter.yaml"],
+    "docs_files": ["docs/photo-sources.md"]
+  },
+  {
+    "key": "inclusion_matching",
+    "entity": { "domain": "select", "name": "Photos: Inclusion Groups" },
+    "default": "Match all enabled groups",
+    "options": ["Match all enabled groups", "Match any enabled group"],
+    "docs_description": "Require every enabled album, people, and tag group, or rotate evenly through one enabled group per request.",
+    "firmware_files": ["common/addon/immich_filter.yaml"],
+    "docs_files": ["docs/photo-sources.md"]
+  },
+  {
+    "key": "album_matching",
+    "entity": { "domain": "select", "name": "Photos: Album Matching" },
+    "default": "Any selected album",
+    "options": ["Any selected album", "All selected albums"],
+    "docs_description": "Choose whether an album group samples one selected album or requires all selected albums.",
+    "firmware_files": ["common/addon/immich_filter.yaml"],
+    "docs_files": ["docs/photo-sources.md"]
+  },
+  {
+    "key": "person_matching",
+    "entity": { "domain": "select", "name": "Photos: Person Matching" },
+    "default": "Any selected person",
+    "options": ["Any selected person", "All selected people"],
+    "docs_description": "Choose whether photos may contain any selected person or must contain all selected people.",
+    "firmware_files": ["common/addon/immich_filter.yaml"],
+    "docs_files": ["docs/photo-sources.md"]
+  },
+  {
+    "key": "favorite_mode",
+    "entity": { "domain": "select", "name": "Photos: Favorites" },
+    "default": "Any",
+    "options": ["Any", "Favorites only", "Exclude favorites"],
+    "docs_description": "Include any photo, require favorites, or exclude favorites.",
+    "firmware_files": ["common/addon/immich_filter.yaml"],
+    "docs_files": ["docs/photo-sources.md"]
+  },
+  {
+    "key": "minimum_rating",
+    "entity": { "domain": "select", "name": "Photos: Minimum Rating" },
+    "default": "Any",
+    "options": ["Any", "1+", "2+", "3+", "4+", "5+"],
+    "docs_description": "Require at least the selected Immich rating; available with Immich 3.2 or newer.",
+    "firmware_files": ["common/addon/immich_filter.yaml"],
+    "docs_files": ["docs/photo-sources.md"]
+  },
+  {
+    "key": "filter_country",
+    "entity": { "domain": "text", "name": "Photos: Country" },
+    "default": "",
+    "maxLength": 96,
+    "docs_format": "Exact text, up to 96 characters",
+    "docs_description": "Require an exact Immich country value.",
+    "firmware_files": ["common/addon/immich_filter.yaml"],
+    "docs_files": ["docs/photo-sources.md"]
+  },
+  {
+    "key": "filter_state",
+    "entity": { "domain": "text", "name": "Photos: State or Province" },
+    "default": "",
+    "maxLength": 96,
+    "docs_format": "Exact text, up to 96 characters",
+    "docs_description": "Require an exact state or province; country must also be set.",
+    "firmware_files": ["common/addon/immich_filter.yaml"],
+    "docs_files": ["docs/photo-sources.md"]
+  },
+  {
+    "key": "filter_city",
+    "entity": { "domain": "text", "name": "Photos: City" },
+    "default": "",
+    "maxLength": 96,
+    "docs_format": "Exact text, up to 96 characters",
+    "docs_description": "Require an exact city; country and state or province must also be set.",
+    "firmware_files": ["common/addon/immich_filter.yaml"],
+    "docs_files": ["docs/photo-sources.md"]
   }
 ]

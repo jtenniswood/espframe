@@ -14,7 +14,7 @@ The firmware runs on ESP32-P4 hardware with [ESPHome](https://esphome.io/) and c
 
 ## Features
 
-- **Photo Sources** — Show all photos, favorites only, specific albums, specific people, specific tags, "on this day" memories, or photos within a date range.
+- **Smart Photo Filters** — Combine albums, people, tags, favorites, ratings, dates, locations, exclusions, and orientation.
 - **Display Tone Adjustment** — Adjust colour temperature so the panel looks right (e.g. warm the image if it’s too blue).
 - **Night Tone** — Automatically adjust screen tone between sunset and sunrise.
 - **Screen Scheduling** — Schedule when to turn off the display; set daytime and night-time brightness levels separately.

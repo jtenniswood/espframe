@@ -46,10 +46,6 @@
       "purpose": "Tags assigned to photos"
     },
     {
-      "name": "memory.read",
-      "purpose": "\"On this day\" memories and groupings"
-    },
-    {
       "name": "map.read",
       "purpose": "Additional GPS/map data beyond EXIF"
     }
@@ -127,7 +123,7 @@
   },
   "ota_update_platform": "esphome",
   "ota_pre_update_action": "keeps the current backlight state while the update starts",
-  "backup_config_version": 1,
+  "backup_config_version": 2,
   "backup_filename_prefix": "espframe-config-",
   "backup_filename_date_format": "YYYY-MM-DD",
   "backup_import_photo_id_limit": 255,
@@ -152,6 +148,17 @@
     ],
     "photos": [
       "source",
+      "albums_enabled",
+      "people_enabled",
+      "tags_enabled",
+      "inclusion_matching",
+      "album_matching",
+      "person_matching",
+      "favorite_mode",
+      "minimum_rating",
+      "country",
+      "state",
+      "city",
       "album_order",
       "album_ids",
       "album_labels",
@@ -160,6 +167,12 @@
       "tag_ids",
       "tag_labels",
       "tag_matching",
+      "excluded_album_ids",
+      "excluded_album_labels",
+      "excluded_person_ids",
+      "excluded_person_labels",
+      "excluded_tag_ids",
+      "excluded_tag_labels",
       "date_filter_enabled",
       "date_filter_mode",
       "date_from",
@@ -209,6 +222,17 @@
     },
     "photos": {
       "source": "photo_source",
+      "albums_enabled": "albums_enabled",
+      "people_enabled": "people_enabled",
+      "tags_enabled": "tags_enabled",
+      "inclusion_matching": "inclusion_matching",
+      "album_matching": "album_matching",
+      "person_matching": "person_matching",
+      "favorite_mode": "favorite_mode",
+      "minimum_rating": "minimum_rating",
+      "country": "filter_country",
+      "state": "filter_state",
+      "city": "filter_city",
       "album_order": "album_order",
       "album_ids": "album_ids",
       "album_labels": "album_labels",
@@ -217,6 +241,12 @@
       "tag_ids": "tag_ids",
       "tag_labels": "tag_labels",
       "tag_matching": "tag_matching",
+      "excluded_album_ids": "excluded_album_ids",
+      "excluded_album_labels": "excluded_album_labels",
+      "excluded_person_ids": "excluded_person_ids",
+      "excluded_person_labels": "excluded_person_labels",
+      "excluded_tag_ids": "excluded_tag_ids",
+      "excluded_tag_labels": "excluded_tag_labels",
       "date_filter_enabled": "date_filter_enabled",
       "date_filter_mode": "date_filter_mode",
       "date_from": "date_from",
@@ -268,10 +298,12 @@
   "backup_invalid_photo_id_behavior": "web UI reports the skipped setting and keeps importing other valid fields",
   "backup_fixture_files": [
     "tests/fixtures/backup/espframe-config-v1-full.json",
-    "tests/fixtures/backup/espframe-config-v1-partial.json"
+    "tests/fixtures/backup/espframe-config-v1-partial.json",
+    "tests/fixtures/backup/espframe-config-v2-full.json"
   ],
   "compatibility_fixture_files": {
     "accepted": [
+      "tests/fixtures/backup/espframe-config-v2-full.json",
       "tests/fixtures/compat/espframe-config-v1-connection-group.json",
       "tests/fixtures/compat/espframe-config-v1-photos-group.json",
       "tests/fixtures/compat/espframe-config-v1-frequency-group.json",
@@ -300,9 +332,9 @@
         "path": "tests/fixtures/compat/espframe-config-missing-version.json",
         "message": "Invalid config file - missing version"
       },
-      {
-        "path": "tests/fixtures/compat/espframe-config-v2-future-version.json",
-        "message": "Unsupported backup version 2 - this device supports version 1"
+    {
+      "path": "tests/fixtures/compat/espframe-config-v2-future-version.json",
+      "message": "Unsupported backup version 3 - this device supports version 2"
       },
       {
         "path": "tests/fixtures/compat/espframe-config-v0-unsupported-version.json",
@@ -328,6 +360,14 @@
     {
       "action": "Next photo",
       "gesture": "Double-tap on the photo"
+    },
+    {
+      "action": "Next image set",
+      "gesture": "Swipe left across the photo"
+    },
+    {
+      "action": "Previous image set",
+      "gesture": "Swipe right across the photo"
     }
   ],
   "screen_brightness_day_night_source": "sunrise/sunset",
@@ -393,12 +433,13 @@
     "Album",
     "Person",
     "Tag",
-    "Memories"
+    "Memories",
+    "Custom"
   ],
   "photo_source_auto_apply_behavior": "Changes apply automatically shortly after you change a control",
   "photo_source_id_limit": 255,
-  "photo_source_memories_window": "two days before and two days after today's date",
-  "photo_source_memories_fallback": "falls back to random if none",
+  "photo_source_memories_window": "",
+  "photo_source_memories_fallback": "",
   "photo_source_album_person_sampling": "sampled through paged Immich search",
   "slideshow_check_interval": "2s",
   "slideshow_interval_default_seconds": 15,
@@ -562,11 +603,22 @@
     },
     {
       "id": "photo_source",
-      "label": "Photo Source",
+      "label": "Photo Filter",
       "tab": "immich",
       "function": "makePhotoSourceCard",
       "settings": [
         "photo_source",
+        "albums_enabled",
+        "people_enabled",
+        "tags_enabled",
+        "inclusion_matching",
+        "album_matching",
+        "person_matching",
+        "favorite_mode",
+        "minimum_rating",
+        "filter_country",
+        "filter_state",
+        "filter_city",
         "album_order",
         "tag_matching"
       ],
@@ -576,7 +628,16 @@
         "person_ids",
         "person_labels",
         "tag_ids",
-        "tag_labels"
+        "tag_labels",
+        "excluded_album_ids",
+        "excluded_album_labels",
+        "excluded_person_ids",
+        "excluded_person_labels",
+        "excluded_tag_ids",
+        "excluded_tag_labels",
+        "immich_server_version",
+        "immich_capability_status",
+        "memories_migration_notice"
       ],
       "manual_entities": [
         "apply_photo_source"
@@ -857,6 +918,55 @@
       "firmware_file": "common/addon/immich_filter.yaml",
       "fetch": true
     },
+    "excluded_album_ids": {
+      "entity": "text/Photos: Excluded Album IDs",
+      "firmware_file": "common/addon/immich_filter.yaml",
+      "fetch": true
+    },
+    "excluded_album_labels": {
+      "entity": "text/Photos: Excluded Album Labels",
+      "firmware_file": "common/addon/immich_filter.yaml",
+      "fetch": true
+    },
+    "excluded_person_ids": {
+      "entity": "text/Photos: Excluded Person IDs",
+      "firmware_file": "common/addon/immich_filter.yaml",
+      "fetch": true
+    },
+    "excluded_person_labels": {
+      "entity": "text/Photos: Excluded Person Labels",
+      "firmware_file": "common/addon/immich_filter.yaml",
+      "fetch": true
+    },
+    "excluded_tag_ids": {
+      "entity": "text/Photos: Excluded Tag IDs",
+      "firmware_file": "common/addon/immich_filter.yaml",
+      "fetch": true
+    },
+    "excluded_tag_labels": {
+      "entity": "text/Photos: Excluded Tag Labels",
+      "firmware_file": "common/addon/immich_filter.yaml",
+      "fetch": true
+    },
+    "immich_server_version": {
+      "entity": "text_sensor/Immich: Server Version",
+      "firmware_file": "common/addon/immich_config.yaml",
+      "default": "Unknown",
+      "fetch": true
+    },
+    "immich_capability_status": {
+      "entity": "text_sensor/Immich: Filter Capabilities",
+      "firmware_file": "common/addon/immich_config.yaml",
+      "default": "Immich 3.1 compatibility",
+      "fetch": true
+    },
+    "memories_migration_notice": {
+      "entity": "switch/Photos: Memories Migration Notice",
+      "firmware_file": "common/addon/immich_filter.yaml",
+      "boolFromState": true,
+      "default": false,
+      "fetch": true
+    },
     "sunrise": {
       "entity": "text_sensor/Screen: Sunrise",
       "firmware_file": "common/addon/backlight_schedule.yaml",
@@ -1021,6 +1131,17 @@
         ],
         "settings": [
           "photo_source",
+          "albums_enabled",
+          "people_enabled",
+          "tags_enabled",
+          "inclusion_matching",
+          "album_matching",
+          "person_matching",
+          "favorite_mode",
+          "minimum_rating",
+          "filter_country",
+          "filter_state",
+          "filter_city",
           "album_order",
           "tag_matching"
         ]
@@ -1396,6 +1517,17 @@
     "photo_source": {},
     "album_order": {},
     "tag_matching": {},
+    "albums_enabled": {},
+    "people_enabled": {},
+    "tags_enabled": {},
+    "inclusion_matching": {},
+    "album_matching": {},
+    "person_matching": {},
+    "favorite_mode": {},
+    "minimum_rating": {},
+    "filter_country": { "max_length": 96 },
+    "filter_state": { "max_length": 96 },
+    "filter_city": { "max_length": 96 },
     "date_filter_mode": {},
     "relative_unit": {},
     "photo_orientation": {},

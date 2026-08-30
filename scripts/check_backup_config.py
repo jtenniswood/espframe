@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from product_config import backup_schema, load_product
+from product_config import backup_schema, load_contract_manifest, load_product
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -90,9 +90,11 @@ def validate_fixture(
 ) -> None:
     project = product["project"]
     label = rel(path)
-    expected_version = project.get("backup_config_version")
-    if data.get("version") != expected_version:
-        errors.append(f"{label} version must be {expected_version}")
+    current_version = project.get("backup_config_version")
+    supported_versions = set(load_contract_manifest().get("compatibility", {}).get("backup_versions", []))
+    fixture_version = data.get("version")
+    if fixture_version not in supported_versions:
+        errors.append(f"{label} version must be one of {sorted(supported_versions)}")
 
     groups = [key for key in data if key not in {"version", "exported_at"}]
     unknown_groups = sorted(set(groups) - set(schema_groups))
@@ -113,13 +115,18 @@ def validate_fixture(
         unknown_keys = sorted(set(value) - allowed)
         if unknown_keys:
             errors.append(f"{label} {group} contains unknown keys: {', '.join(unknown_keys)}")
-        if "full" in path.stem and allowed and set(value) != allowed:
-            errors.append(f"{label} {group} must contain every version-1 key")
+        if "full" in path.stem and fixture_version == current_version and allowed and set(value) != allowed:
+            errors.append(f"{label} {group} must contain every version-{current_version} key")
 
     photos = data.get("photos", {})
     if isinstance(photos, dict):
         for key, setting_key in (
             ("source", "photo_source"),
+            ("inclusion_matching", "inclusion_matching"),
+            ("album_matching", "album_matching"),
+            ("person_matching", "person_matching"),
+            ("favorite_mode", "favorite_mode"),
+            ("minimum_rating", "minimum_rating"),
             ("album_order", "album_order"),
             ("date_filter_mode", "date_filter_mode"),
             ("relative_unit", "relative_unit"),
@@ -129,11 +136,14 @@ def validate_fixture(
             value = photos.get(key)
             if value is not None and str(value) not in options.get(setting_key, set()):
                 errors.append(f"{label} photos.{key} has unsupported option {value!r}")
-        for key in ("album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels"):
+        for key in ("album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels",
+                    "excluded_album_ids", "excluded_album_labels", "excluded_person_ids",
+                    "excluded_person_labels", "excluded_tag_ids", "excluded_tag_labels"):
             value = str(photos.get(key, ""))
             if len(value) > photo_id_limit:
                 errors.append(f"{label} photos.{key} exceeds {photo_id_limit} characters")
-        for key in ("album_ids", "person_ids", "tag_ids"):
+        for key in ("album_ids", "person_ids", "tag_ids", "excluded_album_ids",
+                    "excluded_person_ids", "excluded_tag_ids"):
             value = str(photos.get(key, "")).strip()
             if value and not UUID_LIST_RE.match(value):
                 errors.append(f"{label} photos.{key} must be a comma-separated UUID list")

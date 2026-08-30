@@ -28,6 +28,33 @@
 
   var BACKUP_VERSION_MIGRATIONS = {
     1: function backupConfigVersion1(data) {
+      var migrated = JSON.parse(JSON.stringify(data));
+      var photos = migrated.photos || (migrated.photos = {});
+      var source = photos.source || "All Photos";
+      photos.albums_enabled = source === "Album";
+      photos.people_enabled = source === "Person";
+      photos.tags_enabled = source === "Tag";
+      photos.inclusion_matching = "Match all enabled groups";
+      photos.album_matching = "Any selected album";
+      photos.person_matching = "Any selected person";
+      photos.favorite_mode = source === "Favorites" ? "Favorites only" : "Any";
+      photos.minimum_rating = "Any";
+      photos.country = "";
+      photos.state = "";
+      photos.city = "";
+      photos.excluded_album_ids = "";
+      photos.excluded_album_labels = "";
+      photos.excluded_person_ids = "";
+      photos.excluded_person_labels = "";
+      photos.excluded_tag_ids = "";
+      photos.excluded_tag_labels = "";
+      // Keep the deprecated value for the one import write so firmware can
+      // raise the one-time migration notice before converting it to All Photos.
+      photos.source = source;
+      migrated.version = 2;
+      return migrated;
+    },
+    2: function backupConfigVersion2(data) {
       return data;
     }
   };
@@ -219,6 +246,18 @@
   }
 
   function applyBackupImportField(entry, value) {
+    var entryKey = backupEntryKey(entry);
+    if (/^photos\.excluded_(album|person|tag)_ids$/.test(entryKey)) {
+      var excludedIds = String(value == null ? "" : value).trim();
+      if (photoIdFieldTooLong(excludedIds)) {
+        return skipBackupImportField("Excluded IDs exceed 255 characters - not imported");
+      }
+      if (excludedIds && !isValidUuidList(excludedIds)) {
+        return skipBackupImportField("Import skipped invalid excluded IDs");
+      }
+      trackBackupImportSave(saveSetting(backupImportStateKey(entry), excludedIds));
+      return true;
+    }
     switch (backupEntryKey(entry)) {
       case "connection.immich_url":
         var importUrl = normalizeImmichUrl(value);

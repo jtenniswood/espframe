@@ -10,6 +10,10 @@
 #include <utility>
 #include <vector>
 
+#ifdef USE_JSON
+#include "esphome/components/json/json_util.h"
+#endif
+
 static constexpr uint16_t ZOOM_IDENTITY = 256;
 static constexpr uint16_t IMMICH_ALBUM_PAGE_SIZE = 16;
 static constexpr uint16_t IMMICH_METADATA_PAGE_SIZE = 5;
@@ -22,12 +26,270 @@ static constexpr uint32_t IMMICH_METADATA_COUNT_CACHE_TTL_MS = 15UL * 60UL * 100
 // covering very sparse date-filtered albums without a first-page bias.
 static constexpr uint8_t MAX_EMPTY_METADATA_PAGE_PROBES = 16;
 
+inline std::vector<std::string> split_uuid_csv(const std::string &csv);
+inline std::vector<std::string> split_valid_uuid_csv(const std::string &csv);
+inline std::string pick_one_uuid_from_csv(const std::string &csv);
+inline std::string pick_album_id_for_metadata_search(const std::string &csv,
+                                                     const std::string &album_order,
+                                                     int &next_index);
+inline std::string build_uuid_json_array(const std::string &csv);
+inline std::string build_valid_uuid_json_array(const std::string &csv);
+inline std::string valid_uuid_csv(const std::string &csv);
+
 struct ImmichMetadataCountCacheEntry {
   std::string key;
   uint32_t total = 0;
   bool count_is_upper_bound = false;
   uint32_t cached_at_ms = 0;
 };
+
+enum class ImmichApiGeneration : uint8_t {
+  V31_FLAT = 0,
+  V32_STRUCTURED = 1,
+};
+
+struct ImmichFilterConfig {
+  bool albums_enabled = false;
+  bool people_enabled = false;
+  bool tags_enabled = false;
+  std::string album_ids;
+  std::string person_ids;
+  std::string tag_ids;
+  std::string album_matching = "Any selected";
+  std::string person_matching = "Any selected";
+  std::string tag_matching = "Any selected";
+  std::string inclusion_matching = "Match all enabled groups";
+  std::string favorite_mode = "Any";
+  uint8_t minimum_rating = 0;
+  std::string taken_after;
+  std::string taken_before;
+  std::string city;
+  std::string state;
+  std::string country;
+  std::string excluded_album_ids;
+  std::string excluded_person_ids;
+  std::string excluded_tag_ids;
+};
+
+struct ImmichFilterBranch {
+  // Empty means there are no inclusion groups. "All" means every enabled
+  // group is present; the other values identify the one sampled OR branch.
+  std::string group;
+  std::string album_ids;
+  std::string person_ids;
+  std::string tag_ids;
+};
+
+inline bool immich_matching_is_all(const std::string &value) {
+  return value.rfind("All selected", 0) == 0;
+}
+
+inline bool parse_immich_semver(const std::string &value, int *major, int *minor, int *patch) {
+  if (major == nullptr || minor == nullptr || patch == nullptr) return false;
+  int parsed_major = 0;
+  int parsed_minor = 0;
+  int parsed_patch = 0;
+  char trailing = '\0';
+  if (std::sscanf(value.c_str(), "%d.%d.%d%c", &parsed_major, &parsed_minor, &parsed_patch,
+                  &trailing) != 3) {
+    return false;
+  }
+  if (parsed_major < 0 || parsed_minor < 0 || parsed_patch < 0) return false;
+  *major = parsed_major;
+  *minor = parsed_minor;
+  *patch = parsed_patch;
+  return true;
+}
+
+inline ImmichApiGeneration immich_api_generation_for_version(const std::string &version) {
+  int major = 0;
+  int minor = 0;
+  int patch = 0;
+  if (!parse_immich_semver(version, &major, &minor, &patch)) {
+    return ImmichApiGeneration::V31_FLAT;
+  }
+  if (major > 3 || (major == 3 && minor >= 2)) return ImmichApiGeneration::V32_STRUCTURED;
+  return ImmichApiGeneration::V31_FLAT;
+}
+
+inline std::string immich_json_escape(const std::string &value) {
+  static const char hex[] = "0123456789abcdef";
+  std::string escaped;
+  escaped.reserve(value.size() + 8);
+  for (unsigned char c : value) {
+    switch (c) {
+      case '"': escaped += "\\\""; break;
+      case '\\': escaped += "\\\\"; break;
+      case '\b': escaped += "\\b"; break;
+      case '\f': escaped += "\\f"; break;
+      case '\n': escaped += "\\n"; break;
+      case '\r': escaped += "\\r"; break;
+      case '\t': escaped += "\\t"; break;
+      default:
+        if (c < 0x20) {
+          escaped += "\\u00";
+          escaped += hex[(c >> 4) & 0x0f];
+          escaped += hex[c & 0x0f];
+        } else {
+          escaped.push_back(static_cast<char>(c));
+        }
+    }
+  }
+  return escaped;
+}
+
+inline bool immich_filter_requires_v32(const ImmichFilterConfig &config) {
+  return config.minimum_rating > 0 || !split_valid_uuid_csv(config.excluded_album_ids).empty() ||
+         !split_valid_uuid_csv(config.excluded_person_ids).empty() ||
+         !split_valid_uuid_csv(config.excluded_tag_ids).empty();
+}
+
+inline bool immich_filter_location_is_valid(const ImmichFilterConfig &config) {
+  if (!config.city.empty() && (config.state.empty() || config.country.empty())) return false;
+  if (!config.state.empty() && config.country.empty()) return false;
+  return true;
+}
+
+inline std::vector<std::string> immich_enabled_inclusion_groups(const ImmichFilterConfig &config) {
+  std::vector<std::string> groups;
+  if (config.albums_enabled && !split_valid_uuid_csv(config.album_ids).empty()) groups.push_back("Album");
+  if (config.people_enabled && !split_valid_uuid_csv(config.person_ids).empty()) groups.push_back("Person");
+  if (config.tags_enabled && !split_valid_uuid_csv(config.tag_ids).empty()) groups.push_back("Tag");
+  return groups;
+}
+
+inline ImmichFilterBranch select_immich_filter_branch(const ImmichFilterConfig &config,
+                                                       uint8_t &next_group_index,
+                                                       int &next_album_index,
+                                                       const std::string &album_order) {
+  ImmichFilterBranch branch;
+  auto groups = immich_enabled_inclusion_groups(config);
+  if (groups.empty()) return branch;
+  if (config.inclusion_matching != "Match any enabled group") {
+    branch.group = "All";
+  } else {
+    if (next_group_index >= groups.size()) next_group_index = 0;
+    branch.group = groups[next_group_index];
+    next_group_index = static_cast<uint8_t>((next_group_index + 1) % groups.size());
+  }
+
+  const bool use_albums = branch.group == "All" || branch.group == "Album";
+  const bool use_people = branch.group == "All" || branch.group == "Person";
+  const bool use_tags = branch.group == "All" || branch.group == "Tag";
+  if (use_albums && config.albums_enabled) {
+    if (immich_matching_is_all(config.album_matching)) {
+      branch.album_ids = valid_uuid_csv(config.album_ids);
+    } else {
+      branch.album_ids = pick_album_id_for_metadata_search(valid_uuid_csv(config.album_ids), album_order,
+                                                            next_album_index);
+    }
+  }
+  if (use_people && config.people_enabled) {
+    branch.person_ids = immich_matching_is_all(config.person_matching)
+      ? valid_uuid_csv(config.person_ids) : pick_one_uuid_from_csv(valid_uuid_csv(config.person_ids));
+  }
+  if (use_tags && config.tags_enabled) {
+    branch.tag_ids = immich_matching_is_all(config.tag_matching)
+      ? valid_uuid_csv(config.tag_ids) : pick_one_uuid_from_csv(valid_uuid_csv(config.tag_ids));
+  }
+  return branch;
+}
+
+inline bool immich_filter_branch_uses_album(const ImmichFilterBranch &branch) {
+  return !split_valid_uuid_csv(branch.album_ids).empty();
+}
+
+inline void immich_append_json_field(std::string &body, bool &has_field,
+                                     const std::string &key, const std::string &value) {
+  if (has_field) body += ",";
+  body += "\"" + key + "\":" + value;
+  has_field = true;
+}
+
+inline std::string build_immich_filter_search_body(
+    const ImmichFilterConfig &config, const ImmichFilterBranch &branch,
+    ImmichApiGeneration generation, uint16_t size, bool with_people,
+    bool metadata_search = false, uint32_t page = 1) {
+  if (size == 0) size = 1;
+  if (page == 0) page = 1;
+  std::string body = "{";
+  bool root_field = false;
+  if (metadata_search) immich_append_json_field(body, root_field, "page", std::to_string(page));
+  immich_append_json_field(body, root_field, "size", std::to_string(size));
+  immich_append_json_field(body, root_field, "withExif", "true");
+  if (with_people) immich_append_json_field(body, root_field, "withPeople", "true");
+
+  if (generation == ImmichApiGeneration::V31_FLAT) {
+    immich_append_json_field(body, root_field, "type", "\"IMAGE\"");
+    immich_append_json_field(body, root_field, "visibility", "\"timeline\"");
+    if (config.favorite_mode == "Favorites only") {
+      immich_append_json_field(body, root_field, "isFavorite", "true");
+    } else if (config.favorite_mode == "Exclude favorites") {
+      immich_append_json_field(body, root_field, "isFavorite", "false");
+    }
+    if (!config.taken_after.empty()) immich_append_json_field(body, root_field, "takenAfter", "\"" + immich_json_escape(config.taken_after) + "\"");
+    if (!config.taken_before.empty()) immich_append_json_field(body, root_field, "takenBefore", "\"" + immich_json_escape(config.taken_before) + "\"");
+    if (!config.country.empty()) immich_append_json_field(body, root_field, "country", "\"" + immich_json_escape(config.country) + "\"");
+    if (!config.state.empty()) immich_append_json_field(body, root_field, "state", "\"" + immich_json_escape(config.state) + "\"");
+    if (!config.city.empty()) immich_append_json_field(body, root_field, "city", "\"" + immich_json_escape(config.city) + "\"");
+    if (!branch.album_ids.empty()) immich_append_json_field(body, root_field, "albumIds", build_valid_uuid_json_array(branch.album_ids));
+    if (!branch.person_ids.empty()) immich_append_json_field(body, root_field, "personIds", build_valid_uuid_json_array(branch.person_ids));
+    if (!branch.tag_ids.empty()) immich_append_json_field(body, root_field, "tagIds", build_valid_uuid_json_array(branch.tag_ids));
+  } else {
+    std::string filter = "{";
+    bool filter_field = false;
+    auto eq_string = [](const std::string &value) { return "{\"eq\":\"" + immich_json_escape(value) + "\"}"; };
+    immich_append_json_field(filter, filter_field, "type", eq_string("IMAGE"));
+    immich_append_json_field(filter, filter_field, "visibility", eq_string("timeline"));
+    if (config.favorite_mode == "Favorites only") immich_append_json_field(filter, filter_field, "isFavorite", "{\"eq\":true}");
+    else if (config.favorite_mode == "Exclude favorites") immich_append_json_field(filter, filter_field, "isFavorite", "{\"eq\":false}");
+    if (config.minimum_rating > 0) immich_append_json_field(filter, filter_field, "rating", "{\"gte\":" + std::to_string(config.minimum_rating) + "}");
+    if (!config.taken_after.empty() || !config.taken_before.empty()) {
+      std::string range = "{";
+      bool range_field = false;
+      if (!config.taken_after.empty()) immich_append_json_field(range, range_field, "gte", "\"" + immich_json_escape(config.taken_after) + "\"");
+      if (!config.taken_before.empty()) immich_append_json_field(range, range_field, "lte", "\"" + immich_json_escape(config.taken_before) + "\"");
+      range += "}";
+      immich_append_json_field(filter, filter_field, "takenAt", range);
+    }
+    if (!config.country.empty()) immich_append_json_field(filter, filter_field, "country", eq_string(config.country));
+    if (!config.state.empty()) immich_append_json_field(filter, filter_field, "state", eq_string(config.state));
+    if (!config.city.empty()) immich_append_json_field(filter, filter_field, "city", eq_string(config.city));
+    auto append_ids = [&](const std::string &key, const std::string &included,
+                          const std::string &excluded) {
+      std::string predicate = "{";
+      bool predicate_field = false;
+      if (!included.empty()) {
+        const bool all = (key == "albumIds" && immich_matching_is_all(config.album_matching)) ||
+                         (key == "personIds" && immich_matching_is_all(config.person_matching)) ||
+                         (key == "tagIds" && immich_matching_is_all(config.tag_matching));
+        immich_append_json_field(predicate, predicate_field, all ? "all" : "any",
+                                 build_valid_uuid_json_array(included));
+      }
+      if (!excluded.empty()) immich_append_json_field(predicate, predicate_field, "none", build_valid_uuid_json_array(excluded));
+      predicate += "}";
+      if (predicate_field) immich_append_json_field(filter, filter_field, key, predicate);
+    };
+    append_ids("albumIds", branch.album_ids, config.excluded_album_ids);
+    append_ids("personIds", branch.person_ids, config.excluded_person_ids);
+    append_ids("tagIds", branch.tag_ids, config.excluded_tag_ids);
+    filter += "}";
+    immich_append_json_field(body, root_field, "filter", filter);
+  }
+  body += "}";
+  return body;
+}
+
+inline std::string build_immich_filter_statistics_body(
+    const ImmichFilterConfig &config, const ImmichFilterBranch &branch,
+    ImmichApiGeneration generation) {
+  std::string body = build_immich_filter_search_body(
+      config, branch, generation, 1, false, false, 1);
+  const std::string search_only = "\"size\":1,\"withExif\":true,";
+  size_t position = body.find(search_only);
+  if (position != std::string::npos) body.erase(position, search_only.size());
+  return body;
+}
 
 // Owns the complete state of the Immich request pipeline. Keeping these values
 // together makes reset, retry, and cooldown transitions atomic instead of
@@ -63,6 +325,12 @@ struct ImmichRequestState {
   std::string candidate_pool_source_filter_id;
   uint32_t photo_source_generation = 0;
   uint32_t random_request_generation = 0;
+  std::string server_version;
+  ImmichApiGeneration api_generation = ImmichApiGeneration::V31_FLAT;
+  bool server_version_discovered = false;
+  uint8_t inclusion_group_index = 0;
+  uint8_t empty_branch_attempts = 0;
+  ImmichFilterBranch active_filter_branch;
 
   void reset() {
     uint32_t next_photo_source_generation = this->photo_source_generation + 1;
@@ -233,6 +501,72 @@ struct ImmichRequestState {
   }
 };
 
+inline bool parse_immich_server_version(const std::string &body, std::string *version,
+                                        ImmichApiGeneration *generation) {
+  if (version == nullptr || generation == nullptr) return false;
+  auto read_number = [&](const char *name) {
+    std::string key = "\"" + std::string(name) + "\"";
+    size_t position = body.find(key);
+    if (position == std::string::npos) return -1;
+    position = body.find(':', position + key.size());
+    if (position == std::string::npos) return -1;
+    position++;
+    while (position < body.size() && (body[position] == ' ' || body[position] == '\t')) position++;
+    if (position >= body.size() || body[position] < '0' || body[position] > '9') return -1;
+    int result = 0;
+    while (position < body.size() && body[position] >= '0' && body[position] <= '9') {
+      result = result * 10 + (body[position] - '0');
+      position++;
+    }
+    return result;
+  };
+  int major = read_number("major");
+  int minor = read_number("minor");
+  int patch = read_number("patch");
+  if (major < 0 || minor < 0 || patch < 0) return false;
+  *version = std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch);
+  *generation = immich_api_generation_for_version(*version);
+  return true;
+}
+
+inline std::string legacy_source_for_filter(const ImmichFilterConfig &config) {
+  if (config.favorite_mode == "Favorites only" && !config.albums_enabled &&
+      !config.people_enabled && !config.tags_enabled && config.minimum_rating == 0 &&
+      config.city.empty() && config.state.empty() && config.country.empty() &&
+      config.excluded_album_ids.empty() && config.excluded_person_ids.empty() &&
+      config.excluded_tag_ids.empty()) return "Favorites";
+  if (config.favorite_mode != "Any" || config.minimum_rating != 0 || !config.city.empty() ||
+      !config.state.empty() || !config.country.empty() || !config.excluded_album_ids.empty() ||
+      !config.excluded_person_ids.empty() || !config.excluded_tag_ids.empty()) return "Custom";
+  int enabled = static_cast<int>(config.albums_enabled) + static_cast<int>(config.people_enabled) +
+                static_cast<int>(config.tags_enabled);
+  if (enabled == 0) return "All Photos";
+  if (enabled != 1 || config.inclusion_matching == "Match any enabled group") return "Custom";
+  if (config.albums_enabled) return "Album";
+  if (config.people_enabled) return "Person";
+  if (config.tags_enabled) return "Tag";
+  return "Custom";
+}
+
+inline void apply_legacy_source_to_filter(const std::string &source,
+                                          ImmichFilterConfig *config,
+                                          bool *memories_notice = nullptr) {
+  if (config == nullptr) return;
+  config->albums_enabled = source == "Album";
+  config->people_enabled = source == "Person";
+  config->tags_enabled = source == "Tag";
+  config->inclusion_matching = "Match all enabled groups";
+  config->favorite_mode = source == "Favorites" ? "Favorites only" : "Any";
+  config->minimum_rating = 0;
+  config->city.clear();
+  config->state.clear();
+  config->country.clear();
+  config->excluded_album_ids.clear();
+  config->excluded_person_ids.clear();
+  config->excluded_tag_ids.clear();
+  if (memories_notice != nullptr && source == "Memories") *memories_notice = true;
+}
+
 struct ImmichAssetMeta {
   // Normalized subset of the Immich asset response used by the slideshow UI.
   // Keeping a compact struct avoids spreading JSON field names through YAML
@@ -240,6 +574,7 @@ struct ImmichAssetMeta {
   std::string asset_id, image_url, date, location, person;
   std::string datetime;  // localDateTime from asset, for slot display
   std::string source_filter_id;  // exact album/person/tag selection for companion searches
+  std::string filter_album_ids, filter_person_ids, filter_tag_ids;
   int year = 0, month = 0, day = 0;
   bool is_portrait = false;
   bool orientation_known = false;
@@ -412,6 +747,28 @@ inline std::string build_immich_companion_date_filter_extra(const std::string &d
   return "\"takenAfter\":\"" + after + "\",\"takenBefore\":\"" + before + "\"";
 }
 
+inline std::pair<std::string, std::string> resolve_immich_companion_filter_dates(
+    const std::string &day, const ImmichDateRange &range, int range_days = 0) {
+  std::string extra = build_immich_companion_date_filter_extra(day, range, range_days);
+  const std::string after_key = "\"takenAfter\":\"";
+  const std::string before_key = "\"takenBefore\":\"";
+  size_t after_start = extra.find(after_key);
+  size_t before_start = extra.find(before_key);
+  std::string after;
+  std::string before;
+  if (after_start != std::string::npos) {
+    after_start += after_key.size();
+    size_t end = extra.find('"', after_start);
+    if (end != std::string::npos) after = extra.substr(after_start, end - after_start);
+  }
+  if (before_start != std::string::npos) {
+    before_start += before_key.size();
+    size_t end = extra.find('"', before_start);
+    if (end != std::string::npos) before = extra.substr(before_start, end - before_start);
+  }
+  return {after, before};
+}
+
 inline bool immich_datetime_sort_value(const std::string &raw, int64_t &value) {
   if (raw.size() < 10) return false;
   int year = atoi(raw.substr(0, 4).c_str());
@@ -481,6 +838,38 @@ inline std::vector<std::string> split_uuid_csv(const std::string &csv) {
   return out;
 }
 
+inline bool is_valid_immich_uuid(const std::string &value) {
+  if (value.size() != 36) return false;
+  for (size_t i = 0; i < value.size(); i++) {
+    if (i == 8 || i == 13 || i == 18 || i == 23) {
+      if (value[i] != '-') return false;
+      continue;
+    }
+    const char c = value[i];
+    if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
+          (c >= 'A' && c <= 'F'))) return false;
+  }
+  return true;
+}
+
+inline std::vector<std::string> split_valid_uuid_csv(const std::string &csv) {
+  std::vector<std::string> valid;
+  for (const auto &value : split_uuid_csv(csv)) {
+    if (is_valid_immich_uuid(value)) valid.push_back(value);
+  }
+  return valid;
+}
+
+inline std::string valid_uuid_csv(const std::string &csv) {
+  auto ids = split_valid_uuid_csv(csv);
+  std::string result;
+  for (size_t i = 0; i < ids.size(); i++) {
+    if (i) result += ",";
+    result += ids[i];
+  }
+  return result;
+}
+
 // Immich treats multiple personIds as AND (asset must include every person).
 // For Person source we send one UUID per request so results are any-of over time.
 inline std::string pick_one_person_id_for_random_search(const std::string &csv) {
@@ -546,6 +935,10 @@ inline std::string build_uuid_json_array(const std::string &csv) {
   }
   result += "]";
   return result;
+}
+
+inline std::string build_valid_uuid_json_array(const std::string &csv) {
+  return build_uuid_json_array(valid_uuid_csv(csv));
 }
 
 inline bool immich_source_has_required_ids(const std::string &photo_source,
@@ -721,6 +1114,16 @@ inline std::string build_immich_companion_search_body(
   // client evaluates every returned portrait by capture-time distance.
   return build_immich_search_body(
       size, false, photo_source, album_id, person_id, tag_ids, extra);
+}
+
+inline std::string build_immich_companion_metadata_search_body(
+    uint32_t page, uint16_t size, const std::string &photo_source,
+    const std::string &source_filter_id, const std::string &extra = "") {
+  std::string album_id = photo_source == "Album" ? source_filter_id : "";
+  std::string person_id = photo_source == "Person" ? source_filter_id : "";
+  std::string tag_ids = photo_source == "Tag" ? source_filter_id : "";
+  return build_immich_metadata_search_body(
+      page, size, false, photo_source, album_id, person_id, tag_ids, extra);
 }
 
 inline std::string build_immich_statistics_search_body(const std::string &photo_source,
@@ -1165,9 +1568,26 @@ inline std::string pick_immich_timeline_asset_id(const std::string &body,
 inline std::string find_immich_portrait_companion_url(const std::string &body,
                                                       const std::string &base_url,
                                                       const std::string &primary_asset_id,
-                                                      const std::string &primary_datetime = "") {
+                                                      const std::string &primary_datetime = "",
+                                                      uint32_t *next_page = nullptr) {
+  if (next_page != nullptr) *next_page = 0;
   auto doc = esphome::json::parse_json(body);
   if (doc.isNull()) return "";
+
+  if (next_page != nullptr && doc.is<JsonObject>()) {
+    JsonObject assets = doc.as<JsonObject>()["assets"].as<JsonObject>();
+    if (!assets.isNull()) {
+      if (assets["nextPage"].is<const char *>()) {
+        const std::string raw = assets["nextPage"].as<std::string>();
+        *next_page = static_cast<uint32_t>(strtoul(raw.c_str(), nullptr, 10));
+      } else if (assets["nextPage"].is<uint32_t>()) {
+        *next_page = assets["nextPage"].as<uint32_t>();
+      } else if (assets["nextPage"].is<int>()) {
+        const int value = assets["nextPage"].as<int>();
+        if (value > 0) *next_page = static_cast<uint32_t>(value);
+      }
+    }
+  }
 
   std::vector<ImmichPortraitCompanionCandidate> candidates;
   JsonArray arr = immich_asset_array_from_document(doc);
@@ -1178,13 +1598,12 @@ inline std::string find_immich_portrait_companion_url(const std::string &body,
 
     std::string asset_id = asset["id"].as<std::string>();
     JsonObject exif = asset["exifInfo"].as<JsonObject>();
-    if (exif.isNull()) continue;
 
     int width = asset["width"].is<int>() ? asset["width"].as<int>() : 0;
     int height = asset["height"].is<int>() ? asset["height"].as<int>() : 0;
-    int exif_width = exif["exifImageWidth"].is<int>()
+    int exif_width = !exif.isNull() && exif["exifImageWidth"].is<int>()
       ? exif["exifImageWidth"].as<int>() : 0;
-    int exif_height = exif["exifImageHeight"].is<int>()
+    int exif_height = !exif.isNull() && exif["exifImageHeight"].is<int>()
       ? exif["exifImageHeight"].as<int>() : 0;
     const bool dimensions_are_raw_exif = exif_width > 0 && exif_height > 0;
     if (dimensions_are_raw_exif) {
@@ -1193,12 +1612,14 @@ inline std::string find_immich_portrait_companion_url(const std::string &body,
     }
 
     std::string orientation;
-    if (exif["orientation"].is<const char *>()) orientation = exif["orientation"].as<std::string>();
+    if (!exif.isNull() && exif["orientation"].is<const char *>()) {
+      orientation = exif["orientation"].as<std::string>();
+    }
 
     std::string candidate_datetime;
     if (asset["localDateTime"].is<const char *>()) {
       candidate_datetime = asset["localDateTime"].as<std::string>();
-    } else if (exif["dateTimeOriginal"].is<const char *>()) {
+    } else if (!exif.isNull() && exif["dateTimeOriginal"].is<const char *>()) {
       candidate_datetime = exif["dateTimeOriginal"].as<std::string>();
     }
     candidates.push_back({

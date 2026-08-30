@@ -8,7 +8,7 @@
     "update_mode": "atomic"
   },
   "compatibility": {
-    "backup_versions": [1],
+    "backup_versions": [1, 2],
     "preserve_esphome_entity_names": true,
     "preserve_saved_preferences": true
   }

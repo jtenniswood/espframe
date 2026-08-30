@@ -58,7 +58,7 @@ If the frame connects but does not show the photos you expect:
 - Start with **All Photos** as the source to confirm the basic connection works.
 - Check that favorites, albums, people, or memories exist in Immich before selecting those sources.
 - Confirm album and person UUIDs were copied from the Immich URL correctly.
-- Review [Espframe Photo Sources for Immich](/photo-sources) for each source type.
+- Review [Espframe Smart Photo Filters for Immich](/photo-sources) for filter rules and version compatibility.
 - Disable date filtering temporarily if the selected range may exclude all photos.
 
 ## Screen or Display Issues
@@ -69,7 +69,7 @@ Display behavior is configured from the frame web UI:
 
 - Use [screen brightness and display settings](/screen-settings) for brightness, schedules, and rotation.
 - Use [screen tone and night warmth](/screen-tone) if the panel looks too blue or too warm.
-- Use [touch controls](/touch-controls) if you need wake, sleep, or next-photo gestures.
+- Use [touch controls](/touch-controls) if you need wake, sleep, or next-photo gestures, including left/right image-set navigation.
 
 ## Manual ESPHome Builds
 

@@ -37,6 +37,7 @@ def check_photo_source_metadata(product: dict, errors: list[str]) -> None:
     backup_docs = read(ROOT / "docs" / "backup.md", errors)
     filter_yaml = read(ROOT / "common" / "addon" / "immich_filter.yaml", errors)
     api_yaml = read(ROOT / "common" / "addon" / "immich_api.yaml", errors)
+    config_yaml = read(ROOT / "common" / "addon" / "immich_config.yaml", errors)
     web_template = read_web_source(errors)
 
     if auto_apply_behavior:
@@ -67,23 +68,24 @@ def check_photo_source_metadata(product: dict, errors: list[str]) -> None:
         ):
             require_contains(text, mode, label, errors)
     for needle in (
-        "whole library",
+        "albums",
+        "people",
+        "tags",
         "favorites",
-        "specific albums",
-        "specific people",
-        "specific tags",
-        '"on this day" memories',
-        "chosen date range",
+        "ratings",
+        "locations",
+        "exclusions",
     ):
         require_contains(readme, needle, "README.md", errors)
     for needle in (
-        "Photo Sources",
-        "favorites only",
-        "specific albums",
-        "specific people",
-        "specific tags",
-        '"on this day" memories',
-        "date range",
+        "Smart Photo Filters",
+        "albums",
+        "people",
+        "tags",
+        "favorites",
+        "ratings",
+        "locations",
+        "exclusions",
     ):
         require_contains(index_docs, needle, "docs/index.md", errors)
     for needle in ("Album IDs", "Album Labels", "Person IDs", "Person Labels", "Tag IDs", "Tag Labels"):
@@ -104,14 +106,14 @@ def check_photo_source_metadata(product: dict, errors: list[str]) -> None:
         require_firmware_text_entity_shape(filter_yaml, name, "common/addon/immich_filter.yaml", errors)
     for needle in (
         "immich_request_state",
-        "begin_memory_search",
-        "advance_memory_window",
-        "build_immich_search_body",
-        "pick_album_id_for_metadata_search",
-        "pick_one_person_id_for_random_search",
+        "ImmichFilterConfig",
+        "build_immich_filter_search_body",
+        "select_immich_filter_branch",
     ):
         require_contains(api_yaml, needle, "common/addon/immich_api.yaml", errors)
-    require_contains(api_key_docs, "memory.read", "docs/api-key.md", errors)
+    require_contains(config_yaml, "/api/server/version", "common/addon/immich_config.yaml", errors)
+    if "memory.read" in api_key_docs:
+        errors.append("docs/api-key.md must not recommend memory.read after Memories migration")
     for needle in (
         "MAX_PHOTO_ID_FIELD_LENGTH",
         "schedulePhotoSourceApply",

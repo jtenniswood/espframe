@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "connection": {
     "immich_url": "https://future.photos.example.com"
   }
