@@ -29,7 +29,11 @@
   var BACKUP_VERSION_MIGRATIONS = {
     1: function backupConfigVersion1(data) {
       var migrated = JSON.parse(JSON.stringify(data));
-      var photos = migrated.photos || (migrated.photos = {});
+      var photos = migrated.photos;
+      if (!photos || !Object.prototype.hasOwnProperty.call(photos, "source")) {
+        migrated.version = 2;
+        return migrated;
+      }
       var source = photos.source || "All Photos";
       photos.albums_enabled = source === "Album";
       photos.people_enabled = source === "Person";

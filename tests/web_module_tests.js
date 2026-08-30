@@ -6,6 +6,7 @@ const root = path.resolve(__dirname, "..");
 const template = fs.readFileSync(path.join(root, "docs/webserver/src/app.template.ts"), "utf8");
 const publicApp = fs.readFileSync(path.join(root, "docs/public/webserver/app.js"), "utf8");
 const endpointsSource = fs.readFileSync(path.join(root, "docs/webserver/src/endpoints.ts"), "utf8");
+const backupImportSource = fs.readFileSync(path.join(root, "docs/webserver/src/backup_import.ts"), "utf8");
 const product = JSON.parse(fs.readFileSync(path.join(root, "product/espframe.json"), "utf8"));
 const supportButtonImage = fs.readFileSync(
   path.join(root, "docs/webserver/src/buy_me_a_coffee_button.webp.b64"),
@@ -69,6 +70,33 @@ assert.equal(
   "embedded dashboard should not fetch the support button from a third party"
 );
 assert.ok(publicApp.includes('image.alt = "Buy Me A Coffee"'), "support button image should have accessible text");
+
+const backupImportContext = { JSON };
+require("vm").runInNewContext(backupImportSource, backupImportContext);
+const connectionOnlyBackup = backupImportContext.migrateBackupConfig({
+  version: 1,
+  connection: { immich_url: "https://photos.example.com" }
+});
+assert.equal(
+  Object.prototype.hasOwnProperty.call(connectionOnlyBackup, "photos"),
+  false,
+  "migrating a partial v1 backup must not synthesize omitted photo settings"
+);
+const displayOnlyBackup = backupImportContext.migrateBackupConfig({
+  version: 1,
+  photos: { display_mode: "Fit" }
+});
+assert.deepEqual(
+  JSON.parse(JSON.stringify(displayOnlyBackup.photos)),
+  { display_mode: "Fit" },
+  "migrating a v1 photo group without a source must preserve the current photo filter"
+);
+const legacyAlbumBackup = backupImportContext.migrateBackupConfig({
+  version: 1,
+  photos: { source: "Album" }
+});
+assert.equal(legacyAlbumBackup.photos.albums_enabled, true, "legacy Album sources should enable the album group");
+assert.equal(legacyAlbumBackup.photos.source, "Album", "legacy photo sources should remain available to firmware migration");
 
 // The web server identifies each entity with name_id ("domain/Friendly Name") plus a
 // legacy id ("domain-object_id"). ENTITY_STATE_MAP and the REST endpoints both use the
