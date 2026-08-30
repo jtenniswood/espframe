@@ -283,6 +283,11 @@ script:
           then:
             - script.execute: sync_immich_filter_config
             - delay: 1ms
+            # Configuration errors are rendered by an overlay owned by the
+            # slideshow page, so navigate there before any validation branch
+            # can stop this readiness script.
+            - script.stop: setup_screen_dim
+            - lvgl.page.show: slideshow_page
             - if:
                 condition:
                   lambda: |-
@@ -309,8 +314,6 @@ script:
                       clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot,
                                                  id(espframe_core).slideshow().state().slot_flags);
                   - script.stop: immich_check_config_ready
-            - script.stop: setup_screen_dim
-            - lvgl.page.show: slideshow_page
             - script.execute: hide_photo_source_empty_state
             - if:
                 condition:

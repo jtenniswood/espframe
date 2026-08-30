@@ -9,6 +9,14 @@ const endpointsSource = fs.readFileSync(path.join(root, "docs/webserver/src/endp
 const backupImportSource = fs.readFileSync(path.join(root, "docs/webserver/src/backup_import.ts"), "utf8");
 const immichFilterSource = fs.readFileSync(path.join(root, "common/addon/immich_filter.yaml"), "utf8");
 const immichConfigSource = fs.readFileSync(path.join(root, "common/addon/immich_config.yaml"), "utf8");
+const slideshowScreenSource = fs.readFileSync(
+  path.join(root, "devices/guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml"),
+  "utf8"
+);
+const displayDeviceSources = [
+  "devices/guition-esp32-p4-jc8012p4a1/device/device.yaml",
+  "devices/guition-esp32-p4-jc8012p4a1-v2/device/device.yaml"
+].map((filename) => fs.readFileSync(path.join(root, filename), "utf8"));
 const product = JSON.parse(fs.readFileSync(path.join(root, "product/espframe.json"), "utf8"));
 const supportButtonImage = fs.readFileSync(
   path.join(root, "docs/webserver/src/buy_me_a_coffee_button.webp.b64"),
@@ -79,6 +87,26 @@ assert.ok(
     immichConfigSource.includes("script.execute: flush_slots_and_refetch"),
   "capability recovery should flush a photo-filter apply deferred by compatibility mode"
 );
+const configReadiness = immichConfigSource.slice(
+  immichConfigSource.indexOf("- id: immich_check_config_ready"),
+  immichConfigSource.indexOf("- id: immich_retry_config_ready")
+);
+assert.ok(
+  configReadiness.indexOf("lvgl.page.show: slideshow_page") <
+    configReadiness.indexOf("script.stop: immich_check_config_ready"),
+  "configuration errors should navigate to the slideshow before showing its overlay"
+);
+assert.equal(
+  slideshowScreenSource.includes("slideshow_swipe_suppress_tap_until_ms) = 0"),
+  false,
+  "navigation feedback should not clear swipe tap suppression before release"
+);
+displayDeviceSources.forEach((source) => {
+  assert.ok(
+    source.includes("slideshow_swipe_suppress_tap_until_ms) = millis() + 250"),
+    "each display revision should extend swipe tap suppression through release"
+  );
+});
 const legacyPreset = immichFilterSource.slice(
   immichFilterSource.indexOf("- id: apply_legacy_photo_source_preset"),
   immichFilterSource.indexOf("- id: flush_slots_and_refetch")

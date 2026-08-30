@@ -569,7 +569,6 @@ script:
       - delay: 650ms
       - lambda: |-
           lv_obj_add_flag(id(slideshow_navigation_feedback), LV_OBJ_FLAG_HIDDEN);
-          id(slideshow_swipe_suppress_tap_until_ms) = 0;
 
   - id: slideshow_on_press
     mode: single
