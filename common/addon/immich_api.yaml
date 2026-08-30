@@ -829,6 +829,7 @@ script:
             not:
               wifi.connected:
           then:
+            - lambda: 'id(espframe_core).slideshow().mark_portrait_search_request_finished();'
             - logger.log:
                 level: DEBUG
                 tag: immich
@@ -838,6 +839,7 @@ script:
           condition:
             lambda: 'return id(immich_url).state.empty() || id(immich_api_key_text).state.empty();'
           then:
+            - lambda: 'id(espframe_core).slideshow().mark_portrait_search_request_finished();'
             - script.stop: immich_fetch_portrait_companion
       - if:
           condition:
@@ -871,6 +873,7 @@ script:
           std::string dt = id(espframe_core).slideshow().state().portrait_search_datetime;
           if (dt.size() < 10) {
             ESP_LOGW("immich", "No datetime for companion search");
+            id(espframe_core).slideshow().mark_portrait_search_request_finished();
             id(handle_companion_not_found).execute();
             return;
           }
@@ -918,6 +921,7 @@ script:
                     ESP_LOGW("immich", "Companion search HTTP %d", response->status_code);
                     id(espframe_core).slideshow().state().diagnostic_reason = "companion search http";
                     id(log_immich_diag).execute();
+                    id(espframe_core).slideshow().mark_portrait_search_request_finished();
                     id(handle_companion_not_found).execute();
                     return;
                   }
@@ -934,6 +938,7 @@ script:
                       return;
                     }
                     ESP_LOGI("immich", "NO COMPANION found for slot %d", id(espframe_core).slideshow().state().companion_target_slot);
+                    id(espframe_core).slideshow().mark_portrait_search_request_finished();
                     id(handle_companion_not_found).execute();
                     return;
                   }
@@ -942,6 +947,7 @@ script:
                     id(espframe_core).slideshow().state().companion_target_slot, id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2,
                     id(espframe_core).slideshow().state().portrait_preload_slot, id(espframe_core).slideshow().state().portrait_preload_left_ready,
                     id(espframe_core).slideshow().state().portrait_preload_right_ready);
+                  id(espframe_core).slideshow().mark_portrait_search_request_finished();
                   id(espframe_slideshow_dispatch).execute();
           on_error:
             then:
@@ -953,5 +959,6 @@ script:
                   ESP_LOGW("immich", "Companion search request failed");
                   id(espframe_core).slideshow().state().diagnostic_reason = "companion search error";
                   id(log_immich_diag).execute();
+                  id(espframe_core).slideshow().mark_portrait_search_request_finished();
                   id(handle_companion_not_found).execute();
       - script.execute: delayed_prefetch_chain

@@ -61,7 +61,7 @@ def check_touch_controls_metadata(product: dict, errors: list[str]) -> None:
             "horizontal_distance >= 120",
             "immich_advance_forward",
             "immich_show_previous",
-            "any_slot_fetch_in_flight",
+            "previous_navigation_blocked",
             "millis() + 250",
             "clear_slideshow_swipe_tap_suppression",
         ):

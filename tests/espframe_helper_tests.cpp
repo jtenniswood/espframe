@@ -774,6 +774,7 @@ static void test_slideshow_component_portrait_flow() {
   assert(companion_url.empty());
   assert(search_datetime == no_companion.datetime);
   assert(companion_slot == 0);
+  assert(slideshow.state().portrait_search_in_flight);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DEFER_COMPANION_SEARCH);
 
@@ -940,6 +941,31 @@ static void test_slideshow_component_previous_flow() {
   assert(previous.asset_id == "previous");
   assert(!slideshow.pop_command(cmd));
   flags.fetch_in_flight[1] = false;
+
+  portrait.workflow_busy = true;
+  blocked = slideshow.show_previous(1201, active_slot, displayed, slot0, slot1, slot2,
+                                    current, previous, portrait, flags);
+  assert(!blocked);
+  assert(!slideshow.pop_command(cmd));
+  portrait.workflow_busy = false;
+
+  slideshow.state().companion_target_slot = 2;
+  slideshow.state().portrait_search_generation = 1;
+  slideshow.mark_portrait_search_request_started();
+  blocked = slideshow.show_previous(1202, active_slot, displayed, slot0, slot1, slot2,
+                                    current, previous, portrait, flags);
+  assert(!blocked);
+  assert(!slideshow.pop_command(cmd));
+  slideshow.mark_portrait_search_request_finished();
+
+  slideshow.state().portrait_preload_slot = 2;
+  slideshow.state().portrait_preload_left_ready = true;
+  slideshow.state().portrait_preload_right_ready = true;
+  blocked = slideshow.show_previous(1203, active_slot, displayed, slot0, slot1, slot2,
+                                    current, previous, portrait, flags);
+  assert(!blocked);
+  assert(!slideshow.pop_command(cmd));
+  slideshow.state().portrait_preload_slot = -1;
 
   bool shown = slideshow.show_previous(1234, active_slot, displayed, slot0, slot1, slot2,
                                        current, previous, portrait, flags);
@@ -1192,6 +1218,9 @@ static void test_slideshow_component_paired_only_flow() {
   state.portrait_search_generation = 10;
   slideshow.mark_portrait_search_request_started();
   assert(slideshow.portrait_search_response_is_current());
+  slideshow.mark_portrait_search_request_finished();
+  assert(!slideshow.portrait_search_response_is_current());
+  slideshow.mark_portrait_search_request_started();
   slideshow.reject_portrait_slot(8000, 1);
   assert(!slideshow.portrait_search_response_is_current());
 

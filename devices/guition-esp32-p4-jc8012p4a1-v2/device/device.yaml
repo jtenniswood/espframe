@@ -500,7 +500,10 @@ touchscreen:
             if (horizontal_delta < 0) {
               id(show_slideshow_navigation_feedback).execute(1);
               id(immich_advance_forward).execute();
-            } else if (any_slot_fetch_in_flight(id(espframe_core).slideshow().state().slot_flags)) {
+            } else if (id(espframe_core).slideshow().previous_navigation_blocked(
+                         id(espframe_core).slideshow().state().active_slot,
+                         id(espframe_core).slideshow().state().portrait,
+                         id(espframe_core).slideshow().state().slot_flags)) {
               id(show_slideshow_navigation_feedback).execute(0);
             } else {
               id(show_slideshow_navigation_feedback).execute(-1);

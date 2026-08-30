@@ -115,6 +115,7 @@ struct SlideshowRuntimeState {
   int portrait_preload_slot = -1;
   bool portrait_preload_left_ready = false;
   bool portrait_preload_right_ready = false;
+  bool portrait_search_in_flight = false;
   bool portrait_search_expanded = false;
   uint32_t portrait_search_generation = 0;
   uint32_t portrait_search_request_generation = 0;
@@ -180,6 +181,7 @@ class EspFrameSlideshow {
         companion_target_slot, portrait_preload_slot, portrait_search_datetime,
         portrait_primary_asset_id);
     if (action == SLIDESHOW_ACTION_FETCH_COMPANION) {
+      this->state_.portrait_search_in_flight = true;
       this->state_.portrait_search_expanded = false;
       this->state_.portrait_search_generation++;
     }
@@ -229,6 +231,7 @@ class EspFrameSlideshow {
     portrait_companion_url = "";
     portrait_search_datetime = meta.datetime;
     companion_target_slot = active_slot;
+    this->state_.portrait_search_in_flight = true;
     portrait_search_expanded = false;
     this->state_.portrait_search_generation++;
     this->emit_command(SLIDESHOW_COMMAND_DEFER_COMPANION_SEARCH, active_slot, 200);
@@ -433,7 +436,7 @@ class EspFrameSlideshow {
       this->emit_command(SLIDESHOW_COMMAND_LOG_NO_PREVIOUS);
       return false;
     }
-    if (any_slot_fetch_in_flight(flags)) return false;
+    if (this->previous_navigation_blocked(active_slot, portrait, flags)) return false;
 
     int current_slot = active_slot;
     SlotMeta &current_meta = this->slot_mut_(current_slot, slot0, slot1, slot2);
@@ -456,6 +459,15 @@ class EspFrameSlideshow {
 
     this->emit_command(SLIDESHOW_COMMAND_LOAD_PREVIOUS_SLOT, previous_slot);
     return true;
+  }
+
+  bool previous_navigation_blocked(int active_slot, const PortraitState &portrait,
+                                   const SlotFlags &flags) const {
+    int previous_slot = (active_slot + 2) % 3;
+    return any_slot_fetch_in_flight(flags) || portrait.workflow_busy ||
+           (this->state_.portrait_search_in_flight &&
+            this->state_.companion_target_slot == previous_slot) ||
+           this->state_.portrait_preload_slot == previous_slot;
   }
 
   void handle_companion_not_found(PortraitState &portrait,
@@ -588,7 +600,10 @@ class EspFrameSlideshow {
       this->state_.active_slot_displayed = false;
       this->state_.portrait = PortraitState{};
     }
-    if (this->state_.companion_target_slot == slot) this->state_.companion_target_slot = -1;
+    if (this->state_.companion_target_slot == slot) {
+      this->state_.companion_target_slot = -1;
+      this->state_.portrait_search_in_flight = false;
+    }
     this->state_.portrait_companion_url.clear();
     // Keep target_slot bound to any request already in flight. The delayed
     // rejected-slot fetch claims target_slot only after the current request
@@ -601,12 +616,18 @@ class EspFrameSlideshow {
   }
 
   void mark_portrait_search_request_started() {
+    this->state_.portrait_search_in_flight = true;
     this->state_.portrait_search_request_generation =
         this->state_.portrait_search_generation;
   }
 
+  void mark_portrait_search_request_finished() {
+    this->state_.portrait_search_in_flight = false;
+  }
+
   bool portrait_search_response_is_current() const {
-    return this->state_.companion_target_slot >= 0 &&
+    return this->state_.portrait_search_in_flight &&
+           this->state_.companion_target_slot >= 0 &&
            this->state_.companion_target_slot <= 2 &&
            this->state_.portrait_search_request_generation ==
                this->state_.portrait_search_generation;
@@ -723,6 +744,7 @@ class EspFrameSlideshow {
     this->state_.portrait_preload_slot = -1;
     this->state_.portrait_preload_left_ready = false;
     this->state_.portrait_preload_right_ready = false;
+    this->state_.portrait_search_in_flight = false;
     this->state_.portrait_search_expanded = false;
     this->state_.portrait_search_generation++;
     this->state_.portrait_search_request_generation = 0;
