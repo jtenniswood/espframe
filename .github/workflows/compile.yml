@@ -109,6 +109,29 @@ jobs:
           set -euo pipefail
           TEST_VERSION="pr-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           mkdir -p output
+          image="${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}"
+          workspace_volume="espframe-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.slug }}"
+          staging_container=""
+
+          cleanup_workspace() {
+            if [ -n "${staging_container}" ]; then
+              docker rm -f "${staging_container}" >/dev/null 2>&1 || true
+            fi
+            docker volume rm -f "${workspace_volume}" >/dev/null 2>&1 || true
+          }
+          trap cleanup_workspace EXIT
+
+          docker volume create "${workspace_volume}" >/dev/null
+          staging_container=$(docker create \
+            --user "$(id -u):$(id -g)" \
+            --mount "type=volume,source=${workspace_volume},target=${ESPHOME_CONFIG_MOUNT}" \
+            --entrypoint /bin/true \
+            "${image}")
+          docker cp "${PWD}/." "${staging_container}:${ESPHOME_CONFIG_MOUNT}"
+          docker rm "${staging_container}" >/dev/null
+          staging_container=""
+          rm -rf "${RELEASE_ESPHOME_CACHE_DIR}"
+          mkdir -p "${RELEASE_ESPHOME_CACHE_DIR}"
 
           compile_in_isolated_container() {
             local config_file="$1"
@@ -116,12 +139,12 @@ jobs:
             local binary_name="$3"
             local log_file="output/${{ matrix.slug }}.${profile}.log"
             local output_binary="output/${{ matrix.slug }}.${profile}.bin"
-            local image="${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}"
             local container
             container=$(docker create \
               --user "$(id -u):$(id -g)" \
               -e HOME="${ESPHOME_CONFIG_MOUNT}" \
               -e PLATFORMIO_SETTING_ENABLE_TELEMETRY=false \
+              --mount "type=volume,source=${workspace_volume},target=${ESPHOME_CONFIG_MOUNT}" \
               "${image}" \
               -s firmware_version "${TEST_VERSION}" \
               compile "${ESPHOME_CONFIG_MOUNT}/builds/${config_file}")
@@ -131,7 +154,6 @@ jobs:
             }
             trap cleanup_container RETURN
 
-            docker cp "${PWD}/." "${container}:${ESPHOME_CONFIG_MOUNT}"
             set +e
             docker start -a "${container}" 2>&1 | tee "${log_file}"
             local status=${PIPESTATUS[0]}
@@ -146,10 +168,6 @@ jobs:
               return 1
             fi
 
-            rm -rf "${RELEASE_ESPHOME_CACHE_DIR}"
-            mkdir -p "${RELEASE_ESPHOME_CACHE_DIR}"
-            docker cp "${container}:${ESPHOME_CONFIG_MOUNT}/${RELEASE_ESPHOME_CACHE_DIR}/." \
-              "${RELEASE_ESPHOME_CACHE_DIR}"
           }
 
           compile_in_isolated_container \
@@ -165,6 +183,15 @@ jobs:
             --compile-log "output/${{ matrix.slug }}.ota.log" \
             --profile ota \
             --binary "output/${{ matrix.slug }}.ota.bin"
+
+          staging_container=$(docker create \
+            --mount "type=volume,source=${workspace_volume},target=${ESPHOME_CONFIG_MOUNT}" \
+            --entrypoint /bin/true \
+            "${image}")
+          docker cp "${staging_container}:${ESPHOME_CONFIG_MOUNT}/${RELEASE_ESPHOME_CACHE_DIR}/." \
+            "${RELEASE_ESPHOME_CACHE_DIR}"
+          docker rm "${staging_container}" >/dev/null
+          staging_container=""
 
           {
             echo "version=${TEST_VERSION}"
