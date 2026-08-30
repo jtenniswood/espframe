@@ -21,7 +21,7 @@ concurrency:
 jobs:
   validate:
     name: Validate PR Gate
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || 'espframe' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7

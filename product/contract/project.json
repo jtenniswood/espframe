@@ -1455,7 +1455,6 @@
   "github_actions_node24_env": "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24",
   "github_actions_runner": "ubuntu-latest",
   "github_workflow_job_runners": {
-    "compile.validate": "${{ github.event_name == 'pull_request' && 'ubuntu-latest' || 'espframe' }}",
     "compile.firmware-metadata": "espframe",
     "compile.compile": "espframe",
     "docs.build-docs": "espframe",

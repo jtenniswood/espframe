@@ -2713,7 +2713,7 @@ def test_trusted_workflows_target_the_dedicated_runner() -> None:
     release_workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text()
     cleanup_workflow = (ROOT / ".github" / "workflows" / "runner-cleanup.yml").read_text()
 
-    assert "github.event_name == 'pull_request' && 'ubuntu-latest' || 'espframe'" in compile_workflow
+    assert "runs-on: ubuntu-latest" in compile_workflow
     assert compile_workflow.count("runs-on: espframe") == 2
     assert "runs-on: ubuntu-latest" not in docs_workflow
     assert "runs-on: ubuntu-latest" not in release_workflow
