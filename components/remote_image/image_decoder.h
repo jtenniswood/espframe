@@ -1,6 +1,6 @@
 #pragma once
+#include <vector>
 #include "esphome/core/color.h"
-#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace remote_image {
@@ -24,15 +24,7 @@ class ImageDecoder {
    * @param image The image to decode the stream into.
    */
   ImageDecoder(OnlineImage *image) : image_(image) {}
-  virtual ~ImageDecoder();
-
-  // Return a decoder to its idle state without destroying the object. JPEG
-  // decoders are retained by OnlineImage so repeated slideshow updates do not
-  // churn the allocation-capable internal heap.
-  virtual void reset() {
-    this->download_size_ = 1;
-    this->decoded_bytes_ = 0;
-  }
+  virtual ~ImageDecoder() = default;
 
   /**
    * @brief Initialize the decoder.
@@ -135,13 +127,7 @@ class ImageDecoder {
   int y_offset_ = 0;
   int scaled_width_ = 0;
   int scaled_height_ = 0;
-  // Scaling lookups are rebuilt for every decoded image. Keep them in PSRAM
-  // and handle allocation failure explicitly instead of relying on
-  // std::vector, whose throwing allocator aborts on ESP-IDF builds without C++
-  // exception support.
-  RAMAllocator<int> src_x_allocator_{RAMAllocator<int>::ALLOC_EXTERNAL};
-  int *src_x_lut_ = nullptr;
-  size_t src_x_lut_capacity_ = 0;
+  std::vector<int> src_x_lut_;
 };
 
 class DownloadBuffer {

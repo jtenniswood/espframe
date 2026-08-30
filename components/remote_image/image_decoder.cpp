@@ -11,12 +11,6 @@ namespace remote_image {
 // the final ESPHome image buffer, including fit/fill scaling and centering.
 static const char *const TAG = "remote_image.decoder";
 
-ImageDecoder::~ImageDecoder() {
-  if (this->src_x_lut_ != nullptr) {
-    this->src_x_allocator_.deallocate(this->src_x_lut_, this->src_x_lut_capacity_);
-  }
-}
-
 bool ImageDecoder::set_size(int width, int height) {
   if (width <= 0 || height <= 0) {
     ESP_LOGE(TAG, "Invalid image dimensions: %dx%d", width, height);
@@ -92,23 +86,8 @@ bool ImageDecoder::set_size(int width, int height) {
 
   // Horizontal lookup table lets row decoders scale by indexing into a prepared
   // map instead of recalculating source columns for every output pixel.
-  if (this->scaled_width_ <= 0) {
-    ESP_LOGE(TAG, "Invalid scaled image width: %d", this->scaled_width_);
-    return false;
-  }
-  if (static_cast<size_t>(this->scaled_width_) > this->src_x_lut_capacity_) {
-    auto *new_lut = this->src_x_allocator_.allocate(this->scaled_width_);
-    if (new_lut == nullptr) {
-      ESP_LOGE(TAG, "Unable to allocate %d-pixel scaling lookup in PSRAM", this->scaled_width_);
-      return false;
-    }
-    if (this->src_x_lut_ != nullptr) {
-      this->src_x_allocator_.deallocate(this->src_x_lut_, this->src_x_lut_capacity_);
-    }
-    this->src_x_lut_ = new_lut;
-    this->src_x_lut_capacity_ = this->scaled_width_;
-  }
   double inv = (this->x_scale_ > 0) ? 1.0 / this->x_scale_ : 1.0;
+  this->src_x_lut_.resize(this->scaled_width_);
   for (int i = 0; i < this->scaled_width_; i++) {
     this->src_x_lut_[i] = std::min(static_cast<int>(i * inv), width - 1);
   }
@@ -150,30 +129,6 @@ void ImageDecoder::draw_rgb565_block(int x, int y, int w, int h, const uint8_t *
       int src_offset = (row * w + (start_x - x)) * 2;
       int dst_pos = this->image_->get_position_(start_x, dy);
       memcpy(this->image_->buffer_ + dst_pos, data + src_offset, copy_w * 2);
-    }
-    return;
-  }
-
-  // RGB565 source and destination buffers are naturally two-byte aligned.
-  // Preserve the packed bytes with one native load/store instead of invoking
-  // memcpy for every scaled pixel (up to a million calls per display image).
-  if (bpp_bytes == 2) {
-    auto *dst_pixels = reinterpret_cast<uint16_t *>(this->image_->buffer_);
-    auto *src_pixels = reinterpret_cast<const uint16_t *>(data);
-    for (int row = 0; row < h; row++) {
-      int src_y = y + row;
-      int dst_y = static_cast<int>(src_y * this->y_scale_) + this->y_offset_;
-      if (dst_y < 0 || dst_y >= this->image_->buffer_height_)
-        continue;
-
-      int dst_x_start = std::max(0, this->x_offset_);
-      int dst_x_end = std::min(this->x_offset_ + this->scaled_width_, this->image_->buffer_width_);
-      uint16_t *dst_row = dst_pixels + dst_y * this->image_->buffer_width_;
-      const uint16_t *src_row = src_pixels + row * w;
-      for (int dst_x = dst_x_start; dst_x < dst_x_end; dst_x++) {
-        int src_col = this->src_x_lut_[dst_x - this->x_offset_];
-        dst_row[dst_x] = src_row[src_col];
-      }
     }
     return;
   }

@@ -1,13 +1,8 @@
 #include "remote_image.h"
 
 #include <cstring>
-#include <new>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-
-#if defined(CONFIG_IDF_TARGET_ESP32P4)
-#include "esp_heap_caps.h"
-#endif
 
 // Owns the runtime side of the remote_image component: HTTP fetching, cache
 // validation, decoder selection, and exposing the decoded pixel buffer as an
@@ -18,8 +13,6 @@ static const char *const TAG = "remote_image";
 static const char *const ETAG_HEADER_NAME = "etag";
 static const char *const LAST_MODIFIED_HEADER_NAME = "last-modified";
 static const char *const CONTENT_TYPE_HEADER_NAME = "content-type";
-static const std::vector<std::string> NO_COLLECTED_HEADERS;
-static const std::vector<std::string> FORMAT_COLLECTED_HEADERS{CONTENT_TYPE_HEADER_NAME};
 
 #include "image_decoder.h"
 
@@ -70,9 +63,6 @@ OnlineImage::OnlineImage(const std::string &url, int width, int height, ImageFor
       fixed_width_(width),
       fixed_height_(height),
       is_big_endian_(is_big_endian) {
-  // The Accept header is always present. Reserve its slot once and retain the
-  // capacity across the lifetime of this configured image component.
-  this->update_headers_.reserve(1);
   this->set_url(url);
 }
 
@@ -139,11 +129,7 @@ size_t OnlineImage::resize_(int width_in, int height_in) {
   size_t new_size = this->get_buffer_size_(width, height);
   if (this->buffer_) {
     if (new_size <= this->get_buffer_size_()) {
-      // ImageDecoder::set_size() owns destination initialization. It clears
-      // fit-mode buffers so letterbox regions stay black, while fill-mode
-      // decoders overwrite every visible RGB565 pixel and can skip the clear.
-      // Clearing here as well would write the full PSRAM buffer twice for fit
-      // images and once unnecessarily for fill images.
+      memset(this->buffer_, 0, this->get_buffer_size_());
       this->buffer_width_ = width;
       this->buffer_height_ = height;
       this->data_start_ = nullptr;
@@ -183,29 +169,9 @@ void OnlineImage::update() {
     ESP_LOGW(TAG, "Cancelling in-progress image download to fetch new URL");
     this->end_connection_();
   }
-
-#if defined(CONFIG_IDF_TARGET_ESP32P4)
-  // ESP-IDF's HTTP container uses throwing std::make_shared. C++ exception
-  // unwinding is disabled on firmware builds, so calling it under severe
-  // internal-memory pressure aborts the device. Defer this one image and let
-  // the slideshow retry after in-flight decode/TLS resources are released.
-  // A fully initialized P4 display normally has roughly 90 KiB free here.
-  // Keep enough headroom for TLS without rejecting every image on a healthy
-  // device; the largest-block check still protects the allocation that failed
-  // during the original crash loop.
-  constexpr size_t MIN_INTERNAL_FREE = 64 * 1024;
-  constexpr size_t MIN_INTERNAL_BLOCK = 16 * 1024;
-  size_t internal_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  size_t internal_largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  if (internal_free < MIN_INTERNAL_FREE || internal_largest < MIN_INTERNAL_BLOCK) {
-    ESP_LOGW(TAG, "Deferring image request: internal heap free=%zu largest=%zu", internal_free, internal_largest);
-    this->download_error_callback_.call();
-    return;
-  }
-#endif
   ESP_LOGI(TAG, "Updating image %s", this->url_.c_str());
 
-  this->update_headers_.clear();
+  std::vector<http_request::Header> headers = {};
 
   // Tell servers the preferred image type while still allowing a generic image
   // response. This helps Immich and other services pick a sensible thumbnail.
@@ -242,14 +208,13 @@ void OnlineImage::update() {
   // repeated 304/cancel cycles can cause stale state transitions and increase
   // descriptor races in the display pipeline.
 
-  this->update_headers_.push_back(std::move(accept_header));
+  headers.push_back(accept_header);
 
   for (auto &header : this->request_headers_) {
-    this->update_headers_.push_back(http_request::Header{header.first, header.second.value()});
+    headers.push_back(http_request::Header{header.first, header.second.value()});
   }
 
-  const auto &collect_headers = this->format_ == ImageFormat::AUTO ? FORMAT_COLLECTED_HEADERS : NO_COLLECTED_HEADERS;
-  this->downloader_ = this->parent_->get(this->url_, this->update_headers_, collect_headers);
+  this->downloader_ = this->parent_->get(this->url_, headers, {ETAG_HEADER_NAME, LAST_MODIFIED_HEADER_NAME, CONTENT_TYPE_HEADER_NAME});
 
   if (this->downloader_ == nullptr) {
     ESP_LOGE(TAG, "Download failed.");
@@ -565,31 +530,26 @@ ImageFormat OnlineImage::detect_format_() {
 }
 
 std::unique_ptr<ImageDecoder> OnlineImage::create_decoder_for_format_(ImageFormat format) {
-  this->decoder_format_ = format;
   switch (format) {
 #ifdef USE_REMOTE_IMAGE_BMP_SUPPORT
     case ImageFormat::BMP:
       ESP_LOGD(TAG, "Allocating BMP decoder");
-      return std::unique_ptr<ImageDecoder>(new (std::nothrow) BmpDecoder(this));
+      return make_unique<BmpDecoder>(this);
 #endif
 #ifdef USE_REMOTE_IMAGE_JPEG_SUPPORT
     case ImageFormat::JPEG:
-      if (this->cached_jpeg_decoder_ != nullptr) {
-        ESP_LOGV(TAG, "Reusing JPEG decoder");
-        return std::move(this->cached_jpeg_decoder_);
-      }
-      ESP_LOGD(TAG, "Allocating persistent JPEG decoder");
-      return std::unique_ptr<ImageDecoder>(new (std::nothrow) JpegDecoder(this));
+      ESP_LOGD(TAG, "Allocating JPEG decoder");
+      return esphome::make_unique<JpegDecoder>(this);
 #endif
 #ifdef USE_REMOTE_IMAGE_PNG_SUPPORT
     case ImageFormat::PNG:
       ESP_LOGD(TAG, "Allocating PNG decoder");
-      return std::unique_ptr<ImageDecoder>(new (std::nothrow) PngDecoder(this));
+      return make_unique<PngDecoder>(this);
 #endif
 #ifdef USE_REMOTE_IMAGE_WEBP_SUPPORT
     case ImageFormat::WEBP:
       ESP_LOGD(TAG, "Allocating WebP decoder");
-      return std::unique_ptr<ImageDecoder>(new (std::nothrow) WebpDecoder(this));
+      return make_unique<WebpDecoder>(this);
 #endif
     default:
       return nullptr;
@@ -603,16 +563,7 @@ void OnlineImage::end_connection_() {
     this->downloader_->end();
     this->downloader_ = nullptr;
   }
-#ifdef USE_REMOTE_IMAGE_JPEG_SUPPORT
-  if (this->decoder_ != nullptr && this->decoder_format_ == ImageFormat::JPEG) {
-    this->decoder_->reset();
-    this->cached_jpeg_decoder_ = std::move(this->decoder_);
-  } else
-#endif
-  {
-    this->decoder_.reset();
-  }
-  this->decoder_format_ = ImageFormat::AUTO;
+  this->decoder_.reset();
   this->download_buffer_.reset();
   this->download_buffer_.shrink(this->download_buffer_initial_size_);
 }
