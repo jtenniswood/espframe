@@ -14,7 +14,8 @@ env:
 jobs:
   release-metadata:
     name: Read Product Release Metadata
-    runs-on: ubuntu-latest
+    runs-on: espframe
+    timeout-minutes: 5
     outputs:
       release_matrix: ${{ steps.product.outputs.release_matrix }}
       device_slugs: ${{ steps.product.outputs.device_slugs }}
@@ -43,7 +44,8 @@ jobs:
   release-notes:
     name: Update Release Notes
     if: github.event_name == 'release'
-    runs-on: ubuntu-latest
+    runs-on: espframe
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
@@ -65,7 +67,7 @@ jobs:
   build-firmware:
     name: Build ${{ matrix.slug }}
     needs: release-metadata
-    runs-on: ubuntu-latest
+    runs-on: espframe
     timeout-minutes: 30
     env:
       ESPHOME_DOCKER_IMAGE: ${{ needs.release-metadata.outputs.esphome_docker_image }}
@@ -76,11 +78,23 @@ jobs:
       RELEASE_ESPHOME_CACHE_KEY_PREFIX: ${{ needs.release-metadata.outputs.release_esphome_cache_key_prefix }}
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix: ${{ fromJson(needs.release-metadata.outputs.release_matrix) }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.release.tag_name || github.ref }}
+
+      - name: Reclaim runner Docker storage
+        run: |
+          set -euo pipefail
+          docker system df || true
+          docker container prune -f
+          docker image prune -af
+          docker builder prune -af --keep-storage 2GB
+          docker volume prune --all --force
+          docker pull "${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}"
+          docker system df
 
       - name: Cache ESPHome build
         uses: actions/cache@v6
@@ -94,50 +108,100 @@ jobs:
         env:
           VERSION: ${{ github.event.release.tag_name || github.ref_name }}
         run: |
+          set -euo pipefail
           python3 scripts/firmware_release.py inject \
             --slug "${{ matrix.slug }}" \
             --version "${VERSION}"
 
           mkdir -p output
+          image="${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}"
+          workspace_volume="espframe-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.slug }}"
+          staging_container=""
 
-          docker run ${ESPHOME_DOCKER_REMOVE_FLAG} \
-            -v "${PWD}:${ESPHOME_CONFIG_MOUNT}" \
-            "${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}" \
-            compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml" \
-            2>&1 | tee "output/${{ matrix.slug }}.factory.log"
+          cleanup_workspace() {
+            if [ -n "${staging_container}" ]; then
+              docker rm -f "${staging_container}" >/dev/null 2>&1 || true
+            fi
+            docker volume rm -f "${workspace_volume}" >/dev/null 2>&1 || true
+          }
+          trap cleanup_workspace EXIT
 
-          BUILD_DIR="${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}/build"
-          if [ ! -f "${BUILD_DIR}/firmware.factory.bin" ]; then
-            echo "::error::Firmware compilation failed - factory binary not found"
-            exit 1
-          fi
-          sudo cp "${BUILD_DIR}/firmware.factory.bin" "output/${{ matrix.slug }}.factory.bin"
+          docker volume create "${workspace_volume}" >/dev/null
+          staging_container=$(docker create \
+            --user "$(id -u):$(id -g)" \
+            --mount "type=volume,source=${workspace_volume},target=${ESPHOME_CONFIG_MOUNT}" \
+            --entrypoint /bin/true \
+            "${image}")
+          docker cp --archive "${PWD}/." "${staging_container}:${ESPHOME_CONFIG_MOUNT}"
+          docker rm "${staging_container}" >/dev/null
+          staging_container=""
+          rm -rf "${RELEASE_ESPHOME_CACHE_DIR}"
+          mkdir -p "${RELEASE_ESPHOME_CACHE_DIR}"
+
+          compile_in_isolated_container() {
+            local config_file="$1"
+            local profile="$2"
+            local binary_name="$3"
+            local log_file="output/${{ matrix.slug }}.${profile}.log"
+            local output_binary="output/${{ matrix.slug }}.${profile}.bin"
+            local container
+            container=$(docker create \
+              --user "$(id -u):$(id -g)" \
+              -e HOME="${ESPHOME_CONFIG_MOUNT}" \
+              -e PLATFORMIO_SETTING_ENABLE_TELEMETRY=false \
+              --mount "type=volume,source=${workspace_volume},target=${ESPHOME_CONFIG_MOUNT}" \
+              "${image}" \
+              -s firmware_version "${VERSION}" \
+              compile "${ESPHOME_CONFIG_MOUNT}/builds/${config_file}")
+
+            cleanup_container() {
+              docker rm -f "${container}" >/dev/null 2>&1 || true
+            }
+            trap cleanup_container RETURN
+
+            set +e
+            docker start -a "${container}" 2>&1 | tee "${log_file}"
+            local status=${PIPESTATUS[0]}
+            set -e
+            if [ "${status}" -ne 0 ]; then
+              return "${status}"
+            fi
+
+            local container_build_dir="${ESPHOME_CONFIG_MOUNT}/${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}/build"
+            if ! docker cp "${container}:${container_build_dir}/${binary_name}" "${output_binary}"; then
+              echo "::error::Firmware compilation failed - ${binary_name} not found"
+              return 1
+            fi
+
+          }
+
+          compile_in_isolated_container \
+            "${{ matrix.yaml }}.factory.yaml" factory firmware.factory.bin
           python3 scripts/check_build_budgets.py \
             --compile-log "output/${{ matrix.slug }}.factory.log" \
             --profile factory \
-            --binary "${BUILD_DIR}/firmware.factory.bin"
+            --binary "output/${{ matrix.slug }}.factory.bin"
 
-          docker run ${ESPHOME_DOCKER_REMOVE_FLAG} \
-            -v "${PWD}:${ESPHOME_CONFIG_MOUNT}" \
-            "${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}" \
-            -s firmware_version "${VERSION}" \
-            compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml" \
-            2>&1 | tee "output/${{ matrix.slug }}.ota.log"
-
-          if [ ! -f "${BUILD_DIR}/firmware.ota.bin" ]; then
-            echo "::error::Firmware compilation failed - OTA binary not found"
-            exit 1
-          fi
+          compile_in_isolated_container \
+            "${{ matrix.yaml }}.yaml" ota firmware.ota.bin
           python3 scripts/check_build_budgets.py \
             --compile-log "output/${{ matrix.slug }}.ota.log" \
             --profile ota \
-            --binary "${BUILD_DIR}/firmware.ota.bin"
+            --binary "output/${{ matrix.slug }}.ota.bin"
+
+          staging_container=$(docker create \
+            --mount "type=volume,source=${workspace_volume},target=${ESPHOME_CONFIG_MOUNT}" \
+            --entrypoint /bin/true \
+            "${image}")
+          docker cp "${staging_container}:${ESPHOME_CONFIG_MOUNT}/${RELEASE_ESPHOME_CACHE_DIR}/." \
+            "${RELEASE_ESPHOME_CACHE_DIR}"
+          docker rm "${staging_container}" >/dev/null
+          staging_container=""
 
       - name: Fix ESPHome cache permissions
         if: always()
         run: |
           if [ -d "${RELEASE_ESPHOME_CACHE_DIR}" ]; then
-            sudo chown -R "$USER:$USER" "${RELEASE_ESPHOME_CACHE_DIR}"
             chmod -R u+rwX "${RELEASE_ESPHOME_CACHE_DIR}"
           fi
 
@@ -145,15 +209,12 @@ jobs:
         env:
           VERSION: ${{ github.event.release.tag_name || github.ref_name }}
         run: |
-          BUILD_DIR="${RELEASE_ESPHOME_CACHE_DIR}/build/${{ matrix.build_name }}/build"
           mkdir -p output
 
-          if [ ! -f "${BUILD_DIR}/firmware.ota.bin" ]; then
+          if [ ! -f "output/${{ matrix.slug }}.ota.bin" ]; then
             echo "::error::Firmware compilation failed - OTA binary not found"
             exit 1
           fi
-
-          sudo cp "${BUILD_DIR}/firmware.ota.bin" "output/${{ matrix.slug }}.ota.bin"
 
           python3 scripts/firmware_release.py manifest \
             --slug "${{ matrix.slug }}" \
@@ -180,7 +241,8 @@ jobs:
     name: Publish to Release
     if: github.event_name == 'release'
     needs: [build-firmware, release-metadata]
-    runs-on: ubuntu-latest
+    runs-on: espframe
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:

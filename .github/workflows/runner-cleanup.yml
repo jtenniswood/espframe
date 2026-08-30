@@ -1,0 +1,40 @@
+name: Runner Disk Cleanup
+
+on:
+  schedule:
+    - cron: '47 4 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: espframe-runner-disk-cleanup
+  cancel-in-progress: true
+
+jobs:
+  cleanup:
+    name: Reclaim Espframe Runner Disk
+    runs-on: espframe
+    timeout-minutes: 10
+    steps:
+      - name: Report disk usage before cleanup
+        run: |
+          set -euo pipefail
+          df -h "$GITHUB_WORKSPACE" "$HOME" || true
+          docker system df || true
+
+      - name: Reclaim isolated Docker storage
+        run: |
+          set -euo pipefail
+          docker info >/dev/null
+          docker container prune -f
+          docker image prune -af
+          docker builder prune -af --keep-storage 2GB
+          docker volume prune --all --force
+
+      - name: Report disk usage after cleanup
+        if: always()
+        run: |
+          df -h "$GITHUB_WORKSPACE" "$HOME" || true
+          docker system df || true

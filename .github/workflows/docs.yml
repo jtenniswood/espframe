@@ -34,7 +34,8 @@ jobs:
     if: >-
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.conclusion == 'success'
-    runs-on: ubuntu-latest
+    runs-on: espframe
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -60,7 +61,8 @@ jobs:
     if: >-
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.conclusion == 'success'
-    runs-on: ubuntu-latest
+    runs-on: espframe
+    timeout-minutes: 20
     outputs:
       release_tag: ${{ steps.release-meta.outputs.release_tag }}
     steps:
@@ -263,7 +265,8 @@ jobs:
   deploy-docs:
     name: Deploy Docs
     needs: [build-docs, download-firmware]
-    runs-on: ubuntu-latest
+    runs-on: espframe
+    timeout-minutes: 20
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
