@@ -91,6 +91,10 @@ assert.ok(
   "applying a photo filter should reset exhausted inclusion-branch attempts"
 );
 assert.ok(
+  filterFlush.includes("previous_display = DisplayMeta{}"),
+  "applying a photo filter should invalidate backward-navigation history"
+);
+assert.ok(
   filterFlush.includes("filter_apply_pending = true") &&
     filterFlush.includes("filter_apply_pending = false") &&
     immichConfigSource.includes("return id(immich_request_state).filter_apply_pending") &&

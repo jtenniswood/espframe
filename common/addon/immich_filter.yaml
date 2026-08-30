@@ -808,6 +808,9 @@ script:
           id(espframe_core).slideshow().state().slot_flags.noncritical_update[2] = false;
           id(espframe_core).slideshow().state().preload_noncritical_in_flight = false;
           id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight = 0;
+          // Backward navigation must not restore a photo selected by the old
+          // filter after this slot generation is discarded.
+          id(espframe_core).slideshow().state().previous_display = DisplayMeta{};
           id(espframe_core).slideshow().state().active_slot_displayed = false;
           id(espframe_core).slideshow().state().target_slot = id(espframe_core).slideshow().state().active_slot;
       - script.execute: immich_fetch_into_slot
