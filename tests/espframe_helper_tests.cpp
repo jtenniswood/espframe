@@ -230,11 +230,11 @@ static void test_immich_body_helpers() {
   assert(immich_source_setup_title("Person") == "Person source needs setup");
   assert(immich_source_setup_title("Tag") == "Tag source needs setup");
   assert(immich_source_setup_message("Album") ==
-         "Open ESPFrame settings and add at least one album,\nor choose All Photos.");
+         "Open ESPFrame settings and add at least one album, or choose All Photos.");
   assert(immich_source_setup_message("Person") ==
-         "Open ESPFrame settings and add at least one person,\nor choose All Photos.");
+         "Open ESPFrame settings and add at least one person, or choose All Photos.");
   assert(immich_source_setup_message("Tag") ==
-         "Open ESPFrame settings and add at least one tag,\nor choose All Photos.");
+         "Open ESPFrame settings and add at least one tag, or choose All Photos.");
   assert(!immich_dimensions_are_portrait(1920, 1080, "6", false));
   assert(immich_dimensions_are_portrait(1920, 1080, "6", true));
   assert(immich_dimensions_are_portrait(1080, 1920, "6", false));

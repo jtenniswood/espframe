@@ -552,7 +552,7 @@ inline std::string immich_source_setup_message(const std::string &photo_source) 
   else if (photo_source == "Person") item = "person";
   else if (photo_source == "Tag") item = "tag";
   return "Open ESPFrame settings and add at least one " + item +
-         ",\nor choose All Photos.";
+         ", or choose All Photos.";
 }
 
 inline bool immich_dimensions_are_portrait(int width, int height,
