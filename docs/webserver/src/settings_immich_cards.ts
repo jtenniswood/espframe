@@ -285,6 +285,11 @@
         tagLabel: pendingPhotoSourceSave.tagLabel,
         tagMatching: pendingPhotoSourceSave.tagMatching
       };
+      var vals = validatePhotoSourceInputs(changes);
+      // Keep the complete pending change set when validation fails. A user can
+      // select Album/Person/Tag before adding its first ID; the later valid ID
+      // edit must save both the ID and that original source selection.
+      if (!vals) return;
       pendingPhotoSourceSave = {
         source: false,
         album: false,
@@ -296,8 +301,6 @@
         tagLabel: false,
         tagMatching: false
       };
-      var vals = validatePhotoSourceInputs(changes);
-      if (!vals) return;
       var requests = [];
       if (changes.source) {
         requests.push(saveSetting("photo_source", vals.source));

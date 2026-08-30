@@ -2639,6 +2639,8 @@ to {
         tagLabel: pendingPhotoSourceSave.tagLabel,
         tagMatching: pendingPhotoSourceSave.tagMatching
       };
+      var vals = validatePhotoSourceInputs(changes);
+      if (!vals) return;
       pendingPhotoSourceSave = {
         source: false,
         album: false,
@@ -2650,8 +2652,6 @@ to {
         tagLabel: false,
         tagMatching: false
       };
-      var vals = validatePhotoSourceInputs(changes);
-      if (!vals) return;
       var requests = [];
       if (changes.source) {
         requests.push(saveSetting("photo_source", vals.source));

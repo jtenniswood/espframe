@@ -46,6 +46,14 @@ assert.ok(publicApp.includes("customElements.define"), "public app should regist
 assert.ok(publicApp.includes('"album_order"'), "public app should include album order in photo-source apply keys");
 assert.ok(publicApp.includes("Move album up"), "public app should include album reorder controls");
 assert.ok(publicApp.includes("movePhotoIdRow"), "public app should keep photo ID and label rows reorderable");
+const photoSourceApply = publicApp.slice(
+  publicApp.indexOf("function applyPhotoSourceInputs()"),
+  publicApp.indexOf("function schedulePhotoSourceApply")
+);
+assert.ok(
+  photoSourceApply.indexOf("if (!vals) return;") < photoSourceApply.indexOf("pendingPhotoSourceSave = {"),
+  "photo-source validation must preserve pending source changes until the first required ID is valid"
+);
 assert.match(supportButtonImage, /^UklGR/, "support button asset should be a base64-encoded WebP image");
 assert.ok(
   publicApp.includes(`data:image/webp;base64,${supportButtonImage}`),
