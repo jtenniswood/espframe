@@ -78,11 +78,23 @@ jobs:
       RELEASE_ESPHOME_CACHE_KEY_PREFIX: ${{ needs.release-metadata.outputs.release_esphome_cache_key_prefix }}
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix: ${{ fromJson(needs.release-metadata.outputs.release_matrix) }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.release.tag_name || github.ref }}
+
+      - name: Reclaim runner Docker storage
+        run: |
+          set -euo pipefail
+          docker system df || true
+          docker container prune -f
+          docker image prune -af
+          docker builder prune -af --keep-storage 2GB
+          docker volume prune -f
+          docker pull "${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}"
+          docker system df
 
       - name: Cache ESPHome build
         uses: actions/cache@v6

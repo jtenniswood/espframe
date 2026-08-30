@@ -2726,6 +2726,9 @@ def test_trusted_workflows_target_the_dedicated_runner() -> None:
 def test_firmware_workflows_copy_sources_into_isolated_docker() -> None:
     for workflow_name in ("compile.yml", "release.yml"):
         workflow_text = (ROOT / ".github" / "workflows" / workflow_name).read_text()
+        assert "max-parallel: 1" in workflow_text
+        assert "docker builder prune -af --keep-storage 2GB" in workflow_text
+        assert "docker volume prune -f" in workflow_text
         assert 'docker cp "${PWD}/." "${staging_container}:${ESPHOME_CONFIG_MOUNT}"' in workflow_text
         assert 'docker volume create "${workspace_volume}"' in workflow_text
         assert 'docker volume rm -f "${workspace_volume}"' in workflow_text
