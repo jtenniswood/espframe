@@ -63,7 +63,7 @@ struct SlotMeta : PhotoMeta {
 };
 
 struct DisplayMeta : PhotoMeta {
-  std::string datetime, companion_url;
+  std::string datetime, companion_url, source_filter_id;
   bool is_portrait = false;
   bool valid = false;
 };
@@ -233,6 +233,7 @@ inline void copy_slot_to_display(const SlotMeta &slot, DisplayMeta &disp) {
   static_cast<PhotoMeta&>(disp) = static_cast<const PhotoMeta&>(slot);
   disp.datetime = slot.datetime;
   disp.companion_url = slot.companion_url;
+  disp.source_filter_id = slot.source_filter_id;
   disp.is_portrait = slot.is_portrait;
 }
 
@@ -240,6 +241,7 @@ inline void copy_display_to_slot(const DisplayMeta &disp, SlotMeta &slot) {
   static_cast<PhotoMeta&>(slot) = static_cast<const PhotoMeta&>(disp);
   slot.datetime = disp.datetime;
   slot.companion_url = disp.companion_url;
+  slot.source_filter_id = disp.source_filter_id;
   slot.is_portrait = disp.is_portrait;
 }
 

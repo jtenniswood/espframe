@@ -104,7 +104,7 @@ request state.
 
 #### `copy_slot_to_display(const SlotMeta &slot, DisplayMeta &disp)`
 
-Copies the `PhotoMeta` part of `slot` into `disp`. Slot-only fields (`datetime`, `companion_url`, etc.) are not copied.
+Copies the stable photo metadata plus the display-history fields (`datetime`, `companion_url`, `source_filter_id`, and portrait state) from `slot` into `disp`.
 
 **Use when:** Moving from a preload slot to “current display” state.
 
@@ -116,7 +116,7 @@ state.current_display.valid = true;
 
 #### `copy_display_to_slot(const DisplayMeta &disp, SlotMeta &slot)`
 
-Copies the `PhotoMeta` part of `disp` into `slot`. Display-only field `valid` is not copied.
+Copies the stable photo metadata and display-history fields back into `slot`. Display-only field `valid` is not copied.
 
 **Use when:** Copying the currently displayed photo back into a slot (e.g. for “previous” or comparison).
 
