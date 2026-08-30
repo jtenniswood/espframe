@@ -71,6 +71,21 @@ assert.ok(
   filterFlush.includes("id(immich_request_state).empty_branch_attempts = 0"),
   "applying a photo filter should reset exhausted inclusion-branch attempts"
 );
+const legacyPreset = immichFilterSource.slice(
+  immichFilterSource.indexOf("- id: apply_legacy_photo_source_preset"),
+  immichFilterSource.indexOf("- id: flush_slots_and_refetch")
+);
+[
+  "Match all enabled groups",
+  "Any selected album",
+  "Any selected person",
+  "Any selected tag"
+].forEach(function (defaultMode) {
+  assert.ok(
+    legacyPreset.includes('set_option(id(') && legacyPreset.includes('"' + defaultMode + '"'),
+    "legacy photo-source presets should restore " + defaultMode
+  );
+});
 const photoSourceApply = publicApp.slice(
   publicApp.indexOf("function applyPhotoSourceInputs()"),
   publicApp.indexOf("function schedulePhotoSourceApply")

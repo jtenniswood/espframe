@@ -467,7 +467,8 @@ static void test_smart_filter_helpers() {
   uint8_t group_index = 0;
   int album_index = 0;
   ImmichFilterBranch all = select_immich_filter_branch(
-      combined, group_index, album_index, "Album list order");
+      combined, group_index, album_index, "Album list order",
+      ImmichApiGeneration::V32_STRUCTURED);
   assert(all.group == "All");
   assert(all.album_ids == combined.album_ids);
   std::string structured = build_immich_filter_search_body(
@@ -495,8 +496,10 @@ static void test_smart_filter_helpers() {
   intersecting_any.album_matching = "Any selected";
   intersecting_any.person_matching = "Any selected";
   intersecting_any.inclusion_matching = "Match all enabled groups";
+  assert(immich_filter_requires_v32(intersecting_any));
   ImmichFilterBranch complete_intersection = select_immich_filter_branch(
-      intersecting_any, group_index, album_index, "Album list order");
+      intersecting_any, group_index, album_index, "Album list order",
+      ImmichApiGeneration::V32_STRUCTURED);
   assert(complete_intersection.group == "All");
   assert(complete_intersection.album_ids == intersecting_any.album_ids);
   assert(complete_intersection.person_ids == intersecting_any.person_ids);
@@ -507,13 +510,19 @@ static void test_smart_filter_helpers() {
                                          "\",\"" + album2 + "\"]}") != std::string::npos);
   assert(complete_intersection_body.find("\"personIds\":{\"any\":[\"" + person1 +
                                          "\",\"" + excluded + "\"]}") != std::string::npos);
-  std::string complete_flat_intersection_body = build_immich_filter_search_body(
-      intersecting_any, complete_intersection, ImmichApiGeneration::V31_FLAT,
-      10, true);
-  assert(complete_flat_intersection_body.find("\"albumIds\":[\"" + album1 +
-                                              "\",\"" + album2 + "\"]") != std::string::npos);
-  assert(complete_flat_intersection_body.find("\"personIds\":[\"" + person1 +
-                                              "\",\"" + excluded + "\"]") != std::string::npos);
+  ImmichFilterBranch sampled_flat_intersection = select_immich_filter_branch(
+      intersecting_any, group_index, album_index, "Album list order",
+      ImmichApiGeneration::V31_FLAT);
+  assert(split_valid_uuid_csv(sampled_flat_intersection.person_ids).size() == 1);
+  ImmichFilterConfig intersecting_any_tags = intersecting_any;
+  intersecting_any_tags.people_enabled = false;
+  intersecting_any_tags.person_ids.clear();
+  intersecting_any_tags.tags_enabled = true;
+  intersecting_any_tags.tag_ids = tag1 + "," + excluded;
+  intersecting_any_tags.tag_matching = "Any selected";
+  assert(immich_filter_requires_v32(intersecting_any_tags));
+  intersecting_any.inclusion_matching = "Match any enabled group";
+  assert(!immich_filter_requires_v32(intersecting_any));
 
   ImmichFilterConfig all_albums_only;
   all_albums_only.albums_enabled = true;
@@ -542,13 +551,13 @@ static void test_smart_filter_helpers() {
 
   combined.inclusion_matching = "Match any enabled group";
   ImmichFilterBranch first = select_immich_filter_branch(
-      combined, group_index, album_index, "Album list order");
+      combined, group_index, album_index, "Album list order", ImmichApiGeneration::V31_FLAT);
   ImmichFilterBranch second = select_immich_filter_branch(
-      combined, group_index, album_index, "Album list order");
+      combined, group_index, album_index, "Album list order", ImmichApiGeneration::V31_FLAT);
   ImmichFilterBranch third = select_immich_filter_branch(
-      combined, group_index, album_index, "Album list order");
+      combined, group_index, album_index, "Album list order", ImmichApiGeneration::V31_FLAT);
   ImmichFilterBranch fourth = select_immich_filter_branch(
-      combined, group_index, album_index, "Album list order");
+      combined, group_index, album_index, "Album list order", ImmichApiGeneration::V31_FLAT);
   assert(first.group == "Album");
   assert(second.group == "Person");
   assert(third.group == "Tag");

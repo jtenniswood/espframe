@@ -707,9 +707,18 @@ script:
           auto set_switch = [](auto *control, bool enabled) {
             if (enabled) control->turn_on(); else control->turn_off();
           };
+          auto set_option = [](auto *control, const char *option) {
+            auto call = control->make_call();
+            call.set_option(option);
+            call.perform();
+          };
           set_switch(id(immich_albums_enabled), source == "Album");
           set_switch(id(immich_people_enabled), source == "Person");
           set_switch(id(immich_tags_enabled), source == "Tag");
+          set_option(id(immich_inclusion_matching), "Match all enabled groups");
+          set_option(id(immich_album_matching), "Any selected album");
+          set_option(id(immich_person_matching), "Any selected person");
+          set_option(id(immich_tag_matching), "Any selected tag");
           auto favorite = id(immich_favorite_mode).make_call();
           favorite.set_option(source == "Favorites" ? "Favorites only" : "Any");
           favorite.perform();

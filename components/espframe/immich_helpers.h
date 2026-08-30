@@ -143,7 +143,22 @@ inline bool immich_filter_requires_v32(const ImmichFilterConfig &config) {
   const bool all_albums_requires_structured =
       config.albums_enabled && immich_matching_is_all(config.album_matching) &&
       split_valid_uuid_csv(config.album_ids).size() > 1;
-  return all_albums_requires_structured || config.minimum_rating > 0 ||
+  const uint8_t enabled_group_count =
+      (config.albums_enabled && !split_valid_uuid_csv(config.album_ids).empty() ? 1 : 0) +
+      (config.people_enabled && !split_valid_uuid_csv(config.person_ids).empty() ? 1 : 0) +
+      (config.tags_enabled && !split_valid_uuid_csv(config.tag_ids).empty() ? 1 : 0);
+  const bool intersects_enabled_groups =
+      config.inclusion_matching != "Match any enabled group" && enabled_group_count > 1;
+  // Flat search treats multiple person/tag IDs as all-of. A compound filter
+  // therefore needs structured `any` predicates to preserve its configured
+  // meaning instead of sampling an arbitrary cross-group combination.
+  const bool compound_any_requires_structured = intersects_enabled_groups &&
+      ((config.people_enabled && !immich_matching_is_all(config.person_matching) &&
+        split_valid_uuid_csv(config.person_ids).size() > 1) ||
+       (config.tags_enabled && !immich_matching_is_all(config.tag_matching) &&
+        split_valid_uuid_csv(config.tag_ids).size() > 1));
+  return all_albums_requires_structured || compound_any_requires_structured ||
+         config.minimum_rating > 0 ||
          !split_valid_uuid_csv(config.excluded_album_ids).empty() ||
          !split_valid_uuid_csv(config.excluded_person_ids).empty() ||
          !split_valid_uuid_csv(config.excluded_tag_ids).empty();
@@ -180,7 +195,8 @@ inline std::vector<std::string> immich_enabled_inclusion_groups(const ImmichFilt
 inline ImmichFilterBranch select_immich_filter_branch(const ImmichFilterConfig &config,
                                                        uint8_t &next_group_index,
                                                        int &next_album_index,
-                                                       const std::string &album_order) {
+                                                       const std::string &album_order,
+                                                       ImmichApiGeneration generation) {
   ImmichFilterBranch branch;
   auto groups = immich_enabled_inclusion_groups(config);
   if (groups.empty()) return branch;
@@ -195,10 +211,11 @@ inline ImmichFilterBranch select_immich_filter_branch(const ImmichFilterConfig &
   const bool use_albums = branch.group == "All" || branch.group == "Album";
   const bool use_people = branch.group == "All" || branch.group == "Person";
   const bool use_tags = branch.group == "All" || branch.group == "Tag";
-  // Across-group intersections must retain each group's complete "any" set.
-  // Independently sampling one ID per group can invent an empty combination
-  // even when the configured predicate has matching assets.
-  const bool preserve_any_ids = branch.group == "All";
+  // Structured intersections retain each group's complete "any" set. Flat
+  // search cannot represent this for people/tags, so readiness rejects those
+  // compound configurations before branch selection reaches this point.
+  const bool preserve_any_ids = branch.group == "All" &&
+      generation == ImmichApiGeneration::V32_STRUCTURED;
   if (use_albums && config.albums_enabled) {
     if (immich_matching_is_all(config.album_matching) || preserve_any_ids) {
       branch.album_ids = valid_uuid_csv(config.album_ids);

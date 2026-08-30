@@ -745,7 +745,8 @@ script:
           id(immich_request_state).active_filter_branch = select_immich_filter_branch(
             id(immich_filter_config), id(immich_request_state).inclusion_group_index,
             id(immich_request_state).album_order_index,
-            id(immich_album_order).current_option());
+            id(immich_album_order).current_option(),
+            id(immich_request_state).api_generation);
           id(immich_request_state).metadata_album_id =
             id(immich_request_state).active_filter_branch.album_ids;
           id(immich_request_state).metadata_person_id =
