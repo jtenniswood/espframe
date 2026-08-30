@@ -177,6 +177,15 @@ static void test_immich_body_helpers() {
   assert(build_immich_date_filter_extra(range) ==
          "\"takenAfter\":\"2026-02-28T00:00:00.000Z\","
          "\"takenBefore\":\"2026-03-31T23:59:59.999Z\"");
+  ImmichFilterConfig dated_config;
+  ImmichFilterBranch dated_branch;
+  apply_immich_date_range(dated_config, range);
+  assert(build_immich_filter_search_body(
+             dated_config, dated_branch, ImmichApiGeneration::V31_FLAT, 6, true)
+             .find("\"takenAfter\":\"2026-02-28T00:00:00.000Z\"") != std::string::npos);
+  assert(build_immich_filter_search_body(
+             dated_config, dated_branch, ImmichApiGeneration::V31_FLAT, 6, true)
+             .find("\"takenBefore\":\"2026-03-31T23:59:59.999Z\"") != std::string::npos);
 
   ImmichDateRange skipped = resolve_immich_date_filter(
       true, "Relative Range", 2, "Years", false, 0, 0, 0, "", "");

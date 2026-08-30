@@ -684,8 +684,7 @@ script:
             id(immich_relative_unit).current_option(),
             now.is_valid(), now.year, now.month, now.day_of_month,
             id(immich_date_from).state, id(immich_date_to).state);
-          config.taken_after = range.from;
-          config.taken_before = range.to;
+          apply_immich_date_range(config, range);
           id(immich_filter_config) = config;
 
   - id: mark_photo_filter_custom

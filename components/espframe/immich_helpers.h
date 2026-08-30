@@ -598,6 +598,14 @@ struct ImmichDateRange {
   bool relative_skipped_for_invalid_time = false;
 };
 
+inline void apply_immich_date_range(ImmichFilterConfig &config,
+                                    const ImmichDateRange &range) {
+  config.taken_after = range.from.empty()
+      ? "" : range.from + "T00:00:00.000Z";
+  config.taken_before = range.to.empty()
+      ? "" : range.to + "T23:59:59.999Z";
+}
+
 struct ImmichTimelineBucketChoice {
   std::string time_bucket;
   uint32_t count = 0;
