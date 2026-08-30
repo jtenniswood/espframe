@@ -176,7 +176,7 @@ script:
                   ImmichApiGeneration generation = ImmichApiGeneration::V31_FLAT;
                   const bool valid = response->status_code == 200 &&
                     parse_immich_server_version(body, &version, &generation);
-                  id(immich_request_state).server_version_discovered = true;
+                  id(immich_request_state).server_version_discovered = valid;
                   id(immich_request_state).server_version = valid ? version : "Unknown";
                   id(immich_request_state).api_generation = valid
                     ? generation : ImmichApiGeneration::V31_FLAT;
@@ -184,21 +184,26 @@ script:
                   id(immich_capability_status).publish_state(
                     id(immich_request_state).api_generation == ImmichApiGeneration::V32_STRUCTURED
                       ? "Structured filters (Immich 3.2+)"
-                      : (valid ? "Immich 3.1 compatibility" : "Version unknown; Immich 3.1 compatibility"));
+                      : (valid ? "Immich 3.1 compatibility" : "Version unavailable; retrying"));
                   ESP_LOGI("immich", "Server version %s; %s filters",
                            id(immich_request_state).server_version.c_str(),
                            id(immich_request_state).api_generation == ImmichApiGeneration::V32_STRUCTURED
                              ? "structured" : "flat");
-              - script.execute: immich_check_config_ready
+                  if (valid) {
+                    id(immich_check_config_ready).execute();
+                  } else {
+                    ESP_LOGW("immich", "Server version response unavailable; retrying capability discovery");
+                    id(immich_retry_config_ready).execute();
+                  }
           on_error:
             then:
               - lambda: |-
-                  id(immich_request_state).server_version_discovered = true;
+                  id(immich_request_state).server_version_discovered = false;
                   id(immich_request_state).server_version = "Unknown";
                   id(immich_request_state).api_generation = ImmichApiGeneration::V31_FLAT;
                   id(immich_server_version).publish_state("Unknown");
-                  id(immich_capability_status).publish_state("Version unknown; Immich 3.1 compatibility");
-              - script.execute: immich_check_config_ready
+                  id(immich_capability_status).publish_state("Version unavailable; retrying");
+                  id(immich_retry_config_ready).execute();
 
   - id: show_photo_source_empty_state
     mode: single
@@ -302,7 +307,12 @@ script:
     mode: restart
     then:
       - delay: 2s
-      - script.execute: immich_check_config_ready
+      - lambda: |-
+          if (id(immich_request_state).server_version_discovered) {
+            id(immich_check_config_ready).execute();
+          } else {
+            id(immich_discover_capabilities).execute();
+          }
 
 button:
   - platform: restart
