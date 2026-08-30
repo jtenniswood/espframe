@@ -519,6 +519,7 @@ touchscreen:
       - lambda: |-
           if (id(photo_source_swipe_triggered)) {
             id(slideshow_swipe_suppress_tap_until_ms) = millis() + 250;
+            id(clear_slideshow_swipe_tap_suppression).execute();
           }
           id(photo_source_swipe_triggered) = false;
           id(photo_source_menu_touch_handled) = false;

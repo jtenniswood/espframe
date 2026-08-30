@@ -47,7 +47,11 @@ def check_touch_controls_metadata(product: dict, errors: list[str]) -> None:
     require_contains(screen_settings_docs, "same sleep/wake behavior as the touchscreen controls", "docs/screen-settings.md", errors)
     for needle in ("slideshow_on_press", "slideshow_on_short_click", "last_short_tap_ms", "immich_advance_forward"):
         require_contains(slideshow_yaml, needle, "devices/guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml", errors)
-    for needle in ("slideshow_navigation_feedback", "show_slideshow_navigation_feedback"):
+    for needle in (
+        "slideshow_navigation_feedback",
+        "show_slideshow_navigation_feedback",
+        "clear_slideshow_swipe_tap_suppression",
+    ):
         require_contains(slideshow_yaml, needle, "devices/guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml", errors)
     for path, device_yaml in (
         ("devices/guition-esp32-p4-jc8012p4a1/device/device.yaml", original_device_yaml),
@@ -59,6 +63,7 @@ def check_touch_controls_metadata(product: dict, errors: list[str]) -> None:
             "immich_show_previous",
             "any_slot_fetch_in_flight",
             "millis() + 250",
+            "clear_slideshow_swipe_tap_suppression",
         ):
             require_contains(device_yaml, needle, path, errors)
     for needle in ("3-second hold timer", "delay: 3s", "screen_schedule_manual_sleep"):

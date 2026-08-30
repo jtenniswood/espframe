@@ -524,6 +524,13 @@ lvgl:
 # =============================================================================
 
 script:
+  - id: clear_slideshow_swipe_tap_suppression
+    mode: restart
+    then:
+      - delay: 250ms
+      - lambda: |-
+          id(slideshow_swipe_suppress_tap_until_ms) = 0;
+
   - id: show_slideshow_navigation_feedback
     mode: restart
     parameters:
@@ -564,8 +571,7 @@ script:
           condition:
             lambda: |-
               return !id(touch_started_while_off) &&
-                     (id(slideshow_swipe_suppress_tap_until_ms) == 0 ||
-                      (int32_t) (millis() - id(slideshow_swipe_suppress_tap_until_ms)) >= 0);
+                     id(slideshow_swipe_suppress_tap_until_ms) == 0;
           then:
             - lambda: |-
                 uint32_t now = millis();
