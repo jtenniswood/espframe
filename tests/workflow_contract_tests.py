@@ -2715,6 +2715,7 @@ def test_trusted_workflows_target_the_dedicated_runner() -> None:
 
     assert "runs-on: ubuntu-latest" in compile_workflow
     assert compile_workflow.count("runs-on: espframe") == 2
+    assert "github.workflow }}-${{ github.event_name }}" in compile_workflow
     assert "runs-on: ubuntu-latest" not in docs_workflow
     assert "runs-on: ubuntu-latest" not in release_workflow
     assert docs_workflow.count("runs-on: espframe") == 3
