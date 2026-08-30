@@ -58,19 +58,29 @@ assert.ok(publicApp.includes('"album_order"'), "public app should include album 
 assert.ok(publicApp.includes("Move album up"), "public app should include album reorder controls");
 assert.ok(publicApp.includes("movePhotoIdRow"), "public app should keep photo ID and label rows reorderable");
 assert.ok(
-  publicApp.includes("All selected albums require Immich 3.2 or newer"),
+  publicApp.includes("All selected albums need 3.2+"),
   "flat-filter servers should explain why all-album matching is unavailable"
 );
 assert.ok(
-  publicApp.includes("Choose Any to clear a saved value") &&
+  publicApp.includes("Choose Any to clear") &&
     publicApp.includes("String(optionEl.value) !== String(recoveryValue)"),
   "compatibility mode should allow a saved unsupported rating to be cleared"
 );
 assert.ok(
   publicApp.includes("disableEditing: !supportsStructured") &&
     publicApp.includes("allowClearLast: !supportsStructured") &&
-    publicApp.includes("Saved exclusions can still be removed"),
+    publicApp.includes("saved ones can be removed"),
   "compatibility mode should prevent new exclusions while allowing saved exclusions to be removed"
+);
+assert.ok(
+  publicApp.includes("3.1: Match all + multiple Any people/tags needs 3.2+") &&
+    publicApp.includes('supportsStructured ? "setting-hint" : "banner warning"'),
+  "compatibility mode should clearly flag compound any-of intersections and their recovery options"
+);
+assert.ok(
+  publicApp.includes("if (nextValue && index > 0") &&
+    publicApp.includes("S[spec[1]] = nextValue"),
+  "empty child location values should remain saveable after their parent is cleared"
 );
 const filterFlush = immichFilterSource.slice(
   immichFilterSource.indexOf("- id: flush_slots_and_refetch"),

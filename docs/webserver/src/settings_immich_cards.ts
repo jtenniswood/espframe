@@ -104,9 +104,10 @@
     var parts = version.split(".").map(Number);
     var supportsStructured = parts.length >= 2 && isFinite(parts[0]) && isFinite(parts[1]) &&
       (parts[0] > 3 || (parts[0] === 3 && parts[1] >= 2));
-    var capability = el("div", "setting-hint");
-    capability.textContent = "Immich " + version + " · " +
-      (supportsStructured ? "structured filters available" : "3.1 compatibility mode");
+    var capability = el("div", supportsStructured ? "setting-hint" : "banner warning");
+    capability.textContent = supportsStructured
+      ? "Immich " + version + " · structured filters available"
+      : "Immich " + version + " · 3.1: Match all + multiple Any people/tags needs 3.2+. Use Match any, All selected, or one ID.";
     body.appendChild(capability);
 
     if (S.memories_migration_notice) {
@@ -131,13 +132,11 @@
         S[key] = value;
         applySetting(key, value);
       });
-      control.disabled = !!disabled && recoveryValue == null;
       if (disabled && recoveryValue != null) {
         Array.prototype.forEach.call(control.options, function (optionEl) {
           optionEl.disabled = String(optionEl.value) !== String(recoveryValue);
         });
       }
-      if (disabled && reason) control.title = reason;
       f.appendChild(control);
       if (disabled && reason) {
         var hint = el("div", "setting-hint");
@@ -186,7 +185,7 @@
           if (String(optionEl.value).indexOf("All selected") === 0) optionEl.disabled = true;
         });
         var matchingHint = el("div", "setting-hint");
-        matchingHint.textContent = "All selected albums require Immich 3.2 or newer. A saved value is preserved.";
+        matchingHint.textContent = "All selected albums need 3.2+.";
         matching.appendChild(matchingHint);
       }
       details.appendChild(matching);
@@ -219,7 +218,7 @@
     addGroup("Tags", "tags_enabled", "tag_matching", "tag_ids", "tag_labels", "tag");
     addSelect("Favorites", "favorite_mode", false, "");
     addSelect("Minimum Rating", "minimum_rating", !supportsStructured,
-      "Minimum rating requires Immich 3.2 or newer. Choose Any to clear a saved value.", "Any");
+      "Rating needs 3.2+. Choose Any to clear.", "Any");
 
     [
       ["Country", "filter_country"],
@@ -230,14 +229,15 @@
       var inputEl = input("text", S[spec[1]] || "", "Exact Immich value", productTextMaxLength(spec[1], 96));
       var timer = null;
       inputEl.oninput = function () {
-        if (index > 0 && !String((index === 1 ? S.filter_country : S.filter_state) || "").trim()) {
+        var nextValue = inputEl.value.trim();
+        if (nextValue && index > 0 && !String((index === 1 ? S.filter_country : S.filter_state) || "").trim()) {
           inputEl.setCustomValidity(index === 1 ? "Set country first" : "Set state or province first");
           return;
         }
         inputEl.setCustomValidity("");
         clearTimeout(timer);
         timer = setTimeout(function () {
-          S[spec[1]] = inputEl.value.trim();
+          S[spec[1]] = nextValue;
           applySetting(spec[1], S[spec[1]]);
         }, 600);
       };
@@ -245,7 +245,7 @@
       body.appendChild(f);
     });
 
-    var exclusionReason = "Exclusions require Immich 3.2 or newer. Saved exclusions can still be removed.";
+    var exclusionReason = "3.2+ needed to add exclusions; saved ones can be removed.";
     [["Excluded Albums", "excluded_album_ids", "excluded_album_labels", "album"],
      ["Excluded People", "excluded_person_ids", "excluded_person_labels", "person"],
      ["Excluded Tags", "excluded_tag_ids", "excluded_tag_labels", "tag"]].forEach(function (spec) {
@@ -264,7 +264,6 @@
         }
       });
       if (!supportsStructured) {
-        editor.field.title = exclusionReason;
         var hint = el("div", "setting-hint");
         hint.textContent = exclusionReason;
         editor.field.appendChild(hint);
