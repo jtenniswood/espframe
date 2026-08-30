@@ -263,26 +263,25 @@ script:
                 condition:
                   lambda: |-
                     return immich_filter_has_missing_enabled_ids(id(immich_filter_config)) ||
-                           !immich_filter_location_is_valid(id(immich_filter_config));
-                then:
-                  - logger.log:
-                      level: DEBUG
-                      tag: immich
-                      format: "Photo filter is waiting for valid inclusion IDs or location fields"
-                  - script.execute: show_photo_source_empty_state
-                  - script.execute: immich_retry_config_ready
-                  - script.stop: immich_check_config_ready
-            - if:
-                condition:
-                  lambda: |-
-                    return id(immich_request_state).api_generation == ImmichApiGeneration::V31_FLAT &&
-                           immich_filter_requires_v32(id(immich_filter_config));
+                           !immich_filter_location_is_valid(id(immich_filter_config)) ||
+                           (id(immich_request_state).api_generation == ImmichApiGeneration::V31_FLAT &&
+                            immich_filter_requires_v32(id(immich_filter_config)));
                 then:
                   - lambda: |-
-                      lv_label_set_text(id(connection_failed_title), "Filter needs Immich 3.2+");
-                      lv_label_set_text(id(connection_failed_subtitle),
-                        "This saved filter uses rules\nthat flat search cannot apply.");
-                      lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
+                      const bool invalid_filter =
+                        immich_filter_has_missing_enabled_ids(id(immich_filter_config)) ||
+                        !immich_filter_location_is_valid(id(immich_filter_config));
+                      if (invalid_filter) {
+                        ESP_LOGD("immich", "Photo filter is waiting for valid inclusion IDs or location fields");
+                        id(show_photo_source_empty_state).execute();
+                        id(immich_retry_config_ready).execute();
+                      } else {
+                        lv_label_set_text(id(connection_failed_title), "Filter needs Immich 3.2+");
+                        lv_label_set_text(id(connection_failed_subtitle),
+                          "This saved filter uses rules\nthat flat search cannot apply.");
+                        id(immich_source_setup_visible) = true;
+                        lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
+                      }
                       clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot,
                                                  id(espframe_core).slideshow().state().slot_flags);
                   - script.stop: immich_check_config_ready

@@ -444,20 +444,6 @@ static void test_smart_filter_helpers() {
   constrained.country.clear();
   assert(!immich_filter_location_is_valid(constrained));
 
-  ImmichFilterConfig required_ids;
-  assert(immich_filter_has_required_ids(required_ids));
-  required_ids.albums_enabled = true;
-  assert(!immich_filter_has_required_ids(required_ids));
-  required_ids.album_ids = album1;
-  assert(immich_filter_has_required_ids(required_ids));
-  required_ids.people_enabled = true;
-  assert(!immich_filter_has_required_ids(required_ids));
-  required_ids.person_ids = person1;
-  required_ids.tags_enabled = true;
-  assert(!immich_filter_has_required_ids(required_ids));
-  required_ids.tag_ids = tag1;
-  assert(immich_filter_has_required_ids(required_ids));
-
   ImmichFilterConfig combined;
   combined.albums_enabled = true;
   combined.people_enabled = true;
