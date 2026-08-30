@@ -2385,7 +2385,7 @@ def check_esphome_version(product: dict, errors: list[str]) -> None:
         'image="${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}"',
         'docker volume create "${workspace_volume}"',
         "container=$(docker create",
-        'docker cp "${PWD}/." "${staging_container}:${ESPHOME_CONFIG_MOUNT}"',
+        'docker cp --archive "${PWD}/." "${staging_container}:${ESPHOME_CONFIG_MOUNT}"',
     ]
     if config_mount:
         require_contains(readme, f'-v "${{PWD}}:{config_mount}"', "README.md", errors)

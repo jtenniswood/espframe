@@ -31,7 +31,7 @@ jobs:
           docker container prune -f
           docker image prune -af
           docker builder prune -af --keep-storage 2GB
-          docker volume prune -f
+          docker volume prune --all --force
 
       - name: Report disk usage after cleanup
         if: always()

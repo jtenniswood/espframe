@@ -92,7 +92,7 @@ jobs:
           docker container prune -f
           docker image prune -af
           docker builder prune -af --keep-storage 2GB
-          docker volume prune -f
+          docker volume prune --all --force
           docker pull "${ESPHOME_DOCKER_IMAGE}:${ESPHOME_VERSION}"
           docker system df
 
@@ -132,7 +132,7 @@ jobs:
             --mount "type=volume,source=${workspace_volume},target=${ESPHOME_CONFIG_MOUNT}" \
             --entrypoint /bin/true \
             "${image}")
-          docker cp "${PWD}/." "${staging_container}:${ESPHOME_CONFIG_MOUNT}"
+          docker cp --archive "${PWD}/." "${staging_container}:${ESPHOME_CONFIG_MOUNT}"
           docker rm "${staging_container}" >/dev/null
           staging_container=""
           rm -rf "${RELEASE_ESPHOME_CACHE_DIR}"
