@@ -375,7 +375,9 @@ script:
             - script.stop: immich_fetch_metadata_into_slot
       - if:
           condition:
-            lambda: 'return split_valid_uuid_csv(id(immich_request_state).metadata_album_id).size() == 1;'
+            lambda: |-
+              return immich_filter_can_use_album_asset_count(
+                id(immich_filter_config), id(immich_request_state).active_filter_branch);
           then:
             - script.execute: immich_fetch_album_count
             - script.stop: immich_fetch_metadata_into_slot

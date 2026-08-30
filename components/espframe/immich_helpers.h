@@ -184,6 +184,22 @@ inline bool immich_filter_has_missing_enabled_ids(const ImmichFilterConfig &conf
   return false;
 }
 
+inline bool immich_filter_can_use_album_asset_count(
+    const ImmichFilterConfig &config, const ImmichFilterBranch &branch) {
+  // The album endpoint reports the whole album and cannot account for search
+  // predicates. Its assetCount is therefore useful only when the active branch
+  // is a single album with no additional server-side filters.
+  return split_valid_uuid_csv(branch.album_ids).size() == 1 &&
+         split_valid_uuid_csv(branch.person_ids).empty() &&
+         split_valid_uuid_csv(branch.tag_ids).empty() &&
+         config.favorite_mode == "Any" && config.minimum_rating == 0 &&
+         config.taken_after.empty() && config.taken_before.empty() &&
+         config.city.empty() && config.state.empty() && config.country.empty() &&
+         split_valid_uuid_csv(config.excluded_album_ids).empty() &&
+         split_valid_uuid_csv(config.excluded_person_ids).empty() &&
+         split_valid_uuid_csv(config.excluded_tag_ids).empty();
+}
+
 inline std::vector<std::string> immich_enabled_inclusion_groups(const ImmichFilterConfig &config) {
   std::vector<std::string> groups;
   if (config.albums_enabled && !split_valid_uuid_csv(config.album_ids).empty()) groups.push_back("Album");

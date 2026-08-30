@@ -487,6 +487,23 @@ static void test_smart_filter_helpers() {
   assert(statistics.find("\"filter\":{") != std::string::npos);
   assert(immich_filter_requires_v32(combined));
   assert(immich_filter_branch_uses_album(all));
+  assert(!immich_filter_can_use_album_asset_count(combined, all));
+
+  ImmichFilterConfig album_only;
+  album_only.albums_enabled = true;
+  album_only.album_ids = album1;
+  ImmichFilterBranch album_only_branch;
+  album_only_branch.group = "Album";
+  album_only_branch.album_ids = album1;
+  assert(immich_filter_can_use_album_asset_count(album_only, album_only_branch));
+  album_only.favorite_mode = "Favorites only";
+  assert(!immich_filter_can_use_album_asset_count(album_only, album_only_branch));
+  album_only.favorite_mode = "Any";
+  album_only.taken_after = "2026-01-01T00:00:00.000Z";
+  assert(!immich_filter_can_use_album_asset_count(album_only, album_only_branch));
+  album_only.taken_after.clear();
+  album_only_branch.person_ids = person1;
+  assert(!immich_filter_can_use_album_asset_count(album_only, album_only_branch));
 
   ImmichFilterConfig intersecting_any;
   intersecting_any.albums_enabled = true;
