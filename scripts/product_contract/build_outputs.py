@@ -169,31 +169,18 @@ def check_factory_firmware_metadata(product: dict, errors: list[str]) -> None:
             require_contains(build_text, f'css_include: "{factory_css_include}"', build_yaml, errors)
         if factory_js_include:
             require_contains(build_text, f'js_include: "{factory_js_include}"', build_yaml, errors)
-        if esphome_config_mount:
-            require_contains(
-                compile_workflow,
-                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml"',
-                ".github/workflows/compile.yml",
-                errors,
-            )
-            require_contains(
-                compile_workflow,
-                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml"',
-                ".github/workflows/compile.yml",
-                errors,
-            )
-            require_contains(
-                release_workflow,
-                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.factory.yaml"',
-                ".github/workflows/release.yml",
-                errors,
-            )
-            require_contains(
-                release_workflow,
-                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${{ matrix.yaml }}.yaml"',
-                ".github/workflows/release.yml",
-                errors,
-            )
+
+    if esphome_config_mount:
+        for workflow, label in (
+            (compile_workflow, ".github/workflows/compile.yml"),
+            (release_workflow, ".github/workflows/release.yml"),
+        ):
+            for fragment in (
+                'compile "${ESPHOME_CONFIG_MOUNT}/builds/${config_file}"',
+                '"${{ matrix.yaml }}.factory.yaml" factory firmware.factory.bin',
+                '"${{ matrix.yaml }}.yaml" ota firmware.ota.bin',
+            ):
+                require_contains(workflow, fragment, label, errors)
 
     if network_mode:
         require_contains(install_docs, "hotspot", "docs/install.md", errors)

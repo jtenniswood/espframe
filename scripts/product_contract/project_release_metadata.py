@@ -311,6 +311,23 @@ def check_project_release_metadata(product: dict, errors: list[str]) -> None:
                 if not job_name:
                     errors.append(f"project.github_workflow_jobs.{workflow or '<missing>'}.{job_id or '<missing>'} must be a non-empty string")
     configured_workflow_jobs, jobs_by_workflow = workflow_job_index(workflow_jobs)
+    workflow_job_runners = project.get("github_workflow_job_runners", {})
+    if workflow_job_runners:
+        if not isinstance(workflow_job_runners, dict):
+            errors.append("project.github_workflow_job_runners must be an object")
+        else:
+            for raw_key, raw_runner in workflow_job_runners.items():
+                key = str(raw_key).strip()
+                if key not in configured_workflow_jobs:
+                    errors.append(
+                        f"project.github_workflow_job_runners.{key or '<missing>'} "
+                        "must point at a known workflow job"
+                    )
+                if not isinstance(raw_runner, str) or not raw_runner.strip():
+                    errors.append(
+                        f"project.github_workflow_job_runners.{key or '<missing>'} "
+                        "must be a non-empty string"
+                    )
     workflow_job_dependencies = project.get("github_workflow_job_dependencies", {})
     check_workflow_job_dependencies(workflow_job_dependencies, configured_workflow_jobs, jobs_by_workflow, errors)
     workflow_job_conditions = project.get("github_workflow_job_conditions", {})
