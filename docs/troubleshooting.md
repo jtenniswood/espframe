@@ -69,7 +69,7 @@ Display behavior is configured from the frame web UI:
 
 - Use [screen brightness and display settings](/screen-settings) for brightness, schedules, and rotation.
 - Use [screen tone and night warmth](/screen-tone) if the panel looks too blue or too warm.
-- Use [touch controls](/touch-controls) if you need wake, sleep, or next-photo gestures.
+- Use [touch controls](/touch-controls) if you need wake, sleep, or next-photo gestures, including left/right image-set navigation.
 
 ## Manual ESPHome Builds
 

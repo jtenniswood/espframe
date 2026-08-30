@@ -21,6 +21,9 @@ globals:
   - id: last_short_tap_ms
     type: uint32_t
     initial_value: '0'
+  - id: slideshow_swipe_suppress_tap_until_ms
+    type: uint32_t
+    initial_value: '0'
   - id: last_photo_displayed_ms
     type: uint32_t
     initial_value: '0'

@@ -327,6 +327,14 @@
       {
         "action": "Next photo",
         "gesture": "Double-tap on the photo"
+      },
+      {
+        "action": "Next image set",
+        "gesture": "Swipe left across the photo"
+      },
+      {
+        "action": "Previous image set",
+        "gesture": "Swipe right across the photo"
       }
     ],
     "screen_brightness_day_night_source": "sunrise/sunset",

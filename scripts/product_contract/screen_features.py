@@ -24,6 +24,8 @@ def check_touch_controls_metadata(product: dict, errors: list[str]) -> None:
     troubleshooting_docs = read(ROOT / "docs" / "troubleshooting.md", errors)
     screen_settings_docs = read(ROOT / "docs" / "screen-settings.md", errors)
     slideshow_yaml = read(ROOT / "devices" / "guition-esp32-p4-jc8012p4a1" / "device" / "screen_slideshow.yaml", errors)
+    original_device_yaml = read(ROOT / "devices" / "guition-esp32-p4-jc8012p4a1" / "device" / "device.yaml", errors)
+    v2_device_yaml = read(ROOT / "devices" / "guition-esp32-p4-jc8012p4a1-v2" / "device" / "device.yaml", errors)
     backlight_schedule_yaml = read(ROOT / "common" / "addon" / "backlight_schedule.yaml", errors)
     backlight_yaml = read(ROOT / "common" / "addon" / "backlight.yaml", errors)
 
@@ -45,6 +47,14 @@ def check_touch_controls_metadata(product: dict, errors: list[str]) -> None:
     require_contains(screen_settings_docs, "same sleep/wake behavior as the touchscreen controls", "docs/screen-settings.md", errors)
     for needle in ("slideshow_on_press", "slideshow_on_short_click", "last_short_tap_ms", "immich_advance_forward"):
         require_contains(slideshow_yaml, needle, "devices/guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml", errors)
+    for needle in ("slideshow_navigation_feedback", "show_slideshow_navigation_feedback"):
+        require_contains(slideshow_yaml, needle, "devices/guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml", errors)
+    for path, device_yaml in (
+        ("devices/guition-esp32-p4-jc8012p4a1/device/device.yaml", original_device_yaml),
+        ("devices/guition-esp32-p4-jc8012p4a1-v2/device/device.yaml", v2_device_yaml),
+    ):
+        for needle in ("horizontal_distance >= 120", "immich_advance_forward", "immich_show_previous"):
+            require_contains(device_yaml, needle, path, errors)
     for needle in ("3-second hold timer", "delay: 3s", "screen_schedule_manual_sleep"):
         require_contains(backlight_schedule_yaml, needle, "common/addon/backlight_schedule.yaml", errors)
     for needle in ('name: "Screen: Sleep"', 'name: "Screen: Wake"'):
