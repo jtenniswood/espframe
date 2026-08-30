@@ -727,6 +727,21 @@ script:
       - lambda: 'mark_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags, millis());'
       - script.execute: sync_immich_filter_config
       - delay: 1ms
+      - if:
+          condition:
+            lambda: |-
+              const auto &config = id(immich_filter_config);
+              return immich_filter_has_missing_enabled_ids(config) ||
+                !immich_filter_location_is_valid(config) ||
+                (id(immich_request_state).api_generation == ImmichApiGeneration::V31_FLAT &&
+                 immich_filter_requires_v32(config));
+          then:
+            - lambda: |-
+                clear_slot_fetch_in_flight(
+                  id(espframe_core).slideshow().state().target_slot,
+                  id(espframe_core).slideshow().state().slot_flags);
+            - script.execute: immich_check_config_ready
+            - script.stop: immich_fetch_into_slot
       - lambda: |-
           id(immich_request_state).active_filter_branch = select_immich_filter_branch(
             id(immich_filter_config), id(immich_request_state).inclusion_group_index,

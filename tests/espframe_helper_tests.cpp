@@ -244,6 +244,8 @@ static void test_immich_body_helpers() {
          "Open ESPFrame settings and add at least one person, or choose All Photos.");
   assert(immich_source_setup_message("Tag") ==
          "Open ESPFrame settings and add at least one tag, or choose All Photos.");
+  assert(immich_source_setup_message("Custom") ==
+         "Open ESPFrame settings and add IDs to every enabled group, or choose All Photos.");
   assert(!immich_dimensions_are_portrait(1920, 1080, "6", false));
   assert(immich_dimensions_are_portrait(1920, 1080, "6", true));
   assert(immich_dimensions_are_portrait(1080, 1920, "6", false));
@@ -417,6 +419,7 @@ static void test_smart_filter_helpers() {
   assert(build_valid_uuid_json_array(album1 + ",bad").find("bad") == std::string::npos);
 
   ImmichFilterConfig empty;
+  assert(!immich_filter_has_missing_enabled_ids(empty));
   ImmichFilterBranch no_branch;
   std::string flat_empty = build_immich_filter_search_body(
       empty, no_branch, ImmichApiGeneration::V31_FLAT, 6, true);
@@ -468,6 +471,7 @@ static void test_smart_filter_helpers() {
   combined.minimum_rating = 4;
   combined.excluded_album_ids = excluded;
   combined.favorite_mode = "Favorites only";
+  assert(!immich_filter_has_missing_enabled_ids(combined));
   uint8_t group_index = 0;
   int album_index = 0;
   ImmichFilterBranch all = select_immich_filter_branch(
@@ -501,6 +505,20 @@ static void test_smart_filter_helpers() {
   all_albums_only.album_ids = album1 + "," + album2;
   all_albums_only.albums_enabled = false;
   assert(!immich_filter_requires_v32(all_albums_only));
+
+  ImmichFilterConfig missing_enabled_ids;
+  missing_enabled_ids.albums_enabled = true;
+  assert(immich_filter_has_missing_enabled_ids(missing_enabled_ids));
+  missing_enabled_ids.album_ids = album1;
+  assert(!immich_filter_has_missing_enabled_ids(missing_enabled_ids));
+  missing_enabled_ids.people_enabled = true;
+  assert(immich_filter_has_missing_enabled_ids(missing_enabled_ids));
+  missing_enabled_ids.person_ids = person1;
+  missing_enabled_ids.tags_enabled = true;
+  missing_enabled_ids.tag_ids = "not-a-uuid";
+  assert(immich_filter_has_missing_enabled_ids(missing_enabled_ids));
+  missing_enabled_ids.tag_ids = tag1;
+  assert(!immich_filter_has_missing_enabled_ids(missing_enabled_ids));
 
   combined.inclusion_matching = "Match any enabled group";
   ImmichFilterBranch first = select_immich_filter_branch(

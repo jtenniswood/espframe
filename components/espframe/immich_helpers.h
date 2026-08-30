@@ -161,6 +161,13 @@ inline bool immich_filter_has_required_ids(const ImmichFilterConfig &config) {
   return true;
 }
 
+inline bool immich_filter_has_missing_enabled_ids(const ImmichFilterConfig &config) {
+  if (config.albums_enabled && split_valid_uuid_csv(config.album_ids).empty()) return true;
+  if (config.people_enabled && split_valid_uuid_csv(config.person_ids).empty()) return true;
+  if (config.tags_enabled && split_valid_uuid_csv(config.tag_ids).empty()) return true;
+  return false;
+}
+
 inline std::vector<std::string> immich_enabled_inclusion_groups(const ImmichFilterConfig &config) {
   std::vector<std::string> groups;
   if (config.albums_enabled && !split_valid_uuid_csv(config.album_ids).empty()) groups.push_back("Album");
@@ -981,6 +988,9 @@ inline std::string immich_source_setup_title(const std::string &photo_source) {
 }
 
 inline std::string immich_source_setup_message(const std::string &photo_source) {
+  if (photo_source == "Custom") {
+    return "Open ESPFrame settings and add IDs to every enabled group, or choose All Photos.";
+  }
   std::string item = "photo source";
   if (photo_source == "Album") item = "album";
   else if (photo_source == "Person") item = "person";

@@ -257,6 +257,25 @@ script:
                   lambda: |-
                     ImmichFilterConfig config;
                     config.albums_enabled = id(immich_albums_enabled).state;
+                    config.people_enabled = id(immich_people_enabled).state;
+                    config.tags_enabled = id(immich_tags_enabled).state;
+                    config.album_ids = id(immich_album_ids).state;
+                    config.person_ids = id(immich_person_ids).state;
+                    config.tag_ids = id(immich_tag_ids).state;
+                    return immich_filter_has_missing_enabled_ids(config);
+                then:
+                  - logger.log:
+                      level: DEBUG
+                      tag: immich
+                      format: "Photo source is waiting for IDs in every enabled filter group"
+                  - script.execute: show_photo_source_empty_state
+                  - script.execute: immich_retry_config_ready
+                  - script.stop: immich_check_config_ready
+            - if:
+                condition:
+                  lambda: |-
+                    ImmichFilterConfig config;
+                    config.albums_enabled = id(immich_albums_enabled).state;
                     config.album_ids = id(immich_album_ids).state;
                     config.album_matching = id(immich_album_matching).current_option();
                     config.minimum_rating = id(immich_minimum_rating).current_option() == "Any"
