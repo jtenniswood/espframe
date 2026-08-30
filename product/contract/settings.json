@@ -761,7 +761,7 @@
     "entity": { "domain": "select", "name": "Photos: Album Matching" },
     "default": "Any selected album",
     "options": ["Any selected album", "All selected albums"],
-    "docs_description": "Choose whether an album group samples one selected album or requires all selected albums.",
+    "docs_description": "Choose whether an album group samples one selected album or requires all selected albums; all-album matching requires Immich 3.2 or newer.",
     "firmware_files": ["common/addon/immich_filter.yaml"],
     "docs_files": ["docs/photo-sources.md"]
   },

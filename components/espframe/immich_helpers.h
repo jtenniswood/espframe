@@ -139,7 +139,11 @@ inline std::string immich_json_escape(const std::string &value) {
 }
 
 inline bool immich_filter_requires_v32(const ImmichFilterConfig &config) {
-  return config.minimum_rating > 0 || !split_valid_uuid_csv(config.excluded_album_ids).empty() ||
+  const bool all_albums_requires_structured =
+      config.albums_enabled && immich_matching_is_all(config.album_matching) &&
+      split_valid_uuid_csv(config.album_ids).size() > 1;
+  return all_albums_requires_structured || config.minimum_rating > 0 ||
+         !split_valid_uuid_csv(config.excluded_album_ids).empty() ||
          !split_valid_uuid_csv(config.excluded_person_ids).empty() ||
          !split_valid_uuid_csv(config.excluded_tag_ids).empty();
 }

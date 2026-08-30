@@ -468,6 +468,17 @@ static void test_smart_filter_helpers() {
   assert(immich_filter_requires_v32(combined));
   assert(immich_filter_branch_uses_album(all));
 
+  ImmichFilterConfig all_albums_only;
+  all_albums_only.albums_enabled = true;
+  all_albums_only.album_ids = album1 + "," + album2;
+  all_albums_only.album_matching = "All selected albums";
+  assert(immich_filter_requires_v32(all_albums_only));
+  all_albums_only.album_ids = album1;
+  assert(!immich_filter_requires_v32(all_albums_only));
+  all_albums_only.album_ids = album1 + "," + album2;
+  all_albums_only.albums_enabled = false;
+  assert(!immich_filter_requires_v32(all_albums_only));
+
   combined.inclusion_matching = "Match any enabled group";
   ImmichFilterBranch first = select_immich_filter_branch(
       combined, group_index, album_index, "Album list order");

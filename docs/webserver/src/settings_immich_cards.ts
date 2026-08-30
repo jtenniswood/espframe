@@ -160,7 +160,7 @@
         post(endpoints.apply_photo_source + "/press");
       });
     }
-    function addGroup(label, enabledKey, matchingKey, idKey, labelKey, noun) {
+    function addGroup(label, enabledKey, matchingKey, idKey, labelKey, noun, allMatchingRequiresStructured) {
       var details = el("div");
       body.appendChild(toggleSettingRow({
         label: "Enable " + label,
@@ -171,10 +171,19 @@
         onChange: function (value) { applySetting(enabledKey, value); }
       }).field);
       var matching = field(label + " Matching");
-      matching.appendChild(selectFromOptions(productSettingOptions(matchingKey), S[matchingKey], function (value) {
+      var matchingControl = selectFromOptions(productSettingOptions(matchingKey), S[matchingKey], function (value) {
         S[matchingKey] = value;
         applySetting(matchingKey, value);
-      }));
+      });
+      matching.appendChild(matchingControl);
+      if (allMatchingRequiresStructured && !supportsStructured) {
+        Array.prototype.forEach.call(matchingControl.options, function (optionEl) {
+          if (String(optionEl.value).indexOf("All selected") === 0) optionEl.disabled = true;
+        });
+        var matchingHint = el("div", "setting-hint");
+        matchingHint.textContent = "All selected albums require Immich 3.2 or newer. A saved value is preserved.";
+        matching.appendChild(matchingHint);
+      }
       details.appendChild(matching);
       var timer = null;
       var editor = photoIdListField({
@@ -199,7 +208,7 @@
     }
 
     addSelect("Inclusion Groups", "inclusion_matching", false, "");
-    addGroup("Albums", "albums_enabled", "album_matching", "album_ids", "album_labels", "album");
+    addGroup("Albums", "albums_enabled", "album_matching", "album_ids", "album_labels", "album", true);
     addSelect("Album Order", "album_order", false, "");
     addGroup("People", "people_enabled", "person_matching", "person_ids", "person_labels", "person");
     addGroup("Tags", "tags_enabled", "tag_matching", "tag_ids", "tag_labels", "tag");

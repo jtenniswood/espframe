@@ -245,6 +245,9 @@ script:
                 condition:
                   lambda: |-
                     ImmichFilterConfig config;
+                    config.albums_enabled = id(immich_albums_enabled).state;
+                    config.album_ids = id(immich_album_ids).state;
+                    config.album_matching = id(immich_album_matching).current_option();
                     config.minimum_rating = id(immich_minimum_rating).current_option() == "Any"
                       ? 0 : static_cast<uint8_t>(atoi(id(immich_minimum_rating).current_option().c_str()));
                     config.excluded_album_ids = id(immich_excluded_album_ids).state;
@@ -256,7 +259,7 @@ script:
                   - lambda: |-
                       lv_label_set_text(id(connection_failed_title), "Filter needs Immich 3.2+");
                       lv_label_set_text(id(connection_failed_subtitle),
-                        "Minimum rating and exclusions\nare saved but not applied.");
+                        "This saved filter uses rules\nthat flat search cannot apply.");
                       lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
                       clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot,
                                                  id(espframe_core).slideshow().state().slot_flags);

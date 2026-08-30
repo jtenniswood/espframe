@@ -15,7 +15,7 @@ Open the device web UI at `http://<device-ip>/` and use **Photo Filter**. Albums
 | **People Enabled** | False | Toggle | Include the configured people as an independently enabled filter group. |
 | **Tags Enabled** | False | Toggle | Include the configured tags as an independently enabled filter group. |
 | **Inclusion Groups** | Match all enabled groups | Select | Require every enabled album, people, and tag group, or rotate evenly through one enabled group per request. |
-| **Album Matching** | Any selected album | Select | Choose whether an album group samples one selected album or requires all selected albums. |
+| **Album Matching** | Any selected album | Select | Choose whether an album group samples one selected album or requires all selected albums; all-album matching requires Immich 3.2 or newer. |
 | **Person Matching** | Any selected person | Select | Choose whether photos may contain any selected person or must contain all selected people. |
 | **Favorites** | Any | Select | Include any photo, require favorites, or exclude favorites. |
 | **Minimum Rating** | Any | Select | Require at least the selected Immich rating; available with Immich 3.2 or newer. |
@@ -83,7 +83,7 @@ Saving multiple IDs uses an HTTP POST body for the value, so the request stays w
 
 ## Immich compatibility
 
-Espframe discovers the server version from Immich's public server-version endpoint. Immich 3.1 uses flat search fields. Immich 3.2 and newer use structured filters and add minimum-rating and exclusion rules. On older or unknown versions those controls are disabled, their saved values remain intact, and the frame refuses to silently omit an active unsupported rule.
+Espframe discovers the server version from Immich's public server-version endpoint. Immich 3.1 uses flat search fields. Immich 3.2 and newer use structured filters and add all-selected-albums matching, minimum-rating, and exclusion rules. On older or unknown versions those controls are disabled, their saved values remain intact, and the frame refuses to silently omit an active unsupported rule.
 
 The former **Memories** source is migrated to an empty filter (equivalent to All Photos) and shown once as a dismissible notice. The deprecated **Photos: Source** Home Assistant entity remains for one compatibility release as a preset adapter; selecting a legacy source resets the smart filter to that preset, while a composed filter reports **Custom**.
 
