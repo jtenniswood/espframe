@@ -1,0 +1,59 @@
+# =============================================================================
+# MEMORY DIAGNOSTICS - Device memory exposed to Home Assistant
+# =============================================================================
+# Matches EspControl's user-facing diagnostic entities. Values are calculated
+# directly to avoid retaining hidden helper sensors in scarce internal DRAM.
+# =============================================================================
+
+sensor:
+  - platform: template
+    name: "Memory: Heap Free"
+    id: memory_heap_free_percent
+    icon: mdi:memory
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: |-
+      const float total = heap_caps_get_total_size(MALLOC_CAP_INTERNAL);
+      if (total <= 0.0f) {
+        return NAN;
+      }
+      return heap_caps_get_free_size(MALLOC_CAP_INTERNAL) * 100.0f / total;
+
+  - platform: template
+    name: "Memory: Heap Largest Block"
+    id: memory_heap_largest_block_bytes
+    icon: mdi:memory
+    unit_of_measurement: "B"
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: |-
+      return (float) heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL);
+
+  - platform: template
+    name: "Memory: PSRAM Free"
+    id: memory_psram_free_percent
+    icon: mdi:memory
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: |-
+      const float total = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
+      if (total <= 0.0f) {
+        return NAN;
+      }
+      return heap_caps_get_free_size(MALLOC_CAP_SPIRAM) * 100.0f / total;
+
+  - platform: template
+    name: "Memory: PSRAM Largest Block"
+    id: memory_psram_largest_block_bytes
+    icon: mdi:memory
+    unit_of_measurement: "B"
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: |-
+      return (float) heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);

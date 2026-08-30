@@ -114,7 +114,15 @@ script:
             - delay: 100ms
             - script.execute: backlight_apply_brightness
       - delay: 2s
-      - script.execute: immich_connection_config_changed
+      # Boot discovery may already have restored a healthy slideshow while the
+      # update recovery was waiting. Reset only when no photo pipeline is live.
+      - if:
+          condition:
+            lambda: |-
+              return !id(immich_fetch_started) &&
+                     !id(espframe_core).slideshow().state().active_slot_displayed;
+          then:
+            - script.execute: immich_connection_config_changed
 
 # -----------------------------------------------------------------------------
 # OTA and HTTP update source

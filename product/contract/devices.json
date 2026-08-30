@@ -150,6 +150,10 @@
       {
         "alias": "network",
         "path": "../../common/addon/network.yaml"
+      },
+      {
+        "alias": "memory_diagnostics",
+        "path": "../../common/addon/memory_diagnostics.yaml"
       }
     ],
     "package_substitutions": {
@@ -378,6 +382,10 @@
       {
         "alias": "network",
         "path": "../../common/addon/network.yaml"
+      },
+      {
+        "alias": "memory_diagnostics",
+        "path": "../../common/addon/memory_diagnostics.yaml"
       }
     ],
     "package_substitutions": {
