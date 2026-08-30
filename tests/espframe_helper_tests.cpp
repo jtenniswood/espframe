@@ -487,6 +487,34 @@ static void test_smart_filter_helpers() {
   assert(immich_filter_requires_v32(combined));
   assert(immich_filter_branch_uses_album(all));
 
+  ImmichFilterConfig intersecting_any;
+  intersecting_any.albums_enabled = true;
+  intersecting_any.people_enabled = true;
+  intersecting_any.album_ids = album1 + "," + album2;
+  intersecting_any.person_ids = person1 + "," + excluded;
+  intersecting_any.album_matching = "Any selected";
+  intersecting_any.person_matching = "Any selected";
+  intersecting_any.inclusion_matching = "Match all enabled groups";
+  ImmichFilterBranch complete_intersection = select_immich_filter_branch(
+      intersecting_any, group_index, album_index, "Album list order");
+  assert(complete_intersection.group == "All");
+  assert(complete_intersection.album_ids == intersecting_any.album_ids);
+  assert(complete_intersection.person_ids == intersecting_any.person_ids);
+  std::string complete_intersection_body = build_immich_filter_search_body(
+      intersecting_any, complete_intersection, ImmichApiGeneration::V32_STRUCTURED,
+      10, true);
+  assert(complete_intersection_body.find("\"albumIds\":{\"any\":[\"" + album1 +
+                                         "\",\"" + album2 + "\"]}") != std::string::npos);
+  assert(complete_intersection_body.find("\"personIds\":{\"any\":[\"" + person1 +
+                                         "\",\"" + excluded + "\"]}") != std::string::npos);
+  std::string complete_flat_intersection_body = build_immich_filter_search_body(
+      intersecting_any, complete_intersection, ImmichApiGeneration::V31_FLAT,
+      10, true);
+  assert(complete_flat_intersection_body.find("\"albumIds\":[\"" + album1 +
+                                              "\",\"" + album2 + "\"]") != std::string::npos);
+  assert(complete_flat_intersection_body.find("\"personIds\":[\"" + person1 +
+                                              "\",\"" + excluded + "\"]") != std::string::npos);
+
   ImmichFilterConfig all_albums_only;
   all_albums_only.albums_enabled = true;
   all_albums_only.album_ids = album1 + "," + album2;

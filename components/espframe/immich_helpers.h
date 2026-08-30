@@ -195,8 +195,12 @@ inline ImmichFilterBranch select_immich_filter_branch(const ImmichFilterConfig &
   const bool use_albums = branch.group == "All" || branch.group == "Album";
   const bool use_people = branch.group == "All" || branch.group == "Person";
   const bool use_tags = branch.group == "All" || branch.group == "Tag";
+  // Across-group intersections must retain each group's complete "any" set.
+  // Independently sampling one ID per group can invent an empty combination
+  // even when the configured predicate has matching assets.
+  const bool preserve_any_ids = branch.group == "All";
   if (use_albums && config.albums_enabled) {
-    if (immich_matching_is_all(config.album_matching)) {
+    if (immich_matching_is_all(config.album_matching) || preserve_any_ids) {
       branch.album_ids = valid_uuid_csv(config.album_ids);
     } else {
       branch.album_ids = pick_album_id_for_metadata_search(valid_uuid_csv(config.album_ids), album_order,
@@ -204,11 +208,11 @@ inline ImmichFilterBranch select_immich_filter_branch(const ImmichFilterConfig &
     }
   }
   if (use_people && config.people_enabled) {
-    branch.person_ids = immich_matching_is_all(config.person_matching)
+    branch.person_ids = (immich_matching_is_all(config.person_matching) || preserve_any_ids)
       ? valid_uuid_csv(config.person_ids) : pick_one_uuid_from_csv(valid_uuid_csv(config.person_ids));
   }
   if (use_tags && config.tags_enabled) {
-    branch.tag_ids = immich_matching_is_all(config.tag_matching)
+    branch.tag_ids = (immich_matching_is_all(config.tag_matching) || preserve_any_ids)
       ? valid_uuid_csv(config.tag_ids) : pick_one_uuid_from_csv(valid_uuid_csv(config.tag_ids));
   }
   return branch;
