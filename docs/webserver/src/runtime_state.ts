@@ -203,14 +203,17 @@
 
   function isEditingSetting() {
     var active = document.activeElement;
-    if (!active || !els.root || !els.root.contains(active)) return false;
-    return /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(active.tagName);
+    return !!(active && els.root && els.root.contains(active) &&
+      active.matches("input,select,textarea,button"));
   }
 
-  function liveRenderStateKeyHasPrefix(key) {
-    return (Array.isArray(LIVE_RENDER_STATE_PREFIXES) ? LIVE_RENDER_STATE_PREFIXES : []).some(function (prefix) {
-      return key.indexOf(prefix) === 0;
-    });
+  function renderSettingsAfterEditing() {
+    if (!isEditingSetting()) return renderSettings();
+    if (renderTimer) return;
+    renderTimer = setTimeout(function () {
+      renderTimer = null;
+      renderSettingsAfterEditing();
+    }, 100);
   }
 
   function renderConfiguredSettingsPage() {

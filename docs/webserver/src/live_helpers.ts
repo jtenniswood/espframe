@@ -35,9 +35,11 @@
       updateSunInfoElement(document.getElementById("sun-info"));
     } else if (stateSpec && LIVE_RENDER_STATE_KEYS.indexOf(stateSpec.key) !== -1) {
       applyEntityToState(d);
-      if (!isEditingSetting()) renderSettings();
-    } else if (stateSpec && liveRenderStateKeyHasPrefix(stateSpec.key)) {
-      if (!isEditingSetting()) renderSettings();
+      renderSettingsAfterEditing();
+    } else if (stateSpec && LIVE_RENDER_STATE_PREFIXES.some(function (prefix) {
+      return stateSpec.key.indexOf(prefix) === 0;
+    })) {
+      renderSettingsAfterEditing();
     }
   }
 

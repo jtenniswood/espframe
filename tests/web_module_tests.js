@@ -6,6 +6,8 @@ const root = path.resolve(__dirname, "..");
 const template = fs.readFileSync(path.join(root, "docs/webserver/src/app.template.ts"), "utf8");
 const publicApp = fs.readFileSync(path.join(root, "docs/public/webserver/app.js"), "utf8");
 const endpointsSource = fs.readFileSync(path.join(root, "docs/webserver/src/endpoints.ts"), "utf8");
+const runtimeStateSource = fs.readFileSync(path.join(root, "docs/webserver/src/runtime_state.ts"), "utf8");
+const liveHelpersSource = fs.readFileSync(path.join(root, "docs/webserver/src/live_helpers.ts"), "utf8");
 const backupImportSource = fs.readFileSync(path.join(root, "docs/webserver/src/backup_import.ts"), "utf8");
 const immichApiSource = fs.readFileSync(path.join(root, "common/addon/immich_api.yaml"), "utf8");
 const immichFilterSource = fs.readFileSync(path.join(root, "common/addon/immich_filter.yaml"), "utf8");
@@ -54,6 +56,12 @@ assert.match(publicApp, /function renderWizard\(\)/, "public app should include 
 assert.ok(publicApp.includes("/espframe/api/v1/configuration"), "public app should use the versioned configuration API");
 assert.ok(endpointsSource.includes("configurationUpdateQueue"), "configuration writes should be serialized");
 assert.ok(endpointsSource.includes("configurationUpdateQueue = request.catch"), "the configuration queue should continue after a failed save");
+assert.ok(
+  liveHelpersSource.includes("renderSettingsAfterEditing();") &&
+    runtimeStateSource.includes("renderTimer = setTimeout") &&
+    runtimeStateSource.includes("renderSettingsAfterEditing();"),
+  "live capability updates should render after the active settings edit finishes"
+);
 assert.ok(publicApp.includes("customElements.define"), "public app should register its component root");
 assert.ok(publicApp.includes('"album_order"'), "public app should include album order in photo-source apply keys");
 assert.ok(publicApp.includes("Move album up"), "public app should include album reorder controls");

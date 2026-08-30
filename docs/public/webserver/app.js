@@ -2162,13 +2162,15 @@ to {
   }
   function isEditingSetting() {
     var active = document.activeElement;
-    if (!active || !els.root || !els.root.contains(active)) return false;
-    return /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(active.tagName);
+    return !!(active && els.root && els.root.contains(active) && active.matches("input,select,textarea,button"));
   }
-  function liveRenderStateKeyHasPrefix(key) {
-    return (Array.isArray(LIVE_RENDER_STATE_PREFIXES) ? LIVE_RENDER_STATE_PREFIXES : []).some(function(prefix) {
-      return key.indexOf(prefix) === 0;
-    });
+  function renderSettingsAfterEditing() {
+    if (!isEditingSetting()) return renderSettings();
+    if (renderTimer) return;
+    renderTimer = setTimeout(function() {
+      renderTimer = null;
+      renderSettingsAfterEditing();
+    }, 100);
   }
   function renderConfiguredSettingsPage() {
     renderSettings();
@@ -4109,9 +4111,11 @@ to {
       updateSunInfoElement(document.getElementById("sun-info"));
     } else if (stateSpec && LIVE_RENDER_STATE_KEYS.indexOf(stateSpec.key) !== -1) {
       applyEntityToState(d);
-      if (!isEditingSetting()) renderSettings();
-    } else if (stateSpec && liveRenderStateKeyHasPrefix(stateSpec.key)) {
-      if (!isEditingSetting()) renderSettings();
+      renderSettingsAfterEditing();
+    } else if (stateSpec && LIVE_RENDER_STATE_PREFIXES.some(function(prefix) {
+      return stateSpec.key.indexOf(prefix) === 0;
+    })) {
+      renderSettingsAfterEditing();
     }
   }
   function updateSunInfoElement(el2) {
