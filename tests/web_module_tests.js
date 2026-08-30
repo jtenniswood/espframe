@@ -110,6 +110,14 @@ assert.ok(
     configReadiness.indexOf("script.stop: immich_check_config_ready"),
   "configuration errors should navigate to the slideshow before showing its overlay"
 );
+const unsupportedFilterOverlay = configReadiness.slice(
+  configReadiness.indexOf('"Filter needs Immich 3.2+"'),
+  configReadiness.indexOf("clear_slot_fetch_in_flight")
+);
+assert.ok(
+  unsupportedFilterOverlay.includes("lv_obj_clear_flag(id(photo_source_show_all_button), LV_OBJ_FLAG_HIDDEN)"),
+  "an unsupported saved filter should expose the on-device All Photos recovery button"
+);
 assert.equal(
   slideshowScreenSource.includes("slideshow_swipe_suppress_tap_until_ms) = 0"),
   false,

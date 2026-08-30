@@ -309,6 +309,7 @@ script:
                         lv_label_set_text(id(connection_failed_subtitle),
                           "This saved filter uses rules\nthat flat search cannot apply.");
                         id(immich_source_setup_visible) = true;
+                        lv_obj_clear_flag(id(photo_source_show_all_button), LV_OBJ_FLAG_HIDDEN);
                         lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
                       }
                       clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot,
