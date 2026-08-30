@@ -161,6 +161,27 @@ const legacyPreset = immichFilterSource.slice(
   immichFilterSource.indexOf("- id: apply_legacy_photo_source_preset"),
   immichFilterSource.indexOf("- id: flush_slots_and_refetch")
 );
+const legacyMigration = immichFilterSource.slice(
+  immichFilterSource.indexOf("esphome:"),
+  immichFilterSource.indexOf("select:")
+);
+const legacySourceSelect = immichFilterSource.slice(
+  immichFilterSource.indexOf('name: "Photos: Source"'),
+  immichFilterSource.indexOf('name: "Photos: Inclusion Groups"')
+);
+assert.ok(
+  legacyMigration.includes("preserve_tag_matching: true"),
+  "legacy schema migration should preserve the restored tag-matching preference"
+);
+assert.ok(
+  legacySourceSelect.includes("preserve_tag_matching: false"),
+  "explicit legacy source selections should reset tag matching to the preset default"
+);
+assert.ok(
+  legacyPreset.includes("if (!preserve_tag_matching)") &&
+    legacyPreset.includes('set_option(id(immich_tag_matching), "Any selected tag")'),
+  "legacy preset adapter should reset tag matching only outside schema migration"
+);
 [
   "Match all enabled groups",
   "Any selected album",

@@ -18,7 +18,9 @@ esphome:
             condition:
               lambda: 'return id(immich_filter_schema_version) == 0;'
             then:
-              - script.execute: apply_legacy_photo_source_preset
+              - script.execute:
+                  id: apply_legacy_photo_source_preset
+                  preserve_tag_matching: true
               - lambda: |-
                   id(immich_filter_schema_version) = 1;
                   global_preferences->sync();
@@ -56,7 +58,9 @@ select:
     on_value:
       then:
         - lambda: 'ESP_LOGI("immich", "Photo source: %s", x.c_str());'
-        - script.execute: apply_legacy_photo_source_preset
+        - script.execute:
+            id: apply_legacy_photo_source_preset
+            preserve_tag_matching: false
         - script.execute: auto_apply_photo_source
 
   - platform: template
@@ -699,6 +703,8 @@ script:
 
   - id: apply_legacy_photo_source_preset
     mode: restart
+    parameters:
+      preserve_tag_matching: bool
     then:
       - lambda: |-
           const std::string source = id(photo_source_select).current_option();
@@ -718,7 +724,9 @@ script:
           set_option(id(immich_inclusion_matching), "Match all enabled groups");
           set_option(id(immich_album_matching), "Any selected album");
           set_option(id(immich_person_matching), "Any selected person");
-          set_option(id(immich_tag_matching), "Any selected tag");
+          if (!preserve_tag_matching) {
+            set_option(id(immich_tag_matching), "Any selected tag");
+          }
           auto favorite = id(immich_favorite_mode).make_call();
           favorite.set_option(source == "Favorites" ? "Favorites only" : "Any");
           favorite.perform();
