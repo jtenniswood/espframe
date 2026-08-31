@@ -312,9 +312,13 @@ class EspFrameSlideshow {
     this->clear_preload_noncritical_(preload_noncritical_in_flight, noncritical_count);
   }
 
-  void on_preload_left_error(std::string &diag_reason, bool &portrait_preload_left_ready,
+  void on_preload_left_error(std::string &diag_reason, int &portrait_preload_slot,
+                             bool &portrait_preload_left_ready,
+                             bool &portrait_preload_right_ready,
                              bool &preload_noncritical_in_flight, int &noncritical_count) {
+    portrait_preload_slot = -1;
     portrait_preload_left_ready = false;
+    portrait_preload_right_ready = false;
     diag_reason = "portrait preload left error";
     this->clear_preload_noncritical_(preload_noncritical_in_flight, noncritical_count);
     this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG);
@@ -327,8 +331,12 @@ class EspFrameSlideshow {
     this->clear_preload_noncritical_(preload_noncritical_in_flight, noncritical_count);
   }
 
-  void on_preload_right_error(std::string &diag_reason, bool &portrait_preload_right_ready,
+  void on_preload_right_error(std::string &diag_reason, int &portrait_preload_slot,
+                              bool &portrait_preload_left_ready,
+                              bool &portrait_preload_right_ready,
                               bool &preload_noncritical_in_flight, int &noncritical_count) {
+    portrait_preload_slot = -1;
+    portrait_preload_left_ready = false;
     portrait_preload_right_ready = false;
     diag_reason = "portrait preload right error";
     this->clear_preload_noncritical_(preload_noncritical_in_flight, noncritical_count);

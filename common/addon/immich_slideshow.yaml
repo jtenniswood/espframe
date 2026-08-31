@@ -326,12 +326,14 @@ remote_image:
       then:
         - lambda: |-
             ESP_LOGE("immich", "Portrait preload left failed");
+            int failed_preload_slot = id(espframe_core).slideshow().state().portrait_preload_slot;
             id(espframe_core).slideshow().on_preload_left_error(
-              id(espframe_core).slideshow().state().diagnostic_reason, id(espframe_core).slideshow().state().portrait_preload_left_ready,
+              id(espframe_core).slideshow().state().diagnostic_reason, id(espframe_core).slideshow().state().portrait_preload_slot,
+              id(espframe_core).slideshow().state().portrait_preload_left_ready, id(espframe_core).slideshow().state().portrait_preload_right_ready,
               id(espframe_core).slideshow().state().preload_noncritical_in_flight, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
-            if (id(portrait_pairs_only).state && id(espframe_core).slideshow().state().portrait_preload_slot >= 0) {
+            if (id(portrait_pairs_only).state && failed_preload_slot >= 0) {
               id(espframe_core).slideshow().reject_portrait_slot(
-                millis(), id(espframe_core).slideshow().state().portrait_preload_slot);
+                millis(), failed_preload_slot);
             }
             id(espframe_slideshow_dispatch).execute();
 
@@ -356,12 +358,14 @@ remote_image:
       then:
         - lambda: |-
             ESP_LOGE("immich", "Portrait preload right failed");
+            int failed_preload_slot = id(espframe_core).slideshow().state().portrait_preload_slot;
             id(espframe_core).slideshow().on_preload_right_error(
-              id(espframe_core).slideshow().state().diagnostic_reason, id(espframe_core).slideshow().state().portrait_preload_right_ready,
+              id(espframe_core).slideshow().state().diagnostic_reason, id(espframe_core).slideshow().state().portrait_preload_slot,
+              id(espframe_core).slideshow().state().portrait_preload_left_ready, id(espframe_core).slideshow().state().portrait_preload_right_ready,
               id(espframe_core).slideshow().state().preload_noncritical_in_flight, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
-            if (id(portrait_pairs_only).state && id(espframe_core).slideshow().state().portrait_preload_slot >= 0) {
+            if (id(portrait_pairs_only).state && failed_preload_slot >= 0) {
               id(espframe_core).slideshow().reject_portrait_slot(
-                millis(), id(espframe_core).slideshow().state().portrait_preload_slot);
+                millis(), failed_preload_slot);
             }
             id(espframe_slideshow_dispatch).execute();
 

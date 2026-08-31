@@ -838,11 +838,33 @@ static void test_slideshow_component_preload_flow() {
   assert(noncritical_count == 0);
 
   std::string reason;
+  int preload_slot = 1;
+  left_ready = true;
+  right_ready = true;
   preload_in_flight = true;
   noncritical_count = 1;
-  slideshow.on_preload_left_error(reason, left_ready, preload_in_flight, noncritical_count);
+  slideshow.on_preload_left_error(reason, preload_slot, left_ready, right_ready,
+                                  preload_in_flight, noncritical_count);
   assert(reason == "portrait preload left error");
+  assert(preload_slot == -1);
   assert(!left_ready);
+  assert(!right_ready);
+  assert(!preload_in_flight);
+  assert(noncritical_count == 0);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
+
+  preload_slot = 1;
+  left_ready = true;
+  right_ready = true;
+  preload_in_flight = true;
+  noncritical_count = 1;
+  slideshow.on_preload_right_error(reason, preload_slot, left_ready, right_ready,
+                                   preload_in_flight, noncritical_count);
+  assert(reason == "portrait preload right error");
+  assert(preload_slot == -1);
+  assert(!left_ready);
+  assert(!right_ready);
   assert(!preload_in_flight);
   assert(noncritical_count == 0);
   assert(slideshow.pop_command(cmd));
