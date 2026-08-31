@@ -72,6 +72,9 @@ psram:
 # API, logger, JSON, web server, OTA, debug (reset reason for crash diagnosis)
 # -----------------------------------------------------------------------------
 api:
+  # Home Assistant 2026.8+ provisions a unique per-device Noise key on first
+  # connection. ESPHome stores it in preferences so normal OTA updates keep it.
+  encryption:
   reboot_timeout: 0s
 
 logger:

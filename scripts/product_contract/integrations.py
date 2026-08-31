@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from product_contract.common import ROOT, read, require_contains
+from product_contract.common import ROOT, read, rel, require_contains
 
 
 def check_immich_api_key_metadata(product: dict, errors: list[str]) -> None:
@@ -81,6 +81,13 @@ def check_home_assistant_metadata(product: dict, errors: list[str]) -> None:
     features = project.get("home_assistant_integration_features", [])
     network_entities = project.get("home_assistant_network_entities", [])
     diagnostic_entities = project.get("home_assistant_diagnostic_entities", [])
+    encryption_mode = str(project.get("home_assistant_api_encryption_mode", "")).strip()
+    encryption_minimum_version = str(project.get("home_assistant_api_encryption_minimum_version", "")).strip()
+    encryption_recommended_version = str(project.get("home_assistant_api_encryption_recommended_version", "")).strip()
+    encryption_key_policy = str(project.get("home_assistant_api_encryption_key_policy", "")).strip()
+    encryption_key_exclusions = project.get("home_assistant_api_encryption_key_exclusions", [])
+    encryption_persistence = str(project.get("home_assistant_api_encryption_persistence", "")).strip()
+    encryption_factory_reset = str(project.get("home_assistant_api_encryption_factory_reset_behavior", "")).strip()
     debug_update_interval = str(project.get("device_debug_update_interval", "")).strip()
     wifi_strength_source = str(project.get("network_wifi_strength_source", "")).strip()
     wifi_strength_update_interval = str(project.get("network_wifi_strength_update_interval", "")).strip()
@@ -92,6 +99,59 @@ def check_home_assistant_metadata(product: dict, errors: list[str]) -> None:
     network_yaml = read(ROOT / "common" / "addon" / "network.yaml", errors)
     device_yaml_path = "devices/guition-esp32-p4-jc8012p4a1/device/device.yaml"
     device_yaml = read(ROOT / device_yaml_path, errors)
+
+    version_pattern = re.compile(r"^[0-9]{4}\.[0-9]+\.[0-9]+$")
+    if encryption_minimum_version and not version_pattern.fullmatch(encryption_minimum_version):
+        errors.append("project.home_assistant_api_encryption_minimum_version must be a release version")
+    if encryption_recommended_version and not version_pattern.fullmatch(encryption_recommended_version):
+        errors.append("project.home_assistant_api_encryption_recommended_version must be a release version")
+    if version_pattern.fullmatch(encryption_minimum_version) and version_pattern.fullmatch(encryption_recommended_version):
+        minimum_parts = tuple(int(part) for part in encryption_minimum_version.split("."))
+        recommended_parts = tuple(int(part) for part in encryption_recommended_version.split("."))
+        if recommended_parts < minimum_parts:
+            errors.append(
+                "project.home_assistant_api_encryption_recommended_version must not precede the minimum version"
+            )
+
+    device_yaml_paths = {
+        str(device.get("device_yaml", "")).strip()
+        for device in product.get("devices", [])
+        if isinstance(device, dict) and str(device.get("device_yaml", "")).strip()
+    }
+    for path in sorted(device_yaml_paths):
+        text = read(ROOT / path, errors)
+        if not re.search(r"(?m)^api:\s*$[\s\S]*?^  encryption:\s*$", text):
+            errors.append(f"{path} must enable keyless api encryption")
+
+    firmware_yaml_paths = sorted(
+        path
+        for root in (ROOT / "builds", ROOT / "common", ROOT / "devices")
+        for path in root.rglob("*.yaml")
+        if path.name != "secrets.yaml"
+    )
+    compiled_key_pattern = re.compile(
+        r"(?m)^api:\s*$[\s\S]*?^  encryption:\s*$[\s\S]*?^    key:\s*\S+"
+    )
+    for path in firmware_yaml_paths:
+        if compiled_key_pattern.search(read(path, errors)):
+            errors.append(f"{rel(path)} must not compile a Home Assistant API encryption key")
+
+    forbidden_key_pattern = re.compile(r"api[_ .-]?encryption[_ .-]?key|USE_API_NOISE_PSK_FROM_YAML", re.IGNORECASE)
+    for root in (ROOT / ".github" / "workflows", ROOT / "docs" / "webserver" / "src"):
+        for path in sorted(candidate for candidate in root.rglob("*") if candidate.is_file()):
+            if forbidden_key_pattern.search(read(path, errors)):
+                errors.append(f"{rel(path)} must not expose or inject a Home Assistant API encryption key")
+
+    backup_fields = project.get("backup_export_fields", {})
+    if isinstance(backup_fields, dict):
+        for group, fields in backup_fields.items():
+            if not isinstance(fields, list):
+                continue
+            for field in fields:
+                if forbidden_key_pattern.search(str(field)):
+                    errors.append(
+                        f"project.backup_export_fields.{group} must not export a Home Assistant API encryption key"
+                    )
 
     docs_to_check = (
         ("README.md", readme),
@@ -119,6 +179,20 @@ def check_home_assistant_metadata(product: dict, errors: list[str]) -> None:
             if not isinstance(feature, str) or not feature.strip():
                 continue
             require_contains(home_assistant_docs, feature.strip(), "docs/home-assistant.md", errors)
+    for value in (
+        encryption_mode,
+        encryption_minimum_version,
+        encryption_recommended_version,
+        encryption_key_policy,
+        encryption_persistence,
+        encryption_factory_reset,
+    ):
+        if value:
+            require_contains(home_assistant_docs, value, "docs/home-assistant.md", errors)
+    if isinstance(encryption_key_exclusions, list):
+        for value in encryption_key_exclusions:
+            if isinstance(value, str) and value.strip():
+                require_contains(home_assistant_docs, value.strip(), "docs/home-assistant.md", errors)
     if isinstance(network_entities, list):
         for entity in network_entities:
             if not isinstance(entity, dict):

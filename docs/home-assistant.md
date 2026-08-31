@@ -14,6 +14,16 @@ Espframe runs on [ESPHome](https://esphome.io/), so Home Assistant often discove
 - **If discovered:** **Settings → Devices & Services** → **ESPHome: 1 device discovered** → **Configure** → **Submit**
 - **If not:** **Add Integration** → **ESPHome** → enter the device IP (on screen or web UI) → **Submit**
 
+## API Encryption
+
+Espframe uses **runtime-provisioned per-device Noise** encryption for its ESPHome connection. Home Assistant generates a unique encryption key when it first connects, sends it to the frame, and then reconnects over the encrypted API. Existing plaintext integrations migrate on their first connection without changing the device or its entities.
+
+Automatic key provisioning requires Home Assistant **2026.8.0** or newer. Home Assistant **2026.8.1** or newer is recommended because it also synchronizes the provisioned key with ESPHome Device Builder, preventing Device Builder from creating a competing key during adoption. Older Home Assistant versions can continue using ESPHome's temporary plaintext fallback until a key is provisioned.
+
+**No shared or build-generated encryption key** is included in Espframe firmware. No key is embedded in **public YAML**, **factory firmware**, or **release workflows**, and it is never exposed through the **device web UI** or **Espframe backups**. The generated key is **Stored in device preferences and preserved across normal OTA updates**. It is separate from the Immich API key entered in the Espframe web UI.
+
+**A full erase or factory reinstall may require Home Assistant reconfiguration** because it can remove the stored encryption key. Normal firmware updates and rollbacks use OTA and retain it.
+
 ## Exposed Entities
 
 Under **Settings → Devices & Services → ESPHome** (device page):

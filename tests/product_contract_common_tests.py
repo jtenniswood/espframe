@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from product_contract.common import yaml_id_block  # noqa: E402
+from product_contract.integrations import check_home_assistant_metadata  # noqa: E402
 from product_config import PRODUCT_PATH, load_contract_manifest, load_product  # noqa: E402
 from script_test_discovery import run_discovered_tests  # noqa: E402
 
@@ -64,6 +65,24 @@ def test_contract_manifest_preserves_upgrade_boundaries() -> None:
     assert load_product()["project"]["backup_config_version"] in manifest["compatibility"]["backup_versions"]
     assert manifest["compatibility"]["preserve_esphome_entity_names"] is True
     assert manifest["compatibility"]["preserve_saved_preferences"] is True
+
+
+def test_home_assistant_api_encryption_contract_is_keyless_for_every_device() -> None:
+    product = load_product()
+    errors: list[str] = []
+
+    check_home_assistant_metadata(product, errors)
+
+    assert errors == []
+    for device in product["devices"]:
+        device_yaml = (ROOT / device["device_yaml"]).read_text(encoding="utf-8")
+        assert "api:\n" in device_yaml
+        assert "  encryption:\n" in device_yaml
+        assert "    key:" not in device_yaml
+    for directory in (ROOT / "builds", ROOT / "common", ROOT / "devices"):
+        for path in directory.rglob("*.yaml"):
+            if path.name != "secrets.yaml":
+                assert "api_encryption_key" not in path.read_text(encoding="utf-8")
 
 
 def test_configuration_api_reads_form_post_body() -> None:

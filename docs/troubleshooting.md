@@ -51,6 +51,17 @@ Espframe needs a read-only Immich API key. If the key is missing permissions, ph
 
 Create a fresh key using the recommended [Immich API key permissions for Espframe](/api-key), then paste it into the frame web UI.
 
+## Home Assistant Reports “Connection Requires Encryption”
+
+This message concerns the ESPHome API encryption key shared by Home Assistant and the frame, not the Immich API key used to load photos.
+
+1. Update Home Assistant to **2026.8.1** or newer so dynamically provisioned keys are synchronized with ESPHome Device Builder.
+2. In **Settings → Devices & Services → ESPHome**, open the Espframe integration and choose **Reconfigure**. Enter the ESPHome encryption key if Home Assistant requests it.
+3. If the frame was adopted in ESPHome Device Builder, confirm its `api → encryption → key` matches the key Home Assistant is using before installing another Device Builder build.
+4. If the key was lost during a full erase or factory reinstall, remove and add the ESPHome integration again so Home Assistant can provision a new per-device key.
+
+Normal Espframe OTA updates preserve the stored key. Do not paste the Immich API key into Home Assistant's encryption-key prompt.
+
 ## Photos Do Not Appear
 
 If the frame connects but does not show the photos you expect:

@@ -66,6 +66,19 @@
   "home_assistant_url": "https://www.home-assistant.io/",
   "home_assistant_requirement": "not required",
   "home_assistant_integration_platform": "ESPHome",
+  "home_assistant_api_encryption_mode": "runtime-provisioned per-device Noise",
+  "home_assistant_api_encryption_minimum_version": "2026.8.0",
+  "home_assistant_api_encryption_recommended_version": "2026.8.1",
+  "home_assistant_api_encryption_key_policy": "No shared or build-generated encryption key",
+  "home_assistant_api_encryption_key_exclusions": [
+    "public YAML",
+    "factory firmware",
+    "release workflows",
+    "Espframe backups",
+    "device web UI"
+  ],
+  "home_assistant_api_encryption_persistence": "Stored in device preferences and preserved across normal OTA updates",
+  "home_assistant_api_encryption_factory_reset_behavior": "A full erase or factory reinstall may require Home Assistant reconfiguration",
   "home_assistant_integration_features": [
     "updates",
     "dashboard control",

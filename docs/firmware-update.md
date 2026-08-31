@@ -9,6 +9,8 @@ OTA and HTTP updates come from GitHub Pages. The original panel checks `https://
 
 During OTA updates, Espframe keeps the current backlight state while the update starts. If Home Assistant or the screen sleep control had already turned the display off, the screen stays off after the update reboot until it is woken again.
 
+OTA updates and rollbacks preserve the Home Assistant ESPHome API encryption key stored on the frame, so installing a new version does not normally require re-pairing. Reinstalling factory firmware after a full flash erase is different: it can remove device preferences, including that key, and Home Assistant may then need the ESPHome integration to be reconfigured. The Home Assistant encryption key is unrelated to the Immich API key saved through the Espframe web UI.
+
 <!-- ESPFRAME:SETTINGS_TABLE firmware_controls START -->
 | Control | Type | Default | Description |
 |---------|------|---------|-------------|

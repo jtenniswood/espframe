@@ -62,6 +62,18 @@ esphome run esphome.yaml
 
 First build takes a few minutes; OTA updates are faster.
 
+### Optional user-managed Home Assistant key
+
+By default, Home Assistant 2026.8+ provisions a unique ESPHome API encryption key on first connection and the frame preserves it across OTA updates. Advanced users who want to manage that key in their ESPHome configuration can override the package configuration:
+
+```yaml
+api:
+  encryption:
+    key: !secret api_encryption_key
+```
+
+Add a unique 32-byte base64 key as `api_encryption_key` in `secrets.yaml`; generate one with `openssl rand -base64 32`. Never reuse the Immich API key here. Changing this value later requires reconfiguring the ESPHome integration in Home Assistant.
+
 ::: info ESPHome version
 Current local builds use ESPHome `2026.7.4`. The shared configuration includes compatibility fixes for ESPHome 2026.3, 2026.4, and 2026.7 LVGL changes.
 :::

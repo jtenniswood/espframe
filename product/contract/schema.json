@@ -67,6 +67,13 @@
         "generated_asset_sources",
         "public_base_url",
         "repository_url",
+        "home_assistant_api_encryption_mode",
+        "home_assistant_api_encryption_minimum_version",
+        "home_assistant_api_encryption_recommended_version",
+        "home_assistant_api_encryption_key_policy",
+        "home_assistant_api_encryption_key_exclusions",
+        "home_assistant_api_encryption_persistence",
+        "home_assistant_api_encryption_factory_reset_behavior",
         "esphome_version"
       ],
       "properties": {
@@ -80,6 +87,13 @@
         "generated_asset_sources": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
         "public_base_url": { "type": "string", "format": "uri" },
         "repository_url": { "type": "string", "format": "uri" },
+        "home_assistant_api_encryption_mode": { "const": "runtime-provisioned per-device Noise" },
+        "home_assistant_api_encryption_minimum_version": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]+\\.[0-9]+$" },
+        "home_assistant_api_encryption_recommended_version": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]+\\.[0-9]+$" },
+        "home_assistant_api_encryption_key_policy": { "const": "No shared or build-generated encryption key" },
+        "home_assistant_api_encryption_key_exclusions": { "const": ["public YAML", "factory firmware", "release workflows", "Espframe backups", "device web UI"] },
+        "home_assistant_api_encryption_persistence": { "type": "string", "minLength": 1 },
+        "home_assistant_api_encryption_factory_reset_behavior": { "type": "string", "minLength": 1 },
         "esphome_version": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]+\\.[0-9]+$" }
       },
       "additionalProperties": true
