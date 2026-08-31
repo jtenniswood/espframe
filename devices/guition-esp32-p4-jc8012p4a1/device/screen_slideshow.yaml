@@ -303,7 +303,7 @@ lvgl:
                   x: 14
                   text: $icon_chevron_left
                   text_color: 0xFFFFFF
-                  text_font: icon_font_setup
+                  text_font: icon_font_navigation
                   hidden: true
               - label:
                   id: slideshow_navigation_feedback_right_icon
@@ -311,7 +311,7 @@ lvgl:
                   x: -14
                   text: $icon_chevron_right
                   text_color: 0xFFFFFF
-                  text_font: icon_font_setup
+                  text_font: icon_font_navigation
         - obj:
             id: connection_failed_overlay
             align: CENTER
