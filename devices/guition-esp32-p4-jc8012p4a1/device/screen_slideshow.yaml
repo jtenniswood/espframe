@@ -564,7 +564,7 @@ script:
             lv_obj_add_flag(id(slideshow_navigation_feedback_right_icon), LV_OBJ_FLAG_HIDDEN);
             lv_obj_align(id(slideshow_navigation_feedback), LV_ALIGN_LEFT_MID, 36, 0);
           } else {
-            lv_label_set_text(id(slideshow_navigation_feedback_label), "Please wait");
+            lv_label_set_text(id(slideshow_navigation_feedback_label), "Loading");
             lv_obj_align(id(slideshow_navigation_feedback_label), LV_ALIGN_CENTER, 0, 0);
             lv_obj_add_flag(id(slideshow_navigation_feedback_left_icon), LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(id(slideshow_navigation_feedback_right_icon), LV_OBJ_FLAG_HIDDEN);
