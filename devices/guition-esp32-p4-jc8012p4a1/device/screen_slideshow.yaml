@@ -295,9 +295,25 @@ lvgl:
               - label:
                   id: slideshow_navigation_feedback_label
                   align: CENTER
-                  text: "Next  >"
+                  x: -20
+                  text: "Next"
                   text_color: 0xFFFFFF
                   text_font: noto_400_30_font
+              - label:
+                  id: slideshow_navigation_feedback_left_icon
+                  align: LEFT_MID
+                  x: 14
+                  text: $icon_chevron_left
+                  text_color: 0xFFFFFF
+                  text_font: icon_font_setup
+                  hidden: true
+              - label:
+                  id: slideshow_navigation_feedback_right_icon
+                  align: RIGHT_MID
+                  x: -14
+                  text: $icon_chevron_right
+                  text_color: 0xFFFFFF
+                  text_font: icon_font_setup
         - obj:
             id: connection_failed_overlay
             align: CENTER
@@ -538,13 +554,22 @@ script:
     then:
       - lambda: |-
           if (direction > 0) {
-            lv_label_set_text(id(slideshow_navigation_feedback_label), "Next  >");
+            lv_label_set_text(id(slideshow_navigation_feedback_label), "Next");
+            lv_obj_align(id(slideshow_navigation_feedback_label), LV_ALIGN_CENTER, -20, 0);
+            lv_obj_add_flag(id(slideshow_navigation_feedback_left_icon), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_clear_flag(id(slideshow_navigation_feedback_right_icon), LV_OBJ_FLAG_HIDDEN);
             lv_obj_align(id(slideshow_navigation_feedback), LV_ALIGN_RIGHT_MID, -36, 0);
           } else if (direction < 0) {
-            lv_label_set_text(id(slideshow_navigation_feedback_label), "<  Previous");
+            lv_label_set_text(id(slideshow_navigation_feedback_label), "Previous");
+            lv_obj_align(id(slideshow_navigation_feedback_label), LV_ALIGN_CENTER, 20, 0);
+            lv_obj_clear_flag(id(slideshow_navigation_feedback_left_icon), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(slideshow_navigation_feedback_right_icon), LV_OBJ_FLAG_HIDDEN);
             lv_obj_align(id(slideshow_navigation_feedback), LV_ALIGN_LEFT_MID, 36, 0);
           } else {
             lv_label_set_text(id(slideshow_navigation_feedback_label), "Please wait");
+            lv_obj_align(id(slideshow_navigation_feedback_label), LV_ALIGN_CENTER, 0, 0);
+            lv_obj_add_flag(id(slideshow_navigation_feedback_left_icon), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(slideshow_navigation_feedback_right_icon), LV_OBJ_FLAG_HIDDEN);
             lv_obj_align(id(slideshow_navigation_feedback), LV_ALIGN_CENTER, 0, 0);
           }
           lv_obj_clear_flag(id(slideshow_navigation_feedback), LV_OBJ_FLAG_HIDDEN);

@@ -2,8 +2,8 @@
 # ICONS - Material Design Icons for setup and UI
 # =============================================================================
 # Single icon font (MaterialDesign-Webfont) with glyphs used by the device
-# screens. Substitutions expose Unicode codepoints for WiFi and cog (settings)
-# so other YAML can reference icon_wifi / icon_cog without hardcoding.
+# screens. Substitutions expose Unicode codepoints so other YAML can reference
+# icons without hardcoding them.
 # =============================================================================
 
 font:
@@ -15,11 +15,15 @@ font:
       - "\U000F05A9"  # mdi-wifi
       - "\U000F0493"  # mdi-cog
       - "\U000F0164"  # mdi-cloud-off-outline
+      - "\U000F0141"  # mdi-chevron-left
+      - "\U000F0142"  # mdi-chevron-right
 
 # -----------------------------------------------------------------------------
-# Substitutions for use in labels/buttons (mdi-wifi, mdi-cog, mdi-cloud-off-outline)
+# Substitutions for use in labels/buttons
 # -----------------------------------------------------------------------------
 substitutions:
   icon_wifi: "\U000F05A9"
   icon_cog: "\U000F0493"
   icon_cloud_off: "\U000F0164"
+  icon_chevron_left: "\U000F0141"
+  icon_chevron_right: "\U000F0142"
