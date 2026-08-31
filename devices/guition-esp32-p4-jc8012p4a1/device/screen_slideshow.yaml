@@ -279,36 +279,39 @@ lvgl:
             id: slideshow_navigation_feedback
             align: RIGHT_MID
             x: -36
-            width: 230
+            width: SIZE_CONTENT
             height: 82
             radius: 41
             bg_color: 0x000000
             bg_opa: 65%
             border_width: 0
-            pad_all: 0
+            pad_left: 16
+            pad_right: 16
+            pad_top: 0
+            pad_bottom: 0
             scrollable: false
             clickable: false
             hidden: true
+            layout:
+              type: flex
+              flex_flow: ROW
+              flex_align_main: CENTER
+              flex_align_cross: CENTER
+              pad_column: 0
             widgets:
               - label:
-                  id: slideshow_navigation_feedback_label
-                  align: CENTER
-                  x: -20
-                  text: "Next"
-                  text_color: 0xFFFFFF
-                  text_font: noto_400_30_font
-              - label:
                   id: slideshow_navigation_feedback_left_icon
-                  align: LEFT_MID
-                  x: 14
                   text: $icon_chevron_left
                   text_color: 0xFFFFFF
                   text_font: icon_font_navigation
                   hidden: true
               - label:
+                  id: slideshow_navigation_feedback_label
+                  text: "Next"
+                  text_color: 0xFFFFFF
+                  text_font: noto_400_30_font
+              - label:
                   id: slideshow_navigation_feedback_right_icon
-                  align: RIGHT_MID
-                  x: -14
                   text: $icon_chevron_right
                   text_color: 0xFFFFFF
                   text_font: icon_font_navigation
@@ -551,26 +554,28 @@ script:
       direction: int
     then:
       - lambda: |-
+          lv_align_t feedback_align = LV_ALIGN_CENTER;
+          int32_t feedback_x = 0;
           if (direction > 0) {
             lv_label_set_text(id(slideshow_navigation_feedback_label), "Next");
-            lv_obj_align(id(slideshow_navigation_feedback_label), LV_ALIGN_CENTER, -20, 0);
             lv_obj_add_flag(id(slideshow_navigation_feedback_left_icon), LV_OBJ_FLAG_HIDDEN);
             lv_obj_clear_flag(id(slideshow_navigation_feedback_right_icon), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_align(id(slideshow_navigation_feedback), LV_ALIGN_RIGHT_MID, -36, 0);
+            feedback_align = LV_ALIGN_RIGHT_MID;
+            feedback_x = -36;
           } else if (direction < 0) {
             lv_label_set_text(id(slideshow_navigation_feedback_label), "Previous");
-            lv_obj_align(id(slideshow_navigation_feedback_label), LV_ALIGN_CENTER, 20, 0);
             lv_obj_clear_flag(id(slideshow_navigation_feedback_left_icon), LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(id(slideshow_navigation_feedback_right_icon), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_align(id(slideshow_navigation_feedback), LV_ALIGN_LEFT_MID, 36, 0);
+            feedback_align = LV_ALIGN_LEFT_MID;
+            feedback_x = 36;
           } else {
             lv_label_set_text(id(slideshow_navigation_feedback_label), "Loading");
-            lv_obj_align(id(slideshow_navigation_feedback_label), LV_ALIGN_CENTER, 0, 0);
             lv_obj_add_flag(id(slideshow_navigation_feedback_left_icon), LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(id(slideshow_navigation_feedback_right_icon), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_align(id(slideshow_navigation_feedback), LV_ALIGN_CENTER, 0, 0);
           }
           lv_obj_clear_flag(id(slideshow_navigation_feedback), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_update_layout(id(slideshow_navigation_feedback));
+          lv_obj_align(id(slideshow_navigation_feedback), feedback_align, feedback_x, 0);
       - delay: 650ms
       - lambda: |-
           lv_obj_add_flag(id(slideshow_navigation_feedback), LV_OBJ_FLAG_HIDDEN);
