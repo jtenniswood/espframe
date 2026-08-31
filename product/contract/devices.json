@@ -104,10 +104,6 @@
         "path": "../../common/addon/time.yaml"
       },
       {
-        "alias": "accent_color",
-        "path": "../../common/addon/accent_color.yaml"
-      },
-      {
         "alias": "warm_tones",
         "path": "../../common/addon/warm_tones.yaml"
       },
@@ -334,10 +330,6 @@
       {
         "alias": "time_sync",
         "path": "../../common/addon/time.yaml"
-      },
-      {
-        "alias": "accent_color",
-        "path": "../../common/addon/accent_color.yaml"
       },
       {
         "alias": "warm_tones",

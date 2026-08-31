@@ -28,7 +28,6 @@ packages:
   backlight: !include ../../common/addon/backlight.yaml
   backlight_sched: !include ../../common/addon/backlight_schedule.yaml
   time_sync: !include ../../common/addon/time.yaml
-  accent_color: !include ../../common/addon/accent_color.yaml
   warm_tones: !include ../../common/addon/warm_tones.yaml
   screen_loading: !include ../guition-esp32-p4-jc8012p4a1/device/screen_loading.yaml
   screen_wifi: !include ../guition-esp32-p4-jc8012p4a1/device/screen_wifi_setup.yaml

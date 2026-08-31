@@ -19,7 +19,6 @@ The firmware runs on ESP32-P4 hardware with [ESPHome](https://esphome.io/) and c
 - **Night Tone** — Automatically adjust screen tone between sunset and sunrise.
 - **Screen Scheduling** — Schedule when to turn off the display; set daytime and night-time brightness levels separately.
 - **Portrait Pairing** — Automatically pairs portrait photos taken on the same day by default, with optional ±1-day or ±2-day matching for a side-by-side display that fills the screen edge-to-edge.
-- **Accent Color Fill** — Replaces black letterbox bars with a muted color sampled from the photo itself.
 - **Clock Overlay** — Displays the current time over your photos when enabled in settings.
 - **No Hub Required** — Connects directly to your Immich server over HTTP or HTTPS — no Home Assistant, cloud service, or extra software needed.
 

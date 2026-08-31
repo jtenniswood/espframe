@@ -17,12 +17,10 @@
 #endif
 
 // Shared helpers used from ESPHome YAML lambdas. Keeping this logic in C++ keeps
-// the YAML readable and gives the slideshow, backlight, accent, and warm-tone
+// the YAML readable and gives the slideshow, backlight, and warm-tone
 // flows a single set of small, testable building blocks.
 static constexpr int MAX_ERROR_RETRIES = 3;
-static constexpr int ACCENT_GRID_SIZE = 20;
 static constexpr int WARM_TONE_LEAD_MINUTES = 60;
-static constexpr int ACCENT_COL_BUF_MAX = 2560;
 
 inline int minutes_since_midnight(int h, int m) { return h * 60 + m; }
 
@@ -269,9 +267,6 @@ inline void copy_display_to_slot(const DisplayMeta &disp, SlotMeta &slot) {
 // s0, s1, s2: references to the three SlotMeta globals.
 // Returns the image URL on success, empty string on parse failure.
 
-// ============================================================================
-// Accent color fill — detect letterbox bars and fill with dominant accent
-// ============================================================================
 #ifdef USE_LVGL
 template<typename T> auto get_lv_image_descriptor_(T *img, int) -> decltype(img->get_lv_image_dsc()) {
   return img->get_lv_image_dsc();
@@ -280,140 +275,7 @@ template<typename T> auto get_lv_image_descriptor_(T *img, int) -> decltype(img-
 template<typename T> auto get_lv_image_descriptor_(T *img, long) -> decltype(img->get_lv_img_dsc()) {
   return img->get_lv_img_dsc();
 }
-
-inline void fill_accent_color(esphome::image::Image *img) {
-  int img_w = img->get_width();
-  int img_h = img->get_height();
-  if (img_w <= 0 || img_h <= 0) return;
-
-  lv_img_dsc_t *dsc = get_lv_image_descriptor_(img, 0);
-  const uint8_t *data = dsc->data;
-  if (!data) return;
-
-  // Detect black letterbox/pillarbox bars by scanning from the center lines.
-  // Left/right can differ for side-by-side portrait images aligned inward.
-  int left_off = 0;
-  int mid_y = img_h / 2;
-  for (int x = 0; x < img_w; x++) {
-    int pos = (x + mid_y * img_w) * 2;
-    uint16_t px = data[pos] | (data[pos + 1] << 8);
-    if (px != 0x0000) { left_off = x; break; }
-  }
-  int right_off = 0;
-  for (int x = img_w - 1; x >= left_off; x--) {
-    int pos = (x + mid_y * img_w) * 2;
-    uint16_t px = data[pos] | (data[pos + 1] << 8);
-    if (px != 0x0000) { right_off = img_w - 1 - x; break; }
-  }
-
-  int top_off = 0;
-  int mid_x = img_w / 2;
-  for (int y = 0; y < img_h; y++) {
-    int pos = (mid_x + y * img_w) * 2;
-    uint16_t px = data[pos] | (data[pos + 1] << 8);
-    if (px != 0x0000) { top_off = y; break; }
-  }
-  int bottom_off = 0;
-  for (int y = img_h - 1; y >= top_off; y--) {
-    int pos = (mid_x + y * img_w) * 2;
-    uint16_t px = data[pos] | (data[pos + 1] << 8);
-    if (px != 0x0000) { bottom_off = img_h - 1 - y; break; }
-  }
-
-  if (left_off == 0 && right_off == 0 && top_off == 0 && bottom_off == 0) return;
-
-  int content_w = img_w - left_off - right_off;
-  int content_h = img_h - top_off - bottom_off;
-  if (content_w <= 0 || content_h <= 0) return;
-
-  int grid = ACCENT_GRID_SIZE;
-  int step_x = content_w / grid;
-  int step_y = content_h / grid;
-  if (step_x < 1) step_x = 1;
-  if (step_y < 1) step_y = 1;
-
-  // Sample the visible photo area and weight saturated colors more heavily so
-  // the fill color feels connected to the photo instead of averaging to gray.
-  int64_t r_wsum = 0, g_wsum = 0, b_wsum = 0;
-  int64_t w_total = 0;
-
-  for (int sy = top_off + step_y / 2; sy < img_h - bottom_off; sy += step_y) {
-    for (int sx = left_off + step_x / 2; sx < img_w - right_off; sx += step_x) {
-      int pos = (sx + sy * img_w) * 2;
-      uint16_t rgb565 = data[pos] | (data[pos + 1] << 8);
-      int r = ((rgb565 >> 11) & 0x1F);
-      int g = ((rgb565 >> 5) & 0x3F);
-      int b = (rgb565 & 0x1F);
-      r = (r << 3) | (r >> 2);
-      g = (g << 2) | (g >> 4);
-      b = (b << 3) | (b >> 2);
-      int mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
-      int mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
-      int sat = mx - mn;
-      int weight = sat * sat + 1;
-      r_wsum += (int64_t)r * weight;
-      g_wsum += (int64_t)g * weight;
-      b_wsum += (int64_t)b * weight;
-      w_total += weight;
-    }
-  }
-
-  if (w_total <= 0) return;
-
-  int r = (int)(r_wsum / w_total);
-  int g = (int)(g_wsum / w_total);
-  int b = (int)(b_wsum / w_total);
-
-  // Use a dimmer version of the sampled color so the bars support the photo
-  // rather than competing with it.
-  int dr = r / 2, dg = g / 2, db = b / 2;
-  uint16_t accent_565 = ((dr >> 3) << 11) | ((dg >> 2) << 5) | (db >> 3);
-  uint8_t lo = accent_565 & 0xFF;
-  uint8_t hi = (accent_565 >> 8) & 0xFF;
-
-  uint8_t *buf = const_cast<uint8_t*>(data);
-  int row_bytes = img_w * 2;
-
-  if (top_off > 0) {
-    for (int x = 0; x < img_w; x++) {
-      buf[x * 2] = lo; buf[x * 2 + 1] = hi;
-    }
-    for (int y = 1; y < top_off; y++)
-      memcpy(buf + y * row_bytes, buf, row_bytes);
-  }
-
-  if (bottom_off > 0) {
-    int first_bottom_y = img_h - bottom_off;
-    if (top_off == 0) {
-      for (int x = 0; x < img_w; x++) {
-        buf[first_bottom_y * row_bytes + x * 2] = lo;
-        buf[first_bottom_y * row_bytes + x * 2 + 1] = hi;
-      }
-    }
-    int src_y = top_off > 0 ? 0 : first_bottom_y;
-    int start_y = top_off > 0 ? first_bottom_y : first_bottom_y + 1;
-    for (int y = start_y; y < img_h; y++)
-      memcpy(buf + y * row_bytes, buf + src_y * row_bytes, row_bytes);
-  }
-
-  if (left_off > 0 || right_off > 0) {
-    int col_width = left_off > right_off ? left_off : right_off;
-    int col_bytes = col_width * 2;
-    uint8_t col_buf[ACCENT_COL_BUF_MAX];
-    if (col_bytes > (int)sizeof(col_buf)) return;
-    for (int x = 0; x < col_width; x++) {
-      col_buf[x * 2] = lo; col_buf[x * 2 + 1] = hi;
-    }
-    for (int y = top_off; y < img_h - bottom_off; y++) {
-      int row = y * row_bytes;
-      if (left_off > 0)
-        memcpy(buf + row, col_buf, left_off * 2);
-      if (right_off > 0)
-        memcpy(buf + row + (img_w - right_off) * 2, col_buf, right_off * 2);
-    }
-  }
-}
-#endif  // USE_LVGL
+#endif
 
 // ============================================================================
 // Warm tone helpers — LUT-based RGB565 tinting

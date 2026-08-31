@@ -321,7 +321,7 @@ def check_screen_tone_metadata(product: dict, errors: list[str]) -> None:
         "warm_tone_override",
     ):
         require_contains(web_template, needle, rel(WEB_TEMPLATE), errors)
-    require_contains(slideshow_yaml, "accent + warm tones", "common/addon/immich_slideshow.yaml", errors)
+    require_contains(slideshow_yaml, "single image or portrait pair; warm tones", "common/addon/immich_slideshow.yaml", errors)
 
 
 def check_clock_time_metadata(product: dict, errors: list[str]) -> None:

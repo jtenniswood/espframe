@@ -24,7 +24,6 @@ Defined in the headers:
 | Constant | Header | Value / meaning |
 |----------|--------|------------------|
 | `MAX_ERROR_RETRIES` | `espframe_helpers.h` | `3` — suggested max retries for Immich API or download failures. |
-| `ACCENT_GRID_SIZE` | `espframe_helpers.h` | `20` — grid size used for sampling accent colour from images. |
 | `ZOOM_IDENTITY` | `immich_helpers.h` | `256` — no zoom (1:1). |
 | `MONTH_NAMES` | `date_utils.h` | `""`, `"Jan"` … `"Dec"` — short month names (index 0 unused). |
 | `TZ_DATA` | `sun_calc.h` | Array of `TzInfo` (tz id, lat, lon, POSIX TZ string) for many IANA timezones. |

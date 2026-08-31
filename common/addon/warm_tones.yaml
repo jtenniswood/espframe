@@ -7,8 +7,8 @@
 #
 # The warmth curve ramps linearly over 60 minutes before sunset, stays full
 # warm through the night, then ramps back to neutral over 60 minutes after sunrise.
-# The tint is applied directly to the RGB565 image buffer after
-# accent color extraction, using precomputed lookup tables for speed.
+# The tint is applied directly to the RGB565 image buffer using precomputed
+# lookup tables for speed.
 #
 # The "Turn on until sunrise" switch forces full warmth immediately and
 # auto-disables after sunrise the next morning.

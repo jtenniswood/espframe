@@ -578,7 +578,6 @@ script:
           lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
           lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
           id(espframe_core).slideshow().mark_portrait_pair_displayed(true);
-          id(extract_accent_color).execute();
           id(apply_warm_tones).execute();
           id(update_clock_display).execute();
           id(update_photo_metadata_display).execute();
@@ -791,7 +790,7 @@ script:
             id(espframe_core).slideshow().state().portrait_search_expanded);
           id(espframe_slideshow_dispatch).execute();
 
-  # Display whichever slot is active (single image or portrait pair; accent + warm tones)
+  # Display whichever slot is active (single image or portrait pair; warm tones)
   - id: immich_display_current
     mode: single
     then:
@@ -819,7 +818,6 @@ script:
             s, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().portrait,
             id(portrait_pairing_enabled).state, id(espframe_core).slideshow().state().active_slot_displayed,
             id(espframe_core).slideshow().state().current_display);
-      - script.execute: extract_accent_color
       - script.execute: apply_warm_tones
       - lambda: |-
           id(espframe_core).slideshow().after_display_current(
@@ -950,7 +948,6 @@ script:
           lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
           lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
           ESP_LOGI("immich", "PAIR displayed for slot %d", id(espframe_core).slideshow().state().active_slot);
-      - script.execute: extract_accent_color
       - script.execute: apply_warm_tones
       - script.execute: update_clock_display
       - script.execute: update_photo_metadata_display
