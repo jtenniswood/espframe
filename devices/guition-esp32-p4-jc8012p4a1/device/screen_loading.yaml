@@ -46,7 +46,7 @@ script:
             - script.execute: setup_screen_dim
 
 # -----------------------------------------------------------------------------
-# Loading page: title, status label, progress bar
+# Loading page: status label and progress bar
 # -----------------------------------------------------------------------------
 lvgl:
   pages:
@@ -69,12 +69,6 @@ lvgl:
               flex_align_cross: center
               pad_row: 40
             widgets:
-              - label:
-                  text: "Starting up"
-                  text_font: noto_400_46_font
-                  text_color: 0xFFFFFF
-                  width: 700
-                  text_align: center
               - label:
                   id: loading_status_label
                   text: "Booting"

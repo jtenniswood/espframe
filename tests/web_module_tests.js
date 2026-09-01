@@ -16,6 +16,14 @@ const slideshowScreenSource = fs.readFileSync(
   path.join(root, "devices/guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml"),
   "utf8"
 );
+const loadingScreenSource = fs.readFileSync(
+  path.join(root, "devices/guition-esp32-p4-jc8012p4a1/device/screen_loading.yaml"),
+  "utf8"
+);
+const iconSource = fs.readFileSync(
+  path.join(root, "devices/guition-esp32-p4-jc8012p4a1/assets/icons.yaml"),
+  "utf8"
+);
 const displayDeviceSources = [
   "devices/guition-esp32-p4-jc8012p4a1/device/device.yaml",
   "devices/guition-esp32-p4-jc8012p4a1-v2/device/device.yaml"
@@ -158,6 +166,24 @@ assert.equal(
   slideshowScreenSource.includes("slideshow_swipe_suppress_tap_until_ms) = 0"),
   false,
   "navigation feedback should not clear swipe tap suppression before release"
+);
+assert.ok(
+  slideshowScreenSource.includes("text_font: icon_font_setup") &&
+    slideshowScreenSource.includes("${icon_chevron_right}") &&
+    slideshowScreenSource.includes("${icon_chevron_left}") &&
+    iconSource.includes('icon_chevron_left: "\\U000F0141"') &&
+    iconSource.includes('icon_chevron_right: "\\U000F0142"'),
+  "slideshow navigation feedback should use icon-only chevrons"
+);
+assert.equal(
+  slideshowScreenSource.includes('"Next  >"') || slideshowScreenSource.includes('"<  Previous"'),
+  false,
+  "slideshow navigation feedback should not display next or previous text"
+);
+assert.equal(
+  loadingScreenSource.includes('text: "Starting up"'),
+  false,
+  "the loading screen should not display a centered startup title"
 );
 displayDeviceSources.forEach((source) => {
   assert.ok(
