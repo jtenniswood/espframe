@@ -180,6 +180,16 @@ assert.equal(
   false,
   "slideshow navigation feedback should not display next or previous text"
 );
+const navigationFeedbackSource = slideshowScreenSource.slice(
+  slideshowScreenSource.indexOf("id: slideshow_navigation_feedback\n"),
+  slideshowScreenSource.indexOf("id: slideshow_navigation_feedback_label\n")
+);
+assert.ok(
+  navigationFeedbackSource.includes("border_width: 0") &&
+    !navigationFeedbackSource.includes("border_color:") &&
+    !navigationFeedbackSource.includes("border_opa:"),
+  "slideshow navigation feedback should not display an outline"
+);
 assert.equal(
   loadingScreenSource.includes('text: "Starting up"'),
   false,

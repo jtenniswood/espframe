@@ -284,9 +284,7 @@ lvgl:
             radius: 41
             bg_color: 0x000000
             bg_opa: 65%
-            border_width: 2
-            border_color: 0xFFFFFF
-            border_opa: 35%
+            border_width: 0
             pad_all: 0
             scrollable: false
             clickable: false
