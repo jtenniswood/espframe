@@ -12,15 +12,15 @@
     "factory": {
       "flash_used_bytes_max": 2950000,
       "flash_used_percent_max": 36.0,
-      "ram_used_bytes_max": 147456,
-      "ram_used_percent_max": 25.0,
+      "ram_used_bytes_max": 137000,
+      "ram_used_percent_max": 24.0,
       "binary_bytes_max": 3000000
     },
     "ota": {
       "flash_used_bytes_max": 2950000,
       "flash_used_percent_max": 36.0,
-      "ram_used_bytes_max": 147456,
-      "ram_used_percent_max": 25.0,
+      "ram_used_bytes_max": 137000,
+      "ram_used_percent_max": 24.0,
       "binary_bytes_max": 2900000
     }
   }

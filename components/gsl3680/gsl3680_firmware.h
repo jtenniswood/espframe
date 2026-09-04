@@ -4370,7 +4370,7 @@ static const struct fw_data GSLX680_FW[] = {
 
 };
 
-static unsigned int gsl_config_data_id[] = {
+static const unsigned int gsl_config_data_id[] = {
 	0xccb69a,  
 	0x200,
 	0,0,

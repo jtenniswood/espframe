@@ -65,7 +65,7 @@
       "revision": "dca6f3eed895ee03b894a7d172855c919ee7eda1",
       "license": "GPL-3.0-or-later for C/C++ and MIT for Python",
       "license_file": "components/gsl3680/LICENSE.md",
-      "local_changes": "ESPHome API compatibility, boot timing, watchdog feeding, touch-count clamping, and device firmware table."
+      "local_changes": "ESPHome API compatibility, boot timing, watchdog feeding, touch-count clamping, device firmware table, and const-qualified read-only configuration table."
     },
     {
       "path": "components/libjpeg-turbo-esp32",
