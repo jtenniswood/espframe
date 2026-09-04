@@ -166,17 +166,19 @@ switch:
 # -----------------------------------------------------------------------------
 # 3-slot full-size ring buffer and portrait pair / preload remote_image components
 # -----------------------------------------------------------------------------
-# Immich can serve previews in a server-configured format. Keep automatic
-# response detection enabled so non-JPEG data is rejected safely instead of
-# being passed to the JPEG decoder. WebP remains disabled on P4 because its
-# software decoder is not stable alongside this display workload.
+# Immich serves previews in a server-configured format (Admin > Settings >
+# Image > Preview > Format) and does NOT content-negotiate: the thumbnail
+# endpoint ignores both the Accept header and any ?format= parameter. A
+# JPEG-only build therefore fails every image on an instance configured for
+# WebP previews, showing a permanently black screen rather than a skipped
+# photo. Automatic content detection stays enabled either way.
 remote_image:
   - id: immich_img_0
     url: "${immich_image_initial_url}"
     resize: ${display_width}x${display_height}
     type: RGB565
     byte_order: little_endian
-    formats: [JPEG]
+    formats: [JPEG, WEBP]
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
@@ -204,7 +206,7 @@ remote_image:
     resize: ${display_width}x${display_height}
     type: RGB565
     byte_order: little_endian
-    formats: [JPEG]
+    formats: [JPEG, WEBP]
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
@@ -232,7 +234,7 @@ remote_image:
     resize: ${display_width}x${display_height}
     type: RGB565
     byte_order: little_endian
-    formats: [JPEG]
+    formats: [JPEG, WEBP]
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
@@ -263,7 +265,7 @@ remote_image:
     horizontal_align: END
     type: RGB565
     byte_order: little_endian
-    formats: [JPEG]
+    formats: [JPEG, WEBP]
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
@@ -288,7 +290,7 @@ remote_image:
     horizontal_align: START
     type: RGB565
     byte_order: little_endian
-    formats: [JPEG]
+    formats: [JPEG, WEBP]
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
@@ -314,7 +316,7 @@ remote_image:
     horizontal_align: END
     type: RGB565
     byte_order: little_endian
-    formats: [JPEG]
+    formats: [JPEG, WEBP]
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
@@ -346,7 +348,7 @@ remote_image:
     horizontal_align: START
     type: RGB565
     byte_order: little_endian
-    formats: [JPEG]
+    formats: [JPEG, WEBP]
     request_headers:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
