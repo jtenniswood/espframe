@@ -36,7 +36,7 @@ Safari and Firefox do not support the required browser flashing flow.
 - Keep the browser tab open until the install completes.
 - Avoid moving the cable or display during flashing.
 - Disconnect and reconnect the display, then start the installer again.
-- If WiFi setup does not appear after flashing, look for **immich-frame-10inch** (original panel) or **immich-frame-10inch-v2** (new panel), connect to it, then visit `http://192.168.4.1`.
+- If WiFi setup does not appear after flashing, open the WiFi settings on your phone or laptop and look for a network starting with **ESP_**, such as **ESP_7A1EED**. The letters and numbers after **ESP_** come from the frame’s MAC address (its network identifier), so your frame’s name will be different. Connect to it, then visit `http://192.168.4.1` to enter your home WiFi details.
 
 ## After Flashing
 

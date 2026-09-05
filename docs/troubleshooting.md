@@ -20,13 +20,15 @@ See [USB Flashing Help for Guition ESP32-P4](/usb-flashing) for more detail.
 
 ## WiFi Setup Problems
 
-After flashing, Espframe should either ask for WiFi details or create **immich-frame-10inch** (original panel) or **immich-frame-10inch-v2** (new panel).
+After flashing, Espframe should either ask for WiFi details or create a temporary WiFi network with a name starting with **ESP_**, such as **ESP_7A1EED**. The letters and numbers after **ESP_** come from the frame’s MAC address (its network identifier), so your frame’s name will be different.
+
+Connect to this network from your phone or laptop and follow the setup page to enter your home WiFi details. If the page does not open automatically, visit `http://192.168.4.1`.
 
 If you do not see the frame on your network:
 
 - Check that the WiFi name and password were entered correctly.
 - Make sure the frame is close enough to the access point.
-- Look again for the **immich-frame-10inch** or **immich-frame-10inch-v2** hotspot from a phone or laptop.
+- Look again for a WiFi network starting with **ESP_** from a phone or laptop.
 - Reboot the frame and wait for the setup screen to appear.
 
 ## Immich Connection Problems

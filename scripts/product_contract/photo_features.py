@@ -345,8 +345,6 @@ def check_setup_flow_metadata(product: dict, errors: list[str]) -> None:
         esphome_name = str(device.get("esphome_name", "")).strip()
         if not esphome_name:
             continue
-        require_contains(install_docs, esphome_name, "docs/install.md", errors)
-        require_contains(usb_docs, esphome_name, "docs/usb-flashing.md", errors)
         require_contains(read(ROOT / str(device.get("build_yaml", "")), errors), esphome_name, str(device.get("build_yaml", "")), errors)
 
     if captive_portal_ip:
