@@ -1,5 +1,6 @@
 #include "image_decoder.h"
 #include "remote_image.h"
+#include "mono_helpers.h"
 
 #include "esphome/core/log.h"
 
@@ -129,6 +130,8 @@ void ImageDecoder::draw_rgb565_block(int x, int y, int w, int h, const uint8_t *
       int src_offset = (row * w + (start_x - x)) * 2;
       int dst_pos = this->image_->get_position_(start_x, dy);
       memcpy(this->image_->buffer_ + dst_pos, data + src_offset, copy_w * 2);
+      if (this->image_->mono_mode_)
+        mono_rgb565_bytes(this->image_->buffer_ + dst_pos, copy_w, this->image_->is_big_endian_);
     }
     return;
   }
@@ -147,6 +150,8 @@ void ImageDecoder::draw_rgb565_block(int x, int y, int w, int h, const uint8_t *
       int src_offset = (row * w + src_col) * 2;
       int dst_pos = this->image_->get_position_(dst_x, dst_y);
       memcpy(this->image_->buffer_ + dst_pos, data + src_offset, 2);
+      if (this->image_->mono_mode_)
+        mono_rgb565_bytes(this->image_->buffer_ + dst_pos, 1, this->image_->is_big_endian_);
       if (bpp_bytes > 2) {
         this->image_->buffer_[dst_pos + 2] = 0xFF;
       }
@@ -181,6 +186,8 @@ bool ImageDecoder::draw_rgb565_scaled_chunk(const uint8_t *data, int src_stride,
     uint16_t *dst_row = dst_pixels + static_cast<size_t>(next_dst_y) * this->image_->buffer_width_;
     for (int dst_x = dst_x_start; dst_x < dst_x_end; dst_x++) {
       dst_row[dst_x] = src_row[this->src_x_lut_[dst_x - this->x_offset_]];
+      if (this->image_->mono_mode_)
+        mono_rgb565_bytes(reinterpret_cast<uint8_t *>(&dst_row[dst_x]), 1, this->image_->is_big_endian_);
     }
   }
   return next_dst_y >= dst_y_end;
@@ -198,6 +205,7 @@ void ImageDecoder::draw_rgb888_scaled(int src_y, int src_w, const uint8_t *rgb88
     int src_col = this->src_x_lut_[dst_x - this->x_offset_];
     int si = src_col * 3;
     uint8_t r = rgb888[si], g = rgb888[si + 1], b = rgb888[si + 2];
+    if (this->image_->mono_mode_) r = g = b = mono_luminance(r, g, b);
     uint16_t rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
     int dst_pos = this->image_->get_position_(dst_x, dst_y);
     if (big_endian) {

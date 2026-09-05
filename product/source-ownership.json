@@ -92,7 +92,7 @@
       "revision": "Project-maintained derivative; original import revision is not preserved",
       "license": "MIT",
       "license_file": "components/remote_image/LICENSE",
-      "local_changes": "Renamed component with JPEG/WebP decoders, reliability fixes, buffer controls, and Espframe display behavior."
+      "local_changes": "Renamed component with JPEG/WebP decoders, reliability fixes, buffer controls, Espframe display behavior, and optional grayscale decoding."
     }
   ],
   "external_build_assets": [

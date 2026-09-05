@@ -29,6 +29,22 @@ globals:
 # Switches: base tone (display blue correction), night tone (sun-based), override (warm until sunrise)
 # -----------------------------------------------------------------------------
 switch:
+  - platform: template
+    name: "Mono Mode"
+    id: mono_mode_enabled
+    internal: true
+    optimistic: true
+    # ESPFRAME:SETTING_FIELDS mono_mode_enabled START
+    restore_mode: RESTORE_DEFAULT_OFF
+    # ESPFRAME:SETTING_FIELDS mono_mode_enabled END
+    icon: "mdi:palette"
+    web_server:
+      sorting_group_id: sg_screen
+    on_turn_on:
+      - script.execute: apply_mono_mode
+    on_turn_off:
+      - script.execute: apply_mono_mode
+
   # Base tone: correct display blue cast (manual warm tint)
   - platform: template
     name: "Screen: Tone Adjustment"
@@ -132,6 +148,24 @@ number:
 # Apply warmth to current image buffer (LUT-based RGB565 tint; portrait pair or single slot)
 # -----------------------------------------------------------------------------
 script:
+  - id: apply_mono_mode
+    mode: restart
+    then:
+      - lambda: |-
+          esphome::remote_image::OnlineImage *images[] = {
+            id(immich_img_0), id(immich_img_1), id(immich_img_2),
+            id(immich_portrait_left), id(immich_portrait_right),
+            id(immich_portrait_preload_left), id(immich_portrait_preload_right)
+          };
+          for (auto *image : images) image->set_mono_mode(id(mono_mode_enabled).state);
+          auto &state = id(espframe_core).slideshow().state();
+          // Reuse the current URLs (including the companion) and layout. A
+          // partially loaded pair must restart both halves with the new mode.
+          if (state.active_slot_displayed || state.portrait.workflow_busy) {
+            state.active_slot_displayed = true;
+            id(immich_reapply_current_image_layout).execute();
+          }
+
   - id: apply_warm_tones
     mode: restart
     then:

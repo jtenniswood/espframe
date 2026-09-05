@@ -226,7 +226,8 @@
         "warm_tones_enabled",
         "warm_tone_intensity",
         "warm_tone_override",
-        "rotation"
+        "rotation",
+        "mono_mode_enabled"
       ]
     },
     "backup_field_state_keys": {
@@ -304,7 +305,8 @@
         "warm_tones_enabled": "warm_tones_enabled",
         "warm_tone_intensity": "warm_tone_intensity",
         "warm_tone_override": "warm_tone_override",
-        "rotation": "screen_rotation"
+        "rotation": "screen_rotation",
+        "mono_mode_enabled": "mono_mode_enabled"
       }
     },
     "backup_import_write_behavior": "Each setting is pushed to the device individually",
@@ -721,6 +723,7 @@
         "section": "Display",
         "function": "makeScreenToneCard",
         "settings": [
+          "mono_mode_enabled",
           "base_tone_enabled",
           "base_tone",
           "warm_tones_enabled",
@@ -1118,6 +1121,11 @@
         }
       },
       "docs/screen-tone.md": {
+        "mono_mode": {
+          "settings": [
+            "mono_mode_enabled"
+          ]
+        },
         "screen_tone": {
           "settings": [
             "base_tone_enabled",
@@ -1600,7 +1608,8 @@
       "portrait_pairing_range": {},
       "portrait_pairs_only": {},
       "photo_metadata_date_enabled": {},
-      "photo_metadata_location_enabled": {}
+      "photo_metadata_location_enabled": {},
+      "mono_mode_enabled": {}
     },
     "generated_firmware_deferred_setting_fields": [],
     "support_url": "https://www.buymeacoffee.com/jtenniswood",
@@ -2764,6 +2773,23 @@
       ],
       "docs_files": [
         "docs/screen-settings.md"
+      ]
+    },
+    {
+      "key": "mono_mode_enabled",
+      "entity": {
+        "domain": "switch",
+        "name": "Mono Mode"
+      },
+      "default": false,
+      "docs_label": "Mono Mode",
+      "docs_default": "Off",
+      "docs_description": "Display photos in smooth grayscale before tone adjustment",
+      "firmware_files": [
+        "common/addon/warm_tones.yaml"
+      ],
+      "docs_files": [
+        "docs/screen-tone.md"
       ]
     },
     {

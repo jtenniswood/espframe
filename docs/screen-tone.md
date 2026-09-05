@@ -7,6 +7,18 @@ description: Adjust Espframe display colour temperature to correct blue cast and
 
 Adjust display colour temperature and automatic night warmth. All settings are under the **Screen Tone** card in the web UI.
 
+## Mono Mode
+
+Enable **Mono Mode** in **Device → Display → Screen Tone** to show photos in smooth grayscale. It applies to Fit, Fill, and both photos in portrait pairs. The setting defaults to off, survives reboots, and is included in configuration backups.
+
+Changing the toggle reloads the current photo or pair; turning it off restores the original colour. Screen Tone and Night Tone still apply after grayscale conversion, so they can warm monochrome photos.
+
+<!-- ESPFRAME:SETTINGS_TABLE mono_mode START -->
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **Mono Mode** | Off | Display photos in smooth grayscale before tone adjustment |
+<!-- ESPFRAME:SETTINGS_TABLE mono_mode END -->
+
 ## Screen Tone Adjustment
 
 Permanent warm shift to correct display blue cast on the panel. Enable the toggle, drag toward **Warmer** until whites look natural (try 15–25% and compare to a reference). Saved across reboots.

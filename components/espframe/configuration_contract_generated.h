@@ -14,11 +14,11 @@ struct ConfigurationField {
 
 inline constexpr unsigned int CONTRACT_VERSION = 2;
 inline constexpr unsigned int API_VERSION = 1;
-inline constexpr unsigned int SETTING_COUNT = 47;
-inline constexpr unsigned int CONFIGURATION_FIELD_COUNT = 68;
+inline constexpr unsigned int SETTING_COUNT = 48;
+inline constexpr unsigned int CONFIGURATION_FIELD_COUNT = 69;
 inline constexpr const char CAPABILITIES_PATH[] = "/espframe/api/v1/capabilities";
 inline constexpr const char CONFIGURATION_PATH[] = "/espframe/api/v1/configuration";
-inline constexpr const char CAPABILITIES_JSON[] = R"ESPFRAME_JSON({"contract_version":2,"api_version":1,"base_path":"/espframe/api/v1","capabilities_path":"/espframe/api/v1/capabilities","configuration_path":"/espframe/api/v1/configuration","update_mode":"atomic","configuration_available":true,"configuration_read":true,"configuration_write":true,"configuration_encoding":"application/x-www-form-urlencoded","configuration_parameter":"configuration","legacy_entity_api":true,"backup_versions":[1,2],"setting_count":47})ESPFRAME_JSON";
+inline constexpr const char CAPABILITIES_JSON[] = R"ESPFRAME_JSON({"contract_version":2,"api_version":1,"base_path":"/espframe/api/v1","capabilities_path":"/espframe/api/v1/capabilities","configuration_path":"/espframe/api/v1/configuration","update_mode":"atomic","configuration_available":true,"configuration_read":true,"configuration_write":true,"configuration_encoding":"application/x-www-form-urlencoded","configuration_parameter":"configuration","legacy_entity_api":true,"backup_versions":[1,2],"setting_count":48})ESPFRAME_JSON";
 inline constexpr ConfigurationField CONFIGURATION_FIELDS[] = {
     {"photo_source", "select", "Photos: Source", false},
     {"album_order", "select", "Photos: Album Order", false},
@@ -46,6 +46,7 @@ inline constexpr ConfigurationField CONFIGURATION_FIELDS[] = {
     {"schedule_wake_timeout", "number", "Screen: Schedule Wake Timeout", false},
     {"brightness_day", "number", "Screen: Daytime Brightness", false},
     {"brightness_night", "number", "Screen: Nighttime Brightness", false},
+    {"mono_mode_enabled", "switch", "Mono Mode", false},
     {"base_tone_enabled", "switch", "Screen: Tone Adjustment", false},
     {"base_tone", "number", "Screen: Display Tone", false},
     {"warm_tones_enabled", "switch", "Screen: Night Tone Adjustment", false},

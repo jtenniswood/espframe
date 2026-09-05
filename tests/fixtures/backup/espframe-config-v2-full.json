@@ -59,6 +59,7 @@
     "schedule_on_hour": 6,
     "schedule_off_hour": 23,
     "schedule_wake_timeout": 60,
+    "mono_mode_enabled": true,
     "base_tone_enabled": false,
     "base_tone": 0,
     "warm_tones_enabled": false,

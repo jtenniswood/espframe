@@ -275,6 +275,15 @@ assert.equal(
   false,
   "migrating a partial v1 backup must not synthesize omitted photo settings"
 );
+const legacyScreenBackup = backupImportContext.migrateBackupConfig({
+  version: 1, screen: { base_tone_enabled: true }
+});
+assert.equal(Object.hasOwn(legacyScreenBackup.screen, "mono_mode_enabled"), false,
+  "legacy backups must leave an omitted mono setting unchanged");
+const monoBackup = backupImportContext.migrateBackupConfig({
+  version: 2, screen: { mono_mode_enabled: true }
+});
+assert.equal(monoBackup.screen.mono_mode_enabled, true);
 const displayOnlyBackup = backupImportContext.migrateBackupConfig({
   version: 1,
   photos: { display_mode: "Fit" }

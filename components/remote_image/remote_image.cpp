@@ -1,4 +1,5 @@
 #include "remote_image.h"
+#include "mono_helpers.h"
 
 #include <cstring>
 #include "esphome/core/hal.h"
@@ -97,6 +98,17 @@ void OnlineImage::abort_download() {
   if (this->decoder_ || this->downloader_) {
     ESP_LOGW(TAG, "Aborting in-progress download");
     this->end_connection_();
+  }
+}
+
+void OnlineImage::set_mono_mode(bool enabled) {
+  if (this->mono_mode_ == enabled) return;
+  this->mono_mode_ = enabled;
+  this->etag_.clear();
+  this->last_modified_.clear();
+  if (this->is_downloading()) {
+    this->abort_download();
+    this->update();
   }
 }
 
@@ -337,6 +349,7 @@ void OnlineImage::loop() {
     // Only publish width_/height_ after decode is complete. ESPHome display
     // code treats non-zero dimensions as drawable, so this prevents partially
     // decoded images from flashing on screen.
+    this->decoded_mono_mode_ = this->mono_mode_;
     this->data_start_ = buffer_;
     this->width_ = buffer_width_;
     this->height_ = buffer_height_;
@@ -412,6 +425,9 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
   if (x < 0 || y < 0 || x >= this->buffer_width_ || y >= this->buffer_height_) {
     ESP_LOGE(TAG, "Tried to paint a pixel (%d,%d) outside the image!", x, y);
     return;
+  }
+  if (this->mono_mode_) {
+    color.r = color.g = color.b = mono_luminance(color.r, color.g, color.b);
   }
   uint32_t pos = this->get_position_(x, y);
   switch (this->type_) {

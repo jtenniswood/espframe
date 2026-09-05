@@ -520,7 +520,12 @@ script:
                 ESP_LOGI("immich", "No previous image available");
                 break;
               case SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR:
-                id(immich_display_preloaded_portrait_pair).execute();
+                if (!id(immich_portrait_preload_left).is_mono_mode_current() ||
+                    !id(immich_portrait_preload_right).is_mono_mode_current()) {
+                  id(immich_start_portrait_active).execute();
+                } else {
+                  id(immich_display_preloaded_portrait_pair).execute();
+                }
                 break;
               case SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT:
                 id(espframe_core).slideshow().reject_portrait_slot(millis(), cmd.slot);
@@ -796,40 +801,52 @@ script:
   - id: immich_display_current
     mode: single
     then:
-      - lvgl.page.show: slideshow_page
-      - script.execute: hide_connection_failed
-      - lambda: |-
-          lv_obj_clear_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
-          lv_obj_add_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
+      - if:
+          condition:
+            lambda: |-
+              esphome::remote_image::OnlineImage *images[] = { id(immich_img_0), id(immich_img_1), id(immich_img_2) };
+              return !images[id(espframe_core).slideshow().state().active_slot]->is_mono_mode_current();
+          then:
+            - lambda: |-
+                auto &state = id(espframe_core).slideshow().state();
+                state.active_slot_displayed = false;
+                esphome::remote_image::OnlineImage *images[] = { id(immich_img_0), id(immich_img_1), id(immich_img_2) };
+                if (!images[state.active_slot]->is_downloading()) images[state.active_slot]->update();
+          else:
+            - lvgl.page.show: slideshow_page
+            - script.execute: hide_connection_failed
+            - lambda: |-
+                lv_obj_clear_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
 
-          int s = id(espframe_core).slideshow().state().active_slot;
-          esphome::image::Image *imgs[] = { id(immich_img_0), id(immich_img_1), id(immich_img_2) };
-          auto *dsc = get_lv_image_descriptor_(imgs[s], 0);
-          if (dsc == nullptr || dsc->data == nullptr || imgs[s]->get_width() <= 0 || imgs[s]->get_height() <= 0) {
-            ESP_LOGW("immich", "Slot %d descriptor not ready, skipping display update", s);
-            id(espframe_core).slideshow().state().diagnostic_reason = "slot descriptor not ready";
-            id(log_immich_diag).execute();
-            return;
-          }
-          lv_img_set_src(id(slideshow_img), dsc);
+                int s = id(espframe_core).slideshow().state().active_slot;
+                esphome::image::Image *imgs[] = { id(immich_img_0), id(immich_img_1), id(immich_img_2) };
+                auto *dsc = get_lv_image_descriptor_(imgs[s], 0);
+                if (dsc == nullptr || dsc->data == nullptr || imgs[s]->get_width() <= 0 || imgs[s]->get_height() <= 0) {
+                  ESP_LOGW("immich", "Slot %d descriptor not ready, skipping display update", s);
+                  id(espframe_core).slideshow().state().diagnostic_reason = "slot descriptor not ready";
+                  id(log_immich_diag).execute();
+                  return;
+                }
+                lv_img_set_src(id(slideshow_img), dsc);
 
-          auto &meta = get_slot(s, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2);
-          lv_img_set_zoom(id(slideshow_img), meta.zoom);
-          ESP_LOGI("immich", "SHOW slot %d: %s | %s | %s | portrait=%d", s, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.is_portrait);
-          id(espframe_core).slideshow().begin_display_current(
-            s, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().portrait,
-            id(portrait_pairing_enabled).state, id(espframe_core).slideshow().state().active_slot_displayed,
-            id(espframe_core).slideshow().state().current_display);
-      - script.execute: apply_warm_tones
-      - lambda: |-
-          id(espframe_core).slideshow().after_display_current(
-            id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().portrait,
-            id(portrait_pairing_enabled).state, id(espframe_core).slideshow().state().active_slot_displayed,
-            id(espframe_core).slideshow().state().portrait_preload_slot, id(espframe_core).slideshow().state().portrait_preload_left_ready,
-            id(espframe_core).slideshow().state().portrait_preload_right_ready);
-          id(espframe_slideshow_dispatch).execute();
-      - script.execute: update_clock_display
-      - script.execute: update_photo_metadata_display
+                auto &meta = get_slot(s, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2);
+                lv_img_set_zoom(id(slideshow_img), meta.zoom);
+                ESP_LOGI("immich", "SHOW slot %d: %s | %s | %s | portrait=%d", s, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.is_portrait);
+                id(espframe_core).slideshow().begin_display_current(
+                  s, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().portrait,
+                  id(portrait_pairing_enabled).state, id(espframe_core).slideshow().state().active_slot_displayed,
+                  id(espframe_core).slideshow().state().current_display);
+            - script.execute: apply_warm_tones
+            - lambda: |-
+                id(espframe_core).slideshow().after_display_current(
+                  id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().portrait,
+                  id(portrait_pairing_enabled).state, id(espframe_core).slideshow().state().active_slot_displayed,
+                  id(espframe_core).slideshow().state().portrait_preload_slot, id(espframe_core).slideshow().state().portrait_preload_left_ready,
+                  id(espframe_core).slideshow().state().portrait_preload_right_ready);
+                id(espframe_slideshow_dispatch).execute();
+            - script.execute: update_clock_display
+            - script.execute: update_photo_metadata_display
 
   - id: immich_reapply_current_image_layout
     mode: restart

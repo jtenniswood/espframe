@@ -9,6 +9,7 @@
 #include "components/espframe/duration_helpers.h"
 #include "components/espframe/immich_helpers.h"
 #include "components/remote_image/jpeg_accelerator_helpers.h"
+#include "components/remote_image/mono_helpers.h"
 
 struct PhotoMeta {
   std::string asset_id, image_url, date, location, person;
@@ -1635,8 +1636,8 @@ static void test_configuration_contract_capabilities() {
   using namespace esphome::espframe::contract;
   static_assert(CONTRACT_VERSION == 2);
   static_assert(API_VERSION == 1);
-  static_assert(SETTING_COUNT == 47);
-  static_assert(CONFIGURATION_FIELD_COUNT == 68);
+  static_assert(SETTING_COUNT == 48);
+  static_assert(CONFIGURATION_FIELD_COUNT == 69);
   assert(std::string(CAPABILITIES_PATH) == "/espframe/api/v1/capabilities");
   assert(std::string(CONFIGURATION_PATH) == "/espframe/api/v1/configuration");
   const std::string capabilities(CAPABILITIES_JSON);
@@ -1648,7 +1649,36 @@ static void test_configuration_contract_capabilities() {
   assert(capabilities.find("\"configuration_parameter\":\"configuration\"") != std::string::npos);
 }
 
+void test_mono_helpers() {
+  using namespace esphome::remote_image;
+  assert(mono_luminance(255, 0, 0) == 76);
+  assert(mono_luminance(0, 255, 0) == 150);
+  assert(mono_luminance(0, 0, 255) == 29);
+  assert(mono_rgb565(0) == 0);
+  assert(mono_rgb565(0xFFFF) == 0xFFFF);
+  for (int gray = 0; gray < 256; gray++) assert(mono_luminance(gray, gray, gray) == gray);
+  // Exhaust all source colors, including unaligned big/little endian spans.
+  for (uint32_t source = 0; source <= 0xFFFF; source++) {
+    const uint16_t gray = mono_rgb565(source);
+    assert(((gray >> 11) & 31) == (gray & 31));
+    assert(((gray >> 6) & 31) == (gray & 31));
+    for (bool big_endian : {false, true}) {
+      uint8_t bytes[] = {0xA5, uint8_t(big_endian ? source >> 8 : source),
+                        uint8_t(big_endian ? source : source >> 8), 0x5A};
+      mono_rgb565_bytes(bytes + 1, 1, big_endian);
+      const uint16_t result = big_endian ? (bytes[1] << 8) | bytes[2] : (bytes[2] << 8) | bytes[1];
+      assert(result == gray);
+      assert(bytes[0] == 0xA5 && bytes[3] == 0x5A);
+    }
+  }
+  uint8_t row[] = {0, 0, 0xFF, 0xFF, 0, 0xF8};
+  mono_rgb565_bytes(row, 3, false);
+  assert(row[0] == 0 && row[1] == 0 && row[2] == 255 && row[3] == 255);
+  assert((row[4] | (row[5] << 8)) == mono_rgb565(0xF800));
+}
+
 int main() {
+  test_mono_helpers();
   test_date_and_url_helpers();
   test_duration_helpers();
   test_p4_jpeg_accelerator_helpers();

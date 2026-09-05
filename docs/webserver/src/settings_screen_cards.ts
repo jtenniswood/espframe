@@ -30,21 +30,26 @@
 
   function makeScreenToneCard() {
     // Screen Tone
-    var toneBadge = makeBadge(S.base_tone_enabled || S.warm_tones_enabled);
+    function toneActive() { return S.mono_mode_enabled || S.base_tone_enabled || S.warm_tones_enabled; }
+    var toneBadge = makeBadge(toneActive());
     var warmBody = el("div");
+    function toneToggle(label, key, details) {
+      return toggleSettingRow({
+        label: label,
+        value: S[key],
+        getValue: function () { return S[key]; },
+        setValue: function (value) { S[key] = value; },
+        details: details,
+        badge: toneBadge,
+        badgeActive: toneActive,
+        onChange: function () { saveSetting(key, S[key]); }
+      }).field;
+    }
+    warmBody.appendChild(toneToggle("Mono Mode", "mono_mode_enabled"));
 
     var baseDetails = el("div");
     baseDetails.style.display = S.base_tone_enabled ? "" : "none";
-    var fBaseToneToggle = toggleSettingRow({
-      label: "Screen Tone Adjustment",
-      value: S.base_tone_enabled,
-      getValue: function () { return S.base_tone_enabled; },
-      setValue: function (value) { S.base_tone_enabled = value; },
-      details: baseDetails,
-      badge: toneBadge,
-      badgeActive: function () { return S.base_tone_enabled || S.warm_tones_enabled; },
-      onChange: function () { saveSetting("base_tone_enabled", S.base_tone_enabled); }
-    }).field;
+    var fBaseToneToggle = toneToggle("Screen Tone Adjustment", "base_tone_enabled", baseDetails);
     fBaseToneToggle.style.marginBottom = "8px";
     warmBody.appendChild(fBaseToneToggle);
 
@@ -60,16 +65,7 @@
 
     var nightDetails = el("div");
     nightDetails.style.display = S.warm_tones_enabled ? "" : "none";
-    var fWarmToggle = toggleSettingRow({
-      label: "Night Tone Adjustment",
-      value: S.warm_tones_enabled,
-      getValue: function () { return S.warm_tones_enabled; },
-      setValue: function (value) { S.warm_tones_enabled = value; },
-      details: nightDetails,
-      badge: toneBadge,
-      badgeActive: function () { return S.base_tone_enabled || S.warm_tones_enabled; },
-      onChange: function () { saveSetting("warm_tones_enabled", S.warm_tones_enabled); }
-    }).field;
+    var fWarmToggle = toneToggle("Night Tone Adjustment", "warm_tones_enabled", nightDetails);
     fWarmToggle.style.marginBottom = "8px";
     warmBody.appendChild(fWarmToggle);
 
@@ -81,13 +77,7 @@
       rightLabel: "Warmer"
     }).field);
 
-    nightDetails.appendChild(toggleSettingRow({
-      label: "Turn on until sunrise",
-      value: S.warm_tone_override,
-      getValue: function () { return S.warm_tone_override; },
-      setValue: function (value) { S.warm_tone_override = value; },
-      onChange: function () { saveSetting("warm_tone_override", S.warm_tone_override); }
-    }).field);
+    nightDetails.appendChild(toneToggle("Turn on until sunrise", "warm_tone_override"));
 
     warmBody.appendChild(nightDetails);
     return makeCollapsibleCard("Screen Tone", warmBody, true, toneBadge);

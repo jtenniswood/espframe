@@ -119,6 +119,11 @@ class OnlineImage : public PollingComponent,
   void add_on_finished_callback(std::function<void(bool)> &&callback);
   void add_on_error_callback(std::function<void()> &&callback);
 
+  // Changing rendering invalidates HTTP validators and restarts any partial
+  // decode. Completed buffers are refreshed lazily before being displayed.
+  void set_mono_mode(bool enabled);
+  bool is_mono_mode_current() const { return !this->is_downloading() && this->data_start_ != nullptr && this->decoded_mono_mode_ == this->mono_mode_; }
+
   void set_fill_mode(bool fill) { this->fill_mode_ = fill; }
   bool is_fill_mode() const { return this->fill_mode_; }
   void set_target_size(int width, int height);
@@ -132,6 +137,8 @@ class OnlineImage : public PollingComponent,
   image::ImageType image_type() const { return this->type_; }
 
  protected:
+  bool mono_mode_{false};
+  bool decoded_mono_mode_{false};
   bool validate_url_(const std::string &url);
 
   ImageFormat detect_format_();

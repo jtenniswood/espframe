@@ -133,6 +133,7 @@ const validBackupFixture = {
     schedule_on_hour: 7,
     schedule_off_hour: 22,
     schedule_wake_timeout: 120,
+    mono_mode_enabled: true,
     base_tone_enabled: true,
     base_tone: 35,
     warm_tones_enabled: true,
@@ -937,6 +938,17 @@ function smokeAssertionsForScenario(scenario) {
         setRangeByLabel("Nighttime Brightness", 55);
 
         expandCard("Screen Tone");
+        const monoToggle = toggleByText("Mono Mode");
+        monoToggle.click();
+        await waitFor(() => {
+          try { requirePostContains("Mono on", "Mono Mode", "turn_on"); return true; }
+          catch (err) { return false; }
+        }, 5000, "mono enabled");
+        monoToggle.click();
+        await waitFor(() => {
+          try { requirePostContains("Mono off", "Mono Mode", "turn_off"); return true; }
+          catch (err) { return false; }
+        }, 5000, "mono disabled");
         toggleByText("Screen Tone Adjustment").click();
         setCardRange("Screen Tone", 0, 25);
         toggleByText("Night Tone Adjustment").click();
@@ -1224,6 +1236,7 @@ function smokeAssertionsForScenario(scenario) {
               throw new Error("Import did not post connection URL");
             }
             requirePostContains("Import text field", "Connection: Server URL");
+            requirePostContains("Import mono setting", "Mono Mode", "turn_on");
             requirePostContains("Import switch field", "Firmware: Auto Update", "turn_on");
             requirePostContains("Import select field", "Photos: Source", "option=Person");
             requirePostContains("Import number field", "Screen: Daytime Brightness", "value=90");

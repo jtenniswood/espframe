@@ -543,6 +543,23 @@
     ]
   },
   {
+    "key": "mono_mode_enabled",
+    "entity": {
+      "domain": "switch",
+      "name": "Mono Mode"
+    },
+    "default": false,
+    "docs_label": "Mono Mode",
+    "docs_default": "Off",
+    "docs_description": "Display photos in smooth grayscale before tone adjustment",
+    "firmware_files": [
+      "common/addon/warm_tones.yaml"
+    ],
+    "docs_files": [
+      "docs/screen-tone.md"
+    ]
+  },
+  {
     "key": "base_tone_enabled",
     "entity": {
       "domain": "switch",
