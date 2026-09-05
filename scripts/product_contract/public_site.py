@@ -186,6 +186,14 @@ def check_public_site_references(product: dict, errors: list[str]) -> None:
         ):
             require_contains(text, value, f"{label} {field_name}", errors)
 
+    for label, text in (
+        ("docs/install.md", install_docs),
+        ("docs/troubleshooting.md", troubleshooting_docs),
+        ("docs/usb-flashing.md", usb_flashing_docs),
+    ):
+        for needle in ("ESP_", "MAC address"):
+            require_contains(text, needle, label, errors)
+
     for device in product["devices"]:
         slug = str(device.get("slug", "")).strip()
         esphome_name = str(device.get("esphome_name", "")).strip()
@@ -209,13 +217,6 @@ def check_public_site_references(product: dict, errors: list[str]) -> None:
                 require_contains(text, panel_url, label, errors)
             if stand_url:
                 require_contains(text, stand_url, label, errors)
-        if esphome_name:
-            for label, text in (
-                ("docs/install.md", install_docs),
-                ("docs/troubleshooting.md", troubleshooting_docs),
-                ("docs/usb-flashing.md", usb_flashing_docs),
-            ):
-                require_contains(text, esphome_name, label, errors)
         if package_yaml:
             require_contains(manual_setup, f"files: [{package_yaml}]", "docs/manual-setup.md", errors)
         if build_yaml:
