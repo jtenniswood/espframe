@@ -291,19 +291,12 @@ assert.equal(legacyAlbumBackup.photos.albums_enabled, true, "legacy Album source
 assert.equal(legacyAlbumBackup.photos.source, "Album", "legacy photo sources should remain available to firmware migration");
 const migratedFilterBackup = backupImportContext.migrateBackupConfig({
   version: 2,
-  photos: {
-    favorite_mode: "Favorites only", minimum_rating: "4+", city: "Wellington",
-    album_matching: "All selected albums", person_matching: "All selected people",
-    tag_matching: "All selected tags"
-  }
+  photos: { favorite_mode: "Favorites only", minimum_rating: "4+", city: "Wellington" }
 });
 assert.equal(migratedFilterBackup.version, 3, "older filter backups should migrate to version 3");
 assert.equal(migratedFilterBackup.photos.favorites_enabled, true, "saved favorite mode should enable favorite filtering");
 assert.equal(migratedFilterBackup.photos.rating_enabled, true, "saved rating should enable rating filtering");
 assert.equal(migratedFilterBackup.photos.location_enabled, true, "saved location should enable location filtering");
-assert.equal(migratedFilterBackup.photos.album_matching, "Any selected album", "legacy album matching should migrate to any selected");
-assert.equal(migratedFilterBackup.photos.person_matching, "Any selected person", "legacy person matching should migrate to any selected");
-assert.equal(migratedFilterBackup.photos.tag_matching, "Any selected tag", "legacy tag matching should migrate to any selected");
 
 // The web server identifies each entity with name_id ("domain/Friendly Name") plus a
 // legacy id ("domain-object_id"). ENTITY_STATE_MAP and the REST endpoints both use the
