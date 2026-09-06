@@ -773,7 +773,7 @@
     );
     photoBody.appendChild(fDisplayMode);
 
-    return makeCollapsibleCard("Layout", photoBody, true);
+    return makeCollapsibleCard("Photo Display", photoBody, true);
   }
 
   function makeMetadataCard() {

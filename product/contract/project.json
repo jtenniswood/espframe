@@ -686,7 +686,7 @@
     },
     {
       "id": "layout",
-      "label": "Layout",
+      "label": "Photo Display",
       "tab": "immich",
       "function": "makeLayoutCard",
       "settings": [

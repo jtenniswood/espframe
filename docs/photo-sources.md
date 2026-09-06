@@ -154,9 +154,9 @@ Turn on **Show Paired Portraits Only** to skip a portrait when a complete pair c
 
 ---
 
-## Layout
+## Photo Display
 
-Use **Layout** to control how photos are fitted to the screen.
+Use **Photo Display** to control how photos are fitted to the screen.
 
 <!-- ESPFRAME:SETTINGS_TABLE layout START -->
 | Setting | Default | Description |

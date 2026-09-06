@@ -972,7 +972,7 @@ function smokeAssertionsForScenario(scenario) {
         expandCard("Connection");
         expandCard("Frequency");
         expandCard("Portrait Pairing");
-        expandCard("Layout");
+        expandCard("Photo Display");
         expandCard("Metadata");
 
         requireText("Connection Timeout");
