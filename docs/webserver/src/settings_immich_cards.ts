@@ -707,6 +707,7 @@
     var pairingBody = el("div");
     var portraitRotationActive = isPortraitScreenRotation(effectiveScreenRotationForUi());
     var pairingEnabled = S.portrait_pairing && !portraitRotationActive;
+    var pairingCardBody = null;
     var pairingToggle = toggleSettingRow({
       label: "Portrait Pairing",
       value: pairingEnabled,
@@ -715,6 +716,7 @@
       disabled: portraitRotationActive,
       disabledTitle: "Portrait pairing is disabled while the screen is in portrait rotation",
       onChange: function () {
+        pairingCardBody.style.display = S.portrait_pairing ? "" : "none";
         saveSetting("portrait_pairing", S.portrait_pairing);
       }
     });
@@ -728,7 +730,7 @@
       value: S.portrait_pairs_only,
       getValue: function () { return S.portrait_pairs_only; },
       setValue: function (value) { S.portrait_pairs_only = value; },
-      disabled: !pairingEnabled,
+      disabled: portraitRotationActive,
       disabledTitle: pairingOptionsDisabledTitle,
       onChange: function () {
         saveSetting("portrait_pairs_only", S.portrait_pairs_only);
@@ -746,12 +748,15 @@
         return v;
       }
     );
-    pairingRangeSelect.disabled = !pairingEnabled;
-    if (!pairingEnabled) pairingRangeSelect.title = pairingOptionsDisabledTitle;
+    pairingRangeSelect.disabled = portraitRotationActive;
+    if (portraitRotationActive) pairingRangeSelect.title = pairingOptionsDisabledTitle;
     fPairingRange.appendChild(pairingRangeSelect);
     pairingBody.appendChild(fPairingRange);
 
-    return makeCollapsibleCard("Portrait Pairing", pairingBody, false, pairingToggle.toggle);
+    var pairingCard = makeCollapsibleCard("Portrait Pairing", pairingBody, false, pairingToggle.toggle);
+    pairingCardBody = pairingCard.querySelector(".card-body");
+    pairingCardBody.style.display = pairingEnabled ? "" : "none";
+    return pairingCard;
   }
 
   function makeLayoutCard() {

@@ -1007,9 +1007,10 @@ function smokeAssertionsForScenario(scenario) {
         await waitFor(() => pageText().indexOf("Clock") !== -1, 8000, "clock settings");
         clickTab("Immich");
         await waitFor(() => pageText().indexOf("Portrait Pairing") !== -1, 8000, "pairing disabled state");
-        expandCard("Portrait Pairing");
-        requireSelectDisabled("Pairing Range");
-        requireToggleDisabled("Show Paired Portraits Only");
+        const hiddenPairingCard = cardByTitle("Portrait Pairing");
+        if (hiddenPairingCard.querySelector(".card-body").style.display !== "none") {
+          throw new Error("Portrait pairing options should be hidden when pairing is off");
+        }
         clickTab("Device");
         await waitFor(() => pageText().indexOf("Clock") !== -1, 8000, "clock settings return");
         expandCard("Clock");
