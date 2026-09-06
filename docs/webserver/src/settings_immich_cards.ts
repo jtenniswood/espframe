@@ -774,6 +774,8 @@
     fDisplayMode.appendChild(
       selectFromOptions(productSettingOptions("display_mode"), S.display_mode, function (v) {
         saveSetting("display_mode", v);
+      }, function (v) {
+        return v === "Fill" ? "Crop to fit" : "Show full image";
       })
     );
     photoBody.appendChild(fDisplayMode);

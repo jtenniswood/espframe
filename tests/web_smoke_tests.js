@@ -982,6 +982,10 @@ function smokeAssertionsForScenario(scenario) {
         requireText("Show Paired Portraits Only");
         requireText("Display Photos");
         requireText("Display Mode");
+        const displayModeOptions = Array.from(selectByLabel("Display Mode").options).map((option) => option.textContent);
+        if (displayModeOptions.join("|") !== "Crop to fit|Show full image") {
+          throw new Error("Display Mode labels are incorrect: " + displayModeOptions.join(", "));
+        }
         const portraitPairingCard = cardByTitle("Portrait Pairing");
         const portraitPairingFields = Array.from(portraitPairingCard.querySelectorAll("label, .toggle-row > span"))
           .map((item) => item.textContent.trim())

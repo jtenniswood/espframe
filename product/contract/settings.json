@@ -135,7 +135,8 @@
     },
     "default": "Fill",
     "docs_label": "Display Mode",
-    "docs_description": "Fill crops to cover the screen; Fit letterboxes without cropping.",
+    "docs_default": "Crop to fit",
+    "docs_description": "Crop to fit fills the screen and may crop edges; Show full image letterboxes without cropping.",
     "options": [
       "Fill",
       "Fit"
