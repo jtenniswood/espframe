@@ -4812,6 +4812,9 @@ to {
         if (!Object.prototype.hasOwnProperty.call(photos, "location_enabled")) {
           photos.location_enabled = !!(String(photos.country || "").trim() || String(photos.state || "").trim() || String(photos.city || "").trim());
         }
+        photos.album_matching = "Any selected album";
+        photos.person_matching = "Any selected person";
+        photos.tag_matching = "Any selected tag";
       }
       migrated.version = 3;
       return migrated;
