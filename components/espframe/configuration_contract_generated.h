@@ -14,11 +14,11 @@ struct ConfigurationField {
 
 inline constexpr unsigned int CONTRACT_VERSION = 2;
 inline constexpr unsigned int API_VERSION = 1;
-inline constexpr unsigned int SETTING_COUNT = 47;
-inline constexpr unsigned int CONFIGURATION_FIELD_COUNT = 68;
+inline constexpr unsigned int SETTING_COUNT = 50;
+inline constexpr unsigned int CONFIGURATION_FIELD_COUNT = 71;
 inline constexpr const char CAPABILITIES_PATH[] = "/espframe/api/v1/capabilities";
 inline constexpr const char CONFIGURATION_PATH[] = "/espframe/api/v1/configuration";
-inline constexpr const char CAPABILITIES_JSON[] = R"ESPFRAME_JSON({"contract_version":2,"api_version":1,"base_path":"/espframe/api/v1","capabilities_path":"/espframe/api/v1/capabilities","configuration_path":"/espframe/api/v1/configuration","update_mode":"atomic","configuration_available":true,"configuration_read":true,"configuration_write":true,"configuration_encoding":"application/x-www-form-urlencoded","configuration_parameter":"configuration","legacy_entity_api":true,"backup_versions":[1,2],"setting_count":47})ESPFRAME_JSON";
+inline constexpr const char CAPABILITIES_JSON[] = R"ESPFRAME_JSON({"contract_version":2,"api_version":1,"base_path":"/espframe/api/v1","capabilities_path":"/espframe/api/v1/capabilities","configuration_path":"/espframe/api/v1/configuration","update_mode":"atomic","configuration_available":true,"configuration_read":true,"configuration_write":true,"configuration_encoding":"application/x-www-form-urlencoded","configuration_parameter":"configuration","legacy_entity_api":true,"backup_versions":[1,2,3],"setting_count":50})ESPFRAME_JSON";
 inline constexpr ConfigurationField CONFIGURATION_FIELDS[] = {
     {"photo_source", "select", "Photos: Source", false},
     {"album_order", "select", "Photos: Album Order", false},
@@ -59,6 +59,9 @@ inline constexpr ConfigurationField CONFIGURATION_FIELDS[] = {
     {"albums_enabled", "switch", "Photos: Albums Enabled", false},
     {"people_enabled", "switch", "Photos: People Enabled", false},
     {"tags_enabled", "switch", "Photos: Tags Enabled", false},
+    {"favorites_enabled", "switch", "Photos: Favorites Enabled", false},
+    {"rating_enabled", "switch", "Photos: Rating Enabled", false},
+    {"location_enabled", "switch", "Photos: Location Enabled", false},
     {"inclusion_matching", "select", "Photos: Inclusion Groups", false},
     {"album_matching", "select", "Photos: Album Matching", false},
     {"person_matching", "select", "Photos: Person Matching", false},

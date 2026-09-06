@@ -95,8 +95,8 @@ def check_generated_web_metadata(product: dict[str, Any], errors: list[str]) -> 
 
 def check_backup_version_contract(product: dict[str, Any], errors: list[str]) -> None:
     version = product["project"].get("backup_config_version")
-    if version != 2:
-        errors.append("Smart Filter V1 requires backup_config_version 2")
+    if version != 3:
+        errors.append("Progressive Photo Filter controls require backup_config_version 3")
     web_text = WEB_APP.read_text()
     require_contains(web_text, "var BACKUP_CONFIG_VERSION = ", rel(WEB_APP), errors)
     require_contains(web_text, "validateBackupConfigVersion", rel(WEB_APP), errors)

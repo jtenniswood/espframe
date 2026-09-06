@@ -359,6 +359,37 @@ input::placeholder {
   opacity:.7
 }
 
+input[readonly] {
+  opacity:.58;
+  border-style:dashed;
+  cursor:not-allowed
+}
+
+.compatibility-disabled {
+  color:var(--text2);
+  font-size:.78rem
+}
+
+.filter-group-details {
+  margin:0 0 12px 12px;
+  padding:0 0 4px 12px;
+  border-left:2px solid var(--border)
+}
+
+.filter-nested {
+  margin:10px 0;
+  padding:8px 10px;
+  border:1px solid var(--border);
+  border-radius:8px
+}
+
+.filter-nested summary {
+  cursor:pointer;
+  color:var(--text2);
+  font-size:.85rem;
+  font-weight:500
+}
+
 .select, select {
   width:100%;
   padding:10px 14px;

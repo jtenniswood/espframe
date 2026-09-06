@@ -75,8 +75,10 @@ assert.ok(publicApp.includes('"album_order"'), "public app should include album 
 assert.ok(publicApp.includes("Move album up"), "public app should include album reorder controls");
 assert.ok(publicApp.includes("movePhotoIdRow"), "public app should keep photo ID and label rows reorderable");
 assert.ok(
-  publicApp.includes("All selected albums need 3.2+"),
-  "flat-filter servers should explain why all-album matching is unavailable"
+  publicApp.includes("Requires Immich server version 3.2 or newer") &&
+    publicApp.includes('label: "Filter by "') &&
+    publicApp.includes("Filter by Location"),
+  "photo filters should expose progressive groups and clear compatibility guidance"
 );
 assert.ok(
   publicApp.includes("Choose Any to clear") &&
@@ -86,14 +88,11 @@ assert.ok(
 assert.ok(
   publicApp.includes("disableEditing: !supportsStructured") &&
     publicApp.includes("allowClearLast: !supportsStructured") &&
-    publicApp.includes("saved ones can be removed"),
+    publicApp.includes("Saved exclusions can be removed"),
   "compatibility mode should prevent new exclusions while allowing saved exclusions to be removed"
 );
-assert.ok(
-  publicApp.includes("3.1: Match all + multiple Any people/tags needs 3.2+") &&
-    publicApp.includes('supportsStructured ? "setting-hint" : "banner warning"'),
-  "compatibility mode should clearly flag compound any-of intersections and their recovery options"
-);
+assert.ok(publicApp.includes("Any selected") && publicApp.includes("Advanced inclusion options"),
+  "photo filter groups should use clear any-selected wording and retain advanced group matching");
 assert.ok(
   publicApp.includes("if (nextValue && index > 0") &&
     publicApp.includes("S[spec[1]] = nextValue"),
@@ -290,6 +289,21 @@ const legacyAlbumBackup = backupImportContext.migrateBackupConfig({
 });
 assert.equal(legacyAlbumBackup.photos.albums_enabled, true, "legacy Album sources should enable the album group");
 assert.equal(legacyAlbumBackup.photos.source, "Album", "legacy photo sources should remain available to firmware migration");
+const migratedFilterBackup = backupImportContext.migrateBackupConfig({
+  version: 2,
+  photos: {
+    favorite_mode: "Favorites only", minimum_rating: "4+", city: "Wellington",
+    album_matching: "All selected albums", person_matching: "All selected people",
+    tag_matching: "All selected tags"
+  }
+});
+assert.equal(migratedFilterBackup.version, 3, "older filter backups should migrate to version 3");
+assert.equal(migratedFilterBackup.photos.favorites_enabled, true, "saved favorite mode should enable favorite filtering");
+assert.equal(migratedFilterBackup.photos.rating_enabled, true, "saved rating should enable rating filtering");
+assert.equal(migratedFilterBackup.photos.location_enabled, true, "saved location should enable location filtering");
+assert.equal(migratedFilterBackup.photos.album_matching, "Any selected album", "legacy album matching should migrate to any selected");
+assert.equal(migratedFilterBackup.photos.person_matching, "Any selected person", "legacy person matching should migrate to any selected");
+assert.equal(migratedFilterBackup.photos.tag_matching, "Any selected tag", "legacy tag matching should migrate to any selected");
 
 // The web server identifies each entity with name_id ("domain/Friendly Name") plus a
 // legacy id ("domain-object_id"). ENTITY_STATE_MAP and the REST endpoints both use the

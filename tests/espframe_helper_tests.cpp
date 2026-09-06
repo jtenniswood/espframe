@@ -479,6 +479,8 @@ static void test_smart_filter_helpers() {
   assert(flat_empty.find("\"filter\"") == std::string::npos);
 
   ImmichFilterConfig constrained;
+  constrained.favorites_enabled = true;
+  constrained.location_enabled = true;
   constrained.favorite_mode = "Exclude favorites";
   constrained.taken_after = "2026-01-01T00:00:00.000Z";
   constrained.taken_before = "2026-12-31T23:59:59.999Z";
@@ -499,6 +501,8 @@ static void test_smart_filter_helpers() {
   combined.albums_enabled = true;
   combined.people_enabled = true;
   combined.tags_enabled = true;
+  combined.favorites_enabled = true;
+  combined.rating_enabled = true;
   combined.album_ids = album1 + "," + album2;
   combined.person_ids = person1;
   combined.tag_ids = tag1;
@@ -542,6 +546,7 @@ static void test_smart_filter_helpers() {
   album_only_branch.album_ids = album1;
   assert(immich_filter_can_use_album_asset_count(album_only, album_only_branch));
   album_only.favorite_mode = "Favorites only";
+  album_only.favorites_enabled = true;
   assert(!immich_filter_can_use_album_asset_count(album_only, album_only_branch));
   album_only.favorite_mode = "Any";
   album_only.taken_after = "2026-01-01T00:00:00.000Z";
@@ -645,6 +650,27 @@ static void test_smart_filter_helpers() {
   missing_enabled_ids.tag_ids = tag1;
   assert(!immich_filter_has_missing_enabled_ids(missing_enabled_ids));
 
+  ImmichFilterConfig exclusion_only;
+  exclusion_only.albums_enabled = true;
+  exclusion_only.excluded_album_ids = excluded;
+  assert(!immich_filter_has_missing_enabled_ids(exclusion_only));
+  ImmichFilterBranch exclusion_branch;
+  std::string exclusion_body = build_immich_filter_search_body(
+      exclusion_only, exclusion_branch, ImmichApiGeneration::V32_STRUCTURED, 10, false);
+  assert(exclusion_body.find("\"albumIds\":{\"none\":[\"" + excluded) != std::string::npos);
+
+  ImmichFilterConfig disabled_values;
+  disabled_values.favorite_mode = "Favorites only";
+  disabled_values.minimum_rating = 5;
+  disabled_values.country = "New Zealand";
+  disabled_values.state = "Wellington";
+  disabled_values.city = "Wellington";
+  std::string disabled_body = build_immich_filter_search_body(
+      disabled_values, no_branch, ImmichApiGeneration::V32_STRUCTURED, 1, false);
+  assert(disabled_body.find("isFavorite") == std::string::npos);
+  assert(disabled_body.find("rating") == std::string::npos);
+  assert(disabled_body.find("country") == std::string::npos);
+
   combined.inclusion_matching = "Match any enabled group";
   ImmichFilterBranch first = select_immich_filter_branch(
       combined, group_index, album_index, "Album list order", ImmichApiGeneration::V31_FLAT);
@@ -665,12 +691,14 @@ static void test_smart_filter_helpers() {
   ImmichFilterConfig legacy;
   assert(legacy_source_for_filter(legacy) == "All Photos");
   legacy.favorite_mode = "Favorites only";
+  legacy.favorites_enabled = true;
   assert(legacy_source_for_filter(legacy) == "Favorites");
   legacy.favorite_mode = "Any";
   legacy.albums_enabled = true;
   legacy.album_ids = album1;
   assert(legacy_source_for_filter(legacy) == "Album");
   legacy.minimum_rating = 1;
+  legacy.rating_enabled = true;
   assert(legacy_source_for_filter(legacy) == "Custom");
 
   for (const std::string &source : {"All Photos", "Favorites", "Album", "Person", "Tag", "Memories"}) {
@@ -1635,13 +1663,13 @@ static void test_configuration_contract_capabilities() {
   using namespace esphome::espframe::contract;
   static_assert(CONTRACT_VERSION == 2);
   static_assert(API_VERSION == 1);
-  static_assert(SETTING_COUNT == 47);
-  static_assert(CONFIGURATION_FIELD_COUNT == 68);
+  static_assert(SETTING_COUNT == 50);
+  static_assert(CONFIGURATION_FIELD_COUNT == 71);
   assert(std::string(CAPABILITIES_PATH) == "/espframe/api/v1/capabilities");
   assert(std::string(CONFIGURATION_PATH) == "/espframe/api/v1/configuration");
   const std::string capabilities(CAPABILITIES_JSON);
   assert(capabilities.find("\"contract_version\":2") != std::string::npos);
-  assert(capabilities.find("\"backup_versions\":[1,2]") != std::string::npos);
+  assert(capabilities.find("\"backup_versions\":[1,2,3]") != std::string::npos);
   assert(capabilities.find("\"legacy_entity_api\":true") != std::string::npos);
   assert(capabilities.find("\"configuration_read\":true") != std::string::npos);
   assert(capabilities.find("\"configuration_write\":true") != std::string::npos);

@@ -50,8 +50,8 @@
       "name": "Photos: Tag Matching"
     },
     "default": "Any selected tag",
-    "docs_label": "Tag Matching",
-    "docs_description": "Choose whether a photo may contain any selected tag or must contain every selected tag.",
+    "docs_label": "Legacy Tag Matching",
+    "docs_description": "Legacy compatibility value; the Photo Filter always uses any selected tag.",
     "options": [
       "Any selected tag",
       "All selected tags"
@@ -59,9 +59,7 @@
     "firmware_files": [
       "common/addon/immich_filter.yaml"
     ],
-    "docs_files": [
-      "docs/photo-sources.md"
-    ]
+    "docs_files": ["docs/photo-sources.md"]
   },
   {
     "key": "date_filter_mode",
@@ -728,7 +726,8 @@
     "key": "albums_enabled",
     "entity": { "domain": "switch", "name": "Photos: Albums Enabled" },
     "default": false,
-    "docs_description": "Include the configured albums as an independently enabled filter group.",
+    "docs_label": "Filter by Albums",
+    "docs_description": "Enable filtering by any selected album while preserving the list when disabled.",
     "firmware_files": ["common/addon/immich_filter.yaml"],
     "docs_files": ["docs/photo-sources.md"]
   },
@@ -736,7 +735,8 @@
     "key": "people_enabled",
     "entity": { "domain": "switch", "name": "Photos: People Enabled" },
     "default": false,
-    "docs_description": "Include the configured people as an independently enabled filter group.",
+    "docs_label": "Filter by People",
+    "docs_description": "Enable filtering by any selected person while preserving the list when disabled.",
     "firmware_files": ["common/addon/immich_filter.yaml"],
     "docs_files": ["docs/photo-sources.md"]
   },
@@ -744,7 +744,35 @@
     "key": "tags_enabled",
     "entity": { "domain": "switch", "name": "Photos: Tags Enabled" },
     "default": false,
-    "docs_description": "Include the configured tags as an independently enabled filter group.",
+    "docs_label": "Filter by Tags",
+    "docs_description": "Enable filtering by any selected tag while preserving the list when disabled.",
+    "firmware_files": ["common/addon/immich_filter.yaml"],
+    "docs_files": ["docs/photo-sources.md"]
+  },
+  {
+    "key": "favorites_enabled",
+    "entity": { "domain": "switch", "name": "Photos: Favorites Enabled" },
+    "default": false,
+    "docs_label": "Filter by Favorites",
+    "docs_description": "Enable favorite filtering while preserving the selected favorite mode when disabled.",
+    "firmware_files": ["common/addon/immich_filter.yaml"],
+    "docs_files": ["docs/photo-sources.md"]
+  },
+  {
+    "key": "rating_enabled",
+    "entity": { "domain": "switch", "name": "Photos: Rating Enabled" },
+    "default": false,
+    "docs_label": "Filter by Rating",
+    "docs_description": "Enable minimum rating filtering while preserving the selected rating when disabled.",
+    "firmware_files": ["common/addon/immich_filter.yaml"],
+    "docs_files": ["docs/photo-sources.md"]
+  },
+  {
+    "key": "location_enabled",
+    "entity": { "domain": "switch", "name": "Photos: Location Enabled" },
+    "default": false,
+    "docs_label": "Filter by Location",
+    "docs_description": "Enable country, state or province, and city filtering as one group.",
     "firmware_files": ["common/addon/immich_filter.yaml"],
     "docs_files": ["docs/photo-sources.md"]
   },
@@ -762,7 +790,7 @@
     "entity": { "domain": "select", "name": "Photos: Album Matching" },
     "default": "Any selected album",
     "options": ["Any selected album", "All selected albums"],
-    "docs_description": "Choose whether an album group samples one selected album or requires all selected albums; all-album matching requires Immich 3.2 or newer.",
+    "docs_description": "Legacy compatibility value; the Photo Filter always uses any selected album.",
     "firmware_files": ["common/addon/immich_filter.yaml"],
     "docs_files": ["docs/photo-sources.md"]
   },
@@ -771,7 +799,7 @@
     "entity": { "domain": "select", "name": "Photos: Person Matching" },
     "default": "Any selected person",
     "options": ["Any selected person", "All selected people"],
-    "docs_description": "Choose whether photos may contain any selected person or must contain all selected people.",
+    "docs_description": "Legacy compatibility value; the Photo Filter always uses any selected person.",
     "firmware_files": ["common/addon/immich_filter.yaml"],
     "docs_files": ["docs/photo-sources.md"]
   },

@@ -136,7 +136,7 @@
   },
   "ota_update_platform": "esphome",
   "ota_pre_update_action": "keeps the current backlight state while the update starts",
-  "backup_config_version": 2,
+  "backup_config_version": 3,
   "backup_filename_prefix": "espframe-config-",
   "backup_filename_date_format": "YYYY-MM-DD",
   "backup_import_photo_id_limit": 255,
@@ -164,6 +164,9 @@
       "albums_enabled",
       "people_enabled",
       "tags_enabled",
+      "favorites_enabled",
+      "rating_enabled",
+      "location_enabled",
       "inclusion_matching",
       "album_matching",
       "person_matching",
@@ -238,6 +241,9 @@
       "albums_enabled": "albums_enabled",
       "people_enabled": "people_enabled",
       "tags_enabled": "tags_enabled",
+      "favorites_enabled": "favorites_enabled",
+      "rating_enabled": "rating_enabled",
+      "location_enabled": "location_enabled",
       "inclusion_matching": "inclusion_matching",
       "album_matching": "album_matching",
       "person_matching": "person_matching",
@@ -347,7 +353,7 @@
       },
     {
       "path": "tests/fixtures/compat/espframe-config-v2-future-version.json",
-      "message": "Unsupported backup version 3 - this device supports version 2"
+        "message": "Unsupported backup version 4 - this device supports version 3"
       },
       {
         "path": "tests/fixtures/compat/espframe-config-v0-unsupported-version.json",
@@ -624,16 +630,19 @@
         "albums_enabled",
         "people_enabled",
         "tags_enabled",
+        "favorites_enabled",
+        "rating_enabled",
+        "location_enabled",
         "inclusion_matching",
         "album_matching",
         "person_matching",
+        "tag_matching",
         "favorite_mode",
         "minimum_rating",
         "filter_country",
         "filter_state",
         "filter_city",
-        "album_order",
-        "tag_matching"
+        "album_order"
       ],
       "static_entities": [
         "album_ids",
@@ -1156,16 +1165,19 @@
           "albums_enabled",
           "people_enabled",
           "tags_enabled",
+          "favorites_enabled",
+          "rating_enabled",
+          "location_enabled",
           "inclusion_matching",
           "album_matching",
           "person_matching",
+          "tag_matching",
           "favorite_mode",
           "minimum_rating",
           "filter_country",
           "filter_state",
           "filter_city",
-          "album_order",
-          "tag_matching"
+          "album_order"
         ]
       },
       "date_filtering": {
@@ -1546,6 +1558,9 @@
     "albums_enabled": {},
     "people_enabled": {},
     "tags_enabled": {},
+    "favorites_enabled": {},
+    "rating_enabled": {},
+    "location_enabled": {},
     "inclusion_matching": {},
     "album_matching": {},
     "person_matching": {},

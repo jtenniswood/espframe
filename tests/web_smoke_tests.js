@@ -166,7 +166,7 @@ const missingVersionBackupFixture = {
 };
 
 const futureVersionBackupFixture = {
-  version: 2,
+  version: 4,
   connection: {
     immich_url: "https://future.photos.example.com",
   },
@@ -1276,7 +1276,7 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "backup-import-future-version") {
             clickButton("Import");
-            await waitFor(() => pageText().indexOf("Unsupported backup version 2 - this device supports version 1") !== -1, 8000, "future version rejection");
+            await waitFor(() => pageText().indexOf("Unsupported backup version 4 - this device supports version 3") !== -1, 8000, "future version rejection");
             if (window.__smoke.posts.length) throw new Error("Future-version backup wrote settings to the device");
           }
 
