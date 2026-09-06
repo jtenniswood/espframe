@@ -679,7 +679,7 @@
       "name": "Photos: Paired Portraits Only"
     },
     "default": false,
-    "docs_label": "Paired Portraits Only",
+    "docs_label": "Show Paired Portraits Only",
     "docs_default": "Off",
     "docs_description": "Skip portrait photos unless both images in a compatible pair are ready; landscape photos are unaffected.",
     "firmware_files": [

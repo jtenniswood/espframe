@@ -520,7 +520,10 @@
     card.appendChild(header);
     card.appendChild(body);
     if (defaultCollapsed) card.classList.add("collapsed");
-    header.onclick = function () { card.classList.toggle("collapsed"); };
+    header.onclick = function (event) {
+      if (event.target !== header && event.target.onclick) return;
+      card.classList.toggle("collapsed");
+    };
     return card;
   }
 

@@ -134,25 +134,36 @@ Use relative mode for ranges like the last 6 months, last 1 year, or last 2 year
 
 ---
 
-## Layout
+## Portrait Pairing
 
-Use **Layout** to control how photos are chosen and fitted to the screen.
+Use **Portrait Pairing** to display compatible portrait photos side-by-side on landscape screens.
 
-<!-- ESPFRAME:SETTINGS_TABLE layout START -->
+<!-- ESPFRAME:SETTINGS_TABLE portrait_pairing START -->
 | Setting | Default | Description |
 |---------|---------|-------------|
 | **Portrait Pairing** | On | Pairs compatible portrait photos side-by-side on landscape screens. |
+| **Show Paired Portraits Only** | Off | Skip portrait photos unless both images in a compatible pair are ready; landscape photos are unaffected. |
 | **Pairing Range** | Same Day | Choose whether portrait companions can be taken on the same day or up to one or two calendar days either side. |
-| **Paired Portraits Only** | Off | Skip portrait photos unless both images in a compatible pair are ready; landscape photos are unaffected. |
-| **Photo Orientation** | Any | Choose any photo, portrait-only photos, or landscape-only photos. Portrait-only is useful when the frame is mounted vertically. |
-| **Display Mode** | Fill | Fill crops to cover the screen; Fit letterboxes without cropping. |
-<!-- ESPFRAME:SETTINGS_TABLE layout END -->
+<!-- ESPFRAME:SETTINGS_TABLE portrait_pairing END -->
 
 Portrait pairing is disabled while the screen is in portrait rotation.
 
 **Pairing Range** always checks the same calendar day first. Espframe first samples up to 20 assets and chooses the compatible portrait closest to the primary photo's capture time. With **±1 Day** or **±2 Days**, it broadens the search only when it cannot find a same-day companion. If those fast samples miss, Espframe pages through every eligible asset until it finds a compatible portrait, so large or shared albums do not produce false "no companion" results. The range is kept inside any date filter you have configured, and the companion uses the exact album, person, or tag chosen for the primary photo.
 
-Turn on **Paired Portraits Only** to skip a portrait when a complete pair cannot be loaded. Landscape photos continue to display normally. While Espframe searches for another eligible photo, the last successfully displayed photo stays on screen.
+Turn on **Show Paired Portraits Only** to skip a portrait when a complete pair cannot be loaded. Landscape photos continue to display normally. While Espframe searches for another eligible photo, the last successfully displayed photo stays on screen.
+
+---
+
+## Layout
+
+Use **Layout** to control how photos are fitted to the screen.
+
+<!-- ESPFRAME:SETTINGS_TABLE layout START -->
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **Photo Orientation** | Any | Choose any photo, portrait-only photos, or landscape-only photos. Portrait-only is useful when the frame is mounted vertically. |
+| **Display Mode** | Fill | Fill crops to cover the screen; Fit letterboxes without cropping. |
+<!-- ESPFRAME:SETTINGS_TABLE layout END -->
 
 ---
 

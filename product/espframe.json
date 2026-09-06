@@ -675,14 +675,22 @@
         ]
       },
       {
+        "id": "portrait_pairing",
+        "label": "Portrait Pairing",
+        "tab": "immich",
+        "function": "makePortraitPairingCard",
+        "settings": [
+          "portrait_pairing",
+          "portrait_pairs_only",
+          "portrait_pairing_range"
+        ]
+      },
+      {
         "id": "layout",
         "label": "Layout",
         "tab": "immich",
         "function": "makeLayoutCard",
         "settings": [
-          "portrait_pairing",
-          "portrait_pairing_range",
-          "portrait_pairs_only",
           "photo_orientation",
           "display_mode"
         ]
@@ -1177,11 +1185,15 @@
             "relative_unit"
           ]
         },
-        "layout": {
+        "portrait_pairing": {
           "settings": [
             "portrait_pairing",
-            "portrait_pairing_range",
             "portrait_pairs_only",
+            "portrait_pairing_range"
+          ]
+        },
+        "layout": {
+          "settings": [
             "photo_orientation",
             "display_mode"
           ]
@@ -2903,7 +2915,7 @@
         "name": "Photos: Paired Portraits Only"
       },
       "default": false,
-      "docs_label": "Paired Portraits Only",
+      "docs_label": "Show Paired Portraits Only",
       "docs_default": "Off",
       "docs_description": "Skip portrait photos unless both images in a compatible pair are ready; landscape photos are unaffected.",
       "firmware_files": [

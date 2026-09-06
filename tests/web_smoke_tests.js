@@ -971,6 +971,7 @@ function smokeAssertionsForScenario(scenario) {
       async function requireDailySettingsControls() {
         expandCard("Connection");
         expandCard("Frequency");
+        expandCard("Portrait Pairing");
         expandCard("Layout");
         expandCard("Metadata");
 
@@ -978,16 +979,23 @@ function smokeAssertionsForScenario(scenario) {
         requireText("Slideshow Interval");
         requireText("Portrait Pairing");
         requireText("Pairing Range");
-        requireText("Paired Portraits Only");
+        requireText("Show Paired Portraits Only");
         requireText("Photo Orientation");
         requireText("Display Mode");
+        const portraitPairingCard = cardByTitle("Portrait Pairing");
+        const portraitPairingFields = Array.from(portraitPairingCard.querySelectorAll("label, .toggle-row > span"))
+          .map((item) => item.textContent.trim())
+          .filter(Boolean);
+        if (portraitPairingFields.indexOf("Show Paired Portraits Only") > portraitPairingFields.indexOf("Pairing Range")) {
+          throw new Error("Portrait pairing settings are in the wrong order");
+        }
         requireText("Metadata");
 
         setSelect("Connection Timeout", "5 minutes");
         setSelect("Slideshow Interval", "24 hours");
         setSelect("Pairing Range", "Within 2 Days");
-        toggleByText("Paired Portraits Only").click();
-        toggleByText("Portrait Pairing").click();
+        toggleByText("Show Paired Portraits Only").click();
+        cardByTitle("Portrait Pairing").querySelector(".card-header .toggle").click();
         setSelect("Photo Orientation", "Landscape Only");
         setSelect("Display Mode", "Fit");
         setSelect("Date Taken Format", "January 1, 2026");
@@ -998,10 +1006,10 @@ function smokeAssertionsForScenario(scenario) {
         clickTab("Device");
         await waitFor(() => pageText().indexOf("Clock") !== -1, 8000, "clock settings");
         clickTab("Immich");
-        await waitFor(() => pageText().indexOf("Layout") !== -1, 8000, "pairing disabled state");
-        expandCard("Layout");
+        await waitFor(() => pageText().indexOf("Portrait Pairing") !== -1, 8000, "pairing disabled state");
+        expandCard("Portrait Pairing");
         requireSelectDisabled("Pairing Range");
-        requireToggleDisabled("Paired Portraits Only");
+        requireToggleDisabled("Show Paired Portraits Only");
         clickTab("Device");
         await waitFor(() => pageText().indexOf("Clock") !== -1, 8000, "clock settings return");
         expandCard("Clock");

@@ -703,13 +703,11 @@
     return makeCollapsibleCard("Advanced Filters", filterBody, true, filterBadge);
   }
 
-  function makeLayoutCard() {
-    // Layout
-    var photoBody = el("div");
-
+  function makePortraitPairingCard() {
+    var pairingBody = el("div");
     var portraitRotationActive = isPortraitScreenRotation(effectiveScreenRotationForUi());
     var pairingEnabled = S.portrait_pairing && !portraitRotationActive;
-    photoBody.appendChild(toggleSettingRow({
+    var pairingToggle = toggleSettingRow({
       label: "Portrait Pairing",
       value: pairingEnabled,
       getValue: function () { return S.portrait_pairing; },
@@ -719,11 +717,24 @@
       onChange: function () {
         saveSetting("portrait_pairing", S.portrait_pairing);
       }
-    }).field);
+    });
 
     var pairingOptionsDisabledTitle = portraitRotationActive
       ? "Portrait pairing is disabled while the screen is in portrait rotation"
       : "Turn on Portrait Pairing to use this option";
+
+    pairingBody.appendChild(toggleSettingRow({
+      label: "Show Paired Portraits Only",
+      value: S.portrait_pairs_only,
+      getValue: function () { return S.portrait_pairs_only; },
+      setValue: function (value) { S.portrait_pairs_only = value; },
+      disabled: !pairingEnabled,
+      disabledTitle: pairingOptionsDisabledTitle,
+      onChange: function () {
+        saveSetting("portrait_pairs_only", S.portrait_pairs_only);
+      }
+    }).field);
+
     var fPairingRange = field("Pairing Range");
     var pairingRangeSelect = selectFromOptions(
       productSettingOptions("portrait_pairing_range"),
@@ -738,19 +749,13 @@
     pairingRangeSelect.disabled = !pairingEnabled;
     if (!pairingEnabled) pairingRangeSelect.title = pairingOptionsDisabledTitle;
     fPairingRange.appendChild(pairingRangeSelect);
-    photoBody.appendChild(fPairingRange);
+    pairingBody.appendChild(fPairingRange);
 
-    photoBody.appendChild(toggleSettingRow({
-      label: "Paired Portraits Only",
-      value: S.portrait_pairs_only,
-      getValue: function () { return S.portrait_pairs_only; },
-      setValue: function (value) { S.portrait_pairs_only = value; },
-      disabled: !pairingEnabled,
-      disabledTitle: pairingOptionsDisabledTitle,
-      onChange: function () {
-        saveSetting("portrait_pairs_only", S.portrait_pairs_only);
-      }
-    }).field);
+    return makeCollapsibleCard("Portrait Pairing", pairingBody, false, pairingToggle.toggle);
+  }
+
+  function makeLayoutCard() {
+    var photoBody = el("div");
 
     var fPhotoOrientation = field("Photo Orientation");
     fPhotoOrientation.appendChild(
