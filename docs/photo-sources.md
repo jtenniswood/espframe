@@ -161,7 +161,7 @@ Use **Photo Display** to control how photos are fitted to the screen.
 <!-- ESPFRAME:SETTINGS_TABLE layout START -->
 | Setting | Default | Description |
 |---------|---------|-------------|
-| **Photo Orientation** | Any | Choose any photo, portrait-only photos, or landscape-only photos. Portrait-only is useful when the frame is mounted vertically. |
+| **Display Photos** | Any | Choose any photo, portrait-only photos, or landscape-only photos. Portrait-only is useful when the frame is mounted vertically. |
 | **Display Mode** | Fill | Fill crops to cover the screen; Fit letterboxes without cropping. |
 <!-- ESPFRAME:SETTINGS_TABLE layout END -->
 

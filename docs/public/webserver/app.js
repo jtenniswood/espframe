@@ -3135,7 +3135,7 @@ to {
   }
   function makeLayoutCard() {
     var photoBody = el("div");
-    var fPhotoOrientation = field("Photo Orientation");
+    var fPhotoOrientation = field("Display Photos");
     fPhotoOrientation.appendChild(
       selectFromOptions(productSettingOptions("photo_orientation"), S.photo_orientation, function(v) {
         saveSetting("photo_orientation", v);

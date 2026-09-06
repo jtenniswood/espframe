@@ -2349,7 +2349,7 @@
         "name": "Photos: Orientation"
       },
       "default": "Any",
-      "docs_label": "Photo Orientation",
+      "docs_label": "Display Photos",
       "docs_description": "Choose any photo, portrait-only photos, or landscape-only photos. Portrait-only is useful when the frame is mounted vertically.",
       "options": [
         "Any",

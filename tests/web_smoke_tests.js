@@ -980,7 +980,7 @@ function smokeAssertionsForScenario(scenario) {
         requireText("Portrait Pairing");
         requireText("Pairing Range");
         requireText("Show Paired Portraits Only");
-        requireText("Photo Orientation");
+        requireText("Display Photos");
         requireText("Display Mode");
         const portraitPairingCard = cardByTitle("Portrait Pairing");
         const portraitPairingFields = Array.from(portraitPairingCard.querySelectorAll("label, .toggle-row > span"))
@@ -996,7 +996,7 @@ function smokeAssertionsForScenario(scenario) {
         setSelect("Pairing Range", "Within 2 Days");
         toggleByText("Show Paired Portraits Only").click();
         cardByTitle("Portrait Pairing").querySelector(".card-header .toggle").click();
-        setSelect("Photo Orientation", "Landscape Only");
+        setSelect("Display Photos", "Landscape Only");
         setSelect("Display Mode", "Fit");
         setSelect("Date Taken Format", "January 1, 2026");
         setSelect("Date Format", "Relative Date");
