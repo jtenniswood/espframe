@@ -5,7 +5,7 @@ description: Combine Immich albums, people, tags, favorites, ratings, dates, loc
 
 # Espframe Smart Photo Filters for Immich
 
-Open the device web UI at `http://<device-ip>/` and use **Photo Filter**. Start with the six **Filter by** switches, then open only the groups you need. Albums, people, tags, favorites, ratings, and location retain their saved values when switched off. Changes apply automatically shortly after you change a control.
+Open the device web UI at `http://<device-ip>/` and use **Photo Filter**. Start with the seven **Filter by** switches, then open only the groups you need. Dates, albums, people, tags, favorites, ratings, and location retain their saved values when switched off. Changes apply automatically shortly after you change a control.
 
 <!-- ESPFRAME:SETTINGS_TABLE source START -->
 | Setting | Default | Format | Description |
@@ -89,7 +89,7 @@ The former **Memories** source is migrated to an empty filter (equivalent to All
 
 ## Date Filtering
 
-Use **Advanced Filters** in the web UI to limit photos by when they were taken. You can use either fixed dates, such as a specific holiday range, or a rolling range, such as the last 6 months.
+Use **Photo Filter → Filter by Date** in the web UI to limit photos by when they were taken. You can use either fixed dates, such as a specific holiday range, or a rolling range, such as the last 6 months.
 
 Date filter changes save automatically shortly after you change a control. You do not need to click an Apply button.
 
