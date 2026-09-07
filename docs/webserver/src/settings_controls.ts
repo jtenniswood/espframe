@@ -9,7 +9,7 @@
       makeConnectionCard: makeConnectionCard,
       makeFrequencyCard: makeFrequencyCard,
       makePhotoSourceCard: makePhotoSourceCard,
-      makeAdvancedFiltersCard: makeAdvancedFiltersCard,
+      makePortraitPairingCard: makePortraitPairingCard,
       makeLayoutCard: makeLayoutCard,
       makeMetadataCard: makeMetadataCard,
       makeScreenBrightnessCard: makeScreenBrightnessCard,
@@ -74,8 +74,8 @@
     if (!immichCards.length) immichCards = [
       makeConnectionCard(),
       makeFrequencyCard(),
+      makePortraitPairingCard(),
       makePhotoSourceCard(),
-      makeAdvancedFiltersCard(),
       makeLayoutCard(),
       makeMetadataCard()
     ];

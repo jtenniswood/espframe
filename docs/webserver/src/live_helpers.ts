@@ -279,6 +279,10 @@
     var getValue = opts.getValue || function () { return !!opts.value; };
     var setValue = opts.setValue || function (value) { opts.value = value; };
     var toggle = el("div", opts.value ? "toggle on" : "toggle");
+    toggle.setAttribute("role", "switch");
+    toggle.setAttribute("tabindex", opts.disabled ? "-1" : "0");
+    toggle.setAttribute("aria-checked", opts.value ? "true" : "false");
+    toggle.setAttribute("aria-label", opts.label || "Toggle setting");
     if (opts.disabled) {
       toggle.style.opacity = ".35";
       toggle.style.cursor = "not-allowed";
@@ -289,9 +293,16 @@
       var next = !getValue();
       setValue(next);
       toggle.className = next ? "toggle on" : "toggle";
+      toggle.setAttribute("aria-checked", next ? "true" : "false");
       if (opts.details) opts.details.style.display = next ? "" : "none";
       if (opts.badge) setBadgeActive(opts.badge, opts.badgeActive ? opts.badgeActive() : next);
       if (opts.onChange) opts.onChange(next);
+    };
+    toggle.onkeydown = function (event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        toggle.click();
+      }
     };
     row.appendChild(label);
     row.appendChild(toggle);
@@ -547,7 +558,8 @@
     card.appendChild(header);
     card.appendChild(body);
     if (defaultCollapsed) card.classList.add("collapsed");
-    header.onclick = function () { card.classList.toggle("collapsed"); };
+    bindDisclosure(toggle, card, body, "collapsed", false);
+    header.onclick = function () { toggle.click(); };
     return card;
   }
 

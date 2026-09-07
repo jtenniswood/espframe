@@ -53,6 +53,9 @@ struct ImmichFilterConfig {
   bool albums_enabled = false;
   bool people_enabled = false;
   bool tags_enabled = false;
+  bool favorites_enabled = false;
+  bool rating_enabled = false;
+  bool location_enabled = false;
   std::string album_ids;
   std::string person_ids;
   std::string tag_ids;
@@ -158,29 +161,36 @@ inline bool immich_filter_requires_v32(const ImmichFilterConfig &config) {
        (config.tags_enabled && !immich_matching_is_all(config.tag_matching) &&
         split_valid_uuid_csv(config.tag_ids).size() > 1));
   return all_albums_requires_structured || compound_any_requires_structured ||
-         config.minimum_rating > 0 ||
-         !split_valid_uuid_csv(config.excluded_album_ids).empty() ||
-         !split_valid_uuid_csv(config.excluded_person_ids).empty() ||
-         !split_valid_uuid_csv(config.excluded_tag_ids).empty();
+         (config.rating_enabled && config.minimum_rating > 0) ||
+         (config.albums_enabled && !split_valid_uuid_csv(config.excluded_album_ids).empty()) ||
+         (config.people_enabled && !split_valid_uuid_csv(config.excluded_person_ids).empty()) ||
+         (config.tags_enabled && !split_valid_uuid_csv(config.excluded_tag_ids).empty());
 }
 
 inline bool immich_filter_location_is_valid(const ImmichFilterConfig &config) {
+  if (!config.location_enabled) return true;
   if (!config.city.empty() && (config.state.empty() || config.country.empty())) return false;
   if (!config.state.empty() && config.country.empty()) return false;
   return true;
 }
 
 inline bool immich_filter_has_required_ids(const ImmichFilterConfig &config) {
-  if (config.albums_enabled && split_valid_uuid_csv(config.album_ids).empty()) return false;
-  if (config.people_enabled && split_valid_uuid_csv(config.person_ids).empty()) return false;
-  if (config.tags_enabled && split_valid_uuid_csv(config.tag_ids).empty()) return false;
+  if (config.albums_enabled && split_valid_uuid_csv(config.album_ids).empty() &&
+      split_valid_uuid_csv(config.excluded_album_ids).empty()) return false;
+  if (config.people_enabled && split_valid_uuid_csv(config.person_ids).empty() &&
+      split_valid_uuid_csv(config.excluded_person_ids).empty()) return false;
+  if (config.tags_enabled && split_valid_uuid_csv(config.tag_ids).empty() &&
+      split_valid_uuid_csv(config.excluded_tag_ids).empty()) return false;
   return true;
 }
 
 inline bool immich_filter_has_missing_enabled_ids(const ImmichFilterConfig &config) {
-  if (config.albums_enabled && split_valid_uuid_csv(config.album_ids).empty()) return true;
-  if (config.people_enabled && split_valid_uuid_csv(config.person_ids).empty()) return true;
-  if (config.tags_enabled && split_valid_uuid_csv(config.tag_ids).empty()) return true;
+  if (config.albums_enabled && split_valid_uuid_csv(config.album_ids).empty() &&
+      split_valid_uuid_csv(config.excluded_album_ids).empty()) return true;
+  if (config.people_enabled && split_valid_uuid_csv(config.person_ids).empty() &&
+      split_valid_uuid_csv(config.excluded_person_ids).empty()) return true;
+  if (config.tags_enabled && split_valid_uuid_csv(config.tag_ids).empty() &&
+      split_valid_uuid_csv(config.excluded_tag_ids).empty()) return true;
   return false;
 }
 
@@ -192,12 +202,14 @@ inline bool immich_filter_can_use_album_asset_count(
   return split_valid_uuid_csv(branch.album_ids).size() == 1 &&
          split_valid_uuid_csv(branch.person_ids).empty() &&
          split_valid_uuid_csv(branch.tag_ids).empty() &&
-         config.favorite_mode == "Any" && config.minimum_rating == 0 &&
+         (!config.favorites_enabled || config.favorite_mode == "Any") &&
+         (!config.rating_enabled || config.minimum_rating == 0) &&
          config.taken_after.empty() && config.taken_before.empty() &&
-         config.city.empty() && config.state.empty() && config.country.empty() &&
-         split_valid_uuid_csv(config.excluded_album_ids).empty() &&
-         split_valid_uuid_csv(config.excluded_person_ids).empty() &&
-         split_valid_uuid_csv(config.excluded_tag_ids).empty();
+         (!config.location_enabled ||
+          (config.city.empty() && config.state.empty() && config.country.empty())) &&
+         (!config.albums_enabled || split_valid_uuid_csv(config.excluded_album_ids).empty()) &&
+         (!config.people_enabled || split_valid_uuid_csv(config.excluded_person_ids).empty()) &&
+         (!config.tags_enabled || split_valid_uuid_csv(config.excluded_tag_ids).empty());
 }
 
 inline std::vector<std::string> immich_enabled_inclusion_groups(const ImmichFilterConfig &config) {
@@ -310,16 +322,16 @@ inline std::string build_immich_filter_search_body(
   if (generation == ImmichApiGeneration::V31_FLAT) {
     immich_append_json_field(body, root_field, "type", "\"IMAGE\"");
     immich_append_json_field(body, root_field, "visibility", "\"timeline\"");
-    if (config.favorite_mode == "Favorites only") {
+    if (config.favorites_enabled && config.favorite_mode == "Favorites only") {
       immich_append_json_field(body, root_field, "isFavorite", "true");
-    } else if (config.favorite_mode == "Exclude favorites") {
+    } else if (config.favorites_enabled && config.favorite_mode == "Exclude favorites") {
       immich_append_json_field(body, root_field, "isFavorite", "false");
     }
     if (!config.taken_after.empty()) immich_append_json_field(body, root_field, "takenAfter", "\"" + immich_json_escape(config.taken_after) + "\"");
     if (!config.taken_before.empty()) immich_append_json_field(body, root_field, "takenBefore", "\"" + immich_json_escape(config.taken_before) + "\"");
-    if (!config.country.empty()) immich_append_json_field(body, root_field, "country", "\"" + immich_json_escape(config.country) + "\"");
-    if (!config.state.empty()) immich_append_json_field(body, root_field, "state", "\"" + immich_json_escape(config.state) + "\"");
-    if (!config.city.empty()) immich_append_json_field(body, root_field, "city", "\"" + immich_json_escape(config.city) + "\"");
+    if (config.location_enabled && !config.country.empty()) immich_append_json_field(body, root_field, "country", "\"" + immich_json_escape(config.country) + "\"");
+    if (config.location_enabled && !config.state.empty()) immich_append_json_field(body, root_field, "state", "\"" + immich_json_escape(config.state) + "\"");
+    if (config.location_enabled && !config.city.empty()) immich_append_json_field(body, root_field, "city", "\"" + immich_json_escape(config.city) + "\"");
     if (!branch.album_ids.empty()) immich_append_json_field(body, root_field, "albumIds", build_valid_uuid_json_array(branch.album_ids));
     if (!branch.person_ids.empty()) immich_append_json_field(body, root_field, "personIds", build_valid_uuid_json_array(branch.person_ids));
     if (!branch.tag_ids.empty()) immich_append_json_field(body, root_field, "tagIds", build_valid_uuid_json_array(branch.tag_ids));
@@ -329,9 +341,9 @@ inline std::string build_immich_filter_search_body(
     auto eq_string = [](const std::string &value) { return "{\"eq\":\"" + immich_json_escape(value) + "\"}"; };
     immich_append_json_field(filter, filter_field, "type", eq_string("IMAGE"));
     immich_append_json_field(filter, filter_field, "visibility", eq_string("timeline"));
-    if (config.favorite_mode == "Favorites only") immich_append_json_field(filter, filter_field, "isFavorite", "{\"eq\":true}");
-    else if (config.favorite_mode == "Exclude favorites") immich_append_json_field(filter, filter_field, "isFavorite", "{\"eq\":false}");
-    if (config.minimum_rating > 0) immich_append_json_field(filter, filter_field, "rating", "{\"gte\":" + std::to_string(config.minimum_rating) + "}");
+    if (config.favorites_enabled && config.favorite_mode == "Favorites only") immich_append_json_field(filter, filter_field, "isFavorite", "{\"eq\":true}");
+    else if (config.favorites_enabled && config.favorite_mode == "Exclude favorites") immich_append_json_field(filter, filter_field, "isFavorite", "{\"eq\":false}");
+    if (config.rating_enabled && config.minimum_rating > 0) immich_append_json_field(filter, filter_field, "rating", "{\"gte\":" + std::to_string(config.minimum_rating) + "}");
     if (!config.taken_after.empty() || !config.taken_before.empty()) {
       std::string range = "{";
       bool range_field = false;
@@ -340,11 +352,12 @@ inline std::string build_immich_filter_search_body(
       range += "}";
       immich_append_json_field(filter, filter_field, "takenAt", range);
     }
-    if (!config.country.empty()) immich_append_json_field(filter, filter_field, "country", eq_string(config.country));
-    if (!config.state.empty()) immich_append_json_field(filter, filter_field, "state", eq_string(config.state));
-    if (!config.city.empty()) immich_append_json_field(filter, filter_field, "city", eq_string(config.city));
+    if (config.location_enabled && !config.country.empty()) immich_append_json_field(filter, filter_field, "country", eq_string(config.country));
+    if (config.location_enabled && !config.state.empty()) immich_append_json_field(filter, filter_field, "state", eq_string(config.state));
+    if (config.location_enabled && !config.city.empty()) immich_append_json_field(filter, filter_field, "city", eq_string(config.city));
     auto append_ids = [&](const std::string &key, const std::string &included,
-                          const std::string &excluded) {
+                          const std::string &excluded, bool enabled) {
+      if (!enabled) return;
       std::string predicate = "{";
       bool predicate_field = false;
       if (!included.empty()) {
@@ -358,9 +371,9 @@ inline std::string build_immich_filter_search_body(
       predicate += "}";
       if (predicate_field) immich_append_json_field(filter, filter_field, key, predicate);
     };
-    append_ids("albumIds", branch.album_ids, config.excluded_album_ids);
-    append_ids("personIds", branch.person_ids, config.excluded_person_ids);
-    append_ids("tagIds", branch.tag_ids, config.excluded_tag_ids);
+    append_ids("albumIds", branch.album_ids, config.excluded_album_ids, config.albums_enabled);
+    append_ids("personIds", branch.person_ids, config.excluded_person_ids, config.people_enabled);
+    append_ids("tagIds", branch.tag_ids, config.excluded_tag_ids, config.tags_enabled);
     filter += "}";
     immich_append_json_field(body, root_field, "filter", filter);
   }
@@ -648,14 +661,16 @@ inline bool parse_immich_server_version(const std::string &body, std::string *ve
 }
 
 inline std::string legacy_source_for_filter(const ImmichFilterConfig &config) {
-  if (config.favorite_mode == "Favorites only" && !config.albums_enabled &&
+  if (config.favorites_enabled && config.favorite_mode == "Favorites only" && !config.albums_enabled &&
       !config.people_enabled && !config.tags_enabled && config.minimum_rating == 0 &&
-      config.city.empty() && config.state.empty() && config.country.empty() &&
+      !config.rating_enabled && !config.location_enabled &&
       config.excluded_album_ids.empty() && config.excluded_person_ids.empty() &&
       config.excluded_tag_ids.empty()) return "Favorites";
-  if (config.favorite_mode != "Any" || config.minimum_rating != 0 || !config.city.empty() ||
-      !config.state.empty() || !config.country.empty() || !config.excluded_album_ids.empty() ||
-      !config.excluded_person_ids.empty() || !config.excluded_tag_ids.empty()) return "Custom";
+  if ((config.favorites_enabled && config.favorite_mode != "Any") ||
+      (config.rating_enabled && config.minimum_rating != 0) || config.location_enabled ||
+      (config.albums_enabled && !config.excluded_album_ids.empty()) ||
+      (config.people_enabled && !config.excluded_person_ids.empty()) ||
+      (config.tags_enabled && !config.excluded_tag_ids.empty())) return "Custom";
   int enabled = static_cast<int>(config.albums_enabled) + static_cast<int>(config.people_enabled) +
                 static_cast<int>(config.tags_enabled);
   if (enabled == 0) return "All Photos";
@@ -673,6 +688,9 @@ inline void apply_legacy_source_to_filter(const std::string &source,
   config->albums_enabled = source == "Album";
   config->people_enabled = source == "Person";
   config->tags_enabled = source == "Tag";
+  config->favorites_enabled = source == "Favorites";
+  config->rating_enabled = false;
+  config->location_enabled = false;
   config->inclusion_matching = "Match all enabled groups";
   config->favorite_mode = source == "Favorites" ? "Favorites only" : "Any";
   config->minimum_rating = 0;

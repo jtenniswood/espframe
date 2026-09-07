@@ -1,5 +1,8 @@
 #pragma once
 
+#include "slideshow_model.h"
+#include "slideshow_controller.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -141,6 +144,38 @@ class EspFrameSlideshow {
   void reset_state() {
     this->state_.reset();
     this->commands_.clear();
+  }
+
+  // Hardware downloads must be aborted before discarding their tracking.
+  void invalidate_filter_slots() {
+    clear_slot_fetch_in_flight(0, this->state_.slot_flags);
+    clear_slot_fetch_in_flight(1, this->state_.slot_flags);
+    clear_slot_fetch_in_flight(2, this->state_.slot_flags);
+    this->state_.slot0.ready = false;
+    this->state_.slot1.ready = false;
+    this->state_.slot2.ready = false;
+    this->state_.portrait_preload_slot = -1;
+    this->state_.portrait_preload_left_ready = false;
+    this->state_.portrait_preload_right_ready = false;
+    // Same reasoning for the non-critical update tracking: the flush
+    // cancels every outstanding update, so the per-slot flags and the
+    // counter both have to go, not just the preload flag. Clearing them
+    // together is what makes zeroing the counter safe — clear_noncritical()
+    // only decrements when the slot's flag is still set, so a completion
+    // arriving after the flush finds the flag already false and leaves the
+    // counter alone. Left partially reset, a stuck non-zero count makes
+    // both request_prefetch() and prepare_deferred_slot_update() refuse to
+    // do any further work.
+    this->state_.slot_flags.noncritical_update[0] = false;
+    this->state_.slot_flags.noncritical_update[1] = false;
+    this->state_.slot_flags.noncritical_update[2] = false;
+    this->state_.preload_noncritical_in_flight = false;
+    this->state_.noncritical_remote_updates_in_flight = 0;
+    // Backward navigation must not restore a photo selected by the old
+    // filter after this slot generation is discarded.
+    this->state_.previous_display = DisplayMeta{};
+    this->state_.active_slot_displayed = false;
+    this->state_.target_slot = this->state_.active_slot;
   }
 
   bool has_command() const { return !this->commands_.empty(); }

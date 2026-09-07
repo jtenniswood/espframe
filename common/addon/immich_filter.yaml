@@ -24,8 +24,29 @@ esphome:
               - script.execute:
                   id: apply_legacy_photo_source_preset
                   preserve_tag_matching: true
+        - if:
+            condition:
+              lambda: 'return id(immich_filter_schema_version) < 2;'
+            then:
               - lambda: |-
-                  id(immich_filter_schema_version) = 1;
+                  const bool adapter_active = id(immich_filter_preset_adapter_active);
+                  id(immich_filter_preset_adapter_active) = true;
+                  if (!id(immich_excluded_album_ids).state.empty()) id(immich_albums_enabled).turn_on();
+                  if (!id(immich_excluded_person_ids).state.empty()) id(immich_people_enabled).turn_on();
+                  if (!id(immich_excluded_tag_ids).state.empty()) id(immich_tags_enabled).turn_on();
+                  if (id(immich_favorite_mode).current_option() != "Any") {
+                    id(immich_favorites_enabled).turn_on();
+                  }
+                  if (id(immich_minimum_rating).current_option() != "Any") {
+                    id(immich_rating_enabled).turn_on();
+                  }
+                  if (!id(immich_filter_country).state.empty() ||
+                      !id(immich_filter_state).state.empty() ||
+                      !id(immich_filter_city).state.empty()) {
+                    id(immich_location_enabled).turn_on();
+                  }
+                  id(immich_filter_preset_adapter_active) = adapter_active;
+                  id(immich_filter_schema_version) = 2;
                   global_preferences->sync();
         - lambda: 'id(immich_filter_boot_restore_complete) = true;'
 
@@ -327,6 +348,57 @@ switch:
     # ESPFRAME:SETTING_FIELDS tags_enabled START
     restore_mode: RESTORE_DEFAULT_OFF
     # ESPFRAME:SETTING_FIELDS tags_enabled END
+    on_turn_on:
+      then:
+        - script.execute: mark_photo_filter_custom
+        - script.execute: auto_apply_photo_source
+    on_turn_off:
+      then:
+        - script.execute: mark_photo_filter_custom
+        - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: Favorites Enabled"
+    id: immich_favorites_enabled
+    internal: true
+    optimistic: true
+    # ESPFRAME:SETTING_FIELDS favorites_enabled START
+    restore_mode: RESTORE_DEFAULT_OFF
+    # ESPFRAME:SETTING_FIELDS favorites_enabled END
+    on_turn_on:
+      then:
+        - script.execute: mark_photo_filter_custom
+        - script.execute: auto_apply_photo_source
+    on_turn_off:
+      then:
+        - script.execute: mark_photo_filter_custom
+        - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: Rating Enabled"
+    id: immich_rating_enabled
+    internal: true
+    optimistic: true
+    # ESPFRAME:SETTING_FIELDS rating_enabled START
+    restore_mode: RESTORE_DEFAULT_OFF
+    # ESPFRAME:SETTING_FIELDS rating_enabled END
+    on_turn_on:
+      then:
+        - script.execute: mark_photo_filter_custom
+        - script.execute: auto_apply_photo_source
+    on_turn_off:
+      then:
+        - script.execute: mark_photo_filter_custom
+        - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: Location Enabled"
+    id: immich_location_enabled
+    internal: true
+    optimistic: true
+    # ESPFRAME:SETTING_FIELDS location_enabled START
+    restore_mode: RESTORE_DEFAULT_OFF
+    # ESPFRAME:SETTING_FIELDS location_enabled END
     on_turn_on:
       then:
         - script.execute: mark_photo_filter_custom
@@ -672,6 +744,9 @@ script:
           config.albums_enabled = id(immich_albums_enabled).state;
           config.people_enabled = id(immich_people_enabled).state;
           config.tags_enabled = id(immich_tags_enabled).state;
+          config.favorites_enabled = id(immich_favorites_enabled).state;
+          config.rating_enabled = id(immich_rating_enabled).state;
+          config.location_enabled = id(immich_location_enabled).state;
           config.album_ids = id(immich_album_ids).state;
           config.person_ids = id(immich_person_ids).state;
           config.tag_ids = id(immich_tag_ids).state;
@@ -729,6 +804,9 @@ script:
           set_switch(id(immich_albums_enabled), source == "Album");
           set_switch(id(immich_people_enabled), source == "Person");
           set_switch(id(immich_tags_enabled), source == "Tag");
+          set_switch(id(immich_favorites_enabled), source == "Favorites");
+          set_switch(id(immich_rating_enabled), false);
+          set_switch(id(immich_location_enabled), false);
           set_option(id(immich_inclusion_matching), "Match all enabled groups");
           set_option(id(immich_album_matching), "Any selected album");
           set_option(id(immich_person_matching), "Any selected person");
@@ -803,34 +881,7 @@ script:
           id(immich_portrait_right).abort_download();
           id(immich_portrait_preload_left).abort_download();
           id(immich_portrait_preload_right).abort_download();
-          clear_slot_fetch_in_flight(0, id(espframe_core).slideshow().state().slot_flags);
-          clear_slot_fetch_in_flight(1, id(espframe_core).slideshow().state().slot_flags);
-          clear_slot_fetch_in_flight(2, id(espframe_core).slideshow().state().slot_flags);
-          id(espframe_core).slideshow().state().slot0.ready = false;
-          id(espframe_core).slideshow().state().slot1.ready = false;
-          id(espframe_core).slideshow().state().slot2.ready = false;
-          id(espframe_core).slideshow().state().portrait_preload_slot = -1;
-          id(espframe_core).slideshow().state().portrait_preload_left_ready = false;
-          id(espframe_core).slideshow().state().portrait_preload_right_ready = false;
-          // Same reasoning for the non-critical update tracking: the flush
-          // cancels every outstanding update, so the per-slot flags and the
-          // counter both have to go, not just the preload flag. Clearing them
-          // together is what makes zeroing the counter safe — clear_noncritical()
-          // only decrements when the slot's flag is still set, so a completion
-          // arriving after the flush finds the flag already false and leaves the
-          // counter alone. Left partially reset, a stuck non-zero count makes
-          // both request_prefetch() and prepare_deferred_slot_update() refuse to
-          // do any further work.
-          id(espframe_core).slideshow().state().slot_flags.noncritical_update[0] = false;
-          id(espframe_core).slideshow().state().slot_flags.noncritical_update[1] = false;
-          id(espframe_core).slideshow().state().slot_flags.noncritical_update[2] = false;
-          id(espframe_core).slideshow().state().preload_noncritical_in_flight = false;
-          id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight = 0;
-          // Backward navigation must not restore a photo selected by the old
-          // filter after this slot generation is discarded.
-          id(espframe_core).slideshow().state().previous_display = DisplayMeta{};
-          id(espframe_core).slideshow().state().active_slot_displayed = false;
-          id(espframe_core).slideshow().state().target_slot = id(espframe_core).slideshow().state().active_slot;
+          id(espframe_core).slideshow().invalidate_filter_slots();
       - script.execute: immich_fetch_into_slot
 
   - id: auto_apply_photo_source

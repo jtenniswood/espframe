@@ -74,8 +74,10 @@ assert.ok(publicApp.includes('"album_order"'), "public app should include album 
 assert.ok(publicApp.includes("Move up"), "public app should include album reorder controls");
 assert.ok(publicApp.includes("movePhotoIdRow"), "public app should keep photo ID and label rows reorderable");
 assert.ok(
-  publicApp.includes("All selected albums need 3.2+"),
-  "flat-filter servers should explain why all-album matching is unavailable"
+  publicApp.includes("Requires Immich server version 3.2 or newer") &&
+    publicApp.includes('label: "Filter by "') &&
+    publicApp.includes("Filter by Location"),
+  "photo filters should expose progressive groups and clear compatibility guidance"
 );
 assert.ok(
   publicApp.includes("Choose Any to clear") &&
@@ -85,14 +87,11 @@ assert.ok(
 assert.ok(
   publicApp.includes("disableEditing: !supportsStructured") &&
     publicApp.includes("allowClearLast: !supportsStructured") &&
-    publicApp.includes("saved ones can be removed"),
+    publicApp.includes("Saved exclusions can be removed"),
   "compatibility mode should prevent new exclusions while allowing saved exclusions to be removed"
 );
-assert.ok(
-  publicApp.includes("3.1: Match all + multiple Any people/tags needs 3.2+") &&
-    publicApp.includes('supportsStructured ? "setting-hint" : "banner warning"'),
-  "compatibility mode should clearly flag compound any-of intersections and their recovery options"
-);
+assert.ok(!publicApp.includes("Advanced inclusion options"),
+  "photo filters should not render the removed advanced inclusion panel");
 assert.ok(
   publicApp.includes("if (nextValue && index > 0") &&
     publicApp.includes("S[spec[1]] = nextValue"),
@@ -113,7 +112,7 @@ assert.ok(
   "applying a photo filter should reset any-selected ID retry state"
 );
 assert.ok(
-  filterFlush.includes("previous_display = DisplayMeta{}"),
+  filterFlush.includes("slideshow().invalidate_filter_slots()"),
   "applying a photo filter should invalidate backward-navigation history"
 );
 const statisticsFetch = immichApiSource.slice(
@@ -212,6 +211,17 @@ const legacySourceSelect = immichFilterSource.slice(
   immichFilterSource.indexOf('name: "Photos: Source"'),
   immichFilterSource.indexOf('name: "Photos: Inclusion Groups"')
 );
+const groupMigration = legacyMigration.slice(legacyMigration.indexOf("immich_filter_schema_version) < 2"));
+assert.ok(!groupMigration.includes(".set_option("),
+  "group toggle migration must preserve saved matching modes");
+assert.ok(groupMigration.indexOf("immich_filter_preset_adapter_active) = true") <
+  groupMigration.indexOf(".turn_on()") &&
+  groupMigration.includes("immich_filter_preset_adapter_active) = adapter_active"),
+  "migration must suppress preset callbacks while restoring group toggles");
+["album", "person", "tag"].forEach(function (noun) {
+  assert.ok(groupMigration.includes("immich_excluded_" + noun + "_ids).state.empty()"),
+    "migration must retain exclusion-only " + noun + " filters");
+});
 assert.ok(
   legacyMigration.includes("preserve_tag_matching: true"),
   "legacy schema migration should preserve the restored tag-matching preference"
@@ -292,6 +302,14 @@ const legacyAlbumBackup = backupImportContext.migrateBackupConfig({
 });
 assert.equal(legacyAlbumBackup.photos.albums_enabled, true, "legacy Album sources should enable the album group");
 assert.equal(legacyAlbumBackup.photos.source, "Album", "legacy photo sources should remain available to firmware migration");
+const migratedFilterBackup = backupImportContext.migrateBackupConfig({
+  version: 2,
+  photos: { favorite_mode: "Favorites only", minimum_rating: "4+", city: "Wellington" }
+});
+assert.equal(migratedFilterBackup.version, 3, "older filter backups should migrate to version 3");
+assert.equal(migratedFilterBackup.photos.favorites_enabled, true, "saved favorite mode should enable favorite filtering");
+assert.equal(migratedFilterBackup.photos.rating_enabled, true, "saved rating should enable rating filtering");
+assert.equal(migratedFilterBackup.photos.location_enabled, true, "saved location should enable location filtering");
 
 // The web server identifies each entity with name_id ("domain/Friendly Name") plus a
 // legacy id ("domain-object_id"). ENTITY_STATE_MAP and the REST endpoints both use the

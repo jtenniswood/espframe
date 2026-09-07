@@ -136,7 +136,7 @@
   },
   "ota_update_platform": "esphome",
   "ota_pre_update_action": "keeps the current backlight state while the update starts",
-  "backup_config_version": 2,
+  "backup_config_version": 3,
   "backup_filename_prefix": "espframe-config-",
   "backup_filename_date_format": "YYYY-MM-DD",
   "backup_import_photo_id_limit": 255,
@@ -164,6 +164,9 @@
       "albums_enabled",
       "people_enabled",
       "tags_enabled",
+      "favorites_enabled",
+      "rating_enabled",
+      "location_enabled",
       "inclusion_matching",
       "album_matching",
       "person_matching",
@@ -238,6 +241,9 @@
       "albums_enabled": "albums_enabled",
       "people_enabled": "people_enabled",
       "tags_enabled": "tags_enabled",
+      "favorites_enabled": "favorites_enabled",
+      "rating_enabled": "rating_enabled",
+      "location_enabled": "location_enabled",
       "inclusion_matching": "inclusion_matching",
       "album_matching": "album_matching",
       "person_matching": "person_matching",
@@ -347,7 +353,7 @@
       },
     {
       "path": "tests/fixtures/compat/espframe-config-v2-future-version.json",
-      "message": "Unsupported backup version 3 - this device supports version 2"
+        "message": "Unsupported backup version 4 - this device supports version 3"
       },
       {
         "path": "tests/fixtures/compat/espframe-config-v0-unsupported-version.json",
@@ -615,6 +621,17 @@
       ]
     },
     {
+      "id": "portrait_pairing",
+      "label": "Portrait Pairing",
+      "tab": "immich",
+      "function": "makePortraitPairingCard",
+      "settings": [
+        "portrait_pairing",
+        "portrait_pairs_only",
+        "portrait_pairing_range"
+      ]
+    },
+    {
       "id": "photo_source",
       "label": "Photo Filter",
       "tab": "immich",
@@ -624,16 +641,25 @@
         "albums_enabled",
         "people_enabled",
         "tags_enabled",
+        "date_filter_enabled",
+        "date_filter_mode",
+        "date_from",
+        "date_to",
+        "relative_amount",
+        "relative_unit",
+        "favorites_enabled",
+        "rating_enabled",
+        "location_enabled",
         "inclusion_matching",
         "album_matching",
         "person_matching",
+        "tag_matching",
         "favorite_mode",
         "minimum_rating",
         "filter_country",
         "filter_state",
         "filter_city",
-        "album_order",
-        "tag_matching"
+        "album_order"
       ],
       "static_entities": [
         "album_ids",
@@ -657,31 +683,11 @@
       ]
     },
     {
-      "id": "advanced_filters",
-      "label": "Advanced Filters",
-      "tab": "immich",
-      "function": "makeAdvancedFiltersCard",
-      "settings": [
-        "date_filter_enabled",
-        "date_filter_mode",
-        "date_from",
-        "date_to",
-        "relative_amount",
-        "relative_unit"
-      ],
-      "manual_entities": [
-        "apply_photo_source"
-      ]
-    },
-    {
       "id": "layout",
-      "label": "Layout",
+      "label": "Photo Display",
       "tab": "immich",
       "function": "makeLayoutCard",
       "settings": [
-        "portrait_pairing",
-        "portrait_pairing_range",
-        "portrait_pairs_only",
         "photo_orientation",
         "display_mode"
       ]
@@ -1148,16 +1154,19 @@
           "albums_enabled",
           "people_enabled",
           "tags_enabled",
+          "favorites_enabled",
+          "rating_enabled",
+          "location_enabled",
           "inclusion_matching",
           "album_matching",
           "person_matching",
+          "tag_matching",
           "favorite_mode",
           "minimum_rating",
           "filter_country",
           "filter_state",
           "filter_city",
-          "album_order",
-          "tag_matching"
+          "album_order"
         ]
       },
       "date_filtering": {
@@ -1176,11 +1185,15 @@
           "relative_unit"
         ]
       },
-      "layout": {
+      "portrait_pairing": {
         "settings": [
           "portrait_pairing",
-          "portrait_pairing_range",
           "portrait_pairs_only",
+          "portrait_pairing_range"
+        ]
+      },
+      "layout": {
+        "settings": [
           "photo_orientation",
           "display_mode"
         ]
@@ -1535,6 +1548,9 @@
     "albums_enabled": {},
     "people_enabled": {},
     "tags_enabled": {},
+    "favorites_enabled": {},
+    "rating_enabled": {},
+    "location_enabled": {},
     "inclusion_matching": {},
     "album_matching": {},
     "person_matching": {},
