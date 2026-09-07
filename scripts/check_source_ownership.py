@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -140,6 +141,16 @@ def check_external_assets(manifest: dict[str, object], errors: list[str]) -> Non
                 require_path(declaration, f"external_build_assets[{index}] declaration", errors)
 
 
+def runtime_source_files(root: Path):
+    """Walk shipped sources without inspecting ESPHome's downloaded build cache."""
+    for directory, children, filenames in os.walk(root):
+        children[:] = sorted(name for name in children if name != ".esphome")
+        for filename in sorted(filenames):
+            path = Path(directory) / filename
+            if path.suffix in {".yaml", ".yml", ".ts", ".js", ".css", ".html"}:
+                yield path
+
+
 def check_runtime_policy(manifest: dict[str, object], errors: list[str]) -> None:
     policy = manifest.get("runtime_network_policy")
     if not isinstance(policy, dict):
@@ -168,9 +179,7 @@ def check_runtime_policy(manifest: dict[str, object], errors: list[str]) -> None
         ROOT / "docs" / "public" / "webserver",
     ]
     for root in runtime_files:
-        for path in root.rglob("*"):
-            if not path.is_file() or path.suffix not in {".yaml", ".yml", ".ts", ".js", ".css", ".html"}:
-                continue
+        for path in runtime_source_files(root):
             text = path.read_text(encoding="utf-8")
             for needle in forbidden:
                 if needle in text:
