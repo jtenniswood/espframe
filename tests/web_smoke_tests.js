@@ -1043,8 +1043,11 @@ function smokeAssertionsForScenario(scenario) {
         if (!firstPhotoFilterToggle || firstPhotoFilterToggle.textContent.trim() !== "Filter by Date") {
           throw new Error("Date filter should appear at the top of Photo Filter");
         }
-        const dateFilterGroup = firstPhotoFilterToggle.closest(".filter-group-details");
-        if (!dateFilterGroup || parseFloat(getComputedStyle(dateFilterGroup).paddingBottom) < 16) {
+        const dateFilterRow = firstPhotoFilterToggle.closest(".field");
+        const dateFilterGroup = dateFilterRow && dateFilterRow.nextElementSibling;
+        if (!dateFilterRow || dateFilterRow.closest(".filter-group-details") ||
+            !dateFilterGroup || !dateFilterGroup.classList.contains("filter-group-details") ||
+            parseFloat(getComputedStyle(dateFilterGroup).paddingBottom) < 16) {
           throw new Error("Date filter should use the shared filter group styling");
         }
         requireText("Connection Timeout");

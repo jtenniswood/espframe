@@ -3089,8 +3089,7 @@ to {
     var filterBody = el("div", "filter-group-details");
     var filterApplyTimer = null;
     var filterDetails = el("div");
-    filterDetails.style.display = S.date_filter_enabled ? "" : "none";
-    filterBody.appendChild(toggleSettingRow({
+    var filterToggle = toggleSettingRow({
       label: "Filter by Date",
       value: S.date_filter_enabled,
       getValue: function() {
@@ -3099,9 +3098,10 @@ to {
       setValue: function(value) {
         S.date_filter_enabled = value;
       },
-      details: filterDetails,
+      details: filterBody,
       onChange: scheduleFilterApply
-    }).field);
+    });
+    parent.appendChild(filterToggle.field);
     var fFilterMode = field("Mode");
     var modeVal = S.date_filter_mode;
     var modeSegment = segmentedControl(productSettingOptions("date_filter_mode"), modeVal, function(v) {
@@ -3218,6 +3218,7 @@ to {
       filterApplyTimer = setTimeout(applyFilterSettings, 300);
     }
     filterBody.appendChild(filterDetails);
+    filterBody.style.display = S.date_filter_enabled ? "" : "none";
     parent.appendChild(filterBody);
   }
   function makePortraitPairingCard() {
