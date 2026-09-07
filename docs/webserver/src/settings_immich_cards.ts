@@ -22,8 +22,7 @@
         true,
         function (saved) { return normalizeImmichUrl(saved) === normalized; }
       ).then(function () {
-        S.immich_url = normalized;
-        urlInput.value = normalized;
+        if (S.immich_url === normalized) urlInput.value = normalized;
         showSaved("URL saved");
       }).catch(function () {
         showConnectionError("Failed to save URL");
@@ -62,7 +61,6 @@
             false,
             function (saved) { return !!saved; }
           ).then(function () {
-            S.api_key = v;
             showSaved("API key saved");
             showKeyMasked();
           }).catch(function () {

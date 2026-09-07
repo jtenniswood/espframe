@@ -184,6 +184,7 @@ const scenarios = [
   { name: "wizard-connection-save", configured: false, width: 1280, height: 900 },
   { name: "wizard-connection-save-legacy", configured: false, width: 1280, height: 900, legacyApi: true },
   { name: "settings", configured: true, width: 1280, height: 900 },
+  { name: "connection-overlapping-url-saves", configured: true, width: 1280, height: 900 },
   { name: "settings-accessibility", configured: true, width: 1280, height: 900 },
   { name: "setting-save-rejected", configured: true, width: 1280, height: 900, failedPostEndpoint: "Screen: Daytime Brightness" },
   { name: "settings-mobile", configured: true, width: 390, height: 900 },
@@ -1221,6 +1222,22 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "daily-settings-controls") {
             await requireDailySettingsControls();
+          }
+
+          if (${JSON.stringify(scenario.name)} === "connection-overlapping-url-saves") {
+            clickTab("Immich");
+            expandCard("Connection");
+            const input = fieldByLabel("Immich Server URL").querySelector("input");
+            const first = "https://first.example.test";
+            const second = "https://second.example.test";
+            input.value = first;
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            input.value = second;
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            await waitFor(() => window.__smoke.postRecords.some(record =>
+              new URLSearchParams(record.body).get("value") === second), 6000, "second queued connection save");
+            if (input.value !== second) throw new Error("Older connection save overwrote the newer input");
+            await waitFor(() => pageText().includes("URL saved"), 4000, "verified connection save");
           }
 
           if (${JSON.stringify(scenario.name)} === "settings-accessibility") {
