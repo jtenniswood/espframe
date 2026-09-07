@@ -2548,7 +2548,24 @@ to {
   }
   function makeSmartPhotoFilterCard() {
     var body = el("div");
-    appendDateFilterControls(body);
+    function filtersActive() {
+      return [
+        "date_filter_enabled",
+        "albums_enabled",
+        "people_enabled",
+        "tags_enabled",
+        "favorites_enabled",
+        "rating_enabled",
+        "location_enabled"
+      ].some(function(key) {
+        return !!S[key];
+      });
+    }
+    var filterBadge = makeBadge(filtersActive());
+    function updateFilterBadge() {
+      setBadgeActive(filterBadge, filtersActive());
+    }
+    appendDateFilterControls(body, updateFilterBadge);
     var version = String(S.immich_server_version || "Unknown");
     var parts = version.split(".").map(Number);
     var supportsStructured = parts.length >= 2 && isFinite(parts[0]) && isFinite(parts[1]) && (parts[0] > 3 || parts[0] === 3 && parts[1] >= 2);
@@ -2568,6 +2585,7 @@ to {
       body.appendChild(notice);
     }
     function applySetting(key, value) {
+      updateFilterBadge();
       return saveSetting(key, value, { applyPhotoSource: true });
     }
     function addSelect(label, key, disabled, reason, recoveryValue) {
@@ -2816,7 +2834,7 @@ to {
     });
     locationDetails.style.display = S.location_enabled ? "" : "none";
     body.appendChild(locationDetails);
-    return makeCollapsibleCard("Photo Filter", body, true);
+    return makeCollapsibleCard("Photo Filter", body, true, filterBadge);
   }
   function makePhotoSourceCard() {
     return makeSmartPhotoFilterCard();
@@ -3078,7 +3096,7 @@ to {
     srcBody.appendChild(tagMatchingField);
     return makeCollapsibleCard("Photo Source", srcBody, true);
   }
-  function appendDateFilterControls(parent) {
+  function appendDateFilterControls(parent, onEnabledChange) {
     var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
     function isValidDate(s) {
       if (!DATE_RE.test(s)) return false;
@@ -3099,7 +3117,10 @@ to {
         S.date_filter_enabled = value;
       },
       details: filterBody,
-      onChange: scheduleFilterApply
+      onChange: function() {
+        if (onEnabledChange) onEnabledChange();
+        scheduleFilterApply();
+      }
     });
     parent.appendChild(filterToggle.field);
     var fFilterMode = field("Mode");

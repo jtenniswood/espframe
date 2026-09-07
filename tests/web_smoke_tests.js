@@ -1029,6 +1029,27 @@ function smokeAssertionsForScenario(scenario) {
         }
         expandCard("Portrait Pairing");
         const photoFilterCard = expandCard("Photo Filter");
+        const filterBadge = photoFilterCard.querySelector(".on-badge");
+        if (!filterBadge || getComputedStyle(filterBadge).display !== "none") {
+          throw new Error("Photo Filter badge must be hidden while open");
+        }
+        const filterToggles = Array.from(photoFilterCard.querySelectorAll('[role="switch"]'));
+        const initialFilterStates = filterToggles.map((toggle) => toggle.getAttribute("aria-checked") === "true");
+        filterToggles.forEach((toggle) => {
+          if (toggle.getAttribute("aria-checked") === "true") toggle.click();
+        });
+        photoFilterCard.querySelector(".card-header").click();
+        if (getComputedStyle(filterBadge).display !== "none") throw new Error("All filters off must hide badge");
+        filterToggles.forEach((toggle) => {
+          toggle.click();
+          if (getComputedStyle(filterBadge).display !== "inline-flex") {
+            throw new Error("Each enabled photo filter must show the collapsed ON badge");
+          }
+          toggle.click();
+          if (getComputedStyle(filterBadge).display !== "none") throw new Error("Last filter off must hide badge");
+        });
+        filterToggles.forEach((toggle, index) => { if (initialFilterStates[index]) toggle.click(); });
+        expandCard("Photo Filter");
         expandCard("Photo Display");
         expandCard("Metadata");
 
