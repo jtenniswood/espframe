@@ -2719,15 +2719,22 @@ to {
         }
       });
       inclusionParent.appendChild(editor.field);
+      var matchingKey = noun + "_matching";
+      if (String(S[matchingKey] || "").indexOf("All selected") === 0) {
+        inclusionParent.appendChild(addSelect(
+          "Matching " + label,
+          matchingKey,
+          !supportsStructured,
+          "Choose any selected item to clear the retained all-selected rule.",
+          "Any selected " + noun
+        ));
+      }
       addExclusions(details, "Excluded " + label, options.excludedIdKey, options.excludedLabelKey, noun);
       if (options && options.order) details.appendChild(productSelectSettingField("Album Order", "album_order"));
       details.style.display = S[enabledKey] ? "" : "none";
       body.appendChild(details);
     }
-    var configuredGroups = ["album_ids", "person_ids", "tag_ids"].filter(function(key) {
-      return !!String(S[key] || "").trim();
-    }).length;
-    if (configuredGroups > 1) {
+    {
       var advanced = document.createElement("details");
       advanced.className = "filter-nested";
       var advancedSummary = document.createElement("summary");
@@ -2757,9 +2764,13 @@ to {
     });
     function addValueGroup(label, enabledKey, settingKey, defaultValue, disabled, reason) {
       var details = el("div", "filter-group-details");
+      var valueField = addSelect(label, settingKey, disabled, reason, "Any");
+      var valueControl = valueField.querySelector("select");
       var row = toggleSettingRow({
         label: "Filter by " + label,
         value: !!S[enabledKey],
+        disabled: disabled && !S[enabledKey],
+        disabledTitle: reason,
         getValue: function() {
           return !!S[enabledKey];
         },
@@ -2770,13 +2781,21 @@ to {
         onChange: function(value) {
           if (value && (S[settingKey] == null || S[settingKey] === "Any")) {
             S[settingKey] = defaultValue;
+            valueControl.value = defaultValue;
             saveSetting(settingKey, defaultValue);
           }
           applySetting(enabledKey, value);
+          if (disabled && !value) {
+            row.toggle.onclick = function() {
+            };
+            row.toggle.setAttribute("aria-disabled", "true");
+            row.toggle.setAttribute("tabindex", "-1");
+            row.toggle.style.opacity = ".35";
+          }
         }
       });
       body.appendChild(row.field);
-      details.appendChild(addSelect(label, settingKey, disabled, reason, "Any"));
+      details.appendChild(valueField);
       details.style.display = S[enabledKey] ? "" : "none";
       body.appendChild(details);
     }

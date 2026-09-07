@@ -212,6 +212,17 @@ const legacySourceSelect = immichFilterSource.slice(
   immichFilterSource.indexOf('name: "Photos: Source"'),
   immichFilterSource.indexOf('name: "Photos: Inclusion Groups"')
 );
+const groupMigration = legacyMigration.slice(legacyMigration.indexOf("immich_filter_schema_version) < 2"));
+assert.ok(!groupMigration.includes(".set_option("),
+  "group toggle migration must preserve saved matching modes");
+assert.ok(groupMigration.indexOf("immich_filter_preset_adapter_active) = true") <
+  groupMigration.indexOf(".turn_on()") &&
+  groupMigration.includes("immich_filter_preset_adapter_active) = adapter_active"),
+  "migration must suppress preset callbacks while restoring group toggles");
+["album", "person", "tag"].forEach(function (noun) {
+  assert.ok(groupMigration.includes("immich_excluded_" + noun + "_ids).state.empty()"),
+    "migration must retain exclusion-only " + noun + " filters");
+});
 assert.ok(
   legacyMigration.includes("preserve_tag_matching: true"),
   "legacy schema migration should preserve the restored tag-matching preference"
