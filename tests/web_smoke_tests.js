@@ -878,18 +878,18 @@ function smokeAssertionsForScenario(scenario) {
           }
         }, 8000, "album reorder save");
       }
-      function requireIncludedTagsPanel() {
-        const tags = fieldByLabel("Selected Tags").closest(".filter-group-details");
-        if (!tags) throw new Error("Tags filter group not found");
-        const included = Array.from(tags.querySelectorAll("details")).find((item) =>
+      function requireIncludedPanel(groupLabel, selectedLabel) {
+        const group = fieldByLabel(selectedLabel).closest(".filter-group-details");
+        if (!group) throw new Error(groupLabel + " filter group not found");
+        const included = Array.from(group.querySelectorAll("details")).find((item) =>
           item.querySelector("summary") &&
-          item.querySelector("summary").textContent.trim() === "Included Tags"
+          item.querySelector("summary").textContent.trim() === "Included " + groupLabel
         );
         if (!included || !included.open || !included.querySelector("label")) {
-          throw new Error("Tags should group selected tags inside an open Included Tags panel");
+          throw new Error(groupLabel + " should group selected items inside an open Included panel");
         }
         if (!included.querySelector(".setting-hint") || !included.querySelector("button")) {
-          throw new Error("Included Tags panel should contain its hint and tag controls");
+          throw new Error("Included " + groupLabel + " panel should contain its hint and controls");
         }
       }
       async function requireScreenRotationDeveloperFlow() {
@@ -1241,7 +1241,8 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "photo-source-reorder") {
             await requireAlbumReorderSave();
-            requireIncludedTagsPanel();
+            requireIncludedPanel("People", "Selected People");
+            requireIncludedPanel("Tags", "Selected Tags");
           }
 
           if (${JSON.stringify(scenario.name)} === "screen-rotation-developer") {

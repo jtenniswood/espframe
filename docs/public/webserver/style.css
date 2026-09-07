@@ -391,7 +391,8 @@ input[readonly] {
   font-weight:500
 }
 
-.filter-exclusions summary {
+.filter-exclusions summary,
+.filter-inclusions summary {
   display:block;
   margin-bottom:12px
 }

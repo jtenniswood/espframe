@@ -522,7 +522,8 @@ input[readonly] {
   font-weight:500
 }
 
-.filter-exclusions summary {
+.filter-exclusions summary,
+.filter-inclusions summary {
   display:block;
   margin-bottom:12px
 }
@@ -2628,7 +2629,7 @@ to {
       var inclusionParent = details;
       if (options && options.includedPanel) {
         var included = document.createElement("details");
-        included.className = "filter-nested";
+        included.className = "filter-nested filter-inclusions";
         included.open = true;
         var includedSummary = document.createElement("summary");
         includedSummary.textContent = "Included " + label;
@@ -2674,7 +2675,8 @@ to {
     });
     addGroup("People", "people_enabled", "person_ids", "person_labels", "person", {
       excludedIdKey: "excluded_person_ids",
-      excludedLabelKey: "excluded_person_labels"
+      excludedLabelKey: "excluded_person_labels",
+      includedPanel: true
     });
     addGroup("Tags", "tags_enabled", "tag_ids", "tag_labels", "tag", {
       excludedIdKey: "excluded_tag_ids",

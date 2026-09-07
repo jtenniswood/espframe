@@ -205,7 +205,7 @@
       var inclusionParent = details;
       if (options && options.includedPanel) {
         var included = document.createElement("details");
-        included.className = "filter-nested";
+        included.className = "filter-nested filter-inclusions";
         included.open = true;
         var includedSummary = document.createElement("summary");
         includedSummary.textContent = "Included " + label;
@@ -239,7 +239,7 @@
       order: true, excludedIdKey: "excluded_album_ids", excludedLabelKey: "excluded_album_labels"
     });
     addGroup("People", "people_enabled", "person_ids", "person_labels", "person", {
-      excludedIdKey: "excluded_person_ids", excludedLabelKey: "excluded_person_labels"
+      excludedIdKey: "excluded_person_ids", excludedLabelKey: "excluded_person_labels", includedPanel: true
     });
     addGroup("Tags", "tags_enabled", "tag_ids", "tag_labels", "tag", {
       excludedIdKey: "excluded_tag_ids", excludedLabelKey: "excluded_tag_labels", includedPanel: true
