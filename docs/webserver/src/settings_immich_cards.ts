@@ -238,7 +238,7 @@
     }
 
     addGroup("Albums", "albums_enabled", "album_ids", "album_labels", "album", {
-      order: true, excludedIdKey: "excluded_album_ids", excludedLabelKey: "excluded_album_labels", includedPanel: true
+      order: true, excludedIdKey: "excluded_album_ids", excludedLabelKey: "excluded_album_labels", includedPanel: true, showInclusionHint: false
     });
     addGroup("People", "people_enabled", "person_ids", "person_labels", "person", {
       excludedIdKey: "excluded_person_ids", excludedLabelKey: "excluded_person_labels", includedPanel: true, showInclusionHint: false

@@ -2700,7 +2700,8 @@ to {
       order: true,
       excludedIdKey: "excluded_album_ids",
       excludedLabelKey: "excluded_album_labels",
-      includedPanel: true
+      includedPanel: true,
+      showInclusionHint: false
     });
     addGroup("People", "people_enabled", "person_ids", "person_labels", "person", {
       excludedIdKey: "excluded_person_ids",

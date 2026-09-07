@@ -1254,7 +1254,7 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "photo-source-reorder") {
             await requireAlbumReorderSave();
-            requireIncludedPanel("Albums", "Selected Albums", true);
+            requireIncludedPanel("Albums", "Selected Albums", false);
             requireIncludedPanel("People", "Selected People", false);
             requireIncludedPanel("Tags", "Selected Tags", true);
             requireAlbumOrderAfterExclusions();
