@@ -65,6 +65,10 @@
       var migrated = JSON.parse(JSON.stringify(data));
       var photos = migrated.photos;
       if (photos) {
+        [["albums_enabled", "excluded_album_ids"], ["people_enabled", "excluded_person_ids"],
+          ["tags_enabled", "excluded_tag_ids"]].forEach(function (group) {
+          if (String(photos[group[1]] || "").trim()) photos[group[0]] = true;
+        });
         if (!Object.prototype.hasOwnProperty.call(photos, "favorites_enabled")) {
           photos.favorites_enabled = photos.favorite_mode && photos.favorite_mode !== "Any";
         }

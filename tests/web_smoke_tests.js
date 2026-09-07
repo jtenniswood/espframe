@@ -28,6 +28,15 @@ const smokeAlbumIds = [
   "44444444-4444-4444-8444-444444444444",
 ];
 const smokeAlbumLabels = ["Family", "Travel"];
+const v2ExclusionBackupFixture = {
+  version: 2,
+  photos: {
+    albums_enabled: false, people_enabled: false, tags_enabled: false,
+    excluded_album_ids: smokeAlbumIds[0],
+    excluded_person_ids: smokeAlbumIds[0],
+    excluded_tag_ids: smokeAlbumIds[0]
+  }
+};
 
 function findExecutable(name) {
   const pathDirs = String(process.env.PATH || "")
@@ -184,6 +193,10 @@ const scenarios = [
   { name: "wizard-connection-save", configured: false, width: 1280, height: 900 },
   { name: "settings", configured: true, width: 1280, height: 900 },
   { name: "settings-mobile", configured: true, width: 390, height: 900 },
+  ...["3.1.0", "Unknown", "3.2.0"].map((version) => ({
+    name: "filter-compatibility-" + version.toLowerCase().replace(/\./g, "-"),
+    configured: true, width: 1280, height: 900, filterCompatibilityVersion: version
+  })),
   { name: "firmware-main-install", configured: true, width: 1280, height: 900 },
   { name: "firmware-main-install-from-development-build", configured: true, width: 1280, height: 900, installedFirmwareVersion: "dev" },
   { name: "firmware-c6-install", configured: true, width: 1280, height: 900 },
@@ -199,6 +212,7 @@ const scenarios = [
   { name: "screen-tone-schedule", configured: true, width: 1280, height: 900 },
   { name: "daily-settings-controls", configured: true, width: 1280, height: 900 },
   { name: "backup-import-success", configured: true, width: 1280, height: 900, importFixture: validBackupFixture },
+  { name: "backup-import-v2-exclusions", configured: true, width: 1280, height: 900, importFixture: v2ExclusionBackupFixture },
   { name: "backup-import-save-failure", configured: true, width: 1280, height: 900, importFixture: validBackupFixture, failedPostEndpoint: "Screen: Daytime Brightness" },
   { name: "backup-import-partial", configured: true, width: 1280, height: 900, importFixture: partialBackupFixture },
   { name: "backup-import-rejected", configured: true, width: 1280, height: 900, importFixture: rejectedBackupFixture },
@@ -248,7 +262,7 @@ function browserScriptForScenario(scenario) {
       if (this.download) window.__smoke.downloads += 1;
     };
     FileReader.prototype.readAsText = function (file) {
-      this.result = file && file.__smokeContent ? file.__smokeContent : "";
+      Object.defineProperty(this, "result", { configurable: true, value: file && file.__smokeContent ? file.__smokeContent : "" });
       if (this.onload) setTimeout(() => this.onload({ target: this }), 0);
     };
     HTMLInputElement.prototype.click = function () {
@@ -269,6 +283,7 @@ function browserScriptForScenario(scenario) {
         setTimeout(() => {
           if (this.onopen) this.onopen({ type: "open" });
           this.dispatch("log", { msg: "Smoke log line", lvl: 3 });
+          this.dispatch("state", { name_id: "text_sensor/Immich: Server Version", value: ${JSON.stringify(scenario.filterCompatibilityVersion || "3.2.0")} });
           this.dispatch("state", { id: "text_sensor/Screen: Sunrise", value: "06:30" });
           this.dispatch("state", { id: "text_sensor/Screen: Sunset", value: "21:45" });
           this.dispatch("state", { id: "text_sensor/Firmware: Version", value: ${JSON.stringify(installedFirmwareVersion)} });
@@ -304,6 +319,12 @@ function browserScriptForScenario(scenario) {
       "Photos: Person Labels": "Alex",
       "Photos: Tag IDs": "33333333-3333-4333-8333-333333333333",
       "Photos: Tag Labels": "Espframe",
+      "Photos: Excluded Album IDs": "",
+      "Photos: Excluded Album Labels": "",
+      "Photos: Excluded Person IDs": "",
+      "Photos: Excluded Person Labels": "",
+      "Photos: Excluded Tag IDs": "",
+      "Photos: Excluded Tag Labels": "",
       "Photos: Date Filter": true,
       "Photos: Date Filter Mode": "Fixed Range",
       "Photos: Date From": "2024-01-01",
@@ -347,6 +368,20 @@ function browserScriptForScenario(scenario) {
       "Screen: Rotation": "0",
       "Developer: Features": false
     };
+    if (${JSON.stringify(!!scenario.filterCompatibilityVersion)}) {
+      Object.assign(endpointValues, {
+        "Immich: Server Version": ${JSON.stringify(scenario.filterCompatibilityVersion || "3.2.0")},
+        "Photos: Albums Enabled": false,
+        "Photos: People Enabled": true,
+        "Photos: Tags Enabled": false,
+        "Photos: Excluded Album IDs": ${JSON.stringify(smokeAlbumIds[0])},
+        "Photos: Excluded Person IDs": ${JSON.stringify(smokeAlbumIds[0])},
+        "Photos: Excluded Tag IDs": ${JSON.stringify(smokeAlbumIds[0])},
+        "Photos: Person IDs": ${JSON.stringify(smokeAlbumIds.join(","))},
+        "Photos: Inclusion Groups": "Match all enabled groups",
+        "Photos: Person Matching": "Any selected person"
+      });
+    }
     const configurationKeyByEndpointName = ${JSON.stringify(configurationKeyByEndpointName)};
     const configurationEndpointNameByKey = Object.fromEntries(
       Object.entries(configurationKeyByEndpointName).map(([name, key]) => [key, name])
@@ -512,7 +547,7 @@ function smokeAssertionsForScenario(scenario) {
             } catch (error) {
               return reject(error);
             }
-            if (Date.now() - started > timeoutMs) return reject(new Error("Timed out waiting for " + label));
+            if (Date.now() - started > timeoutMs) return reject(new Error("Timed out waiting for " + label + (window.__smoke.lastAssertion || "")));
             setTimeout(poll, 50);
           }
           poll();
@@ -562,7 +597,8 @@ function smokeAssertionsForScenario(scenario) {
         }).filter(Boolean);
       }
       function latestConfigurationValue(fragment) {
-        const endpoint = Object.keys(configurationKeyByEndpointName).find((name) => name.indexOf(fragment) !== -1);
+        const endpoint = Object.prototype.hasOwnProperty.call(configurationKeyByEndpointName, fragment)
+          ? fragment : Object.keys(configurationKeyByEndpointName).find((name) => name.indexOf(fragment) !== -1);
         const key = endpoint && configurationKeyByEndpointName[endpoint];
         if (!key) return { found: false };
         const updates = configurationUpdates();
@@ -749,16 +785,16 @@ function smokeAssertionsForScenario(scenario) {
             throw new Error(title + " disclosure is not an accessible collapsed button");
           }
         });
-        if (!card.querySelector(".badge.active")) throw new Error("Outer firmware update badge is not active");
+        if (!card.querySelector(".on-badge.active")) throw new Error("Outer firmware update badge is not active");
         const updates = expandDisclosure("Firmware updates");
-        if (updates.textContent.indexOf("Current version") === -1 || updates.textContent.indexOf("v1.0.0") === -1) {
+        if (updates.textContent.indexOf("Current version") === -1 || updates.textContent.toLowerCase().indexOf(${JSON.stringify((scenario.installedFirmwareVersion || "v1.0.0").toLowerCase())}) === -1) {
           throw new Error("Current firmware version is missing");
         }
         if (updates.textContent.indexOf("Available version") === -1 || updates.textContent.indexOf("v1.0.1") === -1) {
           throw new Error("Available firmware version is missing");
         }
-        if (!disclosureByTitle("Firmware updates").querySelector(".disclosure-badge.active")) {
-          throw new Error("Main firmware update badge is not active");
+        if (!!disclosureByTitle("Firmware updates").querySelector(".disclosure-badge.active") !== ${JSON.stringify(scenario.installedFirmwareVersion !== "dev")}) {
+          throw new Error("Main firmware update badge does not match the installed version");
         }
         if (!disclosureByTitle("Auto updates").querySelector(".disclosure-badge.active")) {
           throw new Error("Automatic update badge is not active");
@@ -770,7 +806,7 @@ function smokeAssertionsForScenario(scenario) {
         if (!wifi.querySelector(".disclosure-badge.active")) throw new Error("WiFi update badge is not active");
         const previous = expandDisclosure("Previous firmware");
         const versions = Array.from(previous.querySelectorAll("option")).map((option) => option.value);
-        if (JSON.stringify(versions) !== JSON.stringify(["v0.9.0"])) {
+        if (JSON.stringify(versions) !== JSON.stringify(${JSON.stringify(scenario.installedFirmwareVersion === "dev" ? ["v1.0.1", "v1.0.0", "v0.9.0"] : ["v0.9.0"])})) {
           throw new Error("Rollback choices are wrong: " + JSON.stringify(versions));
         }
       }
@@ -828,30 +864,16 @@ function smokeAssertionsForScenario(scenario) {
           Array.from(row.querySelectorAll("input")).map((inputEl) => inputEl.value)
         );
       }
-      function requirePhotoSourceModes() {
-        const sourceSelect = selectByLabel("Source");
-        ["All Photos", "Favorites", "Album", "Person", "Tag", "Memories"].forEach((mode) => {
-          if (!Array.from(sourceSelect.options).some((option) => option.value === mode)) {
-            throw new Error("Missing photo source mode: " + mode);
-          }
-          setSelect("Source", mode);
-        });
-        requireText("Add an album");
-        setSelect("Source", "Person");
-        requireText("Add a person");
-        setSelect("Source", "Tag");
-        requireText("Add a tag");
-      }
       async function requireAlbumReorderSave() {
         const startingIds = ${JSON.stringify(smokeAlbumIds)};
         const startingLabels = ${JSON.stringify(smokeAlbumLabels)};
         const expectedIds = startingIds.slice().reverse().join(",");
         const expectedLabels = JSON.stringify(startingLabels.slice().reverse());
 
-        setSelect("Source", "Album");
-        await waitFor(() => photoRows("Albums").length === 2, 3000, "album rows");
+        toggleByText("Filter by Albums").click();
+        await waitFor(() => photoRows("Selected Albums").length === 2, 3000, "album rows");
 
-        const before = photoRowValues("Albums");
+        const before = photoRowValues("Selected Albums");
         if (JSON.stringify(before.map((row) => row[0])) !== JSON.stringify(startingIds)) {
           throw new Error("Unexpected starting album ID order: " + JSON.stringify(before));
         }
@@ -859,12 +881,12 @@ function smokeAssertionsForScenario(scenario) {
           throw new Error("Unexpected starting album label order: " + JSON.stringify(before));
         }
 
-        const moveUp = photoRows("Albums")[1].querySelector('[aria-label="Move album up"]');
+        const moveUp = photoRows("Selected Albums")[1].querySelector('[aria-label="Move up"]');
         if (!moveUp || moveUp.disabled) throw new Error("Second album row cannot move up");
         moveUp.click();
 
         await waitFor(() => {
-          const values = photoRowValues("Albums");
+          const values = photoRowValues("Selected Albums");
           return values[0] && values[0][0] === startingIds[1] && values[0][1] === startingLabels[1];
         }, 3000, "album row visual reorder");
 
@@ -929,7 +951,7 @@ function smokeAssertionsForScenario(scenario) {
         clickTab("Device");
         await waitFor(() => pageText().indexOf("Rotation") !== -1, 8000, "device settings");
         requireText("Screen Brightness");
-        requireText("Developer");
+        expandCard("Developer");
         requireText("Enable in-development features");
 
         requireSelectIncludes("Rotation", ["0", "180"]);
@@ -950,7 +972,8 @@ function smokeAssertionsForScenario(scenario) {
         await waitFor(() => {
           try {
             requireLatestPostParam("Portrait rotation", "Screen: Rotation", "option", "90");
-            return window.__smoke.posts.some((url) => url.indexOf("Photos: Portrait Pairing") !== -1 && url.indexOf("turn_off") !== -1);
+            requirePostContains("Portrait pairing disabled", "Photos: Portrait Pairing", "turn_off");
+            return true;
           } catch (_) {
             return false;
           }
@@ -975,6 +998,8 @@ function smokeAssertionsForScenario(scenario) {
         requireText("Screen Brightness");
         requireText("Screen Tone");
         requireText("Night Schedule");
+        expandCard("Screen Tone");
+        expandCard("Night Schedule");
         requireText("Screen Tone Adjustment");
         requireText("Night Tone Adjustment");
         requireText("Schedule Screen Off");
@@ -1023,7 +1048,7 @@ function smokeAssertionsForScenario(scenario) {
           throw new Error("Portrait pairing should be closed by default");
         }
         const initialPortraitPairingBadge = portraitPairingCard.querySelector(".card-header .on-badge");
-        if (!initialPortraitPairingBadge || getComputedStyle(initialPortraitPairingBadge).display !== "inline-flex") {
+        if (!initialPortraitPairingBadge || getComputedStyle(initialPortraitPairingBadge).display === "none") {
           throw new Error("Portrait pairing ON badge should be visible while the card is closed");
         }
         expandCard("Portrait Pairing");
@@ -1041,7 +1066,7 @@ function smokeAssertionsForScenario(scenario) {
         if (getComputedStyle(filterBadge).display !== "none") throw new Error("All filters off must hide badge");
         filterToggles.forEach((toggle) => {
           toggle.click();
-          if (getComputedStyle(filterBadge).display !== "inline-flex") {
+          if (getComputedStyle(filterBadge).display === "none") {
             throw new Error("Each enabled photo filter must show the collapsed ON badge");
           }
           toggle.click();
@@ -1076,6 +1101,8 @@ function smokeAssertionsForScenario(scenario) {
         requireText("Portrait Pairing");
         requireText("Pairing Range");
         requireText("Show Paired Portraits Only");
+        expandCard("Photo Display");
+        expandCard("Metadata");
         requireText("Display Photos");
         requireText("Display Mode");
         const displayModeOptions = Array.from(selectByLabel("Display Mode").options).map((option) => option.textContent);
@@ -1160,7 +1187,8 @@ function smokeAssertionsForScenario(scenario) {
             requireLatestPostValue("NTP server 2", "Clock: NTP Server 2", "time2.example.com");
             requireLatestPostValue("NTP server 3", "Clock: NTP Server 3", "time3.example.com");
             return true;
-          } catch (_) {
+          } catch (error) {
+            window.__smoke.lastAssertion = ": " + error.message;
             return false;
           }
         }, 8000, "daily settings saves");
@@ -1179,7 +1207,7 @@ function smokeAssertionsForScenario(scenario) {
         requireLatestPostValue("Wizard API key", "Connection: API Key", "setup-api-key");
 
         clickButton("Done");
-        await waitFor(() => pageText().indexOf("Photo Source") !== -1, 8000, "settings after wizard");
+        await waitFor(() => pageText().indexOf("Photo Filter") !== -1, 8000, "settings after wizard");
       }
 
       try {
@@ -1191,16 +1219,55 @@ function smokeAssertionsForScenario(scenario) {
           requireText("Import Settings");
         } else if (${JSON.stringify(scenario.name)} === "wizard-connection-save") {
           await requireWizardConnectionSave();
+        } else if (${JSON.stringify(!!scenario.filterCompatibilityVersion)}) {
+          await waitFor(() => pageText().indexOf("Photo Filter") !== -1, 8000, "photo filters");
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          expandCard("Photo Filter");
+          const structured = ${JSON.stringify(scenario.filterCompatibilityVersion === "3.2.0")};
+          for (const label of ["Albums", "Tags"]) {
+            const toggle = toggleByText("Filter by " + label);
+            if ((toggle.getAttribute("aria-disabled") === "true") !== !structured) {
+              throw new Error(label + " exclusion compatibility guard is incorrect");
+            }
+            if (!structured) {
+              toggle.click();
+              toggle.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+              if (toggle.getAttribute("aria-checked") !== "false") throw new Error("Blocked exclusions were enabled");
+            }
+          }
+          const people = toggleByText("Filter by People");
+          people.click();
+          if (people.getAttribute("aria-checked") !== "false") throw new Error("Active exclusions cannot be disabled");
+          if ((people.getAttribute("aria-disabled") === "true") !== !structured) throw new Error("Disabled exclusions can be re-enabled");
+          if (!structured) {
+            for (const label of ["Albums", "People", "Tags"]) {
+              const noun = label === "Albums" ? "album" : label === "People" ? "person" : "tag";
+              const panel = fieldByLabel("Selected " + label).closest(".filter-group-details");
+              if (getComputedStyle(panel).display === "none") throw new Error("Exclusion recovery is hidden");
+              panel.querySelector('button[aria-label="Remove exclusion"]').click();
+              await waitFor(() => toggleByText("Filter by " + label).getAttribute("aria-disabled") === "false", 4000, noun + " exclusion cleared");
+            }
+            toggleByText("Filter by Albums").click();
+            toggleByText("Filter by People").click();
+            const recovery = fieldByLabel("Inclusion Groups");
+            if (getComputedStyle(recovery).display === "none") throw new Error("Compound matching recovery missing after enabling groups");
+            if (getComputedStyle(recovery.querySelector(".compatibility-disabled")).display === "none") throw new Error("Compound matching warning missing");
+            setSelect("Inclusion Groups", "Match any enabled group");
+            await waitFor(() => {
+              try {
+                requireLatestPostValue("Inclusion recovery", "Photos: Inclusion Groups", "Match any enabled group");
+                return true;
+              } catch (_) { return false; }
+            }, 4000, "inclusion recovery saved");
+          }
         } else {
-          await waitFor(() => pageText().indexOf("Photo Source") !== -1, 8000, "settings");
+          await waitFor(() => pageText().indexOf("Photo Filter") !== -1, 8000, "settings");
+          expandCard("Connection");
           requireText("Immich Server URL");
-          requireText("Photo Source");
-          requireText("Date Filter");
-          requireText("Fixed Range");
-          requireText("Relative Range");
-          requireText("Firmware");
-          requireText("Auto updates");
-          requirePhotoSourceModes();
+          expandCard("Photo Filter");
+          requireText("Filter by Date");
+          requireText("Fixed");
+          requireText("Relative");
 
           if (${JSON.stringify(scenario.name)} === "settings" || ${JSON.stringify(scenario.name)} === "settings-mobile") {
             requireSettingsSections();
@@ -1339,6 +1406,17 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "daily-settings-controls") {
             await requireDailySettingsControls();
+          }
+
+          if (${JSON.stringify(scenario.name)} === "backup-import-v2-exclusions") {
+            clickButton("Import");
+            await waitFor(() => pageText().indexOf("Settings imported successfully") !== -1, 8000, "v2 exclusion import");
+            ["Albums", "People", "Tags"].forEach((group) => {
+              requirePostContains(group + " restored toggle", "Photos: " + group + " Enabled", "turn_on");
+            });
+            ["Album", "Person", "Tag"].forEach((noun) => {
+              requireLatestPostValue(noun + " restored exclusion", "Photos: Excluded " + noun + " IDs", ${JSON.stringify(smokeAlbumIds[0])});
+            });
           }
 
           if (${JSON.stringify(scenario.name)} === "backup-import-success") {
@@ -1500,10 +1578,7 @@ async function runScenario(scenario) {
       ...chromeSandboxArgs(),
       `--user-data-dir=${userDataDir}`,
       `--window-size=${scenario.width},${scenario.height}`,
-      // Chrome 151 can keep virtual time paused while an internal background
-      // request is pending. A real timeout still lets the app's asynchronous
-      // assertions settle, then reliably captures the resulting DOM.
-      "--timeout=16000",
+      "--virtual-time-budget=16000",
       "--dump-dom",
       `file://${htmlPath}${query}`,
     ],
@@ -1511,12 +1586,13 @@ async function runScenario(scenario) {
   );
 
   const output = `${result.stdout || ""}\n${result.stderr || ""}`;
+  const renderedOutput = output.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
   const passToken = `ESPFRAME_BROWSER_SMOKE_${scenario.name.toUpperCase().replace(/-/g, "_")}_PASS`;
-  if (!output.includes(passToken)) {
+  if (!renderedOutput.includes(passToken)) {
     assert.equal(result.timedOut, false, `Chrome timed out for ${scenario.name}:\n${output}`);
     assert.equal(result.status, 0, `Chrome failed for ${scenario.name} (signal: ${result.signal || "none"}):\n${output}`);
   }
-  assert.ok(output.includes(passToken), `Browser smoke scenario ${scenario.name} failed:\n${output}`);
+  assert.ok(renderedOutput.includes(passToken), `Browser smoke scenario ${scenario.name} failed:\n${output}`);
 }
 
 function selectedScenariosFromArgs(args) {
