@@ -2570,9 +2570,6 @@ to {
     var version = String(S.immich_server_version || "Unknown");
     var parts = version.split(".").map(Number);
     var supportsStructured = parts.length >= 2 && isFinite(parts[0]) && isFinite(parts[1]) && (parts[0] > 3 || parts[0] === 3 && parts[1] >= 2);
-    var capability = el("div", supportsStructured ? "setting-hint" : "banner warning");
-    capability.textContent = supportsStructured ? "Immich " + version + " \xB7 structured filters available" : "Immich " + version + " \xB7 Some filters require Immich server version 3.2 or newer.";
-    body.appendChild(capability);
     if (S.memories_migration_notice) {
       var notice = el("div", "banner warning");
       notice.textContent = "Memories was replaced by an empty filter (All Photos). Use date rules to create a similar playlist. ";
