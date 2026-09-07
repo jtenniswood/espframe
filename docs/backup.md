@@ -46,7 +46,7 @@ The export is a standard JSON file with a `version` field and grouped settings:
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "exported_at": "2026-03-29T12:00:00.000Z",
   "connection": { "immich_url": "...", "api_key": "..." },
   "photos": {

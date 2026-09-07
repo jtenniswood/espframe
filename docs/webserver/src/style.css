@@ -359,6 +359,109 @@ input::placeholder {
   opacity:.7
 }
 
+input[readonly] {
+  opacity:.58;
+  border-style:dashed;
+  cursor:not-allowed
+}
+
+.compatibility-disabled {
+  color:var(--text2);
+  font-size:.78rem
+}
+
+.filter-group-details, .filter-panel {
+  margin:0 0 20px;
+  padding:16px;
+  border:1px solid var(--border);
+  border-radius:8px
+}
+
+.filter-lists {
+  padding:0 0 16px;
+  border:0
+}
+
+.filter-nested {
+  margin:12px 0;
+  padding:8px 16px;
+  border:1px solid var(--border);
+  border-radius:8px
+}
+
+.filter-lists > :first-child {
+  margin-top:0
+}
+
+.filter-lists > :last-child {
+  margin-bottom:0
+}
+
+.filter-nested[open] {
+  padding-bottom:16px
+}
+
+.filter-nested:not([open]) {
+  padding-top:4px;
+  padding-bottom:4px
+}
+
+.filter-nested summary {
+  cursor:pointer;
+  color:var(--text2);
+  font-size:.85rem;
+  font-weight:500;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  list-style:none;
+  min-height:44px;
+  box-sizing:border-box
+}
+
+.filter-nested:not([open]) summary {
+  min-height:40px
+}
+
+.filter-nested summary::-webkit-details-marker {
+  display:none
+}
+
+.filter-nested summary::marker {
+  content:""
+}
+
+.filter-nested summary::before {
+  content:"";
+  width:8px;
+  height:8px;
+  border-right:2px solid currentColor;
+  border-bottom:2px solid currentColor;
+  transform:rotate(-45deg);
+  transition:transform .2s ease;
+  flex-shrink:0
+}
+
+.filter-nested[open] summary::before {
+  transform:rotate(45deg)
+}
+
+.filter-nested[open] > summary {
+  margin-bottom:12px
+}
+
+.filter-group-details .photo-id-row {
+  align-items:center
+}
+
+.filter-group-details .photo-id-fields {
+  grid-template-columns:minmax(0, 2fr) minmax(0, 1fr)
+}
+
+.filter-group-details .photo-id-actions {
+  margin-top:12px
+}
+
 .select, select {
   width:100%;
   padding:10px 14px;
@@ -1078,8 +1181,9 @@ to {
   grid-template-columns:1fr
 }
 
-.photo-id-fields {
-  grid-template-columns:1fr
+.photo-id-fields,
+.filter-group-details .photo-id-fields {
+  grid-template-columns:minmax(0, 1fr)
 }
 
 .photo-id-row-actions {
