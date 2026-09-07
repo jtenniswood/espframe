@@ -2237,13 +2237,25 @@ to {
     var active = document.activeElement;
     return !!(active && els.root && els.root.contains(active) && active.matches("input,select,textarea,button"));
   }
-  function renderSettingsAfterEditing() {
-    if (!isEditingSetting()) return renderSettings();
+  var deferredRenderControl = null;
+  function resumeSettingsRenderAfterBlur() {
+    deferredRenderControl = null;
     if (renderTimer) return;
     renderTimer = setTimeout(function() {
       renderTimer = null;
       renderSettingsAfterEditing();
-    }, 100);
+    }, 0);
+  }
+  function renderSettingsAfterEditing() {
+    var active = isEditingSetting() ? document.activeElement : null;
+    if (deferredRenderControl && deferredRenderControl !== active) {
+      deferredRenderControl.removeEventListener("blur", resumeSettingsRenderAfterBlur);
+      deferredRenderControl = null;
+    }
+    if (!active) return renderSettings();
+    if (deferredRenderControl === active) return;
+    deferredRenderControl = active;
+    active.addEventListener("blur", resumeSettingsRenderAfterBlur, { once: true });
   }
   function renderConfiguredSettingsPage() {
     renderSettings();
@@ -2288,8 +2300,8 @@ to {
     }).then(function(res) {
       renderAttemptInFlight = false;
       if (rendered) return;
-      if (res && res[0]) S.immich_url = normalizeImmichUrl(res[0].value || res[0].state || "");
-      if (res && res[1]) S.api_key = res[1].value || res[1].state || "";
+      if (res && res[0]) settingSaves.receive("immich_url", normalizeImmichUrl(res[0].value || res[0].state || ""));
+      if (res && res[1]) settingSaves.receive("api_key", res[1].value || res[1].state || "");
       if (S.immich_url) {
         showConfiguredSettings();
       } else {
@@ -4397,8 +4409,9 @@ to {
     card.appendChild(header);
     card.appendChild(body);
     if (defaultCollapsed) card.classList.add("collapsed");
+    bindDisclosure(toggle, card, body, "collapsed", false);
     header.onclick = function() {
-      card.classList.toggle("collapsed");
+      toggle.click();
     };
     return card;
   }

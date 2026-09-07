@@ -6,6 +6,89 @@ const source = fs.readFileSync("docs/webserver/src/setting_save.ts", "utf8");
 const context = { module: { exports: {} } };
 vm.runInNewContext(transformSync(source, { loader: "ts", format: "cjs", target: "es2018" }).code, context);
 const { SettingSaveCoordinator } = context.module.exports;
+const runtimeSource = fs.readFileSync("docs/webserver/src/runtime_state.ts", "utf8");
+
+async function legacyConnectionRollback(status) {
+  const state = { immich_url: "", api_key: "" };
+  const saves = new SettingSaveCoordinator(key => state[key], (key, value) => { state[key] = value; });
+  Object.entries(state).forEach(([key, value]) => saves.receive(key, value));
+  let settingsShown;
+  const ready = new Promise(resolve => { settingsShown = resolve; });
+  let backgroundFetches = 0;
+  const runtime = {
+    S: state,
+    settingSaves: saves,
+    rendered: false,
+    renderAttemptInFlight: false,
+    renderTimer: null,
+    initialSettingsRefreshStarted: false,
+    endpoints: { immich_url: "url", api_key: "key" },
+    getConfigurationSnapshot: async () => { throw { status }; },
+    isConfigurationApiUnavailable: error => [404, 405].includes(error.status),
+    safeGet: async endpoint => endpoint === "url"
+      ? { value: "https://existing.example.test/" } : { state: "existing-key" },
+    normalizeImmichUrl: value => value.replace(/\/$/, ""),
+    renderSettings: () => settingsShown(),
+    fetchDeviceSettingsState: () => {
+      backgroundFetches++;
+      return new Promise(() => {}); // The per-entity hydration is still pending.
+    },
+  };
+  vm.runInNewContext(transformSync(runtimeSource.slice(
+    runtimeSource.indexOf("  function renderConfiguredSettingsPage()"),
+    runtimeSource.indexOf("  function initSSE()")
+  ), { loader: "ts" }).code, runtime);
+  runtime.tryRender();
+  await ready;
+  assert.equal(backgroundFetches, 1);
+  assert.deepEqual(state, { immich_url: "https://existing.example.test", api_key: "existing-key" });
+  await assert.rejects(saves.save({ immich_url: "https://edited.example.test", api_key: "edited-key" },
+    async () => { throw new Error("connection save rejected"); }));
+  assert.deepEqual(state, { immich_url: "https://existing.example.test", api_key: "existing-key" },
+    "failed edits before legacy hydration must restore the device credentials");
+}
+
+function deferredFailureRender() {
+  const first = new EventTarget();
+  const second = new EventTarget();
+  first.matches = second.matches = () => true;
+  const timers = [];
+  let renders = 0;
+  const banners = [];
+  const runtime = {
+    document: { activeElement: first },
+    els: { root: { contains: control => [first, second].includes(control) } },
+    renderTimer: null,
+    setTimeout(callback) { timers.push(callback); return timers.length; },
+    renderSettings() { renders++; },
+    showBanner: (message, kind) => banners.push([message, kind]),
+  };
+  const template = fs.readFileSync("docs/webserver/src/app.template.ts", "utf8");
+  const functions = runtimeSource.slice(runtimeSource.indexOf("  function isEditingSetting()"),
+    runtimeSource.indexOf("  function renderConfiguredSettingsPage()")) +
+    template.slice(template.indexOf("  function reportSettingSaveFailure()"),
+      template.indexOf("  var SETTING_SAVE_ADAPTERS"));
+  vm.runInNewContext(transformSync(functions, { loader: "ts" }).code, runtime);
+  runtime.reportSettingSaveFailure();
+  runtime.reportSettingSaveFailure();
+  assert.deepEqual(banners[0], ["Failed to save setting", "error"]);
+  assert.equal(timers.length, 0, "a focused failed control must not start polling");
+  assert.equal(renders, 0, "do not replace a control while it is being edited");
+  runtime.document.activeElement = second;
+  first.dispatchEvent(new Event("blur"));
+  assert.equal(timers.length, 1, "repeated failures should share one deferred render");
+  timers.shift()();
+  assert.equal(timers.length, 0, "moving to another control must wait for blur without polling");
+  assert.equal(renders, 0);
+  runtime.document.activeElement = null;
+  second.dispatchEvent(new Event("blur"));
+  assert.equal(timers.length, 1);
+  timers.shift()();
+  assert.equal(renders, 1, "render the rolled-back state when editing finishes");
+  assert.equal(timers.length, 0);
+  runtime.reportSettingSaveFailure();
+  assert.equal(renders, 2, "unfocused failures should render immediately");
+}
 
 async function overlapping(firstFails, secondFails) {
   const state = { amount: 1 };
@@ -36,6 +119,8 @@ async function overlapping(firstFails, secondFails) {
 }
 
 async function main() {
+  for (const status of [404, 405]) await legacyConnectionRollback(status);
+  deferredFailureRender();
   for (const firstFails of [true, false]) {
     for (const secondFails of [true, false]) await overlapping(firstFails, secondFails);
   }

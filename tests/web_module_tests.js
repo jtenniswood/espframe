@@ -310,4 +310,69 @@ assert.ok(
   "firmware checks should wait for the asynchronous device update result instead of reading UNKNOWN once"
 );
 
+// Exercise production disclosure helpers with bubbling clicks so header clicks
+// and native button activation cannot diverge or toggle a card twice.
+function disclosureElement(tagName, className = "") {
+  const classes = new Set(className.split(" ").filter(Boolean));
+  const attributes = new Map();
+  return {
+    tagName: tagName.toUpperCase(),
+    children: [],
+    classList: {
+      add: (name) => classes.add(name),
+      contains: (name) => classes.has(name),
+      toggle(name) {
+        if (classes.has(name)) classes.delete(name);
+        else classes.add(name);
+      },
+    },
+    appendChild(child) {
+      child.parentElement = this;
+      this.children.push(child);
+    },
+    setAttribute: (name, value) => attributes.set(name, String(value)),
+    getAttribute: (name) => attributes.get(name) ?? null,
+    click() {
+      let stopped = false;
+      const event = { stopPropagation() { stopped = true; } };
+      for (let node = this; node && !stopped; node = node.parentElement) {
+        if (node.onclick) node.onclick(event);
+      }
+    },
+  };
+}
+const disclosureContext = {
+  el: disclosureElement,
+  document: { createElement: disclosureElement },
+};
+const disclosureSource = liveHelpersSource.slice(
+  liveHelpersSource.indexOf("  var controlId = 0;"),
+  liveHelpersSource.indexOf("  function makeBackupCard()")
+);
+require("vm").runInNewContext(require("esbuild").transformSync(disclosureSource, { loader: "ts" }).code, disclosureContext);
+const disclosureIds = new Set();
+for (const initiallyCollapsed of [true, false]) {
+  const card = disclosureContext.makeCollapsibleCard("Settings", disclosureElement("div"), initiallyCollapsed);
+  const [header, body] = card.children;
+  const toggle = header.children[0].children[0];
+  const chevron = header.children[1].children[0];
+  assert.equal(toggle.tagName, "BUTTON");
+  assert.equal(toggle.type, "button");
+  assert.ok(body.id, "disclosure content must have an ID");
+  assert.equal(toggle.getAttribute("aria-controls"), body.id);
+  assert.equal(disclosureIds.has(body.id), false, "each card needs its own content ID");
+  disclosureIds.add(body.id);
+  let expanded = !initiallyCollapsed;
+  function assertDisclosureState() {
+    assert.equal(toggle.getAttribute("aria-expanded"), String(expanded));
+    assert.equal(card.classList.contains("collapsed"), !expanded);
+  }
+  assertDisclosureState();
+  for (const target of [toggle, toggle, header, chevron]) {
+    target.click();
+    expanded = !expanded;
+    assertDisclosureState();
+  }
+}
+
 console.log("web module tests passed");

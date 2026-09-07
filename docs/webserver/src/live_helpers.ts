@@ -547,7 +547,8 @@
     card.appendChild(header);
     card.appendChild(body);
     if (defaultCollapsed) card.classList.add("collapsed");
-    header.onclick = function () { card.classList.toggle("collapsed"); };
+    bindDisclosure(toggle, card, body, "collapsed", false);
+    header.onclick = function () { toggle.click(); };
     return card;
   }
 

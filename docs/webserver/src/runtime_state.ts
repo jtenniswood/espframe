@@ -209,13 +209,28 @@
       active.matches("input,select,textarea,button"));
   }
 
-  function renderSettingsAfterEditing() {
-    if (!isEditingSetting()) return renderSettings();
+  var deferredRenderControl = null;
+
+  function resumeSettingsRenderAfterBlur() {
+    deferredRenderControl = null;
     if (renderTimer) return;
+    // Let focus and the next control's click settle before replacing the UI.
     renderTimer = setTimeout(function () {
       renderTimer = null;
       renderSettingsAfterEditing();
-    }, 100);
+    }, 0);
+  }
+
+  function renderSettingsAfterEditing() {
+    var active = isEditingSetting() ? document.activeElement : null;
+    if (deferredRenderControl && deferredRenderControl !== active) {
+      deferredRenderControl.removeEventListener("blur", resumeSettingsRenderAfterBlur);
+      deferredRenderControl = null;
+    }
+    if (!active) return renderSettings();
+    if (deferredRenderControl === active) return;
+    deferredRenderControl = active;
+    active.addEventListener("blur", resumeSettingsRenderAfterBlur, { once: true });
   }
 
   function renderConfiguredSettingsPage() {
@@ -268,8 +283,8 @@
     }).then(function (res) {
       renderAttemptInFlight = false;
       if (rendered) return;
-      if (res && res[0]) S.immich_url = normalizeImmichUrl(res[0].value || res[0].state || "");
-      if (res && res[1]) S.api_key = res[1].value || res[1].state || "";
+      if (res && res[0]) settingSaves.receive("immich_url", normalizeImmichUrl(res[0].value || res[0].state || ""));
+      if (res && res[1]) settingSaves.receive("api_key", res[1].value || res[1].state || "");
       if (S.immich_url) {
         showConfiguredSettings();
       } else {
