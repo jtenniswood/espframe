@@ -1256,7 +1256,7 @@ function smokeAssertionsForScenario(scenario) {
             await requireAlbumReorderSave();
             requireIncludedPanel("Albums", "Selected Albums", false);
             requireIncludedPanel("People", "Selected People", false);
-            requireIncludedPanel("Tags", "Selected Tags", true);
+            requireIncludedPanel("Tags", "Selected Tags", false);
             requireAlbumOrderAfterExclusions();
           }
 

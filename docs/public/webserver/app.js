@@ -2714,7 +2714,8 @@ to {
     addGroup("Tags", "tags_enabled", "tag_ids", "tag_labels", "tag", {
       excludedIdKey: "excluded_tag_ids",
       excludedLabelKey: "excluded_tag_labels",
-      includedPanel: true
+      includedPanel: true,
+      showInclusionHint: false
     });
     var configuredGroups = ["album_ids", "person_ids", "tag_ids"].filter(function(key) {
       return !!String(S[key] || "").trim();
