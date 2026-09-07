@@ -75,9 +75,9 @@
     if (!immichCards.length) immichCards = [
       makeConnectionCard(),
       makeFrequencyCard(),
+      makePortraitPairingCard(),
       makePhotoSourceCard(),
       makeAdvancedFiltersCard(),
-      makePortraitPairingCard(),
       makeLayoutCard(),
       makeMetadataCard()
     ];

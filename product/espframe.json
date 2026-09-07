@@ -622,6 +622,17 @@
         ]
       },
       {
+        "id": "portrait_pairing",
+        "label": "Portrait Pairing",
+        "tab": "immich",
+        "function": "makePortraitPairingCard",
+        "settings": [
+          "portrait_pairing",
+          "portrait_pairs_only",
+          "portrait_pairing_range"
+        ]
+      },
+      {
         "id": "photo_source",
         "label": "Photo Filter",
         "tab": "immich",
@@ -681,17 +692,6 @@
         ],
         "manual_entities": [
           "apply_photo_source"
-        ]
-      },
-      {
-        "id": "portrait_pairing",
-        "label": "Portrait Pairing",
-        "tab": "immich",
-        "function": "makePortraitPairingCard",
-        "settings": [
-          "portrait_pairing",
-          "portrait_pairs_only",
-          "portrait_pairing_range"
         ]
       },
       {

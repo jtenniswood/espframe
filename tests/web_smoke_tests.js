@@ -1011,6 +1011,11 @@ function smokeAssertionsForScenario(scenario) {
         expandCard("Photo Display");
         expandCard("Metadata");
 
+        const immichCardTitles = Array.from(document.querySelectorAll("#sp-immich .card .card-header h3"))
+          .map((item) => item.textContent.trim());
+        if (immichCardTitles.indexOf("Portrait Pairing") !== immichCardTitles.indexOf("Frequency") + 1) {
+          throw new Error("Portrait Pairing should appear directly below Frequency");
+        }
         requireText("Connection Timeout");
         requireText("Slideshow Interval");
         requireText("Portrait Pairing");
