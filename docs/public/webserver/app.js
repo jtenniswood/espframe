@@ -515,6 +515,11 @@ input[readonly] {
   border-radius:8px
 }
 
+.filter-nested:not([open]) {
+  padding-top:4px;
+  padding-bottom:4px
+}
+
 .filter-nested summary {
   cursor:pointer;
   color:var(--text2);
@@ -526,6 +531,10 @@ input[readonly] {
   list-style:none;
   min-height:44px;
   box-sizing:border-box
+}
+
+.filter-nested:not([open]) summary {
+  min-height:40px
 }
 
 .filter-nested summary::-webkit-details-marker {

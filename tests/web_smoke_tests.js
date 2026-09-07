@@ -891,6 +891,14 @@ function smokeAssertionsForScenario(scenario) {
         if (parseFloat(getComputedStyle(group).paddingBottom) < 16) {
           throw new Error(groupLabel + " filter group should have extra bottom spacing");
         }
+        included.open = false;
+        const closedPanelStyle = getComputedStyle(included);
+        const closedSummaryStyle = getComputedStyle(included.querySelector("summary"));
+        if (parseFloat(closedPanelStyle.paddingTop) > 4 || parseFloat(closedPanelStyle.paddingBottom) > 4 ||
+            parseFloat(closedSummaryStyle.minHeight) > 40 || closedSummaryStyle.alignItems !== "center") {
+          throw new Error(groupLabel + " panel should be compact with a centered closed label");
+        }
+        included.open = true;
         const hint = included.querySelector(".setting-hint");
         if ((expectHint && !hint) || (!expectHint && hint) || !included.querySelector("button")) {
           throw new Error("Included " + groupLabel + " panel should contain its hint and controls");
