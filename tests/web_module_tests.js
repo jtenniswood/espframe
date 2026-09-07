@@ -114,7 +114,7 @@ assert.ok(
   "applying a photo filter should reset any-selected ID retry state"
 );
 assert.ok(
-  filterFlush.includes("previous_display = DisplayMeta{}"),
+  filterFlush.includes("slideshow().invalidate_filter_slots()"),
   "applying a photo filter should invalidate backward-navigation history"
 );
 const statisticsFetch = immichApiSource.slice(

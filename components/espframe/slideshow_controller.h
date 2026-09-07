@@ -1,5 +1,7 @@
 #pragma once
 
+#include "slideshow_model.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <string>

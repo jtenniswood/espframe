@@ -109,6 +109,15 @@
       "upstream": "https://github.com/Templarian/MaterialDesign-Webfont",
       "revision": "v7.4.47",
       "license": "Apache-2.0"
+    },
+    {
+      "usage": "Host-side Immich parser test headers",
+      "declarations": [
+        "scripts/test_immich_parsers.py"
+      ],
+      "upstream": "https://github.com/bblanchon/ArduinoJson",
+      "revision": "v7.4.3; SHA-256 a2a8a277fc3cd0404499199bf1468682ea3688f354be0eaf6af8648366911257",
+      "license": "MIT"
     }
   ],
   "runtime_network_policy": {

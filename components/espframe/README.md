@@ -12,6 +12,7 @@ ESPHome component that provides shared C++ helpers for the Espframe-for-Immich d
 | File | Purpose |
 |------|--------|
 | `espframe_helpers.h` | Main entry: data types (`PhotoMeta`, `SlotMeta`, `DisplayMeta`), copy helpers, and `parse_immich_asset_and_fill_slot`. Include this from YAML lambdas when you need slot/display types or Immich parsing. |
+| `slideshow_model.h` | Slot/display types and production slot helpers shared by firmware and host tests. |
 | `slideshow_controller.h` | Typed slideshow slot decisions and a small priority queue used by the Immich prefetch path. Included by `espframe_helpers.h`. |
 | `date_utils.h` | Month names, URL normalization, and human‑readable date/time-ago formatting. |
 | `immich_helpers.h` | Immich API request state, retry/cooldown transitions, search body builders, UUID helpers, and JSON asset parsing. |

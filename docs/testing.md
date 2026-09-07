@@ -72,6 +72,8 @@ Use `npm run test:web-smoke -- --list` to see the available scenario names. Run 
 npm run test:firmware-logic
 ```
 
+The helper tests include the production slideshow model; only platform logging and time are stubbed. `npm run test:parsers` additionally exercises the production Immich JSON parsers with response fixtures and ArduinoJson 7.4.3. The first run downloads checksum-verified test headers into `.esphome/host-tests`; subsequent runs use that cache.
+
 This group compiles and runs host-side C++ tests for firmware helper logic, then checks timezone data. It is much faster than a full ESPHome compile and is the right place to cover slideshow decisions, Immich request building, date handling, duration parsing, and other logic that can be tested without a device.
 
 ### Full Firmware Compile

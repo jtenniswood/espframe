@@ -10,118 +10,6 @@
 #include "components/espframe/immich_helpers.h"
 #include "components/remote_image/jpeg_accelerator_helpers.h"
 
-struct PhotoMeta {
-  std::string asset_id, image_url, date, location, person;
-  int year = 0, month = 0, day = 0;
-  uint16_t zoom = ZOOM_IDENTITY;
-};
-
-struct SlotMeta : PhotoMeta {
-  std::string datetime, companion_url, pending_asset_id;
-  std::string filter_album_ids, filter_person_ids, filter_tag_ids;
-  bool ready = false, is_portrait = false;
-};
-
-struct DisplayMeta : PhotoMeta {
-  std::string datetime, companion_url;
-  std::string filter_album_ids, filter_person_ids, filter_tag_ids;
-  bool is_portrait = false;
-  bool valid = false;
-};
-
-struct SlotFlags {
-  bool fetch_in_flight[3] = {false, false, false};
-  uint32_t fetch_started_ms[3] = {0, 0, 0};
-  bool noncritical_update[3] = {false, false, false};
-};
-
-struct PortraitState {
-  bool left_ready = false, right_ready = false;
-  bool no_companion_active = false, left_requested = false, right_requested = false;
-  bool companion_found = false, is_pair = false;
-  bool using_preload = false, workflow_busy = false;
-};
-
-inline void clear_noncritical(int s, SlotFlags &f, int &nc_count) {
-  if (f.noncritical_update[s]) {
-    f.noncritical_update[s] = false;
-    if (nc_count > 0) nc_count--;
-  }
-}
-
-inline void clear_slot_fetch_in_flight(int s, SlotFlags &f) {
-  f.fetch_in_flight[s] = false;
-  f.fetch_started_ms[s] = 0;
-}
-
-inline bool handle_slot_download_complete(int slot, SlotMeta &meta,
-                                          SlotFlags &flags, int &nc_count,
-                                          int &retries) {
-  if (meta.asset_id != meta.pending_asset_id) {
-    clear_slot_fetch_in_flight(slot, flags);
-    clear_noncritical(slot, flags, nc_count);
-    return false;
-  }
-  meta.ready = true;
-  clear_slot_fetch_in_flight(slot, flags);
-  clear_noncritical(slot, flags, nc_count);
-  retries = 0;
-  return true;
-}
-
-inline void mark_slot_fetch_in_flight(int s, SlotFlags &f, uint32_t now_ms) {
-  f.fetch_in_flight[s] = true;
-  f.fetch_started_ms[s] = now_ms;
-}
-
-inline uint32_t slot_fetch_age_ms(int s, const SlotFlags &f, uint32_t now_ms) {
-  if (!f.fetch_in_flight[s] || f.fetch_started_ms[s] == 0) return 0;
-  return now_ms - f.fetch_started_ms[s];
-}
-
-inline bool any_slot_fetch_in_flight(const SlotFlags &f) {
-  return f.fetch_in_flight[0] || f.fetch_in_flight[1] || f.fetch_in_flight[2];
-}
-
-inline bool prepare_deferred_slot_update(int slot, int active_slot, SlotFlags &flags,
-                                         bool workflow_busy, int &nc_count) {
-  bool noncritical = slot != active_slot;
-  if (noncritical && (workflow_busy || nc_count > 0)) {
-    clear_noncritical(slot, flags, nc_count);
-    clear_slot_fetch_in_flight(slot, flags);
-    return false;
-  }
-  if (noncritical && !flags.noncritical_update[slot]) {
-    flags.noncritical_update[slot] = true;
-    nc_count++;
-  } else if (!noncritical && flags.noncritical_update[slot]) {
-    flags.noncritical_update[slot] = false;
-    if (nc_count > 0) nc_count--;
-  }
-  mark_slot_fetch_in_flight(slot, flags, 1000);
-  return true;
-}
-
-inline void copy_slot_to_display(const SlotMeta &slot, DisplayMeta &disp) {
-  static_cast<PhotoMeta &>(disp) = static_cast<const PhotoMeta &>(slot);
-  disp.datetime = slot.datetime;
-  disp.companion_url = slot.companion_url;
-  disp.filter_album_ids = slot.filter_album_ids;
-  disp.filter_person_ids = slot.filter_person_ids;
-  disp.filter_tag_ids = slot.filter_tag_ids;
-  disp.is_portrait = slot.is_portrait;
-}
-
-inline void copy_display_to_slot(const DisplayMeta &disp, SlotMeta &slot) {
-  static_cast<PhotoMeta &>(slot) = static_cast<const PhotoMeta &>(disp);
-  slot.datetime = disp.datetime;
-  slot.companion_url = disp.companion_url;
-  slot.filter_album_ids = disp.filter_album_ids;
-  slot.filter_person_ids = disp.filter_person_ids;
-  slot.filter_tag_ids = disp.filter_tag_ids;
-  slot.is_portrait = disp.is_portrait;
-}
-
 #include "components/espframe/slideshow_controller.h"
 #include "components/espframe/slideshow_component.h"
 
@@ -1648,7 +1536,53 @@ static void test_configuration_contract_capabilities() {
   assert(capabilities.find("\"configuration_parameter\":\"configuration\"") != std::string::npos);
 }
 
+static void test_filter_invalidation_preserves_display_and_clears_work() {
+  EspFrameSlideshow slideshow;
+  auto &state = slideshow.state();
+  state.active_slot = 1;
+  state.target_slot = 2;
+  state.active_slot_displayed = true;
+  state.current_display.asset_id = "visible-photo";
+  state.current_display.valid = true;
+  state.previous_display.asset_id = "old-filter-photo";
+  state.previous_display.valid = true;
+  state.portrait_preload_slot = 2;
+  state.portrait_preload_left_ready = state.portrait_preload_right_ready = true;
+  state.preload_noncritical_in_flight = true;
+  state.noncritical_remote_updates_in_flight = 3;
+  for (int slot = 0; slot < 3; ++slot) {
+    state.slot(slot).ready = true;
+    state.slot_flags.fetch_in_flight[slot] = true;
+    state.slot_flags.fetch_started_ms[slot] = 1234;
+    state.slot_flags.noncritical_update[slot] = true;
+  }
+  slideshow.invalidate_filter_slots();
+  assert(state.active_slot == 1 && state.target_slot == 1);
+  assert(!state.active_slot_displayed);
+  assert(state.current_display.valid && state.current_display.asset_id == "visible-photo");
+  assert(!state.previous_display.valid && state.previous_display.asset_id.empty());
+  assert(state.portrait_preload_slot == -1);
+  assert(!state.portrait_preload_left_ready && !state.portrait_preload_right_ready);
+  assert(!state.preload_noncritical_in_flight && state.noncritical_remote_updates_in_flight == 0);
+  for (int slot = 0; slot < 3; ++slot) {
+    assert(!state.slot(slot).ready);
+    assert(!state.slot_flags.fetch_in_flight[slot] && state.slot_flags.fetch_started_ms[slot] == 0);
+    assert(!state.slot_flags.noncritical_update[slot]);
+    clear_noncritical(slot, state.slot_flags, state.noncritical_remote_updates_in_flight);
+  }
+  assert(state.noncritical_remote_updates_in_flight == 0);
+  // The same production deferred-update helper can restart prefetch after invalidation.
+  esphome::test_millis = 2468;
+  assert(prepare_deferred_slot_update(2, state.active_slot, state.slot_flags, false,
+                                      state.noncritical_remote_updates_in_flight));
+  assert(state.slot_flags.fetch_started_ms[2] == 2468);
+  assert(state.noncritical_remote_updates_in_flight == 1);
+  slideshow.invalidate_filter_slots();
+  assert(state.noncritical_remote_updates_in_flight == 0);
+}
+
 int main() {
+  test_filter_invalidation_preserves_display_and_clears_work();
   test_date_and_url_helpers();
   test_duration_helpers();
   test_p4_jpeg_accelerator_helpers();
