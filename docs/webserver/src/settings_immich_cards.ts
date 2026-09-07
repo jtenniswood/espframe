@@ -737,7 +737,7 @@
     var pairingBody = el("div");
     var portraitRotationActive = isPortraitScreenRotation(effectiveScreenRotationForUi());
     var pairingEnabled = S.portrait_pairing && !portraitRotationActive;
-    var pairingOptionsBody = el("div");
+    var pairingOptionsBody = el("div", "portrait-pairing-options");
     var pairingBadge = makeBadge(pairingEnabled);
     var pairingToggle = toggleSettingRow({
       label: "Portrait Pairing",
