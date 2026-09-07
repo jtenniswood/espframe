@@ -388,12 +388,38 @@ input[readonly] {
   cursor:pointer;
   color:var(--text2);
   font-size:.85rem;
-  font-weight:500
+  font-weight:500;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  list-style:none
+}
+
+.filter-nested summary::-webkit-details-marker {
+  display:none
+}
+
+.filter-nested summary::marker {
+  content:""
+}
+
+.filter-nested summary::before {
+  content:"";
+  width:8px;
+  height:8px;
+  border-right:2px solid currentColor;
+  border-bottom:2px solid currentColor;
+  transform:rotate(-45deg);
+  transition:transform .2s ease;
+  flex-shrink:0
+}
+
+.filter-nested[open] summary::before {
+  transform:rotate(45deg)
 }
 
 .filter-exclusions summary,
 .filter-inclusions summary {
-  display:block;
   margin-bottom:12px
 }
 

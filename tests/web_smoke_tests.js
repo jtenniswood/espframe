@@ -891,6 +891,10 @@ function smokeAssertionsForScenario(scenario) {
         if (!included.querySelector(".setting-hint") || !included.querySelector("button")) {
           throw new Error("Included " + groupLabel + " panel should contain its hint and controls");
         }
+        const chevron = getComputedStyle(included.querySelector("summary"), "::before");
+        if (chevron.borderRightWidth === "0px" || chevron.borderBottomWidth === "0px") {
+          throw new Error("Included " + groupLabel + " panel should use a chevron disclosure icon");
+        }
       }
       function requireAlbumOrderAfterExclusions() {
         const group = fieldByLabel("Selected Albums").closest(".filter-group-details");
