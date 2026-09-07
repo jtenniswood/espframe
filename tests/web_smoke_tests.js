@@ -888,6 +888,9 @@ function smokeAssertionsForScenario(scenario) {
         if (!included || !included.open || !included.querySelector("label")) {
           throw new Error(groupLabel + " should group selected items inside an open Included panel");
         }
+        if (parseFloat(getComputedStyle(group).paddingBottom) < 16) {
+          throw new Error(groupLabel + " filter group should have extra bottom spacing");
+        }
         const hint = included.querySelector(".setting-hint");
         if ((expectHint && !hint) || (!expectHint && hint) || !included.querySelector("button")) {
           throw new Error("Included " + groupLabel + " panel should contain its hint and controls");

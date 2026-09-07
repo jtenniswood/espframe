@@ -373,7 +373,7 @@ input[readonly] {
 
 .filter-group-details {
   margin:0 0 12px 12px;
-  padding:0 0 4px 12px;
+  padding:0 0 16px 12px;
   border-left:2px solid var(--border)
 }
 
