@@ -987,6 +987,13 @@ function smokeAssertionsForScenario(scenario) {
           throw new Error("Display Mode labels are incorrect: " + displayModeOptions.join(", "));
         }
         const portraitPairingCard = cardByTitle("Portrait Pairing");
+        if (portraitPairingCard.querySelector(".card-header .toggle")) {
+          throw new Error("Portrait pairing should not have a header toggle");
+        }
+        const portraitPairingBadge = portraitPairingCard.querySelector(".card-header .on-badge");
+        if (!portraitPairingBadge || getComputedStyle(portraitPairingBadge).display !== "none") {
+          throw new Error("Portrait pairing ON badge should be hidden while the card is open");
+        }
         const portraitPairingFields = Array.from(portraitPairingCard.querySelectorAll("label, .toggle-row > span"))
           .map((item) => item.textContent.trim())
           .filter(Boolean);
@@ -999,7 +1006,7 @@ function smokeAssertionsForScenario(scenario) {
         setSelect("Slideshow Interval", "24 hours");
         setSelect("Pairing Range", "Within 2 Days");
         toggleByText("Show Paired Portraits Only").click();
-        cardByTitle("Portrait Pairing").querySelector(".card-header .toggle").click();
+        cardByTitle("Portrait Pairing").querySelector(".card-body .toggle").click();
         setSelect("Display Photos", "Landscape Only");
         setSelect("Display Mode", "Fit");
         setSelect("Date Taken Format", "January 1, 2026");

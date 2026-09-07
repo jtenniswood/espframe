@@ -737,7 +737,8 @@
     var pairingBody = el("div");
     var portraitRotationActive = isPortraitScreenRotation(effectiveScreenRotationForUi());
     var pairingEnabled = S.portrait_pairing && !portraitRotationActive;
-    var pairingCardBody = null;
+    var pairingOptionsBody = el("div");
+    var pairingBadge = makeBadge(pairingEnabled);
     var pairingToggle = toggleSettingRow({
       label: "Portrait Pairing",
       value: pairingEnabled,
@@ -746,7 +747,8 @@
       disabled: portraitRotationActive,
       disabledTitle: "Portrait pairing is disabled while the screen is in portrait rotation",
       onChange: function () {
-        pairingCardBody.style.display = S.portrait_pairing ? "" : "none";
+        pairingOptionsBody.style.display = S.portrait_pairing && !portraitRotationActive ? "" : "none";
+        setBadgeActive(pairingBadge, S.portrait_pairing && !portraitRotationActive);
         saveSetting("portrait_pairing", S.portrait_pairing);
       }
     });
@@ -755,7 +757,7 @@
       ? "Portrait pairing is disabled while the screen is in portrait rotation"
       : "Turn on Portrait Pairing to use this option";
 
-    pairingBody.appendChild(toggleSettingRow({
+    pairingOptionsBody.appendChild(toggleSettingRow({
       label: "Show Paired Portraits Only",
       value: S.portrait_pairs_only,
       getValue: function () { return S.portrait_pairs_only; },
@@ -781,11 +783,12 @@
     pairingRangeSelect.disabled = portraitRotationActive;
     if (portraitRotationActive) pairingRangeSelect.title = pairingOptionsDisabledTitle;
     fPairingRange.appendChild(pairingRangeSelect);
-    pairingBody.appendChild(fPairingRange);
+    pairingOptionsBody.appendChild(fPairingRange);
 
-    var pairingCard = makeCollapsibleCard("Portrait Pairing", pairingBody, false, pairingToggle.toggle);
-    pairingCardBody = pairingCard.querySelector(".card-body");
-    pairingCardBody.style.display = pairingEnabled ? "" : "none";
+    pairingBody.appendChild(pairingToggle.field);
+    pairingOptionsBody.style.display = pairingEnabled ? "" : "none";
+    pairingBody.appendChild(pairingOptionsBody);
+    var pairingCard = makeCollapsibleCard("Portrait Pairing", pairingBody, false, pairingBadge);
     return pairingCard;
   }
 
