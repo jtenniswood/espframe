@@ -3086,7 +3086,7 @@ to {
       var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
       return d.getFullYear() === Number(parts[0]) && d.getMonth() === Number(parts[1]) - 1 && d.getDate() === Number(parts[2]);
     }
-    var filterBody = el("div");
+    var filterBody = el("div", "filter-group-details");
     var filterApplyTimer = null;
     var filterDetails = el("div");
     filterDetails.style.display = S.date_filter_enabled ? "" : "none";
