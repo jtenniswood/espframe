@@ -207,7 +207,7 @@
       if (options && options.includedPanel) {
         var included = document.createElement("details");
         included.className = "filter-nested filter-inclusions";
-        included.open = true;
+        included.open = false;
         var includedSummary = document.createElement("summary");
         includedSummary.textContent = "Included " + label;
         included.appendChild(includedSummary);
