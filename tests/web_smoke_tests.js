@@ -892,6 +892,14 @@ function smokeAssertionsForScenario(scenario) {
           throw new Error("Included " + groupLabel + " panel should contain its hint and controls");
         }
       }
+      function requireAlbumOrderAfterExclusions() {
+        const group = fieldByLabel("Selected Albums").closest(".filter-group-details");
+        const excluded = group && group.querySelector("details.filter-exclusions");
+        const order = fieldByLabel("Album Order");
+        if (!excluded || !order || !(excluded.compareDocumentPosition(order) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+          throw new Error("Album Order should appear below Excluded Albums");
+        }
+      }
       async function requireScreenRotationDeveloperFlow() {
         clickTab("Device");
         await waitFor(() => pageText().indexOf("Rotation") !== -1, 8000, "device settings");
@@ -1241,8 +1249,10 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "photo-source-reorder") {
             await requireAlbumReorderSave();
+            requireIncludedPanel("Albums", "Selected Albums");
             requireIncludedPanel("People", "Selected People");
             requireIncludedPanel("Tags", "Selected Tags");
+            requireAlbumOrderAfterExclusions();
           }
 
           if (${JSON.stringify(scenario.name)} === "screen-rotation-developer") {

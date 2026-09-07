@@ -2663,15 +2663,16 @@ to {
         }
       });
       inclusionParent.appendChild(editor.field);
-      if (options && options.order) details.appendChild(productSelectSettingField("Album Order", "album_order"));
       addExclusions(details, "Excluded " + label, options.excludedIdKey, options.excludedLabelKey, noun);
+      if (options && options.order) details.appendChild(productSelectSettingField("Album Order", "album_order"));
       details.style.display = S[enabledKey] ? "" : "none";
       body.appendChild(details);
     }
     addGroup("Albums", "albums_enabled", "album_ids", "album_labels", "album", {
       order: true,
       excludedIdKey: "excluded_album_ids",
-      excludedLabelKey: "excluded_album_labels"
+      excludedLabelKey: "excluded_album_labels",
+      includedPanel: true
     });
     addGroup("People", "people_enabled", "person_ids", "person_labels", "person", {
       excludedIdKey: "excluded_person_ids",
