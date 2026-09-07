@@ -1007,6 +1007,14 @@ function smokeAssertionsForScenario(scenario) {
       async function requireDailySettingsControls() {
         expandCard("Connection");
         expandCard("Frequency");
+        const portraitPairingCard = cardByTitle("Portrait Pairing");
+        if (!portraitPairingCard.classList.contains("collapsed")) {
+          throw new Error("Portrait pairing should be closed by default");
+        }
+        const initialPortraitPairingBadge = portraitPairingCard.querySelector(".card-header .on-badge");
+        if (!initialPortraitPairingBadge || getComputedStyle(initialPortraitPairingBadge).display !== "inline-flex") {
+          throw new Error("Portrait pairing ON badge should be visible while the card is closed");
+        }
         expandCard("Portrait Pairing");
         const photoFilterCard = expandCard("Photo Filter");
         expandCard("Photo Display");
@@ -1035,7 +1043,6 @@ function smokeAssertionsForScenario(scenario) {
         if (displayModeOptions.join("|") !== "Crop to fit|Show full image") {
           throw new Error("Display Mode labels are incorrect: " + displayModeOptions.join(", "));
         }
-        const portraitPairingCard = cardByTitle("Portrait Pairing");
         if (portraitPairingCard.querySelector(".card-header .toggle")) {
           throw new Error("Portrait pairing should not have a header toggle");
         }

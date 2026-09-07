@@ -3270,7 +3270,7 @@ to {
     pairingBody.appendChild(pairingToggle.field);
     pairingOptionsBody.style.display = pairingEnabled ? "" : "none";
     pairingBody.appendChild(pairingOptionsBody);
-    var pairingCard = makeCollapsibleCard("Portrait Pairing", pairingBody, false, pairingBadge);
+    var pairingCard = makeCollapsibleCard("Portrait Pairing", pairingBody, true, pairingBadge);
     return pairingCard;
   }
   function makeLayoutCard() {
