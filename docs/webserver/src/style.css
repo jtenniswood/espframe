@@ -391,7 +391,9 @@ input[readonly] {
   display:flex;
   align-items:center;
   gap:8px;
-  list-style:none
+  list-style:none;
+  min-height:44px;
+  box-sizing:border-box
 }
 
 .filter-nested summary::-webkit-details-marker {
