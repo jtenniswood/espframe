@@ -2758,15 +2758,6 @@ to {
       details.style.display = S[enabledKey] ? "" : "none";
       body.appendChild(details);
     }
-    {
-      var advanced = document.createElement("details");
-      advanced.className = "filter-nested";
-      var advancedSummary = document.createElement("summary");
-      advancedSummary.textContent = "Advanced inclusion options";
-      advanced.appendChild(advancedSummary);
-      advanced.appendChild(addSelect("Inclusion Groups", "inclusion_matching", false, ""));
-      body.appendChild(advanced);
-    }
     addGroup("Albums", "albums_enabled", "album_ids", "album_labels", "album", {
       order: true,
       excludedIdKey: "excluded_album_ids",

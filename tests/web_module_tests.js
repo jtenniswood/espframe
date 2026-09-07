@@ -91,8 +91,8 @@ assert.ok(
     publicApp.includes("Saved exclusions can be removed"),
   "compatibility mode should prevent new exclusions while allowing saved exclusions to be removed"
 );
-assert.ok(publicApp.includes("Any selected") && publicApp.includes("Advanced inclusion options"),
-  "photo filter groups should use clear any-selected wording and retain advanced group matching");
+assert.ok(!publicApp.includes("Advanced inclusion options"),
+  "photo filters should not render the removed advanced inclusion panel");
 assert.ok(
   publicApp.includes("if (nextValue && index > 0") &&
     publicApp.includes("S[spec[1]] = nextValue"),
