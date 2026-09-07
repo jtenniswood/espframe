@@ -309,6 +309,23 @@ assert.equal(migratedFilterBackup.photos.favorites_enabled, true, "saved favorit
 assert.equal(migratedFilterBackup.photos.rating_enabled, true, "saved rating should enable rating filtering");
 assert.equal(migratedFilterBackup.photos.location_enabled, true, "saved location should enable location filtering");
 
+const exclusionBackup = JSON.parse(fs.readFileSync(path.join(root, "tests/fixtures/backup/espframe-config-v2-full.json"), "utf8"));
+["albums", "people", "tags"].forEach(function (group) { exclusionBackup.photos[group + "_enabled"] = false; });
+const restoredExclusions = backupImportContext.migrateBackupConfig(exclusionBackup);
+["albums", "people", "tags"].forEach(function (group) {
+  assert.equal(restoredExclusions.photos[group + "_enabled"], true, "v2 exclusions must enable " + group);
+  assert.equal(exclusionBackup.photos[group + "_enabled"], false, "migration must not mutate its input");
+});
+assert.equal(restoredExclusions.photos.person_matching, exclusionBackup.photos.person_matching);
+const currentExclusions = backupImportContext.migrateBackupConfig({ ...exclusionBackup, version: 3 });
+assert.equal(currentExclusions.photos.tags_enabled, false, "v3 disabled exclusions must stay disabled");
+const emptyExclusions = backupImportContext.migrateBackupConfig({
+  version: 2, photos: { albums_enabled: false, excluded_album_ids: "  ", people_enabled: true }
+});
+assert.equal(emptyExclusions.photos.albums_enabled, false);
+assert.equal(emptyExclusions.photos.people_enabled, true);
+assert.equal(Object.prototype.hasOwnProperty.call(emptyExclusions.photos, "tags_enabled"), false);
+
 // The web server identifies each entity with name_id ("domain/Friendly Name") plus a
 // legacy id ("domain-object_id"). ENTITY_STATE_MAP and the REST endpoints both use the
 // name form, so live events must be resolved via name_id or nothing ever matches.

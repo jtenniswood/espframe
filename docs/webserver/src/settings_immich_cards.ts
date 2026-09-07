@@ -111,6 +111,10 @@
     var parts = version.split(".").map(Number);
     var supportsStructured = parts.length >= 2 && isFinite(parts[0]) && isFinite(parts[1]) &&
       (parts[0] > 3 || (parts[0] === 3 && parts[1] >= 2));
+    var compatibilityUpdates = [];
+    function updateCompatibility() {
+      compatibilityUpdates.forEach(function (update) { update(); });
+    }
 
     if (S.memories_migration_notice) {
       var notice = el("div", "banner warning");
@@ -127,6 +131,7 @@
 
     function applySetting(key, value) {
       updateFilterBadge();
+      updateCompatibility();
       return saveSetting(key, value, { applyPhotoSource: true });
     }
     function addSelect(label, key, disabled, reason, recoveryValue) {
@@ -163,6 +168,7 @@
       }
       S[idKey] = ids;
       S[labelKey] = labels;
+      updateCompatibility();
       Promise.all([saveSetting(idKey, ids), saveSetting(labelKey, labels)]).then(function () {
         post(endpoints.apply_photo_source + "/press");
       });
@@ -204,6 +210,21 @@
         setValue: function (value) { S[enabledKey] = value; }, details: details,
         onChange: function (value) { applySetting(enabledKey, value); }
       });
+      var toggleClick = row.toggle.onclick;
+      var compatibilityHint = el("div", "setting-hint compatibility-disabled");
+      compatibilityHint.textContent = "Saved exclusions require Immich 3.2 or newer. Remove them below before enabling this group.";
+      row.field.appendChild(compatibilityHint);
+      function updateGroupCompatibility() {
+        var hasUnsupportedExclusions = !supportsStructured && !!String(S[options.excludedIdKey] || "").trim();
+        var blocked = hasUnsupportedExclusions && !S[enabledKey];
+        row.toggle.onclick = blocked ? function () {} : toggleClick;
+        row.toggle.setAttribute("aria-disabled", blocked ? "true" : "false");
+        row.toggle.setAttribute("tabindex", blocked ? "-1" : "0");
+        row.toggle.style.opacity = blocked ? ".35" : "";
+        compatibilityHint.style.display = blocked ? "" : "none";
+        details.style.display = S[enabledKey] || hasUnsupportedExclusions ? "" : "none";
+      }
+      compatibilityUpdates.push(updateGroupCompatibility);
       body.appendChild(row.field);
       var inclusionParent = details;
       if (options && options.includedPanel) {
@@ -246,7 +267,7 @@
         order.classList.add("filter-panel");
         details.appendChild(order);
       }
-      details.style.display = S[enabledKey] ? "" : "none";
+      updateGroupCompatibility();
       body.appendChild(details);
     }
 
@@ -259,6 +280,13 @@
     addGroup("Tags", "tags_enabled", "tag_ids", "tag_labels", "tag", {
       excludedIdKey: "excluded_tag_ids", excludedLabelKey: "excluded_tag_labels", includedPanel: true, showInclusionHint: false
     });
+
+    if (!supportsStructured) {
+      var inclusionRecovery = addSelect("Inclusion Groups", "inclusion_matching", false, "");
+      var inclusionHint = el("div", "setting-hint compatibility-disabled");
+      inclusionHint.textContent = "Matching all enabled groups with multiple any-selected people or tags requires Immich 3.2 or newer. Choose Match any enabled group, keep only one group enabled, or reduce the people and tag lists to one item.";
+      inclusionRecovery.appendChild(inclusionHint);
+    }
 
     function addValueGroup(label, enabledKey, settingKey, defaultValue, disabled, reason) {
       var details = el("div", "filter-group-details");
