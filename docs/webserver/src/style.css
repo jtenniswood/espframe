@@ -390,6 +390,11 @@ input[readonly] {
   font-weight:500
 }
 
+.filter-exclusions summary {
+  display:block;
+  margin-bottom:12px
+}
+
 .select, select {
   width:100%;
   padding:10px 14px;

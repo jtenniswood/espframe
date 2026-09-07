@@ -166,7 +166,7 @@
     }
     function addExclusions(parent, label, idKey, labelKey, noun) {
       var nested = document.createElement("details");
-      nested.className = "filter-nested";
+      nested.className = "filter-nested filter-exclusions";
       nested.open = !!String(S[idKey] || "").trim();
       var summary = document.createElement("summary");
       summary.textContent = label;
