@@ -510,10 +510,22 @@ input[readonly] {
 }
 
 .filter-nested {
-  margin:10px 0;
-  padding:8px 10px;
+  margin:12px 0;
+  padding:8px 16px;
   border:1px solid var(--border);
   border-radius:8px
+}
+
+.filter-group-details > .filter-nested:first-child {
+  margin-top:0
+}
+
+.filter-group-details > .filter-nested:last-child {
+  margin-bottom:0
+}
+
+.filter-nested[open] {
+  padding-bottom:16px
 }
 
 .filter-nested:not([open]) {
@@ -561,9 +573,20 @@ input[readonly] {
   transform:rotate(45deg)
 }
 
-.filter-exclusions summary,
-.filter-inclusions summary {
+.filter-nested[open] > summary {
   margin-bottom:12px
+}
+
+.filter-group-details .photo-id-row {
+  align-items:center
+}
+
+.filter-group-details .photo-id-fields {
+  grid-template-columns:minmax(0, 2fr) minmax(0, 1fr)
+}
+
+.filter-group-details .photo-id-actions {
+  margin-top:12px
 }
 
 .select, select {
@@ -1285,8 +1308,9 @@ to {
   grid-template-columns:1fr
 }
 
-.photo-id-fields {
-  grid-template-columns:1fr
+.photo-id-fields,
+.filter-group-details .photo-id-fields {
+  grid-template-columns:minmax(0, 1fr)
 }
 
 .photo-id-row-actions {
