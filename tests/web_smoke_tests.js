@@ -166,7 +166,7 @@ const missingVersionBackupFixture = {
 };
 
 const futureVersionBackupFixture = {
-  version: 2,
+  version: 4,
   connection: {
     immich_url: "https://future.photos.example.com",
   },
@@ -878,6 +878,53 @@ function smokeAssertionsForScenario(scenario) {
           }
         }, 8000, "album reorder save");
       }
+      function requireIncludedPanel(groupLabel, selectedLabel, expectHint) {
+        const group = fieldByLabel(selectedLabel).closest(".filter-group-details");
+        if (!group) throw new Error(groupLabel + " filter group not found");
+        const included = Array.from(group.querySelectorAll("details")).find((item) =>
+          item.querySelector("summary") &&
+          item.querySelector("summary").textContent.trim() === "Included " + groupLabel
+        );
+        if (!included || included.open || !included.querySelector("label")) {
+          throw new Error(groupLabel + " should group selected items inside a closed Included panel by default");
+        }
+        included.open = true;
+        if (parseFloat(getComputedStyle(group).paddingBottom) < 16) {
+          throw new Error(groupLabel + " filter group should have extra bottom spacing");
+        }
+        included.open = false;
+        const closedPanelStyle = getComputedStyle(included);
+        const closedSummaryStyle = getComputedStyle(included.querySelector("summary"));
+        if (parseFloat(closedPanelStyle.paddingTop) > 4 || parseFloat(closedPanelStyle.paddingBottom) > 4 ||
+            parseFloat(closedSummaryStyle.minHeight) > 40 || closedSummaryStyle.alignItems !== "center") {
+          throw new Error(groupLabel + " panel should be compact with a centered closed label");
+        }
+        included.open = true;
+        const hint = included.querySelector(".setting-hint");
+        if ((expectHint && !hint) || (!expectHint && hint) || !included.querySelector("button")) {
+          throw new Error("Included " + groupLabel + " panel should contain its hint and controls");
+        }
+        const chevron = getComputedStyle(included.querySelector("summary"), "::before");
+        if (chevron.borderRightWidth === "0px" || chevron.borderBottomWidth === "0px") {
+          throw new Error("Included " + groupLabel + " panel should use a chevron disclosure icon");
+        }
+      }
+      function requireAlbumOrderAfterExclusions() {
+        const group = fieldByLabel("Selected Albums").closest(".filter-group-details");
+        const excluded = group && group.querySelector("details.filter-exclusions");
+        const order = fieldByLabel("Album Order");
+        if (!excluded || !order || !(excluded.compareDocumentPosition(order) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+          throw new Error("Album Order should appear below Excluded Albums");
+        }
+      }
+      function requireNoAdvancedInclusionPanel() {
+        const advanced = Array.from(document.querySelectorAll("details.filter-nested")).find((item) =>
+          item.querySelector("summary") && item.querySelector("summary").textContent.trim() === "Advanced inclusion options"
+        );
+        if (advanced) {
+          throw new Error("Advanced inclusion options should not render");
+        }
+      }
       async function requireScreenRotationDeveloperFlow() {
         clickTab("Device");
         await waitFor(() => pageText().indexOf("Rotation") !== -1, 8000, "device settings");
@@ -971,24 +1018,91 @@ function smokeAssertionsForScenario(scenario) {
       async function requireDailySettingsControls() {
         expandCard("Connection");
         expandCard("Frequency");
-        expandCard("Layout");
+        const portraitPairingCard = cardByTitle("Portrait Pairing");
+        if (!portraitPairingCard.classList.contains("collapsed")) {
+          throw new Error("Portrait pairing should be closed by default");
+        }
+        const initialPortraitPairingBadge = portraitPairingCard.querySelector(".card-header .on-badge");
+        if (!initialPortraitPairingBadge || getComputedStyle(initialPortraitPairingBadge).display !== "inline-flex") {
+          throw new Error("Portrait pairing ON badge should be visible while the card is closed");
+        }
+        expandCard("Portrait Pairing");
+        const photoFilterCard = expandCard("Photo Filter");
+        const filterBadge = photoFilterCard.querySelector(".on-badge");
+        if (!filterBadge || getComputedStyle(filterBadge).display !== "none") {
+          throw new Error("Photo Filter badge must be hidden while open");
+        }
+        const filterToggles = Array.from(photoFilterCard.querySelectorAll('[role="switch"]'));
+        const initialFilterStates = filterToggles.map((toggle) => toggle.getAttribute("aria-checked") === "true");
+        filterToggles.forEach((toggle) => {
+          if (toggle.getAttribute("aria-checked") === "true") toggle.click();
+        });
+        photoFilterCard.querySelector(".card-header").click();
+        if (getComputedStyle(filterBadge).display !== "none") throw new Error("All filters off must hide badge");
+        filterToggles.forEach((toggle) => {
+          toggle.click();
+          if (getComputedStyle(filterBadge).display !== "inline-flex") {
+            throw new Error("Each enabled photo filter must show the collapsed ON badge");
+          }
+          toggle.click();
+          if (getComputedStyle(filterBadge).display !== "none") throw new Error("Last filter off must hide badge");
+        });
+        filterToggles.forEach((toggle, index) => { if (initialFilterStates[index]) toggle.click(); });
+        expandCard("Photo Filter");
+        expandCard("Photo Display");
         expandCard("Metadata");
 
+        const immichCardTitles = Array.from(document.querySelectorAll("#sp-immich .card .card-header h3"))
+          .map((item) => item.textContent.trim());
+        if (immichCardTitles.indexOf("Portrait Pairing") !== immichCardTitles.indexOf("Frequency") + 1) {
+          throw new Error("Portrait Pairing should appear directly below Frequency");
+        }
+        if (immichCardTitles.indexOf("Advanced Filters") !== -1) {
+          throw new Error("Advanced Filters should not render as a standalone card");
+        }
+        const firstPhotoFilterToggle = photoFilterCard.querySelector(".card-body .toggle-row > span");
+        if (!firstPhotoFilterToggle || firstPhotoFilterToggle.textContent.trim() !== "Filter by Date") {
+          throw new Error("Date filter should appear at the top of Photo Filter");
+        }
+        const dateFilterRow = firstPhotoFilterToggle.closest(".field");
+        const dateFilterGroup = dateFilterRow && dateFilterRow.nextElementSibling;
+        if (!dateFilterRow || dateFilterRow.closest(".filter-group-details") ||
+            !dateFilterGroup || !dateFilterGroup.classList.contains("filter-group-details") ||
+            parseFloat(getComputedStyle(dateFilterGroup).paddingBottom) < 16) {
+          throw new Error("Date filter should use the shared filter group styling");
+        }
         requireText("Connection Timeout");
         requireText("Slideshow Interval");
         requireText("Portrait Pairing");
         requireText("Pairing Range");
-        requireText("Paired Portraits Only");
-        requireText("Photo Orientation");
+        requireText("Show Paired Portraits Only");
+        requireText("Display Photos");
         requireText("Display Mode");
+        const displayModeOptions = Array.from(selectByLabel("Display Mode").options).map((option) => option.textContent);
+        if (displayModeOptions.join("|") !== "Crop to fit|Show full image") {
+          throw new Error("Display Mode labels are incorrect: " + displayModeOptions.join(", "));
+        }
+        if (portraitPairingCard.querySelector(".card-header .toggle")) {
+          throw new Error("Portrait pairing should not have a header toggle");
+        }
+        const portraitPairingBadge = portraitPairingCard.querySelector(".card-header .on-badge");
+        if (!portraitPairingBadge || getComputedStyle(portraitPairingBadge).display !== "none") {
+          throw new Error("Portrait pairing ON badge should be hidden while the card is open");
+        }
+        const portraitPairingFields = Array.from(portraitPairingCard.querySelectorAll("label, .toggle-row > span"))
+          .map((item) => item.textContent.trim())
+          .filter(Boolean);
+        if (portraitPairingFields.indexOf("Show Paired Portraits Only") > portraitPairingFields.indexOf("Pairing Range")) {
+          throw new Error("Portrait pairing settings are in the wrong order");
+        }
         requireText("Metadata");
 
         setSelect("Connection Timeout", "5 minutes");
         setSelect("Slideshow Interval", "24 hours");
         setSelect("Pairing Range", "Within 2 Days");
-        toggleByText("Paired Portraits Only").click();
-        toggleByText("Portrait Pairing").click();
-        setSelect("Photo Orientation", "Landscape Only");
+        toggleByText("Show Paired Portraits Only").click();
+        cardByTitle("Portrait Pairing").querySelector(".card-body .toggle").click();
+        setSelect("Display Photos", "Landscape Only");
         setSelect("Display Mode", "Fit");
         setSelect("Date Taken Format", "January 1, 2026");
         setSelect("Date Format", "Relative Date");
@@ -998,10 +1112,15 @@ function smokeAssertionsForScenario(scenario) {
         clickTab("Device");
         await waitFor(() => pageText().indexOf("Clock") !== -1, 8000, "clock settings");
         clickTab("Immich");
-        await waitFor(() => pageText().indexOf("Layout") !== -1, 8000, "pairing disabled state");
-        expandCard("Layout");
-        requireSelectDisabled("Pairing Range");
-        requireToggleDisabled("Paired Portraits Only");
+        await waitFor(() => pageText().indexOf("Portrait Pairing") !== -1, 8000, "pairing disabled state");
+        const hiddenPairingCard = cardByTitle("Portrait Pairing");
+        const hiddenPairingOptions = hiddenPairingCard.querySelector(".portrait-pairing-options");
+        if (!hiddenPairingOptions || hiddenPairingOptions.style.display !== "none") {
+          throw new Error("Portrait pairing options should be hidden when pairing is off");
+        }
+        if (!hiddenPairingCard.querySelector(".card-body .toggle")) {
+          throw new Error("Portrait pairing master toggle should remain available when options are hidden");
+        }
         clickTab("Device");
         await waitFor(() => pageText().indexOf("Clock") !== -1, 8000, "clock settings return");
         expandCard("Clock");
@@ -1203,6 +1322,11 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "photo-source-reorder") {
             await requireAlbumReorderSave();
+            requireIncludedPanel("Albums", "Selected Albums", false);
+            requireIncludedPanel("People", "Selected People", false);
+            requireIncludedPanel("Tags", "Selected Tags", false);
+            requireAlbumOrderAfterExclusions();
+            requireNoAdvancedInclusionPanel();
           }
 
           if (${JSON.stringify(scenario.name)} === "screen-rotation-developer") {
@@ -1263,7 +1387,7 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "backup-import-future-version") {
             clickButton("Import");
-            await waitFor(() => pageText().indexOf("Unsupported backup version 2 - this device supports version 1") !== -1, 8000, "future version rejection");
+            await waitFor(() => pageText().indexOf("Unsupported backup version 4 - this device supports version 3") !== -1, 8000, "future version rejection");
             if (window.__smoke.posts.length) throw new Error("Future-version backup wrote settings to the device");
           }
 

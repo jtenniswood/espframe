@@ -137,7 +137,7 @@
     },
     "ota_update_platform": "esphome",
     "ota_pre_update_action": "keeps the current backlight state while the update starts",
-    "backup_config_version": 2,
+    "backup_config_version": 3,
     "backup_filename_prefix": "espframe-config-",
     "backup_filename_date_format": "YYYY-MM-DD",
     "backup_import_photo_id_limit": 255,
@@ -165,6 +165,9 @@
         "albums_enabled",
         "people_enabled",
         "tags_enabled",
+        "favorites_enabled",
+        "rating_enabled",
+        "location_enabled",
         "inclusion_matching",
         "album_matching",
         "person_matching",
@@ -239,6 +242,9 @@
         "albums_enabled": "albums_enabled",
         "people_enabled": "people_enabled",
         "tags_enabled": "tags_enabled",
+        "favorites_enabled": "favorites_enabled",
+        "rating_enabled": "rating_enabled",
+        "location_enabled": "location_enabled",
         "inclusion_matching": "inclusion_matching",
         "album_matching": "album_matching",
         "person_matching": "person_matching",
@@ -348,7 +354,7 @@
         },
         {
           "path": "tests/fixtures/compat/espframe-config-v2-future-version.json",
-          "message": "Unsupported backup version 3 - this device supports version 2"
+          "message": "Unsupported backup version 4 - this device supports version 3"
         },
         {
           "path": "tests/fixtures/compat/espframe-config-v0-unsupported-version.json",
@@ -616,6 +622,17 @@
         ]
       },
       {
+        "id": "portrait_pairing",
+        "label": "Portrait Pairing",
+        "tab": "immich",
+        "function": "makePortraitPairingCard",
+        "settings": [
+          "portrait_pairing",
+          "portrait_pairs_only",
+          "portrait_pairing_range"
+        ]
+      },
+      {
         "id": "photo_source",
         "label": "Photo Filter",
         "tab": "immich",
@@ -625,16 +642,25 @@
           "albums_enabled",
           "people_enabled",
           "tags_enabled",
+          "date_filter_enabled",
+          "date_filter_mode",
+          "date_from",
+          "date_to",
+          "relative_amount",
+          "relative_unit",
+          "favorites_enabled",
+          "rating_enabled",
+          "location_enabled",
           "inclusion_matching",
           "album_matching",
           "person_matching",
+          "tag_matching",
           "favorite_mode",
           "minimum_rating",
           "filter_country",
           "filter_state",
           "filter_city",
-          "album_order",
-          "tag_matching"
+          "album_order"
         ],
         "static_entities": [
           "album_ids",
@@ -658,31 +684,11 @@
         ]
       },
       {
-        "id": "advanced_filters",
-        "label": "Advanced Filters",
-        "tab": "immich",
-        "function": "makeAdvancedFiltersCard",
-        "settings": [
-          "date_filter_enabled",
-          "date_filter_mode",
-          "date_from",
-          "date_to",
-          "relative_amount",
-          "relative_unit"
-        ],
-        "manual_entities": [
-          "apply_photo_source"
-        ]
-      },
-      {
         "id": "layout",
-        "label": "Layout",
+        "label": "Photo Display",
         "tab": "immich",
         "function": "makeLayoutCard",
         "settings": [
-          "portrait_pairing",
-          "portrait_pairing_range",
-          "portrait_pairs_only",
           "photo_orientation",
           "display_mode"
         ]
@@ -1149,16 +1155,19 @@
             "albums_enabled",
             "people_enabled",
             "tags_enabled",
+            "favorites_enabled",
+            "rating_enabled",
+            "location_enabled",
             "inclusion_matching",
             "album_matching",
             "person_matching",
+            "tag_matching",
             "favorite_mode",
             "minimum_rating",
             "filter_country",
             "filter_state",
             "filter_city",
-            "album_order",
-            "tag_matching"
+            "album_order"
           ]
         },
         "date_filtering": {
@@ -1177,11 +1186,15 @@
             "relative_unit"
           ]
         },
-        "layout": {
+        "portrait_pairing": {
           "settings": [
             "portrait_pairing",
-            "portrait_pairing_range",
             "portrait_pairs_only",
+            "portrait_pairing_range"
+          ]
+        },
+        "layout": {
+          "settings": [
             "photo_orientation",
             "display_mode"
           ]
@@ -1535,6 +1548,9 @@
       "albums_enabled": {},
       "people_enabled": {},
       "tags_enabled": {},
+      "favorites_enabled": {},
+      "rating_enabled": {},
+      "location_enabled": {},
       "inclusion_matching": {},
       "album_matching": {},
       "person_matching": {},
@@ -2274,8 +2290,8 @@
         "name": "Photos: Tag Matching"
       },
       "default": "Any selected tag",
-      "docs_label": "Tag Matching",
-      "docs_description": "Choose whether a photo may contain any selected tag or must contain every selected tag.",
+      "docs_label": "Legacy Tag Matching",
+      "docs_description": "Legacy compatibility value; the Photo Filter always uses any selected tag.",
       "options": [
         "Any selected tag",
         "All selected tags"
@@ -2337,7 +2353,7 @@
         "name": "Photos: Orientation"
       },
       "default": "Any",
-      "docs_label": "Photo Orientation",
+      "docs_label": "Display Photos",
       "docs_description": "Choose any photo, portrait-only photos, or landscape-only photos. Portrait-only is useful when the frame is mounted vertically.",
       "options": [
         "Any",
@@ -2359,7 +2375,8 @@
       },
       "default": "Fill",
       "docs_label": "Display Mode",
-      "docs_description": "Fill crops to cover the screen; Fit letterboxes without cropping.",
+      "docs_default": "Crop to fit",
+      "docs_description": "Crop to fit fills the screen and may crop edges; Show full image letterboxes without cropping.",
       "options": [
         "Fill",
         "Fit"
@@ -2903,7 +2920,7 @@
         "name": "Photos: Paired Portraits Only"
       },
       "default": false,
-      "docs_label": "Paired Portraits Only",
+      "docs_label": "Show Paired Portraits Only",
       "docs_default": "Off",
       "docs_description": "Skip portrait photos unless both images in a compatible pair are ready; landscape photos are unaffected.",
       "firmware_files": [
@@ -2954,7 +2971,8 @@
         "name": "Photos: Albums Enabled"
       },
       "default": false,
-      "docs_description": "Include the configured albums as an independently enabled filter group.",
+      "docs_label": "Filter by Albums",
+      "docs_description": "Enable filtering by any selected album while preserving the list when disabled.",
       "firmware_files": [
         "common/addon/immich_filter.yaml"
       ],
@@ -2969,7 +2987,8 @@
         "name": "Photos: People Enabled"
       },
       "default": false,
-      "docs_description": "Include the configured people as an independently enabled filter group.",
+      "docs_label": "Filter by People",
+      "docs_description": "Enable filtering by any selected person while preserving the list when disabled.",
       "firmware_files": [
         "common/addon/immich_filter.yaml"
       ],
@@ -2984,7 +3003,56 @@
         "name": "Photos: Tags Enabled"
       },
       "default": false,
-      "docs_description": "Include the configured tags as an independently enabled filter group.",
+      "docs_label": "Filter by Tags",
+      "docs_description": "Enable filtering by any selected tag while preserving the list when disabled.",
+      "firmware_files": [
+        "common/addon/immich_filter.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
+    },
+    {
+      "key": "favorites_enabled",
+      "entity": {
+        "domain": "switch",
+        "name": "Photos: Favorites Enabled"
+      },
+      "default": false,
+      "docs_label": "Filter by Favorites",
+      "docs_description": "Enable favorite filtering while preserving the selected favorite mode when disabled.",
+      "firmware_files": [
+        "common/addon/immich_filter.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
+    },
+    {
+      "key": "rating_enabled",
+      "entity": {
+        "domain": "switch",
+        "name": "Photos: Rating Enabled"
+      },
+      "default": false,
+      "docs_label": "Filter by Rating",
+      "docs_description": "Enable minimum rating filtering while preserving the selected rating when disabled.",
+      "firmware_files": [
+        "common/addon/immich_filter.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
+    },
+    {
+      "key": "location_enabled",
+      "entity": {
+        "domain": "switch",
+        "name": "Photos: Location Enabled"
+      },
+      "default": false,
+      "docs_label": "Filter by Location",
+      "docs_description": "Enable country, state or province, and city filtering as one group.",
       "firmware_files": [
         "common/addon/immich_filter.yaml"
       ],
@@ -3022,7 +3090,7 @@
         "Any selected album",
         "All selected albums"
       ],
-      "docs_description": "Choose whether an album group samples one selected album or requires all selected albums; all-album matching requires Immich 3.2 or newer.",
+      "docs_description": "Legacy compatibility value; the Photo Filter always uses any selected album.",
       "firmware_files": [
         "common/addon/immich_filter.yaml"
       ],
@@ -3041,7 +3109,7 @@
         "Any selected person",
         "All selected people"
       ],
-      "docs_description": "Choose whether photos may contain any selected person or must contain all selected people.",
+      "docs_description": "Legacy compatibility value; the Photo Filter always uses any selected person.",
       "firmware_files": [
         "common/addon/immich_filter.yaml"
       ],

@@ -231,13 +231,16 @@ script:
           const std::string source = id(photo_source_select).current_option();
           std::string missing_source = source;
           if (id(immich_albums_enabled).state &&
-              split_valid_uuid_csv(id(immich_album_ids).state).empty()) {
+              split_valid_uuid_csv(id(immich_album_ids).state).empty() &&
+              split_valid_uuid_csv(id(immich_excluded_album_ids).state).empty()) {
             missing_source = "Album";
           } else if (id(immich_people_enabled).state &&
-                     split_valid_uuid_csv(id(immich_person_ids).state).empty()) {
+                     split_valid_uuid_csv(id(immich_person_ids).state).empty() &&
+                     split_valid_uuid_csv(id(immich_excluded_person_ids).state).empty()) {
             missing_source = "Person";
           } else if (id(immich_tags_enabled).state &&
-                     split_valid_uuid_csv(id(immich_tag_ids).state).empty()) {
+                     split_valid_uuid_csv(id(immich_tag_ids).state).empty() &&
+                     split_valid_uuid_csv(id(immich_excluded_tag_ids).state).empty()) {
             missing_source = "Tag";
           }
           const bool invalid_location =
