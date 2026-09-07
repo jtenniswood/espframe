@@ -371,9 +371,10 @@ input[readonly] {
 }
 
 .filter-group-details {
-  margin:0 0 12px 12px;
-  padding:0 0 16px 12px;
-  border-left:2px solid var(--border)
+  margin:0 0 20px;
+  padding:16px;
+  border:1px solid var(--border);
+  border-radius:8px
 }
 
 .filter-nested {
