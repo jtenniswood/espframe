@@ -197,7 +197,7 @@
     }
 
     function addGroup(label, enabledKey, idKey, labelKey, noun, options) {
-      var details = el("div", "filter-group-details");
+      var details = el("div", "filter-group-details filter-lists");
       var row = toggleSettingRow({
         label: "Filter by " + label, value: !!S[enabledKey],
         getValue: function () { return !!S[enabledKey]; },
@@ -241,7 +241,11 @@
           "Any selected " + noun));
       }
       addExclusions(details, "Excluded " + label, options.excludedIdKey, options.excludedLabelKey, noun);
-      if (options && options.order) details.appendChild(productSelectSettingField("Album Order", "album_order"));
+      if (options && options.order) {
+        var order = productSelectSettingField("Album Order", "album_order");
+        order.classList.add("filter-panel");
+        details.appendChild(order);
+      }
       details.style.display = S[enabledKey] ? "" : "none";
       body.appendChild(details);
     }

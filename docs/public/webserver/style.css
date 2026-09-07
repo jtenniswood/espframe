@@ -371,11 +371,16 @@ input[readonly] {
   font-size:.78rem
 }
 
-.filter-group-details {
+.filter-group-details, .filter-panel {
   margin:0 0 20px;
   padding:16px;
   border:1px solid var(--border);
   border-radius:8px
+}
+
+.filter-lists {
+  padding:0 0 16px;
+  border:0
 }
 
 .filter-nested {
@@ -385,11 +390,11 @@ input[readonly] {
   border-radius:8px
 }
 
-.filter-group-details > .filter-nested:first-child {
+.filter-lists > :first-child {
   margin-top:0
 }
 
-.filter-group-details > .filter-nested:last-child {
+.filter-lists > :last-child {
   margin-bottom:0
 }
 

@@ -502,11 +502,16 @@ input[readonly] {
   font-size:.78rem
 }
 
-.filter-group-details {
+.filter-group-details, .filter-panel {
   margin:0 0 20px;
   padding:16px;
   border:1px solid var(--border);
   border-radius:8px
+}
+
+.filter-lists {
+  padding:0 0 16px;
+  border:0
 }
 
 .filter-nested {
@@ -516,11 +521,11 @@ input[readonly] {
   border-radius:8px
 }
 
-.filter-group-details > .filter-nested:first-child {
+.filter-lists > :first-child {
   margin-top:0
 }
 
-.filter-group-details > .filter-nested:last-child {
+.filter-lists > :last-child {
   margin-bottom:0
 }
 
@@ -2688,7 +2693,7 @@ to {
       parent.appendChild(nested);
     }
     function addGroup(label, enabledKey, idKey, labelKey, noun, options) {
-      var details = el("div", "filter-group-details");
+      var details = el("div", "filter-group-details filter-lists");
       var row = toggleSettingRow({
         label: "Filter by " + label,
         value: !!S[enabledKey],
@@ -2754,7 +2759,11 @@ to {
         ));
       }
       addExclusions(details, "Excluded " + label, options.excludedIdKey, options.excludedLabelKey, noun);
-      if (options && options.order) details.appendChild(productSelectSettingField("Album Order", "album_order"));
+      if (options && options.order) {
+        var order = productSelectSettingField("Album Order", "album_order");
+        order.classList.add("filter-panel");
+        details.appendChild(order);
+      }
       details.style.display = S[enabledKey] ? "" : "none";
       body.appendChild(details);
     }
