@@ -100,6 +100,7 @@
 
   function makeSmartPhotoFilterCard() {
     var body = el("div");
+    appendDateFilterControls(body);
     var version = String(S.immich_server_version || "Unknown");
     var parts = version.split(".").map(Number);
     var supportsStructured = parts.length >= 2 && isFinite(parts[0]) && isFinite(parts[1]) &&
@@ -586,8 +587,7 @@
 
   }
 
-  function makeAdvancedFiltersCard() {
-    // Advanced Filters
+  function appendDateFilterControls(parent) {
     var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
     function isValidDate(s) {
       if (!DATE_RE.test(s)) return false;
@@ -595,10 +595,6 @@
       var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
       return d.getFullYear() === Number(parts[0]) && d.getMonth() === Number(parts[1]) - 1 && d.getDate() === Number(parts[2]);
     }
-    function isFilterActive(enabled) {
-      return !!enabled;
-    }
-    var filterBadge = makeBadge(isFilterActive(S.date_filter_enabled));
     var filterBody = el("div");
     var filterApplyTimer = null;
     var filterDetails = el("div");
@@ -609,8 +605,6 @@
       getValue: function () { return S.date_filter_enabled; },
       setValue: function (value) { S.date_filter_enabled = value; },
       details: filterDetails,
-      badge: filterBadge,
-      badgeActive: function () { return isFilterActive(S.date_filter_enabled); },
       onChange: scheduleFilterApply
     }).field);
 
@@ -724,7 +718,6 @@
       S.date_to = vals.to;
       S.relative_amount = vals.amount;
       S.relative_unit = vals.unit;
-      filterBadge.className = "on-badge" + (isFilterActive(S.date_filter_enabled) ? " active" : "");
       Promise.all([
         saveSetting("date_filter_enabled", S.date_filter_enabled),
         saveSetting("date_filter_mode", modeVal),
@@ -743,7 +736,7 @@
     }
 
     filterBody.appendChild(filterDetails);
-    return makeCollapsibleCard("Advanced Filters", filterBody, true, filterBadge);
+    parent.appendChild(filterBody);
   }
 
   function makePortraitPairingCard() {

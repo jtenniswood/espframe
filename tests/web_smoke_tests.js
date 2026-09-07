@@ -1008,6 +1008,7 @@ function smokeAssertionsForScenario(scenario) {
         expandCard("Connection");
         expandCard("Frequency");
         expandCard("Portrait Pairing");
+        const photoFilterCard = expandCard("Photo Filter");
         expandCard("Photo Display");
         expandCard("Metadata");
 
@@ -1015,6 +1016,13 @@ function smokeAssertionsForScenario(scenario) {
           .map((item) => item.textContent.trim());
         if (immichCardTitles.indexOf("Portrait Pairing") !== immichCardTitles.indexOf("Frequency") + 1) {
           throw new Error("Portrait Pairing should appear directly below Frequency");
+        }
+        if (immichCardTitles.indexOf("Advanced Filters") !== -1) {
+          throw new Error("Advanced Filters should not render as a standalone card");
+        }
+        const firstPhotoFilterToggle = photoFilterCard.querySelector(".card-body .toggle-row > span");
+        if (!firstPhotoFilterToggle || firstPhotoFilterToggle.textContent.trim() !== "Filter by Date") {
+          throw new Error("Date filter should appear at the top of Photo Filter");
         }
         requireText("Connection Timeout");
         requireText("Slideshow Interval");

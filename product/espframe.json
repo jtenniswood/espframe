@@ -642,6 +642,12 @@
           "albums_enabled",
           "people_enabled",
           "tags_enabled",
+          "date_filter_enabled",
+          "date_filter_mode",
+          "date_from",
+          "date_to",
+          "relative_amount",
+          "relative_unit",
           "favorites_enabled",
           "rating_enabled",
           "location_enabled",
@@ -672,23 +678,6 @@
           "immich_server_version",
           "immich_capability_status",
           "memories_migration_notice"
-        ],
-        "manual_entities": [
-          "apply_photo_source"
-        ]
-      },
-      {
-        "id": "advanced_filters",
-        "label": "Advanced Filters",
-        "tab": "immich",
-        "function": "makeAdvancedFiltersCard",
-        "settings": [
-          "date_filter_enabled",
-          "date_filter_mode",
-          "date_from",
-          "date_to",
-          "relative_amount",
-          "relative_unit"
         ],
         "manual_entities": [
           "apply_photo_source"

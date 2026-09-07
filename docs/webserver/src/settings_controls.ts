@@ -9,7 +9,6 @@
       makeConnectionCard: makeConnectionCard,
       makeFrequencyCard: makeFrequencyCard,
       makePhotoSourceCard: makePhotoSourceCard,
-      makeAdvancedFiltersCard: makeAdvancedFiltersCard,
       makePortraitPairingCard: makePortraitPairingCard,
       makeLayoutCard: makeLayoutCard,
       makeMetadataCard: makeMetadataCard,
@@ -77,7 +76,6 @@
       makeFrequencyCard(),
       makePortraitPairingCard(),
       makePhotoSourceCard(),
-      makeAdvancedFiltersCard(),
       makeLayoutCard(),
       makeMetadataCard()
     ];
