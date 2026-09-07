@@ -2663,9 +2663,11 @@ to {
         details.appendChild(included);
         inclusionParent = included;
       }
-      var hint = el("div", "setting-hint");
-      hint.textContent = "Any selected " + noun + " is included.";
-      inclusionParent.appendChild(hint);
+      if (!options || options.showInclusionHint !== false) {
+        var hint = el("div", "setting-hint");
+        hint.textContent = "Any selected " + noun + " is included.";
+        inclusionParent.appendChild(hint);
+      }
       var timer = null;
       var editor = photoIdListField({
         label: "Selected " + label,
@@ -2703,7 +2705,8 @@ to {
     addGroup("People", "people_enabled", "person_ids", "person_labels", "person", {
       excludedIdKey: "excluded_person_ids",
       excludedLabelKey: "excluded_person_labels",
-      includedPanel: true
+      includedPanel: true,
+      showInclusionHint: false
     });
     addGroup("Tags", "tags_enabled", "tag_ids", "tag_labels", "tag", {
       excludedIdKey: "excluded_tag_ids",

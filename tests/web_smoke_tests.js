@@ -878,7 +878,7 @@ function smokeAssertionsForScenario(scenario) {
           }
         }, 8000, "album reorder save");
       }
-      function requireIncludedPanel(groupLabel, selectedLabel) {
+      function requireIncludedPanel(groupLabel, selectedLabel, expectHint) {
         const group = fieldByLabel(selectedLabel).closest(".filter-group-details");
         if (!group) throw new Error(groupLabel + " filter group not found");
         const included = Array.from(group.querySelectorAll("details")).find((item) =>
@@ -888,7 +888,8 @@ function smokeAssertionsForScenario(scenario) {
         if (!included || !included.open || !included.querySelector("label")) {
           throw new Error(groupLabel + " should group selected items inside an open Included panel");
         }
-        if (!included.querySelector(".setting-hint") || !included.querySelector("button")) {
+        const hint = included.querySelector(".setting-hint");
+        if ((expectHint && !hint) || (!expectHint && hint) || !included.querySelector("button")) {
           throw new Error("Included " + groupLabel + " panel should contain its hint and controls");
         }
         const chevron = getComputedStyle(included.querySelector("summary"), "::before");
@@ -1253,9 +1254,9 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "photo-source-reorder") {
             await requireAlbumReorderSave();
-            requireIncludedPanel("Albums", "Selected Albums");
-            requireIncludedPanel("People", "Selected People");
-            requireIncludedPanel("Tags", "Selected Tags");
+            requireIncludedPanel("Albums", "Selected Albums", true);
+            requireIncludedPanel("People", "Selected People", false);
+            requireIncludedPanel("Tags", "Selected Tags", true);
             requireAlbumOrderAfterExclusions();
           }
 
