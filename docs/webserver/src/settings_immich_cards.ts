@@ -40,6 +40,7 @@
       keyWrap.appendChild(makeMaskedApiKeyRow(function () {
         keyWrap.replaceChildren();
         keyWrap.appendChild(makeKeyInput());
+        connectFieldLabels(f2);
       }));
     }
 
@@ -126,7 +127,7 @@
     function applySetting(key, value) {
       return saveSetting(key, value, { applyPhotoSource: true });
     }
-    function addSelect(label, key, disabled, reason, recoveryValue) {
+    function addSelect(label, key, disabled, reason, recoveryValue?) {
       var f = field(label);
       var control = selectFromOptions(productSettingOptions(key), S[key], function (value) {
         S[key] = value;
@@ -161,10 +162,10 @@
       S[idKey] = ids;
       S[labelKey] = labels;
       Promise.all([saveSetting(idKey, ids), saveSetting(labelKey, labels)]).then(function () {
-        post(endpoints.apply_photo_source + "/press");
-      });
+        return post(endpoints.apply_photo_source + "/press");
+      }).catch(reportSettingSaveFailure);
     }
-    function addGroup(label, enabledKey, matchingKey, idKey, labelKey, noun, allMatchingRequiresStructured) {
+    function addGroup(label, enabledKey, matchingKey, idKey, labelKey, noun, allMatchingRequiresStructured?) {
       var details = el("div");
       body.appendChild(toggleSettingRow({
         label: "Enable " + label,
@@ -512,8 +513,8 @@
       Promise.all(requests).then(function () {
         if (changes.source || changes.album || changes.albumOrder || changes.person ||
             changes.tag || changes.tagMatching)
-          post(endpoints.apply_photo_source + "/press");
-      });
+          return post(endpoints.apply_photo_source + "/press");
+      }).catch(reportSettingSaveFailure);
     }
     function schedulePhotoSourceApply(delayMs, changes) {
       if (changes) {
@@ -690,8 +691,8 @@
         saveSetting("relative_amount", vals.amount),
         saveSetting("relative_unit", vals.unit)
       ]).then(function () {
-        post(endpoints.apply_photo_source + "/press");
-      });
+        return post(endpoints.apply_photo_source + "/press");
+      }).catch(reportSettingSaveFailure);
     }
 
     function scheduleFilterApply() {

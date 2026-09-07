@@ -223,7 +223,27 @@ h2 {
 }
 
 .card-header h3 {
-  margin:0
+  margin:0;
+  flex:1
+}
+
+.card-toggle {
+  display:block;
+  width:100%;
+  padding:0;
+  border:0;
+  background:none;
+  color:inherit;
+  font:inherit;
+  letter-spacing:inherit;
+  text-align:left;
+  cursor:pointer
+}
+
+.card-toggle:focus-visible {
+  outline:2px solid var(--accent);
+  outline-offset:4px;
+  border-radius:2px
 }
 
 .card-body {

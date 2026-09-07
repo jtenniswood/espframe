@@ -46,7 +46,6 @@ const modules = {
   "__ESPFRAME_WEB_SETTINGS_CONTROLS__": "settings_controls.ts",
   "__ESPFRAME_WEB_LIVE_HELPERS__": "live_helpers.ts",
   "__ESPFRAME_WEB_BACKUP_IMPORT__": "backup_import.ts",
-  "__ESPFRAME_WEB_COMPAT_HELPERS__": "compat.ts",
 };
 
 for (const [placeholder, filename] of Object.entries(modules)) {
@@ -72,7 +71,7 @@ assert.ok(
 );
 assert.ok(publicApp.includes("customElements.define"), "public app should register its component root");
 assert.ok(publicApp.includes('"album_order"'), "public app should include album order in photo-source apply keys");
-assert.ok(publicApp.includes("Move album up"), "public app should include album reorder controls");
+assert.ok(publicApp.includes("Move up"), "public app should include album reorder controls");
 assert.ok(publicApp.includes("movePhotoIdRow"), "public app should keep photo ID and label rows reorderable");
 assert.ok(
   publicApp.includes("All selected albums need 3.2+"),
@@ -244,9 +243,12 @@ assert.ok(
     "legacy photo-source presets should restore " + defaultMode
   );
 });
-const photoSourceApply = publicApp.slice(
-  publicApp.indexOf("function applyPhotoSourceInputs()"),
-  publicApp.indexOf("function schedulePhotoSourceApply")
+// The legacy renderer remains available in authored source; the module bundler
+// omits it from the current UI because makePhotoSourceCard uses the smart filter.
+const immichCardsSource = fs.readFileSync(path.join(root, "docs/webserver/src/settings_immich_cards.ts"), "utf8");
+const photoSourceApply = immichCardsSource.slice(
+  immichCardsSource.indexOf("function applyPhotoSourceInputs()"),
+  immichCardsSource.indexOf("function schedulePhotoSourceApply")
 );
 assert.ok(
   photoSourceApply.indexOf("if (!vals) return;") < photoSourceApply.indexOf("pendingPhotoSourceSave = {"),
@@ -265,7 +267,7 @@ assert.equal(
 assert.ok(publicApp.includes('image.alt = "Buy Me A Coffee"'), "support button image should have accessible text");
 
 const backupImportContext = { JSON };
-require("vm").runInNewContext(backupImportSource, backupImportContext);
+require("vm").runInNewContext(require("esbuild").transformSync(backupImportSource, { loader: "ts" }).code, backupImportContext);
 const connectionOnlyBackup = backupImportContext.migrateBackupConfig({
   version: 1,
   connection: { immich_url: "https://photos.example.com" }

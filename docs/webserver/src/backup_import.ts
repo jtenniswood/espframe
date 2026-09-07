@@ -149,7 +149,7 @@
     return backupEntryKey(entry).replace(/_/g, " ");
   }
 
-  function backupImportValidation(ok, value, message) {
+  function backupImportValidation(ok, value, message?) {
     return { ok: ok, value: value, message: message || "" };
   }
 
@@ -379,7 +379,7 @@
       var reader = new FileReader();
       reader.onload = function () {
         var data;
-        try { data = JSON.parse(reader.result); } catch (_) {
+        try { data = JSON.parse(String(reader.result)); } catch (_) {
           showBanner("Invalid file \u2014 could not parse JSON", "error");
           return;
         }

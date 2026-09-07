@@ -1,7 +1,17 @@
-(function () {
-  "use strict";
+"use strict";
+
+import { SettingSaveCoordinator } from "./setting_save";
+
+import {
+  MAX_PHOTO_ID_FIELD_LENGTH, extractUrlHost, extractUrlPort, isValidHttpUrl,
+  normalizeImmichUrl, normalizeNtpServer, normalizeDateTakenFormat,
+  parsePhotoLabelList, photoIdFieldTooLong, photoLabelFieldTooLong,
+  splitPhotoIdList, isValidUuidList
+} from "./compat";
 
   __ESPFRAME_WEB_CONTRACTS__
+
+  type AppState = Partial<__ESPFRAME_SETTING_STATE_TYPES__> & RuntimeState;
 
   var TIMEZONES = __ESPFRAME_TIMEZONES__;
   var TIMEZONE_LABELS = __ESPFRAME_TIMEZONE_LABELS__;
@@ -102,7 +112,7 @@
     return isFinite(value) && value > 0 ? value : fallback;
   }
 
-  function productSettingOptions(key, includeDeveloper) {
+  function productSettingOptions(key, includeDeveloper?) {
     var spec = PRODUCT_SETTINGS && PRODUCT_SETTINGS[key];
     var options = spec && Array.isArray(spec.options) ? spec.options.slice() : [];
     if (includeDeveloper && spec && Array.isArray(spec.developerOptions)) {
@@ -129,14 +139,13 @@
   __ESPFRAME_WEB_ENDPOINTS__
 
   // Matches the ESPHome template text max_length for album/person/tag ID and label lists.
-  var MAX_PHOTO_ID_FIELD_LENGTH = 255;
   var MAX_NTP_SERVER_LENGTH = 253;
   var PHOTO_ID_FIELD_TOO_LONG =
     "List exceeds 255 characters (device limit). Remove IDs or shorten the list.";
   var PHOTO_LABEL_FIELD_TOO_LONG =
     "Labels exceed 255 characters (device limit). Shorten or remove labels.";
 
-  function postTextValueSet(url, value, useQueryFallback) {
+  function postTextValueSet(url, value, useQueryFallback?) {
     var body = new URLSearchParams();
     body.set("value", value == null ? "" : String(value));
     var encoded = body.toString();
@@ -178,47 +187,50 @@
   }
 
   function saveAndVerifyConnectionValue(path, value, useQueryFallback, isSaved) {
-    return saveConnectionValue(path, value, useQueryFallback)
-      .then(function () {
-        return safeGet(path);
-      })
-      .then(function (resp) {
-        var saved = connectionResponseValue(resp);
-        if (isSaved && !isSaved(saved)) throw new Error("verify_failed");
-        return saved;
-      });
+    var key = path === endpoints.immich_url ? "immich_url" : "api_key";
+    return settingSaves.save({ [key]: value }, function () {
+      return saveConnectionValue(path, value, useQueryFallback)
+        .then(function () {
+          return safeGet(path);
+        })
+        .then(function (resp) {
+          var saved = connectionResponseValue(resp);
+          if (isSaved && !isSaved(saved)) throw new Error("verify_failed");
+          return saved;
+        });
+    });
   }
 
   function saveAndVerifyConnection(url, key) {
     var normalizedUrl = normalizeImmichUrl(url);
     var apiKey = String(key || "").trim();
     if (!normalizedUrl || !apiKey) return Promise.reject(new Error("missing_connection"));
-    return updateConfiguration({ immich_url: normalizedUrl, api_key: apiKey })
-      .then(function () { return delayMs(150); })
-      .then(function () { return getConfigurationSnapshot(); })
-      .catch(function (error) {
-        if (!isConfigurationApiUnavailable(error)) throw error;
-        return saveConnectionValue(endpoints.immich_url, normalizedUrl, true)
-          .then(function () { return saveConnectionValue(endpoints.api_key, apiKey, false); })
-          .then(function () {
-            return Promise.all([safeGet(endpoints.immich_url), safeGet(endpoints.api_key)]);
-          });
-      })
-      .then(function (result) {
-        var savedUrl;
-        var savedKey;
-        if (result && result.values) {
-          savedUrl = normalizeImmichUrl(result.values.immich_url);
-          savedKey = String(result.values.api_key || "");
-        } else {
-          savedUrl = normalizeImmichUrl(connectionResponseValue(result[0]));
-          savedKey = connectionResponseValue(result[1]);
-        }
-        if (savedUrl !== normalizedUrl || !savedKey) throw new Error("verify_failed");
-        S.immich_url = normalizedUrl;
-        S.api_key = apiKey;
-        return { url: normalizedUrl, key: apiKey };
-      });
+    return settingSaves.save({ immich_url: normalizedUrl, api_key: apiKey }, function () {
+      return updateConfiguration({ immich_url: normalizedUrl, api_key: apiKey })
+        .then(function () { return delayMs(150); })
+        .then(function () { return getConfigurationSnapshot(); })
+        .catch(function (error) {
+          if (!isConfigurationApiUnavailable(error)) throw error;
+          return saveConnectionValue(endpoints.immich_url, normalizedUrl, true)
+            .then(function () { return saveConnectionValue(endpoints.api_key, apiKey, false); })
+            .then(function () {
+              return Promise.all([safeGet(endpoints.immich_url), safeGet(endpoints.api_key)]);
+            });
+        })
+        .then(function (result) {
+          var savedUrl;
+          var savedKey;
+          if (result && !Array.isArray(result)) {
+            savedUrl = normalizeImmichUrl(result.values.immich_url);
+            savedKey = String(result.values.api_key || "");
+          } else {
+            savedUrl = normalizeImmichUrl(connectionResponseValue(result[0]));
+            savedKey = connectionResponseValue(result[1]);
+          }
+          if (savedUrl !== normalizedUrl || !savedKey) throw new Error("verify_failed");
+          return { url: normalizedUrl, key: apiKey };
+        });
+    });
   }
 
   var PHOTO_SOURCE_APPLY_SETTING_KEYS = [
@@ -253,6 +265,39 @@
     return PHOTO_SOURCE_APPLY_SETTING_KEYS.indexOf(key) !== -1;
   }
 
+  var settingSaves = new SettingSaveCoordinator(
+    function (key) { return S[key]; },
+    function (key, value) { S[key] = value; }
+  );
+
+  Object.keys(S).forEach(function (key) {
+    var value = S[key];
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      settingSaves.receive(key, value);
+    }
+  });
+
+  function sendLegacySetting(key, savedValue) {
+    var domain = settingEntityDomain(key);
+    if (domain === "switch") return post(endpoints[key] + (savedValue ? "/turn_on" : "/turn_off"));
+    if (domain === "select") return post(endpoints[key] + "/set", { option: savedValue });
+    if (domain === "number") return post(endpoints[key] + "/set", { value: savedValue });
+    if (domain === "text") return postTextValueSet(endpoints[key] + "/set", savedValue);
+    return Promise.resolve(null);
+  }
+
+  function saveSettingValues(values) {
+    return settingSaves.save(values, function () {
+      return updateConfiguration(values).catch(function (error) {
+        if (!isConfigurationApiUnavailable(error)) throw error;
+        // Preserve ordering through legacy writes as well as the versioned API.
+        return Object.keys(values).reduce(function (queue, key) {
+          return queue.then(function () { return sendLegacySetting(key, values[key]); });
+        }, Promise.resolve(null));
+      });
+    });
+  }
+
   function saveGenericSetting(key, value) {
     if (!key || !endpoints[key]) return Promise.resolve(null);
     var domain = settingEntityDomain(key);
@@ -263,33 +308,11 @@
       if (isFinite(numberValue)) savedValue = numberValue;
     }
     if (domain === "select" || domain === "text") savedValue = value == null ? "" : String(value);
-    var previousValue = S[key];
-    S[key] = savedValue;
-    var request = updateConfiguration({ [key]: savedValue }).catch(function (error) {
-      if (!isConfigurationApiUnavailable(error)) throw error;
-      if (domain === "switch") return post(endpoints[key] + (savedValue ? "/turn_on" : "/turn_off"));
-      if (domain === "select") return post(endpoints[key] + "/set", { option: savedValue });
-      if (domain === "number") return post(endpoints[key] + "/set", { value: savedValue });
-      if (domain === "text") return postTextValueSet(endpoints[key] + "/set", savedValue);
-      return null;
-    });
-    return Promise.resolve(request).catch(function (err) {
-      S[key] = previousValue;
-      throw err;
-    });
+    return saveSettingValues({ [key]: savedValue });
   }
 
   function saveNtpServer(key, value) {
-    var server = normalizeNtpServer(value);
-    var previousValue = S[key];
-    S[key] = server;
-    return updateConfiguration({ [key]: server }).catch(function (error) {
-      if (!isConfigurationApiUnavailable(error)) throw error;
-      return postTextValueSet(endpoints[key] + "/set", server);
-    }).catch(function (err) {
-      S[key] = previousValue;
-      throw err;
-    });
+    return saveSettingValues({ [key]: normalizeNtpServer(value) });
   }
 
   function saveScheduleWakeTimeoutSetting(key, value) {
@@ -299,24 +322,15 @@
   function saveScreenRotationSetting(key, value) {
     var rotation = String(value);
     if (screenRotationOptionsForUi().indexOf(rotation) === -1) return Promise.resolve(null);
-    var previousRotation = S.screen_rotation;
-    var previousPortraitPairing = S.portrait_pairing;
-    S.screen_rotation = rotation;
-    S.portrait_pairing = !isPortraitScreenRotation(rotation);
-    return updateConfiguration({
+    return saveSettingValues({
       screen_rotation: rotation,
-      portrait_pairing: S.portrait_pairing
-    }).catch(function (error) {
-      if (!isConfigurationApiUnavailable(error)) throw error;
-      return Promise.all([
-        saveGenericSetting("screen_rotation", rotation),
-        saveGenericSetting("portrait_pairing", S.portrait_pairing)
-      ]);
-    }).catch(function (err) {
-      S.screen_rotation = previousRotation;
-      S.portrait_pairing = previousPortraitPairing;
-      throw err;
+      portrait_pairing: !isPortraitScreenRotation(rotation)
     });
+  }
+
+  function reportSettingSaveFailure() {
+    showBanner("Failed to save setting", "error");
+    renderSettingsAfterEditing();
   }
 
   var SETTING_SAVE_ADAPTERS = {
@@ -327,16 +341,19 @@
     screen_rotation: saveScreenRotationSetting
   };
 
-  function saveSetting(key, value, options) {
+  function saveSetting(key, value, options?) {
     var opts = options || {};
     var adapter = SETTING_SAVE_ADAPTERS[key];
     var result = adapter ? adapter(key, value, opts) : saveGenericSetting(key, value);
-    if (!opts.applyPhotoSource || !settingUsesPhotoSourceApply(key)) return result;
-    return Promise.resolve(result).then(function (saved) {
-      return post(endpoints.apply_photo_source + "/press").then(function () {
-        return saved;
+    if (opts.applyPhotoSource && settingUsesPhotoSourceApply(key)) {
+      result = Promise.resolve(result).then(function (saved) {
+        return post(endpoints.apply_photo_source + "/press").then(function () { return saved; });
       });
-    });
+    }
+    // Event handlers may ignore the result; backup import still receives the
+    // original rejecting promise so it can report partial failures accurately.
+    result.catch(reportSettingSaveFailure);
+    return result;
   }
 
   function makeConnectionUrlField(value) {
@@ -390,7 +407,6 @@
     return row;
   }
 
-  __ESPFRAME_WEB_COMPAT_HELPERS__
 
   function developerPanelEnabledByUrl() {
     try {
@@ -464,4 +480,3 @@
 
   buildUI();
   initSSE();
-})();

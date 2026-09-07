@@ -182,7 +182,10 @@ const unsupportedVersionBackupFixture = {
 const scenarios = [
   { name: "wizard", configured: false, width: 1280, height: 900 },
   { name: "wizard-connection-save", configured: false, width: 1280, height: 900 },
+  { name: "wizard-connection-save-legacy", configured: false, width: 1280, height: 900, legacyApi: true },
   { name: "settings", configured: true, width: 1280, height: 900 },
+  { name: "settings-accessibility", configured: true, width: 1280, height: 900 },
+  { name: "setting-save-rejected", configured: true, width: 1280, height: 900, failedPostEndpoint: "Screen: Daytime Brightness" },
   { name: "settings-mobile", configured: true, width: 390, height: 900 },
   { name: "firmware-main-install", configured: true, width: 1280, height: 900 },
   { name: "firmware-main-install-from-development-build", configured: true, width: 1280, height: 900, installedFirmwareVersion: "dev" },
@@ -424,6 +427,9 @@ function browserScriptForScenario(scenario) {
         });
       }
       if (decoded === "/espframe/api/v1/configuration") {
+        if (${JSON.stringify(!!scenario.legacyApi)}) {
+          return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+        }
         if (method === "GET") {
           return Promise.resolve({
             ok: true,
@@ -1070,7 +1076,7 @@ function smokeAssertionsForScenario(scenario) {
           requireText("API Key");
           clickTab("Device");
           requireText("Import Settings");
-        } else if (${JSON.stringify(scenario.name)} === "wizard-connection-save") {
+        } else if (${JSON.stringify(scenario.name)}.startsWith("wizard-connection-save")) {
           await requireWizardConnectionSave();
         } else {
           await waitFor(() => pageText().indexOf("Photo Source") !== -1, 8000, "settings");
@@ -1215,6 +1221,37 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "daily-settings-controls") {
             await requireDailySettingsControls();
+          }
+
+          if (${JSON.stringify(scenario.name)} === "settings-accessibility") {
+            clickTab("Device");
+            const card = cardByTitle("Backup");
+            const toggle = card.querySelector(".card-toggle");
+            if (!toggle || toggle.tagName !== "BUTTON") throw new Error("Card needs a native keyboard button");
+            toggle.focus();
+            if (document.activeElement !== toggle) throw new Error("Card toggle cannot receive focus");
+            const before = toggle.getAttribute("aria-expanded");
+            toggle.click();
+            if (toggle.getAttribute("aria-expanded") === before) throw new Error("Card expanded state did not change");
+            if (document.getElementById(toggle.getAttribute("aria-controls")) !== card.querySelector(".card-body")) {
+              throw new Error("Card toggle is not associated with its content");
+            }
+            const labels = Array.from(document.querySelectorAll(".field > label"));
+            for (const label of labels) {
+              const input = label.parentElement.querySelector("input,select,textarea");
+              if (input && label.control !== input) throw new Error("Unassociated field: " + label.textContent);
+            }
+          }
+          if (${JSON.stringify(scenario.name)} === "setting-save-rejected") {
+            clickTab("Device");
+            const card = expandCard("Screen Brightness");
+            const slider = card.querySelector('input[type="range"]');
+            const previous = slider.value;
+            slider.value = previous === "40" ? "50" : "40";
+            slider.dispatchEvent(new Event("change", { bubbles: true }));
+            await waitFor(() => pageText().includes("Failed to save setting"), 4000, "save error feedback");
+            await waitFor(() => cardByTitle("Screen Brightness").querySelector('input[type="range"]').value === previous,
+              4000, "rejected setting rollback");
           }
 
           if (${JSON.stringify(scenario.name)} === "backup-import-success") {

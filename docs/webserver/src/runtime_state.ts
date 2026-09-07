@@ -14,7 +14,7 @@
     "0;36": "sp-log-debug",
     "0;37": "sp-log-verbose"
   };
-  var ANSI_RE = /\033\[[\d;]*m/g;
+  var ANSI_RE = /\x1b\[[\d;]*m/g;
 
   function appendLog(msg, lvl) {
     if (!els.logOutput) return;
@@ -22,7 +22,7 @@
     line.className = "sp-log-line";
 
     var ansiClass = "";
-    var m = msg.match(/\033\[([\d;]+)m/);
+    var m = msg.match(/\x1b\[([\d;]+)m/);
     if (m) ansiClass = ANSI_LEVEL[m[1]] || "";
 
     if (ansiClass) {
@@ -63,7 +63,7 @@
     Object.keys(STATIC_ENTITIES).forEach(function (key) {
       var staticSpec = STATIC_ENTITIES[key];
       if (!staticSpec || typeof staticSpec.entity !== "string") return;
-      var stateSpec = { key: key };
+      var stateSpec: EntityStateSpec = { key: key };
       if (staticSpec.default !== undefined) stateSpec.default = staticSpec.default;
       if (staticSpec.optionsKey) stateSpec.optionsKey = staticSpec.optionsKey;
       if (staticSpec.boolFromState) stateSpec.boolFromState = true;
@@ -77,7 +77,7 @@
     Object.keys(PRODUCT_SETTINGS).forEach(function (key) {
       var productSpec = PRODUCT_SETTINGS[key];
       if (!productSpec || typeof productSpec.entity !== "string") return;
-      var stateSpec = { key: key, default: productSpec.default };
+      var stateSpec: EntityStateSpec = { key: key, default: productSpec.default };
       if (productSpec.domain === "switch") stateSpec.boolFromState = true;
       if (productSpec.domain === "number") stateSpec.number = true;
       ENTITY_STATE_MAP[productSpec.entity] = stateSpec;
@@ -95,7 +95,7 @@
       if (!Array.isArray(aliases)) return;
       aliases.forEach(function (aliasSpec) {
         if (!aliasSpec || typeof aliasSpec.entity !== "string") return;
-        var stateSpec = { key: key };
+        var stateSpec: EntityStateSpec = { key: key };
         if (aliasSpec.default !== undefined) stateSpec.default = aliasSpec.default;
         if (aliasSpec.optionsKey) stateSpec.optionsKey = aliasSpec.optionsKey;
         if (aliasSpec.boolFromState) stateSpec.boolFromState = true;
@@ -130,24 +130,26 @@
     var spec = ENTITY_STATE_MAP[id];
     if (!spec) return;
     var v = d.value != null ? d.value : d.state;
+    var received;
     if (spec.boolFromState) {
-      S[spec.key] = v === true || v === "ON";
+      received = v === true || v === "ON";
     } else if (spec.number) {
-      S[spec.key] = v != null ? Math.round(Number(v)) : (spec.default !== undefined ? spec.default : 0);
+      received = v != null ? Math.round(Number(v)) : (spec.default !== undefined ? spec.default : 0);
     } else {
-      S[spec.key] = v !== undefined && v !== null ? String(v) : (spec.default !== undefined ? spec.default : "");
+      received = v !== undefined && v !== null ? String(v) : (spec.default !== undefined ? spec.default : "");
     }
-    if (spec.key === "timezone") S[spec.key] = normalizeTimezoneOption(S[spec.key]);
-    if (spec.key && spec.key.indexOf("ntp_server_") === 0) S[spec.key] = normalizeNtpServer(S[spec.key]);
+    if (spec.key === "timezone") received = normalizeTimezoneOption(received);
+    if (spec.key && spec.key.indexOf("ntp_server_") === 0) received = normalizeNtpServer(received);
     if (spec.optionsKey && d.option && d.option.length) S[spec.optionsKey] = d.option;
     if (spec.key === "photo_metadata_date_format" &&
-        S[spec.key] !== "Relative Date" && S[spec.key] !== "Date Taken") {
-      S.photo_metadata_date_taken_format = normalizeDateTakenFormat(S[spec.key]);
-      S[spec.key] = "Date Taken";
+        received !== "Relative Date" && received !== "Date Taken") {
+      settingSaves.receive("photo_metadata_date_taken_format", normalizeDateTakenFormat(received));
+      received = "Date Taken";
     }
     if (spec.key === "photo_metadata_date_taken_format") {
-      S[spec.key] = normalizeDateTakenFormat(S[spec.key]);
+      received = normalizeDateTakenFormat(received);
     }
+    settingSaves.receive(spec.key, received);
   }
 
   function collectState(d) {

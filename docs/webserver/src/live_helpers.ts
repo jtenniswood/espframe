@@ -26,7 +26,7 @@
         S.brightness_current = S.brightness;
       }
     } else if (id === "switch/Clock: Show") {
-      S.show_clock = d.state === "ON" || d.value === true;
+      settingSaves.receive("show_clock", d.state === "ON" || d.value === true);
     } else if (id === "text_sensor/Screen: Sunrise") {
       S.sunrise = d.value || d.state || "";
       updateSunInfoElement(document.getElementById("sun-info"));
@@ -75,7 +75,7 @@
       : 60;
     var min = productNumberMin("schedule_wake_timeout", 10);
     var max = productNumberMax("schedule_wake_timeout", 3600);
-    if (!seconds) seconds = fallback;
+    if (!seconds) seconds = Number(fallback);
     if (seconds < min) seconds = min;
     if (seconds > max) seconds = max;
     return seconds;
@@ -93,7 +93,7 @@
 
   // --- Select helpers ---
 
-  function selectFromOptions(options, current, onChange, optionDisplayFn) {
+  function selectFromOptions(options, current, onChange, optionDisplayFn?) {
     var display = optionDisplayFn || function (o) { return o; };
     var sel = document.createElement("select");
     sel.className = "select";
@@ -110,7 +110,7 @@
     return sel;
   }
 
-  function productSelectSettingField(labelText, key, options) {
+  function productSelectSettingField(labelText, key, options?) {
     var opts = options || {};
     var f = field(labelText);
     var current = opts.current !== undefined ? opts.current : S[key];
@@ -123,7 +123,7 @@
     return f;
   }
 
-  function segmentedControl(options, current, onChange, optionDisplayFn) {
+  function segmentedControl(options, current, onChange, optionDisplayFn?) {
     var display = optionDisplayFn || function (o) { return o; };
     var seg = el("div", "segment");
     function setActive(value) {
@@ -170,13 +170,13 @@
 
   // --- Helpers ---
 
-  function el(tag, cls) {
+  function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string): HTMLElementTagNameMap[K] {
     var e = document.createElement(tag);
     if (cls) e.className = cls;
     return e;
   }
 
-  function makeBadge(isActive, text, label) {
+  function makeBadge(isActive, text?, label?) {
     var badge = el("span", "on-badge" + (isActive ? " active" : ""));
     badge.textContent = text || "On";
     if (label) badge.setAttribute("aria-label", label);
@@ -201,7 +201,7 @@
     badge.className = "disclosure-badge" + (isActive ? " active" : " hidden");
   }
 
-  function makeInlineDisclosure(title, bodyElement, defaultOpen, badgeEl) {
+  function makeInlineDisclosure(title, bodyElement, defaultOpen, badgeEl?) {
     var panel = el("div", "inline-disclosure" + (defaultOpen ? " open" : ""));
     var disclosureButton = el("button", "inline-disclosure-button");
     disclosureButton.type = "button";
@@ -217,17 +217,13 @@
     disclosureButton.appendChild(rightWrap);
     var body = el("div", "inline-disclosure-body");
     body.appendChild(bodyElement);
-    disclosureButton.onclick = function () {
-      var open = !panel.classList.contains("open");
-      panel.classList.toggle("open", open);
-      disclosureButton.setAttribute("aria-expanded", open ? "true" : "false");
-    };
+    bindDisclosure(disclosureButton, panel, body, "open", true);
     panel.appendChild(disclosureButton);
     panel.appendChild(body);
     return panel;
   }
 
-  function setStatus(target, msg, type, clearAfterMs) {
+  function setStatus(target, msg, type?, clearAfterMs?) {
     if (!target) return;
     target.replaceChildren();
     if (!msg) {
@@ -245,7 +241,7 @@
     }
   }
 
-  function button(text, cls, onClick) {
+  function button(text, cls?, onClick?) {
     var btn = el("button", cls || "btn btn-secondary");
     btn.type = "button";
     btn.textContent = text;
@@ -303,7 +299,7 @@
     return { field: f, toggle: toggle };
   }
 
-  function rangeSettingField(labelText, key, options) {
+  function rangeSettingField(labelText, key, options?) {
     var opts = options || {};
     var f = field(labelText || "");
     var rw = el("div", "range-wrap");
@@ -369,7 +365,7 @@
     var moveDownIcon = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14\"/><path d=\"M19 12l-7 7-7-7\"/></svg>";
     var removeIcon = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18\"/><path d=\"M8 6V4h8v2\"/><path d=\"M19 6l-1 14H6L5 6\"/><path d=\"M10 11v5\"/><path d=\"M14 11v5\"/></svg>";
 
-    function notify(changes, delayMs) {
+    function notify(changes, delayMs?) {
       if (opts.onChange) opts.onChange(changes, delayMs);
     }
 
@@ -402,6 +398,7 @@
         list.insertBefore(rows[toIndex], row);
       }
       refreshRowButtons();
+      connectFieldLabels(f);
       notify(opts.reorderChanges, 0);
     }
 
@@ -449,6 +446,7 @@
         labelInputs.splice(removeIndex, 1);
         row.parentNode.removeChild(row);
         refreshRowButtons();
+        connectFieldLabels(f);
         notify(opts.clearChanges, 0);
       };
       idInput.oninput = function () {
@@ -503,11 +501,40 @@
     };
   }
 
-  function makeCollapsibleCard(title, bodyElement, defaultCollapsed, badgeEl) {
+  var controlId = 0;
+
+  function bindDisclosure(toggle: HTMLButtonElement, panel: HTMLElement, body: HTMLElement,
+                          className: string, expandedWhenPresent: boolean) {
+    if (!body.id) body.id = "disclosure-" + (++controlId);
+    toggle.setAttribute("aria-controls", body.id);
+    function syncExpanded() {
+      toggle.setAttribute("aria-expanded", String(panel.classList.contains(className) === expandedWhenPresent));
+    }
+    syncExpanded();
+    toggle.onclick = function (event) {
+      event.stopPropagation();
+      panel.classList.toggle(className);
+      syncExpanded();
+    };
+  }
+
+  function connectFieldLabels(root: HTMLElement) {
+    root.querySelectorAll<HTMLLabelElement>(".field > label").forEach(function (label) {
+      var control = label.parentElement.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input,select,textarea");
+      if (!control) return;
+      if (!control.id) control.id = "setting-" + (++controlId);
+      label.htmlFor = control.id;
+    });
+  }
+
+  function makeCollapsibleCard(title, bodyElement, defaultCollapsed?, badgeEl?) {
     var card = el("div", "card");
     var header = el("div", "card-header");
     var h3 = document.createElement("h3");
-    h3.textContent = title;
+    var toggle = el("button", "card-toggle");
+    toggle.type = "button";
+    toggle.textContent = title;
+    h3.appendChild(toggle);
     var rightWrap = el("div", "card-header-right");
     if (badgeEl) rightWrap.appendChild(badgeEl);
     var chevron = el("span", "card-chevron");
@@ -578,7 +605,7 @@
     return f;
   }
 
-  function input(type, value, placeholder, maxLength) {
+  function input(type, value, placeholder?, maxLength?) {
     var i = document.createElement("input");
     i.type = type;
     i.value = value || "";
@@ -596,7 +623,7 @@
   // --- Banner ---
 
   var bannerTimer = null;
-  function showBanner(msg, type) {
+  function showBanner(msg, type?) {
     if (!els.banner) return;
     els.banner.textContent = msg;
     els.banner.className = "banner banner-" + (type || "success");
