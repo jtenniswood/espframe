@@ -2698,6 +2698,18 @@ to {
       details.style.display = S[enabledKey] ? "" : "none";
       body.appendChild(details);
     }
+    var configuredGroups = ["album_ids", "person_ids", "tag_ids"].filter(function(key) {
+      return !!String(S[key] || "").trim();
+    }).length;
+    if (configuredGroups > 1) {
+      var advanced = document.createElement("details");
+      advanced.className = "filter-nested";
+      var advancedSummary = document.createElement("summary");
+      advancedSummary.textContent = "Advanced inclusion options";
+      advanced.appendChild(advancedSummary);
+      advanced.appendChild(addSelect("Inclusion Groups", "inclusion_matching", false, ""));
+      body.appendChild(advanced);
+    }
     addGroup("Albums", "albums_enabled", "album_ids", "album_labels", "album", {
       order: true,
       excludedIdKey: "excluded_album_ids",
@@ -2717,18 +2729,6 @@ to {
       includedPanel: true,
       showInclusionHint: false
     });
-    var configuredGroups = ["album_ids", "person_ids", "tag_ids"].filter(function(key) {
-      return !!String(S[key] || "").trim();
-    }).length;
-    if (configuredGroups > 1) {
-      var advanced = document.createElement("details");
-      advanced.className = "filter-nested";
-      var advancedSummary = document.createElement("summary");
-      advancedSummary.textContent = "Advanced inclusion options";
-      advanced.appendChild(advancedSummary);
-      advanced.appendChild(addSelect("Inclusion Groups", "inclusion_matching", false, ""));
-      body.appendChild(advanced);
-    }
     function addValueGroup(label, enabledKey, settingKey, defaultValue, disabled, reason) {
       var details = el("div", "filter-group-details");
       var row = toggleSettingRow({

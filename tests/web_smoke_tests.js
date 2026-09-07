@@ -905,6 +905,15 @@ function smokeAssertionsForScenario(scenario) {
           throw new Error("Album Order should appear below Excluded Albums");
         }
       }
+      function requireAdvancedFiltersAtTop() {
+        const advanced = Array.from(document.querySelectorAll("details.filter-nested")).find((item) =>
+          item.querySelector("summary") && item.querySelector("summary").textContent.trim() === "Advanced inclusion options"
+        );
+        const firstGroup = fieldByLabel("Selected Albums").closest(".filter-group-details");
+        if (!advanced || !firstGroup || !(advanced.compareDocumentPosition(firstGroup) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+          throw new Error("Advanced inclusion options should appear above the photo filter groups");
+        }
+      }
       async function requireScreenRotationDeveloperFlow() {
         clickTab("Device");
         await waitFor(() => pageText().indexOf("Rotation") !== -1, 8000, "device settings");
@@ -1258,6 +1267,7 @@ function smokeAssertionsForScenario(scenario) {
             requireIncludedPanel("People", "Selected People", false);
             requireIncludedPanel("Tags", "Selected Tags", false);
             requireAlbumOrderAfterExclusions();
+            requireAdvancedFiltersAtTop();
           }
 
           if (${JSON.stringify(scenario.name)} === "screen-rotation-developer") {
