@@ -2620,9 +2620,20 @@ to {
         }
       });
       body.appendChild(row.field);
+      var inclusionParent = details;
+      if (options && options.includedPanel) {
+        var included = document.createElement("details");
+        included.className = "filter-nested";
+        included.open = true;
+        var includedSummary = document.createElement("summary");
+        includedSummary.textContent = "Included " + label;
+        included.appendChild(includedSummary);
+        details.appendChild(included);
+        inclusionParent = included;
+      }
       var hint = el("div", "setting-hint");
       hint.textContent = "Any selected " + noun + " is included.";
-      details.appendChild(hint);
+      inclusionParent.appendChild(hint);
       var timer = null;
       var editor = photoIdListField({
         label: "Selected " + label,
@@ -2645,7 +2656,7 @@ to {
           }, delayMs2 == null ? 600 : delayMs2);
         }
       });
-      details.appendChild(editor.field);
+      inclusionParent.appendChild(editor.field);
       if (options && options.order) details.appendChild(productSelectSettingField("Album Order", "album_order"));
       addExclusions(details, "Excluded " + label, options.excludedIdKey, options.excludedLabelKey, noun);
       details.style.display = S[enabledKey] ? "" : "none";
@@ -2662,7 +2673,8 @@ to {
     });
     addGroup("Tags", "tags_enabled", "tag_ids", "tag_labels", "tag", {
       excludedIdKey: "excluded_tag_ids",
-      excludedLabelKey: "excluded_tag_labels"
+      excludedLabelKey: "excluded_tag_labels",
+      includedPanel: true
     });
     var configuredGroups = ["album_ids", "person_ids", "tag_ids"].filter(function(key) {
       return !!String(S[key] || "").trim();

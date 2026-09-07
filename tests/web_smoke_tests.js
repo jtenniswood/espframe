@@ -878,6 +878,20 @@ function smokeAssertionsForScenario(scenario) {
           }
         }, 8000, "album reorder save");
       }
+      function requireIncludedTagsPanel() {
+        const tags = fieldByLabel("Selected Tags").closest(".filter-group-details");
+        if (!tags) throw new Error("Tags filter group not found");
+        const included = Array.from(tags.querySelectorAll("details")).find((item) =>
+          item.querySelector("summary") &&
+          item.querySelector("summary").textContent.trim() === "Included Tags"
+        );
+        if (!included || !included.open || !included.querySelector("label")) {
+          throw new Error("Tags should group selected tags inside an open Included Tags panel");
+        }
+        if (!included.querySelector(".setting-hint") || !included.querySelector("button")) {
+          throw new Error("Included Tags panel should contain its hint and tag controls");
+        }
+      }
       async function requireScreenRotationDeveloperFlow() {
         clickTab("Device");
         await waitFor(() => pageText().indexOf("Rotation") !== -1, 8000, "device settings");
@@ -1227,6 +1241,7 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "photo-source-reorder") {
             await requireAlbumReorderSave();
+            requireIncludedTagsPanel();
           }
 
           if (${JSON.stringify(scenario.name)} === "screen-rotation-developer") {
