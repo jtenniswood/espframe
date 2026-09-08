@@ -95,4 +95,6 @@
     ];
     appendSettingsSections(wrap, settingsCardEntries);
     app.appendChild(wrap);
+    connectFieldLabels(app);
+    connectFieldLabels(immichApp);
   }

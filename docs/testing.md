@@ -50,6 +50,18 @@ flash and RAM report plus factory/OTA binary sizes. A budget increase must be
 an intentional contract change in the same pull request, not just a larger
 number added after a build fails.
 
+### Web Type Checks
+
+`npm run webserver:typecheck` checks the assembled application and its imports,
+including settings, networking, backup, and rendering code. Setting field types
+come from the product contract; runtime-only fields are declared separately.
+The contracts and standalone save module additionally use strict checking.
+Legacy assembled functions still allow implicit parameter types while they are
+migrated incrementally to explicit modules. New modules should use strict types.
+`npm run test:web-types` verifies that invalid setting names and values fail the
+application check, and `npm run test:web-saves` covers overlapping writes,
+rollback, legacy-write ordering, and live updates during edits.
+
 ### Web UI Checks
 
 ```sh

@@ -28,6 +28,7 @@
         s2.className = "step active";
         body.appendChild(renderStep2());
       }
+      connectFieldLabels(body);
     }
 
     function renderStep1() {

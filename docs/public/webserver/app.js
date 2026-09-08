@@ -1,8 +1,188 @@
 // ESPFRAME: generated from typed docs/webserver/src and product/contract; run `npm run generate` to update.
-(function() {
-  "use strict";
-  class EspframeAppElement extends HTMLElement {
+"use strict";
+(() => {
+  var __defProp = Object.defineProperty;
+  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+
+  // docs/webserver/src/setting_save.ts
+  var SettingSaveCoordinator = class {
+    constructor(read, write) {
+      __publicField(this, "read", read);
+      __publicField(this, "write", write);
+      __publicField(this, "sequence", 0);
+      __publicField(this, "queue", Promise.resolve());
+      __publicField(this, "confirmed", /* @__PURE__ */ new Map());
+      __publicField(this, "pending", /* @__PURE__ */ new Map());
+    }
+    receive(key, value) {
+      if (this.pending.has(key)) return;
+      this.confirmed.set(key, value);
+      this.write(key, value);
+    }
+    save(values, send) {
+      const revision = ++this.sequence;
+      const entries = Object.entries(values);
+      for (const [key, value] of entries) {
+        let pending = this.pending.get(key);
+        if (!pending) {
+          pending = { confirmed: this.confirmed.has(key) ? this.confirmed.get(key) : this.read(key), latest: revision, remaining: 0 };
+          this.pending.set(key, pending);
+        }
+        pending.latest = revision;
+        pending.remaining++;
+        this.write(key, value);
+      }
+      const request = this.queue.then(send).then(
+        (result) => {
+          this.finish(entries, revision, true);
+          return result;
+        },
+        (error) => {
+          this.finish(entries, revision, false);
+          throw error;
+        }
+      );
+      this.queue = request.catch(() => void 0);
+      return request;
+    }
+    finish(entries, revision, accepted) {
+      for (const [key, value] of entries) {
+        const pending = this.pending.get(key);
+        if (accepted) {
+          pending.confirmed = value;
+          this.confirmed.set(key, value);
+        }
+        if (pending.latest === revision) this.write(key, pending.confirmed);
+        if (--pending.remaining === 0) this.pending.delete(key);
+      }
+    }
+  };
+
+  // docs/webserver/src/compat.ts
+  var MAX_PHOTO_ID_FIELD_LENGTH = 255;
+  function normalizeNtpServer(value) {
+    return String(value == null ? "" : value).trim();
   }
+  var LEGACY_DATE_TAKEN_FORMATS = {
+    "January 1, 2000": "January 1, 2026",
+    "January 1, 2026": "January 1, 2026",
+    "Month Day, Year": "January 1, 2026",
+    "Month Day Ordinal, Year": "January 1, 2026"
+  };
+  function normalizeDateTakenFormat(value) {
+    return LEGACY_DATE_TAKEN_FORMATS[value] || "1 January, 2026";
+  }
+  function stripUrlTrailingSlashes(value) {
+    var url = String(value == null ? "" : value);
+    while (url.length > 0 && url.charAt(url.length - 1) === "/" && !/^[a-z][a-z0-9+.-]*:\/\/$/i.test(url)) {
+      url = url.slice(0, -1);
+    }
+    return url;
+  }
+  function isValidHttpUrl(value) {
+    try {
+      var url = new URL(value);
+      return (url.protocol === "http:" || url.protocol === "https:") && !!url.hostname;
+    } catch (_) {
+      return false;
+    }
+  }
+  function extractUrlAuthority(value) {
+    var url = String(value || "");
+    if (url.indexOf("//") === 0) url = url.slice(2);
+    return url.split(/[/?#]/)[0] || "";
+  }
+  function extractUrlHost(value) {
+    var authority = extractUrlAuthority(value);
+    var at = authority.lastIndexOf("@");
+    if (at >= 0) authority = authority.slice(at + 1);
+    if (!authority) return "";
+    if (authority.charAt(0) === "[") {
+      var close = authority.indexOf("]");
+      return (close >= 0 ? authority.slice(0, close + 1) : authority).toLowerCase();
+    }
+    return authority.split(":")[0].toLowerCase();
+  }
+  function extractUrlPort(value) {
+    var authority = extractUrlAuthority(value);
+    var at = authority.lastIndexOf("@");
+    if (at >= 0) authority = authority.slice(at + 1);
+    if (!authority) return "";
+    if (authority.charAt(0) === "[") {
+      var close = authority.indexOf("]");
+      if (close >= 0 && authority.charAt(close + 1) === ":") return authority.slice(close + 2).match(/^\d*/)[0];
+      return "";
+    }
+    var colon = authority.indexOf(":");
+    return colon >= 0 ? authority.slice(colon + 1).match(/^\d*/)[0] : "";
+  }
+  function urlHasExplicitPort(value) {
+    return extractUrlPort(value) !== "";
+  }
+  function isLocalImmichHost(host) {
+    if (!host) return false;
+    if (host === "localhost" || host.charAt(0) === "[") return true;
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return true;
+    return host.slice(-6) === ".local" || host.slice(-4) === ".lan";
+  }
+  function normalizeImmichUrl(value) {
+    var url = stripUrlTrailingSlashes(String(value == null ? "" : value).trim());
+    if (!url) return "";
+    if (url.indexOf("//") === 0) {
+      url = "https:" + url;
+    } else if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) {
+      var host = extractUrlHost(url);
+      var port = extractUrlPort(url);
+      var useHttp = isLocalImmichHost(host) || urlHasExplicitPort(url);
+      if (port === "443") useHttp = false;
+      url = (useHttp ? "http://" : "https://") + url;
+    }
+    return stripUrlTrailingSlashes(url.replace(/^([a-z][a-z0-9+.-]*):\/\//i, function(_, scheme) {
+      return scheme.toLowerCase() + "://";
+    }));
+  }
+  function photoIdFieldLengthLimit() {
+    return MAX_PHOTO_ID_FIELD_LENGTH;
+  }
+  function photoIdFieldTooLong(s) {
+    return String(s != null ? s : "").trim().length > photoIdFieldLengthLimit();
+  }
+  function photoLabelFieldTooLong(s) {
+    return String(s != null ? s : "").trim().length > photoIdFieldLengthLimit();
+  }
+  var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  function isValidUuidList(str) {
+    var s = str.trim();
+    if (!s) return true;
+    return s.split(",").every(function(id) {
+      return UUID_RE.test(id.trim());
+    });
+  }
+  function splitPhotoIdList(str) {
+    var parts = String(str || "").split(",").map(function(id) {
+      return id.trim();
+    }).filter(Boolean);
+    return parts.length ? parts : [""];
+  }
+  function parsePhotoLabelList(str) {
+    var raw = String(str || "").trim();
+    if (!raw) return [];
+    try {
+      var parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.map(function(label) {
+        return String(label || "");
+      });
+    } catch (_) {
+    }
+    return raw.split(",").map(function(label) {
+      return label.trim();
+    });
+  }
+
+  // docs/webserver/src/app.ts
+  var EspframeAppElement = class extends HTMLElement {
+  };
   if (!customElements.get("espframe-app")) {
     customElements.define("espframe-app", EspframeAppElement);
   }
@@ -43,7 +223,6 @@
   var LIVE_RENDER_STATE_KEYS = ["screen_rotation", "portrait_pairing", "developer_features_enabled", "immich_server_version"];
   var LIVE_RENDER_STATE_PREFIXES = ["photo_metadata_", "schedule_"];
   var FIRMWARE_MANIFEST_URLS = { "stable": "https://jtenniswood.github.io/espframe/firmware/manifest.json", "devices": { "immich-frame": { "stable": "https://jtenniswood.github.io/espframe/firmware/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/beta/manifest.json" }, "immich-frame-v2": { "stable": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v2/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v2/beta/manifest.json" } } };
-  var FIRMWARE_DEVICE_SLUG = "immich-frame";
   var DOCS_BASE_URL = "https://jtenniswood.github.io/espframe";
   var WEB_UI_TABS = [{ "id": "immich", "label": "Immich" }, { "id": "settings", "label": "Device" }, { "id": "logs", "label": "Logs" }];
   var WEB_UI_CARDS = [{ "id": "connection", "label": "Connection", "tab": "immich", "section": "", "function": "makeConnectionCard", "settings": ["conn_timeout"], "staticEntities": [], "manualEntities": ["immich_url", "api_key"] }, { "id": "frequency", "label": "Frequency", "tab": "immich", "section": "", "function": "makeFrequencyCard", "settings": ["interval"], "staticEntities": [], "manualEntities": [] }, { "id": "portrait_pairing", "label": "Portrait Pairing", "tab": "immich", "section": "", "function": "makePortraitPairingCard", "settings": ["portrait_pairing", "portrait_pairs_only", "portrait_pairing_range"], "staticEntities": [], "manualEntities": [] }, { "id": "photo_source", "label": "Photo Filter", "tab": "immich", "section": "", "function": "makePhotoSourceCard", "settings": ["photo_source", "albums_enabled", "people_enabled", "tags_enabled", "date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit", "favorites_enabled", "rating_enabled", "location_enabled", "inclusion_matching", "album_matching", "person_matching", "tag_matching", "favorite_mode", "minimum_rating", "filter_country", "filter_state", "filter_city", "album_order"], "staticEntities": ["album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels", "excluded_album_ids", "excluded_album_labels", "excluded_person_ids", "excluded_person_labels", "excluded_tag_ids", "excluded_tag_labels", "immich_server_version", "immich_capability_status", "memories_migration_notice"], "manualEntities": ["apply_photo_source"] }, { "id": "layout", "label": "Photo Display", "tab": "immich", "section": "", "function": "makeLayoutCard", "settings": ["photo_orientation", "display_mode"], "staticEntities": [], "manualEntities": [] }, { "id": "metadata", "label": "Metadata", "tab": "immich", "section": "", "function": "makeMetadataCard", "settings": ["photo_metadata_date_enabled", "photo_metadata_location_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format"], "staticEntities": [], "manualEntities": [] }, { "id": "screen_brightness", "label": "Screen Brightness", "tab": "settings", "section": "Display", "function": "makeScreenBrightnessCard", "settings": ["brightness_day", "brightness_night"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "screen_tone", "label": "Screen Tone", "tab": "settings", "section": "Display", "function": "makeScreenToneCard", "settings": ["base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"], "staticEntities": [], "manualEntities": [] }, { "id": "rotation", "label": "Rotation", "tab": "settings", "section": "Display", "function": "makeRotationCard", "settings": ["screen_rotation"], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "clock", "label": "Clock", "tab": "settings", "section": "Display", "function": "makeClockCard", "settings": ["clock_format"], "staticEntities": ["show_clock", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"], "manualEntities": [] }, { "id": "night_schedule", "label": "Night Schedule", "tab": "settings", "section": "Sleep & Schedule", "function": "makeNightScheduleCard", "settings": ["schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "backup", "label": "Backup", "tab": "settings", "section": "System", "function": "makeBackupCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "firmware", "label": "Firmware", "tab": "settings", "section": "System", "function": "makeFirmwareCard", "settings": ["update_frequency", "auto_update", "c6_auto_update"], "staticEntities": ["firmware_device", "firmware", "c6_current_firmware", "c6_available_firmware", "c6_update_status"], "manualEntities": ["update", "firmware_prepare_upload", "firmware_cancel_upload", "firmware_check", "c6_firmware_check", "c6_firmware_install"] }, { "id": "device_reboot", "label": "Device Reboot", "tab": "settings", "section": "System", "function": "makeDeviceRebootCard", "settings": [], "staticEntities": [], "manualEntities": ["reboot_screen"] }, { "id": "developer", "label": "Developer", "tab": "settings", "section": "System", "function": "makeDeveloperCard", "settings": [], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }];
@@ -355,7 +534,27 @@ h2 {
 }
 
 .card-header h3 {
-  margin:0
+  margin:0;
+  flex:1
+}
+
+.card-toggle {
+  display:block;
+  width:100%;
+  padding:0;
+  border:0;
+  background:none;
+  color:inherit;
+  font:inherit;
+  letter-spacing:inherit;
+  text-align:left;
+  cursor:pointer
+}
+
+.card-toggle:focus-visible {
+  outline:2px solid var(--accent);
+  outline-offset:4px;
+  border-radius:2px
 }
 
 .card-body {
@@ -1627,7 +1826,7 @@ to {
   }
   function applyConfigurationSnapshot(snapshot) {
     Object.keys(snapshot.values).forEach(function(key) {
-      S[key] = snapshot.values[key];
+      settingSaves.receive(key, snapshot.values[key]);
     });
   }
   function registerManualEntityEndpoints() {
@@ -1671,10 +1870,7 @@ to {
       throw err;
     });
   }
-  var MAX_PHOTO_ID_FIELD_LENGTH = 255;
   var MAX_NTP_SERVER_LENGTH = 253;
-  var PHOTO_ID_FIELD_TOO_LONG = "List exceeds 255 characters (device limit). Remove IDs or shorten the list.";
-  var PHOTO_LABEL_FIELD_TOO_LONG = "Labels exceed 255 characters (device limit). Shorten or remove labels.";
   function postTextValueSet(url, value, useQueryFallback) {
     var body = new URLSearchParams();
     body.set("value", value == null ? "" : String(value));
@@ -1715,43 +1911,46 @@ to {
     return resp && (resp.value || resp.state) || "";
   }
   function saveAndVerifyConnectionValue(path, value, useQueryFallback, isSaved) {
-    return saveConnectionValue(path, value, useQueryFallback).then(function() {
-      return safeGet(path);
-    }).then(function(resp) {
-      var saved = connectionResponseValue(resp);
-      if (isSaved && !isSaved(saved)) throw new Error("verify_failed");
-      return saved;
+    var key = path === endpoints.immich_url ? "immich_url" : "api_key";
+    return settingSaves.save({ [key]: value }, function() {
+      return saveConnectionValue(path, value, useQueryFallback).then(function() {
+        return safeGet(path);
+      }).then(function(resp) {
+        var saved = connectionResponseValue(resp);
+        if (isSaved && !isSaved(saved)) throw new Error("verify_failed");
+        return saved;
+      });
     });
   }
   function saveAndVerifyConnection(url, key) {
     var normalizedUrl = normalizeImmichUrl(url);
     var apiKey = String(key || "").trim();
     if (!normalizedUrl || !apiKey) return Promise.reject(new Error("missing_connection"));
-    return updateConfiguration({ immich_url: normalizedUrl, api_key: apiKey }).then(function() {
-      return delayMs(150);
-    }).then(function() {
-      return getConfigurationSnapshot();
-    }).catch(function(error) {
-      if (!isConfigurationApiUnavailable(error)) throw error;
-      return saveConnectionValue(endpoints.immich_url, normalizedUrl, true).then(function() {
-        return saveConnectionValue(endpoints.api_key, apiKey, false);
+    return settingSaves.save({ immich_url: normalizedUrl, api_key: apiKey }, function() {
+      return updateConfiguration({ immich_url: normalizedUrl, api_key: apiKey }).then(function() {
+        return delayMs(150);
       }).then(function() {
-        return Promise.all([safeGet(endpoints.immich_url), safeGet(endpoints.api_key)]);
+        return getConfigurationSnapshot();
+      }).catch(function(error) {
+        if (!isConfigurationApiUnavailable(error)) throw error;
+        return saveConnectionValue(endpoints.immich_url, normalizedUrl, true).then(function() {
+          return saveConnectionValue(endpoints.api_key, apiKey, false);
+        }).then(function() {
+          return Promise.all([safeGet(endpoints.immich_url), safeGet(endpoints.api_key)]);
+        });
+      }).then(function(result) {
+        var savedUrl;
+        var savedKey;
+        if (result && !Array.isArray(result)) {
+          savedUrl = normalizeImmichUrl(result.values.immich_url);
+          savedKey = String(result.values.api_key || "");
+        } else {
+          savedUrl = normalizeImmichUrl(connectionResponseValue(result[0]));
+          savedKey = connectionResponseValue(result[1]);
+        }
+        if (savedUrl !== normalizedUrl || !savedKey) throw new Error("verify_failed");
+        return { url: normalizedUrl, key: apiKey };
       });
-    }).then(function(result) {
-      var savedUrl;
-      var savedKey;
-      if (result && result.values) {
-        savedUrl = normalizeImmichUrl(result.values.immich_url);
-        savedKey = String(result.values.api_key || "");
-      } else {
-        savedUrl = normalizeImmichUrl(connectionResponseValue(result[0]));
-        savedKey = connectionResponseValue(result[1]);
-      }
-      if (savedUrl !== normalizedUrl || !savedKey) throw new Error("verify_failed");
-      S.immich_url = normalizedUrl;
-      S.api_key = apiKey;
-      return { url: normalizedUrl, key: apiKey };
     });
   }
   var PHOTO_SOURCE_APPLY_SETTING_KEYS = [
@@ -1787,6 +1986,40 @@ to {
   function settingUsesPhotoSourceApply(key) {
     return PHOTO_SOURCE_APPLY_SETTING_KEYS.indexOf(key) !== -1;
   }
+  var settingSaves = new SettingSaveCoordinator(
+    function(key) {
+      return S[key];
+    },
+    function(key, value) {
+      S[key] = value;
+    }
+  );
+  Object.keys(S).forEach(function(key) {
+    var value = S[key];
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      settingSaves.receive(key, value);
+    }
+  });
+  function sendLegacySetting(key, savedValue) {
+    var domain = settingEntityDomain(key);
+    if (domain === "switch") return post(endpoints[key] + (savedValue ? "/turn_on" : "/turn_off"));
+    if (domain === "select") return post(endpoints[key] + "/set", { option: savedValue });
+    if (domain === "number") return post(endpoints[key] + "/set", { value: savedValue });
+    if (domain === "text") return postTextValueSet(endpoints[key] + "/set", savedValue);
+    return Promise.resolve(null);
+  }
+  function saveSettingValues(values) {
+    return settingSaves.save(values, function() {
+      return updateConfiguration(values).catch(function(error) {
+        if (!isConfigurationApiUnavailable(error)) throw error;
+        return Object.keys(values).reduce(function(queue, key) {
+          return queue.then(function() {
+            return sendLegacySetting(key, values[key]);
+          });
+        }, Promise.resolve(null));
+      });
+    });
+  }
   function saveGenericSetting(key, value) {
     if (!key || !endpoints[key]) return Promise.resolve(null);
     var domain = settingEntityDomain(key);
@@ -1797,32 +2030,10 @@ to {
       if (isFinite(numberValue)) savedValue = numberValue;
     }
     if (domain === "select" || domain === "text") savedValue = value == null ? "" : String(value);
-    var previousValue = S[key];
-    S[key] = savedValue;
-    var request = updateConfiguration({ [key]: savedValue }).catch(function(error) {
-      if (!isConfigurationApiUnavailable(error)) throw error;
-      if (domain === "switch") return post(endpoints[key] + (savedValue ? "/turn_on" : "/turn_off"));
-      if (domain === "select") return post(endpoints[key] + "/set", { option: savedValue });
-      if (domain === "number") return post(endpoints[key] + "/set", { value: savedValue });
-      if (domain === "text") return postTextValueSet(endpoints[key] + "/set", savedValue);
-      return null;
-    });
-    return Promise.resolve(request).catch(function(err) {
-      S[key] = previousValue;
-      throw err;
-    });
+    return saveSettingValues({ [key]: savedValue });
   }
   function saveNtpServer(key, value) {
-    var server = normalizeNtpServer(value);
-    var previousValue = S[key];
-    S[key] = server;
-    return updateConfiguration({ [key]: server }).catch(function(error) {
-      if (!isConfigurationApiUnavailable(error)) throw error;
-      return postTextValueSet(endpoints[key] + "/set", server);
-    }).catch(function(err) {
-      S[key] = previousValue;
-      throw err;
-    });
+    return saveSettingValues({ [key]: normalizeNtpServer(value) });
   }
   function saveScheduleWakeTimeoutSetting(key, value) {
     return saveGenericSetting(key, normalizeScheduleWakeTimeout(value));
@@ -1830,24 +2041,14 @@ to {
   function saveScreenRotationSetting(key, value) {
     var rotation = String(value);
     if (screenRotationOptionsForUi().indexOf(rotation) === -1) return Promise.resolve(null);
-    var previousRotation = S.screen_rotation;
-    var previousPortraitPairing = S.portrait_pairing;
-    S.screen_rotation = rotation;
-    S.portrait_pairing = !isPortraitScreenRotation(rotation);
-    return updateConfiguration({
+    return saveSettingValues({
       screen_rotation: rotation,
-      portrait_pairing: S.portrait_pairing
-    }).catch(function(error) {
-      if (!isConfigurationApiUnavailable(error)) throw error;
-      return Promise.all([
-        saveGenericSetting("screen_rotation", rotation),
-        saveGenericSetting("portrait_pairing", S.portrait_pairing)
-      ]);
-    }).catch(function(err) {
-      S.screen_rotation = previousRotation;
-      S.portrait_pairing = previousPortraitPairing;
-      throw err;
+      portrait_pairing: !isPortraitScreenRotation(rotation)
     });
+  }
+  function reportSettingSaveFailure() {
+    showBanner("Failed to save setting", "error");
+    renderSettingsAfterEditing();
   }
   var SETTING_SAVE_ADAPTERS = {
     ntp_server_1: saveNtpServer,
@@ -1860,12 +2061,15 @@ to {
     var opts = options || {};
     var adapter = SETTING_SAVE_ADAPTERS[key];
     var result = adapter ? adapter(key, value, opts) : saveGenericSetting(key, value);
-    if (!opts.applyPhotoSource || !settingUsesPhotoSourceApply(key)) return result;
-    return Promise.resolve(result).then(function(saved) {
-      return post(endpoints.apply_photo_source + "/press").then(function() {
-        return saved;
+    if (opts.applyPhotoSource && settingUsesPhotoSourceApply(key)) {
+      result = Promise.resolve(result).then(function(saved) {
+        return post(endpoints.apply_photo_source + "/press").then(function() {
+          return saved;
+        });
       });
-    });
+    }
+    result.catch(reportSettingSaveFailure);
+    return result;
   }
   function makeConnectionUrlField(value) {
     var f = field("Immich Server URL");
@@ -1914,139 +2118,6 @@ to {
     row.appendChild(mask);
     row.appendChild(cb);
     return row;
-  }
-  function normalizeNtpServer(value) {
-    return String(value == null ? "" : value).trim();
-  }
-  var LEGACY_DATE_TAKEN_FORMATS = {
-    "January 1, 2000": "January 1, 2026",
-    "January 1, 2026": "January 1, 2026",
-    "Month Day, Year": "January 1, 2026",
-    "Month Day Ordinal, Year": "January 1, 2026"
-  };
-  function normalizeDateTakenFormat(value) {
-    return LEGACY_DATE_TAKEN_FORMATS[value] || "1 January, 2026";
-  }
-  function stripUrlTrailingSlashes(value) {
-    var url = String(value == null ? "" : value);
-    while (url.length > 0 && url.charAt(url.length - 1) === "/" && !/^[a-z][a-z0-9+.-]*:\/\/$/i.test(url)) {
-      url = url.slice(0, -1);
-    }
-    return url;
-  }
-  function isValidHttpUrl(value) {
-    try {
-      var url = new URL(value);
-      return (url.protocol === "http:" || url.protocol === "https:") && !!url.hostname;
-    } catch (_) {
-      return false;
-    }
-  }
-  function extractUrlAuthority(value) {
-    var url = String(value || "");
-    if (url.indexOf("//") === 0) url = url.slice(2);
-    return url.split(/[/?#]/)[0] || "";
-  }
-  function extractUrlHost(value) {
-    var authority = extractUrlAuthority(value);
-    var at = authority.lastIndexOf("@");
-    if (at >= 0) authority = authority.slice(at + 1);
-    if (!authority) return "";
-    if (authority.charAt(0) === "[") {
-      var close = authority.indexOf("]");
-      return (close >= 0 ? authority.slice(0, close + 1) : authority).toLowerCase();
-    }
-    return authority.split(":")[0].toLowerCase();
-  }
-  function extractUrlPort(value) {
-    var authority = extractUrlAuthority(value);
-    var at = authority.lastIndexOf("@");
-    if (at >= 0) authority = authority.slice(at + 1);
-    if (!authority) return "";
-    if (authority.charAt(0) === "[") {
-      var close = authority.indexOf("]");
-      if (close >= 0 && authority.charAt(close + 1) === ":") return authority.slice(close + 2).match(/^\d*/)[0];
-      return "";
-    }
-    var colon = authority.indexOf(":");
-    return colon >= 0 ? authority.slice(colon + 1).match(/^\d*/)[0] : "";
-  }
-  function urlHasExplicitPort(value) {
-    return extractUrlPort(value) !== "";
-  }
-  function isLocalImmichHost(host) {
-    if (!host) return false;
-    if (host === "localhost" || host.charAt(0) === "[") return true;
-    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return true;
-    return host.slice(-6) === ".local" || host.slice(-4) === ".lan";
-  }
-  function normalizeImmichUrl(value) {
-    var url = stripUrlTrailingSlashes(String(value == null ? "" : value).trim());
-    if (!url) return "";
-    if (url.indexOf("//") === 0) {
-      url = "https:" + url;
-    } else if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) {
-      var host = extractUrlHost(url);
-      var port = extractUrlPort(url);
-      var useHttp = isLocalImmichHost(host) || urlHasExplicitPort(url);
-      if (port === "443") useHttp = false;
-      url = (useHttp ? "http://" : "https://") + url;
-    }
-    return stripUrlTrailingSlashes(url.replace(/^([a-z][a-z0-9+.-]*):\/\//i, function(_, scheme) {
-      return scheme.toLowerCase() + "://";
-    }));
-  }
-  function photoIdFieldLengthLimit() {
-    return typeof MAX_PHOTO_ID_FIELD_LENGTH !== "undefined" ? MAX_PHOTO_ID_FIELD_LENGTH : 255;
-  }
-  function photoIdFieldTooLong(s) {
-    return String(s != null ? s : "").trim().length > photoIdFieldLengthLimit();
-  }
-  function photoLabelFieldTooLong(s) {
-    return String(s != null ? s : "").trim().length > photoIdFieldLengthLimit();
-  }
-  var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  function isValidUuidList(str) {
-    var s = str.trim();
-    if (!s) return true;
-    return s.split(",").every(function(id) {
-      return UUID_RE.test(id.trim());
-    });
-  }
-  function splitPhotoIdList(str) {
-    var parts = String(str || "").split(",").map(function(id) {
-      return id.trim();
-    }).filter(Boolean);
-    return parts.length ? parts : [""];
-  }
-  function parsePhotoLabelList(str) {
-    var raw = String(str || "").trim();
-    if (!raw) return [];
-    try {
-      var parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed.map(function(label) {
-        return String(label || "");
-      });
-    } catch (_) {
-    }
-    return raw.split(",").map(function(label) {
-      return label.trim();
-    });
-  }
-  if (typeof module !== "undefined") {
-    module.exports = {
-      extractUrlHost,
-      extractUrlPort,
-      isValidHttpUrl,
-      normalizeImmichUrl,
-      normalizeNtpServer,
-      normalizeDateTakenFormat,
-      parsePhotoLabelList,
-      photoIdFieldTooLong,
-      photoLabelFieldTooLong,
-      splitPhotoIdList,
-      isValidUuidList
-    };
   }
   function developerPanelEnabledByUrl() {
     try {
@@ -2104,13 +2175,13 @@ to {
     "0;36": "sp-log-debug",
     "0;37": "sp-log-verbose"
   };
-  var ANSI_RE = /\033\[[\d;]*m/g;
+  var ANSI_RE = /\x1b\[[\d;]*m/g;
   function appendLog(msg, lvl) {
     if (!els.logOutput) return;
     var line = document.createElement("div");
     line.className = "sp-log-line";
     var ansiClass = "";
-    var m = msg.match(/\033\[([\d;]+)m/);
+    var m = msg.match(/\x1b\[([\d;]+)m/);
     if (m) ansiClass = ANSI_LEVEL[m[1]] || "";
     if (ansiClass) {
       line.classList.add(ansiClass);
@@ -2203,23 +2274,25 @@ to {
     var spec = ENTITY_STATE_MAP[id];
     if (!spec) return;
     var v = d.value != null ? d.value : d.state;
+    var received;
     if (spec.boolFromState) {
-      S[spec.key] = v === true || v === "ON";
+      received = v === true || v === "ON";
     } else if (spec.number) {
-      S[spec.key] = v != null ? Math.round(Number(v)) : spec.default !== void 0 ? spec.default : 0;
+      received = v != null ? Math.round(Number(v)) : spec.default !== void 0 ? spec.default : 0;
     } else {
-      S[spec.key] = v !== void 0 && v !== null ? String(v) : spec.default !== void 0 ? spec.default : "";
+      received = v !== void 0 && v !== null ? String(v) : spec.default !== void 0 ? spec.default : "";
     }
-    if (spec.key === "timezone") S[spec.key] = normalizeTimezoneOption(S[spec.key]);
-    if (spec.key && spec.key.indexOf("ntp_server_") === 0) S[spec.key] = normalizeNtpServer(S[spec.key]);
+    if (spec.key === "timezone") received = normalizeTimezoneOption(received);
+    if (spec.key && spec.key.indexOf("ntp_server_") === 0) received = normalizeNtpServer(received);
     if (spec.optionsKey && d.option && d.option.length) S[spec.optionsKey] = d.option;
-    if (spec.key === "photo_metadata_date_format" && S[spec.key] !== "Relative Date" && S[spec.key] !== "Date Taken") {
-      S.photo_metadata_date_taken_format = normalizeDateTakenFormat(S[spec.key]);
-      S[spec.key] = "Date Taken";
+    if (spec.key === "photo_metadata_date_format" && received !== "Relative Date" && received !== "Date Taken") {
+      settingSaves.receive("photo_metadata_date_taken_format", normalizeDateTakenFormat(received));
+      received = "Date Taken";
     }
     if (spec.key === "photo_metadata_date_taken_format") {
-      S[spec.key] = normalizeDateTakenFormat(S[spec.key]);
+      received = normalizeDateTakenFormat(received);
     }
+    settingSaves.receive(spec.key, received);
   }
   function collectState(d) {
     applyEntityToState(d);
@@ -2271,13 +2344,25 @@ to {
     var active = document.activeElement;
     return !!(active && els.root && els.root.contains(active) && active.matches("input,select,textarea,button"));
   }
-  function renderSettingsAfterEditing() {
-    if (!isEditingSetting()) return renderSettings();
+  var deferredRenderControl = null;
+  function resumeSettingsRenderAfterBlur() {
+    deferredRenderControl = null;
     if (renderTimer) return;
     renderTimer = setTimeout(function() {
       renderTimer = null;
       renderSettingsAfterEditing();
-    }, 100);
+    }, 0);
+  }
+  function renderSettingsAfterEditing() {
+    var active = isEditingSetting() ? document.activeElement : null;
+    if (deferredRenderControl && deferredRenderControl !== active) {
+      deferredRenderControl.removeEventListener("blur", resumeSettingsRenderAfterBlur);
+      deferredRenderControl = null;
+    }
+    if (!active) return renderSettings();
+    if (deferredRenderControl === active) return;
+    deferredRenderControl = active;
+    active.addEventListener("blur", resumeSettingsRenderAfterBlur, { once: true });
   }
   function renderConfiguredSettingsPage() {
     renderSettings();
@@ -2322,8 +2407,8 @@ to {
     }).then(function(res) {
       renderAttemptInFlight = false;
       if (rendered) return;
-      if (res && res[0]) S.immich_url = normalizeImmichUrl(res[0].value || res[0].state || "");
-      if (res && res[1]) S.api_key = res[1].value || res[1].state || "";
+      if (res && res[0]) settingSaves.receive("immich_url", normalizeImmichUrl(res[0].value || res[0].state || ""));
+      if (res && res[1]) settingSaves.receive("api_key", res[1].value || res[1].state || "");
       if (S.immich_url) {
         showConfiguredSettings();
       } else {
@@ -2406,6 +2491,7 @@ to {
         s2.className = "step active";
         body.appendChild(renderStep2());
       }
+      connectFieldLabels(body);
     }
     function renderStep1() {
       var card = el("div", "card fade-in");
@@ -2510,8 +2596,7 @@ to {
           return normalizeImmichUrl(saved) === normalized;
         }
       ).then(function() {
-        S.immich_url = normalized;
-        urlInput.value = normalized;
+        if (S.immich_url === normalized) urlInput.value = normalized;
         showSaved("URL saved");
       }).catch(function() {
         showConnectionError("Failed to save URL");
@@ -2526,6 +2611,7 @@ to {
       keyWrap.appendChild(makeMaskedApiKeyRow(function() {
         keyWrap.replaceChildren();
         keyWrap.appendChild(makeKeyInput());
+        connectFieldLabels(f2);
       }));
     }
     function makeKeyInput() {
@@ -2548,7 +2634,6 @@ to {
               return !!saved;
             }
           ).then(function() {
-            S.api_key = v;
             showSaved("API key saved");
             showKeyMasked();
           }).catch(function() {
@@ -2658,8 +2743,8 @@ to {
       S[labelKey] = labels;
       updateCompatibility();
       Promise.all([saveSetting(idKey, ids), saveSetting(labelKey, labels)]).then(function() {
-        post(endpoints.apply_photo_source + "/press");
-      });
+        return post(endpoints.apply_photo_source + "/press");
+      }).catch(reportSettingSaveFailure);
     }
     function addExclusions(parent, label, idKey, labelKey, noun) {
       var nested = document.createElement("details");
@@ -2910,263 +2995,6 @@ to {
   function makePhotoSourceCard() {
     return makeSmartPhotoFilterCard();
   }
-  function makeLegacyPhotoSourceCard() {
-    var srcBody = el("div");
-    var photoSourceApplyTimer = null;
-    var pendingPhotoSourceSave = {
-      source: false,
-      album: false,
-      albumLabel: false,
-      albumOrder: false,
-      person: false,
-      personLabel: false,
-      tag: false,
-      tagLabel: false,
-      tagMatching: false
-    };
-    var fSrc = field("Source");
-    var srcSel = selectFromOptions(productSettingOptions("photo_source"), S.photo_source, function(v) {
-      S.photo_source = v;
-      albumField.style.display = v === "Album" ? "" : "none";
-      albumOrderField.style.display = v === "Album" ? "" : "none";
-      personField.style.display = v === "Person" ? "" : "none";
-      tagField.style.display = v === "Tag" ? "" : "none";
-      tagMatchingField.style.display = v === "Tag" ? "" : "none";
-      schedulePhotoSourceApply(0, { source: true });
-    });
-    var albumOrderField = field("Album Order");
-    albumOrderField.appendChild(
-      selectFromOptions(productSettingOptions("album_order"), S.album_order, function(v) {
-        S.album_order = v;
-        schedulePhotoSourceApply(0, { albumOrder: true });
-      })
-    );
-    albumOrderField.style.display = S.photo_source === "Album" ? "" : "none";
-    var albumList = photoIdListField({
-      label: "Albums",
-      idKey: "album_ids",
-      labelKey: "album_labels",
-      idPlaceholder: "Paste album ID from Immich URL",
-      labelPlaceholder: "What is it?",
-      addText: "Add an album",
-      removeTitle: "Remove album ID",
-      moveUpTitle: "Move album up",
-      moveDownTitle: "Move album down",
-      idChanges: { album: true, albumLabel: true },
-      labelChanges: { albumLabel: true },
-      clearChanges: { album: true, albumLabel: true },
-      reorderChanges: { album: true, albumLabel: true },
-      onChange: function(changes, delayMs2) {
-        schedulePhotoSourceApply(delayMs2, changes);
-      }
-    });
-    var albumField = albumList.field;
-    albumField.style.display = S.photo_source === "Album" ? "" : "none";
-    var personList = photoIdListField({
-      label: "People",
-      idKey: "person_ids",
-      labelKey: "person_labels",
-      idPlaceholder: "Paste person ID from Immich URL",
-      labelPlaceholder: "Who is it?",
-      addText: "Add a person",
-      removeTitle: "Remove person ID",
-      moveUpTitle: "Move person up",
-      moveDownTitle: "Move person down",
-      idChanges: { person: true, personLabel: true },
-      labelChanges: { personLabel: true },
-      clearChanges: { person: true, personLabel: true },
-      reorderChanges: { person: true, personLabel: true },
-      onChange: function(changes, delayMs2) {
-        schedulePhotoSourceApply(delayMs2, changes);
-      }
-    });
-    var personField = personList.field;
-    personField.style.display = S.photo_source === "Person" ? "" : "none";
-    var tagList = photoIdListField({
-      label: "Tags",
-      idKey: "tag_ids",
-      labelKey: "tag_labels",
-      idPlaceholder: "Paste tag ID from Immich URL",
-      labelPlaceholder: "What tag is it?",
-      addText: "Add a tag",
-      removeTitle: "Remove tag ID",
-      moveUpTitle: "Move tag up",
-      moveDownTitle: "Move tag down",
-      idChanges: { tag: true, tagLabel: true },
-      labelChanges: { tagLabel: true },
-      clearChanges: { tag: true, tagLabel: true },
-      reorderChanges: { tag: true, tagLabel: true },
-      onChange: function(changes, delayMs2) {
-        schedulePhotoSourceApply(delayMs2, changes);
-      }
-    });
-    var tagField = tagList.field;
-    tagField.style.display = S.photo_source === "Tag" ? "" : "none";
-    var tagMatchingField = field("Tag Matching");
-    tagMatchingField.appendChild(
-      selectFromOptions(productSettingOptions("tag_matching"), S.tag_matching, function(v) {
-        S.tag_matching = v;
-        schedulePhotoSourceApply(0, { tagMatching: true });
-      })
-    );
-    tagMatchingField.style.display = S.photo_source === "Tag" ? "" : "none";
-    function validatePhotoSourceInputs(changes) {
-      albumList.error.textContent = "";
-      personList.error.textContent = "";
-      tagList.error.textContent = "";
-      var srcVal = srcSel.value;
-      var albumTrim = albumList.getIdsValue();
-      var albumLabels = albumList.getLabelsValue();
-      var personTrim = personList.getIdsValue();
-      var personLabels = personList.getLabelsValue();
-      var tagTrim = tagList.getIdsValue();
-      var tagLabels = tagList.getLabelsValue();
-      var shouldValidateAlbum = changes.album || srcVal === "Album";
-      var shouldValidatePerson = changes.person || srcVal === "Person";
-      var shouldValidateTag = changes.tag || srcVal === "Tag";
-      if (shouldValidateAlbum && photoIdFieldTooLong(albumTrim)) {
-        albumList.error.textContent = PHOTO_ID_FIELD_TOO_LONG;
-        return null;
-      }
-      if (shouldValidatePerson && photoIdFieldTooLong(personTrim)) {
-        personList.error.textContent = PHOTO_ID_FIELD_TOO_LONG;
-        return null;
-      }
-      if (shouldValidateTag && photoIdFieldTooLong(tagTrim)) {
-        tagList.error.textContent = PHOTO_ID_FIELD_TOO_LONG;
-        return null;
-      }
-      if (srcVal === "Album" && !albumTrim) {
-        albumList.error.textContent = "Add at least one album";
-        return null;
-      }
-      if (srcVal === "Person" && !personTrim) {
-        personList.error.textContent = "Add at least one person";
-        return null;
-      }
-      if (srcVal === "Tag" && !tagTrim) {
-        tagList.error.textContent = "Add at least one tag";
-        return null;
-      }
-      if (shouldValidateAlbum && !isValidUuidList(albumTrim)) {
-        albumList.error.textContent = "Invalid UUID format";
-        return null;
-      }
-      if (changes.albumLabel && photoLabelFieldTooLong(albumLabels)) {
-        albumList.error.textContent = PHOTO_LABEL_FIELD_TOO_LONG;
-        return null;
-      }
-      if (shouldValidatePerson && !isValidUuidList(personTrim)) {
-        personList.error.textContent = "Invalid UUID format";
-        return null;
-      }
-      if (changes.personLabel && photoLabelFieldTooLong(personLabels)) {
-        personList.error.textContent = PHOTO_LABEL_FIELD_TOO_LONG;
-        return null;
-      }
-      if (shouldValidateTag && !isValidUuidList(tagTrim)) {
-        tagList.error.textContent = "Invalid UUID format";
-        return null;
-      }
-      if (changes.tagLabel && photoLabelFieldTooLong(tagLabels)) {
-        tagList.error.textContent = PHOTO_LABEL_FIELD_TOO_LONG;
-        return null;
-      }
-      return {
-        source: srcVal,
-        albumOrder: S.album_order,
-        albumIds: albumTrim,
-        albumLabels,
-        personIds: personTrim,
-        personLabels,
-        tagIds: tagTrim,
-        tagLabels,
-        tagMatching: S.tag_matching
-      };
-    }
-    function applyPhotoSourceInputs() {
-      var changes = {
-        source: pendingPhotoSourceSave.source,
-        album: pendingPhotoSourceSave.album,
-        albumLabel: pendingPhotoSourceSave.albumLabel,
-        albumOrder: pendingPhotoSourceSave.albumOrder,
-        person: pendingPhotoSourceSave.person,
-        personLabel: pendingPhotoSourceSave.personLabel,
-        tag: pendingPhotoSourceSave.tag,
-        tagLabel: pendingPhotoSourceSave.tagLabel,
-        tagMatching: pendingPhotoSourceSave.tagMatching
-      };
-      var vals = validatePhotoSourceInputs(changes);
-      if (!vals) return;
-      pendingPhotoSourceSave = {
-        source: false,
-        album: false,
-        albumLabel: false,
-        albumOrder: false,
-        person: false,
-        personLabel: false,
-        tag: false,
-        tagLabel: false,
-        tagMatching: false
-      };
-      var requests = [];
-      if (changes.source) {
-        requests.push(saveSetting("photo_source", vals.source));
-      }
-      if (changes.album) {
-        requests.push(saveSetting("album_ids", vals.albumIds));
-      }
-      if (changes.albumLabel) {
-        requests.push(saveSetting("album_labels", vals.albumLabels));
-      }
-      if (changes.albumOrder) {
-        requests.push(saveSetting("album_order", vals.albumOrder));
-      }
-      if (changes.person) {
-        requests.push(saveSetting("person_ids", vals.personIds));
-      }
-      if (changes.personLabel) {
-        requests.push(saveSetting("person_labels", vals.personLabels));
-      }
-      if (changes.tag) {
-        requests.push(saveSetting("tag_ids", vals.tagIds));
-      }
-      if (changes.tagLabel) {
-        requests.push(saveSetting("tag_labels", vals.tagLabels));
-      }
-      if (changes.tagMatching) {
-        requests.push(saveSetting("tag_matching", vals.tagMatching));
-      }
-      if (!requests.length) return;
-      Promise.all(requests).then(function() {
-        if (changes.source || changes.album || changes.albumOrder || changes.person || changes.tag || changes.tagMatching)
-          post(endpoints.apply_photo_source + "/press");
-      });
-    }
-    function schedulePhotoSourceApply(delayMs2, changes) {
-      if (changes) {
-        pendingPhotoSourceSave.source = pendingPhotoSourceSave.source || !!changes.source;
-        pendingPhotoSourceSave.album = pendingPhotoSourceSave.album || !!changes.album;
-        pendingPhotoSourceSave.albumLabel = pendingPhotoSourceSave.albumLabel || !!changes.albumLabel;
-        pendingPhotoSourceSave.albumOrder = pendingPhotoSourceSave.albumOrder || !!changes.albumOrder;
-        pendingPhotoSourceSave.person = pendingPhotoSourceSave.person || !!changes.person;
-        pendingPhotoSourceSave.personLabel = pendingPhotoSourceSave.personLabel || !!changes.personLabel;
-        pendingPhotoSourceSave.tag = pendingPhotoSourceSave.tag || !!changes.tag;
-        pendingPhotoSourceSave.tagLabel = pendingPhotoSourceSave.tagLabel || !!changes.tagLabel;
-        pendingPhotoSourceSave.tagMatching = pendingPhotoSourceSave.tagMatching || !!changes.tagMatching;
-      }
-      clearTimeout(photoSourceApplyTimer);
-      photoSourceApplyTimer = setTimeout(applyPhotoSourceInputs, delayMs2 == null ? 600 : delayMs2);
-    }
-    fSrc.appendChild(srcSel);
-    srcBody.appendChild(fSrc);
-    srcBody.appendChild(albumOrderField);
-    srcBody.appendChild(albumField);
-    srcBody.appendChild(personField);
-    srcBody.appendChild(tagField);
-    srcBody.appendChild(tagMatchingField);
-    return makeCollapsibleCard("Photo Source", srcBody, true);
-  }
   function appendDateFilterControls(parent, onEnabledChange) {
     var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
     function isValidDate(s) {
@@ -3302,8 +3130,8 @@ to {
         saveSetting("relative_amount", vals.amount),
         saveSetting("relative_unit", vals.unit)
       ]).then(function() {
-        post(endpoints.apply_photo_source + "/press");
-      });
+        return post(endpoints.apply_photo_source + "/press");
+      }).catch(reportSettingSaveFailure);
     }
     function scheduleFilterApply() {
       clearTimeout(filterApplyTimer);
@@ -4080,9 +3908,7 @@ to {
         S.auto_update = value;
       },
       onChange: function() {
-        saveSetting("auto_update", S.auto_update).catch(function() {
-          S.auto_update = !S.auto_update;
-        });
+        saveSetting("auto_update", S.auto_update);
         refreshFirmwareUi();
       }
     });
@@ -4120,9 +3946,7 @@ to {
         S.c6_auto_update = value;
       },
       onChange: function() {
-        saveSetting("c6_auto_update", S.c6_auto_update).catch(function() {
-          S.c6_auto_update = !S.c6_auto_update;
-        });
+        saveSetting("c6_auto_update", S.c6_auto_update);
         refreshC6FirmwareUi();
       }
     });
@@ -4333,6 +4157,8 @@ to {
     ];
     appendSettingsSections(wrap, settingsCardEntries);
     app.appendChild(wrap);
+    connectFieldLabels(app);
+    connectFieldLabels(immichApp);
   }
   function handleLiveEvent(d) {
     if (!d || !d.id) return;
@@ -4355,7 +4181,7 @@ to {
         S.brightness_current = S.brightness;
       }
     } else if (id === "switch/Clock: Show") {
-      S.show_clock = d.state === "ON" || d.value === true;
+      settingSaves.receive("show_clock", d.state === "ON" || d.value === true);
     } else if (id === "text_sensor/Screen: Sunrise") {
       S.sunrise = d.value || d.state || "";
       updateSunInfoElement(document.getElementById("sun-info"));
@@ -4396,7 +4222,7 @@ to {
     var fallback = PRODUCT_SETTINGS && PRODUCT_SETTINGS.schedule_wake_timeout && PRODUCT_SETTINGS.schedule_wake_timeout.default !== void 0 ? PRODUCT_SETTINGS.schedule_wake_timeout.default : 60;
     var min = productNumberMin("schedule_wake_timeout", 10);
     var max = productNumberMax("schedule_wake_timeout", 3600);
-    if (!seconds) seconds = fallback;
+    if (!seconds) seconds = Number(fallback);
     if (seconds < min) seconds = min;
     if (seconds > max) seconds = max;
     return seconds;
@@ -4525,11 +4351,7 @@ to {
     disclosureButton.appendChild(rightWrap);
     var body = el("div", "inline-disclosure-body");
     body.appendChild(bodyElement);
-    disclosureButton.onclick = function() {
-      var open = !panel.classList.contains("open");
-      panel.classList.toggle("open", open);
-      disclosureButton.setAttribute("aria-expanded", open ? "true" : "false");
-    };
+    bindDisclosure(disclosureButton, panel, body, "open", true);
     panel.appendChild(disclosureButton);
     panel.appendChild(body);
     return panel;
@@ -4612,7 +4434,7 @@ to {
     toggle.onkeydown = function(event) {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        toggle.onclick();
+        toggle.click();
       }
     };
     row.appendChild(label);
@@ -4711,6 +4533,7 @@ to {
         list.insertBefore(rows[toIndex], row);
       }
       refreshRowButtons();
+      connectFieldLabels(f);
       notify(opts.reorderChanges, 0);
     }
     function addRow(value, labelValue) {
@@ -4757,6 +4580,7 @@ to {
         labelInputs.splice(removeIndex, 1);
         row.parentNode.removeChild(row);
         refreshRowButtons();
+        connectFieldLabels(f);
         notify(opts.clearChanges, 0);
       };
       idInput.oninput = function() {
@@ -4807,11 +4631,36 @@ to {
       }
     };
   }
+  var controlId = 0;
+  function bindDisclosure(toggle, panel, body, className, expandedWhenPresent) {
+    if (!body.id) body.id = "disclosure-" + ++controlId;
+    toggle.setAttribute("aria-controls", body.id);
+    function syncExpanded() {
+      toggle.setAttribute("aria-expanded", String(panel.classList.contains(className) === expandedWhenPresent));
+    }
+    syncExpanded();
+    toggle.onclick = function(event) {
+      event.stopPropagation();
+      panel.classList.toggle(className);
+      syncExpanded();
+    };
+  }
+  function connectFieldLabels(root) {
+    root.querySelectorAll(".field > label").forEach(function(label) {
+      var control = label.parentElement.querySelector("input,select,textarea");
+      if (!control) return;
+      if (!control.id) control.id = "setting-" + ++controlId;
+      label.htmlFor = control.id;
+    });
+  }
   function makeCollapsibleCard(title, bodyElement, defaultCollapsed, badgeEl) {
     var card = el("div", "card");
     var header = el("div", "card-header");
     var h3 = document.createElement("h3");
-    h3.textContent = title;
+    var toggle = el("button", "card-toggle");
+    toggle.type = "button";
+    toggle.textContent = title;
+    h3.appendChild(toggle);
     var rightWrap = el("div", "card-header-right");
     if (badgeEl) rightWrap.appendChild(badgeEl);
     var chevron = el("span", "card-chevron");
@@ -4824,9 +4673,9 @@ to {
     card.appendChild(header);
     card.appendChild(body);
     if (defaultCollapsed) card.classList.add("collapsed");
-    header.onclick = function(event) {
-      if (event.target !== header && event.target.onclick) return;
-      card.classList.toggle("collapsed");
+    bindDisclosure(toggle, card, body, "collapsed", false);
+    header.onclick = function() {
+      toggle.click();
     };
     return card;
   }
@@ -5272,7 +5121,7 @@ to {
       reader.onload = function() {
         var data;
         try {
-          data = JSON.parse(reader.result);
+          data = JSON.parse(String(reader.result));
         } catch (_) {
           showBanner("Invalid file \u2014 could not parse JSON", "error");
           return;
