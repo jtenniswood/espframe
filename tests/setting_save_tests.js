@@ -21,21 +21,19 @@ async function legacyConnectionRollback(status) {
     rendered: false,
     renderAttemptInFlight: false,
     renderTimer: null,
-    initialSettingsRefreshStarted: false,
+    setTimeout,
     endpoints: { immich_url: "url", api_key: "key" },
-    getConfigurationSnapshot: async () => { throw { status }; },
-    isConfigurationApiUnavailable: error => [404, 405].includes(error.status),
-    safeGet: async endpoint => endpoint === "url"
-      ? { value: "https://existing.example.test/" } : { state: "existing-key" },
-    normalizeImmichUrl: value => value.replace(/\/$/, ""),
     renderSettings: () => settingsShown(),
-    fetchDeviceSettingsState: () => {
+    fetchDeviceSettingsState: async () => {
       backgroundFetches++;
-      return new Promise(() => {}); // The per-entity hydration is still pending.
+      state.immich_url = "https://existing.example.test";
+      state.api_key = "existing-key";
+      saves.receive("immich_url", state.immich_url);
+      saves.receive("api_key", state.api_key);
     },
   };
   vm.runInNewContext(transformSync(runtimeSource.slice(
-    runtimeSource.indexOf("  function renderConfiguredSettingsPage()"),
+    runtimeSource.indexOf("  function withStartupTimeout"),
     runtimeSource.indexOf("  function initSSE()")
   ), { loader: "ts" }).code, runtime);
   runtime.tryRender();
@@ -65,7 +63,7 @@ function deferredFailureRender() {
   };
   const template = fs.readFileSync("docs/webserver/src/app.template.ts", "utf8");
   const functions = runtimeSource.slice(runtimeSource.indexOf("  function isEditingSetting()"),
-    runtimeSource.indexOf("  function renderConfiguredSettingsPage()")) +
+    runtimeSource.indexOf("  function scheduleTryRender")) +
     template.slice(template.indexOf("  function reportSettingSaveFailure()"),
       template.indexOf("  var SETTING_SAVE_ADAPTERS"));
   vm.runInNewContext(transformSync(functions, { loader: "ts" }).code, runtime);

@@ -289,7 +289,7 @@ function browserScriptForScenario(scenario) {
         this.listeners = {};
         setTimeout(() => {
           if (this.onopen) this.onopen({ type: "open" });
-          if (${JSON.stringify(!!scenario.slowStartup)}) {
+          if (${JSON.stringify(!!scenario.slowStartup && !scenario.legacyStartup)}) {
             this.dispatch("state", { id: "text/Connection: Server URL", value: "https://photos.example.com" });
           }
           this.dispatch("log", { msg: "Smoke log line", lvl: 3 });
@@ -1252,6 +1252,9 @@ function smokeAssertionsForScenario(scenario) {
           await waitFor(() => !wrap.isConnected, 2000, "changed live setting renders");
           if (!${JSON.stringify(!!scenario.legacyStartup)} && window.__smoke.fetchedUrls.filter(url => url === "/espframe/api/v1/configuration").length !== 1) {
             throw new Error("Startup fetched configuration more than once");
+          }
+          if (${JSON.stringify(!!scenario.legacyStartup)} && !window.__smoke.fetchedUrls.some(url => url.includes("Connection: Server URL"))) {
+            throw new Error("Legacy startup did not read the connection URL");
           }
         } else if (${JSON.stringify(scenario.name)} === "wizard") {
           await waitFor(() => pageText().indexOf("connect your photo frame") !== -1, 8000, "wizard");

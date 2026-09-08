@@ -2319,7 +2319,8 @@ to {
     });
   }
   function fetchLegacyDeviceSettingsState() {
-    var urls = INITIAL_FETCH_KEYS.map(function(k) {
+    var legacyKeys = ["immich_url", "api_key"].concat(INITIAL_FETCH_KEYS);
+    var urls = legacyKeys.map(function(k) {
       if (!endpoints[k]) {
         console.error("Missing endpoint for startup setting:", k);
         return Promise.resolve(null);
@@ -2331,13 +2332,23 @@ to {
         var data = res[i];
         if (!data) continue;
         applyEntityToState({
-          id: KEY_TO_ENTITY_ID[INITIAL_FETCH_KEYS[i]],
+          id: getEntityIdForStateKey(legacyKeys[i]),
           value: data.value,
           state: data.state,
           option: data.option
         });
       }
     });
+  }
+  function withStartupTimeout(promise, timeoutMs) {
+    return Promise.race([
+      promise,
+      new Promise(function(_, reject) {
+        setTimeout(function() {
+          reject(new Error("startup_settings_timeout"));
+        }, timeoutMs);
+      })
+    ]);
   }
   function isEditingSetting() {
     var active = document.activeElement;
@@ -2382,7 +2393,7 @@ to {
       renderTimer = null;
     }
     renderAttemptInFlight = true;
-    fetchDeviceSettingsState().then(function() {
+    withStartupTimeout(fetchDeviceSettingsState(), 4e3).then(function() {
       renderAttemptInFlight = false;
       if (rendered) return;
       if (S.immich_url) {
@@ -2393,7 +2404,8 @@ to {
       }
     }).catch(function() {
       renderAttemptInFlight = false;
-      scheduleTryRender(1e3);
+      if (S.immich_url) showConfiguredSettings();
+      else scheduleTryRender(1e3);
     });
   }
   function initSSE() {
