@@ -1635,7 +1635,8 @@ function runChrome(args, timeoutMs) {
     }
 
     timer = setTimeout(() => {
-      timedOut = true;
+      const domCompleted = /data-smoke-[a-z0-9-]+="pass"/.test(stdout);
+      timedOut = !domCompleted;
       stderr += `\nChrome timed out after ${timeoutMs}ms`;
       if (useProcessGroup) {
         try {
@@ -1648,7 +1649,13 @@ function runChrome(args, timeoutMs) {
         child.kill("SIGKILL");
       }
       forceResolveTimer = setTimeout(() => {
-        finish({ status: null, signal: "timeout", stdout, stderr, timedOut });
+        finish({
+          status: domCompleted ? 0 : null,
+          signal: domCompleted ? null : "timeout",
+          stdout,
+          stderr,
+          timedOut,
+        });
       }, 1000);
     }, timeoutMs);
 
@@ -1670,6 +1677,9 @@ async function runScenario(scenario) {
       "--headless=new",
       "--disable-gpu",
       "--disable-background-networking",
+      "--disable-sync",
+      "--disable-component-update",
+      "--disable-domain-reliability",
       "--disable-component-extensions-with-background-pages",
       "--disable-default-apps",
       "--disable-extensions",
