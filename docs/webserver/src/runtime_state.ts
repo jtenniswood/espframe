@@ -207,12 +207,17 @@
   }
 
   function withStartupTimeout(promise, timeoutMs) {
-    return Promise.race([
-      promise,
-      new Promise(function (_, reject) {
-        setTimeout(function () { reject(new Error("startup_settings_timeout")); }, timeoutMs);
-      })
-    ]);
+    var timeoutId;
+    var timeout = new Promise(function (_, reject) {
+      timeoutId = setTimeout(function () { reject(new Error("startup_settings_timeout")); }, timeoutMs);
+    });
+    return Promise.race([promise, timeout]).then(function (value) {
+      clearTimeout(timeoutId);
+      return value;
+    }, function (error) {
+      clearTimeout(timeoutId);
+      throw error;
+    });
   }
 
   function isEditingSetting() {
