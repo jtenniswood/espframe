@@ -181,7 +181,11 @@
   }
 
   function fetchLegacyDeviceSettingsState() {
-    var urls = INITIAL_FETCH_KEYS.map(function (k) {
+    // The configuration API's key list intentionally omits connection secrets.
+    // Legacy devices still need these two reads to distinguish setup from an
+    // already-configured frame when SSE is unavailable.
+    var legacyKeys = ["immich_url", "api_key"].concat(INITIAL_FETCH_KEYS);
+    var urls = legacyKeys.map(function (k) {
       if (!endpoints[k]) {
         console.error("Missing endpoint for startup setting:", k);
         return Promise.resolve(null);
@@ -193,13 +197,22 @@
         var data = res[i];
         if (!data) continue;
         applyEntityToState({
-          id: KEY_TO_ENTITY_ID[INITIAL_FETCH_KEYS[i]],
+          id: getEntityIdForStateKey(legacyKeys[i]),
           value: data.value,
           state: data.state,
           option: data.option
         });
       }
     });
+  }
+
+  function withStartupTimeout(promise, timeoutMs) {
+    return Promise.race([
+      promise,
+      new Promise(function (_, reject) {
+        setTimeout(function () { reject(new Error("startup_settings_timeout")); }, timeoutMs);
+      })
+    ]);
   }
 
   function isEditingSetting() {
@@ -255,7 +268,7 @@
     renderAttemptInFlight = true;
     // Wait for the complete snapshot (or legacy settings) before showing cards.
     // SSE can deliver the connection URL long before the remaining settings.
-    fetchDeviceSettingsState().then(function () {
+    withStartupTimeout(fetchDeviceSettingsState(), 4000).then(function () {
       renderAttemptInFlight = false;
       if (rendered) return;
       if (S.immich_url) {
@@ -266,7 +279,8 @@
       }
     }).catch(function () {
       renderAttemptInFlight = false;
-      scheduleTryRender(1000);
+      if (S.immich_url) showConfiguredSettings();
+      else scheduleTryRender(1000);
     });
   }
 
