@@ -1572,6 +1572,7 @@ function smokeAssertionsForScenario(scenario) {
         document.body.appendChild(document.createTextNode(" ESPFRAME_BROWSER_SMOKE_${scenario.name.toUpperCase().replace(/-/g, "_")}_PASS "));
       } catch (error) {
         document.documentElement.setAttribute("data-smoke-${scenario.name}", "fail");
+        document.title = "ESPFRAME_SMOKE_ERROR: " + (error && error.message ? error.message : String(error));
         const pre = document.createElement("pre");
         pre.id = "smoke-error-${scenario.name}";
         pre.textContent = error && error.stack ? error.stack : String(error);
