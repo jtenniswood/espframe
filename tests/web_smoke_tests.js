@@ -1251,6 +1251,9 @@ function smokeAssertionsForScenario(scenario) {
           if (!wrap.isConnected) throw new Error("Duplicate startup state rebuilt settings");
           source.dispatch("state", { id: "switch/Photos: Portrait Pairing", state: "OFF" });
           await waitFor(() => !wrap.isConnected, 2000, "changed live setting renders");
+          const metadataWrap = document.querySelector("#sp-immich .sp-settings-wrap").firstElementChild;
+          source.dispatch("state", { id: "select/Device: Metadata Date Format", state: "January 1, 2026" });
+          await waitFor(() => !metadataWrap.isConnected, 2000, "compatibility live setting renders");
           if (!${JSON.stringify(!!scenario.legacyStartup)} && window.__smoke.fetchedUrls.filter(url => url === "/espframe/api/v1/configuration").length !== 1) {
             throw new Error("Startup fetched configuration more than once");
           }

@@ -2428,8 +2428,9 @@ to {
           var spec = d && ENTITY_STATE_MAP[d.id];
           var previousValue = spec ? S[spec.key] : void 0;
           var previousOptions = spec && spec.optionsKey ? JSON.stringify(S[spec.optionsKey]) : "";
+          var previousDateTakenFormat = spec && spec.key === "photo_metadata_date_format" ? S.photo_metadata_date_taken_format : void 0;
           collectState(d);
-          var changed = !spec || previousValue !== S[spec.key] || spec.optionsKey && previousOptions !== JSON.stringify(S[spec.optionsKey]);
+          var changed = !spec || previousValue !== S[spec.key] || spec.optionsKey && previousOptions !== JSON.stringify(S[spec.optionsKey]) || spec.key === "photo_metadata_date_format" && previousDateTakenFormat !== S.photo_metadata_date_taken_format;
           if (rendered && changed) handleLiveEvent(d);
         } catch (_) {
         }
