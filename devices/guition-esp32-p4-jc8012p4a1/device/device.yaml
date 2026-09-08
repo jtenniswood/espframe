@@ -44,9 +44,6 @@ esphome:
     - "-DCONFIG_COMPILER_OPTIMIZATION_PERF=y"
     - "-DLV_USE_BIDI=1"
     - "-DLV_USE_ARABIC_PERSIAN_CHARS=1"
-    # ESPHome 2026.8 calls an ESP-IDF API that is deprecated and a no-op on
-    # ESP32-P4. Keep builds clean until ESPHome replaces that compatibility call.
-    - "-Wno-deprecated-declarations"
 
 # -----------------------------------------------------------------------------
 # ESP32-C6 coprocessor (WiFi and Bluetooth via SDIO)
