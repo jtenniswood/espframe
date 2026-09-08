@@ -24,6 +24,7 @@ WEB_MODULE_PATHS = {
     "__ESPFRAME_WEB_BACKUP_IMPORT__": WEB_SRC_DIR / "backup_import.ts",
 }
 WEB_COMPAT_HELPERS_PATH = WEB_SRC_DIR / "compat.ts"
+WEB_IMPORTED_MODULE_PATHS = [WEB_COMPAT_HELPERS_PATH, WEB_SRC_DIR / "setting_save.ts"]
 WEB_STYLE_PATH = WEB_SRC_DIR / "style.css"
 WEB_SUPPORT_BUTTON_IMAGE_PATH = WEB_SRC_DIR / "buy_me_a_coffee_button.webp.b64"
 WEB_PUBLIC_STYLE_PATH = ROOT / "docs" / "public" / "webserver" / "style.css"

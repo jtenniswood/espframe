@@ -1,5 +1,5 @@
   function ensureFavicon() {
-    var icon = document.querySelector('link[rel="icon"]') || document.createElement("link");
+    var icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]') || document.createElement("link");
     icon.rel = "icon";
     icon.type = "image/svg+xml";
     icon.href = "data:image/svg+xml," + encodeURIComponent(FAVICON_SVG);

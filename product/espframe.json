@@ -1485,6 +1485,7 @@
       "docs/webserver/src/app_shell.ts",
       "docs/webserver/src/backup_import.ts",
       "docs/webserver/src/compat.ts",
+      "docs/webserver/src/setting_save.ts",
       "docs/webserver/src/endpoints.ts",
       "docs/webserver/src/live_helpers.ts",
       "docs/webserver/src/runtime_state.ts",
@@ -1538,7 +1539,7 @@
       "__ESPFRAME_WEB_SETTINGS_CONTROLS__",
       "__ESPFRAME_WEB_LIVE_HELPERS__",
       "__ESPFRAME_WEB_BACKUP_IMPORT__",
-      "__ESPFRAME_WEB_COMPAT_HELPERS__",
+      "__ESPFRAME_SETTING_STATE_TYPES__",
       "__ESPFRAME_CSS__"
     ],
     "generated_firmware_setting_fields": {

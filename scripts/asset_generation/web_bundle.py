@@ -9,8 +9,8 @@ import tempfile
 from asset_generation.paths import (
     ROOT,
     WEB_APP_PATH,
-    WEB_COMPAT_HELPERS_PATH,
     WEB_MODULE_PATHS,
+    WEB_IMPORTED_MODULE_PATHS,
     WEB_SRC_DIR,
     WEB_STYLE_PATH,
     WEB_SUPPORT_BUTTON_IMAGE_PATH,
@@ -134,10 +134,20 @@ def compile_typescript(source: str) -> str:
         return compiled.stdout
 
 
-def web_app_bundle() -> str:
+def setting_state_types() -> str:
+    fields = {}
+    for key, spec in {**web_static_entities_metadata(), **web_settings_metadata()}.items():
+        domain = spec.get("domain") or spec.get("entity", "").split("/", 1)[0]
+        fields[key] = "boolean" if domain == "switch" else "number" if domain == "number" else "string"
+    for key in web_manual_state_keys():
+        fields[key] = "string"
+    return "{ " + "; ".join(f"{json.dumps(key)}: {value}" for key, value in fields.items()) + " }"
+
+
+def web_app_source() -> str:
     source_paths = [
         WEB_TEMPLATE_PATH,
-        WEB_COMPAT_HELPERS_PATH,
+        *WEB_IMPORTED_MODULE_PATHS,
         WEB_STYLE_PATH,
         WEB_SUPPORT_BUTTON_IMAGE_PATH,
         *WEB_MODULE_PATHS.values(),
@@ -146,7 +156,6 @@ def web_app_bundle() -> str:
         raise RuntimeError("Webserver sources are missing. Run with --bootstrap-webserver once.")
 
     template = WEB_TEMPLATE_PATH.read_text()
-    compat_helpers = WEB_COMPAT_HELPERS_PATH.read_text().rstrip("\n")
     web_modules = {
         placeholder: path.read_text().rstrip("\n")
         for placeholder, path in WEB_MODULE_PATHS.items()
@@ -181,6 +190,7 @@ def web_app_bundle() -> str:
         bundle = replace_placeholder_once(bundle, placeholder, module_source)
 
     replacements = {
+        "__ESPFRAME_SETTING_STATE_TYPES__": setting_state_types(),
         "__ESPFRAME_TIMEZONES__": timezones_json,
         "__ESPFRAME_TIMEZONE_LABELS__": timezone_labels_json,
         "__ESPFRAME_PRODUCT_SETTINGS__": product_settings_json,
@@ -201,10 +211,13 @@ def web_app_bundle() -> str:
         "__ESPFRAME_WEB_UI_LOGS_RETAINED_LINES__": web_ui_logs_retained_lines_json,
         "__ESPFRAME_SUPPORT_URL__": support_url_json,
         "__ESPFRAME_SUPPORT_BUTTON_IMAGE_DATA_URI__": support_button_image_data_uri_json,
-        "__ESPFRAME_WEB_COMPAT_HELPERS__": compat_helpers,
         "__ESPFRAME_CSS__": css_json,
     }
     for placeholder, value in replacements.items():
         bundle = replace_placeholder_once(bundle, placeholder, value)
     assert_no_unreplaced_placeholders(bundle)
-    return compile_typescript(bundle)
+    return bundle
+
+
+def web_app_bundle() -> str:
+    return compile_typescript(web_app_source())

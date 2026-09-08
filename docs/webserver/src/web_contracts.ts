@@ -27,7 +27,36 @@ interface ProductSetting {
   entity?: string;
 }
 
-type AppState = Record<string, any>;
+interface RuntimeState {
+  tz_options: string[];
+  tz_labels: Record<string, string>;
+  brightness: number;
+  brightness_current: number;
+  backlight_on: boolean;
+  installed_version: string;
+  latest_version: string;
+  update_available: boolean;
+  firmware_version_options: FirmwareVersionInfo[];
+  firmware_versions_loaded: boolean;
+  firmware_versions_loading: boolean;
+  firmware_selected_version: string;
+  firmware_checking: boolean;
+  firmware_installing: boolean;
+  firmware_uploading: boolean;
+  firmware_restart_pending: boolean;
+  firmware_install_error: string;
+  c6_firmware_checking: boolean;
+  c6_firmware_installing: boolean;
+}
+
+interface FirmwareVersionInfo {
+  version: string;
+  release_url: string;
+  ota_url: string;
+  ota_filename: string;
+  ota_md5: string;
+}
+
 
 class EspframeAppElement extends HTMLElement {}
 
@@ -59,4 +88,18 @@ function configurationUpdateBody(values: ConfigurationValues): string {
   var body = new URLSearchParams();
   body.set("configuration", JSON.stringify({ api_version: 1, values: values }));
   return body.toString();
+}
+
+interface ConfigurationError extends Error {
+  configurationApiUnavailable?: boolean;
+  configurationApiResponse?: boolean;
+  field?: string;
+}
+
+interface EntityStateSpec {
+  key: string;
+  default?: ConfigurationValue;
+  optionsKey?: string;
+  boolFromState?: boolean;
+  number?: boolean;
 }

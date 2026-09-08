@@ -1,3 +1,5 @@
+export const MAX_PHOTO_ID_FIELD_LENGTH = 255;
+
   function normalizeNtpServer(value) {
     return String(value == null ? "" : value).trim();
   }
@@ -91,7 +93,7 @@
   }
 
   function photoIdFieldLengthLimit() {
-    return typeof MAX_PHOTO_ID_FIELD_LENGTH !== "undefined" ? MAX_PHOTO_ID_FIELD_LENGTH : 255;
+    return MAX_PHOTO_ID_FIELD_LENGTH;
   }
 
   function photoIdFieldTooLong(s) {
@@ -126,18 +128,4 @@
     return raw.split(",").map(function (label) { return label.trim(); });
   }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    extractUrlHost: extractUrlHost,
-    extractUrlPort: extractUrlPort,
-    isValidHttpUrl: isValidHttpUrl,
-    normalizeImmichUrl: normalizeImmichUrl,
-    normalizeNtpServer: normalizeNtpServer,
-    normalizeDateTakenFormat: normalizeDateTakenFormat,
-    parsePhotoLabelList: parsePhotoLabelList,
-    photoIdFieldTooLong: photoIdFieldTooLong,
-    photoLabelFieldTooLong: photoLabelFieldTooLong,
-    splitPhotoIdList: splitPhotoIdList,
-    isValidUuidList: isValidUuidList
-  };
-}
+export { extractUrlHost, extractUrlPort, isValidHttpUrl, normalizeImmichUrl, normalizeNtpServer, normalizeDateTakenFormat, parsePhotoLabelList, photoIdFieldTooLong, photoLabelFieldTooLong, splitPhotoIdList, isValidUuidList };

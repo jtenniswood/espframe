@@ -148,7 +148,7 @@
   function refreshPreviousFirmwareUi() {
     if (!els.fwPreviousPanel || !els.fwVersionSelect) return;
     var infos = previousFirmwareInfos();
-    var currentOptions = Array.from(els.fwVersionSelect.options).map(function (option) { return option.value; });
+    var currentOptions = Array.from((els.fwVersionSelect as HTMLSelectElement).options).map(function (option) { return option.value; });
     var nextOptions = infos.map(function (info) { return info.version; });
     if (currentOptions.join("|") !== nextOptions.join("|")) {
       els.fwVersionSelect.replaceChildren();
@@ -455,7 +455,7 @@
       getValue: function () { return !!S.auto_update; },
       setValue: function (value) { S.auto_update = value; },
       onChange: function () {
-        saveSetting("auto_update", S.auto_update).catch(function () { S.auto_update = !S.auto_update; });
+        saveSetting("auto_update", S.auto_update);
         refreshFirmwareUi();
       }
     });
@@ -490,7 +490,7 @@
       getValue: function () { return !!S.c6_auto_update; },
       setValue: function (value) { S.c6_auto_update = value; },
       onChange: function () {
-        saveSetting("c6_auto_update", S.c6_auto_update).catch(function () { S.c6_auto_update = !S.c6_auto_update; });
+        saveSetting("c6_auto_update", S.c6_auto_update);
         refreshC6FirmwareUi();
       }
     });

@@ -46,7 +46,6 @@ const modules = {
   "__ESPFRAME_WEB_SETTINGS_CONTROLS__": "settings_controls.ts",
   "__ESPFRAME_WEB_LIVE_HELPERS__": "live_helpers.ts",
   "__ESPFRAME_WEB_BACKUP_IMPORT__": "backup_import.ts",
-  "__ESPFRAME_WEB_COMPAT_HELPERS__": "compat.ts",
 };
 
 for (const [placeholder, filename] of Object.entries(modules)) {
@@ -72,7 +71,7 @@ assert.ok(
 );
 assert.ok(publicApp.includes("customElements.define"), "public app should register its component root");
 assert.ok(publicApp.includes('"album_order"'), "public app should include album order in photo-source apply keys");
-assert.ok(publicApp.includes("Move album up"), "public app should include album reorder controls");
+assert.ok(publicApp.includes("Move up"), "public app should include album reorder controls");
 assert.ok(publicApp.includes("movePhotoIdRow"), "public app should keep photo ID and label rows reorderable");
 assert.ok(
   publicApp.includes("Requires Immich server version 3.2 or newer") &&
@@ -254,9 +253,12 @@ assert.ok(
     "legacy photo-source presets should restore " + defaultMode
   );
 });
-const photoSourceApply = publicApp.slice(
-  publicApp.indexOf("function applyPhotoSourceInputs()"),
-  publicApp.indexOf("function schedulePhotoSourceApply")
+// The legacy renderer remains available in authored source; the module bundler
+// omits it from the current UI because makePhotoSourceCard uses the smart filter.
+const immichCardsSource = fs.readFileSync(path.join(root, "docs/webserver/src/settings_immich_cards.ts"), "utf8");
+const photoSourceApply = immichCardsSource.slice(
+  immichCardsSource.indexOf("function applyPhotoSourceInputs()"),
+  immichCardsSource.indexOf("function schedulePhotoSourceApply")
 );
 assert.ok(
   photoSourceApply.indexOf("if (!vals) return;") < photoSourceApply.indexOf("pendingPhotoSourceSave = {"),
@@ -275,7 +277,7 @@ assert.equal(
 assert.ok(publicApp.includes('image.alt = "Buy Me A Coffee"'), "support button image should have accessible text");
 
 const backupImportContext = { JSON };
-require("vm").runInNewContext(backupImportSource, backupImportContext);
+require("vm").runInNewContext(require("esbuild").transformSync(backupImportSource, { loader: "ts" }).code, backupImportContext);
 const connectionOnlyBackup = backupImportContext.migrateBackupConfig({
   version: 1,
   connection: { immich_url: "https://photos.example.com" }
@@ -342,5 +344,70 @@ assert.ok(
   publicApp.includes("waitForFirmwareUpdateResponse(12)"),
   "firmware checks should wait for the asynchronous device update result instead of reading UNKNOWN once"
 );
+
+// Exercise production disclosure helpers with bubbling clicks so header clicks
+// and native button activation cannot diverge or toggle a card twice.
+function disclosureElement(tagName, className = "") {
+  const classes = new Set(className.split(" ").filter(Boolean));
+  const attributes = new Map();
+  return {
+    tagName: tagName.toUpperCase(),
+    children: [],
+    classList: {
+      add: (name) => classes.add(name),
+      contains: (name) => classes.has(name),
+      toggle(name) {
+        if (classes.has(name)) classes.delete(name);
+        else classes.add(name);
+      },
+    },
+    appendChild(child) {
+      child.parentElement = this;
+      this.children.push(child);
+    },
+    setAttribute: (name, value) => attributes.set(name, String(value)),
+    getAttribute: (name) => attributes.get(name) ?? null,
+    click() {
+      let stopped = false;
+      const event = { stopPropagation() { stopped = true; } };
+      for (let node = this; node && !stopped; node = node.parentElement) {
+        if (node.onclick) node.onclick(event);
+      }
+    },
+  };
+}
+const disclosureContext = {
+  el: disclosureElement,
+  document: { createElement: disclosureElement },
+};
+const disclosureSource = liveHelpersSource.slice(
+  liveHelpersSource.indexOf("  var controlId = 0;"),
+  liveHelpersSource.indexOf("  function makeBackupCard()")
+);
+require("vm").runInNewContext(require("esbuild").transformSync(disclosureSource, { loader: "ts" }).code, disclosureContext);
+const disclosureIds = new Set();
+for (const initiallyCollapsed of [true, false]) {
+  const card = disclosureContext.makeCollapsibleCard("Settings", disclosureElement("div"), initiallyCollapsed);
+  const [header, body] = card.children;
+  const toggle = header.children[0].children[0];
+  const chevron = header.children[1].children[0];
+  assert.equal(toggle.tagName, "BUTTON");
+  assert.equal(toggle.type, "button");
+  assert.ok(body.id, "disclosure content must have an ID");
+  assert.equal(toggle.getAttribute("aria-controls"), body.id);
+  assert.equal(disclosureIds.has(body.id), false, "each card needs its own content ID");
+  disclosureIds.add(body.id);
+  let expanded = !initiallyCollapsed;
+  function assertDisclosureState() {
+    assert.equal(toggle.getAttribute("aria-expanded"), String(expanded));
+    assert.equal(card.classList.contains("collapsed"), !expanded);
+  }
+  assertDisclosureState();
+  for (const target of [toggle, toggle, header, chevron]) {
+    target.click();
+    expanded = !expanded;
+    assertDisclosureState();
+  }
+}
 
 console.log("web module tests passed");

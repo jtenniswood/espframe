@@ -35,12 +35,12 @@
     return parts && parts.domain ? parts.domain : "";
   }
 
-  var endpoints = {};
+  var endpoints: Record<string, string> = {};
   var CONFIGURATION_API_PATH = "/espframe/api/v1/configuration";
   var configurationUpdateQueue = Promise.resolve();
 
   function configurationApiUnavailable(message) {
-    var error = new Error(message || "configuration_api_unavailable");
+    var error: ConfigurationError = new Error(message || "configuration_api_unavailable");
     error.configurationApiUnavailable = true;
     return error;
   }
@@ -78,7 +78,7 @@
       }
       return response.json().catch(function () { return null; }).then(function (payload) {
         if (!response.ok || !payload || payload.status !== "accepted") {
-          var error = new Error(payload && payload.error ? payload.error : "configuration_update_failed");
+          var error: ConfigurationError = new Error(payload && payload.error ? payload.error : "configuration_update_failed");
           error.field = payload && payload.field;
           error.configurationApiResponse = true;
           throw error;
@@ -103,7 +103,7 @@
 
   function applyConfigurationSnapshot(snapshot) {
     Object.keys(snapshot.values).forEach(function (key) {
-      S[key] = snapshot.values[key];
+      settingSaves.receive(key, snapshot.values[key]);
     });
   }
 
@@ -138,7 +138,7 @@
   registerStaticEntityEndpoints();
   registerProductSettingEndpoints();
 
-  function post(url, params) {
+  function post(url, params?) {
     var fullUrl = params ? url + "?" + new URLSearchParams(params).toString() : url;
     return fetch(fullUrl, { method: "POST" }).then(function (r) {
       if (!r.ok) {

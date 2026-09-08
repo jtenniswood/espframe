@@ -22,8 +22,7 @@
         true,
         function (saved) { return normalizeImmichUrl(saved) === normalized; }
       ).then(function () {
-        S.immich_url = normalized;
-        urlInput.value = normalized;
+        if (S.immich_url === normalized) urlInput.value = normalized;
         showSaved("URL saved");
       }).catch(function () {
         showConnectionError("Failed to save URL");
@@ -40,6 +39,7 @@
       keyWrap.appendChild(makeMaskedApiKeyRow(function () {
         keyWrap.replaceChildren();
         keyWrap.appendChild(makeKeyInput());
+        connectFieldLabels(f2);
       }));
     }
 
@@ -61,7 +61,6 @@
             false,
             function (saved) { return !!saved; }
           ).then(function () {
-            S.api_key = v;
             showSaved("API key saved");
             showKeyMasked();
           }).catch(function () {
@@ -134,7 +133,7 @@
       updateCompatibility();
       return saveSetting(key, value, { applyPhotoSource: true });
     }
-    function addSelect(label, key, disabled, reason, recoveryValue) {
+    function addSelect(label, key, disabled, reason, recoveryValue?) {
       var f = field(label);
       var control = selectFromOptions(productSettingOptions(key), S[key], function (value) {
         S[key] = value;
@@ -170,8 +169,8 @@
       S[labelKey] = labels;
       updateCompatibility();
       Promise.all([saveSetting(idKey, ids), saveSetting(labelKey, labels)]).then(function () {
-        post(endpoints.apply_photo_source + "/press");
-      });
+        return post(endpoints.apply_photo_source + "/press");
+      }).catch(reportSettingSaveFailure);
     }
     function addExclusions(parent, label, idKey, labelKey, noun) {
       var nested = document.createElement("details");
@@ -226,7 +225,7 @@
       }
       compatibilityUpdates.push(updateGroupCompatibility);
       body.appendChild(row.field);
-      var inclusionParent = details;
+      var inclusionParent: HTMLElement = details;
       if (options && options.includedPanel) {
         var included = document.createElement("details");
         included.className = "filter-nested filter-inclusions";
@@ -593,8 +592,8 @@
       Promise.all(requests).then(function () {
         if (changes.source || changes.album || changes.albumOrder || changes.person ||
             changes.tag || changes.tagMatching)
-          post(endpoints.apply_photo_source + "/press");
-      });
+          return post(endpoints.apply_photo_source + "/press");
+      }).catch(reportSettingSaveFailure);
     }
     function schedulePhotoSourceApply(delayMs, changes) {
       if (changes) {
@@ -766,8 +765,8 @@
         saveSetting("relative_amount", vals.amount),
         saveSetting("relative_unit", vals.unit)
       ]).then(function () {
-        post(endpoints.apply_photo_source + "/press");
-      });
+        return post(endpoints.apply_photo_source + "/press");
+      }).catch(reportSettingSaveFailure);
     }
 
     function scheduleFilterApply() {
