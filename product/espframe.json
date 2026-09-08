@@ -577,6 +577,7 @@
     "external_component_names": [
       "gsl3680",
       "remote_image",
+      "ledc",
       "espframe"
     ],
     "external_component_git_source_type": "git",

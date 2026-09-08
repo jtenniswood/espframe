@@ -59,6 +59,15 @@
   ],
   "vendored": [
     {
+      "path": "components/ledc",
+      "name": "ESPHome LEDC output component",
+      "upstream": "https://github.com/esphome/esphome/tree/2026.8.2/esphome/components/ledc",
+      "revision": "2026.8.2",
+      "license": "MIT",
+      "license_file": "components/ledc/LICENSE",
+      "local_changes": "Use the ESP-IDF RCC-protected low-level reset on ESP32-P4 instead of the deprecated, nonfunctional legacy peripheral reset API."
+    },
+    {
       "path": "components/gsl3680",
       "name": "GSL3680 ESPHome touchscreen component",
       "upstream": "https://github.com/kvj/esphome",

@@ -20,7 +20,7 @@ external_components:
   - source:
       type: local
       path: ../components
-    components: [gsl3680, remote_image, espframe]
+    components: [gsl3680, remote_image, ledc, espframe]
 
 web_server:
   port: 80

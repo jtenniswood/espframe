@@ -64,6 +64,15 @@ def test_legacy_build_metadata_aliases_are_preserved() -> None:
         assert device["platformio_build_flags"] == device["build_flags"][:3]
 
 
+def test_p4_ledc_warning_fix_remains_narrowly_scoped() -> None:
+    source = (ROOT / "components" / "ledc" / "ledc_output.cpp").read_text(encoding="utf-8")
+
+    assert "defined(CONFIG_IDF_TARGET_ESP32P4) ||" in source
+    assert "periph_module_reset(PERIPH_LEDC_MODULE);" in source
+    for device in load_product()["devices"]:
+        assert "-Wno-deprecated-declarations" not in device["build_flags"]
+
+
 def test_contract_manifest_preserves_upgrade_boundaries() -> None:
     manifest = load_contract_manifest()
 
