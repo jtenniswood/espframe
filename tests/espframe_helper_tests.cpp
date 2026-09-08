@@ -12,6 +12,45 @@
 
 #include "components/espframe/slideshow_controller.h"
 #include "components/espframe/slideshow_component.h"
+#include "components/espframe/memory_pressure.h"
+
+static void test_memory_pressure_prefetch() {
+  esphome::espframe::MemoryPressurePolicy policy;
+  assert(policy.allow_background_work(48 * 1024, 16 * 1024));
+  assert(!policy.allow_background_work(48 * 1024 - 1, 40 * 1024));
+  assert(!policy.allow_background_work(60 * 1024, 40 * 1024));
+  assert(!policy.allow_background_work(64 * 1024, 24 * 1024 - 1));
+  assert(policy.allow_background_work(64 * 1024, 24 * 1024));
+  assert(!policy.allow_background_work(100 * 1024, 16 * 1024 - 1));
+  assert(!policy.allow_background_work(100 * 1024, 20 * 1024));
+  assert(policy.allow_background_work(100 * 1024, 32 * 1024));
+
+  EspFrameSlideshow slideshow;
+  auto &state = slideshow.state();
+  state.slot0.ready = true;
+  state.target_slot = 2;
+  auto prefetch = [&](bool available) {
+    return slideshow.request_prefetch(false, false, 1000, state.last_prefetch_start_ms,
+        0, state.target_slot, state.slot0, state.slot1, state.slot2, state.slot_flags,
+        state.fetch_queue, state.portrait, true, 0, -1, false, false, available);
+  };
+  assert(!prefetch(false));
+  assert(state.target_slot == 2 && state.last_prefetch_start_ms == 0);
+  assert(!any_slot_fetch_in_flight(state.slot_flags));
+  SlideshowCommand command;
+  assert(slideshow.pop_command(command));
+  assert(command.kind == SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY);
+  assert(!slideshow.has_command());
+  assert(prefetch(true));
+  assert(state.target_slot == 1 && state.last_prefetch_start_ms == 1000);
+  assert(slideshow.pop_command(command));
+  assert(command.kind == SLIDESHOW_COMMAND_FETCH_INTO_SLOT && command.slot == 1);
+  // Pressure only gates speculative prefetch: active-slot image updates still run.
+  assert(slideshow.request_deferred_slot_update(0, 0, state.slot_flags, false,
+                                               state.noncritical_remote_updates_in_flight));
+  assert(slideshow.pop_command(command));
+  assert(command.kind == SLIDESHOW_COMMAND_UPDATE_SLOT_IMAGE && command.slot == 0);
+}
 
 static void test_date_and_url_helpers() {
   assert(normalize_immich_base_url(" immich.local:2283/") == "http://immich.local:2283");
@@ -1610,6 +1649,7 @@ static void test_filter_invalidation_preserves_display_and_clears_work() {
 }
 
 int main() {
+  test_memory_pressure_prefetch();
   test_filter_invalidation_preserves_display_and_clears_work();
   test_date_and_url_helpers();
   test_duration_helpers();

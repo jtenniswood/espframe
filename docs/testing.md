@@ -138,3 +138,24 @@ A useful manual pass is:
 - check firmware update status if release/update behavior changed
 
 Record any manual device testing in the pull request so reviewers know what was verified outside automation.
+
+### Internal Heap Checks
+
+The `memory` log records byte-addressable internal free bytes, allocator low-water
+bytes, the current largest free block, its sampled minimum, and free PSRAM.
+Reports run every minute and after Immich responses and image decoding. The
+largest-block minimum is sampled once per second and at these callbacks; it is
+not a guarantee that shorter fragmentation peaks were captured. Existing Home
+Assistant memory entities retain their names and sampling intervals.
+
+Compare the same device, HTTPS server, settings, and browser/API connections
+before and after allocation changes. Exercise JPEG and WebP photos, portrait
+pairs, sleep/wake, reconnects, and OTA. Keep enough runtime to observe repeated
+photo changes; different images and lazy decoder allocation affect the results.
+
+Background prefetch pauses below 48 KiB free internal RAM or a 16 KiB largest
+block, and resumes at 64 KiB free with a 24 KiB largest block. Look for
+`prefetch-paused` and `prefetch-resumed` reports. Verify foreground photo requests
+still run under pressure and prefetch resumes without changing saved settings.
+TLS allocations prefer dedicated PSRAM, general allocations above 1 KiB prefer
+PSRAM, and the 32 KiB internal reserve remains available to internal-only users.

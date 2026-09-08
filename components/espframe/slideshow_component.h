@@ -691,7 +691,8 @@ class EspFrameSlideshow {
                         const SlotMeta &slot0, const SlotMeta &slot1, const SlotMeta &slot2,
                         const SlotFlags &flags, FetchQueue &queue, const PortraitState &portrait,
                         bool active_slot_displayed, int noncritical_count, int portrait_preload_slot,
-                        bool portrait_preload_left_ready, bool portrait_preload_right_ready) {
+                        bool portrait_preload_left_ready, bool portrait_preload_right_ready,
+                        bool background_memory_available = true) {
     if (backlight_paused || retry_cooldown_active) return false;
     if (!active_slot_displayed) return false;
 
@@ -709,6 +710,11 @@ class EspFrameSlideshow {
         portrait.workflow_busy || noncritical_count > 0)
       return false;
     if ((now_ms - last_prefetch_start_ms) < 600) return false;
+
+    if (!background_memory_available) {
+      this->emit_command(SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY, active_slot, 1200);
+      return false;
+    }
 
     if (!SlideshowController::enqueue_prefetch_slots(
             queue, active_slot, slot0, slot1, slot2, flags, now_ms)) {

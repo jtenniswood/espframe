@@ -100,6 +100,7 @@ script:
           on_response:
             then:
               - lambda: |-
+                  id(espframe_core).record_memory("immich-response");
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Memories HTTP %d for offset %+d", response->status_code,
                              id(immich_request_state).memory_window_offset);
@@ -257,6 +258,7 @@ script:
           on_response:
             then:
               - lambda: |-
+                  id(espframe_core).record_memory("immich-response");
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Memory asset HTTP %d — falling back to random", response->status_code);
                     id(immich_request_state).memory_fallback = true;
@@ -400,6 +402,7 @@ script:
           on_response:
             then:
               - lambda: |-
+                  id(espframe_core).record_memory("immich-response");
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Album count HTTP %d", response->status_code);
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
@@ -484,6 +487,7 @@ script:
           on_response:
             then:
               - lambda: |-
+                  id(espframe_core).record_memory("immich-response");
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Statistics count HTTP %d", response->status_code);
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
@@ -582,6 +586,7 @@ script:
           on_response:
             then:
               - lambda: |-
+                  id(espframe_core).record_memory("immich-response");
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Metadata page HTTP %d", response->status_code);
                     clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
@@ -865,6 +870,7 @@ script:
                     - script.execute: delayed_prefetch_chain
                     - script.stop: immich_fetch_into_slot
               - lambda: |-
+                  id(espframe_core).record_memory("immich-response");
                   if (response->status_code != 200) {
                     int code = response->status_code;
                     ESP_LOGW("immich", "HTTP %d from Immich", code);
@@ -1104,6 +1110,7 @@ script:
           on_response:
             then:
               - lambda: |-
+                  id(espframe_core).record_memory("immich-response");
                   if (!id(espframe_core).slideshow().portrait_search_response_is_current()) {
                     ESP_LOGD("immich", "Ignoring stale companion search response");
                     return;
