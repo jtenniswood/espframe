@@ -66,8 +66,8 @@
   function renderSettings() {
     app.replaceChildren();
     immichApp.replaceChildren();
-    var immichWrap = el("div", "fade-in");
-    var wrap = el("div", "fade-in");
+    var immichWrap = el("div");
+    var wrap = el("div");
 
     var immichCards = renderSettingsCardsForTab("immich");
     var settingsCardEntries = renderSettingsCardEntriesForTab("settings");

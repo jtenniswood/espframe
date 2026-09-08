@@ -2164,7 +2164,6 @@ to {
   var rendered = false;
   var renderTimer = null;
   var renderAttemptInFlight = false;
-  var initialSettingsRefreshStarted = false;
   var logListenerAttached = false;
   var ANSI_LEVEL = {
     "1;31": "sp-log-error",
@@ -2364,14 +2363,6 @@ to {
     deferredRenderControl = active;
     active.addEventListener("blur", resumeSettingsRenderAfterBlur, { once: true });
   }
-  function renderConfiguredSettingsPage() {
-    renderSettings();
-    if (initialSettingsRefreshStarted) return;
-    initialSettingsRefreshStarted = true;
-    fetchDeviceSettingsState().then(function() {
-      if (rendered && !isEditingSetting()) renderSettings();
-    });
-  }
   function scheduleTryRender(delayMs2) {
     if (rendered || renderAttemptInFlight || renderTimer) return;
     renderTimer = setTimeout(function() {
@@ -2382,7 +2373,7 @@ to {
   function showConfiguredSettings() {
     rendered = true;
     renderAttemptInFlight = false;
-    renderConfiguredSettingsPage();
+    renderSettings();
   }
   function tryRender() {
     if (rendered || renderAttemptInFlight) return;
@@ -2390,25 +2381,10 @@ to {
       clearTimeout(renderTimer);
       renderTimer = null;
     }
-    if (S.immich_url) {
-      showConfiguredSettings();
-      return;
-    }
     renderAttemptInFlight = true;
-    getConfigurationSnapshot().then(function(snapshot) {
-      applyConfigurationSnapshot(snapshot);
-      return null;
-    }).catch(function(error) {
-      if (!isConfigurationApiUnavailable(error)) throw error;
-      return Promise.all([
-        safeGet(endpoints.immich_url),
-        safeGet(endpoints.api_key)
-      ]);
-    }).then(function(res) {
+    fetchDeviceSettingsState().then(function() {
       renderAttemptInFlight = false;
       if (rendered) return;
-      if (res && res[0]) settingSaves.receive("immich_url", normalizeImmichUrl(res[0].value || res[0].state || ""));
-      if (res && res[1]) settingSaves.receive("api_key", res[1].value || res[1].state || "");
       if (S.immich_url) {
         showConfiguredSettings();
       } else {
@@ -2427,13 +2403,16 @@ to {
         try {
           var d = JSON.parse(e.data);
           if (d && d.name_id) d.id = d.name_id;
+          var spec = d && ENTITY_STATE_MAP[d.id];
+          var previousValue = spec ? S[spec.key] : void 0;
+          var previousOptions = spec && spec.optionsKey ? JSON.stringify(S[spec.optionsKey]) : "";
           collectState(d);
-          if (rendered) handleLiveEvent(d);
+          var changed = !spec || previousValue !== S[spec.key] || spec.optionsKey && previousOptions !== JSON.stringify(S[spec.optionsKey]);
+          if (rendered && changed) handleLiveEvent(d);
         } catch (_) {
         }
         if (!rendered) {
-          if (S.immich_url) showConfiguredSettings();
-          else scheduleTryRender(250);
+          scheduleTryRender(250);
         }
       });
       if (!logListenerAttached) {
@@ -4130,8 +4109,8 @@ to {
   function renderSettings() {
     app.replaceChildren();
     immichApp.replaceChildren();
-    var immichWrap = el("div", "fade-in");
-    var wrap = el("div", "fade-in");
+    var immichWrap = el("div");
+    var wrap = el("div");
     var immichCards = renderSettingsCardsForTab("immich");
     var settingsCardEntries = renderSettingsCardEntriesForTab("settings");
     if (!immichCards.length) immichCards = [
