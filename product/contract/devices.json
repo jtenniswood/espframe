@@ -18,6 +18,12 @@
       "CONFIG_HTTPD_MAX_URI_LEN": "128",
       "CONFIG_ESP_TASK_WDT_TIMEOUT_S": "30"
     },
+    "platformio_flash_mode": "dio",
+    "platformio_build_flags": [
+      "-DCONFIG_COMPILER_OPTIMIZATION_PERF=y",
+      "-DLV_USE_BIDI=1",
+      "-DLV_USE_ARABIC_PERSIAN_CHARS=1"
+    ],
     "build_flags": [
       "-DCONFIG_COMPILER_OPTIMIZATION_PERF=y",
       "-DLV_USE_BIDI=1",
@@ -246,6 +252,12 @@
       "CONFIG_HTTPD_MAX_URI_LEN": "128",
       "CONFIG_ESP_TASK_WDT_TIMEOUT_S": "30"
     },
+    "platformio_flash_mode": "dio",
+    "platformio_build_flags": [
+      "-DCONFIG_COMPILER_OPTIMIZATION_PERF=y",
+      "-DLV_USE_BIDI=1",
+      "-DLV_USE_ARABIC_PERSIAN_CHARS=1"
+    ],
     "build_flags": [
       "-DCONFIG_COMPILER_OPTIMIZATION_PERF=y",
       "-DLV_USE_BIDI=1",

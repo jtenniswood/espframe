@@ -56,6 +56,14 @@ def test_split_contract_matches_generated_legacy_manifest() -> None:
     assert load_product() == generated_legacy
 
 
+def test_legacy_build_metadata_aliases_are_preserved() -> None:
+    product = load_product()
+
+    for device in product["devices"]:
+        assert device["platformio_flash_mode"] == "dio"
+        assert device["platformio_build_flags"] == device["build_flags"][:3]
+
+
 def test_contract_manifest_preserves_upgrade_boundaries() -> None:
     manifest = load_contract_manifest()
 

@@ -25,6 +25,7 @@ def check_devices(product: dict, errors: list[str]) -> None:
             "esp32_variant",
             "flash_size",
             "framework_type",
+            "platformio_flash_mode",
             "esp32_hosted_variant",
             "psram_mode",
             "psram_speed",
@@ -68,6 +69,11 @@ def check_devices(product: dict, errors: list[str]) -> None:
                     errors.append(f"Device {slug} sdkconfig_options keys must be non-empty strings")
                 if not isinstance(value, str) or not value.strip():
                     errors.append(f"Device {slug} sdkconfig_options.{option} must be a non-empty string")
+        legacy_build_flags = device.get("platformio_build_flags", [])
+        if not isinstance(legacy_build_flags, list) or not legacy_build_flags:
+            errors.append(f"Device {slug} platformio_build_flags must be a non-empty list")
+        elif any(not isinstance(flag, str) or not flag.strip() for flag in legacy_build_flags):
+            errors.append(f"Device {slug} platformio_build_flags must only contain non-empty strings")
         build_flags = device.get("build_flags", [])
         if not isinstance(build_flags, list) or not build_flags:
             errors.append(f"Device {slug} build_flags must be a non-empty list")
