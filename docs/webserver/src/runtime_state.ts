@@ -2,7 +2,6 @@
   var rendered = false;
   var renderTimer = null;
   var renderAttemptInFlight = false;
-  var initialSettingsRefreshStarted = false;
   var logListenerAttached = false;
 
   var ANSI_LEVEL = {
@@ -233,19 +232,6 @@
     active.addEventListener("blur", resumeSettingsRenderAfterBlur, { once: true });
   }
 
-  function renderConfiguredSettingsPage() {
-    renderSettings();
-
-    if (initialSettingsRefreshStarted) return;
-    initialSettingsRefreshStarted = true;
-
-    // Draw the cards first. The ESP webserver can take a while to answer every
-    // per-entity request, so hydrate the values in the background.
-    fetchDeviceSettingsState().then(function () {
-      if (rendered && !isEditingSetting()) renderSettings();
-    });
-  }
-
   function scheduleTryRender(delayMs) {
     if (rendered || renderAttemptInFlight || renderTimer) return;
     renderTimer = setTimeout(function () {
@@ -257,7 +243,7 @@
   function showConfiguredSettings() {
     rendered = true;
     renderAttemptInFlight = false;
-    renderConfiguredSettingsPage();
+    renderSettings();
   }
 
   function tryRender() {
@@ -266,25 +252,12 @@
       clearTimeout(renderTimer);
       renderTimer = null;
     }
-    if (S.immich_url) {
-      showConfiguredSettings();
-      return;
-    }
     renderAttemptInFlight = true;
-    getConfigurationSnapshot().then(function (snapshot) {
-      applyConfigurationSnapshot(snapshot);
-      return null;
-    }).catch(function (error) {
-      if (!isConfigurationApiUnavailable(error)) throw error;
-      return Promise.all([
-        safeGet(endpoints.immich_url),
-        safeGet(endpoints.api_key)
-      ]);
-    }).then(function (res) {
+    // Wait for the complete snapshot (or legacy settings) before showing cards.
+    // SSE can deliver the connection URL long before the remaining settings.
+    fetchDeviceSettingsState().then(function () {
       renderAttemptInFlight = false;
       if (rendered) return;
-      if (res && res[0]) settingSaves.receive("immich_url", normalizeImmichUrl(res[0].value || res[0].state || ""));
-      if (res && res[1]) settingSaves.receive("api_key", res[1].value || res[1].state || "");
       if (S.immich_url) {
         showConfiguredSettings();
       } else {
@@ -310,13 +283,17 @@
           // 2026.8.0 drops name_id and switches id to the name form, so preferring
           // name_id and otherwise leaving id alone is correct either side of that.
           if (d && d.name_id) d.id = d.name_id;
+          var spec = d && ENTITY_STATE_MAP[d.id];
+          var previousValue = spec ? S[spec.key] : undefined;
+          var previousOptions = spec && spec.optionsKey ? JSON.stringify(S[spec.optionsKey]) : "";
           collectState(d);
-          if (rendered) handleLiveEvent(d);
+          var changed = !spec || previousValue !== S[spec.key] ||
+            (spec.optionsKey && previousOptions !== JSON.stringify(S[spec.optionsKey]));
+          if (rendered && changed) handleLiveEvent(d);
         } catch (_) {}
 
         if (!rendered) {
-          if (S.immich_url) showConfiguredSettings();
-          else scheduleTryRender(250);
+          scheduleTryRender(250);
         }
       });
 

@@ -189,6 +189,8 @@ const unsupportedVersionBackupFixture = {
 };
 
 const scenarios = [
+  { name: "refresh-startup", configured: true, width: 1280, height: 900, slowStartup: true },
+  { name: "refresh-startup-legacy", configured: true, width: 1280, height: 900, slowStartup: true, legacyStartup: true },
   { name: "wizard", configured: false, width: 1280, height: 900 },
   { name: "wizard-connection-save", configured: false, width: 1280, height: 900 },
   { name: "wizard-connection-save-legacy", configured: false, width: 1280, height: 900, legacyApi: true },
@@ -283,9 +285,13 @@ function browserScriptForScenario(scenario) {
     class SmokeEventSource {
       constructor(url) {
         this.url = url;
+        window.__smoke.eventSource = this;
         this.listeners = {};
         setTimeout(() => {
           if (this.onopen) this.onopen({ type: "open" });
+          if (${JSON.stringify(!!scenario.slowStartup)}) {
+            this.dispatch("state", { id: "text/Connection: Server URL", value: "https://photos.example.com" });
+          }
           this.dispatch("log", { msg: "Smoke log line", lvl: 3 });
           this.dispatch("state", { name_id: "text_sensor/Immich: Server Version", value: ${JSON.stringify(scenario.filterCompatibilityVersion || "3.2.0")} });
           this.dispatch("state", { id: "text_sensor/Screen: Sunrise", value: "06:30" });
@@ -467,6 +473,15 @@ function browserScriptForScenario(scenario) {
           return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
         }
         if (method === "GET") {
+          if (${JSON.stringify(!!scenario.legacyStartup)}) {
+            return Promise.resolve({ ok: false, status: 404 });
+          }
+          if (${JSON.stringify(!!scenario.slowStartup)}) {
+            return new Promise(resolve => setTimeout(() => resolve({
+              ok: true, status: 200,
+              json: () => Promise.resolve({ api_version: 1, values: configurationSnapshotValues(), unavailable: [] })
+            }), 900));
+          }
           return Promise.resolve({
             ok: true,
             status: 200,
@@ -529,6 +544,11 @@ function browserScriptForScenario(scenario) {
       const endpointName = endpointNameForUrl(decoded);
       const value = endpointName ? endpointValues[endpointName] : "";
       const state = value === true ? "ON" : value === false ? "OFF" : String(value);
+      if (${JSON.stringify(!!scenario.legacyStartup)} && method === "GET") {
+        return new Promise(resolve => setTimeout(() => resolve({
+          ok: true, status: 200, json: () => Promise.resolve({ value, state, option: [] })
+        }), 900));
+      }
       return Promise.resolve({
         ok: true,
         status: 200,
@@ -1218,7 +1238,22 @@ function smokeAssertionsForScenario(scenario) {
       }
 
       try {
-        if (${JSON.stringify(scenario.name)} === "wizard") {
+        if (${JSON.stringify(!!scenario.slowStartup)}) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          if (document.querySelector("#sp-immich .card")) throw new Error("Settings appeared before snapshot completed");
+          await waitFor(() => pageText().includes("Photo Filter"), 8000, "hydrated settings");
+          const wrap = document.querySelector("#sp-immich .sp-settings-wrap").firstElementChild;
+          if (getComputedStyle(wrap).animationName !== "none") throw new Error("Settings replay a fade animation");
+          const source = window.__smoke.eventSource;
+          source.dispatch("state", { id: "switch/Photos: Portrait Pairing", state: "ON" });
+          await new Promise(resolve => setTimeout(resolve, 150));
+          if (!wrap.isConnected) throw new Error("Duplicate startup state rebuilt settings");
+          source.dispatch("state", { id: "switch/Photos: Portrait Pairing", state: "OFF" });
+          await waitFor(() => !wrap.isConnected, 2000, "changed live setting renders");
+          if (!${JSON.stringify(!!scenario.legacyStartup)} && window.__smoke.fetchedUrls.filter(url => url === "/espframe/api/v1/configuration").length !== 1) {
+            throw new Error("Startup fetched configuration more than once");
+          }
+        } else if (${JSON.stringify(scenario.name)} === "wizard") {
           await waitFor(() => pageText().indexOf("connect your photo frame") !== -1, 8000, "wizard");
           requireText("Immich Server URL");
           requireText("API Key");
@@ -1632,7 +1667,10 @@ async function runScenario(scenario) {
       ...chromeSandboxArgs(),
       `--user-data-dir=${userDataDir}`,
       `--window-size=${scenario.width},${scenario.height}`,
-      "--virtual-time-budget=16000",
+      // Chrome 151 can keep virtual time paused while an internal background
+      // request is pending. A real timeout still lets the app's asynchronous
+      // assertions settle, then reliably captures the resulting DOM.
+      ...(scenario.slowStartup ? ["--virtual-time-budget=12000"] : ["--timeout=16000"]),
       "--dump-dom",
       `file://${htmlPath}${query}`,
     ],
@@ -1646,7 +1684,9 @@ async function runScenario(scenario) {
     assert.equal(result.timedOut, false, `Chrome timed out for ${scenario.name}:\n${output}`);
     assert.equal(result.status, 0, `Chrome failed for ${scenario.name} (signal: ${result.signal || "none"}):\n${output}`);
   }
-  assert.ok(renderedOutput.includes(passToken), `Browser smoke scenario ${scenario.name} failed:\n${output}`);
+  // Startup regressions must verify the executed DOM result, not the pass
+  // marker also present in the inline assertion script.
+  assert.ok(scenario.slowStartup ? renderedOutput.includes(`data-smoke-${scenario.name}="pass"`) : renderedOutput.includes(passToken), `Browser smoke scenario ${scenario.name} failed:\n${output}`);
 }
 
 function selectedScenariosFromArgs(args) {
