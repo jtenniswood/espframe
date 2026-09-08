@@ -2398,7 +2398,12 @@ to {
       renderTimer = null;
     }
     renderAttemptInFlight = true;
-    withStartupTimeout(fetchDeviceSettingsState(), 4e3).then(function() {
+    var hydration = fetchDeviceSettingsState();
+    hydration.then(function() {
+      if (rendered && S.immich_url && !isEditingSetting()) renderSettings();
+    }, function() {
+    });
+    withStartupTimeout(hydration, 4e3).then(function() {
       renderAttemptInFlight = false;
       if (rendered) return;
       if (S.immich_url) {

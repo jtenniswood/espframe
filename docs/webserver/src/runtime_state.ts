@@ -273,7 +273,11 @@
     renderAttemptInFlight = true;
     // Wait for the complete snapshot (or legacy settings) before showing cards.
     // SSE can deliver the connection URL long before the remaining settings.
-    withStartupTimeout(fetchDeviceSettingsState(), 4000).then(function () {
+    var hydration = fetchDeviceSettingsState();
+    hydration.then(function () {
+      if (rendered && S.immich_url && !isEditingSetting()) renderSettings();
+    }, function () {});
+    withStartupTimeout(hydration, 4000).then(function () {
       renderAttemptInFlight = false;
       if (rendered) return;
       if (S.immich_url) {

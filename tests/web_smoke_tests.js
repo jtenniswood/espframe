@@ -191,6 +191,7 @@ const unsupportedVersionBackupFixture = {
 const scenarios = [
   { name: "refresh-startup", configured: true, width: 1280, height: 900, slowStartup: true },
   { name: "refresh-startup-legacy", configured: true, width: 1280, height: 900, slowStartup: true, legacyStartup: true },
+  { name: "refresh-startup-late", configured: true, width: 1280, height: 900, slowStartup: true, startupDelayMs: 5000 },
   { name: "wizard", configured: false, width: 1280, height: 900 },
   { name: "wizard-connection-save", configured: false, width: 1280, height: 900 },
   { name: "wizard-connection-save-legacy", configured: false, width: 1280, height: 900, legacyApi: true },
@@ -480,7 +481,7 @@ function browserScriptForScenario(scenario) {
             return new Promise(resolve => setTimeout(() => resolve({
               ok: true, status: 200,
               json: () => Promise.resolve({ api_version: 1, values: configurationSnapshotValues(), unavailable: [] })
-            }), 900));
+            }), ${Number(scenario.startupDelayMs || 900)}));
           }
           return Promise.resolve({
             ok: true,
@@ -1255,6 +1256,10 @@ function smokeAssertionsForScenario(scenario) {
           }
           if (${JSON.stringify(!!scenario.legacyStartup)} && !window.__smoke.fetchedUrls.some(url => url.includes("Connection: Server URL"))) {
             throw new Error("Legacy startup did not read the connection URL");
+          }
+          if (${JSON.stringify(!!scenario.startupDelayMs)}) {
+            const initialWrap = wrap;
+            await waitFor(() => document.querySelector("#sp-immich .sp-settings-wrap").firstElementChild !== initialWrap, 8000, "late settings hydration");
           }
         } else if (${JSON.stringify(scenario.name)} === "wizard") {
           await waitFor(() => pageText().indexOf("connect your photo frame") !== -1, 8000, "wizard");
