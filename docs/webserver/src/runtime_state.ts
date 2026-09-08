@@ -264,6 +264,33 @@
     renderSettings();
   }
 
+  var startupHydrationPromise = null;
+
+  function getStartupHydration() {
+    if (startupHydrationPromise) return startupHydrationPromise;
+    var hydration = fetchDeviceSettingsState();
+    startupHydrationPromise = hydration;
+    hydration.then(function () {
+      if (startupHydrationPromise === hydration) startupHydrationPromise = null;
+      renderAttemptInFlight = false;
+      if (!rendered) {
+        if (S.immich_url) {
+          showConfiguredSettings();
+        } else {
+          rendered = true;
+          renderWizard();
+        }
+      } else if (S.immich_url) {
+        renderSettingsAfterEditing();
+      }
+    }, function () {
+      if (startupHydrationPromise === hydration) startupHydrationPromise = null;
+      renderAttemptInFlight = false;
+      if (!rendered && !S.immich_url) scheduleTryRender(1000);
+    });
+    return hydration;
+  }
+
   function tryRender() {
     if (rendered || renderAttemptInFlight) return;
     if (renderTimer) {
@@ -273,10 +300,7 @@
     renderAttemptInFlight = true;
     // Wait for the complete snapshot (or legacy settings) before showing cards.
     // SSE can deliver the connection URL long before the remaining settings.
-    var hydration = fetchDeviceSettingsState();
-    hydration.then(function () {
-      if (rendered && S.immich_url && !isEditingSetting()) renderSettings();
-    }, function () {});
+    var hydration = getStartupHydration();
     withStartupTimeout(hydration, 4000).then(function () {
       renderAttemptInFlight = false;
       if (rendered) return;

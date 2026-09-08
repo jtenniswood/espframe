@@ -192,6 +192,7 @@ const scenarios = [
   { name: "refresh-startup", configured: true, width: 1280, height: 900, slowStartup: true },
   { name: "refresh-startup-legacy", configured: true, width: 1280, height: 900, slowStartup: true, legacyStartup: true },
   { name: "refresh-startup-late", configured: true, width: 1280, height: 900, slowStartup: true, startupDelayMs: 5000 },
+  { name: "refresh-startup-pending", configured: true, width: 1280, height: 900, slowStartup: true, startupDelayMs: 5000, noStartupSse: true },
   { name: "wizard", configured: false, width: 1280, height: 900 },
   { name: "wizard-connection-save", configured: false, width: 1280, height: 900 },
   { name: "wizard-connection-save-legacy", configured: false, width: 1280, height: 900, legacyApi: true },
@@ -290,7 +291,7 @@ function browserScriptForScenario(scenario) {
         this.listeners = {};
         setTimeout(() => {
           if (this.onopen) this.onopen({ type: "open" });
-          if (${JSON.stringify(!!scenario.slowStartup && !scenario.legacyStartup)}) {
+          if (${JSON.stringify(!!scenario.slowStartup && !scenario.legacyStartup && !scenario.noStartupSse)}) {
             this.dispatch("state", { id: "text/Connection: Server URL", value: "https://photos.example.com" });
           }
           this.dispatch("log", { msg: "Smoke log line", lvl: 3 });
@@ -1260,8 +1261,8 @@ function smokeAssertionsForScenario(scenario) {
           if (${JSON.stringify(!!scenario.legacyStartup)} && !window.__smoke.fetchedUrls.some(url => url.includes("Connection: Server URL"))) {
             throw new Error("Legacy startup did not read the connection URL");
           }
-          if (${JSON.stringify(!!scenario.startupDelayMs)}) {
-            const initialWrap = wrap;
+          if (${JSON.stringify(!!scenario.startupDelayMs && !scenario.noStartupSse)}) {
+            const initialWrap = document.querySelector("#sp-immich .sp-settings-wrap").firstElementChild;
             await waitFor(() => document.querySelector("#sp-immich .sp-settings-wrap").firstElementChild !== initialWrap, 8000, "late settings hydration");
           }
         } else if (${JSON.stringify(scenario.name)} === "wizard") {

@@ -2391,6 +2391,31 @@ to {
     renderAttemptInFlight = false;
     renderSettings();
   }
+  var startupHydrationPromise = null;
+  function getStartupHydration() {
+    if (startupHydrationPromise) return startupHydrationPromise;
+    var hydration = fetchDeviceSettingsState();
+    startupHydrationPromise = hydration;
+    hydration.then(function() {
+      if (startupHydrationPromise === hydration) startupHydrationPromise = null;
+      renderAttemptInFlight = false;
+      if (!rendered) {
+        if (S.immich_url) {
+          showConfiguredSettings();
+        } else {
+          rendered = true;
+          renderWizard();
+        }
+      } else if (S.immich_url) {
+        renderSettingsAfterEditing();
+      }
+    }, function() {
+      if (startupHydrationPromise === hydration) startupHydrationPromise = null;
+      renderAttemptInFlight = false;
+      if (!rendered && !S.immich_url) scheduleTryRender(1e3);
+    });
+    return hydration;
+  }
   function tryRender() {
     if (rendered || renderAttemptInFlight) return;
     if (renderTimer) {
@@ -2398,11 +2423,7 @@ to {
       renderTimer = null;
     }
     renderAttemptInFlight = true;
-    var hydration = fetchDeviceSettingsState();
-    hydration.then(function() {
-      if (rendered && S.immich_url && !isEditingSetting()) renderSettings();
-    }, function() {
-    });
+    var hydration = getStartupHydration();
     withStartupTimeout(hydration, 4e3).then(function() {
       renderAttemptInFlight = false;
       if (rendered) return;
