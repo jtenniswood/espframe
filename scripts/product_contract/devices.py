@@ -25,7 +25,6 @@ def check_devices(product: dict, errors: list[str]) -> None:
             "esp32_variant",
             "flash_size",
             "framework_type",
-            "platformio_flash_mode",
             "esp32_hosted_variant",
             "psram_mode",
             "psram_speed",
@@ -69,11 +68,11 @@ def check_devices(product: dict, errors: list[str]) -> None:
                     errors.append(f"Device {slug} sdkconfig_options keys must be non-empty strings")
                 if not isinstance(value, str) or not value.strip():
                     errors.append(f"Device {slug} sdkconfig_options.{option} must be a non-empty string")
-        build_flags = device.get("platformio_build_flags", [])
+        build_flags = device.get("build_flags", [])
         if not isinstance(build_flags, list) or not build_flags:
-            errors.append(f"Device {slug} platformio_build_flags must be a non-empty list")
+            errors.append(f"Device {slug} build_flags must be a non-empty list")
         elif any(not isinstance(flag, str) or not flag.strip() for flag in build_flags):
-            errors.append(f"Device {slug} platformio_build_flags must only contain non-empty strings")
+            errors.append(f"Device {slug} build_flags must only contain non-empty strings")
         hardware_pins = device.get("hardware_pins", {})
         if not isinstance(hardware_pins, dict) or not hardware_pins:
             errors.append(f"Device {slug} hardware_pins must be a non-empty object")
@@ -182,7 +181,6 @@ def check_devices(product: dict, errors: list[str]) -> None:
             ("esp32_variant", f'variant: {device.get("esp32_variant", "")}'),
             ("flash_size", f'flash_size: {device.get("flash_size", "")}'),
             ("framework_type", f'type: {device.get("framework_type", "")}'),
-            ("platformio_flash_mode", f'board_build.flash_mode: {device.get("platformio_flash_mode", "")}'),
             ("esp32_hosted_variant", f'variant: {device.get("esp32_hosted_variant", "")}'),
             ("psram_mode", f'mode: {device.get("psram_mode", "")}'),
             ("psram_speed", f'speed: {device.get("psram_speed", "")}'),
