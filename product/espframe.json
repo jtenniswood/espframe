@@ -1798,7 +1798,8 @@
       "build_flags": [
         "-DCONFIG_COMPILER_OPTIMIZATION_PERF=y",
         "-DLV_USE_BIDI=1",
-        "-DLV_USE_ARABIC_PERSIAN_CHARS=1"
+        "-DLV_USE_ARABIC_PERSIAN_CHARS=1",
+        "-Wno-deprecated-declarations"
       ],
       "esp32_hosted_variant": "esp32c6",
       "psram_mode": "hex",
@@ -2025,7 +2026,8 @@
       "build_flags": [
         "-DCONFIG_COMPILER_OPTIMIZATION_PERF=y",
         "-DLV_USE_BIDI=1",
-        "-DLV_USE_ARABIC_PERSIAN_CHARS=1"
+        "-DLV_USE_ARABIC_PERSIAN_CHARS=1",
+        "-Wno-deprecated-declarations"
       ],
       "esp32_hosted_variant": "esp32c6",
       "psram_mode": "hex",
