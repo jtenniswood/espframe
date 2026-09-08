@@ -926,38 +926,51 @@ inline bool immich_datetime_sort_value(const std::string &raw, int64_t &value) {
   return true;
 }
 
+// Retains only the best match, so JSON parsing does not duplicate every
+// candidate's ID and timestamp alongside the response document. Equal-distance
+// matches keep the first candidate, including the existing invalid-date fallback.
+class ImmichPortraitCompanionSelector {
+ public:
+  ImmichPortraitCompanionSelector(const std::string &primary_asset_id,
+                                  const std::string &primary_datetime)
+      : primary_asset_id_(primary_asset_id),
+        primary_has_sort_value_(immich_datetime_sort_value(primary_datetime, primary_sort_value_)) {}
+
+  void consider(const std::string &asset_id, const std::string &datetime, bool is_portrait) {
+    if (asset_id.empty() || asset_id == primary_asset_id_ || !is_portrait) return;
+    int64_t candidate_sort_value = 0;
+    bool has_distance = primary_has_sort_value_ &&
+                        immich_datetime_sort_value(datetime, candidate_sort_value);
+    int64_t distance = has_distance
+        ? (candidate_sort_value >= primary_sort_value_
+            ? candidate_sort_value - primary_sort_value_ : primary_sort_value_ - candidate_sort_value)
+        : std::numeric_limits<int64_t>::max();
+    if (best_asset_id_.empty() || (has_distance && (!best_has_distance_ || distance < best_distance_))) {
+      best_has_distance_ = has_distance;
+      best_distance_ = distance;
+      best_asset_id_ = asset_id;
+    }
+  }
+
+  const std::string &asset_id() const { return best_asset_id_; }
+
+ private:
+  std::string primary_asset_id_;
+  int64_t primary_sort_value_ = 0;
+  bool primary_has_sort_value_;
+  bool best_has_distance_ = false;
+  int64_t best_distance_ = std::numeric_limits<int64_t>::max();
+  std::string best_asset_id_;
+};
+
 inline std::string pick_closest_immich_portrait_companion_asset_id(
     const std::vector<ImmichPortraitCompanionCandidate> &candidates,
     const std::string &primary_asset_id,
     const std::string &primary_datetime) {
-  int64_t primary_sort_value = 0;
-  bool primary_has_sort_value = immich_datetime_sort_value(primary_datetime, primary_sort_value);
-  bool found = false;
-  bool best_has_distance = false;
-  int64_t best_distance = std::numeric_limits<int64_t>::max();
-  std::string best_asset_id;
-  for (const auto &candidate : candidates) {
-    if (candidate.asset_id.empty() || candidate.asset_id == primary_asset_id ||
-        !candidate.is_portrait) {
-      continue;
-    }
-    int64_t candidate_sort_value = 0;
-    bool candidate_has_sort_value = primary_has_sort_value &&
-        immich_datetime_sort_value(candidate.datetime, candidate_sort_value);
-    int64_t distance = candidate_has_sort_value
-                           ? (candidate_sort_value >= primary_sort_value
-                                  ? candidate_sort_value - primary_sort_value
-                                  : primary_sort_value - candidate_sort_value)
-                           : std::numeric_limits<int64_t>::max();
-    if (!found || (candidate_has_sort_value &&
-                   (!best_has_distance || distance < best_distance))) {
-      found = true;
-      best_has_distance = candidate_has_sort_value;
-      best_distance = distance;
-      best_asset_id = candidate.asset_id;
-    }
-  }
-  return best_asset_id;
+  ImmichPortraitCompanionSelector selector(primary_asset_id, primary_datetime);
+  for (const auto &candidate : candidates)
+    selector.consider(candidate.asset_id, candidate.datetime, candidate.is_portrait);
+  return selector.asset_id();
 }
 
 inline std::vector<std::string> split_uuid_csv(const std::string &csv) {
@@ -1735,7 +1748,7 @@ inline std::string find_immich_portrait_companion_url(const std::string &body,
     }
   }
 
-  std::vector<ImmichPortraitCompanionCandidate> candidates;
+  ImmichPortraitCompanionSelector selector(primary_asset_id, primary_datetime);
   JsonArray arr = immich_asset_array_from_document(doc);
   if (arr.isNull()) return "";
   for (size_t i = 0; i < arr.size(); i++) {
@@ -1768,14 +1781,11 @@ inline std::string find_immich_portrait_companion_url(const std::string &body,
     } else if (!exif.isNull() && exif["dateTimeOriginal"].is<const char *>()) {
       candidate_datetime = exif["dateTimeOriginal"].as<std::string>();
     }
-    candidates.push_back({
-      asset_id, candidate_datetime,
-      immich_dimensions_are_portrait(
-        width, height, orientation, dimensions_are_raw_exif)});
+    selector.consider(asset_id, candidate_datetime,
+        immich_dimensions_are_portrait(width, height, orientation, dimensions_are_raw_exif));
   }
 
-  std::string asset_id = pick_closest_immich_portrait_companion_asset_id(
-      candidates, primary_asset_id, primary_datetime);
+  const std::string &asset_id = selector.asset_id();
   if (asset_id.empty()) return "";
   return base_url + "/api/assets/" + asset_id + "/thumbnail?size=preview";
 }

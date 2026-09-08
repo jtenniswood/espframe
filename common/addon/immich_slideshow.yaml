@@ -183,6 +183,7 @@ remote_image:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
       then:
+        - lambda: 'id(espframe_core).record_memory("photo-decoded");'
         - lambda: |-
             const int slot = 0;
             auto &meta = id(espframe_core).slideshow().state().slot0;
@@ -211,6 +212,7 @@ remote_image:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
       then:
+        - lambda: 'id(espframe_core).record_memory("photo-decoded");'
         - lambda: |-
             const int slot = 1;
             auto &meta = id(espframe_core).slideshow().state().slot1;
@@ -239,6 +241,7 @@ remote_image:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
       then:
+        - lambda: 'id(espframe_core).record_memory("photo-decoded");'
         - lambda: |-
             const int slot = 2;
             auto &meta = id(espframe_core).slideshow().state().slot2;
@@ -270,6 +273,7 @@ remote_image:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
       then:
+        - lambda: 'id(espframe_core).record_memory("photo-decoded");'
         - lambda: |-
             ESP_LOGD("immich", "Portrait left ready");
             id(espframe_core).slideshow().on_portrait_left_finished(id(espframe_core).slideshow().state().portrait);
@@ -295,6 +299,7 @@ remote_image:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
       then:
+        - lambda: 'id(espframe_core).record_memory("photo-decoded");'
         - lambda: |-
             ESP_LOGD("immich", "Portrait right ready");
             id(espframe_core).slideshow().on_portrait_right_finished(id(espframe_core).slideshow().state().portrait);
@@ -321,6 +326,7 @@ remote_image:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
       then:
+        - lambda: 'id(espframe_core).record_memory("photo-decoded");'
         - lambda: |-
             ESP_LOGD("immich", "Portrait preload left ready (slot %d)", id(espframe_core).slideshow().state().portrait_preload_slot);
             id(espframe_core).slideshow().on_preload_left_finished(
@@ -353,6 +359,7 @@ remote_image:
       x-api-key: !lambda 'return id(immich_api_key_text).state;'
     on_download_finished:
       then:
+        - lambda: 'id(espframe_core).record_memory("photo-decoded");'
         - lambda: |-
             ESP_LOGD("immich", "Portrait preload right ready (slot %d)", id(espframe_core).slideshow().state().portrait_preload_slot);
             id(espframe_core).slideshow().on_preload_right_finished(
@@ -1057,7 +1064,8 @@ script:
             millis(), id(espframe_core).slideshow().state().last_prefetch_start_ms, id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().target_slot,
             id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().fetch_queue, id(espframe_core).slideshow().state().portrait,
             id(espframe_core).slideshow().state().active_slot_displayed, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight, id(espframe_core).slideshow().state().portrait_preload_slot,
-            id(espframe_core).slideshow().state().portrait_preload_left_ready, id(espframe_core).slideshow().state().portrait_preload_right_ready);
+            id(espframe_core).slideshow().state().portrait_preload_left_ready, id(espframe_core).slideshow().state().portrait_preload_right_ready,
+            id(espframe_core).allow_background_work());
           id(espframe_slideshow_dispatch).execute();
 
   # Run prefetch after short delay to avoid socket exhaustion when many callbacks fire at once
