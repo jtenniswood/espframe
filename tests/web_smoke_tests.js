@@ -1667,10 +1667,8 @@ async function runScenario(scenario) {
       ...chromeSandboxArgs(),
       `--user-data-dir=${userDataDir}`,
       `--window-size=${scenario.width},${scenario.height}`,
-      // Chrome 151 can keep virtual time paused while an internal background
-      // request is pending. A real timeout still lets the app's asynchronous
-      // assertions settle, then reliably captures the resulting DOM.
-      ...(scenario.slowStartup ? ["--virtual-time-budget=12000"] : ["--timeout=16000"]),
+      // Advance startup timers before inspecting the executed DOM assertions.
+      "--virtual-time-budget=16000",
       "--dump-dom",
       `file://${htmlPath}${query}`,
     ],

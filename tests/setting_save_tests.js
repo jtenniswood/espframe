@@ -14,38 +14,44 @@ async function legacyConnectionRollback(status) {
   Object.entries(state).forEach(([key, value]) => saves.receive(key, value));
   let settingsShown;
   const ready = new Promise(resolve => { settingsShown = resolve; });
-  let backgroundFetches = 0;
+  let legacyFetches = 0;
   const runtime = {
     S: state,
     settingSaves: saves,
     rendered: false,
     renderAttemptInFlight: false,
     renderTimer: null,
-    initialSettingsRefreshStarted: false,
+    INITIAL_FETCH_KEYS: ["immich_url", "api_key"],
+    KEY_TO_ENTITY_ID: { immich_url: "url", api_key: "key" },
+    ENTITY_STATE_MAP: { url: { key: "immich_url" }, key: { key: "api_key" } },
     endpoints: { immich_url: "url", api_key: "key" },
     getConfigurationSnapshot: async () => { throw { status }; },
     isConfigurationApiUnavailable: error => [404, 405].includes(error.status),
-    safeGet: async endpoint => endpoint === "url"
-      ? { value: "https://existing.example.test/" } : { state: "existing-key" },
+    safeGet: async endpoint => {
+      legacyFetches++;
+      return endpoint === "url"
+        ? { value: "https://existing.example.test" } : { state: "existing-key" };
+    },
     normalizeImmichUrl: value => value.replace(/\/$/, ""),
     renderSettings: () => settingsShown(),
-    fetchDeviceSettingsState: () => {
-      backgroundFetches++;
-      return new Promise(() => {}); // The per-entity hydration is still pending.
-    },
+
   };
   vm.runInNewContext(transformSync(runtimeSource.slice(
-    runtimeSource.indexOf("  function renderConfiguredSettingsPage()"),
+    runtimeSource.indexOf("  function fetchDeviceSettingsState()"),
     runtimeSource.indexOf("  function initSSE()")
+  ), { loader: "ts" }).code, runtime);
+  vm.runInNewContext(transformSync(runtimeSource.slice(
+    runtimeSource.indexOf("  function applyEntityToState("),
+    runtimeSource.indexOf("  function collectState(")
   ), { loader: "ts" }).code, runtime);
   runtime.tryRender();
   await ready;
-  assert.equal(backgroundFetches, 1);
+  assert.equal(legacyFetches, 2);
   assert.deepEqual(state, { immich_url: "https://existing.example.test", api_key: "existing-key" });
   await assert.rejects(saves.save({ immich_url: "https://edited.example.test", api_key: "edited-key" },
     async () => { throw new Error("connection save rejected"); }));
   assert.deepEqual(state, { immich_url: "https://existing.example.test", api_key: "existing-key" },
-    "failed edits before legacy hydration must restore the device credentials");
+    "failed edits after legacy hydration must restore the device credentials");
 }
 
 function deferredFailureRender() {
@@ -65,7 +71,7 @@ function deferredFailureRender() {
   };
   const template = fs.readFileSync("docs/webserver/src/app.template.ts", "utf8");
   const functions = runtimeSource.slice(runtimeSource.indexOf("  function isEditingSetting()"),
-    runtimeSource.indexOf("  function renderConfiguredSettingsPage()")) +
+    runtimeSource.indexOf("  function scheduleTryRender(")) +
     template.slice(template.indexOf("  function reportSettingSaveFailure()"),
       template.indexOf("  var SETTING_SAVE_ADAPTERS"));
   vm.runInNewContext(transformSync(functions, { loader: "ts" }).code, runtime);
