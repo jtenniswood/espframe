@@ -40,10 +40,13 @@ struct PortraitPairState {
 
 struct FetchJob {
   FetchJobKind kind = FETCH_JOB_SLOT;
-  int slot = -1;
+  // Ring-buffer slots are -1 (none), 0, 1 or 2.
+  int8_t slot = -1;
   uint8_t priority = 0;
   uint32_t queued_ms = 0;
 };
+
+static_assert(sizeof(FetchJob) == 8, "Keep the fetch queue compact");
 
 class FetchQueue {
  public:
