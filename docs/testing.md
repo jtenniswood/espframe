@@ -193,3 +193,63 @@ The naming form and reconnect dialog reuse Espcontrol’s UI structure and style
 with an inline Save & Restart action, live hostname preview and reconnect links.
 Browser coverage also checks that failed saves do not restart and restart failures
 leave the saved name available for retry.
+
+### LVGL allocation diagnostics
+
+Use an opt-in diagnostic build to measure graphics placement before changing it.
+In a local build wrapper, add:
+
+```yaml
+espframe:
+  memory_diagnostics: true
+```
+
+For example, create the ignored `builds/dev.yaml` alongside the release wrappers:
+
+```yaml
+packages:
+  base: !include guition-esp32-p4-jc8012p4a1.yaml
+espframe:
+  memory_diagnostics: true
+```
+
+Use `guition-esp32-p4-jc8012p4a1-v2.yaml` for the V2 board. Compile with the pinned
+ESPHome Docker image as above and `-s firmware_version v0.0.0`. Flash only the
+artifact for the matching board when hardware testing is authorized. Keep the
+full boot log; the allocation trace runs only during setup. This flag defaults
+to false and does not alter saved preferences or normal firmware allocation.
+Diagnostic probes consume additional memory, so these builds are measurement
+artifacts, not release candidates subject to the production static-size budget.
+
+`memory.lvgl` reports:
+
+- `before-lvgl` and `after-lvgl`: internal free bytes, allocator low-water mark,
+  largest internal block, free PSRAM and largest PSRAM block.
+- `setup-net`: signed net usage between those snapshots. Concurrent tasks and
+  instrumentation affect the delta; it is not an exact LVGL allocation total.
+- `setup-aligned-allocation`: address, requested bytes, actual memory region and
+  requested capability bits for each aligned allocation on the setup task in
+  the window around LVGL's setup priority. Failed allocations are also logged.
+- `draw-buffer`: the active buffer obtained through LVGL's public API. Match
+  its address to the allocation trace to determine its requested capabilities.
+
+For ESPHome 2026.8.2 the configured `buffer_size: 6%` becomes a one-eighth buffer:
+256,000 bytes at 1280×800 RGB565. The same-sized allocation following the draw
+buffer is the expected rotation workspace in this version. The trace deliberately
+labels it as an allocation rather than accessing ESPHome's private rotation
+pointer: verify the sequence against the pinned `LvglComponent::setup()` before
+attributing other allocations to it, especially after an ESPHome upgrade.
+
+`memory.stack` reports the calling ESPHome loop task's minimum free stack bytes
+after LVGL setup and alongside the existing periodic/response/decode memory
+reports. It is not a report of all networking or driver task stacks. The probes
+observe allocations and do not force either buffer into PSRAM or change its size.
+
+Compare the same diagnostic build on each board with landscape/portrait JPEG and
+WebP photos, HTTPS, browser and Home Assistant connections, reconnects, sleep/wake
+and OTA. Record buffer placement, minimum internal heap, largest blocks and loop
+stack headroom. If the draw buffer is already in PSRAM, there is no internal-RAM
+saving to claim from moving it. If internal, evaluate an upstream-supported
+placement change separately and compare rendering, rotation, touch and OTA
+before shipping it. Lowering the YAML percentage alone does not reduce this
+buffer in the pinned ESPHome version.
