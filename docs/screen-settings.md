@@ -46,3 +46,21 @@ The setting only exposes normal and upside-down orientations. On the 10" model, 
 |---------|---------|-------------|
 | **Rotation** | 0 degrees | Rotate the screen to 0 or 180 degrees. |
 <!-- ESPFRAME:SETTINGS_TABLE screen_rotation END -->
+
+## Frame name
+
+Open **Device → System → Frame name** to give a frame a recognizable name, such
+as `Living Room`. Click **Save name**, check the new address and current IP, then
+click **Restart to apply name**. The web title and backup filename use the saved
+name immediately; the network hostname and Home Assistant friendly name apply
+on restart. Follow the displayed address to reconnect, or use the frame's IP.
+
+Hostnames use the first 19 characters of a simplified name plus the last four
+MAC characters, for example `living-room-b2c3.local`. Names without Latin letters
+or digits use `frame` as the hostname prefix. The displayed name supports Unicode
+up to 120 UTF-8 bytes. Home Assistant names you assigned manually take precedence.
+
+Existing firmware names stay unchanged until you save a name. Leave the field
+blank and save to restore the firmware defaults. Saved names survive normal OTA
+updates and power cycles. If storage is full, a save reports an error and retains
+the previous name; it never clears other settings to make room.

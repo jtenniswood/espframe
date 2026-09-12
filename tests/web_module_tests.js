@@ -35,6 +35,7 @@ const supportButtonImage = fs.readFileSync(
 ).trim();
 
 const modules = {
+  "__ESPFRAME_WEB_FRAME_IDENTITY__": "frame_identity.ts",
   "__ESPFRAME_WEB_CONTRACTS__": "web_contracts.ts",
   "__ESPFRAME_WEB_APP_SHELL__": "app_shell.ts",
   "__ESPFRAME_WEB_ENDPOINTS__": "endpoints.ts",

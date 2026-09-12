@@ -159,3 +159,32 @@ block, and resumes at 64 KiB free with a 24 KiB largest block. Look for
 still run under pressure and prefetch resumes without changing saved settings.
 TLS allocations prefer dedicated PSRAM, general allocations above 1 KiB prefer
 PSRAM, and the 32 KiB internal reserve remains available to internal-only users.
+
+### Frame naming
+
+`npm run test:identity` tests the production name parser and startup/storage
+adapter with platform stubs, including UTF-8 validation, unchanged first boot,
+persistence, clearing, corruption, failed writes and stable running names.
+Browser scenarios prefixed `frame-name` cover saving, retry, byte limits, named
+exports and optional restore with the destination MAC suffix.
+
+The startup adapter in `components/espframe/frame_identity.cpp` is pinned to
+ESPHome 2026.8.2. Review it when upgrading: it rebinds Application's non-const
+StringRef members after entity registration and before network component setup.
+It must not change registered entity names, hashes, or preference keys. Names use
+an independent namespace in the existing 448 KiB NVS partition; no partition-table
+change or erasure is performed. This differs from Espcontrol PR #1924's dedicated
+data-partition storage because Espframe has no equivalent spare data partition.
+
+Before merging naming changes, OTA-update an already paired frame, verify its
+original identity and saved settings, then save a name, restart, and check DHCP,
+mDNS, the native API and Home Assistant. Confirm it reconnects to the existing
+device without duplicate entities or changed entity IDs and retains manually
+assigned Home Assistant names. Test clearing, power cycling, another OTA update,
+and restoring a backup onto a second frame. No automated test proves those
+network and Home Assistant integration behaviors on hardware.
+
+The naming UI and optional backup dialog intentionally increase the raw web app
+budget to 228,000 bytes, CSS to 21,000 bytes, combined raw to 249,000 bytes and
+combined gzip to 56,000 bytes. Firmware flash/RAM and individual gzip limits remain
+unchanged; full builds still enforce them.

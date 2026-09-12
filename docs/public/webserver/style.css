@@ -1276,3 +1276,10 @@ to {
 .mt-12 {
   margin-top:12px
 }
+
+/* Custom frame names can contain long words or multibyte text. */
+.sp-brand { overflow-wrap: anywhere; }
+#frame-name { width: 100%; box-sizing: border-box; }
+.frame-name-address a { overflow-wrap: anywhere; }
+.frame-name-dialog { max-width: min(90vw, 440px); border-radius: 12px; padding: 24px; }
+.frame-name-dialog::backdrop { background: rgb(0 0 0 / 45%); }

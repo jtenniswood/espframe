@@ -477,9 +477,12 @@ import {
 
   __ESPFRAME_WEB_LIVE_HELPERS__
 
+  __ESPFRAME_WEB_FRAME_IDENTITY__
+
   __ESPFRAME_WEB_BACKUP_IMPORT__
 
   // --- Init ---
 
   buildUI();
   initSSE();
+  loadFrameIdentity();

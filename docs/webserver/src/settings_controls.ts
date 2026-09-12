@@ -20,6 +20,7 @@
       makeFirmwareCard: makeFirmwareCard,
       makeDeviceRebootCard: makeDeviceRebootCard,
       makeDeveloperCard: makeDeveloperCard,
+      makeFrameNameCard: makeFrameNameCard,
       makeBackupCard: makeBackupCard
     };
   }
@@ -88,6 +89,7 @@
       { section: "Display", element: makeRotationCard() },
       { section: "Display", element: makeClockCard() },
       { section: "Sleep & Schedule", element: makeNightScheduleCard() },
+      { section: "System", element: makeFrameNameCard() },
       { section: "System", element: makeBackupCard() },
       { section: "System", element: makeFirmwareCard() },
       { section: "System", element: makeDeviceRebootCard() },

@@ -101,3 +101,16 @@ The export is a standard JSON file with a `version` field and grouped settings:
 ```
 
 You can edit the file by hand before importing — useful for scripting or bulk-configuring devices.
+
+## Frame names
+
+Firmware with frame naming includes optional `identity: { "name": "Living Room" }`
+metadata in the existing version 3 backup format. Named frames download backups
+as `<hostname>-config-YYYY-MM-DD.json`; unnamed frames retain the default filename.
+
+When importing a backup containing a name, **Also restore frame name** is unchecked
+by default. Keep it unchecked to preserve the destination frame's name, or check
+it to restore the saved name. The hostname always uses the destination frame's
+own MAC suffix. After restoring a name, use **Device → System → Frame name** to
+review the new address and restart. Restoring an empty name restores firmware
+defaults. Backups without identity metadata continue to import as before.
