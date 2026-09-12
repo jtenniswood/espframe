@@ -2,12 +2,11 @@
 
 #include "esphome/core/defines.h"
 
-#ifdef ESPFRAME_MEMORY_DIAGNOSTICS
 #include "esphome/core/component.h"
 
 namespace esphome::espframe {
-// Opt-in observers bracket LVGL's PROCESSOR setup priority. They do not
-// participate in normal builds or change the allocator's placement policy.
+// Bracket pinned ESPHome LVGL setup so only its setup-task allocations
+// request PSRAM. Optional diagnostics report the same allocation window.
 class MemorySetupProbe : public Component {
  public:
   explicit MemorySetupProbe(bool before) : before_(before) {}
@@ -22,4 +21,3 @@ class MemorySetupProbe : public Component {
 
 void record_loop_stack(const char *phase);
 }  // namespace esphome::espframe
-#endif
