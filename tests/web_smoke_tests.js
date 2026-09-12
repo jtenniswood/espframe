@@ -1301,7 +1301,7 @@ function smokeAssertionsForScenario(scenario) {
         } else if (${JSON.stringify(!!scenario.identity)}) {
           await waitFor(() => document.querySelector("#frame-name"), 8000, "frame name");
           clickTab("Device");
-          expandCard("Frame name");
+          expandCard("Frame Name");
           const setName = (name) => {
             const input = document.querySelector("#frame-name");
             input.value = name;

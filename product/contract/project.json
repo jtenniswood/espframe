@@ -783,7 +783,7 @@
     },
     {
       "id": "frame_name",
-      "label": "Frame name",
+      "label": "Frame Name",
       "tab": "settings",
       "section": "System",
       "function": "makeFrameNameCard"

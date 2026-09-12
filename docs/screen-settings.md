@@ -47,9 +47,9 @@ The setting only exposes normal and upside-down orientations. On the 10" model, 
 | **Rotation** | 0 degrees | Rotate the screen to 0 or 180 degrees. |
 <!-- ESPFRAME:SETTINGS_TABLE screen_rotation END -->
 
-## Frame name
+## Frame Name
 
-Open **Device → System → Frame name** to give a frame a recognizable name, such
+Open **Device → System → Frame Name** to give a frame a recognizable name, such
 as `Living Room`. Click **Save name**, check the new address and current IP, then
 click **Restart to apply name**. The web title and backup filename use the saved
 name immediately; the network hostname and Home Assistant friendly name apply

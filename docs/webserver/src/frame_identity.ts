@@ -126,7 +126,7 @@
       });
       body.appendChild(restart);
     }
-    return makeCollapsibleCard("Frame name", body, !frameIdentity.restart_required && !frameIdentityError && frameNameDraft === null);
+    return makeCollapsibleCard("Frame Name", body, !frameIdentity.restart_required && !frameIdentityError && frameNameDraft === null);
   }
 
   function chooseBackupNameRestore(name: string): Promise<boolean | null> {
