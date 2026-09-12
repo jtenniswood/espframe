@@ -7,6 +7,7 @@
 #include "esphome/core/log.h"
 
 #include "remote_image.h"
+#include "webp_rgb565.h"
 
 #ifdef ESP_PLATFORM
 #include "esp_heap_caps.h"
@@ -112,13 +113,16 @@ int HOT WebpDecoder::decode(uint8_t *buffer, size_t size) {
   this->out_w_ = decode_w;
   this->out_h_ = decode_h;
 
+  uint8_t *direct_buffer = this->image_->get_opaque_rgb565_buffer(decode_w, decode_h);
+  const bool direct_rgb565 = direct_buffer != nullptr && this->x_scale_ == 1.0 && this->y_scale_ == 1.0 &&
+                            this->x_offset_ == 0 && this->y_offset_ == 0;
   size_t rgb_size = static_cast<size_t>(decode_w) * decode_h * 3;
 #ifdef ESP_PLATFORM
   {
-    // Rough estimate: rgb_buffer + libwebp internal decoder state (~2× rgb_size).
-    // If PSRAM can't cover it, the allocator falls back to internal heap which
-    // is too small and may return a corrupted pointer → hard fault.
-    size_t psram_needed = rgb_size * 3;
+    // Keep the existing decoder-state estimate (~2× RGB888 bytes), but only
+    // budget a temporary RGB888 image when the direct path cannot be used.
+    // The destination was already allocated by set_size().
+    size_t psram_needed = rgb_size * (direct_rgb565 ? 2 : 3);
     size_t psram_avail  = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
     if (psram_avail < psram_needed) {
       ESP_LOGE(TAG, "Insufficient PSRAM for WebP decode: need ~%zu, have %zu",
@@ -126,6 +130,23 @@ int HOT WebpDecoder::decode(uint8_t *buffer, size_t size) {
       return DECODE_ERROR_OUT_OF_MEMORY;
     }
   }
+#endif
+
+  if (direct_rgb565) {
+    const VP8StatusCode status = decode_webp_rgb565(buffer, size, config, direct_buffer,
+                                                   static_cast<size_t>(decode_w) * decode_h * 2,
+                                                   decode_w, decode_h, this->image_->is_big_endian());
+    if (status != VP8_STATUS_OK) {
+      ESP_LOGE(TAG, "Direct RGB565 WebP decode failed (status %d)", status);
+      return DECODE_ERROR_UNSUPPORTED_FORMAT;
+    }
+    ESP_LOGI(TAG, "WebP direct RGB565 %dx%d: avoided %zu-byte temporary buffer", decode_w, decode_h, rgb_size);
+    this->finished_ = true;
+    this->decoded_bytes_ = size;
+    return size;
+  }
+
+#ifdef ESP_PLATFORM
   this->rgb_buffer_ = static_cast<uint8_t *>(
       heap_caps_malloc(rgb_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
 #else
