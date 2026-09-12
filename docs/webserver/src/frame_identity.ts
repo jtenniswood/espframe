@@ -10,6 +10,7 @@
   var frameIdentity: FrameIdentitySnapshot | null = null;
   var frameNameDraft: string | null = null;
   var frameIdentityBusy = false;
+  var frameIdentityLoaded = false;
   var frameIdentityError = "";
 
   function validFrameName(value: unknown): value is string {
@@ -55,9 +56,11 @@
     try {
       frameIdentity = await requestFrameIdentity();
       updateFrameTitle();
-      if (rendered) renderSettingsAfterEditing();
     } catch (_) {
       // A hosted app may be used with firmware predating this endpoint.
+    } finally {
+      frameIdentityLoaded = true;
+      if (rendered) renderSettingsAfterEditing();
     }
   }
 

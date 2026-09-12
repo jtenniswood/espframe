@@ -70,7 +70,9 @@ std::string FrameIdentity::suffix() const {
 bool FrameIdentity::save(const std::string &name) {
   std::string normalized;
   if (!normalize_frame_name(name, normalized)) return false;
-  if (normalized == saved_name_) return true;
+  // An empty in-memory name may follow an NVS read failure. Always persist
+  // explicit clearing so a previously stored name cannot return on reboot.
+  if (!normalized.empty() && normalized == saved_name_) return true;
   IdentityRecord record;
   std::memcpy(record.name, normalized.data(), normalized.size());
   nvs_handle_t handle;

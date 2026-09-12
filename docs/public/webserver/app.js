@@ -4741,6 +4741,7 @@ to {
     var backupRow = el("div", "backup-row");
     var exportBtn = el("button", "btn btn-secondary");
     exportBtn.textContent = "Export";
+    exportBtn.disabled = !frameIdentityLoaded;
     exportBtn.onclick = exportConfig;
     var importBtn = el("button", "btn btn-secondary");
     importBtn.textContent = "Import";
@@ -4813,6 +4814,7 @@ to {
   var frameIdentity = null;
   var frameNameDraft = null;
   var frameIdentityBusy = false;
+  var frameIdentityLoaded = false;
   var frameIdentityError = "";
   function validFrameName(value) {
     if (typeof value !== "string") return false;
@@ -4854,8 +4856,10 @@ to {
     try {
       frameIdentity = await requestFrameIdentity();
       updateFrameTitle();
-      if (rendered) renderSettingsAfterEditing();
     } catch (_) {
+    } finally {
+      frameIdentityLoaded = true;
+      if (rendered) renderSettingsAfterEditing();
     }
   }
   async function saveFrameName(name) {
@@ -5126,6 +5130,7 @@ to {
     return BACKUP_VERSION_MIGRATIONS[data.version](data);
   }
   function exportConfig() {
+    if (!frameIdentityLoaded) return;
     var data = buildBackupExportData();
     var json = JSON.stringify(data, null, 2);
     var blob = new Blob([json], { type: "application/json" });

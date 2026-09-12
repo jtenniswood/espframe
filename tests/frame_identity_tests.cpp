@@ -78,5 +78,22 @@ int main() {
   assert(!unavailable.save("Office"));
   fail_open = false;
   assert(unavailable.save("Office"));
+  for (bool open_failure : {true, false}) {
+    assert(unavailable.save("Previously saved"));
+    fail_open = open_failure;
+    fail_read = !open_failure;
+    reset_app();
+    FrameIdentity unread;
+    unread.setup();
+    assert(unread.saved_name().empty());
+    fail_open = fail_read = false;
+    assert(unread.save(""));
+    reset_app();
+    FrameIdentity after_clear;
+    after_clear.setup();
+    assert(after_clear.saved_name().empty());
+    assert(after_clear.target_hostname() == "original-frame-a1b2c3");
+    assert(unavailable.save("Office"));
+  }
   std::cout << "Frame identity validation, persistence, clearing and failure tests passed\n";
 }

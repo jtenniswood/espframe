@@ -110,6 +110,7 @@
   }
 
   function exportConfig() {
+    if (!frameIdentityLoaded) return;
     var data = buildBackupExportData();
     var json = JSON.stringify(data, null, 2);
     var blob = new Blob([json], { type: "application/json" });

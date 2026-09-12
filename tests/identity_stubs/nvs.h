@@ -8,7 +8,7 @@ using esp_err_t = int;
 using nvs_handle_t = int;
 constexpr int ESP_OK = 0, ESP_ERR_NVS_NOT_FOUND = 1, NVS_READONLY = 0, NVS_READWRITE = 1;
 inline std::vector<uint8_t> identity_bytes;
-inline bool fail_open = false, fail_write = false, fail_commit = false;
+inline bool fail_open = false, fail_read = false, fail_write = false, fail_commit = false;
 inline int write_count = 0;
 inline esp_err_t nvs_open(const char *ns, int mode, nvs_handle_t *handle) {
   if (std::string(ns) != "espframe_id" || fail_open) return 2;
@@ -18,6 +18,7 @@ inline esp_err_t nvs_open(const char *ns, int mode, nvs_handle_t *handle) {
 }
 inline void nvs_close(nvs_handle_t) {}
 inline esp_err_t nvs_get_blob(nvs_handle_t, const char *, void *data, size_t *length) {
+  if (fail_read) return 2;
   if (identity_bytes.empty()) return ESP_ERR_NVS_NOT_FOUND;
   if (*length < identity_bytes.size()) return 2;
   *length = identity_bytes.size();
