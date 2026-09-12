@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "configuration_api.h"
+#include "frame_identity_api.h"
 #include "espframe_helpers.h"
 #include "memory_pressure.h"
 
@@ -11,11 +12,15 @@ namespace espframe {
 
 class EspFrameComponent : public Component, public ConfigurationUpdateScheduler {
  public:
-  EspFrameComponent() : configuration_api_(this) {}
+  EspFrameComponent() : configuration_api_(this), identity_api_(&this->identity_) {}
 
   void setup() override {
+    this->identity_.setup();
     auto *base = web_server_base::global_web_server_base;
-    if (base != nullptr) base->add_handler(&this->configuration_api_);
+    if (base != nullptr) {
+      base->add_handler(&this->configuration_api_);
+      base->add_handler(&this->identity_api_);
+    }
     this->set_interval("memory-sample", 1000, [this]() { this->sample_memory_(); });
     this->set_interval("memory-report", 60000, [this]() { this->record_memory("periodic"); });
   }
@@ -43,7 +48,9 @@ class EspFrameComponent : public Component, public ConfigurationUpdateScheduler 
              (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   }
 
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+  // Identity must apply after entity registration and before networking starts.
+  // WebServerBase queues handlers here; timers run after application setup.
+  float get_setup_priority() const override { return 1000.0f; }
 
   void schedule_configuration_update(std::function<void()> &&update) override { this->defer(std::move(update)); }
 
@@ -61,6 +68,8 @@ class EspFrameComponent : public Component, public ConfigurationUpdateScheduler 
   size_t largest_sampled_min_ = SIZE_MAX;
   bool background_memory_available_ = true;
   ConfigurationApiHandler configuration_api_;
+  FrameIdentity identity_;
+  FrameIdentityApiHandler identity_api_;
   EspFrameSlideshow slideshow_{};
 };
 

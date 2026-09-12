@@ -57,7 +57,13 @@
 
     var brand = document.createElement("div");
     brand.className = "sp-brand";
-    brand.textContent = "EspFrame";
+    var brandLabel = document.createElement("span");
+    brandLabel.className = "sp-brand-label";
+    brandLabel.textContent = "EspFrame";
+    var deviceName = document.createElement("span");
+    deviceName.className = "sp-device-name";
+    deviceName.hidden = true;
+    brand.append(brandLabel, deviceName);
     header.appendChild(brand);
 
     var nav = document.createElement("nav");

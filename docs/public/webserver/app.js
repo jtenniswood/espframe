@@ -225,7 +225,7 @@
   var FIRMWARE_MANIFEST_URLS = { "stable": "https://jtenniswood.github.io/espframe/firmware/manifest.json", "devices": { "immich-frame": { "stable": "https://jtenniswood.github.io/espframe/firmware/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/beta/manifest.json" }, "immich-frame-v2": { "stable": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v2/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v2/beta/manifest.json" } } };
   var DOCS_BASE_URL = "https://jtenniswood.github.io/espframe";
   var WEB_UI_TABS = [{ "id": "immich", "label": "Immich" }, { "id": "settings", "label": "Device" }, { "id": "logs", "label": "Logs" }];
-  var WEB_UI_CARDS = [{ "id": "connection", "label": "Connection", "tab": "immich", "section": "", "function": "makeConnectionCard", "settings": ["conn_timeout"], "staticEntities": [], "manualEntities": ["immich_url", "api_key"] }, { "id": "frequency", "label": "Frequency", "tab": "immich", "section": "", "function": "makeFrequencyCard", "settings": ["interval"], "staticEntities": [], "manualEntities": [] }, { "id": "portrait_pairing", "label": "Portrait Pairing", "tab": "immich", "section": "", "function": "makePortraitPairingCard", "settings": ["portrait_pairing", "portrait_pairs_only", "portrait_pairing_range"], "staticEntities": [], "manualEntities": [] }, { "id": "photo_source", "label": "Photo Filter", "tab": "immich", "section": "", "function": "makePhotoSourceCard", "settings": ["photo_source", "albums_enabled", "people_enabled", "tags_enabled", "date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit", "favorites_enabled", "rating_enabled", "location_enabled", "inclusion_matching", "album_matching", "person_matching", "tag_matching", "favorite_mode", "minimum_rating", "filter_country", "filter_state", "filter_city", "album_order"], "staticEntities": ["album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels", "excluded_album_ids", "excluded_album_labels", "excluded_person_ids", "excluded_person_labels", "excluded_tag_ids", "excluded_tag_labels", "immich_server_version", "immich_capability_status", "memories_migration_notice"], "manualEntities": ["apply_photo_source"] }, { "id": "layout", "label": "Photo Display", "tab": "immich", "section": "", "function": "makeLayoutCard", "settings": ["photo_orientation", "display_mode"], "staticEntities": [], "manualEntities": [] }, { "id": "metadata", "label": "Metadata", "tab": "immich", "section": "", "function": "makeMetadataCard", "settings": ["photo_metadata_date_enabled", "photo_metadata_location_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format"], "staticEntities": [], "manualEntities": [] }, { "id": "screen_brightness", "label": "Screen Brightness", "tab": "settings", "section": "Display", "function": "makeScreenBrightnessCard", "settings": ["brightness_day", "brightness_night"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "screen_tone", "label": "Screen Tone", "tab": "settings", "section": "Display", "function": "makeScreenToneCard", "settings": ["base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"], "staticEntities": [], "manualEntities": [] }, { "id": "rotation", "label": "Rotation", "tab": "settings", "section": "Display", "function": "makeRotationCard", "settings": ["screen_rotation"], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "clock", "label": "Clock", "tab": "settings", "section": "Display", "function": "makeClockCard", "settings": ["clock_format"], "staticEntities": ["show_clock", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"], "manualEntities": [] }, { "id": "night_schedule", "label": "Night Schedule", "tab": "settings", "section": "Sleep & Schedule", "function": "makeNightScheduleCard", "settings": ["schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "backup", "label": "Backup", "tab": "settings", "section": "System", "function": "makeBackupCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "firmware", "label": "Firmware", "tab": "settings", "section": "System", "function": "makeFirmwareCard", "settings": ["update_frequency", "auto_update", "c6_auto_update"], "staticEntities": ["firmware_device", "firmware", "c6_current_firmware", "c6_available_firmware", "c6_update_status"], "manualEntities": ["update", "firmware_prepare_upload", "firmware_cancel_upload", "firmware_check", "c6_firmware_check", "c6_firmware_install"] }, { "id": "device_reboot", "label": "Device Reboot", "tab": "settings", "section": "System", "function": "makeDeviceRebootCard", "settings": [], "staticEntities": [], "manualEntities": ["reboot_screen"] }, { "id": "developer", "label": "Developer", "tab": "settings", "section": "System", "function": "makeDeveloperCard", "settings": [], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }];
+  var WEB_UI_CARDS = [{ "id": "connection", "label": "Connection", "tab": "immich", "section": "", "function": "makeConnectionCard", "settings": ["conn_timeout"], "staticEntities": [], "manualEntities": ["immich_url", "api_key"] }, { "id": "frequency", "label": "Frequency", "tab": "immich", "section": "", "function": "makeFrequencyCard", "settings": ["interval"], "staticEntities": [], "manualEntities": [] }, { "id": "portrait_pairing", "label": "Portrait Pairing", "tab": "immich", "section": "", "function": "makePortraitPairingCard", "settings": ["portrait_pairing", "portrait_pairs_only", "portrait_pairing_range"], "staticEntities": [], "manualEntities": [] }, { "id": "photo_source", "label": "Photo Filter", "tab": "immich", "section": "", "function": "makePhotoSourceCard", "settings": ["photo_source", "albums_enabled", "people_enabled", "tags_enabled", "date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit", "favorites_enabled", "rating_enabled", "location_enabled", "inclusion_matching", "album_matching", "person_matching", "tag_matching", "favorite_mode", "minimum_rating", "filter_country", "filter_state", "filter_city", "album_order"], "staticEntities": ["album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels", "excluded_album_ids", "excluded_album_labels", "excluded_person_ids", "excluded_person_labels", "excluded_tag_ids", "excluded_tag_labels", "immich_server_version", "immich_capability_status", "memories_migration_notice"], "manualEntities": ["apply_photo_source"] }, { "id": "layout", "label": "Photo Display", "tab": "immich", "section": "", "function": "makeLayoutCard", "settings": ["photo_orientation", "display_mode"], "staticEntities": [], "manualEntities": [] }, { "id": "metadata", "label": "Metadata", "tab": "immich", "section": "", "function": "makeMetadataCard", "settings": ["photo_metadata_date_enabled", "photo_metadata_location_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format"], "staticEntities": [], "manualEntities": [] }, { "id": "screen_brightness", "label": "Screen Brightness", "tab": "settings", "section": "Display", "function": "makeScreenBrightnessCard", "settings": ["brightness_day", "brightness_night"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "screen_tone", "label": "Screen Tone", "tab": "settings", "section": "Display", "function": "makeScreenToneCard", "settings": ["base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"], "staticEntities": [], "manualEntities": [] }, { "id": "rotation", "label": "Rotation", "tab": "settings", "section": "Display", "function": "makeRotationCard", "settings": ["screen_rotation"], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "clock", "label": "Clock", "tab": "settings", "section": "Display", "function": "makeClockCard", "settings": ["clock_format"], "staticEntities": ["show_clock", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"], "manualEntities": [] }, { "id": "night_schedule", "label": "Night Schedule", "tab": "settings", "section": "Sleep & Schedule", "function": "makeNightScheduleCard", "settings": ["schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "frame_name", "label": "Frame Name", "tab": "settings", "section": "System", "function": "makeFrameNameCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "backup", "label": "Backup", "tab": "settings", "section": "System", "function": "makeBackupCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "firmware", "label": "Firmware", "tab": "settings", "section": "System", "function": "makeFirmwareCard", "settings": ["update_frequency", "auto_update", "c6_auto_update"], "staticEntities": ["firmware_device", "firmware", "c6_current_firmware", "c6_available_firmware", "c6_update_status"], "manualEntities": ["update", "firmware_prepare_upload", "firmware_cancel_upload", "firmware_check", "c6_firmware_check", "c6_firmware_install"] }, { "id": "device_reboot", "label": "Device Reboot", "tab": "settings", "section": "System", "function": "makeDeviceRebootCard", "settings": [], "staticEntities": [], "manualEntities": ["reboot_screen"] }, { "id": "developer", "label": "Developer", "tab": "settings", "section": "System", "function": "makeDeveloperCard", "settings": [], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }];
   var WEB_UI_LOGS_RETAINED_LINES = 1e3;
   var SUPPORT_URL = "https://www.buymeacoffee.com/jtenniswood";
   var SUPPORT_BUTTON_IMAGE_DATA_URI = "data:image/webp;base64,UklGRu4MAABXRUJQVlA4WAoAAAAQAAAA2AAAOwAAQUxQSG4AAAABcFtr29K8NboK5285LEPFSuzgrjNFKk/w+o0nIggkbWaNvwAAKHbSM5EYWBFFT8bBE4usTc/HxgIg9j0jewl613MSwOlJdTbbnhW3p9Wp5+Xvf3//+zDtRGxOSGwAymuyS2xkzWsWT+3IwOt6AlZQOCBaDAAAUDYAnQEq2QA8AD5JII5EoqIhlSqteCgEhLYAaicAv27r9pKdq/G/8w/mVq79s+9nKsmq67P0H23fAT1AflX/Oe4B+qH+M9Ir1AfzX/CeoD+N/0j/G/1X3Uv9F/o/YB+tn+u9wD+Zfyz0pPYH/XX2AP5V/YPSn/7n+6+Bv9lP+Z/tfgG/lX9W+///h94B6AHq/9KOvf+z/j55r99jv97Vf1H2NMb/O7+7+hX8c+u/3b8mfzM9mbwB92f8x6gX4h/Iv7V+WP5gchQAD8s/nn+J+5b0cNU3uP/nvcA/jH8q/vf5g+qT4RfjnsAfyH+0f8f/Ce63+8f+D/SflL7X/y/+5/8v/EfAP/Kf6l/uf73+Tnzkexr9yPZgM2JBazSmkrpjSRSnJbdchXHmgCRYbamNpbdhkx6iTplTdQaOZPe569QakRMg7zwffhrS81BDeVkXHaolGV3K1uUFfUfXkxmxiH9akXO0sO2eEcuCRSalI43bnhz4gVlZflOcHUjC/cHK92d7iHqIjIQke72Dh5Nc+KbfHu6ao8RBSRo1xYD7bK5odaFI1VkBSaht+OYczNR83oYXXw+uEd+ZQgAA/v2E2JFf00S7ZZurvf45OdwBGfysJTJe8NAkOsnssv7LL9ll/45GsLCqARXe54sz/OpxCLeTuKis6/Fz8DsS4LqboI8pI3J9gFK1ImoUZ0qWzWwsOTYLXKQ6GteX0al+agc5JXKyLtfhPoFNNBGQV2+nUNu16ejPEuaakkePBfxG+Tzvfg0rkndAXKMOFycgsAtd5uHLV8PyGXLXfUvqrJhKbFZ57yRq0haXzN/fylfN01AAEICoED7wFdKlhdCfclwKCDmiblWz/HW3/LJvdJVQQVofCPpsm9qPfZZo0nqnArYU0twSFBWeOQceeaZkPZbFfmbyjMzc/ZWnji/H/WdNUqQRHfj83sJ4/eDnvjNoJhvv3T8wM1TM2apS9YlqsiyWJXKmXi+J1WyCgTytBUB0G/qZRac97djE6xUjvtyViLonMWi2AZHWx2nXLaDwELK6tU+QS31qsW9wp0A1NBsU7mYsozO0ecWjQsLeUSoIOr3VFPIOglZetzQ9gO4r/Q0xwIGpH+k3IWFA6ekVHAsVUE6ic+gQfBgq+oqy3R2PjAX/ct8TTTHwHDyLvoNH9yPvE780Y3JN0wuXQpOXg8dw8lpbtL2SaKgUqXxN7XbHp2JSZetuGxwuapaaXx7/5VC53n1A2xjKRC9fE+xLY3GU8MwM8CrsRRBV8Dbu7eZlO5Uhsb8CsqYkKIA+SpG3uXdbQ1O6IV4y9ZIaxmLlcHHzzLtWJn811VJTt4MSa95HmnrF+016wyRZB/Hl/6YG0YsdFPN4lSOvFp+c3VtuYwHrSFdUVlpyJrq4UxXIsDXxiN10NBYzj+a8RoIZxVF1Jpad6FMQbg94fLOKQQ1EOM15RFNWLDVoG2eIgZVqERyPOQilrOmrAIbsg0PdroPeARqno+Fmgrl4aZipqitQ+Ce+cz2Omqgx3L/GBwnRYEvTT/fdDGpxBkZRZgvoHFyuf6WopWU8tutFErxLysa3NpPhihIcuyDjmhae8LjCSM3b4t0T4IctUhijI4NlHe+09Ps7sGD2RpKXpK4T9VxTYvTQBzg/54Yo3SCYqr7he69twNdmqjgMjoJVVQ74q0fKeUbJVrCXD5WmmagBfvZhyYB/Xmubwg/BIA+VgGWBk+ccstbvruxsXC3+N9KC8mS8VcZfBHkCrNqL8pOKfJmRboq58vENFNVY4kLlO6pW88kj8Sxe2UXl0TpPCivm20QEaA3/j9OelzE5Jw/3eiXPjkNAFKkyYu7YJK5UkvitdDnEZ1mnGrHTxRhyJX7gjo5Ma8JYW1dyUm4vfnnLRrJfRgV2jQ0HHFFYWsp6hwn/r8TrdcHMes1e3+6wGMYOc/qX2glzqFJfCmhHIpvU3SKl0MB/JRd4Rac6uCnJCKgKsBhp60xvOfpjrLCC5fwEyv2wT61lwXeb3xevvZNYoCgl0uwdCULLFVQSL9RJNpwZv1EBKRo5fCn+PerplieqyX2lZqz8ygzMwp7gJLjA6Dlt7gTl/R/y7C6JccayLs2f9N1Gry0I9GSaTyRvM5Sm5l9ASGUobp6jQGtBFENt1k+nR5d05qxmwGmNUYxBW1//qr/xi/D7gFIqa3bpYO9ukwNiHxBPp5JqgHNGZYfKjKoLz/rb30RDnaX0JANcBlRXP3BcFemCObKBqUWEPt8CKopdWWwmPauXl7UFW1kiGUjyVnT6dH7RppEP63ympv+OBbiNE3jP3zJDVm3SfDgkE4Uh/uOyrB9kB7TufzovmLwKe3t8lKza0mmk1Yt3iEA8IqXx9cuwpNYvUoPfbjztyC8J++dsLVJWwQoeKGCczxzjWefTUe82K5fP9mvoVyMPHuFjQlsSCtvEK9VIH9HqSsvZVUFoadZo1GmO6NGFVkMf26cq0KyS7uAizDRjhMqoxddm7LEG1PTSfqgatQRnNyo6AvMiZx9w8/RnI6nilNYrs3wpvH1ce4P9q9zfC01ss6OetWKEG/yDiqs29lhXzawhBMfhpeYnJxchqQzHS71bSmFooQbvf/JGqaKmO2VZz1JrRCKV2Cp3zJMv2zs/IyxWVSv516btmNHIfiCblWYEmnQkyrEx79w8NMCz/wXN8WFG2hdrY5wWFXsWuXs+cS7MEpiexmYOnmf1I37RcRatrk5kW2FBGVb8tMX4apMTGVzSygYp8LrIrZgpgHJpOf/mDYha6BjUDt8Kdle47P19lN25I13881QSpWo2KRUvijLwNzwQ6ORxgY9yEh4RFDTnQFthD9+A84cNPDNhwmGp/Pzpj2xIuJpDmG86Sf1LjOxkOtbPLPZRPmDrpIEifQxG2Qth9b5IWcqDnoz5xElZf5ucEsLRmeHVpIgY5tR3ztNBmV7vL9rn3gOH7wIFf0kGYtdjBm6VPwkmWYjycvQRunimz7qNVuRNRCNPohxKqX/91fFD8i4hoyMhtHXS7lF0JCUfN5SKfpbGp8IpwqjBqs5WSZgd/jq84ni6QtQnQfzWlL5/pOa5qc7VMHoEtLhfYAVn1Aom8PnTEO3GJOsN2Ls/bLuNKLqtgXJ8mU1ldBaHwVPd8JRDz+u9rFoG2YmXZ4BjAG9KonvVudRnrkgqKTCd31684v9Xls1G5bDw3hvriZpOfoOy1xHNVW44numoi+kG2C8Z8qNPZbk72ourHv8C0PZaMe/+yJ/+Nv41pt62tH29M58aW6wGRIFNgtXwy5ep+7yeVAUd0dzREPlL+tx7oqbdpZxXp1Yc76qu/tiju1Vb8LHCDt3uSa8x6jQwF0L62uodMBTsI/q8gfnZXVhHx+ujlPkeBtM9fwoGvWsG+TqZawVW8Nn4aikGJxWuDc9y+Elc1fDOznKziQzK3WTu7x+D3cRc+/+Bt6N9VORnJKVHAaPbKMH3z9LvQjL4L2KFoj2BH78IUuoi+uBQjhl4xl5Pc6vE4sIHW5SNdAbwlxthBL8s+oJtMK9KQ/KJidaAlkI/CM5+k1OkT9NNaEmHOXR5FHMrDcefRHFP95Q0LyaP4QuCHs9hBrNBDd5GS5IGLvyyrRhpNeFnWp5dur+I4yjfW5J7+rs01na/HoOiEfAa5WVA/RevkHb1RybwVk+1N8Dcum5gJC3v+MK6HZkeC3OKKnkd4cXqPVrHy1ndLZx0xbGmyU2gX5/zsG1RBYJ5B1Rzu5S6z0RqNvEidnVK7ZbLlJTFGFTr+hDvaMXhs/b6R23YlthFiRENO2O/ReExVzVxpjdttQN7LkPVfuObNHn8qNiUenuKQoH+FHxRUdNEGbTcdNC9YMxnkNpCZ6tbtPQmq430q5739kB2pyRMtraAO5K10sNJ86S4z87+/bXIFxmxt/0t23d0SepvIfxj3vQF2dAEXizBaUDn1WSicc1BA3m/4lyuZvX6XAYCkuqIH4CxQQ/FGuZH/01HoVj6Y0B26y4/iBI0Us8wJ/wmYmrHoewk0UHJk/Pbx12sbjiSYcc18zaMuap0ES3gFFqtRuotzHC1SpErkb4LothEAWJjyAKwGZKf9KWtn6BgxROJxLMxoKWjQK2wwKpiNDcfIq7V68wPPygdIBIiRbg8xmYrCYS7fkEAAAAAAAAugNB5avHG5gomemNHUXvqnN9Q/uKP2Lf0F+GSe426YDBfUuCJdfrQPYleJgAA";
@@ -379,12 +379,21 @@ body {
   font-size:1rem;
   font-weight:600;
   color:var(--text);
-  margin-right:auto;
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+  flex:1;
+  min-width:0;
+  margin-right:12px;
   white-space:nowrap;
   letter-spacing:-.01em
 }
 
+.sp-brand-label { flex:none; }
+.sp-device-name { color:var(--text2); font-weight:400; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
 .sp-nav {
+  flex-shrink:0;
   display:flex;
   align-items:center;
   height:100%
@@ -1585,7 +1594,24 @@ to {
 
 .mt-12 {
   margin-top:12px
-}`;
+}
+
+/* Naming form and dialog follow Espcontrol's identity UI. */
+.frame-name-label { display:block; font-size:.875rem; font-weight:500; color:var(--text2); margin-bottom:8px; }
+.frame-name-row { display:flex; align-items:center; gap:12px; }
+.frame-name-row #frame-name { flex:1; min-width:0; width:100%; margin:0; border-radius:10px; padding:10px 12px; }
+.frame-name-button { flex:none; white-space:nowrap; border-radius:var(--action-r); padding:8px 14px; font-weight:500; }
+.frame-name-info { display:flex; align-items:center; gap:10px; padding:10px 12px; margin-top:16px; background:var(--accent-soft); border:1px solid rgba(92,115,231,.22); border-radius:10px; color:var(--text2); font-size:.82rem; line-height:1.35; overflow-wrap:anywhere; }
+.frame-name-info-icon { flex:none; color:var(--accent); display:flex; }
+.frame-name-info>span:last-child { min-width:0; }
+.frame-name-info code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:1em; }
+.frame-name-dialog { font-family:inherit; font-size:.875rem; line-height:1.5; max-width:32rem; width:calc(100% - 3rem); margin:auto; border:1px solid var(--border); border-radius:12px; padding:1.5rem; background:var(--bg); color:var(--text); }
+.frame-name-dialog::backdrop { background:#0008; }
+.frame-name-dialog h3 { margin:1em 0; font-size:1.17em; }
+.frame-name-dialog p { margin:1em 0; }
+.frame-name-dialog a { color:var(--accent); overflow-wrap:anywhere; }
+.frame-name-dialog button { margin:1rem .5rem 0 0; }
+@media (max-width:480px) { .frame-name-row { flex-wrap:wrap; } .frame-name-row #frame-name { flex-basis:100%; } }`;
   var FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" id="mdi-home-automation" viewBox="0 0 24 24"><path fill="#5c73e7" d="M12,3L2,12H5V20H19V12H22L12,3M12,8.5C14.34,8.5 16.46,9.43 18,10.94L16.8,12.12C15.58,10.91 13.88,10.17 12,10.17C10.12,10.17 8.42,10.91 7.2,12.12L6,10.94C7.54,9.43 9.66,8.5 12,8.5M12,11.83C13.4,11.83 14.67,12.39 15.6,13.3L14.4,14.47C13.79,13.87 12.94,13.5 12,13.5C11.06,13.5 10.21,13.87 9.6,14.47L8.4,13.3C9.33,12.39 10.6,11.83 12,11.83M12,15.17C12.94,15.17 13.7,15.91 13.7,16.83C13.7,17.75 12.94,18.5 12,18.5C11.06,18.5 10.3,17.75 10.3,16.83C10.3,15.91 11.06,15.17 12,15.17Z"/></svg>';
   var style = document.createElement("style");
   style.textContent = CSS;
@@ -1645,7 +1671,13 @@ to {
     header.className = "sp-header";
     var brand = document.createElement("div");
     brand.className = "sp-brand";
-    brand.textContent = "EspFrame";
+    var brandLabel = document.createElement("span");
+    brandLabel.className = "sp-brand-label";
+    brandLabel.textContent = "EspFrame";
+    var deviceName = document.createElement("span");
+    deviceName.className = "sp-device-name";
+    deviceName.hidden = true;
+    brand.append(brandLabel, deviceName);
     header.appendChild(brand);
     var nav = document.createElement("nav");
     nav.className = "sp-nav";
@@ -4107,6 +4139,7 @@ to {
       makeFirmwareCard,
       makeDeviceRebootCard,
       makeDeveloperCard,
+      makeFrameNameCard,
       makeBackupCard
     };
   }
@@ -4173,6 +4206,7 @@ to {
       { section: "Display", element: makeRotationCard() },
       { section: "Display", element: makeClockCard() },
       { section: "Sleep & Schedule", element: makeNightScheduleCard() },
+      { section: "System", element: makeFrameNameCard() },
       { section: "System", element: makeBackupCard() },
       { section: "System", element: makeFirmwareCard() },
       { section: "System", element: makeDeviceRebootCard() },
@@ -4707,6 +4741,7 @@ to {
     var backupRow = el("div", "backup-row");
     var exportBtn = el("button", "btn btn-secondary");
     exportBtn.textContent = "Export";
+    exportBtn.disabled = !frameIdentityLoaded;
     exportBtn.onclick = exportConfig;
     var importBtn = el("button", "btn btn-secondary");
     importBtn.textContent = "Import";
@@ -4776,6 +4811,220 @@ to {
       els.banner.style.display = "none";
     }, 5e3);
   }
+  var frameIdentity = null;
+  var frameNameDraft = null;
+  var frameIdentityBusy = false;
+  var frameIdentityLoaded = false;
+  var frameIdentityError = "";
+  function validFrameName(value) {
+    if (typeof value !== "string") return false;
+    var name = value.replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/g, "");
+    try {
+      encodeURIComponent(name);
+    } catch (_) {
+      return false;
+    }
+    return new TextEncoder().encode(name).length <= 120 && !/[\u0000-\u001f\u007f-\u009f]/.test(name);
+  }
+  async function requestFrameIdentity(name) {
+    var options = { cache: "no-store" };
+    if (name !== void 0) {
+      if (!validFrameName(name)) throw new Error("Use up to 120 UTF-8 bytes without control characters.");
+      options.method = "POST";
+      options.headers = { "Content-Type": "application/x-www-form-urlencoded" };
+      options.body = new URLSearchParams({ name }).toString();
+    }
+    var response = await fetch("/espframe/api/v1/identity", options);
+    if (!response.ok) throw new Error(name === void 0 ? "Frame name unavailable" : "Frame name could not be saved. Please retry.");
+    var data = await response.json();
+    if (!isObject(data) || !validFrameName(data.name) || typeof data.friendly_name !== "string" || typeof data.hostname !== "string" || !/^[a-z0-9-]{1,63}$/.test(data.hostname) || typeof data.ip_address !== "string" || typeof data.restart_required !== "boolean" || data.mac_suffix !== void 0 && (typeof data.mac_suffix !== "string" || !/^[a-f0-9]{4}$/.test(data.mac_suffix))) {
+      throw new Error("Frame name unavailable");
+    }
+    return data;
+  }
+  function updateFrameTitle() {
+    if (!frameIdentity) return;
+    document.title = frameIdentity.friendly_name + " \xB7 EspFrame";
+    var deviceName = document.querySelector(".sp-device-name");
+    if (deviceName) {
+      deviceName.textContent = frameIdentity.friendly_name;
+      deviceName.title = frameIdentity.friendly_name;
+      deviceName.hidden = !frameIdentity.friendly_name;
+    }
+  }
+  async function loadFrameIdentity() {
+    try {
+      frameIdentity = await requestFrameIdentity();
+      updateFrameTitle();
+    } catch (_) {
+    } finally {
+      frameIdentityLoaded = true;
+      if (rendered) renderSettingsAfterEditing();
+    }
+  }
+  async function saveFrameName(name) {
+    if (frameIdentityBusy) throw new Error("A frame name save is already in progress.");
+    frameIdentityBusy = true;
+    frameIdentityError = "";
+    try {
+      frameIdentity = await requestFrameIdentity(name);
+      frameNameDraft = null;
+      updateFrameTitle();
+    } catch (error) {
+      frameIdentityError = error instanceof Error ? error.message : "Frame name could not be saved.";
+      throw error;
+    } finally {
+      frameIdentityBusy = false;
+    }
+  }
+  function previewFrameHostname(name) {
+    if (!frameIdentity) return null;
+    if (name === frameIdentity.name) return frameIdentity.hostname;
+    if (!name || !frameIdentity.mac_suffix) return null;
+    var slug = name.replace(/[A-Z]/g, function(c) {
+      return c.toLowerCase();
+    }).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "frame";
+    return slug.slice(0, 19).replace(/-$/, "") + "-" + frameIdentity.mac_suffix;
+  }
+  function showFrameReconnectDialog(value) {
+    var dialog = document.createElement("dialog");
+    dialog.className = "frame-name-dialog frame-reconnect-dialog";
+    var title = document.createElement("h3");
+    title.id = "frame-reconnect-title";
+    title.textContent = "Frame name saved";
+    dialog.setAttribute("aria-labelledby", title.id);
+    var note = document.createElement("p");
+    note.setAttribute("role", "status");
+    note.textContent = "The frame is restarting. Reopen it at the new address.";
+    var address = document.createElement("a");
+    var port = location.port ? ":" + location.port : "";
+    address.href = "http://" + value.hostname + ".local" + port + "/";
+    address.textContent = value.hostname + ".local";
+    dialog.append(title, note, address);
+    if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(value.ip_address) && value.ip_address.split(".").every(function(part) {
+      return Number(part) <= 255;
+    })) {
+      var ip = document.createElement("a");
+      ip.href = "http://" + value.ip_address + port + "/";
+      ip.textContent = value.ip_address;
+      dialog.append(document.createElement("br"), ip);
+    }
+    dialog.append(document.createElement("br"), button("Close", "btn btn-secondary frame-name-button", function() {
+      dialog.close();
+      dialog.remove();
+    }));
+    dialog.addEventListener("close", function() {
+      dialog.remove();
+    });
+    document.body.appendChild(dialog);
+    dialog.showModal();
+    return note;
+  }
+  function makeFrameNameCard() {
+    if (!frameIdentity) return null;
+    var body = el("div");
+    var label = document.createElement("label");
+    label.className = "frame-name-label";
+    label.textContent = "Frame Name";
+    label.htmlFor = "frame-name";
+    var input2 = document.createElement("input");
+    input2.type = "text";
+    input2.id = "frame-name";
+    input2.value = frameNameDraft === null ? frameIdentity.name : frameNameDraft;
+    input2.placeholder = "e.g. Living Room";
+    input2.disabled = frameIdentityBusy;
+    var preview = el("div", "frame-name-info");
+    var icon = el("span", "frame-name-info-icon");
+    icon.setAttribute("aria-hidden", "true");
+    icon.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v2"/></svg>';
+    var previewText = document.createElement("span");
+    preview.append(icon, previewText);
+    var error = el("p", "field-error");
+    error.setAttribute("role", "alert");
+    error.textContent = frameIdentityError;
+    var save = button("Save & Restart", "btn btn-secondary frame-name-button", async function() {
+      save.disabled = true;
+      input2.disabled = true;
+      try {
+        await configurationUpdateQueue;
+        await saveFrameName(input2.value);
+        if (frameIdentity.restart_required) {
+          var message = showFrameReconnectDialog(frameIdentity);
+          try {
+            await post(endpoints.reboot_screen + "/press");
+          } catch (_) {
+            message.textContent = "Name saved, but the restart failed. Close this dialog and choose Save & Restart to retry.";
+            frameIdentityError = "Name saved, but the restart failed. Please retry.";
+          }
+        }
+      } catch (_) {
+      } finally {
+        input2.disabled = false;
+        sync();
+        renderSettingsAfterEditing();
+      }
+    });
+    function sync() {
+      var name = input2.value.replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/g, "");
+      var valid = validFrameName(name);
+      error.textContent = valid ? frameIdentityError : "Use up to 120 UTF-8 bytes without control characters.";
+      save.disabled = frameIdentityBusy || !valid || name === frameIdentity.name && !frameIdentity.restart_required;
+      var hostname = previewFrameHostname(name);
+      if (hostname) {
+        var address = document.createElement("code");
+        address.textContent = hostname + ".local";
+        previewText.replaceChildren("Your device will show as ", address, " on your network");
+      } else {
+        previewText.textContent = name ? "Your device's new address will be shown after saving" : "Your device will use its original firmware name and address on your network";
+      }
+    }
+    input2.addEventListener("input", function() {
+      frameNameDraft = input2.value;
+      frameIdentityError = "";
+      sync();
+    });
+    var row = el("div", "frame-name-row");
+    row.append(input2, save);
+    body.append(label, row, error, preview);
+    sync();
+    return makeCollapsibleCard("Frame Name", body, !frameIdentity.restart_required && !frameIdentityError && frameNameDraft === null);
+  }
+  function chooseBackupNameRestore(name) {
+    return new Promise(function(resolve) {
+      var dialog = document.createElement("dialog");
+      dialog.className = "frame-name-dialog";
+      dialog.setAttribute("aria-label", "Import backup");
+      var label = document.createElement("label");
+      var checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.id = "restore-frame-name";
+      checkbox.disabled = !frameIdentity;
+      label.append(checkbox, document.createTextNode(" Also restore frame name: " + (name || "Firmware default")));
+      var help = document.createElement("p");
+      help.textContent = frameIdentity ? "Unchecked keeps this frame's name. Restoring uses this frame's own MAC suffix and requires a restart." : "Update this frame's firmware to restore names. Other settings can still be imported.";
+      function finish(value) {
+        dialog.close();
+        dialog.remove();
+        resolve(value);
+      }
+      dialog.append(
+        label,
+        help,
+        button("Import backup", "btn btn-primary", function() {
+          finish(checkbox.checked);
+        }),
+        button("Cancel", "btn btn-secondary", function() {
+          finish(null);
+        })
+      );
+      dialog.addEventListener("cancel", function(event) {
+        event.preventDefault();
+        finish(null);
+      });
+      document.body.appendChild(dialog);
+      dialog.showModal();
+    });
+  }
   function backupExportFieldValue(entry) {
     if (!entry || !Array.isArray(entry.state_keys) || !entry.state_keys.length) return "";
     if (entry.group === "screen" && entry.field === "schedule_wake_timeout") {
@@ -4798,6 +5047,7 @@ to {
       if (!data[entry.group]) data[entry.group] = {};
       data[entry.group][entry.field] = backupExportFieldValue(entry);
     });
+    if (frameIdentity) data["identity"] = { name: frameIdentity.name };
     return data;
   }
   var BACKUP_VERSION_MIGRATIONS = {
@@ -4880,12 +5130,14 @@ to {
     return BACKUP_VERSION_MIGRATIONS[data.version](data);
   }
   function exportConfig() {
+    if (!frameIdentityLoaded) return;
     var data = buildBackupExportData();
     var json = JSON.stringify(data, null, 2);
     var blob = new Blob([json], { type: "application/json" });
     var url = URL.createObjectURL(blob);
     var now = /* @__PURE__ */ new Date();
     var name = "espframe-config-" + now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0") + ".json";
+    if (frameIdentity && frameIdentity.name) name = name.replace("espframe", frameIdentity.hostname);
     var a = document.createElement("a");
     a.href = url;
     a.download = name;
@@ -5141,7 +5393,7 @@ to {
     fileInput.addEventListener("change", function() {
       if (!fileInput.files || !fileInput.files[0]) return;
       var reader = new FileReader();
-      reader.onload = function() {
+      reader.onload = async function() {
         var data;
         try {
           data = JSON.parse(String(reader.result));
@@ -5155,6 +5407,16 @@ to {
           return;
         }
         data = migrateBackupConfig(data);
+        var restoreName = false;
+        if (data.identity !== void 0) {
+          if (!isObject(data.identity) || !validFrameName(data.identity.name)) {
+            showBanner("Invalid frame name in backup", "error");
+            return;
+          }
+          var choice = await chooseBackupNameRestore(data.identity.name);
+          if (choice === null) return;
+          restoreName = choice;
+        }
         backupImportSaveTasks = [];
         var queuedCount = 0;
         var skippedCount = 0;
@@ -5168,6 +5430,12 @@ to {
             skippedCount += 1;
           }
         });
+        if (restoreName) {
+          queuedCount += 1;
+          trackBackupImportSave(saveFrameName(data.identity.name).then(function() {
+            return { ok: true };
+          }));
+        }
         Promise.all(backupImportSaveTasks).then(function(results) {
           var failedCount = results.filter(function(ok) {
             return !ok;
@@ -5200,4 +5468,5 @@ to {
   }
   buildUI();
   initSSE();
+  loadFrameIdentity();
 })();

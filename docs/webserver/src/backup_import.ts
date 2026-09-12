@@ -23,6 +23,7 @@
       if (!data[entry.group]) data[entry.group] = {};
       data[entry.group][entry.field] = backupExportFieldValue(entry);
     });
+    if (frameIdentity) data["identity"] = { name: frameIdentity.name };
     return data;
   }
 
@@ -109,6 +110,7 @@
   }
 
   function exportConfig() {
+    if (!frameIdentityLoaded) return;
     var data = buildBackupExportData();
     var json = JSON.stringify(data, null, 2);
     var blob = new Blob([json], { type: "application/json" });
@@ -118,6 +120,7 @@
       now.getFullYear() + "-" +
       String(now.getMonth() + 1).padStart(2, "0") + "-" +
       String(now.getDate()).padStart(2, "0") + ".json";
+    if (frameIdentity && frameIdentity.name) name = name.replace("espframe", frameIdentity.hostname);
     var a = document.createElement("a");
     a.href = url;
     a.download = name;
@@ -402,7 +405,7 @@
     fileInput.addEventListener("change", function () {
       if (!fileInput.files || !fileInput.files[0]) return;
       var reader = new FileReader();
-      reader.onload = function () {
+      reader.onload = async function () {
         var data;
         try { data = JSON.parse(String(reader.result)); } catch (_) {
           showBanner("Invalid file \u2014 could not parse JSON", "error");
@@ -415,6 +418,17 @@
           return;
         }
         data = migrateBackupConfig(data);
+
+        var restoreName = false;
+        if (data.identity !== undefined) {
+          if (!isObject(data.identity) || !validFrameName(data.identity.name)) {
+            showBanner("Invalid frame name in backup", "error");
+            return;
+          }
+          var choice = await chooseBackupNameRestore(data.identity.name);
+          if (choice === null) return;
+          restoreName = choice;
+        }
 
         backupImportSaveTasks = [];
         var queuedCount = 0;
@@ -429,6 +443,11 @@
             skippedCount += 1;
           }
         });
+
+        if (restoreName) {
+          queuedCount += 1;
+          trackBackupImportSave(saveFrameName(data.identity.name).then(function () { return { ok: true }; }));
+        }
 
         Promise.all(backupImportSaveTasks)
           .then(function (results) {

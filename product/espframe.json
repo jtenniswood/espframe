@@ -783,6 +783,13 @@
         ]
       },
       {
+        "id": "frame_name",
+        "label": "Frame Name",
+        "tab": "settings",
+        "section": "System",
+        "function": "makeFrameNameCard"
+      },
+      {
         "id": "backup",
         "label": "Backup",
         "tab": "settings",
@@ -1509,6 +1516,7 @@
       "scripts/product_config.py"
     ],
     "web_template_placeholders": [
+      "__ESPFRAME_WEB_FRAME_IDENTITY__",
       "__ESPFRAME_TIMEZONES__",
       "__ESPFRAME_TIMEZONE_LABELS__",
       "__ESPFRAME_PRODUCT_SETTINGS__",

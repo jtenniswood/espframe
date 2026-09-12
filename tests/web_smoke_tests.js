@@ -189,6 +189,16 @@ const unsupportedVersionBackupFixture = {
 };
 
 const scenarios = [
+  ...[false, true].map(legacy => ({ name: "frame-name-delayed-" + (legacy ? "legacy" : "export"), configured: true, width: 390, height: 900, identity: !legacy, delayedIdentity: true })),
+  { name: "frame-name-long", configured: true, width: 390, height: 900, identity: true, initialName: "x".repeat(120) },
+  { name: "frame-name", configured: true, width: 390, height: 900, identity: true },
+  { name: "frame-name-restart-failure", configured: true, width: 1280, height: 900, identity: true, failedPostEndpoint: "Device: Reboot Screen" },
+  { name: "frame-name-failure", configured: true, width: 1280, height: 900, identity: true, identityFailure: true },
+  ...[false, true].map(restoreName => ({
+    name: "frame-name-import-" + (restoreName ? "restore" : "keep"),
+    configured: true, width: 1280, height: 900, identity: true, restoreName,
+    importFixture: { version: 3, identity: { name: "Office" }, screen: { brightness_day: 80 } }
+  })),
   { name: "refresh-startup", configured: true, width: 1280, height: 900, slowStartup: true },
   { name: "refresh-startup-legacy", configured: true, width: 1280, height: 900, slowStartup: true, legacyStartup: true },
   { name: "refresh-startup-late", configured: true, width: 1280, height: 900, slowStartup: true, startupDelayMs: 5000 },
@@ -267,7 +277,7 @@ function browserScriptForScenario(scenario) {
     };
     URL.revokeObjectURL = function () {};
     HTMLAnchorElement.prototype.click = function () {
-      if (this.download) window.__smoke.downloads += 1;
+      if (this.download) { window.__smoke.downloads += 1; window.__smoke.downloadName = this.download; }
     };
     FileReader.prototype.readAsText = function (file) {
       Object.defineProperty(this, "result", { configurable: true, value: file && file.__smokeContent ? file.__smokeContent : "" });
@@ -435,11 +445,37 @@ function browserScriptForScenario(scenario) {
       }
     }
 
+    let identity = { mac_suffix: "b2c3", name: "", friendly_name: "Immich Frame", hostname: "immich-frame", ip_address: "192.168.1.42", restart_required: false };
+    if (${JSON.stringify(!!scenario.initialName || !!scenario.delayedIdentity)}) {
+      const name = ${JSON.stringify(scenario.initialName || "Office")};
+      identity = { ...identity, name, friendly_name: name, hostname: name.slice(0, 19).toLowerCase() + "-b2c3" };
+    }
+    let identityFailure = ${JSON.stringify(!!scenario.identityFailure)};
     window.fetch = function (url, options) {
       const method = options && options.method ? options.method : "GET";
       const decoded = decodeURIComponent(String(url));
       window.__smoke.fetchedUrls.push(decoded);
       const body = options && options.body != null ? String(options.body) : "";
+      if (decoded === "/espframe/api/v1/identity") {
+        if (method === "GET" && ${JSON.stringify(!!scenario.delayedIdentity)}) {
+          return new Promise(resolve => { window.__smoke.releaseIdentity = () => resolve(
+            ${JSON.stringify(!!scenario.identity)} ? { ok: true, json: () => Promise.resolve({ ...identity }) } : { ok: false, status: 404 }); });
+        }
+        if (!${JSON.stringify(!!scenario.identity)}) return Promise.resolve({ ok: false, status: 404 });
+        if (method === "POST") {
+          window.__smoke.posts.push(decoded);
+          window.__smoke.postRecords.push({ url: decoded, body });
+          if (identityFailure) {
+            identityFailure = false;
+            return Promise.resolve({ ok: false, status: 500 });
+          }
+          const name = new URLSearchParams(body).get("name").trim();
+          identity = { ...identity, name, friendly_name: name || "Immich Frame",
+            hostname: name ? name.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-b2c3" : "immich-frame",
+            restart_required: !!name };
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...identity }) });
+      }
       if (decoded.indexOf("versions.json") !== -1) {
         if (window.__smoke.firmwareIndexUnavailable) {
           return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
@@ -1273,6 +1309,103 @@ function smokeAssertionsForScenario(scenario) {
           requireText("Import Settings");
         } else if (${JSON.stringify(scenario.name)}.startsWith("wizard-connection-save")) {
           await requireWizardConnectionSave();
+        } else if (${JSON.stringify(!!scenario.delayedIdentity)}) {
+          clickTab("Device");
+          await waitFor(() => buttonByText("Export"), 8000, "backup card before identity");
+          if (!buttonByText("Export").disabled) throw new Error("Export enabled before identity settled");
+          buttonByText("Export").click();
+          if (window.__smoke.exportPayloads.length) throw new Error("Export omitted pending identity");
+          window.__smoke.releaseIdentity();
+          await waitFor(() => !buttonByText("Export").disabled, 4000, "export after identity");
+          clickButton("Export");
+          const backup = JSON.parse(window.__smoke.exportPayloads[0]);
+          if (${JSON.stringify(!!scenario.identity)}) {
+            if (backup.identity?.name !== "Office" || !window.__smoke.downloadName.startsWith("office-b2c3-config-")) throw new Error("Delayed identity omitted from backup");
+          } else if (backup.identity || !window.__smoke.downloadName.startsWith("espframe-config-")) throw new Error("Legacy backup fallback failed");
+        } else if (${JSON.stringify(!!scenario.identity)}) {
+          await waitFor(() => document.querySelector("#frame-name"), 8000, "frame name");
+          clickTab("Device");
+          expandCard("Frame Name");
+          const setName = (name) => {
+            const input = document.querySelector("#frame-name");
+            input.value = name;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+          };
+          const requireHeaderName = name => {
+            const brand = document.querySelector(".sp-brand-label");
+            const deviceName = document.querySelector(".sp-device-name");
+            if (brand.textContent !== "EspFrame" || deviceName.textContent !== name || deviceName.hidden) {
+              throw new Error("Header must retain EspFrame followed by the device name");
+            }
+            if (getComputedStyle(brand).color === getComputedStyle(deviceName).color) throw new Error("Device name must use muted text");
+          };
+          const waitName = async name => {
+            await waitFor(() => document.title === name + " · EspFrame", 4000, "saved frame title");
+            requireHeaderName(name);
+          };
+          requireHeaderName(${JSON.stringify(scenario.initialName || "Immich Frame")});
+          if (${JSON.stringify(!!scenario.initialName)}) {
+            const deviceName = document.querySelector(".sp-device-name");
+            const nav = document.querySelector(".sp-nav").getBoundingClientRect();
+            if (deviceName.scrollWidth <= deviceName.clientWidth || nav.right > window.innerWidth || nav.left < 0 || document.documentElement.scrollWidth > window.innerWidth + 4) throw new Error("Maximum length name pushes navigation outside header");
+          }
+          if (!buttonByText("Save & Restart").disabled) throw new Error("Unchanged name must disable saving");
+          setName("Living Room");
+          if (!document.querySelector(".frame-name-info").textContent.includes("living-room-b2c3.local")) throw new Error("Missing live hostname preview");
+          clickButton("Save & Restart");
+          if (${JSON.stringify(!!scenario.identityFailure)}) {
+            await waitFor(() => document.querySelector('[role="alert"]')?.textContent, 4000, "save failure");
+            if (window.__smoke.posts.some(url => url.includes("Reboot Screen"))) throw new Error("Failed save restarted the device");
+            if (document.title !== "Immich Frame · EspFrame") throw new Error("Failed save changed the title");
+            if (document.querySelector("#frame-name").value !== "Living Room") throw new Error("Failed save lost draft");
+            clickButton("Save & Restart");
+          }
+          await waitName("Living Room");
+          await waitFor(() => document.querySelector(".frame-reconnect-dialog[open]"), 4000, "reconnect dialog");
+          const dialog = document.querySelector(".frame-reconnect-dialog");
+          if (!dialog.textContent.includes("Frame name saved") || dialog.textContent.includes("Home Assistant")) throw new Error("Incorrect restart dialog copy");
+          await waitFor(() => window.__smoke.posts.some(url => url.includes("Device: Reboot Screen")), 4000, "automatic restart");
+          if (${JSON.stringify(scenario.name)} === "frame-name-restart-failure") {
+            await waitFor(() => dialog.textContent.includes("restart failed"), 4000, "restart failure recovery");
+          }
+          if (!dialog.querySelector('a[href="http://192.168.1.42/"]')) throw new Error("Missing IP reconnect link");
+          requireText("192.168.1.42");
+          const link = document.querySelector('a[href*="living-room-b2c3.local"]');
+          if (!link) throw new Error("Missing destination hostname");
+          clickButton("Close");
+          await waitFor(() => !document.querySelector(".frame-reconnect-dialog"), 4000, "closed reconnect dialog");
+          clickButton("Export");
+          const backup = JSON.parse(window.__smoke.exportPayloads[0]);
+          if (backup.identity.name !== "Living Room" || !window.__smoke.downloadName.startsWith("living-room-b2c3-config-")) {
+            throw new Error("Named backup is incorrect");
+          }
+          if (${JSON.stringify(!!scenario.importFixture)}) {
+            clickButton("Import");
+            await waitFor(() => document.querySelector("#restore-frame-name"), 4000, "name restore choice");
+            const checkbox = document.querySelector("#restore-frame-name");
+            if (checkbox.checked) throw new Error("Name restore must default to unchecked");
+            checkbox.checked = ${JSON.stringify(!!scenario.restoreName)};
+            clickButton("Import backup");
+            await waitFor(() => pageText().includes("imported"), 4000, "backup completion");
+            await waitName(${JSON.stringify(scenario.restoreName ? "Office" : "Living Room")});
+            const saves = window.__smoke.postRecords.filter(record => record.url === "/espframe/api/v1/identity");
+            if (saves.length !== ${scenario.restoreName ? 2 : 1}) throw new Error("Unexpected name restore write");
+            if (${JSON.stringify(!!scenario.restoreName)} && !document.querySelector(".frame-name-info").textContent.includes("office-b2c3.local")) {
+              throw new Error("Restore did not use destination MAC suffix");
+            }
+          } else {
+            const count = window.__smoke.posts.length;
+            setName("é".repeat(61));
+            if (!buttonByText("Save & Restart").disabled) throw new Error("Invalid name must disable saving");
+            await waitFor(() => document.querySelector('[role="alert"]')?.textContent, 4000, "invalid name");
+            if (window.__smoke.posts.length !== count) throw new Error("Invalid UTF-8 byte length was posted");
+            setName("");
+            clickButton("Save & Restart");
+            await waitName("Immich Frame");
+            await waitFor(() => document.querySelector("#frame-name").value === "", 4000, "cleared input");
+            if (document.querySelector(".frame-reconnect-dialog")) throw new Error("Clearing back to boot default needs no restart");
+            if (document.documentElement.scrollWidth > window.innerWidth + 4) throw new Error("Name card overflows mobile viewport");
+          }
         } else if (${JSON.stringify(!!scenario.filterCompatibilityVersion)}) {
           await waitFor(() => pageText().indexOf("Photo Filter") !== -1, 8000, "photo filters");
           await new Promise((resolve) => setTimeout(resolve, 300));

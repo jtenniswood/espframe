@@ -568,6 +568,7 @@
     var backupRow = el("div", "backup-row");
     var exportBtn = el("button", "btn btn-secondary");
     exportBtn.textContent = "Export";
+    exportBtn.disabled = !frameIdentityLoaded;
     exportBtn.onclick = exportConfig;
     var importBtn = el("button", "btn btn-secondary");
     importBtn.textContent = "Import";

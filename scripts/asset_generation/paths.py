@@ -11,6 +11,7 @@ TIME_YAML_PATH = ROOT / "common" / "addon" / "time.yaml"
 WEB_SRC_DIR = ROOT / "docs" / "webserver" / "src"
 WEB_TEMPLATE_PATH = WEB_SRC_DIR / "app.template.ts"
 WEB_MODULE_PATHS = {
+    "__ESPFRAME_WEB_FRAME_IDENTITY__": WEB_SRC_DIR / "frame_identity.ts",
     "__ESPFRAME_WEB_CONTRACTS__": WEB_SRC_DIR / "web_contracts.ts",
     "__ESPFRAME_WEB_APP_SHELL__": WEB_SRC_DIR / "app_shell.ts",
     "__ESPFRAME_WEB_ENDPOINTS__": WEB_SRC_DIR / "endpoints.ts",
