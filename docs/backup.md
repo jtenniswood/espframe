@@ -112,5 +112,5 @@ When importing a backup containing a name, **Also restore frame name** is unchec
 by default. Keep it unchecked to preserve the destination frame's name, or check
 it to restore the saved name. The hostname always uses the destination frame's
 own MAC suffix. After restoring a name, use **Device → System → Frame Name** to
-review the new address and restart. Restoring an empty name restores firmware
+review the new address and choose **Save & Restart**. Restoring an empty name restores firmware
 defaults. Backups without identity metadata continue to import as before.

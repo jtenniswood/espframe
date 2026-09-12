@@ -190,6 +190,7 @@ const unsupportedVersionBackupFixture = {
 
 const scenarios = [
   { name: "frame-name", configured: true, width: 390, height: 900, identity: true },
+  { name: "frame-name-restart-failure", configured: true, width: 1280, height: 900, identity: true, failedPostEndpoint: "Device: Reboot Screen" },
   { name: "frame-name-failure", configured: true, width: 1280, height: 900, identity: true, identityFailure: true },
   ...[false, true].map(restoreName => ({
     name: "frame-name-import-" + (restoreName ? "restore" : "keep"),
@@ -442,7 +443,7 @@ function browserScriptForScenario(scenario) {
       }
     }
 
-    let identity = { name: "", friendly_name: "Immich Frame", hostname: "immich-frame", ip_address: "192.168.1.42", restart_required: false };
+    let identity = { mac_suffix: "b2c3", name: "", friendly_name: "Immich Frame", hostname: "immich-frame", ip_address: "192.168.1.42", restart_required: false };
     let identityFailure = ${JSON.stringify(!!scenario.identityFailure)};
     window.fetch = function (url, options) {
       const method = options && options.method ? options.method : "GET";
@@ -1308,19 +1309,31 @@ function smokeAssertionsForScenario(scenario) {
             input.dispatchEvent(new Event("input", { bubbles: true }));
           };
           const waitName = name => waitFor(() => document.title === name + " · EspFrame", 4000, "saved frame title");
+          if (!buttonByText("Save & Restart").disabled) throw new Error("Unchanged name must disable saving");
           setName("Living Room");
-          clickButton("Save name");
+          if (!document.querySelector(".frame-name-info").textContent.includes("living-room-b2c3.local")) throw new Error("Missing live hostname preview");
+          clickButton("Save & Restart");
           if (${JSON.stringify(!!scenario.identityFailure)}) {
-            await waitFor(() => document.querySelector('[role="alert"]'), 4000, "save failure");
+            await waitFor(() => document.querySelector('[role="alert"]')?.textContent, 4000, "save failure");
+            if (window.__smoke.posts.some(url => url.includes("Reboot Screen"))) throw new Error("Failed save restarted the device");
             if (document.title !== "Immich Frame · EspFrame") throw new Error("Failed save changed the title");
             if (document.querySelector("#frame-name").value !== "Living Room") throw new Error("Failed save lost draft");
-            clickButton("Save name");
+            clickButton("Save & Restart");
           }
           await waitName("Living Room");
-          await waitFor(() => buttonByText("Restart to apply name"), 4000, "restart action");
+          await waitFor(() => document.querySelector(".frame-reconnect-dialog[open]"), 4000, "reconnect dialog");
+          const dialog = document.querySelector(".frame-reconnect-dialog");
+          if (!dialog.textContent.includes("Frame name saved") || dialog.textContent.includes("Home Assistant")) throw new Error("Incorrect restart dialog copy");
+          await waitFor(() => window.__smoke.posts.some(url => url.includes("Device: Reboot Screen")), 4000, "automatic restart");
+          if (${JSON.stringify(scenario.name)} === "frame-name-restart-failure") {
+            await waitFor(() => dialog.textContent.includes("restart failed"), 4000, "restart failure recovery");
+          }
+          if (!dialog.querySelector('a[href="http://192.168.1.42/"]')) throw new Error("Missing IP reconnect link");
           requireText("192.168.1.42");
           const link = document.querySelector('a[href*="living-room-b2c3.local"]');
           if (!link) throw new Error("Missing destination hostname");
+          clickButton("Close");
+          await waitFor(() => !document.querySelector(".frame-reconnect-dialog"), 4000, "closed reconnect dialog");
           clickButton("Export");
           const backup = JSON.parse(window.__smoke.exportPayloads[0]);
           if (backup.identity.name !== "Living Room" || !window.__smoke.downloadName.startsWith("living-room-b2c3-config-")) {
@@ -1337,20 +1350,20 @@ function smokeAssertionsForScenario(scenario) {
             await waitName(${JSON.stringify(scenario.restoreName ? "Office" : "Living Room")});
             const saves = window.__smoke.postRecords.filter(record => record.url === "/espframe/api/v1/identity");
             if (saves.length !== ${scenario.restoreName ? 2 : 1}) throw new Error("Unexpected name restore write");
-            if (${JSON.stringify(!!scenario.restoreName)} && !document.querySelector('a[href*="office-b2c3.local"]')) {
+            if (${JSON.stringify(!!scenario.restoreName)} && !document.querySelector(".frame-name-info").textContent.includes("office-b2c3.local")) {
               throw new Error("Restore did not use destination MAC suffix");
             }
           } else {
             const count = window.__smoke.posts.length;
             setName("é".repeat(61));
-            clickButton("Save name");
-            await waitFor(() => document.querySelector('[role="alert"]'), 4000, "invalid name");
+            if (!buttonByText("Save & Restart").disabled) throw new Error("Invalid name must disable saving");
+            await waitFor(() => document.querySelector('[role="alert"]')?.textContent, 4000, "invalid name");
             if (window.__smoke.posts.length !== count) throw new Error("Invalid UTF-8 byte length was posted");
             setName("");
-            clickButton("Save name");
+            clickButton("Save & Restart");
             await waitName("Immich Frame");
             await waitFor(() => document.querySelector("#frame-name").value === "", 4000, "cleared input");
-            if (buttonByText("Restart to apply name")) throw new Error("Clearing back to boot default needs no restart");
+            if (document.querySelector(".frame-reconnect-dialog")) throw new Error("Clearing back to boot default needs no restart");
             if (document.documentElement.scrollWidth > window.innerWidth + 4) throw new Error("Name card overflows mobile viewport");
           }
         } else if (${JSON.stringify(!!scenario.filterCompatibilityVersion)}) {

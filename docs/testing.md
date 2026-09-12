@@ -185,6 +185,11 @@ and restoring a backup onto a second frame. No automated test proves those
 network and Home Assistant integration behaviors on hardware.
 
 The naming UI and optional backup dialog intentionally increase the raw web app
-budget to 228,000 bytes, CSS to 21,000 bytes, combined raw to 249,000 bytes and
-combined gzip to 56,000 bytes. Firmware flash/RAM and individual gzip limits remain
-unchanged; full builds still enforce them.
+budget to 228,000 bytes, CSS to 22,500 bytes, combined raw to 250,500 bytes and
+combined gzip to 56,000 bytes. The individual gzip limits are 51,000 bytes for the app and 5,200 bytes for CSS.
+Firmware flash/RAM limits remain unchanged; full builds still enforce them.
+
+The naming form and reconnect dialog reuse Espcontrol’s UI structure and styles,
+with an inline Save & Restart action, live hostname preview and reconnect links.
+Browser coverage also checks that failed saves do not restart and restart failures
+leave the saved name available for retry.

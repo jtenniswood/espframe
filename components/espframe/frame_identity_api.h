@@ -35,6 +35,7 @@ class FrameIdentityApiHandler final : public AsyncWebHandler {
     root["name"] = identity_->saved_name();
     root["friendly_name"] = identity_->target_name();
     root["hostname"] = identity_->target_hostname();
+    root["mac_suffix"] = identity_->suffix();
     root["restart_required"] = identity_->restart_required();
     char address[network::IP_ADDRESS_BUFFER_SIZE];
     root["ip_address"] = std::string(network::get_ip_addresses()[0].str_to(address));

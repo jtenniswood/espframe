@@ -1279,7 +1279,19 @@ to {
 
 /* Custom frame names can contain long words or multibyte text. */
 .sp-brand { overflow-wrap: anywhere; }
-#frame-name { width: 100%; box-sizing: border-box; }
-.frame-name-address a { overflow-wrap: anywhere; }
-.frame-name-dialog { max-width: min(90vw, 440px); border-radius: 12px; padding: 24px; }
-.frame-name-dialog::backdrop { background: rgb(0 0 0 / 45%); }
+/* Naming form and dialog follow Espcontrol's identity UI. */
+.frame-name-label { display:block; font-size:.875rem; font-weight:500; color:var(--text2); margin-bottom:8px; }
+.frame-name-row { display:flex; align-items:center; gap:12px; }
+.frame-name-row #frame-name { flex:1; min-width:0; width:100%; margin:0; border-radius:10px; padding:10px 12px; }
+.frame-name-button { flex:none; white-space:nowrap; border-radius:var(--action-r); padding:8px 14px; font-weight:500; }
+.frame-name-info { display:flex; align-items:center; gap:10px; padding:10px 12px; margin-top:16px; background:var(--accent-soft); border:1px solid rgba(92,115,231,.22); border-radius:10px; color:var(--text2); font-size:.82rem; line-height:1.35; overflow-wrap:anywhere; }
+.frame-name-info-icon { flex:none; color:var(--accent); display:flex; }
+.frame-name-info>span:last-child { min-width:0; }
+.frame-name-info code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:1em; }
+.frame-name-dialog { font-family:inherit; font-size:.875rem; line-height:1.5; max-width:32rem; width:calc(100% - 3rem); margin:auto; border:1px solid var(--border); border-radius:12px; padding:1.5rem; background:var(--bg); color:var(--text); }
+.frame-name-dialog::backdrop { background:#0008; }
+.frame-name-dialog h3 { margin:1em 0; font-size:1.17em; }
+.frame-name-dialog p { margin:1em 0; }
+.frame-name-dialog a { color:var(--accent); overflow-wrap:anywhere; }
+.frame-name-dialog button { margin:1rem .5rem 0 0; }
+@media (max-width:480px) { .frame-name-row { flex-wrap:wrap; } .frame-name-row #frame-name { flex-basis:100%; } }

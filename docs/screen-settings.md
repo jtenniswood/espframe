@@ -50,8 +50,8 @@ The setting only exposes normal and upside-down orientations. On the 10" model, 
 ## Frame Name
 
 Open **Device → System → Frame Name** to give a frame a recognizable name, such
-as `Living Room`. Click **Save name**, check the new address and current IP, then
-click **Restart to apply name**. The web title and backup filename use the saved
+as `Living Room`. Check the live network address preview, then click **Save & Restart**.
+The confirmation dialog links to the new hostname and current IP. The web title and backup filename use the saved
 name immediately; the network hostname and Home Assistant friendly name apply
 on restart. Follow the displayed address to reconnect, or use the frame's IP.
 
@@ -61,6 +61,6 @@ or digits use `frame` as the hostname prefix. The displayed name supports Unicod
 up to 120 UTF-8 bytes. Home Assistant names you assigned manually take precedence.
 
 Existing firmware names stay unchanged until you save a name. Leave the field
-blank and save to restore the firmware defaults. Saved names survive normal OTA
+blank and choose **Save & Restart** to restore the firmware defaults. Saved names survive normal OTA
 updates and power cycles. If storage is full, a save reports an error and retains
 the previous name; it never clears other settings to make room.

@@ -1589,10 +1589,22 @@ to {
 
 /* Custom frame names can contain long words or multibyte text. */
 .sp-brand { overflow-wrap: anywhere; }
-#frame-name { width: 100%; box-sizing: border-box; }
-.frame-name-address a { overflow-wrap: anywhere; }
-.frame-name-dialog { max-width: min(90vw, 440px); border-radius: 12px; padding: 24px; }
-.frame-name-dialog::backdrop { background: rgb(0 0 0 / 45%); }`;
+/* Naming form and dialog follow Espcontrol's identity UI. */
+.frame-name-label { display:block; font-size:.875rem; font-weight:500; color:var(--text2); margin-bottom:8px; }
+.frame-name-row { display:flex; align-items:center; gap:12px; }
+.frame-name-row #frame-name { flex:1; min-width:0; width:100%; margin:0; border-radius:10px; padding:10px 12px; }
+.frame-name-button { flex:none; white-space:nowrap; border-radius:var(--action-r); padding:8px 14px; font-weight:500; }
+.frame-name-info { display:flex; align-items:center; gap:10px; padding:10px 12px; margin-top:16px; background:var(--accent-soft); border:1px solid rgba(92,115,231,.22); border-radius:10px; color:var(--text2); font-size:.82rem; line-height:1.35; overflow-wrap:anywhere; }
+.frame-name-info-icon { flex:none; color:var(--accent); display:flex; }
+.frame-name-info>span:last-child { min-width:0; }
+.frame-name-info code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:1em; }
+.frame-name-dialog { font-family:inherit; font-size:.875rem; line-height:1.5; max-width:32rem; width:calc(100% - 3rem); margin:auto; border:1px solid var(--border); border-radius:12px; padding:1.5rem; background:var(--bg); color:var(--text); }
+.frame-name-dialog::backdrop { background:#0008; }
+.frame-name-dialog h3 { margin:1em 0; font-size:1.17em; }
+.frame-name-dialog p { margin:1em 0; }
+.frame-name-dialog a { color:var(--accent); overflow-wrap:anywhere; }
+.frame-name-dialog button { margin:1rem .5rem 0 0; }
+@media (max-width:480px) { .frame-name-row { flex-wrap:wrap; } .frame-name-row #frame-name { flex-basis:100%; } }`;
   var FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" id="mdi-home-automation" viewBox="0 0 24 24"><path fill="#5c73e7" d="M12,3L2,12H5V20H19V12H22L12,3M12,8.5C14.34,8.5 16.46,9.43 18,10.94L16.8,12.12C15.58,10.91 13.88,10.17 12,10.17C10.12,10.17 8.42,10.91 7.2,12.12L6,10.94C7.54,9.43 9.66,8.5 12,8.5M12,11.83C13.4,11.83 14.67,12.39 15.6,13.3L14.4,14.47C13.79,13.87 12.94,13.5 12,13.5C11.06,13.5 10.21,13.87 9.6,14.47L8.4,13.3C9.33,12.39 10.6,11.83 12,11.83M12,15.17C12.94,15.17 13.7,15.91 13.7,16.83C13.7,17.75 12.94,18.5 12,18.5C11.06,18.5 10.3,17.75 10.3,16.83C10.3,15.91 11.06,15.17 12,15.17Z"/></svg>';
   var style = document.createElement("style");
   style.textContent = CSS;
@@ -4810,7 +4822,7 @@ to {
     var response = await fetch("/espframe/api/v1/identity", options);
     if (!response.ok) throw new Error(name === void 0 ? "Frame name unavailable" : "Frame name could not be saved. Please retry.");
     var data = await response.json();
-    if (!isObject(data) || !validFrameName(data.name) || typeof data.friendly_name !== "string" || typeof data.hostname !== "string" || !/^[a-z0-9-]{1,63}$/.test(data.hostname) || typeof data.ip_address !== "string" || typeof data.restart_required !== "boolean") {
+    if (!isObject(data) || !validFrameName(data.name) || typeof data.friendly_name !== "string" || typeof data.hostname !== "string" || !/^[a-z0-9-]{1,63}$/.test(data.hostname) || typeof data.ip_address !== "string" || typeof data.restart_required !== "boolean" || data.mac_suffix !== void 0 && (typeof data.mac_suffix !== "string" || !/^[a-f0-9]{4}$/.test(data.mac_suffix))) {
       throw new Error("Frame name unavailable");
     }
     return data;
@@ -4844,64 +4856,116 @@ to {
       frameIdentityBusy = false;
     }
   }
+  function previewFrameHostname(name) {
+    if (!frameIdentity) return null;
+    if (name === frameIdentity.name) return frameIdentity.hostname;
+    if (!name || !frameIdentity.mac_suffix) return null;
+    var slug = name.replace(/[A-Z]/g, function(c) {
+      return c.toLowerCase();
+    }).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "frame";
+    return slug.slice(0, 19).replace(/-$/, "") + "-" + frameIdentity.mac_suffix;
+  }
+  function showFrameReconnectDialog(value) {
+    var dialog = document.createElement("dialog");
+    dialog.className = "frame-name-dialog frame-reconnect-dialog";
+    var title = document.createElement("h3");
+    title.id = "frame-reconnect-title";
+    title.textContent = "Frame name saved";
+    dialog.setAttribute("aria-labelledby", title.id);
+    var note = document.createElement("p");
+    note.setAttribute("role", "status");
+    note.textContent = "The frame is restarting. Reopen it at the new address.";
+    var address = document.createElement("a");
+    var port = location.port ? ":" + location.port : "";
+    address.href = "http://" + value.hostname + ".local" + port + "/";
+    address.textContent = value.hostname + ".local";
+    dialog.append(title, note, address);
+    if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(value.ip_address) && value.ip_address.split(".").every(function(part) {
+      return Number(part) <= 255;
+    })) {
+      var ip = document.createElement("a");
+      ip.href = "http://" + value.ip_address + port + "/";
+      ip.textContent = value.ip_address;
+      dialog.append(document.createElement("br"), ip);
+    }
+    dialog.append(document.createElement("br"), button("Close", "btn btn-secondary frame-name-button", function() {
+      dialog.close();
+      dialog.remove();
+    }));
+    dialog.addEventListener("close", function() {
+      dialog.remove();
+    });
+    document.body.appendChild(dialog);
+    dialog.showModal();
+    return note;
+  }
   function makeFrameNameCard() {
     if (!frameIdentity) return null;
     var body = el("div");
-    var field2 = el("div", "field");
     var label = document.createElement("label");
-    label.textContent = "Frame name";
+    label.className = "frame-name-label";
+    label.textContent = "Frame Name";
     label.htmlFor = "frame-name";
     var input2 = document.createElement("input");
     input2.type = "text";
     input2.id = "frame-name";
     input2.value = frameNameDraft === null ? frameIdentity.name : frameNameDraft;
-    input2.placeholder = frameIdentity.friendly_name;
+    input2.placeholder = "e.g. Living Room";
     input2.disabled = frameIdentityBusy;
-    input2.addEventListener("input", function() {
-      frameNameDraft = input2.value;
-    });
-    field2.append(label, input2);
-    body.appendChild(field2);
-    var help = el("p", "hint");
-    help.textContent = "Updates the web title, network hostname and Home Assistant device name after restart. Leave blank to restore firmware defaults.";
-    body.appendChild(help);
-    var save = button("Save name", "btn btn-primary btn-sm", function() {
+    var preview = el("div", "frame-name-info");
+    var icon = el("span", "frame-name-info-icon");
+    icon.setAttribute("aria-hidden", "true");
+    icon.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v2"/></svg>';
+    var previewText = document.createElement("span");
+    preview.append(icon, previewText);
+    var error = el("p", "field-error");
+    error.setAttribute("role", "alert");
+    error.textContent = frameIdentityError;
+    var save = button("Save & Restart", "btn btn-secondary frame-name-button", async function() {
       save.disabled = true;
       input2.disabled = true;
-      saveFrameName(input2.value).then(function() {
-        showBanner("Frame name saved" + (frameIdentity.restart_required ? ". Restart to apply it." : "."), "success");
-      }).catch(function() {
-      }).finally(function() {
+      try {
+        await configurationUpdateQueue;
+        await saveFrameName(input2.value);
+        if (frameIdentity.restart_required) {
+          var message = showFrameReconnectDialog(frameIdentity);
+          try {
+            await post(endpoints.reboot_screen + "/press");
+          } catch (_) {
+            message.textContent = "Name saved, but the restart failed. Close this dialog and choose Save & Restart to retry.";
+            frameIdentityError = "Name saved, but the restart failed. Please retry.";
+          }
+        }
+      } catch (_) {
+      } finally {
+        input2.disabled = false;
+        sync();
         renderSettingsAfterEditing();
-      });
+      }
     });
-    save.disabled = frameIdentityBusy;
-    body.appendChild(save);
-    if (frameIdentityError) {
-      var error = el("p", "hint");
-      error.setAttribute("role", "alert");
-      error.textContent = frameIdentityError;
-      body.appendChild(error);
+    function sync() {
+      var name = input2.value.replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/g, "");
+      var valid = validFrameName(name);
+      error.textContent = valid ? frameIdentityError : "Use up to 120 UTF-8 bytes without control characters.";
+      save.disabled = frameIdentityBusy || !valid || name === frameIdentity.name && !frameIdentity.restart_required;
+      var hostname = previewFrameHostname(name);
+      if (hostname) {
+        var address = document.createElement("code");
+        address.textContent = hostname + ".local";
+        previewText.replaceChildren("Your device will show as ", address, " on your network");
+      } else {
+        previewText.textContent = name ? "Your device's new address will be shown after saving" : "Your device will use its original firmware name and address on your network";
+      }
     }
-    var address = el("p", "hint frame-name-address");
-    address.textContent = frameIdentity.restart_required ? "After restart: " : "Address: ";
-    var link = document.createElement("a");
-    link.href = "http://" + frameIdentity.hostname + ".local" + (location.port ? ":" + location.port : "") + "/";
-    link.textContent = frameIdentity.hostname + ".local";
-    address.appendChild(link);
-    if (frameIdentity.ip_address) address.appendChild(document.createTextNode(" \xB7 Current IP: " + frameIdentity.ip_address));
-    body.appendChild(address);
-    if (frameIdentity.restart_required) {
-      var restart = button("Restart to apply name", "btn btn-secondary btn-sm", function() {
-        restart.disabled = true;
-        restart.textContent = "Restarting\u2026 Use the address above to reconnect";
-        post(endpoints.reboot_screen + "/press").catch(function() {
-          restart.disabled = false;
-          restart.textContent = "Restart to apply name";
-        });
-      });
-      body.appendChild(restart);
-    }
+    input2.addEventListener("input", function() {
+      frameNameDraft = input2.value;
+      frameIdentityError = "";
+      sync();
+    });
+    var row = el("div", "frame-name-row");
+    row.append(input2, save);
+    body.append(label, row, error, preview);
+    sync();
     return makeCollapsibleCard("Frame Name", body, !frameIdentity.restart_required && !frameIdentityError && frameNameDraft === null);
   }
   function chooseBackupNameRestore(name) {
