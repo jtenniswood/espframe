@@ -34,7 +34,7 @@
     "test:helpers": "g++ -std=c++17 -I. -Itests/stubs tests/espframe_helper_tests.cpp -o /tmp/espframe_helper_tests && /tmp/espframe_helper_tests",
     "test:parsers": "python3 scripts/test_immich_parsers.py",
     "test:identity": "g++ -std=c++17 -Itests/identity_stubs -I. tests/frame_identity_tests.cpp components/espframe/frame_identity.cpp -o /tmp/espframe_identity_tests && /tmp/espframe_identity_tests",
-    "test:firmware-logic": "npm run test:identity && npm run test:helpers && npm run test:parsers && npm run test:timezones",
+    "test:firmware-logic": "npm run test:identity && npm run test:helpers && npm run test:parsers && npm run test:timezones && npm run test:memory-diagnostics",
     "check:fast": "npm run check:schema && npm run check:generated && npm run check:product && npm run check:backup && npm run check:compat && npm run check:ownership && npm run check:budgets && npm run check:firmware-fields",
     "check:pr": "npm run check:fast && npm run webserver:typecheck && npm run test:web-saves && npm run test:web-types && npm run test:web-compat && npm run test:web-modules && npm run test:web-smoke-cli && npm run test:web-smoke && npm run test:package-contract && npm run test:product-contract-common && npm run test:release-ready && npm run test:workflow-contract && npm run test:budgets && npm run test:ownership && npm run test:firmware-logic && npm run docs:build",
     "check:release": "npm run check:pr && npm run check:firmware-release && npm run check:release-changelog",
@@ -43,7 +43,8 @@
     "webserver:typecheck": "python3 scripts/check_web_types.py && tsc --noEmit --strict --target ES2018 --lib ES2018,DOM --skipLibCheck docs/webserver/src/web_contracts.ts docs/webserver/src/setting_save.ts",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "test:memory-diagnostics": "g++ -std=c++17 -DESPFRAME_MEMORY_DIAGNOSTICS -Itests/memory_stubs -I. tests/memory_diagnostics_tests.cpp components/espframe/memory_diagnostics.cpp -o /tmp/espframe_memory_tests && /tmp/espframe_memory_tests && g++ -std=c++17 -Itests/memory_stubs -I. tests/memory_allocation_tests.cpp components/espframe/memory_diagnostics.cpp -o /tmp/espframe_allocation_tests && /tmp/espframe_allocation_tests"
   },
   "devDependencies": {
     "ajv": "^8.20.0",
