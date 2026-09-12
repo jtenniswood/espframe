@@ -379,12 +379,21 @@ body {
   font-size:1rem;
   font-weight:600;
   color:var(--text);
-  margin-right:auto;
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+  flex:1;
+  min-width:0;
+  margin-right:12px;
   white-space:nowrap;
   letter-spacing:-.01em
 }
 
+.sp-brand-label { flex:none; }
+.sp-device-name { color:var(--text2); font-weight:400; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
 .sp-nav {
+  flex-shrink:0;
   display:flex;
   align-items:center;
   height:100%
@@ -1587,8 +1596,6 @@ to {
   margin-top:12px
 }
 
-/* Custom frame names can contain long words or multibyte text. */
-.sp-brand { overflow-wrap: anywhere; }
 /* Naming form and dialog follow Espcontrol's identity UI. */
 .frame-name-label { display:block; font-size:.875rem; font-weight:500; color:var(--text2); margin-bottom:8px; }
 .frame-name-row { display:flex; align-items:center; gap:12px; }
@@ -1664,7 +1671,13 @@ to {
     header.className = "sp-header";
     var brand = document.createElement("div");
     brand.className = "sp-brand";
-    brand.textContent = "EspFrame";
+    var brandLabel = document.createElement("span");
+    brandLabel.className = "sp-brand-label";
+    brandLabel.textContent = "EspFrame";
+    var deviceName = document.createElement("span");
+    deviceName.className = "sp-device-name";
+    deviceName.hidden = true;
+    brand.append(brandLabel, deviceName);
     header.appendChild(brand);
     var nav = document.createElement("nav");
     nav.className = "sp-nav";
@@ -4830,8 +4843,12 @@ to {
   function updateFrameTitle() {
     if (!frameIdentity) return;
     document.title = frameIdentity.friendly_name + " \xB7 EspFrame";
-    var brand = document.querySelector(".sp-brand");
-    if (brand) brand.textContent = frameIdentity.name || "EspFrame";
+    var deviceName = document.querySelector(".sp-device-name");
+    if (deviceName) {
+      deviceName.textContent = frameIdentity.friendly_name;
+      deviceName.title = frameIdentity.friendly_name;
+      deviceName.hidden = !frameIdentity.friendly_name;
+    }
   }
   async function loadFrameIdentity() {
     try {

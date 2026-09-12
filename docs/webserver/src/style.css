@@ -68,12 +68,21 @@ body {
   font-size:1rem;
   font-weight:600;
   color:var(--text);
-  margin-right:auto;
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+  flex:1;
+  min-width:0;
+  margin-right:12px;
   white-space:nowrap;
   letter-spacing:-.01em
 }
 
+.sp-brand-label { flex:none; }
+.sp-device-name { color:var(--text2); font-weight:400; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
 .sp-nav {
+  flex-shrink:0;
   display:flex;
   align-items:center;
   height:100%
@@ -1276,8 +1285,6 @@ to {
   margin-top:12px
 }
 
-/* Custom frame names can contain long words or multibyte text. */
-.sp-brand { overflow-wrap: anywhere; }
 /* Naming form and dialog follow Espcontrol's identity UI. */
 .frame-name-label { display:block; font-size:.875rem; font-weight:500; color:var(--text2); margin-bottom:8px; }
 .frame-name-row { display:flex; align-items:center; gap:12px; }

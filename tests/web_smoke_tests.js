@@ -1308,7 +1308,19 @@ function smokeAssertionsForScenario(scenario) {
             input.value = name;
             input.dispatchEvent(new Event("input", { bubbles: true }));
           };
-          const waitName = name => waitFor(() => document.title === name + " · EspFrame", 4000, "saved frame title");
+          const requireHeaderName = name => {
+            const brand = document.querySelector(".sp-brand-label");
+            const deviceName = document.querySelector(".sp-device-name");
+            if (brand.textContent !== "EspFrame" || deviceName.textContent !== name || deviceName.hidden) {
+              throw new Error("Header must retain EspFrame followed by the device name");
+            }
+            if (getComputedStyle(brand).color === getComputedStyle(deviceName).color) throw new Error("Device name must use muted text");
+          };
+          const waitName = async name => {
+            await waitFor(() => document.title === name + " · EspFrame", 4000, "saved frame title");
+            requireHeaderName(name);
+          };
+          requireHeaderName("Immich Frame");
           if (!buttonByText("Save & Restart").disabled) throw new Error("Unchanged name must disable saving");
           setName("Living Room");
           if (!document.querySelector(".frame-name-info").textContent.includes("living-room-b2c3.local")) throw new Error("Missing live hostname preview");

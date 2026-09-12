@@ -43,8 +43,12 @@
   function updateFrameTitle(): void {
     if (!frameIdentity) return;
     document.title = frameIdentity.friendly_name + " · EspFrame";
-    var brand = document.querySelector<HTMLElement>(".sp-brand");
-    if (brand) brand.textContent = frameIdentity.name || "EspFrame";
+    var deviceName = document.querySelector<HTMLElement>(".sp-device-name");
+    if (deviceName) {
+      deviceName.textContent = frameIdentity.friendly_name;
+      deviceName.title = frameIdentity.friendly_name;
+      deviceName.hidden = !frameIdentity.friendly_name;
+    }
   }
 
   async function loadFrameIdentity(): Promise<void> {
