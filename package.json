@@ -44,7 +44,7 @@
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
-    "test:memory-diagnostics": "g++ -std=c++17 -DESPFRAME_MEMORY_DIAGNOSTICS -Itests/memory_stubs -I. tests/memory_diagnostics_tests.cpp components/espframe/memory_diagnostics.cpp -o /tmp/espframe_memory_tests && /tmp/espframe_memory_tests"
+    "test:memory-diagnostics": "g++ -std=c++17 -DESPFRAME_MEMORY_DIAGNOSTICS -Itests/memory_stubs -I. tests/memory_diagnostics_tests.cpp components/espframe/memory_diagnostics.cpp -o /tmp/espframe_memory_tests && /tmp/espframe_memory_tests && g++ -std=c++17 -Itests/memory_stubs -I. tests/memory_allocation_tests.cpp components/espframe/memory_diagnostics.cpp -o /tmp/espframe_allocation_tests && /tmp/espframe_allocation_tests"
   },
   "devDependencies": {
     "ajv": "^8.20.0",

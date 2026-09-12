@@ -16,23 +16,14 @@ EspFrameComponent = espframe_ns.class_("EspFrameComponent", cg.Component)
 
 MemorySetupProbe = espframe_ns.class_("MemorySetupProbe", cg.Component)
 
-def diagnostic_ids_only_when_enabled(config):
-    # ESPHome counts declared Component IDs when sizing Application's static
-    # registry, even if to_code never instantiates them.
-    if not config[CONF_MEMORY_DIAGNOSTICS]:
-        config.pop(CONF_MEMORY_BEFORE_ID, None)
-        config.pop(CONF_MEMORY_AFTER_ID, None)
-    return config
-
-
-CONFIG_SCHEMA = cv.All(cv.Schema(
+CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(EspFrameComponent),
         cv.Optional(CONF_MEMORY_DIAGNOSTICS, default=False): cv.boolean,
         cv.GenerateID(CONF_MEMORY_BEFORE_ID): cv.declare_id(MemorySetupProbe),
         cv.GenerateID(CONF_MEMORY_AFTER_ID): cv.declare_id(MemorySetupProbe),
     }
-).extend(cv.COMPONENT_SCHEMA), diagnostic_ids_only_when_enabled)
+).extend(cv.COMPONENT_SCHEMA)
 
 
 async def to_code(config):
@@ -44,7 +35,7 @@ async def to_code(config):
 
     if config[CONF_MEMORY_DIAGNOSTICS]:
         cg.add_define("ESPFRAME_MEMORY_DIAGNOSTICS")
-        cg.add_build_flag("-Wl,--wrap=heap_caps_aligned_alloc")
-        for key, before in ((CONF_MEMORY_BEFORE_ID, True), (CONF_MEMORY_AFTER_ID, False)):
-            probe = cg.new_Pvariable(config[key], before)
-            await cg.register_component(probe, config)
+    cg.add_build_flag("-Wl,--wrap=heap_caps_aligned_alloc")
+    for key, before in ((CONF_MEMORY_BEFORE_ID, True), (CONF_MEMORY_AFTER_ID, False)):
+        probe = cg.new_Pvariable(config[key], before)
+        await cg.register_component(probe, config)

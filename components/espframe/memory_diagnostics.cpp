@@ -1,6 +1,5 @@
 #include "memory_diagnostics.h"
 
-#ifdef ESPFRAME_MEMORY_DIAGNOSTICS
 #include <atomic>
 #ifndef USE_LVGL
 #error "Espframe memory_diagnostics requires LVGL"
@@ -16,6 +15,7 @@ namespace esphome::espframe {
 namespace {
 constexpr const char *TAG = "memory.lvgl";
 std::atomic<TaskHandle_t> trace_task{nullptr};
+#ifdef ESPFRAME_MEMORY_DIAGNOSTICS
 size_t internal_before = 0;
 size_t psram_before = 0;
 
@@ -41,8 +41,10 @@ void record_heap(const char *phase) {
            (unsigned) heap_caps_get_free_size(external),
            (unsigned) heap_caps_get_largest_free_block(external));
 }
+#endif
 }  // namespace
 
+#ifdef ESPFRAME_MEMORY_DIAGNOSTICS
 void record_loop_stack(const char *phase) {
   // ESP-IDF returns bytes, unlike upstream FreeRTOS's word count. This measures
   // the calling ESPHome loop task, not all networking/driver task stacks.
@@ -50,15 +52,20 @@ void record_loop_stack(const char *phase) {
            (unsigned) uxTaskGetStackHighWaterMark(nullptr));
 }
 
+#endif
+
 void MemorySetupProbe::setup() {
   if (before_) {
+#ifdef ESPFRAME_MEMORY_DIAGNOSTICS
     record_heap("before-lvgl");
     internal_before = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     psram_before = heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+#endif
     trace_task.store(xTaskGetCurrentTaskHandle(), std::memory_order_relaxed);
     return;
   }
   trace_task.store(nullptr, std::memory_order_relaxed);
+#ifdef ESPFRAME_MEMORY_DIAGNOSTICS
   // Capture deltas before logging. Other tasks can allocate during this window;
   // these are net setup changes, not an attribution of every byte to LVGL.
   const auto internal_after = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
@@ -78,8 +85,18 @@ void MemorySetupProbe::setup() {
              (unsigned) draw->data_size, region(draw->data));
   }
   record_loop_stack("after-lvgl");
+#endif
 }
 
+// ESPHome 2026.8.2 tries MALLOC_CAP_8BIT first for small draw buffers.
+// Retain all other capability requests, including DMA/internal-only allocations.
+uint32_t setup_allocation_caps(uint32_t caps) {
+  auto task = trace_task.load(std::memory_order_relaxed);
+  return task != nullptr && task == xTaskGetCurrentTaskHandle() && caps == MALLOC_CAP_8BIT
+             ? caps | MALLOC_CAP_SPIRAM : caps;
+}
+
+#ifdef ESPFRAME_MEMORY_DIAGNOSTICS
 void record_setup_allocation(const void *ptr, size_t size, uint32_t caps) {
   auto task = trace_task.load(std::memory_order_relaxed);
   if (task == nullptr || task != xTaskGetCurrentTaskHandle()) return;
@@ -88,12 +105,15 @@ void record_setup_allocation(const void *ptr, size_t size, uint32_t caps) {
   record_buffer("setup-aligned-allocation", ptr, size, caps);
   trace_task.store(task, std::memory_order_relaxed);
 }
+#endif
 }  // namespace esphome::espframe
 
 extern "C" void *__real_heap_caps_aligned_alloc(size_t alignment, size_t size, uint32_t caps);
 extern "C" void *__wrap_heap_caps_aligned_alloc(size_t alignment, size_t size, uint32_t caps) {
+  caps = esphome::espframe::setup_allocation_caps(caps);
   void *ptr = __real_heap_caps_aligned_alloc(alignment, size, caps);
+#ifdef ESPFRAME_MEMORY_DIAGNOSTICS
   esphome::espframe::record_setup_allocation(ptr, size, caps);
+#endif
   return ptr;
 }
-#endif
