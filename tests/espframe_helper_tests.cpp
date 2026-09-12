@@ -807,6 +807,38 @@ static void test_slideshow_slot_actions() {
   assert(!flags.fetch_in_flight[0]);
 }
 
+static void test_compact_queue_slots_and_wraparound() {
+  SlideshowCommandQueue commands;
+  for (int round = 0; round < 3; ++round) {
+    for (size_t i = 0; i < SlideshowCommandQueue::CAPACITY; ++i) {
+      assert(commands.push(SLIDESHOW_COMMAND_FETCH_INTO_SLOT, int(i % 4) - 1, UINT32_MAX));
+    }
+    assert(!commands.push(SLIDESHOW_COMMAND_FETCH_INTO_SLOT, 0));
+    for (size_t i = 0; i < SlideshowCommandQueue::CAPACITY; ++i) {
+      SlideshowCommand command;
+      assert(commands.pop(command));
+      assert(command.slot == int(i % 4) - 1);
+      assert(command.delay_ms == UINT32_MAX);
+      assert(command.kind == SLIDESHOW_COMMAND_FETCH_INTO_SLOT);
+      // Keep the queue full while moving the head through its ring storage.
+      if (i == 0) assert(commands.push(SLIDESHOW_COMMAND_LOG_DIAG));
+    }
+    SlideshowCommand command;
+    assert(commands.pop(command) && command.slot == -1);
+    assert(commands.empty());
+  }
+  FetchQueue fetches;
+  for (int slot = -1; slot <= 2; ++slot)
+    assert(fetches.enqueue(FETCH_JOB_SLOT, slot, uint8_t(slot + 1), UINT32_MAX));
+  for (int slot = 2; slot >= -1; --slot) {
+    FetchJob job;
+    assert(fetches.pop(job));
+    assert(job.slot == slot && job.priority == slot + 1);
+    assert(job.queued_ms == UINT32_MAX);
+  }
+  assert(fetches.empty());
+}
+
 static void test_fetch_queue_and_error_handling() {
   SlotMeta slot0 = make_slot("active", false);
   SlotMeta slot1 = make_slot("next", false);
@@ -1658,6 +1690,7 @@ int main() {
   test_smart_filter_helpers();
   test_immich_request_state();
   test_slideshow_slot_actions();
+  test_compact_queue_slots_and_wraparound();
   test_fetch_queue_and_error_handling();
   test_slideshow_component_commands();
   test_slideshow_component_prefetch_and_deferred_updates();
