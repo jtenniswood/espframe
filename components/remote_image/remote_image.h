@@ -131,6 +131,15 @@ class OnlineImage : public PollingComponent,
   int get_fixed_height() const { return this->target_height_ > 0 ? this->target_height_ : this->fixed_height_; }
   image::ImageType image_type() const { return this->type_; }
 
+  // A decoder may write directly only when every destination pixel is replaced
+  // and the storage has no alpha/chroma-key semantics to preserve.
+  uint8_t *get_opaque_rgb565_buffer(int width, int height) {
+    return this->type_ == image::IMAGE_TYPE_RGB565 && !this->has_transparency() &&
+                   this->get_bpp() == 16 && width == this->buffer_width_ && height == this->buffer_height_
+               ? this->buffer_ : nullptr;
+  }
+
+
  protected:
   bool validate_url_(const std::string &url);
 
