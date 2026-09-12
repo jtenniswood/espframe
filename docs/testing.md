@@ -196,7 +196,16 @@ leave the saved name available for retry.
 
 ### LVGL allocation diagnostics
 
-Use an opt-in diagnostic build to measure graphics placement before changing it.
+Normal firmware redirects capability-neutral aligned allocations to PSRAM only
+on the ESPHome setup task between priorities 401 and 399, around pinned LVGL's
+priority 400. This prevents its internal-first draw-buffer attempt from consuming
+250 KiB of internal heap. Alignment, buffer size, explicit capabilities, other
+tasks, and allocations outside this setup window are preserved. Allocation
+failure is returned to LVGL's existing setup failure handling; there is no
+internal-RAM fallback. Review the setup ordering and allocator call when upgrading
+ESPHome 2026.8.2. Do not add unrelated components in this priority window.
+
+Use an opt-in diagnostic build to verify graphics placement.
 In a local build wrapper, add:
 
 ```yaml
@@ -218,7 +227,7 @@ ESPHome Docker image as above and `-s firmware_version v0.0.0`. Flash only the
 artifact for the matching board when hardware testing is authorized. Keep the
 full boot log; the allocation trace runs only during setup. This flag defaults
 to false and does not alter saved preferences or normal firmware allocation.
-Diagnostic probes consume additional memory, so these builds are measurement
+Diagnostic logging consumes additional memory, so these builds are measurement
 artifacts, not release candidates subject to the production static-size budget.
 
 `memory.lvgl` reports:
@@ -242,14 +251,12 @@ attributing other allocations to it, especially after an ESPHome upgrade.
 
 `memory.stack` reports the calling ESPHome loop task's minimum free stack bytes
 after LVGL setup and alongside the existing periodic/response/decode memory
-reports. It is not a report of all networking or driver task stacks. The probes
-observe allocations and do not force either buffer into PSRAM or change its size.
+reports. It is not a report of all networking or driver task stacks. Enabling
+diagnostics does not change the production allocation policy or buffer size.
 
 Compare the same diagnostic build on each board with landscape/portrait JPEG and
 WebP photos, HTTPS, browser and Home Assistant connections, reconnects, sleep/wake
 and OTA. Record buffer placement, minimum internal heap, largest blocks and loop
-stack headroom. If the draw buffer is already in PSRAM, there is no internal-RAM
-saving to claim from moving it. If internal, evaluate an upstream-supported
-placement change separately and compare rendering, rotation, touch and OTA
-before shipping it. Lowering the YAML percentage alone does not reduce this
-buffer in the pinned ESPHome version.
+stack headroom. Verify that the draw buffer and rotation allocation report PSRAM,
+and compare rendering, rotation, touch and OTA before shipping. Lowering the YAML
+percentage alone does not reduce this buffer in the pinned ESPHome version.
