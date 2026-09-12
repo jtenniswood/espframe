@@ -1458,7 +1458,34 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "settings" || ${JSON.stringify(scenario.name)} === "settings-mobile") {
             requireSettingsSections();
+            const appStyle = getComputedStyle(document.getElementById("sp-app"));
+            if (appStyle.maxWidth !== "1080px" || getComputedStyle(document.body).fontFamily.includes("Inter")) {
+              throw new Error("Settings should use the wider layout and system fonts");
+            }
+            const sections = Array.from(document.querySelectorAll("#sp-settings .settings-section"));
+            const sectionGap = window.matchMedia("(max-width:480px)").matches ? "40px" : "48px";
+            if (sections.slice(0, -1).some(section => getComputedStyle(section).marginBottom !== sectionGap)) {
+              throw new Error("Settings sections should have clear responsive separation");
+            }
+            if (getComputedStyle(sections[sections.length - 1]).marginBottom !== "0px") {
+              throw new Error("Last settings section should not add trailing space");
+            }
+            const input = document.querySelector("#sp-immich input[type='url']");
+            if (!input || getComputedStyle(input).borderRadius !== "10px") {
+              throw new Error("Settings inputs should retain compact rounded corners");
+            }
             await requireFirmwarePanels();
+            const actionButtons = Array.from(document.querySelectorAll("#sp-settings .btn"));
+            if (!actionButtons.length || actionButtons.some(button => getComputedStyle(button).borderRadius !== "9999px")) {
+              throw new Error("Settings, backup and firmware actions should have pill ends");
+            }
+            const focusButton = actionButtons.find(button => !button.disabled && button.getClientRects().length);
+            focusButton.focus();
+            if (!focusButton.matches(":focus-visible") || getComputedStyle(focusButton).outlineStyle !== "solid" ||
+                getComputedStyle(focusButton).outlineWidth !== "2px") {
+              throw new Error("Keyboard-focused actions should have a visible focus ring");
+            }
+            focusButton.blur();
             toggleInDisclosure("Auto updates", "Auto Update").click();
             toggleInDisclosure("WiFi firmware", "Auto Update").click();
             await waitFor(() => hasConfigurationPost("Firmware: Auto Update") && hasConfigurationPost("WiFi Firmware: Auto Update"), 4000, "firmware automatic update saves");

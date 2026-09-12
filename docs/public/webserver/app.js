@@ -347,7 +347,7 @@ html {
 }
 
 body {
-  font-family:Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   background:var(--bg);
   color:var(--text);
   line-height:1.7;
@@ -359,7 +359,7 @@ body {
 
 #sp-app {
   width:100%;
-  max-width:960px;
+  max-width:1080px;
   margin:0 auto
 }
 
@@ -483,14 +483,14 @@ h2 {
 }
 
 .subtitle {
-  font-size:.9rem;
+  font-size:.875rem;
   color:var(--text2);
   margin-bottom:24px;
   line-height:1.6
 }
 
 .settings-section {
-  margin-bottom:32px
+  margin-bottom:48px
 }
 
 .settings-section:last-child {
@@ -499,7 +499,7 @@ h2 {
 
 .settings-section-title {
   color:var(--text2);
-  font-size:.72rem;
+  font-size:.75rem;
   font-weight:700;
   line-height:1.2;
   letter-spacing:.12em;
@@ -521,7 +521,7 @@ h2 {
 }
 
 .card:hover {
-  border-color:#4a4d54
+  border-color:var(--text3)
 }
 
 .card h3 {
@@ -639,7 +639,7 @@ h2 {
 
 label {
   display:block;
-  font-size:.85rem;
+  font-size:.875rem;
   color:var(--text2);
   margin-bottom:6px;
   font-weight:500
@@ -660,9 +660,9 @@ input[type='text'], input[type='password'], input[type='url'], input[type='date'
   padding:10px 14px;
   background:var(--surface2);
   border:1px solid var(--border);
-  border-radius:8px;
+  border-radius:10px;
   color:var(--text);
-  font-size:.9rem;
+  font-size:.875rem;
   letter-spacing:0;
   outline:none;
   transition:border-color .25s, box-shadow .25s;
@@ -749,7 +749,7 @@ input[readonly] {
 .filter-nested summary {
   cursor:pointer;
   color:var(--text2);
-  font-size:.85rem;
+  font-size:.875rem;
   font-weight:500;
   display:flex;
   align-items:center;
@@ -807,9 +807,9 @@ input[readonly] {
   padding:10px 14px;
   background:var(--surface2);
   border:1px solid var(--border);
-  border-radius:8px;
+  border-radius:10px;
   color:var(--text);
-  font-size:.9rem;
+  font-size:.875rem;
   outline:none;
   transition:border-color .25s, box-shadow .25s;
   -webkit-appearance:none;
@@ -878,7 +878,7 @@ select option {
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  border-radius:20px;
+  border-radius:var(--action-r);
   font-size:1.2rem;
   line-height:1;
   flex-shrink:0
@@ -887,13 +887,19 @@ select option {
 .btn {
   padding:10px 20px;
   border:none;
-  border-radius:20px;
+  border-radius:var(--action-r);
   font-size:.875rem;
   font-weight:600;
   cursor:pointer;
   transition:background .25s, opacity .25s, box-shadow .25s;
   font-family:inherit;
   letter-spacing:.01em
+}
+
+.btn:focus-visible, .sp-log-clear:focus-visible {
+  outline:2px solid var(--accent);
+  outline-offset:2px;
+  box-shadow:0 0 0 3px var(--accent-soft)
 }
 
 .btn:active {
@@ -954,7 +960,7 @@ select option {
 }
 
 .toggle-row span {
-  font-size:.9rem
+  font-size:.875rem
 }
 
 .toggle {
@@ -1003,7 +1009,7 @@ select option {
   background:var(--surface2);
   color:var(--text2);
   border:none;
-  font-size:.85rem;
+  font-size:.875rem;
   cursor:pointer;
   transition:background .25s, color .25s;
   font-family:inherit
@@ -1056,13 +1062,13 @@ select option {
 .range-val {
   min-width:42px;
   text-align:right;
-  font-size:.85rem;
+  font-size:.875rem;
   color:var(--text2);
   font-variant-numeric:tabular-nums
 }
 
 .range-label {
-  font-size:.85rem;
+  font-size:.875rem;
   color:var(--text2);
   white-space:nowrap
 }
@@ -1149,7 +1155,7 @@ to {
   color:var(--text2);
   padding:10px 14px;
   background:var(--surface2);
-  border-radius:8px;
+  border-radius:10px;
   text-align:center;
   border:1px solid var(--border)
 }
@@ -1289,7 +1295,7 @@ to {
 }
 
 .fw-label {
-  font-size:.9rem
+  font-size:.875rem
 }
 
 .fw-status {
@@ -1332,9 +1338,9 @@ to {
   padding:10px 14px;
   background:var(--surface2);
   border:1px solid var(--border);
-  border-radius:8px;
+  border-radius:10px;
   color:var(--text2);
-  font-size:.9rem;
+  font-size:.875rem;
   letter-spacing:2px
 }
 
@@ -1355,7 +1361,7 @@ to {
   background:var(--surface2);
   color:var(--text);
   border:1px solid var(--border);
-  border-radius:8px;
+  border-radius:var(--action-r);
   padding:8px 14px;
   font-size:.8rem;
   font-weight:500;
@@ -1366,7 +1372,7 @@ to {
 
 .sp-log-clear:hover {
   background:var(--border);
-  border-color:#4a4d54
+  border-color:var(--text3)
 }
 
 .sp-log-output {
@@ -1428,7 +1434,7 @@ to {
   z-index:9999;
   padding:10px 24px;
   border-radius:var(--radius);
-  font-size:.85rem;
+  font-size:.875rem;
   font-weight:600;
   color:#fff;
   box-shadow:var(--shadow-2);
@@ -1547,7 +1553,7 @@ to {
 }
 
 .settings-section {
-  margin-bottom:24px
+  margin-bottom:40px
 }
 
 .settings-section-title {
