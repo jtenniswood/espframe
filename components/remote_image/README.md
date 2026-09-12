@@ -249,3 +249,17 @@ Ring-style buffer for incoming HTTP data. Used by `OnlineImage` and decoders.
 ## License
 
 See [LICENSE](LICENSE) in this directory.
+
+### WebP direct RGB565 output
+
+When the decoded dimensions match an opaque RGB565 destination, libwebp writes
+into that existing buffer. Little-endian destinations are byte-swapped in place;
+no full RGB888 intermediate is allocated. At 1280×800 this avoids 3,072,000 bytes
+of temporary PSRAM. Fit/fill transforms, letterboxing, non-RGB565 storage and
+transparent destinations retain the existing RGB888 conversion path. Libwebp's
+own scaling can still run before direct output when the resulting dimensions
+match the destination. Decoder-state safety estimates remain conservative.
+
+`npm run test:webp` builds the vendored decoder on the host and compares direct
+RGB565 pixels against the former RGB888 conversion using synthetic lossless,
+lossy and alpha WebP fixtures, both byte orders, scaling and malformed input.
