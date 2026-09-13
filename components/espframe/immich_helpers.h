@@ -299,6 +299,15 @@ inline bool immich_filter_branch_uses_album(const ImmichFilterBranch &branch) {
   return !split_valid_uuid_csv(branch.album_ids).empty();
 }
 
+inline bool immich_filter_branch_uses_legacy_metadata_search(
+    const ImmichFilterBranch &branch, ImmichApiGeneration generation) {
+  // Immich 3.2 replaced page-number pagination for structured searches with
+  // cursor pagination. Keep the metadata path for the flat API, where it also
+  // preserves shared-album behavior.
+  return generation == ImmichApiGeneration::V31_FLAT &&
+         immich_filter_branch_uses_album(branch);
+}
+
 inline void immich_append_json_field(std::string &body, bool &has_field,
                                      const std::string &key, const std::string &value) {
   if (has_field) body += ",";
@@ -314,7 +323,9 @@ inline std::string build_immich_filter_search_body(
   if (page == 0) page = 1;
   std::string body = "{";
   bool root_field = false;
-  if (metadata_search) immich_append_json_field(body, root_field, "page", std::to_string(page));
+  if (metadata_search && generation == ImmichApiGeneration::V31_FLAT) {
+    immich_append_json_field(body, root_field, "page", std::to_string(page));
+  }
   immich_append_json_field(body, root_field, "size", std::to_string(size));
   immich_append_json_field(body, root_field, "withExif", "true");
   if (with_people) immich_append_json_field(body, root_field, "withPeople", "true");

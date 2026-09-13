@@ -449,13 +449,17 @@ static void test_smart_filter_helpers() {
   assert(all.album_ids == combined.album_ids);
   std::string structured = build_immich_filter_search_body(
       combined, all, ImmichApiGeneration::V32_STRUCTURED, 10, true, true, 3);
-  assert(structured.find("\"page\":3") != std::string::npos);
+  assert(structured.find("\"page\"") == std::string::npos);
   assert(structured.find("\"filter\":{") != std::string::npos);
   assert(structured.find("\"type\":{\"eq\":\"IMAGE\"}") != std::string::npos);
   assert(structured.find("\"rating\":{\"gte\":4}") != std::string::npos);
   assert(structured.find("\"albumIds\":{\"all\"") != std::string::npos);
   assert(structured.find("\"none\":[\"" + excluded + "\"]") != std::string::npos);
   assert(structured.find("\"visibility\":\"timeline\"") == std::string::npos);
+  assert(immich_filter_branch_uses_legacy_metadata_search(
+      all, ImmichApiGeneration::V31_FLAT));
+  assert(!immich_filter_branch_uses_legacy_metadata_search(
+      all, ImmichApiGeneration::V32_STRUCTURED));
   std::string statistics = build_immich_filter_statistics_body(
       combined, all, ImmichApiGeneration::V32_STRUCTURED);
   assert(statistics.find("\"size\"") == std::string::npos);
