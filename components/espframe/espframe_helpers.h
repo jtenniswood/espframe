@@ -7,6 +7,7 @@
 #include "slideshow_model.h"
 #include "slideshow_controller.h"
 #include "slideshow_component.h"
+#include "photo_buffer_ownership.h"
 #include <string>
 #include <cstdint>
 #include <cstring>
@@ -17,6 +18,7 @@
 
 #ifdef USE_LVGL
 #include "esphome/components/image/image.h"
+#include "photo_buffer_lvgl.h"
 #endif
 
 // Shared helpers used from ESPHome YAML lambdas. Keeping this logic in C++ keeps
