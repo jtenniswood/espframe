@@ -181,7 +181,10 @@ def check_screen_rotation_metadata(product: dict, errors: list[str]) -> None:
         'initial_option: "${screen_rotation}"',
         "screen_apply_rotation",
         "developer_features_enabled",
-        "lvgl.display.set_rotation",
+        "id(espframe_core).apply_screen_rotation(",
+        "id(frame_lvgl)",
+        "mode: restart",
+        "delay: 100ms",
         "portrait_pairing_enabled",
         "immich_reapply_current_image_layout",
     ):
