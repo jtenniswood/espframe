@@ -48,35 +48,18 @@ script:
             - select.set:
                 id: screen_rotation_select
                 option: "0"
+      # One restartable delay replaces the four identical delayed continuations.
+      # The validation/select action above retains its existing reentrant behavior.
       - if:
           condition:
-            lambda: 'return id(screen_rotation_select).current_option() == "0";'
+            lambda: |-
+              const auto option = id(screen_rotation_select).current_option();
+              return option == "0" || option == "90" || option == "180" || option == "270";
           then:
-            - lvgl.display.set_rotation: ${screen_rotation_0}
-            - switch.turn_on: portrait_pairing_enabled
-            - delay: 100ms
-            - script.execute: immich_reapply_current_image_layout
-      - if:
-          condition:
-            lambda: 'return id(screen_rotation_select).current_option() == "90";'
-          then:
-            - lvgl.display.set_rotation: ${screen_rotation_90}
-            - switch.turn_off: portrait_pairing_enabled
-            - delay: 100ms
-            - script.execute: immich_reapply_current_image_layout
-      - if:
-          condition:
-            lambda: 'return id(screen_rotation_select).current_option() == "180";'
-          then:
-            - lvgl.display.set_rotation: ${screen_rotation_180}
-            - switch.turn_on: portrait_pairing_enabled
-            - delay: 100ms
-            - script.execute: immich_reapply_current_image_layout
-      - if:
-          condition:
-            lambda: 'return id(screen_rotation_select).current_option() == "270";'
-          then:
-            - lvgl.display.set_rotation: ${screen_rotation_270}
-            - switch.turn_off: portrait_pairing_enabled
+            - lambda: |-
+                id(espframe_core).apply_screen_rotation(
+                  id(screen_rotation_select).current_option(),
+                  {${screen_rotation_0}, ${screen_rotation_90}, ${screen_rotation_180}, ${screen_rotation_270}},
+                  id(frame_lvgl), id(portrait_pairing_enabled));
             - delay: 100ms
             - script.execute: immich_reapply_current_image_layout

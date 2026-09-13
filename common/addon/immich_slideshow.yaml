@@ -717,29 +717,30 @@ script:
     then:
       # Stop every API worker before clearing target_slot and request flags. Their
       # late callbacks read shared slideshow state and must not outlive recovery.
-      - script.stop: immich_fetch_memory_into_slot
-      - script.stop: immich_fetch_memory_window_day
-      - script.stop: immich_fetch_memory_asset
-      - script.stop: immich_fetch_metadata_into_slot
-      - script.stop: immich_fetch_album_count
-      - script.stop: immich_fetch_statistics_count
-      - script.stop: immich_fetch_metadata_page_probe
-      - script.stop: immich_fetch_metadata_page
-      - script.stop: immich_fetch_into_slot
-      - script.stop: immich_fetch_portrait_companion
-      - script.stop: delayed_prefetch_chain
-      - script.stop: deferred_companion_search
-      - script.stop: deferred_fetch_into_slot
-      - script.stop: deferred_rejected_slot_fetch
-      - script.stop: deferred_slot0_image_update
-      - script.stop: deferred_slot1_image_update
-      - script.stop: deferred_slot2_image_update
-      - script.stop: deferred_portrait_left_update
-      - script.stop: deferred_portrait_right_update
-      - script.stop: deferred_preload_left_update
-      - script.stop: deferred_preload_right_update
-      - script.stop: immich_fetch_retry
       - lambda: |-
+          id(espframe_core).stop_slideshow_workers(
+            id(immich_fetch_memory_into_slot),
+            id(immich_fetch_memory_window_day),
+            id(immich_fetch_memory_asset),
+            id(immich_fetch_metadata_into_slot),
+            id(immich_fetch_album_count),
+            id(immich_fetch_statistics_count),
+            id(immich_fetch_metadata_page_probe),
+            id(immich_fetch_metadata_page),
+            id(immich_fetch_into_slot),
+            id(immich_fetch_portrait_companion),
+            id(delayed_prefetch_chain),
+            id(deferred_companion_search),
+            id(deferred_fetch_into_slot),
+            id(deferred_rejected_slot_fetch),
+            id(deferred_slot0_image_update),
+            id(deferred_slot1_image_update),
+            id(deferred_slot2_image_update),
+            id(deferred_portrait_left_update),
+            id(deferred_portrait_right_update),
+            id(deferred_preload_left_update),
+            id(deferred_preload_right_update),
+            id(immich_fetch_retry));
           auto &state = id(espframe_core).slideshow().state();
           state.diagnostic_reason = "pipeline watchdog timeout";
           state.last_diagnostic_ms = 0;
