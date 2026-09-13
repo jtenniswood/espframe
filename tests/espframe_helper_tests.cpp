@@ -422,7 +422,9 @@ static void test_smart_filter_helpers() {
   assert(flat.find("\"filter\"") == std::string::npos);
   assert(immich_filter_location_is_valid(constrained));
   constrained.country.clear();
-  assert(!immich_filter_location_is_valid(constrained));
+  assert(immich_filter_location_is_valid(constrained));
+  constrained.state.clear();
+  assert(immich_filter_location_is_valid(constrained));
 
   ImmichFilterConfig combined;
   combined.albums_enabled = true;
@@ -532,12 +534,13 @@ static void test_smart_filter_helpers() {
   ImmichFilterBranch structured_any_person = select_immich_filter_branch(
       retry_any_person, retry_group_index, retry_album_index, "Random albums",
       ImmichApiGeneration::V32_STRUCTURED);
-  assert(split_valid_uuid_csv(structured_any_person.person_ids).size() == 1);
-  uint8_t empty_id_attempts = 0;
-  assert(retry_next_any_selected_id(
-      retry_any_person, ImmichApiGeneration::V32_STRUCTURED,
-      empty_id_attempts, structured_any_person));
   assert(structured_any_person.person_ids == retry_any_person.person_ids);
+  std::string structured_any_person_body = build_immich_filter_search_body(
+      retry_any_person, structured_any_person, ImmichApiGeneration::V32_STRUCTURED,
+      10, false);
+  assert(structured_any_person_body.find("\"personIds\":{\"any\":[\"" + person1 +
+                                         "\",\"" + excluded + "\"]}") != std::string::npos);
+  uint8_t empty_id_attempts = 0;
   assert(!retry_next_any_selected_id(
       retry_any_person, ImmichApiGeneration::V32_STRUCTURED,
       empty_id_attempts, structured_any_person));

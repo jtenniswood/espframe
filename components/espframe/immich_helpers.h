@@ -168,9 +168,9 @@ inline bool immich_filter_requires_v32(const ImmichFilterConfig &config) {
 }
 
 inline bool immich_filter_location_is_valid(const ImmichFilterConfig &config) {
-  if (!config.location_enabled) return true;
-  if (!config.city.empty() && (config.state.empty() || config.country.empty())) return false;
-  if (!config.state.empty() && config.country.empty()) return false;
+  // Immich treats country, state, and city as independent exact predicates.
+  // Do not impose a geographic hierarchy that the API does not require.
+  (void) config;
   return true;
 }
 
@@ -239,11 +239,12 @@ inline ImmichFilterBranch select_immich_filter_branch(const ImmichFilterConfig &
   const bool use_albums = branch.group == "All" || branch.group == "Album";
   const bool use_people = branch.group == "All" || branch.group == "Person";
   const bool use_tags = branch.group == "All" || branch.group == "Tag";
-  // Structured intersections retain each group's complete "any" set. Flat
-  // search cannot represent this for people/tags, so readiness rejects those
-  // compound configurations before branch selection reaches this point.
-  const bool preserve_any_ids = branch.group == "All" &&
-      generation == ImmichApiGeneration::V32_STRUCTURED;
+  // Structured search can represent the complete "any" set. Preserve it for
+  // every structured branch except album-list ordering, which intentionally
+  // samples one album at a time in the configured order.
+  const bool preserve_any_ids = generation == ImmichApiGeneration::V32_STRUCTURED &&
+      (branch.group == "All" || branch.group == "Person" || branch.group == "Tag" ||
+       (branch.group == "Album" && album_order != "Album list order"));
   if (use_albums && config.albums_enabled) {
     if (immich_matching_is_all(config.album_matching) || preserve_any_ids) {
       branch.album_ids = valid_uuid_csv(config.album_ids);

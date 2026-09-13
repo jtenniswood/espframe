@@ -24,8 +24,8 @@ Open the device web UI at `http://<device-ip>/` and use **Photo Filter**. Start 
 | **Favorites** | Any | Select | Include any photo, require favorites, or exclude favorites. |
 | **Minimum Rating** | Any | Select | Require at least the selected Immich rating; available with Immich 3.2 or newer. |
 | **Country** |  | Exact text, up to 96 characters | Require an exact Immich country value. |
-| **State or Province** |  | Exact text, up to 96 characters | Require an exact state or province; country must also be set. |
-| **City** |  | Exact text, up to 96 characters | Require an exact city; country and state or province must also be set. |
+| **State or Province** |  | Exact text, up to 96 characters | Require an exact state or province value. |
+| **City** |  | Exact text, up to 96 characters | Require an exact city value. |
 | **Album Order** | Random albums | Select | Choose whether multiple albums are sampled randomly or cycled in the order shown in the Albums list. |
 <!-- ESPFRAME:SETTINGS_TABLE source END -->
 

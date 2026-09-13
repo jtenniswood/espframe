@@ -3206,7 +3206,7 @@
       "default": "",
       "maxLength": 96,
       "docs_format": "Exact text, up to 96 characters",
-      "docs_description": "Require an exact state or province; country must also be set.",
+      "docs_description": "Require an exact state or province value.",
       "firmware_files": [
         "common/addon/immich_filter.yaml"
       ],
@@ -3223,7 +3223,7 @@
       "default": "",
       "maxLength": 96,
       "docs_format": "Exact text, up to 96 characters",
-      "docs_description": "Require an exact city; country and state or province must also be set.",
+      "docs_description": "Require an exact city value.",
       "firmware_files": [
         "common/addon/immich_filter.yaml"
       ],

@@ -392,9 +392,7 @@ script:
     then:
       - http_request.get:
           id: http_req
-          # Immich v1 returned every asset unless this query was supplied;
-          # current versions ignore it because album info no longer embeds assets.
-          url: !lambda 'return id(immich_url).state + "/api/albums/" + id(immich_request_state).metadata_album_id + "?withoutAssets=true";'
+          url: !lambda 'return id(immich_url).state + "/api/albums/" + id(immich_request_state).metadata_album_id;'
           capture_response: true
           max_response_buffer_size: 24kB
           request_headers:

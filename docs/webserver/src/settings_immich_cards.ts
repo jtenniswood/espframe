@@ -328,20 +328,13 @@
       onChange: function (value) { applySetting("location_enabled", value); }
     });
     body.appendChild(locationRow.field);
-    [["Country", "filter_country"], ["State / Province", "filter_state"], ["City", "filter_city"]].forEach(function (spec, index) {
+    [["Country", "filter_country"], ["State / Province", "filter_state"], ["City", "filter_city"]].forEach(function (spec) {
       var f = field(spec[0]);
       var inputEl = input("text", S[spec[1]] || "", "Exact Immich value", productTextMaxLength(spec[1], 96));
       var hint = el("div", "setting-hint");
-      if (index === 1) hint.textContent = "Enter a country first.";
-      if (index === 2) hint.textContent = "Enter a country and state or province first.";
       var timer = null;
       inputEl.oninput = function () {
         var nextValue = inputEl.value.trim();
-        var parentValue = index === 1 ? S.filter_country : S.filter_state;
-        if (nextValue && index > 0 && !String(parentValue || "").trim()) {
-          inputEl.setCustomValidity(index === 1 ? "Enter a country first" : "Enter a state or province first");
-          return;
-        }
         inputEl.setCustomValidity("");
         clearTimeout(timer);
         timer = setTimeout(function () { S[spec[1]] = nextValue; applySetting(spec[1], nextValue); }, 600);
