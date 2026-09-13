@@ -175,6 +175,7 @@ Main component class: `esphome::remote_image::OnlineImage`. Inherits `PollingCom
 | `set_url(const std::string &url)` | Set download URL. Validates scheme; clears ETag/Last-Modified only when the URL changes. |
 | `add_request_header(name, value)` | Add an HTTP request header (templatable value). |
 | `set_placeholder(image::Image *placeholder)` | Image to show until the download is ready. |
+| `get_buffer_capacity()` | Retained decoded allocation in bytes, including incomplete images. |
 | `release()` | Free the decoded buffer; image must be re-downloaded to show again. |
 | `resize_download_buffer(size_t size)` | Resize the download buffer; returns new size. |
 | `add_on_finished_callback(std::function<void(bool)> &&cb)` | Called when download finishes; argument is `cached`. |

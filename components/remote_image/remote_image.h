@@ -103,6 +103,9 @@ class OnlineImage : public PollingComponent,
    */
   void release();
 
+  // Decoded allocation capacity, including buffers from an aborted decode.
+  size_t get_buffer_capacity() const { return this->buffer_ == nullptr ? 0 : this->get_buffer_size_(); }
+
   /**
    * Abort an in-progress download without freeing the decoded pixel buffer.
    * Clears the decoder and HTTP connection so a fresh update() can proceed.
