@@ -692,79 +692,39 @@ script:
   - id: immich_fetch_into_slot
     mode: single
     then:
-      - if:
-          condition:
-            not:
-              wifi.connected:
-          then:
-            - logger.log:
-                level: DEBUG
-                tag: immich
-                format: "Fetch paused (wifi disconnected)"
-            - script.stop: immich_fetch_into_slot
-      - if:
-          condition:
-            lambda: 'return id(immich_url).state.empty() || id(immich_api_key_text).state.empty();'
-          then:
-            - logger.log:
-                level: WARN
-                tag: immich
-                format: "Immich URL or API key not configured"
-            - script.stop: immich_fetch_into_slot
-      - if:
-          condition:
-            lambda: 'return id(backlight_paused);'
-          then:
-            - logger.log:
-                level: INFO
-                tag: immich
-                format: "Fetch paused (backlight off)"
-            - script.stop: immich_fetch_into_slot
-      - if:
-          condition:
-            lambda: 'return id(immich_request_state).cooldown_active(millis());'
-          then:
-            - logger.log:
-                level: DEBUG
-                tag: immich
-                format: "Fetch paused (connection retry cooldown)"
-            - script.stop: immich_fetch_into_slot
-      - if:
-          condition:
-            lambda: 'return id(espframe_core).slideshow().state().target_slot != id(espframe_core).slideshow().state().active_slot && id(espframe_core).slideshow().state().portrait.workflow_busy;'
-          then:
-            - script.execute: delayed_prefetch_chain
-            - script.stop: immich_fetch_into_slot
-      - if:
-          condition:
-            lambda: 'return any_slot_fetch_in_flight(id(espframe_core).slideshow().state().slot_flags) && !id(espframe_core).slideshow().state().slot_flags.fetch_in_flight[id(espframe_core).slideshow().state().target_slot];'
-          then:
-            - script.execute: delayed_prefetch_chain
-            - script.stop: immich_fetch_into_slot
-      - if:
-          condition:
-            lambda: 'return id(espframe_core).slideshow().state().slot_flags.fetch_in_flight[id(espframe_core).slideshow().state().target_slot];'
-          then:
-            - lambda: |-
-                ESP_LOGD("immich", "Slot %d fetch already in flight, skipping API fetch", id(espframe_core).slideshow().state().target_slot);
-            - script.stop: immich_fetch_into_slot
-      - if:
-          condition:
-            lambda: |-
-              return id(immich_img_0).is_downloading() ||
-                     id(immich_img_1).is_downloading() ||
-                     id(immich_img_2).is_downloading() ||
-                     id(immich_portrait_left).is_downloading() ||
-                     id(immich_portrait_right).is_downloading() ||
-                     id(immich_portrait_preload_left).is_downloading() ||
-                     id(immich_portrait_preload_right).is_downloading();
-          then:
-            - logger.log:
-                level: DEBUG
-                tag: immich
-                format: "Fetch deferred (image download active)"
-            - script.execute: delayed_prefetch_chain
-            - script.stop: immich_fetch_into_slot
+      - lambda: |-
+          using esphome::espframe::SlotFetchDecision;
+          const auto decision = id(espframe_core).check_slot_fetch(
+            esphome::wifi::global_wifi_component->is_connected(),
+            !id(immich_url).state.empty() && !id(immich_api_key_text).state.empty(),
+            id(backlight_paused), id(immich_request_state).cooldown_active(millis()),
+            id(immich_img_0).is_downloading() || id(immich_img_1).is_downloading() ||
+            id(immich_img_2).is_downloading() || id(immich_portrait_left).is_downloading() ||
+            id(immich_portrait_right).is_downloading() || id(immich_portrait_preload_left).is_downloading() ||
+            id(immich_portrait_preload_right).is_downloading());
+          if (decision == SlotFetchDecision::ALLOW) return;
+          switch (decision) {
+            case SlotFetchDecision::WIFI_DISCONNECTED:
+              ESP_LOGD("immich", "Fetch paused (wifi disconnected)"); break;
+            case SlotFetchDecision::MISSING_CONFIG:
+              ESP_LOGW("immich", "Immich URL or API key not configured"); break;
+            case SlotFetchDecision::PAUSED:
+              ESP_LOGI("immich", "Fetch paused (backlight off)"); break;
+            case SlotFetchDecision::COOLDOWN:
+              ESP_LOGD("immich", "Fetch paused (connection retry cooldown)"); break;
+            case SlotFetchDecision::SLOT_BUSY:
+              ESP_LOGD("immich", "Slot %d fetch already in flight, skipping API fetch",
+                       id(espframe_core).slideshow().state().target_slot); break;
+            case SlotFetchDecision::IMAGE_BUSY:
+              ESP_LOGD("immich", "Fetch deferred (image download active)"); break;
+            case SlotFetchDecision::INVALID_SLOT:
+              ESP_LOGW("immich", "Fetch paused (invalid target slot)"); break;
+            default: break;
+          }
+          if (esphome::espframe::slot_fetch_needs_defer(decision)) id(delayed_prefetch_chain).execute();
+          // Stopping this script suppresses all subsequent actions, including
+          // marking a slot busy. Returning from a lambda alone would not.
+          id(immich_fetch_into_slot).stop();
       - lambda: 'mark_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags, millis());'
       - script.execute: sync_immich_filter_config
       - delay: 1ms
