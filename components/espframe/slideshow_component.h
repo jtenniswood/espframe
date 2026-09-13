@@ -38,9 +38,12 @@ enum SlideshowCommandKind : uint8_t {
 
 struct SlideshowCommand {
   SlideshowCommandKind kind = SLIDESHOW_COMMAND_NONE;
-  int slot = -1;
+  // Ring-buffer slots are -1 (none), 0, 1 or 2.
+  int8_t slot = -1;
   uint32_t delay_ms = 0;
 };
+
+static_assert(sizeof(SlideshowCommand) == 8, "Keep the command queue compact");
 
 class SlideshowCommandQueue {
  public:

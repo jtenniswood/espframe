@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from product_config import github_workflow_metadata, release_matrix_devices
@@ -15,10 +16,21 @@ ROOT = Path(__file__).resolve().parent.parent
 TEST_FIRMWARE_VERSION = "v0.0.0"
 
 
-def run(command: list[str], label: str) -> bool:
-    print(f"[RUN] {label}")
-    result = subprocess.run(command)
-    if result.returncode != 0:
+def run(command: list[str], label: str, log_path: Path | None = None) -> bool:
+    print(f"[RUN] {label}", flush=True)
+    if log_path is None:
+        returncode = subprocess.run(command).returncode
+    else:
+        # ESPHome writes its size report to stderr. Stream and retain both
+        # streams so the same RAM/flash checks as CI see the complete report.
+        with log_path.open("w") as log, subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        ) as process:
+            for line in process.stdout:
+                print(line, end="", flush=True)
+                log.write(line)
+            returncode = process.wait()
+    if returncode != 0:
         print(f"[FAIL] {label}")
         return False
     print(f"[PASS] {label}")
@@ -90,49 +102,31 @@ def compile_firmware() -> bool:
         # subdirectory; PlatformIO's former .pioenvs directory is no longer
         # created.
         build_dir = ROOT / cache_dir / "build" / build_name / "build"
-        factory_command = esphome_compile_command(
-            image,
-            version,
-            mount,
-            remove_flag,
-            f"{mount}/builds/{device['yaml']}.factory.yaml",
-        )
-        checks.append(run(factory_command, f"ESPHome factory compile ({device['slug']})"))
-        checks.append(
-            run(
-                [
-                    sys.executable,
-                    str(ROOT / "scripts" / "check_build_budgets.py"),
-                    "--profile",
-                    "factory",
-                    "--binary",
-                    str(build_dir / "firmware.factory.bin"),
-                ],
-                f"Firmware factory budget ({device['slug']})",
+        for profile, suffix, compile_label in (
+            ("factory", ".factory.yaml", "ESPHome factory compile"),
+            ("ota", ".yaml", "ESPHome OTA compile"),
+        ):
+            profile_label = "OTA" if profile == "ota" else "factory"
+            command = esphome_compile_command(
+                image, version, mount, remove_flag,
+                f"{mount}/builds/{device['yaml']}{suffix}",
             )
-        )
-
-        ota_command = esphome_compile_command(
-            image,
-            version,
-            mount,
-            remove_flag,
-            f"{mount}/builds/{device['yaml']}.yaml",
-        )
-        checks.append(run(ota_command, f"ESPHome OTA compile ({device['slug']})"))
-        checks.append(
-            run(
-                [
-                    sys.executable,
-                    str(ROOT / "scripts" / "check_build_budgets.py"),
-                    "--profile",
-                    "ota",
-                    "--binary",
-                    str(build_dir / "firmware.ota.bin"),
-                ],
-                f"Firmware OTA budget ({device['slug']})",
-            )
-        )
+            with tempfile.TemporaryDirectory(prefix="espframe-compile-") as log_dir:
+                log_path = Path(log_dir) / f"{device['slug']}.{profile}.log"
+                compiled = run(command, f"{compile_label} ({device['slug']})", log_path)
+                checks.append(compiled)
+                if not compiled:
+                    continue
+                checks.append(run(
+                    [
+                        sys.executable,
+                        str(ROOT / "scripts" / "check_build_budgets.py"),
+                        "--compile-log", str(log_path),
+                        "--profile", profile,
+                        "--binary", str(build_dir / f"firmware.{profile}.bin"),
+                    ],
+                    f"Firmware {profile_label} budget ({device['slug']})",
+                ))
     return all(checks)
 
 

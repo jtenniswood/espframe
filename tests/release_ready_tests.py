@@ -6,6 +6,9 @@ from __future__ import annotations
 import contextlib
 import io
 import sys
+import subprocess
+import tempfile
+from unittest.mock import patch
 from pathlib import Path
 
 
@@ -32,7 +35,13 @@ def test_compile_firmware_runs_versioned_factory_and_ota_commands() -> None:
     original_devices = check_release_ready.release_matrix_devices
     original_run = check_release_ready.run
 
-    def fake_run(command: list[str], label: str) -> bool:
+    def fake_run(command: list[str], label: str, log_path: Path | None = None) -> bool:
+        if "compile" in command:
+            assert log_path is not None
+            log_path.write_text("RAM: used 137060 bytes from 571392 bytes\n")
+        else:
+            assert "--compile-log" in command
+            assert "137060" in Path(command[command.index("--compile-log") + 1]).read_text()
         captured.append((label, command))
         return True
 
@@ -91,6 +100,53 @@ def test_compile_firmware_rejects_missing_metadata() -> None:
     finally:
         check_release_ready.github_workflow_metadata = original_metadata
         check_release_ready.run = original_run
+
+
+def test_run_captures_stderr_and_preserves_failure() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        log = Path(directory) / "compile.log"
+        with contextlib.redirect_stdout(io.StringIO()):
+            assert not check_release_ready.run(
+                [sys.executable, "-c", "import sys; print('size report', file=sys.stderr); sys.exit(7)"],
+                "failed compile", log,
+            )
+        assert "size report" in log.read_text()
+
+
+def test_compile_firmware_rejects_ram_over_budget() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        binary = Path(directory) / "firmware.bin"
+        binary.write_bytes(b"test")
+
+        def fake_compile(command, label, log_path=None):
+            if log_path is not None:
+                log_path.write_text(
+                    "RAM: [==        ] 23.9% (used 137060 bytes from 573440 bytes)\n"
+                    "Flash: [===       ] 30.0% (used 2500000 bytes from 8388608 bytes)\n"
+                )
+                return True
+            command = list(command)
+            command[command.index("--binary") + 1] = str(binary)
+            result = subprocess.run(command, capture_output=True, text=True)
+            assert "ram_used_bytes is 137060, over budget 137000" in result.stderr
+            assert result.returncode == 1
+            return result.returncode == 0
+
+        with patch.object(check_release_ready, "run", fake_compile):
+            assert not check_release_ready.compile_firmware()
+
+
+def test_failed_compile_skips_budget_checks_for_stale_binaries() -> None:
+    commands = []
+
+    def fail_compile(command, label, log_path=None):
+        commands.append(command)
+        assert log_path is not None
+        return False
+
+    with patch.object(check_release_ready, "run", fail_compile):
+        assert not check_release_ready.compile_firmware()
+    assert len(commands) == 2 * len(check_release_ready.release_matrix_devices())
 
 
 def main() -> int:
