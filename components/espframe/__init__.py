@@ -2,6 +2,7 @@
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome.const import CONF_ID, CONF_SETUP_PRIORITY
 from esphome.core import CORE
 
@@ -26,6 +27,19 @@ CONFIG_SCHEMA = cv.Schema(
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
+
+def validate_lvgl_priority(config):
+    # The allocation window is pinned to LVGL's default PROCESSOR priority.
+    for lvgl in fv.full_config.get().get("lvgl", []):
+        if lvgl.get(CONF_SETUP_PRIORITY, 400.0) != 400.0:
+            raise cv.Invalid(
+                "espframe requires lvgl.setup_priority to remain at 400 so its "
+                "PSRAM allocation probes bracket LVGL setup"
+            )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = validate_lvgl_priority
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

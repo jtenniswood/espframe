@@ -26,6 +26,7 @@ class MemoryCodegenTests(unittest.TestCase):
                         "esphome": types.ModuleType("esphome"),
                         "esphome.codegen": cg,
                         "esphome.config_validation": MagicMock(),
+                        "esphome.final_validate": MagicMock(),
                         "esphome.const": const,
                         "esphome.core": core,
                     }
@@ -50,6 +51,33 @@ class MemoryCodegenTests(unittest.TestCase):
                     else:
                         cg.add_build_flag.assert_not_called()
                     self.assertEqual(config["setup_priority"], 500)
+
+    def test_lvgl_priority_validation(self):
+        cv = MagicMock()
+        cv.Invalid = ValueError
+        fv = MagicMock()
+        const = types.ModuleType("esphome.const")
+        const.CONF_ID = "id"
+        const.CONF_SETUP_PRIORITY = "setup_priority"
+        modules = {
+            "esphome": types.ModuleType("esphome"),
+            "esphome.codegen": MagicMock(),
+            "esphome.config_validation": cv,
+            "esphome.final_validate": fv,
+            "esphome.const": const,
+            "esphome.core": MagicMock(),
+        }
+        with patch.dict(sys.modules, modules):
+            component = runpy.run_path(str(ROOT / "components/espframe/__init__.py"))
+            validate = component["FINAL_VALIDATE_SCHEMA"]
+            config = {"setup_priority": 500}
+            for full in ({}, {"lvgl": [{}]}, {"lvgl": [{"setup_priority": 400}]}):
+                fv.full_config.get.return_value = full
+                self.assertIs(validate(config), config)
+            for priority in (399, 401, 500, 100):
+                fv.full_config.get.return_value = {"lvgl": [{}, {"setup_priority": priority}]}
+                with self.assertRaisesRegex(ValueError, "lvgl.setup_priority.*400"):
+                    validate(config)
 
 
 if __name__ == "__main__":
