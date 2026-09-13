@@ -30,7 +30,10 @@ CONFIG_SCHEMA = cv.Schema(
 
 def validate_lvgl_priority(config):
     # The allocation window is pinned to LVGL's default PROCESSOR priority.
-    for lvgl in fv.full_config.get().get("lvgl", []):
+    full_config = fv.full_config.get()
+    if "psram" not in full_config:
+        return config
+    for lvgl in full_config.get("lvgl", []):
         if lvgl.get(CONF_SETUP_PRIORITY, 400.0) != 400.0:
             raise cv.Invalid(
                 "espframe requires lvgl.setup_priority to remain at 400 so its "
@@ -50,7 +53,7 @@ async def to_code(config):
 
     if config[CONF_MEMORY_DIAGNOSTICS]:
         cg.add_define("ESPFRAME_MEMORY_DIAGNOSTICS")
-    if "lvgl" not in CORE.config:
+    if "lvgl" not in CORE.config or "psram" not in CORE.config:
         return
 
     cg.add_build_flag("-Wl,--wrap=heap_caps_aligned_alloc")

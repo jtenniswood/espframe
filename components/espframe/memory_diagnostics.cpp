@@ -1,6 +1,6 @@
 #include "memory_diagnostics.h"
 
-#ifdef USE_LVGL
+#if defined(USE_LVGL) && defined(USE_PSRAM)
 #include <atomic>
 #include "esphome/components/lvgl/lvgl_esphome.h"
 #include "esphome/core/log.h"
@@ -106,7 +106,7 @@ extern "C" void *__wrap_heap_caps_aligned_alloc(size_t alignment, size_t size, u
   return ptr;
 }
 
-#endif  // USE_LVGL
+#endif  // USE_LVGL && USE_PSRAM
 
 #ifdef ESPFRAME_MEMORY_DIAGNOSTICS
 #include "esphome/core/log.h"

@@ -204,7 +204,9 @@ tasks, and allocations outside this setup window are preserved. Allocation
 failure is returned to LVGL's existing setup failure handling; there is no
 internal-RAM fallback. Review the setup ordering and allocator call when upgrading
 ESPHome 2026.8.2. Do not add unrelated components in this priority window.
-Configurations overriding `lvgl.setup_priority` to anything other than 400 are
+The allocation policy and probes are enabled only when both LVGL and PSRAM are
+configured. Helper configurations without PSRAM retain LVGL's existing allocator.
+With the policy enabled, configurations overriding `lvgl.setup_priority` to anything other than 400 are
 rejected during validation to prevent silently bypassing the allocation policy.
 The parent `espframe.setup_priority` can still be overridden independently.
 
