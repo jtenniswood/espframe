@@ -1058,6 +1058,27 @@ script:
     then:
       - lambda: |-
           if (id(photo_source_menu_open)) return;
+          // Reclaim only at a quiescent scheduling boundary, before starting
+          // another fetch. A ready pair or a live LVGL source remains owned.
+          auto &slideshow = id(espframe_core).slideshow();
+          const bool pending_portrait_actions =
+            id(deferred_portrait_left_update).is_running() || id(deferred_portrait_right_update).is_running() ||
+            id(deferred_preload_left_update).is_running() || id(deferred_preload_right_update).is_running() ||
+            id(deferred_companion_search).is_running() || id(immich_fetch_portrait_companion).is_running() ||
+            id(immich_start_portrait_active).is_running();
+          const auto owners = esphome::espframe::portrait_buffer_owners(
+            slideshow.state(), pending_portrait_actions, slideshow.has_command(),
+            lv_obj_has_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN));
+          PortraitBufferBindings bindings{id(portrait_left_img), id(portrait_right_img)};
+          const auto reclaimed = esphome::espframe::reclaim_portrait_buffers(
+            owners, std::array<esphome::remote_image::OnlineImage *, 4>{
+              id(immich_portrait_left), id(immich_portrait_right),
+              id(immich_portrait_preload_left), id(immich_portrait_preload_right)}, bindings);
+          if (reclaimed.released_bytes != 0) {
+            ESP_LOGI("photo-buffer", "released=%u portrait_retained=%u",
+                     (unsigned) reclaimed.released_bytes, (unsigned) reclaimed.retained_bytes);
+            id(espframe_core).record_memory("portrait-reclaimed");
+          }
           id(espframe_core).slideshow().request_prefetch(
             id(backlight_paused),
             id(immich_request_state).cooldown_active(millis()),
