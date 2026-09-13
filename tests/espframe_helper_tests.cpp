@@ -1687,7 +1687,41 @@ static void test_filter_invalidation_preserves_display_and_clears_work() {
   assert(state.noncritical_remote_updates_in_flight == 0);
 }
 
+static void test_structured_companion_pagination() {
+  SlideshowRuntimeState state;
+  assert(state.advance_portrait_search(0, "", true, 1));
+  assert(state.portrait_search_exhaustive && !state.portrait_search_expanded);
+  assert(state.advance_portrait_search(0, "opaque-page-2", true, 1));
+  assert(state.portrait_search_cursor == "opaque-page-2");
+  assert(state.advance_portrait_search(0, "opaque-page-3", true, 1));
+  assert(state.advance_portrait_search(0, "", true, 1));
+  assert(state.portrait_search_expanded && state.portrait_search_cursor.empty());
+  assert(state.advance_portrait_search(0, "expanded-page-2", true, 1));
+  assert(!state.advance_portrait_search(0, "expanded-page-2", true, 1));
+  state.reset();
+  assert(state.portrait_search_cursor.empty());
+  assert(state.advance_portrait_search(0, "", false, 0));
+  assert(state.advance_portrait_search(2, "ignored", false, 0));
+  assert(state.portrait_search_page == 2 && state.portrait_search_cursor.empty());
+  assert(!state.advance_portrait_search(0, "ignored", false, 0));
+  ImmichFilterConfig config;
+  ImmichFilterBranch branch;
+  const std::string cursor = "opaque\"cursor";
+  auto structured = build_immich_filter_search_body(
+      config, branch, ImmichApiGeneration::V32_STRUCTURED, 20, false, true, 3, cursor);
+  assert(structured.find("\"cursor\":\"opaque\\\"cursor\"") != std::string::npos);
+  assert(structured.find("\"page\"") == std::string::npos);
+  auto legacy = build_immich_filter_search_body(
+      config, branch, ImmichApiGeneration::V31_FLAT, 20, false, true, 3, cursor);
+  assert(legacy.find("\"page\":3") != std::string::npos);
+  assert(legacy.find("\"cursor\"") == std::string::npos);
+  auto random = build_immich_filter_search_body(
+      config, branch, ImmichApiGeneration::V32_STRUCTURED, 20, false, false, 3, cursor);
+  assert(random.find("\"cursor\"") == std::string::npos);
+}
+
 int main() {
+  test_structured_companion_pagination();
   test_memory_pressure_prefetch();
   test_filter_invalidation_preserves_display_and_clears_work();
   test_date_and_url_helpers();

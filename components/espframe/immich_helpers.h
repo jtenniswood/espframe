@@ -319,13 +319,16 @@ inline void immich_append_json_field(std::string &body, bool &has_field,
 inline std::string build_immich_filter_search_body(
     const ImmichFilterConfig &config, const ImmichFilterBranch &branch,
     ImmichApiGeneration generation, uint16_t size, bool with_people,
-    bool metadata_search = false, uint32_t page = 1) {
+    bool metadata_search = false, uint32_t page = 1, const std::string &cursor = "") {
   if (size == 0) size = 1;
   if (page == 0) page = 1;
   std::string body = "{";
   bool root_field = false;
   if (metadata_search && generation == ImmichApiGeneration::V31_FLAT) {
     immich_append_json_field(body, root_field, "page", std::to_string(page));
+  }
+  if (metadata_search && generation == ImmichApiGeneration::V32_STRUCTURED && !cursor.empty()) {
+    immich_append_json_field(body, root_field, "cursor", "\"" + immich_json_escape(cursor) + "\"");
   }
   immich_append_json_field(body, root_field, "size", std::to_string(size));
   immich_append_json_field(body, root_field, "withExif", "true");
@@ -1241,8 +1244,9 @@ inline bool retry_empty_immich_metadata_page(ImmichRequestState &state) {
 }
 
 inline bool immich_source_uses_metadata_search(const std::string &photo_source) {
-  // Album metadata search is retained because, unlike random search, Immich
-  // authorizes the album first and can include assets contributed by others.
+  // Legacy flat album metadata search authorizes the album first and includes
+  // other contributors. Structured 3.2+ random search uses the same authorized
+  // search scope as structured metadata search; this legacy rule does not apply.
   return photo_source == "Album";
 }
 
@@ -1740,10 +1744,19 @@ inline std::string find_immich_portrait_companion_url(const std::string &body,
                                                       const std::string &base_url,
                                                       const std::string &primary_asset_id,
                                                       const std::string &primary_datetime = "",
-                                                      uint32_t *next_page = nullptr) {
+                                                      uint32_t *next_page = nullptr,
+                                                      std::string *next_cursor = nullptr) {
   if (next_page != nullptr) *next_page = 0;
+  if (next_cursor != nullptr) next_cursor->clear();
   auto doc = esphome::json::parse_json(body);
   if (doc.isNull()) return "";
+
+  if (next_cursor != nullptr && doc.is<JsonObject>()) {
+    JsonObject assets = doc.as<JsonObject>()["assets"].as<JsonObject>();
+    if (!assets.isNull() && assets["nextCursor"].is<const char *>()) {
+      *next_cursor = assets["nextCursor"].as<std::string>();
+    }
+  }
 
   if (next_page != nullptr && doc.is<JsonObject>()) {
     JsonObject assets = doc.as<JsonObject>()["assets"].as<JsonObject>();

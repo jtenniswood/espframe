@@ -23,6 +23,27 @@ int main() {
     return find_immich_portrait_companion_url(body, base, "primary", date, next);
   };
   const std::string suffix = "/thumbnail?size=preview";
+  // A full first page can miss a companion that exists on a later cursor page.
+  std::string first_page = "{\"assets\":{\"nextCursor\":\"opaque-page-2\",\"items\":[";
+  for (int i = 0; i < 20; ++i) {
+    if (i) first_page += ",";
+    first_page += "{\"id\":\"landscape-" + std::to_string(i) + "\",\"width\":200,\"height\":100}";
+  }
+  first_page += "]}}";
+  std::string cursor;
+  uint32_t page = 99;
+  assert(find_immich_portrait_companion_url(first_page, base, "primary", "", &page, &cursor).empty());
+  assert(page == 0 && cursor == "opaque-page-2");
+  const std::string second_page = "{\"assets\":{\"nextCursor\":null,\"items\":" + candidates + "}}";
+  assert(!find_immich_portrait_companion_url(second_page, base, "primary", "", &page, &cursor).empty());
+  assert(cursor.empty());
+  for (const auto *invalid_cursor : {"42", "null", "{}"}) {
+    cursor = "stale";
+    find_immich_portrait_companion_url(std::string("{\"assets\":{\"items\":[],\"nextCursor\":") + invalid_cursor + "}}",
+                                     base, "primary", "", nullptr, &cursor);
+    assert(cursor.empty());
+  }
+
   // Skip self/landscape, prefer a valid timestamp, and retain the first equal-distance match.
   assert(companion(candidates, "2026-04-21T12:00:00") == base + "/api/assets/before" + suffix);
   assert(companion(candidates, "invalid") == base + "/api/assets/unknown-date" + suffix);

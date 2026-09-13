@@ -392,7 +392,7 @@ script:
     then:
       - http_request.get:
           id: http_req
-          url: !lambda 'return id(immich_url).state + "/api/albums/" + id(immich_request_state).metadata_album_id;'
+          url: !lambda 'return id(immich_url).state + "/api/albums/" + id(immich_request_state).metadata_album_id + "?withoutAssets=true";'
           capture_response: true
           max_response_buffer_size: 24kB
           request_headers:
@@ -1108,7 +1108,8 @@ script:
               companion_config, companion_branch, id(immich_request_state).api_generation,
               IMMICH_COMPANION_SEARCH_SIZE, false,
               id(espframe_core).slideshow().state().portrait_search_exhaustive,
-              id(espframe_core).slideshow().state().portrait_search_page);
+              id(espframe_core).slideshow().state().portrait_search_page,
+              id(espframe_core).slideshow().state().portrait_search_cursor);
           on_response:
             then:
               - lambda: |-
@@ -1125,33 +1126,19 @@ script:
                     return;
                   }
                   uint32_t next_page = 0;
+                  std::string next_cursor;
                   std::string companion_url = find_immich_portrait_companion_url(
                     body, id(immich_url).state, id(espframe_core).slideshow().state().portrait_primary_asset_id,
                     id(espframe_core).slideshow().state().portrait_search_datetime,
-                    id(espframe_core).slideshow().state().portrait_search_exhaustive ? &next_page : nullptr);
+                    id(espframe_core).slideshow().state().portrait_search_exhaustive ? &next_page : nullptr,
+                    id(espframe_core).slideshow().state().portrait_search_exhaustive ? &next_cursor : nullptr);
 
                   if (companion_url.empty()) {
-                    if (id(espframe_core).slideshow().state().portrait_search_exhaustive &&
-                        next_page > id(espframe_core).slideshow().state().portrait_search_page) {
-                      id(espframe_core).slideshow().state().portrait_search_page = next_page;
-                      ESP_LOGD("immich", "No portrait on companion metadata page; continuing with page %u",
-                               (unsigned) next_page);
-                      id(deferred_companion_search).execute();
-                      return;
-                    }
-                    if (!id(espframe_core).slideshow().state().portrait_search_exhaustive &&
-                        id(immich_request_state).api_generation == ImmichApiGeneration::V31_FLAT) {
-                      id(espframe_core).slideshow().state().portrait_search_exhaustive = true;
-                      id(espframe_core).slideshow().state().portrait_search_page = 1;
-                      ESP_LOGD("immich", "Random same-day sample missed; scanning same-day metadata pages");
-                      id(deferred_companion_search).execute();
-                      return;
-                    }
-                    int configured_range_days = portrait_pairing_range_days(id(portrait_pairing_range).current_option());
-                    if (!id(espframe_core).slideshow().state().portrait_search_expanded && configured_range_days > 0) {
-                      id(espframe_core).slideshow().state().portrait_search_expanded = true;
-                      id(espframe_core).slideshow().state().portrait_search_page = 1;
-                      ESP_LOGD("immich", "No same-day companion; scanning +/- %d day metadata pages", configured_range_days);
+                    if (id(espframe_core).slideshow().state().advance_portrait_search(
+                          next_page, next_cursor,
+                          id(immich_request_state).api_generation == ImmichApiGeneration::V32_STRUCTURED,
+                          portrait_pairing_range_days(id(portrait_pairing_range).current_option()))) {
+                      ESP_LOGD("immich", "Continuing exhaustive companion metadata search");
                       id(deferred_companion_search).execute();
                       return;
                     }

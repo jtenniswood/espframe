@@ -124,8 +124,37 @@ struct SlideshowRuntimeState {
   bool portrait_search_expanded = false;
   bool portrait_search_exhaustive = false;
   uint32_t portrait_search_page = 1;
+  std::string portrait_search_cursor;
   uint32_t portrait_search_generation = 0;
   uint32_t portrait_search_request_generation = 0;
+
+  // Continue the current date window before widening it. Cursors are opaque;
+  // only structured metadata requests use them, and each window starts fresh.
+  bool advance_portrait_search(uint32_t next_page, const std::string &next_cursor,
+                               bool structured, int range_days) {
+    if (portrait_search_exhaustive) {
+      if (structured && !next_cursor.empty() && next_cursor != portrait_search_cursor) {
+        portrait_search_cursor = next_cursor;
+        return true;
+      }
+      if (!structured && next_page > portrait_search_page) {
+        portrait_search_page = next_page;
+        return true;
+      }
+    } else {
+      portrait_search_exhaustive = true;
+      portrait_search_page = 1;
+      portrait_search_cursor.clear();
+      return true;
+    }
+    if (!portrait_search_expanded && range_days > 0) {
+      portrait_search_expanded = true;
+      portrait_search_page = 1;
+      portrait_search_cursor.clear();
+      return true;
+    }
+    return false;
+  }
 
   void reset() { *this = SlideshowRuntimeState{}; }
 
@@ -223,6 +252,7 @@ class EspFrameSlideshow {
       this->state_.portrait_search_expanded = false;
       this->state_.portrait_search_exhaustive = false;
       this->state_.portrait_search_page = 1;
+      this->state_.portrait_search_cursor.clear();
       this->state_.portrait_search_generation++;
     }
     this->emit_action(action, slot);
@@ -274,6 +304,7 @@ class EspFrameSlideshow {
     portrait_search_expanded = false;
     this->state_.portrait_search_exhaustive = false;
     this->state_.portrait_search_page = 1;
+    this->state_.portrait_search_cursor.clear();
     this->state_.portrait_search_generation++;
     this->emit_command(SLIDESHOW_COMMAND_DEFER_COMPANION_SEARCH, active_slot, 200);
     return true;
@@ -645,6 +676,7 @@ class EspFrameSlideshow {
     this->state_.portrait_search_expanded = false;
     this->state_.portrait_search_exhaustive = false;
     this->state_.portrait_search_page = 1;
+    this->state_.portrait_search_cursor.clear();
     this->state_.portrait_search_generation++;
     this->emit_command(SLIDESHOW_COMMAND_REFETCH_REJECTED_SLOT, slot, 1200);
   }
@@ -781,6 +813,7 @@ class EspFrameSlideshow {
     this->state_.portrait_search_expanded = false;
     this->state_.portrait_search_exhaustive = false;
     this->state_.portrait_search_page = 1;
+    this->state_.portrait_search_cursor.clear();
     this->state_.portrait_search_generation++;
     this->state_.portrait_search_request_generation = 0;
     this->state_.rejected_fetch_target = -1;
