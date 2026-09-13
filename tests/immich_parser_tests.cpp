@@ -98,5 +98,16 @@ int main() {
            "{\"assets\":{\"nextCursor\":\"cursor-3\"}}") == "cursor-3");
   assert(parse_immich_metadata_next_cursor(
            "{\"assets\":{\"nextCursor\":null}}").empty());
+  const std::string scoped_asset =
+      "{\"assets\":{\"items\":[{\"id\":\"asset-1\",\"people\":[{\"id\":\"33333333-3333-4333-8333-333333333333\"},{\"id\":\"55555555-5555-4555-8555-555555555555\"}],\"tags\":[{\"id\":\"44444444-4444-4444-8444-444444444444\"}]}]}}";
+  assert(immich_asset_filter_scope(
+           scoped_asset, "asset-1",
+           "33333333-3333-4333-8333-333333333333,55555555-5555-4555-8555-555555555555",
+           "people") ==
+         "33333333-3333-4333-8333-333333333333,55555555-5555-4555-8555-555555555555");
+  assert(immich_asset_filter_scope(
+           scoped_asset, "asset-1",
+           "44444444-4444-4444-8444-444444444444,55555555-5555-4555-8555-555555555555",
+           "tags") == "44444444-4444-4444-8444-444444444444");
   std::cout << "Immich production parser tests passed\n";
 }

@@ -508,13 +508,13 @@ static void test_smart_filter_helpers() {
       intersecting_any, group_index, album_index, "Album list order",
       ImmichApiGeneration::V32_STRUCTURED);
   assert(complete_intersection.group == "All");
-  assert(complete_intersection.album_ids == intersecting_any.album_ids);
+  assert(complete_intersection.album_ids == album1);
   assert(complete_intersection.person_ids == intersecting_any.person_ids);
   std::string complete_intersection_body = build_immich_filter_search_body(
       intersecting_any, complete_intersection, ImmichApiGeneration::V32_STRUCTURED,
       10, true);
   assert(complete_intersection_body.find("\"albumIds\":{\"any\":[\"" + album1 +
-                                         "\",\"" + album2 + "\"]}") != std::string::npos);
+                                         "\"]}") != std::string::npos);
   assert(complete_intersection_body.find("\"personIds\":{\"any\":[\"" + person1 +
                                          "\",\"" + excluded + "\"]}") != std::string::npos);
   ImmichFilterBranch sampled_flat_intersection = select_immich_filter_branch(
@@ -541,16 +541,17 @@ static void test_smart_filter_helpers() {
   ImmichFilterBranch structured_any_person = select_immich_filter_branch(
       retry_any_person, retry_group_index, retry_album_index, "Random albums",
       ImmichApiGeneration::V32_STRUCTURED);
-  assert(structured_any_person.person_ids == retry_any_person.person_ids);
+  assert(split_valid_uuid_csv(structured_any_person.person_ids).size() == 1);
   std::string structured_any_person_body = build_immich_filter_search_body(
       retry_any_person, structured_any_person, ImmichApiGeneration::V32_STRUCTURED,
       10, false);
-  assert(structured_any_person_body.find("\"personIds\":{\"any\":[\"" + person1 +
-                                         "\",\"" + excluded + "\"]}") != std::string::npos);
+  assert(structured_any_person_body.find("\"personIds\":{\"any\":[\"") != std::string::npos);
+  assert(structured_any_person_body.find(person1 + "\",\"" + excluded) == std::string::npos);
   uint8_t empty_id_attempts = 0;
-  assert(!retry_next_any_selected_id(
+  assert(retry_next_any_selected_id(
       retry_any_person, ImmichApiGeneration::V32_STRUCTURED,
       empty_id_attempts, structured_any_person));
+  assert(structured_any_person.person_ids == retry_any_person.person_ids);
 
   retry_group_index = 0;
   ImmichFilterBranch flat_any_person = select_immich_filter_branch(

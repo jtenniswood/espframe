@@ -239,14 +239,14 @@ inline ImmichFilterBranch select_immich_filter_branch(const ImmichFilterConfig &
   const bool use_albums = branch.group == "All" || branch.group == "Album";
   const bool use_people = branch.group == "All" || branch.group == "Person";
   const bool use_tags = branch.group == "All" || branch.group == "Tag";
-  // Structured search can represent the complete "any" set. Preserve it for
-  // every structured branch except album-list ordering, which intentionally
-  // samples one album at a time in the configured order.
+  // Structured search can represent complete "any" sets when several groups
+  // must intersect. Keep the full people/tag predicates for that request, but
+  // retain a single album choice so random album sampling remains balanced and
+  // the exact album can be reused for portrait pairing.
   const bool preserve_any_ids = generation == ImmichApiGeneration::V32_STRUCTURED &&
-      (branch.group == "All" || branch.group == "Person" || branch.group == "Tag" ||
-       (branch.group == "Album" && album_order != "Album list order"));
+      branch.group == "All";
   if (use_albums && config.albums_enabled) {
-    if (immich_matching_is_all(config.album_matching) || preserve_any_ids) {
+    if (immich_matching_is_all(config.album_matching)) {
       branch.album_ids = valid_uuid_csv(config.album_ids);
     } else {
       branch.album_ids = pick_album_id_for_metadata_search(valid_uuid_csv(config.album_ids), album_order,
@@ -435,6 +435,7 @@ struct ImmichRequestState {
   int metadata_page = 1;
   int metadata_page_size = 1;
   std::string metadata_cursor;
+  uint32_t metadata_cursor_page = 1;
   uint32_t metadata_max_page = 1;
   uint8_t metadata_empty_page_probes = 0;
   bool metadata_page_bound_is_upper = false;
@@ -1220,6 +1221,7 @@ inline void initialize_immich_metadata_page_range(ImmichRequestState &state,
   state.metadata_page_size = page_size;
   state.metadata_max_page = immich_metadata_page_count_for_total(total, page_size);
   state.metadata_page = (esp_random() % state.metadata_max_page) + 1;
+  state.metadata_cursor_page = 1;
   state.metadata_empty_page_probes = 0;
   state.metadata_page_bound_is_upper = count_is_upper_bound;
   state.metadata_page1_fallback_attempted = false;
@@ -1545,6 +1547,47 @@ inline JsonArray immich_asset_array_from_document(JsonDocument &doc) {
   JsonArray items = assets["items"].as<JsonArray>();
   if (items.isNull()) items = assets["assets"].as<JsonArray>();
   return items;
+}
+
+inline std::string immich_asset_filter_scope(const std::string &body,
+                                             const std::string &asset_id,
+                                             const std::string &configured_ids,
+                                             const char *relation_key) {
+  if (asset_id.empty() || configured_ids.empty() || relation_key == nullptr) return "";
+  auto doc = esphome::json::parse_json(body);
+  if (doc.isNull()) return "";
+  JsonArray assets = immich_asset_array_from_document(doc);
+  if (assets.isNull()) return "";
+
+  for (size_t i = 0; i < assets.size(); i++) {
+    JsonObject asset = assets[i].as<JsonObject>();
+    if (asset.isNull() || !asset["id"].is<const char *>() ||
+        asset["id"].as<std::string>() != asset_id) continue;
+    JsonArray related = asset[relation_key].as<JsonArray>();
+    if (related.isNull()) return "";
+
+    std::vector<std::string> matching_ids;
+    for (size_t j = 0; j < related.size(); j++) {
+      JsonObject relation = related[j].as<JsonObject>();
+      if (relation.isNull() || !relation["id"].is<const char *>()) continue;
+      const std::string relation_id = relation["id"].as<std::string>();
+      for (const auto &configured_id : split_valid_uuid_csv(configured_ids)) {
+        if (configured_id == relation_id) {
+          matching_ids.push_back(relation_id);
+          break;
+        }
+      }
+    }
+    std::string result;
+    for (const auto &configured_id : split_valid_uuid_csv(configured_ids)) {
+      if (std::find(matching_ids.begin(), matching_ids.end(), configured_id) != matching_ids.end()) {
+        if (!result.empty()) result += ",";
+        result += configured_id;
+      }
+    }
+    return result;
+  }
+  return "";
 }
 
 inline size_t append_immich_asset_candidates(
