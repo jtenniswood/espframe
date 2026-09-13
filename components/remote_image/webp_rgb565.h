@@ -8,7 +8,7 @@
 namespace esphome::remote_image {
 
 // libwebp writes RGB565 most-significant byte first unless built with
-// WEBP_SWAP_16BITS_CSP. Match the destination's configured byte order in place.
+// WEBP_SWAP_16BIT_CSP=1. Match the destination's configured byte order in place.
 inline VP8StatusCode decode_webp_rgb565(const uint8_t *input, size_t input_size, WebPDecoderConfig &config,
                                         uint8_t *output, size_t capacity, int width, int height, bool big_endian) {
   if (output == nullptr || width <= 0 || height <= 0 || width > std::numeric_limits<int>::max() / 2 ||
@@ -24,7 +24,7 @@ inline VP8StatusCode decode_webp_rgb565(const uint8_t *input, size_t input_size,
   // remains owned by OnlineImage; it must never be freed by this decoder.
   WebPFreeDecBuffer(&config.output);
   if (status != VP8_STATUS_OK) return status;
-#ifdef WEBP_SWAP_16BITS_CSP
+#if defined(WEBP_SWAP_16BIT_CSP) && WEBP_SWAP_16BIT_CSP
   const bool swap = big_endian;
 #else
   const bool swap = !big_endian;

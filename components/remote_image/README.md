@@ -253,7 +253,8 @@ See [LICENSE](LICENSE) in this directory.
 ### WebP direct RGB565 output
 
 When the decoded dimensions match an opaque RGB565 destination, libwebp writes
-into that existing buffer. Little-endian destinations are byte-swapped in place;
+into that existing buffer. Output is byte-swapped in place when needed to match
+the destination byte order, respecting libwebp’s `WEBP_SWAP_16BIT_CSP` setting;
 no full RGB888 intermediate is allocated. At 1280×800 this avoids 3,072,000 bytes
 of temporary PSRAM. Fit/fill transforms, letterboxing, non-RGB565 storage and
 transparent destinations retain the existing RGB888 conversion path. Libwebp's
@@ -263,3 +264,4 @@ match the destination. Decoder-state safety estimates remain conservative.
 `npm run test:webp` builds the vendored decoder on the host and compares direct
 RGB565 pixels against the former RGB888 conversion using synthetic lossless,
 lossy and alpha WebP fixtures, both byte orders, scaling and malformed input.
+The decoder and helper are tested with `WEBP_SWAP_16BIT_CSP` undefined, 0 and 1.
