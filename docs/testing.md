@@ -193,3 +193,42 @@ The naming form and reconnect dialog reuse Espcontrol’s UI structure and style
 with an inline Save & Restart action, live hostname preview and reconnect links.
 Browser coverage also checks that failed saves do not restart and restart failures
 leave the saved name available for retry.
+
+### Photo buffer reclamation
+
+`npm run test:photo-buffers` runs with `check:pr`. It covers visible and preloaded
+pair ownership, pending downloads/actions, partial pairs, queued commands and
+repeated release. All three full-frame slots and previous-photo metadata remain
+outside the reclamation policy.
+
+After a firmware build, test the production descriptor adapter against its LVGL
+source (currently 9.5):
+
+```sh
+cmake -S tests/photo_buffer_lvgl -B .esphome/photo-buffer-lvgl \
+  -DLVGL_SOURCE="${PWD}/builds/.esphome/build/immich-frame-10inch/managed_components/lvgl__lvgl"
+cmake --build .esphome/photo-buffer-lvgl -j 4
+.esphome/photo-buffer-lvgl/photo_buffer_lvgl_tests
+```
+
+This verifies live-source protection, detachment before release and image/header
+cache invalidation across descriptor reuse. The test uses real LVGL with host
+pixel allocations; it does not measure ESP32 PSRAM.
+
+For an explicitly requested device test, an ignored local ESPHome config can
+include `tests/photo_buffer_device_probe.h` and call
+`esphome::espframe::run_photo_buffer_device_probe()` from a lambda after a 45-second
+boot delay. The optional probe allocates four independent 640×800 RGB565 images
+and hidden widgets, verifies a pinned pair survives reclamation, and exercises
+20 allocation/release cycles. Logs tagged `photo-buffer-test` report actual PSRAM
+and largest-block measurements. Remove the probe or restore the prior firmware
+after testing; never include it in release configuration.
+
+Normal firmware logs `photo-buffer` only when allocations are reclaimed. Savings
+are conditional: up to 4,096,000 bytes (3.906 MiB) when both portrait pairs are
+unused. The fully occupied 9.766 MiB ceiling is unchanged. This is the ownership
+and reclamation stage; sharing live full-frame/paired representations needs a
+separate transition and fallback design. Before merge, exercise mixed photos,
+consecutive pairs, previous during refill, rotation, failed companions and
+recovery on hardware. Compare largest free PSRAM blocks over a longer mixed-photo
+run as well as free bytes; repeated large allocations can still fragment memory.
