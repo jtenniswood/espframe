@@ -1,9 +1,7 @@
 #include "memory_diagnostics.h"
 
+#ifdef USE_LVGL
 #include <atomic>
-#ifndef USE_LVGL
-#error "Espframe memory_diagnostics requires LVGL"
-#endif
 #include "esphome/components/lvgl/lvgl_esphome.h"
 #include "esphome/core/log.h"
 #include "esp_heap_caps.h"
@@ -43,16 +41,6 @@ void record_heap(const char *phase) {
 }
 #endif
 }  // namespace
-
-#ifdef ESPFRAME_MEMORY_DIAGNOSTICS
-void record_loop_stack(const char *phase) {
-  // ESP-IDF returns bytes, unlike upstream FreeRTOS's word count. This measures
-  // the calling ESPHome loop task, not all networking/driver task stacks.
-  ESP_LOGI("memory.stack", "%s task=%s minimum_free_bytes=%u", phase, pcTaskGetName(nullptr),
-           (unsigned) uxTaskGetStackHighWaterMark(nullptr));
-}
-
-#endif
 
 void MemorySetupProbe::setup() {
   if (before_) {
@@ -117,3 +105,21 @@ extern "C" void *__wrap_heap_caps_aligned_alloc(size_t alignment, size_t size, u
 #endif
   return ptr;
 }
+
+#endif  // USE_LVGL
+
+#ifdef ESPFRAME_MEMORY_DIAGNOSTICS
+#include "esphome/core/log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+namespace esphome::espframe {
+void record_loop_stack(const char *phase) {
+  // ESP-IDF returns bytes, unlike upstream FreeRTOS's word count. This measures
+  // the calling ESPHome loop task, not all networking/driver task stacks.
+  ESP_LOGI("memory.stack", "%s task=%s minimum_free_bytes=%u", phase, pcTaskGetName(nullptr),
+           (unsigned) uxTaskGetStackHighWaterMark(nullptr));
+}
+
+}  // namespace esphome::espframe
+#endif

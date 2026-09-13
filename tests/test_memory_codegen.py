@@ -1,0 +1,56 @@
+"""Exercise component registration with and without LVGL and parent overrides."""
+import asyncio
+from pathlib import Path
+import runpy
+import sys
+import types
+import unittest
+from unittest.mock import AsyncMock, MagicMock, patch
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class MemoryCodegenTests(unittest.TestCase):
+    def test_registration_matrix(self):
+        for lvgl in (False, True):
+            for diagnostics in (False, True):
+                with self.subTest(lvgl=lvgl, diagnostics=diagnostics):
+                    cg = MagicMock()
+                    cg.register_component = AsyncMock()
+                    core = types.ModuleType("esphome.core")
+                    core.CORE = types.SimpleNamespace(config={"lvgl": {}} if lvgl else {})
+                    const = types.ModuleType("esphome.const")
+                    const.CONF_ID = "id"
+                    const.CONF_SETUP_PRIORITY = "setup_priority"
+                    modules = {
+                        "esphome": types.ModuleType("esphome"),
+                        "esphome.codegen": cg,
+                        "esphome.config_validation": MagicMock(),
+                        "esphome.const": const,
+                        "esphome.core": core,
+                    }
+                    with patch.dict(sys.modules, modules):
+                        component = runpy.run_path(str(ROOT / "components/espframe/__init__.py"))
+                        config = {
+                            "id": "parent", "setup_priority": 500,
+                            "memory_diagnostics": diagnostics,
+                            "memory_before_id": "before", "memory_after_id": "after",
+                        }
+                        asyncio.run(component["to_code"](config))
+                    registrations = cg.register_component.await_args_list
+                    self.assertEqual(registrations[0].args[1], config)
+                    self.assertEqual(len(registrations), 3 if lvgl else 1)
+                    self.assertEqual(cg.add_define.call_count, int(diagnostics))
+                    if lvgl:
+                        cg.add_build_flag.assert_called_once_with("-Wl,--wrap=heap_caps_aligned_alloc")
+                        for call in registrations[1:]:
+                            self.assertNotIn("setup_priority", call.args[1])
+                        self.assertEqual(cg.new_Pvariable.call_args_list[1].args, ("before", True))
+                        self.assertEqual(cg.new_Pvariable.call_args_list[2].args, ("after", False))
+                    else:
+                        cg.add_build_flag.assert_not_called()
+                    self.assertEqual(config["setup_priority"], 500)
+
+
+if __name__ == "__main__":
+    unittest.main()
