@@ -226,6 +226,11 @@ tasks, and allocations outside this setup window are preserved. Allocation
 failure is returned to LVGL's existing setup failure handling; there is no
 internal-RAM fallback. Review the setup ordering and allocator call when upgrading
 ESPHome 2026.8.2. Do not add unrelated components in this priority window.
+The allocation policy and probes are enabled only when both LVGL and PSRAM are
+configured. Helper configurations without PSRAM retain LVGL's existing allocator.
+With the policy enabled, configurations overriding `lvgl.setup_priority` to anything other than 400 are
+rejected during validation to prevent silently bypassing the allocation policy.
+The parent `espframe.setup_priority` can still be overridden independently.
 
 Use an opt-in diagnostic build to verify graphics placement.
 In a local build wrapper, add:
@@ -282,3 +287,42 @@ and OTA. Record buffer placement, minimum internal heap, largest blocks and loop
 stack headroom. Verify that the draw buffer and rotation allocation report PSRAM,
 and compare rendering, rotation, touch and OTA before shipping. Lowering the YAML
 percentage alone does not reduce this buffer in the pinned ESPHome version.
+
+### Photo buffer reclamation
+
+`npm run test:photo-buffers` runs with `check:pr`. It covers visible and preloaded
+pair ownership, pending downloads/actions, partial pairs, queued commands and
+repeated release. All three full-frame slots and previous-photo metadata remain
+outside the reclamation policy.
+
+After a firmware build, test the production descriptor adapter against its LVGL
+source (currently 9.5):
+
+```sh
+cmake -S tests/photo_buffer_lvgl -B .esphome/photo-buffer-lvgl \
+  -DLVGL_SOURCE="${PWD}/builds/.esphome/build/immich-frame-10inch/managed_components/lvgl__lvgl"
+cmake --build .esphome/photo-buffer-lvgl -j 4
+.esphome/photo-buffer-lvgl/photo_buffer_lvgl_tests
+```
+
+This verifies live-source protection, detachment before release and image/header
+cache invalidation across descriptor reuse. The test uses real LVGL with host
+pixel allocations; it does not measure ESP32 PSRAM.
+
+For an explicitly requested device test, an ignored local ESPHome config can
+include `tests/photo_buffer_device_probe.h` and call
+`esphome::espframe::run_photo_buffer_device_probe()` from a lambda after a 45-second
+boot delay. The optional probe allocates four independent 640×800 RGB565 images
+and hidden widgets, verifies a pinned pair survives reclamation, and exercises
+20 allocation/release cycles. Logs tagged `photo-buffer-test` report actual PSRAM
+and largest-block measurements. Remove the probe or restore the prior firmware
+after testing; never include it in release configuration.
+
+Normal firmware logs `photo-buffer` only when allocations are reclaimed. Savings
+are conditional: up to 4,096,000 bytes (3.906 MiB) when both portrait pairs are
+unused. The fully occupied 9.766 MiB ceiling is unchanged. This is the ownership
+and reclamation stage; sharing live full-frame/paired representations needs a
+separate transition and fallback design. Before merge, exercise mixed photos,
+consecutive pairs, previous during refill, rotation, failed companions and
+recovery on hardware. Compare largest free PSRAM blocks over a longer mixed-photo
+run as well as free bytes; repeated large allocations can still fragment memory.
