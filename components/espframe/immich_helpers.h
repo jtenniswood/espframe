@@ -302,11 +302,17 @@ inline bool immich_filter_branch_uses_album(const ImmichFilterBranch &branch) {
 
 inline bool immich_filter_branch_uses_legacy_metadata_search(
     const ImmichFilterBranch &branch, ImmichApiGeneration generation) {
-  // Immich 3.2 replaced page-number pagination for structured searches with
-  // cursor pagination. Keep the metadata path for the flat API, where it also
-  // preserves shared-album behavior.
   return generation == ImmichApiGeneration::V31_FLAT &&
          immich_filter_branch_uses_album(branch);
+}
+
+inline bool immich_filter_branch_uses_metadata_search(
+    const ImmichFilterBranch &branch, ImmichApiGeneration generation) {
+  // Album metadata search authorizes the album before returning assets, so it
+  // includes shared-album contributors. Structured Immich searches paginate
+  // this endpoint with cursors instead of legacy page numbers.
+  (void) generation;
+  return immich_filter_branch_uses_album(branch);
 }
 
 inline void immich_append_json_field(std::string &body, bool &has_field,
@@ -319,15 +325,15 @@ inline void immich_append_json_field(std::string &body, bool &has_field,
 inline std::string build_immich_filter_search_body(
     const ImmichFilterConfig &config, const ImmichFilterBranch &branch,
     ImmichApiGeneration generation, uint16_t size, bool with_people,
-    bool metadata_search = false, uint32_t page = 1, const std::string &cursor = "") {
+    bool metadata_search = false, uint32_t page = 1,
+    const std::string &cursor = "") {
   if (size == 0) size = 1;
   if (page == 0) page = 1;
   std::string body = "{";
   bool root_field = false;
   if (metadata_search && generation == ImmichApiGeneration::V31_FLAT) {
     immich_append_json_field(body, root_field, "page", std::to_string(page));
-  }
-  if (metadata_search && generation == ImmichApiGeneration::V32_STRUCTURED && !cursor.empty()) {
+  } else if (metadata_search && generation == ImmichApiGeneration::V32_STRUCTURED && !cursor.empty()) {
     immich_append_json_field(body, root_field, "cursor", "\"" + immich_json_escape(cursor) + "\"");
   }
   immich_append_json_field(body, root_field, "size", std::to_string(size));
@@ -428,6 +434,7 @@ struct ImmichRequestState {
   std::string metadata_tag_ids;
   int metadata_page = 1;
   int metadata_page_size = 1;
+  std::string metadata_cursor;
   uint32_t metadata_max_page = 1;
   uint8_t metadata_empty_page_probes = 0;
   bool metadata_page_bound_is_upper = false;
@@ -498,6 +505,7 @@ struct ImmichRequestState {
   // statistics fallback cache, but applying a source must still clear its
   // in-progress page-bound probes.
   void reset_album_metadata_fallbacks() {
+    this->metadata_cursor.clear();
     this->metadata_max_page = 1;
     this->metadata_empty_page_probes = 0;
     this->metadata_page_bound_is_upper = false;
@@ -599,6 +607,7 @@ struct ImmichRequestState {
     this->retry_delay_ms = 2000;
     this->retry_cooldown_until_ms = 0;
     this->metadata_max_page = 1;
+    this->metadata_cursor.clear();
     this->metadata_empty_page_probes = 0;
     this->metadata_page_bound_is_upper = false;
     this->metadata_page1_fallback_attempted = false;
@@ -1583,6 +1592,14 @@ inline uint32_t parse_immich_metadata_total(const std::string &body) {
   return total > 0 ? static_cast<uint32_t>(total) : 0;
 }
 
+inline std::string parse_immich_metadata_next_cursor(const std::string &body) {
+  auto doc = esphome::json::parse_json(body);
+  if (doc.isNull() || !doc.is<JsonObject>()) return "";
+  JsonObject assets = doc.as<JsonObject>()["assets"].as<JsonObject>();
+  if (assets.isNull() || !assets["nextCursor"].is<const char *>()) return "";
+  return assets["nextCursor"].as<std::string>();
+}
+
 inline uint32_t parse_immich_statistics_total(const std::string &body) {
   auto doc = esphome::json::parse_json(body);
   if (doc.isNull() || !doc.is<JsonObject>()) return 0;
@@ -1751,24 +1768,22 @@ inline std::string find_immich_portrait_companion_url(const std::string &body,
   auto doc = esphome::json::parse_json(body);
   if (doc.isNull()) return "";
 
-  if (next_cursor != nullptr && doc.is<JsonObject>()) {
-    JsonObject assets = doc.as<JsonObject>()["assets"].as<JsonObject>();
-    if (!assets.isNull() && assets["nextCursor"].is<const char *>()) {
-      *next_cursor = assets["nextCursor"].as<std::string>();
-    }
-  }
-
-  if (next_page != nullptr && doc.is<JsonObject>()) {
+  if ((next_page != nullptr || next_cursor != nullptr) && doc.is<JsonObject>()) {
     JsonObject assets = doc.as<JsonObject>()["assets"].as<JsonObject>();
     if (!assets.isNull()) {
-      if (assets["nextPage"].is<const char *>()) {
-        const std::string raw = assets["nextPage"].as<std::string>();
-        *next_page = static_cast<uint32_t>(strtoul(raw.c_str(), nullptr, 10));
-      } else if (assets["nextPage"].is<uint32_t>()) {
-        *next_page = assets["nextPage"].as<uint32_t>();
-      } else if (assets["nextPage"].is<int>()) {
-        const int value = assets["nextPage"].as<int>();
-        if (value > 0) *next_page = static_cast<uint32_t>(value);
+      if (next_page != nullptr) {
+        if (assets["nextPage"].is<const char *>()) {
+          const std::string raw = assets["nextPage"].as<std::string>();
+          *next_page = static_cast<uint32_t>(strtoul(raw.c_str(), nullptr, 10));
+        } else if (assets["nextPage"].is<uint32_t>()) {
+          *next_page = assets["nextPage"].as<uint32_t>();
+        } else if (assets["nextPage"].is<int>()) {
+          const int value = assets["nextPage"].as<int>();
+          if (value > 0) *next_page = static_cast<uint32_t>(value);
+        }
+      }
+      if (next_cursor != nullptr && assets["nextCursor"].is<const char *>()) {
+        *next_cursor = assets["nextCursor"].as<std::string>();
       }
     }
   }

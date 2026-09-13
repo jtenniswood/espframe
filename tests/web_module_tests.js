@@ -138,6 +138,13 @@ assert.ok(
   "metadata HTTP failures should enter the bounded retry path"
 );
 assert.ok(
+  immichApiSource.includes("?withoutAssets=true") &&
+    immichApiSource.includes('api_generation == ImmichApiGeneration::V31_FLAT') &&
+    immichApiSource.includes("metadata_cursor") &&
+    immichApiSource.includes("parse_immich_metadata_next_cursor"),
+  "album compatibility should retain legacy payload minimization and use structured cursors"
+);
+assert.ok(
   filterFlush.includes("filter_apply_pending = true") &&
     filterFlush.includes("filter_apply_pending = false") &&
     immichConfigSource.includes("return id(immich_request_state).filter_apply_pending") &&

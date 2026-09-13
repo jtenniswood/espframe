@@ -299,10 +299,9 @@ script:
               - script.execute: immich_fetch_into_slot
 
   # ---------------------------------------------------------------------------
-  # Fetch a random asset from legacy Album sources using paged metadata search.
-  # Album counts come from the album endpoint so shared-album contributors are
-  # included. Structured Immich 3.2+ searches use the random endpoint below;
-  # its metadata endpoint rejects page numbers alongside structured filters.
+  # Fetch a random asset from Album sources using authorized paged metadata search.
+  # Album metadata search includes assets contributed by shared-album members.
+  # Legacy Immich uses page numbers; structured Immich 3.2+ uses cursors.
   #
   # The count is cached in RAM until the active photo filters change. Metadata
   # then fetches one random asset page for Any orientation, or a small candidate
@@ -343,6 +342,7 @@ script:
             - script.stop: immich_fetch_metadata_into_slot
       - lambda: |-
           id(immich_request_state).metadata_page = 1;
+          id(immich_request_state).metadata_cursor.clear();
           id(immich_request_state).metadata_max_page = 1;
           id(immich_request_state).metadata_empty_page_probes = 0;
           id(immich_request_state).metadata_page_bound_is_upper = false;
@@ -381,7 +381,8 @@ script:
           condition:
             lambda: |-
               return immich_filter_can_use_album_asset_count(
-                id(immich_filter_config), id(immich_request_state).active_filter_branch);
+                id(immich_filter_config), id(immich_request_state).active_filter_branch) &&
+                id(immich_request_state).api_generation == ImmichApiGeneration::V31_FLAT;
           then:
             - script.execute: immich_fetch_album_count
             - script.stop: immich_fetch_metadata_into_slot
@@ -392,7 +393,10 @@ script:
     then:
       - http_request.get:
           id: http_req
-          url: !lambda 'return id(immich_url).state + "/api/albums/" + id(immich_request_state).metadata_album_id + "?withoutAssets=true";'
+          url: !lambda |-
+            return id(immich_url).state + "/api/albums/" + id(immich_request_state).metadata_album_id +
+              (id(immich_request_state).api_generation == ImmichApiGeneration::V31_FLAT
+                ? "?withoutAssets=true" : "");
           capture_response: true
           max_response_buffer_size: 24kB
           request_headers:
@@ -581,7 +585,8 @@ script:
               id(immich_filter_config), id(immich_request_state).active_filter_branch,
               id(immich_request_state).api_generation,
               id(immich_request_state).metadata_page_size, true, true,
-              id(immich_request_state).metadata_page);
+              id(immich_request_state).metadata_page,
+              id(immich_request_state).metadata_cursor);
           on_response:
             then:
               - lambda: |-
@@ -602,6 +607,9 @@ script:
                   std::string orientation = id(photo_orientation_filter).current_option();
                   size_t metadata_item_count = 0;
                   bool metadata_response_valid = parse_immich_metadata_item_count(body, &metadata_item_count);
+                  const std::string current_cursor = id(immich_request_state).metadata_cursor;
+                  const std::string next_cursor =
+                    parse_immich_metadata_next_cursor(body);
                   std::string img_url = parse_immich_metadata_asset_and_fill_slot(
                     body, id(immich_url).state, id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2,
                     orientation);
@@ -612,6 +620,13 @@ script:
                       id(espframe_core).slideshow().state().diagnostic_reason = "metadata page response invalid";
                       id(log_immich_diag).execute();
                       id(immich_register_fetch_failure).execute();
+                      return;
+                    }
+                    if (id(immich_request_state).api_generation == ImmichApiGeneration::V32_STRUCTURED &&
+                        !next_cursor.empty() && next_cursor != current_cursor) {
+                      id(immich_request_state).metadata_cursor = next_cursor;
+                      ESP_LOGD("immich", "No matching asset on structured metadata cursor; continuing");
+                      id(immich_fetch_metadata_page_probe).execute();
                       return;
                     }
                     if (metadata_item_count == 0 &&
@@ -762,7 +777,7 @@ script:
       - if:
           condition:
             lambda: |-
-              return immich_filter_branch_uses_legacy_metadata_search(
+              return immich_filter_branch_uses_metadata_search(
                 id(immich_request_state).active_filter_branch,
                 id(immich_request_state).api_generation);
           then:

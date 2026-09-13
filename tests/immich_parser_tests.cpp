@@ -53,6 +53,12 @@ int main() {
                      "2026-04-21T12:00:00", &next) == base + "/api/assets/before" + suffix);
     assert(next == 3);
   }
+  std::string next_cursor;
+  assert(find_immich_portrait_companion_url(
+           "{\"assets\":{\"nextCursor\":\"cursor-2\",\"items\":" + candidates + "}}",
+           base, "primary", "2026-04-21T12:00:00", nullptr, &next_cursor) ==
+         base + "/api/assets/before" + suffix);
+  assert(next_cursor == "cursor-2");
   assert(companion(R"JSON([{"id":"rotated","exifInfo":{"exifImageWidth":200,"exifImageHeight":100,"orientation":"6","dateTimeOriginal":"2026-04-21T12:00:00"}}])JSON",
                    "2026-04-21T12:00:00") == base + "/api/assets/rotated" + suffix);
   assert(companion("[]", "2026-04-21T12:00:00").empty());
@@ -88,5 +94,9 @@ int main() {
   uint32_t album_count = 99;
   assert(parse_immich_album_asset_count("{\"assetCount\":0}", &album_count) && album_count == 0);
   assert(!parse_immich_album_asset_count("{\"assetCount\":\"0\"}", &album_count));
+  assert(parse_immich_metadata_next_cursor(
+           "{\"assets\":{\"nextCursor\":\"cursor-3\"}}") == "cursor-3");
+  assert(parse_immich_metadata_next_cursor(
+           "{\"assets\":{\"nextCursor\":null}}").empty());
   std::cout << "Immich production parser tests passed\n";
 }

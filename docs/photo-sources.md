@@ -54,7 +54,7 @@ Shows photos from one or more Immich albums. **Get the UUID:** open the album in
 
 The descriptions are saved with the IDs so the web UI can show friendly labels later. They do not affect which photos Immich returns.
 
-Album photos are sampled through paged Immich search on legacy servers and structured random search on Immich 3.2+, so large albums are not limited to the first small batch of results.
+Album photos are sampled through paged Immich search, using legacy page numbers or structured cursors as appropriate, so large albums are not limited to the first small batch of results.
 Shared albums are sampled across photos added by every contributor, not only the account used by the frame's API key.
 
 When you add more than one album, **Album Order** can either keep sampling albums randomly or cycle through the Albums list from top to bottom. Use the move buttons beside each album to set the list order. Photos inside each selected album are still chosen randomly.
@@ -146,7 +146,7 @@ Use **Portrait Pairing** to display compatible portrait photos side-by-side on l
 
 Portrait pairing is disabled while the screen is in portrait rotation.
 
-**Pairing Range** always checks the same calendar day first. Espframe first samples up to 20 assets and chooses the compatible portrait closest to the primary photo's capture time. With **±1 Day** or **±2 Days**, it broadens the search only when it cannot find a same-day companion. If those fast samples miss, Espframe pages through every eligible asset until it finds a compatible portrait, so large or shared albums do not produce false "no companion" results. The range is kept inside any date filter you have configured, and the companion uses the exact album, person, or tag chosen for the primary photo.
+**Pairing Range** always checks the same calendar day first. Espframe first samples up to 20 assets and chooses the compatible portrait closest to the primary photo's capture time. With **±1 Day** or **±2 Days**, it broadens the search only when it cannot find a same-day companion. If those fast samples miss, Espframe paginates through every eligible asset until it finds a compatible portrait, so large or shared albums do not produce false "no companion" results. The range is kept inside any date filter you have configured, and the companion uses the exact album, person, or tag chosen for the primary photo.
 
 Turn on **Show Paired Portraits Only** to skip a portrait when a complete pair cannot be loaded. Landscape photos continue to display normally. While Espframe searches for another eligible photo, the last successfully displayed photo stays on screen.
 

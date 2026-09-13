@@ -458,9 +458,16 @@ static void test_smart_filter_helpers() {
   assert(structured.find("\"albumIds\":{\"all\"") != std::string::npos);
   assert(structured.find("\"none\":[\"" + excluded + "\"]") != std::string::npos);
   assert(structured.find("\"visibility\":\"timeline\"") == std::string::npos);
+  std::string structured_cursor = build_immich_filter_search_body(
+      combined, all, ImmichApiGeneration::V32_STRUCTURED, 10, true, true, 3,
+      "cursor token");
+  assert(structured_cursor.find("\"page\"") == std::string::npos);
+  assert(structured_cursor.find("\"cursor\":\"cursor token\"") != std::string::npos);
   assert(immich_filter_branch_uses_legacy_metadata_search(
       all, ImmichApiGeneration::V31_FLAT));
   assert(!immich_filter_branch_uses_legacy_metadata_search(
+      all, ImmichApiGeneration::V32_STRUCTURED));
+  assert(immich_filter_branch_uses_metadata_search(
       all, ImmichApiGeneration::V32_STRUCTURED));
   std::string statistics = build_immich_filter_statistics_body(
       combined, all, ImmichApiGeneration::V32_STRUCTURED);
