@@ -468,6 +468,8 @@ static void test_smart_filter_helpers() {
   assert(!immich_filter_branch_uses_legacy_metadata_search(
       all, ImmichApiGeneration::V32_STRUCTURED));
   assert(immich_filter_branch_uses_metadata_search(
+      all, ImmichApiGeneration::V31_FLAT));
+  assert(!immich_filter_branch_uses_metadata_search(
       all, ImmichApiGeneration::V32_STRUCTURED));
   std::string statistics = build_immich_filter_statistics_body(
       combined, all, ImmichApiGeneration::V32_STRUCTURED);

@@ -299,9 +299,11 @@ script:
               - script.execute: immich_fetch_into_slot
 
   # ---------------------------------------------------------------------------
-  # Fetch a random asset from Album sources using authorized paged metadata search.
-  # Album metadata search includes assets contributed by shared-album members.
-  # Legacy Immich uses page numbers; structured Immich 3.2+ uses cursors.
+  # Fetch an asset from legacy Album sources using authorized paged metadata
+  # search. Album metadata search includes assets contributed by shared-album
+  # members. Legacy Immich uses paged metadata search; structured Immich 3.2+
+  # album sources use the authorized random search path instead, so a random
+  # ordinal never requires walking cursors.
   #
   # The count is cached in RAM until the active photo filters change. Metadata
   # then fetches one random asset page for Any orientation, or a small candidate

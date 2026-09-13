@@ -308,11 +308,11 @@ inline bool immich_filter_branch_uses_legacy_metadata_search(
 
 inline bool immich_filter_branch_uses_metadata_search(
     const ImmichFilterBranch &branch, ImmichApiGeneration generation) {
-  // Album metadata search authorizes the album before returning assets, so it
-  // includes shared-album contributors. Structured Immich searches paginate
-  // this endpoint with cursors instead of legacy page numbers.
-  (void) generation;
-  return immich_filter_branch_uses_album(branch);
+  // Legacy album metadata search authorizes the album before returning assets,
+  // so it includes shared-album contributors. Structured Immich random search
+  // uses the same authorized scope and avoids walking cursor pages to reach a
+  // randomly selected ordinal.
+  return immich_filter_branch_uses_legacy_metadata_search(branch, generation);
 }
 
 inline void immich_append_json_field(std::string &body, bool &has_field,
