@@ -6,6 +6,7 @@
 #include "frame_identity_api.h"
 #include "espframe_helpers.h"
 #include "memory_pressure.h"
+#include "automation_controller.h"
 
 namespace esphome {
 namespace espframe {
@@ -53,6 +54,22 @@ class EspFrameComponent : public Component, public ConfigurationUpdateScheduler 
   float get_setup_priority() const override { return 1000.0f; }
 
   void schedule_configuration_update(std::function<void()> &&update) override { this->defer(std::move(update)); }
+
+  template<typename... Scripts> void stop_slideshow_workers(Scripts *...scripts) {
+    stop_scripts_in_order(scripts...);
+  }
+
+  template<typename Display, typename PairingSwitch>
+  void apply_screen_rotation(const std::string &option, const std::array<int, 4> &rotations,
+                             Display *display, PairingSwitch *pairing) {
+    apply_rotation_plan(rotation_plan(option, rotations), display, pairing);
+  }
+
+  SlotFetchDecision check_slot_fetch(bool wifi_connected, bool configured, bool paused,
+                                    bool cooldown, bool image_downloading) const {
+    return slot_fetch_decision(this->slideshow_.state(), wifi_connected, configured, paused, cooldown,
+                               image_downloading);
+  }
 
   EspFrameSlideshow &slideshow() { return this->slideshow_; }
   const EspFrameSlideshow &slideshow() const { return this->slideshow_; }

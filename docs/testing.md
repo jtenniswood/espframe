@@ -88,6 +88,28 @@ The helper tests include the production slideshow model; only platform logging a
 
 This group compiles and runs host-side C++ tests for firmware helper logic, then checks timezone data. It is much faster than a full ESPHome compile and is the right place to cover slideshow decisions, Immich request building, date handling, duration parsing, and other logic that can be tested without a device.
 
+### Automation controller checks
+
+`npm run test:automation-controller` covers ordered worker cancellation, panel
+rotation mappings and all 4,608 combinations of the slot-fetch gates. It runs as
+part of `npm run check:pr`.
+
+For changes to script cancellation or rotation sequencing, also run the pinned
+ESPHome host integration test:
+
+```sh
+docker run --rm -v "${PWD}:/config" --entrypoint python \
+  ghcr.io/esphome/esphome:2026.8.2 /config/tests/automation_runtime_tests.py
+```
+
+This loads the production rotation script and select callback, and the production
+recovery worker list. ESPHome runs the real actions, scripts and scheduler;
+only the display/controller endpoints are replaced. It checks self-stop,
+cancellation of 22 pending workers, rapid rotation changes, all four rotation
+options and reentrant developer-mode clamping. It uses no device or Wi-Fi
+credentials. Physical rendering, touch alignment and live HTTP callbacks still
+need device testing.
+
 ### Full Firmware Compile
 
 Pull requests run the normal validation gate automatically. Full ESPHome
