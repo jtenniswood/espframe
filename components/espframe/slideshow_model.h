@@ -16,7 +16,7 @@ struct SlotMeta : PhotoMeta {
   // Runtime state for one slot in the 3-image ring buffer.
   std::string datetime, companion_url, pending_asset_id;
   std::string filter_album_ids, filter_person_ids, filter_tag_ids;
-  bool ready = false, is_portrait = false;
+  bool ready = false, is_portrait = false, filter_tag_scope_known = true;
 };
 
 struct DisplayMeta : PhotoMeta {
@@ -133,5 +133,4 @@ inline void copy_display_to_slot(const DisplayMeta &disp, SlotMeta &slot) {
   slot.filter_tag_ids = disp.filter_tag_ids;
   slot.is_portrait = disp.is_portrait;
 }
-
 

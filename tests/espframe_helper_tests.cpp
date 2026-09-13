@@ -555,6 +555,20 @@ static void test_smart_filter_helpers() {
       empty_id_attempts, structured_any_person));
   assert(structured_any_person.person_ids == retry_any_person.person_ids);
 
+  ImmichFilterConfig tag_scope_config = intersecting_any;
+  tag_scope_config.tags_enabled = true;
+  tag_scope_config.tag_ids = tag1 + "," + excluded;
+  tag_scope_config.tag_matching = "Any selected tag";
+  ImmichFilterBranch tag_scope_branch = complete_intersection;
+  tag_scope_branch.tag_ids = tag_scope_config.tag_ids;
+  assert(immich_filter_branch_requires_tag_scope_resolution(
+      tag_scope_config, tag_scope_branch, ImmichApiGeneration::V32_STRUCTURED));
+  assert(!immich_filter_branch_requires_tag_scope_resolution(
+      tag_scope_config, tag_scope_branch, ImmichApiGeneration::V31_FLAT));
+  tag_scope_config.tag_matching = "All selected tags";
+  assert(!immich_filter_branch_requires_tag_scope_resolution(
+      tag_scope_config, tag_scope_branch, ImmichApiGeneration::V32_STRUCTURED));
+
   retry_group_index = 0;
   ImmichFilterBranch flat_any_person = select_immich_filter_branch(
       retry_any_person, retry_group_index, retry_album_index, "Random albums",

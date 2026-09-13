@@ -447,6 +447,10 @@ struct ImmichRequestState {
   std::vector<ImmichMetadataCountCacheEntry> metadata_count_cache;
   bool candidate_pool_hit = false;
   std::string candidate_pool_source_filter_id;
+  std::string filter_scope_asset_id;
+  std::string filter_scope_tag_ids;
+  int filter_scope_slot = -1;
+  uint32_t filter_scope_generation = 0;
   uint32_t photo_source_generation = 0;
   uint32_t random_request_generation = 0;
   std::string server_version;
@@ -474,6 +478,31 @@ struct ImmichRequestState {
 
   bool random_request_is_current() const {
     return this->random_request_generation == this->photo_source_generation;
+  }
+
+  void begin_filter_scope_request(int slot, const std::string &asset_id,
+                                  const std::string &tag_ids) {
+    this->filter_scope_slot = slot;
+    this->filter_scope_asset_id = asset_id;
+    this->filter_scope_tag_ids = tag_ids;
+    this->filter_scope_generation = this->photo_source_generation;
+  }
+
+  bool filter_scope_request_pending() const {
+    return this->filter_scope_slot >= 0 && this->filter_scope_slot <= 2 &&
+           !this->filter_scope_asset_id.empty();
+  }
+
+  bool filter_scope_request_is_current() const {
+    return this->filter_scope_request_pending() &&
+           this->filter_scope_generation == this->photo_source_generation;
+  }
+
+  void clear_filter_scope_request() {
+    this->filter_scope_asset_id.clear();
+    this->filter_scope_tag_ids.clear();
+    this->filter_scope_slot = -1;
+    this->filter_scope_generation = 0;
   }
 
   bool prepare_any_id_retry(const ImmichFilterConfig &config) {
@@ -1041,6 +1070,17 @@ inline std::vector<std::string> split_valid_uuid_csv(const std::string &csv) {
   return valid;
 }
 
+inline bool immich_filter_branch_requires_tag_scope_resolution(
+    const ImmichFilterConfig &config, const ImmichFilterBranch &branch,
+    ImmichApiGeneration generation) {
+  // Structured searches can apply an any-of tag predicate, but their result
+  // items do not include tag relations. Resolve the selected asset through its
+  // detail endpoint before reusing tag scope for portrait pairing.
+  return generation == ImmichApiGeneration::V32_STRUCTURED &&
+         branch.group == "All" && !immich_matching_is_all(config.tag_matching) &&
+         split_valid_uuid_csv(branch.tag_ids).size() > 1;
+}
+
 inline std::string valid_uuid_csv(const std::string &csv) {
   auto ids = split_valid_uuid_csv(csv);
   std::string result;
@@ -1556,15 +1596,11 @@ inline std::string immich_asset_filter_scope(const std::string &body,
   if (asset_id.empty() || configured_ids.empty() || relation_key == nullptr) return "";
   auto doc = esphome::json::parse_json(body);
   if (doc.isNull()) return "";
-  JsonArray assets = immich_asset_array_from_document(doc);
-  if (assets.isNull()) return "";
-
-  for (size_t i = 0; i < assets.size(); i++) {
-    JsonObject asset = assets[i].as<JsonObject>();
+  auto matching_scope = [&](JsonObject asset) {
     if (asset.isNull() || !asset["id"].is<const char *>() ||
-        asset["id"].as<std::string>() != asset_id) continue;
+        asset["id"].as<std::string>() != asset_id) return std::string();
     JsonArray related = asset[relation_key].as<JsonArray>();
-    if (related.isNull()) return "";
+    if (related.isNull()) return std::string();
 
     std::vector<std::string> matching_ids;
     for (size_t j = 0; j < related.size(); j++) {
@@ -1586,6 +1622,22 @@ inline std::string immich_asset_filter_scope(const std::string &body,
       }
     }
     return result;
+  };
+
+  // The asset-detail endpoint returns the asset object directly instead of
+  // wrapping it in {"assets":{"items":...}} like search responses do.
+  if (doc.is<JsonObject>()) {
+    JsonObject root = doc.as<JsonObject>();
+    if (root["id"].is<const char *>()) return matching_scope(root);
+  }
+
+  JsonArray assets = immich_asset_array_from_document(doc);
+  if (assets.isNull()) return "";
+  for (size_t i = 0; i < assets.size(); i++) {
+    JsonObject asset = assets[i].as<JsonObject>();
+    if (asset.isNull() || !asset["id"].is<const char *>() ||
+        asset["id"].as<std::string>() != asset_id) continue;
+    return matching_scope(asset);
   }
   return "";
 }

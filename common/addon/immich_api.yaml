@@ -299,6 +299,72 @@ script:
               - script.execute: immich_fetch_into_slot
 
   # ---------------------------------------------------------------------------
+  # Resolve tag membership for structured multi-tag matches before pairing.
+  # ---------------------------------------------------------------------------
+  - id: immich_fetch_asset_tag_scope
+    mode: single
+    then:
+      - if:
+          condition:
+            not:
+              wifi.connected:
+          then:
+            - lambda: |-
+                const int slot = id(immich_request_state).filter_scope_slot;
+                if (slot >= 0 && slot <= 2) {
+                  get_slot(slot, id(espframe_core).slideshow().state().slot0,
+                           id(espframe_core).slideshow().state().slot1,
+                           id(espframe_core).slideshow().state().slot2).filter_tag_scope_known = false;
+                }
+                id(immich_request_state).clear_filter_scope_request();
+            - script.stop: immich_fetch_asset_tag_scope
+      - http_request.get:
+          id: http_req
+          url: !lambda |-
+            return id(immich_url).state + "/api/assets/" +
+              id(immich_request_state).filter_scope_asset_id;
+          capture_response: true
+          max_response_buffer_size: 16kB
+          request_headers:
+            Accept: application/json
+            x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
+          on_response:
+            then:
+              - lambda: |-
+                  if (!id(immich_request_state).filter_scope_request_is_current()) return;
+                  const int slot = id(immich_request_state).filter_scope_slot;
+                  auto &meta = get_slot(slot, id(espframe_core).slideshow().state().slot0,
+                                        id(espframe_core).slideshow().state().slot1,
+                                        id(espframe_core).slideshow().state().slot2);
+                  bool resolved = false;
+                  if (response->status_code == 200) {
+                    meta.filter_tag_ids = immich_asset_filter_scope(
+                      body, meta.asset_id, id(immich_request_state).filter_scope_tag_ids, "tags");
+                    resolved = !meta.filter_tag_ids.empty();
+                  }
+                  meta.filter_tag_scope_known = resolved;
+                  if (!resolved) {
+                    ESP_LOGW("immich", "Could not resolve tag scope for asset %s (HTTP %d)",
+                             meta.asset_id.c_str(), response->status_code);
+                  }
+                  id(immich_request_state).clear_filter_scope_request();
+              - script.execute: deferred_companion_search
+          on_error:
+            then:
+              - lambda: |-
+                  if (!id(immich_request_state).filter_scope_request_is_current()) return;
+                  const int slot = id(immich_request_state).filter_scope_slot;
+                  if (slot >= 0 && slot <= 2) {
+                    get_slot(slot, id(espframe_core).slideshow().state().slot0,
+                             id(espframe_core).slideshow().state().slot1,
+                             id(espframe_core).slideshow().state().slot2).filter_tag_scope_known = false;
+                  }
+                  ESP_LOGW("immich", "Tag scope request failed for asset %s",
+                           id(immich_request_state).filter_scope_asset_id.c_str());
+                  id(immich_request_state).clear_filter_scope_request();
+              - script.execute: deferred_companion_search
+
+  # ---------------------------------------------------------------------------
   # Fetch an asset from legacy Album sources using authorized paged metadata
   # search. Album metadata search includes assets contributed by shared-album
   # members. Legacy Immich uses paged metadata search; structured Immich 3.2+
@@ -684,6 +750,7 @@ script:
                   id(immich_register_fetch_success).execute();
                   int slot = id(espframe_core).slideshow().state().target_slot;
                   auto &meta = get_slot(slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2);
+                  meta.filter_tag_scope_known = true;
                   meta.filter_album_ids = id(immich_request_state).active_filter_branch.album_ids;
                   meta.filter_person_ids = immich_asset_filter_scope(
                     body, meta.asset_id, id(immich_request_state).active_filter_branch.person_ids, "people");
@@ -944,6 +1011,7 @@ script:
                   }
                   id(immich_register_fetch_success).execute();
                   auto &meta = get_slot(slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2);
+                  meta.filter_tag_scope_known = true;
                   meta.filter_album_ids = id(immich_request_state).active_filter_branch.album_ids;
                   meta.filter_person_ids = immich_asset_filter_scope(
                     body, meta.asset_id, id(immich_request_state).active_filter_branch.person_ids, "people");
@@ -951,8 +1019,17 @@ script:
                     meta.filter_person_ids = id(immich_request_state).active_filter_branch.person_ids;
                   meta.filter_tag_ids = immich_asset_filter_scope(
                     body, meta.asset_id, id(immich_request_state).active_filter_branch.tag_ids, "tags");
-                  if (meta.filter_tag_ids.empty())
+                  const bool requires_tag_scope_resolution =
+                    immich_filter_branch_requires_tag_scope_resolution(
+                      id(immich_filter_config), id(immich_request_state).active_filter_branch,
+                      id(immich_request_state).api_generation);
+                  if (meta.filter_tag_ids.empty() && !requires_tag_scope_resolution)
                     meta.filter_tag_ids = id(immich_request_state).active_filter_branch.tag_ids;
+                  if (requires_tag_scope_resolution) {
+                    meta.filter_tag_scope_known = false;
+                    id(immich_request_state).begin_filter_scope_request(
+                      slot, meta.asset_id, id(immich_request_state).active_filter_branch.tag_ids);
+                  }
                   ESP_LOGI("immich", "RANDOM slot %d: %s | %s | %s | %s | portrait=%d",
                            slot, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.location.c_str(), meta.is_portrait);
                   id(espframe_core).slideshow().clear_preload_for_slot(
@@ -960,6 +1037,11 @@ script:
                     id(espframe_core).slideshow().state().portrait_preload_right_ready, id(espframe_core).slideshow().state().preload_noncritical_in_flight,
                     id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
                   set_slot_image_url(slot, img_url, id(immich_img_0), id(immich_img_1), id(immich_img_2));
+              - if:
+                  condition:
+                    lambda: 'return id(immich_request_state).filter_scope_request_pending();'
+                  then:
+                    - script.execute: immich_fetch_asset_tag_scope
               - lambda: |-
                   execute_deferred_slot_image_update(
                     id(espframe_core).slideshow().state().target_slot, id(deferred_slot0_image_update),
@@ -1024,6 +1106,23 @@ script:
           condition:
             lambda: 'return id(immich_url).state.empty() || id(immich_api_key_text).state.empty();'
           then:
+            - script.stop: immich_fetch_portrait_companion
+      - if:
+          condition:
+            lambda: |-
+              const int slot = id(espframe_core).slideshow().state().companion_target_slot;
+              if (slot < 0 || slot > 2) return false;
+              return !get_slot(slot, id(espframe_core).slideshow().state().slot0,
+                               id(espframe_core).slideshow().state().slot1,
+                               id(espframe_core).slideshow().state().slot2).filter_tag_scope_known;
+          then:
+            - if:
+                condition:
+                  lambda: 'return id(immich_request_state).filter_scope_request_pending();'
+                then:
+                  - script.execute: deferred_companion_search
+                else:
+                  - script.execute: handle_companion_not_found
             - script.stop: immich_fetch_portrait_companion
       - if:
           condition:
