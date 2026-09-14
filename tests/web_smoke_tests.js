@@ -335,6 +335,8 @@ function browserScriptForScenario(scenario) {
       "Firmware: Version": ${JSON.stringify(installedFirmwareVersion)},
       "Firmware: Device": ${JSON.stringify(firmwareDeviceSlug)},
       "Photos: Source": "Album",
+      "Photos: Memories Window": "Within 2 Days",
+      "Photos: Memories Fallback": true,
       "Photos: Album IDs": ${JSON.stringify(smokeAlbumIds.join(","))},
       "Photos: Album Labels": ${JSON.stringify(smokeAlbumLabels.join(","))},
       "Photos: Person IDs": "22222222-2222-4222-8222-222222222222",
@@ -1122,7 +1124,8 @@ function smokeAssertionsForScenario(scenario) {
         if (!filterBadge || getComputedStyle(filterBadge).display !== "none") {
           throw new Error("Photo Filter badge must be hidden while open");
         }
-        const filterToggles = Array.from(photoFilterCard.querySelectorAll('[role="switch"]'));
+        const filterToggles = Array.from(photoFilterCard.querySelectorAll('[role="switch"]'))
+          .filter((toggle) => !toggle.closest(".memories-options"));
         const initialFilterStates = filterToggles.map((toggle) => toggle.getAttribute("aria-checked") === "true");
         filterToggles.forEach((toggle) => {
           if (toggle.getAttribute("aria-checked") === "true") toggle.click();
@@ -1150,7 +1153,8 @@ function smokeAssertionsForScenario(scenario) {
         if (immichCardTitles.indexOf("Advanced Filters") !== -1) {
           throw new Error("Advanced Filters should not render as a standalone card");
         }
-        const firstPhotoFilterToggle = photoFilterCard.querySelector(".card-body .toggle-row > span");
+        const firstPhotoFilterToggle = Array.from(photoFilterCard.querySelectorAll(".card-body .toggle-row > span"))
+          .find((item) => item.textContent.trim() === "Filter by Date");
         if (!firstPhotoFilterToggle || firstPhotoFilterToggle.textContent.trim() !== "Filter by Date") {
           throw new Error("Date filter should appear at the top of Photo Filter");
         }
@@ -1200,6 +1204,25 @@ function smokeAssertionsForScenario(scenario) {
         setSelect("Date Format", "Relative Date");
         toggleByText("Location").click();
         toggleByText("Date").click();
+
+        requireText("Source");
+        requireText("Memories Window");
+        requireText("Fallback to All Photos");
+        setSelect("Source", "Memories");
+        if (selectByLabel("Source").disabled || selectByLabel("Memories Window").disabled ||
+            toggleByText("Fallback to All Photos").getAttribute("aria-disabled") === "true") {
+          throw new Error("Memories controls should remain available while Memories is active");
+        }
+        ["Filter by Date", "Filter by Albums", "Filter by People", "Filter by Tags",
+          "Filter by Favorites", "Filter by Rating", "Filter by Location"].forEach((label) => {
+          requireToggleDisabled(label);
+        });
+        requireSelectDisabled("Mode");
+        setSelect("Memories Window", "Same Day");
+        setSelect("Source", "All Photos");
+        if (toggleByText("Filter by Date").style.cursor === "not-allowed") {
+          throw new Error("Photo filters should be restored after leaving Memories");
+        }
 
         clickTab("Device");
         await waitFor(() => pageText().indexOf("Clock") !== -1, 8000, "clock settings");

@@ -46,7 +46,7 @@ def check_photo_source_metadata(product: dict, errors: list[str]) -> None:
         require_contains(photo_docs, memories_window, "docs/photo-sources.md", errors)
     if memories_fallback:
         require_contains(photo_docs, memories_fallback, "docs/photo-sources.md", errors)
-        require_contains(api_yaml, "falling back to random", "common/addon/immich_api.yaml", errors)
+        require_contains(api_yaml, "immich_memory_fallback_or_empty", "common/addon/immich_api.yaml", errors)
     if album_person_sampling:
         require_contains(photo_docs, album_person_sampling, "docs/photo-sources.md", errors)
         require_contains(api_yaml, "paged metadata search", "common/addon/immich_api.yaml", errors)
@@ -112,8 +112,6 @@ def check_photo_source_metadata(product: dict, errors: list[str]) -> None:
     ):
         require_contains(api_yaml, needle, "common/addon/immich_api.yaml", errors)
     require_contains(config_yaml, "/api/server/version", "common/addon/immich_config.yaml", errors)
-    if "memory.read" in api_key_docs:
-        errors.append("docs/api-key.md must not recommend memory.read after Memories migration")
     for needle in (
         "MAX_PHOTO_ID_FIELD_LENGTH",
         "schedulePhotoSourceApply",

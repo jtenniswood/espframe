@@ -427,6 +427,7 @@ struct ImmichRequestState {
   bool memory_fallback = false;
   std::string memory_asset_id;
   int memory_window_offset = -2;
+  int memory_window_radius = 2;
   int memory_image_count = 0;
 
   std::string metadata_album_id;
@@ -576,16 +577,17 @@ struct ImmichRequestState {
     this->metadata_count_cache.push_back({key, total, count_is_upper_bound, now_ms});
   }
 
-  void begin_memory_search() {
+  void begin_memory_search(int window_radius_days = 2) {
     this->memory_fallback = false;
     this->memory_asset_id.clear();
-    this->memory_window_offset = -2;
+    this->memory_window_radius = std::max(0, std::min(window_radius_days, 7));
+    this->memory_window_offset = -this->memory_window_radius;
     this->memory_image_count = 0;
   }
 
   bool advance_memory_window() {
     this->memory_window_offset++;
-    return this->memory_window_offset <= 2;
+    return this->memory_window_offset <= this->memory_window_radius;
   }
 
   // Reservoir sampling (Algorithm R, k=1): keep one candidate and replace it with
@@ -1175,14 +1177,30 @@ inline bool immich_source_has_required_ids(const std::string &photo_source,
   return true;
 }
 
+inline bool immich_memories_source_active(const std::string &photo_source) {
+  return photo_source == "Memories";
+}
+
+inline int immich_memories_window_days(const std::string &option) {
+  if (option.find('7') != std::string::npos) return 7;
+  if (option.find('3') != std::string::npos) return 3;
+  if (option.find('2') != std::string::npos) return 2;
+  if (option.find('1') != std::string::npos) return 1;
+  return 0;
+}
+
 inline std::string immich_source_setup_title(const std::string &photo_source) {
   if (photo_source == "Album") return "Album source needs setup";
   if (photo_source == "Person") return "Person source needs setup";
   if (photo_source == "Tag") return "Tag source needs setup";
+  if (photo_source == "Memories") return "No Memories found";
   return "Photo source needs setup";
 }
 
 inline std::string immich_source_setup_message(const std::string &photo_source) {
+  if (photo_source == "Memories") {
+    return "Immich has no On This Day photos in the selected window. Enable fallback or choose All Photos.";
+  }
   if (photo_source == "Custom") {
     return "Open ESPFrame settings and add IDs to every enabled group, or choose All Photos.";
   }

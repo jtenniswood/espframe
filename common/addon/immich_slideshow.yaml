@@ -722,6 +722,7 @@ script:
             id(immich_fetch_memory_into_slot),
             id(immich_fetch_memory_window_day),
             id(immich_fetch_memory_asset),
+            id(immich_memory_fallback_or_empty),
             id(immich_fetch_asset_tag_scope),
             id(immich_fetch_metadata_into_slot),
             id(immich_fetch_album_count),

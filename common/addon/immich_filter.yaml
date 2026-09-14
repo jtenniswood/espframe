@@ -4,6 +4,9 @@ globals:
   - id: immich_filter_preset_adapter_active
     type: bool
     initial_value: 'false'
+  - id: immich_memories_active
+    type: bool
+    initial_value: 'false'
   - id: immich_filter_boot_restore_complete
     type: bool
     initial_value: 'false'
@@ -48,7 +51,10 @@ esphome:
                   id(immich_filter_preset_adapter_active) = adapter_active;
                   id(immich_filter_schema_version) = 2;
                   global_preferences->sync();
-        - lambda: 'id(immich_filter_boot_restore_complete) = true;'
+        - lambda: |-
+            id(immich_memories_active) = immich_memories_source_active(
+              id(photo_source_select).current_option());
+            id(immich_filter_boot_restore_complete) = true;
 
 # IMMICH FILTER - Photo source selection and filtering
 # =============================================================================
@@ -91,6 +97,27 @@ select:
                   id: apply_legacy_photo_source_preset
                   preserve_tag_matching: false
               - script.execute: auto_apply_photo_source
+
+  - platform: template
+    name: "Photos: Memories Window"
+    id: immich_memories_window
+    internal: true
+    # ESPFRAME:SETTING_FIELDS memories_window START
+    options:
+      - "Same Day"
+      - "Within 1 Day"
+      - "Within 2 Days"
+      - "Within 3 Days"
+      - "Within 7 Days"
+    initial_option: "Within 2 Days"
+    optimistic: true
+    restore_value: true
+    # ESPFRAME:SETTING_FIELDS memories_window END
+    icon: "mdi:calendar-expand-horizontal"
+    on_value:
+      then:
+        - lambda: 'ESP_LOGI("immich", "Memories window: %s", x.c_str());'
+        - script.execute: auto_apply_photo_source
 
   - platform: template
     name: "Photos: Inclusion Groups"
@@ -414,6 +441,22 @@ switch:
     internal: true
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: template
+    name: "Photos: Memories Fallback"
+    id: immich_memories_fallback
+    internal: true
+    optimistic: true
+    # ESPFRAME:SETTING_FIELDS memories_fallback START
+    restore_mode: RESTORE_DEFAULT_ON
+    # ESPFRAME:SETTING_FIELDS memories_fallback END
+    icon: "mdi:image-sync"
+    on_turn_on:
+      then:
+        - script.execute: auto_apply_photo_source
+    on_turn_off:
+      then:
+        - script.execute: auto_apply_photo_source
 
   - platform: template
     name: "Photos: Date Filter"
@@ -741,6 +784,14 @@ script:
     then:
       - lambda: |-
           ImmichFilterConfig config;
+          const bool memories_active = immich_memories_source_active(
+            id(photo_source_select).current_option());
+          if (memories_active) {
+            // Memories is an exclusive source. Keep every saved filter value
+            // intact, but never apply it to a Memories or fallback request.
+            id(immich_filter_config) = config;
+            return;
+          }
           config.albums_enabled = id(immich_albums_enabled).state;
           config.people_enabled = id(immich_people_enabled).state;
           config.tags_enabled = id(immich_tags_enabled).state;
@@ -779,6 +830,7 @@ script:
     then:
       - lambda: |-
           if (id(immich_filter_preset_adapter_active)) return;
+          if (immich_memories_source_active(id(photo_source_select).current_option())) return;
           if (id(photo_source_select).current_option() == "Custom") return;
           auto call = id(photo_source_select).make_call();
           call.set_option("Custom");
@@ -791,7 +843,15 @@ script:
     then:
       - lambda: |-
           const std::string source = id(photo_source_select).current_option();
+          const bool was_memories = id(immich_memories_active);
+          if (source == "Memories") {
+            id(immich_memories_active) = true;
+            id(immich_memories_migration_notice).turn_off();
+            return;
+          }
+          id(immich_memories_active) = false;
           if (source == "Custom") return;
+          if (was_memories && (source == "All Photos" || source == "Custom")) return;
           id(immich_filter_preset_adapter_active) = true;
           auto set_switch = [](auto *control, bool enabled) {
             if (enabled) control->turn_on(); else control->turn_off();
@@ -826,12 +886,6 @@ script:
           id(immich_excluded_person_ids).publish_state("");
           id(immich_excluded_tag_ids).publish_state("");
           global_preferences->sync();
-          if (source == "Memories") {
-            id(immich_memories_migration_notice).turn_on();
-            auto all_photos = id(photo_source_select).make_call();
-            all_photos.set_option("All Photos");
-            all_photos.perform();
-          }
           id(immich_filter_preset_adapter_active) = false;
 
   - id: flush_slots_and_refetch

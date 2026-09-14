@@ -56,7 +56,8 @@ script:
           id(espframe_slideshow_dispatch).execute();
 
   # ---------------------------------------------------------------------------
-  # Fetch memories ("on this day") — step 1: collect assets from today +/- 2 days
+  # Fetch memories ("on this day") — step 1: collect assets from the configured
+  # calendar-day window around today.
   # ---------------------------------------------------------------------------
   - id: immich_fetch_memory_into_slot
     mode: single
@@ -76,8 +77,26 @@ script:
             lambda: 'return id(immich_url).state.empty() || id(immich_api_key_text).state.empty();'
           then:
             - script.stop: immich_fetch_memory_into_slot
-      - lambda: 'id(immich_request_state).begin_memory_search();'
+      - lambda: |-
+          id(immich_request_state).begin_memory_search(
+            immich_memories_window_days(id(immich_memories_window).current_option()));
       - script.execute: immich_fetch_memory_window_day
+
+  - id: immich_memory_fallback_or_empty
+    mode: restart
+    then:
+      - lambda: |-
+          clear_slot_fetch_in_flight(
+            id(espframe_core).slideshow().state().target_slot,
+            id(espframe_core).slideshow().state().slot_flags);
+      - if:
+          condition:
+            lambda: 'return id(immich_memories_fallback).state;'
+          then:
+            - lambda: 'id(immich_request_state).memory_fallback = true;'
+            - script.execute: immich_fetch_into_slot
+          else:
+            - script.execute: show_photo_source_empty_state
 
   - id: immich_fetch_memory_window_day
     mode: queued
@@ -85,10 +104,11 @@ script:
       - http_request.get:
           id: http_req
           url: !lambda |-
-            // Retained only as an inert compatibility script ID for recovery
-            // paths compiled by older packages. Smart Filter V1 never invokes
-            // this request and no Memories endpoint remains configured.
-            return id(immich_url).state;
+            auto now = id(sntp_time).now();
+            std::string day = immich_format_iso_date_offset(
+              now.year, now.month, now.day_of_month,
+              id(immich_request_state).memory_window_offset);
+            return id(immich_url).state + "/api/memories?type=on_this_day&for=" + day;
           # Deliberately no capture_response: an on_this_day response can reach
           # tens or hundreds of kB depending on how many memories the library
           # holds for that day, and capture_response copies the whole body into a
@@ -201,15 +221,13 @@ script:
                   }
 
                   if (id(immich_request_state).memory_image_count <= 0) {
-                    ESP_LOGD("immich", "No memory images in today +/- 2 days — falling back to random");
-                    id(immich_request_state).memory_fallback = true;
-                    clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
-                    id(immich_fetch_into_slot).execute();
+                    ESP_LOGD("immich", "No memory images in configured window");
+                    id(immich_memory_fallback_or_empty).execute();
                     return;
                   }
 
                   // memory_asset_id already holds the sampled pick.
-                  ESP_LOGD("immich", "Memory picked: %s (1 of %d across today +/- 2 days)",
+                  ESP_LOGD("immich", "Memory picked: %s (1 of %d in configured window)",
                            id(immich_request_state).memory_asset_id.c_str(), id(immich_request_state).memory_image_count);
                   id(immich_fetch_memory_asset).execute();
           on_error:
@@ -221,10 +239,8 @@ script:
                     return;
                   }
                   if (id(immich_request_state).memory_image_count <= 0) {
-                    ESP_LOGW("immich", "Memories window request failed — falling back to random");
-                    id(immich_request_state).memory_fallback = true;
-                    clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
-                    id(immich_fetch_into_slot).execute();
+                    ESP_LOGW("immich", "Memories window request failed");
+                    id(immich_memory_fallback_or_empty).execute();
                     return;
                   }
                   // memory_asset_id already holds the sampled pick.
@@ -260,10 +276,8 @@ script:
               - lambda: |-
                   id(espframe_core).record_memory("immich-response");
                   if (response->status_code != 200) {
-                    ESP_LOGW("immich", "Memory asset HTTP %d — falling back to random", response->status_code);
-                    id(immich_request_state).memory_fallback = true;
-                    clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
-                    id(immich_fetch_into_slot).execute();
+                    ESP_LOGW("immich", "Memory asset HTTP %d", response->status_code);
+                    id(immich_memory_fallback_or_empty).execute();
                     return;
                   }
                   id(immich_register_fetch_success).execute();
@@ -271,10 +285,8 @@ script:
                     body, id(immich_url).state, id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2,
                     id(photo_orientation_filter).current_option());
                   if (img_url.empty()) {
-                    ESP_LOGW("immich", "Memory asset parse failed — falling back to random");
-                    id(immich_request_state).memory_fallback = true;
-                    clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
-                    id(immich_fetch_into_slot).execute();
+                    ESP_LOGW("immich", "Memory asset parse failed");
+                    id(immich_memory_fallback_or_empty).execute();
                     return;
                   }
                   int slot = id(espframe_core).slideshow().state().target_slot;
@@ -293,10 +305,8 @@ script:
           on_error:
             then:
               - lambda: |-
-                  ESP_LOGW("immich", "Memory asset request failed — falling back to random");
-                  id(immich_request_state).memory_fallback = true;
-                  clear_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags);
-              - script.execute: immich_fetch_into_slot
+                  ESP_LOGW("immich", "Memory asset request failed");
+              - script.execute: immich_memory_fallback_or_empty
 
   # ---------------------------------------------------------------------------
   # Resolve tag membership for structured multi-tag matches before pairing.
@@ -829,6 +839,18 @@ script:
           // marking a slot busy. Returning from a lambda alone would not.
           id(immich_fetch_into_slot).stop();
       - lambda: 'mark_slot_fetch_in_flight(id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().slot_flags, millis());'
+      - if:
+          condition:
+            lambda: |-
+              return immich_memories_source_active(id(photo_source_select).current_option()) &&
+                     !id(immich_request_state).memory_fallback;
+          then:
+            - script.execute: immich_fetch_memory_into_slot
+            - script.stop: immich_fetch_into_slot
+      - lambda: |-
+          if (id(immich_request_state).memory_fallback) {
+            id(immich_request_state).memory_fallback = false;
+          }
       - script.execute: sync_immich_filter_config
       - delay: 1ms
       - if:

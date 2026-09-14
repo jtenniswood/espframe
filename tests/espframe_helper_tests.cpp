@@ -738,6 +738,21 @@ static void test_immich_request_state() {
   assert(state.memory_asset_id == "asset-b");
   assert(state.advance_memory_window());
   assert(state.memory_window_offset == -1);
+  state.begin_memory_search(0);
+  assert(state.memory_window_offset == 0);
+  assert(!state.advance_memory_window());
+  state.begin_memory_search(7);
+  assert(state.memory_window_offset == -7);
+  for (int offset = -7; offset < 7; offset++) assert(state.advance_memory_window());
+  assert(state.memory_window_offset == 7);
+  assert(!state.advance_memory_window());
+  assert(immich_memories_source_active("Memories"));
+  assert(!immich_memories_source_active("All Photos"));
+  assert(immich_memories_window_days("Same Day") == 0);
+  assert(immich_memories_window_days("Within 1 Day") == 1);
+  assert(immich_memories_window_days("Within 2 Days") == 2);
+  assert(immich_memories_window_days("Within 3 Days") == 3);
+  assert(immich_memories_window_days("Within 7 Days") == 7);
 
   assert(state.register_request_error() == 1);
   assert(state.prepare_retry_delay() == 2000);
@@ -1653,8 +1668,8 @@ static void test_configuration_contract_capabilities() {
   using namespace esphome::espframe::contract;
   static_assert(CONTRACT_VERSION == 2);
   static_assert(API_VERSION == 1);
-  static_assert(SETTING_COUNT == 50);
-  static_assert(CONFIGURATION_FIELD_COUNT == 71);
+  static_assert(SETTING_COUNT == 52);
+  static_assert(CONFIGURATION_FIELD_COUNT == 73);
   assert(std::string(CAPABILITIES_PATH) == "/espframe/api/v1/capabilities");
   assert(std::string(CONFIGURATION_PATH) == "/espframe/api/v1/configuration");
   const std::string capabilities(CAPABILITIES_JSON);

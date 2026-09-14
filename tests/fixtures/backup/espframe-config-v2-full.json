@@ -7,6 +7,8 @@
   },
   "photos": {
     "source": "Custom",
+    "memories_window": "Within 2 Days",
+    "memories_fallback": true,
     "albums_enabled": true,
     "people_enabled": true,
     "tags_enabled": false,

@@ -99,13 +99,14 @@
 
   function makeSmartPhotoFilterCard() {
     var body = el("div");
+    var memoriesActive = S.photo_source === "Memories";
     function filtersActive() {
+      if (memoriesActive) return false;
       return ["date_filter_enabled", "albums_enabled", "people_enabled", "tags_enabled",
         "favorites_enabled", "rating_enabled", "location_enabled"].some(function (key) { return !!S[key]; });
     }
     var filterBadge = makeBadge(filtersActive());
     function updateFilterBadge() { setBadgeActive(filterBadge, filtersActive()); }
-    appendDateFilterControls(body, updateFilterBadge);
     var version = String(S.immich_server_version || "Unknown");
     var parts = version.split(".").map(Number);
     var supportsStructured = parts.length >= 2 && isFinite(parts[0]) && isFinite(parts[1]) &&
@@ -117,7 +118,7 @@
 
     if (S.memories_migration_notice) {
       var notice = el("div", "banner warning");
-      notice.textContent = "Memories was replaced by an empty filter (All Photos). Use date rules to create a similar playlist. ";
+      notice.textContent = "Memories is available again as an exclusive On This Day source. Choose it from Source to enable it. ";
       var dismiss = button("Dismiss", "btn btn-secondary", function () {
         post(endpoints.memories_migration_notice + "/turn_off").then(function () {
           S.memories_migration_notice = false;
@@ -133,6 +134,62 @@
       updateCompatibility();
       return saveSetting(key, value, { applyPhotoSource: true });
     }
+    function updateMemoryFilterLock() {
+      var toggles = body.querySelectorAll('[role="switch"]');
+      Array.prototype.forEach.call(toggles, function (toggleEl) {
+        var toggle = toggleEl as HTMLElement & { __memoryOriginalOnclick?: any; __memoryOriginalOnkeydown?: any };
+        if (toggle.closest(".memories-options")) return;
+        if (toggle.__memoryOriginalOnclick === undefined) {
+          toggle.__memoryOriginalOnclick = toggle.onclick;
+          toggle.__memoryOriginalOnkeydown = toggle.onkeydown;
+        }
+        toggle.setAttribute("aria-disabled", memoriesActive ? "true" : "false");
+        toggle.setAttribute("tabindex", memoriesActive ? "-1" : "0");
+        toggle.style.opacity = memoriesActive ? ".35" : "";
+        toggle.style.cursor = memoriesActive ? "not-allowed" : "";
+        toggle.onclick = memoriesActive ? function () {} : toggle.__memoryOriginalOnclick;
+        toggle.onkeydown = memoriesActive ? function (event) { event.preventDefault(); } : toggle.__memoryOriginalOnkeydown;
+      });
+      var controls = body.querySelectorAll("select, input");
+      Array.prototype.forEach.call(controls, function (controlEl) {
+        var control = controlEl as HTMLSelectElement | HTMLInputElement;
+        var fieldEl = control.closest(".field");
+        if ((fieldEl && fieldEl.classList.contains("memories-source-control")) ||
+            control.closest(".memories-options")) return;
+        control.disabled = memoriesActive;
+      });
+      updateFilterBadge();
+    }
+
+    var sourceField = field("Source");
+    sourceField.classList.add("memories-source-control");
+    sourceField.appendChild(selectFromOptions(productSettingOptions("photo_source"), S.photo_source, function (value) {
+      S.photo_source = value;
+      memoriesActive = value === "Memories";
+      applySetting("photo_source", value);
+      updateMemoryFilterLock();
+    }));
+    body.appendChild(sourceField);
+
+    var memoriesOptions = el("div", "memories-options");
+    var memoriesWindowField = field("Memories Window");
+    memoriesWindowField.appendChild(selectFromOptions(productSettingOptions("memories_window"), S.memories_window, function (value) {
+      S.memories_window = value;
+      applySetting("memories_window", value);
+    }));
+    memoriesOptions.appendChild(memoriesWindowField);
+    var memoriesFallbackRow = toggleSettingRow({
+      label: "Fallback to All Photos", value: !!S.memories_fallback,
+      getValue: function () { return !!S.memories_fallback; },
+      setValue: function (value) { S.memories_fallback = value; },
+      onChange: function (value) { applySetting("memories_fallback", value); }
+    });
+    memoriesOptions.appendChild(memoriesFallbackRow.field);
+    var memoriesHint = el("div", "setting-hint");
+    memoriesHint.textContent = "Memories ignores the saved photo filters while active. Their values are preserved.";
+    memoriesOptions.appendChild(memoriesHint);
+    body.appendChild(memoriesOptions);
+    appendDateFilterControls(body, updateFilterBadge);
     function addSelect(label, key, disabled, reason, recoveryValue?) {
       var f = field(label);
       var control = selectFromOptions(productSettingOptions(key), S[key], function (value) {
@@ -343,6 +400,7 @@
     });
     locationDetails.style.display = S.location_enabled ? "" : "none";
     body.appendChild(locationDetails);
+    updateMemoryFilterLock();
     return makeCollapsibleCard("Photo Filter", body, true, filterBadge);
   }
 

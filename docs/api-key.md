@@ -18,6 +18,7 @@ Espframe needs a read-only API key; it never modifies or uploads. **Account Sett
 | `album.read` | Album names a photo belongs to |
 | `tag.read` | Tags assigned to photos |
 | `map.read` | Additional GPS/map data beyond EXIF |
+| `memory.read` | Read Immich On This Day Memories |
 
 ## Next steps
 

@@ -72,6 +72,17 @@ assert.ok(
 );
 assert.ok(publicApp.includes("customElements.define"), "public app should register its component root");
 assert.ok(publicApp.includes('"album_order"'), "public app should include album order in photo-source apply keys");
+assert.ok(
+  publicApp.includes("Memories Window") &&
+    publicApp.includes("Fallback to All Photos") &&
+    publicApp.includes("Memories ignores the saved photo filters while active"),
+  "photo filter UI should expose the configurable Memories window and fallback"
+);
+assert.ok(
+  publicApp.includes('toggle.setAttribute("aria-disabled", memoriesActive ? "true" : "false")') &&
+    publicApp.includes("control.disabled = memoriesActive"),
+  "photo filter UI should disable content controls while Memories is active"
+);
 assert.ok(publicApp.includes("Move up"), "public app should include album reorder controls");
 assert.ok(publicApp.includes("movePhotoIdRow"), "public app should keep photo ID and label rows reorderable");
 assert.ok(
@@ -143,6 +154,13 @@ assert.ok(
     immichApiSource.includes("metadata_cursor") &&
     immichApiSource.includes("parse_immich_metadata_next_cursor"),
   "album compatibility should retain legacy payload minimization and use structured cursors"
+);
+assert.ok(
+  immichApiSource.includes("/api/memories?type=on_this_day&for=") &&
+    immichApiSource.includes("immich_memories_window_days") &&
+    immichApiSource.includes("immich_memory_fallback_or_empty") &&
+    immichApiSource.includes("memory_fallback"),
+  "Memories should use the On This Day API with a configurable window and fallback"
 );
 assert.ok(
   filterFlush.includes("filter_apply_pending = true") &&
@@ -249,6 +267,12 @@ assert.ok(
   legacyPreset.includes("if (!preserve_tag_matching)") &&
     legacyPreset.includes('set_option(id(immich_tag_matching), "Any selected tag")'),
   "legacy preset adapter should reset tag matching only outside schema migration"
+);
+assert.ok(
+  legacyPreset.includes('if (source == "Memories")') &&
+    legacyPreset.includes("id(immich_memories_active) = true") &&
+    legacyPreset.includes("return;"),
+  "selecting Memories should activate the exclusive source without overwriting saved filters"
 );
 [
   "Match all enabled groups",

@@ -24,6 +24,48 @@
     ]
   },
   {
+    "key": "memories_window",
+    "entity": {
+      "domain": "select",
+      "name": "Photos: Memories Window"
+    },
+    "default": "Within 2 Days",
+    "docs_label": "Memories Window",
+    "docs_default": "`Within 2 Days`",
+    "docs_format": "`Same Day`, `Within 1 Day`, `Within 2 Days`, `Within 3 Days`, or `Within 7 Days`",
+    "docs_description": "When Memories is selected, search this calendar-day window across prior years.",
+    "options": [
+      "Same Day",
+      "Within 1 Day",
+      "Within 2 Days",
+      "Within 3 Days",
+      "Within 7 Days"
+    ],
+    "firmware_files": [
+      "common/addon/immich_filter.yaml"
+    ],
+    "docs_files": [
+      "docs/photo-sources.md"
+    ]
+  },
+  {
+    "key": "memories_fallback",
+    "entity": {
+      "domain": "switch",
+      "name": "Photos: Memories Fallback"
+    },
+    "default": true,
+    "docs_label": "Fallback to All Photos",
+    "docs_default": "On",
+    "docs_description": "When Memories has no result or fails, show an unfiltered All Photos result.",
+    "firmware_files": [
+      "common/addon/immich_filter.yaml"
+    ],
+    "docs_files": [
+      "docs/photo-sources.md"
+    ]
+  },
+  {
     "key": "album_order",
     "entity": {
       "domain": "select",
