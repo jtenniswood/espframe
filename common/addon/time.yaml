@@ -339,6 +339,7 @@ time:
         - script.execute: update_photo_metadata_display
         - script.execute: backlight_recalc_sunrise_sunset
         - script.execute: screen_schedule_check
+        - script.execute: immich_fetch_into_slot
 
 # -----------------------------------------------------------------------------
 # Unified 60-second periodic interval for clock, backlight, and warm tones

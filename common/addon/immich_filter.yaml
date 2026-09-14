@@ -843,7 +843,6 @@ script:
     then:
       - lambda: |-
           const std::string source = id(photo_source_select).current_option();
-          const bool was_memories = id(immich_memories_active);
           if (source == "Memories") {
             id(immich_memories_active) = true;
             id(immich_memories_migration_notice).turn_off();
@@ -851,7 +850,6 @@ script:
           }
           id(immich_memories_active) = false;
           if (source == "Custom") return;
-          if (was_memories && (source == "All Photos" || source == "Custom")) return;
           id(immich_filter_preset_adapter_active) = true;
           auto set_switch = [](auto *control, bool enabled) {
             if (enabled) control->turn_on(); else control->turn_off();
@@ -891,6 +889,10 @@ script:
   - id: flush_slots_and_refetch
     mode: single
     then:
+      - script.stop: immich_fetch_memory_into_slot
+      - script.stop: immich_fetch_memory_window_day
+      - script.stop: immich_fetch_memory_asset
+      - script.stop: immich_memory_fallback_or_empty
       - script.execute: sync_immich_filter_config
       - delay: 1ms
       - lambda: |-

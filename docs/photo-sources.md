@@ -82,7 +82,7 @@ Set **Source** to **Memories** to show photos from the same calendar day in prio
 
 Configured Memories window: Same Day through Within 7 Days; default Within 2 Days; matched across prior years.
 
-Memories is an exclusive source. While it is selected, all saved content filters—date, albums, people, tags, favorites, ratings, location, inclusion/exclusion rules, and album order—are ignored. Their values are preserved and become active again when you switch back to another source. Orientation, display mode, metadata, and portrait pairing are independent display options and remain available.
+Memories is an exclusive source. While it is selected, all saved content filters—date, albums, people, tags, favorites, ratings, location, inclusion/exclusion rules, and album order—are ignored. Their values are preserved while Memories is active. Selecting **Custom** restores the composed filter; selecting a legacy preset such as **All Photos**, **Favorites**, **Album**, **Person**, or **Tag** applies that source's documented preset. Orientation, display mode, metadata, and portrait pairing are independent display options and remain available.
 
 If no memory is found, or Immich cannot answer the memory request, **Fallback to All Photos** shows an unfiltered photo instead. Turn fallback off to keep the frame on its current photo and show the empty-state message when the selected window has no result. The frame needs the `memory.read` API permission for this source.
 

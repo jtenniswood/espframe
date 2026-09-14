@@ -85,22 +85,35 @@ script:
   - id: immich_memory_fallback_or_empty
     mode: restart
     then:
-      - lambda: |-
-          clear_slot_fetch_in_flight(
-            id(espframe_core).slideshow().state().target_slot,
-            id(espframe_core).slideshow().state().slot_flags);
       - if:
           condition:
-            lambda: 'return id(immich_memories_fallback).state;'
+            lambda: 'return id(immich_request_state).memory_request_is_current();'
           then:
-            - lambda: 'id(immich_request_state).memory_fallback = true;'
-            - script.execute: immich_fetch_into_slot
-          else:
-            - script.execute: show_photo_source_empty_state
+            - lambda: |-
+                clear_slot_fetch_in_flight(
+                  id(espframe_core).slideshow().state().target_slot,
+                  id(espframe_core).slideshow().state().slot_flags);
+            - if:
+                condition:
+                  lambda: 'return id(immich_memories_fallback).state;'
+                then:
+                  - lambda: 'id(immich_request_state).memory_fallback = true;'
+                  - script.execute: immich_fetch_into_slot
+                else:
+                  - script.execute: show_photo_source_empty_state
 
   - id: immich_fetch_memory_window_day
     mode: queued
     then:
+      - if:
+          condition:
+            lambda: 'return !id(sntp_time).now().is_valid();'
+          then:
+            - logger.log:
+                level: DEBUG
+                tag: immich
+                format: "Waiting for valid time before Memories request"
+            - script.stop: immich_fetch_memory_window_day
       - http_request.get:
           id: http_req
           url: !lambda |-
@@ -120,6 +133,10 @@ script:
           on_response:
             then:
               - lambda: |-
+                  if (!id(immich_request_state).memory_request_is_current()) {
+                    ESP_LOGD("immich", "Discarding stale Memories response");
+                    return;
+                  }
                   id(espframe_core).record_memory("immich-response");
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Memories HTTP %d for offset %+d", response->status_code,
@@ -127,16 +144,15 @@ script:
                     return;
                   }
 
-                  JsonDocument filter;
-                  filter[0]["assets"][0]["id"] = true;
-                  filter[0]["assets"][0]["type"] = true;
-
                   // Pulls the response straight off the HTTP container in 512B
-                  // chunks so the body is never held in memory in full. Only the
-                  // filtered document survives, and that stays a few kB no matter
-                  // how large the response is. HttpContainer::read() does not have
-                  // BSD socket semantics (0 means "nothing yet" OR "all read", <0
-                  // is an error), so completion goes through http_read_loop_result.
+                  // chunks so the body is never held in memory in full. The small
+                  // parser below visits each memory asset as it arrives and keeps
+                  // only the reservoir sample in ImmichRequestState. This avoids
+                  // both capture_response and a filtered ArduinoJson document
+                  // proportional to the response. HttpContainer::read() does not
+                  // have BSD socket semantics (0 means "nothing yet" OR "all read",
+                  // <0 is an error), so completion goes through
+                  // http_read_loop_result.
                   struct MemoriesStreamReader {
                     esphome::http_request::HttpContainer *container;
                     uint32_t last_data_time;
@@ -172,17 +188,201 @@ script:
                       if (!this->fill()) return -1;
                       return this->buf[this->buf_pos++];
                     }
+                  };
 
-                    size_t readBytes(char *dst, size_t len) {
-                      size_t n = 0;
-                      while (n < len) {
-                        if (!this->fill()) break;
-                        size_t take = std::min(this->buf_len - this->buf_pos, len - n);
-                        memcpy(dst + n, this->buf + this->buf_pos, take);
-                        this->buf_pos += take;
-                        n += take;
+                  struct MemoriesJsonParser {
+                    MemoriesStreamReader *reader;
+                    ImmichRequestState *state;
+                    int pending = -1;
+
+                    int read() {
+                      if (this->pending >= 0) {
+                        int value = this->pending;
+                        this->pending = -1;
+                        return value;
                       }
-                      return n;
+                      return this->reader->read();
+                    }
+
+                    void unread(int value) {
+                      this->pending = value;
+                    }
+
+                    int next_non_whitespace() {
+                      int value;
+                      do {
+                        value = this->read();
+                      } while (value >= 0 && value <= ' ');
+                      return value;
+                    }
+
+                    bool expect(char expected) {
+                      return this->next_non_whitespace() == expected;
+                    }
+
+                    bool read_string_after_open(std::string *value) {
+                      if (value != nullptr) value->clear();
+                      while (true) {
+                        int ch = this->read();
+                        if (ch < 0) return false;
+                        if (ch == '"') return true;
+                        if (ch != '\\') {
+                          if (value != nullptr) value->push_back(static_cast<char>(ch));
+                          continue;
+                        }
+                        int escaped = this->read();
+                        if (escaped < 0) return false;
+                        if (escaped == 'u') {
+                          for (int i = 0; i < 4; i++) {
+                            if (this->read() < 0) return false;
+                          }
+                          if (value != nullptr) value->push_back('?');
+                          continue;
+                        }
+                        if (value == nullptr) continue;
+                        switch (escaped) {
+                          case 'b': value->push_back('\b'); break;
+                          case 'f': value->push_back('\f'); break;
+                          case 'n': value->push_back('\n'); break;
+                          case 'r': value->push_back('\r'); break;
+                          case 't': value->push_back('\t'); break;
+                          default: value->push_back(static_cast<char>(escaped)); break;
+                        }
+                      }
+                    }
+
+                    bool read_key(std::string *key) {
+                      if (this->next_non_whitespace() != '"') return false;
+                      return this->read_string_after_open(key);
+                    }
+
+                    bool skip_value_from(int first) {
+                      if (first < 0) return false;
+                      if (first == '"') return this->read_string_after_open(nullptr);
+                      if (first == '{') return this->skip_object();
+                      if (first == '[') return this->skip_array();
+                      while (true) {
+                        int ch = this->read();
+                        if (ch < 0) return true;
+                        if (ch == ',' || ch == ']' || ch == '}') {
+                          this->unread(ch);
+                          return true;
+                        }
+                      }
+                    }
+
+                    bool skip_value() {
+                      return this->skip_value_from(this->next_non_whitespace());
+                    }
+
+                    bool skip_object() {
+                      int ch = this->next_non_whitespace();
+                      if (ch == '}') return true;
+                      this->unread(ch);
+                      while (true) {
+                        if (!this->read_key(nullptr) || !this->expect(':') || !this->skip_value()) {
+                          return false;
+                        }
+                        ch = this->next_non_whitespace();
+                        if (ch == '}') return true;
+                        if (ch != ',') return false;
+                      }
+                    }
+
+                    bool skip_array() {
+                      int ch = this->next_non_whitespace();
+                      if (ch == ']') return true;
+                      this->unread(ch);
+                      while (true) {
+                        if (!this->skip_value()) return false;
+                        ch = this->next_non_whitespace();
+                        if (ch == ']') return true;
+                        if (ch != ',') return false;
+                      }
+                    }
+
+                    bool parse_asset_object() {
+                      std::string key;
+                      std::string asset_id;
+                      std::string asset_type;
+                      int ch = this->next_non_whitespace();
+                      if (ch == '}') return true;
+                      this->unread(ch);
+                      while (true) {
+                        if (!this->read_key(&key) || !this->expect(':')) return false;
+                        if (key == "id" || key == "type") {
+                          ch = this->next_non_whitespace();
+                          if (ch == '"') {
+                            if (!this->read_string_after_open(
+                                  key == "id" ? &asset_id : &asset_type)) return false;
+                          } else if (!this->skip_value_from(ch)) {
+                            return false;
+                          }
+                        } else if (!this->skip_value()) {
+                          return false;
+                        }
+                        ch = this->next_non_whitespace();
+                        if (ch == '}') break;
+                        if (ch != ',') return false;
+                      }
+                      if (!asset_id.empty() && (asset_type.empty() || asset_type == "IMAGE")) {
+                        this->state->add_memory_image(asset_id);
+                      }
+                      return true;
+                    }
+
+                    bool parse_assets_array() {
+                      int ch = this->next_non_whitespace();
+                      if (ch == ']') return true;
+                      this->unread(ch);
+                      while (true) {
+                        ch = this->next_non_whitespace();
+                        if (ch == '{') {
+                          if (!this->parse_asset_object()) return false;
+                        } else if (!this->skip_value_from(ch)) {
+                          return false;
+                        }
+                        ch = this->next_non_whitespace();
+                        if (ch == ']') return true;
+                        if (ch != ',') return false;
+                      }
+                    }
+
+                    bool parse_memory_object() {
+                      std::string key;
+                      int ch = this->next_non_whitespace();
+                      if (ch == '}') return true;
+                      this->unread(ch);
+                      while (true) {
+                        if (!this->read_key(&key) || !this->expect(':')) return false;
+                        if (key == "assets") {
+                          ch = this->next_non_whitespace();
+                          if (ch != '[' || !this->parse_assets_array()) return false;
+                        } else if (!this->skip_value()) {
+                          return false;
+                        }
+                        ch = this->next_non_whitespace();
+                        if (ch == '}') return true;
+                        if (ch != ',') return false;
+                      }
+                    }
+
+                    bool parse() {
+                      if (!this->expect('[')) return false;
+                      int ch = this->next_non_whitespace();
+                      if (ch == ']') return true;
+                      this->unread(ch);
+                      while (true) {
+                        ch = this->next_non_whitespace();
+                        if (ch == '{') {
+                          if (!this->parse_memory_object()) return false;
+                        } else if (!this->skip_value_from(ch)) {
+                          return false;
+                        }
+                        ch = this->next_non_whitespace();
+                        if (ch == ']') return true;
+                        if (ch != ',') return false;
+                      }
                     }
                   };
 
@@ -190,49 +390,38 @@ script:
                   reader.container = response.get();
                   reader.last_data_time = millis();
                   reader.read_timeout = id(http_req)->get_timeout();
-
-                  JsonDocument doc;
-                  DeserializationError err = deserializeJson(
-                    doc, reader, DeserializationOption::Filter(filter));
-                  if (err || !doc.is<JsonArray>()) {
+                  MemoriesJsonParser parser{&reader, &id(immich_request_state)};
+                  if (!parser.parse()) {
                     ESP_LOGD("immich", "No memories for offset %+d", id(immich_request_state).memory_window_offset);
                     return;
                   }
+              - if:
+                  condition:
+                    lambda: 'return id(immich_request_state).memory_request_is_current();'
+                  then:
+                    - lambda: |-
+                        if (id(immich_request_state).advance_memory_window()) {
+                          id(immich_fetch_memory_window_day).execute();
+                          return;
+                        }
 
-                  JsonArray memories = doc.as<JsonArray>();
-                  for (size_t m = 0; m < memories.size(); m++) {
-                    JsonObject mem = memories[m].as<JsonObject>();
-                    if (mem.isNull() || !mem["assets"].is<JsonArray>()) continue;
-                    JsonArray assets = mem["assets"].as<JsonArray>();
-                    for (size_t a = 0; a < assets.size(); a++) {
-                      JsonObject asset = assets[a].as<JsonObject>();
-                      if (asset["id"].isNull()) continue;
-                      if (!asset["type"].isNull()) {
-                        std::string type = asset["type"].as<std::string>();
-                        if (type != "IMAGE") continue;
-                      }
-                      id(immich_request_state).add_memory_image(asset["id"].as<std::string>());
-                    }
-                  }
-              - lambda: |-
-                  if (id(immich_request_state).advance_memory_window()) {
-                    id(immich_fetch_memory_window_day).execute();
-                    return;
-                  }
+                        if (id(immich_request_state).memory_image_count <= 0) {
+                          ESP_LOGD("immich", "No memory images in configured window");
+                          id(immich_memory_fallback_or_empty).execute();
+                          return;
+                        }
 
-                  if (id(immich_request_state).memory_image_count <= 0) {
-                    ESP_LOGD("immich", "No memory images in configured window");
-                    id(immich_memory_fallback_or_empty).execute();
-                    return;
-                  }
-
-                  // memory_asset_id already holds the sampled pick.
-                  ESP_LOGD("immich", "Memory picked: %s (1 of %d in configured window)",
-                           id(immich_request_state).memory_asset_id.c_str(), id(immich_request_state).memory_image_count);
-                  id(immich_fetch_memory_asset).execute();
+                        // memory_asset_id already holds the sampled pick.
+                        ESP_LOGD("immich", "Memory picked: %s (1 of %d in configured window)",
+                                 id(immich_request_state).memory_asset_id.c_str(), id(immich_request_state).memory_image_count);
+                        id(immich_fetch_memory_asset).execute();
           on_error:
             then:
               - lambda: |-
+                  if (!id(immich_request_state).memory_request_is_current()) {
+                    ESP_LOGD("immich", "Discarding stale Memories request error");
+                    return;
+                  }
                   ESP_LOGW("immich", "Memories request failed for offset %+d", id(immich_request_state).memory_window_offset);
                   if (id(immich_request_state).advance_memory_window()) {
                     id(immich_fetch_memory_window_day).execute();
@@ -274,6 +463,10 @@ script:
           on_response:
             then:
               - lambda: |-
+                  if (!id(immich_request_state).memory_request_is_current()) {
+                    ESP_LOGD("immich", "Discarding stale memory asset response");
+                    return;
+                  }
                   id(espframe_core).record_memory("immich-response");
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Memory asset HTTP %d", response->status_code);
@@ -298,15 +491,23 @@ script:
                     id(espframe_core).slideshow().state().portrait_preload_right_ready, id(espframe_core).slideshow().state().preload_noncritical_in_flight,
                     id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
                   set_slot_image_url(slot, img_url, id(immich_img_0), id(immich_img_1), id(immich_img_2));
-              - lambda: |-
-                  execute_deferred_slot_image_update(
-                    id(espframe_core).slideshow().state().target_slot, id(deferred_slot0_image_update),
-                    id(deferred_slot1_image_update), id(deferred_slot2_image_update));
+              - if:
+                  condition:
+                    lambda: 'return id(immich_request_state).memory_request_is_current();'
+                  then:
+                    - lambda: |-
+                        execute_deferred_slot_image_update(
+                          id(espframe_core).slideshow().state().target_slot, id(deferred_slot0_image_update),
+                          id(deferred_slot1_image_update), id(deferred_slot2_image_update));
           on_error:
             then:
               - lambda: |-
+                  if (!id(immich_request_state).memory_request_is_current()) {
+                    ESP_LOGD("immich", "Discarding stale memory asset request error");
+                    return;
+                  }
                   ESP_LOGW("immich", "Memory asset request failed");
-              - script.execute: immich_memory_fallback_or_empty
+                  id(immich_memory_fallback_or_empty).execute();
 
   # ---------------------------------------------------------------------------
   # Resolve tag membership for structured multi-tag matches before pairing.

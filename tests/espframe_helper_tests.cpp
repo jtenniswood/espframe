@@ -723,8 +723,13 @@ static void test_immich_request_state() {
   assert(!cached_upper_bound);
 
   state.begin_memory_search();
+  assert(state.memory_request_is_current());
   assert(state.memory_window_offset == -2);
   assert(state.memory_asset_id.empty());
+  state.invalidate_photo_source_requests();
+  assert(!state.memory_request_is_current());
+  state.begin_memory_search();
+  assert(state.memory_request_is_current());
   state.add_memory_image("asset-a");
   assert(state.memory_image_count == 1);
   assert(state.memory_asset_id == "asset-a");

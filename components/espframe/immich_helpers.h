@@ -454,6 +454,7 @@ struct ImmichRequestState {
   uint32_t filter_scope_generation = 0;
   uint32_t photo_source_generation = 0;
   uint32_t random_request_generation = 0;
+  uint32_t memory_request_generation = 0;
   std::string server_version;
   ImmichApiGeneration api_generation = ImmichApiGeneration::V31_FLAT;
   bool server_version_discovered = false;
@@ -479,6 +480,19 @@ struct ImmichRequestState {
 
   bool random_request_is_current() const {
     return this->random_request_generation == this->photo_source_generation;
+  }
+
+  void begin_memory_search(int window_radius_days = 2) {
+    this->memory_request_generation = this->photo_source_generation;
+    this->memory_fallback = false;
+    this->memory_asset_id.clear();
+    this->memory_window_radius = std::max(0, std::min(window_radius_days, 7));
+    this->memory_window_offset = -this->memory_window_radius;
+    this->memory_image_count = 0;
+  }
+
+  bool memory_request_is_current() const {
+    return this->memory_request_generation == this->photo_source_generation;
   }
 
   void begin_filter_scope_request(int slot, const std::string &asset_id,
@@ -575,14 +589,6 @@ struct ImmichRequestState {
       this->metadata_count_cache.erase(this->metadata_count_cache.begin());
     }
     this->metadata_count_cache.push_back({key, total, count_is_upper_bound, now_ms});
-  }
-
-  void begin_memory_search(int window_radius_days = 2) {
-    this->memory_fallback = false;
-    this->memory_asset_id.clear();
-    this->memory_window_radius = std::max(0, std::min(window_radius_days, 7));
-    this->memory_window_offset = -this->memory_window_radius;
-    this->memory_image_count = 0;
   }
 
   bool advance_memory_window() {
