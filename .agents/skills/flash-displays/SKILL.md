@@ -1,19 +1,19 @@
 ---
 name: flash-displays
-description: Flash the Espframe 10-inch display firmware from this repository using ESPHome. Use when the user invokes /flash-displays, asks to flash, reflash, update, or upload firmware to the Immich Frame / 10-inch Guition display over its default IP address, an explicitly supplied IP address, or USB.
+description: Flash the Espframe 10-inch display firmware from this repository using ESPHome. Use when the user invokes /flash-displays, asks to flash, reflash, update, or upload firmware to the Espframe / 10-inch Guition display over its default IP address, an explicitly supplied IP address, or USB.
 ---
 
 # Flash Display
 
 ## Overview
 
-Use the local development ESPHome config to flash the Espframe display from this checkout. This repository has one supported device: the Guition ESP32-P4 JC8012P4A1 10.1-inch Immich Frame.
+Use the local development ESPHome config to flash the Espframe display from this checkout. This repository has one supported device: the Guition ESP32-P4 JC8012P4A1 10.1-inch Espframe.
 
 Flash over OTA by default using `192.168.6.106`, unless the user supplies a different IP address. Flash over USB when the user explicitly asks for USB, local USB, serial, or gives a `/dev/cu.*` target.
 
 ## Target
 
-- Device: Guition ESP32-P4 JC8012P4A1 10.1-inch Immich Frame.
+- Device: Guition ESP32-P4 JC8012P4A1 10.1-inch Espframe.
 - ESPHome config directory: `devices/guition-esp32-p4-jc8012p4a1`.
 - Default YAML: `dev.yaml`.
 - Default OTA target: `192.168.6.106`.

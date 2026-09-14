@@ -6,7 +6,7 @@
 
 substitutions:
   name: "immich-frame-10inch-v2-dev"
-  friendly_name: "Immich Frame 10inch New Panel Dev"
+  friendly_name: "Espframe 10inch New Panel Dev"
   espframe_component_url: "../.."
   espframe_component_ref: "HEAD"
 

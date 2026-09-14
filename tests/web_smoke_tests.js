@@ -445,7 +445,7 @@ function browserScriptForScenario(scenario) {
       }
     }
 
-    let identity = { mac_suffix: "b2c3", name: "", friendly_name: "Immich Frame", hostname: "immich-frame", ip_address: "192.168.1.42", restart_required: false };
+    let identity = { mac_suffix: "b2c3", name: "", friendly_name: "Espframe", hostname: "immich-frame", ip_address: "192.168.1.42", restart_required: false };
     if (${JSON.stringify(!!scenario.initialName || !!scenario.delayedIdentity)}) {
       const name = ${JSON.stringify(scenario.initialName || "Office")};
       identity = { ...identity, name, friendly_name: name, hostname: name.slice(0, 19).toLowerCase() + "-b2c3" };
@@ -470,7 +470,7 @@ function browserScriptForScenario(scenario) {
             return Promise.resolve({ ok: false, status: 500 });
           }
           const name = new URLSearchParams(body).get("name").trim();
-          identity = { ...identity, name, friendly_name: name || "Immich Frame",
+          identity = { ...identity, name, friendly_name: name || "Espframe",
             hostname: name ? name.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-b2c3" : "immich-frame",
             restart_required: !!name };
         }
@@ -1343,7 +1343,7 @@ function smokeAssertionsForScenario(scenario) {
             await waitFor(() => document.title === name + " · EspFrame", 4000, "saved frame title");
             requireHeaderName(name);
           };
-          requireHeaderName(${JSON.stringify(scenario.initialName || "Immich Frame")});
+          requireHeaderName(${JSON.stringify(scenario.initialName || "Espframe")});
           if (${JSON.stringify(!!scenario.initialName)}) {
             const deviceName = document.querySelector(".sp-device-name");
             const nav = document.querySelector(".sp-nav").getBoundingClientRect();
@@ -1356,7 +1356,7 @@ function smokeAssertionsForScenario(scenario) {
           if (${JSON.stringify(!!scenario.identityFailure)}) {
             await waitFor(() => document.querySelector('[role="alert"]')?.textContent, 4000, "save failure");
             if (window.__smoke.posts.some(url => url.includes("Reboot Screen"))) throw new Error("Failed save restarted the device");
-            if (document.title !== "Immich Frame · EspFrame") throw new Error("Failed save changed the title");
+            if (document.title !== "Espframe · EspFrame") throw new Error("Failed save changed the title");
             if (document.querySelector("#frame-name").value !== "Living Room") throw new Error("Failed save lost draft");
             clickButton("Save & Restart");
           }
@@ -1401,7 +1401,7 @@ function smokeAssertionsForScenario(scenario) {
             if (window.__smoke.posts.length !== count) throw new Error("Invalid UTF-8 byte length was posted");
             setName("");
             clickButton("Save & Restart");
-            await waitName("Immich Frame");
+            await waitName("Espframe");
             await waitFor(() => document.querySelector("#frame-name").value === "", 4000, "cleared input");
             if (document.querySelector(".frame-reconnect-dialog")) throw new Error("Clearing back to boot default needs no restart");
             if (document.documentElement.scrollWidth > window.innerWidth + 4) throw new Error("Name card overflows mobile viewport");

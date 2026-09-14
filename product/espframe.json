@@ -1787,9 +1787,9 @@
   "devices": [
     {
       "slug": "immich-frame",
-      "name": "Immich Frame",
+      "name": "Espframe",
       "esphome_name": "immich-frame-10inch",
-      "friendly_name": "Immich Frame 10inch",
+      "friendly_name": "Espframe 10inch",
       "chip": "ESP32-P4",
       "model": "Guition ESP32-P4 JC8012P4A1",
       "panel_revision": "original",
@@ -2023,9 +2023,9 @@
     },
     {
       "slug": "immich-frame-v2",
-      "name": "Immich Frame New Panel",
+      "name": "Espframe New Panel",
       "esphome_name": "immich-frame-10inch-v2",
-      "friendly_name": "Immich Frame 10inch New Panel",
+      "friendly_name": "Espframe 10inch New Panel",
       "chip": "ESP32-P4",
       "model": "Guition ESP32-P4 JC8012P4A1",
       "esp32_variant": "ESP32P4",

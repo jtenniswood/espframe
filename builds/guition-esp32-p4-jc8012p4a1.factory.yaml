@@ -10,7 +10,7 @@
 
 substitutions:
   name: "immich-frame-10inch"
-  friendly_name: "Immich Frame 10inch"
+  friendly_name: "Espframe 10inch"
   firmware_version: "0.0.0"
 
 packages:

@@ -1,7 +1,7 @@
-# Guition ESP32-P4-JC8012P4A1 Immich Frame
+# Guition ESP32-P4-JC8012P4A1 Espframe
 substitutions:
   name: "immich-frame-10inch"
-  friendly_name: "Immich Frame 10inch"
+  friendly_name: "Espframe 10inch"
 
 # Wifi Setup
 wifi:

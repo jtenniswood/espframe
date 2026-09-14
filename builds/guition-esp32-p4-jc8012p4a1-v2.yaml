@@ -7,7 +7,7 @@
 
 substitutions:
   name: "immich-frame-10inch-v2"
-  friendly_name: "Immich Frame 10inch New Panel"
+  friendly_name: "Espframe 10inch New Panel"
 
 esphome:
   name_add_mac_suffix: true
