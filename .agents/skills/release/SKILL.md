@@ -1,8 +1,9 @@
 ---
 name: release
 description: >-
-  Create and publish a new GitHub release for this repository, then verify that
-  the related GitHub Actions firmware release build starts. Use when the user
+  Create and publish a new GitHub release for this repository, then wait for
+  the related GitHub Actions firmware release build to complete successfully.
+  Use when the user
   says "/release", "make a release", "create a GitHub release", "publish a
   release", "tag a release", "major release", "feature release", "minor
   release", "patch release", "start the release action", or wants firmware
@@ -11,10 +12,11 @@ description: >-
 
 # GitHub Release
 
-Create a GitHub release from `main` and confirm the `Build Release` action
-starts. In this repo, publishing a release is the normal way to start the
-firmware build because `.github/workflows/release.yml` uploads firmware assets
-only for the `release` event.
+Create a GitHub release from `main` and wait for the `Build Release` action to
+complete successfully. Do not report the release as successful while the
+workflow is queued or in progress. In this repo, publishing a release is the
+normal way to start the firmware build because `.github/workflows/release.yml`
+uploads firmware assets only for the `release` event.
 
 ## Release Flow
 
@@ -112,7 +114,7 @@ gh release edit "$TAG" --draft=false
 Do not close GitHub issues as part of this workflow unless the user explicitly
 asks; they prefer to test before issues are closed.
 
-### 4. Verify the Release Action Started
+### 4. Wait for and verify the Release Action
 
 The related action is `Build Release` in `.github/workflows/release.yml`.
 Publishing the release should start it automatically.
@@ -125,15 +127,20 @@ gh run list \
   --json databaseId,status,conclusion,createdAt,headBranch,displayTitle,url
 ```
 
-Find the newest run for the release tag, then watch it:
+Find the newest run for the release tag, then watch it to completion:
 
 ```bash
 gh run watch <run-id> --exit-status
 ```
 
-If no `release` event run appears after a short wait, do not silently switch to
-manual dispatch. Report that the release was created but the automatic action
-was not found.
+The release workflow is not complete until `gh run watch` exits successfully.
+If the run is queued or in progress, report that state and keep waiting. If it
+fails, report the failed run and relevant job or log details; do not report
+success and do not silently switch to manual dispatch.
+
+If no `release` event run appears after a short wait, report that the release
+was created but the automatic action was not found. Do not silently switch to
+manual dispatch.
 
 Manual dispatch is only a test-build fallback:
 
@@ -144,9 +151,10 @@ gh workflow run release.yml --ref "$TAG"
 Warn the user before using this fallback because workflow-dispatched runs
 produce an artifact but do not upload firmware files to the GitHub release.
 
-### 5. Verify Outputs
+### 5. Verify Outputs After a Successful Build
 
-After `Build Release` succeeds, confirm the release has the expected assets:
+Only after `Build Release` succeeds, confirm the release has the expected
+assets:
 
 ```bash
 gh release view "$TAG" \
@@ -187,7 +195,12 @@ Pages deploys.
 Summarize in plain language:
 
 - Release tag and GitHub release URL
-- `Build Release` run URL and current result
-- Whether the expected firmware assets are attached
+- `Build Release` run URL and final result
+- Whether the expected firmware assets are attached and verified
 - Any docs deployment run URL if checked
-- Any action needed from the user, especially if a run failed
+- Any action needed from the user, especially if the release build failed or
+  remains incomplete
+
+Never say that a release succeeded merely because the GitHub release was
+created or the `Build Release` action started. Report success only after the
+workflow completes successfully and the expected assets are verified.
