@@ -1,4 +1,4 @@
-name: PR Validation
+name: Espframe PR Validation
 
 on:
   pull_request:
