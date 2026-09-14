@@ -1217,7 +1217,10 @@ function smokeAssertionsForScenario(scenario) {
           "Filter by Favorites", "Filter by Rating", "Filter by Location"].forEach((label) => {
           requireToggleDisabled(label);
         });
-        requireSelectDisabled("Mode");
+        const dateModeButtons = Array.from(fieldByLabel("Mode").querySelectorAll("button"));
+        if (!dateModeButtons.length || dateModeButtons.some((button) => !button.disabled)) {
+          throw new Error("Date filter mode should be disabled while Memories is active");
+        }
         setSelect("Memories Window", "Same Day");
         setSelect("Source", "All Photos");
         if (toggleByText("Filter by Date").style.cursor === "not-allowed") {

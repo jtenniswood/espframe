@@ -80,7 +80,7 @@ assert.ok(
 );
 assert.ok(
   publicApp.includes('toggle.setAttribute("aria-disabled", "true")') &&
-    publicApp.includes("control.disabled = memoriesActive"),
+    publicApp.includes("control.disabled = true") &&
   "photo filter UI should disable content controls while Memories is active"
 );
 assert.ok(publicApp.includes("Move up"), "public app should include album reorder controls");

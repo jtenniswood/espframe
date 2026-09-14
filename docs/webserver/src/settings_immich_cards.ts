@@ -171,13 +171,21 @@
           delete toggle.__memoryLocked;
         }
       });
-      var controls = body.querySelectorAll("select, input");
+      var controls = body.querySelectorAll("select, input, button");
       Array.prototype.forEach.call(controls, function (controlEl) {
-        var control = controlEl as HTMLSelectElement | HTMLInputElement;
+        var control = controlEl as HTMLSelectElement & { __memoryOriginalDisabled?: boolean; __memoryLocked?: boolean };
         var fieldEl = control.closest(".field");
         if ((fieldEl && fieldEl.classList.contains("memories-source-control")) ||
-            control.closest(".memories-options")) return;
-        control.disabled = memoriesActive;
+            control.closest(".memories-options") || control.closest(".banner")) return;
+        if (memoriesActive && !control.__memoryLocked) {
+          control.__memoryOriginalDisabled = control.disabled;
+          control.__memoryLocked = true;
+        }
+        if (memoriesActive) control.disabled = true;
+        else if (control.__memoryLocked) {
+          control.disabled = !!control.__memoryOriginalDisabled;
+          delete control.__memoryLocked;
+        }
       });
       updateFilterBadge();
     }
