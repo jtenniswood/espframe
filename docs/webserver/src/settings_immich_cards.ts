@@ -137,18 +137,39 @@
     function updateMemoryFilterLock() {
       var toggles = body.querySelectorAll('[role="switch"]');
       Array.prototype.forEach.call(toggles, function (toggleEl) {
-        var toggle = toggleEl as HTMLElement & { __memoryOriginalOnclick?: any; __memoryOriginalOnkeydown?: any };
+        var toggle = toggleEl as HTMLElement & {
+          __memoryOriginalOnclick?: any; __memoryOriginalOnkeydown?: any;
+          __memoryOriginalAriaDisabled?: string | null; __memoryOriginalTabindex?: string | null;
+          __memoryOriginalOpacity?: string; __memoryOriginalCursor?: string; __memoryLocked?: boolean;
+        };
         if (toggle.closest(".memories-options")) return;
-        if (toggle.__memoryOriginalOnclick === undefined) {
+        if (memoriesActive && !toggle.__memoryLocked) {
           toggle.__memoryOriginalOnclick = toggle.onclick;
           toggle.__memoryOriginalOnkeydown = toggle.onkeydown;
+          toggle.__memoryOriginalAriaDisabled = toggle.getAttribute("aria-disabled");
+          toggle.__memoryOriginalTabindex = toggle.getAttribute("tabindex");
+          toggle.__memoryOriginalOpacity = toggle.style.opacity;
+          toggle.__memoryOriginalCursor = toggle.style.cursor;
+          toggle.__memoryLocked = true;
         }
-        toggle.setAttribute("aria-disabled", memoriesActive ? "true" : "false");
-        toggle.setAttribute("tabindex", memoriesActive ? "-1" : "0");
-        toggle.style.opacity = memoriesActive ? ".35" : "";
-        toggle.style.cursor = memoriesActive ? "not-allowed" : "";
-        toggle.onclick = memoriesActive ? function () {} : toggle.__memoryOriginalOnclick;
-        toggle.onkeydown = memoriesActive ? function (event) { event.preventDefault(); } : toggle.__memoryOriginalOnkeydown;
+        if (memoriesActive) {
+          toggle.setAttribute("aria-disabled", "true");
+          toggle.setAttribute("tabindex", "-1");
+          toggle.style.opacity = ".35";
+          toggle.style.cursor = "not-allowed";
+          toggle.onclick = function () {};
+          toggle.onkeydown = function (event) { event.preventDefault(); };
+        } else if (toggle.__memoryLocked) {
+          if (toggle.__memoryOriginalAriaDisabled == null) toggle.removeAttribute("aria-disabled");
+          else toggle.setAttribute("aria-disabled", toggle.__memoryOriginalAriaDisabled);
+          if (toggle.__memoryOriginalTabindex == null) toggle.removeAttribute("tabindex");
+          else toggle.setAttribute("tabindex", toggle.__memoryOriginalTabindex);
+          toggle.style.opacity = toggle.__memoryOriginalOpacity || "";
+          toggle.style.cursor = toggle.__memoryOriginalCursor || "";
+          toggle.onclick = toggle.__memoryOriginalOnclick;
+          toggle.onkeydown = toggle.__memoryOriginalOnkeydown;
+          delete toggle.__memoryLocked;
+        }
       });
       var controls = body.querySelectorAll("select, input");
       Array.prototype.forEach.call(controls, function (controlEl) {

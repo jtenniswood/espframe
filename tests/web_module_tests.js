@@ -79,7 +79,7 @@ assert.ok(
   "photo filter UI should expose the configurable Memories window and fallback"
 );
 assert.ok(
-  publicApp.includes('toggle.setAttribute("aria-disabled", memoriesActive ? "true" : "false")') &&
+  publicApp.includes('toggle.setAttribute("aria-disabled", "true")') &&
     publicApp.includes("control.disabled = memoriesActive"),
   "photo filter UI should disable content controls while Memories is active"
 );
