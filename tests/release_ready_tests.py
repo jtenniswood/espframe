@@ -121,14 +121,14 @@ def test_compile_firmware_rejects_ram_over_budget() -> None:
         def fake_compile(command, label, log_path=None):
             if log_path is not None:
                 log_path.write_text(
-                    "RAM: [==        ] 23.9% (used 138060 bytes from 573440 bytes)\n"
+                    "RAM: [==        ] 24.9% (used 143060 bytes from 573440 bytes)\n"
                     "Flash: [===       ] 30.0% (used 2500000 bytes from 8388608 bytes)\n"
                 )
                 return True
             command = list(command)
             command[command.index("--binary") + 1] = str(binary)
             result = subprocess.run(command, capture_output=True, text=True)
-            assert "ram_static_bytes is 138060, over budget 138000" in result.stderr
+            assert "ram_static_bytes is 143060, over budget 143000" in result.stderr
             assert result.returncode == 1
             return result.returncode == 0
 
@@ -144,14 +144,14 @@ def test_compile_firmware_allows_ram_warning_below_hard_ceiling() -> None:
         def fake_compile(command, label, log_path=None):
             if log_path is not None:
                 log_path.write_text(
-                    "RAM: [==        ] 23.9% (used 137060 bytes from 573440 bytes)\n"
+                    "RAM: [==        ] 24.8% (used 142060 bytes from 573440 bytes)\n"
                     "Flash: [===       ] 30.0% (used 2500000 bytes from 8388608 bytes)\n"
                 )
                 return True
             command = list(command)
             command[command.index("--binary") + 1] = str(binary)
             result = subprocess.run(command, capture_output=True, text=True)
-            assert "ram_static_bytes is 137060, over warning threshold 137000" in result.stderr
+            assert "ram_static_bytes is 142060, over warning threshold 142000" in result.stderr
             assert result.returncode == 0
             return result.returncode == 0
 
