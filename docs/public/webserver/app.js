@@ -112,11 +112,30 @@
         clearTimeout(timer);
       }
     }
+    async requestJson(url, init, message) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+      try {
+        const response = await fetch(url, { ...init, signal: controller.signal });
+        return await this.json(response, message);
+      } catch (error) {
+        if (error instanceof EspframeApiError) throw error;
+        if (error && typeof error === "object" && error.name === "AbortError") {
+          throw new EspframeApiError("timeout", "request_timeout");
+        }
+        throw new EspframeApiError("offline", "device_offline");
+      } finally {
+        clearTimeout(timer);
+      }
+    }
     async json(response, message) {
       let payload = null;
       try {
         payload = await response.json();
-      } catch (_) {
+      } catch (error) {
+        if (error && typeof error === "object" && error.name === "AbortError") {
+          throw new EspframeApiError("timeout", "request_timeout");
+        }
         if (!response.ok) throw this.error(response.status, message);
         throw new EspframeApiError("server", "invalid_server_response", response.status);
       }
@@ -130,7 +149,7 @@
     negotiate() {
       if (this.negotiated !== void 0) return Promise.resolve(this.negotiated);
       if (!this.capabilities) {
-        this.capabilities = this.request(this.generated.capabilities_path, { cache: "no-store" }).then((response) => this.json(response, "capabilities_unavailable")).then((payload) => {
+        this.capabilities = this.requestJson(this.generated.capabilities_path, { cache: "no-store" }, "capabilities_unavailable").then((payload) => {
           const capabilities = this.parseCapabilities(payload);
           if (!capabilities) {
             this.negotiated = null;
@@ -152,7 +171,7 @@
     async getConfigurationSnapshot() {
       const capabilities = await this.negotiate();
       if (!capabilities) throw new EspframeApiError("unavailable", "configuration_api_unavailable");
-      const payload = await this.json(await this.request(capabilities.configuration_path, { cache: "no-store" }), "configuration_api_failed");
+      const payload = await this.requestJson(capabilities.configuration_path, { cache: "no-store" }, "configuration_api_failed");
       if (!object(payload) || payload.api_version !== capabilities.api_version || !object(payload.values) || !Array.isArray(payload.unavailable) || !payload.unavailable.every((value) => typeof value === "string")) {
         throw new EspframeApiError("server", "invalid_configuration_snapshot");
       }
@@ -210,13 +229,12 @@
         }
         const body = new URLSearchParams({ [capabilities.configuration_parameter || "configuration"]: JSON.stringify({ api_version: capabilities.api_version, values }) }).toString();
         try {
-          const response = await this.request(capabilities.configuration_path, {
+          const payload = await this.requestJson(capabilities.configuration_path, {
             method: "POST",
             headers: { "Content-Type": capabilities.configuration_encoding || "application/x-www-form-urlencoded" },
             body
-          });
-          const payload = await this.json(response, "configuration_update_failed");
-          if (!object(payload) || payload.status !== "accepted") throw new EspframeApiError("server", "configuration_update_failed", response.status);
+          }, "configuration_update_failed");
+          if (!object(payload) || payload.status !== "accepted") throw new EspframeApiError("server", "configuration_update_failed");
           await new Promise((resolve) => setTimeout(resolve, 100));
           return payload;
         } catch (error) {
