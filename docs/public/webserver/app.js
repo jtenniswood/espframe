@@ -2729,9 +2729,9 @@ to {
         saveSetting("photo_source", S.photo_source, { applyPhotoSource: true });
       }
     });
-    body.appendChild(memoriesToggle.field);
     infoBanner.style.display = memoriesActive ? "" : "none";
     body.appendChild(infoBanner);
+    body.appendChild(memoriesToggle.field);
     if (S.memories_migration_notice) {
       var notice = el("div", "banner warning");
       notice.textContent = "Memories is available again as an exclusive On This Day source. Choose it from this panel to enable it. ";

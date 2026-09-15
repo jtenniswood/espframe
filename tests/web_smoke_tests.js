@@ -1212,6 +1212,12 @@ function smokeAssertionsForScenario(scenario) {
         const memoriesToggle = toggleByText("Show Memories Only");
         requireText("Memories Window");
         requireText("Fallback to All Photos");
+        const memoriesBody = memoriesCard.querySelector(".card-body");
+        const memoriesBanner = memoriesBody.querySelector(".setting-info-banner");
+        const memoriesToggleField = memoriesToggle.closest(".field");
+        if (!memoriesBanner || !memoriesToggleField || memoriesBanner.nextElementSibling !== memoriesToggleField) {
+          throw new Error("Memories info banner should appear above the Memories toggle");
+        }
         const memoriesWindowOptions = Array.from(fieldByLabel("Memories Window").querySelectorAll("option"))
           .map((option) => option.textContent.trim());
         ["Same Day", "±1 Day", "±2 Days", "±3 Days", "±7 Days"].forEach((option) => {
