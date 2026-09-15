@@ -2692,10 +2692,11 @@ to {
     banner.appendChild(message);
     return banner;
   }
+  var previousMemoriesSource = "";
   function makeMemoriesCard() {
     var body = el("div");
     var memoriesActive = S.photo_source === "Memories";
-    var previousSource = memoriesActive ? "All Photos" : S.photo_source;
+    var previousSource = memoriesActive ? previousMemoriesSource || "Custom" : S.photo_source;
     var infoBanner = makeMemoriesInfoBanner();
     var memoriesToggle = toggleSettingRow({
       label: "Use Memories",
@@ -2709,6 +2710,7 @@ to {
       onChange: function(value) {
         if (value) {
           if (S.photo_source !== "Memories") previousSource = S.photo_source;
+          previousMemoriesSource = previousSource;
           S.photo_source = "Memories";
         } else {
           S.photo_source = previousSource === "Memories" ? "All Photos" : previousSource;

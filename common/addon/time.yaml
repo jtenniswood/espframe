@@ -339,7 +339,18 @@ time:
         - script.execute: update_photo_metadata_display
         - script.execute: backlight_recalc_sunrise_sunset
         - script.execute: screen_schedule_check
-        - script.execute: immich_fetch_into_slot
+        - if:
+            condition:
+              lambda: |-
+                const auto &state = id(espframe_core).slideshow().state();
+                const bool target_unfilled =
+                  (state.target_slot == 0 && !state.slot0.ready) ||
+                  (state.target_slot == 1 && !state.slot1.ready) ||
+                  (state.target_slot == 2 && !state.slot2.ready);
+                return immich_memories_source_active(id(photo_source_select).current_option()) &&
+                       id(immich_request_state).memory_waiting_for_time && target_unfilled;
+            then:
+              - script.execute: immich_fetch_into_slot
 
 # -----------------------------------------------------------------------------
 # Unified 60-second periodic interval for clock, backlight, and warm tones

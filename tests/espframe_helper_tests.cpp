@@ -726,10 +726,17 @@ static void test_immich_request_state() {
   assert(state.memory_request_is_current());
   assert(state.memory_window_offset == -2);
   assert(state.memory_asset_id.empty());
+  const uint32_t first_memory_generation = state.memory_request_generation;
+  state.begin_memory_search(2, false);
+  assert(state.memory_request_generation != first_memory_generation);
+  assert(!state.memory_request_is_current(first_memory_generation));
+  assert(state.memory_request_is_current(state.memory_request_generation));
   state.invalidate_photo_source_requests();
   assert(!state.memory_request_is_current());
   state.begin_memory_search();
   assert(state.memory_request_is_current());
+  assert(!state.memory_request_is_current(first_memory_generation));
+  assert(state.memory_request_is_current(state.memory_request_generation));
   state.add_memory_image("asset-a");
   assert(state.memory_image_count == 1);
   assert(state.memory_asset_id == "asset-a");
@@ -741,6 +748,16 @@ static void test_immich_request_state() {
   // esp_random() always returns zero, so every replacement roll succeeds and the
   // most recent asset wins.
   assert(state.memory_asset_id == "asset-b");
+  assert(state.reject_memory_asset("asset-b"));
+  state.begin_memory_search(2, false);
+  state.add_memory_image("asset-b");
+  assert(state.memory_image_count == 0);
+  state.add_memory_image("asset-c");
+  assert(state.memory_image_count == 1);
+  assert(state.memory_asset_id == "asset-c");
+  state.begin_memory_search();
+  state.add_memory_image("asset-b");
+  assert(state.memory_image_count == 1);
   assert(state.advance_memory_window());
   assert(state.memory_window_offset == -1);
   state.begin_memory_search(0);
