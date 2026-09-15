@@ -1788,6 +1788,9 @@ function smokeAssertionsForScenario(scenario) {
               new URLSearchParams(record.body).get("value") === second), 6000, "second queued connection save");
             if (input.value !== second) throw new Error("Older connection save overwrote the newer input");
             await waitFor(() => pageText().includes("URL saved"), 4000, "verified connection save");
+            if (pageText().includes("Failed to save setting") || pageText().includes("Failed to save URL")) {
+              throw new Error("Overlapping URL saves produced a spurious failure");
+            }
           }
 
           if (${JSON.stringify(scenario.name)} === "settings-accessibility") {

@@ -46,25 +46,12 @@ export class EspframeApiClient {
       typeof body.error === "string" ? body.error : undefined, typeof body.field === "string" ? body.field : undefined);
   }
 
-  private async request(url: string, init: RequestInit = {}): Promise<Response> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    try {
-      return await fetch(url, { ...init, signal: controller.signal });
-    } catch (error) {
-      if (error && typeof error === "object" && (error as { name?: string }).name === "AbortError") {
-        throw new EspframeApiError("timeout", "request_timeout");
-      }
-      throw new EspframeApiError("offline", "device_offline");
-    } finally { clearTimeout(timer); }
-  }
-
-  private async requestJson(url: string, init: RequestInit, message: string): Promise<unknown> {
+  private async requestWith<T>(url: string, init: RequestInit, consume: (response: Response) => Promise<T>): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
       const response = await fetch(url, { ...init, signal: controller.signal });
-      return await this.json(response, message);
+      return await consume(response);
     } catch (error) {
       if (error instanceof EspframeApiError) throw error;
       if (error && typeof error === "object" && (error as { name?: string }).name === "AbortError") {
@@ -72,6 +59,14 @@ export class EspframeApiClient {
       }
       throw new EspframeApiError("offline", "device_offline");
     } finally { clearTimeout(timer); }
+  }
+
+  private request(url: string, init: RequestInit = {}): Promise<Response> {
+    return this.requestWith(url, init, async response => response);
+  }
+
+  private requestJson(url: string, init: RequestInit, message: string): Promise<unknown> {
+    return this.requestWith(url, init, response => this.json(response, message));
   }
 
   private async json(response: Response, message: string): Promise<unknown> {
@@ -148,11 +143,20 @@ export class EspframeApiClient {
   }
 
   private async legacyPost(url: string, body?: string): Promise<Response> {
-    const response = await this.request(url, body === undefined ? { method: "POST" } : {
+    return this.requestWith(url, body === undefined ? { method: "POST" } : {
       method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body,
+    }, async response => {
+      if (!response.ok) {
+        let payload: unknown = null;
+        try { payload = await response.json(); } catch (error) {
+          if (error && typeof error === "object" && (error as { name?: string }).name === "AbortError") {
+            throw new EspframeApiError("timeout", "request_timeout");
+          }
+        }
+        throw this.error(response.status, "legacy_write_failed", payload);
+      }
+      return response;
     });
-    if (!response.ok) { let payload: unknown = null; try { payload = await response.json(); } catch (_) {} throw this.error(response.status, "legacy_write_failed", payload); }
-    return response;
   }
 
   private async legacyWrite(setting: LegacySettingWrite): Promise<void> {

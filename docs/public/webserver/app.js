@@ -13,6 +13,7 @@
       __publicField(this, "sequence", 0);
       __publicField(this, "confirmed", /* @__PURE__ */ new Map());
       __publicField(this, "pending", /* @__PURE__ */ new Map());
+      __publicField(this, "queue", null);
     }
     receive(key, value) {
       if (this.pending.has(key)) return;
@@ -32,7 +33,17 @@
         pending.remaining++;
         this.write(key, value);
       }
-      const request = send().then(
+      let request;
+      if (this.queue) {
+        request = this.queue.then(send);
+      } else {
+        try {
+          request = Promise.resolve(send());
+        } catch (error) {
+          request = Promise.reject(error);
+        }
+      }
+      request = request.then(
         (result) => {
           this.finish(entries, revision, true);
           return result;
@@ -42,6 +53,7 @@
           throw error;
         }
       );
+      this.queue = request.catch(() => void 0);
       return request;
     }
     finish(entries, revision, accepted) {
@@ -98,26 +110,12 @@
         typeof body.field === "string" ? body.field : void 0
       );
     }
-    async request(url, init = {}) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-      try {
-        return await fetch(url, { ...init, signal: controller.signal });
-      } catch (error) {
-        if (error && typeof error === "object" && error.name === "AbortError") {
-          throw new EspframeApiError("timeout", "request_timeout");
-        }
-        throw new EspframeApiError("offline", "device_offline");
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    async requestJson(url, init, message) {
+    async requestWith(url, init, consume) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.timeoutMs);
       try {
         const response = await fetch(url, { ...init, signal: controller.signal });
-        return await this.json(response, message);
+        return await consume(response);
       } catch (error) {
         if (error instanceof EspframeApiError) throw error;
         if (error && typeof error === "object" && error.name === "AbortError") {
@@ -127,6 +125,12 @@
       } finally {
         clearTimeout(timer);
       }
+    }
+    request(url, init = {}) {
+      return this.requestWith(url, init, async (response) => response);
+    }
+    requestJson(url, init, message) {
+      return this.requestWith(url, init, (response) => this.json(response, message));
     }
     async json(response, message) {
       let payload = null;
@@ -197,20 +201,24 @@
       };
     }
     async legacyPost(url, body) {
-      const response = await this.request(url, body === void 0 ? { method: "POST" } : {
+      return this.requestWith(url, body === void 0 ? { method: "POST" } : {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body
-      });
-      if (!response.ok) {
-        let payload = null;
-        try {
-          payload = await response.json();
-        } catch (_) {
+      }, async (response) => {
+        if (!response.ok) {
+          let payload = null;
+          try {
+            payload = await response.json();
+          } catch (error) {
+            if (error && typeof error === "object" && error.name === "AbortError") {
+              throw new EspframeApiError("timeout", "request_timeout");
+            }
+          }
+          throw this.error(response.status, "legacy_write_failed", payload);
         }
-        throw this.error(response.status, "legacy_write_failed", payload);
-      }
-      return response;
+        return response;
+      });
     }
     async legacyWrite(setting) {
       if (setting.domain === "switch") {
