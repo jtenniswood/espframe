@@ -195,7 +195,7 @@ import {
         })
         .then(function (resp) {
           var saved = connectionResponseValue(resp);
-          if (isSaved && !isSaved(saved)) throw new Error("verify_failed");
+          if (isSaved && !isSaved(saved)) throw Error("verify_failed");
           return saved;
         });
     });
@@ -203,20 +203,20 @@ import {
 
   function saveAndVerifyApiKey(value) {
     var apiKey = String(value || "").trim();
-    if (!apiKey) return Promise.reject(new Error("missing_api_key"));
+    if (!apiKey) return Promise.reject(Error("missing_api_key"));
     return settingSaves.save({ api_key_configured: true }, function () {
       return updateConfiguration({ api_key: apiKey })
         .then(function () { return delayMs(150); })
         .then(function () { return getConfigurationSnapshot(); })
         .then(function (snapshot) {
-          if (!snapshot.api_key_configured) throw new Error("verify_failed");
+          if (!snapshot.api_key_configured) throw Error("verify_failed");
         })
         .catch(function (error) {
           if (!error.legacy) throw error;
           return saveConnectionValue(endpoints.api_key, apiKey, false)
             .then(function () { return safeGet(endpoints.api_key); })
             .then(function (resp) {
-              if (!connectionResponseValue(resp)) throw new Error("verify_failed");
+              if (!connectionResponseValue(resp)) throw Error("verify_failed");
             });
         });
     });
@@ -242,12 +242,12 @@ import {
           var savedUrl;
           if (result && !Array.isArray(result)) {
             savedUrl = normalizeImmichUrl(result.values.immich_url);
-            if (!result.api_key_configured) throw new Error("verify_failed");
+            if (!result.api_key_configured) throw Error("verify_failed");
           } else {
             savedUrl = normalizeImmichUrl(connectionResponseValue(result[0]));
-            if (!connectionResponseValue(result[1])) throw new Error("verify_failed");
+            if (!connectionResponseValue(result[1])) throw Error("verify_failed");
           }
-          if (savedUrl !== normalizedUrl) throw new Error("verify_failed");
+          if (savedUrl !== normalizedUrl) throw Error("verify_failed");
           return { url: normalizedUrl, key: apiKey };
         });
     });

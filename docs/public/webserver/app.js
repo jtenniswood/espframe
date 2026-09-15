@@ -190,22 +190,25 @@
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
   function parseConfigurationSnapshot(value) {
-    if (!isObject(value) || value.api_version !== 1 || typeof value.api_key_configured !== "boolean" || !isObject(value.values) || !Array.isArray(value.unavailable)) {
+    if (!isObject(value) || value.api_version !== 1 || !isObject(value.values) || !Array.isArray(value.unavailable)) {
       return null;
     }
+    var apiKeyConfigured = value.api_key_configured;
     var values = {};
     for (var entry of Object.entries(value.values)) {
-      if (entry[0] === "api_key") return null;
-      var fieldValue = entry[1];
+      var key = entry[0], fieldValue = entry[1];
+      if (key === "api_key") {
+        if (apiKeyConfigured != null) return null;
+        apiKeyConfigured = !!fieldValue;
+        continue;
+      }
       if (typeof fieldValue !== "string" && typeof fieldValue !== "number" && typeof fieldValue !== "boolean") {
         return null;
       }
-      values[entry[0]] = fieldValue;
+      values[key] = fieldValue;
     }
-    if (!value.unavailable.every(function(key) {
-      return typeof key === "string";
-    })) return null;
-    return { api_version: 1, api_key_configured: value.api_key_configured, values, unavailable: value.unavailable };
+    if (!value.unavailable.every((key2) => typeof key2 === "string")) return null;
+    return { api_key_configured: apiKeyConfigured, values, unavailable: value.unavailable };
   }
   function configurationUpdateBody(values) {
     var body = new URLSearchParams();
@@ -2011,27 +2014,27 @@ to {
         return safeGet(path);
       }).then(function(resp) {
         var saved = connectionResponseValue(resp);
-        if (isSaved && !isSaved(saved)) throw new Error("verify_failed");
+        if (isSaved && !isSaved(saved)) throw Error("verify_failed");
         return saved;
       });
     });
   }
   function saveAndVerifyApiKey(value) {
     var apiKey = String(value || "").trim();
-    if (!apiKey) return Promise.reject(new Error("missing_api_key"));
+    if (!apiKey) return Promise.reject(Error("missing_api_key"));
     return settingSaves.save({ api_key_configured: true }, function() {
       return updateConfiguration({ api_key: apiKey }).then(function() {
         return delayMs(150);
       }).then(function() {
         return getConfigurationSnapshot();
       }).then(function(snapshot) {
-        if (!snapshot.api_key_configured) throw new Error("verify_failed");
+        if (!snapshot.api_key_configured) throw Error("verify_failed");
       }).catch(function(error) {
         if (!error.legacy) throw error;
         return saveConnectionValue(endpoints.api_key, apiKey, false).then(function() {
           return safeGet(endpoints.api_key);
         }).then(function(resp) {
-          if (!connectionResponseValue(resp)) throw new Error("verify_failed");
+          if (!connectionResponseValue(resp)) throw Error("verify_failed");
         });
       });
     });
@@ -2056,12 +2059,12 @@ to {
         var savedUrl;
         if (result && !Array.isArray(result)) {
           savedUrl = normalizeImmichUrl(result.values.immich_url);
-          if (!result.api_key_configured) throw new Error("verify_failed");
+          if (!result.api_key_configured) throw Error("verify_failed");
         } else {
           savedUrl = normalizeImmichUrl(connectionResponseValue(result[0]));
-          if (!connectionResponseValue(result[1])) throw new Error("verify_failed");
+          if (!connectionResponseValue(result[1])) throw Error("verify_failed");
         }
-        if (savedUrl !== normalizedUrl) throw new Error("verify_failed");
+        if (savedUrl !== normalizedUrl) throw Error("verify_failed");
         return { url: normalizedUrl, key: apiKey };
       });
     });

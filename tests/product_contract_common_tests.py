@@ -134,7 +134,8 @@ def test_secret_is_not_logged_or_hydrated_into_browser_state() -> None:
     log_lines = [line for line in config_yaml.splitlines() if "ESP_LOG" in line or "format:" in line]
     assert all("immich_api_key_text" not in line and "api_key" not in line.lower() for line in log_lines)
     assert "S.api_key" not in runtime
-    assert 'if (entry[0] === "api_key") return null;' in contracts
+    assert 'if (key === "api_key") {' in contracts
+    assert "if (apiKeyConfigured != null) return null;" in contracts
 
 
 def main() -> int:

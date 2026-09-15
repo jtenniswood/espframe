@@ -201,6 +201,7 @@ const scenarios = [
   })),
   { name: "refresh-startup", configured: true, width: 1280, height: 900, slowStartup: true },
   { name: "refresh-startup-legacy", configured: true, width: 1280, height: 900, slowStartup: true, legacyStartup: true },
+  { name: "refresh-startup-legacy-snapshot", configured: true, width: 1280, height: 900, slowStartup: true, legacyConfigurationSnapshot: true },
   { name: "refresh-startup-late", configured: true, width: 1280, height: 900, slowStartup: true, startupDelayMs: 5000 },
   { name: "refresh-startup-pending", configured: true, width: 1280, height: 900, slowStartup: true, startupDelayMs: 5000, noStartupSse: true },
   { name: "wizard", configured: false, width: 1280, height: 900 },
@@ -429,6 +430,14 @@ function browserScriptForScenario(scenario) {
       };
     }
 
+    function configurationSnapshotForRequest() {
+      if (!${JSON.stringify(!!scenario.legacyConfigurationSnapshot)}) return configurationSnapshot();
+      const snapshot = configurationSnapshot();
+      delete snapshot.api_key_configured;
+      snapshot.values.api_key = endpointValues["Connection: API Key"];
+      return snapshot;
+    }
+
     function endpointNameForUrl(decoded) {
       return Object.keys(endpointValues)
         .sort((left, right) => right.length - left.length)
@@ -529,13 +538,13 @@ function browserScriptForScenario(scenario) {
           if (${JSON.stringify(!!scenario.slowStartup)}) {
             return new Promise(resolve => setTimeout(() => resolve({
               ok: true, status: 200,
-              json: () => Promise.resolve(configurationSnapshot())
+              json: () => Promise.resolve(configurationSnapshotForRequest())
             }), ${Number(scenario.startupDelayMs || 900)}));
           }
           return Promise.resolve({
             ok: true,
             status: 200,
-            json: () => Promise.resolve(configurationSnapshot())
+            json: () => Promise.resolve(configurationSnapshotForRequest())
           });
         }
         if (window.__smoke.configurationUpdateInFlight) {
