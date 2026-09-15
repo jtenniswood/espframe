@@ -1259,6 +1259,9 @@ function smokeAssertionsForScenario(scenario) {
         if (!activeFiltersCard.classList.contains("memory-filter-disabled")) {
           throw new Error("Filters should look disabled while Memories is active");
         }
+        if (parseFloat(getComputedStyle(activeFiltersCard).opacity) >= 1) {
+          throw new Error("Filters panel should be visibly greyed out while Memories is active");
+        }
         const filtersBanner = activeFiltersCard.querySelector(".setting-info-banner");
         if (!filtersBanner || filtersBanner.textContent.indexOf("Using Memories disables any configured filters") === -1 ||
             getComputedStyle(filtersBanner).display === "none") {

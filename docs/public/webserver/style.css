@@ -292,11 +292,16 @@ h2 {
 }
 
 .card.memory-filter-disabled {
-  border-color:rgba(100, 108, 255, .3)
+  border-color:var(--border);
+  opacity:.6
+}
+
+.card.memory-filter-disabled:hover {
+  border-color:var(--border)
 }
 
 .card.memory-filter-disabled .card-header {
-  color:var(--text2)
+  color:var(--text3)
 }
 
 .on-badge {
