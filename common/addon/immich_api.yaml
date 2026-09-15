@@ -211,6 +211,7 @@ script:
                   struct MemoriesJsonParser {
                     MemoriesStreamReader *reader;
                     ImmichRequestState *state;
+                    std::string orientation_filter;
                     int pending = -1;
 
                     int read() {
@@ -319,10 +320,65 @@ script:
                       }
                     }
 
+                    bool read_integer_from(int first, int *value) {
+                      if (first < 0) return false;
+                      if (first != '-' && (first < '0' || first > '9')) {
+                        return this->skip_value_from(first);
+                      }
+                      std::string raw(1, static_cast<char>(first));
+                      while (true) {
+                        int ch = this->read();
+                        if (ch < 0) break;
+                        if (ch == ',' || ch == ']' || ch == '}') {
+                          this->unread(ch);
+                          break;
+                        }
+                        if (ch <= ' ') continue;
+                        if (ch < '0' || ch > '9') return false;
+                        raw.push_back(static_cast<char>(ch));
+                      }
+                      if (value != nullptr) *value = atoi(raw.c_str());
+                      return true;
+                    }
+
+                    bool parse_exif_info(int first, int *width, int *height,
+                                         std::string *orientation) {
+                      if (first != '{') return this->skip_value_from(first);
+                      std::string key;
+                      int ch = this->next_non_whitespace();
+                      if (ch == '}') return true;
+                      this->unread(ch);
+                      while (true) {
+                        if (!this->read_key(&key) || !this->expect(':')) return false;
+                        ch = this->next_non_whitespace();
+                        if (key == "exifImageWidth" || key == "exifImageHeight") {
+                          int parsed = 0;
+                          if (!this->read_integer_from(ch, &parsed)) return false;
+                          if (key == "exifImageWidth") {
+                            if (width != nullptr) *width = parsed;
+                          } else if (height != nullptr) {
+                            *height = parsed;
+                          }
+                        } else if (key == "orientation" && ch == '"') {
+                          if (!this->read_string_after_open(orientation)) return false;
+                        } else if (!this->skip_value_from(ch)) {
+                          return false;
+                        }
+                        ch = this->next_non_whitespace();
+                        if (ch == '}') return true;
+                        if (ch != ',') return false;
+                      }
+                    }
+
                     bool parse_asset_object() {
                       std::string key;
                       std::string asset_id;
                       std::string asset_type;
+                      std::string orientation;
+                      int width = 0;
+                      int height = 0;
+                      int exif_width = 0;
+                      int exif_height = 0;
                       int ch = this->next_non_whitespace();
                       if (ch == '}') return true;
                       this->unread(ch);
@@ -336,6 +392,17 @@ script:
                           } else if (!this->skip_value_from(ch)) {
                             return false;
                           }
+                        } else if (key == "width" || key == "height") {
+                          ch = this->next_non_whitespace();
+                          int parsed = 0;
+                          if (!this->read_integer_from(ch, &parsed)) return false;
+                          if (key == "width") width = parsed;
+                          else height = parsed;
+                        } else if (key == "exifInfo") {
+                          ch = this->next_non_whitespace();
+                          if (!this->parse_exif_info(ch, &exif_width, &exif_height, &orientation)) {
+                            return false;
+                          }
                         } else if (!this->skip_value()) {
                           return false;
                         }
@@ -344,7 +411,15 @@ script:
                         if (ch != ',') return false;
                       }
                       if (!asset_id.empty() && (asset_type.empty() || asset_type == "IMAGE")) {
-                        this->state->add_memory_image(asset_id);
+                        const bool has_raw_exif_dimensions = exif_width > 0 && exif_height > 0;
+                        if (has_raw_exif_dimensions) {
+                          width = exif_width;
+                          height = exif_height;
+                        }
+                        const bool orientation_matches = immich_memory_asset_matches_orientation(
+                            width, height, orientation, has_raw_exif_dimensions,
+                            this->orientation_filter);
+                        this->state->add_memory_image(asset_id, orientation_matches);
                       }
                       return true;
                     }
@@ -408,7 +483,9 @@ script:
                   reader.container = response.get();
                   reader.last_data_time = millis();
                   reader.read_timeout = id(http_req)->get_timeout();
-                  MemoriesJsonParser parser{&reader, &id(immich_request_state)};
+                  MemoriesJsonParser parser{
+                    &reader, &id(immich_request_state),
+                    id(photo_orientation_filter).current_option()};
                   if (!parser.parse()) {
                     ESP_LOGD("immich", "No memories for offset %+d", id(immich_request_state).memory_window_offset);
                     return;

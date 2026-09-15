@@ -227,6 +227,11 @@ static void test_immich_body_helpers() {
   assert(!immich_dimensions_are_portrait(1920, 1080, "6", false));
   assert(immich_dimensions_are_portrait(1920, 1080, "6", true));
   assert(immich_dimensions_are_portrait(1080, 1920, "6", false));
+  assert(immich_memory_asset_matches_orientation(1080, 1920, "", false, "Portrait Only"));
+  assert(!immich_memory_asset_matches_orientation(1920, 1080, "", false, "Portrait Only"));
+  assert(immich_memory_asset_matches_orientation(1920, 1080, "", false, "Landscape Only"));
+  assert(immich_memory_asset_matches_orientation(1920, 1080, "6", true, "Portrait Only"));
+  assert(!immich_memory_asset_matches_orientation(0, 0, "", false, "Landscape Only"));
   assert(pick_one_uuid_from_csv(" a, b ,, c ") == "a");
   assert(select_immich_tag_ids("t1,t2", "Any selected tag") == "t1");
   assert(select_immich_tag_ids("t1,t2", "All selected tags") == "t1,t2");
@@ -738,6 +743,8 @@ static void test_immich_request_state() {
   assert(!state.memory_request_is_current(first_memory_generation));
   assert(state.memory_request_is_current(state.memory_request_generation));
   state.add_memory_image("asset-a");
+  assert(state.memory_image_count == 1);
+  state.add_memory_image("landscape", false);
   assert(state.memory_image_count == 1);
   assert(state.memory_asset_id == "asset-a");
   state.add_memory_image("");

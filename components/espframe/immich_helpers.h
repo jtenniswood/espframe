@@ -627,8 +627,9 @@ struct ImmichRequestState {
     return true;
   }
 
-  void add_memory_image(const std::string &asset_id) {
+  void add_memory_image(const std::string &asset_id, bool orientation_matches = true) {
     if (asset_id.empty()) return;
+    if (!orientation_matches) return;
     if (std::find(this->memory_rejected_asset_ids.begin(), this->memory_rejected_asset_ids.end(), asset_id) !=
         this->memory_rejected_asset_ids.end()) return;
     this->memory_image_count++;
@@ -1255,6 +1256,18 @@ inline bool immich_dimensions_are_portrait(int width, int height,
     std::swap(width, height);
   }
   return height > width;
+}
+
+inline bool immich_memory_asset_matches_orientation(
+    int width, int height, const std::string &orientation,
+    bool dimensions_are_raw_exif, const std::string &orientation_filter) {
+  if (orientation_filter == "Any") return true;
+  if (width <= 0 || height <= 0) return false;
+  const bool portrait = immich_dimensions_are_portrait(
+      width, height, orientation, dimensions_are_raw_exif);
+  if (orientation_filter == "Portrait Only") return portrait;
+  if (orientation_filter == "Landscape Only") return !portrait;
+  return true;
 }
 
 inline std::string build_immich_search_body(int size, bool with_people,
