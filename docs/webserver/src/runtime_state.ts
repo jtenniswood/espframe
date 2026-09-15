@@ -174,11 +174,11 @@
   function fetchDeviceSettingsState() {
     return getConfigurationSnapshot().then(function (snapshot) {
       applyConfigurationSnapshot(snapshot);
-      return fetchPublicFirmwareMetadata();
+      fetchPublicFirmwareMetadata().catch(function () {});
     }).catch(function (error) {
       if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
       return fetchLegacyDeviceSettingsState().then(function () {
-        return fetchPublicFirmwareMetadata();
+        fetchPublicFirmwareMetadata().catch(function () {});
       });
     });
   }

@@ -2514,11 +2514,13 @@ to {
   function fetchDeviceSettingsState() {
     return getConfigurationSnapshot().then(function(snapshot) {
       applyConfigurationSnapshot(snapshot);
-      return fetchPublicFirmwareMetadata();
+      fetchPublicFirmwareMetadata().catch(function() {
+      });
     }).catch(function(error) {
       if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
       return fetchLegacyDeviceSettingsState().then(function() {
-        return fetchPublicFirmwareMetadata();
+        fetchPublicFirmwareMetadata().catch(function() {
+        });
       });
     });
   }
@@ -3902,6 +3904,7 @@ to {
   function firmwareDeviceSlug() {
     return String(S.firmware_device || "").trim();
   }
+  var publicFirmwareLatestInfo = null;
   function firmwarePublicManifestUrl() {
     var slug = firmwareDeviceSlug();
     var devices = FIRMWARE_MANIFEST_URLS && FIRMWARE_MANIFEST_URLS.devices;
@@ -4003,6 +4006,9 @@ to {
     return infos.length ? infos[0] : null;
   }
   function latestFirmwareInfo() {
+    if (publicFirmwareLatestInfo && firmwareVersionsSame(publicFirmwareLatestInfo.version, S.latest_version)) {
+      return publicFirmwareLatestInfo;
+    }
     return S.firmware_version_options && S.firmware_version_options.length ? S.firmware_version_options[0] : null;
   }
   function firmwareUpdateKnownAvailable() {
@@ -4127,6 +4133,7 @@ to {
     }).then(function(data) {
       var info = firmwareInfoFromPublicManifest(data, manifestUrl);
       if (!info) throw new Error("firmware_manifest_invalid");
+      publicFirmwareLatestInfo = info;
       applyPublicFirmwareLatestVersion(info.version);
       return true;
     }).catch(function() {

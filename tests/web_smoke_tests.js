@@ -221,7 +221,7 @@ const scenarios = [
   { name: "firmware-c6-install", configured: true, width: 1280, height: 900 },
   { name: "firmware-rollback", configured: true, width: 1280, height: 900 },
   { name: "firmware-rollback-failure", configured: true, width: 1280, height: 900, firmwareUploadFails: true },
-  { name: "firmware-index-unavailable", configured: true, width: 1280, height: 900, firmwareIndexUnavailable: true },
+  { name: "firmware-index-unavailable", configured: true, width: 1280, height: 900, firmwareIndexUnavailable: true, firmwareDeviceInstallFails: true },
   { name: "firmware-newer-prerelease", configured: true, width: 1280, height: 900, installedFirmwareVersion: "v1.2.0-beta.1" },
   ...(product.devices[1]
     ? [{ name: "firmware-second-device-index", configured: true, width: 1280, height: 900, firmwareDeviceSlug: product.devices[1].slug }]
@@ -255,6 +255,7 @@ function browserScriptForScenario(scenario) {
       importFixture: ${JSON.stringify(scenario.importFixture || null)},
       failedPostEndpoint: ${JSON.stringify(scenario.failedPostEndpoint || "")},
       firmwareIndexUnavailable: ${JSON.stringify(!!scenario.firmwareIndexUnavailable)},
+      firmwareDeviceInstallFails: ${JSON.stringify(!!scenario.firmwareDeviceInstallFails)},
       firmwareUploadFails: ${JSON.stringify(!!scenario.firmwareUploadFails)}
     };
     window.addEventListener("error", function (event) {
@@ -604,6 +605,9 @@ function browserScriptForScenario(scenario) {
         updateEndpointValueFromPost(decoded, body);
       }
       if (decoded.indexOf("Firmware: Update") !== -1) {
+        if (method === "POST" && decoded.indexOf("/install") !== -1 && window.__smoke.firmwareDeviceInstallFails) {
+          return Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) });
+        }
         return Promise.resolve({
           ok: true,
           status: 200,
@@ -1727,9 +1731,12 @@ function smokeAssertionsForScenario(scenario) {
               throw new Error("Previous firmware panel should be hidden when the version index is unavailable");
             }
             const updates = expandDisclosure("Firmware updates");
-            if (!Array.from(updates.querySelectorAll("button")).some((button) => button.textContent.trim() === "Install Update")) {
+            const install = Array.from(updates.querySelectorAll("button")).find((button) => button.textContent.trim() === "Install Update");
+            if (!install) {
               throw new Error("The stable manifest did not expose an install action without the version index");
             }
+            install.click();
+            await waitFor(() => window.__smoke.posts.includes("/update"), 8000, "manifest OTA fallback upload");
           }
 
           if (${JSON.stringify(scenario.name)} === "firmware-newer-prerelease") {
