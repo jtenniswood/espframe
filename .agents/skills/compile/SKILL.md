@@ -17,9 +17,8 @@ devices pass.
 ## Device Slugs
 
 ```text
-guition-esp32-p4-jc1060p470
-guition-esp32-p4-jc4880p443
-guition-esp32-s3-4848s040
+guition-esp32-p4-jc8012p4a1
+guition-esp32-p4-jc8012p4a1-v2
 ```
 
 ## Workflow
@@ -95,9 +94,8 @@ After all devices pass, summarize:
 
 ```text
 Compile results:
-  guition-esp32-p4-jc1060p470  OK
-  guition-esp32-p4-jc4880p443  OK
-  guition-esp32-s3-4848s040    OK
+  guition-esp32-p4-jc8012p4a1      OK
+  guition-esp32-p4-jc8012p4a1-v2   OK
 
 Fixes applied:
   - <file>: <what was wrong and what was changed>
