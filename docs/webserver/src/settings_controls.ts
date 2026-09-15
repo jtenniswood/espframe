@@ -8,7 +8,8 @@
     return {
       makeConnectionCard: makeConnectionCard,
       makeFrequencyCard: makeFrequencyCard,
-      makePhotoSourceCard: makePhotoSourceCard,
+      makeMemoriesCard: makeMemoriesCard,
+      makeFiltersCard: makeFiltersCard,
       makePortraitPairingCard: makePortraitPairingCard,
       makeLayoutCard: makeLayoutCard,
       makeMetadataCard: makeMetadataCard,
@@ -76,7 +77,8 @@
       makeConnectionCard(),
       makeFrequencyCard(),
       makePortraitPairingCard(),
-      makePhotoSourceCard(),
+      makeMemoriesCard(),
+      makeFiltersCard(),
       makeLayoutCard(),
       makeMetadataCard()
     ];

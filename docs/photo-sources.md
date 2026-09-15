@@ -5,13 +5,13 @@ description: Combine Immich albums, people, tags, favorites, ratings, dates, loc
 
 # Espframe Smart Photo Filters for Immich
 
-Open the device web UI at `http://<device-ip>/` and use **Photo Filter**. Start with the seven **Filter by** switches, then open only the groups you need. Dates, albums, people, tags, favorites, ratings, and location retain their saved values when switched off. Changes apply automatically shortly after you change a control.
+Open the device web UI at `http://<device-ip>/` and use **Filters**. Start with the seven **Filter by** switches, then open only the groups you need. To use On This Day memories, open the **Memories** panel and turn on **Use Memories**. Dates, albums, people, tags, favorites, ratings, and location retain their saved values when switched off. Changes apply automatically shortly after you change a control.
 
 <!-- ESPFRAME:SETTINGS_TABLE source START -->
 | Setting | Default | Format | Description |
 |---------|---------|--------|-------------|
-| **Source** | All Photos | Select | Choose all photos, favorites, albums, people, tags, or Immich memories. |
-| **Memories Window** | `Within 2 Days` | `Same Day`, `Within 1 Day`, `Within 2 Days`, `Within 3 Days`, or `Within 7 Days` | When Memories is selected, search this calendar-day window across prior years. |
+| **Photo Source (legacy compatibility)** | All Photos | Select | Legacy compatibility source value; enable Memories from the dedicated Memories panel and use the Filters panel for the remaining photo sources. |
+| **Memories Window** | `Within 2 Days` | `Same Day`, `Within 1 Day`, `Within 2 Days`, `Within 3 Days`, or `Within 7 Days` | When Memories is enabled, search this calendar-day window across prior years. |
 | **Fallback to All Photos** | On | Toggle | When Memories has no result or fails, show an unfiltered All Photos result. |
 | **Filter by Albums** | False | Toggle | Enable filtering by any selected album while preserving the list when disabled. |
 | **Filter by People** | False | Toggle | Enable filtering by any selected person while preserving the list when disabled. |
@@ -20,9 +20,9 @@ Open the device web UI at `http://<device-ip>/` and use **Photo Filter**. Start 
 | **Filter by Rating** | False | Toggle | Enable minimum rating filtering while preserving the selected rating when disabled. |
 | **Filter by Location** | False | Toggle | Enable country, state or province, and city filtering as one group. |
 | **Inclusion Groups** | Match all enabled groups | Select | Require every enabled album, people, and tag group, or rotate evenly through one enabled group per request. |
-| **Album Matching** | Any selected album | Select | Legacy compatibility value; the Photo Filter always uses any selected album. |
-| **Person Matching** | Any selected person | Select | Legacy compatibility value; the Photo Filter always uses any selected person. |
-| **Legacy Tag Matching** | Any selected tag | Select | Legacy compatibility value; the Photo Filter always uses any selected tag. |
+| **Album Matching** | Any selected album | Select | Legacy compatibility value; the Filters panel always uses any selected album. |
+| **Person Matching** | Any selected person | Select | Legacy compatibility value; the Filters panel always uses any selected person. |
+| **Legacy Tag Matching** | Any selected tag | Select | Legacy compatibility value; the Filters panel always uses any selected tag. |
 | **Favorites** | Any | Select | Include any photo, require favorites, or exclude favorites. |
 | **Minimum Rating** | Any | Select | Require at least the selected Immich rating; available with Immich 3.2 or newer. |
 | **Country** |  | Exact text, up to 96 characters | Require an exact Immich country value. |
@@ -78,11 +78,11 @@ Multiple selected tags use **Any selected tag**, so the slideshow includes photo
 
 ## Memories / On This Day
 
-Set **Source** to **Memories** to show photos from the same calendar day in prior years, using Immich's On This Day memories. The frame searches the selected day plus or minus the configured **Memories Window**: **Same Day**, **Within 1 Day**, **Within 2 Days**, **Within 3 Days**, or **Within 7 Days**. The default is **Within 2 Days**.
+Turn on **Use Memories** in the **Memories** panel to show photos from the same calendar day in prior years, using Immich's On This Day memories. The frame searches the selected day plus or minus the configured **Memories Window**: **Same Day**, **Within 1 Day**, **Within 2 Days**, **Within 3 Days**, or **Within 7 Days**. The default is **Within 2 Days**.
 
 Configured Memories window: Same Day through Within 7 Days; default Within 2 Days; matched across prior years.
 
-Memories is an exclusive source. While it is selected, all saved content filters—date, albums, people, tags, favorites, ratings, location, inclusion/exclusion rules, and album order—are ignored. Their values are preserved while Memories is active. Selecting **Custom** restores the composed filter; selecting a legacy preset such as **All Photos**, **Favorites**, **Album**, **Person**, or **Tag** applies that source's documented preset. Orientation, display mode, metadata, and portrait pairing are independent display options and remain available.
+Memories is an exclusive source. While it is enabled, all saved content filters—date, albums, people, tags, favorites, ratings, location, inclusion/exclusion rules, and album order—are ignored. Their values are preserved while Memories is active. Selecting **Custom** restores the composed filter; selecting a legacy preset such as **All Photos**, **Favorites**, **Album**, **Person**, or **Tag** applies that source's documented preset. Orientation, display mode, metadata, and portrait pairing are independent display options and remain available.
 
 If no memory is found, or Immich cannot answer the memory request, **Fallback to All Photos** shows an unfiltered photo instead. Turn fallback off to keep the frame on its current photo and show the empty-state message when the selected window has no result. The frame needs the `memory.read` API permission for this source.
 
@@ -104,11 +104,11 @@ The deprecated **Photos: Source** Home Assistant entity remains for one compatib
 
 ## Date Filtering
 
-Use **Photo Filter → Filter by Date** in the web UI to limit photos by when they were taken. You can use either fixed dates, such as a specific holiday range, or a rolling range, such as the last 6 months.
+Use **Filters → Filter by Date** in the web UI to limit photos by when they were taken. You can use either fixed dates, such as a specific holiday range, or a rolling range, such as the last 6 months.
 
 Date filter changes save automatically shortly after you change a control. You do not need to click an Apply button.
 
-Date filtering is ignored while **Source** is set to **Memories**; the **Memories Window** controls the calendar-day search instead. Your date-filter settings remain saved for when you select another source.
+Date filtering is ignored while **Use Memories** is enabled; the **Memories Window** controls the calendar-day search instead. Your date-filter settings remain saved for when you turn Memories off.
 
 <!-- ESPFRAME:SETTINGS_TABLE date_filtering START -->
 | Setting | Default | Format | Description |

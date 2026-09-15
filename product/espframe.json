@@ -642,14 +642,26 @@
         ]
       },
       {
-        "id": "photo_source",
-        "label": "Photo Filter",
+        "id": "memories",
+        "label": "Memories",
         "tab": "immich",
-        "function": "makePhotoSourceCard",
+        "function": "makeMemoriesCard",
+        "settings": [
+          "memories_window",
+          "memories_fallback"
+        ],
+        "static_entities": [
+          "memories_migration_notice"
+        ],
+        "manual_entities": []
+      },
+      {
+        "id": "photo_source",
+        "label": "Filters",
+        "tab": "immich",
+        "function": "makeFiltersCard",
         "settings": [
           "photo_source",
-          "memories_window",
-          "memories_fallback",
           "albums_enabled",
           "people_enabled",
           "tags_enabled",
@@ -687,8 +699,7 @@
           "excluded_tag_ids",
           "excluded_tag_labels",
           "immich_server_version",
-          "immich_capability_status",
-          "memories_migration_notice"
+          "immich_capability_status"
         ],
         "manual_entities": [
           "apply_photo_source"
@@ -2280,7 +2291,8 @@
         "name": "Photos: Source"
       },
       "default": "All Photos",
-      "docs_description": "Choose all photos, favorites, albums, people, tags, or Immich memories.",
+      "docs_label": "Photo Source (legacy compatibility)",
+      "docs_description": "Legacy compatibility source value; enable Memories from the dedicated Memories panel and use the Filters panel for the remaining photo sources.",
       "options": [
         "All Photos",
         "Favorites",
@@ -2307,7 +2319,7 @@
       "docs_label": "Memories Window",
       "docs_default": "`Within 2 Days`",
       "docs_format": "`Same Day`, `Within 1 Day`, `Within 2 Days`, `Within 3 Days`, or `Within 7 Days`",
-      "docs_description": "When Memories is selected, search this calendar-day window across prior years.",
+      "docs_description": "When Memories is enabled, search this calendar-day window across prior years.",
       "options": [
         "Same Day",
         "Within 1 Day",
@@ -2367,7 +2379,7 @@
       },
       "default": "Any selected tag",
       "docs_label": "Legacy Tag Matching",
-      "docs_description": "Legacy compatibility value; the Photo Filter always uses any selected tag.",
+      "docs_description": "Legacy compatibility value; the Filters panel always uses any selected tag.",
       "options": [
         "Any selected tag",
         "All selected tags"
@@ -3166,7 +3178,7 @@
         "Any selected album",
         "All selected albums"
       ],
-      "docs_description": "Legacy compatibility value; the Photo Filter always uses any selected album.",
+      "docs_description": "Legacy compatibility value; the Filters panel always uses any selected album.",
       "firmware_files": [
         "common/addon/immich_filter.yaml"
       ],
@@ -3185,7 +3197,7 @@
         "Any selected person",
         "All selected people"
       ],
-      "docs_description": "Legacy compatibility value; the Photo Filter always uses any selected person.",
+      "docs_description": "Legacy compatibility value; the Filters panel always uses any selected person.",
       "firmware_files": [
         "common/addon/immich_filter.yaml"
       ],

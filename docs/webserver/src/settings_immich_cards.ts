@@ -1,3 +1,79 @@
+  var syncMemoryFilterUi = function () {};
+
+  function makeMemoriesInfoBanner() {
+    var banner = el("div", "setting-info-banner");
+    banner.setAttribute("role", "note");
+    var icon = el("span", "setting-info-banner-icon");
+    icon.textContent = "i";
+    icon.setAttribute("aria-hidden", "true");
+    var message = el("span");
+    message.textContent = "Using Memories disables any configured filters";
+    banner.appendChild(icon);
+    banner.appendChild(message);
+    return banner;
+  }
+
+  function makeMemoriesCard() {
+    var body = el("div");
+    var memoriesActive = S.photo_source === "Memories";
+    var previousSource = memoriesActive ? "All Photos" : S.photo_source;
+    var infoBanner = makeMemoriesInfoBanner();
+
+    var memoriesToggle = toggleSettingRow({
+      label: "Use Memories", value: memoriesActive,
+      getValue: function () { return memoriesActive; },
+      setValue: function (value) { memoriesActive = value; },
+      onChange: function (value) {
+        if (value) {
+          if (S.photo_source !== "Memories") previousSource = S.photo_source;
+          S.photo_source = "Memories";
+        } else {
+          S.photo_source = previousSource === "Memories" ? "All Photos" : previousSource;
+        }
+        infoBanner.style.display = value ? "" : "none";
+        syncMemoryFilterUi();
+        saveSetting("photo_source", S.photo_source, { applyPhotoSource: true });
+      }
+    });
+    body.appendChild(memoriesToggle.field);
+
+    infoBanner.style.display = memoriesActive ? "" : "none";
+    body.appendChild(infoBanner);
+
+    if (S.memories_migration_notice) {
+      var notice = el("div", "banner warning");
+      notice.textContent = "Memories is available again as an exclusive On This Day source. Choose it from this panel to enable it. ";
+      var dismiss = button("Dismiss", "btn btn-secondary", function () {
+        post(endpoints.memories_migration_notice + "/turn_off").then(function () {
+          S.memories_migration_notice = false;
+          notice.style.display = "none";
+        });
+      });
+      notice.appendChild(dismiss);
+      body.appendChild(notice);
+    }
+
+    var memoriesWindowField = field("Memories Window");
+    memoriesWindowField.appendChild(selectFromOptions(productSettingOptions("memories_window"), S.memories_window, function (value) {
+      S.memories_window = value;
+      saveSetting("memories_window", value, { applyPhotoSource: true });
+    }));
+    body.appendChild(memoriesWindowField);
+
+    var memoriesFallbackRow = toggleSettingRow({
+      label: "Fallback to All Photos", value: !!S.memories_fallback,
+      getValue: function () { return !!S.memories_fallback; },
+      setValue: function (value) { S.memories_fallback = value; },
+      onChange: function (value) {
+        S.memories_fallback = value;
+        saveSetting("memories_fallback", value, { applyPhotoSource: true });
+      }
+    });
+    body.appendChild(memoriesFallbackRow.field);
+
+    return makeCollapsibleCard("Memories", body, true);
+  }
+
   function makeConnectionCard() {
     // Connection
     var connBody = el("div");
@@ -97,9 +173,11 @@
 
   }
 
-  function makeSmartPhotoFilterCard() {
+  function makeFiltersCard() {
     var body = el("div");
     var memoriesActive = S.photo_source === "Memories";
+    var sourceSelect: HTMLSelectElement;
+    var filterCard: HTMLElement;
     function filtersActive() {
       if (memoriesActive) return false;
       return ["date_filter_enabled", "albums_enabled", "people_enabled", "tags_enabled",
@@ -116,19 +194,6 @@
       compatibilityUpdates.forEach(function (update) { update(); });
     }
 
-    if (S.memories_migration_notice) {
-      var notice = el("div", "banner warning");
-      notice.textContent = "Memories is available again as an exclusive On This Day source. Choose it from Source to enable it. ";
-      var dismiss = button("Dismiss", "btn btn-secondary", function () {
-        post(endpoints.memories_migration_notice + "/turn_off").then(function () {
-          S.memories_migration_notice = false;
-          notice.style.display = "none";
-        });
-      });
-      notice.appendChild(dismiss);
-      body.appendChild(notice);
-    }
-
     function applySetting(key, value) {
       updateFilterBadge();
       updateCompatibility();
@@ -142,7 +207,6 @@
           __memoryOriginalAriaDisabled?: string | null; __memoryOriginalTabindex?: string | null;
           __memoryOriginalOpacity?: string; __memoryOriginalCursor?: string; __memoryLocked?: boolean;
         };
-        if (toggle.closest(".memories-options")) return;
         if (memoriesActive && !toggle.__memoryLocked) {
           toggle.__memoryOriginalOnclick = toggle.onclick;
           toggle.__memoryOriginalOnkeydown = toggle.onkeydown;
@@ -174,9 +238,7 @@
       var controls = body.querySelectorAll("select, input, button");
       Array.prototype.forEach.call(controls, function (controlEl) {
         var control = controlEl as HTMLSelectElement & { __memoryOriginalDisabled?: boolean; __memoryLocked?: boolean };
-        var fieldEl = control.closest(".field");
-        if ((fieldEl && fieldEl.classList.contains("memories-source-control")) ||
-            control.closest(".memories-options") || control.closest(".banner")) return;
+        if (control.closest(".banner")) return;
         if (memoriesActive && !control.__memoryLocked) {
           control.__memoryOriginalDisabled = control.disabled;
           control.__memoryLocked = true;
@@ -187,37 +249,27 @@
           delete control.__memoryLocked;
         }
       });
+      if (sourceSelect) sourceSelect.value = memoriesActive ? "All Photos" : S.photo_source;
+      if (filtersInfoBanner) filtersInfoBanner.style.display = memoriesActive ? "" : "none";
+      if (filterCard) filterCard.classList.toggle("memory-filter-disabled", memoriesActive);
       updateFilterBadge();
     }
 
     var sourceField = field("Source");
-    sourceField.classList.add("memories-source-control");
-    sourceField.appendChild(selectFromOptions(productSettingOptions("photo_source"), S.photo_source, function (value) {
+    sourceSelect = selectFromOptions(productSettingOptions("photo_source").filter(function (option) {
+      return option !== "Memories";
+    }), memoriesActive ? "All Photos" : S.photo_source, function (value) {
       S.photo_source = value;
       memoriesActive = value === "Memories";
       applySetting("photo_source", value);
       updateMemoryFilterLock();
-    }));
+    });
+    sourceField.appendChild(sourceSelect);
     body.appendChild(sourceField);
 
-    var memoriesOptions = el("div", "memories-options");
-    var memoriesWindowField = field("Memories Window");
-    memoriesWindowField.appendChild(selectFromOptions(productSettingOptions("memories_window"), S.memories_window, function (value) {
-      S.memories_window = value;
-      applySetting("memories_window", value);
-    }));
-    memoriesOptions.appendChild(memoriesWindowField);
-    var memoriesFallbackRow = toggleSettingRow({
-      label: "Fallback to All Photos", value: !!S.memories_fallback,
-      getValue: function () { return !!S.memories_fallback; },
-      setValue: function (value) { S.memories_fallback = value; },
-      onChange: function (value) { applySetting("memories_fallback", value); }
-    });
-    memoriesOptions.appendChild(memoriesFallbackRow.field);
-    var memoriesHint = el("div", "setting-hint");
-    memoriesHint.textContent = "Memories ignores the saved photo filters while active. Their values are preserved.";
-    memoriesOptions.appendChild(memoriesHint);
-    body.appendChild(memoriesOptions);
+    var filtersInfoBanner = makeMemoriesInfoBanner();
+    filtersInfoBanner.style.display = memoriesActive ? "" : "none";
+    body.appendChild(filtersInfoBanner);
     appendDateFilterControls(body, updateFilterBadge);
     function addSelect(label, key, disabled, reason, recoveryValue?) {
       var f = field(label);
@@ -429,12 +481,13 @@
     });
     locationDetails.style.display = S.location_enabled ? "" : "none";
     body.appendChild(locationDetails);
-    updateMemoryFilterLock();
-    return makeCollapsibleCard("Photo Filter", body, true, filterBadge);
-  }
-
-  function makePhotoSourceCard() {
-    return makeSmartPhotoFilterCard();
+    filterCard = makeCollapsibleCard("Filters", body, true, filterBadge);
+    syncMemoryFilterUi = function () {
+      memoriesActive = S.photo_source === "Memories";
+      updateMemoryFilterLock();
+    };
+    syncMemoryFilterUi();
+    return filterCard;
   }
 
   function makeLegacyPhotoSourceCard() {

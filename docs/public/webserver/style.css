@@ -291,6 +291,14 @@ h2 {
   gap:8px
 }
 
+.card.memory-filter-disabled {
+  border-color:rgba(100, 108, 255, .3)
+}
+
+.card.memory-filter-disabled .card-header {
+  color:var(--text2)
+}
+
 .on-badge {
   display:none;
   align-items:center;
@@ -518,6 +526,11 @@ input[readonly] {
   box-shadow:0 0 0 3px var(--accent-soft)
 }
 
+.select:disabled, select:disabled, input:disabled, textarea:disabled {
+  opacity:.4;
+  cursor:not-allowed
+}
+
 select option {
   background:var(--surface);
   color:var(--text)
@@ -668,6 +681,35 @@ select option {
 .toggle.on {
   background:var(--accent);
   border-color:var(--accent)
+}
+
+.setting-info-banner {
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  margin:0 0 20px;
+  padding:12px 14px;
+  background:var(--accent-soft);
+  border:1px solid rgba(92, 115, 231, .3);
+  border-radius:10px;
+  color:var(--text2);
+  font-size:.82rem;
+  line-height:1.35
+}
+
+.setting-info-banner-icon {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 18px;
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  background:var(--accent);
+  color:#fff;
+  font-size:.72rem;
+  font-weight:700;
+  line-height:1
 }
 
 .toggle::after {

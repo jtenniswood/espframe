@@ -1119,18 +1119,17 @@ function smokeAssertionsForScenario(scenario) {
           throw new Error("Portrait pairing ON badge should be visible while the card is closed");
         }
         expandCard("Portrait Pairing");
-        const photoFilterCard = expandCard("Photo Filter");
-        const filterBadge = photoFilterCard.querySelector(".on-badge");
+        const filtersCard = expandCard("Filters");
+        const filterBadge = filtersCard.querySelector(".on-badge");
         if (!filterBadge || getComputedStyle(filterBadge).display !== "none") {
-          throw new Error("Photo Filter badge must be hidden while open");
+          throw new Error("Filters badge must be hidden while open");
         }
-        const filterToggles = Array.from(photoFilterCard.querySelectorAll('[role="switch"]'))
-          .filter((toggle) => !toggle.closest(".memories-options"));
+        const filterToggles = Array.from(filtersCard.querySelectorAll('[role="switch"]'));
         const initialFilterStates = filterToggles.map((toggle) => toggle.getAttribute("aria-checked") === "true");
         filterToggles.forEach((toggle) => {
           if (toggle.getAttribute("aria-checked") === "true") toggle.click();
         });
-        photoFilterCard.querySelector(".card-header").click();
+        filtersCard.querySelector(".card-header").click();
         if (getComputedStyle(filterBadge).display !== "none") throw new Error("All filters off must hide badge");
         filterToggles.forEach((toggle) => {
           toggle.click();
@@ -1141,7 +1140,7 @@ function smokeAssertionsForScenario(scenario) {
           if (getComputedStyle(filterBadge).display !== "none") throw new Error("Last filter off must hide badge");
         });
         filterToggles.forEach((toggle, index) => { if (initialFilterStates[index]) toggle.click(); });
-        expandCard("Photo Filter");
+        expandCard("Filters");
         expandCard("Photo Display");
         expandCard("Metadata");
 
@@ -1150,13 +1149,17 @@ function smokeAssertionsForScenario(scenario) {
         if (immichCardTitles.indexOf("Portrait Pairing") !== immichCardTitles.indexOf("Frequency") + 1) {
           throw new Error("Portrait Pairing should appear directly below Frequency");
         }
+        if (immichCardTitles.indexOf("Memories") !== immichCardTitles.indexOf("Portrait Pairing") + 1 ||
+            immichCardTitles.indexOf("Filters") !== immichCardTitles.indexOf("Memories") + 1) {
+          throw new Error("Memories and Filters should follow Portrait Pairing in order");
+        }
         if (immichCardTitles.indexOf("Advanced Filters") !== -1) {
           throw new Error("Advanced Filters should not render as a standalone card");
         }
-        const firstPhotoFilterToggle = Array.from(photoFilterCard.querySelectorAll(".card-body .toggle-row > span"))
+        const firstPhotoFilterToggle = Array.from(filtersCard.querySelectorAll(".card-body .toggle-row > span"))
           .find((item) => item.textContent.trim() === "Filter by Date");
         if (!firstPhotoFilterToggle || firstPhotoFilterToggle.textContent.trim() !== "Filter by Date") {
-          throw new Error("Date filter should appear at the top of Photo Filter");
+          throw new Error("Date filter should appear at the top of Filters");
         }
         const dateFilterRow = firstPhotoFilterToggle.closest(".field");
         const dateFilterGroup = dateFilterRow && dateFilterRow.nextElementSibling;
@@ -1205,14 +1208,28 @@ function smokeAssertionsForScenario(scenario) {
         toggleByText("Location").click();
         toggleByText("Date").click();
 
-        requireText("Source");
+        const memoriesCard = expandCard("Memories");
+        const memoriesToggle = toggleByText("Use Memories");
         requireText("Memories Window");
         requireText("Fallback to All Photos");
-        setSelect("Source", "Memories");
-        if (selectByLabel("Source").disabled || selectByLabel("Memories Window").disabled ||
-            toggleByText("Fallback to All Photos").getAttribute("aria-disabled") === "true") {
-          throw new Error("Memories controls should remain available while Memories is active");
+        const memoriesBanner = memoriesCard.querySelector(".setting-info-banner");
+        if (!memoriesBanner || memoriesBanner.textContent.trim() !== "Using Memories disables any configured filters" ||
+            getComputedStyle(memoriesBanner).display === "none") {
+          throw new Error("Memories should show its blue filter warning while enabled");
         }
+        memoriesToggle.click();
+        if (memoriesToggle.getAttribute("aria-checked") !== "true") {
+          throw new Error("Memories toggle should turn on");
+        }
+        if (!filtersCard.classList.contains("memory-filter-disabled")) {
+          throw new Error("Filters should look disabled while Memories is active");
+        }
+        const filtersBanner = filtersCard.querySelector(".setting-info-banner");
+        if (!filtersBanner || filtersBanner.textContent.trim() !== "Using Memories disables any configured filters" ||
+            getComputedStyle(filtersBanner).display === "none") {
+          throw new Error("Filters should show the Memories warning while enabled");
+        }
+        requireSelectDisabled("Source");
         ["Filter by Date", "Filter by Albums", "Filter by People", "Filter by Tags",
           "Filter by Favorites", "Filter by Rating", "Filter by Location"].forEach((label) => {
           requireToggleDisabled(label);
@@ -1221,10 +1238,21 @@ function smokeAssertionsForScenario(scenario) {
         if (!dateModeButtons.length || dateModeButtons.some((button) => !button.disabled)) {
           throw new Error("Date filter mode should be disabled while Memories is active");
         }
+        filtersCard.querySelector(".card-header").click();
+        if (!filtersCard.classList.contains("collapsed")) throw new Error("Disabled Filters should still collapse");
+        filtersCard.querySelector(".card-header").click();
+        if (filtersCard.classList.contains("collapsed")) throw new Error("Disabled Filters should still expand");
         setSelect("Memories Window", "Same Day");
-        setSelect("Source", "All Photos");
-        if (toggleByText("Filter by Date").style.cursor === "not-allowed") {
-          throw new Error("Photo filters should be restored after leaving Memories");
+        memoriesToggle.click();
+        if (memoriesToggle.getAttribute("aria-checked") !== "false") {
+          throw new Error("Memories toggle should turn off");
+        }
+        if (filtersCard.classList.contains("memory-filter-disabled") || selectByLabel("Source").disabled ||
+            getComputedStyle(memoriesBanner).display === "none") {
+          throw new Error("Filters should be restored after leaving Memories");
+        }
+        if (selectByLabel("Source").value !== "Album") {
+          throw new Error("Leaving Memories should restore the previous photo source");
         }
 
         clickTab("Device");
@@ -1298,14 +1326,14 @@ function smokeAssertionsForScenario(scenario) {
         requireLatestPostValue("Wizard API key", "Connection: API Key", "setup-api-key");
 
         clickButton("Done");
-        await waitFor(() => pageText().indexOf("Photo Filter") !== -1, 8000, "settings after wizard");
+        await waitFor(() => pageText().indexOf("Filters") !== -1, 8000, "settings after wizard");
       }
 
       try {
         if (${JSON.stringify(!!scenario.slowStartup)}) {
           await new Promise(resolve => setTimeout(resolve, 500));
           if (document.querySelector("#sp-immich .card")) throw new Error("Settings appeared before snapshot completed");
-          await waitFor(() => pageText().includes("Photo Filter"), 8000, "hydrated settings");
+          await waitFor(() => pageText().includes("Filters"), 8000, "hydrated settings");
           const wrap = document.querySelector("#sp-immich .sp-settings-wrap").firstElementChild;
           if (getComputedStyle(wrap).animationName !== "none") throw new Error("Settings replay a fade animation");
           const source = window.__smoke.eventSource;
@@ -1433,9 +1461,9 @@ function smokeAssertionsForScenario(scenario) {
             if (document.documentElement.scrollWidth > window.innerWidth + 4) throw new Error("Name card overflows mobile viewport");
           }
         } else if (${JSON.stringify(!!scenario.filterCompatibilityVersion)}) {
-          await waitFor(() => pageText().indexOf("Photo Filter") !== -1, 8000, "photo filters");
+          await waitFor(() => pageText().indexOf("Filters") !== -1, 8000, "photo filters");
           await new Promise((resolve) => setTimeout(resolve, 300));
-          expandCard("Photo Filter");
+          expandCard("Filters");
           const structured = ${JSON.stringify(scenario.filterCompatibilityVersion === "3.2.0")};
           for (const label of ["Albums", "Tags"]) {
             const toggle = toggleByText("Filter by " + label);
@@ -1474,10 +1502,10 @@ function smokeAssertionsForScenario(scenario) {
             }, 4000, "inclusion recovery saved");
           }
         } else {
-          await waitFor(() => pageText().indexOf("Photo Filter") !== -1, 8000, "settings");
+          await waitFor(() => pageText().indexOf("Filters") !== -1, 8000, "settings");
           expandCard("Connection");
           requireText("Immich Server URL");
-          expandCard("Photo Filter");
+          expandCard("Filters");
           requireText("Filter by Date");
           requireText("Fixed");
           requireText("Relative");

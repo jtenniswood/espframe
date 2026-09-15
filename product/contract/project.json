@@ -641,14 +641,26 @@
       ]
     },
     {
-      "id": "photo_source",
-      "label": "Photo Filter",
+      "id": "memories",
+      "label": "Memories",
       "tab": "immich",
-      "function": "makePhotoSourceCard",
+      "function": "makeMemoriesCard",
+      "settings": [
+        "memories_window",
+        "memories_fallback"
+      ],
+      "static_entities": [
+        "memories_migration_notice"
+      ],
+      "manual_entities": []
+    },
+    {
+      "id": "photo_source",
+      "label": "Filters",
+      "tab": "immich",
+      "function": "makeFiltersCard",
       "settings": [
         "photo_source",
-        "memories_window",
-        "memories_fallback",
         "albums_enabled",
         "people_enabled",
         "tags_enabled",
@@ -686,8 +698,7 @@
         "excluded_tag_ids",
         "excluded_tag_labels",
         "immich_server_version",
-        "immich_capability_status",
-        "memories_migration_notice"
+        "immich_capability_status"
       ],
       "manual_entities": [
         "apply_photo_source"

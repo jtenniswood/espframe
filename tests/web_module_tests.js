@@ -74,10 +74,13 @@ assert.ok(
 assert.ok(publicApp.includes("customElements.define"), "public app should register its component root");
 assert.ok(publicApp.includes('"album_order"'), "public app should include album order in photo-source apply keys");
 assert.ok(
-  publicApp.includes("Memories Window") &&
+  publicApp.includes("function makeMemoriesCard()") &&
+    publicApp.includes('makeCollapsibleCard("Memories"') &&
+    publicApp.includes('makeCollapsibleCard("Filters"') &&
+    publicApp.includes("Memories Window") &&
     publicApp.includes("Fallback to All Photos") &&
-    publicApp.includes("Memories ignores the saved photo filters while active"),
-  "photo filter UI should expose the configurable Memories window and fallback"
+    publicApp.includes("Using Memories disables any configured filters"),
+  "photo settings should expose a dedicated Memories panel and disabled filter panel"
 );
 assert.ok(
   publicApp.includes('toggle.setAttribute("aria-disabled", "true")') &&
@@ -303,7 +306,7 @@ assert.ok(
   );
 });
 // The legacy renderer remains available in authored source; the module bundler
-// omits it from the current UI because makePhotoSourceCard uses the smart filter.
+// omits it from the current UI because makeFiltersCard uses the smart filter.
 const immichCardsSource = fs.readFileSync(path.join(root, "docs/webserver/src/settings_immich_cards.ts"), "utf8");
 const photoSourceApply = immichCardsSource.slice(
   immichCardsSource.indexOf("function applyPhotoSourceInputs()"),
