@@ -46,9 +46,13 @@ npm run check:budgets
 
 The limits in `product/budgets.json` protect the embedded web app's raw and
 compressed sizes. Full firmware builds additionally check the actual ESPHome
-flash and RAM report plus factory/OTA binary sizes. A budget increase must be
-an intentional contract change in the same pull request, not just a larger
-number added after a build fails.
+flash report, static internal-RAM usage, and factory/OTA binary sizes. The
+`ram_static_bytes_warn` value reports growth without failing the build;
+`ram_static_bytes_max` is the hard safety ceiling below the measured P4 boot
+failure region. Neither value is a runtime heap limit or a factory-firmware
+configuration setting. A hard-ceiling increase must be an intentional contract
+change backed by device testing, not just a larger number added after a build
+fails.
 
 ### Web Type Checks
 

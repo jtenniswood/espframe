@@ -46,8 +46,8 @@ def test_firmware_budget_reports_each_overage() -> None:
             "factory": {
                 "flash_used_bytes_max": 100,
                 "flash_used_percent_max": 10.0,
-                "ram_used_bytes_max": 50,
-                "ram_used_percent_max": 5.0,
+                "ram_static_bytes_warn": 50,
+                "ram_static_bytes_max": 60,
                 "binary_bytes_max": 20,
             }
         }
@@ -57,12 +57,40 @@ def test_firmware_budget_reports_each_overage() -> None:
         ram=MemoryUsage(51, 1000, 5.1),
     )
     errors: list[str] = []
+    warnings: list[str] = []
     with tempfile.TemporaryDirectory() as directory:
         binary = Path(directory) / "firmware.bin"
         binary.write_bytes(b"x" * 21)
-        check_firmware_budget(budgets, "factory", usage, binary, errors)
-    assert len(errors) == 5
+        check_firmware_budget(budgets, "factory", usage, binary, errors, warnings)
+    assert len(errors) == 3
     assert all("over budget" in error for error in errors)
+    assert len(warnings) == 1
+    assert "over warning threshold 50" in warnings[0]
+
+
+def test_firmware_budget_accepts_static_ram_warning() -> None:
+    budgets = {
+        "firmware": {
+            "factory": {
+                "flash_used_bytes_max": 100,
+                "flash_used_percent_max": 10.0,
+                "ram_static_bytes_warn": 50,
+                "ram_static_bytes_max": 60,
+                "binary_bytes_max": 20,
+            }
+        }
+    }
+    usage = CompileUsage(
+        flash=MemoryUsage(99, 1000, 9.9),
+        ram=MemoryUsage(51, 1000, 5.1),
+    )
+    errors: list[str] = []
+    warnings: list[str] = []
+    check_firmware_budget(budgets, "factory", usage, None, errors, warnings)
+    assert not errors
+    assert warnings == [
+        "firmware.factory.ram_static_bytes is 51, over warning threshold 50"
+    ]
 
 
 def main() -> int:

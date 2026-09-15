@@ -65,6 +65,13 @@ def check_limit(name: str, actual: int | float, maximum: int | float, errors: li
         errors.append(f"{name} is {actual}, over budget {maximum}")
 
 
+def check_warning(
+    name: str, actual: int | float, threshold: int | float, warnings: list[str]
+) -> None:
+    if actual > threshold:
+        warnings.append(f"{name} is {actual}, over warning threshold {threshold}")
+
+
 def check_web_budgets(budgets: dict[str, object], errors: list[str]) -> None:
     web = budgets.get("web")
     if not isinstance(web, dict):
@@ -92,8 +99,10 @@ def check_web_budgets(budgets: dict[str, object], errors: list[str]) -> None:
 
 def check_firmware_budget(
     budgets: dict[str, object], profile: str, usage: CompileUsage,
-    binary_path: Path | None, errors: list[str]
+    binary_path: Path | None, errors: list[str], warnings: list[str] | None = None
 ) -> None:
+    if warnings is None:
+        warnings = []
     firmware = budgets.get("firmware")
     profile_budget = firmware.get(profile) if isinstance(firmware, dict) else None
     if not isinstance(profile_budget, dict):
@@ -102,8 +111,7 @@ def check_firmware_budget(
     actuals: dict[str, int | float] = {
         "flash_used_bytes_max": usage.flash.used_bytes,
         "flash_used_percent_max": usage.flash.percent,
-        "ram_used_bytes_max": usage.ram.used_bytes,
-        "ram_used_percent_max": usage.ram.percent,
+        "ram_static_bytes_max": usage.ram.used_bytes,
     }
     for key, actual in actuals.items():
         maximum = profile_budget.get(key)
@@ -111,6 +119,18 @@ def check_firmware_budget(
             errors.append(f"firmware.{profile}.{key} must be a positive number")
             continue
         check_limit(f"firmware.{profile}.{key.removesuffix('_max')}", actual, maximum, errors)
+    warning = profile_budget.get("ram_static_bytes_warn")
+    maximum = profile_budget.get("ram_static_bytes_max")
+    if not isinstance(warning, int) or isinstance(warning, bool) or warning <= 0:
+        errors.append(f"firmware.{profile}.ram_static_bytes_warn must be a positive integer")
+    elif not isinstance(maximum, int) or isinstance(maximum, bool) or maximum <= 0:
+        pass
+    elif warning > maximum:
+        errors.append(
+            f"firmware.{profile}.ram_static_bytes_warn must not exceed ram_static_bytes_max"
+        )
+    else:
+        check_warning("firmware.%s.ram_static_bytes" % profile, usage.ram.used_bytes, warning, warnings)
     if binary_path is not None:
         check_firmware_binary_budget(budgets, profile, binary_path, errors)
 
@@ -149,6 +169,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(sys.argv[1:] if argv is None else argv)
     errors: list[str] = []
+    warnings: list[str] = []
     try:
         budgets = load_budgets()
     except (OSError, json.JSONDecodeError, ValueError) as exc:
@@ -164,7 +185,7 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, ValueError) as exc:
             errors.append(str(exc))
         else:
-            check_firmware_budget(budgets, args.profile, usage, args.binary, errors)
+            check_firmware_budget(budgets, args.profile, usage, args.binary, errors, warnings)
     elif args.binary and args.profile:
         check_firmware_binary_budget(budgets, args.profile, args.binary, errors)
 
@@ -173,6 +194,10 @@ def main(argv: list[str] | None = None) -> int:
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
+    if warnings:
+        print("build budget warnings:", file=sys.stderr)
+        for warning in warnings:
+            print(f"- {warning}", file=sys.stderr)
     print("build budget checks passed")
     return 0
 
