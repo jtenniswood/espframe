@@ -1218,8 +1218,6 @@ function smokeAssertionsForScenario(scenario) {
         }
         const memoriesCard = expandCard("Memories");
         const memoriesToggle = toggleByText("Show Memories Only");
-        requireText("Memories Window");
-        requireText("Fallback to All Photos");
         const memoriesBody = memoriesCard.querySelector(".card-body");
         const memoriesBanner = memoriesBody.querySelector(".setting-info-banner");
         const memoriesToggleField = memoriesToggle.closest(".field");
@@ -1264,6 +1262,8 @@ function smokeAssertionsForScenario(scenario) {
             getComputedStyle(memoriesFallbackField).display === "none") {
           throw new Error("Memories secondary options should be visible while enabled");
         }
+        requireText("Memories Window");
+        requireText("Fallback to All Photos");
         if (!activeFiltersCard.classList.contains("memory-filter-disabled")) {
           throw new Error("Filters should look disabled while Memories is active");
         }
