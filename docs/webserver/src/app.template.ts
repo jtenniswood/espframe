@@ -1,6 +1,7 @@
 "use strict";
 
 import { SettingSaveCoordinator } from "./setting_save";
+import { EspframeApiClient, EspframeApiError, type LegacySettingWrite } from "./api_client";
 
 import {
   MAX_PHOTO_ID_FIELD_LENGTH, extractUrlHost, extractUrlPort, isValidHttpUrl,
@@ -32,6 +33,7 @@ import {
   var WEB_UI_LOGS_RETAINED_LINES = __ESPFRAME_WEB_UI_LOGS_RETAINED_LINES__;
   var SUPPORT_URL = __ESPFRAME_SUPPORT_URL__;
   var SUPPORT_BUTTON_IMAGE_DATA_URI = __ESPFRAME_SUPPORT_BUTTON_IMAGE_DATA_URI__;
+  var GENERATED_CONFIGURATION_CAPABILITIES: ConfigurationCapabilities = __ESPFRAME_CONFIGURATION_API_CONTRACT__;
 
   var S: AppState = {
     tz_options: TIMEZONES,
@@ -136,6 +138,8 @@ import {
 
   __ESPFRAME_WEB_APP_SHELL__
 
+  var apiClient = new EspframeApiClient(GENERATED_CONFIGURATION_CAPABILITIES);
+
   __ESPFRAME_WEB_ENDPOINTS__
 
   // Matches the ESPHome template text max_length for album/person/tag ID and label lists.
@@ -146,26 +150,8 @@ import {
     "Labels exceed 255 characters (device limit). Shorten or remove labels.";
 
   function postTextValueSet(url, value, useQueryFallback?) {
-    var body = new URLSearchParams();
-    body.set("value", value == null ? "" : String(value));
-    var encoded = body.toString();
-    var fullUrl = url;
-    if (useQueryFallback) {
-      var candidate = url + "?" + encoded;
-      if (candidate.length <= 120) fullUrl = candidate;
-    }
-    return fetch(fullUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: encoded
-    }).then(function (r) {
-      if (!r.ok) {
-        console.error("POST " + fullUrl + " failed: " + r.status);
-        throw new Error("post_failed");
-      }
-      return r;
-    }).catch(function (err) {
-      console.error("POST " + fullUrl + " error:", err);
+    return apiClient.postText(url, value == null ? "" : String(value), useQueryFallback).catch(function (err) {
+      console.error("POST " + url + " error:", err);
       showBanner("Failed to save setting", "error");
       throw err;
     });
@@ -176,6 +162,8 @@ import {
   }
 
   function saveConnectionValue(path, value, useQueryFallback) {
+    // Legacy adapter compatibility: saveConnectionValue(endpoints.immich_url, ...)
+    // and saveConnectionValue(endpoints.api_key, ...) remain the per-entity form.
     return postTextValueSet(path + "/set", value, useQueryFallback).then(function (r) {
       if (!r || !r.ok) throw new Error("save_failed");
       return delayMs(1200);
@@ -205,19 +193,19 @@ import {
     var apiKey = String(value || "").trim();
     if (!apiKey) return Promise.reject(Error("missing_api_key"));
     return settingSaves.save({ api_key_configured: true }, function () {
-      return updateConfiguration({ api_key: apiKey })
+      return apiClient.updateSettings({ api_key: apiKey }, [legacySettingWrite("api_key", apiKey)])
         .then(function () { return delayMs(150); })
         .then(function () { return getConfigurationSnapshot(); })
         .then(function (snapshot) {
           if (!snapshot.api_key_configured) throw Error("verify_failed");
         })
         .catch(function (error) {
-          if (!error.legacy) throw error;
-          return saveConnectionValue(endpoints.api_key, apiKey, false)
-            .then(function () { return safeGet(endpoints.api_key); })
-            .then(function (resp) {
-              if (!connectionResponseValue(resp)) throw Error("verify_failed");
-            });
+          if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+          return safeGet(endpoints.api_key).then(function (resp) {
+            if (!resp || (!resp.api_key_configured && !connectionResponseValue(resp))) {
+              throw Error("verify_failed");
+            }
+          });
         });
     });
   }
@@ -227,16 +215,15 @@ import {
     var apiKey = String(key || "").trim();
     if (!normalizedUrl || !apiKey) return Promise.reject(new Error("missing_connection"));
     return settingSaves.save({ immich_url: normalizedUrl, api_key_configured: true }, function () {
-      return updateConfiguration({ immich_url: normalizedUrl, api_key: apiKey })
+      return apiClient.updateSettings(
+        { immich_url: normalizedUrl, api_key: apiKey },
+        [legacySettingWrite("immich_url", normalizedUrl), legacySettingWrite("api_key", apiKey)]
+      )
         .then(function () { return delayMs(150); })
         .then(function () { return getConfigurationSnapshot(); })
         .catch(function (error) {
-          if (!error.legacy) throw error;
-          return saveConnectionValue(endpoints.immich_url, normalizedUrl, true)
-            .then(function () { return saveConnectionValue(endpoints.api_key, apiKey, false); })
-            .then(function () {
-              return Promise.all([safeGet(endpoints.immich_url), safeGet(endpoints.api_key)]);
-            });
+          if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+          return Promise.all([safeGet(endpoints.immich_url), safeGet(endpoints.api_key)]);
         })
         .then(function (result) {
           var savedUrl;
@@ -300,24 +287,16 @@ import {
     }
   });
 
-  function sendLegacySetting(key, savedValue) {
+  function legacySettingWrite(key, savedValue): LegacySettingWrite {
     var domain = settingEntityDomain(key);
-    if (domain === "switch") return post(endpoints[key] + (savedValue ? "/turn_on" : "/turn_off"));
-    if (domain === "select") return post(endpoints[key] + "/set", { option: savedValue });
-    if (domain === "number") return post(endpoints[key] + "/set", { value: savedValue });
-    if (domain === "text") return postTextValueSet(endpoints[key] + "/set", savedValue);
-    return Promise.resolve(null);
+    return { key: key, domain: domain, url: endpoints[key], value: savedValue };
   }
 
   function saveSettingValues(values) {
     return settingSaves.save(values, function () {
-      return updateConfiguration(values).catch(function (error) {
-        if (!isConfigurationApiUnavailable(error)) throw error;
-        // Preserve ordering through legacy writes as well as the versioned API.
-        return Object.keys(values).reduce(function (queue, key) {
-          return queue.then(function () { return sendLegacySetting(key, values[key]); });
-        }, Promise.resolve(null));
-      });
+      return apiClient.updateSettings(values, Object.keys(values).map(function (key) {
+        return legacySettingWrite(key, values[key]);
+      }));
     });
   }
 
@@ -465,7 +444,7 @@ import {
   }
 
   function safeGet(url) {
-    return fetch(url)
+    return apiClient.get(url)
       .then(function (r) {
         if (!r.ok) return null;
         return r.json();

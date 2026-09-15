@@ -11,7 +11,6 @@ interface PendingSetting {
 // recent successful value, rather than another unconfirmed draft.
 export class SettingSaveCoordinator {
   private sequence = 0;
-  private queue: Promise<unknown> = Promise.resolve();
   private confirmed = new Map<string, SettingValue>();
   private pending = new Map<string, PendingSetting>();
 
@@ -40,11 +39,10 @@ export class SettingSaveCoordinator {
       pending.remaining++;
       this.write(key, value);
     }
-    const request = this.queue.then(send).then(
+    const request = send().then(
       result => { this.finish(entries, revision, true); return result; },
       error => { this.finish(entries, revision, false); throw error; },
     );
-    this.queue = request.catch(() => undefined);
     return request;
   }
 

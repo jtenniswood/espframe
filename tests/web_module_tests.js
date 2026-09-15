@@ -67,8 +67,10 @@ assert.ok(publicApp.includes("api_key_configured"), "public app should use write
 assert.ok(!runtimeStateSource.includes("S.api_key"), "browser runtime state must not retain the API key");
 assert.ok(!/\bS\.api_key\b/.test(publicApp), "browser app must not retain the API key in S.api_key");
 assert.ok(!publicApp.includes("values.api_key"), "configuration verification must not read the API key value");
-assert.ok(endpointsSource.includes("configurationUpdateQueue"), "configuration writes should be serialized");
-assert.ok(endpointsSource.includes("configurationUpdateQueue = request.catch"), "the configuration queue should continue after a failed save");
+const apiClientSource = fs.readFileSync(path.join(root, "docs/webserver/src/api_client.ts"), "utf8");
+assert.ok(endpointsSource.includes("apiClient.getConfigurationSnapshot"), "configuration reads should use the API client");
+assert.ok(apiClientSource.includes("private queue") && apiClientSource.includes("this.queue = request.catch"), "the API client should own the single write queue");
+assert.ok(apiClientSource.includes('kind: ApiErrorKind') && apiClientSource.includes('"conflict"'), "API errors should retain typed categories");
 assert.ok(
   liveHelpersSource.includes("renderSettingsAfterEditing();") &&
     runtimeStateSource.includes("renderTimer = setTimeout") &&

@@ -600,6 +600,16 @@ function browserScriptForScenario(scenario) {
           json: () => Promise.resolve({ value: "v1.0.1", state: "UPDATE AVAILABLE", current_version: ${JSON.stringify(installedFirmwareVersion)}, latest_version: "v1.0.1" })
         });
       }
+      if (decoded === "/espframe/api/v1/capabilities") {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({
+          contract_version: 2, api_version: 1, base_path: "/espframe/api/v1",
+          capabilities_path: "/espframe/api/v1/capabilities",
+          configuration_path: "/espframe/api/v1/configuration", update_mode: "atomic",
+          configuration_available: true, configuration_read: true, configuration_write: true,
+          configuration_encoding: "application/x-www-form-urlencoded", configuration_parameter: "configuration",
+          legacy_entity_api: true, backup_versions: [1, 2, 3], setting_count: 52
+        }) });
+      }
       const endpointName = endpointNameForUrl(decoded);
       const value = endpointName ? endpointValues[endpointName] : "";
       const state = value === true ? "ON" : value === false ? "OFF" : String(value);

@@ -175,7 +175,7 @@
     return getConfigurationSnapshot().then(function (snapshot) {
       applyConfigurationSnapshot(snapshot);
     }).catch(function (error) {
-      if (!error.legacy) throw error;
+      if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
       return fetchLegacyDeviceSettingsState();
     });
   }

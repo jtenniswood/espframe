@@ -36,75 +36,8 @@
   }
 
   var endpoints: Record<string, string> = {};
-  var CONFIGURATION_API_PATH = "/espframe/api/v1/configuration";
-  var configurationUpdateQueue = Promise.resolve();
-
-  function configurationApiUnavailable(message, legacy?: boolean) {
-    var error: ConfigurationError = new Error(message || "configuration_api_unavailable");
-    error.configurationApiUnavailable = true;
-    if (legacy) error.legacy = true;
-    return error;
-  }
-
-  function isConfigurationApiUnavailable(error) {
-    return !!(error && error.configurationApiUnavailable);
-  }
-
   function getConfigurationSnapshot() {
-    return fetch(CONFIGURATION_API_PATH)
-      .then(function (response) {
-        if (!response.ok) {
-          if (response.status === 404 || response.status === 405) {
-            throw configurationApiUnavailable("configuration_api_" + response.status, true);
-          }
-          throw configurationApiUnavailable("configuration_api_" + response.status);
-        }
-        return response.json();
-      })
-      .then(function (payload) {
-        var snapshot = parseConfigurationSnapshot(payload);
-        if (!snapshot) throw configurationApiUnavailable("invalid_configuration_snapshot");
-        return snapshot;
-      })
-      .catch(function (error) {
-        if (isConfigurationApiUnavailable(error)) throw error;
-        throw configurationApiUnavailable("configuration_api_request_failed");
-      });
-  }
-
-  function sendConfigurationUpdate(values) {
-    var encoded = configurationUpdateBody(values);
-    return fetch(CONFIGURATION_API_PATH, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: encoded
-    }).then(function (response) {
-      if (response.status === 404 || response.status === 405) {
-        throw configurationApiUnavailable("configuration_api_" + response.status, true);
-      }
-      return response.json().catch(function () { return null; }).then(function (payload) {
-        if (!response.ok || !payload || payload.status !== "accepted") {
-          var error: ConfigurationError = new Error(payload && payload.error ? payload.error : "configuration_update_failed");
-          error.field = payload && payload.field;
-          error.configurationApiResponse = true;
-          throw error;
-        }
-        return delayMs(100).then(function () { return payload; });
-      });
-    }).catch(function (error) {
-      if (isConfigurationApiUnavailable(error) || error.configurationApiResponse) {
-        throw error;
-      }
-      throw configurationApiUnavailable("configuration_api_request_failed");
-    });
-  }
-
-  function updateConfiguration(values) {
-    var request = configurationUpdateQueue.then(function () {
-      return sendConfigurationUpdate(values);
-    });
-    configurationUpdateQueue = request.catch(function () { return null; });
-    return request;
+    return apiClient.getConfigurationSnapshot();
   }
 
   function applyConfigurationSnapshot(snapshot) {
@@ -146,15 +79,8 @@
   registerProductSettingEndpoints();
 
   function post(url, params?) {
-    var fullUrl = params ? url + "?" + new URLSearchParams(params).toString() : url;
-    return fetch(fullUrl, { method: "POST" }).then(function (r) {
-      if (!r.ok) {
-        console.error("POST " + fullUrl + " failed: " + r.status);
-        throw new Error("post_failed");
-      }
-      return r;
-    }).catch(function (err) {
-      console.error("POST " + fullUrl + " error:", err);
+    return apiClient.post(url, params).catch(function (err) {
+      console.error("POST " + url + " error:", err);
       showBanner("Failed to save setting", "error");
       throw err;
     });

@@ -11,7 +11,6 @@
       __publicField(this, "read", read);
       __publicField(this, "write", write);
       __publicField(this, "sequence", 0);
-      __publicField(this, "queue", Promise.resolve());
       __publicField(this, "confirmed", /* @__PURE__ */ new Map());
       __publicField(this, "pending", /* @__PURE__ */ new Map());
     }
@@ -33,7 +32,7 @@
         pending.remaining++;
         this.write(key, value);
       }
-      const request = this.queue.then(send).then(
+      const request = send().then(
         (result) => {
           this.finish(entries, revision, true);
           return result;
@@ -43,7 +42,6 @@
           throw error;
         }
       );
-      this.queue = request.catch(() => void 0);
       return request;
     }
     finish(entries, revision, accepted) {
@@ -56,6 +54,173 @@
         if (pending.latest === revision) this.write(key, pending.confirmed);
         if (--pending.remaining === 0) this.pending.delete(key);
       }
+    }
+  };
+
+  // docs/webserver/src/api_client.ts
+  var EspframeApiError = class extends Error {
+    constructor(kind, message, status, code, field2) {
+      super(message);
+      __publicField(this, "kind", kind);
+      __publicField(this, "status", status);
+      __publicField(this, "code", code);
+      __publicField(this, "field", field2);
+      this.name = "EspframeApiError";
+    }
+  };
+  function object(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+  var EspframeApiClient = class {
+    constructor(generated, timeoutMs = 5e3) {
+      __publicField(this, "generated", generated);
+      __publicField(this, "timeoutMs", timeoutMs);
+      __publicField(this, "queue", Promise.resolve());
+      __publicField(this, "capabilities", null);
+      __publicField(this, "negotiated");
+    }
+    waitForWrites() {
+      return this.queue;
+    }
+    enqueue(command) {
+      const request = this.queue.then(command);
+      this.queue = request.catch(() => void 0);
+      return request;
+    }
+    error(status, message, payload) {
+      const body = object(payload) ? payload : {};
+      const kind = status === 404 || status === 405 ? "unavailable" : status === 409 ? "conflict" : status === 400 || status === 422 ? "validation" : "server";
+      return new EspframeApiError(
+        kind,
+        typeof body.error === "string" ? body.error : message,
+        status,
+        typeof body.error === "string" ? body.error : void 0,
+        typeof body.field === "string" ? body.field : void 0
+      );
+    }
+    async request(url, init = {}) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+      try {
+        return await fetch(url, { ...init, signal: controller.signal });
+      } catch (error) {
+        if (error && typeof error === "object" && error.name === "AbortError") {
+          throw new EspframeApiError("timeout", "request_timeout");
+        }
+        throw new EspframeApiError("offline", "device_offline");
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async json(response, message) {
+      let payload = null;
+      try {
+        payload = await response.json();
+      } catch (_) {
+        if (!response.ok) throw this.error(response.status, message);
+        throw new EspframeApiError("server", "invalid_server_response", response.status);
+      }
+      if (!response.ok) throw this.error(response.status, message, payload);
+      return payload;
+    }
+    parseCapabilities(value) {
+      if (!object(value) || typeof value.contract_version !== "number" || typeof value.api_version !== "number" || typeof value.base_path !== "string" || typeof value.capabilities_path !== "string" || typeof value.configuration_path !== "string" || value.update_mode !== "atomic" || typeof value.configuration_available !== "boolean" || typeof value.configuration_read !== "boolean" || typeof value.configuration_write !== "boolean" || typeof value.legacy_entity_api !== "boolean") return null;
+      return value;
+    }
+    negotiate() {
+      if (this.negotiated !== void 0) return Promise.resolve(this.negotiated);
+      if (!this.capabilities) {
+        this.capabilities = this.request(this.generated.capabilities_path, { cache: "no-store" }).then((response) => this.json(response, "capabilities_unavailable")).then((payload) => {
+          const capabilities = this.parseCapabilities(payload);
+          if (!capabilities) {
+            this.negotiated = null;
+            return null;
+          }
+          this.negotiated = capabilities.configuration_available && capabilities.configuration_read && capabilities.configuration_write ? capabilities : null;
+          return this.negotiated;
+        }).catch((error) => {
+          if (error instanceof EspframeApiError && error.kind === "unavailable") {
+            this.negotiated = null;
+            return null;
+          }
+          this.capabilities = null;
+          throw error;
+        });
+      }
+      return this.capabilities;
+    }
+    async getConfigurationSnapshot() {
+      const capabilities = await this.negotiate();
+      if (!capabilities) throw new EspframeApiError("unavailable", "configuration_api_unavailable");
+      const payload = await this.json(await this.request(capabilities.configuration_path, { cache: "no-store" }), "configuration_api_failed");
+      if (!object(payload) || payload.api_version !== capabilities.api_version || !object(payload.values) || !Array.isArray(payload.unavailable) || !payload.unavailable.every((value) => typeof value === "string")) {
+        throw new EspframeApiError("server", "invalid_configuration_snapshot");
+      }
+      return { api_version: capabilities.api_version, values: payload.values, unavailable: payload.unavailable };
+    }
+    async legacyPost(url, body) {
+      const response = await this.request(url, body === void 0 ? { method: "POST" } : {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body
+      });
+      if (!response.ok) {
+        let payload = null;
+        try {
+          payload = await response.json();
+        } catch (_) {
+        }
+        throw this.error(response.status, "legacy_write_failed", payload);
+      }
+      return response;
+    }
+    async legacyWrite(setting) {
+      if (setting.domain === "switch") {
+        await this.legacyPost(setting.url + (setting.value ? "/turn_on" : "/turn_off"));
+        return;
+      }
+      const body = new URLSearchParams({ [setting.domain === "select" ? "option" : "value"]: String(setting.value) }).toString();
+      await this.legacyPost(setting.url + "/set", body);
+    }
+    updateSettings(values, legacy) {
+      return this.enqueue(async () => {
+        const capabilities = await this.negotiate();
+        if (!capabilities) {
+          for (const setting of legacy) await this.legacyWrite(setting);
+          return null;
+        }
+        const body = new URLSearchParams({ [capabilities.configuration_parameter || "configuration"]: JSON.stringify({ api_version: capabilities.api_version, values }) }).toString();
+        try {
+          const response = await this.request(capabilities.configuration_path, {
+            method: "POST",
+            headers: { "Content-Type": capabilities.configuration_encoding || "application/x-www-form-urlencoded" },
+            body
+          });
+          const payload = await this.json(response, "configuration_update_failed");
+          if (!object(payload) || payload.status !== "accepted") throw new EspframeApiError("server", "configuration_update_failed", response.status);
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          return payload;
+        } catch (error) {
+          if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+          this.negotiated = null;
+          for (const setting of legacy) await this.legacyWrite(setting);
+          return null;
+        }
+      });
+    }
+    post(url, params) {
+      const query = params ? "?" + new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)])).toString() : "";
+      return this.enqueue(() => this.legacyPost(url + query));
+    }
+    postText(url, value, useQueryFallback = false) {
+      return this.enqueue(() => {
+        const body = new URLSearchParams({ value }).toString();
+        const query = useQueryFallback && (url + "?" + body).length <= 120 ? "?" + body : "";
+        return this.legacyPost(url + query, body);
+      });
+    }
+    get(url) {
+      return this.request(url, { cache: "no-store" });
     }
   };
 
@@ -189,32 +354,6 @@
   function isObject(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
-  function parseConfigurationSnapshot(value) {
-    if (!isObject(value) || value.api_version !== 1 || !isObject(value.values) || !Array.isArray(value.unavailable)) {
-      return null;
-    }
-    var apiKeyConfigured = value.api_key_configured;
-    var values = {};
-    for (var entry of Object.entries(value.values)) {
-      var key = entry[0], fieldValue = entry[1];
-      if (key === "api_key") {
-        if (apiKeyConfigured != null) return null;
-        apiKeyConfigured = !!fieldValue;
-        continue;
-      }
-      if (typeof fieldValue !== "string" && typeof fieldValue !== "number" && typeof fieldValue !== "boolean") {
-        return null;
-      }
-      values[key] = fieldValue;
-    }
-    if (!value.unavailable.every((key2) => typeof key2 === "string")) return null;
-    return { api_key_configured: apiKeyConfigured, values };
-  }
-  function configurationUpdateBody(values) {
-    var body = new URLSearchParams();
-    body.set("configuration", JSON.stringify({ api_version: 1, values }));
-    return body.toString();
-  }
   var TIMEZONES = ["Pacific/Midway (GMT-11)", "Pacific/Pago_Pago (GMT-11)", "Pacific/Honolulu (GMT-10)", "America/Adak (GMT-10)", "America/Anchorage (GMT-9)", "America/Juneau (GMT-9)", "America/Los_Angeles (GMT-8)", "America/Vancouver (GMT-8)", "America/Tijuana (GMT-8)", "America/Denver (GMT-7)", "America/Phoenix (GMT-7)", "America/Edmonton (GMT-7)", "America/Boise (GMT-7)", "America/Chicago (GMT-6)", "America/Mexico_City (GMT-6)", "America/Winnipeg (GMT-6)", "America/Guatemala (GMT-6)", "America/Costa_Rica (GMT-6)", "America/New_York (GMT-5)", "America/Toronto (GMT-5)", "America/Detroit (GMT-5)", "America/Havana (GMT-5)", "America/Bogota (GMT-5)", "America/Lima (GMT-5)", "America/Jamaica (GMT-5)", "America/Panama (GMT-5)", "America/Halifax (GMT-4)", "America/Caracas (GMT-4)", "America/Santiago (GMT-4)", "America/La_Paz (GMT-4)", "America/Manaus (GMT-4)", "America/Barbados (GMT-4)", "America/Puerto_Rico (GMT-4)", "America/Santo_Domingo (GMT-4)", "America/St_Johns (GMT-3:30)", "America/Sao_Paulo (GMT-3)", "America/Argentina/Buenos_Aires (GMT-3)", "America/Montevideo (GMT-3)", "America/Paramaribo (GMT-3)", "Atlantic/South_Georgia (GMT-2)", "Atlantic/Azores (GMT-1)", "Atlantic/Cape_Verde (GMT-1)", "UTC (GMT+0)", "Europe/London (GMT+0)", "Europe/Dublin (GMT+0)", "Europe/Lisbon (GMT+0)", "Africa/Casablanca (GMT+1)", "Africa/Accra (GMT+0)", "Atlantic/Reykjavik (GMT+0)", "Europe/Paris (GMT+1)", "Europe/Berlin (GMT+1)", "Europe/Rome (GMT+1)", "Europe/Madrid (GMT+1)", "Europe/Amsterdam (GMT+1)", "Europe/Brussels (GMT+1)", "Europe/Vienna (GMT+1)", "Europe/Zurich (GMT+1)", "Europe/Stockholm (GMT+1)", "Europe/Oslo (GMT+1)", "Europe/Copenhagen (GMT+1)", "Europe/Warsaw (GMT+1)", "Europe/Prague (GMT+1)", "Europe/Budapest (GMT+1)", "Europe/Belgrade (GMT+1)", "Africa/Lagos (GMT+1)", "Africa/Tunis (GMT+1)", "Africa/Cairo (GMT+2)", "Europe/Athens (GMT+2)", "Europe/Bucharest (GMT+2)", "Europe/Helsinki (GMT+2)", "Europe/Kyiv (GMT+2)", "Europe/Istanbul (GMT+3)", "Africa/Johannesburg (GMT+2)", "Africa/Nairobi (GMT+3)", "Asia/Jerusalem (GMT+2)", "Asia/Amman (GMT+3)", "Asia/Beirut (GMT+2)", "Europe/Moscow (GMT+3)", "Asia/Baghdad (GMT+3)", "Asia/Riyadh (GMT+3)", "Asia/Kuwait (GMT+3)", "Asia/Qatar (GMT+3)", "Africa/Addis_Ababa (GMT+3)", "Asia/Tehran (GMT+3:30)", "Asia/Dubai (GMT+4)", "Asia/Muscat (GMT+4)", "Asia/Baku (GMT+4)", "Asia/Tbilisi (GMT+4)", "Indian/Mauritius (GMT+4)", "Asia/Kabul (GMT+4:30)", "Asia/Karachi (GMT+5)", "Asia/Tashkent (GMT+5)", "Asia/Yekaterinburg (GMT+5)", "Asia/Kolkata (GMT+5:30)", "Asia/Colombo (GMT+5:30)", "Asia/Kathmandu (GMT+5:45)", "Asia/Dhaka (GMT+6)", "Asia/Almaty (GMT+5)", "Asia/Rangoon (GMT+6:30)", "Asia/Bangkok (GMT+7)", "Asia/Jakarta (GMT+7)", "Asia/Ho_Chi_Minh (GMT+7)", "Asia/Singapore (GMT+8)", "Asia/Kuala_Lumpur (GMT+8)", "Asia/Shanghai (GMT+8)", "Asia/Hong_Kong (GMT+8)", "Asia/Taipei (GMT+8)", "Asia/Manila (GMT+8)", "Australia/Perth (GMT+8)", "Asia/Tokyo (GMT+9)", "Asia/Seoul (GMT+9)", "Asia/Pyongyang (GMT+9)", "Australia/Adelaide (GMT+9:30)", "Australia/Darwin (GMT+9:30)", "Australia/Sydney (GMT+10)", "Australia/Melbourne (GMT+10)", "Australia/Brisbane (GMT+10)", "Australia/Hobart (GMT+10)", "Pacific/Guam (GMT+10)", "Pacific/Port_Moresby (GMT+10)", "Asia/Vladivostok (GMT+10)", "Pacific/Noumea (GMT+11)", "Pacific/Norfolk (GMT+11)", "Asia/Magadan (GMT+11)", "Pacific/Auckland (GMT+12)", "Pacific/Fiji (GMT+12)", "Pacific/Chatham (GMT+12:45)", "Pacific/Tongatapu (GMT+13)", "Pacific/Apia (GMT+13)", "Pacific/Kiritimati (GMT+14)"];
   var TIMEZONE_LABELS = { "Pacific/Midway (GMT-11)": "Pacific/Midway (GMT-11)", "Pacific/Pago_Pago (GMT-11)": "Pacific/Pago_Pago (GMT-11)", "Pacific/Honolulu (GMT-10)": "Pacific/Honolulu (GMT-10)", "America/Adak (GMT-10)": "America/Adak (GMT-10; daylight GMT-9)", "America/Anchorage (GMT-9)": "America/Anchorage (GMT-9; daylight GMT-8)", "America/Juneau (GMT-9)": "America/Juneau (GMT-9; daylight GMT-8)", "America/Los_Angeles (GMT-8)": "America/Los_Angeles (GMT-8; daylight GMT-7)", "America/Vancouver (GMT-8)": "America/Vancouver (GMT-8; active GMT-7)", "America/Tijuana (GMT-8)": "America/Tijuana (GMT-8; daylight GMT-7)", "America/Denver (GMT-7)": "America/Denver (GMT-7; daylight GMT-6)", "America/Phoenix (GMT-7)": "America/Phoenix (GMT-7)", "America/Edmonton (GMT-7)": "America/Edmonton (GMT-7; active GMT-6)", "America/Boise (GMT-7)": "America/Boise (GMT-7; daylight GMT-6)", "America/Chicago (GMT-6)": "America/Chicago (GMT-6; daylight GMT-5)", "America/Mexico_City (GMT-6)": "America/Mexico_City (GMT-6)", "America/Winnipeg (GMT-6)": "America/Winnipeg (GMT-6; daylight GMT-5)", "America/Guatemala (GMT-6)": "America/Guatemala (GMT-6)", "America/Costa_Rica (GMT-6)": "America/Costa_Rica (GMT-6)", "America/New_York (GMT-5)": "America/New_York (GMT-5; daylight GMT-4)", "America/Toronto (GMT-5)": "America/Toronto (GMT-5; daylight GMT-4)", "America/Detroit (GMT-5)": "America/Detroit (GMT-5; daylight GMT-4)", "America/Havana (GMT-5)": "America/Havana (GMT-5; daylight GMT-4)", "America/Bogota (GMT-5)": "America/Bogota (GMT-5)", "America/Lima (GMT-5)": "America/Lima (GMT-5)", "America/Jamaica (GMT-5)": "America/Jamaica (GMT-5)", "America/Panama (GMT-5)": "America/Panama (GMT-5)", "America/Halifax (GMT-4)": "America/Halifax (GMT-4; daylight GMT-3)", "America/Caracas (GMT-4)": "America/Caracas (GMT-4)", "America/Santiago (GMT-4)": "America/Santiago (GMT-4; daylight GMT-3)", "America/La_Paz (GMT-4)": "America/La_Paz (GMT-4)", "America/Manaus (GMT-4)": "America/Manaus (GMT-4)", "America/Barbados (GMT-4)": "America/Barbados (GMT-4)", "America/Puerto_Rico (GMT-4)": "America/Puerto_Rico (GMT-4)", "America/Santo_Domingo (GMT-4)": "America/Santo_Domingo (GMT-4)", "America/St_Johns (GMT-3:30)": "America/St_Johns (GMT-3:30; daylight GMT-2:30)", "America/Sao_Paulo (GMT-3)": "America/Sao_Paulo (GMT-3)", "America/Argentina/Buenos_Aires (GMT-3)": "America/Argentina/Buenos_Aires (GMT-3)", "America/Montevideo (GMT-3)": "America/Montevideo (GMT-3)", "America/Paramaribo (GMT-3)": "America/Paramaribo (GMT-3)", "Atlantic/South_Georgia (GMT-2)": "Atlantic/South_Georgia (GMT-2)", "Atlantic/Azores (GMT-1)": "Atlantic/Azores (GMT-1; daylight GMT+0)", "Atlantic/Cape_Verde (GMT-1)": "Atlantic/Cape_Verde (GMT-1)", "UTC (GMT+0)": "UTC (GMT+0)", "Europe/London (GMT+0)": "Europe/London (GMT+0; daylight GMT+1)", "Europe/Dublin (GMT+0)": "Europe/Dublin (GMT+0; daylight GMT+1)", "Europe/Lisbon (GMT+0)": "Europe/Lisbon (GMT+0; daylight GMT+1)", "Africa/Casablanca (GMT+1)": "Africa/Casablanca (GMT+1)", "Africa/Accra (GMT+0)": "Africa/Accra (GMT+0)", "Atlantic/Reykjavik (GMT+0)": "Atlantic/Reykjavik (GMT+0)", "Europe/Paris (GMT+1)": "Europe/Paris (GMT+1; daylight GMT+2)", "Europe/Berlin (GMT+1)": "Europe/Berlin (GMT+1; daylight GMT+2)", "Europe/Rome (GMT+1)": "Europe/Rome (GMT+1; daylight GMT+2)", "Europe/Madrid (GMT+1)": "Europe/Madrid (GMT+1; daylight GMT+2)", "Europe/Amsterdam (GMT+1)": "Europe/Amsterdam (GMT+1; daylight GMT+2)", "Europe/Brussels (GMT+1)": "Europe/Brussels (GMT+1; daylight GMT+2)", "Europe/Vienna (GMT+1)": "Europe/Vienna (GMT+1; daylight GMT+2)", "Europe/Zurich (GMT+1)": "Europe/Zurich (GMT+1; daylight GMT+2)", "Europe/Stockholm (GMT+1)": "Europe/Stockholm (GMT+1; daylight GMT+2)", "Europe/Oslo (GMT+1)": "Europe/Oslo (GMT+1; daylight GMT+2)", "Europe/Copenhagen (GMT+1)": "Europe/Copenhagen (GMT+1; daylight GMT+2)", "Europe/Warsaw (GMT+1)": "Europe/Warsaw (GMT+1; daylight GMT+2)", "Europe/Prague (GMT+1)": "Europe/Prague (GMT+1; daylight GMT+2)", "Europe/Budapest (GMT+1)": "Europe/Budapest (GMT+1; daylight GMT+2)", "Europe/Belgrade (GMT+1)": "Europe/Belgrade (GMT+1; daylight GMT+2)", "Africa/Lagos (GMT+1)": "Africa/Lagos (GMT+1)", "Africa/Tunis (GMT+1)": "Africa/Tunis (GMT+1)", "Africa/Cairo (GMT+2)": "Africa/Cairo (GMT+2; daylight GMT+3)", "Europe/Athens (GMT+2)": "Europe/Athens (GMT+2; daylight GMT+3)", "Europe/Bucharest (GMT+2)": "Europe/Bucharest (GMT+2; daylight GMT+3)", "Europe/Helsinki (GMT+2)": "Europe/Helsinki (GMT+2; daylight GMT+3)", "Europe/Kyiv (GMT+2)": "Europe/Kyiv (GMT+2; daylight GMT+3)", "Europe/Istanbul (GMT+3)": "Europe/Istanbul (GMT+3)", "Africa/Johannesburg (GMT+2)": "Africa/Johannesburg (GMT+2)", "Africa/Nairobi (GMT+3)": "Africa/Nairobi (GMT+3)", "Asia/Jerusalem (GMT+2)": "Asia/Jerusalem (GMT+2; daylight GMT+3)", "Asia/Amman (GMT+3)": "Asia/Amman (GMT+3)", "Asia/Beirut (GMT+2)": "Asia/Beirut (GMT+2; daylight GMT+3)", "Europe/Moscow (GMT+3)": "Europe/Moscow (GMT+3)", "Asia/Baghdad (GMT+3)": "Asia/Baghdad (GMT+3)", "Asia/Riyadh (GMT+3)": "Asia/Riyadh (GMT+3)", "Asia/Kuwait (GMT+3)": "Asia/Kuwait (GMT+3)", "Asia/Qatar (GMT+3)": "Asia/Qatar (GMT+3)", "Africa/Addis_Ababa (GMT+3)": "Africa/Addis_Ababa (GMT+3)", "Asia/Tehran (GMT+3:30)": "Asia/Tehran (GMT+3:30)", "Asia/Dubai (GMT+4)": "Asia/Dubai (GMT+4)", "Asia/Muscat (GMT+4)": "Asia/Muscat (GMT+4)", "Asia/Baku (GMT+4)": "Asia/Baku (GMT+4)", "Asia/Tbilisi (GMT+4)": "Asia/Tbilisi (GMT+4)", "Indian/Mauritius (GMT+4)": "Indian/Mauritius (GMT+4)", "Asia/Kabul (GMT+4:30)": "Asia/Kabul (GMT+4:30)", "Asia/Karachi (GMT+5)": "Asia/Karachi (GMT+5)", "Asia/Tashkent (GMT+5)": "Asia/Tashkent (GMT+5)", "Asia/Yekaterinburg (GMT+5)": "Asia/Yekaterinburg (GMT+5)", "Asia/Kolkata (GMT+5:30)": "Asia/Kolkata (GMT+5:30)", "Asia/Colombo (GMT+5:30)": "Asia/Colombo (GMT+5:30)", "Asia/Kathmandu (GMT+5:45)": "Asia/Kathmandu (GMT+5:45)", "Asia/Dhaka (GMT+6)": "Asia/Dhaka (GMT+6)", "Asia/Almaty (GMT+5)": "Asia/Almaty (GMT+5)", "Asia/Rangoon (GMT+6:30)": "Asia/Rangoon (GMT+6:30)", "Asia/Bangkok (GMT+7)": "Asia/Bangkok (GMT+7)", "Asia/Jakarta (GMT+7)": "Asia/Jakarta (GMT+7)", "Asia/Ho_Chi_Minh (GMT+7)": "Asia/Ho_Chi_Minh (GMT+7)", "Asia/Singapore (GMT+8)": "Asia/Singapore (GMT+8)", "Asia/Kuala_Lumpur (GMT+8)": "Asia/Kuala_Lumpur (GMT+8)", "Asia/Shanghai (GMT+8)": "Asia/Shanghai (GMT+8)", "Asia/Hong_Kong (GMT+8)": "Asia/Hong_Kong (GMT+8)", "Asia/Taipei (GMT+8)": "Asia/Taipei (GMT+8)", "Asia/Manila (GMT+8)": "Asia/Manila (GMT+8)", "Australia/Perth (GMT+8)": "Australia/Perth (GMT+8)", "Asia/Tokyo (GMT+9)": "Asia/Tokyo (GMT+9)", "Asia/Seoul (GMT+9)": "Asia/Seoul (GMT+9)", "Asia/Pyongyang (GMT+9)": "Asia/Pyongyang (GMT+9)", "Australia/Adelaide (GMT+9:30)": "Australia/Adelaide (GMT+9:30; daylight GMT+10:30)", "Australia/Darwin (GMT+9:30)": "Australia/Darwin (GMT+9:30)", "Australia/Sydney (GMT+10)": "Australia/Sydney (GMT+10; daylight GMT+11)", "Australia/Melbourne (GMT+10)": "Australia/Melbourne (GMT+10; daylight GMT+11)", "Australia/Brisbane (GMT+10)": "Australia/Brisbane (GMT+10)", "Australia/Hobart (GMT+10)": "Australia/Hobart (GMT+10; daylight GMT+11)", "Pacific/Guam (GMT+10)": "Pacific/Guam (GMT+10)", "Pacific/Port_Moresby (GMT+10)": "Pacific/Port_Moresby (GMT+10)", "Asia/Vladivostok (GMT+10)": "Asia/Vladivostok (GMT+10)", "Pacific/Noumea (GMT+11)": "Pacific/Noumea (GMT+11)", "Pacific/Norfolk (GMT+11)": "Pacific/Norfolk (GMT+11; daylight GMT+12)", "Asia/Magadan (GMT+11)": "Asia/Magadan (GMT+11)", "Pacific/Auckland (GMT+12)": "Pacific/Auckland (GMT+12; daylight GMT+13)", "Pacific/Fiji (GMT+12)": "Pacific/Fiji (GMT+12)", "Pacific/Chatham (GMT+12:45)": "Pacific/Chatham (GMT+12:45; daylight GMT+13:45)", "Pacific/Tongatapu (GMT+13)": "Pacific/Tongatapu (GMT+13)", "Pacific/Apia (GMT+13)": "Pacific/Apia (GMT+13)", "Pacific/Kiritimati (GMT+14)": "Pacific/Kiritimati (GMT+14)" };
   var PRODUCT_SETTINGS = { "photo_source": { "entity": "select/Photos: Source", "domain": "select", "default": "All Photos", "options": ["All Photos", "Favorites", "Album", "Person", "Tag", "Memories", "Custom"] }, "memories_window": { "entity": "select/Photos: Memories Window", "domain": "select", "default": "Within 2 Days", "options": ["Same Day", "Within 1 Day", "Within 2 Days", "Within 3 Days", "Within 7 Days"] }, "memories_fallback": { "entity": "switch/Photos: Memories Fallback", "domain": "switch", "default": true, "options": [] }, "album_order": { "entity": "select/Photos: Album Order", "domain": "select", "default": "Random albums", "options": ["Random albums", "Album list order"] }, "tag_matching": { "entity": "select/Photos: Tag Matching", "domain": "select", "default": "Any selected tag", "options": ["Any selected tag", "All selected tags"] }, "date_filter_mode": { "entity": "select/Photos: Date Filter Mode", "domain": "select", "default": "Fixed Range", "options": ["Fixed Range", "Relative Range"] }, "relative_unit": { "entity": "select/Photos: Relative Unit", "domain": "select", "default": "Years", "options": ["Months", "Years"] }, "photo_orientation": { "entity": "select/Photos: Orientation", "domain": "select", "default": "Any", "options": ["Any", "Portrait Only", "Landscape Only"] }, "display_mode": { "entity": "select/Photos: Display Mode", "domain": "select", "default": "Fill", "options": ["Fill", "Fit"] }, "interval": { "entity": "select/Photos: Slideshow Interval", "domain": "select", "default": "15 seconds", "options": ["10 seconds", "15 seconds", "20 seconds", "30 seconds", "45 seconds", "1 minute", "2 minutes", "3 minutes", "5 minutes", "10 minutes", "15 minutes", "30 minutes", "1 hour", "2 hours", "4 hours", "8 hours", "16 hours", "24 hours"] }, "conn_timeout": { "entity": "select/Screen: Connection Timeout", "domain": "select", "default": "10 minutes", "options": ["30 seconds", "45 seconds", "1 minute", "2 minutes", "3 minutes", "5 minutes", "10 minutes", "15 minutes", "20 minutes", "30 minutes"] }, "screen_rotation": { "entity": "select/Screen: Rotation", "domain": "select", "default": "0", "options": ["0", "180"], "developerOptions": ["90", "270"] }, "photo_metadata_date_format": { "entity": "select/Device: Metadata Date Format", "domain": "select", "default": "Date Taken", "options": ["Relative Date", "Date Taken"] }, "photo_metadata_date_taken_format": { "entity": "select/Device: Metadata Date Taken Format", "domain": "select", "default": "1 January, 2026", "options": ["1 January, 2026", "January 1, 2026"] }, "clock_format": { "entity": "select/Clock: Format", "domain": "select", "default": "24 Hour", "options": ["24 Hour", "12 Hour"] }, "update_frequency": { "entity": "select/Firmware: Update Frequency", "domain": "select", "default": "Daily", "options": ["Hourly", "Daily", "Weekly", "Monthly"] }, "auto_update": { "entity": "switch/Firmware: Auto Update", "domain": "switch", "default": true, "options": [] }, "c6_auto_update": { "entity": "switch/WiFi Firmware: Auto Update", "domain": "switch", "default": true, "options": [] }, "date_filter_enabled": { "entity": "switch/Photos: Date Filter", "domain": "switch", "default": false, "options": [] }, "date_from": { "entity": "text/Photos: Date From", "domain": "text", "default": "", "options": [], "maxLength": 10 }, "date_to": { "entity": "text/Photos: Date To", "domain": "text", "default": "", "options": [], "maxLength": 10 }, "relative_amount": { "entity": "number/Photos: Relative Amount", "domain": "number", "default": 1, "options": [], "min": 1, "max": 120, "step": 1 }, "schedule_enabled": { "entity": "switch/Screen: Schedule Enabled", "domain": "switch", "default": false, "options": [] }, "schedule_on_hour": { "entity": "number/Screen: Schedule On Hour", "domain": "number", "default": 6, "options": [], "min": 0, "max": 23, "step": 1 }, "schedule_off_hour": { "entity": "number/Screen: Schedule Off Hour", "domain": "number", "default": 23, "options": [], "min": 0, "max": 23, "step": 1 }, "schedule_wake_timeout": { "entity": "number/Screen: Schedule Wake Timeout", "domain": "number", "default": 60, "options": [], "min": 10, "max": 3600, "step": 10 }, "brightness_day": { "entity": "number/Screen: Daytime Brightness", "domain": "number", "default": 100, "options": [], "min": 10, "max": 100, "step": 5 }, "brightness_night": { "entity": "number/Screen: Nighttime Brightness", "domain": "number", "default": 75, "options": [], "min": 10, "max": 100, "step": 5 }, "base_tone_enabled": { "entity": "switch/Screen: Tone Adjustment", "domain": "switch", "default": false, "options": [] }, "base_tone": { "entity": "number/Screen: Display Tone", "domain": "number", "default": 0, "options": [], "min": 0, "max": 100, "step": 5 }, "warm_tones_enabled": { "entity": "switch/Screen: Night Tone Adjustment", "domain": "switch", "default": false, "options": [] }, "warm_tone_intensity": { "entity": "number/Screen: Warm Tone Intensity", "domain": "number", "default": 50, "options": [], "min": 10, "max": 100, "step": 5 }, "warm_tone_override": { "entity": "switch/Screen: Warm Tone Override", "domain": "switch", "default": false, "options": [] }, "portrait_pairing": { "entity": "switch/Photos: Portrait Pairing", "domain": "switch", "default": true, "options": [] }, "portrait_pairing_range": { "entity": "select/Photos: Portrait Pairing Range", "domain": "select", "default": "Same Day", "options": ["Same Day", "Within 1 Day", "Within 2 Days"] }, "portrait_pairs_only": { "entity": "switch/Photos: Paired Portraits Only", "domain": "switch", "default": false, "options": [] }, "photo_metadata_date_enabled": { "entity": "switch/Device: Metadata Date", "domain": "switch", "default": true, "options": [] }, "photo_metadata_location_enabled": { "entity": "switch/Device: Metadata Location", "domain": "switch", "default": true, "options": [] }, "albums_enabled": { "entity": "switch/Photos: Albums Enabled", "domain": "switch", "default": false, "options": [] }, "people_enabled": { "entity": "switch/Photos: People Enabled", "domain": "switch", "default": false, "options": [] }, "tags_enabled": { "entity": "switch/Photos: Tags Enabled", "domain": "switch", "default": false, "options": [] }, "favorites_enabled": { "entity": "switch/Photos: Favorites Enabled", "domain": "switch", "default": false, "options": [] }, "rating_enabled": { "entity": "switch/Photos: Rating Enabled", "domain": "switch", "default": false, "options": [] }, "location_enabled": { "entity": "switch/Photos: Location Enabled", "domain": "switch", "default": false, "options": [] }, "inclusion_matching": { "entity": "select/Photos: Inclusion Groups", "domain": "select", "default": "Match all enabled groups", "options": ["Match all enabled groups", "Match any enabled group"] }, "album_matching": { "entity": "select/Photos: Album Matching", "domain": "select", "default": "Any selected album", "options": ["Any selected album", "All selected albums"] }, "person_matching": { "entity": "select/Photos: Person Matching", "domain": "select", "default": "Any selected person", "options": ["Any selected person", "All selected people"] }, "favorite_mode": { "entity": "select/Photos: Favorites", "domain": "select", "default": "Any", "options": ["Any", "Favorites only", "Exclude favorites"] }, "minimum_rating": { "entity": "select/Photos: Minimum Rating", "domain": "select", "default": "Any", "options": ["Any", "1+", "2+", "3+", "4+", "5+"] }, "filter_country": { "entity": "text/Photos: Country", "domain": "text", "default": "", "options": [], "maxLength": 96 }, "filter_state": { "entity": "text/Photos: State or Province", "domain": "text", "default": "", "options": [], "maxLength": 96 }, "filter_city": { "entity": "text/Photos: City", "domain": "text", "default": "", "options": [], "maxLength": 96 } };
@@ -233,6 +372,7 @@
   var WEB_UI_LOGS_RETAINED_LINES = 1e3;
   var SUPPORT_URL = "https://www.buymeacoffee.com/jtenniswood";
   var SUPPORT_BUTTON_IMAGE_DATA_URI = "data:image/webp;base64,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";
+  var GENERATED_CONFIGURATION_CAPABILITIES = { "contract_version": 2, "api_version": 1, "base_path": "/espframe/api/v1", "capabilities_path": "/espframe/api/v1/capabilities", "configuration_path": "/espframe/api/v1/configuration", "update_mode": "atomic", "configuration_available": true, "configuration_read": true, "configuration_write": true, "configuration_encoding": "application/x-www-form-urlencoded", "configuration_parameter": "configuration", "legacy_entity_api": true, "backup_versions": [1, 2, 3], "setting_count": 52 };
   var S = {
     tz_options: TIMEZONES,
     tz_labels: TIMEZONE_LABELS,
@@ -1819,6 +1959,7 @@ to {
     els.settingsPage.className = "sp-page" + (tab === "settings" ? " active" : "");
     els.logsPage.className = "sp-page" + (tab === "logs" ? " active" : "");
   }
+  var apiClient = new EspframeApiClient(GENERATED_CONFIGURATION_CAPABILITIES);
   function eid(domain, name) {
     return "/" + domain + "/" + encodeURIComponent(name);
   }
@@ -1852,73 +1993,8 @@ to {
     return parts && parts.domain ? parts.domain : "";
   }
   var endpoints = {};
-  var CONFIGURATION_API_PATH = "/espframe/api/v1/configuration";
-  var configurationUpdateQueue = Promise.resolve();
-  function configurationApiUnavailable(message, legacy) {
-    var error = new Error(message || "configuration_api_unavailable");
-    error.configurationApiUnavailable = true;
-    if (legacy) error.legacy = true;
-    return error;
-  }
-  function isConfigurationApiUnavailable(error) {
-    return !!(error && error.configurationApiUnavailable);
-  }
   function getConfigurationSnapshot() {
-    return fetch(CONFIGURATION_API_PATH).then(function(response) {
-      if (!response.ok) {
-        if (response.status === 404 || response.status === 405) {
-          throw configurationApiUnavailable("configuration_api_" + response.status, true);
-        }
-        throw configurationApiUnavailable("configuration_api_" + response.status);
-      }
-      return response.json();
-    }).then(function(payload) {
-      var snapshot = parseConfigurationSnapshot(payload);
-      if (!snapshot) throw configurationApiUnavailable("invalid_configuration_snapshot");
-      return snapshot;
-    }).catch(function(error) {
-      if (isConfigurationApiUnavailable(error)) throw error;
-      throw configurationApiUnavailable("configuration_api_request_failed");
-    });
-  }
-  function sendConfigurationUpdate(values) {
-    var encoded = configurationUpdateBody(values);
-    return fetch(CONFIGURATION_API_PATH, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: encoded
-    }).then(function(response) {
-      if (response.status === 404 || response.status === 405) {
-        throw configurationApiUnavailable("configuration_api_" + response.status, true);
-      }
-      return response.json().catch(function() {
-        return null;
-      }).then(function(payload) {
-        if (!response.ok || !payload || payload.status !== "accepted") {
-          var error = new Error(payload && payload.error ? payload.error : "configuration_update_failed");
-          error.field = payload && payload.field;
-          error.configurationApiResponse = true;
-          throw error;
-        }
-        return delayMs(100).then(function() {
-          return payload;
-        });
-      });
-    }).catch(function(error) {
-      if (isConfigurationApiUnavailable(error) || error.configurationApiResponse) {
-        throw error;
-      }
-      throw configurationApiUnavailable("configuration_api_request_failed");
-    });
-  }
-  function updateConfiguration(values) {
-    var request = configurationUpdateQueue.then(function() {
-      return sendConfigurationUpdate(values);
-    });
-    configurationUpdateQueue = request.catch(function() {
-      return null;
-    });
-    return request;
+    return apiClient.getConfigurationSnapshot();
   }
   function applyConfigurationSnapshot(snapshot) {
     settingSaves.receive("api_key_configured", snapshot.api_key_configured);
@@ -1954,41 +2030,16 @@ to {
   registerStaticEntityEndpoints();
   registerProductSettingEndpoints();
   function post(url, params) {
-    var fullUrl = params ? url + "?" + new URLSearchParams(params).toString() : url;
-    return fetch(fullUrl, { method: "POST" }).then(function(r) {
-      if (!r.ok) {
-        console.error("POST " + fullUrl + " failed: " + r.status);
-        throw new Error("post_failed");
-      }
-      return r;
-    }).catch(function(err) {
-      console.error("POST " + fullUrl + " error:", err);
+    return apiClient.post(url, params).catch(function(err) {
+      console.error("POST " + url + " error:", err);
       showBanner("Failed to save setting", "error");
       throw err;
     });
   }
   var MAX_NTP_SERVER_LENGTH = 253;
   function postTextValueSet(url, value, useQueryFallback) {
-    var body = new URLSearchParams();
-    body.set("value", value == null ? "" : String(value));
-    var encoded = body.toString();
-    var fullUrl = url;
-    if (useQueryFallback) {
-      var candidate = url + "?" + encoded;
-      if (candidate.length <= 120) fullUrl = candidate;
-    }
-    return fetch(fullUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: encoded
-    }).then(function(r) {
-      if (!r.ok) {
-        console.error("POST " + fullUrl + " failed: " + r.status);
-        throw new Error("post_failed");
-      }
-      return r;
-    }).catch(function(err) {
-      console.error("POST " + fullUrl + " error:", err);
+    return apiClient.postText(url, value == null ? "" : String(value), useQueryFallback).catch(function(err) {
+      console.error("POST " + url + " error:", err);
       showBanner("Failed to save setting", "error");
       throw err;
     });
@@ -2023,18 +2074,18 @@ to {
     var apiKey = String(value || "").trim();
     if (!apiKey) return Promise.reject(Error("missing_api_key"));
     return settingSaves.save({ api_key_configured: true }, function() {
-      return updateConfiguration({ api_key: apiKey }).then(function() {
+      return apiClient.updateSettings({ api_key: apiKey }, [legacySettingWrite("api_key", apiKey)]).then(function() {
         return delayMs(150);
       }).then(function() {
         return getConfigurationSnapshot();
       }).then(function(snapshot) {
         if (!snapshot.api_key_configured) throw Error("verify_failed");
       }).catch(function(error) {
-        if (!error.legacy) throw error;
-        return saveConnectionValue(endpoints.api_key, apiKey, false).then(function() {
-          return safeGet(endpoints.api_key);
-        }).then(function(resp) {
-          if (!connectionResponseValue(resp)) throw Error("verify_failed");
+        if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+        return safeGet(endpoints.api_key).then(function(resp) {
+          if (!resp || !resp.api_key_configured && !connectionResponseValue(resp)) {
+            throw Error("verify_failed");
+          }
         });
       });
     });
@@ -2044,17 +2095,16 @@ to {
     var apiKey = String(key || "").trim();
     if (!normalizedUrl || !apiKey) return Promise.reject(new Error("missing_connection"));
     return settingSaves.save({ immich_url: normalizedUrl, api_key_configured: true }, function() {
-      return updateConfiguration({ immich_url: normalizedUrl, api_key: apiKey }).then(function() {
+      return apiClient.updateSettings(
+        { immich_url: normalizedUrl, api_key: apiKey },
+        [legacySettingWrite("immich_url", normalizedUrl), legacySettingWrite("api_key", apiKey)]
+      ).then(function() {
         return delayMs(150);
       }).then(function() {
         return getConfigurationSnapshot();
       }).catch(function(error) {
-        if (!error.legacy) throw error;
-        return saveConnectionValue(endpoints.immich_url, normalizedUrl, true).then(function() {
-          return saveConnectionValue(endpoints.api_key, apiKey, false);
-        }).then(function() {
-          return Promise.all([safeGet(endpoints.immich_url), safeGet(endpoints.api_key)]);
-        });
+        if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+        return Promise.all([safeGet(endpoints.immich_url), safeGet(endpoints.api_key)]);
       }).then(function(result) {
         var savedUrl;
         if (result && !Array.isArray(result)) {
@@ -2116,24 +2166,15 @@ to {
       settingSaves.receive(key, value);
     }
   });
-  function sendLegacySetting(key, savedValue) {
+  function legacySettingWrite(key, savedValue) {
     var domain = settingEntityDomain(key);
-    if (domain === "switch") return post(endpoints[key] + (savedValue ? "/turn_on" : "/turn_off"));
-    if (domain === "select") return post(endpoints[key] + "/set", { option: savedValue });
-    if (domain === "number") return post(endpoints[key] + "/set", { value: savedValue });
-    if (domain === "text") return postTextValueSet(endpoints[key] + "/set", savedValue);
-    return Promise.resolve(null);
+    return { key, domain, url: endpoints[key], value: savedValue };
   }
   function saveSettingValues(values) {
     return settingSaves.save(values, function() {
-      return updateConfiguration(values).catch(function(error) {
-        if (!isConfigurationApiUnavailable(error)) throw error;
-        return Object.keys(values).reduce(function(queue, key) {
-          return queue.then(function() {
-            return sendLegacySetting(key, values[key]);
-          });
-        }, Promise.resolve(null));
-      });
+      return apiClient.updateSettings(values, Object.keys(values).map(function(key) {
+        return legacySettingWrite(key, values[key]);
+      }));
     });
   }
   function saveGenericSetting(key, value) {
@@ -2264,7 +2305,7 @@ to {
     return labels.length ? JSON.stringify(labels) : "";
   }
   function safeGet(url) {
-    return fetch(url).then(function(r) {
+    return apiClient.get(url).then(function(r) {
       if (!r.ok) return null;
       return r.json();
     }).catch(function() {
@@ -2431,7 +2472,7 @@ to {
     return getConfigurationSnapshot().then(function(snapshot) {
       applyConfigurationSnapshot(snapshot);
     }).catch(function(error) {
-      if (!error.legacy) throw error;
+      if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
       return fetchLegacyDeviceSettingsState();
     });
   }
@@ -5182,7 +5223,7 @@ to {
       save.disabled = true;
       input2.disabled = true;
       try {
-        await configurationUpdateQueue;
+        await apiClient.waitForWrites();
         await saveFrameName(input2.value);
         if (frameIdentity.restart_required) {
           var message = showFrameReconnectDialog(frameIdentity);

@@ -92,16 +92,22 @@ async function overlapping(firstFails, secondFails) {
   const state = { amount: 1 };
   const saves = new SettingSaveCoordinator(key => state[key], (key, value) => { state[key] = value; });
   const sent = [];
+  let transportQueue = Promise.resolve();
+  function sendQueued(send) {
+    const request = transportQueue.then(send);
+    transportQueue = request.catch(() => undefined);
+    return request;
+  }
   let releaseFirst;
-  const first = saves.save({ amount: 2 }, () => {
+  const first = saves.save({ amount: 2 }, () => sendQueued(() => {
     sent.push(2);
     return new Promise((resolve, reject) => { releaseFirst = () => firstFails ? reject(new Error("first")) : resolve(2); });
-  });
-  const second = saves.save({ amount: 3 }, async () => {
+  }));
+  const second = saves.save({ amount: 3 }, () => sendQueued(async () => {
     sent.push(3);
     if (secondFails) throw new Error("second");
     return 3;
-  });
+  }));
   const results = Promise.allSettled([first, second]);
   await Promise.resolve();
   assert.deepEqual(sent, [2], "second complete write must wait, including any legacy fallback");

@@ -17,6 +17,7 @@ from asset_generation.paths import (
     WEB_TEMPLATE_PATH,
 )
 from asset_generation.timezones import timezone_labels, timezone_options
+from asset_generation.configuration_api import configuration_capabilities
 from product_config import (
     backup_schema,
     load_product,
@@ -36,6 +37,7 @@ from product_config import (
 
 
 PLACEHOLDER_RE = re.compile(r"__ESPFRAME_[A-Z0-9_]+__")
+# api_client.ts is an authored imported web source and is bundled through app.template.ts.
 
 
 def extract_first_array_block(text: str, var_name: str) -> tuple[int, int]:
@@ -185,6 +187,7 @@ def web_app_source() -> str:
         separators=(",", ":"),
     )
     css_json = json.dumps(css, separators=(",", ":"))
+    configuration_api_contract_json = json.dumps(configuration_capabilities(), separators=(",", ":"))
     bundle = template
     for placeholder, module_source in web_modules.items():
         bundle = replace_placeholder_once(bundle, placeholder, module_source)
@@ -211,6 +214,7 @@ def web_app_source() -> str:
         "__ESPFRAME_WEB_UI_LOGS_RETAINED_LINES__": web_ui_logs_retained_lines_json,
         "__ESPFRAME_SUPPORT_URL__": support_url_json,
         "__ESPFRAME_SUPPORT_BUTTON_IMAGE_DATA_URI__": support_button_image_data_uri_json,
+        "__ESPFRAME_CONFIGURATION_API_CONTRACT__": configuration_api_contract_json,
         "__ESPFRAME_CSS__": css_json,
     }
     for placeholder, value in replacements.items():

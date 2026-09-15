@@ -144,7 +144,7 @@
       save.disabled = true;
       input.disabled = true;
       try {
-        await configurationUpdateQueue;
+        await apiClient.waitForWrites();
         await saveFrameName(input.value);
         if (frameIdentity.restart_required) {
           var message = showFrameReconnectDialog(frameIdentity);

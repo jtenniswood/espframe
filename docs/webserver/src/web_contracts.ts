@@ -1,17 +1,36 @@
-type ConfigurationValue = string | number | boolean;
-type ConfigurationValues = Record<string, ConfigurationValue>;
+export type ConfigurationValue = string | number | boolean;
+export type ConfigurationValues = Record<string, ConfigurationValue>;
 
-interface ConfigurationSnapshot {
+export interface ConfigurationSnapshot {
+  api_version: number;
   api_key_configured: boolean;
   values: ConfigurationValues;
+  unavailable: string[];
 }
 
-interface ConfigurationUpdateResponse {
+export interface ConfigurationUpdateResponse {
   api_version: number;
   status: "accepted" | "rejected";
   updated?: number;
   error?: string;
   field?: string;
+}
+
+export interface ConfigurationCapabilities {
+  contract_version: number;
+  api_version: number;
+  base_path: string;
+  capabilities_path: string;
+  configuration_path: string;
+  update_mode: "atomic";
+  configuration_available: boolean;
+  configuration_read: boolean;
+  configuration_write: boolean;
+  configuration_encoding?: string;
+  configuration_parameter?: string;
+  legacy_entity_api: boolean;
+  backup_versions: number[];
+  setting_count?: number;
 }
 
 interface ProductSetting {
