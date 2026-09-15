@@ -90,9 +90,30 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
       if (!field.secret || std::strcmp(field.domain, "text") != 0) continue;
       std::string path = "/text/";
       path += field.entity_name;
-      if (url == path.c_str()) return true;
+      const auto encoded_path = this->encode_url_path_(path);
+      if (url == path.c_str() || url == encoded_path.c_str()) return true;
     }
     return false;
+  }
+
+  static std::string encode_url_path_(const std::string &path) {
+    static constexpr char HEX[] = "0123456789ABCDEF";
+    std::string encoded;
+    encoded.reserve(path.size());
+    for (const unsigned char character : path) {
+      const bool unreserved = (character >= 'a' && character <= 'z') ||
+                              (character >= 'A' && character <= 'Z') ||
+                              (character >= '0' && character <= '9') ||
+                              character == '-' || character == '_' || character == '.' || character == '~';
+      if (unreserved) {
+        encoded += static_cast<char>(character);
+      } else {
+        encoded += '%';
+        encoded += HEX[character >> 4];
+        encoded += HEX[character & 0x0F];
+      }
+    }
+    return encoded;
   }
 
   void send_secret_text_(AsyncWebServerRequest *request) const {

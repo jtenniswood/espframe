@@ -180,7 +180,7 @@ remote_image:
     byte_order: little_endian
     formats: [JPEG, WEBP]
     request_headers:
-      x-api-key: !lambda 'return id(immich_api_key_text).state;'
+      x-api-key: !lambda 'return id(immich_api_key_value);'
     on_download_finished:
       then:
         - lambda: |-
@@ -209,7 +209,7 @@ remote_image:
     byte_order: little_endian
     formats: [JPEG, WEBP]
     request_headers:
-      x-api-key: !lambda 'return id(immich_api_key_text).state;'
+      x-api-key: !lambda 'return id(immich_api_key_value);'
     on_download_finished:
       then:
         - lambda: |-
@@ -238,7 +238,7 @@ remote_image:
     byte_order: little_endian
     formats: [JPEG, WEBP]
     request_headers:
-      x-api-key: !lambda 'return id(immich_api_key_text).state;'
+      x-api-key: !lambda 'return id(immich_api_key_value);'
     on_download_finished:
       then:
         - lambda: |-
@@ -270,7 +270,7 @@ remote_image:
     byte_order: little_endian
     formats: [JPEG, WEBP]
     request_headers:
-      x-api-key: !lambda 'return id(immich_api_key_text).state;'
+      x-api-key: !lambda 'return id(immich_api_key_value);'
     on_download_finished:
       then:
         - lambda: |-
@@ -296,7 +296,7 @@ remote_image:
     byte_order: little_endian
     formats: [JPEG, WEBP]
     request_headers:
-      x-api-key: !lambda 'return id(immich_api_key_text).state;'
+      x-api-key: !lambda 'return id(immich_api_key_value);'
     on_download_finished:
       then:
         - lambda: |-
@@ -323,7 +323,7 @@ remote_image:
     byte_order: little_endian
     formats: [JPEG, WEBP]
     request_headers:
-      x-api-key: !lambda 'return id(immich_api_key_text).state;'
+      x-api-key: !lambda 'return id(immich_api_key_value);'
     on_download_finished:
       then:
         - lambda: |-
@@ -356,7 +356,7 @@ remote_image:
     byte_order: little_endian
     formats: [JPEG, WEBP]
     request_headers:
-      x-api-key: !lambda 'return id(immich_api_key_text).state;'
+      x-api-key: !lambda 'return id(immich_api_key_value);'
     on_download_finished:
       then:
         - lambda: |-

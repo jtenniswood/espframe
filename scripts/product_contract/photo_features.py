@@ -391,7 +391,7 @@ def check_setup_flow_metadata(product: dict, errors: list[str]) -> None:
         'ssid: "${name}"',
         "wifi.connected",
         "is_valid_http_url(id(immich_url).state)",
-        "!id(immich_api_key_text).state.empty()",
+        "!id(immich_api_key_value).empty()",
         "immich_discover_capabilities",
         "immich_setup_page",
         "wifi_setup_page",

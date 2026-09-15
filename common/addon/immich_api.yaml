@@ -74,7 +74,7 @@ script:
             - script.stop: immich_fetch_memory_into_slot
       - if:
           condition:
-            lambda: 'return id(immich_url).state.empty() || id(immich_api_key_text).state.empty();'
+            lambda: 'return id(immich_url).state.empty() || id(immich_api_key_value).empty();'
           then:
             - script.stop: immich_fetch_memory_into_slot
       - lambda: |-
@@ -187,7 +187,7 @@ script:
           # into the filtered parser below instead. See on_response.
           request_headers:
             Accept: application/json
-            x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
+            x-api-key: !lambda 'return id(immich_api_key_value).c_str();'
           on_response:
             then:
               - lambda: |-
@@ -592,7 +592,7 @@ script:
           max_response_buffer_size: 16kB
           request_headers:
             Accept: application/json
-            x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
+            x-api-key: !lambda 'return id(immich_api_key_value).c_str();'
           on_response:
             then:
               - lambda: |-
@@ -681,7 +681,7 @@ script:
           max_response_buffer_size: 16kB
           request_headers:
             Accept: application/json
-            x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
+            x-api-key: !lambda 'return id(immich_api_key_value).c_str();'
           on_response:
             then:
               - lambda: |-
@@ -746,7 +746,7 @@ script:
           condition:
             lambda: |-
               return id(immich_url).state.empty() ||
-                     id(immich_api_key_text).state.empty() ||
+                     id(immich_api_key_value).empty() ||
                      !immich_source_has_required_ids(
                        id(photo_source_select).current_option(),
                        id(immich_album_ids).state,
@@ -825,7 +825,7 @@ script:
           max_response_buffer_size: 24kB
           request_headers:
             Accept: application/json
-            x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
+            x-api-key: !lambda 'return id(immich_api_key_value).c_str();'
           on_response:
             then:
               - lambda: |-
@@ -906,7 +906,7 @@ script:
           request_headers:
             Content-Type: application/json
             Accept: application/json
-            x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
+            x-api-key: !lambda 'return id(immich_api_key_value).c_str();'
           body: !lambda |-
             return build_immich_filter_statistics_body(
               id(immich_filter_config), id(immich_request_state).active_filter_branch,
@@ -1003,7 +1003,7 @@ script:
           request_headers:
             Content-Type: application/json
             Accept: application/json
-            x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
+            x-api-key: !lambda 'return id(immich_api_key_value).c_str();'
           body: !lambda |-
             return build_immich_filter_search_body(
               id(immich_filter_config), id(immich_request_state).active_filter_branch,
@@ -1153,7 +1153,7 @@ script:
           using esphome::espframe::SlotFetchDecision;
           const auto decision = id(espframe_core).check_slot_fetch(
             esphome::wifi::global_wifi_component->is_connected(),
-            !id(immich_url).state.empty() && !id(immich_api_key_text).state.empty(),
+            !id(immich_url).state.empty() && !id(immich_api_key_value).empty(),
             id(backlight_paused), id(immich_request_state).cooldown_active(millis()),
             id(immich_img_0).is_downloading() || id(immich_img_1).is_downloading() ||
             id(immich_img_2).is_downloading() || id(immich_portrait_left).is_downloading() ||
@@ -1281,7 +1281,7 @@ script:
           request_headers:
             Content-Type: application/json
             Accept: application/json
-            x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
+            x-api-key: !lambda 'return id(immich_api_key_value).c_str();'
           body: !lambda |-
             bool batchable = immich_enabled_inclusion_groups(id(immich_filter_config)).empty();
             int search_size = batchable ? IMMICH_RANDOM_POOL_SIZE :
@@ -1470,7 +1470,7 @@ script:
             - script.stop: immich_fetch_portrait_companion
       - if:
           condition:
-            lambda: 'return id(immich_url).state.empty() || id(immich_api_key_text).state.empty();'
+            lambda: 'return id(immich_url).state.empty() || id(immich_api_key_value).empty();'
           then:
             - script.stop: immich_fetch_portrait_companion
       - if:
@@ -1541,7 +1541,7 @@ script:
           request_headers:
             Content-Type: application/json
             Accept: application/json
-            x-api-key: !lambda 'return id(immich_api_key_text).state.c_str();'
+            x-api-key: !lambda 'return id(immich_api_key_value).c_str();'
           body: !lambda |-
             std::string datetime = id(espframe_core).slideshow().state().portrait_search_datetime;
             std::string day = datetime.substr(0, 10);

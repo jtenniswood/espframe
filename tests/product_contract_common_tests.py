@@ -121,6 +121,8 @@ def test_configuration_api_redacts_secret_fields() -> None:
     assert 'root["value"] = "";' in source
     assert 'root["api_key_configured"] = configured;' in source
     assert "request->method() != HTTP_GET" in source
+    assert "encode_url_path_" in source
+    assert "url == encoded_path.c_str()" in source
     assert source.index("if (field.secret)") < source.index('values[field.key] = entity->state;')
     assert '{"api_key", "text", "Connection: API Key", true}' in generated
     assert "api_key" not in product["project"]["web_manual_state_keys"]

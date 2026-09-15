@@ -19,12 +19,25 @@ globals:
   - id: immich_source_setup_visible
     type: bool
     initial_value: 'false'
+  # Keep the real secret out of the text entity state. ESPHome includes text
+  # entity values in /events even when the entity uses password mode.
+  - id: immich_api_key_value
+    type: std::string
+    restore_value: true
+    max_restore_data_length: 254
+    initial_value: '"${immich_api_key}"'
 
 esphome:
   on_boot:
     - priority: -300
       then:
         - lambda: |-
+            if (!id(immich_api_key_text).state.empty()) {
+              id(immich_api_key_value) = id(immich_api_key_text).state;
+              id(immich_api_key_text).publish_state("********");
+            } else if (!id(immich_api_key_value).empty()) {
+              id(immich_api_key_text).publish_state("********");
+            }
             std::string url = normalize_immich_base_url(id(immich_url).state);
             if (!url.empty() && is_valid_http_url(url) && url != id(immich_url).state) {
               id(immich_url).publish_state(url);
@@ -104,7 +117,8 @@ text:
     set_action:
       - lambda: |-
           if (x.empty()) return;
-          id(immich_api_key_text).publish_state(x);
+          id(immich_api_key_value) = x;
+          id(immich_api_key_text).publish_state("********");
           global_preferences->sync();
           ESP_LOGI("immich", "Immich API key configured (%d chars)", x.length());
       # Delay reconnect logic so settings are committed before any network crash path.
@@ -284,7 +298,7 @@ script:
     then:
       - if:
           condition:
-            lambda: 'return is_valid_http_url(id(immich_url).state) && !id(immich_api_key_text).state.empty();'
+            lambda: 'return is_valid_http_url(id(immich_url).state) && !id(immich_api_key_value).empty();'
           then:
             - script.execute: sync_immich_filter_config
             - delay: 1ms

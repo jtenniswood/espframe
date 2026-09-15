@@ -294,7 +294,7 @@ script:
                 then:
                   - if:
                       condition:
-                        lambda: 'return !id(immich_url).state.empty() && !id(immich_api_key_text).state.empty();'
+                        lambda: 'return !id(immich_url).state.empty() && !id(immich_api_key_value).empty();'
                       then:
                         - lvgl.page.show: slideshow_page
                       else:
