@@ -1213,13 +1213,13 @@ function smokeAssertionsForScenario(scenario) {
         requireText("Memories Window");
         requireText("Fallback to All Photos");
         const memoriesBanner = memoriesCard.querySelector(".setting-info-banner");
-        if (!memoriesBanner || memoriesBanner.textContent.trim() !== "Using Memories disables any configured filters" ||
-            getComputedStyle(memoriesBanner).display === "none") {
-          throw new Error("Memories should show its blue filter warning while enabled");
-        }
         memoriesToggle.click();
         if (memoriesToggle.getAttribute("aria-checked") !== "true") {
           throw new Error("Memories toggle should turn on");
+        }
+        if (!memoriesBanner || memoriesBanner.textContent.trim() !== "Using Memories disables any configured filters" ||
+            getComputedStyle(memoriesBanner).display === "none") {
+          throw new Error("Memories should show its blue filter warning while enabled");
         }
         if (!filtersCard.classList.contains("memory-filter-disabled")) {
           throw new Error("Filters should look disabled while Memories is active");
