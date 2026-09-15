@@ -334,7 +334,7 @@ function browserScriptForScenario(scenario) {
       "Connection: API Key": configured ? "fixture-api-key" : "",
       "Firmware: Version": ${JSON.stringify(installedFirmwareVersion)},
       "Firmware: Device": ${JSON.stringify(firmwareDeviceSlug)},
-      "Photos: Source": "Album",
+      "Photos: Source": "All Photos",
       "Photos: Memories Window": "Within 2 Days",
       "Photos: Memories Fallback": true,
       "Photos: Album IDs": ${JSON.stringify(smokeAlbumIds.join(","))},
@@ -1212,6 +1212,9 @@ function smokeAssertionsForScenario(scenario) {
         const memoriesToggle = toggleByText("Use Memories");
         requireText("Memories Window");
         requireText("Fallback to All Photos");
+        if (Array.from(document.querySelectorAll("label")).some((label) => label.textContent.trim() === "Source")) {
+          throw new Error("Filters should not show a Source selector");
+        }
         memoriesToggle.click();
         if (memoriesToggle.getAttribute("aria-checked") !== "true") {
           throw new Error("Memories toggle should turn on");
@@ -1238,7 +1241,6 @@ function smokeAssertionsForScenario(scenario) {
             getComputedStyle(filtersBanner).display === "none") {
           throw new Error("Filters should show the Memories warning while enabled");
         }
-        requireSelectDisabled("Source");
         ["Filter by Date", "Filter by Albums", "Filter by People", "Filter by Tags",
           "Filter by Favorites", "Filter by Rating", "Filter by Location"].forEach((label) => {
           requireToggleDisabled(label);
@@ -1257,13 +1259,18 @@ function smokeAssertionsForScenario(scenario) {
           throw new Error("Memories toggle should turn off");
         }
         const inactiveMemoriesBanner = cardByTitle("Memories").querySelector(".setting-info-banner");
-        if (cardByTitle("Filters").classList.contains("memory-filter-disabled") || selectByLabel("Source").disabled ||
+        if (cardByTitle("Filters").classList.contains("memory-filter-disabled") ||
             !inactiveMemoriesBanner || getComputedStyle(inactiveMemoriesBanner).display !== "none") {
           throw new Error("Filters should be restored after leaving Memories");
         }
-        if (selectByLabel("Source").value !== "Album") {
-          throw new Error("Leaving Memories should restore the previous photo source");
-        }
+        await waitFor(() => {
+          try {
+            requireLatestPostValue("Photo source", "Photos: Source", "All Photos");
+            return true;
+          } catch (_) {
+            return false;
+          }
+        }, 8000, "All Photos source after leaving Memories");
 
         clickTab("Device");
         await waitFor(() => pageText().indexOf("Clock") !== -1, 8000, "clock settings");
