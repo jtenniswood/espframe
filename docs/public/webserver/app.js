@@ -2710,7 +2710,7 @@ to {
     var memoriesActive = S.photo_source === "Memories";
     var infoBanner = makeMemoriesInfoBanner();
     var memoriesToggle = toggleSettingRow({
-      label: "Use Memories",
+      label: "Show Memories Only",
       value: memoriesActive,
       getValue: function() {
         return memoriesActive;

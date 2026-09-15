@@ -26,7 +26,7 @@
     var infoBanner = makeMemoriesInfoBanner();
 
     var memoriesToggle = toggleSettingRow({
-      label: "Use Memories", value: memoriesActive,
+      label: "Show Memories Only", value: memoriesActive,
       getValue: function () { return memoriesActive; },
       setValue: function (value) { memoriesActive = value; },
       onChange: function (value) {

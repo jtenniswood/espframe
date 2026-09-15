@@ -1209,7 +1209,7 @@ function smokeAssertionsForScenario(scenario) {
         toggleByText("Date").click();
 
         const memoriesCard = expandCard("Memories");
-        const memoriesToggle = toggleByText("Use Memories");
+        const memoriesToggle = toggleByText("Show Memories Only");
         requireText("Memories Window");
         requireText("Fallback to All Photos");
         if (Array.from(document.querySelectorAll("label")).some((label) => label.textContent.trim() === "Source")) {
@@ -1254,8 +1254,8 @@ function smokeAssertionsForScenario(scenario) {
         activeFiltersCard.querySelector(".card-header").click();
         if (activeFiltersCard.classList.contains("collapsed")) throw new Error("Disabled Filters should still expand");
         setSelect("Memories Window", "Same Day");
-        toggleByText("Use Memories").click();
-        if (toggleByText("Use Memories").getAttribute("aria-checked") !== "false") {
+        toggleByText("Show Memories Only").click();
+        if (toggleByText("Show Memories Only").getAttribute("aria-checked") !== "false") {
           throw new Error("Memories toggle should turn off");
         }
         const inactiveMemoriesBanner = cardByTitle("Memories").querySelector(".setting-info-banner");

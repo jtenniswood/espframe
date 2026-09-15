@@ -5,7 +5,7 @@ description: Combine Immich albums, people, tags, favorites, ratings, dates, loc
 
 # Espframe Smart Photo Filters for Immich
 
-Open the device web UI at `http://<device-ip>/` and use **Filters**. Start with the seven **Filter by** switches, then open only the groups you need. To use On This Day memories, open the **Memories** panel and turn on **Use Memories**. Dates, albums, people, tags, favorites, ratings, and location retain their saved values when switched off. Changes apply automatically shortly after you change a control.
+Open the device web UI at `http://<device-ip>/` and use **Filters**. Start with the seven **Filter by** switches, then open only the groups you need. To use On This Day memories, open the **Memories** panel and turn on **Show Memories Only**. Dates, albums, people, tags, favorites, ratings, and location retain their saved values when switched off. Changes apply automatically shortly after you change a control.
 
 <!-- ESPFRAME:SETTINGS_TABLE source START -->
 | Setting | Default | Format | Description |
@@ -78,7 +78,7 @@ Multiple selected tags use **Any selected tag**, so the slideshow includes photo
 
 ## Memories / On This Day
 
-Turn on **Use Memories** in the **Memories** panel to show photos from the same calendar day in prior years, using Immich's On This Day memories. The frame searches the selected day plus or minus the configured **Memories Window**: **Same Day**, **Within 1 Day**, **Within 2 Days**, **Within 3 Days**, or **Within 7 Days**. The default is **Within 2 Days**.
+Turn on **Show Memories Only** in the **Memories** panel to show photos from the same calendar day in prior years, using Immich's On This Day memories. The frame searches the selected day plus or minus the configured **Memories Window**: **Same Day**, **Within 1 Day**, **Within 2 Days**, **Within 3 Days**, or **Within 7 Days**. The default is **Within 2 Days**.
 
 Configured Memories window: Same Day through Within 7 Days; default Within 2 Days; matched across prior years.
 
@@ -108,7 +108,7 @@ Use **Filters → Filter by Date** in the web UI to limit photos by when they we
 
 Date filter changes save automatically shortly after you change a control. You do not need to click an Apply button.
 
-Date filtering is ignored while **Use Memories** is enabled; the **Memories Window** controls the calendar-day search instead. Your date-filter settings remain saved for when you turn Memories off.
+Date filtering is ignored while **Show Memories Only** is enabled; the **Memories Window** controls the calendar-day search instead. Your date-filter settings remain saved for when you turn Memories off.
 
 <!-- ESPFRAME:SETTINGS_TABLE date_filtering START -->
 | Setting | Default | Format | Description |
