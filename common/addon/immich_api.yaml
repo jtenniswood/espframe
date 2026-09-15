@@ -108,6 +108,41 @@ script:
                       id: show_photo_source_empty_state
                       memories_source: true
 
+  - id: immich_memory_request_failed
+    mode: restart
+    parameters:
+      request_generation: uint32_t
+    then:
+      - if:
+          condition:
+            lambda: 'return id(immich_request_state).memory_request_is_current(request_generation);'
+          then:
+            - lambda: |-
+                clear_slot_fetch_in_flight(
+                  id(espframe_core).slideshow().state().target_slot,
+                  id(espframe_core).slideshow().state().slot_flags);
+            - if:
+                condition:
+                  lambda: 'return id(immich_memories_fallback).state;'
+                then:
+                  - lambda: 'id(immich_request_state).memory_fallback = true;'
+                  - script.execute: immich_fetch_into_slot
+                else:
+                  - lambda: |-
+                      id(immich_request_state).register_request_error();
+                      ESP_LOGW("immich", "Transient Memories request failure (attempt %d)",
+                               id(immich_request_state).api_retries);
+                  - if:
+                      condition:
+                        lambda: 'return id(immich_request_state).retry_available(MAX_ERROR_RETRIES);'
+                      then:
+                        - script.execute: immich_fetch_retry
+                      else:
+                        - script.execute: immich_register_fetch_failure
+                        - script.execute:
+                            id: show_photo_source_empty_state
+                            memories_source: true
+
   - id: immich_fetch_memory_window_day
     mode: queued
     parameters:
@@ -161,6 +196,7 @@ script:
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Memories HTTP %d for offset %+d", response->status_code,
                              id(immich_request_state).memory_window_offset);
+                    id(immich_request_state).memory_request_failed = true;
                     return;
                   }
 
@@ -497,6 +533,10 @@ script:
                     lambda: 'return id(immich_request_state).memory_request_is_current(request_generation);'
                   then:
                     - lambda: |-
+                        if (id(immich_request_state).memory_request_failed) {
+                          id(immich_memory_request_failed).execute(request_generation);
+                          return;
+                        }
                         if (id(immich_request_state).advance_memory_window()) {
                           id(immich_fetch_memory_window_day).execute(request_generation);
                           return;
@@ -520,17 +560,8 @@ script:
                     return;
                   }
                   ESP_LOGW("immich", "Memories request failed for offset %+d", id(immich_request_state).memory_window_offset);
-                  if (id(immich_request_state).advance_memory_window()) {
-                    id(immich_fetch_memory_window_day).execute(request_generation);
-                    return;
-                  }
-                  if (id(immich_request_state).memory_image_count <= 0) {
-                    ESP_LOGW("immich", "Memories window request failed");
-                    id(immich_memory_fallback_or_empty).execute(request_generation);
-                    return;
-                  }
-                  // memory_asset_id already holds the sampled pick.
-                  id(immich_fetch_memory_asset).execute(request_generation);
+                  id(immich_request_state).memory_request_failed = true;
+                  id(immich_memory_request_failed).execute(request_generation);
 
   # ---------------------------------------------------------------------------
   # Fetch full asset details for a memory photo — step 2
@@ -569,7 +600,7 @@ script:
                   id(espframe_core).record_memory("immich-response");
                   if (response->status_code != 200) {
                     ESP_LOGW("immich", "Memory asset HTTP %d", response->status_code);
-                    id(immich_memory_fallback_or_empty).execute(request_generation);
+                    id(immich_memory_request_failed).execute(request_generation);
                     return;
                   }
                   std::string img_url = parse_immich_asset_and_fill_slot(
@@ -591,6 +622,8 @@ script:
                   id(immich_register_fetch_success).execute();
                   int slot = id(espframe_core).slideshow().state().target_slot;
                   auto &meta = get_slot(slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2);
+                  meta.filter_tag_scope_known = true;
+                  id(immich_request_state).clear_filter_scope_request();
                   ESP_LOGI("immich", "MEMORY slot %d: %s | %s | %s | %s | portrait=%d",
                            slot, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.location.c_str(), meta.is_portrait);
                   id(espframe_core).slideshow().clear_preload_for_slot(
@@ -614,7 +647,7 @@ script:
                     return;
                   }
                   ESP_LOGW("immich", "Memory asset request failed");
-                  id(immich_memory_fallback_or_empty).execute(request_generation);
+                  id(immich_memory_request_failed).execute(request_generation);
 
   # ---------------------------------------------------------------------------
   # Resolve tag membership for structured multi-tag matches before pairing.

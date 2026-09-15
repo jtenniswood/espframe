@@ -1213,8 +1213,8 @@ function smokeAssertionsForScenario(scenario) {
           throw new Error("Memories should be closed by default");
         }
         const initialMemoriesBadge = initialMemoriesCard.querySelector(".card-header .on-badge");
-        if (!initialMemoriesBadge || getComputedStyle(initialMemoriesBadge).display === "none") {
-          throw new Error("Memories ON badge should be visible while the card is closed");
+        if (!initialMemoriesBadge || getComputedStyle(initialMemoriesBadge).display !== "none") {
+          throw new Error("Memories ON badge should be hidden while Memories is disabled");
         }
         const memoriesCard = expandCard("Memories");
         const memoriesToggle = toggleByText("Show Memories Only");
@@ -1314,12 +1314,12 @@ function smokeAssertionsForScenario(scenario) {
         }
         await waitFor(() => {
           try {
-            requireLatestPostValue("Photo source", "Photos: Source", "All Photos");
+            requireLatestPostValue("Photo source", "Photos: Source", "Custom");
             return true;
           } catch (_) {
             return false;
           }
-        }, 8000, "All Photos source after leaving Memories");
+        }, 8000, "Custom source after leaving Memories with active filters");
 
         clickTab("Device");
         await waitFor(() => pageText().indexOf("Clock") !== -1, 8000, "clock settings");

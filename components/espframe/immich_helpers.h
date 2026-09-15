@@ -433,6 +433,7 @@ struct ImmichRequestState {
   int memory_image_count = 0;
   bool memory_waiting_for_time = false;
   bool memory_asset_loaded = false;
+  bool memory_request_failed = false;
 
   std::string metadata_album_id;
   std::string metadata_person_id;
@@ -498,6 +499,7 @@ struct ImmichRequestState {
     this->memory_image_count = 0;
     this->memory_waiting_for_time = false;
     this->memory_asset_loaded = false;
+    this->memory_request_failed = false;
   }
 
   bool memory_request_is_current() const {

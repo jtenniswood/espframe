@@ -742,6 +742,13 @@ static void test_immich_request_state() {
   assert(state.memory_request_is_current());
   assert(!state.memory_request_is_current(first_memory_generation));
   assert(state.memory_request_is_current(state.memory_request_generation));
+  state.begin_filter_scope_request(1, "stale-asset", "stale-tag");
+  assert(state.filter_scope_request_pending());
+  assert(state.filter_scope_request_is_current());
+  state.invalidate_photo_source_requests();
+  assert(!state.filter_scope_request_is_current());
+  state.clear_filter_scope_request();
+  assert(!state.filter_scope_request_pending());
   state.add_memory_image("asset-a");
   assert(state.memory_image_count == 1);
   state.add_memory_image("landscape", false);

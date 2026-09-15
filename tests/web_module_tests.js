@@ -163,6 +163,8 @@ assert.ok(
   immichApiSource.includes("/api/memories?type=on_this_day&for=") &&
     immichApiSource.includes("immich_memories_window_days") &&
     immichApiSource.includes("immich_memory_fallback_or_empty") &&
+    immichApiSource.includes("immich_memory_request_failed") &&
+    immichApiSource.includes("retry_available(MAX_ERROR_RETRIES)") &&
     immichApiSource.includes("memory_fallback") &&
     immichApiSource.includes("memory_request_is_current") &&
     immichApiSource.includes("MemoriesJsonParser") &&
@@ -172,7 +174,9 @@ assert.ok(
 );
 assert.ok(
   filterFlush.includes("script.stop: immich_fetch_memory_window_day") &&
+    filterFlush.includes("script.stop: immich_memory_request_failed") &&
     filterFlush.includes("invalidate_photo_source_requests") &&
+    filterFlush.indexOf("invalidate_photo_source_requests") < filterFlush.indexOf("Photo source apply deferred") &&
     timeSource.includes("script.execute: immich_fetch_into_slot"),
   "photo-source changes should invalidate Memories workers and retry after time sync"
 );
