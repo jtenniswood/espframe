@@ -1212,19 +1212,21 @@ function smokeAssertionsForScenario(scenario) {
         const memoriesToggle = toggleByText("Use Memories");
         requireText("Memories Window");
         requireText("Fallback to All Photos");
-        const memoriesBanner = memoriesCard.querySelector(".setting-info-banner");
         memoriesToggle.click();
         if (memoriesToggle.getAttribute("aria-checked") !== "true") {
           throw new Error("Memories toggle should turn on");
         }
-        if (!memoriesBanner || memoriesBanner.textContent.trim() !== "Using Memories disables any configured filters" ||
-            getComputedStyle(memoriesBanner).display === "none") {
+        const activeMemoriesCard = cardByTitle("Memories");
+        const activeFiltersCard = cardByTitle("Filters");
+        const activeMemoriesBanner = activeMemoriesCard.querySelector(".setting-info-banner");
+        if (!activeMemoriesBanner || activeMemoriesBanner.textContent.trim() !== "Using Memories disables any configured filters" ||
+            getComputedStyle(activeMemoriesBanner).display === "none") {
           throw new Error("Memories should show its blue filter warning while enabled");
         }
-        if (!filtersCard.classList.contains("memory-filter-disabled")) {
+        if (!activeFiltersCard.classList.contains("memory-filter-disabled")) {
           throw new Error("Filters should look disabled while Memories is active");
         }
-        const filtersBanner = filtersCard.querySelector(".setting-info-banner");
+        const filtersBanner = activeFiltersCard.querySelector(".setting-info-banner");
         if (!filtersBanner || filtersBanner.textContent.trim() !== "Using Memories disables any configured filters" ||
             getComputedStyle(filtersBanner).display === "none") {
           throw new Error("Filters should show the Memories warning while enabled");
@@ -1238,17 +1240,18 @@ function smokeAssertionsForScenario(scenario) {
         if (!dateModeButtons.length || dateModeButtons.some((button) => !button.disabled)) {
           throw new Error("Date filter mode should be disabled while Memories is active");
         }
-        filtersCard.querySelector(".card-header").click();
-        if (!filtersCard.classList.contains("collapsed")) throw new Error("Disabled Filters should still collapse");
-        filtersCard.querySelector(".card-header").click();
-        if (filtersCard.classList.contains("collapsed")) throw new Error("Disabled Filters should still expand");
+        activeFiltersCard.querySelector(".card-header").click();
+        if (!activeFiltersCard.classList.contains("collapsed")) throw new Error("Disabled Filters should still collapse");
+        activeFiltersCard.querySelector(".card-header").click();
+        if (activeFiltersCard.classList.contains("collapsed")) throw new Error("Disabled Filters should still expand");
         setSelect("Memories Window", "Same Day");
-        memoriesToggle.click();
-        if (memoriesToggle.getAttribute("aria-checked") !== "false") {
+        toggleByText("Use Memories").click();
+        if (toggleByText("Use Memories").getAttribute("aria-checked") !== "false") {
           throw new Error("Memories toggle should turn off");
         }
-        if (filtersCard.classList.contains("memory-filter-disabled") || selectByLabel("Source").disabled ||
-            getComputedStyle(memoriesBanner).display === "none") {
+        const inactiveMemoriesBanner = cardByTitle("Memories").querySelector(".setting-info-banner");
+        if (cardByTitle("Filters").classList.contains("memory-filter-disabled") || selectByLabel("Source").disabled ||
+            !inactiveMemoriesBanner || getComputedStyle(inactiveMemoriesBanner).display !== "none") {
           throw new Error("Filters should be restored after leaving Memories");
         }
         if (selectByLabel("Source").value !== "Album") {
