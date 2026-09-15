@@ -1285,6 +1285,11 @@ function smokeAssertionsForScenario(scenario) {
         }
         activeFiltersCard.querySelector(".card-header").click();
         if (!activeFiltersCard.classList.contains("collapsed")) throw new Error("Disabled Filters should still collapse");
+        const disabledFilterBadge = activeFiltersCard.querySelector(".card-header .on-badge");
+        if (!disabledFilterBadge || getComputedStyle(disabledFilterBadge).display === "none" ||
+            disabledFilterBadge.textContent.trim() !== "Disabled") {
+          throw new Error("Disabled Filters should show a Disabled label while closed");
+        }
         activeFiltersCard.querySelector(".card-header").click();
         if (activeFiltersCard.classList.contains("collapsed")) throw new Error("Disabled Filters should still expand");
         setSelect("Memories Window", "Same Day");
