@@ -2745,10 +2745,21 @@ to {
       body.appendChild(notice);
     }
     var memoriesWindowField = field("Memories Window");
-    memoriesWindowField.appendChild(selectFromOptions(productSettingOptions("memories_window"), S.memories_window, function(value) {
-      S.memories_window = value;
-      saveSetting("memories_window", value, { applyPhotoSource: true });
-    }));
+    memoriesWindowField.appendChild(selectFromOptions(
+      productSettingOptions("memories_window"),
+      S.memories_window,
+      function(value) {
+        S.memories_window = value;
+        saveSetting("memories_window", value, { applyPhotoSource: true });
+      },
+      function(value) {
+        if (value === "Within 1 Day") return "\xB11 Day";
+        if (value === "Within 2 Days") return "\xB12 Days";
+        if (value === "Within 3 Days") return "\xB13 Days";
+        if (value === "Within 7 Days") return "\xB17 Days";
+        return value;
+      }
+    ));
     body.appendChild(memoriesWindowField);
     var memoriesFallbackRow = toggleSettingRow({
       label: "Fallback to All Photos",

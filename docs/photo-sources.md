@@ -11,7 +11,7 @@ Open the device web UI at `http://<device-ip>/` and use **Filters**. Start with 
 | Setting | Default | Format | Description |
 |---------|---------|--------|-------------|
 | **Photo Source (legacy compatibility)** | All Photos | Select | Legacy compatibility source value; enable Memories from the dedicated Memories panel and use the Filters panel for the remaining photo sources. |
-| **Memories Window** | `Within 2 Days` | `Same Day`, `Within 1 Day`, `Within 2 Days`, `Within 3 Days`, or `Within 7 Days` | When Memories is enabled, search this calendar-day window across prior years. |
+| **Memories Window** | `±2 Days` | `Same Day`, `±1 Day`, `±2 Days`, `±3 Days`, or `±7 Days` | When Memories is enabled, search this calendar-day window across prior years. |
 | **Fallback to All Photos** | On | Toggle | When Memories has no result or fails, show an unfiltered All Photos result. |
 | **Filter by Albums** | False | Toggle | Enable filtering by any selected album while preserving the list when disabled. |
 | **Filter by People** | False | Toggle | Enable filtering by any selected person while preserving the list when disabled. |
@@ -78,9 +78,9 @@ Multiple selected tags use **Any selected tag**, so the slideshow includes photo
 
 ## Memories / On This Day
 
-Turn on **Show Memories Only** in the **Memories** panel to show photos from the same calendar day in prior years, using Immich's On This Day memories. The frame searches the selected day plus or minus the configured **Memories Window**: **Same Day**, **Within 1 Day**, **Within 2 Days**, **Within 3 Days**, or **Within 7 Days**. The default is **Within 2 Days**.
+Turn on **Show Memories Only** in the **Memories** panel to show photos from the same calendar day in prior years, using Immich's On This Day memories. The frame searches the selected day plus or minus the configured **Memories Window**: **Same Day**, **±1 Day**, **±2 Days**, **±3 Days**, or **±7 Days**. The default is **±2 Days**.
 
-Configured Memories window: Same Day through Within 7 Days; default Within 2 Days; matched across prior years.
+Configured Memories window: Same Day through ±7 Days; default ±2 Days; matched across prior years.
 
 Memories is an exclusive source. While it is enabled, all saved content filters—date, albums, people, tags, favorites, ratings, location, inclusion/exclusion rules, and album order—are ignored. Their values are preserved while Memories is active. Selecting **Custom** restores the composed filter; selecting a legacy preset such as **All Photos**, **Favorites**, **Album**, **Person**, or **Tag** applies that source's documented preset. Orientation, display mode, metadata, and portrait pairing are independent display options and remain available.
 

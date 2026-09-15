@@ -32,8 +32,8 @@
     },
     "default": "Within 2 Days",
     "docs_label": "Memories Window",
-    "docs_default": "`Within 2 Days`",
-    "docs_format": "`Same Day`, `Within 1 Day`, `Within 2 Days`, `Within 3 Days`, or `Within 7 Days`",
+    "docs_default": "`±2 Days`",
+    "docs_format": "`Same Day`, `±1 Day`, `±2 Days`, `±3 Days`, or `±7 Days`",
     "docs_description": "When Memories is enabled, search this calendar-day window across prior years.",
     "options": [
       "Same Day",

@@ -1212,6 +1212,13 @@ function smokeAssertionsForScenario(scenario) {
         const memoriesToggle = toggleByText("Show Memories Only");
         requireText("Memories Window");
         requireText("Fallback to All Photos");
+        const memoriesWindowOptions = Array.from(fieldByLabel("Memories Window").querySelectorAll("option"))
+          .map((option) => option.textContent.trim());
+        ["Same Day", "±1 Day", "±2 Days", "±3 Days", "±7 Days"].forEach((option) => {
+          if (memoriesWindowOptions.indexOf(option) === -1) {
+            throw new Error("Memories Window is missing display option: " + option);
+          }
+        });
         if (Array.from(document.querySelectorAll("label")).some((label) => label.textContent.trim() === "Source")) {
           throw new Error("Filters should not show a Source selector");
         }
