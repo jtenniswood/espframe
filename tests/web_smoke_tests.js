@@ -601,6 +601,9 @@ function browserScriptForScenario(scenario) {
         });
       }
       if (decoded === "/espframe/api/v1/capabilities") {
+        if (${JSON.stringify(!!scenario.legacyApi)}) {
+          return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+        }
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({
           contract_version: 2, api_version: 1, base_path: "/espframe/api/v1",
           capabilities_path: "/espframe/api/v1/capabilities",

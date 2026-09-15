@@ -108,7 +108,26 @@ export class EspframeApiClient {
         !Array.isArray(payload.unavailable) || !payload.unavailable.every(value => typeof value === "string")) {
       throw new EspframeApiError("server", "invalid_configuration_snapshot");
     }
-    return { api_version: capabilities.api_version, values: payload.values as ConfigurationValues, unavailable: payload.unavailable as string[] };
+    let apiKeyConfigured = typeof payload.api_key_configured === "boolean" ? payload.api_key_configured : undefined;
+    const values: ConfigurationValues = {};
+    for (const [key, value] of Object.entries(payload.values)) {
+      if (key === "api_key") {
+        if (apiKeyConfigured !== undefined) throw new EspframeApiError("server", "invalid_configuration_snapshot");
+        apiKeyConfigured = !!value;
+        continue;
+      }
+      if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
+        throw new EspframeApiError("server", "invalid_configuration_snapshot");
+      }
+      values[key] = value;
+    }
+    if (apiKeyConfigured === undefined) apiKeyConfigured = false;
+    return {
+      api_version: capabilities.api_version,
+      api_key_configured: apiKeyConfigured,
+      values,
+      unavailable: payload.unavailable as string[],
+    };
   }
 
   private async legacyPost(url: string, body?: string): Promise<Response> {

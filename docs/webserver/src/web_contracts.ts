@@ -107,7 +107,7 @@ function parseConfigurationSnapshot(value: unknown): ConfigurationSnapshot | nul
     values[key] = fieldValue;
   }
   if (!value.unavailable.every(key => typeof key === "string")) return null;
-  return { api_key_configured: apiKeyConfigured, values: values };
+  return { api_version: 1, api_key_configured: apiKeyConfigured, values: values, unavailable: value.unavailable };
 }
 
 function configurationUpdateBody(values: ConfigurationValues): string {
