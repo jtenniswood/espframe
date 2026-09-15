@@ -323,12 +323,6 @@ h2 {
   display:inline-flex
 }
 
-.card.collapsed .on-badge.disabled {
-  display:inline-flex;
-  color:var(--text3);
-  background:var(--surface2)
-}
-
 .on-badge::before {
   content:'';
   display:block;
@@ -337,10 +331,6 @@ h2 {
   border-radius:50%;
   background:var(--success);
   flex-shrink:0
-}
-
-.on-badge.disabled::before {
-  background:var(--text3)
 }
 
 .field {

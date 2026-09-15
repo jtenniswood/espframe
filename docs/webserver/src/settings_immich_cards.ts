@@ -209,15 +209,8 @@
     }
     var filterBadge = makeBadge(filtersActive());
     function updateFilterBadge() {
-      var active = filtersActive();
       filterBadge.textContent = memoriesActive ? "Disabled" : "On";
-      filterBadge.className = "on-badge" + (active ? " active" : "") +
-        (memoriesActive ? " disabled" : "");
-      if (memoriesActive) {
-        filterBadge.setAttribute("aria-label", "Filters disabled while Memories is active");
-      } else {
-        filterBadge.removeAttribute("aria-label");
-      }
+      filterBadge.className = "on-badge" + (filtersActive() || memoriesActive ? " active" : "");
     }
     var version = String(S.immich_server_version || "Unknown");
     var parts = version.split(".").map(Number);
