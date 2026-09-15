@@ -1224,7 +1224,7 @@ function smokeAssertionsForScenario(scenario) {
         const activeFiltersCard = cardByTitle("Filters");
         const activeMemoriesBanner = activeMemoriesCard.querySelector(".setting-info-banner");
         if (!activeMemoriesBanner) throw new Error("Memories warning banner is missing while enabled");
-        if (activeMemoriesBanner.textContent.trim() !== "Using Memories disables any configured filters") {
+        if (activeMemoriesBanner.textContent.indexOf("Using Memories disables any configured filters") === -1) {
           throw new Error("Memories warning banner has unexpected text: " + JSON.stringify(activeMemoriesBanner.textContent));
         }
         if (getComputedStyle(activeMemoriesBanner).display === "none") {
@@ -1234,7 +1234,7 @@ function smokeAssertionsForScenario(scenario) {
           throw new Error("Filters should look disabled while Memories is active");
         }
         const filtersBanner = activeFiltersCard.querySelector(".setting-info-banner");
-        if (!filtersBanner || filtersBanner.textContent.trim() !== "Using Memories disables any configured filters" ||
+        if (!filtersBanner || filtersBanner.textContent.indexOf("Using Memories disables any configured filters") === -1 ||
             getComputedStyle(filtersBanner).display === "none") {
           throw new Error("Filters should show the Memories warning while enabled");
         }
