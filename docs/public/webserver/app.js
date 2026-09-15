@@ -264,8 +264,8 @@
         return this.legacyPost(url + query, body);
       });
     }
-    get(url) {
-      return this.request(url, { cache: "no-store" });
+    getJson(url) {
+      return this.requestJson(url, { cache: "no-store" }, "legacy_read_failed");
     }
   };
 
@@ -2350,10 +2350,7 @@ to {
     return labels.length ? JSON.stringify(labels) : "";
   }
   function safeGet(url) {
-    return apiClient.get(url).then(function(r) {
-      if (!r.ok) return null;
-      return r.json();
-    }).catch(function() {
+    return apiClient.getJson(url).catch(function() {
       return null;
     });
   }

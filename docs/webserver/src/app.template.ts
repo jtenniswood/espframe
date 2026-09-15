@@ -444,11 +444,7 @@ import {
   }
 
   function safeGet(url) {
-    return apiClient.get(url)
-      .then(function (r) {
-        if (!r.ok) return null;
-        return r.json();
-      })
+    return apiClient.getJson(url)
       .catch(function () {
         return null;
       });

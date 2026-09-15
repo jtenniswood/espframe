@@ -199,5 +199,7 @@ export class EspframeApiClient {
     });
   }
 
-  get(url: string): Promise<Response> { return this.request(url, { cache: "no-store" }); }
+  getJson(url: string): Promise<any> {
+    return this.requestJson(url, { cache: "no-store" }, "legacy_read_failed");
+  }
 }
