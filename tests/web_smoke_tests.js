@@ -1223,9 +1223,12 @@ function smokeAssertionsForScenario(scenario) {
         const activeMemoriesCard = cardByTitle("Memories");
         const activeFiltersCard = cardByTitle("Filters");
         const activeMemoriesBanner = activeMemoriesCard.querySelector(".setting-info-banner");
-        if (!activeMemoriesBanner || activeMemoriesBanner.textContent.trim() !== "Using Memories disables any configured filters" ||
-            getComputedStyle(activeMemoriesBanner).display === "none") {
-          throw new Error("Memories should show its blue filter warning while enabled");
+        if (!activeMemoriesBanner) throw new Error("Memories warning banner is missing while enabled");
+        if (activeMemoriesBanner.textContent.trim() !== "Using Memories disables any configured filters") {
+          throw new Error("Memories warning banner has unexpected text: " + JSON.stringify(activeMemoriesBanner.textContent));
+        }
+        if (getComputedStyle(activeMemoriesBanner).display === "none") {
+          throw new Error("Memories warning banner is hidden while enabled");
         }
         if (!activeFiltersCard.classList.contains("memory-filter-disabled")) {
           throw new Error("Filters should look disabled while Memories is active");
