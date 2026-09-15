@@ -1216,6 +1216,10 @@ function smokeAssertionsForScenario(scenario) {
         if (memoriesToggle.getAttribute("aria-checked") !== "true") {
           throw new Error("Memories toggle should turn on");
         }
+        await waitFor(() => {
+          const banner = cardByTitle("Memories").querySelector(".setting-info-banner");
+          return banner && getComputedStyle(banner).display !== "none";
+        }, 2000, "Memories warning banner");
         const activeMemoriesCard = cardByTitle("Memories");
         const activeFiltersCard = cardByTitle("Filters");
         const activeMemoriesBanner = activeMemoriesCard.querySelector(".setting-info-banner");
