@@ -515,6 +515,16 @@ function browserScriptForScenario(scenario) {
           })
         });
       }
+      if (decoded.indexOf("manifest.json") !== -1) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({
+            version: "v1.0.1",
+            builds: [{ ota: { path: ${JSON.stringify(firmwareDeviceSlug + ".ota.bin")}, md5: "11111111111111111111111111111111" } }]
+          })
+        });
+      }
       if (decoded.indexOf(".ota.bin") !== -1 && method === "GET") {
         return Promise.resolve({ ok: true, status: 200, blob: () => Promise.resolve(new Blob(["firmware"])) });
       }
@@ -1717,8 +1727,8 @@ function smokeAssertionsForScenario(scenario) {
               throw new Error("Previous firmware panel should be hidden when the version index is unavailable");
             }
             const updates = expandDisclosure("Firmware updates");
-            if (!Array.from(updates.querySelectorAll("button")).some((button) => button.textContent.trim() === "Check for Update")) {
-              throw new Error("Manual firmware check is unavailable without the public version index");
+            if (!Array.from(updates.querySelectorAll("button")).some((button) => button.textContent.trim() === "Install Update")) {
+              throw new Error("The stable manifest did not expose an install action without the version index");
             }
           }
 
