@@ -104,7 +104,9 @@ script:
                   - lambda: 'id(immich_request_state).memory_fallback = true;'
                   - script.execute: immich_fetch_into_slot
                 else:
-                  - script.execute: show_photo_source_empty_state
+                  - script.execute:
+                      id: show_photo_source_empty_state
+                      memories_source: true
 
   - id: immich_fetch_memory_window_day
     mode: queued
@@ -1507,16 +1509,19 @@ script:
           body: !lambda |-
             std::string datetime = id(espframe_core).slideshow().state().portrait_search_datetime;
             std::string day = datetime.substr(0, 10);
-            auto now = id(sntp_time).now();
-            ImmichDateRange range = resolve_immich_date_filter(
-              id(immich_date_filter_enabled).state,
-              id(immich_date_filter_mode).current_option(),
-              (int) (id(immich_relative_amount).state + 0.5f),
-              id(immich_relative_unit).current_option(),
-              now.is_valid(), now.year, now.month, now.day_of_month,
-              id(immich_date_from).state, id(immich_date_to).state);
-            if (range.relative_skipped_for_invalid_time) {
-              ESP_LOGW("immich", "Relative date filter skipped for companion search because time is not valid");
+            ImmichDateRange range;
+            if (!immich_memories_source_active(id(photo_source_select).current_option())) {
+              auto now = id(sntp_time).now();
+              range = resolve_immich_date_filter(
+                id(immich_date_filter_enabled).state,
+                id(immich_date_filter_mode).current_option(),
+                (int) (id(immich_relative_amount).state + 0.5f),
+                id(immich_relative_unit).current_option(),
+                now.is_valid(), now.year, now.month, now.day_of_month,
+                id(immich_date_from).state, id(immich_date_to).state);
+              if (range.relative_skipped_for_invalid_time) {
+                ESP_LOGW("immich", "Relative date filter skipped for companion search because time is not valid");
+              }
             }
             int range_days = id(espframe_core).slideshow().state().portrait_search_expanded
               ? portrait_pairing_range_days(id(portrait_pairing_range).current_option()) : 0;

@@ -913,7 +913,9 @@ script:
                 level: DEBUG
                 tag: immich
                 format: "Photo source apply deferred until source IDs are restored"
-            - script.execute: show_photo_source_empty_state
+            - script.execute:
+                id: show_photo_source_empty_state
+                memories_source: false
             - script.execute: immich_retry_config_ready
             - script.stop: flush_slots_and_refetch
       - script.execute: hide_photo_source_empty_state

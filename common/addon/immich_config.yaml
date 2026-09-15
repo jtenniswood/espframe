@@ -226,25 +226,27 @@ script:
 
   - id: show_photo_source_empty_state
     mode: single
+    parameters:
+      memories_source: bool
     then:
       - lambda: |-
           const std::string source = id(photo_source_select).current_option();
           std::string missing_source = source;
-          if (id(immich_albums_enabled).state &&
+          if (!memories_source && id(immich_albums_enabled).state &&
               split_valid_uuid_csv(id(immich_album_ids).state).empty() &&
               split_valid_uuid_csv(id(immich_excluded_album_ids).state).empty()) {
             missing_source = "Album";
-          } else if (id(immich_people_enabled).state &&
+          } else if (!memories_source && id(immich_people_enabled).state &&
                      split_valid_uuid_csv(id(immich_person_ids).state).empty() &&
                      split_valid_uuid_csv(id(immich_excluded_person_ids).state).empty()) {
             missing_source = "Person";
-          } else if (id(immich_tags_enabled).state &&
+          } else if (!memories_source && id(immich_tags_enabled).state &&
                      split_valid_uuid_csv(id(immich_tag_ids).state).empty() &&
                      split_valid_uuid_csv(id(immich_excluded_tag_ids).state).empty()) {
             missing_source = "Tag";
           }
           const bool invalid_location =
-            !immich_filter_location_is_valid(id(immich_filter_config));
+            !memories_source && !immich_filter_location_is_valid(id(immich_filter_config));
           const std::string title = invalid_location
             ? "Location filter needs setup" : immich_source_setup_title(missing_source);
           const std::string message = invalid_location
@@ -305,7 +307,7 @@ script:
                         !immich_filter_location_is_valid(id(immich_filter_config));
                       if (invalid_filter) {
                         ESP_LOGD("immich", "Photo filter is waiting for valid inclusion IDs or location fields");
-                        id(show_photo_source_empty_state).execute();
+                        id(show_photo_source_empty_state).execute(false);
                         id(immich_retry_config_ready).execute();
                       } else {
                         lv_label_set_text(id(connection_failed_title), "Filter needs Immich 3.2+");
