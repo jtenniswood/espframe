@@ -1729,7 +1729,7 @@
       "release": {
         "release-metadata": "Read Product Release Metadata",
         "release-notes": "Update Release Notes",
-        "build-firmware": "Build ${{ matrix.slug }}",
+        "build-firmware": "Build espframe",
         "publish": "Publish to Release"
       }
     },

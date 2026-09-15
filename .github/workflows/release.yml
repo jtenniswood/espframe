@@ -65,7 +65,7 @@ jobs:
         run: gh release edit "$VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"
 
   build-firmware:
-    name: Build ${{ matrix.slug }}
+    name: Build espframe
     needs: release-metadata
     runs-on: espframe
     timeout-minutes: 30
