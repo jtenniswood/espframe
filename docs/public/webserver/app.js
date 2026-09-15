@@ -208,7 +208,7 @@
       values[key] = fieldValue;
     }
     if (!value.unavailable.every((key2) => typeof key2 === "string")) return null;
-    return { api_key_configured: apiKeyConfigured, values, unavailable: value.unavailable };
+    return { api_key_configured: apiKeyConfigured, values };
   }
   function configurationUpdateBody(values) {
     var body = new URLSearchParams();

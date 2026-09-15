@@ -4,7 +4,6 @@ type ConfigurationValues = Record<string, ConfigurationValue>;
 interface ConfigurationSnapshot {
   api_key_configured: boolean;
   values: ConfigurationValues;
-  unavailable: string[];
 }
 
 interface ConfigurationUpdateResponse {
@@ -89,7 +88,7 @@ function parseConfigurationSnapshot(value: unknown): ConfigurationSnapshot | nul
     values[key] = fieldValue;
   }
   if (!value.unavailable.every(key => typeof key === "string")) return null;
-  return { api_key_configured: apiKeyConfigured, values: values, unavailable: value.unavailable };
+  return { api_key_configured: apiKeyConfigured, values: values };
 }
 
 function configurationUpdateBody(values: ConfigurationValues): string {
