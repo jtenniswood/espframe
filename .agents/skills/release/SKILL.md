@@ -168,9 +168,9 @@ Expected release assets:
 immich-frame.factory.bin
 immich-frame.ota.bin
 immich-frame.manifest.json
-immich-frame-7inch.factory.bin
-immich-frame-7inch.ota.bin
-immich-frame-7inch.manifest.json
+immich-frame-v2.factory.bin
+immich-frame-v2.ota.bin
+immich-frame-v2.manifest.json
 ```
 
 The release workflow verifies the compiled binaries before upload, downloads the
