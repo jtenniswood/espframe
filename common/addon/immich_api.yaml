@@ -104,6 +104,9 @@ script:
                   - lambda: 'id(immich_request_state).memory_fallback = true;'
                   - script.execute: immich_fetch_into_slot
                 else:
+                  - lambda: |-
+                      ESP_LOGD("immich", "No memory images; retrying in 30 seconds");
+                      id(immich_request_state).reset_retries_and_pause(millis());
                   - script.execute:
                       id: show_photo_source_empty_state
                       memories_source: true

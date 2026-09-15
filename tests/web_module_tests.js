@@ -164,6 +164,7 @@ assert.ok(
     immichApiSource.includes("immich_memories_window_days") &&
     immichApiSource.includes("immich_memory_fallback_or_empty") &&
     immichApiSource.includes("immich_memory_request_failed") &&
+    immichApiSource.includes("reset_retries_and_pause(millis())") &&
     immichApiSource.includes("retry_available(MAX_ERROR_RETRIES)") &&
     immichApiSource.includes("memory_fallback") &&
     immichApiSource.includes("memory_request_is_current") &&
