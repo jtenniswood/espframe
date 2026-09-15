@@ -39,9 +39,10 @@
   var CONFIGURATION_API_PATH = "/espframe/api/v1/configuration";
   var configurationUpdateQueue = Promise.resolve();
 
-  function configurationApiUnavailable(message) {
+  function configurationApiUnavailable(message, legacy?: boolean) {
     var error: ConfigurationError = new Error(message || "configuration_api_unavailable");
     error.configurationApiUnavailable = true;
+    if (legacy) error.legacy = true;
     return error;
   }
 
@@ -52,7 +53,12 @@
   function getConfigurationSnapshot() {
     return fetch(CONFIGURATION_API_PATH)
       .then(function (response) {
-        if (!response.ok) throw configurationApiUnavailable("configuration_api_" + response.status);
+        if (!response.ok) {
+          if (response.status === 404 || response.status === 405) {
+            throw configurationApiUnavailable("configuration_api_" + response.status, true);
+          }
+          throw configurationApiUnavailable("configuration_api_" + response.status);
+        }
         return response.json();
       })
       .then(function (payload) {
@@ -74,7 +80,7 @@
       body: encoded
     }).then(function (response) {
       if (response.status === 404 || response.status === 405) {
-        throw configurationApiUnavailable("configuration_api_" + response.status);
+        throw configurationApiUnavailable("configuration_api_" + response.status, true);
       }
       return response.json().catch(function () { return null; }).then(function (payload) {
         if (!response.ok || !payload || payload.status !== "accepted") {
@@ -102,6 +108,7 @@
   }
 
   function applyConfigurationSnapshot(snapshot) {
+    settingSaves.receive("api_key_configured", snapshot.api_key_configured);
     Object.keys(snapshot.values).forEach(function (key) {
       settingSaves.receive(key, snapshot.values[key]);
     });

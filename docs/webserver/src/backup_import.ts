@@ -2,6 +2,7 @@
 
   function backupExportFieldValue(entry) {
     if (!entry || !Array.isArray(entry.state_keys) || !entry.state_keys.length) return "";
+    if (entry.field === "api_key") return "";
     if (entry.group === "screen" && entry.field === "schedule_wake_timeout") {
       return normalizeScheduleWakeTimeout(S.schedule_wake_timeout);
     }
@@ -154,7 +155,7 @@
     backupImportSaveTasks.push(
       Promise.resolve(result)
         .then(function (response) {
-          if (!response || response.ok === false) throw new Error("save_failed");
+          if (response && response.ok === false) throw new Error("save_failed");
           return true;
         })
         .catch(function () {
@@ -299,6 +300,7 @@
         return true;
       case "connection.api_key":
         var importApiKey = value == null ? "" : String(value).trim();
+        if (!importApiKey) return skipBackupImportField("API key is write-only");
         if (importApiKey.length > 255) return skipBackupImportField("API key exceeds 255 characters - not imported");
         trackBackupImportSave(saveSetting("api_key", importApiKey));
         return true;

@@ -42,7 +42,7 @@
       var f2 = field("API Key");
       var keyControl = makeApiKeyInputGroup({
         type: "password",
-        value: S.api_key,
+        value: "",
         placeholder: "Your Immich API key",
         toggleVisibility: true
       });

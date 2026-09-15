@@ -39,7 +39,7 @@ import {
     brightness: 100,
     backlight_on: true,
     immich_url: "",
-    api_key: "",
+    api_key_configured: false,
     firmware: "",
     installed_version: "",
     latest_version: "",
@@ -187,8 +187,8 @@ import {
   }
 
   function saveAndVerifyConnectionValue(path, value, useQueryFallback, isSaved) {
-    var key = path === endpoints.immich_url ? "immich_url" : "api_key";
-    return settingSaves.save({ [key]: value }, function () {
+    if (path === endpoints.api_key) return saveAndVerifyApiKey(value);
+    return settingSaves.save({ immich_url: value }, function () {
       return saveConnectionValue(path, value, useQueryFallback)
         .then(function () {
           return safeGet(path);
@@ -201,16 +201,37 @@ import {
     });
   }
 
+  function saveAndVerifyApiKey(value) {
+    var apiKey = String(value || "").trim();
+    if (!apiKey) return Promise.reject(new Error("missing_api_key"));
+    return settingSaves.save({ api_key_configured: true }, function () {
+      return updateConfiguration({ api_key: apiKey })
+        .then(function () { return delayMs(150); })
+        .then(function () { return getConfigurationSnapshot(); })
+        .then(function (snapshot) {
+          if (!snapshot.api_key_configured) throw new Error("verify_failed");
+        })
+        .catch(function (error) {
+          if (!error.legacy) throw error;
+          return saveConnectionValue(endpoints.api_key, apiKey, false)
+            .then(function () { return safeGet(endpoints.api_key); })
+            .then(function (resp) {
+              if (!connectionResponseValue(resp)) throw new Error("verify_failed");
+            });
+        });
+    });
+  }
+
   function saveAndVerifyConnection(url, key) {
     var normalizedUrl = normalizeImmichUrl(url);
     var apiKey = String(key || "").trim();
     if (!normalizedUrl || !apiKey) return Promise.reject(new Error("missing_connection"));
-    return settingSaves.save({ immich_url: normalizedUrl, api_key: apiKey }, function () {
+    return settingSaves.save({ immich_url: normalizedUrl, api_key_configured: true }, function () {
       return updateConfiguration({ immich_url: normalizedUrl, api_key: apiKey })
         .then(function () { return delayMs(150); })
         .then(function () { return getConfigurationSnapshot(); })
         .catch(function (error) {
-          if (!isConfigurationApiUnavailable(error)) throw error;
+          if (!error.legacy) throw error;
           return saveConnectionValue(endpoints.immich_url, normalizedUrl, true)
             .then(function () { return saveConnectionValue(endpoints.api_key, apiKey, false); })
             .then(function () {
@@ -219,15 +240,14 @@ import {
         })
         .then(function (result) {
           var savedUrl;
-          var savedKey;
           if (result && !Array.isArray(result)) {
             savedUrl = normalizeImmichUrl(result.values.immich_url);
-            savedKey = String(result.values.api_key || "");
+            if (!result.api_key_configured) throw new Error("verify_failed");
           } else {
             savedUrl = normalizeImmichUrl(connectionResponseValue(result[0]));
-            savedKey = connectionResponseValue(result[1]);
+            if (!connectionResponseValue(result[1])) throw new Error("verify_failed");
           }
-          if (savedUrl !== normalizedUrl || !savedKey) throw new Error("verify_failed");
+          if (savedUrl !== normalizedUrl) throw new Error("verify_failed");
           return { url: normalizedUrl, key: apiKey };
         });
     });
@@ -303,6 +323,7 @@ import {
 
   function saveGenericSetting(key, value) {
     if (!key || !endpoints[key]) return Promise.resolve(null);
+    if (key === "api_key") return saveAndVerifyApiKey(value);
     var domain = settingEntityDomain(key);
     var savedValue = value;
     if (domain === "switch") savedValue = !!value;

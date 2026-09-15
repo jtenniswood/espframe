@@ -46,7 +46,7 @@ def configuration_fields(product: dict[str, object] | None = None) -> list[dict[
             add(str(key).strip(), spec.get("entity"))
     for key, spec in project.get("web_manual_entities", {}).items():
         if isinstance(spec, dict):
-            add(str(key).strip(), spec.get("entity"), secret=str(key).strip() == "api_key")
+            add(str(key).strip(), spec.get("entity"), secret=bool(spec.get("secret", False)))
     return fields
 
 

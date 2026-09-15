@@ -190,11 +190,12 @@
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
   function parseConfigurationSnapshot(value) {
-    if (!isObject(value) || value.api_version !== 1 || !isObject(value.values) || !Array.isArray(value.unavailable)) {
+    if (!isObject(value) || value.api_version !== 1 || typeof value.api_key_configured !== "boolean" || !isObject(value.values) || !Array.isArray(value.unavailable)) {
       return null;
     }
     var values = {};
     for (var entry of Object.entries(value.values)) {
+      if (entry[0] === "api_key") return null;
       var fieldValue = entry[1];
       if (typeof fieldValue !== "string" && typeof fieldValue !== "number" && typeof fieldValue !== "boolean") {
         return null;
@@ -204,7 +205,7 @@
     if (!value.unavailable.every(function(key) {
       return typeof key === "string";
     })) return null;
-    return { api_version: 1, values, unavailable: value.unavailable };
+    return { api_version: 1, api_key_configured: value.api_key_configured, values, unavailable: value.unavailable };
   }
   function configurationUpdateBody(values) {
     var body = new URLSearchParams();
@@ -216,7 +217,7 @@
   var PRODUCT_SETTINGS = { "photo_source": { "entity": "select/Photos: Source", "domain": "select", "default": "All Photos", "options": ["All Photos", "Favorites", "Album", "Person", "Tag", "Memories", "Custom"] }, "memories_window": { "entity": "select/Photos: Memories Window", "domain": "select", "default": "Within 2 Days", "options": ["Same Day", "Within 1 Day", "Within 2 Days", "Within 3 Days", "Within 7 Days"] }, "memories_fallback": { "entity": "switch/Photos: Memories Fallback", "domain": "switch", "default": true, "options": [] }, "album_order": { "entity": "select/Photos: Album Order", "domain": "select", "default": "Random albums", "options": ["Random albums", "Album list order"] }, "tag_matching": { "entity": "select/Photos: Tag Matching", "domain": "select", "default": "Any selected tag", "options": ["Any selected tag", "All selected tags"] }, "date_filter_mode": { "entity": "select/Photos: Date Filter Mode", "domain": "select", "default": "Fixed Range", "options": ["Fixed Range", "Relative Range"] }, "relative_unit": { "entity": "select/Photos: Relative Unit", "domain": "select", "default": "Years", "options": ["Months", "Years"] }, "photo_orientation": { "entity": "select/Photos: Orientation", "domain": "select", "default": "Any", "options": ["Any", "Portrait Only", "Landscape Only"] }, "display_mode": { "entity": "select/Photos: Display Mode", "domain": "select", "default": "Fill", "options": ["Fill", "Fit"] }, "interval": { "entity": "select/Photos: Slideshow Interval", "domain": "select", "default": "15 seconds", "options": ["10 seconds", "15 seconds", "20 seconds", "30 seconds", "45 seconds", "1 minute", "2 minutes", "3 minutes", "5 minutes", "10 minutes", "15 minutes", "30 minutes", "1 hour", "2 hours", "4 hours", "8 hours", "16 hours", "24 hours"] }, "conn_timeout": { "entity": "select/Screen: Connection Timeout", "domain": "select", "default": "10 minutes", "options": ["30 seconds", "45 seconds", "1 minute", "2 minutes", "3 minutes", "5 minutes", "10 minutes", "15 minutes", "20 minutes", "30 minutes"] }, "screen_rotation": { "entity": "select/Screen: Rotation", "domain": "select", "default": "0", "options": ["0", "180"], "developerOptions": ["90", "270"] }, "photo_metadata_date_format": { "entity": "select/Device: Metadata Date Format", "domain": "select", "default": "Date Taken", "options": ["Relative Date", "Date Taken"] }, "photo_metadata_date_taken_format": { "entity": "select/Device: Metadata Date Taken Format", "domain": "select", "default": "1 January, 2026", "options": ["1 January, 2026", "January 1, 2026"] }, "clock_format": { "entity": "select/Clock: Format", "domain": "select", "default": "24 Hour", "options": ["24 Hour", "12 Hour"] }, "update_frequency": { "entity": "select/Firmware: Update Frequency", "domain": "select", "default": "Daily", "options": ["Hourly", "Daily", "Weekly", "Monthly"] }, "auto_update": { "entity": "switch/Firmware: Auto Update", "domain": "switch", "default": true, "options": [] }, "c6_auto_update": { "entity": "switch/WiFi Firmware: Auto Update", "domain": "switch", "default": true, "options": [] }, "date_filter_enabled": { "entity": "switch/Photos: Date Filter", "domain": "switch", "default": false, "options": [] }, "date_from": { "entity": "text/Photos: Date From", "domain": "text", "default": "", "options": [], "maxLength": 10 }, "date_to": { "entity": "text/Photos: Date To", "domain": "text", "default": "", "options": [], "maxLength": 10 }, "relative_amount": { "entity": "number/Photos: Relative Amount", "domain": "number", "default": 1, "options": [], "min": 1, "max": 120, "step": 1 }, "schedule_enabled": { "entity": "switch/Screen: Schedule Enabled", "domain": "switch", "default": false, "options": [] }, "schedule_on_hour": { "entity": "number/Screen: Schedule On Hour", "domain": "number", "default": 6, "options": [], "min": 0, "max": 23, "step": 1 }, "schedule_off_hour": { "entity": "number/Screen: Schedule Off Hour", "domain": "number", "default": 23, "options": [], "min": 0, "max": 23, "step": 1 }, "schedule_wake_timeout": { "entity": "number/Screen: Schedule Wake Timeout", "domain": "number", "default": 60, "options": [], "min": 10, "max": 3600, "step": 10 }, "brightness_day": { "entity": "number/Screen: Daytime Brightness", "domain": "number", "default": 100, "options": [], "min": 10, "max": 100, "step": 5 }, "brightness_night": { "entity": "number/Screen: Nighttime Brightness", "domain": "number", "default": 75, "options": [], "min": 10, "max": 100, "step": 5 }, "base_tone_enabled": { "entity": "switch/Screen: Tone Adjustment", "domain": "switch", "default": false, "options": [] }, "base_tone": { "entity": "number/Screen: Display Tone", "domain": "number", "default": 0, "options": [], "min": 0, "max": 100, "step": 5 }, "warm_tones_enabled": { "entity": "switch/Screen: Night Tone Adjustment", "domain": "switch", "default": false, "options": [] }, "warm_tone_intensity": { "entity": "number/Screen: Warm Tone Intensity", "domain": "number", "default": 50, "options": [], "min": 10, "max": 100, "step": 5 }, "warm_tone_override": { "entity": "switch/Screen: Warm Tone Override", "domain": "switch", "default": false, "options": [] }, "portrait_pairing": { "entity": "switch/Photos: Portrait Pairing", "domain": "switch", "default": true, "options": [] }, "portrait_pairing_range": { "entity": "select/Photos: Portrait Pairing Range", "domain": "select", "default": "Same Day", "options": ["Same Day", "Within 1 Day", "Within 2 Days"] }, "portrait_pairs_only": { "entity": "switch/Photos: Paired Portraits Only", "domain": "switch", "default": false, "options": [] }, "photo_metadata_date_enabled": { "entity": "switch/Device: Metadata Date", "domain": "switch", "default": true, "options": [] }, "photo_metadata_location_enabled": { "entity": "switch/Device: Metadata Location", "domain": "switch", "default": true, "options": [] }, "albums_enabled": { "entity": "switch/Photos: Albums Enabled", "domain": "switch", "default": false, "options": [] }, "people_enabled": { "entity": "switch/Photos: People Enabled", "domain": "switch", "default": false, "options": [] }, "tags_enabled": { "entity": "switch/Photos: Tags Enabled", "domain": "switch", "default": false, "options": [] }, "favorites_enabled": { "entity": "switch/Photos: Favorites Enabled", "domain": "switch", "default": false, "options": [] }, "rating_enabled": { "entity": "switch/Photos: Rating Enabled", "domain": "switch", "default": false, "options": [] }, "location_enabled": { "entity": "switch/Photos: Location Enabled", "domain": "switch", "default": false, "options": [] }, "inclusion_matching": { "entity": "select/Photos: Inclusion Groups", "domain": "select", "default": "Match all enabled groups", "options": ["Match all enabled groups", "Match any enabled group"] }, "album_matching": { "entity": "select/Photos: Album Matching", "domain": "select", "default": "Any selected album", "options": ["Any selected album", "All selected albums"] }, "person_matching": { "entity": "select/Photos: Person Matching", "domain": "select", "default": "Any selected person", "options": ["Any selected person", "All selected people"] }, "favorite_mode": { "entity": "select/Photos: Favorites", "domain": "select", "default": "Any", "options": ["Any", "Favorites only", "Exclude favorites"] }, "minimum_rating": { "entity": "select/Photos: Minimum Rating", "domain": "select", "default": "Any", "options": ["Any", "1+", "2+", "3+", "4+", "5+"] }, "filter_country": { "entity": "text/Photos: Country", "domain": "text", "default": "", "options": [], "maxLength": 96 }, "filter_state": { "entity": "text/Photos: State or Province", "domain": "text", "default": "", "options": [], "maxLength": 96 }, "filter_city": { "entity": "text/Photos: City", "domain": "text", "default": "", "options": [], "maxLength": 96 } };
   var STATIC_ENTITIES = { "firmware_device": { "entity": "text_sensor/Firmware: Device" }, "firmware": { "entity": "text_sensor/Firmware: Version" }, "timezone": { "entity": "select/Clock: Timezone", "optionsKey": "tz_options", "default": "Europe/London (GMT+0)" }, "ntp_server_1": { "entity": "text/Clock: NTP Server 1", "default": "0.pool.ntp.org" }, "ntp_server_2": { "entity": "text/Clock: NTP Server 2", "default": "1.pool.ntp.org" }, "ntp_server_3": { "entity": "text/Clock: NTP Server 3", "default": "2.pool.ntp.org" }, "album_ids": { "entity": "text/Photos: Album IDs" }, "album_labels": { "entity": "text/Photos: Album Labels" }, "person_ids": { "entity": "text/Photos: Person IDs" }, "person_labels": { "entity": "text/Photos: Person Labels" }, "tag_ids": { "entity": "text/Photos: Tag IDs" }, "tag_labels": { "entity": "text/Photos: Tag Labels" }, "excluded_album_ids": { "entity": "text/Photos: Excluded Album IDs" }, "excluded_album_labels": { "entity": "text/Photos: Excluded Album Labels" }, "excluded_person_ids": { "entity": "text/Photos: Excluded Person IDs" }, "excluded_person_labels": { "entity": "text/Photos: Excluded Person Labels" }, "excluded_tag_ids": { "entity": "text/Photos: Excluded Tag IDs" }, "excluded_tag_labels": { "entity": "text/Photos: Excluded Tag Labels" }, "immich_server_version": { "entity": "text_sensor/Immich: Server Version", "default": "Unknown" }, "immich_capability_status": { "entity": "text_sensor/Immich: Filter Capabilities", "default": "Immich 3.1 compatibility" }, "memories_migration_notice": { "entity": "switch/Photos: Memories Migration Notice", "boolFromState": true, "default": false }, "sunrise": { "entity": "text_sensor/Screen: Sunrise" }, "sunset": { "entity": "text_sensor/Screen: Sunset" }, "developer_features_enabled": { "entity": "switch/Developer: Features", "boolFromState": true }, "show_clock": { "entity": "switch/Clock: Show", "boolFromState": true, "default": true }, "c6_current_firmware": { "entity": "text_sensor/ESP32-C6: Current Firmware", "default": "Unknown" }, "c6_available_firmware": { "entity": "text_sensor/ESP32-C6: Available Firmware", "default": "Unknown" }, "c6_update_status": { "entity": "text_sensor/ESP32-C6: Update Available", "default": "Unknown" } };
   var MANUAL_ENTITIES = { "immich_url": { "entity": "text/Connection: Server URL" }, "api_key": { "entity": "text/Connection: API Key" }, "backlight": { "entity": "light/Screen: Backlight" }, "update": { "entity": "update/Firmware: Update" }, "apply_photo_source": { "entity": "button/Apply Photo Source" }, "firmware_check": { "entity": "button/Firmware: Check for Update" }, "firmware_prepare_upload": { "entity": "button/Firmware: Prepare Browser Update" }, "firmware_cancel_upload": { "entity": "button/Firmware: Cancel Browser Update" }, "c6_firmware_check": { "entity": "button/Firmware ESP32-C6: Check for Update" }, "c6_firmware_install": { "entity": "button/Firmware ESP32-C6: Install Update" }, "reboot_screen": { "entity": "button/Device: Reboot Screen" } };
-  var MANUAL_STATE_KEYS = ["immich_url", "api_key"];
+  var MANUAL_STATE_KEYS = ["immich_url"];
   var ENTITY_ALIASES = { "schedule_enabled": [{ "entity": "switch/Screen: Schedule", "boolFromState": true }], "schedule_on_hour": [{ "entity": "number/Screen: Schedule On", "default": 6, "number": true }], "schedule_off_hour": [{ "entity": "number/Screen: Schedule Off", "default": 23, "number": true }] };
   var BACKUP_CONFIG_VERSION = 3;
   var BACKUP_SCHEMA = [{ "group": "connection", "field": "immich_url", "state_keys": ["immich_url"] }, { "group": "connection", "field": "api_key", "state_keys": ["api_key"] }, { "group": "photos", "field": "source", "state_keys": ["photo_source"] }, { "group": "photos", "field": "memories_window", "state_keys": ["memories_window"] }, { "group": "photos", "field": "memories_fallback", "state_keys": ["memories_fallback"] }, { "group": "photos", "field": "albums_enabled", "state_keys": ["albums_enabled"] }, { "group": "photos", "field": "people_enabled", "state_keys": ["people_enabled"] }, { "group": "photos", "field": "tags_enabled", "state_keys": ["tags_enabled"] }, { "group": "photos", "field": "favorites_enabled", "state_keys": ["favorites_enabled"] }, { "group": "photos", "field": "rating_enabled", "state_keys": ["rating_enabled"] }, { "group": "photos", "field": "location_enabled", "state_keys": ["location_enabled"] }, { "group": "photos", "field": "inclusion_matching", "state_keys": ["inclusion_matching"] }, { "group": "photos", "field": "album_matching", "state_keys": ["album_matching"] }, { "group": "photos", "field": "person_matching", "state_keys": ["person_matching"] }, { "group": "photos", "field": "favorite_mode", "state_keys": ["favorite_mode"] }, { "group": "photos", "field": "minimum_rating", "state_keys": ["minimum_rating"] }, { "group": "photos", "field": "country", "state_keys": ["filter_country"] }, { "group": "photos", "field": "state", "state_keys": ["filter_state"] }, { "group": "photos", "field": "city", "state_keys": ["filter_city"] }, { "group": "photos", "field": "album_order", "state_keys": ["album_order"] }, { "group": "photos", "field": "album_ids", "state_keys": ["album_ids"] }, { "group": "photos", "field": "album_labels", "state_keys": ["album_labels"] }, { "group": "photos", "field": "person_ids", "state_keys": ["person_ids"] }, { "group": "photos", "field": "person_labels", "state_keys": ["person_labels"] }, { "group": "photos", "field": "tag_ids", "state_keys": ["tag_ids"] }, { "group": "photos", "field": "tag_labels", "state_keys": ["tag_labels"] }, { "group": "photos", "field": "tag_matching", "state_keys": ["tag_matching"] }, { "group": "photos", "field": "excluded_album_ids", "state_keys": ["excluded_album_ids"] }, { "group": "photos", "field": "excluded_album_labels", "state_keys": ["excluded_album_labels"] }, { "group": "photos", "field": "excluded_person_ids", "state_keys": ["excluded_person_ids"] }, { "group": "photos", "field": "excluded_person_labels", "state_keys": ["excluded_person_labels"] }, { "group": "photos", "field": "excluded_tag_ids", "state_keys": ["excluded_tag_ids"] }, { "group": "photos", "field": "excluded_tag_labels", "state_keys": ["excluded_tag_labels"] }, { "group": "photos", "field": "date_filter_enabled", "state_keys": ["date_filter_enabled"] }, { "group": "photos", "field": "date_filter_mode", "state_keys": ["date_filter_mode"] }, { "group": "photos", "field": "date_from", "state_keys": ["date_from"] }, { "group": "photos", "field": "date_to", "state_keys": ["date_to"] }, { "group": "photos", "field": "relative_amount", "state_keys": ["relative_amount"] }, { "group": "photos", "field": "relative_unit", "state_keys": ["relative_unit"] }, { "group": "photos", "field": "orientation", "state_keys": ["photo_orientation"] }, { "group": "photos", "field": "portrait_pairing", "state_keys": ["portrait_pairing"] }, { "group": "photos", "field": "portrait_pairing_range", "state_keys": ["portrait_pairing_range"] }, { "group": "photos", "field": "portrait_pairs_only", "state_keys": ["portrait_pairs_only"] }, { "group": "photos", "field": "display_mode", "state_keys": ["display_mode"] }, { "group": "frequency", "field": "interval", "state_keys": ["interval"] }, { "group": "frequency", "field": "conn_timeout", "state_keys": ["conn_timeout"] }, { "group": "firmware_updates", "field": "auto_update", "state_keys": ["auto_update"] }, { "group": "firmware_updates", "field": "update_frequency", "state_keys": ["update_frequency"] }, { "group": "firmware_updates", "field": "wifi_auto_update", "state_keys": ["c6_auto_update"] }, { "group": "clock", "field": "show", "state_keys": ["show_clock"] }, { "group": "clock", "field": "format", "state_keys": ["clock_format"] }, { "group": "clock", "field": "timezone", "state_keys": ["timezone"] }, { "group": "clock", "field": "ntp_servers", "state_keys": ["ntp_server_1", "ntp_server_2", "ntp_server_3"] }, { "group": "screen", "field": "brightness_day", "state_keys": ["brightness_day"] }, { "group": "screen", "field": "brightness_night", "state_keys": ["brightness_night"] }, { "group": "screen", "field": "schedule_enabled", "state_keys": ["schedule_enabled"] }, { "group": "screen", "field": "schedule_on_hour", "state_keys": ["schedule_on_hour"] }, { "group": "screen", "field": "schedule_off_hour", "state_keys": ["schedule_off_hour"] }, { "group": "screen", "field": "schedule_wake_timeout", "state_keys": ["schedule_wake_timeout"] }, { "group": "screen", "field": "base_tone_enabled", "state_keys": ["base_tone_enabled"] }, { "group": "screen", "field": "base_tone", "state_keys": ["base_tone"] }, { "group": "screen", "field": "warm_tones_enabled", "state_keys": ["warm_tones_enabled"] }, { "group": "screen", "field": "warm_tone_intensity", "state_keys": ["warm_tone_intensity"] }, { "group": "screen", "field": "warm_tone_override", "state_keys": ["warm_tone_override"] }, { "group": "screen", "field": "rotation", "state_keys": ["screen_rotation"] }];
@@ -235,7 +236,7 @@
     brightness: 100,
     backlight_on: true,
     immich_url: "",
-    api_key: "",
+    api_key_configured: false,
     firmware: "",
     installed_version: "",
     latest_version: "",
@@ -1850,9 +1851,10 @@ to {
   var endpoints = {};
   var CONFIGURATION_API_PATH = "/espframe/api/v1/configuration";
   var configurationUpdateQueue = Promise.resolve();
-  function configurationApiUnavailable(message) {
+  function configurationApiUnavailable(message, legacy) {
     var error = new Error(message || "configuration_api_unavailable");
     error.configurationApiUnavailable = true;
+    if (legacy) error.legacy = true;
     return error;
   }
   function isConfigurationApiUnavailable(error) {
@@ -1860,7 +1862,12 @@ to {
   }
   function getConfigurationSnapshot() {
     return fetch(CONFIGURATION_API_PATH).then(function(response) {
-      if (!response.ok) throw configurationApiUnavailable("configuration_api_" + response.status);
+      if (!response.ok) {
+        if (response.status === 404 || response.status === 405) {
+          throw configurationApiUnavailable("configuration_api_" + response.status, true);
+        }
+        throw configurationApiUnavailable("configuration_api_" + response.status);
+      }
       return response.json();
     }).then(function(payload) {
       var snapshot = parseConfigurationSnapshot(payload);
@@ -1879,7 +1886,7 @@ to {
       body: encoded
     }).then(function(response) {
       if (response.status === 404 || response.status === 405) {
-        throw configurationApiUnavailable("configuration_api_" + response.status);
+        throw configurationApiUnavailable("configuration_api_" + response.status, true);
       }
       return response.json().catch(function() {
         return null;
@@ -1911,6 +1918,7 @@ to {
     return request;
   }
   function applyConfigurationSnapshot(snapshot) {
+    settingSaves.receive("api_key_configured", snapshot.api_key_configured);
     Object.keys(snapshot.values).forEach(function(key) {
       settingSaves.receive(key, snapshot.values[key]);
     });
@@ -1997,8 +2005,8 @@ to {
     return resp && (resp.value || resp.state) || "";
   }
   function saveAndVerifyConnectionValue(path, value, useQueryFallback, isSaved) {
-    var key = path === endpoints.immich_url ? "immich_url" : "api_key";
-    return settingSaves.save({ [key]: value }, function() {
+    if (path === endpoints.api_key) return saveAndVerifyApiKey(value);
+    return settingSaves.save({ immich_url: value }, function() {
       return saveConnectionValue(path, value, useQueryFallback).then(function() {
         return safeGet(path);
       }).then(function(resp) {
@@ -2008,17 +2016,37 @@ to {
       });
     });
   }
+  function saveAndVerifyApiKey(value) {
+    var apiKey = String(value || "").trim();
+    if (!apiKey) return Promise.reject(new Error("missing_api_key"));
+    return settingSaves.save({ api_key_configured: true }, function() {
+      return updateConfiguration({ api_key: apiKey }).then(function() {
+        return delayMs(150);
+      }).then(function() {
+        return getConfigurationSnapshot();
+      }).then(function(snapshot) {
+        if (!snapshot.api_key_configured) throw new Error("verify_failed");
+      }).catch(function(error) {
+        if (!error.legacy) throw error;
+        return saveConnectionValue(endpoints.api_key, apiKey, false).then(function() {
+          return safeGet(endpoints.api_key);
+        }).then(function(resp) {
+          if (!connectionResponseValue(resp)) throw new Error("verify_failed");
+        });
+      });
+    });
+  }
   function saveAndVerifyConnection(url, key) {
     var normalizedUrl = normalizeImmichUrl(url);
     var apiKey = String(key || "").trim();
     if (!normalizedUrl || !apiKey) return Promise.reject(new Error("missing_connection"));
-    return settingSaves.save({ immich_url: normalizedUrl, api_key: apiKey }, function() {
+    return settingSaves.save({ immich_url: normalizedUrl, api_key_configured: true }, function() {
       return updateConfiguration({ immich_url: normalizedUrl, api_key: apiKey }).then(function() {
         return delayMs(150);
       }).then(function() {
         return getConfigurationSnapshot();
       }).catch(function(error) {
-        if (!isConfigurationApiUnavailable(error)) throw error;
+        if (!error.legacy) throw error;
         return saveConnectionValue(endpoints.immich_url, normalizedUrl, true).then(function() {
           return saveConnectionValue(endpoints.api_key, apiKey, false);
         }).then(function() {
@@ -2026,15 +2054,14 @@ to {
         });
       }).then(function(result) {
         var savedUrl;
-        var savedKey;
         if (result && !Array.isArray(result)) {
           savedUrl = normalizeImmichUrl(result.values.immich_url);
-          savedKey = String(result.values.api_key || "");
+          if (!result.api_key_configured) throw new Error("verify_failed");
         } else {
           savedUrl = normalizeImmichUrl(connectionResponseValue(result[0]));
-          savedKey = connectionResponseValue(result[1]);
+          if (!connectionResponseValue(result[1])) throw new Error("verify_failed");
         }
-        if (savedUrl !== normalizedUrl || !savedKey) throw new Error("verify_failed");
+        if (savedUrl !== normalizedUrl) throw new Error("verify_failed");
         return { url: normalizedUrl, key: apiKey };
       });
     });
@@ -2108,6 +2135,7 @@ to {
   }
   function saveGenericSetting(key, value) {
     if (!key || !endpoints[key]) return Promise.resolve(null);
+    if (key === "api_key") return saveAndVerifyApiKey(value);
     var domain = settingEntityDomain(key);
     var savedValue = value;
     if (domain === "switch") savedValue = !!value;
@@ -2400,7 +2428,7 @@ to {
     return getConfigurationSnapshot().then(function(snapshot) {
       applyConfigurationSnapshot(snapshot);
     }).catch(function(error) {
-      if (!isConfigurationApiUnavailable(error)) throw error;
+      if (!error.legacy) throw error;
       return fetchLegacyDeviceSettingsState();
     });
   }
@@ -2611,7 +2639,7 @@ to {
       var f2 = field("API Key");
       var keyControl = makeApiKeyInputGroup({
         type: "password",
-        value: S.api_key,
+        value: "",
         placeholder: "Your Immich API key",
         toggleVisibility: true
       });
@@ -2824,7 +2852,7 @@ to {
     };
     connBody.appendChild(urlField.field);
     var f2 = field("API Key");
-    var keyConfigured = S.api_key && S.api_key.length > 0;
+    var keyConfigured = S.api_key_configured;
     var keyWrap = el("div");
     function showKeyMasked() {
       keyWrap.replaceChildren();
@@ -5227,6 +5255,7 @@ to {
   }
   function backupExportFieldValue(entry) {
     if (!entry || !Array.isArray(entry.state_keys) || !entry.state_keys.length) return "";
+    if (entry.field === "api_key") return "";
     if (entry.group === "screen" && entry.field === "schedule_wake_timeout") {
       return normalizeScheduleWakeTimeout(S.schedule_wake_timeout);
     }
@@ -5364,7 +5393,7 @@ to {
     if (!backupImportSaveTasks) return;
     backupImportSaveTasks.push(
       Promise.resolve(result).then(function(response) {
-        if (!response || response.ok === false) throw new Error("save_failed");
+        if (response && response.ok === false) throw new Error("save_failed");
         return true;
       }).catch(function() {
         return false;
@@ -5489,6 +5518,7 @@ to {
         return true;
       case "connection.api_key":
         var importApiKey = value == null ? "" : String(value).trim();
+        if (!importApiKey) return skipBackupImportField("API key is write-only");
         if (importApiKey.length > 255) return skipBackupImportField("API key exceeds 255 characters - not imported");
         trackBackupImportSave(saveSetting("api_key", importApiKey));
         return true;

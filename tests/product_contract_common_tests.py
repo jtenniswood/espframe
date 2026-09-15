@@ -109,6 +109,34 @@ def test_configuration_api_reads_form_post_body() -> None:
     assert 'request->arg("configuration")' in source
 
 
+def test_configuration_api_redacts_secret_fields() -> None:
+    source = (ROOT / "components" / "espframe" / "configuration_api.h").read_text(encoding="utf-8")
+    generated = (ROOT / "components" / "espframe" / "configuration_contract_generated.h").read_text(encoding="utf-8")
+    product = load_product()
+    api_key_metadata = product["project"]["web_manual_entities"]["api_key"]
+
+    assert api_key_metadata["secret"] is True
+    assert 'root["api_key_configured"] = this->secret_configured_();' in source
+    assert "if (field.secret)" in source
+    assert source.index("if (field.secret)") < source.index('values[field.key] = entity->state;')
+    assert '{"api_key", "text", "Connection: API Key", true}' in generated
+    assert "api_key" not in product["project"]["web_manual_state_keys"]
+    assert "api_key" not in product["project"]["web_local_state_keys"]
+    assert "api_key_configured" in product["project"]["web_local_state_keys"]
+
+
+def test_secret_is_not_logged_or_hydrated_into_browser_state() -> None:
+    config_yaml = (ROOT / "common" / "addon" / "immich_config.yaml").read_text(encoding="utf-8")
+    runtime = (ROOT / "docs" / "webserver" / "src" / "runtime_state.ts").read_text(encoding="utf-8")
+    contracts = (ROOT / "docs" / "webserver" / "src" / "web_contracts.ts").read_text(encoding="utf-8")
+
+    assert 'logger.log:' in config_yaml
+    log_lines = [line for line in config_yaml.splitlines() if "ESP_LOG" in line or "format:" in line]
+    assert all("immich_api_key_text" not in line and "api_key" not in line.lower() for line in log_lines)
+    assert "S.api_key" not in runtime
+    assert 'if (entry[0] === "api_key") return null;' in contracts
+
+
 def main() -> int:
     run_discovered_tests(globals())
     print("product contract common tests passed")

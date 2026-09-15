@@ -1064,6 +1064,7 @@
     },
     "api_key": {
       "entity": "text/Connection: API Key",
+      "secret": true,
       "firmware_file": "common/addon/immich_config.yaml"
     },
     "backlight": {
@@ -1104,8 +1105,7 @@
     }
   },
   "web_manual_state_keys": [
-    "immich_url",
-    "api_key"
+    "immich_url"
   ],
   "web_entity_aliases": {
     "schedule_enabled": [
@@ -1261,7 +1261,7 @@
     }
   },
   "web_local_state_keys": [
-    "api_key",
+    "api_key_configured",
     "backlight_on",
     "brightness",
     "brightness_current",

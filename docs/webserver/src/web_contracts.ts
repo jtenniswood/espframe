@@ -3,6 +3,7 @@ type ConfigurationValues = Record<string, ConfigurationValue>;
 
 interface ConfigurationSnapshot {
   api_version: number;
+  api_key_configured: boolean;
   values: ConfigurationValues;
   unavailable: string[];
 }
@@ -33,6 +34,7 @@ interface RuntimeState {
   brightness: number;
   brightness_current: number;
   backlight_on: boolean;
+  api_key_configured: boolean;
   installed_version: string;
   latest_version: string;
   update_available: boolean;
@@ -69,11 +71,13 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 function parseConfigurationSnapshot(value: unknown): ConfigurationSnapshot | null {
-  if (!isObject(value) || value.api_version !== 1 || !isObject(value.values) || !Array.isArray(value.unavailable)) {
+  if (!isObject(value) || value.api_version !== 1 || typeof value.api_key_configured !== "boolean" ||
+      !isObject(value.values) || !Array.isArray(value.unavailable)) {
     return null;
   }
   var values: ConfigurationValues = {};
   for (var entry of Object.entries(value.values)) {
+    if (entry[0] === "api_key") return null;
     var fieldValue = entry[1];
     if (typeof fieldValue !== "string" && typeof fieldValue !== "number" && typeof fieldValue !== "boolean") {
       return null;
@@ -81,7 +85,7 @@ function parseConfigurationSnapshot(value: unknown): ConfigurationSnapshot | nul
     values[entry[0]] = fieldValue;
   }
   if (!value.unavailable.every(function (key): key is string { return typeof key === "string"; })) return null;
-  return { api_version: 1, values: values, unavailable: value.unavailable };
+  return { api_version: 1, api_key_configured: value.api_key_configured, values: values, unavailable: value.unavailable };
 }
 
 function configurationUpdateBody(values: ConfigurationValues): string {
@@ -92,6 +96,7 @@ function configurationUpdateBody(values: ConfigurationValues): string {
 
 interface ConfigurationError extends Error {
   configurationApiUnavailable?: boolean;
+  legacy?: boolean;
   configurationApiResponse?: boolean;
   field?: string;
 }

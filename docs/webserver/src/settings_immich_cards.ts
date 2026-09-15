@@ -134,7 +134,7 @@
     connBody.appendChild(urlField.field);
 
     var f2 = field("API Key");
-    var keyConfigured = S.api_key && S.api_key.length > 0;
+    var keyConfigured = S.api_key_configured;
     var keyWrap = el("div");
 
     function showKeyMasked() {

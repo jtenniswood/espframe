@@ -9,7 +9,7 @@ const { SettingSaveCoordinator } = context.module.exports;
 const runtimeSource = fs.readFileSync("docs/webserver/src/runtime_state.ts", "utf8");
 
 async function legacyConnectionRollback(status) {
-  const state = { immich_url: "", api_key: "" };
+  const state = { immich_url: "", api_key_configured: false };
   const saves = new SettingSaveCoordinator(key => state[key], (key, value) => { state[key] = value; });
   Object.entries(state).forEach(([key, value]) => saves.receive(key, value));
   let settingsShown;
@@ -27,9 +27,9 @@ async function legacyConnectionRollback(status) {
     fetchDeviceSettingsState: async () => {
       backgroundFetches++;
       state.immich_url = "https://existing.example.test";
-      state.api_key = "existing-key";
+      state.api_key_configured = true;
       saves.receive("immich_url", state.immich_url);
-      saves.receive("api_key", state.api_key);
+      saves.receive("api_key_configured", state.api_key_configured);
     },
   };
   vm.runInNewContext(transformSync(runtimeSource.slice(
@@ -39,10 +39,10 @@ async function legacyConnectionRollback(status) {
   runtime.tryRender();
   await ready;
   assert.equal(backgroundFetches, 1);
-  assert.deepEqual(state, { immich_url: "https://existing.example.test", api_key: "existing-key" });
-  await assert.rejects(saves.save({ immich_url: "https://edited.example.test", api_key: "edited-key" },
+  assert.deepEqual(state, { immich_url: "https://existing.example.test", api_key_configured: true });
+  await assert.rejects(saves.save({ immich_url: "https://edited.example.test", api_key_configured: true },
     async () => { throw new Error("connection save rejected"); }));
-  assert.deepEqual(state, { immich_url: "https://existing.example.test", api_key: "existing-key" },
+  assert.deepEqual(state, { immich_url: "https://existing.example.test", api_key_configured: true },
     "failed edits before legacy hydration must restore the device credentials");
 }
 

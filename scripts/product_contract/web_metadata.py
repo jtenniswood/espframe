@@ -246,6 +246,11 @@ def check_manual_web_entity_metadata(product: dict, errors: list[str]) -> None:
         if not isinstance(metadata, dict):
             errors.append(f"Manual web entity {key} metadata must be an object")
             continue
+        secret = metadata.get("secret", False)
+        if not isinstance(secret, bool):
+            errors.append(f"Manual web entity {key} secret must be true or false")
+        elif secret and (key in manual_state_keys or key in local_state_keys):
+            errors.append(f"Secret manual web entity {key} must not be included in browser state metadata")
         entity = metadata.get("entity")
         if not valid_entity_string(entity):
             errors.append(f"Manual web entity {key} has invalid entity {entity!r}")

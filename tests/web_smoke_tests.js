@@ -414,9 +414,19 @@ function browserScriptForScenario(scenario) {
     function configurationSnapshotValues() {
       const values = {};
       Object.entries(configurationEndpointNameByKey).forEach(([key, name]) => {
+        if (key === "api_key") return;
         if (Object.prototype.hasOwnProperty.call(endpointValues, name)) values[key] = endpointValues[name];
       });
       return values;
+    }
+
+    function configurationSnapshot() {
+      return {
+        api_version: 1,
+        api_key_configured: !!String(endpointValues["Connection: API Key"] || ""),
+        values: configurationSnapshotValues(),
+        unavailable: []
+      };
     }
 
     function endpointNameForUrl(decoded) {
@@ -519,13 +529,13 @@ function browserScriptForScenario(scenario) {
           if (${JSON.stringify(!!scenario.slowStartup)}) {
             return new Promise(resolve => setTimeout(() => resolve({
               ok: true, status: 200,
-              json: () => Promise.resolve({ api_version: 1, values: configurationSnapshotValues(), unavailable: [] })
+              json: () => Promise.resolve(configurationSnapshot())
             }), ${Number(scenario.startupDelayMs || 900)}));
           }
           return Promise.resolve({
             ok: true,
             status: 200,
-            json: () => Promise.resolve({ api_version: 1, values: configurationSnapshotValues(), unavailable: [] })
+            json: () => Promise.resolve(configurationSnapshot())
           });
         }
         if (window.__smoke.configurationUpdateInFlight) {

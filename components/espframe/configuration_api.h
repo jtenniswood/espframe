@@ -77,6 +77,7 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
     json::JsonBuilder builder;
     JsonObject root = builder.root();
     root["api_version"] = contract::API_VERSION;
+    root["api_key_configured"] = this->secret_configured_();
     JsonObject values = root["values"].to<JsonObject>();
     JsonArray unavailable = root["unavailable"].to<JsonArray>();
     for (const auto &field : contract::CONFIGURATION_FIELDS) {
@@ -94,6 +95,12 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
   }
 
   bool write_field_value_(JsonObject values, const contract::ConfigurationField &field) const {
+    // Secret fields remain writable through the versioned API but are never
+    // serialized into its response.
+    if (field.secret) {
+      if (std::strcmp(field.domain, "text") != 0) return false;
+      return find_entity_<text::Text>(App.get_texts(), field.entity_name) != nullptr;
+    }
     if (std::strcmp(field.domain, "select") == 0) {
       auto *entity = find_entity_<select::Select>(App.get_selects(), field.entity_name);
       if (entity == nullptr) return false;
@@ -117,6 +124,15 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
       if (entity == nullptr) return false;
       values[field.key] = entity->state;
       return true;
+    }
+    return false;
+  }
+
+  bool secret_configured_() const {
+    for (const auto &field : contract::CONFIGURATION_FIELDS) {
+      if (!field.secret || std::strcmp(field.domain, "text") != 0) continue;
+      auto *entity = find_entity_<text::Text>(App.get_texts(), field.entity_name);
+      if (entity != nullptr) return !entity->state.empty();
     }
     return false;
   }
