@@ -118,6 +118,9 @@ def test_configuration_api_redacts_secret_fields() -> None:
     assert api_key_metadata["secret"] is True
     assert 'root["api_key_configured"] = this->secret_configured_();' in source
     assert "if (field.secret)" in source
+    assert 'root["value"] = "";' in source
+    assert 'root["api_key_configured"] = configured;' in source
+    assert "request->method() != HTTP_GET" in source
     assert source.index("if (field.secret)") < source.index('values[field.key] = entity->state;')
     assert '{"api_key", "text", "Connection: API Key", true}' in generated
     assert "api_key" not in product["project"]["web_manual_state_keys"]
@@ -136,6 +139,9 @@ def test_secret_is_not_logged_or_hydrated_into_browser_state() -> None:
     assert "S.api_key" not in runtime
     assert 'if (key === "api_key") {' in contracts
     assert "if (apiKeyConfigured != null) return null;" in contracts
+    assert 'legacyKeys[i] === "api_key"' in runtime
+    assert 'settingSaves.receive("api_key_configured", configured);' in runtime
+    assert "applyEntityToState" in runtime
 
 
 def main() -> int:

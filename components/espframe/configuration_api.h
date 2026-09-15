@@ -31,6 +31,7 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
   explicit ConfigurationApiHandler(ConfigurationUpdateScheduler *scheduler) : scheduler_(scheduler) {}
 
   bool canHandle(AsyncWebServerRequest *request) const override {
+    if (this->is_secret_text_get_(request)) return true;
 #ifdef USE_ESP32
     char url_buffer[AsyncWebServerRequest::URL_BUF_SIZE];
     StringRef url = request->url_to(url_buffer);
@@ -43,6 +44,10 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
   }
 
   void handleRequest(AsyncWebServerRequest *request) override {
+    if (this->is_secret_text_get_(request)) {
+      this->send_secret_text_(request);
+      return;
+    }
 #ifdef USE_ESP32
     char url_buffer[AsyncWebServerRequest::URL_BUF_SIZE];
     StringRef url = request->url_to(url_buffer);
@@ -72,6 +77,34 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
     float number_value{0.0f};
     bool bool_value{false};
   };
+
+  bool is_secret_text_get_(AsyncWebServerRequest *request) const {
+    if (request->method() != HTTP_GET) return false;
+#ifdef USE_ESP32
+    char url_buffer[AsyncWebServerRequest::URL_BUF_SIZE];
+    StringRef url = request->url_to(url_buffer);
+#else
+    const auto &url = request->url();
+#endif
+    for (const auto &field : contract::CONFIGURATION_FIELDS) {
+      if (!field.secret || std::strcmp(field.domain, "text") != 0) continue;
+      std::string path = "/text/";
+      path += field.entity_name;
+      if (url == path.c_str()) return true;
+    }
+    return false;
+  }
+
+  void send_secret_text_(AsyncWebServerRequest *request) const {
+    json::JsonBuilder builder;
+    JsonObject root = builder.root();
+    const bool configured = this->secret_configured_();
+    root["value"] = "";
+    root["state"] = configured ? "********" : "";
+    root["api_key_configured"] = configured;
+    const auto payload = builder.serialize();
+    request->send(200, "application/json", payload.c_str());
+  }
 
   void send_configuration_(AsyncWebServerRequest *request) const {
     json::JsonBuilder builder;

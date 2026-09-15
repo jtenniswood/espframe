@@ -196,6 +196,13 @@
       for (var i = 0; i < res.length; i++) {
         var data = res[i];
         if (!data) continue;
+        if (legacyKeys[i] === "api_key") {
+          var configured = typeof data.api_key_configured === "boolean"
+            ? data.api_key_configured
+            : !!String(data.value || "");
+          settingSaves.receive("api_key_configured", configured);
+          continue;
+        }
         applyEntityToState({
           id: getEntityIdForStateKey(legacyKeys[i]),
           value: data.value,
