@@ -1277,6 +1277,7 @@
     "firmware_version_options",
     "firmware_versions_loaded",
     "firmware_versions_loading",
+    "firmware_metadata_loading",
     "c6_firmware_checking",
     "c6_firmware_installing",
     "tz_labels",
