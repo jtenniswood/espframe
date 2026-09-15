@@ -1208,6 +1208,14 @@ function smokeAssertionsForScenario(scenario) {
         toggleByText("Location").click();
         toggleByText("Date").click();
 
+        const initialMemoriesCard = cardByTitle("Memories");
+        if (!initialMemoriesCard.classList.contains("collapsed")) {
+          throw new Error("Memories should be closed by default");
+        }
+        const initialMemoriesBadge = initialMemoriesCard.querySelector(".card-header .on-badge");
+        if (!initialMemoriesBadge || getComputedStyle(initialMemoriesBadge).display === "none") {
+          throw new Error("Memories ON badge should be visible while the card is closed");
+        }
         const memoriesCard = expandCard("Memories");
         const memoriesToggle = toggleByText("Show Memories Only");
         requireText("Memories Window");
@@ -1292,6 +1300,12 @@ function smokeAssertionsForScenario(scenario) {
         if (getComputedStyle(memoriesWindowField).display !== "none" ||
             getComputedStyle(memoriesFallbackField).display !== "none") {
           throw new Error("Memories secondary options should hide after leaving Memories");
+        }
+        memoriesCard.querySelector(".card-header").click();
+        const inactiveMemoriesBadge = memoriesCard.querySelector(".card-header .on-badge");
+        if (!memoriesCard.classList.contains("collapsed") ||
+            !inactiveMemoriesBadge || getComputedStyle(inactiveMemoriesBadge).display !== "none") {
+          throw new Error("Memories ON badge should hide when Memories is disabled");
         }
         await waitFor(() => {
           try {

@@ -2714,6 +2714,7 @@ to {
     var body = el("div");
     var memoriesActive = S.photo_source === "Memories";
     var infoBanner = makeMemoriesInfoBanner();
+    var memoriesBadge = makeBadge(memoriesActive);
     var memoriesSecondaryFields = [];
     function setMemoriesSecondaryVisibility(visible) {
       infoBanner.style.display = visible ? "" : "none";
@@ -2736,6 +2737,7 @@ to {
         } else {
           S.photo_source = hasConfiguredPhotoFilters() ? "Custom" : "All Photos";
         }
+        setBadgeActive(memoriesBadge, value);
         setMemoriesSecondaryVisibility(value);
         syncMemoryFilterUi();
         saveSetting("photo_source", S.photo_source, { applyPhotoSource: true });
@@ -2790,7 +2792,7 @@ to {
     body.appendChild(memoriesFallbackRow.field);
     memoriesSecondaryFields.push(memoriesFallbackRow.field);
     setMemoriesSecondaryVisibility(memoriesActive);
-    return makeCollapsibleCard("Memories", body, true);
+    return makeCollapsibleCard("Memories", body, true, memoriesBadge);
   }
   function makeConnectionCard() {
     var connBody = el("div");

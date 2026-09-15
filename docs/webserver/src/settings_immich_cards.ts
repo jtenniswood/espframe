@@ -24,6 +24,7 @@
     var body = el("div");
     var memoriesActive = S.photo_source === "Memories";
     var infoBanner = makeMemoriesInfoBanner();
+    var memoriesBadge = makeBadge(memoriesActive);
     var memoriesSecondaryFields = [];
 
     function setMemoriesSecondaryVisibility(visible) {
@@ -43,6 +44,7 @@
         } else {
           S.photo_source = hasConfiguredPhotoFilters() ? "Custom" : "All Photos";
         }
+        setBadgeActive(memoriesBadge, value);
         setMemoriesSecondaryVisibility(value);
         syncMemoryFilterUi();
         saveSetting("photo_source", S.photo_source, { applyPhotoSource: true });
@@ -96,7 +98,7 @@
     memoriesSecondaryFields.push(memoriesFallbackRow.field);
     setMemoriesSecondaryVisibility(memoriesActive);
 
-    return makeCollapsibleCard("Memories", body, true);
+    return makeCollapsibleCard("Memories", body, true, memoriesBadge);
   }
 
   function makeConnectionCard() {
