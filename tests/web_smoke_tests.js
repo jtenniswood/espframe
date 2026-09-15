@@ -1459,8 +1459,8 @@ function smokeAssertionsForScenario(scenario) {
           if (${JSON.stringify(scenario.name)} === "settings" || ${JSON.stringify(scenario.name)} === "settings-mobile") {
             requireSettingsSections();
             const appStyle = getComputedStyle(document.getElementById("sp-app"));
-            if (appStyle.maxWidth !== "1080px" || getComputedStyle(document.body).fontFamily.includes("Inter")) {
-              throw new Error("Settings should use the wider layout and system fonts");
+            if (appStyle.display !== "block" || appStyle.maxWidth !== "1080px" || getComputedStyle(document.body).fontFamily.includes("Inter")) {
+              throw new Error("Settings should use the centered 1080px layout and system fonts");
             }
             const sections = Array.from(document.querySelectorAll("#sp-settings .settings-section"));
             const sectionGap = window.matchMedia("(max-width:480px)").matches ? "40px" : "48px";
