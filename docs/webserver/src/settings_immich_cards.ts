@@ -24,6 +24,14 @@
     var body = el("div");
     var memoriesActive = S.photo_source === "Memories";
     var infoBanner = makeMemoriesInfoBanner();
+    var memoriesSecondaryFields = [];
+
+    function setMemoriesSecondaryVisibility(visible) {
+      infoBanner.style.display = visible ? "" : "none";
+      memoriesSecondaryFields.forEach(function (secondaryField) {
+        secondaryField.style.display = visible ? "" : "none";
+      });
+    }
 
     var memoriesToggle = toggleSettingRow({
       label: "Show Memories Only", value: memoriesActive,
@@ -35,12 +43,11 @@
         } else {
           S.photo_source = hasConfiguredPhotoFilters() ? "Custom" : "All Photos";
         }
-        infoBanner.style.display = value ? "" : "none";
+        setMemoriesSecondaryVisibility(value);
         syncMemoryFilterUi();
         saveSetting("photo_source", S.photo_source, { applyPhotoSource: true });
       }
     });
-    infoBanner.style.display = memoriesActive ? "" : "none";
     body.appendChild(infoBanner);
     body.appendChild(memoriesToggle.field);
 
@@ -74,6 +81,7 @@
       }
     ));
     body.appendChild(memoriesWindowField);
+    memoriesSecondaryFields.push(memoriesWindowField);
 
     var memoriesFallbackRow = toggleSettingRow({
       label: "Fallback to All Photos", value: !!S.memories_fallback,
@@ -85,6 +93,8 @@
       }
     });
     body.appendChild(memoriesFallbackRow.field);
+    memoriesSecondaryFields.push(memoriesFallbackRow.field);
+    setMemoriesSecondaryVisibility(memoriesActive);
 
     return makeCollapsibleCard("Memories", body, true);
   }

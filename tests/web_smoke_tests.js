@@ -1218,6 +1218,12 @@ function smokeAssertionsForScenario(scenario) {
         if (!memoriesBanner || !memoriesToggleField || memoriesBanner.nextElementSibling !== memoriesToggleField) {
           throw new Error("Memories info banner should appear above the Memories toggle");
         }
+        const memoriesWindowField = fieldByLabel("Memories Window");
+        const memoriesFallbackField = toggleByText("Fallback to All Photos").closest(".field");
+        if (getComputedStyle(memoriesWindowField).display !== "none" ||
+            getComputedStyle(memoriesFallbackField).display !== "none") {
+          throw new Error("Memories secondary options should be hidden while disabled");
+        }
         const memoriesWindowOptions = Array.from(fieldByLabel("Memories Window").querySelectorAll("option"))
           .map((option) => option.textContent.trim());
         ["Same Day", "±1 Day", "±2 Days", "±3 Days", "±7 Days"].forEach((option) => {
@@ -1245,6 +1251,10 @@ function smokeAssertionsForScenario(scenario) {
         }
         if (getComputedStyle(activeMemoriesBanner).display === "none") {
           throw new Error("Memories warning banner is hidden while enabled");
+        }
+        if (getComputedStyle(memoriesWindowField).display === "none" ||
+            getComputedStyle(memoriesFallbackField).display === "none") {
+          throw new Error("Memories secondary options should be visible while enabled");
         }
         if (!activeFiltersCard.classList.contains("memory-filter-disabled")) {
           throw new Error("Filters should look disabled while Memories is active");
@@ -1275,6 +1285,10 @@ function smokeAssertionsForScenario(scenario) {
         if (cardByTitle("Filters").classList.contains("memory-filter-disabled") ||
             !inactiveMemoriesBanner || getComputedStyle(inactiveMemoriesBanner).display !== "none") {
           throw new Error("Filters should be restored after leaving Memories");
+        }
+        if (getComputedStyle(memoriesWindowField).display !== "none" ||
+            getComputedStyle(memoriesFallbackField).display !== "none") {
+          throw new Error("Memories secondary options should hide after leaving Memories");
         }
         await waitFor(() => {
           try {
