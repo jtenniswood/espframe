@@ -1716,7 +1716,7 @@ function smokeAssertionsForScenario(scenario) {
             await waitFor(() => window.__smoke.posts.includes("/update"), 8000, "main firmware install");
             const installPosts = window.__smoke.posts.filter((url) => url.indexOf("Firmware: Update/install") !== -1);
             const uploadPosts = window.__smoke.posts.filter((url) => url === "/update");
-            if (installPosts.length !== 0 || uploadPosts.length !== 1 || !window.__smoke.posts.includes("Firmware: Prepare Browser Update/press")) {
+            if (installPosts.length !== 0 || uploadPosts.length !== 1 || !window.__smoke.posts.some((url) => url.indexOf("Firmware: Prepare Browser Update/press") !== -1)) {
               throw new Error("Main firmware install did not use the advertised public asset: " + JSON.stringify(window.__smoke.posts));
             }
           }
