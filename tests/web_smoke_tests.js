@@ -427,6 +427,7 @@ function browserScriptForScenario(scenario) {
       const values = {};
       Object.entries(configurationEndpointNameByKey).forEach(([key, name]) => {
         if (key === "api_key") return;
+        if (key === "firmware_device" || key === "firmware") return;
         if (Object.prototype.hasOwnProperty.call(endpointValues, name)) values[key] = endpointValues[name];
       });
       return values;
