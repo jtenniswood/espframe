@@ -222,6 +222,7 @@ const scenarios = [
   { name: "firmware-rollback", configured: true, width: 1280, height: 900 },
   { name: "firmware-rollback-failure", configured: true, width: 1280, height: 900, firmwareUploadFails: true },
   { name: "firmware-index-unavailable", configured: true, width: 1280, height: 900, firmwareIndexUnavailable: true, firmwareDeviceInstallFails: true },
+  { name: "firmware-manifest-sse-update", configured: true, width: 1280, height: 900, firmwareStaleSseUpdate: true },
   { name: "firmware-newer-prerelease", configured: true, width: 1280, height: 900, installedFirmwareVersion: "v1.2.0-beta.1" },
   ...(product.devices[1]
     ? [{ name: "firmware-second-device-index", configured: true, width: 1280, height: 900, firmwareDeviceSlug: product.devices[1].slug }]
@@ -256,6 +257,7 @@ function browserScriptForScenario(scenario) {
       failedPostEndpoint: ${JSON.stringify(scenario.failedPostEndpoint || "")},
       firmwareIndexUnavailable: ${JSON.stringify(!!scenario.firmwareIndexUnavailable)},
       firmwareDeviceInstallFails: ${JSON.stringify(!!scenario.firmwareDeviceInstallFails)},
+      firmwareStaleSseUpdate: ${JSON.stringify(!!scenario.firmwareStaleSseUpdate)},
       firmwareUploadFails: ${JSON.stringify(!!scenario.firmwareUploadFails)}
     };
     window.addEventListener("error", function (event) {
@@ -315,6 +317,14 @@ function browserScriptForScenario(scenario) {
           this.dispatch("state", { id: "text_sensor/ESP32-C6: Current Firmware", value: "2.0.0" });
           this.dispatch("state", { id: "text_sensor/ESP32-C6: Available Firmware", value: "2.0.1" });
           this.dispatch("state", { id: "text_sensor/ESP32-C6: Update Available", value: "Update available" });
+          if (${JSON.stringify(!!scenario.firmwareStaleSseUpdate)}) {
+            setTimeout(() => this.dispatch("state", {
+              id: "update/Firmware: Update",
+              current_version: ${JSON.stringify(installedFirmwareVersion)},
+              latest_version: "",
+              state: ""
+            }), 100);
+          }
         }, 25);
       }
       addEventListener(type, listener) {
@@ -1737,6 +1747,16 @@ function smokeAssertionsForScenario(scenario) {
             }
             install.click();
             await waitFor(() => window.__smoke.posts.includes("/update"), 8000, "manifest OTA fallback upload");
+          }
+
+          if (${JSON.stringify(scenario.name)} === "firmware-manifest-sse-update") {
+            await requireFirmwarePanels();
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            const updates = expandDisclosure("Firmware updates");
+            if (updates.textContent.indexOf("v1.0.1") === -1 ||
+                updates.querySelector(".fw-actions button").textContent.trim() !== "Install Update") {
+              throw new Error("A stale firmware SSE event replaced the public manifest update");
+            }
           }
 
           if (${JSON.stringify(scenario.name)} === "firmware-newer-prerelease") {

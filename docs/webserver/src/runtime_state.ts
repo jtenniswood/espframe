@@ -118,12 +118,17 @@
       return;
     }
     if (id === "update/Firmware: Update") {
-      S.installed_version = d.current_version || "";
-      S.latest_version = d.latest_version || "";
-      S.update_available =
-        S.installed_version &&
-        S.latest_version &&
-        S.installed_version !== S.latest_version;
+      var currentVersion = String(d.current_version || "").trim();
+      var deviceLatestVersion = String(d.latest_version || "").trim();
+      var manifestLatestVersion = publicFirmwareLatestInfo &&
+        String(publicFirmwareLatestInfo.version || "").trim();
+      if (currentVersion) S.installed_version = currentVersion;
+      if (manifestLatestVersion) S.latest_version = manifestLatestVersion;
+      else if (deviceLatestVersion) S.latest_version = deviceLatestVersion;
+      var comparison = compareFirmwareVersions(S.latest_version, installedFirmwareVersion());
+      S.update_available = comparison === null
+        ? !!S.update_available || String(d.state || "").trim().toUpperCase() === "UPDATE AVAILABLE"
+        : comparison > 0;
       return;
     }
     var spec = ENTITY_STATE_MAP[id];
