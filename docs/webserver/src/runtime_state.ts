@@ -120,10 +120,10 @@
     if (id === "update/Firmware: Update") {
       var currentVersion = String(d.current_version || "").trim();
       var deviceLatestVersion = String(d.latest_version || "").trim();
-      var manifestLatestVersion = publicFirmwareLatestInfo &&
-        String(publicFirmwareLatestInfo.version || "").trim();
+      var publicLatestInfo = latestFirmwareInfo();
+      var publicLatestVersion = publicLatestInfo && String(publicLatestInfo.version || "").trim();
       if (currentVersion) S.installed_version = currentVersion;
-      if (manifestLatestVersion) S.latest_version = manifestLatestVersion;
+      if (publicLatestVersion) S.latest_version = publicLatestVersion;
       else if (deviceLatestVersion) S.latest_version = deviceLatestVersion;
       var comparison = compareFirmwareVersions(S.latest_version, installedFirmwareVersion());
       S.update_available = comparison === null

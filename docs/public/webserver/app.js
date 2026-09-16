@@ -2468,9 +2468,10 @@ to {
     if (id === "update/Firmware: Update") {
       var currentVersion = String(d.current_version || "").trim();
       var deviceLatestVersion = String(d.latest_version || "").trim();
-      var manifestLatestVersion = publicFirmwareLatestInfo && String(publicFirmwareLatestInfo.version || "").trim();
+      var publicLatestInfo = latestFirmwareInfo();
+      var publicLatestVersion = publicLatestInfo && String(publicLatestInfo.version || "").trim();
       if (currentVersion) S.installed_version = currentVersion;
-      if (manifestLatestVersion) S.latest_version = manifestLatestVersion;
+      if (publicLatestVersion) S.latest_version = publicLatestVersion;
       else if (deviceLatestVersion) S.latest_version = deviceLatestVersion;
       var comparison = compareFirmwareVersions(S.latest_version, installedFirmwareVersion());
       S.update_available = comparison === null ? !!S.update_available || String(d.state || "").trim().toUpperCase() === "UPDATE AVAILABLE" : comparison > 0;
@@ -4120,7 +4121,7 @@ to {
       var infos = firmwareInfosFromVersionsIndex(data);
       S.firmware_version_options = infos;
       S.firmware_versions_loaded = true;
-      if (infos.length && !isSpecificFirmwareVersion(S.latest_version)) {
+      if (infos.length && !publicFirmwareLatestInfo) {
         applyPublicFirmwareLatestVersion(infos[0].version);
       } else refreshFirmwareUi();
       return infos;
@@ -4164,7 +4165,9 @@ to {
   function applyFirmwareUpdateResponse(data) {
     if (!data) return false;
     if (data.current_version) S.installed_version = String(data.current_version);
-    if (data.latest_version || data.value) S.latest_version = String(data.latest_version || data.value);
+    var publicLatest = latestFirmwareInfo();
+    if (publicLatest) S.latest_version = publicLatest.version;
+    else if (data.latest_version || data.value) S.latest_version = String(data.latest_version || data.value);
     var comparison = compareFirmwareVersions(S.latest_version, installedFirmwareVersion());
     S.update_available = comparison === null ? isDevelopmentFirmwareVersion(installedFirmwareVersion()) && isSpecificFirmwareVersion(S.latest_version) || data.state === "UPDATE AVAILABLE" : comparison > 0;
     refreshFirmwareUi();
@@ -4248,13 +4251,14 @@ to {
   }
   function startFirmwareInstall() {
     if (!firmwareUpdateKnownAvailable()) return;
+    var info = latestFirmwareInfo();
+    if (info) return installPublicFirmware(info);
     S.firmware_install_error = "";
     S.firmware_installing = true;
     refreshFirmwareUi();
     post(endpoints.update + "/install").then(function() {
       S.firmware_restart_pending = true;
     }).catch(function() {
-      var info = latestFirmwareInfo();
       S.firmware_installing = false;
       if (info) return installPublicFirmware(info);
       failFirmwareInstall("Could not start the firmware update.");

@@ -222,6 +222,7 @@ const scenarios = [
   { name: "firmware-rollback", configured: true, width: 1280, height: 900 },
   { name: "firmware-rollback-failure", configured: true, width: 1280, height: 900, firmwareUploadFails: true },
   { name: "firmware-index-unavailable", configured: true, width: 1280, height: 900, firmwareIndexUnavailable: true, firmwareDeviceInstallFails: true },
+  { name: "firmware-index-replaces-stale-device", configured: true, width: 1280, height: 900, firmwareManifestUnavailable: true, firmwareIndexLatestVersion: "v1.0.2", firmwareDeviceLatestVersion: "v1.0.1", firmwareStaleDeviceMetadata: true },
   { name: "firmware-manifest-sse-update", configured: true, width: 1280, height: 900, firmwareStaleSseUpdate: true },
   { name: "firmware-newer-prerelease", configured: true, width: 1280, height: 900, installedFirmwareVersion: "v1.2.0-beta.1" },
   ...(product.devices[1]
@@ -256,8 +257,10 @@ function browserScriptForScenario(scenario) {
       importFixture: ${JSON.stringify(scenario.importFixture || null)},
       failedPostEndpoint: ${JSON.stringify(scenario.failedPostEndpoint || "")},
       firmwareIndexUnavailable: ${JSON.stringify(!!scenario.firmwareIndexUnavailable)},
+      firmwareManifestUnavailable: ${JSON.stringify(!!scenario.firmwareManifestUnavailable)},
       firmwareDeviceInstallFails: ${JSON.stringify(!!scenario.firmwareDeviceInstallFails)},
       firmwareStaleSseUpdate: ${JSON.stringify(!!scenario.firmwareStaleSseUpdate)},
+      firmwareStaleDeviceMetadata: ${JSON.stringify(!!scenario.firmwareStaleDeviceMetadata)},
       firmwareUploadFails: ${JSON.stringify(!!scenario.firmwareUploadFails)}
     };
     window.addEventListener("error", function (event) {
@@ -324,6 +327,14 @@ function browserScriptForScenario(scenario) {
               latest_version: "",
               state: ""
             }), 100);
+          }
+          if (${JSON.stringify(!!scenario.firmwareStaleDeviceMetadata)}) {
+            setTimeout(() => this.dispatch("state", {
+              id: "update/Firmware: Update",
+              current_version: ${JSON.stringify(installedFirmwareVersion)},
+              latest_version: ${JSON.stringify(scenario.firmwareDeviceLatestVersion || "v1.0.1")},
+              state: "UPDATE AVAILABLE"
+            }), 150);
           }
         }, 25);
       }
@@ -520,7 +531,8 @@ function browserScriptForScenario(scenario) {
             device: ${JSON.stringify(firmwareDeviceSlug)},
             versions: [
               { version: "not-a-version", ota: { path: "bad.ota.bin", md5: "bad" } },
-              { version: "v1.0.1", release_url: "https://github.com/jtenniswood/espframe/releases/tag/v1.0.1", ota: { path: ${JSON.stringify(firmwareDeviceSlug + ".ota.bin")}, md5: "11111111111111111111111111111111" } },
+              { version: ${JSON.stringify(scenario.firmwareIndexLatestVersion || "v1.0.1")}, release_url: "https://github.com/jtenniswood/espframe/releases/tag/v1.0.1", ota: { path: ${JSON.stringify(firmwareDeviceSlug + ".ota.bin")}, md5: "11111111111111111111111111111111" } },
+              { version: "v1.0.1", release_url: "https://github.com/jtenniswood/espframe/releases/tag/v1.0.1", ota: { path: "versions/v1.0.1/${firmwareDeviceSlug}.ota.bin", md5: "44444444444444444444444444444444" } },
               { version: "v1.0.0", release_url: "https://github.com/jtenniswood/espframe/releases/tag/v1.0.0", ota: { path: "versions/v1.0.0/${firmwareDeviceSlug}.ota.bin", md5: "22222222222222222222222222222222" } },
               { version: "v0.9.0", release_url: "https://github.com/jtenniswood/espframe/releases/tag/v0.9.0", ota: { path: "versions/v0.9.0/${firmwareDeviceSlug}.ota.bin", md5: "33333333333333333333333333333333" } }
             ]
@@ -528,11 +540,14 @@ function browserScriptForScenario(scenario) {
         });
       }
       if (decoded.indexOf("manifest.json") !== -1) {
+        if (window.__smoke.firmwareManifestUnavailable) {
+          return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+        }
         return Promise.resolve({
           ok: true,
           status: 200,
           json: () => Promise.resolve({
-            version: "v1.0.1",
+            version: ${JSON.stringify(scenario.firmwareManifestVersion || "v1.0.1")},
             builds: [{ ota: { path: ${JSON.stringify(firmwareDeviceSlug + ".ota.bin")}, md5: "11111111111111111111111111111111" } }]
           })
         });
@@ -622,7 +637,7 @@ function browserScriptForScenario(scenario) {
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: () => Promise.resolve({ value: "v1.0.1", state: "UPDATE AVAILABLE", current_version: ${JSON.stringify(installedFirmwareVersion)}, latest_version: "v1.0.1" })
+          json: () => Promise.resolve({ value: ${JSON.stringify(scenario.firmwareDeviceLatestVersion || "v1.0.1")}, state: "UPDATE AVAILABLE", current_version: ${JSON.stringify(installedFirmwareVersion)}, latest_version: ${JSON.stringify(scenario.firmwareDeviceLatestVersion || "v1.0.1")} })
         });
       }
       if (decoded === "/espframe/api/v1/capabilities") {
@@ -656,6 +671,10 @@ function browserScriptForScenario(scenario) {
 }
 
 function smokeAssertionsForScenario(scenario) {
+  const expectedLatestFirmwareVersion = scenario.firmwareManifestVersion || scenario.firmwareIndexLatestVersion || "v1.0.1";
+  const expectedPreviousFirmwareVersions = scenario.installedFirmwareVersion === "dev"
+    ? ["v1.0.1", "v1.0.0", "v0.9.0"]
+    : expectedLatestFirmwareVersion === "v1.0.2" ? ["v1.0.1", "v0.9.0"] : ["v0.9.0"];
   const expectedFirmwareVersionsPath = scenario.firmwareDeviceSlug
     ? String(product.devices.find((device) => device.slug === scenario.firmwareDeviceSlug).public_manifest)
         .replace(/[^/]+$/, "versions.json")
@@ -902,7 +921,7 @@ function smokeAssertionsForScenario(scenario) {
       }
       async function requireFirmwarePanels() {
         const card = expandCard("Firmware");
-        await waitFor(() => card.textContent.indexOf("v1.0.1") !== -1, 4000, "firmware version index");
+        await waitFor(() => card.textContent.indexOf(${JSON.stringify(expectedLatestFirmwareVersion)}) !== -1, 4000, "firmware version index");
         ["Firmware updates", "Auto updates", "WiFi firmware", "Previous firmware"].forEach((title) => {
           const button = disclosureByTitle(title).querySelector(".inline-disclosure-button");
           if (button.tagName !== "BUTTON" || button.getAttribute("aria-expanded") !== "false") {
@@ -914,7 +933,7 @@ function smokeAssertionsForScenario(scenario) {
         if (updates.textContent.indexOf("Current version") === -1 || updates.textContent.toLowerCase().indexOf(${JSON.stringify((scenario.installedFirmwareVersion || "v1.0.0").toLowerCase())}) === -1) {
           throw new Error("Current firmware version is missing");
         }
-        if (updates.textContent.indexOf("Available version") === -1 || updates.textContent.indexOf("v1.0.1") === -1) {
+        if (updates.textContent.indexOf("Available version") === -1 || updates.textContent.indexOf(${JSON.stringify(expectedLatestFirmwareVersion)}) === -1) {
           throw new Error("Available firmware version is missing");
         }
         if (!disclosureByTitle("Firmware updates").querySelector(".disclosure-badge.active")) {
@@ -930,7 +949,7 @@ function smokeAssertionsForScenario(scenario) {
         if (!wifi.querySelector(".disclosure-badge.active")) throw new Error("WiFi update badge is not active");
         const previous = expandDisclosure("Previous firmware");
         const versions = Array.from(previous.querySelectorAll("option")).map((option) => option.value);
-        if (JSON.stringify(versions) !== JSON.stringify(${JSON.stringify(scenario.installedFirmwareVersion === "dev" ? ["v1.0.1", "v1.0.0", "v0.9.0"] : ["v0.9.0"])})) {
+        if (JSON.stringify(versions) !== JSON.stringify(${JSON.stringify(expectedPreviousFirmwareVersions)})) {
           throw new Error("Rollback choices are wrong: " + JSON.stringify(versions));
         }
       }
@@ -1694,9 +1713,24 @@ function smokeAssertionsForScenario(scenario) {
             }
             install.click();
             install.click();
-            await waitFor(() => window.__smoke.posts.some((url) => url.indexOf("Firmware: Update/install") !== -1), 8000, "main firmware install");
+            await waitFor(() => window.__smoke.posts.includes("/update"), 8000, "main firmware install");
             const installPosts = window.__smoke.posts.filter((url) => url.indexOf("Firmware: Update/install") !== -1);
-            if (installPosts.length !== 1 || !install.disabled) throw new Error("Main firmware install was not protected against repeated actions");
+            if (installPosts.length !== 0 || !window.__smoke.posts.includes("Firmware: Prepare Browser Update/press") || !install.disabled) {
+              throw new Error("Main firmware install did not use the advertised public asset");
+            }
+          }
+
+          if (${JSON.stringify(scenario.name)} === "firmware-index-replaces-stale-device") {
+            await requireFirmwarePanels();
+            const updates = expandDisclosure("Firmware updates");
+            if (updates.textContent.indexOf("v1.0.2") === -1 || updates.querySelector(".fw-actions button").textContent.trim() !== "Install Update") {
+              throw new Error("The version index did not replace stale device metadata");
+            }
+            updates.querySelector(".fw-actions button").click();
+            await waitFor(() => window.__smoke.posts.includes("/update"), 8000, "indexed firmware install");
+            if (window.__smoke.posts.some((url) => url.indexOf("Firmware: Update/install") !== -1)) {
+              throw new Error("Indexed firmware install used stale device metadata");
+            }
           }
 
           if (${JSON.stringify(scenario.name)} === "firmware-c6-install") {
