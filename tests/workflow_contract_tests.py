@@ -843,7 +843,11 @@ jobs:
       - name: Set release metadata
         id: release-meta
         run: |
-          RELEASE_TAG=$(gh release view --json tagName -q .tagName)
+          RELEASE_TAG=$(gh release list --limit 30 \\
+            --exclude-drafts \\
+            --exclude-pre-releases \\
+            --json tagName \\
+            -q '[.[] | select(.tagName != "v1.15.1")] | .[0].tagName')
           echo "RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"
           echo "wrong_release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
 
@@ -1874,7 +1878,8 @@ def test_workflow_named_step_helpers_check_docs_release_metadata() -> None:
         "docs.download-firmware",
         "Set release metadata",
         [
-            "RELEASE_TAG=$(gh release view --json tagName -q .tagName)",
+            "RELEASE_TAG=$(gh release list --limit 30",
+            'select(.tagName != "v1.15.1")] | .[0].tagName',
             'echo "RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"',
             'echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"',
         ],

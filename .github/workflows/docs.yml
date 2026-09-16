@@ -86,7 +86,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          RELEASE_TAG=$(gh release view --json tagName -q .tagName)
+          RELEASE_TAG=$(gh release list --limit 30 \
+            --exclude-drafts \
+            --exclude-pre-releases \
+            --json tagName \
+            -q '[.[] | select(.tagName != "v1.15.1")] | .[0].tagName')
           echo "RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"
           echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
 
@@ -117,7 +121,7 @@ jobs:
             --exclude-drafts \
             --exclude-pre-releases \
             --json tagName \
-            -q '.[].tagName')
+            -q '[.[] | select(.tagName != "v1.15.1") | .tagName]')
 
           if [ -z "$STABLE_RELEASE_TAGS" ]; then
             echo "::error::No stable firmware releases found"
