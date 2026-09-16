@@ -44,6 +44,10 @@
     return String(S.firmware || S.installed_version || "").trim();
   }
 
+  function isDevelopmentFirmwareVersion(value) {
+    return String(value || "").trim().toLowerCase() === "dev";
+  }
+
   function firmwareDeviceSlug() {
     return String(S.firmware_device || "").trim();
   }
@@ -172,7 +176,8 @@
     var installed = installedFirmwareVersion();
     var latest = String(S.latest_version || "").trim();
     var comparison = compareFirmwareVersions(latest, installed);
-    return comparison === null ? !!S.update_available : comparison > 0;
+    if (comparison !== null) return comparison > 0;
+    return (isDevelopmentFirmwareVersion(installed) && isSpecificFirmwareVersion(latest)) || !!S.update_available;
   }
 
   function c6FirmwareUpdateKnownAvailable() {
@@ -322,7 +327,10 @@
     if (data.current_version) S.installed_version = String(data.current_version);
     if (data.latest_version || data.value) S.latest_version = String(data.latest_version || data.value);
     var comparison = compareFirmwareVersions(S.latest_version, installedFirmwareVersion());
-    S.update_available = comparison === null ? data.state === "UPDATE AVAILABLE" : comparison > 0;
+    S.update_available = comparison === null
+      ? (isDevelopmentFirmwareVersion(installedFirmwareVersion()) && isSpecificFirmwareVersion(S.latest_version)) ||
+        data.state === "UPDATE AVAILABLE"
+      : comparison > 0;
     refreshFirmwareUi();
     return S.update_available;
   }

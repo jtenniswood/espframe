@@ -917,7 +917,7 @@ function smokeAssertionsForScenario(scenario) {
         if (updates.textContent.indexOf("Available version") === -1 || updates.textContent.indexOf("v1.0.1") === -1) {
           throw new Error("Available firmware version is missing");
         }
-        if (!!disclosureByTitle("Firmware updates").querySelector(".disclosure-badge.active") !== ${JSON.stringify(scenario.installedFirmwareVersion !== "dev")}) {
+        if (!disclosureByTitle("Firmware updates").querySelector(".disclosure-badge.active")) {
           throw new Error("Main firmware update badge does not match the installed version");
         }
         if (!disclosureByTitle("Auto updates").querySelector(".disclosure-badge.active")) {
@@ -1690,9 +1690,7 @@ function smokeAssertionsForScenario(scenario) {
             await requireFirmwarePanels();
             const install = disclosureByTitle("Firmware updates").querySelector(".fw-actions button");
             if (${JSON.stringify(scenario.name)} === "firmware-main-install-from-development-build") {
-              if (install.textContent.trim() !== "Check for Update") throw new Error("Development build should require a device update check");
-              install.click();
-              await waitFor(() => install.textContent.trim() === "Install Update", 8000, "install action after development build update check");
+              if (install.textContent.trim() !== "Install Update") throw new Error("Development build should expose the public firmware install action");
             }
             install.click();
             install.click();
