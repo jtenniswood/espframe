@@ -121,7 +121,7 @@ jobs:
             --exclude-drafts \
             --exclude-pre-releases \
             --json tagName \
-            -q '[.[] | select(.tagName != "v1.15.1") | .tagName]')
+            -q '.[] | select(.tagName != "v1.15.1") | .tagName')
 
           if [ -z "$STABLE_RELEASE_TAGS" ]; then
             echo "::error::No stable firmware releases found"

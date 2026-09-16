@@ -2328,7 +2328,7 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             "--exclude-drafts",
             "--exclude-pre-releases",
             "select(.tagName != \"v1.15.1\")] | .[0].tagName",
-            "select(.tagName != \"v1.15.1\") | .tagName]",
+            "select(.tagName != \"v1.15.1\") | .tagName",
             "local release_tag=\"$1\"",
             "gh release download \"$release_tag\"",
             '[[ ! "$CANDIDATE_TAG" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$ ]]',
