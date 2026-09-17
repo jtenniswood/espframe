@@ -118,17 +118,12 @@
       return;
     }
     if (id === "update/Firmware: Update") {
-      var currentVersion = String(d.current_version || "").trim();
-      var deviceLatestVersion = String(d.latest_version || "").trim();
-      var publicLatestInfo = latestFirmwareInfo();
-      var publicLatestVersion = publicLatestInfo && String(publicLatestInfo.version || "").trim();
-      if (currentVersion) S.installed_version = currentVersion;
-      if (publicLatestVersion) S.latest_version = publicLatestVersion;
-      else if (deviceLatestVersion) S.latest_version = deviceLatestVersion;
-      var comparison = compareFirmwareVersions(S.latest_version, installedFirmwareVersion());
-      S.update_available = comparison === null
-        ? !!S.update_available || String(d.state || "").trim().toUpperCase() === "UPDATE AVAILABLE"
-        : comparison > 0;
+      S.installed_version = d.current_version || "";
+      S.latest_version = d.latest_version || "";
+      S.update_available =
+        S.installed_version &&
+        S.latest_version &&
+        S.installed_version !== S.latest_version;
       return;
     }
     var spec = ENTITY_STATE_MAP[id];
@@ -179,12 +174,9 @@
   function fetchDeviceSettingsState() {
     return getConfigurationSnapshot().then(function (snapshot) {
       applyConfigurationSnapshot(snapshot);
-      fetchPublicFirmwareMetadata().catch(function () {});
     }).catch(function (error) {
       if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
-      return fetchLegacyDeviceSettingsState().then(function () {
-        fetchPublicFirmwareMetadata().catch(function () {});
-      });
+      return fetchLegacyDeviceSettingsState();
     });
   }
 
