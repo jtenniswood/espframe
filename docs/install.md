@@ -17,12 +17,19 @@ Flash Espframe to a supported Guition ESP32-P4 display from your browser — no 
 
 ## Choose the Correct Panel Firmware
 
-The two screen revisions look almost identical, and the newer one may not say `V2`. Check the small four-digit number printed on the rear case:
+Use the rear-case four-digit marking to identify the **original panel**:
 
 - **`2627` or lower:** choose **Original panel**.
-- **`2628` or higher:** choose **New panel**.
+- **`2628` or higher:** your unit is a **new panel family** (V2 or V3).
 
-Both revisions have the same `JC8012P4A1` model name and 1280×800 layout, but they require different display startup settings. If the wrong firmware is installed, the picture may be distorted; return here and install the other profile.
+For new-panel units, the rear case alone cannot distinguish V2 from V3. Do **not** rely on visible rear-case text to pick between them.
+
+Use the ESP32-P4 chip revision from boot/ROM output instead:
+
+- **Production silicon revision >= 3.0** (for example, **v3.2 / eco7**): choose **New panel V3**.
+- **Engineering-sample silicon**: choose **New panel (legacy V2)**.
+
+If you flash the wrong new-panel profile, the display may be distorted; reflash using the other new-panel option.
 
 ## Connect the Display
 
@@ -36,7 +43,7 @@ If flashing fails, make sure you're using the **bottom** USB-C port as shown abo
 
 ## Web Installer
 
-Connect the display via USB-C, select the profile matching the rear-case number, then click install.
+Connect the display via USB-C, choose the profile using the panel/chip-revision rules above, then click install.
 
 <EspInstallButton />
 

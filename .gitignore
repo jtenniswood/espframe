@@ -6,6 +6,7 @@ docs/.vitepress/cache
 **/dev.yaml
 !devices/guition-esp32-p4-jc8012p4a1/dev.yaml
 !devices/guition-esp32-p4-jc8012p4a1-v2/dev.yaml
+!devices/guition-esp32-p4-jc8012p4a1-v3/dev.yaml
 **/secrets.yaml
 __pycache__/
 *.pyc

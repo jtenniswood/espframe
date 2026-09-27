@@ -26,6 +26,7 @@ def check_touch_controls_metadata(product: dict, errors: list[str]) -> None:
     slideshow_yaml = read(ROOT / "devices" / "guition-esp32-p4-jc8012p4a1" / "device" / "screen_slideshow.yaml", errors)
     original_device_yaml = read(ROOT / "devices" / "guition-esp32-p4-jc8012p4a1" / "device" / "device.yaml", errors)
     v2_device_yaml = read(ROOT / "devices" / "guition-esp32-p4-jc8012p4a1-v2" / "device" / "device.yaml", errors)
+    v3_device_yaml = read(ROOT / "devices" / "guition-esp32-p4-jc8012p4a1-v3" / "device" / "device.yaml", errors)
     backlight_schedule_yaml = read(ROOT / "common" / "addon" / "backlight_schedule.yaml", errors)
     backlight_yaml = read(ROOT / "common" / "addon" / "backlight.yaml", errors)
 
@@ -52,6 +53,7 @@ def check_touch_controls_metadata(product: dict, errors: list[str]) -> None:
     for path, device_yaml in (
         ("devices/guition-esp32-p4-jc8012p4a1/device/device.yaml", original_device_yaml),
         ("devices/guition-esp32-p4-jc8012p4a1-v2/device/device.yaml", v2_device_yaml),
+        ("devices/guition-esp32-p4-jc8012p4a1-v3/device/device.yaml", v3_device_yaml),
     ):
         for needle in ("horizontal_distance >= 120", "immich_advance_forward", "immich_show_previous"):
             require_contains(device_yaml, needle, path, errors)

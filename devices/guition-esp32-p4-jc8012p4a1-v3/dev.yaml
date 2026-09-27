@@ -1,0 +1,29 @@
+# =============================================================================
+# DEV CONFIG - Local development entry point (JC8012P4A1 new panel, 2628+)
+# =============================================================================
+# Flash with: esphome run dev.yaml
+# =============================================================================
+
+substitutions:
+  name: "immich-frame-10inch-v3-dev"
+  friendly_name: "Espframe 10inch New Panel V3 Dev"
+  espframe_component_url: "../.."
+  espframe_component_ref: "HEAD"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+packages:
+  espframe: !include packages.yaml
+
+# Development flashes must serve the web bundle from this checkout so UI
+# changes can be tested on the display before they are published to GitHub
+# Pages. Release build wrappers apply the same local-bundle override.
+web_server:
+  port: 80
+  version: 3
+  include_internal: true
+  js_url: ""
+  css_include: "../../docs/public/webserver/style.css"
+  js_include: "../../docs/public/webserver/app.js"

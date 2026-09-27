@@ -9,14 +9,17 @@ For advanced users: install via the ESPHome dashboard instead of the web install
 
 ## Create a configuration
 
-First choose the package matching the four-digit number printed on the rear case:
+First choose the package using rear-case marking plus ESP32-P4 chip revision:
 
-| Rear-case marking | Panel profile | Package file |
+| Rear-case marking and chip revision | Panel profile | Package file |
 |---|---|---|
 | `2627` or lower | Original panel | `devices/guition-esp32-p4-jc8012p4a1/packages.yaml` |
-| `2628` or higher | New panel | `devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml` |
+| `2628` or higher + **engineering-sample ESP32-P4 silicon** | New panel (legacy V2) | `devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml` |
+| `2628` or higher + **production ESP32-P4 revision >= 3.0** (for example `v3.2` / `eco7`) | New panel V3 | `devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml` |
 
-The newer panel may not say `V2`; use the rear-case number rather than the visible model name. New YAML in the ESPHome dashboard for the original panel:
+Rear-case marking alone cannot distinguish V2 from V3. Use the ESP32-P4 boot/ROM chip revision (shown in serial/boot logs during first flash) to select between the two new-panel packages.
+
+New YAML in the ESPHome dashboard for the original panel:
 
 ```yaml
 substitutions:
@@ -35,7 +38,7 @@ packages:
     refresh: 1s
 ```
 
-For the new panel, use the matching package instead:
+For legacy V2 engineering-sample units, use:
 
 ```yaml
 substitutions:
@@ -50,6 +53,25 @@ packages:
   espframe:
     url: https://github.com/jtenniswood/espframe
     files: [devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml]
+    ref: main
+    refresh: 1s
+```
+
+For production-revision (>= 3.0) new-panel units, use:
+
+```yaml
+substitutions:
+  name: "immich-frame"
+  friendly_name: "Espframe for Immich"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+packages:
+  espframe:
+    url: https://github.com/jtenniswood/espframe
+    files: [devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml]
     ref: main
     refresh: 1s
 ```

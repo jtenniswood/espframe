@@ -47,6 +47,11 @@
       "generator": "scripts/generate_assets.py"
     },
     {
+      "path": "devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml",
+      "sources": ["product/contract"],
+      "generator": "scripts/generate_assets.py"
+    },
+    {
       "path": "docs/public/webserver/app.js",
       "sources": ["docs/webserver/src", "product/contract"],
       "generator": "scripts/generate_assets.py"

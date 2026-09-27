@@ -27,7 +27,8 @@ const iconSource = fs.readFileSync(
 );
 const displayDeviceSources = [
   "devices/guition-esp32-p4-jc8012p4a1/device/device.yaml",
-  "devices/guition-esp32-p4-jc8012p4a1-v2/device/device.yaml"
+  "devices/guition-esp32-p4-jc8012p4a1-v2/device/device.yaml",
+  "devices/guition-esp32-p4-jc8012p4a1-v3/device/device.yaml"
 ].map((filename) => fs.readFileSync(path.join(root, filename), "utf8"));
 const product = JSON.parse(fs.readFileSync(path.join(root, "product/espframe.json"), "utf8"));
 const supportButtonImage = fs.readFileSync(

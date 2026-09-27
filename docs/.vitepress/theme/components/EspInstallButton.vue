@@ -47,6 +47,14 @@ const devices = [
     manifest: './firmware/jc8012p4a1-v2/manifest.json',
     requirePublishedManifest: true,
   },
+  {
+    id: 'jc8012p4a1-v3',
+    label: 'V3 production silicon',
+    model: 'ESP32-P4 rev 3.0+ production silicon',
+    buttonLabel: 'Espframe for V3 production silicon',
+    manifest: './firmware/jc8012p4a1-v3/manifest.json',
+    requirePublishedManifest: true,
+  },
 ]
 
 const selectedDeviceId = ref(devices[0].id)
