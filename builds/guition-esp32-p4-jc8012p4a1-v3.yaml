@@ -8,6 +8,10 @@
 substitutions:
   name: "immich-frame-10inch-v3"
   friendly_name: "Espframe 10inch New Panel V3"
+  # Build wrappers compile this checked-out repo directly so PR/CI builds do
+  # not depend on upstream main having the new component revision yet.
+  espframe_component_url: "file:///config"
+  espframe_component_ref: "HEAD"
 
 esphome:
   name_add_mac_suffix: true
@@ -15,8 +19,6 @@ esphome:
 packages:
   espframe: !include ../devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml
 
-# CI and PR artifacts must compile the checked-out branch's components rather
-# than the remote component reference used by end-user package installs.
 external_components:
   - source:
       type: local

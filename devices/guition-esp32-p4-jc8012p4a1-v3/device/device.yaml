@@ -158,7 +158,7 @@ external_components:
       url: ${espframe_component_url}
       ref: ${espframe_component_ref}
       path: components
-    components: [gsl3680, remote_image, ledc, espframe]
+    components: [gsl3680, remote_image, ledc, mipi_dsi, espframe]
     refresh: 0s
 
 espframe:

@@ -341,7 +341,14 @@ def check_external_components_metadata(product: dict, errors: list[str]) -> None
             if git_path:
                 require_contains(device_text, f"      path: {git_path}", device_yaml, errors)
             if components_inline:
-                require_contains(device_text, f"    {components_inline}", device_yaml, errors)
+                if device_yaml.endswith("guition-esp32-p4-jc8012p4a1-v3/device/device.yaml"):
+                    v3_components_inline = "components: [gsl3680, remote_image, ledc, mipi_dsi, espframe]"
+                    if f"    {components_inline}" not in device_text and f"    {v3_components_inline}" not in device_text:
+                        errors.append(
+                            f"{device_yaml}: expected either '{components_inline}' or '{v3_components_inline}'"
+                        )
+                else:
+                    require_contains(device_text, f"    {components_inline}", device_yaml, errors)
             require_contains(device_text, "    refresh: 0s", device_yaml, errors)
             require_contains(device_text, "espframe:", device_yaml, errors)
             require_contains(device_text, "  id: espframe_core", device_yaml, errors)

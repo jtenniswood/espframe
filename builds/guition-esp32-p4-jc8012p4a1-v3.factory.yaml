@@ -10,6 +10,10 @@ substitutions:
   name: "immich-frame-10inch-v3"
   friendly_name: "Espframe 10inch New Panel V3"
   firmware_version: "0.0.0"
+  # Build wrappers compile this checked-out repo directly so PR/CI builds do
+  # not depend on upstream main having the new component revision yet.
+  espframe_component_url: "file:///config"
+  espframe_component_ref: "HEAD"
 
 packages:
   espframe: !include ../devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml

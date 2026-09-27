@@ -73,6 +73,15 @@
       "local_changes": "Use the ESP-IDF RCC-protected low-level reset on ESP32-P4 instead of the deprecated, nonfunctional legacy peripheral reset API."
     },
     {
+      "path": "components/mipi_dsi",
+      "name": "ESPHome MIPI DSI display component",
+      "upstream": "https://github.com/esphome/esphome/tree/2026.8.2/esphome/components/mipi_dsi",
+      "revision": "2026.8.2",
+      "license": "MIT and GPL-3.0-or-later",
+      "license_file": "components/mipi_dsi/LICENSE",
+      "local_changes": "ESP32-P4 rev>=3 compatibility override: set esp_lcd_dsi_bus_config_t.phy_clk_src to the auto (zero) source via static_cast<mipi_dsi_phy_clock_source_t>(0)."
+    },
+    {
       "path": "components/gsl3680",
       "name": "GSL3680 ESPHome touchscreen component",
       "upstream": "https://github.com/kvj/esphome",
