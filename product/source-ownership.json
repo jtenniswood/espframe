@@ -106,13 +106,13 @@
       "revision": "Project-maintained derivative; original import revision is not preserved",
       "license": "MIT",
       "license_file": "components/remote_image/LICENSE",
-      "local_changes": "Renamed component with JPEG/WebP decoders, ESP-IDF local dependency registration, reliability fixes, buffer controls, direct RGB565 WebP decoding for matching opaque buffers, and Espframe display behavior."
+      "local_changes": "Renamed component with JPEG/WebP decoders, reliability fixes, buffer controls, direct RGB565 WebP decoding for matching opaque buffers, and Espframe display behavior."
     },
     {
       "path": "components/mipi_dsi",
       "name": "ESPHome MIPI DSI display component",
-      "upstream": "https://github.com/esphome/esphome/tree/2026.9.0/esphome/components/mipi_dsi",
-      "revision": "2026.9.0",
+      "upstream": "https://github.com/esphome/esphome/tree/2026.8.2/esphome/components/mipi_dsi",
+      "revision": "2026.8.2",
       "license": "GPL-3.0-or-later for C/C++ and MIT for Python",
       "license_file": "components/mipi_dsi/LICENSE",
       "local_changes": "Value-initialize the DSI PHY clock source so ESP-IDF selects the silicon-appropriate default for production ESP32-P4 v3.x and earlier revisions. Used only by the JC8012P4A1 V3 profile; remove when the fix is available upstream."

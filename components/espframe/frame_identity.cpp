@@ -9,7 +9,7 @@
 
 // Startup adapter follows espcontrol PR #1924. Application's backing StringRefs
 // are non-const in this version. Review this adapter when upgrading ESPHome.
-static_assert(ESPHOME_VERSION_CODE == VERSION_CODE(2026, 9, 0),
+static_assert(ESPHOME_VERSION_CODE == VERSION_CODE(2026, 8, 2),
               "Review frame identity startup adapter for this ESPHome version");
 
 namespace esphome::espframe {

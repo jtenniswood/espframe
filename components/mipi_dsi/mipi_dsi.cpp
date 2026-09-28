@@ -35,10 +35,7 @@ void MipiDsi::setup() {
       .bus_id = 0,  // index from 0, specify the DSI host to use
       .num_data_lanes =
           this->lanes_,  // Number of data lanes to use, can't set a value that exceeds the chip's capability
-      // Let ESP-IDF 5.5.5 select the silicon-appropriate default: XTAL on P4 v3,
-      // PLL_F20M on earlier revisions. The deprecated DEFAULT alias is always
-      // PLL_F20M and aborts in the production P4 clock-source selector.
-      .phy_clk_src = {},
+      .phy_clk_src = {},  // Let ESP-IDF choose the silicon-appropriate PHY source
       .lane_bit_rate_mbps = this->lane_bit_rate_,   // Bit rate of the data lanes, in Mbps
   };
   auto err = esp_lcd_new_dsi_bus(&bus_config, &this->bus_handle_);
@@ -240,9 +237,8 @@ void MipiDsi::write_to_display_(int x_start, int y_start, int w, int h, const ui
       xSemaphoreTake(this->io_lock_, portMAX_DELAY);
     }
   }
-  if (err != ESP_OK) {
+  if (err != ESP_OK)
     ESP_LOGE(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
-  }
 }
 
 bool MipiDsi::check_buffer_() {
