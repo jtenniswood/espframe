@@ -8,7 +8,7 @@
 ## Automated checks
 
 - [x] `npm run check:pr` passed
-- [ ] CI checks are expected to pass
+- [x] CI PR Validation run #469 passed
 
 ## Firmware compile checks
 
@@ -21,7 +21,7 @@
 - [ ] PR Validation artifact flashed to device
 - [ ] Needs device testing before merge
 
-PR Validation workflow run/artifact: Not run
+PR Validation workflow run/artifact: PR Validation #469 passed; no artifacts produced
 
 Firmware artifact (`firmware-test-<device>`): PR validation artifact not run
 
