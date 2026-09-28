@@ -9,12 +9,13 @@ For advanced users: install via the ESPHome dashboard instead of the web install
 
 ## Create a configuration
 
-First choose the package matching the four-digit number printed on the rear case:
+First check chip information. ESP32-P4 v3.x production silicon uses V3 regardless of the rear-case marking; otherwise choose by the four-digit number on the rear case:
 
 | Rear-case marking | Panel profile | Package file |
 |---|---|---|
 | `2627` or lower | Original panel | `devices/guition-esp32-p4-jc8012p4a1/packages.yaml` |
-| `2628` or higher | New panel | `devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml` |
+| `2628` or higher, unless chip information reports v3.x | V2 / New panel | `devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml` |
+| ESP32-P4 v3.x production silicon | V3 | `devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml` |
 
 The newer panel may not say `V2`; use the rear-case number rather than the visible model name. New YAML in the ESPHome dashboard for the original panel:
 
@@ -54,6 +55,25 @@ packages:
     refresh: 1s
 ```
 
+For ESP32-P4 v3.x production silicon, use the V3 package and distinct firmware device name:
+
+```yaml
+substitutions:
+  name: "immich-frame-10inch-v3"
+  friendly_name: "Espframe 10inch V3"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+packages:
+  espframe:
+    url: https://github.com/jtenniswood/espframe
+    files: [devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml]
+    ref: main
+    refresh: 1s
+```
+
 Add `secrets.yaml` with `wifi_ssid` and `wifi_password`, then:
 
 ```bash
@@ -75,7 +95,7 @@ api:
 Add a unique 32-byte base64 key as `api_encryption_key` in `secrets.yaml`; generate one with `openssl rand -base64 32`. Never reuse the Immich API key here. Changing this value later requires reconfiguring the ESPHome integration in Home Assistant.
 
 ::: info ESPHome version
-Current local builds use ESPHome `2026.8.2`. The shared configuration includes compatibility fixes for ESPHome 2026.3, 2026.4, and 2026.7 LVGL changes.
+Current local builds use ESPHome `2026.9.0`. The shared configuration includes compatibility fixes for ESPHome 2026.3, 2026.4, and 2026.7 LVGL changes.
 :::
 
 ## Substitutions

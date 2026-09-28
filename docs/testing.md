@@ -104,7 +104,7 @@ ESPHome host integration test:
 
 ```sh
 docker run --rm -v "${PWD}:/config" --entrypoint python \
-  ghcr.io/esphome/esphome:2026.8.2 /config/tests/automation_runtime_tests.py
+  ghcr.io/esphome/esphome:2026.9.0 /config/tests/automation_runtime_tests.py
 ```
 
 This loads the production rotation script and select callback, and the production
@@ -133,7 +133,7 @@ RAM, and binary budgets, and uploads a `firmware-test-<device>` artifact contain
 To run the same factory compile locally with Docker:
 
 ```sh
-docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.8.2 compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
+docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.9.0 compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
 ```
 
 Use a full compile before firmware releases, after changing ESPHome YAML, after changing C++ code that is not covered by the host-side helper tests, and whenever you want a branch firmware build to flash to a test display.

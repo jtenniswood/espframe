@@ -152,5 +152,29 @@ def main() -> int:
     return 0
 
 
+def test_v3_device_artifacts_and_ota_identity_are_isolated() -> None:
+    product = load_product()
+    device = next(device for device in product["devices"] if device["slug"] == "immich-frame-v3")
+    substitutions = device["package_substitutions"]
+
+    assert device["engineering_sample"] is False
+    assert device["public_manifest"] == "firmware/jc8012p4a1-v3/manifest.json"
+    assert device["public_beta_manifest"] == "firmware/jc8012p4a1-v3/beta/manifest.json"
+    assert substitutions["firmware_device_slug"] == "immich-frame-v3"
+    assert substitutions["firmware_manifest_url"].endswith("/firmware/jc8012p4a1-v3/manifest.json")
+    assert device["public_manifest"] != next(d["public_manifest"] for d in product["devices"] if d["slug"] == "immich-frame-v2")
+
+    package = (ROOT / device["package_yaml"]).read_text(encoding="utf-8")
+    ota_source = (ROOT / "common/addon/firmware_update.yaml").read_text(encoding="utf-8")
+    assert substitutions["firmware_device_slug"] in package
+    assert substitutions["firmware_manifest_url"] in package
+    assert "source: ${firmware_manifest_url}" in ota_source
+    assert """lambda: 'return {"${firmware_device_slug}"};'""" in ota_source
+
+    for build in (ROOT / device["build_yaml"], ROOT / device["build_yaml"].replace(".factory.yaml", ".yaml")):
+        text = build.read_text(encoding="utf-8")
+        assert "packages.yaml" in text and "jc8012p4a1-v3" in text
+        assert "components: [gsl3680, remote_image, ledc, espframe, mipi_dsi]" in text
+
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -1500,6 +1500,7 @@
     "common/addon/time.yaml",
     "devices/guition-esp32-p4-jc8012p4a1/packages.yaml",
     "devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml",
+    "devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml",
     "docs/public/webserver/app.js",
     "docs/public/webserver/style.css"
   ],
@@ -1507,6 +1508,7 @@
     "components/espframe/configuration_contract_generated.h": "// ESPFRAME: generated from product/contract; run `npm run generate` to update.",
     "devices/guition-esp32-p4-jc8012p4a1/packages.yaml": "# ESPFRAME: generated from product/contract; run `npm run generate` to update.",
     "devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml": "# ESPFRAME: generated from product/contract; run `npm run generate` to update.",
+    "devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml": "# ESPFRAME: generated from product/contract; run `npm run generate` to update.",
     "docs/public/webserver/app.js": "// ESPFRAME: generated from typed docs/webserver/src and product/contract; run `npm run generate` to update.",
     "docs/public/webserver/style.css": "/* ESPFRAME: generated from docs/webserver/src/style.css; run `npm run generate` to update. */"
   },
@@ -1803,5 +1805,5 @@
   "esphome_docker_image": "ghcr.io/esphome/esphome",
   "esphome_config_mount": "/config",
   "esphome_docker_remove_container": true,
-  "esphome_version": "2026.8.2"
+  "esphome_version": "2026.9.0"
 }

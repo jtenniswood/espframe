@@ -34,6 +34,7 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
         "common/addon/time.yaml",
         "devices/guition-esp32-p4-jc8012p4a1/packages.yaml",
         "devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml",
+        "devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml",
         "docs/public/webserver/app.js",
         "docs/public/webserver/style.css",
     }
@@ -326,6 +327,8 @@ def check_external_components_metadata(product: dict, errors: list[str]) -> None
         slug = str(device.get("slug", "")).strip()
         device_yaml = check_relative_path(device.get("device_yaml"), f"Device {slug} device_yaml", errors)
         build_yaml = check_relative_path(device.get("build_yaml"), f"Device {slug} build_yaml", errors)
+        device_components = component_names + (["mipi_dsi"] if slug == "immich-frame-v3" else [])
+        device_components_inline = f"components: [{', '.join(device_components)}]" if device_components else ""
         if device_yaml:
             device_text = read(ROOT / device_yaml, errors)
             require_contains(device_text, "external_components:", device_yaml, errors)
@@ -339,8 +342,8 @@ def check_external_components_metadata(product: dict, errors: list[str]) -> None
                 require_contains(device_text, "      ref: ${espframe_component_ref}", device_yaml, errors)
             if git_path:
                 require_contains(device_text, f"      path: {git_path}", device_yaml, errors)
-            if components_inline:
-                require_contains(device_text, f"    {components_inline}", device_yaml, errors)
+            if device_components_inline:
+                require_contains(device_text, f"    {device_components_inline}", device_yaml, errors)
             require_contains(device_text, "    refresh: 0s", device_yaml, errors)
             require_contains(device_text, "espframe:", device_yaml, errors)
             require_contains(device_text, "  id: espframe_core", device_yaml, errors)
@@ -362,8 +365,8 @@ def check_external_components_metadata(product: dict, errors: list[str]) -> None
                     require_contains(build_text, f"      type: {local_source_type}", checked_build_path, errors)
                 if local_path:
                     require_contains(build_text, f"      path: {local_path}", checked_build_path, errors)
-                if components_inline:
-                    require_contains(build_text, f"    {components_inline}", checked_build_path, errors)
+                if device_components_inline:
+                    require_contains(build_text, f"    {device_components_inline}", checked_build_path, errors)
 
     if local_path:
         normalized = local_path
