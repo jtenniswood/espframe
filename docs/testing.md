@@ -1,3 +1,8 @@
+---
+title: Testing Espframe Firmware and Web Interface
+description: Run Espframe's documented checks for firmware logic, browser modules, generated assets, and full ESPHome builds.
+---
+
 # Testing Espframe
 
 Espframe has several types of checks. They are split so day-to-day changes can be tested quickly, while release checks still cover the slower firmware and publishing safeguards.

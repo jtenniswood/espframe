@@ -79,7 +79,7 @@ def check_public_site_references(product: dict, errors: list[str]) -> None:
     support_button_image_url = str(product["project"].get("support_button_image_url", "")).strip()
     esphome_config_mount = str(product["project"].get("esphome_config_mount", "")).strip()
 
-    robots = read(ROOT / "docs" / "public" / "robots.txt", errors)
+    robots = read(ROOT / "docs" / ".vitepress" / "hosting" / "robots.txt", errors)
     ai_txt = read(ROOT / "docs" / "public" / "ai.txt", errors)
     readme = read(ROOT / "README.md", errors)
     index_docs = read(ROOT / "docs" / "index.md", errors)
@@ -91,7 +91,7 @@ def check_public_site_references(product: dict, errors: list[str]) -> None:
     usb_flashing_docs = read(ROOT / "docs" / "usb-flashing.md", errors)
     release_changelog = read(ROOT / "scripts" / "release_changelog.py", errors)
 
-    require_contains(robots, f"Sitemap: {public_url('sitemap.xml', product)}", "docs/public/robots.txt", errors)
+    require_contains(robots, f"Sitemap: {public_url('sitemap.xml', product)}", "docs/.vitepress/hosting/robots.txt", errors)
 
     if project_name:
         require_contains(ai_txt, f"name: {project_name}", "docs/public/ai.txt", errors)

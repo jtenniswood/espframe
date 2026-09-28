@@ -1,3 +1,8 @@
+---
+title: Espframe Repository Governance
+description: Learn how Espframe changes are reviewed, validated, and delivered through pull requests.
+---
+
 # Repository Governance
 
 Changes to `main` must go through pull requests. The protected branch rule for
