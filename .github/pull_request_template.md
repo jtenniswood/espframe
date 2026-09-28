@@ -3,7 +3,7 @@
 - Add a distinct ESP32-P4 v3.x production-silicon firmware profile for the Guition JC8012P4A1 10-inch display.
 - Reuse the V2 display, touch, WiFi, and layout configuration while setting production silicon and using the V3 MIPI DSI PHY default fix.
 - Give V3 its own build outputs, device identity, stable/beta manifest paths, and OTA manifest URL so updates stay on V3 artifacts.
-- Preserve the existing V1 and V2 profiles and update flows. Add manual V3 package setup and the ESPHome 2026.9.0 build pin.
+- Preserve the existing V1 and V2 profiles and update flows. Add manual V3 package setup and the ESPHome 2026.9.0 build pin. The frame-identity adapter guard and its test fixture now match that pin.
 
 ## Automated checks
 

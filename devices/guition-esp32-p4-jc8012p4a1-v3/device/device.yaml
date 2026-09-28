@@ -18,6 +18,7 @@ substitutions:
 esp32:
   variant: ESP32P4
   flash_size: 16MB
+  cpu_frequency: 360MHz
   engineering_sample: false
   framework:
     type: esp-idf

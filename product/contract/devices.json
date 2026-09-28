@@ -704,6 +704,7 @@
     "public_manifest": "firmware/jc8012p4a1-v3/manifest.json",
     "public_beta_manifest": "firmware/jc8012p4a1-v3/beta/manifest.json",
     "panel_revision": "production silicon (ESP32-P4 v3.x)",
-    "display_controller": "JD9365"
+    "display_controller": "JD9365",
+    "cpu_frequency": "360MHz"
   }
 ]
