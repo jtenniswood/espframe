@@ -18,7 +18,7 @@
 
 PR Validation workflow run/artifact: Not run
 
-Firmware artifact (`firmware-test-<device>`): Local compile pending
+Firmware artifact (`firmware-test-<device>`): V1 factory and V3 factory/OTA compiles passed; V2 compile pending. PR validation artifact not run
 
 Device tested: None
 
