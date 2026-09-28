@@ -1,14 +1,19 @@
 ## What changes when merged
 
-- Add a distinct ESP32-P4 v3.x production-silicon firmware profile for the Guition JC8012P4A1 10-inch display.
-- Reuse the V2 display, touch, WiFi, and layout configuration while setting production silicon and using the V3 MIPI DSI PHY default fix.
-- Give V3 its own build outputs, device identity, stable/beta manifest paths, and OTA manifest URL so updates stay on V3 artifacts.
-- Preserve the existing V1 and V2 profiles and update flows. Add manual V3 package setup while keeping the existing ESPHome 2026.8.2 pin.
+- Add a grouped 10-inch JC8012P4A1 revision picker with explicit V1, V2, and V3 choices and revision identification hints.
+- Require a revision selection before installation, use each profile's own firmware manifest, and probe unpublished V2/V3 manifests independently.
+- Add a model overview and V1, V2, and V3 setup guides; link them from the install and overview pages.
+- Explain that V3 is identified by ESP32-P4 v3.x chip information and that it retains the V1-style web installer, on-device OTA, and device-page upload routes.
 
 ## Automated checks
 
 - [x] `npm run check:pr` passed
 - [ ] CI checks are expected to pass
+
+## Firmware compile checks
+
+- V1 factory, V2 factory, V3 factory, and V3 OTA configurations compiled with ESPHome 2026.8.2.
+- Physical V3 USB installation and OTA update have not been tested; compile success does not confirm device behavior.
 
 ## Device testing
 
@@ -18,13 +23,13 @@
 
 PR Validation workflow run/artifact: Not run
 
-Firmware artifact (`firmware-test-<device>`): V1 factory and V3 factory/OTA compiles passed; V2 compile pending. PR validation artifact not run
+Firmware artifact (`firmware-test-<device>`): PR validation artifact not run
 
 Device tested: None
 
-Result/notes: No physical V3 USB installation or OTA update has been tested. Compile validation is tracked separately from device behavior.
+Result/notes: No physical V3 initial USB installation or OTA update has been tested. Compile validation is tracked separately from device behavior.
 
 ## Notes for reviewers
 
-- V3 stable and beta manifests will be published with a firmware release; docs/release workflows allow them to be absent before the first V3 release.
-- Follow-up PR groups V1/V2/V3 in the web installer and adds model/revision setup guides.
+- V2/V3 installer choices remain hidden until their release manifests are published.
+- The V3 setup guide documents chip-based identification and the inherited update routes; USB and OTA behavior still needs validation on production-silicon hardware.

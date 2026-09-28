@@ -84,6 +84,23 @@ def test_contract_manifest_preserves_upgrade_boundaries() -> None:
     assert manifest["compatibility"]["preserve_saved_preferences"] is True
 
 
+def test_10inch_installer_has_explicit_revision_profiles_and_isolated_manifest_probes() -> None:
+    installer = (ROOT / "docs/.vitepress/theme/components/EspInstallButton.vue").read_text(encoding="utf-8")
+
+    assert "const selectedDeviceId = ref('')" in installer
+    assert "id: 'immich-frame'" in installer and "./firmware/manifest.json" in installer
+    assert "id: 'immich-frame-v2'" in installer and "./firmware/jc8012p4a1-v2/manifest.json" in installer
+    assert "id: 'immich-frame-v3'" in installer and "./firmware/jc8012p4a1-v3/manifest.json" in installer
+    assert "Promise.all(devices.filter((device) => device.requirePublishedManifest).map(async (device) =>" in installer
+    assert "if (response.ok) available.add(device.id)" in installer
+    assert "selectedDevice.value?.manifest || ''" in installer
+    assert 'aria-label="Choose JC8012P4A1 revision"' in installer
+
+    for revision in ("v1", "v2", "v3"):
+        guide = ROOT / f"docs/screens/jc8012p4a1-{revision}.md"
+        assert guide.exists()
+
+
 def test_home_assistant_api_encryption_contract_is_keyless_for_every_device() -> None:
     product = load_product()
     errors: list[str] = []
