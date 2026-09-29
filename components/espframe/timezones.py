@@ -213,6 +213,72 @@ def _parse_posix_offset(posix: str, index: int) -> tuple[float, int]:
     return -posix_offset, index + match.end()
 
 
+def _parse_posix_offset_seconds(posix: str, index: int) -> tuple[int, int]:
+    match = re.match(r"([+-]?)(\d{1,2})(?::(\d{1,2}))?(?::(\d{1,2}))?", posix[index:])
+    if not match:
+        raise ValueError(f"Invalid POSIX timezone offset: {posix}")
+    seconds = (
+        int(match.group(2)) * 3600
+        + int(match.group(3) or "0") * 60
+        + int(match.group(4) or "0")
+    )
+    # ParsedTimezone uses the POSIX sign convention: positive means west of UTC.
+    if match.group(1) == "-":
+        seconds = -seconds
+    return seconds, index + match.end()
+
+
+def _parse_posix_dst_rule(rule: str) -> tuple[int, int, str, int, int, int]:
+    match = re.fullmatch(
+        r"M(\d+)\.(\d+)\.(\d+)(?:/([+-]?\d+(?::\d+(?::\d+)?)?))?"
+        r"|J(\d+)(?:/([+-]?\d+(?::\d+(?::\d+)?)?))?"
+        r"|(\d+)(?:/([+-]?\d+(?::\d+(?::\d+)?)?))?",
+        rule,
+    )
+    if not match:
+        raise ValueError(f"Invalid POSIX daylight-saving rule: {rule}")
+    if match.group(1) is not None:
+        return (
+            _parse_rule_time(match.group(4)),
+            0,
+            "MONTH_WEEK_DAY",
+            int(match.group(1)),
+            int(match.group(2)),
+            int(match.group(3)),
+        )
+    if match.group(5) is not None:
+        return _parse_rule_time(match.group(6)), int(match.group(5)), "JULIAN_NO_LEAP", 0, 0, 0
+    return _parse_rule_time(match.group(8)), int(match.group(7)), "DAY_OF_YEAR", 0, 0, 0
+
+
+def _parse_rule_time(value: str | None) -> int:
+    if value is None:
+        return 2 * 3600
+    sign = -1 if value.startswith("-") else 1
+    parts = value.lstrip("+-").split(":")
+    return sign * (int(parts[0]) * 3600 + int(parts[1] if len(parts) > 1 else 0) * 60 + int(parts[2] if len(parts) > 2 else 0))
+
+
+def parse_posix_timezone(posix: str) -> tuple[int, int, tuple, tuple]:
+    """Parse this project's POSIX timezone strings into ESPHome ParsedTimezone fields."""
+    index = _skip_posix_tz_name(posix, 0)
+    standard_offset, index = _parse_posix_offset_seconds(posix, index)
+    if index >= len(posix):
+        return standard_offset, 0, (0, 0, "NONE", 0, 0, 0), (0, 0, "NONE", 0, 0, 0)
+
+    index = _skip_posix_tz_name(posix, index)
+    if index < len(posix) and posix[index] != ",":
+        daylight_offset, index = _parse_posix_offset_seconds(posix, index)
+    else:
+        daylight_offset = standard_offset - 3600
+    if index >= len(posix) or posix[index] != ",":
+        raise ValueError(f"Missing POSIX daylight-saving rules: {posix}")
+    rules = posix[index + 1 :].split(",")
+    if len(rules) != 2:
+        raise ValueError(f"Invalid POSIX daylight-saving rules: {posix}")
+    return standard_offset, daylight_offset, _parse_posix_dst_rule(rules[0]), _parse_posix_dst_rule(rules[1])
+
+
 def posix_conventional_offsets(posix: str) -> list[float]:
     """Return the conventional UTC offsets represented by a POSIX TZ string."""
     index = _skip_posix_tz_name(posix, 0)
@@ -257,4 +323,19 @@ def generate_cpp_tz_data():
     lines = []
     for tz, _gmt, lat, lon, posix in TIMEZONES:
         lines.append(f'  {{"{tz}", {lat:>8.2f}f, {lon:>8.2f}f, "{posix}"}},')
+    return "\n".join(lines)
+
+
+def generate_cpp_parsed_tz_data():
+    """Generate ESPHome ParsedTimezone initializer values in TZ_DATA order."""
+    lines = []
+    for _tz, _gmt, _lat, _lon, posix in TIMEZONES:
+        std_offset, dst_offset, start, end = parse_posix_timezone(posix)
+        rule = lambda item: (
+            f"{{{item[0]}, {item[1]}, esphome::time::DSTRuleType::{item[2]}, "
+            f"{item[3]}, {item[4]}, {item[5]}}}"
+        )
+        lines.append(
+            f"  {{{std_offset}, {dst_offset}, {rule(start)}, {rule(end)}}},"
+        )
     return "\n".join(lines)
