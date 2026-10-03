@@ -27,3 +27,4 @@ Result/notes: OTA succeeded. The device returned to the network, responded to th
 ## Notes for reviewers
 
 - Follow-up needed: review device logs and visually confirm the display after providing the ESPHome API encryption key to the local log client.
+- Closes #233.
