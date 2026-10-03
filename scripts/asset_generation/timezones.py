@@ -38,6 +38,12 @@ def timezone_header() -> str:
             "",
             f"static constexpr int TZ_DATA_COUNT = {len(module.TIMEZONES)};",
             "",
+            "#ifdef USE_TIME_TIMEZONE",
+            "static constexpr esphome::time::ParsedTimezone TZ_PARSED_DATA[] = {",
+            module.generate_cpp_parsed_tz_data(),
+            "};",
+            "#endif",
+            "",
         ]
     )
 
@@ -56,4 +62,10 @@ def replace_timezone_yaml(text: str, options: list[str]) -> str:
     result, count = pattern.subn(lambda m: m.group("prefix") + rendered + m.group("suffix"), text, count=1)
     if count != 1:
         raise RuntimeError(f"Unable to locate timezone options block in {TIME_YAML_PATH}")
+    legacy_setter = "id(sntp_time).set_timezone(posix);"
+    parsed_setter = "esphome::espframe::set_sntp_timezone(tz_id, posix, id(sntp_time));"
+    if legacy_setter in result:
+        result = result.replace(legacy_setter, parsed_setter)
+    elif parsed_setter not in result:
+        raise RuntimeError(f"Unable to locate timezone setter in {TIME_YAML_PATH}")
     return result

@@ -119,6 +119,11 @@ class JPEGFormat(Format):
             if os.path.exists(dest_path):
                 shutil.rmtree(dest_path)
             shutil.copytree(src_path, dest_path)
+        from esphome.components.esp32 import add_idf_component
+
+        add_idf_component(
+            name="libjpeg-turbo-esp32", path="../components/libjpeg-turbo-esp32"
+        )
 
 
 class PNGFormat(Format):
@@ -151,6 +156,9 @@ class WebPFormat(Format):
             if os.path.exists(dest_path):
                 shutil.rmtree(dest_path)
             shutil.copytree(src_path, dest_path)
+        from esphome.components.esp32 import add_idf_component
+
+        add_idf_component(name="libwebp-esp32", path="../components/libwebp-esp32")
 
 
 class AutoFormat(Format):

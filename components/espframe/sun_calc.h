@@ -7,6 +7,7 @@
 #ifdef USE_TIME_TIMEZONE
 #include "esphome/components/time/posix_tz.h"
 #endif
+#include "esphome/core/version.h"
 
 // ============================================================================
 // Timezone data lookup table — generated from timezones.py via __init__.py
@@ -37,6 +38,29 @@ inline const char* lookup_tz_posix(const std::string &tz_id) {
   }
   return nullptr;
 }
+
+namespace esphome::espframe {
+template<typename Clock>
+inline bool set_sntp_timezone(const std::string &tz_id, const char *posix, Clock &clock) {
+  if (posix == nullptr) return false;
+#if ESPHOME_VERSION_CODE >= VERSION_CODE(2026, 9, 0)
+#ifdef USE_TIME_TIMEZONE
+  (void) clock;
+  for (int i = 0; i < TZ_DATA_COUNT; i++) {
+    if (tz_id == TZ_DATA[i].tz) {
+      esphome::time::set_global_tz(TZ_PARSED_DATA[i]);
+      return true;
+    }
+  }
+#endif
+  return false;
+#else
+  (void) tz_id;
+  clock->set_timezone(posix);
+  return true;
+#endif
+}
+}  // namespace esphome::espframe
 
 inline float active_tz_offset_hours(time_t epoch, float fallback_offset) {
 #ifdef USE_TIME_TIMEZONE

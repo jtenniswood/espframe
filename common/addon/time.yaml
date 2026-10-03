@@ -264,7 +264,7 @@ select:
             auto tz_id = x.substr(0, x.find(" ("));
             const char* posix = lookup_tz_posix(tz_id);
             if (posix) {
-              id(sntp_time).set_timezone(posix);
+              esphome::espframe::set_sntp_timezone(tz_id, posix, id(sntp_time));
             }
         - script.execute: update_clock_display
         - script.execute: backlight_recalc_sunrise_sunset

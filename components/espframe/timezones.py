@@ -258,3 +258,117 @@ def generate_cpp_tz_data():
     for tz, _gmt, lat, lon, posix in TIMEZONES:
         lines.append(f'  {{"{tz}", {lat:>8.2f}f, {lon:>8.2f}f, "{posix}"}},')
     return "\n".join(lines)
+
+
+def _tz_uint(value: str, pos: int) -> tuple[int, int]:
+    match = re.match(r"\d+", value[pos:])
+    if match is None:
+        raise ValueError(f"Expected a number in POSIX timezone: {value}")
+    return int(match.group()), pos + match.end()
+
+
+def _tz_offset(value: str, pos: int) -> tuple[int, int]:
+    sign = 1
+    if value[pos : pos + 1] == "-":
+        sign = -1
+        pos += 1
+    elif value[pos : pos + 1] == "+":
+        pos += 1
+    hours, pos = _tz_uint(value, pos)
+    minutes = seconds = 0
+    if value[pos : pos + 1] == ":":
+        minutes, pos = _tz_uint(value, pos + 1)
+        if value[pos : pos + 1] == ":":
+            seconds, pos = _tz_uint(value, pos + 1)
+    return sign * (hours * 3600 + minutes * 60 + seconds), pos
+
+
+def _tz_name_end(value: str, pos: int) -> int:
+    if value[pos : pos + 1] == "<":
+        end = value.find(">", pos + 1)
+        if end < 0:
+            raise ValueError(f"Unterminated POSIX timezone name: {value}")
+        return end + 1
+    match = re.match(r"[A-Za-z]{3,}", value[pos:])
+    if match is None:
+        raise ValueError(f"Invalid POSIX timezone name: {value}")
+    return pos + match.end()
+
+
+def _tz_rule(value: str, pos: int) -> tuple[dict[str, int | str], int]:
+    rule = {"time": 7200, "day": 0, "type": "NONE", "month": 0, "week": 0, "dow": 0}
+    if value[pos : pos + 1] in ("M", "m"):
+        rule["type"] = "MONTH_WEEK_DAY"
+        month, pos = _tz_uint(value, pos + 1)
+        if value[pos : pos + 1] != ".":
+            raise ValueError(f"Invalid month rule in POSIX timezone: {value}")
+        week, pos = _tz_uint(value, pos + 1)
+        if value[pos : pos + 1] != ".":
+            raise ValueError(f"Invalid week rule in POSIX timezone: {value}")
+        dow, pos = _tz_uint(value, pos + 1)
+        rule.update(month=month, week=week, dow=dow)
+    elif value[pos : pos + 1] in ("J", "j"):
+        rule["type"] = "JULIAN_NO_LEAP"
+        day, pos = _tz_uint(value, pos + 1)
+        rule["day"] = day
+    else:
+        rule["type"] = "DAY_OF_YEAR"
+        day, pos = _tz_uint(value, pos)
+        rule["day"] = day
+    if value[pos : pos + 1] == "/":
+        rule["time"], pos = _tz_offset(value, pos + 1)
+    return rule, pos
+
+
+def _parse_posix_timezone(value: str) -> tuple[int, int, dict, dict]:
+    """Parse the POSIX fields used to initialize ESPHome's ParsedTimezone."""
+    pos = _tz_name_end(value, 0)
+    standard_offset, pos = _tz_offset(value, pos)
+    no_rule = {"time": 0, "day": 0, "type": "NONE", "month": 0, "week": 0, "dow": 0}
+    if pos >= len(value):
+        return standard_offset, 0, no_rule, no_rule
+    pos = _tz_name_end(value, pos)
+    if value[pos : pos + 1] not in (",", "", "+", "-") and not value[pos : pos + 1].isdigit():
+        raise ValueError(f"Invalid DST offset in POSIX timezone: {value}")
+    if pos < len(value) and value[pos] != ",":
+        daylight_offset, pos = _tz_offset(value, pos)
+    else:
+        daylight_offset = standard_offset - 3600
+    if pos >= len(value):
+        return standard_offset, daylight_offset, no_rule, no_rule
+    if value[pos] != ",":
+        raise ValueError(f"Expected DST rules in POSIX timezone: {value}")
+    start, pos = _tz_rule(value, pos + 1)
+    if pos >= len(value) or value[pos] != ",":
+        raise ValueError(f"Expected end rule in POSIX timezone: {value}")
+    end, pos = _tz_rule(value, pos + 1)
+    if pos != len(value):
+        raise ValueError(f"Unexpected trailing POSIX timezone data: {value}")
+    return standard_offset, daylight_offset, start, end
+
+
+def _cpp_rule(rule: dict[str, int | str]) -> str:
+    return (
+        "{" + ", ".join(
+            str(rule[key]) if key != "type" else f"esphome::time::DSTRuleType::{rule[key]}"
+            for key in ("time", "day", "type", "month", "week", "dow")
+        ) + "}"
+    )
+
+
+def generate_cpp_parsed_tz_data():
+    """Generate parsed timezone records for ESPHome 2026.9 runtime changes."""
+    lines = []
+    for tz, _gmt, _lat, _lon, posix in TIMEZONES:
+        standard, daylight, start, end = _parse_posix_timezone(posix)
+        lines.append(
+            "  {" + ", ".join(
+                (
+                    str(standard),
+                    str(daylight),
+                    _cpp_rule(start),
+                    _cpp_rule(end),
+                )
+            ) + "},"
+        )
+    return "\n".join(lines)
