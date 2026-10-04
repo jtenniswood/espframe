@@ -74,7 +74,9 @@ HorizontalAlignment = remote_image_ns.enum("HorizontalAlignment")
 
 
 def _register_decoder_idf_component(name: str, path: str) -> None:
-    """Declare bundled libraries as managed components on newer ESPHome."""
+    """Declare bundled libraries as managed components on ESP32 targets."""
+    if not CORE.is_esp32:
+        return
     try:
         from esphome.components.esp32 import add_idf_component
     except ImportError:
