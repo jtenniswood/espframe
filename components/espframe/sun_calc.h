@@ -38,6 +38,17 @@ inline const char* lookup_tz_posix(const std::string &tz_id) {
   return nullptr;
 }
 
+#ifdef USE_TIME_TIMEZONE
+inline const esphome::time::ParsedTimezone* lookup_tz_timezone(const std::string &tz_id) {
+  for (int i = 0; i < TZ_DATA_COUNT; i++) {
+    if (tz_id == TZ_DATA[i].tz) {
+      return &TZ_TIMEZONE_DATA[i];
+    }
+  }
+  return nullptr;
+}
+#endif
+
 inline float active_tz_offset_hours(time_t epoch, float fallback_offset) {
 #ifdef USE_TIME_TIMEZONE
   const auto &tz = esphome::time::get_global_tz();

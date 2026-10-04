@@ -1,3 +1,8 @@
+---
+title: Testing Espframe Firmware and Web Interface
+description: Run Espframe's documented checks for firmware logic, browser modules, generated assets, and full ESPHome builds.
+---
+
 # Testing Espframe
 
 Espframe has several types of checks. They are split so day-to-day changes can be tested quickly, while release checks still cover the slower firmware and publishing safeguards.
@@ -104,7 +109,7 @@ ESPHome host integration test:
 
 ```sh
 docker run --rm -v "${PWD}:/config" --entrypoint python \
-  ghcr.io/esphome/esphome:2026.8.2 /config/tests/automation_runtime_tests.py
+  ghcr.io/esphome/esphome:2026.9.1 /config/tests/automation_runtime_tests.py
 ```
 
 This loads the production rotation script and select callback, and the production
@@ -133,7 +138,7 @@ RAM, and binary budgets, and uploads a `firmware-test-<device>` artifact contain
 To run the same factory compile locally with Docker:
 
 ```sh
-docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.8.2 compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
+docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.9.1 compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
 ```
 
 Use a full compile before firmware releases, after changing ESPHome YAML, after changing C++ code that is not covered by the host-side helper tests, and whenever you want a branch firmware build to flash to a test display.
@@ -196,7 +201,7 @@ Browser scenarios prefixed `frame-name` cover saving, retry, byte limits, named
 exports and optional restore with the destination MAC suffix.
 
 The startup adapter in `components/espframe/frame_identity.cpp` is pinned to
-ESPHome 2026.8.2. Review it when upgrading: it rebinds Application's non-const
+ESPHome 2026.9.1. Review it when upgrading: it rebinds Application's non-const
 StringRef members after entity registration and before network component setup.
 It must not change registered entity names, hashes, or preference keys. Names use
 an independent namespace in the existing 448 KiB NVS partition; no partition-table
@@ -230,7 +235,7 @@ priority 400. This prevents its internal-first draw-buffer attempt from consumin
 tasks, and allocations outside this setup window are preserved. Allocation
 failure is returned to LVGL's existing setup failure handling; there is no
 internal-RAM fallback. Review the setup ordering and allocator call when upgrading
-ESPHome 2026.8.2. Do not add unrelated components in this priority window.
+ESPHome 2026.9.1. Do not add unrelated components in this priority window.
 The allocation policy and probes are enabled only when both LVGL and PSRAM are
 configured. Helper configurations without PSRAM retain LVGL's existing allocator.
 With the policy enabled, configurations overriding `lvgl.setup_priority` to anything other than 400 are
@@ -274,7 +279,7 @@ artifacts, not release candidates subject to the production static-size budget.
 - `draw-buffer`: the active buffer obtained through LVGL's public API. Match
   its address to the allocation trace to determine its requested capabilities.
 
-For ESPHome 2026.8.2 the configured `buffer_size: 6%` becomes a one-eighth buffer:
+For ESPHome 2026.9.1 the configured `buffer_size: 6%` becomes a one-eighth buffer:
 256,000 bytes at 1280×800 RGB565. The same-sized allocation following the draw
 buffer is the expected rotation workspace in this version. The trace deliberately
 labels it as an allocation rather than accessing ESPHome's private rotation

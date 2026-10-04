@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitepress'
+import { addDiscoveryMetadata, includeInSitemap } from './discovery'
 
 const hostname = 'https://jtenniswood.github.io/espframe/'
 
@@ -13,7 +14,7 @@ export default defineConfig({
   sitemap: {
     hostname,
     transformItems(items) {
-      return items.filter((item) => !item.url.replace(/\/$/, '').endsWith('404'))
+      return items.filter((item) => includeInSitemap(item.url))
     },
   },
 
@@ -59,6 +60,8 @@ export default defineConfig({
   ],
 
   transformPageData(pageData) {
+    addDiscoveryMetadata(pageData)
+
     const canonicalUrl = `${hostname}${pageData.relativePath}`
       .replace(/index\.md$/, '')
       .replace(/\.md$/, '')
@@ -134,6 +137,7 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: 'Install', link: '/install' },
+      { text: 'FAQ', link: '/faq' },
       { text: 'Docs', link: '/' },
       { text: 'GitHub', link: 'https://github.com/jtenniswood/espframe' },
     ],
@@ -143,6 +147,7 @@ export default defineConfig({
         text: 'Guide',
         items: [
           { text: 'Overview', link: '/' },
+          { text: 'FAQ', link: '/faq' },
           { text: 'Immich Photo Frame', link: '/immich-photo-frame' },
           { text: 'Install', link: '/install' },
           { text: '10-inch Screen Revisions', link: '/screens/jc8012p4a1' },
