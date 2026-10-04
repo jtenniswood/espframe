@@ -1,3 +1,8 @@
+---
+title: Espframe Engineering Cleanup Backlog
+description: Track completed and planned engineering maintenance work in the Espframe repository.
+---
+
 # Tech Debt Cleanup Backlog
 
 Review date: 2026-07-07

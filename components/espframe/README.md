@@ -94,7 +94,7 @@ request state.
 |-------|------|--------|
 | `tz` | `const char*` | IANA timezone identifier. |
 | `lat`, `lon` | `float` | Representative latitude/longitude (degrees). |
-| `posix` | `const char*` | POSIX TZ string for ESPHome's `set_timezone()`. |
+| `posix` | `const char*` | POSIX TZ string retained for timezone reference and diagnostics. |
 
 ---
 
@@ -275,14 +275,17 @@ if (lookup_tz_coords(id(timezone_select).current_option(), lat, lon)) {
 
 Returns the POSIX TZ string for an IANA timezone identifier (e.g. `"America/Denver"` → `"MST7MDT,M3.2.0,M11.1.0"`). Returns `nullptr` if not found.
 
-**Use when:** Setting the timezone at runtime via `set_timezone()`, which requires POSIX format.
+**Use when:** Reading the POSIX rule associated with a timezone identifier.
 
 ```cpp
 const char* posix = lookup_tz_posix("America/Denver");
-if (posix) {
-  id(sntp_time).set_timezone(posix);
-}
 ```
+
+#### `lookup_tz_timezone(tz_id)`
+
+Returns a pointer to the pre-parsed `esphome::time::ParsedTimezone` for an IANA
+timezone identifier, or `nullptr` if it is not found. Use it with
+`esphome::time::set_global_tz()` when changing the device timezone at runtime.
 
 #### `calc_sunrise_sunset(year, month, day, lat, lon, tz_offset, rise_h, rise_m, set_h, set_m)`
 
