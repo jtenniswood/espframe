@@ -9,7 +9,7 @@
     } else if (stateSpec && stateSpec.key === "firmware_device") {
       S.firmware_versions_loaded = false;
       S.firmware_version_options = [];
-      fetchPublicFirmwareMetadata().catch(function () {});
+      fetchPublicFirmwareVersions();
     } else if (id === "text_sensor/Firmware: Version") {
       refreshFirmwareUi();
     } else if (stateSpec && (

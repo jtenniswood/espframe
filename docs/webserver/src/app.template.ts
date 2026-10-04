@@ -49,7 +49,6 @@ import {
     firmware_version_options: [],
     firmware_versions_loaded: false,
     firmware_versions_loading: false,
-    firmware_metadata_loading: false,
     firmware_selected_version: "",
     firmware_checking: false,
     firmware_installing: false,

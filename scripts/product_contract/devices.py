@@ -186,6 +186,7 @@ def check_devices(product: dict, errors: list[str]) -> None:
         for field, needle in (
             ("esp32_variant", f'variant: {device.get("esp32_variant", "")}'),
             ("flash_size", f'flash_size: {device.get("flash_size", "")}'),
+            ("cpu_frequency", f'cpu_frequency: {device.get("cpu_frequency", "")}'),
             ("framework_type", f'type: {device.get("framework_type", "")}'),
             ("esp32_hosted_variant", f'variant: {device.get("esp32_hosted_variant", "")}'),
             ("psram_mode", f'mode: {device.get("psram_mode", "")}'),

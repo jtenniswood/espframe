@@ -58,7 +58,6 @@ interface RuntimeState {
   firmware_version_options: FirmwareVersionInfo[];
   firmware_versions_loaded: boolean;
   firmware_versions_loading: boolean;
-  firmware_metadata_loading: boolean;
   firmware_selected_version: string;
   firmware_checking: boolean;
   firmware_installing: boolean;

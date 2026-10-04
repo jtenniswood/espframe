@@ -84,6 +84,23 @@ def test_contract_manifest_preserves_upgrade_boundaries() -> None:
     assert manifest["compatibility"]["preserve_saved_preferences"] is True
 
 
+def test_10inch_installer_has_explicit_revision_profiles_and_isolated_manifest_probes() -> None:
+    installer = (ROOT / "docs/.vitepress/theme/components/EspInstallButton.vue").read_text(encoding="utf-8")
+
+    assert "const selectedDeviceId = ref('')" in installer
+    assert "id: 'immich-frame'" in installer and "./firmware/manifest.json" in installer
+    assert "id: 'immich-frame-v2'" in installer and "./firmware/jc8012p4a1-v2/manifest.json" in installer
+    assert "id: 'immich-frame-v3'" in installer and "./firmware/jc8012p4a1-v3/manifest.json" in installer
+    assert "Promise.all(devices.filter((device) => device.requirePublishedManifest).map(async (device) =>" in installer
+    assert "if (response.ok) available.add(device.id)" in installer
+    assert "selectedDevice.value?.manifest || ''" in installer
+    assert 'aria-label="Choose JC8012P4A1 revision"' in installer
+
+    for revision in ("v1", "v2", "v3"):
+        guide = ROOT / f"docs/screens/jc8012p4a1-{revision}.md"
+        assert guide.exists()
+
+
 def test_home_assistant_api_encryption_contract_is_keyless_for_every_device() -> None:
     product = load_product()
     errors: list[str] = []
@@ -151,6 +168,30 @@ def main() -> int:
     print("product contract common tests passed")
     return 0
 
+
+def test_v3_device_artifacts_and_ota_identity_are_isolated() -> None:
+    product = load_product()
+    device = next(device for device in product["devices"] if device["slug"] == "immich-frame-v3")
+    substitutions = device["package_substitutions"]
+
+    assert device["engineering_sample"] is False
+    assert device["public_manifest"] == "firmware/jc8012p4a1-v3/manifest.json"
+    assert device["public_beta_manifest"] == "firmware/jc8012p4a1-v3/beta/manifest.json"
+    assert substitutions["firmware_device_slug"] == "immich-frame-v3"
+    assert substitutions["firmware_manifest_url"].endswith("/firmware/jc8012p4a1-v3/manifest.json")
+    assert device["public_manifest"] != next(d["public_manifest"] for d in product["devices"] if d["slug"] == "immich-frame-v2")
+
+    package = (ROOT / device["package_yaml"]).read_text(encoding="utf-8")
+    ota_source = (ROOT / "common/addon/firmware_update.yaml").read_text(encoding="utf-8")
+    assert substitutions["firmware_device_slug"] in package
+    assert substitutions["firmware_manifest_url"] in package
+    assert "source: ${firmware_manifest_url}" in ota_source
+    assert """lambda: 'return {"${firmware_device_slug}"};'""" in ota_source
+
+    for build in (ROOT / device["build_yaml"], ROOT / device["build_yaml"].replace(".factory.yaml", ".yaml")):
+        text = build.read_text(encoding="utf-8")
+        assert "packages.yaml" in text and "jc8012p4a1-v3" in text
+        assert "components: [gsl3680, remote_image, ledc, espframe, mipi_dsi]" in text
 
 if __name__ == "__main__":
     raise SystemExit(main())

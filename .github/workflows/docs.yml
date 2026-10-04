@@ -115,7 +115,7 @@ jobs:
             --source "$STABLE_SOURCE_DIR" \
             --dir . \
             --slugs $DEVICE_SLUGS \
-            --allow-missing-slugs immich-frame-v2
+            --allow-missing-slugs immich-frame-v2 immich-frame-v3
 
           STABLE_RELEASE_TAGS=$(gh release list --limit 30 \
             --exclude-drafts \
@@ -258,7 +258,7 @@ jobs:
           --version "$RELEASE_TAG"
           --dir firmware
           --slugs $DEVICE_SLUGS
-          --allow-missing-slugs immich-frame-v2
+          --allow-missing-slugs immich-frame-v2 immich-frame-v3
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v7
@@ -321,4 +321,4 @@ jobs:
           --slugs $DEVICE_SLUGS
           --retries 10
           --delay 15
-          --allow-missing-slugs immich-frame-v2
+          --allow-missing-slugs immich-frame-v2 immich-frame-v3
