@@ -13,16 +13,17 @@ Flash Espframe to a supported Guition ESP32-P4 display from your browser — no 
 
 | Model | Panel | Stand |
 |-------|-------|-------|
-| Guition ESP32-P4 10" `JC8012P4A1`, original and new panel revisions | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) | [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046) |
+| Guition ESP32-P4 10" `JC8012P4A1`, revisions V1, V2, and V3 | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) | [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046) |
 
 ## Choose the Correct Panel Firmware
 
-The two screen revisions look almost identical, and the newer one may not say `V2`. Check the small four-digit number printed on the rear case:
+The 10-inch `JC8012P4A1` has three firmware profiles. Check the ESP32-P4 chip revision first; ESPHome logs or `esptool` chip information may identify it:
 
-- **`2627` or lower:** choose **Original panel**.
-- **`2628` or higher:** choose **New panel**.
+- **ESP32-P4 v3.x:** choose **V3**, regardless of the rear-case marking.
+- If the chip is not V3, rear-case marking **`2627` or lower:** choose **V1**.
+- If the chip is not V3, rear-case marking **`2628` or higher:** choose **V2**.
 
-Both revisions have the same `JC8012P4A1` model name and 1280×800 layout, but they require different display startup settings. If the wrong firmware is installed, the picture may be distorted; return here and install the other profile.
+The case marking is a fallback for distinguishing V1 and V2 when chip information does not identify V3. See the [10-inch model guide](/screens/jc8012p4a1) and the [V1](/screens/jc8012p4a1-v1), [V2](/screens/jc8012p4a1-v2), and [V3](/screens/jc8012p4a1-v3) setup pages before choosing.
 
 ## Connect the Display
 
@@ -36,7 +37,7 @@ If flashing fails, make sure you're using the **bottom** USB-C port as shown abo
 
 ## Web Installer
 
-Connect the display via USB-C, select the profile matching the rear-case number, then click install.
+Connect the display via USB-C, explicitly select the matching revision, then click install. V3 is identified from chip information and takes precedence over the case marking.
 
 <EspInstallButton />
 
@@ -47,7 +48,7 @@ Requires **Chrome** or **Edge** on a desktop computer with [Web Serial](https://
 ## Steps
 
 1. **Connect** — Plug in with USB-C; allow drivers if prompted.
-2. **Flash** — Click **Install Espframe for Immich**, choose the device’s serial port, confirm. Takes a few minutes.
+2. **Flash** — Click **Install V1**, **Install V2**, or **Install V3** for the selected profile, choose the device’s serial port, and confirm. Takes a few minutes.
 3. **WiFi** — Enter network name and password when prompted. If no prompt appears, open the WiFi settings on your phone or laptop and look for the frame’s WiFi hotspot: a network starting with **ESP_**, such as **ESP_7A1EED**. The letters and numbers after **ESP_** come from the frame’s MAC address (its network identifier), so your frame’s name will be different. Connect to that network, then follow the setup page (captive portal) to enter your home WiFi details. If the page does not open automatically, visit `http://192.168.4.1`.
 4. **Immich** — Open the device IP in a browser (shown on screen), enter **Immich Server URL** and **API Key**. The URL can be an IP address such as `http://192.168.1.30:2283` or a domain such as `https://photos.example.com`. See [API Key](/api-key) for permissions. Photos start loading. Next: [Smart Photo Filters](/photo-sources) to choose what to display.
 

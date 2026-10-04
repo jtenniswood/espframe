@@ -7,7 +7,9 @@
       Failed to load installer. {{ loadError }}
     </div>
     <div v-else class="install-button">
-      <div class="device-picker" role="radiogroup" aria-label="Choose device model">
+      <section class="device-group" aria-labelledby="jc8012-heading">
+        <h3 id="jc8012-heading">10-inch JC8012P4A1</h3>
+      <div class="device-picker" role="radiogroup" aria-label="Choose JC8012P4A1 revision">
         <label v-for="device in availableDevices" :key="device.id" class="device-option">
           <input v-model="selectedDeviceId" type="radio" name="espframe-device" :value="device.id">
           <span>
@@ -21,8 +23,9 @@
           </span>
         </label>
       </div>
-      <esp-web-install-button :manifest="manifestUrl">
-        <button slot="activate" class="brand-button">Install {{ selectedDevice.buttonLabel }}</button>
+      </section>
+      <esp-web-install-button v-if="selectedDevice" :manifest="manifestUrl">
+        <button slot="activate" class="brand-button">Install {{ selectedDevice.label }}</button>
       </esp-web-install-button>
     </div>
   </div>
@@ -33,30 +36,35 @@ import { computed, ref, onMounted, watch } from 'vue'
 
 const devices = [
   {
-    id: 'jc8012p4a1-original',
-    label: 'Original panel',
-    model: 'JC8012P4A1 — rear case 2627 or lower',
-    buttonLabel: 'Espframe for original panel',
+    id: 'immich-frame',
+    label: 'V1 — Original panel',
+    model: 'Rear-case marking 2627 or lower, if the chip is not V3',
     manifest: './firmware/manifest.json',
   },
   {
-    id: 'jc8012p4a1-new',
-    label: 'New panel',
-    model: 'JC8012P4A1 — rear case 2628 or higher',
-    buttonLabel: 'Espframe for new panel',
+    id: 'immich-frame-v2',
+    label: 'V2 — New panel',
+    model: 'Rear-case marking 2628 or higher, if the chip is not V3',
     manifest: './firmware/jc8012p4a1-v2/manifest.json',
+    requirePublishedManifest: true,
+  },
+  {
+    id: 'immich-frame-v3',
+    label: 'V3 — Production silicon',
+    model: 'ESP32-P4 v3.x chip revision; this takes precedence over the case marking',
+    manifest: './firmware/jc8012p4a1-v3/manifest.json',
     requirePublishedManifest: true,
   },
 ]
 
-const selectedDeviceId = ref(devices[0].id)
+const selectedDeviceId = ref('')
 const availableDeviceIds = ref(new Set(devices.filter((device) => !device.requirePublishedManifest).map((device) => device.id)))
 const supported = ref(false)
 const loadError = ref(null)
 const manifestVersion = ref('')
 const availableDevices = computed(() => devices.filter((device) => availableDeviceIds.value.has(device.id)))
-const selectedDevice = computed(() => devices.find((device) => device.id === selectedDeviceId.value) || devices[0])
-const manifestUrl = computed(() => selectedDevice.value.manifest)
+const selectedDevice = computed(() => availableDevices.value.find((device) => device.id === selectedDeviceId.value) || null)
+const manifestUrl = computed(() => selectedDevice.value?.manifest || '')
 
 async function loadManifestVersion() {
   manifestVersion.value = ''
@@ -85,7 +93,7 @@ async function discoverPublishedDevices() {
 
 onMounted(async () => {
   supported.value = 'serial' in navigator
-  await Promise.all([loadManifestVersion(), discoverPublishedDevices()])
+  await discoverPublishedDevices()
   if (!supported.value) return
   try {
     await import('https://unpkg.com/esp-web-tools@10.2.1/dist/web/install-button.js')
@@ -107,6 +115,14 @@ watch(manifestUrl, loadManifestVersion)
   flex-direction: column;
   gap: 16px;
   align-items: flex-start;
+}
+
+.device-group {
+  width: 100%;
+}
+
+.device-group h3 {
+  margin: 0 0 10px;
 }
 
 .device-picker {
