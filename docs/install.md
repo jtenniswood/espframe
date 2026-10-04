@@ -7,13 +7,19 @@ description: Flash Espframe for Immich firmware to a supported Guition ESP32-P4 
 
 Flash Espframe to a supported Guition ESP32-P4 display from your browser — no desktop toolchain or ESPHome required.
 
-## What You'll Need
+## Before You Start {#what-you-ll-need}
 
-- **Supported Guition ESP32-P4 display**, **USB-C data cable** (not a charge-only cable), **Immich server** on your network ([immich.app](https://immich.app/)), and an [**Immich API key**](./api-key)
+- Identify your exact [supported display and hardware revision](/screens).
+- Use Chrome or Edge on a desktop computer and a USB-C data cable, not a charge-only cable.
+- Have your Immich server URL and [API key](/api-key) ready.
 
-| Model | Panel | Stand |
-|-------|-------|-------|
-| Guition ESP32-P4 10" `JC8012P4A1`, revisions V1, V2, and V3 | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) | [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046) |
+Browser installation does not require ESPHome or a local firmware build. You will flash the matching firmware, connect the frame to WiFi, then enter the Immich server details.
+
+## Supported Display
+
+Espframe supports the Guition ESP32-P4 10.1-inch `JC8012P4A1` in V1, V2, and V3 revisions. See [Choose a Screen](/screens) to check support, distinguish the revisions, and find purchase and stand information.
+
+Panel: [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH). Stand: [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046).
 
 ## Choose the Correct Panel Firmware
 
@@ -35,9 +41,9 @@ The device has two USB-C ports. Plug the cable into the **bottom port** (labeled
 If flashing fails, make sure you're using the **bottom** USB-C port as shown above. The upper port will not work for flashing.
 :::
 
-## Web Installer
+## Flash the Firmware
 
-Connect the display via USB-C, explicitly select the matching revision, then click install. V3 is identified from chip information and takes precedence over the case marking.
+Connect the display with USB-C, select the matching revision in the installer, then click install. No revision is selected automatically. V3 is identified from chip information and takes precedence over the case marking.
 
 <EspInstallButton />
 

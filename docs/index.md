@@ -10,7 +10,7 @@ description: Build a standalone Immich digital photo frame on a Guition ESP32-P4
 
 The firmware runs on ESP32-P4 hardware with [ESPHome](https://esphome.io/) and connects to Immich over HTTP or HTTPS. It does not need Home Assistant, a cloud account, or a separate bridge service.
 
-New to Espframe? Start with the [Immich photo frame guide](/immich-photo-frame), browse the [frequently asked questions](/faq), or go straight to [installation](/install).
+New to Espframe? Start with the [Immich photo frame guide](/immich-photo-frame), [check whether your display is supported](/screens), then follow the [installation guide](/install). Browse the [frequently asked questions](/faq) for quick answers.
 
 <img src="/espframe.png" alt="Espframe displaying Immich photos on a Guition ESP32-P4 touchscreen" style="max-width: 100%; border-radius: 8px; margin: 1.5rem 0;" />
 
@@ -30,7 +30,7 @@ New to Espframe? Start with the [Immich photo frame guide](/immich-photo-frame),
 |-------|-------|-------|
 | Guition ESP32-P4 10" `JC8012P4A1`, V1, V2, and V3 revisions | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) | [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046) |
 
-See the [10-inch screen revision guide](/screens/jc8012p4a1) to identify your panel and choose its setup instructions.
+See [Choose a Screen](/screens) to check compatibility, identify your panel revision, and find its setup instructions.
 
 ## Support This Project
 
