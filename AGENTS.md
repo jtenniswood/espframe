@@ -34,8 +34,7 @@ files do not require an empty pull request.
 
 ## Validation
 
-- Follow `docs/testing.md` and run `npm run check:pr` before opening or updating
-  the pull request.
+- Run `npm run check:pr` before opening or updating the pull request.
 - For ESPHome YAML changes or C++ changes not covered by host-side tests, run the
   relevant full firmware compile. If compile or hardware validation is not
   available, say so and mark the pull request as needing that validation.

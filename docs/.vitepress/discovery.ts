@@ -8,7 +8,6 @@ const internalDocumentation = new Set([
   'reset-architecture-v2',
   'source-ownership',
   'tech-debt-cleanup-backlog',
-  'testing',
 ])
 
 function pageSlug(url: string): string {
