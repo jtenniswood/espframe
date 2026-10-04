@@ -77,10 +77,10 @@ def main() -> int:
     rows = module.TIMEZONES
     row_by_tz = {tz: (gmt, posix) for tz, gmt, _lat, _lon, posix in rows}
 
-    london_parsed = module._parse_posix_timezone(row_by_tz["Europe/London"][1])
+    london_parsed = module.parse_posix_timezone(row_by_tz["Europe/London"][1])
     assert_equal(london_parsed[0], 0, "London standard POSIX offset")
     assert_equal(london_parsed[1], -3600, "London daylight POSIX offset")
-    assert_equal(london_parsed[2]["type"], "MONTH_WEEK_DAY", "London DST start rule")
+    assert_equal(london_parsed[2][2], "MONTH_WEEK_DAY", "London DST start rule")
     parsed_rows = module.generate_cpp_parsed_tz_data().splitlines()
     assert_equal(len(parsed_rows), len(rows), "generated parsed timezone row count")
 

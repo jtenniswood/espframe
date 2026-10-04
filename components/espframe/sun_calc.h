@@ -39,6 +39,17 @@ inline const char* lookup_tz_posix(const std::string &tz_id) {
   return nullptr;
 }
 
+#if ESPHOME_VERSION_CODE >= VERSION_CODE(2026, 9, 0) && defined(USE_TIME_TIMEZONE)
+inline const esphome::time::ParsedTimezone* lookup_tz_timezone(const std::string &tz_id) {
+  for (int i = 0; i < TZ_DATA_COUNT; i++) {
+    if (tz_id == TZ_DATA[i].tz) {
+      return &TZ_TIMEZONE_DATA[i];
+    }
+  }
+  return nullptr;
+}
+#endif
+
 namespace esphome::espframe {
 template<typename Clock>
 inline bool set_sntp_timezone(const std::string &tz_id, const char *posix, Clock &clock) {
@@ -46,11 +57,10 @@ inline bool set_sntp_timezone(const std::string &tz_id, const char *posix, Clock
 #if ESPHOME_VERSION_CODE >= VERSION_CODE(2026, 9, 0)
 #ifdef USE_TIME_TIMEZONE
   (void) clock;
-  for (int i = 0; i < TZ_DATA_COUNT; i++) {
-    if (tz_id == TZ_DATA[i].tz) {
-      esphome::time::set_global_tz(TZ_PARSED_DATA[i]);
-      return true;
-    }
+  const auto* timezone = lookup_tz_timezone(tz_id);
+  if (timezone != nullptr) {
+    esphome::time::set_global_tz(*timezone);
+    return true;
   }
 #endif
   return false;

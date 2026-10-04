@@ -8,8 +8,8 @@
 #include "esphome/core/version.h"
 
 // Startup adapter follows espcontrol PR #1924. Application's backing StringRefs
-// are non-const in these reviewed versions. Recheck this adapter when upgrading
-// ESPHome beyond the versions listed here.
+// are non-const in ESPHome 2026.8.2 and 2026.9.1. Recheck this adapter when
+// upgrading beyond the versions listed here.
 static_assert(ESPHOME_VERSION_CODE == VERSION_CODE(2026, 8, 2) ||
                   ESPHOME_VERSION_CODE == VERSION_CODE(2026, 9, 1),
               "Review frame identity startup adapter for this ESPHome version");
