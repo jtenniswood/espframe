@@ -14,7 +14,10 @@ export default defineConfig({
   sitemap: {
     hostname,
     transformItems(items) {
-      return items.filter((item) => includeInSitemap(item.url))
+      return items.filter((item) => {
+        const path = item.url.split('#')[0].replace(/\/$/, '')
+        return includeInSitemap(item.url) && !path.endsWith('/immich-photo-frame')
+      })
     },
   },
 
@@ -62,9 +65,11 @@ export default defineConfig({
   transformPageData(pageData) {
     addDiscoveryMetadata(pageData)
 
-    const canonicalUrl = `${hostname}${pageData.relativePath}`
-      .replace(/index\.md$/, '')
-      .replace(/\.md$/, '')
+    const canonicalUrl = pageData.relativePath === 'immich-photo-frame.md'
+      ? hostname
+      : `${hostname}${pageData.relativePath}`
+        .replace(/index\.md$/, '')
+        .replace(/\.md$/, '')
 
     const title = pageData.frontmatter.title || pageData.title
     const description = pageData.frontmatter.description || ''
@@ -108,7 +113,7 @@ export default defineConfig({
     }
 
     // Per-page Article schema for docs (helps search and AI understanding)
-    if (pageData.relativePath !== 'index.md' && pageData.relativePath !== '404.md' && title && description) {
+    if (pageData.relativePath !== 'index.md' && pageData.relativePath !== '404.md' && pageData.relativePath !== 'immich-photo-frame.md' && title && description) {
       const isHowTo = pageData.relativePath === 'install.md'
       const articleSchema: Record<string, unknown> = {
         '@context': 'https://schema.org',
@@ -146,7 +151,6 @@ export default defineConfig({
         text: 'Getting Started',
         items: [
           { text: 'Overview', link: '/' },
-          { text: 'Immich Photo Frame', link: '/immich-photo-frame' },
           { text: 'Where to Buy', link: '/screens' },
           { text: 'Install', link: '/install' },
           { text: 'FAQ', link: '/faq' },
