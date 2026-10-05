@@ -116,7 +116,7 @@ def check_public_site_references(product: dict, errors: list[str]) -> None:
         for label, text in (
             ("README.md", readme),
             ("docs/index.md", index_docs),
-            ("docs/immich-photo-frame.md", read(ROOT / "docs" / "immich-photo-frame.md", errors)),
+            ("docs/index.md", read(ROOT / "docs" / "immich-photo-frame.md", errors)),
         ):
             require_contains(text, f'alt="{social_image_alt}"', label, errors)
     if usb_flashing_image:
@@ -137,7 +137,7 @@ def check_public_site_references(product: dict, errors: list[str]) -> None:
             ("docs/install.md", install_docs),
             ("docs/usb-flashing.md", usb_flashing_docs),
             ("docs/troubleshooting.md", troubleshooting_docs),
-            ("docs/immich-photo-frame.md", read(ROOT / "docs" / "immich-photo-frame.md", errors)),
+            ("docs/index.md", read(ROOT / "docs" / "immich-photo-frame.md", errors)),
         ):
             for browser in web_installer_required_browsers:
                 if isinstance(browser, str) and browser.strip():
@@ -149,14 +149,14 @@ def check_public_site_references(product: dict, errors: list[str]) -> None:
             ("docs/install.md", install_docs),
             ("docs/usb-flashing.md", usb_flashing_docs),
             ("docs/troubleshooting.md", troubleshooting_docs),
-            ("docs/immich-photo-frame.md", read(ROOT / "docs" / "immich-photo-frame.md", errors)),
+            ("docs/index.md", read(ROOT / "docs" / "immich-photo-frame.md", errors)),
         ):
             require_contains(text, web_installer_computer_requirement, label, errors)
     if web_installer_required_api:
         for label, text in (
             ("docs/install.md", install_docs),
             ("docs/usb-flashing.md", usb_flashing_docs),
-            ("docs/immich-photo-frame.md", read(ROOT / "docs" / "immich-photo-frame.md", errors)),
+            ("docs/index.md", read(ROOT / "docs" / "immich-photo-frame.md", errors)),
         ):
             require_contains(text, web_installer_required_api, label, errors)
     if isinstance(web_installer_unsupported_browsers, list):
@@ -180,7 +180,7 @@ def check_public_site_references(product: dict, errors: list[str]) -> None:
             ("docs/install.md", install_docs),
             ("docs/usb-flashing.md", usb_flashing_docs),
             ("docs/troubleshooting.md", troubleshooting_docs),
-            ("docs/immich-photo-frame.md", read(ROOT / "docs" / "immich-photo-frame.md", errors)),
+            ("docs/index.md", read(ROOT / "docs" / "immich-photo-frame.md", errors)),
         ):
             require_contains(text, value, f"{label} {field_name}", errors)
 
