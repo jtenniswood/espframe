@@ -196,23 +196,21 @@ export default defineConfig({
           { text: 'Home Assistant', link: '/home-assistant' },
           { text: 'Manual Setup', link: '/manual-setup' },
           { text: 'Testing', link: '/testing' },
+          { text: 'ESP32-C6 Wi-Fi Recovery', link: '/c6-recovery' },
+        ],
+      },
+      {
+        text: 'Community',
+        items: [
+          { text: 'Partnerships', link: '/partnerships' },
+          { text: 'Contributing', link: '/contributing' },
+          { text: 'Collect USB Logs', link: '/collect-usb-logs' },
         ],
       },
       {
         text: 'Project',
         items: [
-          { text: 'Roadmap', link: '/roadmap' },
           { text: 'License', link: '/license' },
-        ],
-      },
-      {
-        text: 'Engineering Notes',
-        collapsed: true,
-        items: [
-          { text: 'Current Architecture', link: '/reset-architecture-v2' },
-          { text: 'Product Metadata Foundation', link: '/phase-1-product-metadata' },
-          { text: 'Reset Architecture', link: '/phase-3-reset-architecture' },
-          { text: 'Release-Proven Architecture', link: '/phase-4-release-proven-architecture' },
         ],
       },
     ],
