@@ -94,7 +94,7 @@ def check_home_assistant_metadata(product: dict, errors: list[str]) -> None:
 
     readme = read(ROOT / "README.md", errors)
     index_docs = read(ROOT / "docs" / "index.md", errors)
-    immich_photo_frame_docs = read(ROOT / "docs" / "immich-photo-frame.md", errors)
+    immich_photo_frame_docs = read(ROOT / "docs" / "index.md", errors)
     home_assistant_docs = read(ROOT / "docs" / "home-assistant.md", errors)
     network_yaml = read(ROOT / "common" / "addon" / "network.yaml", errors)
     device_yaml_path = "devices/guition-esp32-p4-jc8012p4a1/device/device.yaml"
