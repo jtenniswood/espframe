@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 const internalDocumentation = new Set([
   'repository-governance',
   'source-ownership',
+  'immich-photo-frame',
 ])
 
 function pageSlug(url: string): string {
