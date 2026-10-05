@@ -1607,7 +1607,7 @@ function smokeAssertionsForScenario(scenario) {
             if (checkbox.checked) throw new Error("Name restore must default to unchecked");
             checkbox.checked = ${JSON.stringify(!!scenario.restoreName)};
             clickButton("Import backup");
-            await waitFor(() => pageText().includes("imported"), ${scenario.identityPostHangs ? 8000 : 4000}, "backup completion");
+            await waitFor(() => pageText().toLowerCase().includes("imported"), ${scenario.identityPostHangs ? 8000 : 4000}, "backup completion");
             if (${JSON.stringify(!!scenario.identityPostHangs)}) {
               if (pageText().indexOf("Imported with 1 failed setting") === -1) throw new Error("Timed out name restore did not report a failed setting");
               if (document.title !== "Living Room · EspFrame") throw new Error("Timed out name restore changed the frame title");
