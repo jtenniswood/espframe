@@ -9,7 +9,7 @@ Quick answers about the EspFrame Immich photo frame, supported Guition display, 
 
 ## What is EspFrame?
 
-EspFrame is source-available, non-commercial ESPHome firmware that turns a supported Guition ESP32-P4 touchscreen into a digital photo frame for a self-hosted Immich library. It connects directly to your Immich server and shows photos on the display. Read the [project overview](/) and [Immich photo frame guide](/immich-photo-frame).
+EspFrame is source-available, non-commercial ESPHome firmware that turns a supported Guition ESP32-P4 touchscreen into a digital photo frame for a self-hosted Immich library. It connects directly to your Immich server and shows photos on the display. Read the [project overview](/) and [project overview](/).
 
 ## Which display does EspFrame support?
 
@@ -25,7 +25,7 @@ No. EspFrame connects directly to Immich and works without Home Assistant, a hub
 
 ## Do I need a self-hosted Immich server?
 
-Yes. EspFrame is designed to display photos from an Immich server that you operate. The frame must be able to reach the server over your network using its configured HTTP or HTTPS URL. Read the [Immich photo frame guide](/immich-photo-frame) or [troubleshoot connection problems](/troubleshooting#immich-connection-problems).
+Yes. EspFrame is designed to display photos from an Immich server that you operate. The frame must be able to reach the server over your network using its configured HTTP or HTTPS URL. Read the [project overview](/) or [troubleshoot connection problems](/troubleshooting#immich-connection-problems).
 
 ## What do I need before installing EspFrame?
 
@@ -49,7 +49,7 @@ Yes. EspFrame supports photo sources and filters such as all photos, favorites, 
 
 ## Are my photos uploaded to a cloud service?
 
-No hosted photo service is required. The frame requests thumbnails and metadata from the Immich server URL that you configure; if that server is only available on your local network, the frame can stay local too. Read the [privacy model](/immich-photo-frame#privacy-model).
+No hosted photo service is required. The frame requests thumbnails and metadata from the Immich server URL that you configure; if that server is only available on your local network, the frame can stay local too. Read the [privacy details](/#privacy).
 
 ## Can EspFrame connect to Immich over HTTPS?
 
