@@ -13,7 +13,7 @@ Espframe is source-available, non-commercial ESPHome firmware that turns a suppo
 
 ## Which display does Espframe support?
 
-Espframe supports the 10-inch Guition ESP32-P4 JC8012P4A1 display. The original panel uses the firmware marked 2627 or lower on the rear case; the new panel uses 2628 or higher. See [installation and panel selection](/install#choose-the-correct-panel-firmware).
+Espframe supports the 10.1-inch Guition ESP32-P4 JC8012P4A1 display. The [installer](/install#choose-the-correct-panel-firmware) helps you choose the matching firmware.
 
 ## Does Espframe work on other ESP32 displays?
 

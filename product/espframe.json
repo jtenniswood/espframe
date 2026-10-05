@@ -1150,6 +1150,11 @@
           "settings": [
             "screen_rotation"
           ]
+        },
+        "clock": {
+          "settings": [
+            "clock_format"
+          ]
         }
       },
       "docs/screen-tone.md": {
@@ -2864,7 +2869,7 @@
         "common/addon/time.yaml"
       ],
       "docs_files": [
-        "docs/install.md"
+        "docs/screen-settings.md"
       ]
     },
     {

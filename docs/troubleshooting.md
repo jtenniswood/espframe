@@ -76,7 +76,7 @@ If the frame connects but does not show the photos you expect:
 
 ## Screen or Display Issues
 
-If the image is distorted immediately after boot, the wrong panel firmware is probably installed. Check the four-digit rear-case marking: `2627` or lower uses the original-panel firmware; `2628` or higher uses the new-panel firmware. Reinstall the matching profile from the [web installer](/install).
+If the image is distorted immediately after boot, check your hardware against the [firmware selection table](/install#choose-the-correct-panel-firmware), then reinstall the matching firmware. If you are unsure which option matches, [identify your display](/screens/jc8012p4a1#identify-your-revision).
 
 Display behavior is configured from the frame web UI:
 

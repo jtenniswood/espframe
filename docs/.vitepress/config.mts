@@ -163,15 +163,6 @@ export default defineConfig({
         ],
       },
       {
-        text: 'Supported Screens',
-        items: [
-          { text: '10-inch JC8012P4A1', link: '/screens/jc8012p4a1' },
-          { text: 'V1 — Original Panel', link: '/screens/jc8012p4a1-v1' },
-          { text: 'V2 — New Panel', link: '/screens/jc8012p4a1-v2' },
-          { text: 'V3 — Production Silicon', link: '/screens/jc8012p4a1-v3' },
-        ],
-      },
-      {
         text: 'Guides',
         items: [
           { text: 'USB Flashing Help', link: '/usb-flashing' },

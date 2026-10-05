@@ -1149,6 +1149,11 @@
         "settings": [
           "screen_rotation"
         ]
+      },
+      "clock": {
+        "settings": [
+          "clock_format"
+        ]
       }
     },
     "docs/screen-tone.md": {

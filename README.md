@@ -48,10 +48,10 @@ Currently documented hardware:
 
 | Item | Link |
 |------|------|
-| 10" Guition ESP32-P4 panel (`JC8012P4A1`), original (`2627` or lower) and new (`2628` or higher) revisions | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) |
+| 10.1-inch Guition ESP32-P4 panel (`JC8012P4A1`) | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) |
 | 10" printable stand | [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046) |
 
-The two panel revisions look nearly identical but need different firmware. Choose the installer profile using the four-digit rear-case marking; the new panel may not be labelled `V2`.
+The [installation guide](https://jtenniswood.github.io/espframe/install) helps you choose the right firmware for your display.
 
 ## Getting Started
 

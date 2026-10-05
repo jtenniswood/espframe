@@ -10,7 +10,7 @@ description: Build a standalone Immich digital photo frame on a Guition ESP32-P4
 
 The firmware runs on ESP32-P4 hardware with [ESPHome](https://esphome.io/) and connects to Immich over HTTP or HTTPS. It does not need Home Assistant, a cloud account, or a separate bridge service.
 
-New to Espframe? Start with the [Immich photo frame guide](/immich-photo-frame), [check whether your display is supported](/screens), then follow the [installation guide](/install). Browse the [frequently asked questions](/faq) for quick answers.
+Ready to get started? **[Install Espframe](/install)**. Need a display first? [Choose a screen](/screens).
 
 <img src="/espframe.png" alt="Espframe displaying Immich photos on a Guition ESP32-P4 touchscreen" style="max-width: 100%; border-radius: 8px; margin: 1.5rem 0;" />
 
@@ -28,9 +28,9 @@ New to Espframe? Start with the [Immich photo frame guide](/immich-photo-frame),
 
 | Model | Panel | Stand |
 |-------|-------|-------|
-| Guition ESP32-P4 10" `JC8012P4A1`, V1, V2, and V3 revisions | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) | [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046) |
+| Guition ESP32-P4 10.1-inch `JC8012P4A1` | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) | [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046) |
 
-See [Choose a Screen](/screens) to check compatibility, identify your panel revision, and find its setup instructions.
+The [installer](/install) helps you choose the right firmware for your display.
 
 ## Support This Project
 

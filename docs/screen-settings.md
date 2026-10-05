@@ -64,3 +64,17 @@ Existing firmware names stay unchanged until you save a name. Leave the field
 blank and choose **Save & Restart** to restore the firmware defaults. Saved names survive normal OTA
 updates and power cycles. If storage is full, a save reports an error and retains
 the previous name; it never clears other settings to make room.
+
+## Clock
+
+Set your preferred clock format and timezone during setup or in **Device → Display → Clock**. The timezone also controls sunrise/sunset based brightness and night tone.
+
+::: details Clock defaults and time servers
+<!-- ESPFRAME:SETTINGS_TABLE clock START -->
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **Format** | 24 Hour | Choose whether the on-screen clock uses a 24-hour or 12-hour format. |
+<!-- ESPFRAME:SETTINGS_TABLE clock END -->
+
+The setup wizard defaults to **Europe/London (GMT+0)** timezone, and shows the clock by default. The clock refreshes every **60 seconds**. Time sync uses **0.pool.ntp.org**, **1.pool.ntp.org**, and **2.pool.ntp.org**; change these in Clock's **Advanced** panel if needed.
+:::
