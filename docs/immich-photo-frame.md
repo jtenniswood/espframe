@@ -4,7 +4,7 @@ description: The EspFrame Immich photo frame overview has moved.
 ---
 
 <script>
-(() => {
+if (typeof window !== 'undefined') {
   const legacyAnchors = {
     '#how-setup-works': 'get-started',
     '#privacy-model': 'privacy',
@@ -15,7 +15,7 @@ description: The EspFrame Immich photo frame overview has moved.
   const section = legacyAnchors[legacyHash] || legacyHash.slice(1);
   if (section) target.hash = section;
   window.location.replace(target.href);
-})();
+}
 </script>
 
 # Overview moved
