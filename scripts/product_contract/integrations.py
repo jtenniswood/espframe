@@ -18,7 +18,7 @@ def check_immich_api_key_metadata(product: dict, errors: list[str]) -> None:
     if mode:
         require_contains(api_key_docs, f"{mode} API key", "docs/api-key.md", errors)
         require_contains(troubleshooting_docs, f"{mode} Immich API key", "docs/troubleshooting.md", errors)
-        require_contains(immich_photo_frame_docs, f"{mode.capitalize()} permissions are recommended", "docs/immich-photo-frame.md", errors)
+        require_contains(immich_photo_frame_docs, f"{mode.capitalize()} permissions are recommended", "docs/index.md", errors)
     if privacy_promise:
         require_contains(api_key_docs, privacy_promise, "docs/api-key.md", errors)
 
@@ -156,7 +156,7 @@ def check_home_assistant_metadata(product: dict, errors: list[str]) -> None:
     docs_to_check = (
         ("README.md", readme),
         ("docs/index.md", index_docs),
-        ("docs/immich-photo-frame.md", immich_photo_frame_docs),
+        ("docs/index.md", immich_photo_frame_docs),
         ("docs/home-assistant.md", home_assistant_docs),
     )
     if name:
@@ -170,7 +170,7 @@ def check_home_assistant_metadata(product: dict, errors: list[str]) -> None:
     if platform:
         for label, text in (
             ("README.md", readme),
-            ("docs/immich-photo-frame.md", immich_photo_frame_docs),
+            ("docs/index.md", immich_photo_frame_docs),
             ("docs/home-assistant.md", home_assistant_docs),
         ):
             require_contains(text, platform, label, errors)
