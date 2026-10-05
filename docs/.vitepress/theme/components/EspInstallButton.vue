@@ -93,7 +93,7 @@ onMounted(async () => {
   await discoverPublishedDevices()
   if (!supported.value) return
   try {
-    await import('https://unpkg.com/esp-web-tools@10.2.1/dist/web/install-button.js')
+    await import('https://unpkg.com/esp-web-tools@10/dist/web/install-button.js')
   } catch (err) {
     loadError.value = err?.message || 'Network or script load error.'
   }
