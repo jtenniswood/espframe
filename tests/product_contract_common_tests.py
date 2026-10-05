@@ -86,6 +86,7 @@ def test_contract_manifest_preserves_upgrade_boundaries() -> None:
 
 def test_10inch_installer_requires_a_version_and_probes_manifests_independently() -> None:
     installer = (ROOT / "docs/.vitepress/theme/components/EspInstallButton.vue").read_text(encoding="utf-8")
+    install_guide = (ROOT / "docs/install.md").read_text(encoding="utf-8")
 
     assert "const selectedDeviceId = ref('')" in installer
     assert "id: 'immich-frame'" in installer and "./firmware/manifest.json" in installer
@@ -99,7 +100,12 @@ def test_10inch_installer_requires_a_version_and_probes_manifests_independently(
     assert "ESP32-P4 v3.x" in installer
     assert "four-digit number on the rear case is 2627 or lower" in installer
     assert "four-digit number on the rear case is 2628 or higher" in installer
-    assert "esptool --chip esp32p4 --port PORT chip_id" in installer
+    assert "esptool --chip esp32p4 --port PORT chip_id" not in installer
+    assert "Check in ESPHome startup logs" not in installer
+    assert "<legend>Hardware version</legend>" not in installer
+    assert "Use the table to choose **Hardware version** below" not in install_guide
+    assert "What your display reports" not in install_guide
+    assert "Initial USB installation and OTA updates have not yet been tested" not in install_guide
     assert '<esp-web-install-button v-if="selectedDevice"' in installer
 
     for revision in ("v1", "v2", "v3"):
