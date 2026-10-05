@@ -7,13 +7,19 @@ description: Flash Espframe for Immich firmware to a supported Guition ESP32-P4 
 
 Flash Espframe to a supported Guition ESP32-P4 display from your browser — no desktop toolchain or ESPHome required.
 
-## What You'll Need
+## Before You Start {#what-you-ll-need}
 
-- **Supported Guition ESP32-P4 display**, **USB-C data cable** (not a charge-only cable), **Immich server** on your network ([immich.app](https://immich.app/)), and an [**Immich API key**](./api-key)
+- Identify your exact [supported display and hardware revision](/screens).
+- Use Chrome or Edge on a desktop computer and a USB-C data cable, not a charge-only cable.
+- Have your Immich server URL and [API key](/api-key) ready.
 
-| Model | Panel | Stand |
-|-------|-------|-------|
-| Guition ESP32-P4 10" `JC8012P4A1`, revisions V1, V2, and V3 | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) | [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046) |
+Browser installation does not require ESPHome or a local firmware build. You will flash the matching firmware, connect the frame to WiFi, then enter the Immich server details.
+
+## Supported Display
+
+Espframe supports the Guition ESP32-P4 10.1-inch `JC8012P4A1` in V1, V2, and V3 revisions. See [Choose a Screen](/screens) to check support, distinguish the revisions, and find purchase and stand information.
+
+Panel: [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH). Stand: [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046).
 
 ## Choose the Correct Panel Firmware
 
@@ -35,9 +41,9 @@ The device has two USB-C ports. Plug the cable into the **bottom port** (labeled
 If flashing fails, make sure you're using the **bottom** USB-C port as shown above. The upper port will not work for flashing.
 :::
 
-## Web Installer
+## Flash the Firmware
 
-Connect the display via USB-C, explicitly select the matching revision, then click install. V3 is identified from chip information and takes precedence over the case marking.
+Connect the display with USB-C, choose the matching hardware version in the installer, then click install. Nothing is selected by default, so the installer stays unavailable until you choose a version. V3 is identified from chip information and takes precedence over the case marking.
 
 <EspInstallButton />
 
@@ -48,7 +54,7 @@ Requires **Chrome** or **Edge** on a desktop computer with [Web Serial](https://
 ## Steps
 
 1. **Connect** — Plug in with USB-C; allow drivers if prompted.
-2. **Flash** — Click **Install V1**, **Install V2**, or **Install V3** for the selected profile, choose the device’s serial port, and confirm. Takes a few minutes.
+2. **Flash** — Select **V1**, **V2**, or **V3**, then click **Install**. Choose the device’s serial port and confirm. Takes a few minutes.
 3. **WiFi** — Enter network name and password when prompted. If no prompt appears, open the WiFi settings on your phone or laptop and look for the frame’s WiFi hotspot: a network starting with **ESP_**, such as **ESP_7A1EED**. The letters and numbers after **ESP_** come from the frame’s MAC address (its network identifier), so your frame’s name will be different. Connect to that network, then follow the setup page (captive portal) to enter your home WiFi details. If the page does not open automatically, visit `http://192.168.4.1`.
 4. **Immich** — Open the device IP in a browser (shown on screen), enter **Immich Server URL** and **API Key**. The URL can be an IP address such as `http://192.168.1.30:2283` or a domain such as `https://photos.example.com`. See [API Key](/api-key) for permissions. Photos start loading. Next: [Smart Photo Filters](/photo-sources) to choose what to display.
 

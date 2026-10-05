@@ -86,7 +86,6 @@ def check_public_site_references(product: dict, errors: list[str]) -> None:
     install_docs = read(ROOT / "docs" / "install.md", errors)
     manual_setup = read(ROOT / "docs" / "manual-setup.md", errors)
     license_docs = read(ROOT / "docs" / "license.md", errors)
-    roadmap = read(ROOT / "docs" / "roadmap.md", errors)
     troubleshooting_docs = read(ROOT / "docs" / "troubleshooting.md", errors)
     usb_flashing_docs = read(ROOT / "docs" / "usb-flashing.md", errors)
     release_changelog = read(ROOT / "scripts" / "release_changelog.py", errors)
@@ -101,7 +100,6 @@ def check_public_site_references(product: dict, errors: list[str]) -> None:
         require_contains(manual_setup, f"url: {repository_url}", "docs/manual-setup.md", errors)
         if default_branch:
             require_contains(license_docs, f"({repository_url}/blob/{default_branch}/LICENSE)", "docs/license.md", errors)
-        require_contains(roadmap, f"({repository_url}/issues)", "docs/roadmap.md", errors)
         require_contains(release_changelog, 'project_value("repository_url"', "scripts/release_changelog.py", errors)
     require_contains(ai_txt, f"url: {docs_url}", "docs/public/ai.txt", errors)
     require_contains(ai_txt, f"Prefer canonical URLs: {docs_url} and {install_url}", "docs/public/ai.txt", errors)

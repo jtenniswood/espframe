@@ -136,24 +136,44 @@ export default defineConfig({
 
   themeConfig: {
     nav: [
+      { text: 'Choose a Screen', link: '/screens' },
       { text: 'Install', link: '/install' },
+      {
+        text: 'Guides',
+        items: [
+          { text: 'Photo Sources', link: '/photo-sources' },
+          { text: 'Screen Settings', link: '/screen-settings' },
+          { text: 'Firmware Updates', link: '/firmware-update' },
+          { text: 'Home Assistant', link: '/home-assistant' },
+        ],
+      },
       { text: 'FAQ', link: '/faq' },
-      { text: 'Docs', link: '/' },
       { text: 'GitHub', link: 'https://github.com/jtenniswood/espframe' },
     ],
 
     sidebar: [
       {
-        text: 'Guide',
+        text: 'Getting Started',
         items: [
           { text: 'Overview', link: '/' },
-          { text: 'FAQ', link: '/faq' },
           { text: 'Immich Photo Frame', link: '/immich-photo-frame' },
+          { text: 'Choose a Screen', link: '/screens' },
           { text: 'Install', link: '/install' },
-          { text: '10-inch Screen Revisions', link: '/screens/jc8012p4a1' },
-          { text: 'JC8012P4A1 V1', link: '/screens/jc8012p4a1-v1' },
-          { text: 'JC8012P4A1 V2', link: '/screens/jc8012p4a1-v2' },
-          { text: 'JC8012P4A1 V3', link: '/screens/jc8012p4a1-v3' },
+          { text: 'FAQ', link: '/faq' },
+        ],
+      },
+      {
+        text: 'Supported Screens',
+        items: [
+          { text: '10-inch JC8012P4A1', link: '/screens/jc8012p4a1' },
+          { text: 'V1 — Original Panel', link: '/screens/jc8012p4a1-v1' },
+          { text: 'V2 — New Panel', link: '/screens/jc8012p4a1-v2' },
+          { text: 'V3 — Production Silicon', link: '/screens/jc8012p4a1-v3' },
+        ],
+      },
+      {
+        text: 'Guides',
+        items: [
           { text: 'USB Flashing Help', link: '/usb-flashing' },
           { text: 'Immich API Key', link: '/api-key' },
           { text: 'Troubleshooting', link: '/troubleshooting' },
@@ -175,23 +195,21 @@ export default defineConfig({
         items: [
           { text: 'Home Assistant', link: '/home-assistant' },
           { text: 'Manual Setup', link: '/manual-setup' },
+          { text: 'ESP32-C6 Wi-Fi Recovery', link: '/c6-recovery' },
+        ],
+      },
+      {
+        text: 'Community',
+        items: [
+          { text: 'Partnerships', link: '/partnerships' },
+          { text: 'Contributing', link: '/contributing' },
+          { text: 'Collect USB Logs', link: '/collect-usb-logs' },
         ],
       },
       {
         text: 'Project',
         items: [
-          { text: 'Roadmap', link: '/roadmap' },
           { text: 'License', link: '/license' },
-        ],
-      },
-      {
-        text: 'Engineering Notes',
-        collapsed: true,
-        items: [
-          { text: 'Current Architecture', link: '/reset-architecture-v2' },
-          { text: 'Product Metadata Foundation', link: '/phase-1-product-metadata' },
-          { text: 'Reset Architecture', link: '/phase-3-reset-architecture' },
-          { text: 'Release-Proven Architecture', link: '/phase-4-release-proven-architecture' },
         ],
       },
     ],

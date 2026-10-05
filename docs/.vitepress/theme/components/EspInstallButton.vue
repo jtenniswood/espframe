@@ -9,20 +9,17 @@
     <div v-else class="install-button">
       <section class="device-group" aria-labelledby="jc8012-heading">
         <h3 id="jc8012-heading">10-inch JC8012P4A1</h3>
-      <div class="device-picker" role="radiogroup" aria-label="Choose JC8012P4A1 revision">
-        <label v-for="device in availableDevices" :key="device.id" class="device-option">
-          <input v-model="selectedDeviceId" type="radio" name="espframe-device" :value="device.id">
-          <span>
-            <strong>{{ device.label }}</strong>
-            <small>
-              {{ device.model }}
-              <template v-if="device.id === selectedDeviceId && manifestVersion">
-                - Latest {{ manifestVersion }}
-              </template>
-            </small>
-          </span>
-        </label>
-      </div>
+        <label class="device-version-label" for="espframe-device-version">Hardware version</label>
+        <select id="espframe-device-version" v-model="selectedDeviceId" class="device-version-select" required>
+          <option value="" disabled>Choose your panel version</option>
+          <option v-for="device in availableDevices" :key="device.id" :value="device.id">
+            {{ device.label }}
+          </option>
+        </select>
+        <p v-if="selectedDevice" class="device-version-detail">
+          {{ selectedDevice.model }}
+          <span v-if="manifestVersion"> Latest firmware: {{ manifestVersion }}</span>
+        </p>
       </section>
       <esp-web-install-button v-if="selectedDevice" :manifest="manifestUrl">
         <button slot="activate" class="brand-button">Install {{ selectedDevice.label }}</button>
@@ -125,42 +122,30 @@ watch(manifestUrl, loadManifestVersion)
   margin: 0 0 10px;
 }
 
-.device-picker {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 10px;
-  width: 100%;
-  max-width: 620px;
+.device-version-label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
 }
 
-.device-option {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 10px;
-  align-items: center;
-  padding: 12px 14px;
+.device-version-select {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  min-height: 42px;
+  padding: 8px 12px;
   border: 1px solid var(--vp-c-divider);
   border-radius: 8px;
-  cursor: pointer;
+  color: var(--vp-c-text-1);
+  background: var(--vp-c-bg);
+  font: inherit;
 }
 
-.device-option:has(input:checked) {
-  border-color: var(--vp-c-brand-1);
-  background: var(--vp-c-brand-soft);
-}
-
-.device-option input {
-  margin: 0;
-}
-
-.device-option strong,
-.device-option small {
-  display: block;
-  line-height: 1.3;
-}
-
-.device-option small {
+.device-version-detail {
+  max-width: 620px;
+  margin: 8px 0 0;
   color: var(--vp-c-text-2);
+  font-size: 14px;
 }
 
 .brand-button {

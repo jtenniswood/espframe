@@ -1,13 +1,8 @@
 import { readFileSync } from 'node:fs'
 
 const internalDocumentation = new Set([
-  'phase-1-product-metadata',
-  'phase-3-reset-architecture',
-  'phase-4-release-proven-architecture',
   'repository-governance',
-  'reset-architecture-v2',
   'source-ownership',
-  'tech-debt-cleanup-backlog',
 ])
 
 function pageSlug(url: string): string {

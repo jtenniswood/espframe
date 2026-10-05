@@ -16,13 +16,8 @@ DIST = ROOT / "docs/.vitepress/dist"
 BASE_URL = "https://jtenniswood.github.io/espframe/"
 BASE_PATH = "/espframe"
 NON_SEARCHABLE = {
-    "phase-1-product-metadata",
-    "phase-3-reset-architecture",
-    "phase-4-release-proven-architecture",
     "repository-governance",
-    "reset-architecture-v2",
     "source-ownership",
-    "tech-debt-cleanup-backlog",
 }
 
 
