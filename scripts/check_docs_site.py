@@ -131,7 +131,7 @@ def main() -> int:
         for key in ("og:title", "og:description", "og:url", "twitter:title", "twitter:description"):
             if not parser.meta.get(key, "").strip():
                 errors.append(f"{path.name}: missing {key} metadata")
-        if slug in NON_SEARCHABLE and "noindex" not in parser.robots.lower():
+        if (slug in NON_SEARCHABLE or slug in REDIRECT_PAGES) and "noindex" not in parser.robots.lower():
             errors.append(f"{path.name}: engineering page is missing noindex metadata")
 
     sitemap_path = DIST / "sitemap.xml"
