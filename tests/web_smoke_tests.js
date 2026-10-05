@@ -197,12 +197,12 @@ const scenarios = [
   ...[false, true].map(restoreName => ({
     name: "frame-name-import-" + (restoreName ? "restore" : "keep"),
     configured: true, width: 1280, height: 900, identity: true, restoreName,
-    importFixture: { version: 3, identity: { name: "Office" }, screen: { brightness_day: 80 } }
+    importFixture: { version: 3, identity: { ["name"]: "Office" }, screen: { brightness_day: 80 } }
   })),
   {
     name: "frame-name-import-timeout",
     configured: true, width: 1280, height: 900, identity: true, restoreName: true, identityPostHangs: true,
-    importFixture: { version: 3, identity: { name: "Office" }, screen: { brightness_day: 80 } }
+    importFixture: { version: 3, identity: { ["name"]: "Office" }, screen: { brightness_day: 80 } }
   },
   { name: "refresh-startup", configured: true, width: 1280, height: 900, slowStartup: true },
   { name: "refresh-startup-legacy", configured: true, width: 1280, height: 900, slowStartup: true, legacyStartup: true },
@@ -1927,6 +1927,9 @@ function smokeAssertionsForScenario(scenario) {
             await waitFor(() => pageText().indexOf("Settings imported successfully. The Immich API key isn’t stored in backups; configure it on this screen.") !== -1, 8000, "new-screen import completion");
             if (!hasConfigurationPost("Connection: Server URL")) throw new Error("New-screen import did not save the server URL");
             requirePostContains("New-screen import brightness", "Screen: Daytime Brightness", "value=90");
+            const updates = configurationUpdates();
+            if (updates.length !== 1) throw new Error("Backup import should batch compatible settings into one configuration update");
+            if (Object.keys(updates[0]).length !== 2) throw new Error("Backup import batch should include all imported settings");
             if (window.__smoke.postRecords.some(record => record.body.indexOf("imported-api-key") !== -1)) {
               throw new Error("Blank backup API key should not be written to the new screen");
             }
@@ -1937,7 +1940,7 @@ function smokeAssertionsForScenario(scenario) {
             await waitFor(() => pageText().indexOf("Importing settings…") !== -1, 4000, "failed-save import progress");
             await new Promise(resolve => setTimeout(resolve, 100));
             if (pageText().indexOf("Importing settings…") === -1) throw new Error("Save failure replaced progress before the import finished");
-            await waitFor(() => pageText().indexOf("Imported with 1 failed setting") !== -1, 8000, "failed import save");
+            await waitFor(() => pageText().indexOf("Imported with 2 failed settings") !== -1, 8000, "failed import save");
             requirePostContains("Failed import still attempted daytime brightness", "Screen: Daytime Brightness", "value=90");
           }
 

@@ -5498,6 +5498,23 @@ to {
   var backupImportSaveTasks = null;
   var backupImportInProgress = false;
   var backupImportMessages = [];
+  var backupImportBatchValues = null;
+  var backupImportBatchEntryCount = 0;
+  var backupImportBatchEntryPending = false;
+  function queueBackupImportSetting(key, value) {
+    if (!key || !endpoints[key]) return;
+    var savedValue = value;
+    if (key === "ntp_server_1" || key === "ntp_server_2" || key === "ntp_server_3") {
+      savedValue = normalizeNtpServer(value);
+    } else if (key === "schedule_wake_timeout") {
+      savedValue = normalizeScheduleWakeTimeout(value);
+    } else if (key === "screen_rotation") {
+      savedValue = String(value);
+      backupImportBatchValues.portrait_pairing = !isPortraitScreenRotation(savedValue);
+    }
+    backupImportBatchValues[key] = savedValue;
+    backupImportBatchEntryPending = true;
+  }
   function trackBackupImportSave(result) {
     if (!backupImportSaveTasks) return;
     backupImportSaveTasks.push(
@@ -5585,7 +5602,7 @@ to {
   function applyGenericBackupImportField(entry, value) {
     var validation = validateProductSettingBackupImport(entry, value);
     if (!validation.ok) return skipBackupImportField(validation.message);
-    trackBackupImportSave(saveSetting(backupImportStateKey(entry), validation.value));
+    queueBackupImportSetting(backupImportStateKey(entry), validation.value);
     return true;
   }
   function skipBackupImportField(message) {
@@ -5619,7 +5636,7 @@ to {
       if (excludedIds && !isValidUuidList(excludedIds)) {
         return skipBackupImportField("Import skipped invalid excluded IDs");
       }
-      trackBackupImportSave(saveSetting(backupImportStateKey(entry), excludedIds));
+      queueBackupImportSetting(backupImportStateKey(entry), excludedIds);
       return true;
     }
     switch (backupEntryKey(entry)) {
@@ -5627,7 +5644,7 @@ to {
         var importUrl = normalizeImmichUrl(value);
         if (importUrl.length > 255) return skipBackupImportField("Immich URL exceeds 255 characters - not imported");
         if (importUrl && !isValidHttpUrl(importUrl)) return skipBackupImportField("Immich URL was invalid - not imported");
-        trackBackupImportSave(saveSetting("immich_url", importUrl));
+        queueBackupImportSetting("immich_url", importUrl);
         return true;
       case "connection.api_key":
         var importApiKey = value == null ? "" : String(value).trim();
@@ -5642,7 +5659,7 @@ to {
         } else if (!isValidUuidList(importAlbum)) {
           return skipBackupImportField("Import skipped invalid album IDs");
         } else {
-          trackBackupImportSave(saveSetting("album_ids", importAlbum));
+          queueBackupImportSetting("album_ids", importAlbum);
         }
         return true;
       case "photos.album_labels":
@@ -5650,7 +5667,7 @@ to {
         if (photoLabelFieldTooLong(importAlbumLabels)) {
           return skipBackupImportField("Album labels exceed 255 characters - not imported");
         } else {
-          trackBackupImportSave(saveSetting("album_labels", importAlbumLabels));
+          queueBackupImportSetting("album_labels", importAlbumLabels);
         }
         return true;
       case "photos.person_ids":
@@ -5660,7 +5677,7 @@ to {
         } else if (!isValidUuidList(importPerson)) {
           return skipBackupImportField("Import skipped invalid person IDs");
         } else {
-          trackBackupImportSave(saveSetting("person_ids", importPerson));
+          queueBackupImportSetting("person_ids", importPerson);
         }
         return true;
       case "photos.person_labels":
@@ -5668,7 +5685,7 @@ to {
         if (photoLabelFieldTooLong(importPersonLabels)) {
           return skipBackupImportField("Person labels exceed 255 characters - not imported");
         } else {
-          trackBackupImportSave(saveSetting("person_labels", importPersonLabels));
+          queueBackupImportSetting("person_labels", importPersonLabels);
         }
         return true;
       case "photos.tag_ids":
@@ -5678,7 +5695,7 @@ to {
         } else if (!isValidUuidList(importTag)) {
           return skipBackupImportField("Import skipped invalid tag IDs");
         } else {
-          trackBackupImportSave(saveSetting("tag_ids", importTag));
+          queueBackupImportSetting("tag_ids", importTag);
         }
         return true;
       case "photos.tag_labels":
@@ -5686,7 +5703,7 @@ to {
         if (photoLabelFieldTooLong(importTagLabels)) {
           return skipBackupImportField("Tag labels exceed 255 characters - not imported");
         } else {
-          trackBackupImportSave(saveSetting("tag_labels", importTagLabels));
+          queueBackupImportSetting("tag_labels", importTagLabels);
         }
         return true;
       case "clock.timezone":
@@ -5694,7 +5711,7 @@ to {
         if (TIMEZONES.indexOf(importedTimezone) === -1) {
           return skipBackupImportField("Timezone was invalid - not imported");
         }
-        trackBackupImportSave(saveSetting("timezone", importedTimezone));
+        queueBackupImportSetting("timezone", importedTimezone);
         return true;
       case "clock.ntp_servers":
         if (Array.isArray(value) && value.length <= 3) {
@@ -5706,7 +5723,7 @@ to {
           }
           ["ntp_server_1", "ntp_server_2", "ntp_server_3"].forEach(function(key, idx) {
             if (value[idx] === void 0) return;
-            trackBackupImportSave(saveSetting(key, value[idx]));
+            queueBackupImportSetting(key, value[idx]);
           });
           return true;
         }
@@ -5715,12 +5732,12 @@ to {
         var wakeTimeout = normalizeScheduleWakeTimeout(value);
         var wakeValidation = validateProductSettingBackupImport(entry, wakeTimeout);
         if (!wakeValidation.ok) return skipBackupImportField(wakeValidation.message);
-        trackBackupImportSave(saveSetting("schedule_wake_timeout", wakeValidation.value));
+        queueBackupImportSetting("schedule_wake_timeout", wakeValidation.value);
         return true;
       case "screen.rotation":
         var importedRotation = String(value);
         if (screenRotationOptionsForUi().indexOf(importedRotation) !== -1) {
-          trackBackupImportSave(saveSetting("screen_rotation", importedRotation));
+          queueBackupImportSetting("screen_rotation", importedRotation);
           return true;
         }
         return skipBackupImportField("Screen rotation was invalid - not imported");
@@ -5769,13 +5786,17 @@ to {
           backupImportMessages = [];
           showBanner("Importing settings\u2026", "info", 0);
           backupImportSaveTasks = [];
+          backupImportBatchValues = {};
+          backupImportBatchEntryCount = 0;
           var queuedCount = 0;
           var skippedCount = 0;
           var needsPhotoSourceApply = false;
           BACKUP_SCHEMA.forEach(function(entry) {
             if (!backupImportFieldPresent(data, entry)) return;
+            backupImportBatchEntryPending = false;
             if (applyBackupImportField(entry, backupImportFieldValue(data, entry))) {
               queuedCount += 1;
+              if (backupImportBatchEntryPending) backupImportBatchEntryCount += 1;
               needsPhotoSourceApply = needsPhotoSourceApply || backupImportEntryUsesPhotoSourceApply(entry);
             } else {
               skippedCount += 1;
@@ -5786,6 +5807,12 @@ to {
             trackBackupImportSave(saveFrameName(data.identity.name).then(function() {
               return { ok: true };
             }));
+          }
+          if (backupImportBatchEntryCount) {
+            var batchSave = saveSettingValues(backupImportBatchValues);
+            for (var batchIndex = 0; batchIndex < backupImportBatchEntryCount; batchIndex++) {
+              trackBackupImportSave(batchSave);
+            }
           }
           var results = await Promise.all(backupImportSaveTasks);
           var failedCount = results.filter(function(ok) {
@@ -5810,10 +5837,14 @@ to {
           );
           renderSettings();
           backupImportSaveTasks = null;
+          backupImportBatchValues = null;
+          backupImportBatchEntryCount = 0;
           backupImportMessages = [];
         } catch (_) {
           backupImportInProgress = false;
           backupImportSaveTasks = null;
+          backupImportBatchValues = null;
+          backupImportBatchEntryCount = 0;
           backupImportMessages = [];
           showBanner("Import failed. Please try again.", "error");
         } finally {
