@@ -45,7 +45,7 @@ The installer uses Web Serial; Safari and Firefox cannot flash the display. Havi
 
 Enter your WiFi name and password when prompted.
 
-If no prompt appears, connect your phone or laptop to the frame's **ESP_** WiFi hotspot and open `http://192.168.4.1`. This captive portal lets you enter your home WiFi details. The hotspot's suffix comes from the frame's MAC address, so each name is different.
+If no prompt appears, connect your phone or laptop to the frame's **espframe** WiFi hotspot and open `http://192.168.4.1`. This captive portal lets you enter your home WiFi details.
 
 ## 3. Connect to Immich
 

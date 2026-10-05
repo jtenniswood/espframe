@@ -47,7 +47,7 @@ script:
 wifi:
   reboot_timeout: 0s
   ap:
-    ssid: "${name}"
+    ssid: "espframe"
   on_connect:
     - script.stop: setup_screen_dim
     - script.stop: show_wifi_setup_after_disconnect

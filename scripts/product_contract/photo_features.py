@@ -388,7 +388,7 @@ def check_setup_flow_metadata(product: dict, errors: list[str]) -> None:
 
     for needle in (
         "captive_portal:",
-        'ssid: "${name}"',
+        'ssid: "espframe"',
         "wifi.connected",
         "is_valid_http_url(id(immich_url).state)",
         "!id(immich_api_key_value).empty()",
@@ -408,6 +408,7 @@ def check_setup_flow_metadata(product: dict, errors: list[str]) -> None:
         "slideshow_page",
     ):
         require_contains(immich_config_yaml, needle, "common/addon/immich_config.yaml", errors)
+    require_contains(screen_loading_yaml, "wifi::global_wifi_component->get_ap().get_ssid()", "devices/guition-esp32-p4-jc8012p4a1/device/screen_loading.yaml", errors)
     for needle in (
         "Connect to the WiFi hotspot",
         "to configure your network",
