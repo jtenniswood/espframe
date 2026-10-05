@@ -86,6 +86,7 @@ def test_contract_manifest_preserves_upgrade_boundaries() -> None:
 
 def test_10inch_installer_requires_a_version_and_probes_manifests_independently() -> None:
     installer = (ROOT / "docs/.vitepress/theme/components/EspInstallButton.vue").read_text(encoding="utf-8")
+    install_guide = (ROOT / "docs/install.md").read_text(encoding="utf-8")
 
     assert "const selectedDeviceId = ref('')" in installer
     assert "id: 'immich-frame'" in installer and "./firmware/manifest.json" in installer
@@ -94,8 +95,17 @@ def test_10inch_installer_requires_a_version_and_probes_manifests_independently(
     assert "Promise.all(devices.filter((device) => device.requirePublishedManifest).map(async (device) =>" in installer
     assert "if (response.ok) available.add(device.id)" in installer
     assert "selectedDevice.value?.manifest || ''" in installer
-    assert 'id="espframe-device-version" v-model="selectedDeviceId"' in installer
-    assert '<option value="" disabled>Choose your panel version</option>' in installer
+    assert 'class="device-picker" aria-label="Choose JC8012P4A1 hardware version"' in installer
+    assert 'type="radio" name="espframe-device" :value="device.id"' in installer
+    assert "ESP32-P4 v3.x" in installer
+    assert "four-digit number on the rear case is 2627 or lower" in installer
+    assert "four-digit number on the rear case is 2628 or higher" in installer
+    assert "esptool --chip esp32p4 --port PORT chip_id" not in installer
+    assert "Check in ESPHome startup logs" not in installer
+    assert "<legend>Hardware version</legend>" not in installer
+    assert "Use the table to choose **Hardware version** below" not in install_guide
+    assert "What your display reports" not in install_guide
+    assert "Initial USB installation and OTA updates have not yet been tested" not in install_guide
     assert '<esp-web-install-button v-if="selectedDevice"' in installer
 
     for revision in ("v1", "v2", "v3"):
@@ -109,9 +119,13 @@ def test_community_docs_and_site_github_star_indicator_are_wired() -> None:
     stars = (ROOT / "docs/.vitepress/theme/components/GitHubStars.vue").read_text(encoding="utf-8")
     serial_logs = (ROOT / "docs/.vitepress/theme/components/USBSerialLogs.vue").read_text(encoding="utf-8")
 
-    for page in ("partnerships", "contributing", "collect-usb-logs", "c6-recovery"):
+    for page in ("partnerships", "contributing", "collect-usb-logs"):
         assert (ROOT / "docs" / f"{page}.md").is_file()
         assert f"'/{page}'" in config
+    recovery_redirect = (ROOT / "docs" / "c6-recovery.md").read_text(encoding="utf-8")
+    assert "http-equiv: refresh" in recovery_redirect
+    assert "url=https://jtenniswood.github.io/espframe/firmware-update" in recovery_redirect
+    assert "[Firmware Updates](/firmware-update)" in recovery_redirect
     assert "nav-bar-content-after" in theme and "h(GitHubStars)" in theme
     assert "https://api.github.com/repos/jtenniswood/espframe" in stars
     assert "stargazers_count" in stars

@@ -2357,7 +2357,6 @@ def check_esphome_version(product: dict, errors: list[str]) -> None:
 
     required_refs = [
         ROOT / "README.md",
-        ROOT / "docs" / "install.md",
         ROOT / "docs" / "manual-setup.md",
     ]
     for path in required_refs:

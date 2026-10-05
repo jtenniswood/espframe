@@ -327,7 +327,7 @@ def check_setup_flow_metadata(product: dict, errors: list[str]) -> None:
     install_docs = read(ROOT / "docs" / "install.md", errors)
     usb_docs = read(ROOT / "docs" / "usb-flashing.md", errors)
     manual_setup_docs = read(ROOT / "docs" / "manual-setup.md", errors)
-    immich_frame_docs = read(ROOT / "docs" / "immich-photo-frame.md", errors)
+    immich_frame_docs = read(ROOT / "docs" / "index.md", errors)
     web_template = read_web_source(errors)
     connectivity_yaml = read(ROOT / "common" / "addon" / "connectivity.yaml", errors)
     immich_config_yaml = read(ROOT / "common" / "addon" / "immich_config.yaml", errors)
@@ -384,7 +384,7 @@ def check_setup_flow_metadata(product: dict, errors: list[str]) -> None:
         for label, local_yaml in local_yamls:
             require_contains(local_yaml, f"refresh: {package_refresh}", label or "device local ESPHome YAML", errors)
     for needle in ("WiFi", "Immich server URL", "Immich API key"):
-        require_contains(immich_frame_docs, needle, "docs/immich-photo-frame.md", errors)
+        require_contains(immich_frame_docs, needle, "docs/index.md", errors)
 
     for needle in (
         "captive_portal:",

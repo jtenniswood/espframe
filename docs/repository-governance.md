@@ -1,6 +1,6 @@
 ---
-title: Espframe Repository Governance
-description: Learn how Espframe changes are reviewed, validated, and delivered through pull requests.
+title: EspFrame Repository Governance
+description: Learn how EspFrame changes are reviewed, validated, and delivered through pull requests.
 ---
 
 # Repository Governance

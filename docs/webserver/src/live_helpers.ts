@@ -636,11 +636,14 @@
   // --- Banner ---
 
   var bannerTimer = null;
-  function showBanner(msg, type?) {
+  function showBanner(msg, type?, durationMs?) {
     if (!els.banner) return;
+    if (typeof backupImportInProgress !== "undefined" && backupImportInProgress && type !== "info") return;
     els.banner.textContent = msg;
     els.banner.className = "banner banner-" + (type || "success");
+    els.banner.setAttribute("role", type === "error" ? "alert" : "status");
+    els.banner.setAttribute("aria-live", type === "error" ? "assertive" : "polite");
     els.banner.style.display = "";
     clearTimeout(bannerTimer);
-    bannerTimer = setTimeout(function () { els.banner.style.display = "none"; }, 5000);
+    bannerTimer = durationMs === 0 ? null : setTimeout(function () { els.banner.style.display = "none"; }, durationMs || 5000);
   }

@@ -149,6 +149,8 @@
   }
 
   var backupImportSaveTasks = null;
+  var backupImportInProgress = false;
+  var backupImportMessages: string[] = [];
 
   function trackBackupImportSave(result) {
     if (!backupImportSaveTasks) return;
@@ -260,6 +262,10 @@
   }
 
   function skipBackupImportField(message) {
+    if (backupImportInProgress) {
+      if (backupImportMessages.length < 3) backupImportMessages.push(message);
+      return false;
+    }
     showBanner(message, "error");
     return false;
   }
@@ -300,7 +306,9 @@
         return true;
       case "connection.api_key":
         var importApiKey = value == null ? "" : String(value).trim();
-        if (!importApiKey) return skipBackupImportField("API key is write-only");
+        // API keys are intentionally omitted from exports. A blank value means
+        // keep the destination frame's key unchanged and ask for it separately.
+        if (!importApiKey) return true;
         if (importApiKey.length > 255) return skipBackupImportField("API key exceeds 255 characters - not imported");
         trackBackupImportSave(saveSetting("api_key", importApiKey));
         return true;
@@ -399,6 +407,7 @@
   }
 
   function importConfig() {
+    if (backupImportInProgress) return;
     var fileInput = document.createElement("input");
     fileInput.type = "file";
     fileInput.accept = ".json";
@@ -432,6 +441,9 @@
           restoreName = choice;
         }
 
+        backupImportInProgress = true;
+        backupImportMessages = [];
+        showBanner("Importing settings…", "info", 0);
         backupImportSaveTasks = [];
         var queuedCount = 0;
         var skippedCount = 0;
@@ -469,12 +481,25 @@
           .then(function (summary) {
             var failedCount = summary.failedCount;
             var appliedCount = summary.appliedCount;
+            backupImportInProgress = false;
+            var apiKeyWasOmitted = !data.connection || !Object.prototype.hasOwnProperty.call(data.connection, "api_key") ||
+              !String(data.connection.api_key == null ? "" : data.connection.api_key).trim();
+            var resultMessage = backupImportSummaryMessage(appliedCount, skippedCount, failedCount);
+            if (backupImportMessages.length) resultMessage += ". " + backupImportMessages.join("; ");
+            if (apiKeyWasOmitted) resultMessage += ". The Immich API key isn’t stored in backups; configure it on this screen.";
             showBanner(
-              backupImportSummaryMessage(appliedCount, skippedCount, failedCount),
+              resultMessage,
               skippedCount || failedCount ? "error" : "success"
             );
             renderSettings();
             backupImportSaveTasks = null;
+            backupImportMessages = [];
+          })
+          .catch(function () {
+            backupImportInProgress = false;
+            backupImportSaveTasks = null;
+            backupImportMessages = [];
+            showBanner("Import failed. Please try again.", "error");
           });
       };
       reader.readAsText(fileInput.files[0]);

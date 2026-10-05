@@ -332,6 +332,7 @@ import {
   }
 
   function reportSettingSaveFailure() {
+    if (typeof backupImportInProgress !== "undefined" && backupImportInProgress) return;
     showBanner("Failed to save setting", "error");
     renderSettingsAfterEditing();
   }

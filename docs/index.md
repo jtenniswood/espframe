@@ -1,18 +1,46 @@
 ---
-title: Espframe for Immich – ESP32 Digital Photo Frame
+title: EspFrame for Immich – ESP32 Digital Photo Frame
 titleTemplate: :title
 description: Build a standalone Immich digital photo frame on a Guition ESP32-P4 touchscreen with ESPHome. No hub, cloud, or extra software required.
 ---
 
-# Espframe for Immich
+# EspFrame for Immich
 
-**Espframe** is a standalone Immich digital photo frame for a supported Guition ESP32-P4 touchscreen. It turns an ESP32 photo frame into a private, self-hosted photo frame that displays your [Immich](https://immich.app/) library directly from your own server.
+**EspFrame** is a standalone Immich digital photo frame for a supported Guition ESP32-P4 touchscreen. It turns an ESP32 photo frame into a private, self-hosted photo frame that displays your [Immich](https://immich.app/) library directly from your own server.
 
 The firmware runs on ESP32-P4 hardware with [ESPHome](https://esphome.io/) and connects to Immich over HTTP or HTTPS. It does not need Home Assistant, a cloud account, or a separate bridge service.
 
-New to Espframe? Start with the [Immich photo frame guide](/immich-photo-frame), [check whether your display is supported](/screens), then follow the [installation guide](/install). Browse the [frequently asked questions](/faq) for quick answers.
+Ready to get started? **[Install EspFrame](/install)**. Need a display first? [Where to Buy](/screens).
 
-<img src="/espframe.png" alt="Espframe displaying Immich photos on a Guition ESP32-P4 touchscreen" style="max-width: 100%; border-radius: 8px; margin: 1.5rem 0;" />
+<img src="/espframe.png" alt="EspFrame displaying Immich photos on a Guition ESP32-P4 touchscreen" style="max-width: 100%; border-radius: 8px; margin: 1.5rem 0;" />
+
+## What EspFrame Does
+
+EspFrame firmware runs on the display itself with ESPHome and connects directly to your Immich server over HTTP or HTTPS to show photos from your own network. It supports all photos, favorites, albums, people, memories, and date-filtered selections. Home Assistant, a separate bridge app, and a cloud service are not required.
+
+Use the frame's settings to adjust brightness and screen tone, schedule the display, pair portrait photos, and show a clock over the slideshow. The [photo sources guide](/photo-sources) explains the available sources and filters.
+
+## What You Need
+
+- A supported 10.1-inch Guition ESP32-P4 `JC8012P4A1` display.
+- A working Immich server the frame can reach on your network or over HTTPS.
+- An Immich API key; Read-only permissions are recommended.
+- A USB-C data cable (not a charge-only cable) and a desktop computer running Chrome or Edge for browser installation with Web Serial.
+
+See [supported screen revisions](/screens) and the full [installation requirements](/install#what-you-ll-need).
+
+## Get Started
+
+1. [Install EspFrame](/install) on the display.
+2. Connect the frame to WiFi.
+3. Enter your Immich server URL and [Immich API key](/api-key).
+4. Choose the [photo sources](/photo-sources) for the slideshow.
+
+For USB connection help, see [USB flashing](/usb-flashing). If setup does not work as expected, visit [troubleshooting](/troubleshooting).
+
+## Privacy
+
+EspFrame does not upload photos or send your library through a hosted service. The frame requests thumbnails and metadata from the Immich server URL you configure. If that server is only available on your local network, the frame stays local too.
 
 ## Features
 
@@ -28,9 +56,9 @@ New to Espframe? Start with the [Immich photo frame guide](/immich-photo-frame),
 
 | Model | Panel | Stand |
 |-------|-------|-------|
-| Guition ESP32-P4 10" `JC8012P4A1`, V1, V2, and V3 revisions | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) | [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046) |
+| Guition ESP32-P4 10.1-inch `JC8012P4A1` | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) | [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046) |
 
-See [Choose a Screen](/screens) to check compatibility, identify your panel revision, and find its setup instructions.
+The [installer](/install) helps you choose the right firmware for your display.
 
 ## Support This Project
 

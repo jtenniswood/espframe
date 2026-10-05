@@ -1,15 +1,15 @@
 ---
-title: Espframe Firmware Updates
-description: Check, install, automate, and roll back Espframe and Wi-Fi firmware updates from the device web interface.
+title: EspFrame Firmware Updates
+description: Check, install, automate, and roll back EspFrame and Wi-Fi firmware updates from the device web interface.
 ---
 
-# Espframe Firmware Updates
+# EspFrame Firmware Updates
 
 OTA and HTTP updates come from GitHub Pages. The original panel checks `https://jtenniswood.github.io/espframe/firmware/manifest.json`; the new panel checks `https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v2/manifest.json`. Open the device web UI at `http://<device-ip>/`, choose **Device**, then expand **Firmware** in the **System** section to manage display and Wi-Fi firmware. The same update entities remain available in Home Assistant.
 
-During OTA updates, Espframe keeps the current backlight state while the update starts. If Home Assistant or the screen sleep control had already turned the display off, the screen stays off after the update reboot until it is woken again.
+During OTA updates, EspFrame keeps the current backlight state while the update starts. If Home Assistant or the screen sleep control had already turned the display off, the screen stays off after the update reboot until it is woken again.
 
-OTA updates and rollbacks preserve the Home Assistant ESPHome API encryption key stored on the frame, so installing a new version does not normally require re-pairing. Reinstalling factory firmware after a full flash erase is different: it can remove device preferences, including that key, and Home Assistant may then need the ESPHome integration to be reconfigured. The Home Assistant encryption key is unrelated to the Immich API key saved through the Espframe web UI.
+OTA updates and rollbacks preserve the Home Assistant ESPHome API encryption key stored on the frame, so installing a new version does not normally require re-pairing. Reinstalling factory firmware after a full flash erase is different: it can remove device preferences, including that key, and Home Assistant may then need the ESPHome integration to be reconfigured. The Home Assistant encryption key is unrelated to the Immich API key saved through the EspFrame web UI.
 
 <!-- ESPFRAME:SETTINGS_TABLE firmware_controls START -->
 | Control | Type | Default | Description |
@@ -31,7 +31,7 @@ The **Previous firmware** panel lists up to four earlier stable releases. Select
 
 ## ESP32-C6 Wi-Fi Coprocessor Updates
 
-The 10-inch ESP32-P4 frame also exposes separate controls in the **WiFi firmware** panel inside the grouped Firmware card. These use ESPHome's hosted ESP32-C6 firmware manifest, not the Espframe display firmware manifest.
+The 10-inch ESP32-P4 frame also exposes separate controls in the **WiFi firmware** panel inside the grouped Firmware card. These use ESPHome's hosted ESP32-C6 firmware manifest, not the EspFrame display firmware manifest.
 
 | Status or action | Type | Description |
 |------------------|------|-------------|

@@ -19,6 +19,7 @@ NON_SEARCHABLE = {
     "repository-governance",
     "source-ownership",
 }
+REDIRECT_PAGES = {"immich-photo-frame"}
 
 
 class PageParser(html.parser.HTMLParser):
@@ -124,12 +125,13 @@ def main() -> int:
             errors.append(f"{path.name}: duplicate description also used by {descriptions[parser.description]}")
         else:
             descriptions[parser.description] = path.name
-        if parser.canonical != route_for_page(path):
+        expected_canonical = BASE_URL if slug in REDIRECT_PAGES else route_for_page(path)
+        if parser.canonical != expected_canonical:
             errors.append(f"{path.name}: unexpected canonical URL {parser.canonical!r}")
         for key in ("og:title", "og:description", "og:url", "twitter:title", "twitter:description"):
             if not parser.meta.get(key, "").strip():
                 errors.append(f"{path.name}: missing {key} metadata")
-        if slug in NON_SEARCHABLE and "noindex" not in parser.robots.lower():
+        if (slug in NON_SEARCHABLE or slug in REDIRECT_PAGES) and "noindex" not in parser.robots.lower():
             errors.append(f"{path.name}: engineering page is missing noindex metadata")
 
     sitemap_path = DIST / "sitemap.xml"
@@ -143,7 +145,7 @@ def main() -> int:
     expected_urls = {
         route_for_page(path)
         for slug, path in pages.items()
-        if slug not in NON_SEARCHABLE
+        if slug not in NON_SEARCHABLE and slug not in REDIRECT_PAGES
     }
     if expected_urls - sitemap_urls:
         errors.append("sitemap.xml: missing canonical pages: " + ", ".join(sorted(expected_urls - sitemap_urls)))

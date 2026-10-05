@@ -1,26 +1,26 @@
-# Espframe for Immich
+# EspFrame for Immich
 
 Turn a supported Guition ESP32-P4 touchscreen into a private digital photo frame for your [Immich](https://immich.app/) photo library.
 
-Espframe is for people who want their photos out in the room, not hidden on a phone, and do not want to run another server, cloud account, or subscription just to make that happen. Flash the frame from a browser, connect it to WiFi, point it at Immich, and it starts showing your photos.
+EspFrame is for people who want their photos out in the room, not hidden on a phone, and do not want to run another server, cloud account, or subscription just to make that happen. Flash the frame from a browser, connect it to WiFi, point it at Immich, and it starts showing your photos.
 
 <p align="center">
-  <img src="docs/public/espframe.png" alt="Espframe displaying Immich photos on a Guition ESP32-P4 touchscreen" width="700" />
+  <img src="docs/public/espframe.png" alt="EspFrame displaying Immich photos on a Guition ESP32-P4 touchscreen" width="700" />
 </p>
 
-## What Espframe Lets You Do
+## What EspFrame Lets You Do
 
 - **Make a real photo frame from your Immich library**  
   Show photos from the Immich server you already run, without needing a tablet, Raspberry Pi, Home Assistant, or a separate slideshow service.
 
 - **Keep your photos private**  
-  The frame connects directly to your Immich server over your own network. There is no Espframe cloud service and no extra account to trust with your pictures.
+  The frame connects directly to your Immich server over your own network. There is no EspFrame cloud service and no extra account to trust with your pictures.
 
 - **Choose what appears on the frame**  
   Combine albums, people, tags, favorites, ratings, dates, locations, exclusions, and orientation in one smart playlist.
 
 - **Make portrait photos look better on a wide screen**  
-  Espframe can pair portrait photos from a configurable nearby-day range side-by-side, so the display feels more like a composed frame and less like a single narrow image with empty space. You can also hide portraits when a complete pair is not available.
+  EspFrame can pair portrait photos from a configurable nearby-day range side-by-side, so the display feels more like a composed frame and less like a single narrow image with empty space. You can also hide portraits when a complete pair is not available.
 
 - **Tune the screen for your room**  
   Adjust brightness, warm up a panel that looks too blue, use a softer night tone after sunset, and schedule the display to turn off overnight.
@@ -29,11 +29,11 @@ Espframe is for people who want their photos out in the room, not hidden on a ph
   Use simple touch gestures to wake, sleep, or advance to the next photo, and swipe between image sets. Open the built-in web page on your phone or computer to change the photo filter, timing, brightness, Immich settings, and display options.
 
 - **Use Home Assistant if you want to, but it is not required**  
-  Espframe works by itself. If you already use Home Assistant, it can also appear there as an ESPHome device for dashboard controls, automations, and updates.
+  EspFrame works by itself. If you already use Home Assistant, it can also appear there as an ESPHome device for dashboard controls, automations, and updates.
 
 ## Who This Is For
 
-Espframe is a good fit if:
+EspFrame is a good fit if:
 
 - You already use, or plan to use, Immich for your photo library.
 - You want a dedicated photo frame instead of leaving a tablet permanently awake.
@@ -48,14 +48,14 @@ Currently documented hardware:
 
 | Item | Link |
 |------|------|
-| 10" Guition ESP32-P4 panel (`JC8012P4A1`), original (`2627` or lower) and new (`2628` or higher) revisions | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) |
+| 10.1-inch Guition ESP32-P4 panel (`JC8012P4A1`) | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) |
 | 10" printable stand | [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046) |
 
-The two panel revisions look nearly identical but need different firmware. Choose the installer profile using the four-digit rear-case marking; the new panel may not be labelled `V2`.
+The [installation guide](https://jtenniswood.github.io/espframe/install) helps you choose the right firmware for your display.
 
 ## Getting Started
 
-The easiest way to install Espframe is with the web installer. You do not need to install developer tools or build firmware yourself.
+The easiest way to install EspFrame is with the web installer. You do not need to install developer tools or build firmware yourself.
 
 **[Open the Web Installer](https://jtenniswood.github.io/espframe/install)**
 
@@ -101,7 +101,7 @@ Firmware code should check `id(developer_features_enabled).state` before running
 
 ## License
 
-Espframe's project-owned code and documentation are source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE). You can use, change, and share it for non-commercial purposes. Commercial use needs separate permission from the project owner.
+EspFrame's project-owned code and documentation are source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE). You can use, change, and share it for non-commercial purposes. Commercial use needs separate permission from the project owner.
 
 This is not an OSI-approved open source license because formal open source licenses must allow commercial use. Third-party components keep their own licenses.
 

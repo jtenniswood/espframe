@@ -363,7 +363,7 @@ def check_clock_time_metadata(product: dict, errors: list[str]) -> None:
     if ntp_default_servers and static_ntp_defaults != ntp_default_servers:
         errors.append("project.ntp_default_servers must match the static web NTP defaults")
 
-    install_docs = read(ROOT / "docs" / "install.md", errors)
+    clock_docs = read(ROOT / "docs" / "screen-settings.md", errors)
     index_docs = read(ROOT / "docs" / "index.md", errors)
     backup_docs = read(ROOT / "docs" / "backup.md", errors)
     time_yaml = read(TIME_YAML, errors)
@@ -378,9 +378,9 @@ def check_clock_time_metadata(product: dict, errors: list[str]) -> None:
         "sunrise/sunset based brightness and night tone",
     ):
         if needle:
-            require_contains(install_docs, needle, "docs/install.md", errors)
+            require_contains(clock_docs, needle, "docs/screen-settings.md", errors)
     for server in ntp_default_servers:
-        require_contains(install_docs, server, "docs/install.md", errors)
+        require_contains(clock_docs, server, "docs/screen-settings.md", errors)
 
     for needle in ("Clock Overlay", "current time"):
         require_contains(index_docs, needle, "docs/index.md", errors)

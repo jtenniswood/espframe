@@ -28,8 +28,8 @@ onMounted(async () => {
     :href="repoUrl"
     target="_blank"
     rel="noopener"
-    aria-label="Star Espframe on GitHub"
-    title="Star Espframe on GitHub"
+    aria-label="Star EspFrame on GitHub"
+    title="Star EspFrame on GitHub"
   >
     <svg class="github-stars__icon" aria-hidden="true" viewBox="0 0 24 24">
       <path d="m12 2.5 2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.3l-5.8 3.1 1.1-6.5-4.7-4.6 6.5-.9L12 2.5Z" />

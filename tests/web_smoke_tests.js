@@ -231,9 +231,45 @@ const scenarios = [
   { name: "screen-tone-schedule", configured: true, width: 1280, height: 900 },
   { name: "daily-settings-controls", configured: true, width: 1280, height: 900 },
   { name: "backup-import-success", configured: true, width: 1280, height: 900, importFixture: validBackupFixture },
+  {
+    name: "backup-import-new-screen",
+    configured: true,
+    width: 1280,
+    height: 900,
+    importFixture: {
+      version: 3,
+      connection: { immich_url: "https://new-screen.photos.example.com", api_key: "" },
+      screen: { brightness_day: 90 }
+    },
+    configurationUpdateDelayMs: 300
+  },
+  {
+    name: "backup-import-new-screen-missing-key",
+    configured: true,
+    width: 1280,
+    height: 900,
+    importFixture: {
+      version: 3,
+      connection: { immich_url: "https://new-screen.photos.example.com" },
+      screen: { brightness_day: 90 }
+    },
+    configurationUpdateDelayMs: 300
+  },
   { name: "backup-import-v2-exclusions", configured: true, width: 1280, height: 900, importFixture: v2ExclusionBackupFixture },
-  { name: "backup-import-save-failure", configured: true, width: 1280, height: 900, importFixture: validBackupFixture, failedPostEndpoint: "Screen: Daytime Brightness" },
-  { name: "backup-import-partial", configured: true, width: 1280, height: 900, importFixture: partialBackupFixture },
+  {
+    name: "backup-import-save-failure",
+    configured: true,
+    width: 1280,
+    height: 900,
+    importFixture: {
+      version: 3,
+      connection: { immich_url: "https://failed-save.photos.example.com", api_key: "imported-api-key" },
+      screen: { brightness_day: 90 }
+    },
+    failedPostEndpoint: "Screen: Daytime Brightness",
+    configurationUpdateDelayMs: 300
+  },
+  { name: "backup-import-partial", configured: true, width: 1280, height: 900, importFixture: partialBackupFixture, configurationUpdateDelayMs: 300 },
   { name: "backup-import-rejected", configured: true, width: 1280, height: 900, importFixture: rejectedBackupFixture },
   { name: "backup-import-missing-version", configured: true, width: 1280, height: 900, importFixture: missingVersionBackupFixture },
   { name: "backup-import-future-version", configured: true, width: 1280, height: 900, importFixture: futureVersionBackupFixture },
@@ -568,7 +604,7 @@ function browserScriptForScenario(scenario) {
               status: 422,
               json: () => Promise.resolve({ api_version: 1, status: "rejected", error: "smoke_failure", field: failedKey })
             });
-          }, 0));
+          }, ${Number(scenario.configurationUpdateDelayMs || 0)}));
         }
         window.__smoke.posts.push(decoded);
         window.__smoke.postRecords.push({ url: decoded, body });
@@ -583,7 +619,7 @@ function browserScriptForScenario(scenario) {
             status: 200,
             json: () => Promise.resolve({ api_version: 1, status: "accepted", updated: Object.keys(update.values || {}).length })
           });
-        }, 0));
+        }, ${Number(scenario.configurationUpdateDelayMs || 0)}));
       }
       if (method === "POST") {
         window.__smoke.posts.push(decoded);
@@ -1838,6 +1874,9 @@ function smokeAssertionsForScenario(scenario) {
           if (${JSON.stringify(scenario.name)} === "backup-import-success") {
             clickButton("Import");
             await waitFor(() => pageText().indexOf("Settings imported successfully") !== -1, 8000, "successful import");
+            if (pageText().indexOf("The Immich API key isn’t stored in backups") !== -1) {
+              throw new Error("A backup with an API key should not ask the user to configure it again");
+            }
             if (!hasConfigurationPost("Connection: Server URL")) {
               throw new Error("Import did not post connection URL");
             }
@@ -1850,15 +1889,35 @@ function smokeAssertionsForScenario(scenario) {
             requirePostContains("Import normalized schedule setting", "Screen: Schedule Wake Timeout", "value=120");
           }
 
+          if (${JSON.stringify(scenario.name)}.startsWith("backup-import-new-screen")) {
+            clickButton("Import");
+            await waitFor(() => pageText().indexOf("Importing settings…") !== -1, 4000, "import progress feedback");
+            await new Promise(resolve => setTimeout(resolve, 10));
+            if (pageText().indexOf("Importing settings…") === -1) throw new Error("Import progress feedback disappeared while settings were being saved");
+            await waitFor(() => pageText().indexOf("Settings imported successfully. The Immich API key isn’t stored in backups; configure it on this screen.") !== -1, 8000, "new-screen import completion");
+            if (!hasConfigurationPost("Connection: Server URL")) throw new Error("New-screen import did not save the server URL");
+            requirePostContains("New-screen import brightness", "Screen: Daytime Brightness", "value=90");
+            if (window.__smoke.postRecords.some(record => record.body.indexOf("imported-api-key") !== -1)) {
+              throw new Error("Blank backup API key should not be written to the new screen");
+            }
+          }
+
           if (${JSON.stringify(scenario.name)} === "backup-import-save-failure") {
             clickButton("Import");
+            await waitFor(() => pageText().indexOf("Importing settings…") !== -1, 4000, "failed-save import progress");
+            await new Promise(resolve => setTimeout(resolve, 100));
+            if (pageText().indexOf("Importing settings…") === -1) throw new Error("Save failure replaced progress before the import finished");
             await waitFor(() => pageText().indexOf("Imported with 1 failed setting") !== -1, 8000, "failed import save");
             requirePostContains("Failed import still attempted daytime brightness", "Screen: Daytime Brightness", "value=90");
           }
 
           if (${JSON.stringify(scenario.name)} === "backup-import-partial") {
             clickButton("Import");
+            await waitFor(() => pageText().indexOf("Importing settings…") !== -1, 4000, "partial-import progress");
+            await new Promise(resolve => setTimeout(resolve, 100));
+            if (pageText().indexOf("Importing settings…") === -1) throw new Error("Skipped setting replaced progress before the import finished");
             await waitFor(() => pageText().indexOf("Imported with 1 skipped setting") !== -1, 8000, "partial import");
+            if (pageText().indexOf("Import skipped invalid album IDs") === -1) throw new Error("Skipped setting reason was not included in the import result");
             requirePostContains("Partial import text field", "Connection: Server URL");
             if (hasConfigurationPost("Photos: Album IDs")) {
               throw new Error("Skipped album IDs were posted to the device");

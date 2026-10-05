@@ -4,7 +4,7 @@ import { addDiscoveryMetadata, includeInSitemap } from './discovery'
 const hostname = 'https://jtenniswood.github.io/espframe/'
 
 export default defineConfig({
-  title: 'Espframe for Immich',
+  title: 'EspFrame for Immich',
   description: 'Standalone Immich-powered digital photo frame on ESP32-P4',
   base: '/espframe/',
   lang: 'en-US',
@@ -14,7 +14,10 @@ export default defineConfig({
   sitemap: {
     hostname,
     transformItems(items) {
-      return items.filter((item) => includeInSitemap(item.url))
+      return items.filter((item) => {
+        const path = item.url.split('#')[0].replace(/\/$/, '')
+        return includeInSitemap(item.url) && !path.endsWith('/immich-photo-frame')
+      })
     },
   },
 
@@ -22,12 +25,12 @@ export default defineConfig({
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/espframe/favicon.svg' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:locale', content: 'en_US' }],
-    ['meta', { property: 'og:site_name', content: 'Espframe for Immich' }],
+    ['meta', { property: 'og:site_name', content: 'EspFrame for Immich' }],
     ['meta', { property: 'og:image', content: `${hostname}espframe.png` }],
-    ['meta', { property: 'og:image:alt', content: 'Espframe displaying Immich photos on a Guition ESP32-P4 touchscreen' }],
+    ['meta', { property: 'og:image:alt', content: 'EspFrame displaying Immich photos on a Guition ESP32-P4 touchscreen' }],
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
     ['meta', { name: 'twitter:image', content: `${hostname}espframe.png` }],
-    ['meta', { name: 'twitter:image:alt', content: 'Espframe displaying Immich photos on a Guition ESP32-P4 touchscreen' }],
+    ['meta', { name: 'twitter:image:alt', content: 'EspFrame displaying Immich photos on a Guition ESP32-P4 touchscreen' }],
     ['script', { type: 'application/ld+json' }, JSON.stringify({
       '@context': 'https://schema.org',
       '@graph': [
@@ -35,14 +38,14 @@ export default defineConfig({
           '@type': 'WebSite',
           '@id': `${hostname}#website`,
           url: hostname,
-          name: 'Espframe for Immich',
+          name: 'EspFrame for Immich',
           description: 'Standalone Immich-powered digital photo frame on ESP32-P4. No hub, cloud, or extra software required.',
           inLanguage: 'en-US',
         },
         {
           '@type': 'SoftwareApplication',
           '@id': `${hostname}#software`,
-          name: 'Espframe for Immich',
+          name: 'EspFrame for Immich',
           applicationCategory: 'MultimediaApplication',
           operatingSystem: 'ESP32',
           description: 'Standalone Immich-powered digital photo frame on ESP32-P4. Displays your Immich photo library on supported Guition touchscreens over HTTP.',
@@ -62,9 +65,11 @@ export default defineConfig({
   transformPageData(pageData) {
     addDiscoveryMetadata(pageData)
 
-    const canonicalUrl = `${hostname}${pageData.relativePath}`
-      .replace(/index\.md$/, '')
-      .replace(/\.md$/, '')
+    const canonicalUrl = pageData.relativePath === 'immich-photo-frame.md'
+      ? hostname
+      : `${hostname}${pageData.relativePath}`
+        .replace(/index\.md$/, '')
+        .replace(/\.md$/, '')
 
     const title = pageData.frontmatter.title || pageData.title
     const description = pageData.frontmatter.description || ''
@@ -84,7 +89,7 @@ export default defineConfig({
         {
           '@type': 'ListItem',
           position: 1,
-          name: 'Espframe for Immich',
+          name: 'EspFrame for Immich',
           item: hostname,
         },
       ]
@@ -108,7 +113,7 @@ export default defineConfig({
     }
 
     // Per-page Article schema for docs (helps search and AI understanding)
-    if (pageData.relativePath !== 'index.md' && pageData.relativePath !== '404.md' && title && description) {
+    if (pageData.relativePath !== 'index.md' && pageData.relativePath !== '404.md' && pageData.relativePath !== 'immich-photo-frame.md' && title && description) {
       const isHowTo = pageData.relativePath === 'install.md'
       const articleSchema: Record<string, unknown> = {
         '@context': 'https://schema.org',
@@ -122,7 +127,7 @@ export default defineConfig({
       if (isHowTo) {
         articleSchema.step = [
           { '@type': 'HowToStep', name: 'Connect the display with a USB-C data cable' },
-          { '@type': 'HowToStep', name: 'Flash Espframe from Chrome or Edge with the web installer' },
+          { '@type': 'HowToStep', name: 'Flash EspFrame from Chrome or Edge with the web installer' },
           { '@type': 'HowToStep', name: 'Connect the frame to WiFi' },
           { '@type': 'HowToStep', name: 'Enter the Immich server URL and API key' },
           { '@type': 'HowToStep', name: 'Choose a photo source for the slideshow' },
@@ -136,17 +141,7 @@ export default defineConfig({
 
   themeConfig: {
     nav: [
-      { text: 'Choose a Screen', link: '/screens' },
       { text: 'Install', link: '/install' },
-      {
-        text: 'Guides',
-        items: [
-          { text: 'Photo Sources', link: '/photo-sources' },
-          { text: 'Screen Settings', link: '/screen-settings' },
-          { text: 'Firmware Updates', link: '/firmware-update' },
-          { text: 'Home Assistant', link: '/home-assistant' },
-        ],
-      },
       { text: 'FAQ', link: '/faq' },
       { text: 'GitHub', link: 'https://github.com/jtenniswood/espframe' },
     ],
@@ -156,19 +151,9 @@ export default defineConfig({
         text: 'Getting Started',
         items: [
           { text: 'Overview', link: '/' },
-          { text: 'Immich Photo Frame', link: '/immich-photo-frame' },
-          { text: 'Choose a Screen', link: '/screens' },
+          { text: 'Where to Buy', link: '/screens' },
           { text: 'Install', link: '/install' },
           { text: 'FAQ', link: '/faq' },
-        ],
-      },
-      {
-        text: 'Supported Screens',
-        items: [
-          { text: '10-inch JC8012P4A1', link: '/screens/jc8012p4a1' },
-          { text: 'V1 — Original Panel', link: '/screens/jc8012p4a1-v1' },
-          { text: 'V2 — New Panel', link: '/screens/jc8012p4a1-v2' },
-          { text: 'V3 — Production Silicon', link: '/screens/jc8012p4a1-v3' },
         ],
       },
       {
@@ -195,7 +180,6 @@ export default defineConfig({
         items: [
           { text: 'Home Assistant', link: '/home-assistant' },
           { text: 'Manual Setup', link: '/manual-setup' },
-          { text: 'ESP32-C6 Wi-Fi Recovery', link: '/c6-recovery' },
         ],
       },
       {
