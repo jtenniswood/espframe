@@ -668,6 +668,14 @@ function browserScriptForScenario(scenario) {
           legacy_entity_api: true, backup_versions: [1, 2, 3], setting_count: 52
         }) });
       }
+      if (decoded.indexOf("/text/Connection: API Key") !== -1 && method === "GET") {
+        const includeForBackup = decoded.indexOf("?include_secret=backup") !== -1;
+        const key = String(endpointValues["Connection: API Key"] || "");
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({
+          value: includeForBackup ? key : "", state: key ? (includeForBackup ? key : "********") : "",
+          api_key_configured: !!key
+        }) });
+      }
       const endpointName = endpointNameForUrl(decoded);
       const value = endpointName ? endpointValues[endpointName] : "";
       const state = value === true ? "ON" : value === false ? "OFF" : String(value);
@@ -818,6 +826,10 @@ function smokeAssertionsForScenario(scenario) {
         }
         if (exported.screen.schedule_wake_timeout !== 60) {
           throw new Error("Exported schedule wake timeout was not normalized");
+        }
+        const expectedApiKey = ${JSON.stringify(scenario.configured ? "fixture-api-key" : "")};
+        if (exported.connection.api_key !== expectedApiKey) {
+          throw new Error("Exported backup did not include the configured API key");
         }
       }
       function selectByLabel(labelText) {
@@ -1525,6 +1537,7 @@ function smokeAssertionsForScenario(scenario) {
           window.__smoke.releaseIdentity();
           await waitFor(() => !buttonByText("Export").disabled, 4000, "export after identity");
           clickButton("Export");
+          await waitFor(() => window.__smoke.exportPayloads.length === 1, 4000, "backup export");
           const backup = JSON.parse(window.__smoke.exportPayloads[0]);
           if (${JSON.stringify(!!scenario.identity)}) {
             if (backup.identity?.name !== "Office" || !window.__smoke.downloadName.startsWith("office-b2c3-config-")) throw new Error("Delayed identity omitted from backup");
@@ -1582,6 +1595,7 @@ function smokeAssertionsForScenario(scenario) {
           clickButton("Close");
           await waitFor(() => !document.querySelector(".frame-reconnect-dialog"), 4000, "closed reconnect dialog");
           clickButton("Export");
+          await waitFor(() => window.__smoke.exportPayloads.length === 1, 4000, "named backup export");
           const backup = JSON.parse(window.__smoke.exportPayloads[0]);
           if (backup.identity.name !== "Living Room" || !window.__smoke.downloadName.startsWith("living-room-b2c3-config-")) {
             throw new Error("Named backup is incorrect");
@@ -1705,6 +1719,7 @@ function smokeAssertionsForScenario(scenario) {
               throw new Error("Grouped settings overflow the mobile viewport");
             }
             clickButton("Export");
+            await waitFor(() => window.__smoke.downloads === 1, 4000, "backup export");
             clickButton("Import");
             if (window.__smoke.downloads !== 1) throw new Error("Export did not trigger a download");
             requireExportShape();
@@ -1924,7 +1939,7 @@ function smokeAssertionsForScenario(scenario) {
             await waitFor(() => pageText().indexOf("Importing settings…") !== -1, 4000, "import progress feedback");
             await new Promise(resolve => setTimeout(resolve, 10));
             if (pageText().indexOf("Importing settings…") === -1) throw new Error("Import progress feedback disappeared while settings were being saved");
-            await waitFor(() => pageText().indexOf("Settings imported successfully. The Immich API key isn’t stored in backups; configure it on this screen.") !== -1, 8000, "new-screen import completion");
+            await waitFor(() => pageText().indexOf("Settings imported successfully. This backup has no API key; the destination’s current key was left unchanged.") !== -1, 8000, "new-screen import completion");
             if (!hasConfigurationPost("Connection: Server URL")) throw new Error("New-screen import did not save the server URL");
             requirePostContains("New-screen import brightness", "Screen: Daytime Brightness", "value=90");
             const updates = configurationUpdates();
@@ -1940,7 +1955,8 @@ function smokeAssertionsForScenario(scenario) {
             await waitFor(() => pageText().indexOf("Importing settings…") !== -1, 4000, "failed-save import progress");
             await new Promise(resolve => setTimeout(resolve, 100));
             if (pageText().indexOf("Importing settings…") === -1) throw new Error("Save failure replaced progress before the import finished");
-            await waitFor(() => pageText().indexOf("Imported with 2 failed settings") !== -1, 8000, "failed import save");
+            await waitFor(() => pageText().indexOf("Imported with 1 failed setting") !== -1, 8000, "failed import save");
+            requirePostContains("Valid setting survives a rejected batch", "Connection: Server URL");
             requirePostContains("Failed import still attempted daytime brightness", "Screen: Daytime Brightness", "value=90");
           }
 

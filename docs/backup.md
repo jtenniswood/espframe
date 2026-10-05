@@ -15,6 +15,8 @@ Export your settings to a JSON file and import them back — useful for backups,
 
 The export captures all user-facing settings from the current session:
 
+Backups contain the Immich API key in plain text so it can be restored on another frame. Store backup files securely and share them only with people you trust.
+
 | Category | Settings |
 |----------|----------|
 | **Connection** | Immich server URL, API key |
@@ -34,7 +36,7 @@ Firmware version, update status, sunrise/sunset, and current brightness are **no
 1. Open the device web UI at `http://<device-ip>/`.
 2. Expand the **Backup** card.
 3. Click **Import** and select a previously exported `.json` file.
-4. Compatible settings are sent together in one configuration update; older firmware receives individual writes. The page refreshes when complete.
+4. Settings are batched; validation failures retry fields individually; legacy firmware writes individually. The page refreshes when complete. Backups without an API key leave the destination's existing key unchanged.
 
 Partial config files work — only settings present in the file are applied; everything else stays unchanged.
 

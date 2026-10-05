@@ -5360,9 +5360,9 @@ to {
       dialog.showModal();
     });
   }
-  function backupExportFieldValue(entry) {
+  function backupExportFieldValue(entry, apiKey) {
     if (!entry || !Array.isArray(entry.state_keys) || !entry.state_keys.length) return "";
-    if (entry.field === "api_key") return "";
+    if (entry.field === "api_key") return apiKey;
     if (entry.group === "screen" && entry.field === "schedule_wake_timeout") {
       return normalizeScheduleWakeTimeout(S.schedule_wake_timeout);
     }
@@ -5373,7 +5373,7 @@ to {
     }
     return S[entry.state_keys[0]];
   }
-  function buildBackupExportData() {
+  function buildBackupExportData(apiKey) {
     var data = {
       version: BACKUP_CONFIG_VERSION,
       exported_at: (/* @__PURE__ */ new Date()).toISOString()
@@ -5381,7 +5381,7 @@ to {
     BACKUP_SCHEMA.forEach(function(entry) {
       if (!entry || !entry.group || !entry.field) return;
       if (!data[entry.group]) data[entry.group] = {};
-      data[entry.group][entry.field] = backupExportFieldValue(entry);
+      data[entry.group][entry.field] = backupExportFieldValue(entry, apiKey);
     });
     if (frameIdentity) data["identity"] = { name: frameIdentity.name };
     return data;
@@ -5465,9 +5465,9 @@ to {
   function migrateBackupConfig(data) {
     return BACKUP_VERSION_MIGRATIONS[data.version](data);
   }
-  function exportConfig() {
+  function downloadBackup(apiKey) {
     if (!frameIdentityLoaded) return;
-    var data = buildBackupExportData();
+    var data = buildBackupExportData(apiKey);
     var json = JSON.stringify(data, null, 2);
     var blob = new Blob([json], { type: "application/json" });
     var url = URL.createObjectURL(blob);
@@ -5481,6 +5481,16 @@ to {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+  function exportConfig() {
+    if (!frameIdentityLoaded) return;
+    if (!S.api_key_configured) return downloadBackup("");
+    apiClient.getJson(endpoints.api_key + "?include_secret=backup").then(function(response) {
+      if (!response || !response.value) throw new Error("api_key_unavailable");
+      downloadBackup(response.value);
+    }).catch(function() {
+      window.alert("API key export failed");
+    });
   }
   function backupEntryKey(entry) {
     return entry.group + "." + entry.field;
@@ -5499,8 +5509,6 @@ to {
   var backupImportInProgress = false;
   var backupImportMessages = [];
   var backupImportBatchValues = null;
-  var backupImportBatchEntryCount = 0;
-  var backupImportBatchEntryPending = false;
   function queueBackupImportSetting(key, value) {
     if (!key || !endpoints[key]) return;
     var savedValue = value;
@@ -5513,7 +5521,22 @@ to {
       backupImportBatchValues.portrait_pairing = !isPortraitScreenRotation(savedValue);
     }
     backupImportBatchValues[key] = savedValue;
-    backupImportBatchEntryPending = true;
+  }
+  function saveBackupImportBatch(values) {
+    var keys = Object.keys(values);
+    return saveSettingValues(values).then(function() {
+      return 0;
+    }, function(error) {
+      if (!error || error.kind !== "validation") return keys.length;
+      var failedCount = 0;
+      return Promise.all(keys.map(function(key) {
+        return saveSetting(key, values[key]).catch(function() {
+          failedCount += 1;
+        });
+      })).then(function() {
+        return failedCount;
+      });
+    });
   }
   function trackBackupImportSave(result) {
     if (!backupImportSaveTasks) return;
@@ -5787,16 +5810,13 @@ to {
           showBanner("Importing settings\u2026", "info", 0);
           backupImportSaveTasks = [];
           backupImportBatchValues = {};
-          backupImportBatchEntryCount = 0;
           var queuedCount = 0;
           var skippedCount = 0;
           var needsPhotoSourceApply = false;
           BACKUP_SCHEMA.forEach(function(entry) {
             if (!backupImportFieldPresent(data, entry)) return;
-            backupImportBatchEntryPending = false;
             if (applyBackupImportField(entry, backupImportFieldValue(data, entry))) {
               queuedCount += 1;
-              if (backupImportBatchEntryPending) backupImportBatchEntryCount += 1;
               needsPhotoSourceApply = needsPhotoSourceApply || backupImportEntryUsesPhotoSourceApply(entry);
             } else {
               skippedCount += 1;
@@ -5808,16 +5828,11 @@ to {
               return { ok: true };
             }));
           }
-          if (backupImportBatchEntryCount) {
-            var batchSave = saveSettingValues(backupImportBatchValues);
-            for (var batchIndex = 0; batchIndex < backupImportBatchEntryCount; batchIndex++) {
-              trackBackupImportSave(batchSave);
-            }
-          }
+          var batchSave = Object.keys(backupImportBatchValues).length ? saveBackupImportBatch(backupImportBatchValues) : Promise.resolve(0);
           var results = await Promise.all(backupImportSaveTasks);
-          var failedCount = results.filter(function(ok) {
+          var failedCount = Math.min(queuedCount, results.filter(function(ok) {
             return !ok;
-          }).length;
+          }).length + await batchSave);
           var appliedCount = queuedCount - failedCount;
           if (needsPhotoSourceApply && appliedCount) {
             try {
@@ -5830,7 +5845,7 @@ to {
           var apiKeyWasOmitted = !data.connection || !Object.prototype.hasOwnProperty.call(data.connection, "api_key") || !String(data.connection.api_key == null ? "" : data.connection.api_key).trim();
           var resultMessage = backupImportSummaryMessage(appliedCount, skippedCount, failedCount);
           if (backupImportMessages.length) resultMessage += ". " + backupImportMessages.join("; ");
-          if (apiKeyWasOmitted) resultMessage += ". The Immich API key isn\u2019t stored in backups; configure it on this screen.";
+          if (apiKeyWasOmitted) resultMessage += ". This backup has no API key; the destination\u2019s current key was left unchanged.";
           showBanner(
             resultMessage,
             skippedCount || failedCount ? "error" : "success"
@@ -5838,13 +5853,11 @@ to {
           renderSettings();
           backupImportSaveTasks = null;
           backupImportBatchValues = null;
-          backupImportBatchEntryCount = 0;
           backupImportMessages = [];
         } catch (_) {
           backupImportInProgress = false;
           backupImportSaveTasks = null;
           backupImportBatchValues = null;
-          backupImportBatchEntryCount = 0;
           backupImportMessages = [];
           showBanner("Import failed. Please try again.", "error");
         } finally {
