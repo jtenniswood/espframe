@@ -1688,6 +1688,10 @@ to {
   background:var(--danger)
 }
 
+.banner-info {
+  background:var(--accent)
+}
+
 @keyframes bannerIn {
   from {
   opacity:0;
@@ -2250,6 +2254,7 @@ to {
     });
   }
   function reportSettingSaveFailure() {
+    if (typeof backupImportInProgress !== "undefined" && backupImportInProgress) return;
     showBanner("Failed to save setting", "error");
     renderSettingsAfterEditing();
   }
@@ -5120,15 +5125,18 @@ to {
     return d.innerHTML;
   }
   var bannerTimer = null;
-  function showBanner(msg, type) {
+  function showBanner(msg, type, durationMs) {
     if (!els.banner) return;
+    if (typeof backupImportInProgress !== "undefined" && backupImportInProgress && type !== "info") return;
     els.banner.textContent = msg;
     els.banner.className = "banner banner-" + (type || "success");
+    els.banner.setAttribute("role", type === "error" ? "alert" : "status");
+    els.banner.setAttribute("aria-live", type === "error" ? "assertive" : "polite");
     els.banner.style.display = "";
     clearTimeout(bannerTimer);
-    bannerTimer = setTimeout(function() {
+    bannerTimer = durationMs === 0 ? null : setTimeout(function() {
       els.banner.style.display = "none";
-    }, 5e3);
+    }, durationMs || 5e3);
   }
   var frameIdentity = null;
   var frameNameDraft = null;
@@ -5480,6 +5488,8 @@ to {
     return entry && Array.isArray(entry.state_keys) && entry.state_keys.length ? entry.state_keys[0] : "";
   }
   var backupImportSaveTasks = null;
+  var backupImportInProgress = false;
+  var backupImportMessages = [];
   function trackBackupImportSave(result) {
     if (!backupImportSaveTasks) return;
     backupImportSaveTasks.push(
@@ -5571,6 +5581,10 @@ to {
     return true;
   }
   function skipBackupImportField(message) {
+    if (backupImportInProgress) {
+      if (backupImportMessages.length < 3) backupImportMessages.push(message);
+      return false;
+    }
     showBanner(message, "error");
     return false;
   }
@@ -5609,7 +5623,7 @@ to {
         return true;
       case "connection.api_key":
         var importApiKey = value == null ? "" : String(value).trim();
-        if (!importApiKey) return skipBackupImportField("API key is write-only");
+        if (!importApiKey) return true;
         if (importApiKey.length > 255) return skipBackupImportField("API key exceeds 255 characters - not imported");
         trackBackupImportSave(saveSetting("api_key", importApiKey));
         return true;
@@ -5707,6 +5721,7 @@ to {
     }
   }
   function importConfig() {
+    if (backupImportInProgress) return;
     var fileInput = document.createElement("input");
     fileInput.type = "file";
     fileInput.accept = ".json";
@@ -5738,6 +5753,9 @@ to {
           if (choice === null) return;
           restoreName = choice;
         }
+        backupImportInProgress = true;
+        backupImportMessages = [];
+        showBanner("Importing settings\u2026", "info", 0);
         backupImportSaveTasks = [];
         var queuedCount = 0;
         var skippedCount = 0;
@@ -5773,12 +5791,23 @@ to {
         }).then(function(summary) {
           var failedCount = summary.failedCount;
           var appliedCount = summary.appliedCount;
+          backupImportInProgress = false;
+          var apiKeyWasOmitted = !data.connection || !Object.prototype.hasOwnProperty.call(data.connection, "api_key") || !String(data.connection.api_key == null ? "" : data.connection.api_key).trim();
+          var resultMessage = backupImportSummaryMessage(appliedCount, skippedCount, failedCount);
+          if (backupImportMessages.length) resultMessage += ". " + backupImportMessages.join("; ");
+          if (apiKeyWasOmitted) resultMessage += ". The Immich API key isn\u2019t stored in backups; configure it on this screen.";
           showBanner(
-            backupImportSummaryMessage(appliedCount, skippedCount, failedCount),
+            resultMessage,
             skippedCount || failedCount ? "error" : "success"
           );
           renderSettings();
           backupImportSaveTasks = null;
+          backupImportMessages = [];
+        }).catch(function() {
+          backupImportInProgress = false;
+          backupImportSaveTasks = null;
+          backupImportMessages = [];
+          showBanner("Import failed. Please try again.", "error");
         });
       };
       reader.readAsText(fileInput.files[0]);

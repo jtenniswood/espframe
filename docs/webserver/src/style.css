@@ -1188,6 +1188,10 @@ to {
   background:var(--danger)
 }
 
+.banner-info {
+  background:var(--accent)
+}
+
 @keyframes bannerIn {
   from {
   opacity:0;
