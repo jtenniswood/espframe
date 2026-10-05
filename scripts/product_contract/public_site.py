@@ -189,8 +189,7 @@ def check_public_site_references(product: dict, errors: list[str]) -> None:
         ("docs/troubleshooting.md", troubleshooting_docs),
         ("docs/usb-flashing.md", usb_flashing_docs),
     ):
-        for needle in ("ESP_", "MAC address"):
-            require_contains(text, needle, label, errors)
+        require_contains(text, "**espframe**", label, errors)
 
     for device in product["devices"]:
         slug = str(device.get("slug", "")).strip()

@@ -185,7 +185,7 @@ def check_factory_firmware_metadata(product: dict, errors: list[str]) -> None:
 
     if network_mode:
         require_contains(install_docs, "hotspot", "docs/install.md", errors)
-        require_contains(connectivity_yaml, 'ssid: "${name}"', "common/addon/connectivity.yaml", errors)
+        require_contains(connectivity_yaml, 'ssid: "espframe"', "common/addon/connectivity.yaml", errors)
         require_contains(connectivity_yaml, "wifi:", "common/addon/connectivity.yaml", errors)
         require_contains(connectivity_yaml, "ap:", "common/addon/connectivity.yaml", errors)
     if setup_method:

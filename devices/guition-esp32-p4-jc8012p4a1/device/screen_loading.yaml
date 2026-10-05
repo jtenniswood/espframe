@@ -115,7 +115,7 @@ esphome:
                   brightness: 90%
                   transition_length: 500ms
         - lambda: |-
-            std::string name = App.get_name();
+            std::string name = wifi::global_wifi_component->get_ap().get_ssid().c_str();
             std::string wifi_text = "Connect to the WiFi hotspot\n'" + name + "'\nto configure your network\n\nThen visit ${captive_portal_ip} in your browser";
             lv_label_set_text(id(wifi_setup_instructions), wifi_text.c_str());
         - script.execute: finish_startup_screen
