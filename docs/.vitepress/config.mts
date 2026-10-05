@@ -4,7 +4,7 @@ import { addDiscoveryMetadata, includeInSitemap } from './discovery'
 const hostname = 'https://jtenniswood.github.io/espframe/'
 
 export default defineConfig({
-  title: 'Espframe for Immich',
+  title: 'EspFrame for Immich',
   description: 'Standalone Immich-powered digital photo frame on ESP32-P4',
   base: '/espframe/',
   lang: 'en-US',
@@ -22,12 +22,12 @@ export default defineConfig({
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/espframe/favicon.svg' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:locale', content: 'en_US' }],
-    ['meta', { property: 'og:site_name', content: 'Espframe for Immich' }],
+    ['meta', { property: 'og:site_name', content: 'EspFrame for Immich' }],
     ['meta', { property: 'og:image', content: `${hostname}espframe.png` }],
-    ['meta', { property: 'og:image:alt', content: 'Espframe displaying Immich photos on a Guition ESP32-P4 touchscreen' }],
+    ['meta', { property: 'og:image:alt', content: 'EspFrame displaying Immich photos on a Guition ESP32-P4 touchscreen' }],
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
     ['meta', { name: 'twitter:image', content: `${hostname}espframe.png` }],
-    ['meta', { name: 'twitter:image:alt', content: 'Espframe displaying Immich photos on a Guition ESP32-P4 touchscreen' }],
+    ['meta', { name: 'twitter:image:alt', content: 'EspFrame displaying Immich photos on a Guition ESP32-P4 touchscreen' }],
     ['script', { type: 'application/ld+json' }, JSON.stringify({
       '@context': 'https://schema.org',
       '@graph': [
@@ -35,14 +35,14 @@ export default defineConfig({
           '@type': 'WebSite',
           '@id': `${hostname}#website`,
           url: hostname,
-          name: 'Espframe for Immich',
+          name: 'EspFrame for Immich',
           description: 'Standalone Immich-powered digital photo frame on ESP32-P4. No hub, cloud, or extra software required.',
           inLanguage: 'en-US',
         },
         {
           '@type': 'SoftwareApplication',
           '@id': `${hostname}#software`,
-          name: 'Espframe for Immich',
+          name: 'EspFrame for Immich',
           applicationCategory: 'MultimediaApplication',
           operatingSystem: 'ESP32',
           description: 'Standalone Immich-powered digital photo frame on ESP32-P4. Displays your Immich photo library on supported Guition touchscreens over HTTP.',
@@ -84,7 +84,7 @@ export default defineConfig({
         {
           '@type': 'ListItem',
           position: 1,
-          name: 'Espframe for Immich',
+          name: 'EspFrame for Immich',
           item: hostname,
         },
       ]
@@ -122,7 +122,7 @@ export default defineConfig({
       if (isHowTo) {
         articleSchema.step = [
           { '@type': 'HowToStep', name: 'Connect the display with a USB-C data cable' },
-          { '@type': 'HowToStep', name: 'Flash Espframe from Chrome or Edge with the web installer' },
+          { '@type': 'HowToStep', name: 'Flash EspFrame from Chrome or Edge with the web installer' },
           { '@type': 'HowToStep', name: 'Connect the frame to WiFi' },
           { '@type': 'HowToStep', name: 'Enter the Immich server URL and API key' },
           { '@type': 'HowToStep', name: 'Choose a photo source for the slideshow' },

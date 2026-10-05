@@ -1,9 +1,9 @@
 ---
-title: ESPHome Manual Setup for Espframe
-description: Install Espframe firmware from the ESPHome dashboard when you want full control over YAML substitutions and local builds.
+title: ESPHome Manual Setup for EspFrame
+description: Install EspFrame firmware from the ESPHome dashboard when you want full control over YAML substitutions and local builds.
 ---
 
-# ESPHome Manual Setup for Espframe
+# ESPHome Manual Setup for EspFrame
 
 For advanced users: install via the ESPHome dashboard instead of the web installer to control substitutions and YAML.
 
@@ -88,7 +88,7 @@ Add `immich_api_key` to `secrets.yaml`. The URL can also be a direct local addre
 
 ## Custom NTP servers
 
-You can change NTP servers later in the Espframe web settings under **Clock**. To pre-fill them before flashing, add substitutions:
+You can change NTP servers later in the EspFrame web settings under **Clock**. To pre-fill them before flashing, add substitutions:
 
 ```yaml
 ntp_server_1: "172.20.32.1"

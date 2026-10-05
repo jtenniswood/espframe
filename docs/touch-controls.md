@@ -1,9 +1,9 @@
 ---
-title: Espframe Touch Controls
-description: Use Espframe touchscreen gestures to wake the display, put the screen to sleep, and move through the Immich slideshow.
+title: EspFrame Touch Controls
+description: Use EspFrame touchscreen gestures to wake the display, put the screen to sleep, and move through the Immich slideshow.
 ---
 
-# Espframe Touch Controls
+# EspFrame Touch Controls
 
 On the slideshow screen you can wake the display, turn it off with a timed hold, and move forward or backward through image sets. A brief label appears at the triggered edge after each swipe so you know the gesture was recognized.
 

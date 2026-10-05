@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://jtenniswood.github.io/espframe/schema/product-contract-v2.json",
-  "title": "Espframe product contract",
+  "title": "EspFrame product contract",
   "type": "object",
   "required": ["manifest", "project", "devices", "settings"],
   "additionalProperties": false,
@@ -91,7 +91,7 @@
         "home_assistant_api_encryption_minimum_version": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]+\\.[0-9]+$" },
         "home_assistant_api_encryption_recommended_version": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]+\\.[0-9]+$" },
         "home_assistant_api_encryption_key_policy": { "const": "No shared or build-generated encryption key" },
-        "home_assistant_api_encryption_key_exclusions": { "const": ["public YAML", "factory firmware", "release workflows", "Espframe backups", "device web UI"] },
+        "home_assistant_api_encryption_key_exclusions": { "const": ["public YAML", "factory firmware", "release workflows", "EspFrame backups", "device web UI"] },
         "home_assistant_api_encryption_persistence": { "type": "string", "minLength": 1 },
         "home_assistant_api_encryption_factory_reset_behavior": { "type": "string", "minLength": 1 },
         "esphome_version": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]+\\.[0-9]+$" }

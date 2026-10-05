@@ -1,17 +1,17 @@
 ---
-title: Contributing to Espframe
-description: How to propose and test documentation, firmware, and web interface changes for Espframe.
+title: Contributing to EspFrame
+description: How to propose and test documentation, firmware, and web interface changes for EspFrame.
 ---
 
-# Contributing to Espframe
+# Contributing to EspFrame
 
-Thanks for helping improve Espframe. Small, focused changes are easiest to review and validate.
+Thanks for helping improve EspFrame. Small, focused changes are easiest to review and validate.
 
 ## Before opening a pull request
 
 - Check the [open issues](https://github.com/jtenniswood/espframe/issues) for existing discussions.
 - For a larger feature or a change that affects device behavior, open an issue first to agree on the approach.
-- Update the documentation when a change affects how people install or use Espframe.
+- Update the documentation when a change affects how people install or use EspFrame.
 - Keep existing device support, saved settings, and Home Assistant entity names compatible unless a breaking change has been discussed first.
 
 ## Prepare and validate your changes

@@ -1,11 +1,11 @@
 ---
-title: Install Espframe
-description: Choose the right firmware for your Guition display, install it from your browser, and connect Espframe to WiFi and Immich.
+title: Install EspFrame
+description: Choose the right firmware for your Guition display, install it from your browser, and connect EspFrame to WiFi and Immich.
 ---
 
 <span id="install-espframe-on-a-guition-esp32-p4-display"></span>
 
-# Install Espframe
+# Install EspFrame
 
 <span id="supported-display"></span>
 

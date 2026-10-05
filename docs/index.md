@@ -1,18 +1,18 @@
 ---
-title: Espframe for Immich – ESP32 Digital Photo Frame
+title: EspFrame for Immich – ESP32 Digital Photo Frame
 titleTemplate: :title
 description: Build a standalone Immich digital photo frame on a Guition ESP32-P4 touchscreen with ESPHome. No hub, cloud, or extra software required.
 ---
 
-# Espframe for Immich
+# EspFrame for Immich
 
-**Espframe** is a standalone Immich digital photo frame for a supported Guition ESP32-P4 touchscreen. It turns an ESP32 photo frame into a private, self-hosted photo frame that displays your [Immich](https://immich.app/) library directly from your own server.
+**EspFrame** is a standalone Immich digital photo frame for a supported Guition ESP32-P4 touchscreen. It turns an ESP32 photo frame into a private, self-hosted photo frame that displays your [Immich](https://immich.app/) library directly from your own server.
 
 The firmware runs on ESP32-P4 hardware with [ESPHome](https://esphome.io/) and connects to Immich over HTTP or HTTPS. It does not need Home Assistant, a cloud account, or a separate bridge service.
 
-Ready to get started? **[Install Espframe](/install)**. Need a display first? [Choose a screen](/screens).
+Ready to get started? **[Install EspFrame](/install)**. Need a display first? [Choose a screen](/screens).
 
-<img src="/espframe.png" alt="Espframe displaying Immich photos on a Guition ESP32-P4 touchscreen" style="max-width: 100%; border-radius: 8px; margin: 1.5rem 0;" />
+<img src="/espframe.png" alt="EspFrame displaying Immich photos on a Guition ESP32-P4 touchscreen" style="max-width: 100%; border-radius: 8px; margin: 1.5rem 0;" />
 
 ## Features
 

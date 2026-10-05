@@ -1,11 +1,11 @@
 ---
-title: Troubleshooting Espframe Install and Immich Setup
-description: Fix common Espframe setup problems, including web installer failures, WiFi setup, Immich connection errors, API key permissions, and missing photos.
+title: Troubleshooting EspFrame Install and Immich Setup
+description: Fix common EspFrame setup problems, including web installer failures, WiFi setup, Immich connection errors, API key permissions, and missing photos.
 ---
 
-# Troubleshooting Espframe Install and Immich Setup
+# Troubleshooting EspFrame Install and Immich Setup
 
-Use this page when Espframe does not flash, connect to WiFi, reach Immich, or show photos from your library.
+Use this page when EspFrame does not flash, connect to WiFi, reach Immich, or show photos from your library.
 
 ## Web Installer Problems
 
@@ -20,7 +20,7 @@ See [USB Flashing Help for Guition ESP32-P4](/usb-flashing) for more detail.
 
 ## WiFi Setup Problems
 
-After flashing, Espframe should either ask for WiFi details or create a temporary WiFi network named **espframe**.
+After flashing, EspFrame should either ask for WiFi details or create a temporary WiFi network named **espframe**.
 
 Connect to this network from your phone or laptop and follow the setup page to enter your home WiFi details. If the page does not open automatically, visit `http://192.168.4.1`.
 
@@ -49,20 +49,20 @@ If the frame cannot connect:
 
 ## API Key Problems
 
-Espframe needs a read-only Immich API key. If the key is missing permissions, photos or metadata may fail to load.
+EspFrame needs a read-only Immich API key. If the key is missing permissions, photos or metadata may fail to load.
 
-Create a fresh key using the recommended [Immich API key permissions for Espframe](/api-key), then paste it into the frame web UI.
+Create a fresh key using the recommended [Immich API key permissions for EspFrame](/api-key), then paste it into the frame web UI.
 
 ## Home Assistant Reports “Connection Requires Encryption”
 
 This message concerns the ESPHome API encryption key shared by Home Assistant and the frame, not the Immich API key used to load photos.
 
 1. Update Home Assistant to **2026.8.1** or newer so dynamically provisioned keys are synchronized with ESPHome Device Builder.
-2. In **Settings → Devices & Services → ESPHome**, open the Espframe integration and choose **Reconfigure**. Enter the ESPHome encryption key if Home Assistant requests it.
+2. In **Settings → Devices & Services → ESPHome**, open the EspFrame integration and choose **Reconfigure**. Enter the ESPHome encryption key if Home Assistant requests it.
 3. If the frame was adopted in ESPHome Device Builder, confirm its `api → encryption → key` matches the key Home Assistant is using before installing another Device Builder build.
 4. If the key was lost during a full erase or factory reinstall, remove and add the ESPHome integration again so Home Assistant can provision a new per-device key.
 
-Normal Espframe OTA updates preserve the stored key. Do not paste the Immich API key into Home Assistant's encryption-key prompt.
+Normal EspFrame OTA updates preserve the stored key. Do not paste the Immich API key into Home Assistant's encryption-key prompt.
 
 ## Photos Do Not Appear
 
@@ -71,7 +71,7 @@ If the frame connects but does not show the photos you expect:
 - Start with **All Photos** as the source to confirm the basic connection works.
 - Check that favorites, albums, people, or memories exist in Immich before selecting those sources.
 - Confirm album and person UUIDs were copied from the Immich URL correctly.
-- Review [Espframe Smart Photo Filters for Immich](/photo-sources) for filter rules and version compatibility.
+- Review [EspFrame Smart Photo Filters for Immich](/photo-sources) for filter rules and version compatibility.
 - Disable date filtering temporarily if the selected range may exclude all photos.
 
 ## Screen or Display Issues
@@ -86,4 +86,4 @@ Display behavior is configured from the frame web UI:
 
 ## Manual ESPHome Builds
 
-If you are building locally instead of using the web installer, start with [ESPHome Manual Setup for Espframe](/manual-setup). Manual setup is useful when you want direct control over YAML substitutions, secrets, and local build behavior.
+If you are building locally instead of using the web installer, start with [ESPHome Manual Setup for EspFrame](/manual-setup). Manual setup is useful when you want direct control over YAML substitutions, secrets, and local build behavior.

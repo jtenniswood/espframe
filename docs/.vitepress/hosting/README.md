@@ -10,7 +10,7 @@ The adjacent `robots.txt` is a host-root template. To publish it, update the
 `robots.txt` in the `jtenniswood.github.io` user site repository and deploy that
 site. Keep the sitemap URL pointed at this project's sitemap. This host policy
 is shared by projects on that hostname, so review the user-site policy before
-changing it. If Espframe moves to a dedicated custom domain, publish the
+changing it. If EspFrame moves to a dedicated custom domain, publish the
 template at that domain's root instead.
 
 Search Console verification and sitemap submission require the owner's

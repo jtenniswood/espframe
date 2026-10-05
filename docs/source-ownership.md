@@ -1,11 +1,11 @@
 ---
 title: Source ownership and dependencies
-description: Which Espframe files are authored, generated, vendored, or fetched while building.
+description: Which EspFrame files are authored, generated, vendored, or fetched while building.
 ---
 
 # Source ownership and dependencies
 
-Espframe records its source boundaries in `product/source-ownership.json` and
+EspFrame records its source boundaries in `product/source-ownership.json` and
 checks them on every pull request. This avoids accidental edits to generated
 files and makes bundled third-party code explicit.
 
@@ -30,7 +30,7 @@ contract.
 The device web control panel, fonts, styles, scripts, and initial image state
 do not require public hosting. Before a real Immich photo URL is assigned,
 `remote_image` uses a loopback-only URL. Normal runtime network access is
-limited to services the user configured, plus the versioned Espframe firmware
+limited to services the user configured, plus the versioned EspFrame firmware
 update manifest and assets.
 
 The machine-readable manifest is authoritative; update it whenever a source

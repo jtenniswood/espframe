@@ -1,9 +1,9 @@
 ---
-title: Espframe Smart Photo Filters for Immich
+title: EspFrame Smart Photo Filters for Immich
 description: Combine Immich albums, people, tags, favorites, ratings, dates, locations, exclusions, and orientation in one photo filter.
 ---
 
-# Espframe Smart Photo Filters for Immich
+# EspFrame Smart Photo Filters for Immich
 
 Open the device web UI at `http://<device-ip>/` and use **Filters**. Start with the seven **Filter by** switches, then open only the groups you need. To use On This Day memories, open the **Memories** panel and turn on **Show Memories Only**. Dates, albums, people, tags, favorites, ratings, and location retain their saved values when switched off. Changes apply automatically shortly after you change a control.
 
@@ -68,7 +68,7 @@ Shows photos where specific people (faces) appear. Requires face recognition in 
 
 The names are saved with the IDs so the web UI can show friendly labels later. They do not need to match the name stored in Immich.
 
-Person photos use Immich's random search across the selected person. When you add several people, Espframe chooses one person for each photo instead of asking Immich for photos containing every selected person.
+Person photos use Immich's random search across the selected person. When you add several people, EspFrame chooses one person for each photo instead of asking Immich for photos containing every selected person.
 
 ## Tag
 
@@ -96,7 +96,7 @@ Saving multiple IDs uses an HTTP POST body for the value, so the request stays w
 
 ## Immich compatibility
 
-Espframe discovers the server version from Immich's public server-version endpoint. Immich 3.2 and newer support minimum ratings and exclusions. On older or unknown versions those controls show a clear compatibility message, saved values remain intact, and the frame refuses to silently omit an active unsupported rule.
+EspFrame discovers the server version from Immich's public server-version endpoint. Immich 3.2 and newer support minimum ratings and exclusions. On older or unknown versions those controls show a clear compatibility message, saved values remain intact, and the frame refuses to silently omit an active unsupported rule.
 
 The deprecated **Photos: Source** Home Assistant entity remains for one compatibility release as a preset adapter. **Memories** is supported as an active source again; selecting it disables the saved content filters without deleting their values. Selecting a legacy source resets the smart filter to that preset, while a composed filter reports **Custom**.
 
@@ -163,9 +163,9 @@ Use **Portrait Pairing** to display compatible portrait photos side-by-side on l
 
 Portrait pairing is disabled while the screen is in portrait rotation.
 
-**Pairing Range** always checks the same calendar day first. Espframe first samples up to 20 assets and chooses the compatible portrait closest to the primary photo's capture time. With **±1 Day** or **±2 Days**, it broadens the search only when it cannot find a same-day companion. If those fast samples miss, Espframe paginates through every eligible asset until it finds a compatible portrait, so large or shared albums do not produce false "no companion" results. The range is kept inside any date filter you have configured, and the companion uses the exact album, person, or tag chosen for the primary photo.
+**Pairing Range** always checks the same calendar day first. EspFrame first samples up to 20 assets and chooses the compatible portrait closest to the primary photo's capture time. With **±1 Day** or **±2 Days**, it broadens the search only when it cannot find a same-day companion. If those fast samples miss, EspFrame paginates through every eligible asset until it finds a compatible portrait, so large or shared albums do not produce false "no companion" results. The range is kept inside any date filter you have configured, and the companion uses the exact album, person, or tag chosen for the primary photo.
 
-Turn on **Show Paired Portraits Only** to skip a portrait when a complete pair cannot be loaded. Landscape photos continue to display normally. While Espframe searches for another eligible photo, the last successfully displayed photo stays on screen.
+Turn on **Show Paired Portraits Only** to skip a portrait when a complete pair cannot be loaded. Landscape photos continue to display normally. While EspFrame searches for another eligible photo, the last successfully displayed photo stays on screen.
 
 ---
 
@@ -210,4 +210,4 @@ Use **Frequency** in the web UI to control slideshow timing and disconnect handl
 
 Increase **Connection Timeout** if you have a slow server or large photo library and see false disconnects.
 
-Before showing the connection-failed screen, Espframe retries temporary Immich errors. If Immich returns an API key error, the frame shows **Invalid API Key**; otherwise it shows **Unable to connect to Immich**.
+Before showing the connection-failed screen, EspFrame retries temporary Immich errors. If Immich returns an API key error, the frame shows **Invalid API Key**; otherwise it shows **Unable to connect to Immich**.
