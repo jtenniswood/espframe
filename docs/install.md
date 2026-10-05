@@ -27,18 +27,6 @@ Plug the cable into the **bottom USB-C port**, next to the USB-A connector. The 
 
 ### Choose the Correct Panel Firmware
 
-Use the table to choose **Hardware version** below, then click **Install**, select the display's serial port, and confirm. Keep it connected until installation finishes.
-
-| What your display reports | Choose |
-| --- | --- |
-| ESP32-P4 chip revision **v3.x**, whatever the case marking | **V3** |
-| Chip is not v3.x; rear-case number **2627 or lower** | **V1** |
-| Chip is not v3.x; rear-case number **2628 or higher** | **V2** |
-
-Unsure about the chip revision or case number? [Check your display](/screens/jc8012p4a1#identify-your-revision) before installing. If your matching option is missing, its browser firmware is not available yet.
-
-**V3:** Initial USB installation and OTA updates have not yet been tested on physical V3 hardware.
-
 <EspInstallButton />
 
 ::: info Browser and USB help
