@@ -136,17 +136,7 @@ export default defineConfig({
 
   themeConfig: {
     nav: [
-      { text: 'Choose a Screen', link: '/screens' },
       { text: 'Install', link: '/install' },
-      {
-        text: 'Guides',
-        items: [
-          { text: 'Photo Sources', link: '/photo-sources' },
-          { text: 'Screen Settings', link: '/screen-settings' },
-          { text: 'Firmware Updates', link: '/firmware-update' },
-          { text: 'Home Assistant', link: '/home-assistant' },
-        ],
-      },
       { text: 'FAQ', link: '/faq' },
       { text: 'GitHub', link: 'https://github.com/jtenniswood/espframe' },
     ],
