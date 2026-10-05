@@ -176,7 +176,6 @@ export default defineConfig({
         items: [
           { text: 'Home Assistant', link: '/home-assistant' },
           { text: 'Manual Setup', link: '/manual-setup' },
-          { text: 'ESP32-C6 Wi-Fi Recovery', link: '/c6-recovery' },
         ],
       },
       {

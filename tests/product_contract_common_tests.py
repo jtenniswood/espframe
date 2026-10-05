@@ -109,7 +109,7 @@ def test_community_docs_and_site_github_star_indicator_are_wired() -> None:
     stars = (ROOT / "docs/.vitepress/theme/components/GitHubStars.vue").read_text(encoding="utf-8")
     serial_logs = (ROOT / "docs/.vitepress/theme/components/USBSerialLogs.vue").read_text(encoding="utf-8")
 
-    for page in ("partnerships", "contributing", "collect-usb-logs", "c6-recovery"):
+    for page in ("partnerships", "contributing", "collect-usb-logs"):
         assert (ROOT / "docs" / f"{page}.md").is_file()
         assert f"'/{page}'" in config
     assert "nav-bar-content-after" in theme and "h(GitHubStars)" in theme
