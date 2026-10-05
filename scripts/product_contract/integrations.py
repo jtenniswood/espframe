@@ -13,7 +13,7 @@ def check_immich_api_key_metadata(product: dict, errors: list[str]) -> None:
 
     api_key_docs = read(ROOT / "docs" / "api-key.md", errors)
     troubleshooting_docs = read(ROOT / "docs" / "troubleshooting.md", errors)
-    immich_photo_frame_docs = read(ROOT / "docs" / "immich-photo-frame.md", errors)
+    immich_photo_frame_docs = read(ROOT / "docs" / "index.md", errors)
 
     if mode:
         require_contains(api_key_docs, f"{mode} API key", "docs/api-key.md", errors)
