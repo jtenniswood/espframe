@@ -8,12 +8,7 @@
     </div>
     <div v-else class="install-button">
       <section class="device-group" aria-labelledby="jc8012-heading">
-        <h3 id="jc8012-heading">10-inch JC8012P4A1</h3>
-        <p class="device-picker-help">
-          Check the chip revision first. If it is ESP32-P4 v3.x, choose V3. Otherwise, use the four-digit number on the rear case to choose V1 or V2.
-        </p>
-        <fieldset class="device-picker" aria-label="Choose JC8012P4A1 hardware version">
-          <legend>Hardware version</legend>
+                <fieldset class="device-picker" aria-label="Choose JC8012P4A1 hardware version">
           <div class="device-options">
             <label
               v-for="device in availableDevices"
@@ -28,10 +23,6 @@
                   <small v-if="device.id === selectedDeviceId && manifestVersion">Latest firmware {{ manifestVersion }}</small>
                 </span>
                 <span class="device-option-detail">{{ device.identification }}</span>
-                <span v-if="device.chipCheck" class="device-option-detail">
-                  Check in ESPHome startup logs, or connect the display's bottom USB-C port and run
-                  <code>{{ device.chipCheck }}</code> with <code>PORT</code> replaced by its serial port.
-                </span>
               </span>
             </label>
           </div>
@@ -66,7 +57,6 @@ const devices = [
     id: 'immich-frame-v3',
     label: 'V3 — Production silicon',
     identification: 'Choose this when the chip revision is ESP32-P4 v3.x. This chip check takes priority over the rear-case number.',
-    chipCheck: 'esptool --chip esp32p4 --port PORT chip_id',
     manifest: './firmware/jc8012p4a1-v3/manifest.json',
     requirePublishedManifest: true,
   },
@@ -136,16 +126,6 @@ watch(manifestUrl, loadManifestVersion)
   width: 100%;
 }
 
-.device-group h3 {
-  margin: 0 0 10px;
-}
-
-.device-picker-help {
-  max-width: 800px;
-  margin: 0 0 12px;
-  color: var(--vp-c-text-2);
-}
-
 .device-picker {
   display: block;
   min-width: 0;
@@ -153,12 +133,6 @@ watch(manifestUrl, loadManifestVersion)
   margin: 0;
   padding: 0;
   border: 0;
-}
-
-.device-picker legend {
-  margin-bottom: 8px;
-  padding: 0;
-  font-weight: 600;
 }
 
 .device-options {
