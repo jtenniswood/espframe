@@ -7,8 +7,8 @@
       Failed to load installer. {{ loadError }}
     </div>
     <div v-else class="install-button">
-      <section class="device-group" aria-labelledby="jc8012-heading">
-                <fieldset class="device-picker" aria-label="Choose JC8012P4A1 hardware version">
+      <section class="device-group">
+        <fieldset class="device-picker" aria-label="Choose JC8012P4A1 hardware version">
           <div class="device-options">
             <label
               v-for="device in availableDevices"
