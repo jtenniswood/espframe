@@ -30,6 +30,7 @@
 
 <script setup>
 import { computed, ref, onMounted, watch } from 'vue'
+import { loadUsbInstaller } from '../usb-installer'
 
 const devices = [
   {
@@ -93,7 +94,7 @@ onMounted(async () => {
   await discoverPublishedDevices()
   if (!supported.value) return
   try {
-    await import('https://unpkg.com/esp-web-tools@10/dist/web/install-button.js')
+    await loadUsbInstaller()
   } catch (err) {
     loadError.value = err?.message || 'Network or script load error.'
   }

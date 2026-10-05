@@ -141,6 +141,17 @@
       "upstream": "https://github.com/bblanchon/ArduinoJson",
       "revision": "v7.4.3; SHA-256 a2a8a277fc3cd0404499199bf1468682ea3688f354be0eaf6af8648366911257",
       "license": "MIT"
+    },
+    {
+      "usage": "Documentation USB firmware installer",
+      "declarations": [
+        "package.json",
+        "package-lock.json",
+        "docs/.vitepress/theme/usb-installer.ts"
+      ],
+      "upstream": "https://github.com/esphome/esp-web-tools",
+      "revision": "esp-web-tools 10.4.0 with esptool-js 0.7.0 (https://github.com/espressif/esptool-js) and Material Web 2.4.1; exact dependencies and integrity hashes are recorded in package-lock.json",
+      "license": "Apache-2.0 (ESP Web Tools and Material Web), MIT (esptool-js)"
     }
   ],
   "runtime_network_policy": {
