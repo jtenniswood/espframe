@@ -41,7 +41,9 @@ Unsure about the chip revision or case number? [Check your display](/screens/jc8
 
 <EspInstallButton />
 
+::: info Browser and USB help
 The installer uses Web Serial; Safari and Firefox cannot flash the display. Having trouble? See [USB flashing help](/usb-flashing).
+:::
 
 ## 2. Connect to WiFi
 
@@ -54,8 +56,3 @@ If no prompt appears, connect your phone or laptop to the frame's **espframe** W
 Open the **IP address shown on the display** in your browser. Enter **Immich Server URL** and **API Key**, then follow the setup wizard.
 
 Use your server's IP address (for example, `http://192.168.1.30:2283`) or domain (`https://photos.example.com`). Choose your timezone and preferred clock format during setup.
-
-Once photos appear, you can [choose albums and filters](/photo-sources) or [adjust the screen](/screen-settings).
-
-<span id="recent-firmware-notes"></span>
-Building with ESPHome? See [manual setup](/manual-setup).

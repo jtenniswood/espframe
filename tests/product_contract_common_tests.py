@@ -94,8 +94,12 @@ def test_10inch_installer_requires_a_version_and_probes_manifests_independently(
     assert "Promise.all(devices.filter((device) => device.requirePublishedManifest).map(async (device) =>" in installer
     assert "if (response.ok) available.add(device.id)" in installer
     assert "selectedDevice.value?.manifest || ''" in installer
-    assert 'id="espframe-device-version" v-model="selectedDeviceId"' in installer
-    assert '<option value="" disabled>Choose your panel version</option>' in installer
+    assert 'class="device-picker" aria-label="Choose JC8012P4A1 hardware version"' in installer
+    assert 'type="radio" name="espframe-device" :value="device.id"' in installer
+    assert "ESP32-P4 v3.x" in installer
+    assert "four-digit number on the rear case is 2627 or lower" in installer
+    assert "four-digit number on the rear case is 2628 or higher" in installer
+    assert "esptool --chip esp32p4 --port PORT chip_id" in installer
     assert '<esp-web-install-button v-if="selectedDevice"' in installer
 
     for revision in ("v1", "v2", "v3"):

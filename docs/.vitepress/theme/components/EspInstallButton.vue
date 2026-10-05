@@ -9,17 +9,33 @@
     <div v-else class="install-button">
       <section class="device-group" aria-labelledby="jc8012-heading">
         <h3 id="jc8012-heading">10-inch JC8012P4A1</h3>
-        <label class="device-version-label" for="espframe-device-version">Hardware version</label>
-        <select id="espframe-device-version" v-model="selectedDeviceId" class="device-version-select" required>
-          <option value="" disabled>Choose your panel version</option>
-          <option v-for="device in availableDevices" :key="device.id" :value="device.id">
-            {{ device.label }}
-          </option>
-        </select>
-        <p v-if="selectedDevice" class="device-version-detail">
-          {{ selectedDevice.model }}
-          <span v-if="manifestVersion"> Latest firmware: {{ manifestVersion }}</span>
+        <p class="device-picker-help">
+          Check the chip revision first. If it is ESP32-P4 v3.x, choose V3. Otherwise, use the four-digit number on the rear case to choose V1 or V2.
         </p>
+        <fieldset class="device-picker" aria-label="Choose JC8012P4A1 hardware version">
+          <legend>Hardware version</legend>
+          <div class="device-options">
+            <label
+              v-for="device in availableDevices"
+              :key="device.id"
+              class="device-option"
+              :class="{ 'device-option-selected': device.id === selectedDeviceId }"
+            >
+              <input v-model="selectedDeviceId" type="radio" name="espframe-device" :value="device.id">
+              <span class="device-option-content">
+                <span class="device-option-heading">
+                  <strong>{{ device.label }}</strong>
+                  <small v-if="device.id === selectedDeviceId && manifestVersion">Latest firmware {{ manifestVersion }}</small>
+                </span>
+                <span class="device-option-detail">{{ device.identification }}</span>
+                <span v-if="device.chipCheck" class="device-option-detail">
+                  Check in ESPHome startup logs, or connect the display's bottom USB-C port and run
+                  <code>{{ device.chipCheck }}</code> with <code>PORT</code> replaced by its serial port.
+                </span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
       </section>
       <esp-web-install-button v-if="selectedDevice" :manifest="manifestUrl">
         <button slot="activate" class="brand-button">Install {{ selectedDevice.label }}</button>
@@ -36,20 +52,21 @@ const devices = [
   {
     id: 'immich-frame',
     label: 'V1 — Original panel',
-    model: 'Rear-case marking 2627 or lower, if the chip is not V3',
+    identification: 'Choose this if the ESP32-P4 chip is not v3.x and the four-digit number on the rear case is 2627 or lower. The case may not say “V1.”',
     manifest: './firmware/manifest.json',
   },
   {
     id: 'immich-frame-v2',
     label: 'V2 — New panel',
-    model: 'Rear-case marking 2628 or higher, if the chip is not V3',
+    identification: 'Choose this if the ESP32-P4 chip is not v3.x and the four-digit number on the rear case is 2628 or higher. The case may not say “V2.”',
     manifest: './firmware/jc8012p4a1-v2/manifest.json',
     requirePublishedManifest: true,
   },
   {
     id: 'immich-frame-v3',
     label: 'V3 — Production silicon',
-    model: 'ESP32-P4 v3.x chip revision; this takes precedence over the case marking',
+    identification: 'Choose this when the chip revision is ESP32-P4 v3.x. This chip check takes priority over the rear-case number.',
+    chipCheck: 'esptool --chip esp32p4 --port PORT chip_id',
     manifest: './firmware/jc8012p4a1-v3/manifest.json',
     requirePublishedManifest: true,
   },
@@ -123,30 +140,106 @@ watch(manifestUrl, loadManifestVersion)
   margin: 0 0 10px;
 }
 
-.device-version-label {
+.device-picker-help {
+  max-width: 800px;
+  margin: 0 0 12px;
+  color: var(--vp-c-text-2);
+}
+
+.device-picker {
   display: block;
-  margin-bottom: 6px;
+  min-width: 0;
+  max-width: 980px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.device-picker legend {
+  margin-bottom: 8px;
+  padding: 0;
   font-weight: 600;
 }
 
-.device-version-select {
-  display: block;
-  width: 100%;
-  max-width: 520px;
-  min-height: 42px;
-  padding: 8px 12px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 8px;
-  color: var(--vp-c-text-1);
-  background: var(--vp-c-bg);
-  font: inherit;
+.device-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 12px;
 }
 
-.device-version-detail {
-  max-width: 620px;
-  margin: 8px 0 0;
+.device-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+  min-height: 132px;
+  padding: 16px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.device-option:hover {
+  border-color: var(--vp-c-brand-1);
+}
+
+.device-option-selected {
+  border-color: var(--vp-c-brand-1);
+  background: var(--vp-c-brand-soft);
+}
+
+.device-option:has(input:focus-visible) {
+  outline: 2px solid var(--vp-c-brand-1);
+  outline-offset: 2px;
+}
+
+.device-option input {
+  margin: 4px 0 0;
+}
+
+.device-option-content,
+.device-option-heading {
+  display: grid;
+  gap: 8px;
+}
+
+.device-option-heading {
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.device-option-heading small {
+  color: var(--vp-c-text-2);
+  text-align: right;
+}
+
+.device-option-detail {
+  display: block;
   color: var(--vp-c-text-2);
   font-size: 14px;
+  line-height: 1.5;
+}
+
+.device-option-detail code {
+  display: inline-block;
+  margin: 4px 0;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--vp-c-bg-soft);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 520px) {
+  .device-option-heading {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .device-option-heading small {
+    text-align: left;
+  }
 }
 
 .brand-button {

@@ -147,7 +147,7 @@ export default defineConfig({
         items: [
           { text: 'Overview', link: '/' },
           { text: 'Immich Photo Frame', link: '/immich-photo-frame' },
-          { text: 'Choose a Screen', link: '/screens' },
+          { text: 'Where to Buy', link: '/screens' },
           { text: 'Install', link: '/install' },
           { text: 'FAQ', link: '/faq' },
         ],
