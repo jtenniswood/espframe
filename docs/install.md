@@ -41,7 +41,9 @@ Unsure about the chip revision or case number? [Check your display](/screens/jc8
 
 <EspInstallButton />
 
+::: info Browser and USB help
 The installer uses Web Serial; Safari and Firefox cannot flash the display. Having trouble? See [USB flashing help](/usb-flashing).
+:::
 
 ## 2. Connect to WiFi
 
