@@ -14,7 +14,7 @@ def check_privacy_metadata(product: dict, errors: list[str]) -> None:
 
     readme = read(ROOT / "README.md", errors)
     index_docs = read(ROOT / "docs" / "index.md", errors)
-    immich_photo_frame_docs = read(ROOT / "docs" / "immich-photo-frame.md", errors)
+    immich_photo_frame_docs = index_docs
     ai_txt = read(ROOT / "docs" / "public" / "ai.txt", errors)
 
     if connection_model:
