@@ -116,6 +116,10 @@ def test_community_docs_and_site_github_star_indicator_are_wired() -> None:
     for page in ("partnerships", "contributing", "collect-usb-logs"):
         assert (ROOT / "docs" / f"{page}.md").is_file()
         assert f"'/{page}'" in config
+    recovery_redirect = (ROOT / "docs" / "c6-recovery.md").read_text(encoding="utf-8")
+    assert "http-equiv: refresh" in recovery_redirect
+    assert "url=https://jtenniswood.github.io/espframe/firmware-update" in recovery_redirect
+    assert "[Firmware Updates](/firmware-update)" in recovery_redirect
     assert "nav-bar-content-after" in theme and "h(GitHubStars)" in theme
     assert "https://api.github.com/repos/jtenniswood/espframe" in stars
     assert "stargazers_count" in stars
