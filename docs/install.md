@@ -37,6 +37,8 @@ Use the table to choose **Hardware version** below, then click **Install**, sele
 
 Unsure about the chip revision or case number? [Check your display](/screens/jc8012p4a1#identify-your-revision) before installing. If your matching option is missing, its browser firmware is not available yet.
 
+**V3:** Initial USB installation and OTA updates have not yet been tested on physical V3 hardware.
+
 <EspInstallButton />
 
 The installer uses Web Serial; Safari and Firefox cannot flash the display. Having trouble? See [USB flashing help](/usb-flashing).
