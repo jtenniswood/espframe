@@ -384,7 +384,7 @@ def check_setup_flow_metadata(product: dict, errors: list[str]) -> None:
         for label, local_yaml in local_yamls:
             require_contains(local_yaml, f"refresh: {package_refresh}", label or "device local ESPHome YAML", errors)
     for needle in ("WiFi", "Immich server URL", "Immich API key"):
-        require_contains(immich_frame_docs, needle, "docs/immich-photo-frame.md", errors)
+        require_contains(immich_frame_docs, needle, "docs/index.md", errors)
 
     for needle in (
         "captive_portal:",
