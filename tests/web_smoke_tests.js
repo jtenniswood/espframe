@@ -199,6 +199,11 @@ const scenarios = [
     configured: true, width: 1280, height: 900, identity: true, restoreName,
     importFixture: { version: 3, identity: { name: "Office" }, screen: { brightness_day: 80 } }
   })),
+  {
+    name: "frame-name-import-timeout",
+    configured: true, width: 1280, height: 900, identity: true, restoreName: true, identityPostHangs: true,
+    importFixture: { version: 3, identity: { name: "Office" }, screen: { brightness_day: 80 } }
+  },
   { name: "refresh-startup", configured: true, width: 1280, height: 900, slowStartup: true },
   { name: "refresh-startup-legacy", configured: true, width: 1280, height: 900, slowStartup: true, legacyStartup: true },
   { name: "refresh-startup-legacy-snapshot", configured: true, width: 1280, height: 900, slowStartup: true, legacyConfigurationSnapshot: true },
@@ -231,6 +236,7 @@ const scenarios = [
   { name: "screen-tone-schedule", configured: true, width: 1280, height: 900 },
   { name: "daily-settings-controls", configured: true, width: 1280, height: 900 },
   { name: "backup-import-success", configured: true, width: 1280, height: 900, importFixture: validBackupFixture },
+  { name: "backup-import-read-failure", configured: true, width: 1280, height: 900, importFixture: validBackupFixture, fileReadFailure: true },
   {
     name: "backup-import-new-screen",
     configured: true,
@@ -317,6 +323,10 @@ function browserScriptForScenario(scenario) {
       if (this.download) { window.__smoke.downloads += 1; window.__smoke.downloadName = this.download; }
     };
     FileReader.prototype.readAsText = function (file) {
+      if (${JSON.stringify(!!scenario.fileReadFailure)}) {
+        if (this.onerror) setTimeout(() => this.onerror(new Event("error")), 0);
+        return;
+      }
       Object.defineProperty(this, "result", { configurable: true, value: file && file.__smokeContent ? file.__smokeContent : "" });
       if (this.onload) setTimeout(() => this.onload({ target: this }), 0);
     };
@@ -508,6 +518,7 @@ function browserScriptForScenario(scenario) {
       identity = { ...identity, name, friendly_name: name, hostname: name.slice(0, 19).toLowerCase() + "-b2c3" };
     }
     let identityFailure = ${JSON.stringify(!!scenario.identityFailure)};
+    let identityPostCount = 0;
     window.fetch = function (url, options) {
       const method = options && options.method ? options.method : "GET";
       const decoded = decodeURIComponent(String(url));
@@ -520,8 +531,16 @@ function browserScriptForScenario(scenario) {
         }
         if (!${JSON.stringify(!!scenario.identity)}) return Promise.resolve({ ok: false, status: 404 });
         if (method === "POST") {
+          identityPostCount += 1;
           window.__smoke.posts.push(decoded);
           window.__smoke.postRecords.push({ url: decoded, body });
+          if (${JSON.stringify(!!scenario.identityPostHangs)} && identityPostCount > 1) {
+            return new Promise((resolve, reject) => options.signal.addEventListener("abort", () => {
+              const error = new Error("request aborted");
+              error.name = "AbortError";
+              reject(error);
+            }, { once: true }));
+          }
           if (identityFailure) {
             identityFailure = false;
             return Promise.resolve({ ok: false, status: 500 });
@@ -1574,11 +1593,16 @@ function smokeAssertionsForScenario(scenario) {
             if (checkbox.checked) throw new Error("Name restore must default to unchecked");
             checkbox.checked = ${JSON.stringify(!!scenario.restoreName)};
             clickButton("Import backup");
-            await waitFor(() => pageText().includes("imported"), 4000, "backup completion");
-            await waitName(${JSON.stringify(scenario.restoreName ? "Office" : "Living Room")});
+            await waitFor(() => pageText().includes("imported"), ${scenario.identityPostHangs ? 8000 : 4000}, "backup completion");
+            if (${JSON.stringify(!!scenario.identityPostHangs)}) {
+              if (pageText().indexOf("Imported with 1 failed setting") === -1) throw new Error("Timed out name restore did not report a failed setting");
+              if (document.title !== "Living Room · EspFrame") throw new Error("Timed out name restore changed the frame title");
+            } else {
+              await waitName(${JSON.stringify(scenario.restoreName ? "Office" : "Living Room")});
+            }
             const saves = window.__smoke.postRecords.filter(record => record.url === "/espframe/api/v1/identity");
             if (saves.length !== ${scenario.restoreName ? 2 : 1}) throw new Error("Unexpected name restore write");
-            if (${JSON.stringify(!!scenario.restoreName)} && !document.querySelector(".frame-name-info").textContent.includes("office-b2c3.local")) {
+            if (${JSON.stringify(!!scenario.restoreName && !scenario.identityPostHangs)} && !document.querySelector(".frame-name-info").textContent.includes("office-b2c3.local")) {
               throw new Error("Restore did not use destination MAC suffix");
             }
           } else {
@@ -1887,6 +1911,12 @@ function smokeAssertionsForScenario(scenario) {
             requirePostContains("Import aggregate NTP field", "Clock: NTP Server 1");
             requirePostContains("Import WiFi auto-update field", "WiFi Firmware: Auto Update", "turn_on");
             requirePostContains("Import normalized schedule setting", "Screen: Schedule Wake Timeout", "value=120");
+          }
+
+          if (${JSON.stringify(scenario.name)} === "backup-import-read-failure") {
+            clickButton("Import");
+            await waitFor(() => pageText().indexOf("Import failed - could not read the backup file") !== -1, 4000, "backup read failure feedback");
+            if (window.__smoke.posts.length) throw new Error("Unreadable backup must not write settings to the device");
           }
 
           if (${JSON.stringify(scenario.name)}.startsWith("backup-import-new-screen")) {

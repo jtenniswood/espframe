@@ -414,98 +414,111 @@
     fileInput.style.display = "none";
 
     fileInput.addEventListener("change", function () {
-      if (!fileInput.files || !fileInput.files[0]) return;
+      if (!fileInput.files || !fileInput.files[0]) {
+        if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
+        return;
+      }
       var reader = new FileReader();
       reader.onload = async function () {
-        var data;
-        try { data = JSON.parse(String(reader.result)); } catch (_) {
-          showBanner("Invalid file \u2014 could not parse JSON", "error");
-          return;
-        }
-
-        var versionError = validateBackupConfigVersion(data);
-        if (versionError) {
-          showBanner(versionError, "error");
-          return;
-        }
-        data = migrateBackupConfig(data);
-
-        var restoreName = false;
-        if (data.identity !== undefined) {
-          if (!isObject(data.identity) || !validFrameName(data.identity.name)) {
-            showBanner("Invalid frame name in backup", "error");
+        try {
+          var data;
+          try { data = JSON.parse(String(reader.result)); } catch (_) {
+            showBanner("Invalid file \u2014 could not parse JSON", "error");
             return;
           }
-          var choice = await chooseBackupNameRestore(data.identity.name);
-          if (choice === null) return;
-          restoreName = choice;
-        }
 
-        backupImportInProgress = true;
-        backupImportMessages = [];
-        showBanner("Importing settings…", "info", 0);
-        backupImportSaveTasks = [];
-        var queuedCount = 0;
-        var skippedCount = 0;
-        var needsPhotoSourceApply = false;
-        BACKUP_SCHEMA.forEach(function (entry) {
-          if (!backupImportFieldPresent(data, entry)) return;
-          if (applyBackupImportField(entry, backupImportFieldValue(data, entry))) {
-            queuedCount += 1;
-            needsPhotoSourceApply = needsPhotoSourceApply || backupImportEntryUsesPhotoSourceApply(entry);
-          } else {
-            skippedCount += 1;
+          var versionError = validateBackupConfigVersion(data);
+          if (versionError) {
+            showBanner(versionError, "error");
+            return;
           }
-        });
+          data = migrateBackupConfig(data);
 
-        if (restoreName) {
-          queuedCount += 1;
-          trackBackupImportSave(saveFrameName(data.identity.name).then(function () { return { ok: true }; }));
-        }
-
-        Promise.all(backupImportSaveTasks)
-          .then(function (results) {
-            var failedCount = results.filter(function (ok) { return !ok; }).length;
-            var appliedCount = queuedCount - failedCount;
-            if (needsPhotoSourceApply && appliedCount) {
-              return post(endpoints.apply_photo_source + "/press")
-                .then(function () {
-                  return { appliedCount: appliedCount, failedCount: failedCount };
-                })
-                .catch(function () {
-                  return { appliedCount: appliedCount, failedCount: failedCount + 1 };
-                });
+          var restoreName = false;
+          if (data.identity !== undefined) {
+            if (!isObject(data.identity) || !validFrameName(data.identity.name)) {
+              showBanner("Invalid frame name in backup", "error");
+              return;
             }
-            return { appliedCount: appliedCount, failedCount: failedCount };
-          })
-          .then(function (summary) {
-            var failedCount = summary.failedCount;
-            var appliedCount = summary.appliedCount;
-            backupImportInProgress = false;
-            var apiKeyWasOmitted = !data.connection || !Object.prototype.hasOwnProperty.call(data.connection, "api_key") ||
-              !String(data.connection.api_key == null ? "" : data.connection.api_key).trim();
-            var resultMessage = backupImportSummaryMessage(appliedCount, skippedCount, failedCount);
-            if (backupImportMessages.length) resultMessage += ". " + backupImportMessages.join("; ");
-            if (apiKeyWasOmitted) resultMessage += ". The Immich API key isn’t stored in backups; configure it on this screen.";
-            showBanner(
-              resultMessage,
-              skippedCount || failedCount ? "error" : "success"
-            );
-            renderSettings();
-            backupImportSaveTasks = null;
-            backupImportMessages = [];
-          })
-          .catch(function () {
-            backupImportInProgress = false;
-            backupImportSaveTasks = null;
-            backupImportMessages = [];
-            showBanner("Import failed. Please try again.", "error");
+            var choice = await chooseBackupNameRestore(data.identity.name);
+            if (choice === null) return;
+            restoreName = choice;
+          }
+
+          backupImportInProgress = true;
+          backupImportMessages = [];
+          showBanner("Importing settings…", "info", 0);
+          backupImportSaveTasks = [];
+          var queuedCount = 0;
+          var skippedCount = 0;
+          var needsPhotoSourceApply = false;
+          BACKUP_SCHEMA.forEach(function (entry) {
+            if (!backupImportFieldPresent(data, entry)) return;
+            if (applyBackupImportField(entry, backupImportFieldValue(data, entry))) {
+              queuedCount += 1;
+              needsPhotoSourceApply = needsPhotoSourceApply || backupImportEntryUsesPhotoSourceApply(entry);
+            } else {
+              skippedCount += 1;
+            }
           });
+
+          if (restoreName) {
+            queuedCount += 1;
+            trackBackupImportSave(saveFrameName(data.identity.name).then(function () { return { ok: true }; }));
+          }
+
+          var results = await Promise.all(backupImportSaveTasks);
+          var failedCount = results.filter(function (ok) { return !ok; }).length;
+          var appliedCount = queuedCount - failedCount;
+          if (needsPhotoSourceApply && appliedCount) {
+            try {
+              await post(endpoints.apply_photo_source + "/press");
+            } catch (_) {
+              failedCount += 1;
+            }
+          }
+
+          backupImportInProgress = false;
+          var apiKeyWasOmitted = !data.connection || !Object.prototype.hasOwnProperty.call(data.connection, "api_key") ||
+            !String(data.connection.api_key == null ? "" : data.connection.api_key).trim();
+          var resultMessage = backupImportSummaryMessage(appliedCount, skippedCount, failedCount);
+          if (backupImportMessages.length) resultMessage += ". " + backupImportMessages.join("; ");
+          if (apiKeyWasOmitted) resultMessage += ". The Immich API key isn’t stored in backups; configure it on this screen.";
+          showBanner(
+            resultMessage,
+            skippedCount || failedCount ? "error" : "success"
+          );
+          renderSettings();
+          backupImportSaveTasks = null;
+          backupImportMessages = [];
+        } catch (_) {
+          backupImportInProgress = false;
+          backupImportSaveTasks = null;
+          backupImportMessages = [];
+          showBanner("Import failed. Please try again.", "error");
+        } finally {
+          if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
+        }
       };
-      reader.readAsText(fileInput.files[0]);
+      reader.onerror = function () {
+        if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
+        showBanner("Import failed - could not read the backup file", "error");
+      };
+      try {
+        reader.readAsText(fileInput.files[0]);
+      } catch (_) {
+        if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
+        showBanner("Import failed - could not read the backup file", "error");
+      }
     });
 
     document.body.appendChild(fileInput);
+    window.addEventListener("focus", function () {
+      setTimeout(function () {
+        if ((!fileInput.files || !fileInput.files.length) && fileInput.parentNode) {
+          fileInput.parentNode.removeChild(fileInput);
+        }
+      }, 1000);
+    }, { once: true });
     fileInput.click();
-    document.body.removeChild(fileInput);
   }

@@ -22,23 +22,29 @@
   }
 
   async function requestFrameIdentity(name?: string): Promise<FrameIdentitySnapshot> {
-    var options: RequestInit = { cache: "no-store" };
+    if (name !== undefined && !validFrameName(name)) throw new Error("Use up to 120 UTF-8 bytes without control characters.");
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, 5000);
+    var options: RequestInit = { cache: "no-store", signal: controller.signal };
     if (name !== undefined) {
-      if (!validFrameName(name)) throw new Error("Use up to 120 UTF-8 bytes without control characters.");
       options.method = "POST";
       options.headers = { "Content-Type": "application/x-www-form-urlencoded" };
       options.body = new URLSearchParams({ name: name }).toString();
     }
-    var response = await fetch("/espframe/api/v1/identity", options);
-    if (!response.ok) throw new Error(name === undefined ? "Frame name unavailable" : "Frame name could not be saved. Please retry.");
-    var data: unknown = await response.json();
-    if (!isObject(data) || !validFrameName(data.name) || typeof data.friendly_name !== "string" ||
-        typeof data.hostname !== "string" || !/^[a-z0-9-]{1,63}$/.test(data.hostname) ||
-        typeof data.ip_address !== "string" || typeof data.restart_required !== "boolean" ||
-        (data.mac_suffix !== undefined && (typeof data.mac_suffix !== "string" || !/^[a-f0-9]{4}$/.test(data.mac_suffix)))) {
-      throw new Error("Frame name unavailable");
+    try {
+      var response = await fetch("/espframe/api/v1/identity", options);
+      if (!response.ok) throw new Error(name === undefined ? "Frame name unavailable" : "Frame name could not be saved. Please retry.");
+      var data: unknown = await response.json();
+      if (!isObject(data) || !validFrameName(data.name) || typeof data.friendly_name !== "string" ||
+          typeof data.hostname !== "string" || !/^[a-z0-9-]{1,63}$/.test(data.hostname) ||
+          typeof data.ip_address !== "string" || typeof data.restart_required !== "boolean" ||
+          (data.mac_suffix !== undefined && (typeof data.mac_suffix !== "string" || !/^[a-f0-9]{4}$/.test(data.mac_suffix)))) {
+        throw new Error("Frame name unavailable");
+      }
+      return data as unknown as FrameIdentitySnapshot;
+    } finally {
+      clearTimeout(timer);
     }
-    return data as unknown as FrameIdentitySnapshot;
   }
 
   function updateFrameTitle(): void {

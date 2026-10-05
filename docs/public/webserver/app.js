@@ -5154,20 +5154,28 @@ to {
     return new TextEncoder().encode(name).length <= 120 && !/[\u0000-\u001f\u007f-\u009f]/.test(name);
   }
   async function requestFrameIdentity(name) {
-    var options = { cache: "no-store" };
+    if (name !== void 0 && !validFrameName(name)) throw new Error("Use up to 120 UTF-8 bytes without control characters.");
+    var controller = new AbortController();
+    var timer = setTimeout(function() {
+      controller.abort();
+    }, 5e3);
+    var options = { cache: "no-store", signal: controller.signal };
     if (name !== void 0) {
-      if (!validFrameName(name)) throw new Error("Use up to 120 UTF-8 bytes without control characters.");
       options.method = "POST";
       options.headers = { "Content-Type": "application/x-www-form-urlencoded" };
       options.body = new URLSearchParams({ name }).toString();
     }
-    var response = await fetch("/espframe/api/v1/identity", options);
-    if (!response.ok) throw new Error(name === void 0 ? "Frame name unavailable" : "Frame name could not be saved. Please retry.");
-    var data = await response.json();
-    if (!isObject(data) || !validFrameName(data.name) || typeof data.friendly_name !== "string" || typeof data.hostname !== "string" || !/^[a-z0-9-]{1,63}$/.test(data.hostname) || typeof data.ip_address !== "string" || typeof data.restart_required !== "boolean" || data.mac_suffix !== void 0 && (typeof data.mac_suffix !== "string" || !/^[a-f0-9]{4}$/.test(data.mac_suffix))) {
-      throw new Error("Frame name unavailable");
+    try {
+      var response = await fetch("/espframe/api/v1/identity", options);
+      if (!response.ok) throw new Error(name === void 0 ? "Frame name unavailable" : "Frame name could not be saved. Please retry.");
+      var data = await response.json();
+      if (!isObject(data) || !validFrameName(data.name) || typeof data.friendly_name !== "string" || typeof data.hostname !== "string" || !/^[a-z0-9-]{1,63}$/.test(data.hostname) || typeof data.ip_address !== "string" || typeof data.restart_required !== "boolean" || data.mac_suffix !== void 0 && (typeof data.mac_suffix !== "string" || !/^[a-f0-9]{4}$/.test(data.mac_suffix))) {
+        throw new Error("Frame name unavailable");
+      }
+      return data;
+    } finally {
+      clearTimeout(timer);
     }
-    return data;
   }
   function updateFrameTitle() {
     if (!frameIdentity) return;
@@ -5727,70 +5735,70 @@ to {
     fileInput.accept = ".json";
     fileInput.style.display = "none";
     fileInput.addEventListener("change", function() {
-      if (!fileInput.files || !fileInput.files[0]) return;
+      if (!fileInput.files || !fileInput.files[0]) {
+        if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
+        return;
+      }
       var reader = new FileReader();
       reader.onload = async function() {
-        var data;
         try {
-          data = JSON.parse(String(reader.result));
-        } catch (_) {
-          showBanner("Invalid file \u2014 could not parse JSON", "error");
-          return;
-        }
-        var versionError = validateBackupConfigVersion(data);
-        if (versionError) {
-          showBanner(versionError, "error");
-          return;
-        }
-        data = migrateBackupConfig(data);
-        var restoreName = false;
-        if (data.identity !== void 0) {
-          if (!isObject(data.identity) || !validFrameName(data.identity.name)) {
-            showBanner("Invalid frame name in backup", "error");
+          var data;
+          try {
+            data = JSON.parse(String(reader.result));
+          } catch (_) {
+            showBanner("Invalid file \u2014 could not parse JSON", "error");
             return;
           }
-          var choice = await chooseBackupNameRestore(data.identity.name);
-          if (choice === null) return;
-          restoreName = choice;
-        }
-        backupImportInProgress = true;
-        backupImportMessages = [];
-        showBanner("Importing settings\u2026", "info", 0);
-        backupImportSaveTasks = [];
-        var queuedCount = 0;
-        var skippedCount = 0;
-        var needsPhotoSourceApply = false;
-        BACKUP_SCHEMA.forEach(function(entry) {
-          if (!backupImportFieldPresent(data, entry)) return;
-          if (applyBackupImportField(entry, backupImportFieldValue(data, entry))) {
-            queuedCount += 1;
-            needsPhotoSourceApply = needsPhotoSourceApply || backupImportEntryUsesPhotoSourceApply(entry);
-          } else {
-            skippedCount += 1;
+          var versionError = validateBackupConfigVersion(data);
+          if (versionError) {
+            showBanner(versionError, "error");
+            return;
           }
-        });
-        if (restoreName) {
-          queuedCount += 1;
-          trackBackupImportSave(saveFrameName(data.identity.name).then(function() {
-            return { ok: true };
-          }));
-        }
-        Promise.all(backupImportSaveTasks).then(function(results) {
+          data = migrateBackupConfig(data);
+          var restoreName = false;
+          if (data.identity !== void 0) {
+            if (!isObject(data.identity) || !validFrameName(data.identity.name)) {
+              showBanner("Invalid frame name in backup", "error");
+              return;
+            }
+            var choice = await chooseBackupNameRestore(data.identity.name);
+            if (choice === null) return;
+            restoreName = choice;
+          }
+          backupImportInProgress = true;
+          backupImportMessages = [];
+          showBanner("Importing settings\u2026", "info", 0);
+          backupImportSaveTasks = [];
+          var queuedCount = 0;
+          var skippedCount = 0;
+          var needsPhotoSourceApply = false;
+          BACKUP_SCHEMA.forEach(function(entry) {
+            if (!backupImportFieldPresent(data, entry)) return;
+            if (applyBackupImportField(entry, backupImportFieldValue(data, entry))) {
+              queuedCount += 1;
+              needsPhotoSourceApply = needsPhotoSourceApply || backupImportEntryUsesPhotoSourceApply(entry);
+            } else {
+              skippedCount += 1;
+            }
+          });
+          if (restoreName) {
+            queuedCount += 1;
+            trackBackupImportSave(saveFrameName(data.identity.name).then(function() {
+              return { ok: true };
+            }));
+          }
+          var results = await Promise.all(backupImportSaveTasks);
           var failedCount = results.filter(function(ok) {
             return !ok;
           }).length;
           var appliedCount = queuedCount - failedCount;
           if (needsPhotoSourceApply && appliedCount) {
-            return post(endpoints.apply_photo_source + "/press").then(function() {
-              return { appliedCount, failedCount };
-            }).catch(function() {
-              return { appliedCount, failedCount: failedCount + 1 };
-            });
+            try {
+              await post(endpoints.apply_photo_source + "/press");
+            } catch (_) {
+              failedCount += 1;
+            }
           }
-          return { appliedCount, failedCount };
-        }).then(function(summary) {
-          var failedCount = summary.failedCount;
-          var appliedCount = summary.appliedCount;
           backupImportInProgress = false;
           var apiKeyWasOmitted = !data.connection || !Object.prototype.hasOwnProperty.call(data.connection, "api_key") || !String(data.connection.api_key == null ? "" : data.connection.api_key).trim();
           var resultMessage = backupImportSummaryMessage(appliedCount, skippedCount, failedCount);
@@ -5803,18 +5811,35 @@ to {
           renderSettings();
           backupImportSaveTasks = null;
           backupImportMessages = [];
-        }).catch(function() {
+        } catch (_) {
           backupImportInProgress = false;
           backupImportSaveTasks = null;
           backupImportMessages = [];
           showBanner("Import failed. Please try again.", "error");
-        });
+        } finally {
+          if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
+        }
       };
-      reader.readAsText(fileInput.files[0]);
+      reader.onerror = function() {
+        if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
+        showBanner("Import failed - could not read the backup file", "error");
+      };
+      try {
+        reader.readAsText(fileInput.files[0]);
+      } catch (_) {
+        if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
+        showBanner("Import failed - could not read the backup file", "error");
+      }
     });
     document.body.appendChild(fileInput);
+    window.addEventListener("focus", function() {
+      setTimeout(function() {
+        if ((!fileInput.files || !fileInput.files.length) && fileInput.parentNode) {
+          fileInput.parentNode.removeChild(fileInput);
+        }
+      }, 1e3);
+    }, { once: true });
     fileInput.click();
-    document.body.removeChild(fileInput);
   }
   buildUI();
   initSSE();
