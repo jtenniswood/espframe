@@ -14,6 +14,34 @@ Ready to get started? **[Install EspFrame](/install)**. Need a display first? [W
 
 <img src="/espframe.png" alt="EspFrame displaying Immich photos on a Guition ESP32-P4 touchscreen" style="max-width: 100%; border-radius: 8px; margin: 1.5rem 0;" />
 
+## What EspFrame Does
+
+EspFrame firmware runs on the display itself with ESPHome and connects directly to your Immich server over HTTP or HTTPS to show photos from your own network. It supports all photos, favorites, albums, people, memories, and date-filtered selections. Home Assistant, a separate bridge app, and a cloud service are not required.
+
+Use the frame's settings to adjust brightness and screen tone, schedule the display, pair portrait photos, and show a clock over the slideshow. The [photo sources guide](/photo-sources) explains the available sources and filters.
+
+## What You Need
+
+- A supported 10.1-inch Guition ESP32-P4 `JC8012P4A1` display.
+- A working Immich server the frame can reach on your network or over HTTPS.
+- An Immich API key; Read-only permissions are recommended.
+- A USB-C data cable (not a charge-only cable) and a desktop computer running Chrome or Edge for browser installation with Web Serial.
+
+See [supported screen revisions](/screens) and the full [installation requirements](/install#what-you-ll-need).
+
+## Get Started
+
+1. [Install EspFrame](/install) on the display.
+2. Connect the frame to WiFi.
+3. Enter your Immich server URL and [Immich API key](/api-key).
+4. Choose the [photo sources](/photo-sources) for the slideshow.
+
+For USB connection help, see [USB flashing](/usb-flashing). If setup does not work as expected, visit [troubleshooting](/troubleshooting).
+
+## Privacy
+
+EspFrame does not upload photos or send your library through a hosted service. The frame requests thumbnails and metadata from the Immich server URL you configure. If that server is only available on your local network, the frame stays local too.
+
 ## Features
 
 - **Smart Photo Filters** — Combine albums, people, tags, favorites, ratings, dates, locations, exclusions, and orientation.
