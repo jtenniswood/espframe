@@ -5,6 +5,7 @@ const path = require("path");
 const root = path.resolve(__dirname, "..");
 const template = fs.readFileSync(path.join(root, "docs/webserver/src/app.template.ts"), "utf8");
 const publicApp = fs.readFileSync(path.join(root, "docs/public/webserver/app.js"), "utf8");
+const publicStyle = fs.readFileSync(path.join(root, "docs/public/webserver/style.css"), "utf8");
 const endpointsSource = fs.readFileSync(path.join(root, "docs/webserver/src/endpoints.ts"), "utf8");
 const runtimeStateSource = fs.readFileSync(path.join(root, "docs/webserver/src/runtime_state.ts"), "utf8");
 const liveHelpersSource = fs.readFileSync(path.join(root, "docs/webserver/src/live_helpers.ts"), "utf8");
@@ -69,6 +70,9 @@ assert.ok(!/\bS\.api_key\b/.test(publicApp), "browser app must not retain the AP
 assert.ok(!publicApp.includes("values.api_key"), "configuration verification must not read the API key value");
 assert.ok(!backupImportSource.includes("include_secret=backup"), "backup export must not request the API key");
 assert.ok(!publicApp.includes("include_secret=backup"), "generated backup export must not request the API key");
+assert.ok(publicStyle.includes(".api-key-restore-required input"), "restore guidance should highlight the API-key input");
+assert.ok(!publicStyle.includes(".field.api-key-restore-required"), "restore guidance must not highlight the outer field container");
+assert.ok(!publicStyle.includes(".api-key-restore-required > label"), "restore guidance must not recolor the field label");
 const apiClientSource = fs.readFileSync(path.join(root, "docs/webserver/src/api_client.ts"), "utf8");
 assert.ok(endpointsSource.includes("apiClient.getConfigurationSnapshot"), "configuration reads should use the API client");
 assert.ok(apiClientSource.includes("private queue") && apiClientSource.includes("this.queue = request.catch"), "the API client should own the single write queue");

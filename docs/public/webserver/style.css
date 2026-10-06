@@ -337,18 +337,6 @@ h2 {
   margin-bottom:22px
 }
 
-.field.api-key-restore-required {
-  padding:12px;
-  border:1px solid var(--danger);
-  border-radius:10px;
-  background:rgba(241, 65, 88, .09);
-  box-shadow:0 0 0 3px rgba(241, 65, 88, .16)
-}
-
-.api-key-restore-required > label {
-  color:var(--danger)
-}
-
 .api-key-restore-required input {
   border-color:var(--danger) !important;
   box-shadow:0 0 0 2px rgba(241, 65, 88, .18)

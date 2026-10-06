@@ -1936,8 +1936,17 @@ function smokeAssertionsForScenario(scenario) {
             await waitFor(() => pageText().indexOf("Backups don’t include the Immich API key.") !== -1, 8000, "missing API-key guidance");
             if (!document.querySelector("#sp-immich.active")) throw new Error("Restore should switch to the Immich tab");
             const field = document.querySelector(".api-key-restore-required");
-            if (!field || !field.querySelector('input[placeholder="Paste your Immich API key"]')) {
+            const apiKeyInput = field && field.querySelector('input[placeholder="Paste your Immich API key"]');
+            if (!field || !apiKeyInput) {
               throw new Error("Restore should highlight the API-key input");
+            }
+            const fieldStyle = getComputedStyle(field);
+            const labelStyle = getComputedStyle(field.querySelector("label"));
+            if (fieldStyle.borderTopStyle !== "none" || fieldStyle.backgroundColor !== "rgba(0, 0, 0, 0)") {
+              throw new Error("Restore highlight should not outline or fill the outer field container");
+            }
+            if (labelStyle.color === getComputedStyle(apiKeyInput).borderTopColor) {
+              throw new Error("Restore highlight should be limited to the API-key input");
             }
             const connection = field.closest(".card");
             if (!connection || connection.querySelector(".card-toggle").getAttribute("aria-expanded") !== "true") {
