@@ -236,6 +236,7 @@ const scenarios = [
   { name: "screen-tone-schedule", configured: true, width: 1280, height: 900 },
   { name: "daily-settings-controls", configured: true, width: 1280, height: 900 },
   { name: "backup-import-success", configured: true, width: 1280, height: 900, importFixture: validBackupFixture },
+  { name: "backup-import-key-guidance", configured: true, apiKeyConfigured: false, width: 1280, height: 900, importFixture: validBackupFixture },
   { name: "backup-import-read-failure", configured: true, width: 1280, height: 900, importFixture: validBackupFixture, fileReadFailure: true },
   {
     name: "backup-import-new-screen",
@@ -376,9 +377,10 @@ function browserScriptForScenario(scenario) {
     window.EventSource = SmokeEventSource;
 
     const configured = ${JSON.stringify(scenario.configured)};
+    const apiKeyConfigured = ${JSON.stringify(scenario.apiKeyConfigured !== undefined ? scenario.apiKeyConfigured : scenario.configured)};
     const endpointValues = {
       "Connection: Server URL": configured ? "https://photos.example.com" : "",
-      "Connection: API Key": configured ? "fixture-api-key" : "",
+      "Connection: API Key": apiKeyConfigured ? "fixture-api-key" : "",
       "Firmware: Version": ${JSON.stringify(installedFirmwareVersion)},
       "Firmware: Device": ${JSON.stringify(firmwareDeviceSlug)},
       "Photos: Source": "All Photos",
@@ -669,10 +671,9 @@ function browserScriptForScenario(scenario) {
         }) });
       }
       if (decoded.indexOf("/text/Connection: API Key") !== -1 && method === "GET") {
-        const includeForBackup = decoded.indexOf("?include_secret=backup") !== -1;
         const key = String(endpointValues["Connection: API Key"] || "");
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({
-          value: includeForBackup ? key : "", state: key ? (includeForBackup ? key : "********") : "",
+          value: "", state: key ? "********" : "",
           api_key_configured: !!key
         }) });
       }
@@ -827,9 +828,11 @@ function smokeAssertionsForScenario(scenario) {
         if (exported.screen.schedule_wake_timeout !== 60) {
           throw new Error("Exported schedule wake timeout was not normalized");
         }
-        const expectedApiKey = ${JSON.stringify(scenario.configured ? "fixture-api-key" : "")};
-        if (exported.connection.api_key !== expectedApiKey) {
-          throw new Error("Exported backup did not include the configured API key");
+        if (Object.prototype.hasOwnProperty.call(exported.connection || {}, "api_key")) {
+          throw new Error("Exported backup must not contain an API key");
+        }
+        if (window.__smoke.fetchedUrls.some(url => url.indexOf("include_secret") !== -1)) {
+          throw new Error("Backup export must not request the API key from the device");
         }
       }
       function selectByLabel(labelText) {
@@ -1912,10 +1915,7 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "backup-import-success") {
             clickButton("Import");
-            await waitFor(() => pageText().indexOf("Settings imported successfully") !== -1, 8000, "successful import");
-            if (pageText().indexOf("The Immich API key isn’t stored in backups") !== -1) {
-              throw new Error("A backup with an API key should not ask the user to configure it again");
-            }
+            await waitFor(() => pageText().indexOf("Settings imported successfully. The destination’s existing Immich API key was left unchanged.") !== -1, 8000, "successful import");
             if (!hasConfigurationPost("Connection: Server URL")) {
               throw new Error("Import did not post connection URL");
             }
@@ -1926,6 +1926,26 @@ function smokeAssertionsForScenario(scenario) {
             requirePostContains("Import aggregate NTP field", "Clock: NTP Server 1");
             requirePostContains("Import WiFi auto-update field", "WiFi Firmware: Auto Update", "turn_on");
             requirePostContains("Import normalized schedule setting", "Screen: Schedule Wake Timeout", "value=120");
+            if (window.__smoke.postRecords.some(record => record.body.indexOf("imported-api-key") !== -1)) {
+              throw new Error("Legacy backup API key should not replace the destination key");
+            }
+          }
+
+          if (${JSON.stringify(scenario.name)} === "backup-import-key-guidance") {
+            clickButton("Import");
+            await waitFor(() => pageText().indexOf("Backups don’t include the Immich API key.") !== -1, 8000, "missing API-key guidance");
+            if (!document.querySelector("#sp-immich.active")) throw new Error("Restore should switch to the Immich tab");
+            const field = document.querySelector(".api-key-restore-required");
+            if (!field || !field.querySelector('input[placeholder="Paste your Immich API key"]')) {
+              throw new Error("Restore should highlight the API-key input");
+            }
+            const connection = field.closest(".card");
+            if (!connection || connection.querySelector(".card-toggle").getAttribute("aria-expanded") !== "true") {
+              throw new Error("Restore should expand the Connection panel");
+            }
+            if (window.__smoke.postRecords.some(record => record.body.indexOf("imported-api-key") !== -1)) {
+              throw new Error("Legacy backup API key should not be restored");
+            }
           }
 
           if (${JSON.stringify(scenario.name)} === "backup-import-read-failure") {
@@ -1939,14 +1959,14 @@ function smokeAssertionsForScenario(scenario) {
             await waitFor(() => pageText().indexOf("Importing settings…") !== -1, 4000, "import progress feedback");
             await new Promise(resolve => setTimeout(resolve, 10));
             if (pageText().indexOf("Importing settings…") === -1) throw new Error("Import progress feedback disappeared while settings were being saved");
-            await waitFor(() => pageText().indexOf("Settings imported successfully. This backup has no API key; the destination’s current key was left unchanged.") !== -1, 8000, "new-screen import completion");
+            await waitFor(() => pageText().indexOf("Settings imported successfully. The destination’s existing Immich API key was left unchanged.") !== -1, 8000, "new-screen import completion");
             if (!hasConfigurationPost("Connection: Server URL")) throw new Error("New-screen import did not save the server URL");
             requirePostContains("New-screen import brightness", "Screen: Daytime Brightness", "value=90");
             const updates = configurationUpdates();
             if (updates.length !== 1) throw new Error("Backup import should batch compatible settings into one configuration update");
             if (Object.keys(updates[0]).length !== 2) throw new Error("Backup import batch should include all imported settings");
             if (window.__smoke.postRecords.some(record => record.body.indexOf("imported-api-key") !== -1)) {
-              throw new Error("Blank backup API key should not be written to the new screen");
+              throw new Error("Backup API key should not be written to the new screen");
             }
           }
 
@@ -1958,6 +1978,9 @@ function smokeAssertionsForScenario(scenario) {
             await waitFor(() => pageText().indexOf("Imported with 1 failed setting") !== -1, 8000, "failed import save");
             requirePostContains("Valid setting survives a rejected batch", "Connection: Server URL");
             requirePostContains("Failed import still attempted daytime brightness", "Screen: Daytime Brightness", "value=90");
+            if (window.__smoke.postRecords.some(record => record.body.indexOf("imported-api-key") !== -1)) {
+              throw new Error("Legacy backup API key should be ignored during restore");
+            }
           }
 
           if (${JSON.stringify(scenario.name)} === "backup-import-partial") {

@@ -407,7 +407,7 @@
   var MANUAL_STATE_KEYS = ["immich_url"];
   var ENTITY_ALIASES = { "schedule_enabled": [{ "entity": "switch/Screen: Schedule", "boolFromState": true }], "schedule_on_hour": [{ "entity": "number/Screen: Schedule On", "default": 6, "number": true }], "schedule_off_hour": [{ "entity": "number/Screen: Schedule Off", "default": 23, "number": true }] };
   var BACKUP_CONFIG_VERSION = 3;
-  var BACKUP_SCHEMA = [{ "group": "connection", "field": "immich_url", "state_keys": ["immich_url"] }, { "group": "connection", "field": "api_key", "state_keys": ["api_key"] }, { "group": "photos", "field": "source", "state_keys": ["photo_source"] }, { "group": "photos", "field": "memories_window", "state_keys": ["memories_window"] }, { "group": "photos", "field": "memories_fallback", "state_keys": ["memories_fallback"] }, { "group": "photos", "field": "albums_enabled", "state_keys": ["albums_enabled"] }, { "group": "photos", "field": "people_enabled", "state_keys": ["people_enabled"] }, { "group": "photos", "field": "tags_enabled", "state_keys": ["tags_enabled"] }, { "group": "photos", "field": "favorites_enabled", "state_keys": ["favorites_enabled"] }, { "group": "photos", "field": "rating_enabled", "state_keys": ["rating_enabled"] }, { "group": "photos", "field": "location_enabled", "state_keys": ["location_enabled"] }, { "group": "photos", "field": "inclusion_matching", "state_keys": ["inclusion_matching"] }, { "group": "photos", "field": "album_matching", "state_keys": ["album_matching"] }, { "group": "photos", "field": "person_matching", "state_keys": ["person_matching"] }, { "group": "photos", "field": "favorite_mode", "state_keys": ["favorite_mode"] }, { "group": "photos", "field": "minimum_rating", "state_keys": ["minimum_rating"] }, { "group": "photos", "field": "country", "state_keys": ["filter_country"] }, { "group": "photos", "field": "state", "state_keys": ["filter_state"] }, { "group": "photos", "field": "city", "state_keys": ["filter_city"] }, { "group": "photos", "field": "album_order", "state_keys": ["album_order"] }, { "group": "photos", "field": "album_ids", "state_keys": ["album_ids"] }, { "group": "photos", "field": "album_labels", "state_keys": ["album_labels"] }, { "group": "photos", "field": "person_ids", "state_keys": ["person_ids"] }, { "group": "photos", "field": "person_labels", "state_keys": ["person_labels"] }, { "group": "photos", "field": "tag_ids", "state_keys": ["tag_ids"] }, { "group": "photos", "field": "tag_labels", "state_keys": ["tag_labels"] }, { "group": "photos", "field": "tag_matching", "state_keys": ["tag_matching"] }, { "group": "photos", "field": "excluded_album_ids", "state_keys": ["excluded_album_ids"] }, { "group": "photos", "field": "excluded_album_labels", "state_keys": ["excluded_album_labels"] }, { "group": "photos", "field": "excluded_person_ids", "state_keys": ["excluded_person_ids"] }, { "group": "photos", "field": "excluded_person_labels", "state_keys": ["excluded_person_labels"] }, { "group": "photos", "field": "excluded_tag_ids", "state_keys": ["excluded_tag_ids"] }, { "group": "photos", "field": "excluded_tag_labels", "state_keys": ["excluded_tag_labels"] }, { "group": "photos", "field": "date_filter_enabled", "state_keys": ["date_filter_enabled"] }, { "group": "photos", "field": "date_filter_mode", "state_keys": ["date_filter_mode"] }, { "group": "photos", "field": "date_from", "state_keys": ["date_from"] }, { "group": "photos", "field": "date_to", "state_keys": ["date_to"] }, { "group": "photos", "field": "relative_amount", "state_keys": ["relative_amount"] }, { "group": "photos", "field": "relative_unit", "state_keys": ["relative_unit"] }, { "group": "photos", "field": "orientation", "state_keys": ["photo_orientation"] }, { "group": "photos", "field": "portrait_pairing", "state_keys": ["portrait_pairing"] }, { "group": "photos", "field": "portrait_pairing_range", "state_keys": ["portrait_pairing_range"] }, { "group": "photos", "field": "portrait_pairs_only", "state_keys": ["portrait_pairs_only"] }, { "group": "photos", "field": "display_mode", "state_keys": ["display_mode"] }, { "group": "frequency", "field": "interval", "state_keys": ["interval"] }, { "group": "frequency", "field": "conn_timeout", "state_keys": ["conn_timeout"] }, { "group": "firmware_updates", "field": "auto_update", "state_keys": ["auto_update"] }, { "group": "firmware_updates", "field": "update_frequency", "state_keys": ["update_frequency"] }, { "group": "firmware_updates", "field": "wifi_auto_update", "state_keys": ["c6_auto_update"] }, { "group": "clock", "field": "show", "state_keys": ["show_clock"] }, { "group": "clock", "field": "format", "state_keys": ["clock_format"] }, { "group": "clock", "field": "timezone", "state_keys": ["timezone"] }, { "group": "clock", "field": "ntp_servers", "state_keys": ["ntp_server_1", "ntp_server_2", "ntp_server_3"] }, { "group": "screen", "field": "brightness_day", "state_keys": ["brightness_day"] }, { "group": "screen", "field": "brightness_night", "state_keys": ["brightness_night"] }, { "group": "screen", "field": "schedule_enabled", "state_keys": ["schedule_enabled"] }, { "group": "screen", "field": "schedule_on_hour", "state_keys": ["schedule_on_hour"] }, { "group": "screen", "field": "schedule_off_hour", "state_keys": ["schedule_off_hour"] }, { "group": "screen", "field": "schedule_wake_timeout", "state_keys": ["schedule_wake_timeout"] }, { "group": "screen", "field": "base_tone_enabled", "state_keys": ["base_tone_enabled"] }, { "group": "screen", "field": "base_tone", "state_keys": ["base_tone"] }, { "group": "screen", "field": "warm_tones_enabled", "state_keys": ["warm_tones_enabled"] }, { "group": "screen", "field": "warm_tone_intensity", "state_keys": ["warm_tone_intensity"] }, { "group": "screen", "field": "warm_tone_override", "state_keys": ["warm_tone_override"] }, { "group": "screen", "field": "rotation", "state_keys": ["screen_rotation"] }];
+  var BACKUP_SCHEMA = [{ "group": "connection", "field": "immich_url", "state_keys": ["immich_url"] }, { "group": "photos", "field": "source", "state_keys": ["photo_source"] }, { "group": "photos", "field": "memories_window", "state_keys": ["memories_window"] }, { "group": "photos", "field": "memories_fallback", "state_keys": ["memories_fallback"] }, { "group": "photos", "field": "albums_enabled", "state_keys": ["albums_enabled"] }, { "group": "photos", "field": "people_enabled", "state_keys": ["people_enabled"] }, { "group": "photos", "field": "tags_enabled", "state_keys": ["tags_enabled"] }, { "group": "photos", "field": "favorites_enabled", "state_keys": ["favorites_enabled"] }, { "group": "photos", "field": "rating_enabled", "state_keys": ["rating_enabled"] }, { "group": "photos", "field": "location_enabled", "state_keys": ["location_enabled"] }, { "group": "photos", "field": "inclusion_matching", "state_keys": ["inclusion_matching"] }, { "group": "photos", "field": "album_matching", "state_keys": ["album_matching"] }, { "group": "photos", "field": "person_matching", "state_keys": ["person_matching"] }, { "group": "photos", "field": "favorite_mode", "state_keys": ["favorite_mode"] }, { "group": "photos", "field": "minimum_rating", "state_keys": ["minimum_rating"] }, { "group": "photos", "field": "country", "state_keys": ["filter_country"] }, { "group": "photos", "field": "state", "state_keys": ["filter_state"] }, { "group": "photos", "field": "city", "state_keys": ["filter_city"] }, { "group": "photos", "field": "album_order", "state_keys": ["album_order"] }, { "group": "photos", "field": "album_ids", "state_keys": ["album_ids"] }, { "group": "photos", "field": "album_labels", "state_keys": ["album_labels"] }, { "group": "photos", "field": "person_ids", "state_keys": ["person_ids"] }, { "group": "photos", "field": "person_labels", "state_keys": ["person_labels"] }, { "group": "photos", "field": "tag_ids", "state_keys": ["tag_ids"] }, { "group": "photos", "field": "tag_labels", "state_keys": ["tag_labels"] }, { "group": "photos", "field": "tag_matching", "state_keys": ["tag_matching"] }, { "group": "photos", "field": "excluded_album_ids", "state_keys": ["excluded_album_ids"] }, { "group": "photos", "field": "excluded_album_labels", "state_keys": ["excluded_album_labels"] }, { "group": "photos", "field": "excluded_person_ids", "state_keys": ["excluded_person_ids"] }, { "group": "photos", "field": "excluded_person_labels", "state_keys": ["excluded_person_labels"] }, { "group": "photos", "field": "excluded_tag_ids", "state_keys": ["excluded_tag_ids"] }, { "group": "photos", "field": "excluded_tag_labels", "state_keys": ["excluded_tag_labels"] }, { "group": "photos", "field": "date_filter_enabled", "state_keys": ["date_filter_enabled"] }, { "group": "photos", "field": "date_filter_mode", "state_keys": ["date_filter_mode"] }, { "group": "photos", "field": "date_from", "state_keys": ["date_from"] }, { "group": "photos", "field": "date_to", "state_keys": ["date_to"] }, { "group": "photos", "field": "relative_amount", "state_keys": ["relative_amount"] }, { "group": "photos", "field": "relative_unit", "state_keys": ["relative_unit"] }, { "group": "photos", "field": "orientation", "state_keys": ["photo_orientation"] }, { "group": "photos", "field": "portrait_pairing", "state_keys": ["portrait_pairing"] }, { "group": "photos", "field": "portrait_pairing_range", "state_keys": ["portrait_pairing_range"] }, { "group": "photos", "field": "portrait_pairs_only", "state_keys": ["portrait_pairs_only"] }, { "group": "photos", "field": "display_mode", "state_keys": ["display_mode"] }, { "group": "frequency", "field": "interval", "state_keys": ["interval"] }, { "group": "frequency", "field": "conn_timeout", "state_keys": ["conn_timeout"] }, { "group": "firmware_updates", "field": "auto_update", "state_keys": ["auto_update"] }, { "group": "firmware_updates", "field": "update_frequency", "state_keys": ["update_frequency"] }, { "group": "firmware_updates", "field": "wifi_auto_update", "state_keys": ["c6_auto_update"] }, { "group": "clock", "field": "show", "state_keys": ["show_clock"] }, { "group": "clock", "field": "format", "state_keys": ["clock_format"] }, { "group": "clock", "field": "timezone", "state_keys": ["timezone"] }, { "group": "clock", "field": "ntp_servers", "state_keys": ["ntp_server_1", "ntp_server_2", "ntp_server_3"] }, { "group": "screen", "field": "brightness_day", "state_keys": ["brightness_day"] }, { "group": "screen", "field": "brightness_night", "state_keys": ["brightness_night"] }, { "group": "screen", "field": "schedule_enabled", "state_keys": ["schedule_enabled"] }, { "group": "screen", "field": "schedule_on_hour", "state_keys": ["schedule_on_hour"] }, { "group": "screen", "field": "schedule_off_hour", "state_keys": ["schedule_off_hour"] }, { "group": "screen", "field": "schedule_wake_timeout", "state_keys": ["schedule_wake_timeout"] }, { "group": "screen", "field": "base_tone_enabled", "state_keys": ["base_tone_enabled"] }, { "group": "screen", "field": "base_tone", "state_keys": ["base_tone"] }, { "group": "screen", "field": "warm_tones_enabled", "state_keys": ["warm_tones_enabled"] }, { "group": "screen", "field": "warm_tone_intensity", "state_keys": ["warm_tone_intensity"] }, { "group": "screen", "field": "warm_tone_override", "state_keys": ["warm_tone_override"] }, { "group": "screen", "field": "rotation", "state_keys": ["screen_rotation"] }];
   var LIVE_RENDER_STATE_KEYS = ["screen_rotation", "portrait_pairing", "developer_features_enabled", "immich_server_version"];
   var LIVE_RENDER_STATE_PREFIXES = ["photo_metadata_", "schedule_"];
   var FIRMWARE_MANIFEST_URLS = { "stable": "https://jtenniswood.github.io/espframe/firmware/manifest.json", "devices": { "immich-frame": { "stable": "https://jtenniswood.github.io/espframe/firmware/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/beta/manifest.json" }, "immich-frame-v2": { "stable": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v2/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v2/beta/manifest.json" }, "immich-frame-v3": { "stable": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v3/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v3/beta/manifest.json" } } };
@@ -5398,9 +5398,8 @@ to {
       dialog.showModal();
     });
   }
-  function backupExportFieldValue(entry, apiKey) {
+  function backupExportFieldValue(entry) {
     if (!entry || !Array.isArray(entry.state_keys) || !entry.state_keys.length) return "";
-    if (entry.field === "api_key") return apiKey;
     if (entry.group === "screen" && entry.field === "schedule_wake_timeout") {
       return normalizeScheduleWakeTimeout(S.schedule_wake_timeout);
     }
@@ -5411,7 +5410,7 @@ to {
     }
     return S[entry.state_keys[0]];
   }
-  function buildBackupExportData(apiKey) {
+  function buildBackupExportData() {
     var data = {
       version: BACKUP_CONFIG_VERSION,
       exported_at: (/* @__PURE__ */ new Date()).toISOString()
@@ -5419,7 +5418,7 @@ to {
     BACKUP_SCHEMA.forEach(function(entry) {
       if (!entry || !entry.group || !entry.field) return;
       if (!data[entry.group]) data[entry.group] = {};
-      data[entry.group][entry.field] = backupExportFieldValue(entry, apiKey);
+      data[entry.group][entry.field] = backupExportFieldValue(entry);
     });
     if (frameIdentity) data["identity"] = { name: frameIdentity.name };
     return data;
@@ -5503,9 +5502,9 @@ to {
   function migrateBackupConfig(data) {
     return BACKUP_VERSION_MIGRATIONS[data.version](data);
   }
-  function downloadBackup(apiKey) {
+  function downloadBackup() {
     if (!frameIdentityLoaded) return;
-    var data = buildBackupExportData(apiKey);
+    var data = buildBackupExportData();
     var json = JSON.stringify(data, null, 2);
     var blob = new Blob([json], { type: "application/json" });
     var url = URL.createObjectURL(blob);
@@ -5522,13 +5521,7 @@ to {
   }
   function exportConfig() {
     if (!frameIdentityLoaded) return;
-    if (!S.api_key_configured) return downloadBackup("");
-    apiClient.getJson(endpoints.api_key + "?include_secret=backup").then(function(response) {
-      if (!response || !response.value) throw new Error("api_key_unavailable");
-      downloadBackup(response.value);
-    }).catch(function() {
-      window.alert("API key export failed");
-    });
+    downloadBackup();
   }
   function backupEntryKey(entry) {
     return entry.group + "." + entry.field;
@@ -5723,12 +5716,6 @@ to {
         if (importUrl && !isValidHttpUrl(importUrl)) return skipBackupImportField("Immich URL was invalid - not imported");
         queueBackupImportSetting("immich_url", importUrl);
         return true;
-      case "connection.api_key":
-        var importApiKey = value == null ? "" : String(value).trim();
-        if (!importApiKey) return true;
-        if (importApiKey.length > 255) return skipBackupImportField("API key exceeds 255 characters - not imported");
-        trackBackupImportSave(saveSetting("api_key", importApiKey));
-        return true;
       case "photos.album_ids":
         var importAlbum = String(value).trim();
         if (photoIdFieldTooLong(importAlbum)) {
@@ -5849,6 +5836,7 @@ to {
             return;
           }
           data = migrateBackupConfig(data);
+          if (data.connection) delete data.connection.api_key;
           var restoreName = false;
           if (data.identity !== void 0) {
             if (!isObject(data.identity) || !validFrameName(data.identity.name)) {
@@ -5896,13 +5884,10 @@ to {
             }
           }
           backupImportInProgress = false;
-          var apiKeyWasOmitted = !data.connection || !Object.prototype.hasOwnProperty.call(data.connection, "api_key") || !String(data.connection.api_key == null ? "" : data.connection.api_key).trim();
-          var apiKeyNeedsInput = apiKeyWasOmitted && !S.api_key_configured;
+          var apiKeyNeedsInput = !S.api_key_configured;
           var resultMessage = backupImportSummaryMessage(appliedCount, skippedCount, failedCount);
           if (backupImportMessages.length) resultMessage += ". " + backupImportMessages.join("; ");
-          if (apiKeyWasOmitted) {
-            resultMessage += apiKeyNeedsInput ? ". This backup has no Immich API key. Enter it in the highlighted field on the Immich tab." : ". This backup has no Immich API key; the destination\u2019s current key was left unchanged.";
-          }
+          resultMessage += apiKeyNeedsInput ? ". Backups don\u2019t include the Immich API key. Enter it in the highlighted field on the Immich tab." : ". The destination\u2019s existing Immich API key was left unchanged.";
           highlightApiKeyAfterRestore = apiKeyNeedsInput;
           showBanner(
             resultMessage,

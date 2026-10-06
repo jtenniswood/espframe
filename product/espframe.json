@@ -161,8 +161,7 @@
     ],
     "backup_export_fields": {
       "connection": [
-        "immich_url",
-        "api_key"
+        "immich_url"
       ],
       "photos": [
         "source",
@@ -240,8 +239,7 @@
     },
     "backup_field_state_keys": {
       "connection": {
-        "immich_url": "immich_url",
-        "api_key": "api_key"
+        "immich_url": "immich_url"
       },
       "photos": {
         "source": "photo_source",

@@ -1,8 +1,7 @@
   // --- Import / Export ---
 
-  function backupExportFieldValue(entry, apiKey) {
+  function backupExportFieldValue(entry) {
     if (!entry || !Array.isArray(entry.state_keys) || !entry.state_keys.length) return "";
-    if (entry.field === "api_key") return apiKey;
     if (entry.group === "screen" && entry.field === "schedule_wake_timeout") {
       return normalizeScheduleWakeTimeout(S.schedule_wake_timeout);
     }
@@ -14,7 +13,7 @@
     return S[entry.state_keys[0]];
   }
 
-  function buildBackupExportData(apiKey) {
+  function buildBackupExportData() {
     var data = {
       version: BACKUP_CONFIG_VERSION,
       exported_at: new Date().toISOString()
@@ -22,7 +21,7 @@
     BACKUP_SCHEMA.forEach(function (entry) {
       if (!entry || !entry.group || !entry.field) return;
       if (!data[entry.group]) data[entry.group] = {};
-      data[entry.group][entry.field] = backupExportFieldValue(entry, apiKey);
+      data[entry.group][entry.field] = backupExportFieldValue(entry);
     });
     if (frameIdentity) data["identity"] = { name: frameIdentity.name };
     return data;
@@ -110,9 +109,9 @@
     return BACKUP_VERSION_MIGRATIONS[data.version](data);
   }
 
-  function downloadBackup(apiKey) {
+  function downloadBackup() {
     if (!frameIdentityLoaded) return;
-    var data = buildBackupExportData(apiKey);
+    var data = buildBackupExportData();
     var json = JSON.stringify(data, null, 2);
     var blob = new Blob([json], { type: "application/json" });
     var url = URL.createObjectURL(blob);
@@ -133,12 +132,7 @@
 
   function exportConfig() {
     if (!frameIdentityLoaded) return;
-    if (!S.api_key_configured) return downloadBackup("");
-    apiClient.getJson(endpoints.api_key + "?include_secret=backup")
-      .then(function (response) {
-        if (!response || !response.value) throw new Error("api_key_unavailable");
-        downloadBackup(response.value);
-      }).catch(function () { window.alert("API key export failed"); });
+    downloadBackup();
   }
 
   function backupEntryKey(entry) {
@@ -357,14 +351,6 @@
         if (importUrl && !isValidHttpUrl(importUrl)) return skipBackupImportField("Immich URL was invalid - not imported");
         queueBackupImportSetting("immich_url", importUrl);
         return true;
-      case "connection.api_key":
-        var importApiKey = value == null ? "" : String(value).trim();
-        // API keys are intentionally omitted from exports. A blank value means
-        // keep the destination frame's key unchanged and ask for it separately.
-        if (!importApiKey) return true;
-        if (importApiKey.length > 255) return skipBackupImportField("API key exceeds 255 characters - not imported");
-        trackBackupImportSave(saveSetting("api_key", importApiKey));
-        return true;
       case "photos.album_ids":
         var importAlbum = String(value).trim();
         if (photoIdFieldTooLong(importAlbum)) {
@@ -486,6 +472,9 @@
             return;
           }
           data = migrateBackupConfig(data);
+          // Older backups included the Immich API key. Ignore it so restore
+          // never replaces the key configured on this device.
+          if (data.connection) delete data.connection.api_key;
 
           var restoreName = false;
           if (data.identity !== undefined) {
@@ -535,16 +524,12 @@
           }
 
           backupImportInProgress = false;
-          var apiKeyWasOmitted = !data.connection || !Object.prototype.hasOwnProperty.call(data.connection, "api_key") ||
-            !String(data.connection.api_key == null ? "" : data.connection.api_key).trim();
-          var apiKeyNeedsInput = apiKeyWasOmitted && !S.api_key_configured;
+          var apiKeyNeedsInput = !S.api_key_configured;
           var resultMessage = backupImportSummaryMessage(appliedCount, skippedCount, failedCount);
           if (backupImportMessages.length) resultMessage += ". " + backupImportMessages.join("; ");
-          if (apiKeyWasOmitted) {
-            resultMessage += apiKeyNeedsInput
-              ? ". This backup has no Immich API key. Enter it in the highlighted field on the Immich tab."
-              : ". This backup has no Immich API key; the destination’s current key was left unchanged.";
-          }
+          resultMessage += apiKeyNeedsInput
+            ? ". Backups don’t include the Immich API key. Enter it in the highlighted field on the Immich tab."
+            : ". The destination’s existing Immich API key was left unchanged.";
           highlightApiKeyAfterRestore = apiKeyNeedsInput;
           showBanner(
             resultMessage,

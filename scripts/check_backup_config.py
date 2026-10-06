@@ -112,10 +112,13 @@ def validate_fixture(
             errors.append(f"{label} {group} must be an object")
             continue
         allowed = schema_fields_by_group.get(group, set())
-        unknown_keys = sorted(set(value) - allowed)
+        # API keys appeared in earlier backup exports but are now neither
+        # exported nor restored. Keep accepting those historical fixtures.
+        legacy_connection_keys = {"api_key"} if group == "connection" else set()
+        unknown_keys = sorted(set(value) - allowed - legacy_connection_keys)
         if unknown_keys:
             errors.append(f"{label} {group} contains unknown keys: {', '.join(unknown_keys)}")
-        if "full" in path.stem and fixture_version == current_version and allowed and set(value) != allowed:
+        if "full" in path.stem and fixture_version == current_version and allowed and set(value) - legacy_connection_keys != allowed:
             errors.append(f"{label} {group} must contain every version-{current_version} key")
 
     photos = data.get("photos", {})
@@ -178,7 +181,6 @@ def validate_web_support(product: dict[str, Any], errors: list[str]) -> None:
         require_contains(text, "Settings imported successfully", label, errors)
         for special_field in (
             "connection.immich_url",
-            "connection.api_key",
             "photos.album_ids",
             "photos.album_labels",
             "photos.person_ids",

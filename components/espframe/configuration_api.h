@@ -120,16 +120,8 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
     json::JsonBuilder builder;
     JsonObject root = builder.root();
     const bool configured = this->secret_configured_();
-    const bool include_for_backup = configured && request->hasParam("include_secret") &&
-                                    request->getParam("include_secret")->value() == "backup";
-    if (include_for_backup) {
-      auto *entity = this->find_entity_<text::Text>(App.get_texts(), "Connection: API Key");
-      root["value"] = entity != nullptr ? entity->state.c_str() : "";
-      root["state"] = entity != nullptr ? entity->state.c_str() : "";
-    } else {
-      root["value"] = "";
-      root["state"] = configured ? "********" : "";
-    }
+    root["value"] = "";
+    root["state"] = configured ? "********" : "";
     root["api_key_configured"] = configured;
     const auto payload = builder.serialize();
     auto *response = request->beginResponse(200, "application/json", payload.c_str());

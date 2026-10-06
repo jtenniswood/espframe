@@ -169,6 +169,7 @@ def test_configuration_api_redacts_secret_fields() -> None:
     assert "if (field.secret)" in source
     assert 'root["value"] = "";' in source
     assert 'root["api_key_configured"] = configured;' in source
+    assert "include_secret" not in source
     assert "request->method() != HTTP_GET" in source
     assert "encode_url_path_" in source
     assert "url == encoded_path.c_str()" in source

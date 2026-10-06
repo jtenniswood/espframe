@@ -67,8 +67,8 @@ assert.ok(publicApp.includes("api_key_configured"), "public app should use write
 assert.ok(!runtimeStateSource.includes("S.api_key"), "browser runtime state must not retain the API key");
 assert.ok(!/\bS\.api_key\b/.test(publicApp), "browser app must not retain the API key in S.api_key");
 assert.ok(!publicApp.includes("values.api_key"), "configuration verification must not read the API key value");
-assert.ok(backupImportSource.includes('"?include_secret=backup"'), "backup export should request the key through the explicit opt-in endpoint");
-assert.ok(publicApp.includes('"?include_secret=backup"'), "generated backup export should request the key through the explicit opt-in endpoint");
+assert.ok(!backupImportSource.includes("include_secret=backup"), "backup export must not request the API key");
+assert.ok(!publicApp.includes("include_secret=backup"), "generated backup export must not request the API key");
 const apiClientSource = fs.readFileSync(path.join(root, "docs/webserver/src/api_client.ts"), "utf8");
 assert.ok(endpointsSource.includes("apiClient.getConfigurationSnapshot"), "configuration reads should use the API client");
 assert.ok(apiClientSource.includes("private queue") && apiClientSource.includes("this.queue = request.catch"), "the API client should own the single write queue");
