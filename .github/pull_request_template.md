@@ -1,6 +1,7 @@
 ## What changes when merged
 
 - Adds Settings → System reset controls for resetting customization or performing a factory reset.
+- Matches the supplied Factory Reset layout with a backup callout, side-by-side partial/complete reset panels, and custom confirmation/warning dialogs.
 - Records reset intent in NVS before acknowledging it, resumes cleanup after an interrupted reboot, verifies cleanup, and preserves Wi-Fi plus the Home Assistant API encryption key for customization resets.
 - Adds same-origin protection for reset requests and a reset epoch so stale browser sessions cannot restore old settings.
 - Factory reset clears saved Wi-Fi credentials and the Home Assistant API encryption key. Wi-Fi credentials compiled into firmware can still reconnect.
@@ -18,7 +19,7 @@
 - [ ] PR Validation artifact flashed to device
 - [ ] Needs device testing before merge
 
-Device testing status: Not performed. Factory reset and cleanup recovery need device validation before merge.
+Device testing status: PR firmware flashed to the Guition V3 display at 192.168.10.168. Reset behavior and cleanup recovery have not been exercised on the device.
 
 PR Validation workflow run/artifact:
 

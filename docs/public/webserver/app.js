@@ -1430,6 +1430,91 @@ to {
   gap:12px
 }
 
+.reset-backup-notice {
+  display:flex;
+  align-items:center;
+  gap:14px;
+  min-height:68px;
+  padding:12px 16px;
+  border:1px solid rgba(92, 115, 231, .32);
+  border-radius:12px;
+  background:var(--accent-soft);
+  color:var(--text2)
+}
+
+.reset-notice-icon {
+  display:flex;
+  flex:none;
+  width:22px;
+  height:22px;
+  color:var(--accent)
+}
+
+.reset-notice-icon svg { width:100%; height:100%; }
+.reset-notice-text { flex:1; min-width:0; }
+.reset-backup-button { padding:12px 24px; font-size:1rem; font-weight:500; white-space:nowrap; }
+
+.reset-actions-grid {
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:16px
+}
+
+.reset-action-panel {
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  min-height:190px;
+  padding:20px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:rgba(0, 0, 0, .08)
+}
+
+.reset-action-panel h4 { margin:0 0 8px; font-size:1rem; font-weight:600; line-height:1.4; }
+.reset-action-description { flex:1; margin:0 0 20px; color:var(--text2); line-height:1.6; }
+.reset-action-button { padding:10px 20px; font-size:.875rem; font-weight:500; }
+.btn-danger { background:var(--danger); color:#fff; }
+.btn-danger:hover { background:#d93049; box-shadow:0 2px 12px rgba(241, 65, 88, .22); }
+
+.reset-confirm-dialog {
+  width:min(520px, calc(100% - 32px));
+  max-height:calc(100% - 32px);
+  margin:auto;
+  padding:24px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:var(--surface);
+  color:var(--text);
+  box-shadow:var(--shadow-3);
+  font:inherit;
+  line-height:1.55
+}
+
+.reset-confirm-dialog::backdrop { background:rgba(0, 0, 0, .64); }
+.reset-confirm-dialog h2 { margin:0 0 8px; font-size:1.15rem; font-weight:600; line-height:1.4; }
+.reset-confirm-dialog>p { margin:0 0 16px; color:var(--text2); }
+.reset-dialog-warning { display:flex; align-items:flex-start; gap:12px; margin:16px 0; padding:14px; border:1px solid rgba(241, 65, 88, .35); border-radius:12px; background:rgba(241, 65, 88, .12); color:var(--text2); }
+.reset-dialog-warning-icon { display:flex; flex:none; align-items:center; justify-content:center; width:22px; height:22px; border:2px solid var(--danger); border-radius:50%; color:var(--danger); font-weight:700; line-height:1; }
+.reset-dialog-backup-reminder { color:var(--text2); }
+.reset-confirm-label { display:block; margin-top:14px; color:var(--text); font-size:.875rem; font-weight:600; }
+.reset-confirm-input { display:block; width:100%; margin-top:6px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--bg); color:var(--text); font:inherit; }
+.reset-confirm-input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.reset-confirm-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:24px; }
+.reset-confirm-actions .btn { min-width:104px; }
+
+@media (max-width:700px) {
+  .reset-actions-grid { grid-template-columns:1fr; }
+  .reset-action-panel { min-height:0; }
+}
+
+@media (max-width:480px) {
+  .reset-backup-notice { flex-wrap:wrap; }
+  .reset-notice-text { flex-basis:calc(100% - 40px); }
+  .reset-backup-button { margin-left:36px; }
+  .reset-confirm-dialog { padding:20px; }
+}
+
 .fw-subpanels {
   display:grid;
   gap:12px
@@ -4437,19 +4522,98 @@ to {
   }
   function makeResetCard() {
     var body = el("div", "fw-body");
-    var description = el("p", "muted");
-    description.textContent = "Export a backup first if you may want to restore your configuration.";
-    body.appendChild(description);
-    body.appendChild(button("Export Backup", "btn btn-secondary btn-sm", exportConfig));
-    function addResetButton(label, mode, factory) {
-      var action = button(label, factory ? "btn btn-danger btn-sm" : "btn btn-secondary btn-sm");
+    var backupNotice = el("div", "reset-backup-notice");
+    var infoIcon = el("span", "reset-notice-icon");
+    infoIcon.setAttribute("aria-hidden", "true");
+    infoIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>';
+    var backupMessage = el("span", "reset-notice-text");
+    backupMessage.textContent = "Backup your device before resetting";
+    var backupButton = button("Save backup", "btn btn-primary reset-backup-button", exportConfig);
+    backupNotice.append(infoIcon, backupMessage, backupButton);
+    body.appendChild(backupNotice);
+    function showResetConfirmation(mode) {
+      var factory = mode === "factory";
+      return new Promise(function(resolve) {
+        var dialog = document.createElement("dialog");
+        dialog.className = "reset-confirm-dialog";
+        var title = document.createElement("h2");
+        title.id = "reset-confirm-title";
+        title.textContent = factory ? "Complete reset" : "Partial reset";
+        dialog.setAttribute("aria-labelledby", title.id);
+        var description = document.createElement("p");
+        description.textContent = factory ? "Remove all existing configuration and return this display to first-time setup." : "Reset cards and preferences. Your Wi-Fi and Home Assistant configuration will be retained.";
+        dialog.append(title, description);
+        var resetInput;
+        if (factory) {
+          var warning = el("div", "reset-dialog-warning");
+          var warningIcon = el("span", "reset-dialog-warning-icon");
+          warningIcon.setAttribute("aria-hidden", "true");
+          warningIcon.textContent = "!";
+          var warningText = el("span");
+          warningText.textContent = "Saved Wi-Fi credentials and the Home Assistant API key will be erased. Wi-Fi compiled into the firmware may reconnect.";
+          warning.append(warningIcon, warningText);
+          var backupReminder = el("p", "reset-dialog-backup-reminder");
+          backupReminder.textContent = "Save a backup first. This reset cannot be undone.";
+          var resetLabel = document.createElement("label");
+          resetLabel.className = "reset-confirm-label";
+          resetLabel.textContent = "Type RESET to confirm";
+          resetInput = document.createElement("input");
+          resetInput.className = "reset-confirm-input";
+          resetInput.type = "text";
+          resetInput.autocomplete = "off";
+          resetInput.spellcheck = false;
+          resetInput.setAttribute("aria-label", "Type RESET to confirm factory reset");
+          resetLabel.appendChild(resetInput);
+          dialog.append(warning, backupReminder, resetLabel);
+        }
+        var actions = el("div", "reset-confirm-actions");
+        var cancelButton = button("Cancel", "btn btn-secondary", function() {
+          finish(false);
+        });
+        var confirmButton = button(factory ? "Complete reset" : "Partial reset", factory ? "btn btn-danger" : "btn btn-primary", function() {
+          finish(true);
+        });
+        if (factory) {
+          confirmButton.disabled = true;
+          resetInput.addEventListener("input", function() {
+            confirmButton.disabled = resetInput.value !== "RESET";
+          });
+        }
+        actions.append(cancelButton, confirmButton);
+        dialog.appendChild(actions);
+        var completed = false;
+        function finish(accepted) {
+          if (completed) return;
+          completed = true;
+          dialog.close();
+          dialog.remove();
+          resolve(accepted);
+        }
+        dialog.addEventListener("cancel", function(event) {
+          event.preventDefault();
+          finish(false);
+        });
+        dialog.addEventListener("close", function() {
+          if (!completed) finish(false);
+        });
+        document.body.appendChild(dialog);
+        dialog.showModal();
+        if (factory) resetInput.focus();
+      });
+    }
+    function addResetAction(title, descriptionText, mode) {
+      var panel = el("section", "reset-action-panel" + (mode === "factory" ? " reset-action-danger" : ""));
+      var heading = document.createElement("h4");
+      heading.textContent = title;
+      var description = el("p", "reset-action-description");
+      description.textContent = descriptionText;
+      var action = button(title, mode === "factory" ? "btn btn-danger reset-action-button" : "btn btn-secondary reset-action-button");
       action.onclick = async function() {
         if (typeof backupImportInProgress !== "undefined" && backupImportInProgress) {
           showBanner("Let the backup import finish before resetting.", "error");
           return;
         }
-        if (factory && window.prompt("Erases saved settings and Wi-Fi. Compiled Wi-Fi may reconnect. Type RESET to continue.") !== "RESET") return;
-        if (!window.confirm(factory ? "Without a backup, this cannot be undone. Continue?" : "Clears settings; keeps Wi-Fi and the Home Assistant key. Continue?")) return;
+        if (!await showResetConfirmation(mode)) return;
         action.disabled = true;
         action.textContent = "Restarting\u2026";
         try {
@@ -4458,15 +4622,18 @@ to {
           showBanner("Reset accepted. The frame is restarting. It may reconnect using credentials compiled into its firmware.", "info");
         } catch (_) {
           action.disabled = false;
-          action.textContent = label;
+          action.textContent = title;
           showBanner("Reset could not be started. Check the device connection and try again.", "error");
         }
       };
-      body.appendChild(action);
+      panel.append(heading, description, action);
+      resetActions.appendChild(panel);
     }
-    addResetButton("Reset Customization", "customization", false);
-    addResetButton("Factory Reset", "factory", true);
-    return makeCollapsibleCard("Reset", body, true);
+    var resetActions = el("div", "reset-actions-grid");
+    body.appendChild(resetActions);
+    addResetAction("Partial reset", "Reset cards and preferences. Retains your configuration for Wifi and Home Assistant.", "customization");
+    addResetAction("Complete reset", "Remove all existing configuration and reset back to first time setup.", "factory");
+    return makeCollapsibleCard("Factory Reset", body, false);
   }
   function makeDeveloperCard() {
     if (!developerPanelEnabledByUrl()) return null;
