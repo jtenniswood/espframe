@@ -4633,7 +4633,7 @@ to {
     body.appendChild(resetActions);
     addResetAction("Partial reset", "Reset cards and preferences. Retains your configuration for Wifi and Home Assistant.", "customization");
     addResetAction("Complete reset", "Remove all existing configuration and reset back to first time setup.", "factory");
-    return makeCollapsibleCard("Factory Reset", body, false);
+    return makeCollapsibleCard("Factory Reset", body, true);
   }
   function makeDeveloperCard() {
     if (!developerPanelEnabledByUrl()) return null;

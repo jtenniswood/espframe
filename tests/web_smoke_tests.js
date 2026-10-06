@@ -887,6 +887,13 @@ function smokeAssertionsForScenario(scenario) {
             throw new Error(name + " cards are not logically ordered: " + cardNames.join(", "));
           }
         });
+        const resetCard = Array.from(document.querySelectorAll(".card")).find((card) => {
+          const toggle = card.querySelector(":scope > .card-header .card-toggle");
+          return toggle && toggle.textContent.trim() === "Factory Reset";
+        });
+        if (!resetCard || !resetCard.classList.contains("collapsed") || resetCard.querySelector(".card-toggle").getAttribute("aria-expanded") !== "false") {
+          throw new Error("Factory Reset card should be collapsed by default");
+        }
       }
       function disclosureByTitle(title) {
         const disclosure = Array.from(document.querySelectorAll(".inline-disclosure")).find((item) => {
