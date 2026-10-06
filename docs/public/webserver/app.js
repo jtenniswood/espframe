@@ -5711,16 +5711,23 @@ to {
   var backupImportSaveTasks = null;
   var backupImportInProgress = false;
   var backupImportMessages = [];
-  function trackBackupImportSave(result) {
+  var backupImportValues = null;
+  var backupImportApiKey = "";
+  function queueBackupImportSetting(key, value) {
+    if (!backupImportValues) return false;
+    backupImportValues[key] = value;
+    return true;
+  }
+  function trackBackupImportSave(result, settingCount) {
     if (!backupImportSaveTasks) return;
-    backupImportSaveTasks.push(
-      Promise.resolve(result).then(function(response) {
-        if (response && response.ok === false) throw new Error("save_failed");
-        return true;
-      }).catch(function() {
-        return false;
-      })
-    );
+    var tracked = Promise.resolve(result).then(function(response) {
+      if (response && response.ok === false) throw new Error("save_failed");
+      return true;
+    }).catch(function() {
+      return false;
+    });
+    var count = Math.max(1, Number(settingCount) || 1);
+    for (var index = 0; index < count; index++) backupImportSaveTasks.push(tracked);
   }
   function backupImportEntryUsesPhotoSourceApply(entry) {
     return entry && entry.group === "photos" && Array.isArray(entry.state_keys) && entry.state_keys.some(settingUsesPhotoSourceApply);
@@ -5798,8 +5805,7 @@ to {
   function applyGenericBackupImportField(entry, value) {
     var validation = validateProductSettingBackupImport(entry, value);
     if (!validation.ok) return skipBackupImportField(validation.message);
-    trackBackupImportSave(saveSetting(backupImportStateKey(entry), validation.value));
-    return true;
+    return queueBackupImportSetting(backupImportStateKey(entry), validation.value);
   }
   function skipBackupImportField(message) {
     if (backupImportInProgress) {
@@ -5814,13 +5820,12 @@ to {
     var failedText = failedCount + " failed " + (failedCount === 1 ? "setting" : "settings");
     if (failedCount) {
       if (appliedCount || skippedCount) {
-        return "Imported with " + failedText + (skippedCount ? " and " + skippedText : "");
+        return "Backup partially restored: " + failedText + (skippedCount ? " and " + skippedText : "");
       }
-      return "Import failed for " + failedCount + " " + (failedCount === 1 ? "setting" : "settings");
+      return "Backup restore failed for " + failedCount + " " + (failedCount === 1 ? "setting" : "settings");
     }
-    if (!skippedCount) return "Settings imported successfully";
-    if (appliedCount) return "Imported with " + skippedText;
-    return "Import skipped " + skippedCount + " " + (skippedCount === 1 ? "setting" : "settings");
+    if (!skippedCount) return "Backup restored successfully";
+    return "Backup restored successfully; " + skippedText;
   }
   function applyBackupImportField(entry, value) {
     var entryKey = backupEntryKey(entry);
@@ -5832,21 +5837,19 @@ to {
       if (excludedIds && !isValidUuidList(excludedIds)) {
         return skipBackupImportField("Import skipped invalid excluded IDs");
       }
-      trackBackupImportSave(saveSetting(backupImportStateKey(entry), excludedIds));
-      return true;
+      return queueBackupImportSetting(backupImportStateKey(entry), excludedIds);
     }
     switch (backupEntryKey(entry)) {
       case "connection.immich_url":
         var importUrl = normalizeImmichUrl(value);
         if (importUrl.length > 255) return skipBackupImportField("Immich URL exceeds 255 characters - not imported");
         if (importUrl && !isValidHttpUrl(importUrl)) return skipBackupImportField("Immich URL was invalid - not imported");
-        trackBackupImportSave(saveSetting("immich_url", importUrl));
-        return true;
+        return queueBackupImportSetting("immich_url", importUrl);
       case "connection.api_key":
         var importApiKey = value == null ? "" : String(value).trim();
         if (!importApiKey) return true;
         if (importApiKey.length > 255) return skipBackupImportField("API key exceeds 255 characters - not imported");
-        trackBackupImportSave(saveSetting("api_key", importApiKey));
+        backupImportApiKey = importApiKey;
         return true;
       case "photos.album_ids":
         var importAlbum = String(value).trim();
@@ -5855,7 +5858,7 @@ to {
         } else if (!isValidUuidList(importAlbum)) {
           return skipBackupImportField("Import skipped invalid album IDs");
         } else {
-          trackBackupImportSave(saveSetting("album_ids", importAlbum));
+          queueBackupImportSetting("album_ids", importAlbum);
         }
         return true;
       case "photos.album_labels":
@@ -5863,7 +5866,7 @@ to {
         if (photoLabelFieldTooLong(importAlbumLabels)) {
           return skipBackupImportField("Album labels exceed 255 characters - not imported");
         } else {
-          trackBackupImportSave(saveSetting("album_labels", importAlbumLabels));
+          queueBackupImportSetting("album_labels", importAlbumLabels);
         }
         return true;
       case "photos.person_ids":
@@ -5873,7 +5876,7 @@ to {
         } else if (!isValidUuidList(importPerson)) {
           return skipBackupImportField("Import skipped invalid person IDs");
         } else {
-          trackBackupImportSave(saveSetting("person_ids", importPerson));
+          queueBackupImportSetting("person_ids", importPerson);
         }
         return true;
       case "photos.person_labels":
@@ -5881,7 +5884,7 @@ to {
         if (photoLabelFieldTooLong(importPersonLabels)) {
           return skipBackupImportField("Person labels exceed 255 characters - not imported");
         } else {
-          trackBackupImportSave(saveSetting("person_labels", importPersonLabels));
+          queueBackupImportSetting("person_labels", importPersonLabels);
         }
         return true;
       case "photos.tag_ids":
@@ -5891,7 +5894,7 @@ to {
         } else if (!isValidUuidList(importTag)) {
           return skipBackupImportField("Import skipped invalid tag IDs");
         } else {
-          trackBackupImportSave(saveSetting("tag_ids", importTag));
+          queueBackupImportSetting("tag_ids", importTag);
         }
         return true;
       case "photos.tag_labels":
@@ -5899,7 +5902,7 @@ to {
         if (photoLabelFieldTooLong(importTagLabels)) {
           return skipBackupImportField("Tag labels exceed 255 characters - not imported");
         } else {
-          trackBackupImportSave(saveSetting("tag_labels", importTagLabels));
+          queueBackupImportSetting("tag_labels", importTagLabels);
         }
         return true;
       case "clock.timezone":
@@ -5907,8 +5910,7 @@ to {
         if (TIMEZONES.indexOf(importedTimezone) === -1) {
           return skipBackupImportField("Timezone was invalid - not imported");
         }
-        trackBackupImportSave(saveSetting("timezone", importedTimezone));
-        return true;
+        return queueBackupImportSetting("timezone", importedTimezone);
       case "clock.ntp_servers":
         if (Array.isArray(value) && value.length <= 3) {
           for (var ntpIndex = 0; ntpIndex < value.length; ntpIndex++) {
@@ -5919,7 +5921,7 @@ to {
           }
           ["ntp_server_1", "ntp_server_2", "ntp_server_3"].forEach(function(key, idx) {
             if (value[idx] === void 0) return;
-            trackBackupImportSave(saveSetting(key, value[idx]));
+            queueBackupImportSetting(key, normalizeNtpServer(value[idx]));
           });
           return true;
         }
@@ -5928,12 +5930,12 @@ to {
         var wakeTimeout = normalizeScheduleWakeTimeout(value);
         var wakeValidation = validateProductSettingBackupImport(entry, wakeTimeout);
         if (!wakeValidation.ok) return skipBackupImportField(wakeValidation.message);
-        trackBackupImportSave(saveSetting("schedule_wake_timeout", wakeValidation.value));
-        return true;
+        return queueBackupImportSetting("schedule_wake_timeout", wakeValidation.value);
       case "screen.rotation":
         var importedRotation = String(value);
         if (screenRotationOptionsForUi().indexOf(importedRotation) !== -1) {
-          trackBackupImportSave(saveSetting("screen_rotation", importedRotation));
+          queueBackupImportSetting("screen_rotation", importedRotation);
+          queueBackupImportSetting("portrait_pairing", !isPortraitScreenRotation(importedRotation));
           return true;
         }
         return skipBackupImportField("Screen rotation was invalid - not imported");
@@ -5983,6 +5985,8 @@ to {
           }
           backupImportInProgress = true;
           backupImportMessages = [];
+          backupImportValues = {};
+          backupImportApiKey = "";
           showBanner("Importing settings\u2026", "info", 0);
           backupImportSaveTasks = [];
           var queuedCount = 0;
@@ -5991,12 +5995,18 @@ to {
           BACKUP_SCHEMA.forEach(function(entry) {
             if (!backupImportFieldPresent(data, entry)) return;
             if (applyBackupImportField(entry, backupImportFieldValue(data, entry))) {
-              queuedCount += 1;
               needsPhotoSourceApply = needsPhotoSourceApply || backupImportEntryUsesPhotoSourceApply(entry);
             } else {
               skippedCount += 1;
             }
           });
+          queuedCount = Object.keys(backupImportValues).length + (backupImportApiKey ? 1 : 0);
+          if (Object.keys(backupImportValues).length) {
+            trackBackupImportSave(saveSettingValues(backupImportValues), Object.keys(backupImportValues).length);
+          }
+          if (backupImportApiKey) {
+            trackBackupImportSave(saveSetting("api_key", backupImportApiKey));
+          }
           if (restoreName) {
             queuedCount += 1;
             trackBackupImportSave(saveFrameName(data.identity.name).then(function() {
@@ -6023,23 +6033,33 @@ to {
             var apiKeyWasOmitted = !data.connection || !Object.prototype.hasOwnProperty.call(data.connection, "api_key") || !String(data.connection.api_key == null ? "" : data.connection.api_key).trim();
             var resultMessage = backupImportSummaryMessage(appliedCount, skippedCount, failedCount);
             if (backupImportMessages.length) resultMessage += ". " + backupImportMessages.join("; ");
-            if (apiKeyWasOmitted) resultMessage += ". The Immich API key isn\u2019t stored in backups; configure it on this screen.";
+            if (apiKeyWasOmitted && !failedCount && !skippedCount) {
+              resultMessage = S.api_key_configured ? "Backup restored successfully. Your existing Immich API key was kept." : "Backup restored successfully. Add your Immich API key on this screen to reconnect to Immich.";
+            } else if (apiKeyWasOmitted) {
+              resultMessage += ". The Immich API key was left unchanged because backups don\u2019t include it.";
+            }
             showBanner(
               resultMessage,
-              skippedCount || failedCount ? "error" : "success"
+              failedCount ? "error" : "success"
             );
             renderSettings();
             backupImportSaveTasks = null;
+            backupImportValues = null;
+            backupImportApiKey = "";
             backupImportMessages = [];
           }).catch(function() {
             backupImportInProgress = false;
             backupImportSaveTasks = null;
+            backupImportValues = null;
+            backupImportApiKey = "";
             backupImportMessages = [];
             showBanner("Import failed. Please try again.", "error");
           });
         } catch (_) {
           backupImportInProgress = false;
           backupImportSaveTasks = null;
+          backupImportValues = null;
+          backupImportApiKey = "";
           backupImportMessages = [];
           showBanner("Import failed. Please try again.", "error");
         }
