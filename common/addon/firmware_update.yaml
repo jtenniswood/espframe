@@ -127,11 +127,22 @@ script:
           then:
             - script.execute: immich_connection_config_changed
 
+  - id: firmware_update_release_reset_guard
+    mode: restart
+    then:
+      - lambda: |-
+          id(firmware_update_reboot_pending) = false;
+          id(espframe_core).set_firmware_update_in_progress(false);
+          global_preferences->sync();
+
 # -----------------------------------------------------------------------------
 # OTA and HTTP update source
 # -----------------------------------------------------------------------------
 ota:
   - platform: http_request
+    on_error:
+      then:
+        - script.execute: firmware_update_release_reset_guard
 
 update:
   - platform: http_request

@@ -6,6 +6,12 @@
 # enabled by default and can be disabled from the setup page or Home Assistant.
 # =============================================================================
 
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: id(espframe_core).set_c6_update_entity(id(esp32_c6_update));
+
 globals:
   - id: c6_manual_check_only
     type: bool

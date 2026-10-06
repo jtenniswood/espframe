@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/web_server_base/web_server_base.h"
+#include "esphome/components/update/update_entity.h"
 #include "configuration_api.h"
 #include "reset_coordinator.h"
 #include "frame_identity_api.h"
@@ -63,6 +64,15 @@ class EspFrameComponent : public Component, public ConfigurationUpdateScheduler 
   void schedule_configuration_update(std::function<void()> &&update) override { this->defer(std::move(update)); }
 
   void set_firmware_update_in_progress(bool value) { this->reset_.set_firmware_update_in_progress(value); }
+
+  void set_c6_update_entity(update::UpdateEntity *entity) {
+    if (entity == nullptr) return;
+    auto sync_update_state = [this, entity]() {
+      this->reset_.set_c6_update_in_progress(entity->state == update::UPDATE_STATE_INSTALLING);
+    };
+    sync_update_state();
+    entity->add_on_state_callback(sync_update_state);
+  }
 
   template<typename... Scripts> void stop_slideshow_workers(Scripts *...scripts) {
     stop_scripts_in_order(scripts...);

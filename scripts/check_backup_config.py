@@ -175,7 +175,7 @@ def validate_web_support(product: dict[str, Any], errors: list[str]) -> None:
         require_contains(text, "backupImportFieldValue", label, errors)
         require_contains(text, "applyBackupImportField", label, errors)
         require_contains(text, "backupEntryKey(entry)", label, errors)
-        require_contains(text, "Settings imported successfully", label, errors)
+        require_contains(text, "Backup restored successfully", label, errors)
         for special_field in (
             "connection.immich_url",
             "connection.api_key",

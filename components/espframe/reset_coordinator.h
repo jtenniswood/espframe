@@ -19,6 +19,8 @@ class ResetCoordinator {
   bool failed() const { return this->failed_.load(); }
   void set_firmware_update_in_progress(bool value) { this->firmware_update_in_progress_.store(value); }
   bool firmware_update_in_progress() const { return this->firmware_update_in_progress_.load(); }
+  void set_c6_update_in_progress(bool value) { this->c6_update_in_progress_.store(value); }
+  bool c6_update_in_progress() const { return this->c6_update_in_progress_.load(); }
   void set_settings_update_in_progress(bool value) { this->settings_update_in_progress_.store(value); }
   bool settings_update_in_progress() const { return this->settings_update_in_progress_.load(); }
 
@@ -31,6 +33,7 @@ class ResetCoordinator {
   uint32_t epoch_{0};
   std::atomic<bool> failed_{false};
   std::atomic<bool> firmware_update_in_progress_{false};
+  std::atomic<bool> c6_update_in_progress_{false};
   std::atomic<bool> settings_update_in_progress_{false};
 };
 

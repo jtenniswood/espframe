@@ -866,7 +866,7 @@ function smokeAssertionsForScenario(scenario) {
         const expected = [
           ["Display", ["Screen Brightness", "Screen Tone", "Rotation", "Clock"]],
           ["Sleep & Schedule", ["Night Schedule"]],
-          ["System", ["Backup", "Firmware", "Device Reboot", "Reset"]]
+          ["System", ["Backup", "Firmware", "Device Reboot", "Factory Reset"]]
         ];
         const sections = Array.from(document.querySelectorAll("#sp-settings .settings-section"));
         const sectionNames = sections.map((section) => {
@@ -1575,7 +1575,7 @@ function smokeAssertionsForScenario(scenario) {
             if (checkbox.checked) throw new Error("Name restore must default to unchecked");
             checkbox.checked = ${JSON.stringify(!!scenario.restoreName)};
             clickButton("Import backup");
-            await waitFor(() => pageText().includes("imported"), 4000, "backup completion");
+            await waitFor(() => pageText().includes("Backup restored successfully"), 4000, "backup completion");
             await waitName(${JSON.stringify(scenario.restoreName ? "Office" : "Living Room")});
             const saves = window.__smoke.postRecords.filter(record => record.url === "/espframe/api/v1/identity");
             if (saves.length !== ${scenario.restoreName ? 2 : 1}) throw new Error("Unexpected name restore write");
@@ -1863,7 +1863,7 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "backup-import-v2-exclusions") {
             clickButton("Import");
-            await waitFor(() => pageText().indexOf("Settings imported successfully") !== -1, 8000, "v2 exclusion import");
+            await waitFor(() => pageText().indexOf("Backup restored successfully") !== -1, 8000, "v2 exclusion import");
             ["Albums", "People", "Tags"].forEach((group) => {
               requirePostContains(group + " restored toggle", "Photos: " + group + " Enabled", "turn_on");
             });
@@ -1874,7 +1874,7 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "backup-import-success") {
             clickButton("Import");
-            await waitFor(() => pageText().indexOf("Settings imported successfully") !== -1, 8000, "successful import");
+            await waitFor(() => pageText().indexOf("Backup restored successfully") !== -1, 8000, "successful import");
             if (pageText().indexOf("The Immich API key isn’t stored in backups") !== -1) {
               throw new Error("A backup with an API key should not ask the user to configure it again");
             }
@@ -1895,7 +1895,7 @@ function smokeAssertionsForScenario(scenario) {
             await waitFor(() => pageText().indexOf("Importing settings…") !== -1, 4000, "import progress feedback");
             await new Promise(resolve => setTimeout(resolve, 10));
             if (pageText().indexOf("Importing settings…") === -1) throw new Error("Import progress feedback disappeared while settings were being saved");
-            await waitFor(() => pageText().indexOf("Settings imported successfully. The Immich API key isn’t stored in backups; configure it on this screen.") !== -1, 8000, "new-screen import completion");
+            await waitFor(() => pageText().indexOf("Backup restored successfully.") !== -1, 8000, "new-screen import completion");
             if (!hasConfigurationPost("Connection: Server URL")) throw new Error("New-screen import did not save the server URL");
             requirePostContains("New-screen import brightness", "Screen: Daytime Brightness", "value=90");
             if (window.__smoke.postRecords.some(record => record.body.indexOf("imported-api-key") !== -1)) {
@@ -1908,7 +1908,7 @@ function smokeAssertionsForScenario(scenario) {
             await waitFor(() => pageText().indexOf("Importing settings…") !== -1, 4000, "failed-save import progress");
             await new Promise(resolve => setTimeout(resolve, 100));
             if (pageText().indexOf("Importing settings…") === -1) throw new Error("Save failure replaced progress before the import finished");
-            await waitFor(() => pageText().indexOf("Imported with 1 failed setting") !== -1, 8000, "failed import save");
+            await waitFor(() => pageText().indexOf("Backup partially restored:") !== -1, 8000, "failed import save");
             requirePostContains("Failed import still attempted daytime brightness", "Screen: Daytime Brightness", "value=90");
           }
 
@@ -1917,7 +1917,7 @@ function smokeAssertionsForScenario(scenario) {
             await waitFor(() => pageText().indexOf("Importing settings…") !== -1, 4000, "partial-import progress");
             await new Promise(resolve => setTimeout(resolve, 100));
             if (pageText().indexOf("Importing settings…") === -1) throw new Error("Skipped setting replaced progress before the import finished");
-            await waitFor(() => pageText().indexOf("Imported with 1 skipped setting") !== -1, 8000, "partial import");
+            await waitFor(() => pageText().indexOf("Backup restored successfully; 1 skipped setting") !== -1, 8000, "partial import");
             if (pageText().indexOf("Import skipped invalid album IDs") === -1) throw new Error("Skipped setting reason was not included in the import result");
             requirePostContains("Partial import text field", "Connection: Server URL");
             if (hasConfigurationPost("Photos: Album IDs")) {
@@ -1927,7 +1927,7 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "backup-import-rejected") {
             clickButton("Import");
-            await waitFor(() => pageText().indexOf("Import skipped 1 setting") !== -1, 8000, "rejected import");
+            await waitFor(() => pageText().indexOf("Backup restored successfully; 1 skipped setting") !== -1, 8000, "rejected import");
             if (hasConfigurationPost("Photos: Album IDs")) {
               throw new Error("Rejected album IDs were posted to the device");
             }

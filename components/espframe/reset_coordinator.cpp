@@ -154,7 +154,8 @@ void ResetCoordinator::setup() {
 }
 
 bool ResetCoordinator::request(ResetMode mode) {
-  if (mode == ResetMode::NONE || this->firmware_update_in_progress_ || this->settings_update_in_progress_) return false;
+  if (mode == ResetMode::NONE || this->firmware_update_in_progress_ || this->c6_update_in_progress_ ||
+      this->settings_update_in_progress_) return false;
   if (this->failed_) {
     if (this->mode_ != ResetMode::NONE && this->mode_ != mode) return false;
     if (this->mode_ == ResetMode::NONE) {
@@ -207,8 +208,7 @@ void ResetApiHandler::handleRequest(AsyncWebServerRequest *request) {
   }
   const std::string &origin = origin_header.value();
   const size_t scheme_end = origin.find("://");
-  if (scheme_end == std::string::npos || origin.compare(0, scheme_end, "http") != 0 ||
-      origin.substr(scheme_end + 3) != host_header.value()) {
+  if (scheme_end == std::string::npos || scheme_end == 0 || origin.substr(scheme_end + 3) != host_header.value()) {
     request->send(403, "application/json", R"({"status":"rejected","error":"cross_origin"})");
     return;
   }
@@ -224,7 +224,8 @@ void ResetApiHandler::handleRequest(AsyncWebServerRequest *request) {
     request->send(400, "application/json", R"({"status":"rejected","error":"invalid_mode"})");
     return;
   }
-  if (this->coordinator_->firmware_update_in_progress() || this->coordinator_->settings_update_in_progress()) {
+  if (this->coordinator_->firmware_update_in_progress() || this->coordinator_->c6_update_in_progress() ||
+      this->coordinator_->settings_update_in_progress()) {
     request->send(409, "application/json", R"({"status":"rejected","error":"operation_in_progress"})");
     return;
   }
