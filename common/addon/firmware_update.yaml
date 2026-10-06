@@ -63,6 +63,7 @@ script:
           then:
             - lambda: |-
                 id(firmware_update_reboot_pending) = true;
+                id(espframe_core).set_firmware_update_in_progress(true);
                 global_preferences->sync();
             - update.perform: firmware_update
 
@@ -79,6 +80,7 @@ script:
             - lambda: |-
                 bool scheduled_sleep = id(schedule_enabled).state && id(screen_schedule_asleep);
                 id(firmware_update_reboot_pending) = false;
+                id(espframe_core).set_firmware_update_in_progress(false);
                 id(backlight_paused) = true;
                 id(screensaver_display_off_active) = true;
                 id(manual_wake_ms) = 0;
@@ -102,6 +104,7 @@ script:
             - script.stop: backlight_schedule_display_off
             - lambda: |-
                 id(firmware_update_reboot_pending) = false;
+                id(espframe_core).set_firmware_update_in_progress(false);
                 id(backlight_manual_off) = false;
                 id(screen_schedule_asleep) = false;
                 id(screensaver_display_off_active) = false;
@@ -247,6 +250,7 @@ button:
     on_press:
       - lambda: |-
           id(firmware_update_reboot_pending) = true;
+          id(espframe_core).set_firmware_update_in_progress(true);
           global_preferences->sync();
 
   - platform: template
@@ -260,6 +264,7 @@ button:
     on_press:
       - lambda: |-
           id(firmware_update_reboot_pending) = false;
+          id(espframe_core).set_firmware_update_in_progress(false);
           global_preferences->sync();
 
   - platform: template

@@ -90,6 +90,8 @@
       __publicField(this, "queue", Promise.resolve());
       __publicField(this, "capabilities", null);
       __publicField(this, "negotiated");
+      __publicField(this, "resetEpoch");
+      __publicField(this, "resetAccepted", false);
     }
     waitForWrites() {
       return this.queue;
@@ -176,7 +178,7 @@
       const capabilities = await this.negotiate();
       if (!capabilities) throw new EspframeApiError("unavailable", "configuration_api_unavailable");
       const payload = await this.requestJson(capabilities.configuration_path, { cache: "no-store" }, "configuration_api_failed");
-      if (!object(payload) || payload.api_version !== capabilities.api_version || !object(payload.values) || !Array.isArray(payload.unavailable) || !payload.unavailable.every((value) => typeof value === "string")) {
+      if (!object(payload) || payload.api_version !== capabilities.api_version || capabilities.reset_path && !Number.isInteger(payload.reset_epoch) || !object(payload.values) || !Array.isArray(payload.unavailable) || !payload.unavailable.every((value) => typeof value === "string")) {
         throw new EspframeApiError("server", "invalid_configuration_snapshot");
       }
       let apiKeyConfigured = typeof payload.api_key_configured === "boolean" ? payload.api_key_configured : void 0;
@@ -193,8 +195,10 @@
         values[key] = value;
       }
       if (apiKeyConfigured === void 0) apiKeyConfigured = false;
+      this.resetEpoch = Number.isInteger(payload.reset_epoch) ? payload.reset_epoch : 0;
       return {
         api_version: capabilities.api_version,
+        reset_epoch: this.resetEpoch,
         api_key_configured: apiKeyConfigured,
         values,
         unavailable: payload.unavailable
@@ -230,12 +234,14 @@
     }
     updateSettings(values, legacy) {
       return this.enqueue(async () => {
+        if (this.resetAccepted) throw new EspframeApiError("conflict", "reset_pending", 409, "reset_pending");
         const capabilities = await this.negotiate();
         if (!capabilities) {
           for (const setting of legacy) await this.legacyWrite(setting);
           return null;
         }
-        const body = new URLSearchParams({ [capabilities.configuration_parameter || "configuration"]: JSON.stringify({ api_version: capabilities.api_version, values }) }).toString();
+        if (this.resetEpoch === void 0) await this.getConfigurationSnapshot();
+        const body = new URLSearchParams({ [capabilities.configuration_parameter || "configuration"]: JSON.stringify({ api_version: capabilities.api_version, reset_epoch: this.resetEpoch, values }) }).toString();
         try {
           const payload = await this.requestJson(capabilities.configuration_path, {
             method: "POST",
@@ -253,11 +259,24 @@
         }
       });
     }
+    reset(mode) {
+      return this.enqueue(async () => {
+        if (this.resetAccepted) return;
+        const capabilities = await this.negotiate();
+        if (!capabilities || !capabilities.reset_path) {
+          throw new EspframeApiError("unavailable", "reset_unavailable");
+        }
+        await this.legacyPost(capabilities.reset_path, new URLSearchParams({ mode }).toString());
+        this.resetAccepted = true;
+      });
+    }
     post(url, params) {
+      if (this.resetAccepted) return Promise.reject(new EspframeApiError("conflict", "reset_pending", 409, "reset_pending"));
       const query = params ? "?" + new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)])).toString() : "";
       return this.enqueue(() => this.legacyPost(url + query));
     }
     postText(url, value, useQueryFallback = false) {
+      if (this.resetAccepted) return Promise.reject(new EspframeApiError("conflict", "reset_pending", 409, "reset_pending"));
       return this.enqueue(() => {
         const body = new URLSearchParams({ value }).toString();
         const query = useQueryFallback && (url + "?" + body).length <= 120 ? "?" + body : "";
@@ -413,11 +432,11 @@
   var FIRMWARE_MANIFEST_URLS = { "stable": "https://jtenniswood.github.io/espframe/firmware/manifest.json", "devices": { "immich-frame": { "stable": "https://jtenniswood.github.io/espframe/firmware/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/beta/manifest.json" }, "immich-frame-v2": { "stable": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v2/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v2/beta/manifest.json" }, "immich-frame-v3": { "stable": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v3/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v3/beta/manifest.json" } } };
   var DOCS_BASE_URL = "https://jtenniswood.github.io/espframe";
   var WEB_UI_TABS = [{ "id": "immich", "label": "Immich" }, { "id": "settings", "label": "Device" }, { "id": "logs", "label": "Logs" }];
-  var WEB_UI_CARDS = [{ "id": "connection", "label": "Connection", "tab": "immich", "section": "", "function": "makeConnectionCard", "settings": ["conn_timeout"], "staticEntities": [], "manualEntities": ["immich_url", "api_key"] }, { "id": "frequency", "label": "Frequency", "tab": "immich", "section": "", "function": "makeFrequencyCard", "settings": ["interval"], "staticEntities": [], "manualEntities": [] }, { "id": "portrait_pairing", "label": "Portrait Pairing", "tab": "immich", "section": "", "function": "makePortraitPairingCard", "settings": ["portrait_pairing", "portrait_pairs_only", "portrait_pairing_range"], "staticEntities": [], "manualEntities": [] }, { "id": "memories", "label": "Memories", "tab": "immich", "section": "", "function": "makeMemoriesCard", "settings": ["memories_window", "memories_fallback"], "staticEntities": ["memories_migration_notice"], "manualEntities": [] }, { "id": "photo_source", "label": "Filters", "tab": "immich", "section": "", "function": "makeFiltersCard", "settings": ["photo_source", "albums_enabled", "people_enabled", "tags_enabled", "date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit", "favorites_enabled", "rating_enabled", "location_enabled", "inclusion_matching", "album_matching", "person_matching", "tag_matching", "favorite_mode", "minimum_rating", "filter_country", "filter_state", "filter_city", "album_order"], "staticEntities": ["album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels", "excluded_album_ids", "excluded_album_labels", "excluded_person_ids", "excluded_person_labels", "excluded_tag_ids", "excluded_tag_labels", "immich_server_version", "immich_capability_status"], "manualEntities": ["apply_photo_source"] }, { "id": "layout", "label": "Photo Display", "tab": "immich", "section": "", "function": "makeLayoutCard", "settings": ["photo_orientation", "display_mode"], "staticEntities": [], "manualEntities": [] }, { "id": "metadata", "label": "Metadata", "tab": "immich", "section": "", "function": "makeMetadataCard", "settings": ["photo_metadata_date_enabled", "photo_metadata_location_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format"], "staticEntities": [], "manualEntities": [] }, { "id": "screen_brightness", "label": "Screen Brightness", "tab": "settings", "section": "Display", "function": "makeScreenBrightnessCard", "settings": ["brightness_day", "brightness_night"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "screen_tone", "label": "Screen Tone", "tab": "settings", "section": "Display", "function": "makeScreenToneCard", "settings": ["base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"], "staticEntities": [], "manualEntities": [] }, { "id": "rotation", "label": "Rotation", "tab": "settings", "section": "Display", "function": "makeRotationCard", "settings": ["screen_rotation"], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "clock", "label": "Clock", "tab": "settings", "section": "Display", "function": "makeClockCard", "settings": ["clock_format"], "staticEntities": ["show_clock", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"], "manualEntities": [] }, { "id": "night_schedule", "label": "Night Schedule", "tab": "settings", "section": "Sleep & Schedule", "function": "makeNightScheduleCard", "settings": ["schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "frame_name", "label": "Frame Name", "tab": "settings", "section": "System", "function": "makeFrameNameCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "backup", "label": "Backup", "tab": "settings", "section": "System", "function": "makeBackupCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "firmware", "label": "Firmware", "tab": "settings", "section": "System", "function": "makeFirmwareCard", "settings": ["update_frequency", "auto_update", "c6_auto_update"], "staticEntities": ["firmware_device", "firmware", "c6_current_firmware", "c6_available_firmware", "c6_update_status"], "manualEntities": ["update", "firmware_prepare_upload", "firmware_cancel_upload", "firmware_check", "c6_firmware_check", "c6_firmware_install"] }, { "id": "device_reboot", "label": "Device Reboot", "tab": "settings", "section": "System", "function": "makeDeviceRebootCard", "settings": [], "staticEntities": [], "manualEntities": ["reboot_screen"] }, { "id": "developer", "label": "Developer", "tab": "settings", "section": "System", "function": "makeDeveloperCard", "settings": [], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }];
+  var WEB_UI_CARDS = [{ "id": "connection", "label": "Connection", "tab": "immich", "section": "", "function": "makeConnectionCard", "settings": ["conn_timeout"], "staticEntities": [], "manualEntities": ["immich_url", "api_key"] }, { "id": "frequency", "label": "Frequency", "tab": "immich", "section": "", "function": "makeFrequencyCard", "settings": ["interval"], "staticEntities": [], "manualEntities": [] }, { "id": "portrait_pairing", "label": "Portrait Pairing", "tab": "immich", "section": "", "function": "makePortraitPairingCard", "settings": ["portrait_pairing", "portrait_pairs_only", "portrait_pairing_range"], "staticEntities": [], "manualEntities": [] }, { "id": "memories", "label": "Memories", "tab": "immich", "section": "", "function": "makeMemoriesCard", "settings": ["memories_window", "memories_fallback"], "staticEntities": ["memories_migration_notice"], "manualEntities": [] }, { "id": "photo_source", "label": "Filters", "tab": "immich", "section": "", "function": "makeFiltersCard", "settings": ["photo_source", "albums_enabled", "people_enabled", "tags_enabled", "date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit", "favorites_enabled", "rating_enabled", "location_enabled", "inclusion_matching", "album_matching", "person_matching", "tag_matching", "favorite_mode", "minimum_rating", "filter_country", "filter_state", "filter_city", "album_order"], "staticEntities": ["album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels", "excluded_album_ids", "excluded_album_labels", "excluded_person_ids", "excluded_person_labels", "excluded_tag_ids", "excluded_tag_labels", "immich_server_version", "immich_capability_status"], "manualEntities": ["apply_photo_source"] }, { "id": "layout", "label": "Photo Display", "tab": "immich", "section": "", "function": "makeLayoutCard", "settings": ["photo_orientation", "display_mode"], "staticEntities": [], "manualEntities": [] }, { "id": "metadata", "label": "Metadata", "tab": "immich", "section": "", "function": "makeMetadataCard", "settings": ["photo_metadata_date_enabled", "photo_metadata_location_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format"], "staticEntities": [], "manualEntities": [] }, { "id": "screen_brightness", "label": "Screen Brightness", "tab": "settings", "section": "Display", "function": "makeScreenBrightnessCard", "settings": ["brightness_day", "brightness_night"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "screen_tone", "label": "Screen Tone", "tab": "settings", "section": "Display", "function": "makeScreenToneCard", "settings": ["base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"], "staticEntities": [], "manualEntities": [] }, { "id": "rotation", "label": "Rotation", "tab": "settings", "section": "Display", "function": "makeRotationCard", "settings": ["screen_rotation"], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "clock", "label": "Clock", "tab": "settings", "section": "Display", "function": "makeClockCard", "settings": ["clock_format"], "staticEntities": ["show_clock", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"], "manualEntities": [] }, { "id": "night_schedule", "label": "Night Schedule", "tab": "settings", "section": "Sleep & Schedule", "function": "makeNightScheduleCard", "settings": ["schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "frame_name", "label": "Frame Name", "tab": "settings", "section": "System", "function": "makeFrameNameCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "backup", "label": "Backup", "tab": "settings", "section": "System", "function": "makeBackupCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "firmware", "label": "Firmware", "tab": "settings", "section": "System", "function": "makeFirmwareCard", "settings": ["update_frequency", "auto_update", "c6_auto_update"], "staticEntities": ["firmware_device", "firmware", "c6_current_firmware", "c6_available_firmware", "c6_update_status"], "manualEntities": ["update", "firmware_prepare_upload", "firmware_cancel_upload", "firmware_check", "c6_firmware_check", "c6_firmware_install"] }, { "id": "device_reboot", "label": "Device Reboot", "tab": "settings", "section": "System", "function": "makeDeviceRebootCard", "settings": [], "staticEntities": [], "manualEntities": ["reboot_screen"] }, { "id": "factory_reset", "label": "Reset", "tab": "settings", "section": "System", "function": "makeResetCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "developer", "label": "Developer", "tab": "settings", "section": "System", "function": "makeDeveloperCard", "settings": [], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }];
   var WEB_UI_LOGS_RETAINED_LINES = 1e3;
   var SUPPORT_URL = "https://www.buymeacoffee.com/jtenniswood";
   var SUPPORT_BUTTON_IMAGE_DATA_URI = "data:image/webp;base64,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";
-  var GENERATED_CONFIGURATION_CAPABILITIES = { "contract_version": 2, "api_version": 1, "base_path": "/espframe/api/v1", "capabilities_path": "/espframe/api/v1/capabilities", "configuration_path": "/espframe/api/v1/configuration", "update_mode": "atomic", "configuration_available": true, "configuration_read": true, "configuration_write": true, "configuration_encoding": "application/x-www-form-urlencoded", "configuration_parameter": "configuration", "legacy_entity_api": true, "backup_versions": [1, 2, 3], "setting_count": 52 };
+  var GENERATED_CONFIGURATION_CAPABILITIES = { "contract_version": 2, "api_version": 1, "base_path": "/espframe/api/v1", "capabilities_path": "/espframe/api/v1/capabilities", "configuration_path": "/espframe/api/v1/configuration", "reset_path": "/espframe/api/v1/reset", "reset_modes": ["customization", "factory"], "update_mode": "atomic", "configuration_available": true, "configuration_read": true, "configuration_write": true, "configuration_encoding": "application/x-www-form-urlencoded", "configuration_parameter": "configuration", "legacy_entity_api": true, "backup_versions": [1, 2, 3], "setting_count": 52 };
   var S = {
     tz_options: TIMEZONES,
     tz_labels: TIMEZONE_LABELS,
@@ -4416,6 +4435,39 @@ to {
     rebootBody.appendChild(actionRow(rebootLabel, rebootBtn));
     return makeCollapsibleCard("Device Reboot", rebootBody, true);
   }
+  function makeResetCard() {
+    var body = el("div", "fw-body");
+    var description = el("p", "muted");
+    description.textContent = "Export a backup first if you may want to restore your configuration.";
+    body.appendChild(description);
+    body.appendChild(button("Export Backup", "btn btn-secondary btn-sm", exportConfig));
+    function addResetButton(label, mode, factory) {
+      var action = button(label, factory ? "btn btn-danger btn-sm" : "btn btn-secondary btn-sm");
+      action.onclick = async function() {
+        if (typeof backupImportInProgress !== "undefined" && backupImportInProgress) {
+          showBanner("Let the backup import finish before resetting.", "error");
+          return;
+        }
+        if (factory && window.prompt("Erases saved settings and Wi-Fi. Compiled Wi-Fi may reconnect. Type RESET to continue.") !== "RESET") return;
+        if (!window.confirm(factory ? "Without a backup, this cannot be undone. Continue?" : "Clears settings; keeps Wi-Fi and the Home Assistant key. Continue?")) return;
+        action.disabled = true;
+        action.textContent = "Restarting\u2026";
+        try {
+          await apiClient.waitForWrites();
+          await apiClient.reset(mode);
+          showBanner("Reset accepted. The frame is restarting. It may reconnect using credentials compiled into its firmware.", "info");
+        } catch (_) {
+          action.disabled = false;
+          action.textContent = label;
+          showBanner("Reset could not be started. Check the device connection and try again.", "error");
+        }
+      };
+      body.appendChild(action);
+    }
+    addResetButton("Reset Customization", "customization", false);
+    addResetButton("Factory Reset", "factory", true);
+    return makeCollapsibleCard("Reset", body, true);
+  }
   function makeDeveloperCard() {
     if (!developerPanelEnabledByUrl()) return null;
     var devBadge = makeBadge(S.developer_features_enabled);
@@ -4461,6 +4513,7 @@ to {
       makeClockCard,
       makeFirmwareCard,
       makeDeviceRebootCard,
+      makeResetCard,
       makeDeveloperCard,
       makeFrameNameCard,
       makeBackupCard
@@ -4534,6 +4587,7 @@ to {
       { section: "System", element: makeBackupCard() },
       { section: "System", element: makeFirmwareCard() },
       { section: "System", element: makeDeviceRebootCard() },
+      { section: "System", element: makeResetCard() },
       { section: "System", element: makeDeveloperCard() }
     ];
     appendSettingsSections(wrap, settingsCardEntries);

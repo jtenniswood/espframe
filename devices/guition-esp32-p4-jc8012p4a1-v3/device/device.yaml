@@ -147,6 +147,7 @@ ota:
     on_begin:
       then:
         - lambda: |-
+            id(espframe_core).set_firmware_update_in_progress(true);
             id(firmware_update_reboot_pending) = true;
             global_preferences->sync();
 

@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "configuration_api.h"
+#include "reset_coordinator.h"
 #include "frame_identity_api.h"
 #include "espframe_helpers.h"
 #include "memory_pressure.h"
@@ -14,13 +15,15 @@ namespace espframe {
 
 class EspFrameComponent : public Component, public ConfigurationUpdateScheduler {
  public:
-  EspFrameComponent() : configuration_api_(this), identity_api_(&this->identity_) {}
+  EspFrameComponent() : configuration_api_(this, &this->reset_), reset_api_(&this->reset_), identity_api_(&this->identity_) {}
 
   void setup() override {
+    this->reset_.setup();
     this->identity_.setup();
     auto *base = web_server_base::global_web_server_base;
     if (base != nullptr) {
       base->add_handler(&this->configuration_api_);
+      base->add_handler(&this->reset_api_);
       base->add_handler(&this->identity_api_);
     }
     this->set_interval("memory-sample", 1000, [this]() { this->sample_memory_(); });
@@ -59,6 +62,8 @@ class EspFrameComponent : public Component, public ConfigurationUpdateScheduler 
 
   void schedule_configuration_update(std::function<void()> &&update) override { this->defer(std::move(update)); }
 
+  void set_firmware_update_in_progress(bool value) { this->reset_.set_firmware_update_in_progress(value); }
+
   template<typename... Scripts> void stop_slideshow_workers(Scripts *...scripts) {
     stop_scripts_in_order(scripts...);
   }
@@ -89,6 +94,8 @@ class EspFrameComponent : public Component, public ConfigurationUpdateScheduler 
   size_t largest_sampled_min_ = SIZE_MAX;
   bool background_memory_available_ = true;
   ConfigurationApiHandler configuration_api_;
+  ResetCoordinator reset_;
+  ResetApiHandler reset_api_;
   FrameIdentity identity_;
   FrameIdentityApiHandler identity_api_;
   EspFrameSlideshow slideshow_{};

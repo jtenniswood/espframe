@@ -10,6 +10,7 @@ const { EspframeApiClient, EspframeApiError } = context.module.exports;
 const contract = {
   contract_version: 2, api_version: 1, base_path: "/espframe/api/v1",
   capabilities_path: "/espframe/api/v1/capabilities", configuration_path: "/espframe/api/v1/configuration",
+  reset_path: "/espframe/api/v1/reset", reset_modes: ["customization", "factory"],
   update_mode: "atomic", configuration_available: true, configuration_read: true,
   configuration_write: true, configuration_encoding: "application/x-www-form-urlencoded",
   configuration_parameter: "configuration", legacy_entity_api: true, backup_versions: [1], setting_count: 1,
@@ -25,7 +26,8 @@ async function main() {
     calls.push([url, init && init.method]);
     if (url.endsWith("/capabilities")) return response(contract);
     if (url.endsWith("/configuration") && init && init.method === "POST") return response({ api_version: 1, status: "accepted" });
-    if (url.endsWith("/configuration")) return response({ api_version: 1, values: { amount: 2 }, unavailable: [] });
+    if (url.endsWith("/configuration")) return response({ api_version: 1, reset_epoch: 0, values: { amount: 2 }, unavailable: [] });
+    if (url.endsWith("/reset") && init && init.method === "POST") return response({ status: "accepted" });
     return response({});
   };
   context.fetch = fakeFetch;
@@ -35,8 +37,22 @@ async function main() {
     client.updateSettings({ amount: 3 }, [{ key: "amount", domain: "number", url: "/number/Amount", value: 3 }]),
   ]);
   assert.deepEqual(calls.map(call => call[0]), [
-    "/espframe/api/v1/capabilities", "/espframe/api/v1/configuration", "/espframe/api/v1/configuration",
+    "/espframe/api/v1/capabilities", "/espframe/api/v1/configuration", "/espframe/api/v1/configuration", "/espframe/api/v1/configuration",
   ], "versioned writes should negotiate once and serialize");
+
+  await client.reset("customization");
+  await assert.rejects(client.updateSettings({ amount: 4 }, []), error => error.code === "reset_pending");
+
+  const oldCapabilities = { ...contract, reset_path: undefined, reset_modes: undefined };
+  const oldFirmware = new EspframeApiClient(oldCapabilities, 1000);
+  context.fetch = async (url, init) => {
+    if (url.endsWith("/capabilities")) return response(oldCapabilities);
+    if (url.endsWith("/configuration")) return response({ api_version: 1, values: { amount: 2 }, unavailable: [] });
+    if (url.endsWith("/configuration") && init && init.method === "POST") return response({ api_version: 1, status: "accepted" });
+    return response({});
+  };
+  const oldSnapshot = await oldFirmware.getConfigurationSnapshot();
+  assert.equal(oldSnapshot.reset_epoch, 0, "older firmware snapshots should default to epoch zero");
 
   const offline = new EspframeApiClient(contract, 1000);
   context.fetch = async () => { throw new TypeError("network"); };

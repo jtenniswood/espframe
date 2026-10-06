@@ -856,6 +856,16 @@
       ]
     },
     {
+      "id": "factory_reset",
+      "label": "Reset",
+      "tab": "settings",
+      "section": "System",
+      "function": "makeResetCard",
+      "settings": [],
+      "static_entities": [],
+      "manual_entities": []
+    },
+    {
       "id": "developer",
       "label": "Developer",
       "tab": "settings",

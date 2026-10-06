@@ -27,6 +27,8 @@ export class EspframeApiClient {
   private queue: Promise<unknown> = Promise.resolve();
   private capabilities: Promise<ConfigurationCapabilities | null> | null = null;
   private negotiated: ConfigurationCapabilities | null | undefined;
+  private resetEpoch: number | undefined;
+  private resetAccepted = false;
 
   constructor(private readonly generated: ConfigurationCapabilities, private readonly timeoutMs = 5000) {}
 
@@ -116,7 +118,8 @@ export class EspframeApiClient {
     const capabilities = await this.negotiate();
     if (!capabilities) throw new EspframeApiError("unavailable", "configuration_api_unavailable");
     const payload = await this.requestJson(capabilities.configuration_path, { cache: "no-store" }, "configuration_api_failed");
-    if (!object(payload) || payload.api_version !== capabilities.api_version || !object(payload.values) ||
+    if (!object(payload) || payload.api_version !== capabilities.api_version ||
+        (capabilities.reset_path && !Number.isInteger(payload.reset_epoch)) || !object(payload.values) ||
         !Array.isArray(payload.unavailable) || !payload.unavailable.every(value => typeof value === "string")) {
       throw new EspframeApiError("server", "invalid_configuration_snapshot");
     }
@@ -134,8 +137,10 @@ export class EspframeApiClient {
       values[key] = value;
     }
     if (apiKeyConfigured === undefined) apiKeyConfigured = false;
+    this.resetEpoch = Number.isInteger(payload.reset_epoch) ? payload.reset_epoch as number : 0;
     return {
       api_version: capabilities.api_version,
+      reset_epoch: this.resetEpoch,
       api_key_configured: apiKeyConfigured,
       values,
       unavailable: payload.unavailable as string[],
@@ -167,9 +172,11 @@ export class EspframeApiClient {
 
   updateSettings(values: ConfigurationValues, legacy: LegacySettingWrite[]): Promise<ConfigurationUpdateResponse | null> {
     return this.enqueue(async () => {
+      if (this.resetAccepted) throw new EspframeApiError("conflict", "reset_pending", 409, "reset_pending");
       const capabilities = await this.negotiate();
       if (!capabilities) { for (const setting of legacy) await this.legacyWrite(setting); return null; }
-      const body = new URLSearchParams({ [capabilities.configuration_parameter || "configuration"]: JSON.stringify({ api_version: capabilities.api_version, values }) }).toString();
+      if (this.resetEpoch === undefined) await this.getConfigurationSnapshot();
+      const body = new URLSearchParams({ [capabilities.configuration_parameter || "configuration"]: JSON.stringify({ api_version: capabilities.api_version, reset_epoch: this.resetEpoch, values }) }).toString();
       try {
         const payload = await this.requestJson(capabilities.configuration_path, {
           method: "POST", headers: { "Content-Type": capabilities.configuration_encoding || "application/x-www-form-urlencoded" }, body,
@@ -186,12 +193,26 @@ export class EspframeApiClient {
     });
   }
 
+  reset(mode: "customization" | "factory"): Promise<void> {
+    return this.enqueue(async () => {
+      if (this.resetAccepted) return;
+      const capabilities = await this.negotiate();
+      if (!capabilities || !capabilities.reset_path) {
+        throw new EspframeApiError("unavailable", "reset_unavailable");
+      }
+      await this.legacyPost(capabilities.reset_path, new URLSearchParams({ mode }).toString());
+      this.resetAccepted = true;
+    });
+  }
+
   post(url: string, params?: Record<string, string | number | boolean>): Promise<Response> {
+    if (this.resetAccepted) return Promise.reject(new EspframeApiError("conflict", "reset_pending", 409, "reset_pending"));
     const query = params ? "?" + new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)])).toString() : "";
     return this.enqueue(() => this.legacyPost(url + query));
   }
 
   postText(url: string, value: string, useQueryFallback = false): Promise<Response> {
+    if (this.resetAccepted) return Promise.reject(new EspframeApiError("conflict", "reset_pending", 409, "reset_pending"));
     return this.enqueue(() => {
       const body = new URLSearchParams({ value }).toString();
       const query = useQueryFallback && (url + "?" + body).length <= 120 ? "?" + body : "";

@@ -460,6 +460,7 @@ function browserScriptForScenario(scenario) {
     function configurationSnapshot() {
       return {
         api_version: 1,
+        reset_epoch: 0,
         api_key_configured: !!String(endpointValues["Connection: API Key"] || ""),
         values: configurationSnapshotValues(),
         unavailable: []
@@ -865,7 +866,7 @@ function smokeAssertionsForScenario(scenario) {
         const expected = [
           ["Display", ["Screen Brightness", "Screen Tone", "Rotation", "Clock"]],
           ["Sleep & Schedule", ["Night Schedule"]],
-          ["System", ["Backup", "Firmware", "Device Reboot"]]
+          ["System", ["Backup", "Firmware", "Device Reboot", "Reset"]]
         ];
         const sections = Array.from(document.querySelectorAll("#sp-settings .settings-section"));
         const sectionNames = sections.map((section) => {

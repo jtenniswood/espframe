@@ -585,6 +585,42 @@
     return makeCollapsibleCard("Device Reboot", rebootBody, true);
   }
 
+  function makeResetCard() {
+    var body = el("div", "fw-body");
+    var description = el("p", "muted");
+    description.textContent = "Export a backup first if you may want to restore your configuration.";
+    body.appendChild(description);
+    body.appendChild(button("Export Backup", "btn btn-secondary btn-sm", exportConfig));
+    function addResetButton(label, mode, factory) {
+      var action = button(label, factory ? "btn btn-danger btn-sm" : "btn btn-secondary btn-sm");
+      action.onclick = async function () {
+        if (typeof backupImportInProgress !== "undefined" && backupImportInProgress) {
+          showBanner("Let the backup import finish before resetting.", "error");
+          return;
+        }
+        if (factory && window.prompt("Erases saved settings and Wi-Fi. Compiled Wi-Fi may reconnect. Type RESET to continue.") !== "RESET") return;
+        if (!window.confirm(factory
+          ? "Without a backup, this cannot be undone. Continue?"
+          : "Clears settings; keeps Wi-Fi and the Home Assistant key. Continue?")) return;
+        action.disabled = true;
+        action.textContent = "Restarting…";
+        try {
+          await apiClient.waitForWrites();
+          await apiClient.reset(mode);
+          showBanner("Reset accepted. The frame is restarting. It may reconnect using credentials compiled into its firmware.", "info");
+        } catch (_) {
+          action.disabled = false;
+          action.textContent = label;
+          showBanner("Reset could not be started. Check the device connection and try again.", "error");
+        }
+      };
+      body.appendChild(action);
+    }
+    addResetButton("Reset Customization", "customization", false);
+    addResetButton("Factory Reset", "factory", true);
+    return makeCollapsibleCard("Reset", body, true);
+  }
+
   function makeDeveloperCard() {
     if (!developerPanelEnabledByUrl()) return null;
     var devBadge = makeBadge(S.developer_features_enabled);

@@ -61,6 +61,8 @@ def configuration_capabilities() -> dict[str, object]:
         "base_path": api["base_path"],
         "capabilities_path": api["capabilities_path"],
         "configuration_path": api["configuration_path"],
+        "reset_path": api["reset_path"],
+        "reset_modes": api["reset_modes"],
         "update_mode": api["update_mode"],
         "configuration_available": True,
         "configuration_read": True,
@@ -101,6 +103,7 @@ inline constexpr unsigned int SETTING_COUNT = {capabilities["setting_count"]};
 inline constexpr unsigned int CONFIGURATION_FIELD_COUNT = {len(fields)};
 inline constexpr const char CAPABILITIES_PATH[] = "{capabilities["capabilities_path"]}";
 inline constexpr const char CONFIGURATION_PATH[] = "{capabilities["configuration_path"]}";
+inline constexpr const char RESET_PATH[] = "{capabilities["reset_path"]}";
 inline constexpr const char CAPABILITIES_JSON[] = R"ESPFRAME_JSON({capabilities_json})ESPFRAME_JSON";
 inline constexpr ConfigurationField CONFIGURATION_FIELDS[] = {{
 {field_rows}
