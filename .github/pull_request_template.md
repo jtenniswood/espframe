@@ -14,9 +14,9 @@
 
 - [x] `npm run check:fast` passed.
 - [x] `npm run check:pr` passed all checks through firmware logic tests; `docs:build` is blocked by the dependency mismatch below.
-- [ ] CI checks pass. PR Validation runs #565 and #567 failed during dependency installation before project checks; see the lockfile issue below.
+- [ ] CI checks pass. PR Validation runs #565, #567, and #568 failed during dependency installation before project checks; see the lockfile issue below.
 
-The final `docs:build` step fails because the dependency tree cannot resolve an internal `@material/web` import from `esp-web-tools`. The repository lockfile is missing the `@material/web@2.5.0` and `@lit/context@1.1.6` packages declared by the current dependency overrides; PR Validation runs #565 and #567 also stopped at `npm ci` before project checks.
+The final `docs:build` step fails because the dependency tree cannot resolve an internal `@material/web` import from `esp-web-tools`. The repository lockfile is missing the `@material/web@2.5.0` and `@lit/context@1.1.6` packages declared by the current dependency overrides; PR Validation runs #565, #567, and #568 also stopped at `npm ci` before project checks.
 
 ## Device testing
 
