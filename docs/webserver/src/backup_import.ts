@@ -152,7 +152,6 @@
   var backupImportInProgress = false;
   var backupImportMessages: string[] = [];
   var backupImportValues = null;
-  var backupImportApiKey = "";
   var BACKUP_IMPORT_MAX_BODY = 900;
 
   function queueBackupImportSetting(key, value) {
@@ -379,10 +378,10 @@
       case "connection.api_key":
         var importApiKey = value == null ? "" : String(value).trim();
         // API keys are intentionally omitted from exports. A blank value means
-        // keep the destination frame's key unchanged and ask for it separately.
+        // keep the destination frame's key unchanged.
         if (!importApiKey) return true;
         if (importApiKey.length > 255) return skipBackupImportField("API key exceeds 255 characters - not imported");
-        backupImportApiKey = importApiKey;
+        queueBackupImportSetting("api_key", importApiKey);
         return true;
       case "photos.album_ids":
         var importAlbum = String(value).trim();
@@ -523,7 +522,6 @@
           backupImportInProgress = true;
           backupImportMessages = [];
           backupImportValues = {};
-          backupImportApiKey = "";
           showBanner("Importing settings…", "info", 0);
           backupImportSaveTasks = [];
           var queuedCount = 0;
@@ -538,13 +536,10 @@
             }
           });
 
-          queuedCount = Object.keys(backupImportValues).length + (backupImportApiKey ? 1 : 0);
+          queuedCount = Object.keys(backupImportValues).length;
 
           if (Object.keys(backupImportValues).length) {
             trackBackupImportSave(saveBackupImportSettings(backupImportValues), Object.keys(backupImportValues).length);
-          }
-          if (backupImportApiKey) {
-            trackBackupImportSave(saveSetting("api_key", backupImportApiKey));
           }
 
           if (restoreName) {
@@ -591,14 +586,12 @@
               renderSettings();
               backupImportSaveTasks = null;
               backupImportValues = null;
-              backupImportApiKey = "";
               backupImportMessages = [];
             })
             .catch(function () {
               backupImportInProgress = false;
               backupImportSaveTasks = null;
               backupImportValues = null;
-              backupImportApiKey = "";
               backupImportMessages = [];
               showBanner("Import failed. Please try again.", "error");
             });
@@ -606,7 +599,6 @@
           backupImportInProgress = false;
           backupImportSaveTasks = null;
           backupImportValues = null;
-          backupImportApiKey = "";
           backupImportMessages = [];
           showBanner("Import failed. Please try again.", "error");
         }

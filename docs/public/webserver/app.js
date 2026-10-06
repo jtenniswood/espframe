@@ -2324,10 +2324,16 @@ to {
     return { key, domain, url: endpoints[key], value: savedValue };
   }
   function saveSettingValues(values) {
-    return settingSaves.save(values, function() {
+    var trackedValues = Object.assign({}, values);
+    var includesApiKey = Object.prototype.hasOwnProperty.call(trackedValues, "api_key");
+    delete trackedValues.api_key;
+    return settingSaves.save(trackedValues, function() {
       return apiClient.updateSettings(values, Object.keys(values).map(function(key) {
         return legacySettingWrite(key, values[key]);
       }));
+    }).then(function(response) {
+      if (includesApiKey) settingSaves.receive("api_key_configured", true);
+      return response;
     });
   }
   function saveGenericSetting(key, value) {
@@ -5712,7 +5718,6 @@ to {
   var backupImportInProgress = false;
   var backupImportMessages = [];
   var backupImportValues = null;
-  var backupImportApiKey = "";
   var BACKUP_IMPORT_MAX_BODY = 900;
   function queueBackupImportSetting(key, value) {
     if (!backupImportValues) return false;
@@ -5910,7 +5915,7 @@ to {
         var importApiKey = value == null ? "" : String(value).trim();
         if (!importApiKey) return true;
         if (importApiKey.length > 255) return skipBackupImportField("API key exceeds 255 characters - not imported");
-        backupImportApiKey = importApiKey;
+        queueBackupImportSetting("api_key", importApiKey);
         return true;
       case "photos.album_ids":
         var importAlbum = String(value).trim();
@@ -6047,7 +6052,6 @@ to {
           backupImportInProgress = true;
           backupImportMessages = [];
           backupImportValues = {};
-          backupImportApiKey = "";
           showBanner("Importing settings\u2026", "info", 0);
           backupImportSaveTasks = [];
           var queuedCount = 0;
@@ -6061,12 +6065,9 @@ to {
               skippedCount += 1;
             }
           });
-          queuedCount = Object.keys(backupImportValues).length + (backupImportApiKey ? 1 : 0);
+          queuedCount = Object.keys(backupImportValues).length;
           if (Object.keys(backupImportValues).length) {
             trackBackupImportSave(saveBackupImportSettings(backupImportValues), Object.keys(backupImportValues).length);
-          }
-          if (backupImportApiKey) {
-            trackBackupImportSave(saveSetting("api_key", backupImportApiKey));
           }
           if (restoreName) {
             queuedCount += 1;
@@ -6106,13 +6107,11 @@ to {
             renderSettings();
             backupImportSaveTasks = null;
             backupImportValues = null;
-            backupImportApiKey = "";
             backupImportMessages = [];
           }).catch(function() {
             backupImportInProgress = false;
             backupImportSaveTasks = null;
             backupImportValues = null;
-            backupImportApiKey = "";
             backupImportMessages = [];
             showBanner("Import failed. Please try again.", "error");
           });
@@ -6120,7 +6119,6 @@ to {
           backupImportInProgress = false;
           backupImportSaveTasks = null;
           backupImportValues = null;
-          backupImportApiKey = "";
           backupImportMessages = [];
           showBanner("Import failed. Please try again.", "error");
         }

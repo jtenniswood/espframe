@@ -342,8 +342,9 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
       return;
     }
     const bool has_reset_epoch = root["reset_epoch"].is<uint32_t>();
-    if ((has_reset_epoch && root["reset_epoch"].as<uint32_t>() != this->reset_->epoch()) ||
-        (!has_reset_epoch && this->reset_->epoch() != 0)) {
+    // API v1 clients predating reset epochs remain valid after a reset. Clients
+    // that send an epoch get stale-session protection from this comparison.
+    if (has_reset_epoch && root["reset_epoch"].as<uint32_t>() != this->reset_->epoch()) {
       send_error_(request, 409, "reset_epoch_mismatch");
       return;
     }

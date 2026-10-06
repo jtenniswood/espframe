@@ -293,10 +293,18 @@ import {
   }
 
   function saveSettingValues(values) {
-    return settingSaves.save(values, function () {
+    var trackedValues = Object.assign({}, values);
+    var includesApiKey = Object.prototype.hasOwnProperty.call(trackedValues, "api_key");
+    // The API key is write-only and must never enter the browser's settings
+    // state, even when a backup restore batches it with other values.
+    delete trackedValues.api_key;
+    return settingSaves.save(trackedValues, function () {
       return apiClient.updateSettings(values, Object.keys(values).map(function (key) {
         return legacySettingWrite(key, values[key]);
       }));
+    }).then(function (response) {
+      if (includesApiKey) settingSaves.receive("api_key_configured", true);
+      return response;
     });
   }
 

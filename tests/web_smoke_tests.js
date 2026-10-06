@@ -1892,6 +1892,13 @@ function smokeAssertionsForScenario(scenario) {
               .map(record => JSON.parse(new URLSearchParams(record.body).get("configuration") || "{}"))
               .filter(configuration => Object.keys(configuration.values || {}).length > 1);
             if (settingBatches.length < 2) throw new Error("Large backup settings should be sent in multiple small atomic batches");
+            const keyBatch = settingBatches.find(configuration => configuration.values.api_key === "imported-api-key");
+            if (!keyBatch || Object.keys(keyBatch.values).length < 2) {
+              throw new Error("Imported API key should share an atomic configuration update with other settings");
+            }
+            if (window.__smoke.postRecords.some(record => record.url === "/text/Connection%3A%20API%20Key/set")) {
+              throw new Error("Imported API key should not be saved through a separate legacy request");
+            }
             if (window.__smoke.postRecords.some(record => record.url === "/espframe/api/v1/configuration" && record.body.length > 900)) {
               throw new Error("Backup import exceeded the safe configuration request size");
             }
