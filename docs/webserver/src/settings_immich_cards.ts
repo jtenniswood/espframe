@@ -134,6 +134,7 @@
     connBody.appendChild(urlField.field);
 
     var f2 = field("API Key");
+    if (highlightApiKeyAfterRestore) f2.classList.add("api-key-restore-required");
     var keyConfigured = S.api_key_configured;
     var keyWrap = el("div");
 
@@ -164,6 +165,10 @@
             false,
             function (saved) { return !!saved; }
           ).then(function () {
+            var wasHighlighted = highlightApiKeyAfterRestore;
+            highlightApiKeyAfterRestore = false;
+            f2.classList.remove("api-key-restore-required");
+            if (wasHighlighted) showBanner("Immich API key saved.", "success");
             showSaved("API key saved");
             showKeyMasked();
           }).catch(function () {

@@ -162,3 +162,17 @@
     els.settingsPage.className = "sp-page" + (tab === "settings" ? " active" : "");
     els.logsPage.className = "sp-page" + (tab === "logs" ? " active" : "");
   }
+
+  function openImmichConnectionForApiKey() {
+    switchTab("immich");
+    var connectionToggle = Array.prototype.find.call(
+      els.immichPage.querySelectorAll(".card-toggle"),
+      function (toggle) { return toggle.textContent.trim() === "Connection"; }
+    );
+    if (!connectionToggle) return;
+    if (connectionToggle.getAttribute("aria-expanded") !== "true") connectionToggle.click();
+    var apiKeyField = connectionToggle.closest(".card").querySelector(".api-key-restore-required");
+    if (apiKeyField && typeof apiKeyField.scrollIntoView === "function") {
+      apiKeyField.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }

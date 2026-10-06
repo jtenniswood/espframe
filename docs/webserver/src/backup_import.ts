@@ -520,14 +520,22 @@
           backupImportInProgress = false;
           var apiKeyWasOmitted = !data.connection || !Object.prototype.hasOwnProperty.call(data.connection, "api_key") ||
             !String(data.connection.api_key == null ? "" : data.connection.api_key).trim();
+          var apiKeyNeedsInput = apiKeyWasOmitted && !S.api_key_configured;
           var resultMessage = backupImportSummaryMessage(appliedCount, skippedCount, failedCount);
           if (backupImportMessages.length) resultMessage += ". " + backupImportMessages.join("; ");
-          if (apiKeyWasOmitted) resultMessage += ". This backup has no API key; the destination’s current key was left unchanged.";
+          if (apiKeyWasOmitted) {
+            resultMessage += apiKeyNeedsInput
+              ? ". This backup has no Immich API key. Enter it in the highlighted field on the Immich tab."
+              : ". This backup has no Immich API key; the destination’s current key was left unchanged.";
+          }
+          highlightApiKeyAfterRestore = apiKeyNeedsInput;
           showBanner(
             resultMessage,
-            skippedCount || failedCount ? "error" : "success"
+            skippedCount || failedCount ? "error" : "success",
+            apiKeyNeedsInput ? 0 : undefined
           );
           renderSettings();
+          if (apiKeyNeedsInput) openImmichConnectionForApiKey();
           backupImportSaveTasks = null;
           backupImportBatchValues = null;
           backupImportMessages = [];

@@ -34,6 +34,7 @@ import {
   var SUPPORT_URL = __ESPFRAME_SUPPORT_URL__;
   var SUPPORT_BUTTON_IMAGE_DATA_URI = __ESPFRAME_SUPPORT_BUTTON_IMAGE_DATA_URI__;
   var GENERATED_CONFIGURATION_CAPABILITIES: ConfigurationCapabilities = __ESPFRAME_CONFIGURATION_API_CONTRACT__;
+  var highlightApiKeyAfterRestore = false;
 
   var S: AppState = {
     tz_options: TIMEZONES,
