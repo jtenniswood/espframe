@@ -320,7 +320,7 @@
       "rotation": "screen_rotation"
     }
   },
-  "backup_import_write_behavior": "All valid settings in a backup are pushed to the device in one atomic update",
+  "backup_import_write_behavior": "All valid settings in a backup are pushed in size-limited atomic updates so larger backups fit the device web server request limit",
   "backup_partial_config_behavior": "only settings present in the file are applied; everything else stays unchanged",
   "backup_invalid_photo_id_behavior": "web UI reports the skipped setting and keeps importing other valid fields",
   "backup_fixture_files": [

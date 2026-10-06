@@ -5713,21 +5713,82 @@ to {
   var backupImportMessages = [];
   var backupImportValues = null;
   var backupImportApiKey = "";
+  var BACKUP_IMPORT_MAX_BODY = 900;
   function queueBackupImportSetting(key, value) {
     if (!backupImportValues) return false;
     backupImportValues[key] = value;
     return true;
   }
+  function recordBackupImportSaveFailure(label) {
+    if (backupImportMessages.length >= 3) return;
+    backupImportMessages.push("Could not restore " + label);
+  }
   function trackBackupImportSave(result, settingCount) {
     if (!backupImportSaveTasks) return;
     var tracked = Promise.resolve(result).then(function(response) {
       if (response && response.ok === false) throw new Error("save_failed");
-      return true;
+      if (response && typeof response.failedCount === "number") return response;
+      return { failedCount: 0 };
     }).catch(function() {
-      return false;
+      return { failedCount: Math.max(1, Number(settingCount) || 1) };
     });
-    var count = Math.max(1, Number(settingCount) || 1);
-    for (var index = 0; index < count; index++) backupImportSaveTasks.push(tracked);
+    backupImportSaveTasks.push(tracked);
+  }
+  function backupImportBatchBodyLength(values) {
+    var configuration = JSON.stringify({ api_version: 1, reset_epoch: 0, values });
+    return new URLSearchParams({ configuration }).toString().length;
+  }
+  function backupImportSettingsBatches(values) {
+    var batches = [];
+    var current = {};
+    Object.keys(values).forEach(function(key) {
+      var candidate = Object.assign({}, current);
+      candidate[key] = values[key];
+      if (Object.keys(current).length && backupImportBatchBodyLength(candidate) > BACKUP_IMPORT_MAX_BODY) {
+        batches.push(current);
+        current = {};
+        candidate = {};
+        candidate[key] = values[key];
+      }
+      current = candidate;
+    });
+    if (Object.keys(current).length) batches.push(current);
+    return batches;
+  }
+  function backupImportCanRetrySmaller(error) {
+    return error && (error.status === 413 || error.status === 422 || error.status === 400 && (!error.code || error.code === "invalid_json"));
+  }
+  function saveBackupImportBatch(values) {
+    var keys = Object.keys(values);
+    return saveSettingValues(values).then(function() {
+      return { failedCount: 0 };
+    }).catch(function(error) {
+      if (keys.length > 1 && backupImportCanRetrySmaller(error)) {
+        var midpoint = Math.ceil(keys.length / 2);
+        var first = {};
+        var second = {};
+        keys.forEach(function(key, index) {
+          (index < midpoint ? first : second)[key] = values[key];
+        });
+        return saveBackupImportBatch(first).then(function(firstResult) {
+          return saveBackupImportBatch(second).then(function(secondResult) {
+            return { failedCount: firstResult.failedCount + secondResult.failedCount };
+          });
+        });
+      }
+      recordBackupImportSaveFailure(keys.length === 1 ? keys[0].replace(/_/g, " ") : "settings");
+      return { failedCount: keys.length };
+    });
+  }
+  function saveBackupImportSettings(values) {
+    var batches = backupImportSettingsBatches(values);
+    return batches.reduce(function(chain, batch) {
+      return chain.then(function(result) {
+        return saveBackupImportBatch(batch).then(function(batchResult) {
+          return { failedCount: result.failedCount + batchResult.failedCount };
+        });
+      });
+    }, Promise.resolve({ failedCount: 0 }));
   }
   function backupImportEntryUsesPhotoSourceApply(entry) {
     return entry && entry.group === "photos" && Array.isArray(entry.state_keys) && entry.state_keys.some(settingUsesPhotoSourceApply);
@@ -6002,7 +6063,7 @@ to {
           });
           queuedCount = Object.keys(backupImportValues).length + (backupImportApiKey ? 1 : 0);
           if (Object.keys(backupImportValues).length) {
-            trackBackupImportSave(saveSettingValues(backupImportValues), Object.keys(backupImportValues).length);
+            trackBackupImportSave(saveBackupImportSettings(backupImportValues), Object.keys(backupImportValues).length);
           }
           if (backupImportApiKey) {
             trackBackupImportSave(saveSetting("api_key", backupImportApiKey));
@@ -6014,9 +6075,9 @@ to {
             }));
           }
           Promise.all(backupImportSaveTasks).then(function(results) {
-            var failedCount = results.filter(function(ok) {
-              return !ok;
-            }).length;
+            var failedCount = results.reduce(function(count, result) {
+              return count + (result && Number(result.failedCount) || 0);
+            }, 0);
             var appliedCount = queuedCount - failedCount;
             if (needsPhotoSourceApply && appliedCount) {
               return post(endpoints.apply_photo_source + "/press").then(function() {

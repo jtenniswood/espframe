@@ -34,7 +34,7 @@ Firmware version, update status, sunrise/sunset, and current brightness are **no
 1. Open the device web UI at `http://<device-ip>/`.
 2. Expand the **Backup** card.
 3. Click **Import** and select a previously exported `.json` file.
-4. All valid settings in a backup are pushed to the device in one atomic update. The page refreshes when complete.
+4. All valid settings in a backup are pushed in size-limited atomic updates so larger backups fit the device web server request limit. If the device rejects a setting, smaller batches let the other settings continue restoring. The page refreshes when complete.
 
 Partial config files work — only settings present in the file are applied; everything else stays unchanged.
 

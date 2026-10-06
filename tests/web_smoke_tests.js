@@ -1888,6 +1888,13 @@ function smokeAssertionsForScenario(scenario) {
             if (!hasConfigurationPost("Connection: Server URL")) {
               throw new Error("Import did not post connection URL");
             }
+            const settingBatches = window.__smoke.postRecords.filter(record => record.url === "/espframe/api/v1/configuration")
+              .map(record => JSON.parse(new URLSearchParams(record.body).get("configuration") || "{}"))
+              .filter(configuration => Object.keys(configuration.values || {}).length > 1);
+            if (settingBatches.length < 2) throw new Error("Large backup settings should be sent in multiple small atomic batches");
+            if (window.__smoke.postRecords.some(record => record.url === "/espframe/api/v1/configuration" && record.body.length > 900)) {
+              throw new Error("Backup import exceeded the safe configuration request size");
+            }
             requirePostContains("Import text field", "Connection: Server URL");
             requirePostContains("Import switch field", "Firmware: Auto Update", "turn_on");
             requirePostContains("Import select field", "Photos: Source", "option=Person");
@@ -1916,6 +1923,12 @@ function smokeAssertionsForScenario(scenario) {
             await new Promise(resolve => setTimeout(resolve, 100));
             if (pageText().indexOf("Importing settings…") === -1) throw new Error("Save failure replaced progress before the import finished");
             await waitFor(() => pageText().indexOf("Backup partially restored:") !== -1, 8000, "failed import save");
+            if (pageText().indexOf("Backup partially restored: 1 failed setting") === -1) {
+              throw new Error("One rejected setting should not mark the other backup settings as failed");
+            }
+            if (pageText().indexOf("Could not restore brightness day") === -1) {
+              throw new Error("Import feedback should identify a setting rejected by the device");
+            }
             requirePostContains("Failed import still attempted daytime brightness", "Screen: Daytime Brightness", "value=90");
           }
 
