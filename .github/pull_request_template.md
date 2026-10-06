@@ -13,7 +13,7 @@
 
 - [x] `npm run check:fast` passed.
 - [x] `npm run check:pr` passed all checks through firmware logic tests; `docs:build` is blocked by the dependency mismatch below.
-- [ ] CI checks are expected to pass; the latest workflow must be rerun after push.
+- [ ] CI checks pass. PR Validation run #565 failed during dependency installation before project checks; see the lockfile issue below.
 
 The final `docs:build` step fails because the dependency tree cannot resolve `@material/web/list/internal/list-styles.js`, imported by `esp-web-tools`. The repository lockfile is missing the `@material/web@2.5.0` and `@lit/context@1.1.6` packages declared by the current dependency overrides; this also caused the previous PR Validation run to stop at `npm ci` before project checks.
 
@@ -25,13 +25,13 @@ The final `docs:build` step fails because the dependency tree cannot resolve `@m
 
 Device testing status: The review follow-up changes have not been flashed. Reset behavior, interrupted cleanup recovery, OTA failure recovery, and reset blocking during C6 installation still need hardware validation.
 
-PR Validation workflow run/artifact:
+PR Validation workflow run/artifact: [run #565](https://github.com/jtenniswood/espframe/actions/runs/37452493792); dependency installation failed, so no firmware artifact was produced.
 
-Firmware artifact (`firmware-test-<device>`):
+Firmware artifact (`firmware-test-<device>`): None. Local V1, V2, and V3 factory builds compiled successfully with ESPHome 2026.9.1.
 
-Device tested:
+Device tested: Guition V3 at `192.168.10.168` with an earlier PR firmware; this review follow-up was not flashed.
 
-Result/notes:
+Result/notes: Factory reset, interrupted cleanup recovery, OTA failure recovery, and reset blocking during C6 installs still need hardware validation.
 
 The previous firmware flashed successfully, but factory reset and interrupted-cleanup recovery have not been exercised on physical hardware.
 
