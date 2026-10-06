@@ -5562,19 +5562,35 @@ to {
   }
   function saveBackupImportBatch(values) {
     var keys = Object.keys(values);
-    return saveSettingValues(values).then(function() {
-      return 0;
-    }, function(error) {
-      if (!error || error.kind !== "validation") return keys.length;
-      var failedCount = 0;
-      return Promise.all(keys.map(function(key) {
-        return saveSetting(key, values[key]).catch(function() {
-          failedCount += 1;
-        });
-      })).then(function() {
-        return failedCount;
+    var failedCount = 0;
+    var offset = 0;
+    var batchSize = 6;
+    function saveNextBatch() {
+      if (offset >= keys.length) return Promise.resolve(failedCount);
+      var batchKeys = keys.slice(offset, offset + batchSize);
+      offset += batchKeys.length;
+      var batch = {};
+      batchKeys.forEach(function(key) {
+        batch[key] = values[key];
       });
-    });
+      return saveSettingValues(batch).then(function() {
+        return 0;
+      }, function(error) {
+        if (!error || error.kind !== "validation") return batchKeys.length;
+        var batchFailures = 0;
+        return Promise.all(batchKeys.map(function(key) {
+          return saveSetting(key, values[key]).catch(function() {
+            batchFailures += 1;
+          });
+        })).then(function() {
+          return batchFailures;
+        });
+      }).then(function(batchFailures) {
+        failedCount += batchFailures;
+        return saveNextBatch();
+      });
+    }
+    return saveNextBatch();
   }
   function trackBackupImportSave(result) {
     if (!backupImportSaveTasks) return;
