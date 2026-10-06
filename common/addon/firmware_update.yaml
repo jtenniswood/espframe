@@ -140,6 +140,9 @@ script:
 # -----------------------------------------------------------------------------
 ota:
   - platform: http_request
+    on_begin:
+      then:
+        - lambda: id(espframe_core).set_firmware_update_in_progress(true);
     on_error:
       then:
         - script.execute: firmware_update_release_reset_guard
