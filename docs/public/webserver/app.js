@@ -5408,12 +5408,14 @@ to {
   }
   async function requestFrameIdentity(name) {
     if (name !== void 0 && !validFrameName(name)) throw new Error("Use up to 120 UTF-8 bytes without control characters.");
-    var controller = new AbortController();
-    var timer = setTimeout(function() {
-      controller.abort();
-    }, 5e3);
-    var options = { cache: "no-store", signal: controller.signal };
+    var options = { cache: "no-store" };
+    var timer = null;
     if (name !== void 0) {
+      var controller = new AbortController();
+      timer = setTimeout(function() {
+        controller.abort();
+      }, 5e3);
+      options.signal = controller.signal;
       options.method = "POST";
       options.headers = { "Content-Type": "application/x-www-form-urlencoded" };
       options.body = new URLSearchParams({ name }).toString();
@@ -5427,7 +5429,7 @@ to {
       }
       return data;
     } finally {
-      clearTimeout(timer);
+      if (timer !== null) clearTimeout(timer);
     }
   }
   function updateFrameTitle() {

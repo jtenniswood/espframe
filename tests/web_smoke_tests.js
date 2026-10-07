@@ -522,6 +522,7 @@ function browserScriptForScenario(scenario) {
     }
     let identityFailure = ${JSON.stringify(!!scenario.identityFailure)};
     let identityPostCount = 0;
+    window.__smoke.identityGetAborted = false;
     window.fetch = function (url, options) {
       const method = options && options.method ? options.method : "GET";
       const decoded = decodeURIComponent(String(url));
@@ -529,8 +530,16 @@ function browserScriptForScenario(scenario) {
       const body = options && options.body != null ? String(options.body) : "";
       if (decoded === "/espframe/api/v1/identity") {
         if (method === "GET" && ${JSON.stringify(!!scenario.delayedIdentity)}) {
-          return new Promise(resolve => { window.__smoke.releaseIdentity = () => resolve(
-            ${JSON.stringify(!!scenario.identity)} ? { ok: true, json: () => Promise.resolve({ ...identity }) } : { ok: false, status: 404 }); });
+          return new Promise((resolve, reject) => {
+            window.__smoke.releaseIdentity = () => resolve(
+              ${JSON.stringify(!!scenario.identity)} ? { ok: true, json: () => Promise.resolve({ ...identity }) } : { ok: false, status: 404 });
+            if (options.signal) options.signal.addEventListener("abort", () => {
+              window.__smoke.identityGetAborted = true;
+              const error = new Error("request aborted");
+              error.name = "AbortError";
+              reject(error);
+            }, { once: true });
+          });
         }
         if (!${JSON.stringify(!!scenario.identity)}) return Promise.resolve({ ok: false, status: 404 });
         if (method === "POST") {
@@ -1545,6 +1554,9 @@ function smokeAssertionsForScenario(scenario) {
           if (!buttonByText("Export").disabled) throw new Error("Export enabled before identity settled");
           buttonByText("Export").click();
           if (window.__smoke.exportPayloads.length) throw new Error("Export omitted pending identity");
+          await new Promise(resolve => setTimeout(resolve, 5200));
+          if (window.__smoke.identityGetAborted) throw new Error("Slow identity GET was aborted before the saved frame name loaded");
+          if (!buttonByText("Export").disabled) throw new Error("Export enabled before the slow identity GET completed");
           window.__smoke.releaseIdentity();
           await waitFor(() => !buttonByText("Export").disabled, 4000, "export after identity");
           clickButton("Export");

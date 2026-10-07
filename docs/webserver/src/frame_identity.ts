@@ -23,10 +23,12 @@
 
   async function requestFrameIdentity(name?: string): Promise<FrameIdentitySnapshot> {
     if (name !== undefined && !validFrameName(name)) throw new Error("Use up to 120 UTF-8 bytes without control characters.");
-    var controller = new AbortController();
-    var timer = setTimeout(function () { controller.abort(); }, 5000);
-    var options: RequestInit = { cache: "no-store", signal: controller.signal };
+    var options: RequestInit = { cache: "no-store" };
+    var timer: number | null = null;
     if (name !== undefined) {
+      var controller = new AbortController();
+      timer = setTimeout(function () { controller.abort(); }, 5000);
+      options.signal = controller.signal;
       options.method = "POST";
       options.headers = { "Content-Type": "application/x-www-form-urlencoded" };
       options.body = new URLSearchParams({ name: name }).toString();
@@ -43,7 +45,7 @@
       }
       return data as unknown as FrameIdentitySnapshot;
     } finally {
-      clearTimeout(timer);
+      if (timer !== null) clearTimeout(timer);
     }
   }
 
