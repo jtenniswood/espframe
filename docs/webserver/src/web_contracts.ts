@@ -3,6 +3,7 @@ export type ConfigurationValues = Record<string, ConfigurationValue>;
 
 export interface ConfigurationSnapshot {
   api_version: number;
+  reset_epoch: number;
   api_key_configured: boolean;
   values: ConfigurationValues;
   unavailable: string[];
@@ -22,6 +23,8 @@ export interface ConfigurationCapabilities {
   base_path: string;
   capabilities_path: string;
   configuration_path: string;
+  reset_path?: string;
+  reset_modes?: string[];
   update_mode: "atomic";
   configuration_available: boolean;
   configuration_read: boolean;
@@ -107,7 +110,7 @@ function parseConfigurationSnapshot(value: unknown): ConfigurationSnapshot | nul
     values[key] = fieldValue;
   }
   if (!value.unavailable.every(key => typeof key === "string")) return null;
-  return { api_version: 1, api_key_configured: apiKeyConfigured, values: values, unavailable: value.unavailable };
+  return { api_version: 1, reset_epoch: Number.isInteger(value.reset_epoch) ? value.reset_epoch as number : 0, api_key_configured: apiKeyConfigured, values: values, unavailable: value.unavailable };
 }
 
 function configurationUpdateBody(values: ConfigurationValues): string {

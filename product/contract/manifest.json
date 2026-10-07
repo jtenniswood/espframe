@@ -5,6 +5,8 @@
     "base_path": "/espframe/api/v1",
     "capabilities_path": "/espframe/api/v1/capabilities",
     "configuration_path": "/espframe/api/v1/configuration",
+    "reset_path": "/espframe/api/v1/reset",
+    "reset_modes": ["customization", "factory"],
     "update_mode": "atomic"
   },
   "compatibility": {

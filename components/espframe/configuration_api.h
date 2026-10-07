@@ -17,6 +17,7 @@
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
+#include "reset_coordinator.h"
 
 namespace esphome::espframe {
 
@@ -28,7 +29,8 @@ class ConfigurationUpdateScheduler {
 
 class ConfigurationApiHandler final : public AsyncWebHandler {
  public:
-  explicit ConfigurationApiHandler(ConfigurationUpdateScheduler *scheduler) : scheduler_(scheduler) {}
+  explicit ConfigurationApiHandler(ConfigurationUpdateScheduler *scheduler, ResetCoordinator *reset)
+      : scheduler_(scheduler), reset_(reset) {}
 
   bool canHandle(AsyncWebServerRequest *request) const override {
     if (this->is_secret_text_get_(request)) return true;
@@ -133,6 +135,7 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
     json::JsonBuilder builder;
     JsonObject root = builder.root();
     root["api_version"] = contract::API_VERSION;
+    root["reset_epoch"] = this->reset_->epoch();
     root["api_key_configured"] = this->secret_configured_();
     JsonObject values = root["values"].to<JsonObject>();
     JsonArray unavailable = root["unavailable"].to<JsonArray>();
@@ -310,6 +313,10 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
   }
 
   void handle_update_(AsyncWebServerRequest *request) {
+    if (this->reset_->pending() || this->reset_->failed()) {
+      send_error_(request, 409, "reset_pending");
+      return;
+    }
     if (this->update_pending_.load()) {
       send_error_(request, 409, "update_in_progress");
       return;
@@ -336,6 +343,13 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
       send_error_(request, 400, "missing_values");
       return;
     }
+    const bool has_reset_epoch = root["reset_epoch"].is<uint32_t>();
+    // API v1 clients predating reset epochs remain valid after a reset. Clients
+    // that send an epoch get stale-session protection from this comparison.
+    if (has_reset_epoch && root["reset_epoch"].as<uint32_t>() != this->reset_->epoch()) {
+      send_error_(request, 409, "reset_epoch_mismatch");
+      return;
+    }
 
     std::vector<PendingValue> pending_values;
     JsonObject values = root["values"].as<JsonObject>();
@@ -357,10 +371,12 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
     }
 
     this->update_pending_.store(true);
+    this->reset_->set_settings_update_in_progress(true);
     const size_t updated = pending_values.size();
     this->scheduler_->schedule_configuration_update([this, pending_values = std::move(pending_values)]() mutable {
       for (auto &pending : pending_values) this->apply_pending_(pending);
       this->update_pending_.store(false);
+      this->reset_->set_settings_update_in_progress(false);
     });
 
     json::JsonBuilder builder;
@@ -408,6 +424,7 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
   }
 
   ConfigurationUpdateScheduler *scheduler_;
+  ResetCoordinator *reset_;
   std::atomic<bool> update_pending_{false};
 };
 

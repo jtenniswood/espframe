@@ -59,7 +59,7 @@ def check_backup_metadata(product: dict, errors: list[str]) -> None:
         "display_mode",
         "display mode",
         "Partial config files work",
-        "Settings imported successfully",
+        "Backup restored successfully",
         "JSON.stringify(data, null, 2)",
         "buildBackupExportData",
         "BACKUP_SCHEMA.forEach",
@@ -75,7 +75,7 @@ def check_backup_metadata(product: dict, errors: list[str]) -> None:
         "screen.schedule_wake_timeout",
     ):
         if needle in {
-            "Settings imported successfully",
+            "Backup restored successfully",
             "JSON.stringify(data, null, 2)",
             "buildBackupExportData",
             "BACKUP_SCHEMA.forEach",

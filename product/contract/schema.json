@@ -27,13 +27,15 @@
         "contract_version": { "const": 2 },
         "configuration_api": {
           "type": "object",
-          "required": ["version", "base_path", "capabilities_path", "configuration_path", "update_mode"],
+          "required": ["version", "base_path", "capabilities_path", "configuration_path", "reset_path", "reset_modes", "update_mode"],
           "additionalProperties": false,
           "properties": {
             "version": { "type": "integer", "minimum": 1 },
             "base_path": { "type": "string", "pattern": "^/espframe/api/v[0-9]+$" },
             "capabilities_path": { "type": "string", "pattern": "^/espframe/api/v[0-9]+/capabilities$" },
             "configuration_path": { "type": "string", "pattern": "^/espframe/api/v[0-9]+/configuration$" },
+            "reset_path": { "type": "string", "pattern": "^/espframe/api/v[0-9]+/reset$" },
+            "reset_modes": { "type": "array", "items": { "enum": ["customization", "factory"] }, "minItems": 2, "uniqueItems": true },
             "update_mode": { "const": "atomic" }
           }
         },

@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "web": {
-    "app_bytes_max": 247500,
-    "style_bytes_max": 23750,
-    "combined_bytes_max": 271250,
-    "app_gzip_bytes_max": 56000,
-    "style_gzip_bytes_max": 5400,
-    "combined_gzip_bytes_max": 61000
+    "app_bytes_max": 260000,
+    "style_bytes_max": 27000,
+    "combined_bytes_max": 287000,
+    "app_gzip_bytes_max": 58000,
+    "style_gzip_bytes_max": 6000,
+    "combined_gzip_bytes_max": 64000
   },
   "firmware": {
     "factory": {

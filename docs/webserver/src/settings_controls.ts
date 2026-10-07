@@ -20,6 +20,7 @@
       makeClockCard: makeClockCard,
       makeFirmwareCard: makeFirmwareCard,
       makeDeviceRebootCard: makeDeviceRebootCard,
+      makeResetCard: makeResetCard,
       makeDeveloperCard: makeDeveloperCard,
       makeFrameNameCard: makeFrameNameCard,
       makeBackupCard: makeBackupCard
@@ -95,6 +96,7 @@
       { section: "System", element: makeBackupCard() },
       { section: "System", element: makeFirmwareCard() },
       { section: "System", element: makeDeviceRebootCard() },
+      { section: "System", element: makeResetCard() },
       { section: "System", element: makeDeveloperCard() }
     ];
     appendSettingsSections(wrap, settingsCardEntries);

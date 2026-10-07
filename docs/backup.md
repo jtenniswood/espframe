@@ -36,7 +36,7 @@ Firmware version, update status, sunrise/sunset, and current brightness are **no
 1. Open the device web UI at `http://<device-ip>/`.
 2. Expand the **Backup** card.
 3. Click **Import** and select a previously exported `.json` file.
-4. Settings are batched; validation failures retry fields individually; legacy firmware writes individually. The page refreshes when complete. The API key is never restored from a backup, including older backup files that contain one, so the destination's existing key stays unchanged.
+4. All valid settings in a backup are pushed in size-limited atomic updates so larger backups fit the device web server request limit. If the device rejects a setting, smaller batches let other settings continue restoring. The page refreshes when complete. Backups never include the Immich API key; older backup files that contain one do not replace the destination's key.
 
 Partial config files work — only settings present in the file are applied; everything else stays unchanged.
 

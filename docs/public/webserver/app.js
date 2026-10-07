@@ -90,6 +90,8 @@
       __publicField(this, "queue", Promise.resolve());
       __publicField(this, "capabilities", null);
       __publicField(this, "negotiated");
+      __publicField(this, "resetEpoch");
+      __publicField(this, "resetAccepted", false);
     }
     waitForWrites() {
       return this.queue;
@@ -176,7 +178,7 @@
       const capabilities = await this.negotiate();
       if (!capabilities) throw new EspframeApiError("unavailable", "configuration_api_unavailable");
       const payload = await this.requestJson(capabilities.configuration_path, { cache: "no-store" }, "configuration_api_failed");
-      if (!object(payload) || payload.api_version !== capabilities.api_version || !object(payload.values) || !Array.isArray(payload.unavailable) || !payload.unavailable.every((value) => typeof value === "string")) {
+      if (!object(payload) || payload.api_version !== capabilities.api_version || capabilities.reset_path && !Number.isInteger(payload.reset_epoch) || !object(payload.values) || !Array.isArray(payload.unavailable) || !payload.unavailable.every((value) => typeof value === "string")) {
         throw new EspframeApiError("server", "invalid_configuration_snapshot");
       }
       let apiKeyConfigured = typeof payload.api_key_configured === "boolean" ? payload.api_key_configured : void 0;
@@ -193,8 +195,10 @@
         values[key] = value;
       }
       if (apiKeyConfigured === void 0) apiKeyConfigured = false;
+      this.resetEpoch = Number.isInteger(payload.reset_epoch) ? payload.reset_epoch : 0;
       return {
         api_version: capabilities.api_version,
+        reset_epoch: this.resetEpoch,
         api_key_configured: apiKeyConfigured,
         values,
         unavailable: payload.unavailable
@@ -230,12 +234,14 @@
     }
     updateSettings(values, legacy) {
       return this.enqueue(async () => {
+        if (this.resetAccepted) throw new EspframeApiError("conflict", "reset_pending", 409, "reset_pending");
         const capabilities = await this.negotiate();
         if (!capabilities) {
           for (const setting of legacy) await this.legacyWrite(setting);
           return null;
         }
-        const body = new URLSearchParams({ [capabilities.configuration_parameter || "configuration"]: JSON.stringify({ api_version: capabilities.api_version, values }) }).toString();
+        if (this.resetEpoch === void 0) await this.getConfigurationSnapshot();
+        const body = new URLSearchParams({ [capabilities.configuration_parameter || "configuration"]: JSON.stringify({ api_version: capabilities.api_version, reset_epoch: this.resetEpoch, values }) }).toString();
         try {
           const payload = await this.requestJson(capabilities.configuration_path, {
             method: "POST",
@@ -253,11 +259,24 @@
         }
       });
     }
+    reset(mode) {
+      return this.enqueue(async () => {
+        if (this.resetAccepted) return;
+        const capabilities = await this.negotiate();
+        if (!capabilities || !capabilities.reset_path) {
+          throw new EspframeApiError("unavailable", "reset_unavailable");
+        }
+        await this.legacyPost(capabilities.reset_path, new URLSearchParams({ mode }).toString());
+        this.resetAccepted = true;
+      });
+    }
     post(url, params) {
+      if (this.resetAccepted) return Promise.reject(new EspframeApiError("conflict", "reset_pending", 409, "reset_pending"));
       const query = params ? "?" + new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)])).toString() : "";
       return this.enqueue(() => this.legacyPost(url + query));
     }
     postText(url, value, useQueryFallback = false) {
+      if (this.resetAccepted) return Promise.reject(new EspframeApiError("conflict", "reset_pending", 409, "reset_pending"));
       return this.enqueue(() => {
         const body = new URLSearchParams({ value }).toString();
         const query = useQueryFallback && (url + "?" + body).length <= 120 ? "?" + body : "";
@@ -413,11 +432,11 @@
   var FIRMWARE_MANIFEST_URLS = { "stable": "https://jtenniswood.github.io/espframe/firmware/manifest.json", "devices": { "immich-frame": { "stable": "https://jtenniswood.github.io/espframe/firmware/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/beta/manifest.json" }, "immich-frame-v2": { "stable": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v2/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v2/beta/manifest.json" }, "immich-frame-v3": { "stable": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v3/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v3/beta/manifest.json" } } };
   var DOCS_BASE_URL = "https://jtenniswood.github.io/espframe";
   var WEB_UI_TABS = [{ "id": "immich", "label": "Immich" }, { "id": "settings", "label": "Device" }, { "id": "logs", "label": "Logs" }];
-  var WEB_UI_CARDS = [{ "id": "connection", "label": "Connection", "tab": "immich", "section": "", "function": "makeConnectionCard", "settings": ["conn_timeout"], "staticEntities": [], "manualEntities": ["immich_url", "api_key"] }, { "id": "frequency", "label": "Frequency", "tab": "immich", "section": "", "function": "makeFrequencyCard", "settings": ["interval"], "staticEntities": [], "manualEntities": [] }, { "id": "portrait_pairing", "label": "Portrait Pairing", "tab": "immich", "section": "", "function": "makePortraitPairingCard", "settings": ["portrait_pairing", "portrait_pairs_only", "portrait_pairing_range"], "staticEntities": [], "manualEntities": [] }, { "id": "memories", "label": "Memories", "tab": "immich", "section": "", "function": "makeMemoriesCard", "settings": ["memories_window", "memories_fallback"], "staticEntities": ["memories_migration_notice"], "manualEntities": [] }, { "id": "photo_source", "label": "Filters", "tab": "immich", "section": "", "function": "makeFiltersCard", "settings": ["photo_source", "albums_enabled", "people_enabled", "tags_enabled", "date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit", "favorites_enabled", "rating_enabled", "location_enabled", "inclusion_matching", "album_matching", "person_matching", "tag_matching", "favorite_mode", "minimum_rating", "filter_country", "filter_state", "filter_city", "album_order"], "staticEntities": ["album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels", "excluded_album_ids", "excluded_album_labels", "excluded_person_ids", "excluded_person_labels", "excluded_tag_ids", "excluded_tag_labels", "immich_server_version", "immich_capability_status"], "manualEntities": ["apply_photo_source"] }, { "id": "layout", "label": "Photo Display", "tab": "immich", "section": "", "function": "makeLayoutCard", "settings": ["photo_orientation", "display_mode"], "staticEntities": [], "manualEntities": [] }, { "id": "metadata", "label": "Metadata", "tab": "immich", "section": "", "function": "makeMetadataCard", "settings": ["photo_metadata_date_enabled", "photo_metadata_location_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format"], "staticEntities": [], "manualEntities": [] }, { "id": "screen_brightness", "label": "Screen Brightness", "tab": "settings", "section": "Display", "function": "makeScreenBrightnessCard", "settings": ["brightness_day", "brightness_night"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "screen_tone", "label": "Screen Tone", "tab": "settings", "section": "Display", "function": "makeScreenToneCard", "settings": ["base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"], "staticEntities": [], "manualEntities": [] }, { "id": "rotation", "label": "Rotation", "tab": "settings", "section": "Display", "function": "makeRotationCard", "settings": ["screen_rotation"], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "clock", "label": "Clock", "tab": "settings", "section": "Display", "function": "makeClockCard", "settings": ["clock_format"], "staticEntities": ["show_clock", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"], "manualEntities": [] }, { "id": "night_schedule", "label": "Night Schedule", "tab": "settings", "section": "Sleep & Schedule", "function": "makeNightScheduleCard", "settings": ["schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "frame_name", "label": "Frame Name", "tab": "settings", "section": "System", "function": "makeFrameNameCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "backup", "label": "Backup", "tab": "settings", "section": "System", "function": "makeBackupCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "firmware", "label": "Firmware", "tab": "settings", "section": "System", "function": "makeFirmwareCard", "settings": ["update_frequency", "auto_update", "c6_auto_update"], "staticEntities": ["firmware_device", "firmware", "c6_current_firmware", "c6_available_firmware", "c6_update_status"], "manualEntities": ["update", "firmware_prepare_upload", "firmware_cancel_upload", "firmware_check", "c6_firmware_check", "c6_firmware_install"] }, { "id": "device_reboot", "label": "Device Reboot", "tab": "settings", "section": "System", "function": "makeDeviceRebootCard", "settings": [], "staticEntities": [], "manualEntities": ["reboot_screen"] }, { "id": "developer", "label": "Developer", "tab": "settings", "section": "System", "function": "makeDeveloperCard", "settings": [], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }];
+  var WEB_UI_CARDS = [{ "id": "connection", "label": "Connection", "tab": "immich", "section": "", "function": "makeConnectionCard", "settings": ["conn_timeout"], "staticEntities": [], "manualEntities": ["immich_url", "api_key"] }, { "id": "frequency", "label": "Frequency", "tab": "immich", "section": "", "function": "makeFrequencyCard", "settings": ["interval"], "staticEntities": [], "manualEntities": [] }, { "id": "portrait_pairing", "label": "Portrait Pairing", "tab": "immich", "section": "", "function": "makePortraitPairingCard", "settings": ["portrait_pairing", "portrait_pairs_only", "portrait_pairing_range"], "staticEntities": [], "manualEntities": [] }, { "id": "memories", "label": "Memories", "tab": "immich", "section": "", "function": "makeMemoriesCard", "settings": ["memories_window", "memories_fallback"], "staticEntities": ["memories_migration_notice"], "manualEntities": [] }, { "id": "photo_source", "label": "Filters", "tab": "immich", "section": "", "function": "makeFiltersCard", "settings": ["photo_source", "albums_enabled", "people_enabled", "tags_enabled", "date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit", "favorites_enabled", "rating_enabled", "location_enabled", "inclusion_matching", "album_matching", "person_matching", "tag_matching", "favorite_mode", "minimum_rating", "filter_country", "filter_state", "filter_city", "album_order"], "staticEntities": ["album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels", "excluded_album_ids", "excluded_album_labels", "excluded_person_ids", "excluded_person_labels", "excluded_tag_ids", "excluded_tag_labels", "immich_server_version", "immich_capability_status"], "manualEntities": ["apply_photo_source"] }, { "id": "layout", "label": "Photo Display", "tab": "immich", "section": "", "function": "makeLayoutCard", "settings": ["photo_orientation", "display_mode"], "staticEntities": [], "manualEntities": [] }, { "id": "metadata", "label": "Metadata", "tab": "immich", "section": "", "function": "makeMetadataCard", "settings": ["photo_metadata_date_enabled", "photo_metadata_location_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format"], "staticEntities": [], "manualEntities": [] }, { "id": "screen_brightness", "label": "Screen Brightness", "tab": "settings", "section": "Display", "function": "makeScreenBrightnessCard", "settings": ["brightness_day", "brightness_night"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "screen_tone", "label": "Screen Tone", "tab": "settings", "section": "Display", "function": "makeScreenToneCard", "settings": ["base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"], "staticEntities": [], "manualEntities": [] }, { "id": "rotation", "label": "Rotation", "tab": "settings", "section": "Display", "function": "makeRotationCard", "settings": ["screen_rotation"], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "clock", "label": "Clock", "tab": "settings", "section": "Display", "function": "makeClockCard", "settings": ["clock_format"], "staticEntities": ["show_clock", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"], "manualEntities": [] }, { "id": "night_schedule", "label": "Night Schedule", "tab": "settings", "section": "Sleep & Schedule", "function": "makeNightScheduleCard", "settings": ["schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "frame_name", "label": "Frame Name", "tab": "settings", "section": "System", "function": "makeFrameNameCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "backup", "label": "Backup", "tab": "settings", "section": "System", "function": "makeBackupCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "firmware", "label": "Firmware", "tab": "settings", "section": "System", "function": "makeFirmwareCard", "settings": ["update_frequency", "auto_update", "c6_auto_update"], "staticEntities": ["firmware_device", "firmware", "c6_current_firmware", "c6_available_firmware", "c6_update_status"], "manualEntities": ["update", "firmware_prepare_upload", "firmware_cancel_upload", "firmware_check", "c6_firmware_check", "c6_firmware_install"] }, { "id": "device_reboot", "label": "Device Reboot", "tab": "settings", "section": "System", "function": "makeDeviceRebootCard", "settings": [], "staticEntities": [], "manualEntities": ["reboot_screen"] }, { "id": "factory_reset", "label": "Reset", "tab": "settings", "section": "System", "function": "makeResetCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "developer", "label": "Developer", "tab": "settings", "section": "System", "function": "makeDeveloperCard", "settings": [], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }];
   var WEB_UI_LOGS_RETAINED_LINES = 1e3;
   var SUPPORT_URL = "https://www.buymeacoffee.com/jtenniswood";
   var SUPPORT_BUTTON_IMAGE_DATA_URI = "data:image/webp;base64,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";
-  var GENERATED_CONFIGURATION_CAPABILITIES = { "contract_version": 2, "api_version": 1, "base_path": "/espframe/api/v1", "capabilities_path": "/espframe/api/v1/capabilities", "configuration_path": "/espframe/api/v1/configuration", "update_mode": "atomic", "configuration_available": true, "configuration_read": true, "configuration_write": true, "configuration_encoding": "application/x-www-form-urlencoded", "configuration_parameter": "configuration", "legacy_entity_api": true, "backup_versions": [1, 2, 3], "setting_count": 52 };
+  var GENERATED_CONFIGURATION_CAPABILITIES = { "contract_version": 2, "api_version": 1, "base_path": "/espframe/api/v1", "capabilities_path": "/espframe/api/v1/capabilities", "configuration_path": "/espframe/api/v1/configuration", "reset_path": "/espframe/api/v1/reset", "reset_modes": ["customization", "factory"], "update_mode": "atomic", "configuration_available": true, "configuration_read": true, "configuration_write": true, "configuration_encoding": "application/x-www-form-urlencoded", "configuration_parameter": "configuration", "legacy_entity_api": true, "backup_versions": [1, 2, 3], "setting_count": 52 };
   var highlightApiKeyAfterRestore = false;
   var S = {
     tz_options: TIMEZONES,
@@ -1417,6 +1436,91 @@ to {
   gap:12px
 }
 
+.reset-backup-notice {
+  display:flex;
+  align-items:center;
+  gap:14px;
+  min-height:68px;
+  padding:12px 16px;
+  border:1px solid rgba(92, 115, 231, .32);
+  border-radius:12px;
+  background:var(--accent-soft);
+  color:var(--text2)
+}
+
+.reset-notice-icon {
+  display:flex;
+  flex:none;
+  width:22px;
+  height:22px;
+  color:var(--accent)
+}
+
+.reset-notice-icon svg { width:100%; height:100%; }
+.reset-notice-text { flex:1; min-width:0; }
+.reset-backup-button { padding:12px 24px; font-size:1rem; font-weight:500; white-space:nowrap; }
+
+.reset-actions-grid {
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:16px
+}
+
+.reset-action-panel {
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  min-height:190px;
+  padding:20px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:rgba(0, 0, 0, .08)
+}
+
+.reset-action-panel h4 { margin:0 0 8px; font-size:1rem; font-weight:600; line-height:1.4; }
+.reset-action-description { flex:1; margin:0 0 20px; color:var(--text2); line-height:1.6; }
+.reset-action-button { padding:10px 20px; font-size:.875rem; font-weight:500; }
+.btn-danger { background:var(--danger); color:#fff; }
+.btn-danger:hover { background:#d93049; box-shadow:0 2px 12px rgba(241, 65, 88, .22); }
+
+.reset-confirm-dialog {
+  width:min(520px, calc(100% - 32px));
+  max-height:calc(100% - 32px);
+  margin:auto;
+  padding:24px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:var(--surface);
+  color:var(--text);
+  box-shadow:var(--shadow-3);
+  font:inherit;
+  line-height:1.55
+}
+
+.reset-confirm-dialog::backdrop { background:rgba(0, 0, 0, .64); }
+.reset-confirm-dialog h2 { margin:0 0 8px; font-size:1.15rem; font-weight:600; line-height:1.4; }
+.reset-confirm-dialog>p { margin:0 0 16px; color:var(--text2); }
+.reset-dialog-warning { display:flex; align-items:flex-start; gap:12px; margin:16px 0; padding:14px; border:1px solid rgba(241, 65, 88, .35); border-radius:12px; background:rgba(241, 65, 88, .12); color:var(--text2); }
+.reset-dialog-warning-icon { display:flex; flex:none; align-items:center; justify-content:center; width:22px; height:22px; border:2px solid var(--danger); border-radius:50%; color:var(--danger); font-weight:700; line-height:1; }
+.reset-dialog-backup-reminder { color:var(--text2); }
+.reset-confirm-label { display:block; margin-top:14px; color:var(--text); font-size:.875rem; font-weight:600; }
+.reset-confirm-input { display:block; width:100%; margin-top:6px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--bg); color:var(--text); font:inherit; }
+.reset-confirm-input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.reset-confirm-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:24px; }
+.reset-confirm-actions .btn { min-width:104px; }
+
+@media (max-width:700px) {
+  .reset-actions-grid { grid-template-columns:1fr; }
+  .reset-action-panel { min-height:0; }
+}
+
+@media (max-width:480px) {
+  .reset-backup-notice { flex-wrap:wrap; }
+  .reset-notice-text { flex-basis:calc(100% - 40px); }
+  .reset-backup-button { margin-left:36px; }
+  .reset-confirm-dialog { padding:20px; }
+}
+
 .fw-subpanels {
   display:grid;
   gap:12px
@@ -2241,10 +2345,16 @@ to {
     return { key, domain, url: endpoints[key], value: savedValue };
   }
   function saveSettingValues(values) {
-    return settingSaves.save(values, function() {
+    var trackedValues = Object.assign({}, values);
+    var includesApiKey = Object.prototype.hasOwnProperty.call(trackedValues, "api_key");
+    delete trackedValues.api_key;
+    return settingSaves.save(trackedValues, function() {
       return apiClient.updateSettings(values, Object.keys(values).map(function(key) {
         return legacySettingWrite(key, values[key]);
       }));
+    }).then(function(response) {
+      if (includesApiKey) settingSaves.receive("api_key_configured", true);
+      return response;
     });
   }
   function saveGenericSetting(key, value) {
@@ -4442,6 +4552,121 @@ to {
     rebootBody.appendChild(actionRow(rebootLabel, rebootBtn));
     return makeCollapsibleCard("Device Reboot", rebootBody, true);
   }
+  function makeResetCard() {
+    var body = el("div", "fw-body");
+    var backupNotice = el("div", "reset-backup-notice");
+    var infoIcon = el("span", "reset-notice-icon");
+    infoIcon.setAttribute("aria-hidden", "true");
+    infoIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>';
+    var backupMessage = el("span", "reset-notice-text");
+    backupMessage.textContent = "Backup your device before resetting";
+    var backupButton = button("Save backup", "btn btn-primary reset-backup-button", exportConfig);
+    backupNotice.append(infoIcon, backupMessage, backupButton);
+    body.appendChild(backupNotice);
+    function showResetConfirmation(mode) {
+      var factory = mode === "factory";
+      return new Promise(function(resolve) {
+        var dialog = document.createElement("dialog");
+        dialog.className = "reset-confirm-dialog";
+        var title = document.createElement("h2");
+        title.id = "reset-confirm-title";
+        title.textContent = factory ? "Complete reset" : "Partial reset";
+        dialog.setAttribute("aria-labelledby", title.id);
+        var description = document.createElement("p");
+        description.textContent = factory ? "Remove all existing configuration and return this display to first-time setup." : "Reset cards and preferences. Your Wi-Fi and Home Assistant configuration will be retained.";
+        dialog.append(title, description);
+        var resetInput;
+        if (factory) {
+          var warning = el("div", "reset-dialog-warning");
+          var warningIcon = el("span", "reset-dialog-warning-icon");
+          warningIcon.setAttribute("aria-hidden", "true");
+          warningIcon.textContent = "!";
+          var warningText = el("span");
+          warningText.textContent = "Saved Wi-Fi credentials and the Home Assistant API key will be erased. Wi-Fi compiled into the firmware may reconnect.";
+          warning.append(warningIcon, warningText);
+          var backupReminder = el("p", "reset-dialog-backup-reminder");
+          backupReminder.textContent = "Save a backup first. This reset cannot be undone.";
+          var resetLabel = document.createElement("label");
+          resetLabel.className = "reset-confirm-label";
+          resetLabel.textContent = "Type RESET to confirm";
+          resetInput = document.createElement("input");
+          resetInput.className = "reset-confirm-input";
+          resetInput.type = "text";
+          resetInput.autocomplete = "off";
+          resetInput.spellcheck = false;
+          resetInput.setAttribute("aria-label", "Type RESET to confirm factory reset");
+          resetLabel.appendChild(resetInput);
+          dialog.append(warning, backupReminder, resetLabel);
+        }
+        var actions = el("div", "reset-confirm-actions");
+        var cancelButton = button("Cancel", "btn btn-secondary", function() {
+          finish(false);
+        });
+        var confirmButton = button(factory ? "Complete reset" : "Partial reset", factory ? "btn btn-danger" : "btn btn-primary", function() {
+          finish(true);
+        });
+        if (factory) {
+          confirmButton.disabled = true;
+          resetInput.addEventListener("input", function() {
+            confirmButton.disabled = resetInput.value !== "RESET";
+          });
+        }
+        actions.append(cancelButton, confirmButton);
+        dialog.appendChild(actions);
+        var completed = false;
+        function finish(accepted) {
+          if (completed) return;
+          completed = true;
+          dialog.close();
+          dialog.remove();
+          resolve(accepted);
+        }
+        dialog.addEventListener("cancel", function(event) {
+          event.preventDefault();
+          finish(false);
+        });
+        dialog.addEventListener("close", function() {
+          if (!completed) finish(false);
+        });
+        document.body.appendChild(dialog);
+        dialog.showModal();
+        if (factory) resetInput.focus();
+      });
+    }
+    function addResetAction(title, descriptionText, mode) {
+      var panel = el("section", "reset-action-panel" + (mode === "factory" ? " reset-action-danger" : ""));
+      var heading = document.createElement("h4");
+      heading.textContent = title;
+      var description = el("p", "reset-action-description");
+      description.textContent = descriptionText;
+      var action = button(title, mode === "factory" ? "btn btn-danger reset-action-button" : "btn btn-secondary reset-action-button");
+      action.onclick = async function() {
+        if (typeof backupImportInProgress !== "undefined" && backupImportInProgress) {
+          showBanner("Let the backup import finish before resetting.", "error");
+          return;
+        }
+        if (!await showResetConfirmation(mode)) return;
+        action.disabled = true;
+        action.textContent = "Restarting\u2026";
+        try {
+          await apiClient.waitForWrites();
+          await apiClient.reset(mode);
+          showBanner("Reset accepted. The frame is restarting. It may reconnect using credentials compiled into its firmware.", "info");
+        } catch (_) {
+          action.disabled = false;
+          action.textContent = title;
+          showBanner("Reset could not be started. Check the device connection and try again.", "error");
+        }
+      };
+      panel.append(heading, description, action);
+      resetActions.appendChild(panel);
+    }
+    var resetActions = el("div", "reset-actions-grid");
+    body.appendChild(resetActions);
+    addResetAction("Partial reset", "Reset cards and preferences. Retains your configuration for Wifi and Home Assistant.", "customization");
+    addResetAction("Complete reset", "Remove all existing configuration and reset back to first time setup.", "factory");
+    return makeCollapsibleCard("Factory Reset", body, true);
+  }
   function makeDeveloperCard() {
     if (!developerPanelEnabledByUrl()) return null;
     var devBadge = makeBadge(S.developer_features_enabled);
@@ -4487,6 +4712,7 @@ to {
       makeClockCard,
       makeFirmwareCard,
       makeDeviceRebootCard,
+      makeResetCard,
       makeDeveloperCard,
       makeFrameNameCard,
       makeBackupCard
@@ -4560,6 +4786,7 @@ to {
       { section: "System", element: makeBackupCard() },
       { section: "System", element: makeFirmwareCard() },
       { section: "System", element: makeDeviceRebootCard() },
+      { section: "System", element: makeResetCard() },
       { section: "System", element: makeDeveloperCard() }
     ];
     appendSettingsSections(wrap, settingsCardEntries);
@@ -5527,62 +5754,83 @@ to {
   var backupImportSaveTasks = null;
   var backupImportInProgress = false;
   var backupImportMessages = [];
-  var backupImportBatchValues = null;
+  var backupImportValues = null;
+  var BACKUP_IMPORT_MAX_BODY = 900;
   function queueBackupImportSetting(key, value) {
-    if (!key || !endpoints[key]) return;
-    var savedValue = value;
-    if (key === "ntp_server_1" || key === "ntp_server_2" || key === "ntp_server_3") {
-      savedValue = normalizeNtpServer(value);
-    } else if (key === "schedule_wake_timeout") {
-      savedValue = normalizeScheduleWakeTimeout(value);
-    } else if (key === "screen_rotation") {
-      savedValue = String(value);
-      backupImportBatchValues.portrait_pairing = !isPortraitScreenRotation(savedValue);
-    }
-    backupImportBatchValues[key] = savedValue;
+    if (!backupImportValues) return false;
+    backupImportValues[key] = value;
+    return true;
+  }
+  function recordBackupImportSaveFailure(label) {
+    if (backupImportMessages.length >= 3) return;
+    backupImportMessages.push("Could not restore " + label);
+  }
+  function trackBackupImportSave(result, settingCount) {
+    if (!backupImportSaveTasks) return;
+    var tracked = Promise.resolve(result).then(function(response) {
+      if (response && response.ok === false) throw new Error("save_failed");
+      if (response && typeof response.failedCount === "number") return response;
+      return { failedCount: 0 };
+    }).catch(function() {
+      return { failedCount: Math.max(1, Number(settingCount) || 1) };
+    });
+    backupImportSaveTasks.push(tracked);
+  }
+  function backupImportBatchBodyLength(values) {
+    var configuration = JSON.stringify({ api_version: 1, reset_epoch: 0, values });
+    return new URLSearchParams({ configuration }).toString().length;
+  }
+  function backupImportSettingsBatches(values) {
+    var batches = [];
+    var current = {};
+    Object.keys(values).forEach(function(key) {
+      var candidate = Object.assign({}, current);
+      candidate[key] = values[key];
+      if (Object.keys(current).length && backupImportBatchBodyLength(candidate) > BACKUP_IMPORT_MAX_BODY) {
+        batches.push(current);
+        current = {};
+        candidate = {};
+        candidate[key] = values[key];
+      }
+      current = candidate;
+    });
+    if (Object.keys(current).length) batches.push(current);
+    return batches;
+  }
+  function backupImportCanRetrySmaller(error) {
+    return error && (error.status === 413 || error.status === 422 || error.status === 400 && (!error.code || error.code === "invalid_json"));
   }
   function saveBackupImportBatch(values) {
     var keys = Object.keys(values);
-    var failedCount = 0;
-    var offset = 0;
-    var batchSize = 6;
-    function saveNextBatch() {
-      if (offset >= keys.length) return Promise.resolve(failedCount);
-      var batchKeys = keys.slice(offset, offset + batchSize);
-      offset += batchKeys.length;
-      var batch = {};
-      batchKeys.forEach(function(key) {
-        batch[key] = values[key];
-      });
-      return saveSettingValues(batch).then(function() {
-        return 0;
-      }, function(error) {
-        if (!error || error.kind !== "validation") return batchKeys.length;
-        var batchFailures = 0;
-        return Promise.all(batchKeys.map(function(key) {
-          return saveSetting(key, values[key]).catch(function() {
-            batchFailures += 1;
-          });
-        })).then(function() {
-          return batchFailures;
+    return saveSettingValues(values).then(function() {
+      return { failedCount: 0 };
+    }).catch(function(error) {
+      if (keys.length > 1 && backupImportCanRetrySmaller(error)) {
+        var midpoint = Math.ceil(keys.length / 2);
+        var first = {};
+        var second = {};
+        keys.forEach(function(key, index) {
+          (index < midpoint ? first : second)[key] = values[key];
         });
-      }).then(function(batchFailures) {
-        failedCount += batchFailures;
-        return saveNextBatch();
-      });
-    }
-    return saveNextBatch();
+        return saveBackupImportBatch(first).then(function(firstResult) {
+          return saveBackupImportBatch(second).then(function(secondResult) {
+            return { failedCount: firstResult.failedCount + secondResult.failedCount };
+          });
+        });
+      }
+      recordBackupImportSaveFailure(keys.length === 1 ? keys[0].replace(/_/g, " ") : "settings");
+      return { failedCount: keys.length };
+    });
   }
-  function trackBackupImportSave(result) {
-    if (!backupImportSaveTasks) return;
-    backupImportSaveTasks.push(
-      Promise.resolve(result).then(function(response) {
-        if (response && response.ok === false) throw new Error("save_failed");
-        return true;
-      }).catch(function() {
-        return false;
-      })
-    );
+  function saveBackupImportSettings(values) {
+    var batches = backupImportSettingsBatches(values);
+    return batches.reduce(function(chain, batch) {
+      return chain.then(function(result) {
+        return saveBackupImportBatch(batch).then(function(batchResult) {
+          return { failedCount: result.failedCount + batchResult.failedCount };
+        });
+      });
+    }, Promise.resolve({ failedCount: 0 }));
   }
   function backupImportEntryUsesPhotoSourceApply(entry) {
     return entry && entry.group === "photos" && Array.isArray(entry.state_keys) && entry.state_keys.some(settingUsesPhotoSourceApply);
@@ -5660,8 +5908,7 @@ to {
   function applyGenericBackupImportField(entry, value) {
     var validation = validateProductSettingBackupImport(entry, value);
     if (!validation.ok) return skipBackupImportField(validation.message);
-    queueBackupImportSetting(backupImportStateKey(entry), validation.value);
-    return true;
+    return queueBackupImportSetting(backupImportStateKey(entry), validation.value);
   }
   function skipBackupImportField(message) {
     if (backupImportInProgress) {
@@ -5676,13 +5923,12 @@ to {
     var failedText = failedCount + " failed " + (failedCount === 1 ? "setting" : "settings");
     if (failedCount) {
       if (appliedCount || skippedCount) {
-        return "Imported with " + failedText + (skippedCount ? " and " + skippedText : "");
+        return "Backup partially restored: " + failedText + (skippedCount ? " and " + skippedText : "");
       }
-      return "Import failed for " + failedCount + " " + (failedCount === 1 ? "setting" : "settings");
+      return "Backup restore failed for " + failedCount + " " + (failedCount === 1 ? "setting" : "settings");
     }
-    if (!skippedCount) return "Settings imported successfully";
-    if (appliedCount) return "Imported with " + skippedText;
-    return "Import skipped " + skippedCount + " " + (skippedCount === 1 ? "setting" : "settings");
+    if (!skippedCount) return "Backup restored successfully";
+    return "Backup restored successfully; " + skippedText;
   }
   function applyBackupImportField(entry, value) {
     var entryKey = backupEntryKey(entry);
@@ -5694,15 +5940,14 @@ to {
       if (excludedIds && !isValidUuidList(excludedIds)) {
         return skipBackupImportField("Import skipped invalid excluded IDs");
       }
-      queueBackupImportSetting(backupImportStateKey(entry), excludedIds);
-      return true;
+      return queueBackupImportSetting(backupImportStateKey(entry), excludedIds);
     }
     switch (backupEntryKey(entry)) {
       case "connection.immich_url":
         var importUrl = normalizeImmichUrl(value);
         if (importUrl.length > 255) return skipBackupImportField("Immich URL exceeds 255 characters - not imported");
         if (importUrl && !isValidHttpUrl(importUrl)) return skipBackupImportField("Immich URL was invalid - not imported");
-        queueBackupImportSetting("immich_url", importUrl);
+        return queueBackupImportSetting("immich_url", importUrl);
         return true;
       case "photos.album_ids":
         var importAlbum = String(value).trim();
@@ -5763,8 +6008,7 @@ to {
         if (TIMEZONES.indexOf(importedTimezone) === -1) {
           return skipBackupImportField("Timezone was invalid - not imported");
         }
-        queueBackupImportSetting("timezone", importedTimezone);
-        return true;
+        return queueBackupImportSetting("timezone", importedTimezone);
       case "clock.ntp_servers":
         if (Array.isArray(value) && value.length <= 3) {
           for (var ntpIndex = 0; ntpIndex < value.length; ntpIndex++) {
@@ -5775,7 +6019,7 @@ to {
           }
           ["ntp_server_1", "ntp_server_2", "ntp_server_3"].forEach(function(key, idx) {
             if (value[idx] === void 0) return;
-            queueBackupImportSetting(key, value[idx]);
+            queueBackupImportSetting(key, normalizeNtpServer(value[idx]));
           });
           return true;
         }
@@ -5784,12 +6028,12 @@ to {
         var wakeTimeout = normalizeScheduleWakeTimeout(value);
         var wakeValidation = validateProductSettingBackupImport(entry, wakeTimeout);
         if (!wakeValidation.ok) return skipBackupImportField(wakeValidation.message);
-        queueBackupImportSetting("schedule_wake_timeout", wakeValidation.value);
-        return true;
+        return queueBackupImportSetting("schedule_wake_timeout", wakeValidation.value);
       case "screen.rotation":
         var importedRotation = String(value);
         if (screenRotationOptionsForUi().indexOf(importedRotation) !== -1) {
           queueBackupImportSetting("screen_rotation", importedRotation);
+          queueBackupImportSetting("portrait_pairing", !isPortraitScreenRotation(importedRotation));
           return true;
         }
         return skipBackupImportField("Screen rotation was invalid - not imported");
@@ -5803,11 +6047,14 @@ to {
     fileInput.type = "file";
     fileInput.accept = ".json";
     fileInput.style.display = "none";
+    function removeFileInput() {
+      if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
+    }
+    fileInput.addEventListener("cancel", removeFileInput);
     fileInput.addEventListener("change", function() {
-      if (!fileInput.files || !fileInput.files[0]) {
-        if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
-        return;
-      }
+      var selectedFile = fileInput.files && fileInput.files[0];
+      removeFileInput();
+      if (!selectedFile) return;
       var reader = new FileReader();
       reader.onload = async function() {
         try {
@@ -5837,76 +6084,81 @@ to {
           }
           backupImportInProgress = true;
           backupImportMessages = [];
+          backupImportValues = {};
           showBanner("Importing settings\u2026", "info", 0);
           backupImportSaveTasks = [];
-          backupImportBatchValues = {};
           var queuedCount = 0;
           var skippedCount = 0;
           var needsPhotoSourceApply = false;
           BACKUP_SCHEMA.forEach(function(entry) {
             if (!backupImportFieldPresent(data, entry)) return;
             if (applyBackupImportField(entry, backupImportFieldValue(data, entry))) {
-              queuedCount += 1;
               needsPhotoSourceApply = needsPhotoSourceApply || backupImportEntryUsesPhotoSourceApply(entry);
             } else {
               skippedCount += 1;
             }
           });
+          queuedCount = Object.keys(backupImportValues).length;
+          if (Object.keys(backupImportValues).length) {
+            trackBackupImportSave(saveBackupImportSettings(backupImportValues), Object.keys(backupImportValues).length);
+          }
           if (restoreName) {
             queuedCount += 1;
             trackBackupImportSave(saveFrameName(data.identity.name).then(function() {
               return { ok: true };
             }));
           }
-          var batchSave = Object.keys(backupImportBatchValues).length ? saveBackupImportBatch(backupImportBatchValues) : Promise.resolve(0);
-          var results = await Promise.all(backupImportSaveTasks);
-          var failedCount = Math.min(queuedCount, results.filter(function(ok) {
-            return !ok;
-          }).length + await batchSave);
-          var appliedCount = queuedCount - failedCount;
-          if (needsPhotoSourceApply && appliedCount) {
-            try {
-              await post(endpoints.apply_photo_source + "/press");
-            } catch (_) {
-              failedCount += 1;
+          Promise.all(backupImportSaveTasks).then(function(results) {
+            var failedCount = results.reduce(function(count, result) {
+              return count + (result && Number(result.failedCount) || 0);
+            }, 0);
+            var appliedCount = queuedCount - failedCount;
+            if (needsPhotoSourceApply && appliedCount) {
+              return post(endpoints.apply_photo_source + "/press").then(function() {
+                return { appliedCount, failedCount };
+              }).catch(function() {
+                return { appliedCount, failedCount: failedCount + 1 };
+              });
             }
-          }
-          backupImportInProgress = false;
-          var apiKeyNeedsInput = !S.api_key_configured;
-          var resultMessage = backupImportSummaryMessage(appliedCount, skippedCount, failedCount);
-          if (backupImportMessages.length) resultMessage += ". " + backupImportMessages.join("; ");
-          resultMessage += apiKeyNeedsInput ? ". Backups don\u2019t include the Immich API key. Enter it in the highlighted field on the Immich tab." : ". The destination\u2019s existing Immich API key was left unchanged.";
-          highlightApiKeyAfterRestore = apiKeyNeedsInput;
-          showBanner(
-            resultMessage,
-            skippedCount || failedCount ? "error" : "success",
-            apiKeyNeedsInput ? 0 : void 0
-          );
-          renderSettings();
-          if (apiKeyNeedsInput) openImmichConnectionForApiKey();
-          backupImportSaveTasks = null;
-          backupImportBatchValues = null;
-          backupImportMessages = [];
+            return { appliedCount, failedCount };
+          }).then(function(summary) {
+            var failedCount = summary.failedCount;
+            var appliedCount = summary.appliedCount;
+            backupImportInProgress = false;
+            var resultMessage = backupImportSummaryMessage(appliedCount, skippedCount, failedCount);
+            if (backupImportMessages.length) resultMessage += ". " + backupImportMessages.join("; ");
+            var apiKeyNeedsInput = !S.api_key_configured;
+            resultMessage += apiKeyNeedsInput ? ". Backups don\u2019t include the Immich API key. Enter it in the highlighted field on the Immich tab." : ". The destination\u2019s existing Immich API key was left unchanged.";
+            highlightApiKeyAfterRestore = apiKeyNeedsInput;
+            showBanner(
+              resultMessage,
+              failedCount || skippedCount ? "error" : "success",
+              apiKeyNeedsInput ? 0 : void 0
+            );
+            renderSettings();
+            if (apiKeyNeedsInput) openImmichConnectionForApiKey();
+            backupImportSaveTasks = null;
+            backupImportValues = null;
+            backupImportMessages = [];
+          }).catch(function() {
+            backupImportInProgress = false;
+            backupImportSaveTasks = null;
+            backupImportValues = null;
+            backupImportMessages = [];
+            showBanner("Import failed. Please try again.", "error");
+          });
         } catch (_) {
           backupImportInProgress = false;
           backupImportSaveTasks = null;
-          backupImportBatchValues = null;
+          backupImportValues = null;
           backupImportMessages = [];
           showBanner("Import failed. Please try again.", "error");
-        } finally {
-          if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
         }
       };
       reader.onerror = function() {
-        if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
-        showBanner("Import failed - could not read the backup file", "error");
+        showBanner("Could not read the selected backup file. Please try again.", "error");
       };
-      try {
-        reader.readAsText(fileInput.files[0]);
-      } catch (_) {
-        if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
-        showBanner("Import failed - could not read the backup file", "error");
-      }
+      reader.readAsText(selectedFile);
     });
     document.body.appendChild(fileInput);
     window.addEventListener("focus", function() {

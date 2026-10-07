@@ -155,62 +155,94 @@
   var backupImportSaveTasks = null;
   var backupImportInProgress = false;
   var backupImportMessages: string[] = [];
-  var backupImportBatchValues = null;
+  var backupImportValues = null;
+  var BACKUP_IMPORT_MAX_BODY = 900;
 
   function queueBackupImportSetting(key, value) {
-    if (!key || !endpoints[key]) return;
-    var savedValue = value;
-    if (key === "ntp_server_1" || key === "ntp_server_2" || key === "ntp_server_3") {
-      savedValue = normalizeNtpServer(value);
-    } else if (key === "schedule_wake_timeout") {
-      savedValue = normalizeScheduleWakeTimeout(value);
-    } else if (key === "screen_rotation") {
-      savedValue = String(value);
-      backupImportBatchValues.portrait_pairing = !isPortraitScreenRotation(savedValue);
-    }
-    backupImportBatchValues[key] = savedValue;
+    if (!backupImportValues) return false;
+    backupImportValues[key] = value;
+    return true;
+  }
+
+  function recordBackupImportSaveFailure(label) {
+    if (backupImportMessages.length >= 3) return;
+    backupImportMessages.push("Could not restore " + label);
+  }
+
+  function trackBackupImportSave(result, settingCount?) {
+    if (!backupImportSaveTasks) return;
+    var tracked = Promise.resolve(result)
+      .then(function (response) {
+        if (response && response.ok === false) throw new Error("save_failed");
+        if (response && typeof response.failedCount === "number") return response;
+        return { failedCount: 0 };
+      })
+      .catch(function () {
+        return { failedCount: Math.max(1, Number(settingCount) || 1) };
+      });
+    backupImportSaveTasks.push(tracked);
+  }
+
+  function backupImportBatchBodyLength(values) {
+    var configuration = JSON.stringify({ api_version: 1, reset_epoch: 0, values: values });
+    return new URLSearchParams({ configuration: configuration }).toString().length;
+  }
+
+  function backupImportSettingsBatches(values) {
+    var batches = [];
+    var current = {};
+    Object.keys(values).forEach(function (key) {
+      var candidate = Object.assign({}, current);
+      candidate[key] = values[key];
+      if (Object.keys(current).length && backupImportBatchBodyLength(candidate) > BACKUP_IMPORT_MAX_BODY) {
+        batches.push(current);
+        current = {};
+        candidate = {};
+        candidate[key] = values[key];
+      }
+      current = candidate;
+    });
+    if (Object.keys(current).length) batches.push(current);
+    return batches;
+  }
+
+  function backupImportCanRetrySmaller(error) {
+    return error && (error.status === 413 || error.status === 422 ||
+      (error.status === 400 && (!error.code || error.code === "invalid_json")));
   }
 
   function saveBackupImportBatch(values) {
     var keys = Object.keys(values);
-    var failedCount = 0;
-    var offset = 0;
-    var batchSize = 6;
-
-    function saveNextBatch() {
-      if (offset >= keys.length) return Promise.resolve(failedCount);
-      var batchKeys = keys.slice(offset, offset + batchSize);
-      offset += batchKeys.length;
-      var batch = {};
-      batchKeys.forEach(function (key) { batch[key] = values[key]; });
-
-      return saveSettingValues(batch).then(function () { return 0; }, function (error) {
-        if (!error || error.kind !== "validation") return batchKeys.length;
-        var batchFailures = 0;
-        return Promise.all(batchKeys.map(function (key) {
-          return saveSetting(key, values[key]).catch(function () { batchFailures += 1; });
-        })).then(function () { return batchFailures; });
-      }).then(function (batchFailures) {
-        failedCount += batchFailures;
-        return saveNextBatch();
-      });
-    }
-
-    return saveNextBatch();
+    return saveSettingValues(values).then(function () {
+      return { failedCount: 0 };
+    }).catch(function (error) {
+      if (keys.length > 1 && backupImportCanRetrySmaller(error)) {
+        var midpoint = Math.ceil(keys.length / 2);
+        var first = {};
+        var second = {};
+        keys.forEach(function (key, index) {
+          (index < midpoint ? first : second)[key] = values[key];
+        });
+        return saveBackupImportBatch(first).then(function (firstResult) {
+          return saveBackupImportBatch(second).then(function (secondResult) {
+            return { failedCount: firstResult.failedCount + secondResult.failedCount };
+          });
+        });
+      }
+      recordBackupImportSaveFailure(keys.length === 1 ? keys[0].replace(/_/g, " ") : "settings");
+      return { failedCount: keys.length };
+    });
   }
 
-  function trackBackupImportSave(result) {
-    if (!backupImportSaveTasks) return;
-    backupImportSaveTasks.push(
-      Promise.resolve(result)
-        .then(function (response) {
-          if (response && response.ok === false) throw new Error("save_failed");
-          return true;
-        })
-        .catch(function () {
-          return false;
-        })
-    );
+  function saveBackupImportSettings(values) {
+    var batches = backupImportSettingsBatches(values);
+    return batches.reduce(function (chain, batch) {
+      return chain.then(function (result) {
+        return saveBackupImportBatch(batch).then(function (batchResult) {
+          return { failedCount: result.failedCount + batchResult.failedCount };
+        });
+      });
+    }, Promise.resolve({ failedCount: 0 }));
   }
 
   function backupImportEntryUsesPhotoSourceApply(entry) {
@@ -304,8 +336,7 @@
   function applyGenericBackupImportField(entry, value) {
     var validation = validateProductSettingBackupImport(entry, value);
     if (!validation.ok) return skipBackupImportField(validation.message);
-    queueBackupImportSetting(backupImportStateKey(entry), validation.value);
-    return true;
+    return queueBackupImportSetting(backupImportStateKey(entry), validation.value);
   }
 
   function skipBackupImportField(message) {
@@ -322,13 +353,12 @@
     var failedText = failedCount + " failed " + (failedCount === 1 ? "setting" : "settings");
     if (failedCount) {
       if (appliedCount || skippedCount) {
-        return "Imported with " + failedText + (skippedCount ? " and " + skippedText : "");
+        return "Backup partially restored: " + failedText + (skippedCount ? " and " + skippedText : "");
       }
-      return "Import failed for " + failedCount + " " + (failedCount === 1 ? "setting" : "settings");
+      return "Backup restore failed for " + failedCount + " " + (failedCount === 1 ? "setting" : "settings");
     }
-    if (!skippedCount) return "Settings imported successfully";
-    if (appliedCount) return "Imported with " + skippedText;
-    return "Import skipped " + skippedCount + " " + (skippedCount === 1 ? "setting" : "settings");
+    if (!skippedCount) return "Backup restored successfully";
+    return "Backup restored successfully; " + skippedText;
   }
 
   function applyBackupImportField(entry, value) {
@@ -341,15 +371,14 @@
       if (excludedIds && !isValidUuidList(excludedIds)) {
         return skipBackupImportField("Import skipped invalid excluded IDs");
       }
-      queueBackupImportSetting(backupImportStateKey(entry), excludedIds);
-      return true;
+      return queueBackupImportSetting(backupImportStateKey(entry), excludedIds);
     }
     switch (backupEntryKey(entry)) {
       case "connection.immich_url":
         var importUrl = normalizeImmichUrl(value);
         if (importUrl.length > 255) return skipBackupImportField("Immich URL exceeds 255 characters - not imported");
         if (importUrl && !isValidHttpUrl(importUrl)) return skipBackupImportField("Immich URL was invalid - not imported");
-        queueBackupImportSetting("immich_url", importUrl);
+        return queueBackupImportSetting("immich_url", importUrl);
         return true;
       case "photos.album_ids":
         var importAlbum = String(value).trim();
@@ -410,8 +439,7 @@
         if (TIMEZONES.indexOf(importedTimezone) === -1) {
           return skipBackupImportField("Timezone was invalid - not imported");
         }
-        queueBackupImportSetting("timezone", importedTimezone);
-        return true;
+        return queueBackupImportSetting("timezone", importedTimezone);
       case "clock.ntp_servers":
         if (Array.isArray(value) && value.length <= 3) {
           for (var ntpIndex = 0; ntpIndex < value.length; ntpIndex++) {
@@ -422,7 +450,7 @@
           }
           ["ntp_server_1", "ntp_server_2", "ntp_server_3"].forEach(function (key, idx) {
             if (value[idx] === undefined) return;
-            queueBackupImportSetting(key, value[idx]);
+            queueBackupImportSetting(key, normalizeNtpServer(value[idx]));
           });
           return true;
         }
@@ -431,12 +459,12 @@
         var wakeTimeout = normalizeScheduleWakeTimeout(value);
         var wakeValidation = validateProductSettingBackupImport(entry, wakeTimeout);
         if (!wakeValidation.ok) return skipBackupImportField(wakeValidation.message);
-        queueBackupImportSetting("schedule_wake_timeout", wakeValidation.value);
-        return true;
+        return queueBackupImportSetting("schedule_wake_timeout", wakeValidation.value);
       case "screen.rotation":
         var importedRotation = String(value);
         if (screenRotationOptionsForUi().indexOf(importedRotation) !== -1) {
           queueBackupImportSetting("screen_rotation", importedRotation);
+          queueBackupImportSetting("portrait_pairing", !isPortraitScreenRotation(importedRotation));
           return true;
         }
         return skipBackupImportField("Screen rotation was invalid - not imported");
@@ -452,11 +480,15 @@
     fileInput.accept = ".json";
     fileInput.style.display = "none";
 
+    function removeFileInput() {
+      if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
+    }
+
+    fileInput.addEventListener("cancel", removeFileInput);
     fileInput.addEventListener("change", function () {
-      if (!fileInput.files || !fileInput.files[0]) {
-        if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
-        return;
-      }
+      var selectedFile = fileInput.files && fileInput.files[0];
+      removeFileInput();
+      if (!selectedFile) return;
       var reader = new FileReader();
       reader.onload = async function () {
         try {
@@ -489,78 +521,89 @@
 
           backupImportInProgress = true;
           backupImportMessages = [];
+          backupImportValues = {};
           showBanner("Importing settings…", "info", 0);
           backupImportSaveTasks = [];
-          backupImportBatchValues = {};
           var queuedCount = 0;
           var skippedCount = 0;
           var needsPhotoSourceApply = false;
           BACKUP_SCHEMA.forEach(function (entry) {
             if (!backupImportFieldPresent(data, entry)) return;
             if (applyBackupImportField(entry, backupImportFieldValue(data, entry))) {
-              queuedCount += 1;
               needsPhotoSourceApply = needsPhotoSourceApply || backupImportEntryUsesPhotoSourceApply(entry);
             } else {
               skippedCount += 1;
             }
           });
 
+          queuedCount = Object.keys(backupImportValues).length;
+
+          if (Object.keys(backupImportValues).length) {
+            trackBackupImportSave(saveBackupImportSettings(backupImportValues), Object.keys(backupImportValues).length);
+          }
           if (restoreName) {
             queuedCount += 1;
             trackBackupImportSave(saveFrameName(data.identity.name).then(function () { return { ok: true }; }));
           }
 
-          var batchSave = Object.keys(backupImportBatchValues).length ? saveBackupImportBatch(backupImportBatchValues) : Promise.resolve(0);
-
-          var results = await Promise.all(backupImportSaveTasks);
-          var failedCount = Math.min(queuedCount, results.filter(function (ok) { return !ok; }).length + await batchSave);
-          var appliedCount = queuedCount - failedCount;
-          if (needsPhotoSourceApply && appliedCount) {
-            try {
-              await post(endpoints.apply_photo_source + "/press");
-            } catch (_) {
-              failedCount += 1;
-            }
-          }
-
-          backupImportInProgress = false;
-          var apiKeyNeedsInput = !S.api_key_configured;
-          var resultMessage = backupImportSummaryMessage(appliedCount, skippedCount, failedCount);
-          if (backupImportMessages.length) resultMessage += ". " + backupImportMessages.join("; ");
-          resultMessage += apiKeyNeedsInput
-            ? ". Backups don’t include the Immich API key. Enter it in the highlighted field on the Immich tab."
-            : ". The destination’s existing Immich API key was left unchanged.";
-          highlightApiKeyAfterRestore = apiKeyNeedsInput;
-          showBanner(
-            resultMessage,
-            skippedCount || failedCount ? "error" : "success",
-            apiKeyNeedsInput ? 0 : undefined
-          );
-          renderSettings();
-          if (apiKeyNeedsInput) openImmichConnectionForApiKey();
-          backupImportSaveTasks = null;
-          backupImportBatchValues = null;
-          backupImportMessages = [];
+          Promise.all(backupImportSaveTasks)
+            .then(function (results) {
+              var failedCount = results.reduce(function (count, result) {
+                return count + (result && Number(result.failedCount) || 0);
+              }, 0);
+              var appliedCount = queuedCount - failedCount;
+              if (needsPhotoSourceApply && appliedCount) {
+                return post(endpoints.apply_photo_source + "/press")
+                  .then(function () {
+                    return { appliedCount: appliedCount, failedCount: failedCount };
+                  })
+                  .catch(function () {
+                    return { appliedCount: appliedCount, failedCount: failedCount + 1 };
+                  });
+              }
+              return { appliedCount: appliedCount, failedCount: failedCount };
+            })
+            .then(function (summary) {
+              var failedCount = summary.failedCount;
+              var appliedCount = summary.appliedCount;
+              backupImportInProgress = false;
+              var resultMessage = backupImportSummaryMessage(appliedCount, skippedCount, failedCount);
+              if (backupImportMessages.length) resultMessage += ". " + backupImportMessages.join("; ");
+              var apiKeyNeedsInput = !S.api_key_configured;
+              resultMessage += apiKeyNeedsInput
+                ? ". Backups don’t include the Immich API key. Enter it in the highlighted field on the Immich tab."
+                : ". The destination’s existing Immich API key was left unchanged.";
+              highlightApiKeyAfterRestore = apiKeyNeedsInput;
+              showBanner(
+                resultMessage,
+                failedCount || skippedCount ? "error" : "success",
+                apiKeyNeedsInput ? 0 : undefined
+              );
+              renderSettings();
+              if (apiKeyNeedsInput) openImmichConnectionForApiKey();
+              backupImportSaveTasks = null;
+              backupImportValues = null;
+              backupImportMessages = [];
+            })
+            .catch(function () {
+              backupImportInProgress = false;
+              backupImportSaveTasks = null;
+              backupImportValues = null;
+              backupImportMessages = [];
+              showBanner("Import failed. Please try again.", "error");
+            });
         } catch (_) {
           backupImportInProgress = false;
           backupImportSaveTasks = null;
-          backupImportBatchValues = null;
+          backupImportValues = null;
           backupImportMessages = [];
           showBanner("Import failed. Please try again.", "error");
-        } finally {
-          if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
         }
       };
       reader.onerror = function () {
-        if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
-        showBanner("Import failed - could not read the backup file", "error");
+        showBanner("Could not read the selected backup file. Please try again.", "error");
       };
-      try {
-        reader.readAsText(fileInput.files[0]);
-      } catch (_) {
-        if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
-        showBanner("Import failed - could not read the backup file", "error");
-      }
+      reader.readAsText(selectedFile);
     });
 
     document.body.appendChild(fileInput);
