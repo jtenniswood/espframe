@@ -44,6 +44,11 @@
         throw new Error("Frame name unavailable");
       }
       return data as unknown as FrameIdentitySnapshot;
+    } catch (error) {
+      if (name !== undefined && error instanceof Error && error.name === "AbortError") {
+        throw new Error("Frame name could not be saved. Please retry.");
+      }
+      throw error;
     } finally {
       if (timer !== null) clearTimeout(timer);
     }

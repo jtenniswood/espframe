@@ -5428,6 +5428,11 @@ to {
         throw new Error("Frame name unavailable");
       }
       return data;
+    } catch (error) {
+      if (name !== void 0 && error instanceof Error && error.name === "AbortError") {
+        throw new Error("Frame name could not be saved. Please retry.");
+      }
+      throw error;
     } finally {
       if (timer !== null) clearTimeout(timer);
     }

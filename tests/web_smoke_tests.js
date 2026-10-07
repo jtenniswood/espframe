@@ -194,6 +194,7 @@ const scenarios = [
   { name: "frame-name", configured: true, width: 390, height: 900, identity: true },
   { name: "frame-name-restart-failure", configured: true, width: 1280, height: 900, identity: true, failedPostEndpoint: "Device: Reboot Screen" },
   { name: "frame-name-failure", configured: true, width: 1280, height: 900, identity: true, identityFailure: true },
+  { name: "frame-name-save-timeout", configured: true, width: 1280, height: 900, identity: true, identityPostHangs: true, identityPostHangAfter: 0 },
   ...[false, true].map(restoreName => ({
     name: "frame-name-import-" + (restoreName ? "restore" : "keep"),
     configured: true, width: 1280, height: 900, identity: true, restoreName,
@@ -546,7 +547,7 @@ function browserScriptForScenario(scenario) {
           identityPostCount += 1;
           window.__smoke.posts.push(decoded);
           window.__smoke.postRecords.push({ url: decoded, body });
-          if (${JSON.stringify(!!scenario.identityPostHangs)} && identityPostCount > 1) {
+          if (${JSON.stringify(!!scenario.identityPostHangs)} && identityPostCount === ${JSON.stringify((scenario.identityPostHangAfter === undefined ? 1 : scenario.identityPostHangAfter) + 1)}) {
             return new Promise((resolve, reject) => options.signal.addEventListener("abort", () => {
               const error = new Error("request aborted");
               error.name = "AbortError";
@@ -1603,7 +1604,17 @@ function smokeAssertionsForScenario(scenario) {
             if (document.querySelector("#frame-name").value !== "Living Room") throw new Error("Failed save lost draft");
             clickButton("Save & Restart");
           }
-          await waitName("Living Room");
+          if (${JSON.stringify(scenario.name === "frame-name-save-timeout")}) {
+            await waitFor(() => document.querySelector('[role="alert"]')?.textContent, 7000, "save timeout guidance");
+            if (document.querySelector('[role="alert"]').textContent !== "Frame name could not be saved. Please retry.") throw new Error("Save timeout did not show retry guidance");
+            if (window.__smoke.posts.some(url => url.includes("Reboot Screen"))) throw new Error("Timed out save restarted the device");
+            if (document.title !== "Espframe · EspFrame") throw new Error("Timed out save changed the title");
+            if (document.querySelector("#frame-name").value !== "Living Room") throw new Error("Timed out save lost draft");
+            clickButton("Save & Restart");
+            await waitName("Living Room");
+          } else {
+            await waitName("Living Room");
+          }
           await waitFor(() => document.querySelector(".frame-reconnect-dialog[open]"), 4000, "reconnect dialog");
           const dialog = document.querySelector(".frame-reconnect-dialog");
           if (!dialog.textContent.includes("Frame name saved") || dialog.textContent.includes("Home Assistant")) throw new Error("Incorrect restart dialog copy");
