@@ -1,4 +1,4 @@
-"""Embed the upstream-compatible captive page in both supported encodings."""
+"""Embed the captive page and shared webserver styles in both encodings."""
 from __future__ import annotations
 
 import gzip
@@ -8,7 +8,9 @@ from .paths import ROOT
 
 
 def captive_portal_header() -> str:
-    source = (ROOT / "components/captive_portal/portal.html").read_bytes()
+    template = (ROOT / "components/captive_portal/portal.html").read_text()
+    source = template.replace("/* __ESPFRAME_WEB_STYLE__ */",
+                              (ROOT / "docs/webserver/src/style.css").read_text()).encode()
     gzip_data = gzip.compress(source, compresslevel=9, mtime=0)
     # Python 3.11/3.12 may emit the host OS byte; keep generation identical to
     # later Python versions and across the developer machine and CI.

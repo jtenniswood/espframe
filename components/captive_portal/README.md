@@ -8,12 +8,16 @@ IPv4, while Espframe also enables IPv6 for station connections. The upstream DNS
 server chooses an IPv6 socket but receives client addresses into `sockaddr_in`.
 This patch explicitly creates and binds an IPv4 socket for setup AP DNS.
 
-The page layout, labels, icons and forms are the upstream page. `portal.html` was
-decoded from the gzip array in that version's `captive_index.h`; its original
-SHA-256 is `98ff9b7ed031268f7dd6483d90b7f0eed6e4cf689cdb14fe4eb5a59b22d8ad37`.
-The only page change prevents the default `href="#"` navigation when choosing a
-network, preserving the form contents. `npm run generate` produces both gzip and
-Brotli versions of `captive_index.h` from this source.
+`portal.html` was decoded from the gzip array in that version's `captive_index.h`;
+its original SHA-256 is
+`98ff9b7ed031268f7dd6483d90b7f0eed6e4cf689cdb14fe4eb5a59b22d8ad37`.
+The layout now uses Espframe's webserver cards, labels, inputs and buttons.
+`npm run generate` embeds `docs/webserver/src/style.css` at the template's style
+marker and produces both gzip and Brotli versions of `captive_index.h`. Everything
+is served locally, with no stylesheet or font download during hotspot setup.
+The upstream page script is preserved, except for preventing default `href="#"`
+navigation when choosing a network so the form contents stay intact. Browser
+coverage checks this script, shared styles, narrow layouts and form behavior.
 
 Page and scan responses use EspControl's no-cache policy. Operating-system
 probes receive the standard HTTP 200 portal page; no custom redirects are added.
