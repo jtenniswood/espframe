@@ -86,3 +86,8 @@ wifi:
           lambda: 'return !id(boot_grace_period);'
         then:
           - script.execute: show_wifi_setup_after_disconnect
+
+# Let ESP Web Tools offer WiFi provisioning over the USB serial connection
+# immediately after flashing. Keep the captive portal above for wireless
+# recovery after installation or a factory reset.
+improv_serial:

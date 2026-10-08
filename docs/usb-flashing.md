@@ -36,7 +36,8 @@ Safari and Firefox do not support the required browser flashing flow.
 - Keep the browser tab open until the install completes.
 - Avoid moving the cable or display during flashing.
 - Disconnect and reconnect the display, then start the installer again.
-- If WiFi setup does not appear after flashing, open the WiFi settings on your phone or laptop and connect to the **espframe** network. Then visit `http://192.168.4.1` to enter your home WiFi details.
+- Keep the display connected to USB after flashing. The installer should offer a WiFi setup form in the same browser tab.
+- If that form does not appear, or you are setting up without USB, connect your phone or laptop to the **espframe** network. If the captive portal does not open automatically, visit `http://192.168.4.1` to enter your home WiFi details.
 
 ## After Flashing
 
