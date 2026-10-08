@@ -60,6 +60,14 @@
       "path": "docs/public/webserver/style.css",
       "sources": ["docs/webserver/src/style.css"],
       "generator": "scripts/generate_assets.py"
+    },
+    {
+      "path": "components/espframe/i18n_generated.h",
+      "sources": [
+        "product/translations",
+        "product/contract/settings.json"
+      ],
+      "generator": "scripts/generate_assets.py"
     }
   ],
   "vendored": [

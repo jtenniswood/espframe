@@ -1311,8 +1311,8 @@ script:
                     if (is_http_auth_error(code)) {
                       id(immich_source_setup_visible) = false;
                       lv_obj_add_flag(id(photo_source_show_all_button), LV_OBJ_FLAG_HIDDEN);
-                      lv_label_set_text(id(connection_failed_title), "Invalid API Key");
-                      lv_label_set_text(id(connection_failed_subtitle), "Check your Immich API key in\nthe espframe settings.");
+                      lv_label_set_text(id(connection_failed_title), espframe_i18n_key("invalid_api_key"));
+                      lv_label_set_text(id(connection_failed_subtitle), espframe_i18n_key("check_api_key"));
                       lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
                       id(connection_failed_dim).execute();
                       id(connection_failed_shift).execute();

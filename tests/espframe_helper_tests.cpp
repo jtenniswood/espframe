@@ -1704,8 +1704,15 @@ static void test_configuration_contract_capabilities() {
   using namespace esphome::espframe::contract;
   static_assert(CONTRACT_VERSION == 2);
   static_assert(API_VERSION == 1);
-  static_assert(SETTING_COUNT == 52);
-  static_assert(CONFIGURATION_FIELD_COUNT == 73);
+  static_assert(SETTING_COUNT == 53);
+  static_assert(CONFIGURATION_FIELD_COUNT == 74);
+  bool has_language = false;
+  for (const auto &field : CONFIGURATION_FIELDS) {
+    if (std::string(field.key) == "device_language") {
+      has_language = std::string(field.domain) == "select" && std::string(field.entity_name) == "Device: Language";
+    }
+  }
+  assert(has_language);
   assert(std::string(CAPABILITIES_PATH) == "/espframe/api/v1/capabilities");
   assert(std::string(CONFIGURATION_PATH) == "/espframe/api/v1/configuration");
   const std::string capabilities(CAPABILITIES_JSON);
@@ -1795,6 +1802,44 @@ static void test_structured_companion_pagination() {
   assert(random.find("\"cursor\"") == std::string::npos);
 }
 
+static void test_device_translations() {
+  assert(std::string(espframe_i18n_key("wifi_setup")) == "WiFi Setup");
+  set_espframe_language("de");
+  assert(std::string(espframe_i18n_key("wifi_setup")) == "WLAN einrichten");
+  assert(format_photo_date_full(2026, 3, 1) == "1 März, 2026");
+  assert(format_photo_date_month_day_year(2026, 10, 8) == "Oktober 8, 2026");
+  assert(format_photo_date(2026, 12) == "Dez 2026");
+  assert(format_photo_date_full(2026, 0, 1).empty());
+  assert(format_photo_age(2026, 4, 21, 2026, 4, 21) == "heute");
+  assert(format_photo_age(2026, 4, 20, 2026, 4, 21) == "vor 1 Tag");
+  assert(format_photo_age(2026, 4, 1, 2026, 4, 21) == "vor 20 Tagen");
+  assert(format_photo_age(2026, 3, 21, 2026, 4, 21) == "vor 1 Monat");
+  assert(format_photo_age(2026, 2, 21, 2026, 4, 21) == "vor 2 Monaten");
+  assert(format_photo_age(2025, 4, 21, 2026, 4, 21) == "vor 1 Jahr");
+  assert(format_photo_age(2024, 4, 21, 2026, 4, 21) == "vor 2 Jahren");
+  assert(format_time_ago(2025, 4, 2026, 4) == "vor 1 Jahr");
+  assert(format_time_ago(2026, 2, 2026, 4) == "vor 2 Monaten");
+  assert(format_photo_age(0, 0, 0, 2026, 4, 21).empty());
+  assert(immich_source_setup_title("Album") == "Albumquelle muss eingerichtet werden");
+  assert(immich_source_setup_message("Person").find("mindestens eine Person") != std::string::npos);
+  assert(std::string(espframe_i18n_retranslate("Invalid API Key")) == "Ungültiger API-Schlüssel");
+  assert(std::string(espframe_i18n_retranslate("München")) == "München");
+  assert(std::string(espframe_i18n_key("unknown_key")) == "unknown_key");
+  assert(std::string(espframe_i18n(nullptr)).empty());
+  assert(std::string(espframe_i18n_key(nullptr)).empty());
+  assert(std::string(espframe_i18n_retranslate(nullptr)).empty());
+  const std::string instructions = espframe_wifi_instructions("Frame {address} 100%", "192.168.4.1");
+  assert(instructions.find("'Frame {address} 100%'\n") != std::string::npos);
+  assert(instructions.find("Öffne dann 192.168.4.1") != std::string::npos);
+  set_espframe_language("en");
+  assert(std::string(espframe_i18n_retranslate("Ungültiger API-Schlüssel")) == "Invalid API Key");
+  assert(format_photo_date_full(2026, 3, 1) == "1 March, 2026");
+  assert(espframe_wifi_instructions("", "192.168.4.1") ==
+         "Connect to the WiFi hotspot\nto configure your network\n\nThen visit 192.168.4.1 in your browser");
+  set_espframe_language("unsupported");
+  assert(format_photo_age(2026, 4, 20, 2026, 4, 21) == "1 day ago");
+}
+
 int main() {
   test_structured_companion_pagination();
   test_memory_pressure_prefetch();
@@ -1819,6 +1864,7 @@ int main() {
   test_slideshow_component_display_current_flow();
   test_slideshow_component_paired_only_flow();
   test_configuration_contract_capabilities();
+  test_device_translations();
   std::cout << "espframe helper tests passed\n";
   return 0;
 }

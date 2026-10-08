@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include "i18n.h"
 
 // Small formatting helpers shared by the display metadata code. They keep the
 // YAML lambdas focused on flow control instead of date/string manipulation.
@@ -202,11 +203,10 @@ inline std::string format_time_ago(int photo_year, int photo_month, int now_year
   int months_ago = (now_year - photo_year) * 12 + (now_month - photo_month);
   if (months_ago >= 12) {
     int years = months_ago / 12;
-    if (years == 1) return "1 year ago";
-    return std::to_string(years) + " years ago";
+    return espframe_i18n_count("year_ago", "years_ago", years);
   }
-  if (months_ago == 1) return "1 month ago";
-  if (months_ago > 1) return std::to_string(months_ago) + " months ago";
+  if (months_ago == 1) return espframe_i18n_key("month_ago");
+  if (months_ago > 1) return espframe_i18n_count("month_ago", "months_ago", months_ago);
   return "";
 }
 
@@ -239,6 +239,9 @@ inline void civil_from_days(int days, int &year, int &month, int &day) {
 }
 
 inline std::string plural_time_ago(int value, const char *unit) {
+  if (std::strcmp(unit, "year") == 0) return espframe_i18n_count("year_ago", "years_ago", value);
+  if (std::strcmp(unit, "month") == 0) return espframe_i18n_count("month_ago", "months_ago", value);
+  if (std::strcmp(unit, "day") == 0) return espframe_i18n_count("day_ago", "days_ago", value);
   if (value == 1) return std::string("1 ") + unit + " ago";
   return std::to_string(value) + " " + unit + "s ago";
 }
@@ -253,14 +256,14 @@ inline std::string format_photo_age(int photo_year, int photo_month, int photo_d
   int days_ago = days_from_civil(now_year, now_month, now_day) -
                  days_from_civil(photo_year, photo_month, photo_day);
   if (days_ago < 0) days_ago = 0;
-  if (days_ago == 0) return "today";
+  if (days_ago == 0) return espframe_i18n_key("today");
 
   if (days_ago >= 365) {
     return plural_time_ago((days_ago + 182) / 365, "year");
   }
   if (days_ago >= 30) {
     int months = (days_ago + 15) / 30;
-    if (months >= 12) return "1 year ago";
+    if (months >= 12) return espframe_i18n_key("year_ago");
     return plural_time_ago(months, "month");
   }
   return plural_time_ago(days_ago, "day");
@@ -268,16 +271,16 @@ inline std::string format_photo_age(int photo_year, int photo_month, int photo_d
 
 inline std::string format_photo_date(int year, int month) {
   if (month >= 1 && month <= 12)
-    return std::string(MONTH_NAMES[month]) + " " + std::to_string(year);
+    return std::string(espframe_i18n(MONTH_NAMES[month])) + " " + std::to_string(year);
   return "";
 }
 
 inline std::string format_photo_date_full(int year, int month, int day) {
   if (!is_valid_date_parts(year, month, day)) return "";
-  return std::to_string(day) + " " + std::string(MONTH_NAMES_FULL[month]) + ", " + std::to_string(year);
+  return std::to_string(day) + " " + std::string(espframe_i18n(MONTH_NAMES_FULL[month])) + ", " + std::to_string(year);
 }
 
 inline std::string format_photo_date_month_day_year(int year, int month, int day) {
   if (!is_valid_date_parts(year, month, day)) return "";
-  return std::string(MONTH_NAMES_FULL[month]) + " " + std::to_string(day) + ", " + std::to_string(year);
+  return std::string(espframe_i18n(MONTH_NAMES_FULL[month])) + " " + std::to_string(day) + ", " + std::to_string(year);
 }

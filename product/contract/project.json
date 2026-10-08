@@ -233,7 +233,8 @@
       "warm_tones_enabled",
       "warm_tone_intensity",
       "warm_tone_override",
-      "rotation"
+      "rotation",
+      "language"
     ]
   },
   "backup_field_state_keys": {
@@ -315,7 +316,8 @@
       "warm_tones_enabled": "warm_tones_enabled",
       "warm_tone_intensity": "warm_tone_intensity",
       "warm_tone_override": "warm_tone_override",
-      "rotation": "screen_rotation"
+      "rotation": "screen_rotation",
+      "language": "device_language"
     }
   },
   "backup_import_write_behavior": "All valid settings in a backup are pushed in size-limited atomic updates so larger backups fit the device web server request limit",
@@ -340,6 +342,7 @@
       "tests/fixtures/compat/espframe-config-v1-missing-groups.json",
       "tests/fixtures/compat/espframe-config-v1-developer-options.json",
       "tests/fixtures/compat/espframe-config-v1-future-unknown-fields.json",
+      "tests/fixtures/compat/espframe-config-v3-device-language.json",
       "tests/fixtures/compat/espframe-config-v1-malformed-noncritical-values.json"
     ],
     "rejected_fields": [
@@ -767,6 +770,16 @@
       ]
     },
     {
+      "id": "device_language",
+      "label": "Device Language",
+      "tab": "settings",
+      "section": "Display",
+      "function": "makeLanguageCard",
+      "settings": [
+        "device_language"
+      ]
+    },
+    {
       "id": "clock",
       "label": "Clock",
       "tab": "settings",
@@ -1158,6 +1171,11 @@
           "screen_rotation"
         ]
       },
+      "device_language": {
+        "settings": [
+          "device_language"
+        ]
+      },
       "clock": {
         "settings": [
           "clock_format"
@@ -1514,7 +1532,8 @@
     "devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml",
     "devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml",
     "docs/public/webserver/app.js",
-    "docs/public/webserver/style.css"
+    "docs/public/webserver/style.css",
+    "components/espframe/i18n_generated.h"
   ],
   "generated_asset_output_headers": {
     "components/espframe/configuration_contract_generated.h": "// ESPFRAME: generated from product/contract; run `npm run generate` to update.",
@@ -1522,7 +1541,8 @@
     "devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml": "# ESPFRAME: generated from product/contract; run `npm run generate` to update.",
     "devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml": "# ESPFRAME: generated from product/contract; run `npm run generate` to update.",
     "docs/public/webserver/app.js": "// ESPFRAME: generated from typed docs/webserver/src and product/contract; run `npm run generate` to update.",
-    "docs/public/webserver/style.css": "/* ESPFRAME: generated from docs/webserver/src/style.css; run `npm run generate` to update. */"
+    "docs/public/webserver/style.css": "/* ESPFRAME: generated from docs/webserver/src/style.css; run `npm run generate` to update. */",
+    "components/espframe/i18n_generated.h": "// ESPFRAME: generated from product/translations; run `npm run generate` to update."
   },
   "generated_asset_sources": [
     "components/espframe/timezones.py",
@@ -1551,7 +1571,10 @@
     "scripts/asset_generation/configuration_api.py",
     "scripts/asset_generation/product_manifest.py",
     "scripts/build_web_app.mjs",
-    "scripts/product_config.py"
+    "scripts/product_config.py",
+    "scripts/asset_generation/translations.py",
+    "product/translations/strings.en.txt",
+    "product/translations/strings.de.txt"
   ],
   "web_template_placeholders": [
     "__ESPFRAME_WEB_FRAME_IDENTITY__",
@@ -1661,7 +1684,8 @@
     "portrait_pairing_range": {},
     "portrait_pairs_only": {},
     "photo_metadata_date_enabled": {},
-    "photo_metadata_location_enabled": {}
+    "photo_metadata_location_enabled": {},
+    "device_language": {}
   },
   "generated_firmware_deferred_setting_fields": [],
   "support_url": "https://www.buymeacoffee.com/jtenniswood",

@@ -8,6 +8,7 @@ import difflib
 import sys
 from pathlib import Path
 
+from asset_generation.translations import generated_translation_files
 from asset_generation.device_packages import generated_device_package_files
 from asset_generation.configuration_api import generated_configuration_api_files
 from asset_generation.docs_tables import generated_docs, render_settings_table, setting_lookup
@@ -61,6 +62,8 @@ def generate(check: bool) -> int:
     product = load_product()
     changed |= write_or_check(LEGACY_PRODUCT_PATH, legacy_product_manifest(product), check)
     for path, content in generated_configuration_api_files().items():
+        changed |= write_or_check(path, content, check)
+    for path, content in generated_translation_files().items():
         changed |= write_or_check(path, content, check)
     all_settings = setting_lookup()
     firmware_field_configs = generated_firmware_setting_fields()

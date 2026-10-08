@@ -14,12 +14,12 @@ struct ConfigurationField {
 
 inline constexpr unsigned int CONTRACT_VERSION = 2;
 inline constexpr unsigned int API_VERSION = 1;
-inline constexpr unsigned int SETTING_COUNT = 52;
-inline constexpr unsigned int CONFIGURATION_FIELD_COUNT = 73;
+inline constexpr unsigned int SETTING_COUNT = 53;
+inline constexpr unsigned int CONFIGURATION_FIELD_COUNT = 74;
 inline constexpr const char CAPABILITIES_PATH[] = "/espframe/api/v1/capabilities";
 inline constexpr const char CONFIGURATION_PATH[] = "/espframe/api/v1/configuration";
 inline constexpr const char RESET_PATH[] = "/espframe/api/v1/reset";
-inline constexpr const char CAPABILITIES_JSON[] = R"ESPFRAME_JSON({"contract_version":2,"api_version":1,"base_path":"/espframe/api/v1","capabilities_path":"/espframe/api/v1/capabilities","configuration_path":"/espframe/api/v1/configuration","reset_path":"/espframe/api/v1/reset","reset_modes":["customization","factory"],"update_mode":"atomic","configuration_available":true,"configuration_read":true,"configuration_write":true,"configuration_encoding":"application/x-www-form-urlencoded","configuration_parameter":"configuration","legacy_entity_api":true,"backup_versions":[1,2,3],"setting_count":52})ESPFRAME_JSON";
+inline constexpr const char CAPABILITIES_JSON[] = R"ESPFRAME_JSON({"contract_version":2,"api_version":1,"base_path":"/espframe/api/v1","capabilities_path":"/espframe/api/v1/capabilities","configuration_path":"/espframe/api/v1/configuration","reset_path":"/espframe/api/v1/reset","reset_modes":["customization","factory"],"update_mode":"atomic","configuration_available":true,"configuration_read":true,"configuration_write":true,"configuration_encoding":"application/x-www-form-urlencoded","configuration_parameter":"configuration","legacy_entity_api":true,"backup_versions":[1,2,3],"setting_count":53})ESPFRAME_JSON";
 inline constexpr ConfigurationField CONFIGURATION_FIELDS[] = {
     {"photo_source", "select", "Photos: Source", false},
     {"memories_window", "select", "Photos: Memories Window", false},
@@ -73,6 +73,7 @@ inline constexpr ConfigurationField CONFIGURATION_FIELDS[] = {
     {"filter_country", "text", "Photos: Country", false},
     {"filter_state", "text", "Photos: State or Province", false},
     {"filter_city", "text", "Photos: City", false},
+    {"device_language", "select", "Device: Language", false},
     {"timezone", "select", "Clock: Timezone", false},
     {"ntp_server_1", "text", "Clock: NTP Server 1", false},
     {"ntp_server_2", "text", "Clock: NTP Server 2", false},

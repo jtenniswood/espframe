@@ -1224,26 +1224,20 @@ inline int immich_memories_window_days(const std::string &option) {
 }
 
 inline std::string immich_source_setup_title(const std::string &photo_source) {
-  if (photo_source == "Album") return "Album source needs setup";
-  if (photo_source == "Person") return "Person source needs setup";
-  if (photo_source == "Tag") return "Tag source needs setup";
-  if (photo_source == "Memories") return "No Memories found";
-  return "Photo source needs setup";
+  if (photo_source == "Album") return espframe_i18n_key("album_needs_setup");
+  if (photo_source == "Person") return espframe_i18n_key("person_needs_setup");
+  if (photo_source == "Tag") return espframe_i18n_key("tag_needs_setup");
+  if (photo_source == "Memories") return espframe_i18n_key("no_memories");
+  return espframe_i18n_key("source_needs_setup");
 }
 
 inline std::string immich_source_setup_message(const std::string &photo_source) {
-  if (photo_source == "Memories") {
-    return "Immich has no On This Day photos in the selected window. Enable fallback or choose All Photos.";
-  }
-  if (photo_source == "Custom") {
-    return "Open ESPFrame settings and add IDs to every enabled group, or choose All Photos.";
-  }
-  std::string item = "photo source";
-  if (photo_source == "Album") item = "album";
-  else if (photo_source == "Person") item = "person";
-  else if (photo_source == "Tag") item = "tag";
-  return "Open ESPFrame settings and add at least one " + item +
-         ", or choose All Photos.";
+  if (photo_source == "Memories") return espframe_i18n_key("memories_empty_message");
+  if (photo_source == "Custom") return espframe_i18n_key("custom_setup_message");
+  if (photo_source == "Album") return espframe_i18n_key("album_setup_message");
+  if (photo_source == "Person") return espframe_i18n_key("person_setup_message");
+  if (photo_source == "Tag") return espframe_i18n_key("tag_setup_message");
+  return espframe_i18n_key("source_setup_message");
 }
 
 inline bool immich_dimensions_are_portrait(int width, int height,

@@ -210,7 +210,7 @@ assert.ok(
   "configuration errors should navigate to the slideshow before showing its overlay"
 );
 const unsupportedFilterOverlay = configReadiness.slice(
-  configReadiness.indexOf('"Filter needs Immich 3.2+"'),
+  configReadiness.indexOf('espframe_i18n_key("filter_needs_v32")'),
   configReadiness.indexOf("clear_slot_fetch_in_flight")
 );
 assert.ok(

@@ -155,6 +155,10 @@
       {
         "alias": "memory_diagnostics",
         "path": "../../common/addon/memory_diagnostics.yaml"
+      },
+      {
+        "alias": "translations",
+        "path": "../../common/addon/translations.yaml"
       }
     ],
     "package_substitutions": {
@@ -388,6 +392,10 @@
       {
         "alias": "memory_diagnostics",
         "path": "../../common/addon/memory_diagnostics.yaml"
+      },
+      {
+        "alias": "translations",
+        "path": "../../common/addon/translations.yaml"
       }
     ],
     "package_substitutions": {
@@ -624,6 +632,10 @@
       {
         "alias": "memory_diagnostics",
         "path": "../../common/addon/memory_diagnostics.yaml"
+      },
+      {
+        "alias": "translations",
+        "path": "../../common/addon/translations.yaml"
       }
     ],
     "package_substitutions": {

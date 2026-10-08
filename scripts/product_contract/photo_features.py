@@ -193,10 +193,10 @@ def check_connection_resilience_metadata(product: dict, errors: list[str]) -> No
         "connection_failed_overlay",
         "connection_failed_dim",
         "connection_failed_shift",
-        invalid_key_title,
-        unavailable_title,
-        "Check your Immich API key",
-        "Check your internet connection",
+        'espframe_i18n_key("invalid_api_key")',
+        'espframe_i18n_key("connection_failed")',
+        'espframe_i18n_key("check_api_key")',
+        'espframe_i18n_key("check_connection")',
     ):
         if needle:
             require_contains(screen_yaml, needle, "devices/guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml", errors)
@@ -409,13 +409,12 @@ def check_setup_flow_metadata(product: dict, errors: list[str]) -> None:
     ):
         require_contains(immich_config_yaml, needle, "common/addon/immich_config.yaml", errors)
     require_contains(screen_loading_yaml, "wifi::global_wifi_component->get_ap().get_ssid()", "devices/guition-esp32-p4-jc8012p4a1/device/screen_loading.yaml", errors)
-    for needle in (
-        "Connect to the WiFi hotspot",
-        "to configure your network",
-        "Then visit ${captive_portal_ip}",
-    ):
-        require_contains(screen_loading_yaml, needle, "devices/guition-esp32-p4-jc8012p4a1/device/screen_loading.yaml", errors)
-        require_contains(screen_wifi_yaml, needle, "devices/guition-esp32-p4-jc8012p4a1/device/screen_wifi_setup.yaml", errors)
+    english_strings = read(ROOT / "product/translations/strings.en.txt", errors)
+    for needle in ("Connect to the WiFi hotspot", "to configure your network", "Then visit {address}"):
+        require_contains(english_strings, needle, "English WiFi instructions", errors)
+    for text in (screen_loading_yaml, screen_wifi_yaml):
+        require_contains(text, "espframe_wifi_instructions(", "WiFi setup translation helper", errors)
+        require_contains(text, '"${captive_portal_ip}"', "WiFi setup address", errors)
     if setup_dim_delay:
         require_contains(screen_wifi_yaml, f"delay: {setup_dim_delay}", "devices/guition-esp32-p4-jc8012p4a1/device/screen_wifi_setup.yaml", errors)
     if setup_dim_brightness:
@@ -429,7 +428,7 @@ def check_setup_flow_metadata(product: dict, errors: list[str]) -> None:
     for needle in (
         "id: boot_grace_period",
         "lv_bar_set_value(id(loading_progress_bar), 25, LV_ANIM_OFF)",
-        'lv_label_set_text(id(loading_status_label), "Initializing display")',
+        'lv_label_set_text(id(loading_status_label), espframe_i18n_key("initializing_display"))',
         "lvgl.page.show: wifi_setup_page",
         "script.execute: setup_screen_dim",
         "script.stop: setup_screen_dim",

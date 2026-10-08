@@ -148,6 +148,7 @@ const validBackupFixture = {
     warm_tone_intensity: 45,
     warm_tone_override: false,
     rotation: "180",
+    language: "de",
   },
 };
 
@@ -189,6 +190,7 @@ const unsupportedVersionBackupFixture = {
 };
 
 const scenarios = [
+  { name: "device-language", configured: true, width: 390, height: 900 },
   ...[false, true].map(legacy => ({ name: "frame-name-delayed-" + (legacy ? "legacy" : "export"), configured: true, width: 390, height: 900, identity: !legacy, delayedIdentity: true })),
   { name: "frame-name-long", configured: true, width: 390, height: 900, identity: true, initialName: "x".repeat(120) },
   { name: "frame-name", configured: true, width: 390, height: 900, identity: true },
@@ -411,6 +413,7 @@ function browserScriptForScenario(scenario) {
       "Photos: Paired Portraits Only": false,
       "Photos: Display Mode": "Fill",
       "Photos: Slideshow Interval": "15 seconds",
+      "Device: Language": "en",
       "Device: Metadata Date": true,
       "Device: Metadata Location": true,
       "Device: Metadata Date Format": "Date Taken",
@@ -908,7 +911,7 @@ function smokeAssertionsForScenario(scenario) {
       function requireSettingsSections() {
         clickTab("Device");
         const expected = [
-          ["Display", ["Screen Brightness", "Screen Tone", "Rotation", "Clock"]],
+          ["Display", ["Screen Brightness", "Screen Tone", "Rotation", "Device Language", "Clock"]],
           ["Sleep & Schedule", ["Night Schedule"]],
           ["System", ["Backup", "Firmware", "Device Reboot", "Factory Reset"]]
         ];
@@ -1921,6 +1924,21 @@ function smokeAssertionsForScenario(scenario) {
               if (input && label.control !== input) throw new Error("Unassociated field: " + label.textContent);
             }
           }
+          if (${JSON.stringify(scenario.name)} === "device-language") {
+            clickTab("Device");
+            const language = expandCard("Device Language").querySelector("select");
+            if (language.value !== "en") throw new Error("Device language should default to English");
+            language.value = "de";
+            language.dispatchEvent(new Event("change", { bubbles: true }));
+            await waitFor(() => hasConfigurationPost("Device: Language"), 4000, "language save");
+            requirePostContains("Saved device language", "Device: Language", "option=de");
+            clickButton("Export");
+            await waitFor(() => window.__smoke.downloads === 1, 4000, "language backup export");
+            const backup = JSON.parse(window.__smoke.exportPayloads[0]);
+            if (backup.screen.language !== "de") throw new Error("Backup must preserve German device language");
+            requireText("Device Language");
+          }
+
           if (${JSON.stringify(scenario.name)} === "setting-save-rejected") {
             clickTab("Device");
             const card = expandCard("Screen Brightness");
@@ -1964,6 +1982,7 @@ function smokeAssertionsForScenario(scenario) {
             requirePostContains("Import switch field", "Firmware: Auto Update", "turn_on");
             requirePostContains("Import select field", "Photos: Source", "option=Person");
             requirePostContains("Import number field", "Screen: Daytime Brightness", "value=90");
+            requirePostContains("Import language", "Device: Language", "option=de");
             requirePostContains("Import aggregate NTP field", "Clock: NTP Server 1");
             requirePostContains("Import WiFi auto-update field", "WiFi Firmware: Auto Update", "turn_on");
             requirePostContains("Import normalized schedule setting", "Screen: Schedule Wake Timeout", "value=120");

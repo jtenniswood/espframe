@@ -154,6 +154,14 @@
 
   }
 
+  function makeLanguageCard() {
+    var body = el("div");
+    body.appendChild(productSelectSettingField("Language", "device_language", {
+      optionDisplayFn: function (v) { return { en: "English", de: "German" }[v] || v; }
+    }));
+    return makeCollapsibleCard("Device Language", body, true);
+  }
+
   function makeClockCard() {
     // Clock
     var clockBadge = makeBadge(S.show_clock);

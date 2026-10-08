@@ -893,5 +893,25 @@
     "docs_description": "Require an exact city value.",
     "firmware_files": ["common/addon/immich_filter.yaml"],
     "docs_files": ["docs/photo-sources.md"]
+  },
+  {
+    "key": "device_language",
+    "entity": {
+      "domain": "select",
+      "name": "Device: Language"
+    },
+    "default": "en",
+    "options": [
+      "en",
+      "de"
+    ],
+    "docs_label": "Device Language",
+    "docs_description": "Translate built-in display text and photo dates: English (`en`) or German (`de`). The web interface stays in English.",
+    "firmware_files": [
+      "common/addon/translations.yaml"
+    ],
+    "docs_files": [
+      "docs/screen-settings.md"
+    ]
   }
 ]

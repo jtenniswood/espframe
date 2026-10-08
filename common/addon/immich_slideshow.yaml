@@ -607,7 +607,7 @@ script:
           id(photo_source_menu_open) = true;
           lv_obj_set_size(id(photo_source_menu_overlay), lv_pct(100), lv_pct(100));
           lv_obj_align(id(photo_source_menu_overlay), LV_ALIGN_CENTER, 0, 0);
-          lv_label_set_text(id(photo_source_menu_title), "Photo Source");
+          lv_label_set_text(id(photo_source_menu_title), espframe_i18n_key("photo_source"));
           lv_label_set_text(id(photo_source_menu_message), "");
           lv_obj_add_flag(id(photo_source_menu_message), LV_OBJ_FLAG_HIDDEN);
           const std::string current = id(photo_source_select).current_option();
@@ -670,17 +670,17 @@ script:
           };
 
           if (source == "Album" && !has_configured_ids(id(immich_album_ids).state)) {
-            lv_label_set_text(id(photo_source_menu_message), "Set up album IDs first.");
+            lv_label_set_text(id(photo_source_menu_message), espframe_i18n_key("setup_album_ids"));
             lv_obj_clear_flag(id(photo_source_menu_message), LV_OBJ_FLAG_HIDDEN);
             return;
           }
           if (source == "Person" && !has_configured_ids(id(immich_person_ids).state)) {
-            lv_label_set_text(id(photo_source_menu_message), "Set up person IDs first.");
+            lv_label_set_text(id(photo_source_menu_message), espframe_i18n_key("setup_person_ids"));
             lv_obj_clear_flag(id(photo_source_menu_message), LV_OBJ_FLAG_HIDDEN);
             return;
           }
           if (source == "Tag" && !has_configured_ids(id(immich_tag_ids).state)) {
-            lv_label_set_text(id(photo_source_menu_message), "Set up tag IDs first.");
+            lv_label_set_text(id(photo_source_menu_message), espframe_i18n_key("setup_tag_ids"));
             lv_obj_clear_flag(id(photo_source_menu_message), LV_OBJ_FLAG_HIDDEN);
             return;
           }
