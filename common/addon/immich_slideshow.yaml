@@ -990,7 +990,7 @@ script:
                 if (format == "January 1, 2026" || format == "January 1, 2000" || format == "Month Day, Year") {
                   date_text = format_photo_date_month_day_year(id(espframe_core).slideshow().state().current_display.year, id(espframe_core).slideshow().state().current_display.month, id(espframe_core).slideshow().state().current_display.day);
                 } else {
-                  date_text = id(espframe_core).slideshow().state().current_display.date;
+                  date_text = format_photo_date_full(id(espframe_core).slideshow().state().current_display.year, id(espframe_core).slideshow().state().current_display.month, id(espframe_core).slideshow().state().current_display.day);
                 }
               }
             }

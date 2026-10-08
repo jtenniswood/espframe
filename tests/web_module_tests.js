@@ -209,6 +209,12 @@ assert.ok(
     configReadiness.indexOf("script.stop: immich_check_config_ready"),
   "configuration errors should navigate to the slideshow before showing its overlay"
 );
+const metadataRefresh = fs.readFileSync(path.join(root, "common/addon/immich_slideshow.yaml"), "utf8")
+  .split("  - id: update_photo_metadata_display")[1].split("  - id:")[0];
+assert.ok(metadataRefresh.includes("date_text = format_photo_date_full("),
+  "the default date style must be formatted again when language changes");
+assert.ok(!metadataRefresh.includes("date_text = id(espframe_core).slideshow().state().current_display.date;"),
+  "language changes must not reuse the date cached when the photo was fetched");
 const unsupportedFilterOverlay = configReadiness.slice(
   configReadiness.indexOf('espframe_i18n_key("filter_needs_v32")'),
   configReadiness.indexOf("clear_slot_fetch_in_flight")
