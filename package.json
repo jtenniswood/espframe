@@ -50,7 +50,7 @@
     "test:photo-buffers": "g++ -std=c++17 -I. -Itests/stubs tests/photo_buffer_ownership_tests.cpp -o /tmp/espframe_photo_buffer_tests && /tmp/espframe_photo_buffer_tests",
     "test:automation-controller": "g++ -std=c++17 -I. -Itests/stubs tests/automation_controller_tests.cpp -o /tmp/espframe_automation_tests && /tmp/espframe_automation_tests",
     "test:docs-installer": "node tests/docs_installer_tests.js",
-    "test:translations": "python3 tests/translation_catalogue_tests.py"
+    "test:translations": "python3 tests/translation_catalogue_tests.py && python3 tests/translation_startup_tests.py"
   },
   "devDependencies": {
     "ajv": "^8.20.0",

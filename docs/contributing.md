@@ -49,7 +49,7 @@ firmware work. Relative ages currently use singular and plural forms.
 
 Use `espframe_i18n_key("stable_key")` when rendering static device text. Keep
 complete sentences in the catalogue so translations can change word order. Add
-new fixed labels to `refresh_device_translations` in `common/addon/translations.yaml`
+new fixed labels to the refresh callback in `common/addon/translations.yaml`
 so they update when the language changes. Do not translate logs, entity names,
 configuration option values, or Immich-provided content.
 
