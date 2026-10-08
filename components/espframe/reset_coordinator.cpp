@@ -21,6 +21,7 @@ namespace {
 constexpr char TAG[] = "espframe.reset";
 constexpr char RESET_NAMESPACE[] = "espframe_rs";
 constexpr char RESET_RECORD_KEY[] = "state";
+constexpr char FACTORY_WIFI_RESET_KEY[] = "wifi_reset";
 constexpr uint32_t RESET_RECORD_VERSION = 1;
 constexpr uint32_t WIFI_FALLBACK_PREFERENCE_KEY = 88491487UL;
 constexpr uint32_t API_NOISE_PREFERENCE_KEY = 88491486UL;
@@ -105,6 +106,47 @@ bool ResetCoordinator::save_() {
   return result == ESP_OK;
 }
 
+bool ResetCoordinator::clear_factory_wifi_reset() {
+  nvs_handle_t handle;
+  esp_err_t result = nvs_open(RESET_NAMESPACE, NVS_READWRITE, &handle);
+  if (result != ESP_OK) return false;
+  result = nvs_erase_key(handle, FACTORY_WIFI_RESET_KEY);
+  if (result == ESP_OK) result = nvs_commit(handle);
+  nvs_close(handle);
+  return result == ESP_OK || result == ESP_ERR_NVS_NOT_FOUND;
+}
+
+namespace {
+bool factory_wifi_reset_pending() {
+  nvs_handle_t handle;
+  esp_err_t result = nvs_open(RESET_NAMESPACE, NVS_READONLY, &handle);
+  if (result == ESP_ERR_NVS_NOT_FOUND) return false;
+  if (result != ESP_OK) {
+    ESP_LOGW(TAG, "Could not read factory WiFi reset state: %s", esp_err_to_name(result));
+    return true;
+  }
+  uint8_t pending = 0;
+  result = nvs_get_u8(handle, FACTORY_WIFI_RESET_KEY, &pending);
+  nvs_close(handle);
+  if (result == ESP_ERR_NVS_NOT_FOUND) return false;
+  if (result != ESP_OK) {
+    ESP_LOGW(TAG, "Could not read factory WiFi reset flag: %s", esp_err_to_name(result));
+    return true;
+  }
+  return pending != 0;
+}
+
+bool save_factory_wifi_reset() {
+  nvs_handle_t handle;
+  esp_err_t result = nvs_open(RESET_NAMESPACE, NVS_READWRITE, &handle);
+  if (result != ESP_OK) return false;
+  result = nvs_set_u8(handle, FACTORY_WIFI_RESET_KEY, 1);
+  if (result == ESP_OK) result = nvs_commit(handle);
+  nvs_close(handle);
+  return result == ESP_OK;
+}
+}  // namespace
+
 bool ResetCoordinator::clear_preferences_(ResetMode mode) {
   std::vector<PreferenceEntry> entries;
   if (!collect_entries(entries)) return false;
@@ -136,11 +178,22 @@ void ResetCoordinator::setup() {
     ESP_LOGE(TAG, "Could not read reset state; settings were left untouched");
     return;
   }
-  if (this->mode_ == ResetMode::NONE) return;
+  if (this->mode_ == ResetMode::NONE) {
+    if (factory_wifi_reset_pending() && wifi::global_wifi_component != nullptr) {
+      ESP_LOGI(TAG, "Suppressing WiFi credentials compiled into firmware after factory reset");
+      wifi::global_wifi_component->clear_sta();
+    }
+    return;
+  }
   ESP_LOGW(TAG, "Resuming pending %s reset", this->mode_ == ResetMode::FACTORY ? "factory" : "customization");
   if (!this->clear_preferences_(this->mode_)) {
     this->failed_ = true;
     ESP_LOGE(TAG, "Reset cleanup failed; pending request retained for retry");
+    return;
+  }
+  if (this->mode_ == ResetMode::FACTORY && !save_factory_wifi_reset()) {
+    this->failed_ = true;
+    ESP_LOGE(TAG, "Could not persist factory WiFi reset state; pending request retained for retry");
     return;
   }
   this->mode_ = ResetMode::NONE;
@@ -149,6 +202,10 @@ void ResetCoordinator::setup() {
     this->failed_ = true;
     ESP_LOGE(TAG, "Reset completed but could not persist completion state");
     return;
+  }
+  if (factory_wifi_reset_pending() && wifi::global_wifi_component != nullptr) {
+    ESP_LOGI(TAG, "Suppressing WiFi credentials compiled into firmware after factory reset");
+    wifi::global_wifi_component->clear_sta();
   }
   ESP_LOGI(TAG, "Reset completed; reset epoch is %lu", static_cast<unsigned long>(this->epoch_));
 }

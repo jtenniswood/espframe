@@ -4582,7 +4582,7 @@ to {
           warningIcon.setAttribute("aria-hidden", "true");
           warningIcon.textContent = "!";
           var warningText = el("span");
-          warningText.textContent = "Saved Wi-Fi credentials and the Home Assistant API key will be erased. Wi-Fi compiled into the firmware may reconnect.";
+          warningText.textContent = "Saved Wi-Fi credentials and the Home Assistant API key will be erased. Wi-Fi compiled into the firmware will stay disabled until you provision a network again.";
           warning.append(warningIcon, warningText);
           var backupReminder = el("p", "reset-dialog-backup-reminder");
           backupReminder.textContent = "Save a backup first. This reset cannot be undone.";
@@ -4651,7 +4651,7 @@ to {
         try {
           await apiClient.waitForWrites();
           await apiClient.reset(mode);
-          showBanner("Reset accepted. The frame is restarting. It may reconnect using credentials compiled into its firmware.", "info");
+          showBanner("Reset accepted. The frame is restarting into first-time Wi-Fi setup.", "info");
         } catch (_) {
           action.disabled = false;
           action.textContent = title;

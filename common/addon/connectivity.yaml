@@ -49,6 +49,10 @@ wifi:
   ap:
     ssid: "espframe"
   on_connect:
+    - lambda: |-
+        if (!id(espframe_core).clear_factory_wifi_reset()) {
+          ESP_LOGW("espframe.reset", "Could not clear factory WiFi reset marker after provisioning");
+        }
     - script.stop: setup_screen_dim
     - script.stop: show_wifi_setup_after_disconnect
     - lambda: |-

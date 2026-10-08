@@ -64,6 +64,7 @@ class EspFrameComponent : public Component, public ConfigurationUpdateScheduler 
   void schedule_configuration_update(std::function<void()> &&update) override { this->defer(std::move(update)); }
 
   void set_firmware_update_in_progress(bool value) { this->reset_.set_firmware_update_in_progress(value); }
+  bool clear_factory_wifi_reset() { return this->reset_.clear_factory_wifi_reset(); }
 
   void set_c6_update_entity(update::UpdateEntity *entity) {
     if (entity == nullptr) return;
