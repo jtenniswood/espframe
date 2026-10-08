@@ -29,6 +29,26 @@ http_request:
 # -----------------------------------------------------------------------------
 captive_portal:
 
+# Give each display its own setup network name. A shared "espframe" SSID can
+# be remembered by phones as a network without internet, which often suppresses
+# the operating system's captive-portal sign-in prompt on later setup attempts.
+# Set it before the WiFi component starts; the setup screen reads this live name.
+esphome:
+  on_boot:
+    - priority: 600
+      then:
+        - lambda: |-
+            const std::string mac = get_mac_address();
+            std::string suffix;
+            for (char c : mac) {
+              if (c != ':' && c != '-') suffix.push_back(c);
+            }
+            if (suffix.size() > 6) suffix = suffix.substr(suffix.size() - 6);
+            if (suffix.empty()) suffix = "SETUP";
+            wifi::WiFiAP ap = wifi::global_wifi_component->get_ap();
+            ap.set_ssid("espframe_" + suffix);
+            wifi::global_wifi_component->set_ap(ap);
+
 script:
   - id: show_wifi_setup_after_disconnect
     mode: restart
