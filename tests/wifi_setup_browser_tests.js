@@ -3,8 +3,21 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { spawnSync } = require("child_process");
+const { createHash } = require("crypto");
+const { gunzipSync, brotliDecompressSync } = require("zlib");
 
-const source = fs.readFileSync(path.join(__dirname, "../components/espframe/wifi_setup_page.html"), "utf8");
+const source = fs.readFileSync(path.join(__dirname, "../components/captive_portal/portal.html"), "utf8");
+// Byte-for-byte upstream page parity, allowing only click-navigation prevention.
+const upstream = source.replace("function(event){event.preventDefault();", "function(){");
+assert.equal(createHash("sha256").update(upstream).digest("hex"),
+  "98ff9b7ed031268f7dd6483d90b7f0eed6e4cf689cdb14fe4eb5a59b22d8ad37",
+  "Captive portal layout differs from EspControl's pinned ESPHome page");
+const embedded = fs.readFileSync(path.join(__dirname, "../components/captive_portal/captive_index.h"), "utf8");
+const arrays = [...embedded.matchAll(/INDEX_GZ\[\] PROGMEM = \{([\s\S]*?)\};/g)]
+  .map(match => Buffer.from([...match[1].matchAll(/0x([0-9a-f]{2})/g)].map(byte => parseInt(byte[1], 16))));
+assert.equal(arrays.length, 2);
+assert.equal(gunzipSync(arrays[0]).toString(), source);
+assert.equal(brotliDecompressSync(arrays[1]).toString(), source);
 const chrome = [process.env.CHROME_BIN, process.env.CHROME_PATH,
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome",
   "/usr/bin/chromium", "/usr/bin/chromium-browser"].find((p) => p && fs.existsSync(p));
@@ -32,19 +45,20 @@ try {
           var buttons = document.querySelectorAll(".network");
           var names = ${JSON.stringify(names)};
           check(buttons.length === names.length, "Expected all scanned networks");
-          check(!document.querySelector("#networks img"), "SSID must remain text");
+          check(!document.querySelector("#net img"), "SSID must remain text");
           names.forEach(function (name, index) {
-            buttons[index].click();
+            buttons[index].querySelector("a").click();
             check(ssid.value === name, "Selected SSID changed");
             check(password.value === "typed-password", "Password reset after network selection");
             check(location.href === before, "Network selection navigated");
             check(document.activeElement === password, "Password field should receive focus");
-            check(buttons[index].getAttribute("aria-pressed") === "true", "Selection missing");
           });` : `
           check(!document.querySelector(".network"), "Unexpected scanned networks");
-          check(!document.getElementById("status").textContent.includes("Looking"), "Missing fallback guidance");
           ssid.value = "Manual network";`}
           var form = ssid.form;
+          check(document.querySelector("h3").textContent === "WiFi Settings", "Standard form heading changed");
+          check(form.querySelector("button").textContent === "Save", "Standard save control changed");
+          check(document.querySelector('form[action="/update"]'), "Firmware upload form missing");
           check(form.getAttribute("action") === "/wifisave", "Existing provisioning endpoint changed");
           var submitted = false;
           form.addEventListener("submit", function (event) {
@@ -63,7 +77,7 @@ try {
       }, 50);
     </script>`;
     const file = path.join(dir, `${scenario}.html`);
-    fs.writeFileSync(file, source.replace("<script>", mock + "<script>").replace("</body>", assertions + "</body>"));
+    fs.writeFileSync(file, source.replace(/<script\b/, mock + "<script").replace("</body>", assertions + "</body>"));
     const args = ["--headless=new", "--disable-gpu", "--disable-background-networking", "--no-first-run",
       `--user-data-dir=${path.join(dir, scenario + "-profile")}`, "--virtual-time-budget=2000", "--dump-dom", `file://${file}`];
     if (process.platform === "linux" && process.getuid() === 0) args.unshift("--no-sandbox");

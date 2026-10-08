@@ -10,7 +10,6 @@
 #include "memory_pressure.h"
 #include "automation_controller.h"
 #include "memory_diagnostics.h"
-#include "wifi_setup_portal.h"
 
 namespace esphome {
 namespace espframe {
@@ -27,9 +26,6 @@ class EspFrameComponent : public Component, public ConfigurationUpdateScheduler 
       base->add_handler(&this->configuration_api_);
       base->add_handler(&this->reset_api_);
       base->add_handler(&this->identity_api_);
-#ifdef USE_CAPTIVE_PORTAL
-      base->add_handler_without_auth(&this->wifi_setup_portal_);
-#endif
     }
     this->set_interval("memory-sample", 1000, [this]() { this->sample_memory_(); });
     this->set_interval("memory-report", 60000, [this]() { this->record_memory("periodic"); });
@@ -69,9 +65,6 @@ class EspFrameComponent : public Component, public ConfigurationUpdateScheduler 
 
   void set_firmware_update_in_progress(bool value) { this->reset_.set_firmware_update_in_progress(value); }
   bool clear_factory_wifi_reset() { return this->reset_.clear_factory_wifi_reset(); }
-#ifdef USE_CAPTIVE_PORTAL
-  void set_wifi_setup_page(const uint8_t *data, size_t size) { this->wifi_setup_portal_.set_page(data, size); }
-#endif
 
   void set_c6_update_entity(update::UpdateEntity *entity) {
     if (entity == nullptr) return;
@@ -117,9 +110,6 @@ class EspFrameComponent : public Component, public ConfigurationUpdateScheduler 
   FrameIdentity identity_;
   FrameIdentityApiHandler identity_api_;
   EspFrameSlideshow slideshow_{};
-#ifdef USE_CAPTIVE_PORTAL
-  WiFiSetupPortal wifi_setup_portal_;
-#endif
 };
 
 }  // namespace espframe

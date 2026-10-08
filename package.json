@@ -19,7 +19,7 @@
     "changelog:release": "python3 scripts/release_changelog.py",
     "test:web-compat": "node tests/web_compat_tests.js",
     "test:web-modules": "node tests/web_module_tests.js",
-    "test:wifi-setup": "g++ -std=c++17 -I. tests/wifi_setup_routes_tests.cpp -o /tmp/espframe_wifi_setup_routes_tests && /tmp/espframe_wifi_setup_routes_tests && node tests/wifi_setup_browser_tests.js",
+    "test:wifi-setup": "python3 scripts/test_captive_portal_dns.py && node tests/wifi_setup_browser_tests.js",
     "test:web-saves": "node tests/setting_save_tests.js",
     "test:web-api-client": "node tests/api_client_tests.js",
     "test:web-types": "python3 tests/web_typecheck_tests.py",

@@ -70,6 +70,7 @@ wifi:
   reboot_timeout: 0s
   ap:
     ssid: "espframe"
+    ap_timeout: 90s
   on_connect:
     - lambda: |-
         if (!id(espframe_core).clear_factory_wifi_reset()) {
