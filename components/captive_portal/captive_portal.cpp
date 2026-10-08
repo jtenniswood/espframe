@@ -10,6 +10,7 @@
 #include "esphome/components/provisioning/provisioning.h"
 #endif
 #include "captive_index.h"
+#include "wifi_saved.h"
 
 namespace esphome::captive_portal {
 
@@ -75,7 +76,21 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
   // Defer save to main loop thread to avoid NVS operations from HTTP thread
   this->defer([ssid, psk]() { wifi::global_wifi_component->save_wifi_sta(ssid.c_str(), psk.c_str()); });
 #endif
-  request->send(200, ESPHOME_F("text/plain"), ESPHOME_F("Saved. Connecting..."));
+  // Serve the confirmation directly so it remains readable as the AP disconnects.
+#ifndef USE_ESP8266
+  auto *response = request->beginResponse(200, ESPHOME_F("text/html"), WIFI_SAVED_GZ, sizeof(WIFI_SAVED_GZ));
+#else
+  auto *response = request->beginResponse_P(200, ESPHOME_F("text/html"), WIFI_SAVED_GZ, sizeof(WIFI_SAVED_GZ));
+#endif
+#ifdef USE_CAPTIVE_PORTAL_GZIP
+  response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
+#else
+  response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("br"));
+#endif
+  response->addHeader(ESPHOME_F("Cache-Control"), ESPHOME_F("no-store, no-cache, must-revalidate, max-age=0"));
+  response->addHeader(ESPHOME_F("Pragma"), ESPHOME_F("no-cache"));
+  response->addHeader(ESPHOME_F("Expires"), ESPHOME_F("0"));
+  request->send(response);
 }
 
 void CaptivePortal::setup() {

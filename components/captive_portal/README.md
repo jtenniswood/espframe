@@ -13,18 +13,20 @@ its original SHA-256 is
 `98ff9b7ed031268f7dd6483d90b7f0eed6e4cf689cdb14fe4eb5a59b22d8ad37`.
 The layout now uses Espframe's webserver cards, labels, inputs and buttons.
 `npm run generate` embeds `docs/webserver/src/style.css` at the template's style
-marker and produces both gzip and Brotli versions of `captive_index.h`. Everything
+marker and produces gzip and Brotli versions of `captive_index.h` and `wifi_saved.h`. Everything
 is served locally, with no stylesheet or font download during hotspot setup.
 The setup page shows the network list, SSID/password fields and Save button.
 Device/MAC headings and the OTA upload panel are omitted. The upstream script
 retains provisioning behavior, prevents default `href="#"` navigation when
-choosing a network, and omits updates to the removed headings. Browser coverage
+choosing a network, omits updates to the removed headings, and keeps the page title as EspFrame WiFi setup. Browser coverage
 checks these focused script changes, shared styles, narrow layouts and form behavior.
 
 Page and scan responses use EspControl's no-cache policy. Operating-system
 probes receive the standard HTTP 200 portal page; no custom redirects are added.
 Credential persistence, scan filtering and the `/config.json`, `/wifisave` and
-`/update` endpoints retain ESPHome's behavior.
+`/update` endpoints retain ESPHome's behavior. `/wifisave` returns a locally
+embedded HTML confirmation with instructions to reconnect to home WiFi and
+continue setup on the frame. It needs no scripts, redirects or network requests.
 
 C/C++ files use ESPHome's GPLv3 license; Python uses its MIT license (`LICENSE`).
 The page originated in esphome/esphome-webserver under MIT (`PORTAL_LICENSE`).

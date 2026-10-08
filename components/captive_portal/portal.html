@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="data:image">
-<title>Espframe WiFi setup</title>
+<title>EspFrame WiFi setup</title>
 <script type=module crossorigin>document.location.search===`?save`&&(document.getElementsByTagName(`aside`)[0].style.display=`block`);function e(e){let n=Math.max(Math.min(2*(e+100),100),0)/100;return t(`<path d="M12 19.25L.7 4.25c7-5 14-5 22.5 0z" fill="none" stroke="currentColor"/>
-<path d="M12 19.25L.7 4.25c7-5 14-5 22.5 0z" transform="scale(${n} ${n})" transform-origin="12 18"/>`)}function t(e){return r([`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24">${e}</svg>`])}function n(e){return e?t(`<path d='M12 17a2 2 0 0 0 2-2 2 2 0 0 0-2-2 2 2 0 0 0-2 2 2 2 0 0 0 2 2m6-9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2h1V6a5 5 0 0 1 5-5 5 5 0 0 1 5 5v2h1m-6-5a3 3 0 0 0-3 3v2h6V6a3 3 0 0 0-3-3z'/>`):``}function r(e){return e.join(``)}fetch(`/config.json`).then(function(t){t.json().then(function(t){document.title=t.name;let r=document.getElementById(`net`),i=document.getElementById(`ssid`),a=document.getElementById(`psk`);t.aps.slice(1).forEach(function(t){let o=document.createElement(`div`);o.className=`network`,o.innerHTML=`<a href="#" class="network-left">${e(t.rssi)}<span class="network-ssid"></span></a>${n(t.lock)}`,o.querySelector(`.network-ssid`).textContent=t.ssid,o.onclick=function(event){event.preventDefault();i.value=t.ssid,a.focus()},r.appendChild(o)}),document.querySelector(`link[rel~='icon']`).href=`data:image/svg+xml,${e(-65)}`})});</script>
+<path d="M12 19.25L.7 4.25c7-5 14-5 22.5 0z" transform="scale(${n} ${n})" transform-origin="12 18"/>`)}function t(e){return r([`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24">${e}</svg>`])}function n(e){return e?t(`<path d='M12 17a2 2 0 0 0 2-2 2 2 0 0 0-2-2 2 2 0 0 0-2 2 2 2 0 0 0 2 2m6-9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2h1V6a5 5 0 0 1 5-5 5 5 0 0 1 5 5v2h1m-6-5a3 3 0 0 0-3 3v2h6V6a3 3 0 0 0-3-3z'/>`):``}function r(e){return e.join(``)}fetch(`/config.json`).then(function(t){t.json().then(function(t){document.title=`EspFrame WiFi setup`;let r=document.getElementById(`net`),i=document.getElementById(`ssid`),a=document.getElementById(`psk`);t.aps.slice(1).forEach(function(t){let o=document.createElement(`div`);o.className=`network`,o.innerHTML=`<a href="#" class="network-left">${e(t.rssi)}<span class="network-ssid"></span></a>${n(t.lock)}`,o.querySelector(`.network-ssid`).textContent=t.ssid,o.onclick=function(event){event.preventDefault();i.value=t.ssid,a.focus()},r.appendChild(o)}),document.querySelector(`link[rel~='icon']`).href=`data:image/svg+xml,${e(-65)}`})});</script>
 <style>
 /* __ESPFRAME_WEB_STYLE__ */
 :root { color-scheme:dark; }
@@ -29,7 +29,7 @@ aside { display:none; padding:14px; margin-bottom:20px; border:1px solid var(--s
 </head>
 <body>
 <div id="sp-app">
-<header class="sp-header"><div class="sp-brand"><span class="sp-brand-label">Espframe</span><span class="sp-device-name">WiFi setup</span></div></header>
+<header class="sp-header"><div class="sp-brand"><span class="sp-brand-label">EspFrame</span><span class="sp-device-name">WiFi setup</span></div></header>
 <main class="sp-settings-wrap">
 <aside role="status" aria-live="polite">Connecting to network...<br>Please wait.</aside>
 <section class="card" aria-label="WiFi setup">

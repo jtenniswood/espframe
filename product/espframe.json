@@ -1508,6 +1508,7 @@
     "github_pages_url_output": "page_url",
     "github_prerelease_lookup_limit": 20,
     "generated_asset_outputs": [
+      "components/captive_portal/wifi_saved.h",
       "components/captive_portal/captive_index.h",
       "product/espframe.json",
       "components/espframe/configuration_contract_generated.h",
@@ -1520,6 +1521,7 @@
       "docs/public/webserver/style.css"
     ],
     "generated_asset_output_headers": {
+      "components/captive_portal/wifi_saved.h": "// ESPFRAME: generated from components/captive_portal/wifi_saved.html; run `npm run generate` to update.",
       "components/captive_portal/captive_index.h": "// ESPFRAME: generated from components/captive_portal/portal.html; run `npm run generate` to update.",
       "components/espframe/configuration_contract_generated.h": "// ESPFRAME: generated from product/contract; run `npm run generate` to update.",
       "devices/guition-esp32-p4-jc8012p4a1/packages.yaml": "# ESPFRAME: generated from product/contract; run `npm run generate` to update.",

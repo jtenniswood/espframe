@@ -7,8 +7,8 @@ import subprocess
 from .paths import ROOT
 
 
-def captive_portal_header() -> str:
-    template = (ROOT / "components/captive_portal/portal.html").read_text()
+def encoded_page_header(filename: str, symbol: str) -> str:
+    template = (ROOT / "components/captive_portal" / filename).read_text()
     source = template.replace("/* __ESPFRAME_WEB_STYLE__ */",
                               (ROOT / "docs/webserver/src/style.css").read_text()).encode()
     gzip_data = gzip.compress(source, compresslevel=9, mtime=0)
@@ -25,9 +25,17 @@ def captive_portal_header() -> str:
         return "\n".join("    " + ", ".join(f"0x{byte:02x}" for byte in data[i:i + 16]) + ","
                          for i in range(0, len(data), 16))
 
-    return ("// ESPFRAME: generated from components/captive_portal/portal.html; run `npm run generate` to update.\n"
+    return (f"// ESPFRAME: generated from components/captive_portal/{filename}; run `npm run generate` to update.\n"
             "// Upstream page: esphome/esphome 2026.9.1; see README.md and PORTAL_LICENSE.\n"
             "#pragma once\n#include \"esphome/core/hal.h\"\n"
             "namespace esphome::captive_portal {\n#ifdef USE_CAPTIVE_PORTAL_GZIP\n"
-            "constexpr uint8_t INDEX_GZ[] PROGMEM = {\n" + array(gzip_data) + "\n};\n#else\n"
-            "constexpr uint8_t INDEX_GZ[] PROGMEM = {\n" + array(brotli_data) + "\n};\n#endif\n}\n")
+            f"constexpr uint8_t {symbol}[] PROGMEM = {{\n" + array(gzip_data) + "\n};\n#else\n"
+            f"constexpr uint8_t {symbol}[] PROGMEM = {{\n" + array(brotli_data) + "\n};\n#endif\n}\n")
+
+
+def captive_portal_header() -> str:
+    return encoded_page_header("portal.html", "INDEX_GZ")
+
+
+def wifi_saved_header() -> str:
+    return encoded_page_header("wifi_saved.html", "WIFI_SAVED_GZ")
