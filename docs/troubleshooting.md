@@ -20,15 +20,15 @@ See [USB Flashing Help for Guition ESP32-P4](/usb-flashing) for more detail.
 
 ## WiFi Setup Problems
 
-After flashing, keep the display connected to USB so the installer can offer WiFi setup in the same browser tab. If that form does not appear, or you are setting up without USB, EspFrame creates a temporary WiFi network named **espframe**.
+After flashing, keep the display connected to USB so the installer can offer WiFi setup in the same browser tab. If that form does not appear, or you are setting up without USB, join the temporary WiFi network named on the display: **espframe_** followed by a device suffix.
 
-Connect to this network from your phone or laptop and follow the setup page to enter your home WiFi details. If the page does not open automatically, visit `http://192.168.4.1`.
+Connect to this network from your phone or laptop. Choose your home network on the setup page, enter its password, then press **Connect**. If the page does not open automatically, visit `http://192.168.4.1`.
 
 If you do not see the frame on your network:
 
 - Check that the WiFi name and password were entered correctly.
 - Make sure the frame is close enough to the access point.
-- Look again for the **espframe** WiFi network from a phone or laptop.
+- Look again for the setup network named on the display from a phone or laptop.
 - Reboot the frame and wait for the setup screen to appear.
 
 ## Immich Connection Problems

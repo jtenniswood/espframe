@@ -1,5 +1,8 @@
 """ESPHome helper component for ESPFrame shared C++ utilities."""
 
+import gzip
+from pathlib import Path
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.final_validate as fv
@@ -9,6 +12,7 @@ from esphome.core import CORE
 CONF_MEMORY_DIAGNOSTICS = "memory_diagnostics"
 CONF_MEMORY_BEFORE_ID = "memory_before_id"
 CONF_MEMORY_AFTER_ID = "memory_after_id"
+CONF_WIFI_SETUP_PAGE_DATA_ID = "wifi_setup_page_data_id"
 
 CODEOWNERS = ["@jtenniswood"]
 DEPENDENCIES = ["json", "web_server_base"]
@@ -24,6 +28,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MEMORY_DIAGNOSTICS, default=False): cv.boolean,
         cv.GenerateID(CONF_MEMORY_BEFORE_ID): cv.declare_id(MemorySetupProbe),
         cv.GenerateID(CONF_MEMORY_AFTER_ID): cv.declare_id(MemorySetupProbe),
+        cv.GenerateID(CONF_WIFI_SETUP_PAGE_DATA_ID): cv.declare_id(cg.uint8),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -50,6 +55,11 @@ async def to_code(config):
     # Make the helper functions and structs available to YAML lambdas generated
     # for the device package.
     cg.add_global(cg.RawStatement('#include "esphome/components/espframe/espframe_component.h"'))
+
+    if "captive_portal" in CORE.config:
+        page = gzip.compress(Path(__file__).with_name("wifi_setup_page.html").read_bytes(), mtime=0)
+        data = cg.progmem_array(config[CONF_WIFI_SETUP_PAGE_DATA_ID], list(page))
+        cg.add(var.set_wifi_setup_page(data, len(page)))
 
     if config[CONF_MEMORY_DIAGNOSTICS]:
         cg.add_define("ESPFRAME_MEMORY_DIAGNOSTICS")

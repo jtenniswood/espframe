@@ -1,5 +1,6 @@
 """Exercise component registration with and without LVGL and parent overrides."""
 import asyncio
+import gzip
 from itertools import product
 from pathlib import Path
 import runpy
@@ -12,6 +13,33 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class MemoryCodegenTests(unittest.TestCase):
+    def test_captive_setup_page_is_embedded(self):
+        cg = MagicMock()
+        cg.register_component = AsyncMock()
+        core = types.ModuleType("esphome.core")
+        core.CORE = types.SimpleNamespace(config={"captive_portal": {}})
+        const = types.ModuleType("esphome.const")
+        const.CONF_ID = "id"
+        const.CONF_SETUP_PRIORITY = "setup_priority"
+        modules = {
+            "esphome": types.ModuleType("esphome"),
+            "esphome.codegen": cg,
+            "esphome.config_validation": MagicMock(),
+            "esphome.final_validate": MagicMock(),
+            "esphome.const": const,
+            "esphome.core": core,
+        }
+        with patch.dict(sys.modules, modules):
+            component = runpy.run_path(str(ROOT / "components/espframe/__init__.py"))
+            asyncio.run(component["to_code"]({"id": "parent", "memory_diagnostics": False,
+                                              "wifi_setup_page_data_id": "page_data"}))
+        data_id, data = cg.progmem_array.call_args.args
+        self.assertEqual(data_id, "page_data")
+        self.assertEqual(gzip.decompress(bytes(data)),
+                         (ROOT / "components/espframe/wifi_setup_page.html").read_bytes())
+        cg.new_Pvariable.return_value.set_wifi_setup_page.assert_called_once_with(
+            cg.progmem_array.return_value, len(data))
+
     def test_registration_matrix(self):
         for lvgl, psram, diagnostics in product((False, True), repeat=3):
             with self.subTest(lvgl=lvgl, psram=psram, diagnostics=diagnostics):

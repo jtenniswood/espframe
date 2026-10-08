@@ -65,6 +65,8 @@ script:
             - script.execute: setup_screen_dim
 
 wifi:
+  # Match EspControl so the setup AP responds promptly to browser/OS probes.
+  power_save_mode: none
   reboot_timeout: 0s
   ap:
     ssid: "espframe"

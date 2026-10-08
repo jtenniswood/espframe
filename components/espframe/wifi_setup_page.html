@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Espframe WiFi setup</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px; font: 16px system-ui, sans-serif; color: #171717; background: #fafafa; }
+    main { max-width: 600px; margin: auto; }
+    h1 { font-size: 28px; }
+    h2 { margin-top: 28px; font-size: 20px; }
+    button, input { font: inherit; border-radius: 6px; padding: 12px; }
+    input { display: block; width: 100%; margin: 8px 0 16px; border: 1px solid #aaa; }
+    button { cursor: pointer; }
+    .network { display: block; width: 100%; margin: 8px 0; border: 1px solid #bbb; background: white; text-align: left; color: #171717; overflow-wrap: anywhere; }
+    .network[aria-pressed="true"] { border: 2px solid #0876ae; }
+    .save { width: 100%; border: 0; background: #0876ae; color: white; }
+    :focus-visible { outline: 3px solid #0876ae; outline-offset: 2px; }
+    #status { min-height: 24px; }
+    details { margin-top: 32px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Connect Espframe to WiFi</h1>
+  <p id="device"></p>
+  <h2>Available networks</h2>
+  <div id="networks" aria-label="Available WiFi networks"></div>
+  <p id="status" role="status" aria-live="polite">Looking for networks…</p>
+  <form action="/wifisave" method="get">
+    <label for="ssid">Network name (SSID)</label>
+    <input id="ssid" name="ssid" maxlength="32" required autocomplete="off" autocapitalize="none" spellcheck="false">
+    <label for="psk">Password</label>
+    <input id="psk" name="psk" type="password" maxlength="64" autocomplete="new-password">
+    <button class="save" type="submit">Connect</button>
+  </form>
+  <details>
+    <summary>Firmware upload</summary>
+    <form method="post" action="/update" enctype="multipart/form-data">
+      <label for="update">Firmware file</label>
+      <input id="update" type="file" name="update" required>
+      <button class="save" type="submit">Update</button>
+    </form>
+  </details>
+</main>
+<script>
+  (function () {
+    var networks = document.getElementById("networks");
+    var ssid = document.getElementById("ssid");
+    var password = document.getElementById("psk");
+    var status = document.getElementById("status");
+    fetch("/config.json", { cache: "no-store" }).then(function (response) {
+      if (!response.ok) throw new Error("Network list unavailable");
+      return response.json();
+    }).then(function (config) {
+      document.getElementById("device").textContent = config.name;
+      var aps = config.aps.filter(function (ap) { return typeof ap.ssid === "string" && ap.ssid.length > 0; });
+      aps.forEach(function (ap) {
+        var button = document.createElement("button");
+        button.type = "button";
+        button.className = "network";
+        button.textContent = ap.ssid;
+        button.setAttribute("aria-pressed", "false");
+        button.addEventListener("click", function (event) {
+          event.preventDefault();
+          ssid.value = ap.ssid;
+          Array.prototype.forEach.call(networks.children, function (network) {
+            network.setAttribute("aria-pressed", String(network === button));
+          });
+          status.textContent = "Selected " + ap.ssid;
+          password.focus();
+        });
+        networks.appendChild(button);
+      });
+      status.textContent = aps.length ? "Choose a network, or enter its name below." : "Enter your network name below.";
+    }).catch(function () {
+      status.textContent = "Could not load networks. Enter your network name below.";
+    });
+  })();
+</script>
+</body>
+</html>
