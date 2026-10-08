@@ -6,7 +6,7 @@
 <link rel="icon" href="data:image">
 <title>Espframe WiFi setup</title>
 <script type=module crossorigin>document.location.search===`?save`&&(document.getElementsByTagName(`aside`)[0].style.display=`block`);function e(e){let n=Math.max(Math.min(2*(e+100),100),0)/100;return t(`<path d="M12 19.25L.7 4.25c7-5 14-5 22.5 0z" fill="none" stroke="currentColor"/>
-<path d="M12 19.25L.7 4.25c7-5 14-5 22.5 0z" transform="scale(${n} ${n})" transform-origin="12 18"/>`)}function t(e){return r([`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24">${e}</svg>`])}function n(e){return e?t(`<path d='M12 17a2 2 0 0 0 2-2 2 2 0 0 0-2-2 2 2 0 0 0-2 2 2 2 0 0 0 2 2m6-9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2h1V6a5 5 0 0 1 5-5 5 5 0 0 1 5 5v2h1m-6-5a3 3 0 0 0-3 3v2h6V6a3 3 0 0 0-3-3z'/>`):``}function r(e){return e.join(``)}fetch(`/config.json`).then(function(t){t.json().then(function(t){document.title=t.name,document.getElementById(`mac`).innerText=`MAC Address: `+t.mac,document.getElementById(`h1`).innerText=`WiFi Networks: `+t.name;let r=document.getElementById(`net`),i=document.getElementById(`ssid`),a=document.getElementById(`psk`);t.aps.slice(1).forEach(function(t){let o=document.createElement(`div`);o.className=`network`,o.innerHTML=`<a href="#" class="network-left">${e(t.rssi)}<span class="network-ssid"></span></a>${n(t.lock)}`,o.querySelector(`.network-ssid`).textContent=t.ssid,o.onclick=function(event){event.preventDefault();i.value=t.ssid,a.focus()},r.appendChild(o)}),document.querySelector(`link[rel~='icon']`).href=`data:image/svg+xml,${e(-65)}`})});</script>
+<path d="M12 19.25L.7 4.25c7-5 14-5 22.5 0z" transform="scale(${n} ${n})" transform-origin="12 18"/>`)}function t(e){return r([`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24">${e}</svg>`])}function n(e){return e?t(`<path d='M12 17a2 2 0 0 0 2-2 2 2 0 0 0-2-2 2 2 0 0 0-2 2 2 2 0 0 0 2 2m6-9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2h1V6a5 5 0 0 1 5-5 5 5 0 0 1 5 5v2h1m-6-5a3 3 0 0 0-3 3v2h6V6a3 3 0 0 0-3-3z'/>`):``}function r(e){return e.join(``)}fetch(`/config.json`).then(function(t){t.json().then(function(t){document.title=t.name;let r=document.getElementById(`net`),i=document.getElementById(`ssid`),a=document.getElementById(`psk`);t.aps.slice(1).forEach(function(t){let o=document.createElement(`div`);o.className=`network`,o.innerHTML=`<a href="#" class="network-left">${e(t.rssi)}<span class="network-ssid"></span></a>${n(t.lock)}`,o.querySelector(`.network-ssid`).textContent=t.ssid,o.onclick=function(event){event.preventDefault();i.value=t.ssid,a.focus()},r.appendChild(o)}),document.querySelector(`link[rel~='icon']`).href=`data:image/svg+xml,${e(-65)}`})});</script>
 <style>
 /* __ESPFRAME_WEB_STYLE__ */
 :root { color-scheme:dark; }
@@ -14,8 +14,6 @@
 .sp-brand-label { color:var(--text); }
 .sp-device-name { font-size:.875rem; }
 .sp-settings-wrap { padding:24px 16px; }
-.subtitle { margin-bottom:20px; }
-#h1 { overflow-wrap:anywhere; margin-bottom:14px; font-size:.875rem; font-weight:600; color:var(--text); }
 #net { display:block; margin-bottom:22px; }
 .network { display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--border); }
 .network:last-child { border-bottom:0; }
@@ -25,11 +23,7 @@
 .network svg { flex-shrink:0; fill:currentColor; color:var(--text2); }
 .network-ssid { overflow-wrap:anywhere; min-width:0; }
 aside { display:none; padding:14px; margin-bottom:20px; border:1px solid var(--success); border-radius:10px; color:var(--text); background:var(--success-soft); font-size:.875rem; }
-input[type=file] { display:block; max-width:100%; width:100%; color:var(--text2); font:inherit; font-size:.875rem; }
-input[type=file]::file-selector-button { margin-right:12px; padding:10px 14px; border:1px solid var(--border); border-radius:var(--action-r); background:var(--surface2); color:var(--text); font:inherit; cursor:pointer; }
-input[type=file]:focus-visible { outline:2px solid var(--accent); outline-offset:4px; }
 .btn-block { min-height:44px; }
-#mac { font-size:.75rem; color:var(--text2); text-align:center; overflow-wrap:anywhere; }
 @media (max-width:480px) { .card { padding:20px; } .sp-settings-wrap { padding:20px 12px; } }
 </style>
 </head>
@@ -37,12 +31,8 @@ input[type=file]:focus-visible { outline:2px solid var(--accent); outline-offset
 <div id="sp-app">
 <header class="sp-header"><div class="sp-brand"><span class="sp-brand-label">Espframe</span><span class="sp-device-name">WiFi setup</span></div></header>
 <main class="sp-settings-wrap">
-<h1>Connect to WiFi</h1>
-<p class="subtitle">Choose your network and enter its password to connect your frame.</p>
 <aside role="status" aria-live="polite">Connecting to network...<br>Please wait.</aside>
-<section class="card" aria-labelledby="wifi-settings-heading">
-<h3 id="wifi-settings-heading">WiFi Settings</h3>
-<h2 id="h1">WiFi Networks</h2>
+<section class="card" aria-label="WiFi setup">
 <div id="net"></div>
 <form action="/wifisave">
 <div class="field"><label for="ssid">Network name (SSID)</label><input id="ssid" name="ssid" type="text" placeholder="SSID" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
@@ -50,15 +40,6 @@ input[type=file]:focus-visible { outline:2px solid var(--accent); outline-offset
 <button class="btn btn-primary btn-block" type="submit">Save</button>
 </form>
 </section>
-<section class="card" aria-labelledby="ota-heading">
-<h3 id="ota-heading">OTA Update</h3>
-<p class="subtitle">Upload a firmware file to update your frame.</p>
-<form method="POST" action="/update" enctype="multipart/form-data">
-<div class="field"><label for="update">Firmware file</label><input id="update" type="file" name="update"></div>
-<button class="btn btn-secondary btn-block" type="submit">Update</button>
-</form>
-</section>
-<p id="mac">MAC Address</p>
 </main>
 </div>
 </body>

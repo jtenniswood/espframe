@@ -9,8 +9,9 @@ const { gunzipSync, brotliDecompressSync } = require("zlib");
 const template = fs.readFileSync(path.join(__dirname, "../components/captive_portal/portal.html"), "utf8");
 const webStyles = fs.readFileSync(path.join(__dirname, "../docs/webserver/src/style.css"), "utf8");
 const source = template.replace("/* __ESPFRAME_WEB_STYLE__ */", webStyles);
-// Keep the confirmed provisioning script intact while changing presentation.
-const script = source.match(/<script\b[^>]*>([\s\S]*?)<\/script>/)[1];
+// Keep provisioning behavior intact, allowing removal of unused metadata updates.
+const script = source.match(/<script\b[^>]*>([\s\S]*?)<\/script>/)[1]
+  .replace("document.title=t.name;", "document.title=t.name,document.getElementById(`mac`).innerText=`MAC Address: `+t.mac,document.getElementById(`h1`).innerText=`WiFi Networks: `+t.name;");
 assert.equal(createHash("sha256").update(script).digest("hex"),
   "6e9143fc4bf8cd3c370c03432fc6f94c99ab0380337a9dec0d52372dd034f7d6", "Confirmed captive portal script changed");
 assert.ok(source.includes(webStyles), "Portal must embed the shared webserver stylesheet");
@@ -33,7 +34,7 @@ try {
       window.fetch = function (url) {
         if (url !== "/config.json") throw new Error("Unexpected request");
         ${scenario === "offline" ? 'return Promise.reject(new Error("Offline"));' :
-          `return Promise.resolve({ok: true, json: function () { return Promise.resolve(${JSON.stringify({name:"Test frame",aps:scenario === "empty" ? [{}] : [{}, ...names.map(ssid=>({ssid}))]})}); }});`}
+          `return Promise.resolve({ok: true, json: function () { return Promise.resolve(${JSON.stringify({name:"immich-frame-10inch",mac:"30:ED:A0:E2:F3:6A",aps:scenario === "empty" ? [{}] : [{}, ...names.map(ssid=>({ssid}))]})}); }});`}
       };
     </script>`;
     const assertions = `<script>
@@ -67,13 +68,14 @@ try {
           check(document.documentElement.scrollWidth <= window.innerWidth, "Portal overflows narrow viewport");
           check(getComputedStyle(document.querySelector("aside")).display === ${scenario === "saved" ? '"block"' : '"none"'}, "Connection status visibility changed");
           var form = ssid.form;
-          check(document.querySelector("h3").textContent === "WiFi Settings", "Standard form heading changed");
+          check(!document.querySelector("h1, h2, h3, #mac"), "Removed headings or MAC address returned");
+          var visibleText = document.body.innerText;
+          ["Connect to WiFi", "Choose your network and enter its password to connect your frame.",
+           "WiFi Settings", "WiFi Networks", "immich-frame-10inch", "MAC Address", "30:ED:A0:E2:F3:6A"]
+            .forEach(function (text) { check(!visibleText.includes(text), "Removed text returned: " + text); });
           check(form.querySelector("button").textContent === "Save", "Standard save control changed");
-          var updateForm = document.querySelector('form[action="/update"]');
-          check(updateForm && updateForm.method === "post", "Firmware upload form missing");
-          check(updateForm.enctype === "multipart/form-data", "Firmware upload encoding changed");
-          check(updateForm.elements.update.type === "file", "Firmware upload field changed");
-          check(updateForm.elements.update.labels.length === 1, "Firmware upload needs a visible label");
+          check(!document.querySelector('form[action="/update"], input[type="file"]'), "Removed firmware upload controls returned");
+          check(document.querySelectorAll("form").length === 1, "Expected only WiFi setup form");
           check(getComputedStyle(form.querySelector("button")).backgroundColor === "rgb(92, 115, 231)", "Webserver button style missing");
           check(form.getAttribute("action") === "/wifisave", "Existing provisioning endpoint changed");
           var submitted = false;

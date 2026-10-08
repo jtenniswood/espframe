@@ -15,9 +15,11 @@ The layout now uses Espframe's webserver cards, labels, inputs and buttons.
 `npm run generate` embeds `docs/webserver/src/style.css` at the template's style
 marker and produces both gzip and Brotli versions of `captive_index.h`. Everything
 is served locally, with no stylesheet or font download during hotspot setup.
-The upstream page script is preserved, except for preventing default `href="#"`
-navigation when choosing a network so the form contents stay intact. Browser
-coverage checks this script, shared styles, narrow layouts and form behavior.
+The setup page shows the network list, SSID/password fields and Save button.
+Device/MAC headings and the OTA upload panel are omitted. The upstream script
+retains provisioning behavior, prevents default `href="#"` navigation when
+choosing a network, and omits updates to the removed headings. Browser coverage
+checks these focused script changes, shared styles, narrow layouts and form behavior.
 
 Page and scan responses use EspControl's no-cache policy. Operating-system
 probes receive the standard HTTP 200 portal page; no custom redirects are added.
