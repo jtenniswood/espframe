@@ -2498,6 +2498,7 @@ to {
   }
   var evtSource = null;
   var rendered = false;
+  var wizardActive = false;
   var renderTimer = null;
   var renderAttemptInFlight = false;
   var logListenerAttached = false;
@@ -2710,6 +2711,7 @@ to {
     }, 0);
   }
   function renderSettingsAfterEditing() {
+    if (wizardActive) return;
     var active = isEditingSetting() ? document.activeElement : null;
     if (deferredRenderControl && deferredRenderControl !== active) {
       deferredRenderControl.removeEventListener("blur", resumeSettingsRenderAfterBlur);
@@ -2829,6 +2831,7 @@ to {
     }, 5e3);
   }
   function renderWizard() {
+    wizardActive = true;
     var step = 1;
     immichApp.replaceChildren();
     app.replaceChildren();
@@ -4759,6 +4762,7 @@ to {
     });
   }
   function renderSettings() {
+    wizardActive = false;
     app.replaceChildren();
     immichApp.replaceChildren();
     var immichWrap = el("div");

@@ -67,6 +67,7 @@
   }
 
   function renderSettings() {
+    wizardActive = false;
     app.replaceChildren();
     immichApp.replaceChildren();
     var immichWrap = el("div");
