@@ -17,6 +17,16 @@
   ],
   "generated": [
     {
+      "path": "components/captive_portal/wifi_saved.h",
+      "sources": ["components/captive_portal/wifi_saved.html", "docs/webserver/src/style.css"],
+      "generator": "scripts/generate_assets.py"
+    },
+    {
+      "path": "components/captive_portal/captive_index.h",
+      "sources": ["components/captive_portal/portal.html", "docs/webserver/src/style.css"],
+      "generator": "scripts/generate_assets.py"
+    },
+    {
       "path": "product/espframe.json",
       "sources": ["product/contract"],
       "generator": "scripts/generate_assets.py"
@@ -63,6 +73,15 @@
     }
   ],
   "vendored": [
+    {
+      "path": "components/captive_portal",
+      "name": "ESPHome captive portal and setup page",
+      "upstream": "https://github.com/esphome/esphome/tree/2026.9.1/esphome/components/captive_portal",
+      "revision": "2026.9.1; portal decoded from that revision's captive_index.h",
+      "license": "GPL-3.0 for C/C++; MIT for Python and the esphome-webserver page",
+      "license_file": "components/captive_portal/LICENSE",
+      "local_changes": "Use an IPv4 AP DNS socket independently of station IPv6 and clear counts for omitted DNS sections, style the setup and WiFi-saved confirmation pages with the shared Espframe webserver stylesheet while preserving upstream provisioning behavior and preventing network-link navigation, and match EspControl's no-cache response policy. Page source and generated encodings are documented in README.md; the page's MIT license is in PORTAL_LICENSE."
+    },
     {
       "path": "components/ledc",
       "name": "ESPHome LEDC output component",

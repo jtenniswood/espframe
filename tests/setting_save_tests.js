@@ -21,6 +21,7 @@ async function legacyConnectionRollback(status) {
     rendered: false,
     renderAttemptInFlight: false,
     renderTimer: null,
+    wizardActive: false,
     setTimeout,
     endpoints: { immich_url: "url", api_key: "key" },
     renderSettings: () => settingsShown(),
@@ -57,6 +58,7 @@ function deferredFailureRender() {
     document: { activeElement: first },
     els: { root: { contains: control => [first, second].includes(control) } },
     renderTimer: null,
+    wizardActive: false,
     setTimeout(callback) { timers.push(callback); return timers.length; },
     renderSettings() { renders++; },
     showBanner: (message, kind) => banners.push([message, kind]),
@@ -86,6 +88,13 @@ function deferredFailureRender() {
   assert.equal(timers.length, 0);
   runtime.reportSettingSaveFailure();
   assert.equal(renders, 2, "unfocused failures should render immediately");
+  runtime.wizardActive = true;
+  runtime.reportSettingSaveFailure();
+  assert.equal(renders, 2, "failed wizard saves must preserve the wizard for retry");
+  assert.equal(timers.length, 0, "wizard refresh suppression must not start polling");
+  runtime.wizardActive = false;
+  runtime.reportSettingSaveFailure();
+  assert.equal(renders, 3, "settings refreshes should resume when onboarding finishes");
 }
 
 async function overlapping(firstFails, secondFails) {

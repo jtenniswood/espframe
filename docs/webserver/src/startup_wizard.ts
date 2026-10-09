@@ -1,4 +1,5 @@
   function renderWizard() {
+    wizardActive = true;
     var step = 1;
     immichApp.replaceChildren();
     app.replaceChildren();
