@@ -97,12 +97,16 @@ def main():
           id(immich_fetch_asset_tag_scope).execute();
           // A filter reset invalidates a pending request before its continuation.
           id(immich_request_state).current = false;
+          dispatch_require(id(immich_request_state).filter_scope_request_pending(),
+                           "invalidated scope remains pending until the continuation runs");
         '''},
         {'delay': '100ms'},
         {'lambda': '''
           dispatch_require(id(tag_request_count) == 1, "no stale asset request after filter reset");
           dispatch_require(!id(immich_fetch_asset_tag_scope).is_running(), "stale script stopped");
-          id(immich_request_state).current = true;
+          dispatch_require(!id(immich_request_state).filter_scope_request_pending(),
+                           "filter reset clears stale pending scope state");
+          id(immich_request_state).begin_filter_scope_request();
           id(test_wifi_connected) = false;
           id(espframe_core).slideshow().state().slot0.filter_tag_scope_known = true;
           id(immich_fetch_asset_tag_scope).execute();
@@ -110,7 +114,8 @@ def main():
         {'delay': '100ms'},
         {'lambda': '''
           dispatch_require(id(tag_request_count) == 1, "no asset request while offline");
-          dispatch_require(!id(immich_request_state).current, "offline guard clears pending request");
+          dispatch_require(!id(immich_request_state).filter_scope_request_pending(),
+                           "offline guard clears pending request");
           dispatch_require(!id(espframe_core).slideshow().state().slot0.filter_tag_scope_known, "offline scope remains unknown");
           std::puts("Slideshow dispatch runtime tests passed");
           std::exit(0);
