@@ -45,9 +45,7 @@ class EspFrameComponent : public Component, public ConfigurationUpdateScheduler 
   // The allocator low-water mark also catches dips between one-second samples.
   // Largest-block minima are sampled, and are labelled accordingly in logs.
   void record_memory(const char *phase) {
-#ifdef ESPFRAME_MEMORY_DIAGNOSTICS
     record_loop_stack(phase);
-#endif
     const uint32_t caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
     const size_t largest = this->sample_memory_();
     ESP_LOGI("memory", "%s internal_free=%u internal_low_water=%u largest=%u largest_sampled_min=%u psram_free=%u",

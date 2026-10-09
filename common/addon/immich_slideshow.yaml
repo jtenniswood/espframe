@@ -385,6 +385,9 @@ script:
   - id: espframe_slideshow_dispatch
     mode: queued
     then:
+      # Image/HTTP callbacks can enqueue more work. Unwind their action and
+      # response frames before starting another synchronous HTTP/TLS request.
+      - delay: 0ms
       - lambda: |-
           if (id(photo_source_menu_open)) return;
           SlideshowCommand cmd;

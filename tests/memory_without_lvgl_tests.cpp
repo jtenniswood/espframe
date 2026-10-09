@@ -11,8 +11,6 @@ void log(const char *format, ...) {
 }
 
 int main() {
-#ifdef ESPFRAME_MEMORY_DIAGNOSTICS
   esphome::espframe::record_loop_stack("helper-only");
   assert(stack_logged);
-#endif
 }

@@ -658,6 +658,14 @@ script:
   - id: immich_fetch_asset_tag_scope
     mode: single
     then:
+      # This is requested from a search response callback. Release that
+      # request's stack and HTTP container before opening the asset request.
+      - delay: 0ms
+      - if:
+          condition:
+            lambda: 'return !id(immich_request_state).filter_scope_request_is_current();'
+          then:
+            - script.stop: immich_fetch_asset_tag_scope
       - if:
           condition:
             not:

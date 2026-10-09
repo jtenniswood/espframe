@@ -108,7 +108,6 @@ extern "C" void *__wrap_heap_caps_aligned_alloc(size_t alignment, size_t size, u
 
 #endif  // USE_LVGL && USE_PSRAM
 
-#ifdef ESPFRAME_MEMORY_DIAGNOSTICS
 #include "esphome/core/log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -122,4 +121,3 @@ void record_loop_stack(const char *phase) {
 }
 
 }  // namespace esphome::espframe
-#endif

@@ -328,6 +328,14 @@ float tz_offset = parse_tz_offset(id(timezone_select).current_option());
 
 3. Keep device-only actions—HTTP requests, `remote_image.update()`, and LVGL calls—in YAML. Do not duplicate slideshow runtime fields as globals; `EspFrameSlideshow` owns and resets them together.
 
+Slideshow command dispatch and follow-up tag lookups yield to the scheduler
+before opening HTTP requests, so response callbacks do not retain their stack
+frames during the next request. With ESPHome installed, run
+`python3 tests/slideshow_dispatch_runtime_tests.py` to exercise the production
+dispatch through its host scheduler, including reentrant commands and recovery.
+Normal memory reports also log the calling task's minimum free stack in bytes;
+this measures loop-task headroom, not other networking or driver tasks.
+
 ## License
 
 See [LICENSE](LICENSE) in this directory.
