@@ -180,13 +180,14 @@ void ResetCoordinator::setup() {
     ESP_LOGE(TAG, "Could not read reset state; settings were left untouched");
     return;
   }
-  if (this->mode_ == ResetMode::NONE) {
-    if (factory_wifi_reset_pending() && wifi::global_wifi_component != nullptr) {
-      ESP_LOGI(TAG, "Suppressing WiFi credentials compiled into firmware after factory reset");
-      wifi::global_wifi_component->clear_sta();
-    }
-    return;
+  // Apply a previous factory reset before choosing which preferences a
+  // customization reset keeps. Compiled stations would otherwise select the
+  // config-hash key and cause the provisioned fallback credentials to be erased.
+  if (factory_wifi_reset_pending() && wifi::global_wifi_component != nullptr) {
+    ESP_LOGI(TAG, "Suppressing WiFi credentials compiled into firmware after factory reset");
+    wifi::global_wifi_component->clear_sta();
   }
+  if (this->mode_ == ResetMode::NONE) return;
   ESP_LOGW(TAG, "Resuming pending %s reset", this->mode_ == ResetMode::FACTORY ? "factory" : "customization");
   if (!this->clear_preferences_(this->mode_)) {
     this->failed_ = true;
