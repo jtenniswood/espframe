@@ -91,6 +91,8 @@ Relative ages currently choose a singular message for a count of one and a plura
 message for larger counts. Languages requiring other plural forms need additional
 firmware support. Photo dates keep the chosen existing date layout and translate
 its month names; adding a catalogue does not change date order or punctuation.
+Use an initial capital for full and abbreviated month names, such as `Mars`
+and `Déc.`, to keep the display's date labels consistent across languages.
 
 ## Generate and validate
 

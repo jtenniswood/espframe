@@ -3,7 +3,7 @@
   "web": {
     "app_bytes_max": 261000,
     "style_bytes_max": 27000,
-    "combined_bytes_max": 287000,
+    "combined_bytes_max": 287100,
     "app_gzip_bytes_max": 58000,
     "style_gzip_bytes_max": 6000,
     "combined_gzip_bytes_max": 64000

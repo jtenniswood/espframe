@@ -1843,11 +1843,11 @@ static void test_device_translations() {
     const char *code, *march, *december_short, *day, *days, *month, *months, *year, *years;
   };
   const LocaleExample examples[] = {
-    {"fr", "mars", "déc.", "il y a 1 jour", "il y a 2 jours", "il y a 1 mois", "il y a 2 mois", "il y a 1 an", "il y a 2 ans"},
-    {"es", "marzo", "dic.", "hace 1 día", "hace 2 días", "hace 1 mes", "hace 2 meses", "hace 1 año", "hace 2 años"},
-    {"it", "marzo", "dic.", "1 giorno fa", "2 giorni fa", "1 mese fa", "2 mesi fa", "1 anno fa", "2 anni fa"},
-    {"nl", "maart", "dec.", "1 dag geleden", "2 dagen geleden", "1 maand geleden", "2 maanden geleden", "1 jaar geleden", "2 jaar geleden"},
-    {"pt", "março", "dez.", "há 1 dia", "há 2 dias", "há 1 mês", "há 2 meses", "há 1 ano", "há 2 anos"},
+    {"fr", "Mars", "Déc.", "il y a 1 jour", "il y a 2 jours", "il y a 1 mois", "il y a 2 mois", "il y a 1 an", "il y a 2 ans"},
+    {"es", "Marzo", "Dic.", "hace 1 día", "hace 2 días", "hace 1 mes", "hace 2 meses", "hace 1 año", "hace 2 años"},
+    {"it", "Marzo", "Dic.", "1 giorno fa", "2 giorni fa", "1 mese fa", "2 mesi fa", "1 anno fa", "2 anni fa"},
+    {"nl", "Maart", "Dec.", "1 dag geleden", "2 dagen geleden", "1 maand geleden", "2 maanden geleden", "1 jaar geleden", "2 jaar geleden"},
+    {"pt", "Março", "Dez.", "há 1 dia", "há 2 dias", "há 1 mês", "há 2 meses", "há 1 ano", "há 2 anos"},
   };
   for (const auto &locale : examples) {
     set_espframe_language(locale.code);

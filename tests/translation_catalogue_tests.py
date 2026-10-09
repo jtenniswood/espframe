@@ -66,6 +66,12 @@ class TranslationCatalogueTests(unittest.TestCase):
             for key, value in strings.items():
                 self.assertFalse(set(value) - glyphs, f"{code}:{key} missing font glyphs")
 
+    def test_month_names_start_with_capitals(self):
+        for code, strings in load_catalogues().items():
+            for key, value in strings.items():
+                if re.fullmatch(r"month(?:_short)?_\d{2}", key):
+                    self.assertTrue(value[0].isupper(), f"{code}:{key} must start with a capital")
+
     def test_english_connection_messages_preserve_contract(self):
         english = load_catalogues()["en"]
         project = json.loads((ROOT / "product/contract/project.json").read_text())
