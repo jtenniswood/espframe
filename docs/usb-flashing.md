@@ -39,6 +39,8 @@ Safari and Firefox do not support the required browser flashing flow.
 - Keep the display connected to USB after flashing. The installer should offer a WiFi setup form in the same browser tab.
 - If that form does not appear, or you are setting up without USB, connect your phone or laptop to the setup network named on the display (**espframe_** followed by a device suffix). If the captive portal does not open automatically, visit `http://192.168.4.1` to enter your home WiFi details.
 
+Older firmware uses **espframe** without a suffix. After updating, use the setup name shown on the display whenever you need WiFi recovery. A custom setup SSID in your YAML keeps its configured name.
+
 ## After Flashing
 
 When EspFrame boots, connect it to WiFi and open the IP address shown on the display. Enter your Immich server URL and [API key](/api-key), then choose a [photo source](/photo-sources).

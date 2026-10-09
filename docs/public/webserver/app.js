@@ -4585,7 +4585,7 @@ to {
           warningIcon.setAttribute("aria-hidden", "true");
           warningIcon.textContent = "!";
           var warningText = el("span");
-          warningText.textContent = "Saved Wi-Fi credentials and the Home Assistant API key will be erased. Wi-Fi compiled into the firmware will stay disabled until you provision a network again.";
+          warningText.textContent = "Saved Wi-Fi credentials and the Home Assistant API key will be erased. Wi-Fi compiled into the firmware will stay disabled. Use Wi-Fi setup to save your network again.";
           warning.append(warningIcon, warningText);
           var backupReminder = el("p", "reset-dialog-backup-reminder");
           backupReminder.textContent = "Save a backup first. This reset cannot be undone.";

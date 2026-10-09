@@ -172,6 +172,10 @@ void DNSServer::process_next_request() {
   // Build DNS response by modifying the request in-place
   header->flags = htons(DNS_QR_FLAG | DNS_AA_FLAG);  // Response + Authoritative
   header->an_count = htons(1);                       // One answer
+  // Only the question and our A answer are sent; discard counts for omitted
+  // authority/additional records, including an EDNS OPT from the request.
+  header->ns_count = 0;
+  header->ar_count = 0;
 
   // Add answer section after the question
   size_t question_len = (ptr + sizeof(DNSQuestion)) - this->buffer_ - sizeof(DNSHeader);

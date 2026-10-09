@@ -21,6 +21,8 @@ namespace {
 constexpr char TAG[] = "espframe.reset";
 constexpr char RESET_NAMESPACE[] = "espframe_rs";
 constexpr char RESET_RECORD_KEY[] = "state";
+// This persistent override keeps compiled stations disabled on every later
+// boot so ESPHome continues loading credentials from its fallback preference.
 constexpr char FACTORY_WIFI_RESET_KEY[] = "wifi_reset";
 constexpr uint32_t RESET_RECORD_VERSION = 1;
 constexpr uint32_t WIFI_FALLBACK_PREFERENCE_KEY = 88491487UL;

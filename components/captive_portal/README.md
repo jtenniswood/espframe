@@ -6,7 +6,8 @@ https://github.com/esphome/esphome/tree/2026.9.1/esphome/components/captive_port
 EspControl uses this version's standard captive portal and page. Its setup uses
 IPv4, while Espframe also enables IPv6 for station connections. The upstream DNS
 server chooses an IPv6 socket but receives client addresses into `sockaddr_in`.
-This patch explicitly creates and binds an IPv4 socket for setup AP DNS.
+This patch explicitly creates and binds an IPv4 socket for setup AP DNS. It also
+clears counts for omitted authority/additional records when replying to EDNS queries.
 
 `portal.html` was decoded from the gzip array in that version's `captive_index.h`;
 its original SHA-256 is

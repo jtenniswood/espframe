@@ -38,6 +38,9 @@ esphome:
     - priority: 600
       then:
         - lambda: |-
+            wifi::WiFiAP ap = wifi::global_wifi_component->get_ap();
+            // Preserve a setup SSID explicitly configured by the user.
+            if (ap.get_ssid() != "espframe") return;
             const std::string mac = get_mac_address();
             std::string suffix;
             for (char c : mac) {
@@ -45,7 +48,6 @@ esphome:
             }
             if (suffix.size() > 6) suffix = suffix.substr(suffix.size() - 6);
             if (suffix.empty()) suffix = "SETUP";
-            wifi::WiFiAP ap = wifi::global_wifi_component->get_ap();
             ap.set_ssid("espframe_" + suffix);
             wifi::global_wifi_component->set_ap(ap);
 
@@ -72,10 +74,9 @@ wifi:
     ssid: "espframe"
     ap_timeout: 90s
   on_connect:
-    - lambda: |-
-        if (!id(espframe_core).clear_factory_wifi_reset()) {
-          ESP_LOGW("espframe.reset", "Could not clear factory WiFi reset marker after provisioning");
-        }
+    # Keep the factory-reset override across reconnects and reboots. Clearing
+    # it would restore compiled stations and switch ESPHome's preference key,
+    # hiding the WiFi credentials saved through the setup portal.
     - script.stop: setup_screen_dim
     - script.stop: show_wifi_setup_after_disconnect
     - lambda: |-

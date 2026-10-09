@@ -39,6 +39,8 @@ Keep the display connected to USB after flashing. The installer should offer a W
 
 If the WiFi form does not appear, or you are setting up the frame without USB, connect your phone or laptop to the frame's WiFi hotspot named on the display (**espframe_** followed by a device suffix). If the captive portal does not open automatically, visit `http://192.168.4.1` and enter your home WiFi details.
 
+Older firmware uses **espframe** without a suffix. After updating, use the setup name shown on the display whenever you need WiFi recovery. A custom setup SSID in your YAML keeps its configured name.
+
 ## 3. Connect to Immich
 
 Open the **IP address shown on the display** in your browser. Enter **Immich Server URL** and **API Key**, then follow the setup wizard.
