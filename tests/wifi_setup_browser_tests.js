@@ -87,7 +87,13 @@ try {
           check(document.title === "EspFrame WiFi setup", "Portal title branding changed");
           check(document.querySelector(".sp-brand-label").textContent === "EspFrame", "Portal header branding changed");
           var form = ssid.form;
-          check(!document.querySelector("h1, h2, h3, #mac"), "Removed headings or MAC address returned");
+          check(!document.querySelector("h1, h2, #mac"), "Removed headings or MAC address returned");
+          var heading = document.getElementById("available-networks-heading");
+          check(heading && heading.textContent === "Available Networks", "Network list title missing");
+          check(document.querySelectorAll("h3").length === 1, "Unexpected extra headings");
+          check(heading.nextElementSibling === document.getElementById("net"), "Title must appear above the network list");
+          check(document.getElementById("net").getAttribute("aria-labelledby") === heading.id, "Network list needs its title as an accessible label");
+          check(getComputedStyle(heading).fontSize === "14px", "Network list title must use the small shared card heading style");
           var visibleText = document.body.innerText;
           ["Connect to WiFi", "Choose your network and enter its password to connect your frame.",
            "WiFi Settings", "WiFi Networks", "immich-frame-10inch", "MAC Address", "30:ED:A0:E2:F3:6A"]

@@ -15,7 +15,8 @@ The layout now uses Espframe's webserver cards, labels, inputs and buttons.
 `npm run generate` embeds `docs/webserver/src/style.css` at the template's style
 marker and produces gzip and Brotli versions of `captive_index.h` and `wifi_saved.h`. Everything
 is served locally, with no stylesheet or font download during hotspot setup.
-The setup page shows the network list, SSID/password fields and Save button.
+The setup page shows a small Available Networks heading above the network list,
+SSID/password fields and Save button.
 Device/MAC headings and the OTA upload panel are omitted. The upstream script
 retains provisioning behavior, prevents default `href="#"` navigation when
 choosing a network, omits updates to the removed headings, and keeps the page title as EspFrame WiFi setup. Browser coverage
