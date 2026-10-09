@@ -79,6 +79,9 @@ def check_generated_asset_metadata(product: dict, errors: list[str]) -> None:
             path_name = Path(path).name
             if path_name in {"devices.json", "manifest.json", "project.json", "schema.json", "settings.json", "product_config.py"}:
                 require_contains(generator, "load_product", generator_label, errors)
+            elif path_name == "translations.py" or (path_name.startswith("strings.") and path_name.endswith(".txt")):
+                require_contains(generator, "generated_translation_files", generator_label, errors)
+                require_contains(generator, "strings.*.txt", generator_label, errors)
             elif path_name == "product_manifest.py":
                 require_contains(generator, "legacy_product_manifest", generator_label, errors)
             elif path_name == "configuration_api.py":

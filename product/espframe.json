@@ -234,7 +234,8 @@
         "warm_tones_enabled",
         "warm_tone_intensity",
         "warm_tone_override",
-        "rotation"
+        "rotation",
+        "language"
       ]
     },
     "backup_field_state_keys": {
@@ -316,7 +317,8 @@
         "warm_tones_enabled": "warm_tones_enabled",
         "warm_tone_intensity": "warm_tone_intensity",
         "warm_tone_override": "warm_tone_override",
-        "rotation": "screen_rotation"
+        "rotation": "screen_rotation",
+        "language": "device_language"
       }
     },
     "backup_import_write_behavior": "All valid settings in a backup are pushed in size-limited atomic updates so larger backups fit the device web server request limit",
@@ -341,6 +343,7 @@
         "tests/fixtures/compat/espframe-config-v1-missing-groups.json",
         "tests/fixtures/compat/espframe-config-v1-developer-options.json",
         "tests/fixtures/compat/espframe-config-v1-future-unknown-fields.json",
+        "tests/fixtures/compat/espframe-config-v3-device-language.json",
         "tests/fixtures/compat/espframe-config-v1-malformed-noncritical-values.json"
       ],
       "rejected_fields": [
@@ -803,6 +806,16 @@
         ]
       },
       {
+        "id": "device_language",
+        "label": "Language",
+        "tab": "settings",
+        "section": "Preferences",
+        "function": "makeLanguageCard",
+        "settings": [
+          "device_language"
+        ]
+      },
+      {
         "id": "frame_name",
         "label": "Frame Name",
         "tab": "settings",
@@ -1160,6 +1173,11 @@
         "screen_rotation": {
           "settings": [
             "screen_rotation"
+          ]
+        },
+        "device_language": {
+          "settings": [
+            "device_language"
           ]
         },
         "clock": {
@@ -1520,7 +1538,8 @@
       "devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml",
       "devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml",
       "docs/public/webserver/app.js",
-      "docs/public/webserver/style.css"
+      "docs/public/webserver/style.css",
+      "components/espframe/i18n_generated.h"
     ],
     "generated_asset_output_headers": {
       "components/captive_portal/wifi_saved.h": "// ESPFRAME: generated from components/captive_portal/wifi_saved.html; run `npm run generate` to update.",
@@ -1530,7 +1549,8 @@
       "devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml": "# ESPFRAME: generated from product/contract; run `npm run generate` to update.",
       "devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml": "# ESPFRAME: generated from product/contract; run `npm run generate` to update.",
       "docs/public/webserver/app.js": "// ESPFRAME: generated from typed docs/webserver/src and product/contract; run `npm run generate` to update.",
-      "docs/public/webserver/style.css": "/* ESPFRAME: generated from docs/webserver/src/style.css; run `npm run generate` to update. */"
+      "docs/public/webserver/style.css": "/* ESPFRAME: generated from docs/webserver/src/style.css; run `npm run generate` to update. */",
+      "components/espframe/i18n_generated.h": "// ESPFRAME: generated from product/translations; run `npm run generate` to update."
     },
     "generated_asset_sources": [
       "components/captive_portal/portal.html",
@@ -1560,7 +1580,15 @@
       "scripts/asset_generation/configuration_api.py",
       "scripts/asset_generation/product_manifest.py",
       "scripts/build_web_app.mjs",
-      "scripts/product_config.py"
+      "scripts/product_config.py",
+      "scripts/asset_generation/translations.py",
+      "product/translations/strings.en.txt",
+      "product/translations/strings.de.txt",
+      "product/translations/strings.es.txt",
+      "product/translations/strings.fr.txt",
+      "product/translations/strings.it.txt",
+      "product/translations/strings.nl.txt",
+      "product/translations/strings.pt.txt"
     ],
     "web_template_placeholders": [
       "__ESPFRAME_WEB_FRAME_IDENTITY__",
@@ -1676,7 +1704,8 @@
       "portrait_pairing_range": {},
       "portrait_pairs_only": {},
       "photo_metadata_date_enabled": {},
-      "photo_metadata_location_enabled": {}
+      "photo_metadata_location_enabled": {},
+      "device_language": {}
     },
     "generated_firmware_deferred_setting_fields": [],
     "support_url": "https://www.buymeacoffee.com/jtenniswood",
@@ -1852,7 +1881,8 @@
       "idf_experimental_features": true,
       "sdkconfig_options": {
         "CONFIG_HTTPD_MAX_URI_LEN": "128",
-        "CONFIG_ESP_TASK_WDT_TIMEOUT_S": "30"
+        "CONFIG_ESP_TASK_WDT_TIMEOUT_S": "30",
+        "CONFIG_ESP_MAIN_TASK_STACK_SIZE": "3072"
       },
       "platformio_flash_mode": "dio",
       "platformio_build_flags": [
@@ -1991,6 +2021,10 @@
         {
           "alias": "memory_diagnostics",
           "path": "../../common/addon/memory_diagnostics.yaml"
+        },
+        {
+          "alias": "translations",
+          "path": "../../common/addon/translations.yaml"
         }
       ],
       "package_substitutions": {
@@ -2085,7 +2119,8 @@
       "idf_experimental_features": true,
       "sdkconfig_options": {
         "CONFIG_HTTPD_MAX_URI_LEN": "128",
-        "CONFIG_ESP_TASK_WDT_TIMEOUT_S": "30"
+        "CONFIG_ESP_TASK_WDT_TIMEOUT_S": "30",
+        "CONFIG_ESP_MAIN_TASK_STACK_SIZE": "3072"
       },
       "platformio_flash_mode": "dio",
       "platformio_build_flags": [
@@ -2224,6 +2259,10 @@
         {
           "alias": "memory_diagnostics",
           "path": "../../common/addon/memory_diagnostics.yaml"
+        },
+        {
+          "alias": "translations",
+          "path": "../../common/addon/translations.yaml"
         }
       ],
       "package_substitutions": {
@@ -2460,6 +2499,10 @@
         {
           "alias": "memory_diagnostics",
           "path": "../../common/addon/memory_diagnostics.yaml"
+        },
+        {
+          "alias": "translations",
+          "path": "../../common/addon/translations.yaml"
         }
       ],
       "package_substitutions": {
@@ -3558,6 +3601,31 @@
       ],
       "docs_files": [
         "docs/photo-sources.md"
+      ]
+    },
+    {
+      "key": "device_language",
+      "entity": {
+        "domain": "select",
+        "name": "Device: Language"
+      },
+      "default": "en",
+      "options": [
+        "en",
+        "de",
+        "fr",
+        "es",
+        "it",
+        "nl",
+        "pt"
+      ],
+      "docs_label": "Device Language",
+      "docs_description": "Translate built-in display text and photo dates: English (`en`), German (`de`), French (`fr`), Spanish (`es`), Italian (`it`), Dutch (`nl`), or Portuguese (`pt`). The web interface stays in English.",
+      "firmware_files": [
+        "common/addon/translations.yaml"
+      ],
+      "docs_files": [
+        "docs/screen-settings.md"
       ]
     }
   ]

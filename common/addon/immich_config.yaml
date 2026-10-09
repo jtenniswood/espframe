@@ -262,9 +262,9 @@ script:
           const bool invalid_location =
             !memories_source && !immich_filter_location_is_valid(id(immich_filter_config));
           const std::string title = invalid_location
-            ? "Location filter needs setup" : immich_source_setup_title(missing_source);
+            ? espframe_i18n_key("location_needs_setup") : immich_source_setup_title(missing_source);
           const std::string message = invalid_location
-            ? "Set country before state, and state before city."
+            ? espframe_i18n_key("location_setup_message")
             : immich_source_setup_message(missing_source);
           const bool was_hidden =
             lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);
@@ -324,9 +324,9 @@ script:
                         id(show_photo_source_empty_state).execute(false);
                         id(immich_retry_config_ready).execute();
                       } else {
-                        lv_label_set_text(id(connection_failed_title), "Filter needs Immich 3.2+");
+                        lv_label_set_text(id(connection_failed_title), espframe_i18n_key("filter_needs_v32"));
                         lv_label_set_text(id(connection_failed_subtitle),
-                          "This saved filter uses rules\nthat flat search cannot apply.");
+                          espframe_i18n_key("filter_v32_message"));
                         id(immich_source_setup_visible) = true;
                         lv_obj_clear_flag(id(photo_source_show_all_button), LV_OBJ_FLAG_HIDDEN);
                         lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);

@@ -5,7 +5,7 @@ description: Configure EspFrame display controls, including brightness, tone, ro
 
 # EspFrame Screen Brightness and Display Settings
 
-The Device settings page is divided into **Display**, **Sleep & Schedule**, and **System** sections. **Display** includes brightness (day/night), tone, rotation, and clock settings; the NTP servers are in Clock's **Advanced** panel. These controls are available in the web UI and, where applicable, Home Assistant.
+The Device settings page is divided into **Display**, **Sleep & Schedule**, and **System** sections. **Display** includes brightness (day/night), tone, rotation, device language, and clock settings; the NTP servers are in Clock's **Advanced** panel. These controls are available in the web UI and, where applicable, Home Assistant.
 
 ## Screen Brightness
 
@@ -46,6 +46,27 @@ The setting only exposes normal and upside-down orientations. On the 10" model, 
 |---------|---------|-------------|
 | **Rotation** | 0 degrees | Rotate the screen to 0 or 180 degrees. |
 <!-- ESPFRAME:SETTINGS_TABLE screen_rotation END -->
+
+## Device Language
+
+Choose **Device → Preferences → Language** for English (`en`, the default),
+German (`de`), French (`fr`), Spanish (`es`), Italian (`it`), Dutch (`nl`), or
+Portuguese (`pt`, Portugal). Home Assistant exposes the saved selection as **Device: Language**.
+The setting survives restarts and is included in configuration backups; restoring
+an older backup without a language leaves the current selection unchanged.
+
+The language changes built-in setup text, loading and error messages, month names,
+and relative photo ages immediately. Immich location names retain their original
+text. The web interface stays in English.
+
+To improve a translation or add a language, see the
+[translation contribution guide](/translations).
+
+<!-- ESPFRAME:SETTINGS_TABLE device_language START -->
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **Device Language** | en | Translate built-in display text and photo dates: English (`en`), German (`de`), French (`fr`), Spanish (`es`), Italian (`it`), Dutch (`nl`), or Portuguese (`pt`). The web interface stays in English. |
+<!-- ESPFRAME:SETTINGS_TABLE device_language END -->
 
 ## Frame Name
 

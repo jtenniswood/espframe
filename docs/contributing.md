@@ -30,3 +30,12 @@ For ESPHome YAML changes, or C++ changes that are not covered by host-side check
 The [pull request template](https://github.com/jtenniswood/espframe/blob/main/.github/pull_request_template.md) asks for the user-visible result, checks actually run, firmware and device testing status, and known limitations. Include screenshots for visible web interface changes. For device behavior changes, name the affected panel revision and the physical checks reviewers should perform.
 
 See [USB log collection](/collect-usb-logs) if you need to attach startup diagnostics to an issue or pull request.
+
+## Device translations
+
+The [translation contribution guide](/translations) explains how to improve
+existing wording or add a language, preserve placeholders, regenerate the
+catalogues, and test the result on a display. Its source lives alongside the
+catalogues in
+[`product/translations/README.md`](https://github.com/jtenniswood/espframe/blob/main/product/translations/README.md),
+and the docs include that same guide so both versions stay in sync.

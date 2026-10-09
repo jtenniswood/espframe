@@ -1,0 +1,61 @@
+# Saved physical-display language; the web interface remains in English.
+select:
+  - platform: template
+    name: "Device: Language"
+    id: device_language_select
+    entity_category: config
+    icon: "mdi:translate"
+    # ESPFRAME:SETTING_FIELDS device_language START
+    options:
+      - "en"
+      - "de"
+      - "fr"
+      - "es"
+      - "it"
+      - "nl"
+      - "pt"
+    initial_option: "en"
+    optimistic: true
+    restore_value: true
+    # ESPFRAME:SETTING_FIELDS device_language END
+    on_value:
+      then:
+        - lambda: |-
+            set_espframe_language(x);
+            auto refresh = []() {
+                if (id(loading_status_label) == nullptr) return;
+                lv_label_set_text(id(i18n_wifi_setup), espframe_i18n_key("wifi_setup"));
+                lv_label_set_text(id(i18n_immich_setup), espframe_i18n_key("immich_setup"));
+                lv_label_set_text(id(i18n_open_browser), espframe_i18n_key("open_browser"));
+                lv_label_set_text(id(i18n_configure_immich), espframe_i18n_key("configure_immich"));
+                lv_label_set_text(id(i18n_show_all_photos), espframe_i18n_key("show_all_photos"));
+                lv_label_set_text(id(photo_source_menu_title), espframe_i18n_key("photo_source"));
+                lv_label_set_text(id(photo_source_all_label), espframe_i18n_key("all_photos"));
+                lv_label_set_text(id(photo_source_favorites_label), espframe_i18n_key("favorites"));
+                lv_label_set_text(id(photo_source_album_label), espframe_i18n_key("album"));
+                lv_label_set_text(id(photo_source_person_label), espframe_i18n_key("person"));
+                lv_label_set_text(id(photo_source_tag_label), espframe_i18n_key("tag"));
+                lv_label_set_text(id(photo_source_memories_label), espframe_i18n_key("memories"));
+                for (auto *label : {id(loading_status_label), id(connection_failed_title),
+                                    id(connection_failed_subtitle), id(photo_source_menu_message)}) {
+                  const char *current = lv_label_get_text(label);
+                  const char *translated = espframe_i18n_retranslate(current);
+                  if (translated != current) lv_label_set_text(label, translated);
+                }
+                const std::string hotspot = wifi::global_wifi_component->get_ap().get_ssid().c_str();
+                const std::string instructions = espframe_wifi_instructions(hotspot, "${captive_portal_ip}");
+                lv_label_set_text(id(wifi_setup_instructions), instructions.c_str());
+                id(update_photo_metadata_display).execute();
+            };
+            // Restored selects publish during setup. Repaint only after every
+            // display component is ready, using the core's existing scheduler.
+            id(espframe_core).cancel_interval("device-language-startup");
+            if (App.is_setup_complete()) {
+              id(espframe_core).defer("device-language-refresh", refresh);
+            } else {
+              id(espframe_core).set_interval("device-language-startup", 100, [refresh]() {
+                if (!App.is_setup_complete()) return;
+                id(espframe_core).cancel_interval("device-language-startup");
+                refresh();
+              });
+            }

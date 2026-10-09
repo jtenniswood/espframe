@@ -340,14 +340,14 @@ lvgl:
                         text_color: 0xFFFFFF
                     - label:
                         id: connection_failed_title
-                        text: "Unable to connect to Immich"
+                        text: !lambda 'return std::string(espframe_i18n_key("connection_failed"));'
                         text_font: noto_400_46_font
                         text_color: 0xFFFFFF
                         width: 700
                         text_align: center
                     - label:
                         id: connection_failed_subtitle
-                        text: "Check your internet connection and\nthe health of your Immich server."
+                        text: !lambda 'return std::string(espframe_i18n_key("check_connection"));'
                         width: 1100
                         text_font: noto_400_30_font
                         text_color: 0x888888
@@ -377,7 +377,8 @@ lvgl:
                         widgets:
                           - label:
                               align: CENTER
-                              text: "Show all photos"
+                              id: i18n_show_all_photos
+                              text: !lambda 'return std::string(espframe_i18n_key("show_all_photos"));'
                               text_font: noto_400_30_font
                               text_color: 0x1A1A1A
         - obj:
@@ -426,7 +427,7 @@ lvgl:
                   widgets:
                     - label:
                         id: photo_source_menu_title
-                        text: "Photo Source"
+                        text: !lambda 'return std::string(espframe_i18n_key("photo_source"));'
                         width: 640
                         text_align: center
                         text_color: 0xFFFFFF
@@ -450,7 +451,7 @@ lvgl:
                         widgets:
                           - label:
                               id: photo_source_all_label
-                              text: "All Photos"
+                              text: !lambda 'return std::string(espframe_i18n_key("all_photos"));'
                               align: CENTER
                               width: 640
                               text_align: center
@@ -467,7 +468,7 @@ lvgl:
                         widgets:
                           - label:
                               id: photo_source_favorites_label
-                              text: "Favorites"
+                              text: !lambda 'return std::string(espframe_i18n_key("favorites"));'
                               align: CENTER
                               width: 640
                               text_align: center
@@ -484,7 +485,7 @@ lvgl:
                         widgets:
                           - label:
                               id: photo_source_album_label
-                              text: "Album"
+                              text: !lambda 'return std::string(espframe_i18n_key("album"));'
                               align: CENTER
                               width: 640
                               text_align: center
@@ -501,7 +502,7 @@ lvgl:
                         widgets:
                           - label:
                               id: photo_source_person_label
-                              text: "Person"
+                              text: !lambda 'return std::string(espframe_i18n_key("person"));'
                               align: CENTER
                               width: 640
                               text_align: center
@@ -518,7 +519,7 @@ lvgl:
                         widgets:
                           - label:
                               id: photo_source_tag_label
-                              text: "Tag"
+                              text: !lambda 'return std::string(espframe_i18n_key("tag"));'
                               align: CENTER
                               width: 640
                               text_align: center
@@ -535,7 +536,7 @@ lvgl:
                         widgets:
                           - label:
                               id: photo_source_memories_label
-                              text: "Memories"
+                              text: !lambda 'return std::string(espframe_i18n_key("memories"));'
                               align: CENTER
                               width: 640
                               text_align: center
@@ -843,11 +844,11 @@ interval:
                   id(immich_source_setup_visible) = false;
                   lv_obj_add_flag(id(photo_source_show_all_button), LV_OBJ_FLAG_HIDDEN);
                   if (id(immich_request_state).last_http_status == 401) {
-                    lv_label_set_text(id(connection_failed_title), "Invalid API Key");
-                    lv_label_set_text(id(connection_failed_subtitle), "Check your Immich API key in\nthe espframe settings.");
+                    lv_label_set_text(id(connection_failed_title), espframe_i18n_key("invalid_api_key"));
+                    lv_label_set_text(id(connection_failed_subtitle), espframe_i18n_key("check_api_key"));
                   } else {
-                    lv_label_set_text(id(connection_failed_title), "Unable to connect to Immich");
-                    lv_label_set_text(id(connection_failed_subtitle), "Check your internet connection and\nthe health of your Immich server.");
+                    lv_label_set_text(id(connection_failed_title), espframe_i18n_key("connection_failed"));
+                    lv_label_set_text(id(connection_failed_subtitle), espframe_i18n_key("check_connection"));
                   }
                 }
                 lv_obj_clear_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN);

@@ -82,6 +82,9 @@ Once installed, the frame has two main control surfaces:
 
 Most people do not need this section. It is here for contributors or anyone who wants to build the docs or firmware locally.
 
+To improve display wording or add a language, see the
+[translation contribution guide](product/translations/README.md).
+
 ```bash
 # Docs site (live reload)
 npm ci

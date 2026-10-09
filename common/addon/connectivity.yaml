@@ -81,7 +81,7 @@ wifi:
     - script.stop: show_wifi_setup_after_disconnect
     - lambda: |-
         lv_bar_set_value(id(loading_progress_bar), 100, LV_ANIM_OFF);
-        lv_label_set_text(id(loading_status_label), "Connected");
+        lv_label_set_text(id(loading_status_label), espframe_i18n_key("connected"));
     - delay: 800ms
     - if:
         condition:

@@ -40,3 +40,4 @@ packages:
   dev_features: !include ../../common/addon/developer_features.yaml
   network: !include ../../common/addon/network.yaml
   memory_diagnostics: !include ../../common/addon/memory_diagnostics.yaml
+  translations: !include ../../common/addon/translations.yaml

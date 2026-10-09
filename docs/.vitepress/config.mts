@@ -187,6 +187,7 @@ export default defineConfig({
         items: [
           { text: 'Partnerships', link: '/partnerships' },
           { text: 'Contributing', link: '/contributing' },
+          { text: 'Contributing Translations', link: '/translations' },
           { text: 'Collect USB Logs', link: '/collect-usb-logs' },
         ],
       },

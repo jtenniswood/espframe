@@ -148,6 +148,7 @@ const validBackupFixture = {
     warm_tone_intensity: 45,
     warm_tone_override: false,
     rotation: "180",
+    language: "de",
   },
 };
 
@@ -189,6 +190,7 @@ const unsupportedVersionBackupFixture = {
 };
 
 const scenarios = [
+  { name: "device-language", configured: true, width: 390, height: 900 },
   ...[false, true].map(legacy => ({ name: "frame-name-delayed-" + (legacy ? "legacy" : "export"), configured: true, width: 390, height: 900, identity: !legacy, delayedIdentity: true })),
   { name: "frame-name-long", configured: true, width: 390, height: 900, identity: true, initialName: "x".repeat(120) },
   { name: "frame-name", configured: true, width: 390, height: 900, identity: true },
@@ -413,6 +415,7 @@ function browserScriptForScenario(scenario) {
       "Photos: Paired Portraits Only": false,
       "Photos: Display Mode": "Fill",
       "Photos: Slideshow Interval": "15 seconds",
+      "Device: Language": "en",
       "Device: Metadata Date": true,
       "Device: Metadata Location": true,
       "Device: Metadata Date Format": "Date Taken",
@@ -912,6 +915,7 @@ function smokeAssertionsForScenario(scenario) {
         const expected = [
           ["Display", ["Screen Brightness", "Screen Tone", "Rotation", "Clock"]],
           ["Sleep & Schedule", ["Night Schedule"]],
+          ["Preferences", ["Language"]],
           ["System", ["Backup", "Firmware", "Device Reboot", "Factory Reset"]]
         ];
         const sections = Array.from(document.querySelectorAll("#sp-settings .settings-section"));
@@ -1959,6 +1963,27 @@ function smokeAssertionsForScenario(scenario) {
               if (input && label.control !== input) throw new Error("Unassociated field: " + label.textContent);
             }
           }
+          if (${JSON.stringify(scenario.name)} === "device-language") {
+            clickTab("Device");
+            const language = expandCard("Language").querySelector("select");
+            if (language.value !== "en") throw new Error("Device language should default to English");
+            const expectedLanguages = { en: "English", de: "German", fr: "French", es: "Spanish", it: "Italian", nl: "Dutch", pt: "Portuguese" };
+            for (const [code, label] of Object.entries(expectedLanguages)) {
+              const option = Array.from(language.options).find(option => option.value === code);
+              if (!option || option.textContent !== label) throw new Error("Missing language option: " + code);
+              if (code === "en") continue;
+              language.value = code;
+              language.dispatchEvent(new Event("change", { bubbles: true }));
+              await waitFor(() => latestConfigurationValue("Device: Language").value === code, 4000, "language save " + code);
+              requirePostContains("Saved device language", "Device: Language", "option=" + code);
+            }
+            clickButton("Export");
+            await waitFor(() => window.__smoke.downloads === 1, 4000, "language backup export");
+            const backup = JSON.parse(window.__smoke.exportPayloads[0]);
+            if (backup.screen.language !== "pt") throw new Error("Backup must preserve Portuguese device language");
+            requireText("Language");
+          }
+
           if (${JSON.stringify(scenario.name)} === "setting-save-rejected") {
             clickTab("Device");
             const card = expandCard("Screen Brightness");
@@ -2002,6 +2027,7 @@ function smokeAssertionsForScenario(scenario) {
             requirePostContains("Import switch field", "Firmware: Auto Update", "turn_on");
             requirePostContains("Import select field", "Photos: Source", "option=Person");
             requirePostContains("Import number field", "Screen: Daytime Brightness", "value=90");
+            requirePostContains("Import language", "Device: Language", "option=de");
             requirePostContains("Import aggregate NTP field", "Clock: NTP Server 1");
             requirePostContains("Import WiFi auto-update field", "WiFi Firmware: Auto Update", "turn_on");
             requirePostContains("Import normalized schedule setting", "Screen: Schedule Wake Timeout", "value=120");

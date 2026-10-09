@@ -25,6 +25,10 @@ esp32:
       CONFIG_HTTPD_MAX_REQ_HDR_LEN: "8192"
       CONFIG_HTTPD_MAX_URI_LEN: "128"
       CONFIG_ESP_TASK_WDT_TIMEOUT_S: "30"
+      # The short-lived startup task initializes preferences and starts the
+      # separate loop task. Leave RAM for idle-task allocation before the
+      # startup stack region is reclaimed on pre-v3 P4 chips.
+      CONFIG_ESP_MAIN_TASK_STACK_SIZE: "3072"
       # Prefer PSRAM for TLS and medium-sized general allocations. Keep the
       # internal reserve for networking, task stacks, and DMA requirements.
       CONFIG_SPIRAM_USE_MALLOC: "y"
