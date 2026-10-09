@@ -1830,12 +1830,12 @@ static void test_device_translations() {
   assert(std::string(espframe_i18n_retranslate(nullptr)).empty());
   const std::string instructions = espframe_wifi_instructions("Frame {address} 100%", "192.168.4.1");
   assert(instructions.find("'Frame {address} 100%'\n") != std::string::npos);
-  assert(instructions.find("Öffne dann 192.168.4.1") != std::string::npos);
+  assert(instructions.find("öffne dann 192.168.4.1") != std::string::npos);
   set_espframe_language("en");
   assert(std::string(espframe_i18n_retranslate("Ungültiger API-Schlüssel")) == "Invalid API Key");
   assert(format_photo_date_full(2026, 3, 1) == "1 March, 2026");
   assert(espframe_wifi_instructions("", "192.168.4.1") ==
-         "Connect to the WiFi hotspot\nto configure your network\n\nThen visit 192.168.4.1 in your browser");
+         "Enter WiFi in the installer,\nor connect to the WiFi hotspot\nand visit 192.168.4.1");
   set_espframe_language("unsupported");
   assert(format_photo_age(2026, 4, 20, 2026, 4, 21) == "1 day ago");
 

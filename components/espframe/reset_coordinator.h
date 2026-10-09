@@ -13,6 +13,7 @@ class ResetCoordinator {
  public:
   void setup();
   bool request(ResetMode mode);
+  bool clear_factory_wifi_reset();
   bool pending() const { return this->mode_ != ResetMode::NONE; }
   ResetMode mode() const { return this->mode_; }
   uint32_t epoch() const { return this->epoch_; }

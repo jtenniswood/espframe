@@ -1,5 +1,6 @@
   var evtSource = null;
   var rendered = false;
+  var wizardActive = false;
   var renderTimer = null;
   var renderAttemptInFlight = false;
   var logListenerAttached = false;
@@ -246,6 +247,9 @@
   }
 
   function renderSettingsAfterEditing() {
+    // Identity and live state updates must not replace an unfinished wizard.
+    // Done or a completed settings import explicitly opens the settings view.
+    if (wizardActive) return;
     var active = isEditingSetting() ? document.activeElement : null;
     if (deferredRenderControl && deferredRenderControl !== active) {
       deferredRenderControl.removeEventListener("blur", resumeSettingsRenderAfterBlur);

@@ -11,6 +11,7 @@ from pathlib import Path
 from asset_generation.translations import generated_translation_files
 from asset_generation.device_packages import generated_device_package_files
 from asset_generation.configuration_api import generated_configuration_api_files
+from asset_generation.captive_portal import captive_portal_header, wifi_saved_header
 from asset_generation.docs_tables import generated_docs, render_settings_table, setting_lookup
 from asset_generation.firmware_fields import (
     generated_firmware_field_files,
@@ -60,6 +61,8 @@ def write_or_check(path: Path, content: str, check: bool) -> bool:
 def generate(check: bool) -> int:
     changed = False
     product = load_product()
+    changed |= write_or_check(ROOT / "components/captive_portal/wifi_saved.h", wifi_saved_header(), check)
+    changed |= write_or_check(ROOT / "components/captive_portal/captive_index.h", captive_portal_header(), check)
     changed |= write_or_check(LEGACY_PRODUCT_PATH, legacy_product_manifest(product), check)
     for path, content in generated_configuration_api_files().items():
         changed |= write_or_check(path, content, check)

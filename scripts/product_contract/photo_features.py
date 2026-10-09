@@ -410,7 +410,7 @@ def check_setup_flow_metadata(product: dict, errors: list[str]) -> None:
         require_contains(immich_config_yaml, needle, "common/addon/immich_config.yaml", errors)
     require_contains(screen_loading_yaml, "wifi::global_wifi_component->get_ap().get_ssid()", "devices/guition-esp32-p4-jc8012p4a1/device/screen_loading.yaml", errors)
     english_strings = read(ROOT / "product/translations/strings.en.txt", errors)
-    for needle in ("Connect to the WiFi hotspot", "to configure your network", "Then visit {address}"):
+    for needle in ("Enter WiFi in the installer", "or connect to the WiFi hotspot", "and visit {address}"):
         require_contains(english_strings, needle, "English WiFi instructions", errors)
     for text in (screen_loading_yaml, screen_wifi_yaml):
         require_contains(text, "espframe_wifi_instructions(", "WiFi setup translation helper", errors)

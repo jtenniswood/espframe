@@ -213,6 +213,8 @@ const scenarios = [
   { name: "refresh-startup-late", configured: true, width: 1280, height: 900, slowStartup: true, startupDelayMs: 5000 },
   { name: "refresh-startup-pending", configured: true, width: 1280, height: 900, slowStartup: true, startupDelayMs: 5000, noStartupSse: true },
   { name: "wizard", configured: false, width: 1280, height: 900 },
+  { name: "wizard-delayed-identity", configured: false, width: 390, height: 900, identity: true, delayedIdentity: true },
+  { name: "wizard-delayed-identity-legacy", configured: false, width: 390, height: 900, identity: false, delayedIdentity: true },
   { name: "wizard-connection-save", configured: false, width: 1280, height: 900 },
   { name: "wizard-connection-save-legacy", configured: false, width: 1280, height: 900, legacyApi: true },
   { name: "settings", configured: true, width: 1280, height: 900 },
@@ -1506,6 +1508,11 @@ function smokeAssertionsForScenario(scenario) {
         requireText("Immich Server URL");
         requireText("API Key");
 
+        const connectionStep = document.querySelector(".wizard-steps");
+        window.__smoke.eventSource.dispatch("state", { id: "switch/Photos: Portrait Pairing", state: "OFF" });
+        await new Promise(resolve => setTimeout(resolve, 100));
+        if (!connectionStep.isConnected || !buttonByText("Connect")) throw new Error("Live update dismissed first-run wizard");
+
         setInputByLabel("Immich Server URL", "setup.photos.example.com/");
         setInputByLabel("API Key", "setup-api-key");
         clickButton("Connect");
@@ -1514,8 +1521,21 @@ function smokeAssertionsForScenario(scenario) {
         requireLatestPostValue("Wizard server URL", "Connection: Server URL", "https://setup.photos.example.com");
         requireLatestPostValue("Wizard API key", "Connection: API Key", "setup-api-key");
 
+        const clockStep = document.querySelector(".wizard-steps");
+        const ntpDraft = inputByAriaLabel("NTP Server 1");
+        ntpDraft.value = "custom-time.example.com";
+        ntpDraft.focus();
+        window.__smoke.eventSource.dispatch("state", { id: "switch/Photos: Portrait Pairing", state: "ON" });
+        ntpDraft.blur();
+        await new Promise(resolve => setTimeout(resolve, 100));
+        if (!clockStep.isConnected || ntpDraft.value !== "custom-time.example.com" || !buttonByText("Done")) {
+          throw new Error("Live update dismissed timezone wizard step or cleared draft");
+        }
         clickButton("Done");
         await waitFor(() => pageText().indexOf("Filters") !== -1, 8000, "settings after wizard");
+        const settingsWrap = document.querySelector("#sp-immich .sp-settings-wrap").firstElementChild;
+        window.__smoke.eventSource.dispatch("state", { id: "switch/Photos: Portrait Pairing", state: "OFF" });
+        await waitFor(() => !settingsWrap.isConnected, 2000, "live settings resume after Done");
       }
 
       try {
@@ -1544,6 +1564,24 @@ function smokeAssertionsForScenario(scenario) {
             const initialWrap = document.querySelector("#sp-immich .sp-settings-wrap").firstElementChild;
             await waitFor(() => document.querySelector("#sp-immich .sp-settings-wrap").firstElementChild !== initialWrap, 8000, "late settings hydration");
           }
+        } else if (${JSON.stringify(scenario.name)}.startsWith("wizard-delayed-identity")) {
+          await waitFor(() => pageText().indexOf("connect your photo frame") !== -1, 8000, "first-run wizard before identity");
+          const wizard = document.querySelector(".wizard-steps");
+          const urlDraft = inputByLabel("Immich Server URL");
+          const keyDraft = inputByLabel("API Key");
+          urlDraft.value = "https://draft.photos.example.com";
+          keyDraft.value = "draft-key";
+          window.__smoke.releaseIdentity();
+          await new Promise(resolve => setTimeout(resolve, 100));
+          if (!wizard.isConnected || !buttonByText("Connect")) throw new Error("Delayed identity dismissed first-run wizard");
+          if (urlDraft.value !== "https://draft.photos.example.com" || keyDraft.value !== "draft-key") throw new Error("Delayed identity lost connection draft");
+          if (${JSON.stringify(!!scenario.identity)}) {
+            if (document.querySelector(".sp-device-name").textContent !== "Office") throw new Error("Identity header failed to update during onboarding");
+          }
+          clickTab("Device");
+          requireText("Import Settings");
+          clickTab("Immich");
+          if (!wizard.isConnected || !buttonByText("Connect")) throw new Error("Switching tabs dismissed wizard");
         } else if (${JSON.stringify(scenario.name)} === "wizard") {
           await waitFor(() => pageText().indexOf("connect your photo frame") !== -1, 8000, "wizard");
           requireText("Immich Server URL");

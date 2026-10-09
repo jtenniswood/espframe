@@ -35,9 +35,11 @@ The installer uses Web Serial; Safari and Firefox cannot flash the display. Havi
 
 ## 2. Connect to WiFi
 
-Enter your WiFi name and password when prompted.
+Keep the display connected to USB after flashing. The installer should offer a WiFi setup form in the same browser tab; enter your WiFi name and password there.
 
-If no prompt appears, connect your phone or laptop to the frame's **espframe** WiFi hotspot and open `http://192.168.4.1`. This captive portal lets you enter your home WiFi details.
+If the WiFi form does not appear, or you are setting up the frame without USB, connect your phone or laptop to the frame's WiFi hotspot named on the display (**espframe_** followed by a device suffix). If the captive portal does not open automatically, visit `http://192.168.4.1` and enter your home WiFi details.
+
+Older firmware uses **espframe** without a suffix. After updating, use the setup name shown on the display whenever you need WiFi recovery. A custom setup SSID in your YAML keeps its configured name.
 
 ## 3. Connect to Immich
 
