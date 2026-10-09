@@ -1876,7 +1876,8 @@
       "idf_experimental_features": true,
       "sdkconfig_options": {
         "CONFIG_HTTPD_MAX_URI_LEN": "128",
-        "CONFIG_ESP_TASK_WDT_TIMEOUT_S": "30"
+        "CONFIG_ESP_TASK_WDT_TIMEOUT_S": "30",
+        "CONFIG_ESP_MAIN_TASK_STACK_SIZE": "3072"
       },
       "platformio_flash_mode": "dio",
       "platformio_build_flags": [
@@ -2113,7 +2114,8 @@
       "idf_experimental_features": true,
       "sdkconfig_options": {
         "CONFIG_HTTPD_MAX_URI_LEN": "128",
-        "CONFIG_ESP_TASK_WDT_TIMEOUT_S": "30"
+        "CONFIG_ESP_TASK_WDT_TIMEOUT_S": "30",
+        "CONFIG_ESP_MAIN_TASK_STACK_SIZE": "3072"
       },
       "platformio_flash_mode": "dio",
       "platformio_build_flags": [
