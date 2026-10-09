@@ -31,6 +31,8 @@ cp product/translations/strings.en.txt product/translations/strings.sv.txt
 
 1. Translate every value in the new UTF-8 file. Keep every English key, including
    full and short month names and singular/plural age messages.
+   Add the catalogue's path to `generated_asset_sources` in
+   [`product/contract/project.json`](https://github.com/jtenniswood/espframe/blob/main/product/contract/project.json).
 2. Add the language code to the `device_language` options in
    [`product/contract/settings.json`](https://github.com/jtenniswood/espframe/blob/main/product/contract/settings.json).
    Preserve existing codes and the `en` default. Codes use two or three lowercase

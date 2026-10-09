@@ -1583,7 +1583,12 @@
       "scripts/product_config.py",
       "scripts/asset_generation/translations.py",
       "product/translations/strings.en.txt",
-      "product/translations/strings.de.txt"
+      "product/translations/strings.de.txt",
+      "product/translations/strings.es.txt",
+      "product/translations/strings.fr.txt",
+      "product/translations/strings.it.txt",
+      "product/translations/strings.nl.txt",
+      "product/translations/strings.pt.txt"
     ],
     "web_template_placeholders": [
       "__ESPFRAME_WEB_FRAME_IDENTITY__",

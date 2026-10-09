@@ -58,6 +58,11 @@ class TranslationCatalogueTests(unittest.TestCase):
             for key in re.findall(r'espframe_i18n_key\("([^"]+)"\)', path.read_text()):
                 self.assertIn(key, english, str(path))
 
+    def test_every_catalogue_is_declared_as_a_generated_source(self):
+        project = json.loads((ROOT / "product/contract/project.json").read_text())
+        for path in (ROOT / "product/translations").glob("strings.*.txt"):
+            self.assertIn(path.relative_to(ROOT).as_posix(), project["generated_asset_sources"])
+
     def test_shipped_strings_fit_existing_ui_fonts(self):
         fonts = (ROOT / "devices/guition-esp32-p4-jc8012p4a1/assets/fonts.yaml").read_text()
         latin = re.search(r'  latin_extended_glyphs: >-\n((?:    .*\n)+)', fonts)[1]
