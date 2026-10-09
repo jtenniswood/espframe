@@ -7,7 +7,7 @@ photo content, entity names, configuration values, and logs unchanged.
 
 The catalogues currently cover English (`en`, the default), German (`de`),
 French (`fr`), Spanish (`es`), Italian (`it`), Dutch (`nl`), and Portuguese
-(`pt`, Portugal). Select a language under **Device → Display → Device Language**
+(`pt`, Portugal). Select a language under **Device → Preferences → Language**
 or Home Assistant's **Device: Language** select.
 
 ## Improve an existing translation

@@ -771,16 +771,6 @@
       ]
     },
     {
-      "id": "device_language",
-      "label": "Device Language",
-      "tab": "settings",
-      "section": "Display",
-      "function": "makeLanguageCard",
-      "settings": [
-        "device_language"
-      ]
-    },
-    {
       "id": "clock",
       "label": "Clock",
       "tab": "settings",
@@ -812,6 +802,16 @@
       "static_entities": [
         "sunrise",
         "sunset"
+      ]
+    },
+    {
+      "id": "device_language",
+      "label": "Language",
+      "tab": "settings",
+      "section": "Preferences",
+      "function": "makeLanguageCard",
+      "settings": [
+        "device_language"
       ]
     },
     {

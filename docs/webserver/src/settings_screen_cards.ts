@@ -161,7 +161,7 @@
         return { en: "English", de: "German", fr: "French", es: "Spanish", it: "Italian", nl: "Dutch", pt: "Portuguese" }[v] || v;
       }
     }));
-    return makeCollapsibleCard("Device Language", body, true);
+    return makeCollapsibleCard("Language", body, true);
   }
 
   function makeClockCard() {

@@ -49,7 +49,7 @@ The setting only exposes normal and upside-down orientations. On the 10" model, 
 
 ## Device Language
 
-Choose **Device → Display → Device Language** for English (`en`, the default),
+Choose **Device → Preferences → Language** for English (`en`, the default),
 German (`de`), French (`fr`), Spanish (`es`), Italian (`it`), Dutch (`nl`), or
 Portuguese (`pt`, Portugal). Home Assistant exposes the saved selection as **Device: Language**.
 The setting survives restarts and is included in configuration backups; restoring

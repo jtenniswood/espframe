@@ -913,8 +913,9 @@ function smokeAssertionsForScenario(scenario) {
       function requireSettingsSections() {
         clickTab("Device");
         const expected = [
-          ["Display", ["Screen Brightness", "Screen Tone", "Rotation", "Device Language", "Clock"]],
+          ["Display", ["Screen Brightness", "Screen Tone", "Rotation", "Clock"]],
           ["Sleep & Schedule", ["Night Schedule"]],
+          ["Preferences", ["Language"]],
           ["System", ["Backup", "Firmware", "Device Reboot", "Factory Reset"]]
         ];
         const sections = Array.from(document.querySelectorAll("#sp-settings .settings-section"));
@@ -1964,7 +1965,7 @@ function smokeAssertionsForScenario(scenario) {
           }
           if (${JSON.stringify(scenario.name)} === "device-language") {
             clickTab("Device");
-            const language = expandCard("Device Language").querySelector("select");
+            const language = expandCard("Language").querySelector("select");
             if (language.value !== "en") throw new Error("Device language should default to English");
             const expectedLanguages = { en: "English", de: "German", fr: "French", es: "Spanish", it: "Italian", nl: "Dutch", pt: "Portuguese" };
             for (const [code, label] of Object.entries(expectedLanguages)) {
@@ -1980,7 +1981,7 @@ function smokeAssertionsForScenario(scenario) {
             await waitFor(() => window.__smoke.downloads === 1, 4000, "language backup export");
             const backup = JSON.parse(window.__smoke.exportPayloads[0]);
             if (backup.screen.language !== "pt") throw new Error("Backup must preserve Portuguese device language");
-            requireText("Device Language");
+            requireText("Language");
           }
 
           if (${JSON.stringify(scenario.name)} === "setting-save-rejected") {
