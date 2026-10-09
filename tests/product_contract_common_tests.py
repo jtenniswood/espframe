@@ -224,7 +224,7 @@ def test_v3_device_artifacts_and_ota_identity_are_isolated() -> None:
     for build in (ROOT / device["build_yaml"], ROOT / device["build_yaml"].replace(".factory.yaml", ".yaml")):
         text = build.read_text(encoding="utf-8")
         assert "packages.yaml" in text and "jc8012p4a1-v3" in text
-        assert "components: [gsl3680, remote_image, ledc, espframe, mipi_dsi]" in text
+        assert "components: [captive_portal, gsl3680, remote_image, ledc, espframe, mipi_dsi]" in text
 
 if __name__ == "__main__":
     raise SystemExit(main())

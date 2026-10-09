@@ -410,9 +410,9 @@ def check_setup_flow_metadata(product: dict, errors: list[str]) -> None:
         require_contains(immich_config_yaml, needle, "common/addon/immich_config.yaml", errors)
     require_contains(screen_loading_yaml, "wifi::global_wifi_component->get_ap().get_ssid()", "devices/guition-esp32-p4-jc8012p4a1/device/screen_loading.yaml", errors)
     for needle in (
-        "Connect to the WiFi hotspot",
-        "to configure your network",
-        "Then visit ${captive_portal_ip}",
+        "Enter WiFi in the installer",
+        "or connect to",
+        "${captive_portal_ip}",
     ):
         require_contains(screen_loading_yaml, needle, "devices/guition-esp32-p4-jc8012p4a1/device/screen_loading.yaml", errors)
         require_contains(screen_wifi_yaml, needle, "devices/guition-esp32-p4-jc8012p4a1/device/screen_wifi_setup.yaml", errors)

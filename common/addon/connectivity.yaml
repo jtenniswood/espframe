@@ -29,6 +29,28 @@ http_request:
 # -----------------------------------------------------------------------------
 captive_portal:
 
+# Give each display its own setup network name. A shared "espframe" SSID can
+# be remembered by phones as a network without internet, which often suppresses
+# the operating system's captive-portal sign-in prompt on later setup attempts.
+# Set it before the WiFi component starts; the setup screen reads this live name.
+esphome:
+  on_boot:
+    - priority: 600
+      then:
+        - lambda: |-
+            wifi::WiFiAP ap = wifi::global_wifi_component->get_ap();
+            // Preserve a setup SSID explicitly configured by the user.
+            if (ap.get_ssid() != "espframe") return;
+            const std::string mac = get_mac_address();
+            std::string suffix;
+            for (char c : mac) {
+              if (c != ':' && c != '-') suffix.push_back(c);
+            }
+            if (suffix.size() > 6) suffix = suffix.substr(suffix.size() - 6);
+            if (suffix.empty()) suffix = "SETUP";
+            ap.set_ssid("espframe_" + suffix);
+            wifi::global_wifi_component->set_ap(ap);
+
 script:
   - id: show_wifi_setup_after_disconnect
     mode: restart
@@ -45,10 +67,16 @@ script:
             - script.execute: setup_screen_dim
 
 wifi:
+  # Match EspControl so the setup AP responds promptly to browser/OS probes.
+  power_save_mode: none
   reboot_timeout: 0s
   ap:
     ssid: "espframe"
+    ap_timeout: 90s
   on_connect:
+    # Keep the factory-reset override across reconnects and reboots. Clearing
+    # it would restore compiled stations and switch ESPHome's preference key,
+    # hiding the WiFi credentials saved through the setup portal.
     - script.stop: setup_screen_dim
     - script.stop: show_wifi_setup_after_disconnect
     - lambda: |-
@@ -86,3 +114,8 @@ wifi:
           lambda: 'return !id(boot_grace_period);'
         then:
           - script.execute: show_wifi_setup_after_disconnect
+
+# Let ESP Web Tools offer WiFi provisioning over the USB serial connection
+# immediately after flashing. Keep the captive portal above for wireless
+# recovery after installation or a factory reset.
+improv_serial:
