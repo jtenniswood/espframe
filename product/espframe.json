@@ -3597,10 +3597,15 @@
       "default": "en",
       "options": [
         "en",
-        "de"
+        "de",
+        "fr",
+        "es",
+        "it",
+        "nl",
+        "pt"
       ],
       "docs_label": "Device Language",
-      "docs_description": "Translate built-in display text and photo dates: English (`en`) or German (`de`). The web interface stays in English.",
+      "docs_description": "Translate built-in display text and photo dates: English (`en`), German (`de`), French (`fr`), Spanish (`es`), Italian (`it`), Dutch (`nl`), or Portuguese (`pt`). The web interface stays in English.",
       "firmware_files": [
         "common/addon/translations.yaml"
       ],

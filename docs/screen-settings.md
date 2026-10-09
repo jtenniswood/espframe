@@ -49,8 +49,9 @@ The setting only exposes normal and upside-down orientations. On the 10" model, 
 
 ## Device Language
 
-Choose **Device → Display → Device Language** for English (`en`, the default) or
-German (`de`). Home Assistant exposes the saved selection as **Device: Language**.
+Choose **Device → Display → Device Language** for English (`en`, the default),
+German (`de`), French (`fr`), Spanish (`es`), Italian (`it`), Dutch (`nl`), or
+Portuguese (`pt`, Portugal). Home Assistant exposes the saved selection as **Device: Language**.
 The setting survives restarts and is included in configuration backups; restoring
 an older backup without a language leaves the current selection unchanged.
 
@@ -61,7 +62,7 @@ text. The web interface stays in English.
 <!-- ESPFRAME:SETTINGS_TABLE device_language START -->
 | Setting | Default | Description |
 |---------|---------|-------------|
-| **Device Language** | en | Translate built-in display text and photo dates: English (`en`) or German (`de`). The web interface stays in English. |
+| **Device Language** | en | Translate built-in display text and photo dates: English (`en`), German (`de`), French (`fr`), Spanish (`es`), Italian (`it`), Dutch (`nl`), or Portuguese (`pt`). The web interface stays in English. |
 <!-- ESPFRAME:SETTINGS_TABLE device_language END -->
 
 ## Frame Name

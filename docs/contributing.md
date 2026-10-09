@@ -34,7 +34,8 @@ See [USB log collection](/collect-usb-logs) if you need to attach startup diagno
 ## Device translations
 
 Physical-display text lives in `product/translations/strings.en.txt`, following
-EspControl's `key=value` translation format. German uses `strings.de.txt`.
+EspControl's `key=value` translation format. Translated catalogues use language
+codes: `de`, `fr`, `es`, `it`, `nl`, and `pt` (Portuguese from Portugal).
 Translate only the text after `=`; keep keys and placeholders such as `{count}`,
 `{address}`, and `{hotspot}` unchanged. Use `\n` for line breaks, `\\` for a
 literal backslash, and `\=` for a literal equals sign. An empty translated value

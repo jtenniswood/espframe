@@ -9,6 +9,11 @@ select:
     options:
       - "en"
       - "de"
+      - "fr"
+      - "es"
+      - "it"
+      - "nl"
+      - "pt"
     initial_option: "en"
     optimistic: true
     restore_value: true

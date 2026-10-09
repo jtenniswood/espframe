@@ -157,7 +157,9 @@
   function makeLanguageCard() {
     var body = el("div");
     body.appendChild(productSelectSettingField("Language", "device_language", {
-      optionDisplayFn: function (v) { return { en: "English", de: "German" }[v] || v; }
+      optionDisplayFn: function (v) {
+        return { en: "English", de: "German", fr: "French", es: "Spanish", it: "Italian", nl: "Dutch", pt: "Portuguese" }[v] || v;
+      }
     }));
     return makeCollapsibleCard("Device Language", body, true);
   }

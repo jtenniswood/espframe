@@ -89,4 +89,16 @@ int main() {
   espframe_core.flush();
   assert(connection_failed_title->text == "Invalid API Key");
   assert(update_photo_metadata_display.calls == 3);
+
+  // Preserve the active error and status when switching between every locale.
+  for (const char *code : espframe_i18n_catalogue::LANGUAGES) {
+    on_language_value(code);
+    const auto calls = update_photo_metadata_display.calls;
+    espframe_core.flush();
+    assert(connection_failed_title->text == espframe_i18n_key("invalid_api_key"));
+    assert(connection_failed_subtitle->text == espframe_i18n_key("check_api_key"));
+    assert(loading_status_label->text == espframe_i18n_key("connecting_to_wifi"));
+    assert(i18n_wifi_setup->text == espframe_i18n_key("wifi_setup"));
+    assert(update_photo_metadata_display.calls == calls + 1);
+  }
 }

@@ -1838,6 +1838,33 @@ static void test_device_translations() {
          "Connect to the WiFi hotspot\nto configure your network\n\nThen visit 192.168.4.1 in your browser");
   set_espframe_language("unsupported");
   assert(format_photo_age(2026, 4, 20, 2026, 4, 21) == "1 day ago");
+
+  struct LocaleExample {
+    const char *code, *march, *december_short, *day, *days, *month, *months, *year, *years;
+  };
+  const LocaleExample examples[] = {
+    {"fr", "mars", "déc.", "il y a 1 jour", "il y a 2 jours", "il y a 1 mois", "il y a 2 mois", "il y a 1 an", "il y a 2 ans"},
+    {"es", "marzo", "dic.", "hace 1 día", "hace 2 días", "hace 1 mes", "hace 2 meses", "hace 1 año", "hace 2 años"},
+    {"it", "marzo", "dic.", "1 giorno fa", "2 giorni fa", "1 mese fa", "2 mesi fa", "1 anno fa", "2 anni fa"},
+    {"nl", "maart", "dec.", "1 dag geleden", "2 dagen geleden", "1 maand geleden", "2 maanden geleden", "1 jaar geleden", "2 jaar geleden"},
+    {"pt", "março", "dez.", "há 1 dia", "há 2 dias", "há 1 mês", "há 2 meses", "há 1 ano", "há 2 anos"},
+  };
+  for (const auto &locale : examples) {
+    set_espframe_language(locale.code);
+    assert(format_photo_date_full(2026, 3, 1) == std::string("1 ") + locale.march + ", 2026");
+    assert(format_photo_date_month_day_year(2026, 3, 1) == std::string(locale.march) + " 1, 2026");
+    assert(format_photo_date(2026, 12) == std::string(locale.december_short) + " 2026");
+    assert(format_photo_age(2026, 4, 20, 2026, 4, 21) == locale.day);
+    assert(format_photo_age(2026, 4, 19, 2026, 4, 21) == locale.days);
+    assert(format_photo_age(2026, 3, 21, 2026, 4, 21) == locale.month);
+    assert(format_photo_age(2026, 2, 21, 2026, 4, 21) == locale.months);
+    assert(format_photo_age(2025, 4, 21, 2026, 4, 21) == locale.year);
+    assert(format_photo_age(2024, 4, 21, 2026, 4, 21) == locale.years);
+    const std::string message = espframe_wifi_instructions("Frame {address}", "192.168.4.1");
+    assert(message.find("'Frame {address}'\n") != std::string::npos);
+    assert(message.find("192.168.4.1") != std::string::npos);
+  }
+  set_espframe_language("en");
 }
 
 int main() {

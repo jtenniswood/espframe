@@ -1928,14 +1928,20 @@ function smokeAssertionsForScenario(scenario) {
             clickTab("Device");
             const language = expandCard("Device Language").querySelector("select");
             if (language.value !== "en") throw new Error("Device language should default to English");
-            language.value = "de";
-            language.dispatchEvent(new Event("change", { bubbles: true }));
-            await waitFor(() => hasConfigurationPost("Device: Language"), 4000, "language save");
-            requirePostContains("Saved device language", "Device: Language", "option=de");
+            const expectedLanguages = { en: "English", de: "German", fr: "French", es: "Spanish", it: "Italian", nl: "Dutch", pt: "Portuguese" };
+            for (const [code, label] of Object.entries(expectedLanguages)) {
+              const option = Array.from(language.options).find(option => option.value === code);
+              if (!option || option.textContent !== label) throw new Error("Missing language option: " + code);
+              if (code === "en") continue;
+              language.value = code;
+              language.dispatchEvent(new Event("change", { bubbles: true }));
+              await waitFor(() => latestConfigurationValue("Device: Language").value === code, 4000, "language save " + code);
+              requirePostContains("Saved device language", "Device: Language", "option=" + code);
+            }
             clickButton("Export");
             await waitFor(() => window.__smoke.downloads === 1, 4000, "language backup export");
             const backup = JSON.parse(window.__smoke.exportPayloads[0]);
-            if (backup.screen.language !== "de") throw new Error("Backup must preserve German device language");
+            if (backup.screen.language !== "pt") throw new Error("Backup must preserve Portuguese device language");
             requireText("Device Language");
           }
 
