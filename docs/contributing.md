@@ -33,27 +33,9 @@ See [USB log collection](/collect-usb-logs) if you need to attach startup diagno
 
 ## Device translations
 
-Physical-display text lives in `product/translations/strings.en.txt`, following
-EspControl's `key=value` translation format. Translated catalogues use language
-codes: `de`, `fr`, `es`, `it`, `nl`, and `pt` (Portuguese from Portugal).
-Translate only the text after `=`; keep keys and placeholders such as `{count}`,
-`{address}`, and `{hotspot}` unchanged. Use `\n` for line breaks, `\\` for a
-literal backslash, and `\=` for a literal equals sign. An empty translated value
-falls back to English.
-
-For a new language, copy the English catalogue to `strings.<code>.txt`, translate
-its values, add the code to the `device_language` options in
-`product/contract/settings.json`, and add its display name in
-`docs/webserver/src/settings_screen_cards.ts`. Confirm the UI fonts cover its
-characters; scripts needing shaping or different plural rules need additional
-firmware work. Relative ages currently use singular and plural forms.
-
-Use `espframe_i18n_key("stable_key")` when rendering static device text. Keep
-complete sentences in the catalogue so translations can change word order. Add
-new fixed labels to the refresh callback in `common/addon/translations.yaml`
-so they update when the language changes. Do not translate logs, entity names,
-configuration option values, or Immich-provided content.
-
-Run `npm run generate` and `npm run check:pr` after editing. The generator checks
-matching keys, placeholders, and unambiguous status text. Edit the catalogue,
-not the generated `components/espframe/i18n_generated.h`.
+The [translation contribution guide](/translations) explains how to improve
+existing wording or add a language, preserve placeholders, regenerate the
+catalogues, and test the result on a display. Its source lives alongside the
+catalogues in
+[`product/translations/README.md`](https://github.com/jtenniswood/espframe/blob/main/product/translations/README.md),
+and the docs include that same guide so both versions stay in sync.

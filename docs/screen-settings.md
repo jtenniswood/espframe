@@ -59,6 +59,9 @@ The language changes built-in setup text, loading and error messages, month name
 and relative photo ages immediately. Immich location names retain their original
 text. The web interface stays in English.
 
+To improve a translation or add a language, see the
+[translation contribution guide](/translations).
+
 <!-- ESPFRAME:SETTINGS_TABLE device_language START -->
 | Setting | Default | Description |
 |---------|---------|-------------|
