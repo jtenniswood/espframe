@@ -135,7 +135,7 @@ try {
       check(document.title === "EspFrame WiFi setup", "Confirmation title branding changed");
       check(document.querySelector(".sp-brand-label").textContent === "EspFrame", "Confirmation header branding changed");
       check(document.querySelector("h1").textContent === "WiFi details saved", "Saved heading missing");
-      check(document.querySelector(".saved-description").textContent === "Your WiFi details are saved to your device.", "Saved instructions missing");
+      check(!document.querySelector(".saved-description") && !document.body.innerText.includes("Your WiFi details are saved to your device."), "Saved confirmation must use just one line");
       var steps = document.querySelectorAll(".setup-steps li");
       check(steps.length === 2, "Expected two next steps");
       check(steps[0].textContent === "Reconnect your phone or computer to your home WiFi.", "Reconnect instructions missing");
