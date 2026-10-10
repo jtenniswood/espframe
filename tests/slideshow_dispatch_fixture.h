@@ -42,7 +42,10 @@ inline std::vector<int> dispatch_order;
 
 struct DispatchTestRequestState {
   bool current = true;
+  bool pending = true;
   int filter_scope_slot = 0;
-  bool filter_scope_request_is_current() const { return current; }
-  void clear_filter_scope_request() { current = false; }
+  bool filter_scope_request_pending() const { return pending; }
+  bool filter_scope_request_is_current() const { return pending && current; }
+  void begin_filter_scope_request() { pending = true; current = true; }
+  void clear_filter_scope_request() { pending = false; current = false; }
 };

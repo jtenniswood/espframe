@@ -665,6 +665,7 @@ script:
           condition:
             lambda: 'return !id(immich_request_state).filter_scope_request_is_current();'
           then:
+            - lambda: 'id(immich_request_state).clear_filter_scope_request();'
             - script.stop: immich_fetch_asset_tag_scope
       - if:
           condition:
