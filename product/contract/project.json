@@ -1587,7 +1587,22 @@
     "product/translations/strings.fr.txt",
     "product/translations/strings.it.txt",
     "product/translations/strings.nl.txt",
-    "product/translations/strings.pt.txt"
+    "product/translations/strings.pt.txt",
+    "product/translations/strings.cs.txt",
+    "product/translations/strings.da.txt",
+    "product/translations/strings.fi.txt",
+    "product/translations/strings.he.txt",
+    "product/translations/strings.hu.txt",
+    "product/translations/strings.nb.txt",
+    "product/translations/strings.pl.txt",
+    "product/translations/strings.pt-br.txt",
+    "product/translations/strings.ro.txt",
+    "product/translations/strings.ru.txt",
+    "product/translations/strings.sk.txt",
+    "product/translations/strings.sl.txt",
+    "product/translations/strings.sv.txt",
+    "product/translations/strings.tr.txt",
+    "product/translations/strings.uk.txt"
   ],
   "web_template_placeholders": [
     "__ESPFRAME_WEB_FRAME_IDENTITY__",

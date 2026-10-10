@@ -50,8 +50,12 @@ The setting only exposes normal and upside-down orientations. On the 10" model, 
 ## Device Language
 
 Choose **Device → Preferences → Language** for English (`en`, the default),
-German (`de`), French (`fr`), Spanish (`es`), Italian (`it`), Dutch (`nl`), or
-Portuguese (`pt`, Portugal). Home Assistant exposes the saved selection as **Device: Language**.
+Czech (`cs`), Danish (`da`), German (`de`), Spanish (`es`), Finnish (`fi`),
+French (`fr`), Hebrew (`he`), Hungarian (`hu`), Italian (`it`), Norwegian Bokmål
+(`nb`), Dutch (`nl`), Polish (`pl`), Portuguese (`pt`, Portugal), Brazilian
+Portuguese (`pt-br`), Romanian (`ro`), Russian (`ru`), Slovak (`sk`), Slovenian
+(`sl`), Swedish (`sv`), Turkish (`tr`), or Ukrainian (`uk`). Home Assistant
+exposes the saved selection as **Device: Language**.
 The setting survives restarts and is included in configuration backups; restoring
 an older backup without a language leaves the current selection unchanged.
 
@@ -65,7 +69,7 @@ To improve a translation or add a language, see the
 <!-- ESPFRAME:SETTINGS_TABLE device_language START -->
 | Setting | Default | Description |
 |---------|---------|-------------|
-| **Device Language** | en | Translate built-in display text and photo dates: English (`en`), German (`de`), French (`fr`), Spanish (`es`), Italian (`it`), Dutch (`nl`), or Portuguese (`pt`). The web interface stays in English. |
+| **Device Language** | en | Translate built-in display text and photo dates in English, Czech, Danish, German, Spanish, Finnish, French, Hebrew, Hungarian, Italian, Norwegian Bokmål, Dutch, Polish, Portuguese (Portugal or Brazil), Romanian, Russian, Slovak, Slovenian, Swedish, Turkish, or Ukrainian. The web interface stays in English. |
 <!-- ESPFRAME:SETTINGS_TABLE device_language END -->
 
 ## Frame Name

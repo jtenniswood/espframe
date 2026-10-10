@@ -158,7 +158,30 @@
     var body = el("div");
     body.appendChild(productSelectSettingField("Language", "device_language", {
       optionDisplayFn: function (v) {
-        return { en: "English", de: "German", fr: "French", es: "Spanish", it: "Italian", nl: "Dutch", pt: "Portuguese" }[v] || v;
+        return {
+          en: "English",
+          cs: "Čeština (Czech)",
+          da: "Dansk (Danish)",
+          de: "Deutsch (German)",
+          es: "Español (Spanish)",
+          fi: "Suomi (Finnish)",
+          fr: "Français (French)",
+          he: "עברית (Hebrew)",
+          hu: "Magyar (Hungarian)",
+          it: "Italiano (Italian)",
+          nb: "Norsk bokmål (Norwegian Bokmål)",
+          nl: "Nederlands (Dutch)",
+          pl: "Polski (Polish)",
+          pt: "Português (Portuguese)",
+          "pt-br": "Português (Brasil) (Brazilian Portuguese)",
+          ro: "Română (Romanian)",
+          ru: "Русский (Russian)",
+          sk: "Slovenčina (Slovak)",
+          sl: "Slovenščina (Slovenian)",
+          sv: "Svenska (Swedish)",
+          tr: "Türkçe (Turkish)",
+          uk: "Українська (Ukrainian)"
+        }[v] || v;
       }
     }));
     return makeCollapsibleCard("Language", body, true);

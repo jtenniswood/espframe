@@ -5,9 +5,12 @@ instructions, loading and error messages, photo-source labels, month names, and
 relative photo ages. The web interface stays in English. Keep Immich-provided
 photo content, entity names, configuration values, and logs unchanged.
 
-The catalogues currently cover English (`en`, the default), German (`de`),
-French (`fr`), Spanish (`es`), Italian (`it`), Dutch (`nl`), and Portuguese
-(`pt`, Portugal). Select a language under **Device → Preferences → Language**
+The catalogues currently cover English (`en`, the default), Czech (`cs`), Danish
+(`da`), German (`de`), Spanish (`es`), Finnish (`fi`), French (`fr`), Hebrew
+(`he`), Hungarian (`hu`), Italian (`it`), Norwegian Bokmål (`nb`), Dutch (`nl`),
+Polish (`pl`), Portuguese (`pt`, Portugal), Brazilian Portuguese (`pt-br`),
+Romanian (`ro`), Russian (`ru`), Slovak (`sk`), Slovenian (`sl`), Swedish
+(`sv`), Turkish (`tr`), and Ukrainian (`uk`). Select a language under **Device → Preferences → Language**
 or Home Assistant's **Device: Language** select.
 
 ## Improve an existing translation
@@ -83,11 +86,12 @@ collision in your pull request rather than changing unrelated keys.
 
 ## Fonts, dates, and plural rules
 
-The setup and menu fonts use the `latin_extended_glyphs` set in
+The setup and menu fonts cover the catalogues’ Latin extended, Cyrillic, and
+Hebrew characters. LVGL bidirectional text support is enabled for Hebrew. The fonts are defined in
 [`assets/fonts.yaml`](https://github.com/jtenniswood/espframe/blob/main/devices/guition-esp32-p4-jc8012p4a1/assets/fonts.yaml).
 `npm run test:translations` checks that every catalogue character has font
-coverage. A language needing more glyphs, right-to-left layout, or script shaping
-requires corresponding firmware changes and display testing.
+coverage. A language needing other glyphs or script shaping requires
+corresponding firmware changes and display testing.
 
 Relative ages currently choose a singular message for a count of one and a plural
 message for larger counts. Languages requiring other plural forms need additional

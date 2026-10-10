@@ -903,15 +903,30 @@
     "default": "en",
     "options": [
       "en",
+      "cs",
+      "da",
       "de",
-      "fr",
       "es",
+      "fi",
+      "fr",
+      "he",
+      "hu",
       "it",
+      "nb",
       "nl",
-      "pt"
+      "pl",
+      "pt",
+      "pt-br",
+      "ro",
+      "ru",
+      "sk",
+      "sl",
+      "sv",
+      "tr",
+      "uk"
     ],
     "docs_label": "Device Language",
-    "docs_description": "Translate built-in display text and photo dates: English (`en`), German (`de`), French (`fr`), Spanish (`es`), Italian (`it`), Dutch (`nl`), or Portuguese (`pt`). The web interface stays in English.",
+    "docs_description": "Translate built-in display text and photo dates in English, Czech, Danish, German, Spanish, Finnish, French, Hebrew, Hungarian, Italian, Norwegian Bokmål, Dutch, Polish, Portuguese (Portugal or Brazil), Romanian, Russian, Slovak, Slovenian, Swedish, Turkish, or Ukrainian. The web interface stays in English.",
     "firmware_files": [
       "common/addon/translations.yaml"
     ],

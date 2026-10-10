@@ -1967,7 +1967,16 @@ function smokeAssertionsForScenario(scenario) {
             clickTab("Device");
             const language = expandCard("Language").querySelector("select");
             if (language.value !== "en") throw new Error("Device language should default to English");
-            const expectedLanguages = { en: "English", de: "German", fr: "French", es: "Spanish", it: "Italian", nl: "Dutch", pt: "Portuguese" };
+            const expectedLanguages = {
+              en: "English", cs: "Čeština (Czech)", da: "Dansk (Danish)", de: "Deutsch (German)",
+              es: "Español (Spanish)", fi: "Suomi (Finnish)", fr: "Français (French)",
+              he: "עברית (Hebrew)", hu: "Magyar (Hungarian)", it: "Italiano (Italian)",
+              nb: "Norsk bokmål (Norwegian Bokmål)", nl: "Nederlands (Dutch)", pl: "Polski (Polish)",
+              pt: "Português (Portuguese)", "pt-br": "Português (Brasil) (Brazilian Portuguese)",
+              ro: "Română (Romanian)", ru: "Русский (Russian)", sk: "Slovenčina (Slovak)",
+              sl: "Slovenščina (Slovenian)", sv: "Svenska (Swedish)", tr: "Türkçe (Turkish)",
+              uk: "Українська (Ukrainian)"
+            };
             for (const [code, label] of Object.entries(expectedLanguages)) {
               const option = Array.from(language.options).find(option => option.value === code);
               if (!option || option.textContent !== label) throw new Error("Missing language option: " + code);
@@ -1977,10 +1986,13 @@ function smokeAssertionsForScenario(scenario) {
               await waitFor(() => latestConfigurationValue("Device: Language").value === code, 4000, "language save " + code);
               requirePostContains("Saved device language", "Device: Language", "option=" + code);
             }
+            language.value = "pt-br";
+            language.dispatchEvent(new Event("change", { bubbles: true }));
+            await waitFor(() => latestConfigurationValue("Device: Language").value === "pt-br", 4000, "Brazilian Portuguese language save");
             clickButton("Export");
             await waitFor(() => window.__smoke.downloads === 1, 4000, "language backup export");
             const backup = JSON.parse(window.__smoke.exportPayloads[0]);
-            if (backup.screen.language !== "pt") throw new Error("Backup must preserve Portuguese device language");
+            if (backup.screen.language !== "pt-br") throw new Error("Backup must preserve Brazilian Portuguese device language");
             requireText("Language");
           }
 

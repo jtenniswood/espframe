@@ -66,7 +66,16 @@ class TranslationCatalogueTests(unittest.TestCase):
     def test_shipped_strings_fit_existing_ui_fonts(self):
         fonts = (ROOT / "devices/guition-esp32-p4-jc8012p4a1/assets/fonts.yaml").read_text()
         latin = re.search(r'  latin_extended_glyphs: >-\n((?:    .*\n)+)', fonts)[1]
-        glyphs = set(latin) | {"\n"}
+        additional = re.search(r'  greek_cyrillic_vietnamese_glyphs: >-\n((?:    .*\n)+)', fonts)[1]
+        cyrillic = re.search(r'  cyrillic_translation_glyphs: >-\n((?:    .*\n)+)', fonts)[1]
+        hebrew_ui = re.search(r'  hebrew_ui_glyphs: "([^"]+)"', fonts)[1]
+        hebrew = json.loads(re.search(r'  hebrew_location_glyphs: (".*")', fonts)[1])
+        glyphs = set(latin + additional + cyrillic + hebrew_ui + hebrew) | {"\n"}
+        for font_id in ("noto_400_46_font", "noto_400_30_font", "noto_400_28_font", "noto_400_32_font"):
+            block = re.search(rf'    id: {font_id}\n(.*?)(?=\n  - file:|\Z)', fonts, re.S)[0]
+            self.assertIn("${cyrillic_translation_glyphs}", block, font_id)
+            self.assertIn("Noto Sans Hebrew@400", block, font_id)
+            self.assertIn("${hebrew_ui_glyphs}", block, font_id)
         for code, strings in load_catalogues().items():
             for key, value in strings.items():
                 self.assertFalse(set(value) - glyphs, f"{code}:{key} missing font glyphs")
@@ -75,7 +84,9 @@ class TranslationCatalogueTests(unittest.TestCase):
         for code, strings in load_catalogues().items():
             for key, value in strings.items():
                 if re.fullmatch(r"month(?:_short)?_\d{2}", key):
-                    self.assertTrue(value[0].isupper(), f"{code}:{key} must start with a capital")
+                    first = value[0]
+                    self.assertTrue(first.isupper() or first.lower() == first.upper(),
+                                    f"{code}:{key} must start with a capital or uncased letter")
 
     def test_english_connection_messages_preserve_contract(self):
         english = load_catalogues()["en"]
