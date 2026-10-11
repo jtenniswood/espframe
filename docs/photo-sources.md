@@ -62,6 +62,8 @@ Shared albums are sampled across photos added by every contributor, not only the
 
 When you add more than one album, **Album Order** can either keep sampling albums randomly or cycle through the Albums list from top to bottom. Use the move buttons beside each album to set the list order. Photos inside each selected album are still chosen randomly.
 
+Each frame makes its own random photo selections and shuffles cached photo batches locally. Two frames can use the same albums or tags without sharing a fixed photo sequence. No extra shuffle setting is needed. Random selections can repeat, and frames can occasionally show the same photo; this does not guarantee different photos in every room or a full album pass before repeats.
+
 ## Person
 
 Shows photos where specific people (faces) appear. Requires face recognition in Immich. **Get the UUID:** open the person under **People** — the URL is `.../person/<uuid>`. Paste one UUID into **People**, then optionally add the person's name in **Who is it?**. Use **Add a person** to add another person if needed. With several IDs, each new image is chosen from **one** of those people at random, so you see photos featuring **any** of them (not only photos where everyone appears together). Your [API key](/api-key) needs `person.read`.

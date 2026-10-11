@@ -10,7 +10,67 @@ static std::string fixture(const char *name) {
   return {std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
 }
 
+static void test_independent_photo_selection() {
+  const std::string base = "https://immich.example.test";
+  const std::string photos = R"JSON([
+    null,
+    {"width":100,"height":200},
+    {"id":"landscape","width":200,"height":100},
+    {"id":"portrait-a","width":100,"height":200,"localDateTime":"2026-04-21T12:00:00"},
+    {"id":"portrait-b","width":100,"height":200,"localDateTime":"2025-12-01T12:00:00"},
+    {"id":"portrait-c","width":100,"height":200,"localDateTime":"2024-03-02T12:00:00"}
+  ])JSON";
+  const std::vector<std::string> ids = {"portrait-a", "portrait-b", "portrait-c"};
+  // The same server response must allow each matching photo to be selected by
+  // a frame's own random draw, including the bare-array metadata response.
+  for (uint32_t draw = 0; draw < ids.size(); ++draw) {
+    esp_random_test_value = draw;
+    ImmichAssetMeta meta;
+    assert(!parse_immich_asset(photos, base, &meta, "Portrait Only").empty());
+    assert(meta.asset_id == ids[draw]);
+    for (const auto &body : {photos, "{\"assets\":{\"items\":" + photos + "}}",
+                            "{\"assets\":{\"assets\":" + photos + "}}"}) {
+      assert(!parse_immich_metadata_asset(body, base, &meta, "Portrait Only").empty());
+      assert(meta.asset_id == ids[draw]);
+      if (draw == 1) assert(meta.date == "1 December, 2025");
+    }
+    assert(!parse_immich_asset(photos, base, &meta, "Landscape Only").empty());
+    assert(meta.asset_id == "landscape");
+  }
+
+  // Different frame draws must also change playback order when Immich returns
+  // identical batches. Every eligible photo stays in the batch exactly once.
+  std::vector<std::vector<std::string>> orders;
+  for (uint32_t draw : {0U, 1U}) {
+    esp_random_test_value = draw;
+    std::vector<ImmichAssetMeta> pool;
+    assert(append_immich_asset_candidates(photos, base, pool, "Portrait Only") == 3);
+    std::vector<std::string> order;
+    while (!pool.empty()) {
+      order.push_back(pool.back().asset_id);
+      pool.pop_back();
+    }
+    orders.push_back(order);
+    std::sort(order.begin(), order.end());
+    assert(order == ids);
+  }
+  assert(orders[0] != orders[1]);
+  std::vector<ImmichAssetMeta> pool;
+  assert(append_immich_asset_candidates(photos, base, pool, "Portrait Only", 2) == 2);
+  assert(pool.size() == 2);
+  assert(append_immich_asset_candidates(photos, base, pool, "Portrait Only", 2) == 0);
+  assert(append_immich_asset_candidates(photos, base, pool, "Portrait Only", 6) == 1);
+  assert(pool.size() == 3);
+  assert(append_immich_asset_candidates(photos, base, pool, "Portrait Only", 6) == 0);
+  ImmichAssetMeta meta;
+  assert(parse_immich_asset("[]", base, &meta).empty());
+  assert(parse_immich_asset("[null,{}]", base, &meta).empty());
+  assert(parse_immich_asset(photos, base, nullptr).empty());
+  esp_random_test_value = 0;
+}
+
 int main() {
+  test_independent_photo_selection();
   const std::string base = "https://immich.example.test";
   const std::string candidates = R"JSON([
     {"id":"primary","width":100,"height":200,"localDateTime":"2026-04-21T12:00:00"},

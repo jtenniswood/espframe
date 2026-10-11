@@ -1605,6 +1605,34 @@ inline std::string parse_immich_asset_object(JsonObject asset,
   return img_url;
 }
 
+inline std::string pick_immich_asset_from_array(JsonArray items,
+                                              const std::string &base_url,
+                                              ImmichAssetMeta *out_meta,
+                                              const std::string &orientation_filter) {
+  if (out_meta == nullptr || items.isNull()) return "";
+  // Select among eligible photos using this frame's hardware randomness. The
+  // server's response order must not determine which matching photo wins.
+  size_t matching = 0;
+  for (size_t i = 0; i < items.size(); i++) {
+    ImmichAssetMeta candidate;
+    if (parse_immich_asset_object(items[i].as<JsonObject>(), base_url, &candidate).empty()) continue;
+    if (photo_orientation_matches(candidate, orientation_filter)) matching++;
+  }
+  if (matching == 0) return "";
+
+  size_t pick = esp_random() % matching;
+  size_t seen = 0;
+  for (size_t i = 0; i < items.size(); i++) {
+    ImmichAssetMeta candidate;
+    std::string img_url = parse_immich_asset_object(items[i].as<JsonObject>(), base_url, &candidate);
+    if (img_url.empty() || !photo_orientation_matches(candidate, orientation_filter)) continue;
+    if (seen++ != pick) continue;
+    *out_meta = std::move(candidate);
+    return img_url;
+  }
+  return "";
+}
+
 inline std::string parse_immich_asset(const std::string &body,
                                       const std::string &base_url,
                                       ImmichAssetMeta *out_meta,
@@ -1614,16 +1642,7 @@ inline std::string parse_immich_asset(const std::string &body,
   if (doc.isNull()) return "";
 
   if (doc.is<JsonArray>()) {
-    JsonArray arr = doc.as<JsonArray>();
-    for (size_t i = 0; i < arr.size(); i++) {
-      ImmichAssetMeta candidate;
-      std::string img_url = parse_immich_asset_object(arr[i].as<JsonObject>(), base_url, &candidate);
-      if (img_url.empty()) continue;
-      if (!photo_orientation_matches(candidate, orientation_filter)) continue;
-      *out_meta = candidate;
-      return img_url;
-    }
-    return "";
+    return pick_immich_asset_from_array(doc.as<JsonArray>(), base_url, out_meta, orientation_filter);
   }
 
   if (doc.is<JsonObject>()) {
@@ -1725,6 +1744,14 @@ inline size_t append_immich_asset_candidates(
     }
     if (!duplicate) pool.push_back(std::move(candidate));
   }
+  // The pool is consumed from the back. Shuffle each refill locally so frames
+  // receiving the same batch do not inherit the same playback order.
+  if (pool.size() > before) {
+    for (size_t remaining = pool.size(); remaining > 1; --remaining) {
+      size_t pick = esp_random() % remaining;
+      std::swap(pool[remaining - 1], pool[pick]);
+    }
+  }
   return pool.size() - before;
 }
 
@@ -1813,7 +1840,7 @@ inline std::string parse_immich_metadata_asset(const std::string &body,
   if (doc.isNull()) return "";
 
   if (doc.is<JsonArray>()) {
-    return parse_immich_asset(body, base_url, out_meta, orientation_filter);
+    return pick_immich_asset_from_array(doc.as<JsonArray>(), base_url, out_meta, orientation_filter);
   }
 
   if (!doc.is<JsonObject>()) return "";
@@ -1828,29 +1855,7 @@ inline std::string parse_immich_metadata_asset(const std::string &body,
   }
   if (items.isNull()) return "";
 
-  size_t matching = 0;
-  for (size_t i = 0; i < items.size(); i++) {
-    ImmichAssetMeta candidate;
-    std::string img_url = parse_immich_asset_object(items[i].as<JsonObject>(), base_url, &candidate);
-    if (img_url.empty()) continue;
-    if (!photo_orientation_matches(candidate, orientation_filter)) continue;
-    matching++;
-  }
-  if (matching == 0) return "";
-
-  size_t pick = esp_random() % matching;
-  size_t seen = 0;
-  for (size_t i = 0; i < items.size(); i++) {
-    ImmichAssetMeta candidate;
-    std::string img_url = parse_immich_asset_object(items[i].as<JsonObject>(), base_url, &candidate);
-    if (img_url.empty()) continue;
-    if (!photo_orientation_matches(candidate, orientation_filter)) continue;
-    if (seen++ != pick) continue;
-    *out_meta = candidate;
-    return img_url;
-  }
-
-  return "";
+  return pick_immich_asset_from_array(items, base_url, out_meta, orientation_filter);
 }
 
 inline ImmichTimelineBucketChoice pick_immich_timeline_bucket(
