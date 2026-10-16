@@ -128,6 +128,8 @@ def fixture_validation_errors(data: dict[str, Any], product: dict[str, Any]) -> 
             ("relative_unit", "relative_unit"),
             ("orientation", "photo_orientation"),
             ("display_mode", "display_mode"),
+            ("transition", "transition"),
+            ("transition_speed", "transition_speed"),
         ):
             value = photos.get(backup_key)
             if value is not None and str(value) not in options.get(setting_key, set()):

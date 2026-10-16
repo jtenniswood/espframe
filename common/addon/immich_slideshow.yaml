@@ -39,6 +39,23 @@ globals:
   - id: photo_source_menu_selection_index
     type: int
     initial_value: '0'
+  # Photo transitions: what was on screen before a display script ran, the
+  # last transition (Random avoids repeats) and the navigation direction.
+  - id: photo_transition_prev_shown
+    type: bool
+    initial_value: 'false'
+  - id: photo_transition_prev_pair
+    type: bool
+    initial_value: 'false'
+  - id: photo_transition_prev_src
+    type: const void *
+    initial_value: 'nullptr'
+  - id: photo_transition_last
+    type: uint8_t
+    initial_value: '0'
+  - id: photo_transition_reverse
+    type: bool
+    initial_value: 'false'
 
 # -----------------------------------------------------------------------------
 # Metadata display mode (persisted across reboots)
@@ -96,6 +113,46 @@ select:
     restore_value: true
     # ESPFRAME:SETTING_FIELDS portrait_pairing_range END
     icon: "mdi:calendar-range"
+    web_server:
+      sorting_group_id: sg_photos
+
+  - platform: template
+    name: "Photos: Transition"
+    id: slide_transition_select
+    internal: true
+    # ESPFRAME:SETTING_FIELDS transition START
+    options:
+      - "None"
+      - "Cross Fade"
+      - "Fade to Black"
+      - "Fade to White"
+      - "Slide Left"
+      - "Slide Right"
+      - "Slide Up"
+      - "Slide Down"
+      - "Random"
+    initial_option: "None"
+    optimistic: true
+    restore_value: true
+    # ESPFRAME:SETTING_FIELDS transition END
+    icon: "mdi:transition"
+    web_server:
+      sorting_group_id: sg_photos
+
+  - platform: template
+    name: "Photos: Transition Speed"
+    id: slide_transition_speed_select
+    internal: true
+    # ESPFRAME:SETTING_FIELDS transition_speed START
+    options:
+      - "Fast"
+      - "Normal"
+      - "Slow"
+    initial_option: "Normal"
+    optimistic: true
+    restore_value: true
+    # ESPFRAME:SETTING_FIELDS transition_speed END
+    icon: "mdi:speedometer"
     web_server:
       sorting_group_id: sg_photos
 
@@ -382,6 +439,12 @@ remote_image:
 # Scripts: download error handler, display, advance, previous, prefetch
 # -----------------------------------------------------------------------------
 script:
+  - id: espframe_slideshow_dispatch_retry
+    mode: restart
+    then:
+      - delay: 100ms
+      - script.execute: espframe_slideshow_dispatch
+
   - id: espframe_slideshow_dispatch
     mode: queued
     then:
@@ -390,6 +453,12 @@ script:
       - delay: 0ms
       - lambda: |-
           if (id(photo_source_menu_open)) return;
+          // Fetching and decoding block the loop for hundreds of milliseconds;
+          // let a running photo transition finish first.
+          if (id(tft_display)->is_animating()) {
+            id(espframe_slideshow_dispatch_retry).execute();
+            return;
+          }
           SlideshowCommand cmd;
           while (id(espframe_core).slideshow().pop_command(cmd)) {
             switch (cmd.kind) {
@@ -550,6 +619,7 @@ script:
     then:
       - lvgl.page.show: slideshow_page
       - script.execute: hide_connection_failed
+      - script.execute: photo_transition_capture
       - lambda: |-
           const int active_slot = id(espframe_core).slideshow().state().active_slot;
           auto reject_or_fallback = [&]() {
@@ -589,6 +659,7 @@ script:
           lv_img_set_zoom(id(slideshow_img), ZOOM_IDENTITY);
           lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
           lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
+          id(photo_transition_start).execute(true);
           id(espframe_core).slideshow().mark_portrait_pair_displayed(true);
           id(apply_warm_tones).execute();
           id(update_clock_display).execute();
@@ -806,12 +877,67 @@ script:
             id(espframe_core).slideshow().state().portrait_search_expanded);
           id(espframe_slideshow_dispatch).execute();
 
+  # Record what is on screen before a display script swaps widgets.
+  - id: photo_transition_capture
+    mode: queued
+    then:
+      - lambda: |-
+          const bool single = !lv_obj_has_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN) &&
+                              lv_image_get_src(id(slideshow_img)) != nullptr;
+          const bool pair = !lv_obj_has_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
+          id(photo_transition_prev_shown) = single || pair;
+          id(photo_transition_prev_pair) = pair && !single;
+          id(photo_transition_prev_src) = single ? lv_image_get_src(id(slideshow_img)) : nullptr;
+
+  # Ask the display driver to animate from the frame on screen to the one LVGL
+  # renders next (see mipi_dsi FrameTransition).
+  - id: photo_transition_start
+    mode: queued
+    parameters:
+      incoming_pair: bool
+    then:
+      - lambda: |-
+          using namespace esphome::espframe;
+          if (!id(photo_transition_prev_shown)) return;
+          // Redisplaying the photo already on screen has nothing to animate.
+          if (!incoming_pair && !id(photo_transition_prev_pair) &&
+              id(photo_transition_prev_src) == lv_image_get_src(id(slideshow_img))) return;
+          auto transition = resolve_slide_transition(id(slide_transition_select).current_option(), esp_random(),
+                                                     static_cast<SlideTransition>(id(photo_transition_last)));
+          if (transition == SlideTransition::NONE) return;
+          esphome::image::Image *imgs[] = { id(immich_img_0), id(immich_img_1), id(immich_img_2) };
+          const int s = id(espframe_core).slideshow().state().active_slot;
+          // A single portrait joined by its pair is the same photo: blend, don't move.
+          const bool same_photo = incoming_pair && !id(photo_transition_prev_pair) && s >= 0 && s <= 2 &&
+                                  id(photo_transition_prev_src) == get_lv_image_descriptor_(imgs[s], 0);
+          if (same_photo) {
+            transition = SlideTransition::CROSS_FADE;
+          } else if (id(photo_transition_reverse)) {
+            transition = reverse_slide_transition(transition);
+          }
+          id(photo_transition_last) = static_cast<uint8_t>(transition);
+          auto plan = slide_transition_plan(transition);
+          screen_to_panel_direction(static_cast<int>(id(frame_lvgl)->get_rotation()), plan.dx, plan.dy);
+          esphome::mipi_dsi::FrameTransition request;
+          switch (plan.blend) {
+            case TransitionBlend::CROSS_FADE: request.mode = esphome::mipi_dsi::FrameTransitionMode::CROSS_FADE; break;
+            case TransitionBlend::FADE_THROUGH: request.mode = esphome::mipi_dsi::FrameTransitionMode::FADE_THROUGH; break;
+            case TransitionBlend::MOVE: request.mode = esphome::mipi_dsi::FrameTransitionMode::MOVE; break;
+            default: return;
+          }
+          request.duration_ms = slide_transition_duration_ms(id(slide_transition_speed_select).current_option());
+          request.color_rgb888 = plan.color_rgb888;
+          request.dx = plan.dx;
+          request.dy = plan.dy;
+          id(tft_display)->start_transition(request);
+
   # Display whichever slot is active (single image or portrait pair; warm tones)
   - id: immich_display_current
     mode: single
     then:
       - lvgl.page.show: slideshow_page
       - script.execute: hide_connection_failed
+      - script.execute: photo_transition_capture
       - lambda: |-
           lv_obj_clear_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
           lv_obj_add_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
@@ -829,6 +955,7 @@ script:
 
           auto &meta = get_slot(s, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2);
           lv_img_set_zoom(id(slideshow_img), meta.zoom);
+          id(photo_transition_start).execute(false);
           ESP_LOGI("immich", "SHOW slot %d: %s | %s | %s | portrait=%d", s, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.is_portrait);
           id(espframe_core).slideshow().begin_display_current(
             s, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().portrait,
@@ -890,6 +1017,7 @@ script:
     mode: single
     then:
       - lambda: |-
+          id(photo_transition_reverse) = false;
           id(espframe_core).slideshow().advance_forward(
             millis(),
             id(immich_request_state).cooldown_active(millis()),
@@ -906,6 +1034,7 @@ script:
     mode: single
     then:
       - lambda: |-
+          id(photo_transition_reverse) = true;
           id(espframe_core).slideshow().show_previous(
             millis(), id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().active_slot_displayed,
             id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().current_display,
@@ -918,6 +1047,7 @@ script:
     then:
       - lvgl.page.show: slideshow_page
       - script.execute: hide_connection_failed
+      - script.execute: photo_transition_capture
       - lambda: |-
           const bool portrait_screen = id(screen_rotation_select).current_option() == "90" ||
                                        id(screen_rotation_select).current_option() == "270";
@@ -963,6 +1093,7 @@ script:
           lv_img_set_zoom(id(slideshow_img), ZOOM_IDENTITY);
           lv_obj_add_flag(id(slideshow_img), LV_OBJ_FLAG_HIDDEN);
           lv_obj_clear_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
+          id(photo_transition_start).execute(true);
           ESP_LOGI("immich", "PAIR displayed for slot %d", id(espframe_core).slideshow().state().active_slot);
       - script.execute: apply_warm_tones
       - script.execute: update_clock_display

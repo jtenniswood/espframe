@@ -205,7 +205,9 @@
         "portrait_pairing",
         "portrait_pairing_range",
         "portrait_pairs_only",
-        "display_mode"
+        "display_mode",
+        "transition",
+        "transition_speed"
       ],
       "frequency": [
         "interval",
@@ -284,7 +286,9 @@
         "portrait_pairing": "portrait_pairing",
         "portrait_pairing_range": "portrait_pairing_range",
         "portrait_pairs_only": "portrait_pairs_only",
-        "display_mode": "display_mode"
+        "display_mode": "display_mode",
+        "transition": "transition",
+        "transition_speed": "transition_speed"
       },
       "frequency": {
         "interval": "interval",
@@ -715,7 +719,9 @@
         "function": "makeLayoutCard",
         "settings": [
           "photo_orientation",
-          "display_mode"
+          "display_mode",
+          "transition",
+          "transition_speed"
         ]
       },
       {
@@ -1262,7 +1268,9 @@
         "layout": {
           "settings": [
             "photo_orientation",
-            "display_mode"
+            "display_mode",
+            "transition",
+            "transition_speed"
           ]
         },
         "metadata": {
@@ -1673,6 +1681,8 @@
       "relative_unit": {},
       "photo_orientation": {},
       "display_mode": {},
+      "transition": {},
+      "transition_speed": {},
       "interval": {},
       "conn_timeout": {},
       "screen_rotation": {
@@ -2791,6 +2801,56 @@
       ],
       "firmware_files": [
         "common/addon/immich_config.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
+    },
+    {
+      "key": "transition",
+      "entity": {
+        "domain": "select",
+        "name": "Photos: Transition"
+      },
+      "default": "None",
+      "docs_label": "Transition",
+      "docs_default": "None",
+      "docs_description": "Animation used when the photo changes. Random picks a different transition for each photo.",
+      "options": [
+        "None",
+        "Cross Fade",
+        "Fade to Black",
+        "Fade to White",
+        "Slide Left",
+        "Slide Right",
+        "Slide Up",
+        "Slide Down",
+        "Random"
+      ],
+      "firmware_files": [
+        "common/addon/immich_slideshow.yaml"
+      ],
+      "docs_files": [
+        "docs/photo-sources.md"
+      ]
+    },
+    {
+      "key": "transition_speed",
+      "entity": {
+        "domain": "select",
+        "name": "Photos: Transition Speed"
+      },
+      "default": "Normal",
+      "docs_label": "Transition Speed",
+      "docs_default": "Normal",
+      "docs_description": "How long each transition takes: Fast (0.5s), Normal (1s), or Slow (1.5s).",
+      "options": [
+        "Fast",
+        "Normal",
+        "Slow"
+      ],
+      "firmware_files": [
+        "common/addon/immich_slideshow.yaml"
       ],
       "docs_files": [
         "docs/photo-sources.md"

@@ -20,6 +20,8 @@
     "portrait_pairing": true,
     "portrait_pairing_range": "Within 1 Day",
     "portrait_pairs_only": true,
-    "display_mode": "Fill"
+    "display_mode": "Fill",
+    "transition": "Slide Down",
+    "transition_speed": "Normal"
   }
 }

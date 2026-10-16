@@ -119,6 +119,8 @@ const validBackupFixture = {
     portrait_pairing_range: "Within 2 Days",
     portrait_pairs_only: true,
     display_mode: "Fill",
+    transition: "Fade to Black",
+    transition_speed: "Slow",
   },
   frequency: {
     interval: "30 seconds",
@@ -414,6 +416,8 @@ function browserScriptForScenario(scenario) {
       "Photos: Portrait Pairing Range": "Same Day",
       "Photos: Paired Portraits Only": false,
       "Photos: Display Mode": "Fill",
+      "Photos: Transition": "None",
+      "Photos: Transition Speed": "Normal",
       "Photos: Slideshow Interval": "15 seconds",
       "Device: Language": "en",
       "Device: Metadata Date": true,
@@ -1303,6 +1307,12 @@ function smokeAssertionsForScenario(scenario) {
         expandCard("Metadata");
         requireText("Display Photos");
         requireText("Display Mode");
+        requireText("Transition");
+        requireText("Transition Speed");
+        const transitionSpeedOptions = Array.from(selectByLabel("Transition Speed").options).map((option) => option.textContent);
+        if (transitionSpeedOptions.join("|") !== "Fast (0.5s)|Normal (1s)|Slow (1.5s)") {
+          throw new Error("Transition Speed labels are incorrect: " + transitionSpeedOptions.join(", "));
+        }
         const displayModeOptions = Array.from(selectByLabel("Display Mode").options).map((option) => option.textContent);
         if (displayModeOptions.join("|") !== "Crop to fit|Show full image") {
           throw new Error("Display Mode labels are incorrect: " + displayModeOptions.join(", "));
@@ -1329,6 +1339,8 @@ function smokeAssertionsForScenario(scenario) {
         cardByTitle("Portrait Pairing").querySelector(".card-body .toggle").click();
         setSelect("Display Photos", "Landscape Only");
         setSelect("Display Mode", "Fit");
+        setSelect("Transition", "Random");
+        setSelect("Transition Speed", "Fast");
         setSelect("Date Taken Format", "January 1, 2026");
         setSelect("Date Format", "Relative Date");
         toggleByText("Location").click();
@@ -1487,6 +1499,8 @@ function smokeAssertionsForScenario(scenario) {
             requirePostContains("Portrait pairing", "Photos: Portrait Pairing", "turn_off");
             requireLatestPostParam("Photo orientation", "Photos: Orientation", "option", "Landscape Only");
             requireLatestPostParam("Display mode", "Photos: Display Mode", "option", "Fit");
+            requireLatestPostParam("Transition", "Photos: Transition", "option", "Random");
+            requireLatestPostParam("Transition speed", "Photos: Transition Speed", "option", "Fast");
             requireLatestPostParam("Metadata date taken format", "Device: Metadata Date Taken Format", "option", "January 1, 2026");
             requireLatestPostParam("Metadata date format", "Device: Metadata Date Format", "option", "Relative Date");
             requirePostContains("Metadata location toggle", "Device: Metadata Location", "turn_off");

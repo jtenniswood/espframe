@@ -210,6 +210,8 @@ display:
     reset_pin: GPIO27
     # Swap frame buffers at the panel's frame boundary so redraws never tear.
     double_buffer: true
+    # Photo transitions are composited by the PPA from finished frames.
+    frame_transitions: true
     auto_clear_enabled: false
     update_interval: never
     color_order: RGB

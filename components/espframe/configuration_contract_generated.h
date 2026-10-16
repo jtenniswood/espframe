@@ -14,12 +14,12 @@ struct ConfigurationField {
 
 inline constexpr unsigned int CONTRACT_VERSION = 2;
 inline constexpr unsigned int API_VERSION = 1;
-inline constexpr unsigned int SETTING_COUNT = 53;
-inline constexpr unsigned int CONFIGURATION_FIELD_COUNT = 74;
+inline constexpr unsigned int SETTING_COUNT = 55;
+inline constexpr unsigned int CONFIGURATION_FIELD_COUNT = 76;
 inline constexpr const char CAPABILITIES_PATH[] = "/espframe/api/v1/capabilities";
 inline constexpr const char CONFIGURATION_PATH[] = "/espframe/api/v1/configuration";
 inline constexpr const char RESET_PATH[] = "/espframe/api/v1/reset";
-inline constexpr const char CAPABILITIES_JSON[] = R"ESPFRAME_JSON({"contract_version":2,"api_version":1,"base_path":"/espframe/api/v1","capabilities_path":"/espframe/api/v1/capabilities","configuration_path":"/espframe/api/v1/configuration","reset_path":"/espframe/api/v1/reset","reset_modes":["customization","factory"],"update_mode":"atomic","configuration_available":true,"configuration_read":true,"configuration_write":true,"configuration_encoding":"application/x-www-form-urlencoded","configuration_parameter":"configuration","legacy_entity_api":true,"backup_versions":[1,2,3],"setting_count":53})ESPFRAME_JSON";
+inline constexpr const char CAPABILITIES_JSON[] = R"ESPFRAME_JSON({"contract_version":2,"api_version":1,"base_path":"/espframe/api/v1","capabilities_path":"/espframe/api/v1/capabilities","configuration_path":"/espframe/api/v1/configuration","reset_path":"/espframe/api/v1/reset","reset_modes":["customization","factory"],"update_mode":"atomic","configuration_available":true,"configuration_read":true,"configuration_write":true,"configuration_encoding":"application/x-www-form-urlencoded","configuration_parameter":"configuration","legacy_entity_api":true,"backup_versions":[1,2,3],"setting_count":55})ESPFRAME_JSON";
 inline constexpr ConfigurationField CONFIGURATION_FIELDS[] = {
     {"photo_source", "select", "Photos: Source", false},
     {"memories_window", "select", "Photos: Memories Window", false},
@@ -30,6 +30,8 @@ inline constexpr ConfigurationField CONFIGURATION_FIELDS[] = {
     {"relative_unit", "select", "Photos: Relative Unit", false},
     {"photo_orientation", "select", "Photos: Orientation", false},
     {"display_mode", "select", "Photos: Display Mode", false},
+    {"transition", "select", "Photos: Transition", false},
+    {"transition_speed", "select", "Photos: Transition Speed", false},
     {"interval", "select", "Photos: Slideshow Interval", false},
     {"conn_timeout", "select", "Screen: Connection Timeout", false},
     {"screen_rotation", "select", "Screen: Rotation", false},

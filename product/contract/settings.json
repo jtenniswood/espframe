@@ -190,6 +190,56 @@
     ]
   },
   {
+    "key": "transition",
+    "entity": {
+      "domain": "select",
+      "name": "Photos: Transition"
+    },
+    "default": "None",
+    "docs_label": "Transition",
+    "docs_default": "None",
+    "docs_description": "Animation used when the photo changes. Random picks a different transition for each photo.",
+    "options": [
+      "None",
+      "Cross Fade",
+      "Fade to Black",
+      "Fade to White",
+      "Slide Left",
+      "Slide Right",
+      "Slide Up",
+      "Slide Down",
+      "Random"
+    ],
+    "firmware_files": [
+      "common/addon/immich_slideshow.yaml"
+    ],
+    "docs_files": [
+      "docs/photo-sources.md"
+    ]
+  },
+  {
+    "key": "transition_speed",
+    "entity": {
+      "domain": "select",
+      "name": "Photos: Transition Speed"
+    },
+    "default": "Normal",
+    "docs_label": "Transition Speed",
+    "docs_default": "Normal",
+    "docs_description": "How long each transition takes: Fast (0.5s), Normal (1s), or Slow (1.5s).",
+    "options": [
+      "Fast",
+      "Normal",
+      "Slow"
+    ],
+    "firmware_files": [
+      "common/addon/immich_slideshow.yaml"
+    ],
+    "docs_files": [
+      "docs/photo-sources.md"
+    ]
+  },
+  {
     "key": "interval",
     "entity": {
       "domain": "select",

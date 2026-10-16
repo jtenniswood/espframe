@@ -135,6 +135,8 @@ def validate_fixture(
             ("relative_unit", "relative_unit"),
             ("orientation", "photo_orientation"),
             ("display_mode", "display_mode"),
+            ("transition", "transition"),
+            ("transition_speed", "transition_speed"),
         ):
             value = photos.get(key)
             if value is not None and str(value) not in options.get(setting_key, set()):

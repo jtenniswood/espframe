@@ -1011,6 +1011,26 @@
     );
     photoBody.appendChild(fDisplayMode);
 
+    var fTransition = field("Transition");
+    fTransition.appendChild(
+      selectFromOptions(productSettingOptions("transition"), S.transition, function (v) {
+        saveSetting("transition", v);
+      })
+    );
+    photoBody.appendChild(fTransition);
+
+    var fTransitionSpeed = field("Transition Speed");
+    fTransitionSpeed.appendChild(
+      selectFromOptions(productSettingOptions("transition_speed"), S.transition_speed, function (v) {
+        saveSetting("transition_speed", v);
+      }, function (v) {
+        if (v === "Fast") return "Fast (0.5s)";
+        if (v === "Slow") return "Slow (1.5s)";
+        return v === "Normal" ? "Normal (1s)" : v;
+      })
+    );
+    photoBody.appendChild(fTransitionSpeed);
+
     return makeCollapsibleCard("Photo Display", photoBody, true);
   }
 

@@ -20,7 +20,7 @@ Backups do not contain the Immich API key. Restoring a backup keeps the destinat
 | Category | Settings |
 |----------|----------|
 | **Connection** | Immich server URL |
-| **Photos** | Smart-filter groups and matching, favorites, rating, location, inclusions and exclusions, dates, orientation, portrait pairing, and display mode |
+| **Photos** | Smart-filter groups and matching, favorites, rating, location, inclusions and exclusions, dates, orientation, portrait pairing, display mode, and transitions |
 | **Frequency** | Slideshow interval, connection timeout |
 | **Firmware Updates** | Display auto update, update frequency, WiFi firmware auto update |
 | **Clock** | Show clock, format, timezone |
@@ -76,7 +76,9 @@ The export is a standard JSON file with a `version` field and grouped settings:
     "portrait_pairing": true,
     "portrait_pairing_range": "Same Day",
     "portrait_pairs_only": false,
-    "display_mode": "Fill"
+    "display_mode": "Fill",
+    "transition": "None",
+    "transition_speed": "Normal"
   },
   "frequency": { "interval": "15 seconds", "conn_timeout": "10 minutes" },
   "firmware_updates": {

@@ -5,6 +5,7 @@
 #include "mipi_dsi.h"
 #include "esphome/core/helpers.h"
 #include "esp_cache.h"
+#include "esp_heap_caps.h"
 
 namespace esphome::mipi_dsi {
 
@@ -39,6 +40,8 @@ void MipiDsi::smark_failed(const LogString *message, esp_err_t err) {
 }
 
 void MipiDsi::setup() {
+  this->frame_transitions_ = this->frame_transitions_ && this->double_buffer_;
+  this->num_fbs_ = this->frame_transitions_ ? 3 : this->double_buffer_ ? 2 : 1;
   ESP_LOGCONFIG(TAG, "Running Setup");
 
   if (!this->enable_pins_.empty()) {
@@ -91,7 +94,7 @@ void MipiDsi::setup() {
                                            .dpi_clock_freq_mhz = this->pclk_frequency_,
                                            .pixel_format = pixel_format,
 #endif
-                                           .num_fbs = static_cast<uint8_t>(this->double_buffer_ ? 2 : 1),  // number of frame buffers to allocate
+                                           .num_fbs = this->num_fbs_,  // number of frame buffers to allocate
                                            .video_timing =
                                                {
                                                    .h_size = this->width_,
@@ -184,8 +187,12 @@ void MipiDsi::setup() {
       .on_color_trans_done = notify_trans_done,
   };
   if (this->double_buffer_) {
-    err = esp_lcd_dpi_panel_get_frame_buffer(this->handle_, 2, reinterpret_cast<void **>(&this->fbs_[0]),
-                                             reinterpret_cast<void **>(&this->fbs_[1]));
+    err = this->num_fbs_ == 3
+              ? esp_lcd_dpi_panel_get_frame_buffer(this->handle_, 3, reinterpret_cast<void **>(&this->fbs_[0]),
+                                                   reinterpret_cast<void **>(&this->fbs_[1]),
+                                                   reinterpret_cast<void **>(&this->fbs_[2]))
+              : esp_lcd_dpi_panel_get_frame_buffer(this->handle_, 2, reinterpret_cast<void **>(&this->fbs_[0]),
+                                                   reinterpret_cast<void **>(&this->fbs_[1]));
     if (err != ESP_OK) {
       this->smark_failed(LOG_STR("esp_lcd_dpi_panel_get_frame_buffer failed"), err);
       return;
@@ -199,6 +206,19 @@ void MipiDsi::setup() {
       this->ppa_client_ = nullptr;
     }
     cbs.on_frame_buf_complete = notify_frame_done;
+  }
+  if (this->frame_transitions_) {
+    const size_t fb_size = this->width_ * this->height_ * (3 - this->color_depth_);
+    this->snapshot_ = static_cast<uint8_t *>(heap_caps_aligned_alloc(128, fb_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    this->target_ = static_cast<uint8_t *>(heap_caps_aligned_alloc(128, fb_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    ppa_client_config_t blend_config{};
+    blend_config.oper_type = PPA_OPERATION_BLEND;
+    blend_config.max_pending_trans_num = 1;
+    if (this->snapshot_ == nullptr || this->target_ == nullptr || this->ppa_client_ == nullptr ||
+        ppa_register_client(&blend_config, &this->blend_client_) != ESP_OK) {
+      ESP_LOGW(TAG, "Frame transitions unavailable");
+      this->frame_transitions_ = false;
+    }
   }
   static MipiDsiIsrContext isr_context;
   isr_context = {this->io_lock_, this->frame_done_};
@@ -288,8 +308,8 @@ void MipiDsi::copy_to_back_buffer_(int x_start, int y_start, int w, int h, const
   const int y_end = std::min<int>(y_start + h, this->height_);
   if (x_start < 0 || y_start < 0 || x_start >= x_end || y_start >= y_end)
     return;
-  this->copy_block_(ptr, stride / bytes_per_pixel, h, 0, 0, this->fbs_[1 - this->front_], x_start, y_start,
-                    x_end - x_start, y_end - y_start);
+  this->copy_block_(ptr, stride / bytes_per_pixel, h, 0, 0, this->draw_buffer_(), x_start, y_start, x_end - x_start,
+                    y_end - y_start);
   const Area area{x_start, y_start, x_end, y_end};
   this->drawn_.push_back(area);
   if (!this->dirty_) {
@@ -306,6 +326,42 @@ void MipiDsi::copy_to_back_buffer_(int x_start, int y_start, int w, int h, const
 void MipiDsi::copy_block_(const uint8_t *src, int src_pic_w, int src_pic_h, int src_x, int src_y, uint8_t *dst,
                           int dst_x, int dst_y, int w, int h) {
   const size_t bytes_per_pixel = 3 - this->color_depth_;
+  if (this->blend_client_ != nullptr) {
+    // The blend engine copies roughly three times faster than SRM: blend the
+    // source under a fully transparent A8 foreground. Its pixel data is never
+    // used, so any readable buffer of at least w*h bytes will do.
+    const auto color_mode =
+        this->color_depth_ == display::COLOR_BITNESS_888 ? PPA_BLEND_COLOR_MODE_RGB888 : PPA_BLEND_COLOR_MODE_RGB565;
+    ppa_blend_oper_config_t config{};
+    config.in_bg.buffer = src;
+    config.in_bg.pic_w = src_pic_w;
+    config.in_bg.pic_h = src_pic_h;
+    config.in_bg.block_w = w;
+    config.in_bg.block_h = h;
+    config.in_bg.block_offset_x = src_x;
+    config.in_bg.block_offset_y = src_y;
+    config.in_bg.blend_cm = color_mode;
+    config.in_fg.buffer = dst == this->snapshot_ ? this->target_ : this->snapshot_;
+    config.in_fg.pic_w = w;
+    config.in_fg.pic_h = h;
+    config.in_fg.block_w = w;
+    config.in_fg.block_h = h;
+    config.in_fg.blend_cm = PPA_BLEND_COLOR_MODE_A8;
+    config.out.buffer = dst;
+    config.out.buffer_size = this->width_ * this->height_ * bytes_per_pixel;
+    config.out.pic_w = this->width_;
+    config.out.pic_h = this->height_;
+    config.out.block_offset_x = dst_x;
+    config.out.block_offset_y = dst_y;
+    config.out.blend_cm = color_mode;
+    config.bg_alpha_update_mode = PPA_ALPHA_NO_CHANGE;
+    config.fg_alpha_update_mode = PPA_ALPHA_FIX_VALUE;
+    config.fg_alpha_fix_val = 0;
+    config.mode = PPA_TRANS_MODE_BLOCKING;
+    if (ppa_do_blend(this->blend_client_, &config) == ESP_OK)
+      return;
+    ESP_LOGW(TAG, "PPA blend copy failed, falling back to SRM");
+  }
   if (this->ppa_client_ != nullptr) {
     const auto color_mode =
         this->color_depth_ == display::COLOR_BITNESS_888 ? PPA_SRM_COLOR_MODE_RGB888 : PPA_SRM_COLOR_MODE_RGB565;
@@ -351,8 +407,41 @@ void MipiDsi::copy_block_(const uint8_t *src, int src_pic_w, int src_pic_h, int 
 // LVGL renders a whole refresh inside its own loop(), so by the time this runs
 // the back buffer holds a complete frame.
 void MipiDsi::loop() {
-  if (this->double_buffer_ && this->dirty_)
-    this->present_();
+  if (!this->double_buffer_)
+    return;
+  if (this->animating_) {
+    if (this->dirty_) {
+      // LVGL drew into target_; a new transition restarts from what is on
+      // screen now, anything else just updates the target.
+      if (this->pending_.mode != FrameTransitionMode::NONE)
+        this->begin_animation_();
+      this->dirty_ = false;
+      this->drawn_.clear();
+    }
+    this->animate_step_();
+    return;
+  }
+  if (this->pending_.mode != FrameTransitionMode::NONE && millis() - this->pending_ms_ > 1000)
+    this->pending_ = {};
+  if (!this->dirty_)
+    return;
+  if (this->pending_.mode != FrameTransitionMode::NONE) {
+    // The back buffer must hold the complete new frame before it is blended.
+    this->sync_stale_area_();
+    this->dirty_ = false;
+    this->drawn_.clear();
+    this->begin_animation_();
+    this->animate_step_();
+    return;
+  }
+  this->present_();
+}
+
+void MipiDsi::start_transition(const FrameTransition &transition) {
+  if (!this->frame_transitions_ || transition.mode == FrameTransitionMode::NONE || transition.duration_ms == 0)
+    return;
+  this->pending_ = transition;
+  this->pending_ms_ = millis();
 }
 
 // Brings the back buffer's stale area up to date from the front buffer, except
@@ -385,44 +474,225 @@ void MipiDsi::sync_stale_area_() {
     int x = stale.x1;
     for (const auto &span : covered) {
       if (span.first > x)
-        this->copy_block_(this->fbs_[this->front_], this->width_, this->height_, x, y1, this->fbs_[1 - this->front_],
+        this->copy_block_(this->fbs_[this->front_], this->width_, this->height_, x, y1, this->fbs_[this->back_],
                           x, y1, span.first - x, y2 - y1);
       x = std::max(x, span.second);
     }
     if (x < stale.x2)
-      this->copy_block_(this->fbs_[this->front_], this->width_, this->height_, x, y1, this->fbs_[1 - this->front_], x,
+      this->copy_block_(this->fbs_[this->front_], this->width_, this->height_, x, y1, this->fbs_[this->back_], x,
                         y1, stale.x2 - x, y2 - y1);
   }
+}
+
+// Asks the DMA to scan fbs_[index] from the next frame boundary on. A pointer
+// inside a frame buffer makes the driver write back the cached rows and switch
+// buffers; nothing is copied.
+bool MipiDsi::request_swap_(uint8_t index, int y1, int y2) {
+  const size_t line = this->width_ * (3 - this->color_depth_);
+  esp_err_t err = esp_lcd_panel_draw_bitmap(this->handle_, 0, y1, this->width_, y2, this->fbs_[index] + y1 * line);
+  xSemaphoreTake(this->io_lock_, 0);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "frame buffer swap failed: %s", esp_err_to_name(err));
+    return false;
+  }
+  // A frame-done already pending may predate the request; the next one
+  // guarantees the DMA has re-read the buffer index.
+  xSemaphoreTake(this->frame_done_, 0);
+  this->queued_ = index;
+  return true;
+}
+
+// Waits until the queued buffer is being scanned, freeing the previous one.
+void MipiDsi::wait_swap_() {
+  if (this->queued_ < 0)
+    return;
+  if (xSemaphoreTake(this->frame_done_, pdMS_TO_TICKS(100)) != pdTRUE)
+    ESP_LOGW(TAG, "No frame boundary after buffer swap");
+  this->front_ = this->queued_;
+  this->queued_ = -1;
+}
+
+bool MipiDsi::swap_to_(uint8_t index, int y1, int y2) {
+  if (!this->request_swap_(index, y1, y2))
+    return false;
+  this->wait_swap_();
+  return true;
 }
 
 void MipiDsi::present_() {
   // The back buffer must hold the complete frame before it is shown.
   this->sync_stale_area_();
-  const uint8_t back = 1 - this->front_;
-  const size_t bytes_per_pixel = 3 - this->color_depth_;
-  const size_t line = this->width_ * bytes_per_pixel;
   const Area dirty = this->dirty_area_;
   this->dirty_ = false;
   this->drawn_.clear();
-  // A pointer inside a frame buffer makes the driver write back the cached rows
-  // and scan that buffer from the next frame on; nothing is copied.
-  esp_err_t err = esp_lcd_panel_draw_bitmap(this->handle_, 0, dirty.y1, this->width_, dirty.y2,
-                                            this->fbs_[back] + dirty.y1 * line);
-  xSemaphoreTake(this->io_lock_, 0);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "frame buffer swap failed: %s", esp_err_to_name(err));
+  const uint8_t old_front = this->front_;
+  if (!this->swap_to_(this->back_, dirty.y1, dirty.y2))
     return;
-  }
-  // Drop a frame-done that may predate the swap, then wait for the next one:
-  // after it the DMA scans the new buffer and the old one can be drawn into.
-  xSemaphoreTake(this->frame_done_, 0);
-  if (xSemaphoreTake(this->frame_done_, pdMS_TO_TICKS(100)) != pdTRUE)
-    ESP_LOGW(TAG, "No frame boundary after buffer swap");
-  this->front_ = back;
+  this->back_ = old_front;
   // The new back buffer lacks this frame's changes; they are copied lazily at
   // the next swap, minus whatever that frame redraws itself.
   this->stale_area_ = dirty;
   this->stale_ = true;
+}
+
+void MipiDsi::begin_animation_() {
+  // Whatever is on screen (a normal or a composed frame) is the old frame.
+  this->wait_swap_();
+  this->copy_block_(this->fbs_[this->front_], this->width_, this->height_, 0, 0, this->snapshot_, 0, 0, this->width_,
+                    this->height_);
+  if (!this->animating_) {
+    // LVGL's new frame moves to target_, where it keeps drawing until the end.
+    this->copy_block_(this->fbs_[this->back_], this->width_, this->height_, 0, 0, this->target_, 0, 0, this->width_,
+                      this->height_);
+  }
+  this->active_ = this->pending_;
+  this->pending_ = {};
+  this->animating_ = true;
+  this->high_freq_.start();
+  this->animation_start_ms_ = millis();
+}
+
+// Composes the next frame into whichever panel buffer is neither scanned nor
+// queued, while the queued one waits for its frame boundary.
+void MipiDsi::animate_step_() {
+  const uint32_t elapsed = millis() - this->animation_start_ms_;
+  const bool last = elapsed >= this->active_.duration_ms;
+  uint8_t out = 0;
+  while (out == this->front_ || out == this->queued_)
+    out++;
+  if (last) {
+    this->copy_block_(this->target_, this->width_, this->height_, 0, 0, this->fbs_[out], 0, 0, this->width_,
+                      this->height_);
+  } else {
+    this->compose_(this->fbs_[out], static_cast<int32_t>(elapsed * 1024 / this->active_.duration_ms));
+  }
+  this->wait_swap_();
+  if (!this->request_swap_(out, 0, this->height_))
+    return;
+  if (!last)
+    return;
+  this->wait_swap_();
+  // Back to plain double buffering: LVGL draws into another buffer, which
+  // lacks the whole new frame until the next swap syncs it.
+  this->animating_ = false;
+  this->high_freq_.stop();
+  this->back_ = this->front_ == 0 ? 1 : 0;
+  this->stale_area_ = {0, 0, static_cast<int>(this->width_), static_cast<int>(this->height_)};
+  this->stale_ = true;
+}
+
+void MipiDsi::compose_(uint8_t *out, int32_t progress) {
+  const uint8_t *old_frame = this->snapshot_;
+  const uint8_t *new_frame = this->target_;
+  const int width = this->width_;
+  const int height = this->height_;
+  switch (this->active_.mode) {
+    case FrameTransitionMode::CROSS_FADE:
+      this->blend_(new_frame, progress * 255 / 1024, old_frame, out);
+      break;
+    case FrameTransitionMode::FADE_THROUGH:
+      // Out to the colour over the first half, in from it over the second.
+      if (progress < 512) {
+        this->blend_color_(old_frame, progress * 255 / 512, this->active_.color_rgb888, out);
+      } else {
+        this->blend_color_(new_frame, (1024 - progress) * 255 / 512, this->active_.color_rgb888, out);
+      }
+      break;
+    case FrameTransitionMode::MOVE: {
+      const int dx = this->active_.dx, dy = this->active_.dy;
+      const int remaining = 1024 - progress;
+      // New frame's top-left, starting one screen behind its direction of travel.
+      const int bx = -dx * width * remaining / 1024;
+      const int by = -dy * height * remaining / 1024;
+      const int nx1 = std::max(bx, 0), ny1 = std::max(by, 0);
+      const int nx2 = std::min(bx + width, width), ny2 = std::min(by + height, height);
+      // The uncovered band left for the old frame.
+      int ox1 = 0, oy1 = 0, ox2 = width, oy2 = height;
+      if (dx > 0)
+        ox1 = nx2;
+      if (dx < 0)
+        ox2 = nx1;
+      if (dy > 0)
+        oy1 = ny2;
+      if (dy < 0)
+        oy2 = ny1;
+      // Pushed, the old frame sits one screen ahead of the new one.
+      const int ax = this->active_.push ? bx + dx * width : 0;
+      const int ay = this->active_.push ? by + dy * height : 0;
+      if (ox2 > ox1 && oy2 > oy1)
+        this->copy_block_(old_frame, width, height, ox1 - ax, oy1 - ay, out, ox1, oy1, ox2 - ox1, oy2 - oy1);
+      if (nx2 > nx1 && ny2 > ny1)
+        this->copy_block_(new_frame, width, height, nx1 - bx, ny1 - by, out, nx1, ny1, nx2 - nx1, ny2 - ny1);
+      break;
+    }
+    case FrameTransitionMode::NONE:
+    default:
+      this->copy_block_(new_frame, width, height, 0, 0, out, 0, 0, width, height);
+      break;
+  }
+}
+
+bool MipiDsi::blend_(const uint8_t *fg, uint8_t fg_alpha, const uint8_t *bg, uint8_t *out) {
+  const auto color_mode =
+      this->color_depth_ == display::COLOR_BITNESS_888 ? PPA_BLEND_COLOR_MODE_RGB888 : PPA_BLEND_COLOR_MODE_RGB565;
+  ppa_blend_oper_config_t config{};
+  for (auto *in : {&config.in_bg, &config.in_fg}) {
+    in->pic_w = this->width_;
+    in->pic_h = this->height_;
+    in->block_w = this->width_;
+    in->block_h = this->height_;
+    in->blend_cm = color_mode;
+  }
+  config.in_bg.buffer = bg;
+  config.in_fg.buffer = fg;
+  config.out.buffer = out;
+  config.out.buffer_size = this->width_ * this->height_ * (3 - this->color_depth_);
+  config.out.pic_w = this->width_;
+  config.out.pic_h = this->height_;
+  config.out.blend_cm = color_mode;
+  config.bg_alpha_update_mode = PPA_ALPHA_NO_CHANGE;
+  config.fg_alpha_update_mode = PPA_ALPHA_FIX_VALUE;
+  config.fg_alpha_fix_val = fg_alpha;
+  config.mode = PPA_TRANS_MODE_BLOCKING;
+  esp_err_t err = ppa_do_blend(this->blend_client_, &config);
+  if (err != ESP_OK)
+    ESP_LOGW(TAG, "PPA blend failed: %s", esp_err_to_name(err));
+  return err == ESP_OK;
+}
+
+// Blends a solid colour over bg in one pass: an A4 foreground whose alpha is
+// overridden carries the colour, so its pixel data is never used and any
+// readable buffer of at least half a frame's pixel count will do.
+bool MipiDsi::blend_color_(const uint8_t *bg, uint8_t color_alpha, uint32_t rgb888, uint8_t *out) {
+  const auto color_mode =
+      this->color_depth_ == display::COLOR_BITNESS_888 ? PPA_BLEND_COLOR_MODE_RGB888 : PPA_BLEND_COLOR_MODE_RGB565;
+  ppa_blend_oper_config_t config{};
+  for (auto *in : {&config.in_bg, &config.in_fg}) {
+    in->pic_w = this->width_;
+    in->pic_h = this->height_;
+    in->block_w = this->width_;
+    in->block_h = this->height_;
+  }
+  config.in_bg.buffer = bg;
+  config.in_bg.blend_cm = color_mode;
+  config.in_fg.buffer = this->snapshot_;
+  config.in_fg.blend_cm = PPA_BLEND_COLOR_MODE_A4;
+  config.out.buffer = out;
+  config.out.buffer_size = this->width_ * this->height_ * (3 - this->color_depth_);
+  config.out.pic_w = this->width_;
+  config.out.pic_h = this->height_;
+  config.out.blend_cm = color_mode;
+  config.bg_alpha_update_mode = PPA_ALPHA_NO_CHANGE;
+  config.fg_alpha_update_mode = PPA_ALPHA_FIX_VALUE;
+  config.fg_alpha_fix_val = color_alpha;
+  config.fg_fix_rgb_val.r = (rgb888 >> 16) & 0xFF;
+  config.fg_fix_rgb_val.g = (rgb888 >> 8) & 0xFF;
+  config.fg_fix_rgb_val.b = rgb888 & 0xFF;
+  config.mode = PPA_TRANS_MODE_BLOCKING;
+  esp_err_t err = ppa_do_blend(this->blend_client_, &config);
+  if (err != ESP_OK)
+    ESP_LOGW(TAG, "PPA colour blend failed: %s", esp_err_to_name(err));
+  return err == ESP_OK;
 }
 
 bool MipiDsi::check_buffer_() {
@@ -593,6 +863,7 @@ void MipiDsi::dump_config() {
                 YESNO(this->invert_colors_), this->pclk_frequency_);
   LOG_PIN("  Reset Pin ", this->reset_pin_);
   ESP_LOGCONFIG(TAG, "  Double buffer: %s", YESNO(this->double_buffer_));
+  ESP_LOGCONFIG(TAG, "  Frame transitions: %s", YESNO(this->frame_transitions_));
 }
 }  // namespace esphome::mipi_dsi
 #endif  // USE_ESP32_VARIANT_ESP32P4

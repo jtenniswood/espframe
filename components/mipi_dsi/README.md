@@ -15,6 +15,11 @@ Local changes:
   LVGL refresh, waiting for the panel's next frame boundary before reusing the
   old one. Without it, LVGL writes into the buffer the panel is scanning and
   full-screen redraws visibly tear from top to bottom.
+- Optional `frame_transitions: true` (requires `double_buffer`) adds a third
+  frame buffer and two frame-sized PSRAM buffers. `start_transition()` keeps
+  the frame on screen and the next frame LVGL renders, and the PPA composites
+  cross-fades, fades through a colour, and slides between them, one frame per
+  loop while the previous one waits for its frame boundary.
 
 All display models, timings and initialization are otherwise unchanged. Every
 JC8012P4A1 profile loads this copy. Keep it pinned to the tested ESPHome

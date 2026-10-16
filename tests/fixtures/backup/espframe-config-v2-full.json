@@ -47,7 +47,9 @@
     "portrait_pairing": true,
     "portrait_pairing_range": "Within 2 Days",
     "portrait_pairs_only": true,
-    "display_mode": "Fill"
+    "display_mode": "Fill",
+    "transition": "Cross Fade",
+    "transition_speed": "Fast"
   },
   "frequency": { "interval": "15 seconds", "conn_timeout": "10 minutes" },
   "firmware_updates": { "auto_update": true, "update_frequency": "Daily", "wifi_auto_update": true },
