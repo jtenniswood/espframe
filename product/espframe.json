@@ -588,7 +588,8 @@
       "gsl3680",
       "remote_image",
       "ledc",
-      "espframe"
+      "espframe",
+      "mipi_dsi"
     ],
     "external_component_git_source_type": "git",
     "external_component_local_source_type": "local",

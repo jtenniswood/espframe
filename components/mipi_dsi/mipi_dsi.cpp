@@ -1,7 +1,10 @@
 #ifdef USE_ESP32_VARIANT_ESP32P4
+#include <algorithm>
+#include <cstring>
 #include <utility>
 #include "mipi_dsi.h"
 #include "esphome/core/helpers.h"
+#include "esp_cache.h"
 
 namespace esphome::mipi_dsi {
 
@@ -13,6 +16,21 @@ static bool notify_refresh_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel
   BaseType_t need_yield = pdFALSE;
   xSemaphoreGiveFromISR(sem, &need_yield);
   return (need_yield == pdTRUE);
+}
+
+struct MipiDsiIsrContext {
+  SemaphoreHandle_t io_lock;
+  SemaphoreHandle_t frame_done;
+};
+
+static bool notify_trans_done(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx) {
+  return notify_refresh_ready(panel, edata, static_cast<MipiDsiIsrContext *>(user_ctx)->io_lock);
+}
+
+// Fires each time the DMA restarts a frame, after it has re-read the current
+// frame buffer index, so the buffer it was scanning before is free.
+static bool notify_frame_done(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx) {
+  return notify_refresh_ready(panel, edata, static_cast<MipiDsiIsrContext *>(user_ctx)->frame_done);
 }
 
 void MipiDsi::smark_failed(const LogString *message, esp_err_t err) {
@@ -73,7 +91,7 @@ void MipiDsi::setup() {
                                            .dpi_clock_freq_mhz = this->pclk_frequency_,
                                            .pixel_format = pixel_format,
 #endif
-                                           .num_fbs = 1,  // number of frame buffers to allocate
+                                           .num_fbs = static_cast<uint8_t>(this->double_buffer_ ? 2 : 1),  // number of frame buffers to allocate
                                            .video_timing =
                                                {
                                                    .h_size = this->width_,
@@ -163,10 +181,29 @@ void MipiDsi::setup() {
   }
   this->io_lock_ = xSemaphoreCreateBinary();
   esp_lcd_dpi_panel_event_callbacks_t cbs = {
-      .on_color_trans_done = notify_refresh_ready,
+      .on_color_trans_done = notify_trans_done,
   };
+  if (this->double_buffer_) {
+    err = esp_lcd_dpi_panel_get_frame_buffer(this->handle_, 2, reinterpret_cast<void **>(&this->fbs_[0]),
+                                             reinterpret_cast<void **>(&this->fbs_[1]));
+    if (err != ESP_OK) {
+      this->smark_failed(LOG_STR("esp_lcd_dpi_panel_get_frame_buffer failed"), err);
+      return;
+    }
+    this->frame_done_ = xSemaphoreCreateBinary();
+    ppa_client_config_t ppa_config{};
+    ppa_config.oper_type = PPA_OPERATION_SRM;
+    ppa_config.max_pending_trans_num = 1;
+    if (ppa_register_client(&ppa_config, &this->ppa_client_) != ESP_OK) {
+      ESP_LOGW(TAG, "PPA unavailable, copying frame buffers with the CPU");
+      this->ppa_client_ = nullptr;
+    }
+    cbs.on_frame_buf_complete = notify_frame_done;
+  }
+  static MipiDsiIsrContext isr_context;
+  isr_context = {this->io_lock_, this->frame_done_};
 
-  err = (esp_lcd_dpi_panel_register_event_callbacks(this->handle_, &cbs, this->io_lock_));
+  err = (esp_lcd_dpi_panel_register_event_callbacks(this->handle_, &cbs, &isr_context));
   if (err != ESP_OK) {
     this->smark_failed(LOG_STR("Failed to register callbacks"), err);
     return;
@@ -222,6 +259,10 @@ void MipiDsi::write_to_display_(int x_start, int y_start, int w, int h, const ui
   auto bytes_per_pixel = 3 - this->color_depth_;
   auto stride = (x_offset + w + x_pad) * bytes_per_pixel;
   ptr += y_offset * stride + x_offset * bytes_per_pixel;  // skip to the first pixel
+  if (this->double_buffer_) {
+    this->copy_to_back_buffer_(x_start, y_start, w, h, ptr, stride);
+    return;
+  }
   // x_ and y_offset are offsets into the source buffer, unrelated to our own offsets into the display.
   if (x_offset == 0 && x_pad == 0) {
     err = esp_lcd_panel_draw_bitmap(this->handle_, x_start, y_start, x_start + w, y_start + h, ptr);
@@ -239,6 +280,149 @@ void MipiDsi::write_to_display_(int x_start, int y_start, int w, int h, const ui
   }
   if (err != ESP_OK)
     ESP_LOGE(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
+}
+
+void MipiDsi::copy_to_back_buffer_(int x_start, int y_start, int w, int h, const uint8_t *ptr, size_t stride) {
+  const size_t bytes_per_pixel = 3 - this->color_depth_;
+  const int x_end = std::min<int>(x_start + w, this->width_);
+  const int y_end = std::min<int>(y_start + h, this->height_);
+  if (x_start < 0 || y_start < 0 || x_start >= x_end || y_start >= y_end)
+    return;
+  this->copy_block_(ptr, stride / bytes_per_pixel, h, 0, 0, this->fbs_[1 - this->front_], x_start, y_start,
+                    x_end - x_start, y_end - y_start);
+  const Area area{x_start, y_start, x_end, y_end};
+  this->drawn_.push_back(area);
+  if (!this->dirty_) {
+    this->dirty_area_ = area;
+    this->dirty_ = true;
+  } else {
+    this->dirty_area_.x1 = std::min(this->dirty_area_.x1, x_start);
+    this->dirty_area_.y1 = std::min(this->dirty_area_.y1, y_start);
+    this->dirty_area_.x2 = std::max(this->dirty_area_.x2, x_end);
+    this->dirty_area_.y2 = std::max(this->dirty_area_.y2, y_end);
+  }
+}
+
+void MipiDsi::copy_block_(const uint8_t *src, int src_pic_w, int src_pic_h, int src_x, int src_y, uint8_t *dst,
+                          int dst_x, int dst_y, int w, int h) {
+  const size_t bytes_per_pixel = 3 - this->color_depth_;
+  if (this->ppa_client_ != nullptr) {
+    const auto color_mode =
+        this->color_depth_ == display::COLOR_BITNESS_888 ? PPA_SRM_COLOR_MODE_RGB888 : PPA_SRM_COLOR_MODE_RGB565;
+    ppa_srm_oper_config_t config{};
+    config.in.buffer = src;
+    config.in.pic_w = src_pic_w;
+    config.in.pic_h = src_pic_h;
+    config.in.block_w = w;
+    config.in.block_h = h;
+    config.in.block_offset_x = src_x;
+    config.in.block_offset_y = src_y;
+    config.in.srm_cm = color_mode;
+    config.out.buffer = dst;
+    config.out.buffer_size = this->width_ * this->height_ * bytes_per_pixel;
+    config.out.pic_w = this->width_;
+    config.out.pic_h = this->height_;
+    config.out.block_offset_x = dst_x;
+    config.out.block_offset_y = dst_y;
+    config.out.srm_cm = color_mode;
+    config.rotation_angle = PPA_SRM_ROTATION_ANGLE_0;
+    config.scale_x = 1.0f;
+    config.scale_y = 1.0f;
+    config.mode = PPA_TRANS_MODE_BLOCKING;
+    if (ppa_do_scale_rotate_mirror(this->ppa_client_, &config) == ESP_OK)
+      return;
+    ESP_LOGW(TAG, "PPA copy failed, using the CPU from now on");
+    ppa_unregister_client(this->ppa_client_);
+    this->ppa_client_ = nullptr;
+  }
+  const size_t src_line = src_pic_w * bytes_per_pixel;
+  const size_t dst_line = this->width_ * bytes_per_pixel;
+  const size_t copy_bytes = w * bytes_per_pixel;
+  src += src_y * src_line + src_x * bytes_per_pixel;
+  uint8_t *out = dst + dst_y * dst_line + dst_x * bytes_per_pixel;
+  for (int y = 0; y < h; y++) {
+    memcpy(out, src, copy_bytes);
+    src += src_line;
+    out += dst_line;
+  }
+  esp_cache_msync(dst + dst_y * dst_line, h * dst_line, ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
+}
+
+// LVGL renders a whole refresh inside its own loop(), so by the time this runs
+// the back buffer holds a complete frame.
+void MipiDsi::loop() {
+  if (this->double_buffer_ && this->dirty_)
+    this->present_();
+}
+
+// Brings the back buffer's stale area up to date from the front buffer, except
+// where this frame already drew. Full-screen frames (transitions) skip the copy
+// entirely. Drawn areas do not overlap, so splitting the stale area into bands
+// at their edges leaves each band either fully drawn or untouched per area.
+void MipiDsi::sync_stale_area_() {
+  if (!this->stale_)
+    return;
+  const Area stale = this->stale_area_;
+  this->stale_ = false;
+  std::vector<int> edges{stale.y1, stale.y2};
+  for (const auto &a : this->drawn_) {
+    if (a.y1 > stale.y1 && a.y1 < stale.y2)
+      edges.push_back(a.y1);
+    if (a.y2 > stale.y1 && a.y2 < stale.y2)
+      edges.push_back(a.y2);
+  }
+  std::sort(edges.begin(), edges.end());
+  edges.erase(std::unique(edges.begin(), edges.end()), edges.end());
+  std::vector<std::pair<int, int>> covered;
+  for (size_t e = 0; e + 1 < edges.size(); e++) {
+    const int y1 = edges[e], y2 = edges[e + 1];
+    covered.clear();
+    for (const auto &a : this->drawn_) {
+      if (a.y1 <= y1 && a.y2 >= y2 && a.x2 > stale.x1 && a.x1 < stale.x2)
+        covered.emplace_back(std::max(a.x1, stale.x1), std::min(a.x2, stale.x2));
+    }
+    std::sort(covered.begin(), covered.end());
+    int x = stale.x1;
+    for (const auto &span : covered) {
+      if (span.first > x)
+        this->copy_block_(this->fbs_[this->front_], this->width_, this->height_, x, y1, this->fbs_[1 - this->front_],
+                          x, y1, span.first - x, y2 - y1);
+      x = std::max(x, span.second);
+    }
+    if (x < stale.x2)
+      this->copy_block_(this->fbs_[this->front_], this->width_, this->height_, x, y1, this->fbs_[1 - this->front_], x,
+                        y1, stale.x2 - x, y2 - y1);
+  }
+}
+
+void MipiDsi::present_() {
+  // The back buffer must hold the complete frame before it is shown.
+  this->sync_stale_area_();
+  const uint8_t back = 1 - this->front_;
+  const size_t bytes_per_pixel = 3 - this->color_depth_;
+  const size_t line = this->width_ * bytes_per_pixel;
+  const Area dirty = this->dirty_area_;
+  this->dirty_ = false;
+  this->drawn_.clear();
+  // A pointer inside a frame buffer makes the driver write back the cached rows
+  // and scan that buffer from the next frame on; nothing is copied.
+  esp_err_t err = esp_lcd_panel_draw_bitmap(this->handle_, 0, dirty.y1, this->width_, dirty.y2,
+                                            this->fbs_[back] + dirty.y1 * line);
+  xSemaphoreTake(this->io_lock_, 0);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "frame buffer swap failed: %s", esp_err_to_name(err));
+    return;
+  }
+  // Drop a frame-done that may predate the swap, then wait for the next one:
+  // after it the DMA scans the new buffer and the old one can be drawn into.
+  xSemaphoreTake(this->frame_done_, 0);
+  if (xSemaphoreTake(this->frame_done_, pdMS_TO_TICKS(100)) != pdTRUE)
+    ESP_LOGW(TAG, "No frame boundary after buffer swap");
+  this->front_ = back;
+  // The new back buffer lacks this frame's changes; they are copied lazily at
+  // the next swap, minus whatever that frame redraws itself.
+  this->stale_area_ = dirty;
+  this->stale_ = true;
 }
 
 bool MipiDsi::check_buffer_() {
@@ -408,6 +592,7 @@ void MipiDsi::dump_config() {
                 this->vsync_back_porch_, this->vsync_front_porch_, (3 - this->color_depth_) * 8, this->pixel_mode_,
                 YESNO(this->invert_colors_), this->pclk_frequency_);
   LOG_PIN("  Reset Pin ", this->reset_pin_);
+  ESP_LOGCONFIG(TAG, "  Double buffer: %s", YESNO(this->double_buffer_));
 }
 }  // namespace esphome::mipi_dsi
 #endif  // USE_ESP32_VARIANT_ESP32P4

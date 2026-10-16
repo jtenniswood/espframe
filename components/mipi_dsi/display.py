@@ -69,6 +69,7 @@ ColorBitness = display.display_ns.enum("ColorBitness")
 
 CONF_LANE_BIT_RATE = "lane_bit_rate"
 CONF_LANES = "lanes"
+CONF_DOUBLE_BUFFER = "double_buffer"
 
 DsiDriverChip("CUSTOM")
 
@@ -125,6 +126,9 @@ def model_schema(config):
                 cv.frequency, cv.Range(min=4e6, max=100e6)
             ),
             model.option(CONF_LANES, 2): cv.int_range(1, 2),
+            # Espframe: render into a hidden frame buffer and swap at the panel's
+            # frame boundary, so full-screen redraws never tear.
+            cv.Optional(CONF_DOUBLE_BUFFER, default=False): cv.boolean,
             model.option(CONF_LANE_BIT_RATE, None): cv.All(
                 cv.bps, cv.Range(min=100e6, max=3200e6)
             ),
@@ -212,6 +216,8 @@ async def to_code(config):
     cg.add(var.set_pclk_frequency(config[CONF_PCLK_FREQUENCY] / 1.0e6))
     cg.add(var.set_lanes(int(config[CONF_LANES])))
     cg.add(var.set_lane_bit_rate(config[CONF_LANE_BIT_RATE] / 1.0e6))
+    if config[CONF_DOUBLE_BUFFER]:
+        cg.add(var.set_double_buffer(True))
     if reset_pin := config.get(CONF_RESET_PIN):
         reset = await cg.gpio_pin_expression(reset_pin)
         cg.add(var.set_reset_pin(reset))

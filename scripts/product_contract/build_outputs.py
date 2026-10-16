@@ -330,7 +330,7 @@ def check_external_components_metadata(product: dict, errors: list[str]) -> None
         slug = str(device.get("slug", "")).strip()
         device_yaml = check_relative_path(device.get("device_yaml"), f"Device {slug} device_yaml", errors)
         build_yaml = check_relative_path(device.get("build_yaml"), f"Device {slug} build_yaml", errors)
-        device_components = component_names + (["mipi_dsi"] if slug == "immich-frame-v3" else [])
+        device_components = component_names
         device_components_inline = f"components: [{', '.join(device_components)}]" if device_components else ""
         if device_yaml:
             device_text = read(ROOT / device_yaml, errors)

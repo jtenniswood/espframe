@@ -4,12 +4,18 @@ Vendored from ESPHome **2026.8.2**, as shipped in
 `ghcr.io/esphome/esphome:2026.8.2`, with its original license in `LICENSE`.
 Upstream: https://github.com/esphome/esphome/tree/2026.8.2/esphome/components/mipi_dsi
 
-The sole source change is in `MipiDsi::setup()`: value-initialize `phy_clk_src`
-instead of assigning `MIPI_DSI_PHY_CLK_SRC_DEFAULT`. ESP-IDF chooses the
-silicon-appropriate PHY source for production ESP32-P4 v3.x. The deprecated
-alias selects the legacy PLL clock and fails on production silicon. All display
-models, timings, initialization and drawing code are otherwise unchanged.
+Local changes:
 
-Only the JC8012P4A1 V3 profile loads this copy; other devices continue to use
-ESPHome's bundled driver. Keep it pinned to the tested ESPHome version and
-remove the override when the fix is available upstream.
+- `MipiDsi::setup()` value-initializes `phy_clk_src` instead of assigning
+  `MIPI_DSI_PHY_CLK_SRC_DEFAULT`. ESP-IDF chooses the silicon-appropriate PHY
+  source for production ESP32-P4 v3.x. The deprecated alias selects the legacy
+  PLL clock and fails on production silicon.
+- Optional `double_buffer: true` allocates two frame buffers. LVGL output is
+  copied into the hidden buffer, and `loop()` swaps buffers after each complete
+  LVGL refresh, waiting for the panel's next frame boundary before reusing the
+  old one. Without it, LVGL writes into the buffer the panel is scanning and
+  full-screen redraws visibly tear from top to bottom.
+
+All display models, timings and initialization are otherwise unchanged. Every
+JC8012P4A1 profile loads this copy. Keep it pinned to the tested ESPHome
+version.

@@ -15,6 +15,7 @@
 #include "esp_lcd_panel_io.h"
 
 #include "esp_lcd_mipi_dsi.h"
+#include "driver/ppa.h"
 
 namespace esphome::mipi_dsi {
 
@@ -59,12 +60,14 @@ class MipiDsi final : public display::Display {
   void set_model(const char *model) { this->model_ = model; }
   void set_lane_bit_rate(float lane_bit_rate) { this->lane_bit_rate_ = lane_bit_rate; }
   void set_lanes(uint8_t lanes) { this->lanes_ = lanes; }
+  void set_double_buffer(bool double_buffer) { this->double_buffer_ = double_buffer; }
 
   void smark_failed(const LogString *message, esp_err_t err);
 
   void update() override;
 
   void setup() override;
+  void loop() override;
 
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
@@ -80,6 +83,11 @@ class MipiDsi final : public display::Display {
   void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
                          int x_pad);
   bool check_buffer_();
+  void copy_to_back_buffer_(int x_start, int y_start, int w, int h, const uint8_t *ptr, size_t stride);
+  void copy_block_(const uint8_t *src, int src_pic_w, int src_pic_h, int src_x, int src_y, uint8_t *dst, int dst_x,
+                   int dst_y, int w, int h);
+  void present_();
+  void sync_stale_area_();
   GPIOPin *reset_pin_{nullptr};
   std::vector<GPIOPin *> enable_pins_{};
   size_t width_{};
@@ -105,6 +113,25 @@ class MipiDsi final : public display::Display {
   esp_lcd_dsi_bus_handle_t bus_handle_{};
   esp_lcd_panel_io_handle_t io_handle_{};
   SemaphoreHandle_t io_lock_{};
+  // Double buffering: LVGL draws into fbs_[1 - front_] while the panel scans
+  // fbs_[front_]; loop() swaps them at a frame boundary.
+  bool double_buffer_{false};
+  uint8_t *fbs_[2]{};
+  uint8_t front_{0};
+  SemaphoreHandle_t frame_done_{};
+  // Frame buffer writes go through the PPA only: it invalidates the cached
+  // destination rows, which would discard pending CPU writes to them.
+  ppa_client_handle_t ppa_client_{};
+  struct Area {
+    int x1, y1, x2, y2;  // end-exclusive
+  };
+  // Areas drawn into the back buffer this frame, and their bounding box.
+  std::vector<Area> drawn_{};
+  bool dirty_{false};
+  Area dirty_area_{};
+  // Part of the back buffer that is one frame behind the front buffer.
+  bool stale_{false};
+  Area stale_area_{};
   uint8_t *buffer_{nullptr};
   uint16_t x_low_{1};
   uint16_t y_low_{1};

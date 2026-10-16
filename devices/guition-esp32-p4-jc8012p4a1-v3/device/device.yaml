@@ -200,6 +200,8 @@ display:
     model: CUSTOM
     id: tft_display
     reset_pin: GPIO27
+    # Swap frame buffers at the panel's frame boundary so redraws never tear.
+    double_buffer: true
     auto_clear_enabled: false
     update_interval: never
     color_order: RGB
