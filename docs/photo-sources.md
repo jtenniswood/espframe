@@ -180,8 +180,8 @@ Use **Photo Display** to control how photos are fitted to the screen.
 |---------|---------|-------------|
 | **Display Photos** | Any | Choose any photo, portrait-only photos, or landscape-only photos. Portrait-only is useful when the frame is mounted vertically. |
 | **Display Mode** | Crop to fit | Crop to fit fills the screen and may crop edges; Show full image letterboxes without cropping. |
-| **Transition** | None | Animation used when the photo changes. Random picks a different transition for each photo. |
-| **Transition Speed** | Normal | How long each transition takes: Fast (0.5s), Normal (1s), or Slow (1.5s). |
+| **Transition** | Cross Fade | Animation used when the photo changes. Random picks a different transition for each photo. |
+| **Transition Speed** | Fast | How long each transition takes: Fast (0.5s), Normal (1s), or Slow (1.5s). |
 <!-- ESPFRAME:SETTINGS_TABLE layout END -->
 
 **Transition** options: **Cross Fade** blends the old photo into the new one; **Fade to Black** and **Fade to White** fade out to a solid colour before the new photo fades in; **Slide** moves the new photo in over the old one, and runs in the opposite direction when you swipe back. When a portrait photo is joined by its pair, the pair cross-fades in instead of moving.

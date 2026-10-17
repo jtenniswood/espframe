@@ -2812,9 +2812,9 @@
         "domain": "select",
         "name": "Photos: Transition"
       },
-      "default": "None",
+      "default": "Cross Fade",
       "docs_label": "Transition",
-      "docs_default": "None",
+      "docs_default": "Cross Fade",
       "docs_description": "Animation used when the photo changes. Random picks a different transition for each photo.",
       "options": [
         "None",
@@ -2840,9 +2840,9 @@
         "domain": "select",
         "name": "Photos: Transition Speed"
       },
-      "default": "Normal",
+      "default": "Fast",
       "docs_label": "Transition Speed",
-      "docs_default": "Normal",
+      "docs_default": "Fast",
       "docs_description": "How long each transition takes: Fast (0.5s), Normal (1s), or Slow (1.5s).",
       "options": [
         "Fast",

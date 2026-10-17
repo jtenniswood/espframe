@@ -131,7 +131,7 @@ select:
       - "Slide Up"
       - "Slide Down"
       - "Random"
-    initial_option: "None"
+    initial_option: "Cross Fade"
     optimistic: true
     restore_value: true
     # ESPFRAME:SETTING_FIELDS transition END
@@ -148,7 +148,7 @@ select:
       - "Fast"
       - "Normal"
       - "Slow"
-    initial_option: "Normal"
+    initial_option: "Fast"
     optimistic: true
     restore_value: true
     # ESPFRAME:SETTING_FIELDS transition_speed END

@@ -77,8 +77,8 @@ The export is a standard JSON file with a `version` field and grouped settings:
     "portrait_pairing_range": "Same Day",
     "portrait_pairs_only": false,
     "display_mode": "Fill",
-    "transition": "None",
-    "transition_speed": "Normal"
+    "transition": "Cross Fade",
+    "transition_speed": "Fast"
   },
   "frequency": { "interval": "15 seconds", "conn_timeout": "10 minutes" },
   "firmware_updates": {
