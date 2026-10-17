@@ -207,19 +207,7 @@ void MipiDsi::setup() {
     }
     cbs.on_frame_buf_complete = notify_frame_done;
   }
-  if (this->frame_transitions_) {
-    const size_t fb_size = this->width_ * this->height_ * (3 - this->color_depth_);
-    this->snapshot_ = static_cast<uint8_t *>(heap_caps_aligned_alloc(128, fb_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    this->target_ = static_cast<uint8_t *>(heap_caps_aligned_alloc(128, fb_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    ppa_client_config_t blend_config{};
-    blend_config.oper_type = PPA_OPERATION_BLEND;
-    blend_config.max_pending_trans_num = 1;
-    if (this->snapshot_ == nullptr || this->target_ == nullptr || this->ppa_client_ == nullptr ||
-        ppa_register_client(&blend_config, &this->blend_client_) != ESP_OK) {
-      ESP_LOGW(TAG, "Frame transitions unavailable");
-      this->frame_transitions_ = false;
-    }
-  }
+  this->setup_frame_transitions_();
   static MipiDsiIsrContext isr_context;
   isr_context = {this->io_lock_, this->frame_done_};
 
@@ -230,6 +218,30 @@ void MipiDsi::setup() {
   }
 
   ESP_LOGCONFIG(TAG, "MIPI DSI setup complete");
+}
+
+void MipiDsi::setup_frame_transitions_() {
+  if (!this->frame_transitions_)
+    return;
+  if (this->ppa_client_ != nullptr) {
+    const size_t fb_size = this->width_ * this->height_ * (3 - this->color_depth_);
+    this->snapshot_ = static_cast<uint8_t *>(heap_caps_aligned_alloc(128, fb_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    this->target_ = static_cast<uint8_t *>(heap_caps_aligned_alloc(128, fb_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    ppa_client_config_t blend_config{};
+    blend_config.oper_type = PPA_OPERATION_BLEND;
+    blend_config.max_pending_trans_num = 1;
+    if (this->snapshot_ != nullptr && this->target_ != nullptr &&
+        ppa_register_client(&blend_config, &this->blend_client_) == ESP_OK)
+      return;
+  }
+  // These buffers are unused by plain double buffering. Reclaim whichever
+  // allocations succeeded so the fallback leaves memory for photo decoding.
+  heap_caps_free(this->snapshot_);
+  heap_caps_free(this->target_);
+  this->snapshot_ = nullptr;
+  this->target_ = nullptr;
+  this->frame_transitions_ = false;
+  ESP_LOGW(TAG, "Frame transitions unavailable");
 }
 
 void MipiDsi::update() {

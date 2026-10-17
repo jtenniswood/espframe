@@ -49,12 +49,6 @@ inline SlideTransition pick_random_slide_transition(uint32_t random, SlideTransi
   return RANDOM_SLIDE_TRANSITIONS[index];
 }
 
-inline SlideTransition resolve_slide_transition(const std::string &option, uint32_t random,
-                                                SlideTransition previous) {
-  if (slide_transition_is_random(option)) return pick_random_slide_transition(random, previous);
-  return parse_slide_transition(option);
-}
-
 // Going back through history mirrors directional transitions.
 inline SlideTransition reverse_slide_transition(SlideTransition transition) {
   switch (transition) {
@@ -64,6 +58,17 @@ inline SlideTransition reverse_slide_transition(SlideTransition transition) {
     case SlideTransition::SLIDE_DOWN: return SlideTransition::SLIDE_UP;
     default: return transition;
   }
+}
+
+// previous is the transition actually displayed, after navigation reversal.
+inline SlideTransition resolve_slide_transition(const std::string &option, uint32_t random,
+                                                SlideTransition previous, bool reverse = false) {
+  // Exclude the raw choice that would become previous after reversal.
+  const auto excluded = reverse ? reverse_slide_transition(previous) : previous;
+  const auto transition = slide_transition_is_random(option)
+                              ? pick_random_slide_transition(random, excluded)
+                              : parse_slide_transition(option);
+  return reverse ? reverse_slide_transition(transition) : transition;
 }
 
 inline uint32_t slide_transition_duration_ms(const std::string &speed) {

@@ -100,6 +100,7 @@ class MipiDsi final : public display::Display {
   void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
                          int x_pad);
   bool check_buffer_();
+  void setup_frame_transitions_();
   void copy_to_back_buffer_(int x_start, int y_start, int w, int h, const uint8_t *ptr, size_t stride);
   void copy_block_(const uint8_t *src, int src_pic_w, int src_pic_h, int src_x, int src_y, uint8_t *dst, int dst_x,
                    int dst_y, int w, int h);

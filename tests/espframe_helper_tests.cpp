@@ -1890,6 +1890,26 @@ static void test_slide_transitions() {
   }
   assert(resolve_slide_transition("Slide Up", 5, SlideTransition::SLIDE_UP) == SlideTransition::SLIDE_UP);
 
+  // Exclude the last visible transition in both navigation directions, even
+  // when consecutive backward steps would reverse a different raw choice.
+  for (const bool reverse : {false, true}) {
+    for (const auto previous : RANDOM_SLIDE_TRANSITIONS) {
+      bool choices[16] = {};
+      for (uint32_t r = 0; r < 64; ++r) {
+        const auto picked = resolve_slide_transition("Random", r, previous, reverse);
+        assert(picked != previous && picked != SlideTransition::NONE);
+        choices[static_cast<int>(picked)] = true;
+      }
+      for (const auto transition : RANDOM_SLIDE_TRANSITIONS) {
+        assert(choices[static_cast<int>(transition)] == (transition != previous));
+      }
+    }
+  }
+  assert(resolve_slide_transition("Random", 3, SlideTransition::SLIDE_LEFT, true) != SlideTransition::SLIDE_LEFT);
+  assert(resolve_slide_transition("Slide Left", 0, SlideTransition::NONE, true) == SlideTransition::SLIDE_RIGHT);
+  assert(resolve_slide_transition("Cross Fade", 0, SlideTransition::NONE, true) == SlideTransition::CROSS_FADE);
+  assert(resolve_slide_transition("None", 0, SlideTransition::NONE, true) == SlideTransition::NONE);
+
   assert(reverse_slide_transition(SlideTransition::SLIDE_LEFT) == SlideTransition::SLIDE_RIGHT);
   assert(reverse_slide_transition(SlideTransition::SLIDE_UP) == SlideTransition::SLIDE_DOWN);
   assert(reverse_slide_transition(SlideTransition::FADE_BLACK) == SlideTransition::FADE_BLACK);

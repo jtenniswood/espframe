@@ -903,7 +903,8 @@ script:
           if (!incoming_pair && !id(photo_transition_prev_pair) &&
               id(photo_transition_prev_src) == lv_image_get_src(id(slideshow_img))) return;
           auto transition = resolve_slide_transition(id(slide_transition_select).current_option(), esp_random(),
-                                                     static_cast<SlideTransition>(id(photo_transition_last)));
+                                                     static_cast<SlideTransition>(id(photo_transition_last)),
+                                                     id(photo_transition_reverse));
           if (transition == SlideTransition::NONE) return;
           esphome::image::Image *imgs[] = { id(immich_img_0), id(immich_img_1), id(immich_img_2) };
           const int s = id(espframe_core).slideshow().state().active_slot;
@@ -912,8 +913,6 @@ script:
                                   id(photo_transition_prev_src) == get_lv_image_descriptor_(imgs[s], 0);
           if (same_photo) {
             transition = SlideTransition::CROSS_FADE;
-          } else if (id(photo_transition_reverse)) {
-            transition = reverse_slide_transition(transition);
           }
           id(photo_transition_last) = static_cast<uint8_t>(transition);
           auto plan = slide_transition_plan(transition);
