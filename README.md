@@ -91,9 +91,9 @@ npm ci
 npm run docs:dev
 
 # Compile firmware locally
-docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.9.1 compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
-docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.9.1 compile /config/builds/guition-esp32-p4-jc8012p4a1-v2.factory.yaml
-docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.9.1 compile /config/builds/guition-esp32-p4-jc8012p4a1-v3.factory.yaml
+docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.10.0 compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
+docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.10.0 compile /config/builds/guition-esp32-p4-jc8012p4a1-v2.factory.yaml
+docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.10.0 compile /config/builds/guition-esp32-p4-jc8012p4a1-v3.factory.yaml
 ```
 
 ### In-Development Firmware Features

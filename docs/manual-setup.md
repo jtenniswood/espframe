@@ -58,7 +58,7 @@ api:
 Add a unique 32-byte base64 key as `api_encryption_key` in `secrets.yaml`; generate one with `openssl rand -base64 32`. Never reuse the Immich API key here. Changing this value later requires reconfiguring the ESPHome integration in Home Assistant.
 
 ::: info ESPHome version
-Use ESPHome `2026.9.1` for local builds.
+Use ESPHome `2026.10.0` for local builds.
 :::
 
 ## Substitutions
