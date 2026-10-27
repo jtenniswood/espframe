@@ -1626,6 +1626,10 @@ function smokeAssertionsForScenario(scenario) {
           await waitFor(() => document.querySelector("#frame-name"), 8000, "frame name");
           clickTab("Device");
           expandCard("Frame Name");
+          const frameNameSection = cardByTitle("Frame Name").closest(".settings-section");
+          if (frameNameSection?.querySelector(":scope > .settings-section-title")?.textContent.trim() !== "Preferences") {
+            throw new Error("Frame Name must appear in Preferences");
+          }
           const setName = (name) => {
             const input = document.querySelector("#frame-name");
             input.value = name;

@@ -825,7 +825,7 @@
       "id": "frame_name",
       "label": "Frame Name",
       "tab": "settings",
-      "section": "System",
+      "section": "Preferences",
       "function": "makeFrameNameCard"
     },
     {

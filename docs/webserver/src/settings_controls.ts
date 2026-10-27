@@ -95,7 +95,7 @@
       { section: "Display", element: makeClockCard() },
       { section: "Sleep & Schedule", element: makeNightScheduleCard() },
       { section: "Preferences", element: makeLanguageCard() },
-      { section: "System", element: makeFrameNameCard() },
+      { section: "Preferences", element: makeFrameNameCard() },
       { section: "System", element: makeBackupCard() },
       { section: "System", element: makeFirmwareCard() },
       { section: "System", element: makeDeviceRebootCard() },
