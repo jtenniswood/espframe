@@ -89,6 +89,8 @@ class OnlineImage : public PollingComponent,
     this->request_headers_.push_back(std::pair<std::string, TemplatableValue<std::string> >(header, value));
   }
 
+  void clear_request_headers() { this->request_headers_.clear(); }
+
   /**
    * @brief Set the image that needs to be shown as long as the downloaded image
    *  is not available.

@@ -312,7 +312,7 @@ touchscreen:
           const int vertical_distance = std::abs(vertical_delta);
           const bool slideshow_visible = lv_scr_act() == id(slideshow_page)->obj &&
             lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN) &&
-            !id(photo_source_menu_open);
+            !id(photo_source_menu_open) && !id(camera_overlay_active);
           if (slideshow_visible && !id(touch_started_while_off) &&
               horizontal_distance >= 120 && horizontal_distance > (vertical_distance * 3) / 2) {
             id(photo_source_swipe_triggered) = true;

@@ -35,6 +35,7 @@ packages:
   immich_api: !include ../../common/addon/immich_api.yaml
   immich_slide: !include ../../common/addon/immich_slideshow.yaml
   screen_slide: !include ../guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml
+  camera_overlay: !include ../../common/addon/camera_overlay.yaml
   fw_update: !include ../../common/addon/firmware_update.yaml
   c6_fw_update: !include ../../common/addon/esp32_c6_firmware_update.yaml
   dev_features: !include ../../common/addon/developer_features.yaml

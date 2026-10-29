@@ -2029,6 +2029,10 @@
           "path": "device/screen_slideshow.yaml"
         },
         {
+          "alias": "camera_overlay",
+          "path": "../../common/addon/camera_overlay.yaml"
+        },
+        {
           "alias": "fw_update",
           "path": "../../common/addon/firmware_update.yaml"
         },
@@ -2265,6 +2269,10 @@
         {
           "alias": "screen_slide",
           "path": "../guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml"
+        },
+        {
+          "alias": "camera_overlay",
+          "path": "../../common/addon/camera_overlay.yaml"
         },
         {
           "alias": "fw_update",
@@ -2505,6 +2513,10 @@
         {
           "alias": "screen_slide",
           "path": "../guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml"
+        },
+        {
+          "alias": "camera_overlay",
+          "path": "../../common/addon/camera_overlay.yaml"
         },
         {
           "alias": "fw_update",
