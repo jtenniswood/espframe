@@ -756,6 +756,10 @@ class EspFrameSlideshow {
     copy_slot_to_display(meta, this->state_.current_display);
     this->state_.portrait.is_pair = true;
     this->state_.portrait.using_preload = using_preload;
+    // Both banks represent a complete active pair after presentation. Prefetch
+    // uses these flags even when the downloads finished in the preload bank.
+    this->state_.portrait.left_ready = true;
+    this->state_.portrait.right_ready = true;
     this->state_.portrait.workflow_busy = false;
     this->state_.active_slot_displayed = true;
     if (using_preload) {

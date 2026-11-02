@@ -1548,6 +1548,18 @@ static void test_visible_portrait_download_protection() {
   slideshow.mark_portrait_pair_displayed(true);
   assert(state.active_slot_displayed && state.portrait.using_preload);
 
+  // A completed rerouted pair must allow the next photo to prefetch without
+  // waiting for navigation to reset the active portrait state.
+  assert(slideshow.request_prefetch(
+      false, false, 5000, state.last_prefetch_start_ms, state.active_slot,
+      state.target_slot, state.slot0, state.slot1, state.slot2, state.slot_flags,
+      state.fetch_queue, state.portrait, state.active_slot_displayed,
+      state.noncritical_remote_updates_in_flight, state.portrait_preload_slot,
+      state.portrait_preload_left_ready, state.portrait_preload_right_ready));
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_FETCH_INTO_SLOT && cmd.slot == 2);
+  assert(!slideshow.pop_command(cmd));
+
   // While that preload bank is displayed, retain the next companion URL but
   // defer decoding; advancing can load it into the now-hidden active bank.
   state.portrait_preload_slot = 2;
