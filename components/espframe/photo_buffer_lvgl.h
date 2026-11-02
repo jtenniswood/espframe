@@ -10,6 +10,11 @@ struct PortraitBufferBindings {
   lv_obj_t *left;
   lv_obj_t *right;
 
+  template<typename Image> bool is_bound(Image *image) const {
+    auto *descriptor = image->get_lv_image_dsc();
+    return lv_img_get_src(this->left) == descriptor || lv_img_get_src(this->right) == descriptor;
+  }
+
   template<typename Image> bool prepare_release(Image *image, bool detach_hidden_sources) {
     auto *descriptor = image->get_lv_image_dsc();
     const bool left_bound = lv_img_get_src(this->left) == descriptor;
