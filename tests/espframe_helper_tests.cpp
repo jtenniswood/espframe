@@ -1500,6 +1500,154 @@ static void test_slideshow_component_companion_result_flow() {
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
 }
 
+static void test_visible_portrait_download_protection() {
+  EspFrameSlideshow slideshow;
+  auto &state = slideshow.state();
+  state.active_slot = 1;
+  state.slot1 = make_slot("next-pair", true);
+  state.slot1.companion_url = "https://example.test/companion";
+  state.portrait.workflow_busy = true;
+  state.portrait.left_requested = true;
+  SlideshowCommand cmd;
+
+  assert(slideshow.prepare_portrait_download(false, false));
+  assert(!slideshow.prepare_portrait_download(false, true));
+  assert(!state.portrait.left_requested);
+  assert(state.portrait_preload_slot == 1);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_START_PRELOAD_LEFT && cmd.slot == 1);
+  assert(slideshow.request_preload_left_update(
+      true, state.preload_noncritical_in_flight, state.noncritical_remote_updates_in_flight));
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_UPDATE_PRELOAD_LEFT);
+  assert(!slideshow.start_active_portrait(
+      1, state.slot0, state.slot1, state.slot2, state.portrait, false,
+      state.portrait_primary_asset_id, state.portrait_companion_url,
+      state.portrait_search_datetime, state.companion_target_slot,
+      state.portrait_search_expanded));
+  assert(!slideshow.pop_command(cmd));
+  slideshow.on_preload_left_finished(
+      1, state.slot0, state.slot1, state.slot2, state.portrait_preload_left_ready,
+      state.portrait_preload_right_ready, state.preload_noncritical_in_flight,
+      state.noncritical_remote_updates_in_flight);
+  slideshow.display_completed_active_preload();
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_START_PRELOAD_RIGHT);
+  assert(!slideshow.pop_command(cmd));
+  assert(slideshow.request_preload_right_update(
+      true, state.preload_noncritical_in_flight, state.noncritical_remote_updates_in_flight));
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_UPDATE_PRELOAD_RIGHT);
+  slideshow.on_preload_right_finished(
+      state.portrait_preload_right_ready, state.preload_noncritical_in_flight,
+      state.noncritical_remote_updates_in_flight);
+  slideshow.display_completed_active_preload();
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR && cmd.slot == 1);
+  assert(!slideshow.pop_command(cmd));
+  slideshow.mark_portrait_pair_displayed(true);
+  assert(state.active_slot_displayed && state.portrait.using_preload);
+
+  // A completed rerouted pair must allow the next photo to prefetch without
+  // waiting for navigation to reset the active portrait state.
+  assert(slideshow.request_prefetch(
+      false, false, 5000, state.last_prefetch_start_ms, state.active_slot,
+      state.target_slot, state.slot0, state.slot1, state.slot2, state.slot_flags,
+      state.fetch_queue, state.portrait, state.active_slot_displayed,
+      state.noncritical_remote_updates_in_flight, state.portrait_preload_slot,
+      state.portrait_preload_left_ready, state.portrait_preload_right_ready));
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_FETCH_INTO_SLOT && cmd.slot == 2);
+  assert(!slideshow.pop_command(cmd));
+
+  // While that preload bank is displayed, retain the next companion URL but
+  // defer decoding; advancing can load it into the now-hidden active bank.
+  state.portrait_preload_slot = 2;
+  state.slot2.companion_url = "https://example.test/future-companion";
+  state.preload_noncritical_in_flight = true;
+  state.noncritical_remote_updates_in_flight = 1;
+  assert(!slideshow.prepare_portrait_download(true, true));
+  assert(state.portrait_preload_slot == -1);
+  assert(!state.preload_noncritical_in_flight);
+  assert(state.noncritical_remote_updates_in_flight == 0);
+  assert(!state.slot2.companion_url.empty());
+  assert(state.active_slot_displayed && state.portrait.using_preload);
+  assert(!slideshow.pop_command(cmd));
+}
+
+static void test_portrait_single_display_guard() {
+  EspFrameSlideshow slideshow;
+  auto &state = slideshow.state();
+  state.slot0 = make_slot("previous-landscape", false);
+  state.slot1 = make_slot("next-portrait", true);
+  state.slot1.ready = true;
+  state.active_slot = 1;
+  copy_slot_to_display(state.slot0, state.current_display);
+  SlideshowCommand cmd;
+
+  // A queued single display must start pairing without replacing visible metadata.
+  assert(!slideshow.prepare_single_display(true, true));
+  assert(state.current_display.asset_id == "previous-landscape");
+  assert(!state.active_slot_displayed);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_START_ACTIVE_PAIR);
+  assert(!slideshow.pop_command(cmd));
+
+  // Only a complete preload can be presented, regardless of pairs-only mode.
+  state.portrait_preload_slot = 1;
+  state.portrait_preload_left_ready = true;
+  assert(!slideshow.prepare_single_display(true, false));
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_START_ACTIVE_PAIR);
+  state.portrait_preload_right_ready = true;
+  assert(!slideshow.prepare_single_display(true, true));
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR);
+
+  state.portrait = PortraitState{};
+  state.portrait.no_companion_active = true;
+  assert(slideshow.prepare_single_display(true, false));
+  assert(!slideshow.prepare_single_display(true, true));
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT);
+  assert(slideshow.prepare_single_display(false, true));
+  state.active_slot = 0;
+  assert(slideshow.prepare_single_display(true, true));
+  assert(!slideshow.pop_command(cmd));
+
+  // A slideshow tick during a slow second image must not display the first.
+  state.active_slot = 1;
+  state.portrait = PortraitState{};
+  state.portrait.workflow_busy = true;
+  state.portrait.companion_found = true;
+  state.portrait.left_ready = true;
+  state.portrait.right_requested = true;
+  slideshow.advance_forward(
+      20000, false, state.active_slot, state.target_slot, state.active_slot_displayed,
+      state.last_advance_ms, state.slot0, state.slot1, state.slot2,
+      state.current_display, state.previous_display, state.portrait, state.slot_flags,
+      state.noncritical_remote_updates_in_flight, true, false,
+      -1, false, false, state.diagnostic_reason);
+  assert(!state.active_slot_displayed);
+  assert(state.portrait.workflow_busy);
+  assert(state.portrait.right_requested);
+  assert(state.current_display.asset_id == "previous-landscape");
+  assert(!slideshow.pop_command(cmd));
+  slideshow.on_portrait_right_finished(state.portrait);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_PORTRAIT_PAIR);
+
+  // Completions arriving after rejection cannot resurrect an abandoned pair.
+  slideshow.reject_portrait_slot(21000, 1);
+  slideshow.clear_commands();
+  assert(!slideshow.request_portrait_left_update(state.portrait));
+  assert(!slideshow.request_portrait_right_update(state.portrait));
+  slideshow.on_portrait_left_finished(state.portrait);
+  slideshow.on_portrait_right_finished(state.portrait);
+  assert(!state.portrait.left_ready && !state.portrait.right_ready);
+  assert(!slideshow.pop_command(cmd));
+}
+
 static void test_slideshow_component_display_current_flow() {
   EspFrameSlideshow slideshow;
   SlotMeta slot0 = make_slot("landscape", false);
@@ -1968,6 +2116,8 @@ int main() {
   test_slideshow_component_previous_flow();
   test_slideshow_component_companion_result_flow();
   test_slideshow_component_display_current_flow();
+  test_portrait_single_display_guard();
+  test_visible_portrait_download_protection();
   test_slideshow_component_paired_only_flow();
   test_configuration_contract_capabilities();
   test_device_translations();

@@ -276,6 +276,11 @@ class EspFrameSlideshow {
                              int &companion_target_slot,
                              bool &portrait_search_expanded) {
     if (active_slot_displayed && portrait.is_pair && portrait.using_preload) return false;
+    if (this->state_.portrait_preload_slot == active_slot &&
+        this->state_.preload_noncritical_in_flight) {
+      portrait.workflow_busy = true;
+      return false;
+    }
 
     SlotMeta &meta = this->slot_mut_(active_slot, slot0, slot1, slot2);
     if (portrait.workflow_busy && portrait_primary_asset_id == meta.asset_id) return false;
@@ -311,6 +316,7 @@ class EspFrameSlideshow {
   }
 
   void on_portrait_left_finished(PortraitState &portrait) {
+    if (!portrait.left_requested) return;
     portrait.left_ready = true;
     portrait.left_requested = false;
     if (portrait.companion_found && !portrait.right_ready && !portrait.right_requested) {
@@ -323,6 +329,7 @@ class EspFrameSlideshow {
   }
 
   void on_portrait_right_finished(PortraitState &portrait) {
+    if (!portrait.right_requested) return;
     portrait.right_ready = true;
     portrait.right_requested = false;
     if (portrait.left_ready && portrait.right_ready) {
@@ -421,9 +428,13 @@ class EspFrameSlideshow {
       int slot = active_slot;
       SlotMeta &meta = this->slot_mut_(slot, slot0, slot1, slot2);
       if (meta.ready && portrait.workflow_busy) {
-        if (meta.is_portrait && portrait_pairing_enabled && portrait_pairs_only) {
-          portrait.workflow_busy = false;
-          this->emit_command(SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT, slot);
+        if (meta.is_portrait && portrait_pairing_enabled) {
+          if (portrait_pairs_only) {
+            portrait.workflow_busy = false;
+            this->emit_command(SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT, slot);
+          }
+          // Keep the visible photo until the pair completes. A slideshow tick
+          // must not expose the primary portrait before its companion arrives.
           return;
         }
         portrait.workflow_busy = false;
@@ -598,6 +609,53 @@ class EspFrameSlideshow {
     return true;
   }
 
+  // Never decode over pixels still referenced by the visible pair. Active
+  // downloads can use the other bank; background preloads wait until navigation.
+  bool prepare_portrait_download(bool preload, bool visible_buffer_bound) {
+    if (!visible_buffer_bound) return true;
+    auto &state = this->state_;
+    if (preload) {
+      this->clear_preload_for_slot(
+          state.portrait_preload_slot, state.portrait_preload_slot,
+          state.portrait_preload_left_ready, state.portrait_preload_right_ready,
+          state.preload_noncritical_in_flight, state.noncritical_remote_updates_in_flight);
+      return false;
+    }
+    state.portrait.left_requested = false;
+    state.portrait.right_requested = false;
+    state.portrait_preload_slot = state.active_slot;
+    state.portrait_preload_left_ready = false;
+    state.portrait_preload_right_ready = false;
+    this->emit_command(SLIDESHOW_COMMAND_START_PRELOAD_LEFT, state.active_slot);
+    return false;
+  }
+
+  void display_completed_active_preload() {
+    const auto &state = this->state_;
+    if (!state.active_slot_displayed && state.portrait_preload_slot == state.active_slot &&
+        state.portrait_preload_left_ready && state.portrait_preload_right_ready)
+      this->emit_command(SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR, state.active_slot);
+  }
+
+  // Called before any single-image widget or transition is changed. Queued
+  // display commands can outlive the setting or pairing state that created them.
+  bool prepare_single_display(bool portrait_pairing_enabled, bool portrait_pairs_only) {
+    auto &state = this->state_;
+    const auto &meta = state.slot(state.active_slot);
+    if (!meta.is_portrait || !portrait_pairing_enabled) return true;
+    if (state.portrait.no_companion_active) {
+      if (!portrait_pairs_only) return true;
+      this->emit_command(SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT, state.active_slot);
+      return false;
+    }
+    this->after_display_current(
+        state.active_slot, state.slot0, state.slot1, state.slot2, state.portrait,
+        portrait_pairing_enabled, state.active_slot_displayed,
+        state.portrait_preload_slot, state.portrait_preload_left_ready,
+        state.portrait_preload_right_ready);
+    return false;
+  }
+
   bool begin_display_current(int active_slot, SlotMeta &slot0, SlotMeta &slot1,
                              SlotMeta &slot2, PortraitState &portrait,
                              bool portrait_pairing_enabled, bool &active_slot_displayed,
@@ -698,6 +756,10 @@ class EspFrameSlideshow {
     copy_slot_to_display(meta, this->state_.current_display);
     this->state_.portrait.is_pair = true;
     this->state_.portrait.using_preload = using_preload;
+    // Both banks represent a complete active pair after presentation. Prefetch
+    // uses these flags even when the downloads finished in the preload bank.
+    this->state_.portrait.left_ready = true;
+    this->state_.portrait.right_ready = true;
     this->state_.portrait.workflow_busy = false;
     this->state_.active_slot_displayed = true;
     if (using_preload) {
@@ -825,13 +887,13 @@ class EspFrameSlideshow {
   }
 
   bool request_portrait_left_update(const PortraitState &portrait) {
-    if (portrait.left_ready) return false;
+    if (!portrait.left_requested || portrait.left_ready) return false;
     this->emit_command(SLIDESHOW_COMMAND_UPDATE_PORTRAIT_LEFT);
     return true;
   }
 
   bool request_portrait_right_update(const PortraitState &portrait) {
-    if (portrait.right_ready) return false;
+    if (!portrait.right_requested || portrait.right_ready) return false;
     this->emit_command(SLIDESHOW_COMMAND_UPDATE_PORTRAIT_RIGHT);
     return true;
   }
@@ -839,7 +901,7 @@ class EspFrameSlideshow {
   bool request_preload_left_update(bool portrait_workflow_busy,
                                    bool &preload_noncritical_in_flight,
                                    int &noncritical_count) {
-    if (portrait_workflow_busy) {
+    if (portrait_workflow_busy && this->state_.portrait_preload_slot != this->state_.active_slot) {
       this->emit_command(SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY, -1, 500);
       return false;
     }
@@ -854,7 +916,7 @@ class EspFrameSlideshow {
   bool request_preload_right_update(bool portrait_workflow_busy,
                                     bool &preload_noncritical_in_flight,
                                     int &noncritical_count) {
-    if (portrait_workflow_busy) {
+    if (portrait_workflow_busy && this->state_.portrait_preload_slot != this->state_.active_slot) {
       if (preload_noncritical_in_flight) {
         preload_noncritical_in_flight = false;
         if (noncritical_count > 0) noncritical_count--;

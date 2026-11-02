@@ -398,6 +398,11 @@ remote_image:
             id(espframe_core).slideshow().on_preload_left_error(
               id(espframe_core).slideshow().state().diagnostic_reason, id(espframe_core).slideshow().state().portrait_preload_left_ready,
               id(espframe_core).slideshow().state().preload_noncritical_in_flight, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+            if (!id(portrait_pairs_only).state &&
+                id(espframe_core).slideshow().state().portrait_preload_slot == id(espframe_core).slideshow().state().active_slot) {
+              id(espframe_core).slideshow().fallback_preloaded_pair_to_single(
+                id(espframe_core).slideshow().state().active_slot);
+            }
             if (id(portrait_pairs_only).state && id(espframe_core).slideshow().state().portrait_preload_slot >= 0) {
               id(espframe_core).slideshow().reject_portrait_slot(
                 millis(), id(espframe_core).slideshow().state().portrait_preload_slot);
@@ -422,6 +427,8 @@ remote_image:
             id(espframe_core).slideshow().on_preload_right_finished(
               id(espframe_core).slideshow().state().portrait_preload_right_ready, id(espframe_core).slideshow().state().preload_noncritical_in_flight,
               id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+            id(espframe_core).slideshow().display_completed_active_preload();
+            id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
@@ -429,6 +436,11 @@ remote_image:
             id(espframe_core).slideshow().on_preload_right_error(
               id(espframe_core).slideshow().state().diagnostic_reason, id(espframe_core).slideshow().state().portrait_preload_right_ready,
               id(espframe_core).slideshow().state().preload_noncritical_in_flight, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+            if (!id(portrait_pairs_only).state &&
+                id(espframe_core).slideshow().state().portrait_preload_slot == id(espframe_core).slideshow().state().active_slot) {
+              id(espframe_core).slideshow().fallback_preloaded_pair_to_single(
+                id(espframe_core).slideshow().state().active_slot);
+            }
             if (id(portrait_pairs_only).state && id(espframe_core).slideshow().state().portrait_preload_slot >= 0) {
               id(espframe_core).slideshow().reject_portrait_slot(
                 millis(), id(espframe_core).slideshow().state().portrait_preload_slot);
@@ -524,18 +536,30 @@ script:
                 }
                 break;
               case SLIDESHOW_COMMAND_UPDATE_PORTRAIT_LEFT:
+                if (!id(espframe_core).slideshow().prepare_portrait_download(
+                      false, !lv_obj_has_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN) &&
+                      PortraitBufferBindings{id(portrait_left_img), id(portrait_right_img)}.is_bound(id(immich_portrait_left)))) break;
                 id(immich_portrait_left).set_fill_mode(true);
                 id(immich_portrait_left).update();
                 break;
               case SLIDESHOW_COMMAND_UPDATE_PORTRAIT_RIGHT:
+                if (!id(espframe_core).slideshow().prepare_portrait_download(
+                      false, !lv_obj_has_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN) &&
+                      PortraitBufferBindings{id(portrait_left_img), id(portrait_right_img)}.is_bound(id(immich_portrait_right)))) break;
                 id(immich_portrait_right).set_fill_mode(true);
                 id(immich_portrait_right).update();
                 break;
               case SLIDESHOW_COMMAND_UPDATE_PRELOAD_LEFT:
+                if (!id(espframe_core).slideshow().prepare_portrait_download(
+                      true, !lv_obj_has_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN) &&
+                      PortraitBufferBindings{id(portrait_left_img), id(portrait_right_img)}.is_bound(id(immich_portrait_preload_left)))) break;
                 id(immich_portrait_preload_left).set_fill_mode(true);
                 id(immich_portrait_preload_left).update();
                 break;
               case SLIDESHOW_COMMAND_UPDATE_PRELOAD_RIGHT:
+                if (!id(espframe_core).slideshow().prepare_portrait_download(
+                      true, !lv_obj_has_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN) &&
+                      PortraitBufferBindings{id(portrait_left_img), id(portrait_right_img)}.is_bound(id(immich_portrait_preload_right)))) break;
                 id(immich_portrait_preload_right).set_fill_mode(true);
                 id(immich_portrait_preload_right).update();
                 break;
@@ -934,6 +958,14 @@ script:
   - id: immich_display_current
     mode: single
     then:
+      - if:
+          condition:
+            lambda: |-
+              return !id(espframe_core).slideshow().prepare_single_display(
+                id(portrait_pairing_enabled).state, id(portrait_pairs_only).state);
+          then:
+            - script.execute: espframe_slideshow_dispatch
+            - script.stop: immich_display_current
       - lvgl.page.show: slideshow_page
       - script.execute: hide_connection_failed
       - script.execute: photo_transition_capture
