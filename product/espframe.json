@@ -1736,7 +1736,7 @@
     "generated_firmware_deferred_setting_fields": [],
     "support_url": "https://www.buymeacoffee.com/jtenniswood",
     "support_button_image_url": "https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png",
-    "node_version": "24",
+    "node_version": "26",
     "node_package_cache": "npm",
     "node_install_command": "npm ci",
     "local_check_command": "npm run check:pr",
