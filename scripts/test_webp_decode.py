@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -30,5 +31,7 @@ for swap in (None, 0, 1):
             objects = list(executor.map(compile_source, sources))
         binary = build / 'tests'
         run(['g++', '-std=c++17', '-O1', *flags, '-I'+str(ROOT), '-I'+str(LIB / 'src'),
-             str(ROOT / 'tests/webp_decode_tests.cpp'), *objects, '-Wl,--gc-sections', '-lm', '-o', str(binary)])
+             str(ROOT / 'tests/webp_decode_tests.cpp'), *objects,
+             '-Wl,-dead_strip' if sys.platform == 'darwin' else '-Wl,--gc-sections',
+             '-lm', '-o', str(binary)])
         run([str(binary)])
