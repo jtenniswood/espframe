@@ -44,6 +44,8 @@ int main() {
   std::array<Image *, 4> pointers{&images[0], &images[1], &images[2], &images[3]};
   lv_image_set_src(left, &images[2].descriptor);
   lv_image_set_src(right, &images[3].descriptor);
+  assert(!bindings.is_bound(&images[0]) && !bindings.is_bound(&images[1]));
+  assert(bindings.is_bound(&images[2]) && bindings.is_bound(&images[3]));
   // The displayed preload pair remains pinned even with stale model ownership.
   auto result = esphome::espframe::reclaim_portrait_buffers({true, false, false, false}, pointers, bindings);
   assert(result.released_bytes == 2048000 && result.retained_bytes == 2048000);
