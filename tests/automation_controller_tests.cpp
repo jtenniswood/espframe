@@ -32,18 +32,33 @@ static void test_rotation() {
   } display{calls};
   struct Pairing {
     std::vector<int> &calls;
-    void turn_on() { calls.push_back(1); }
-    void turn_off() { calls.push_back(-1); }
+    bool state = false;
+    void turn_on() { calls.push_back(1); state = true; }
+    void turn_off() { calls.push_back(-1); state = false; }
   } pairing{calls};
   const std::array<std::string, 4> options{"0", "90", "180", "270"};
   // Both current panels use the offset mapping; the helper must also preserve
   // board substitutions when another panel supplies a different mapping.
   for (const auto &mapping : {std::array<int, 4>{90, 180, 270, 0}, std::array<int, 4>{0, 90, 180, 270}}) {
     for (size_t i = 0; i < options.size(); ++i) {
-      calls.clear();
-      apply_rotation_plan(rotation_plan(options[i], mapping), &display, &pairing);
-      assert((calls == std::vector<int>{mapping[i], i % 2 == 0 ? 1 : -1}));
+      for (bool enabled : {false, true}) {
+        pairing.state = enabled;
+        // Boot and repeated rotation/developer-setting applications must keep
+        // an explicit OFF choice. Portrait rotation still disables pairing.
+        for (int repeat = 0; repeat < 3; ++repeat) {
+          calls.clear();
+          apply_rotation_plan(rotation_plan(options[i], mapping), &display, &pairing);
+          const bool landscape = i % 2 == 0;
+          assert(pairing.state == (landscape && enabled));
+          assert((calls == (landscape ? std::vector<int>{mapping[i]} : std::vector<int>{mapping[i], -1})));
+        }
+      }
     }
+    // Returning from portrait to landscape must not enable pairing either.
+    pairing.state = true;
+    apply_rotation_plan(rotation_plan("90", mapping), &display, &pairing);
+    apply_rotation_plan(rotation_plan("0", mapping), &display, &pairing);
+    assert(!pairing.state);
     for (const std::string invalid : {"", "45", "360", "invalid"}) {
       calls.clear();
       apply_rotation_plan(rotation_plan(invalid, mapping), &display, &pairing);

@@ -131,7 +131,50 @@ async function overlapping(firstFails, secondFails) {
   assert.equal(state.amount, 4, "external changes must resume after writes settle");
 }
 
+async function rotationPreservesPairing() {
+  const template = fs.readFileSync("docs/webserver/src/app.template.ts", "utf8");
+  const writes = [];
+  const runtime = {
+    screenRotationOptionsForUi: () => ["0", "90", "180", "270"],
+    isPortraitScreenRotation: value => value === "90" || value === "270",
+    saveSettingValues: async values => { writes.push({ ...values }); },
+  };
+  vm.runInNewContext(transformSync(template.slice(template.indexOf("  function saveScreenRotationSetting"),
+    template.indexOf("  function reportSettingSaveFailure")), { loader: "ts" }).code, runtime);
+  for (const rotation of ["0", "180"]) {
+    await runtime.saveScreenRotationSetting("screen_rotation", rotation);
+    assert.deepEqual(writes.pop(), { screen_rotation: rotation },
+      "landscape rotation must leave the device's pairing preference alone");
+  }
+  for (const rotation of ["90", "270"]) {
+    await runtime.saveScreenRotationSetting("screen_rotation", rotation);
+    assert.deepEqual(writes.pop(), { screen_rotation: rotation, portrait_pairing: false });
+  }
+  await runtime.saveScreenRotationSetting("screen_rotation", "invalid");
+  assert.equal(writes.length, 0);
+
+  const backupSource = fs.readFileSync("docs/webserver/src/backup_import.ts", "utf8");
+  vm.runInNewContext(transformSync(backupSource, { loader: "ts" }).code, runtime);
+  for (const enabled of [false, true]) {
+    for (const rotation of ["0", "180", "90", "270"]) {
+      // Photos precede screen fields in real backups. Rotation must not
+      // overwrite an imported OFF choice when the frame is in landscape.
+      runtime.backupImportValues = { portrait_pairing: enabled };
+      assert.equal(runtime.applyBackupImportField({ group: "screen", field: "rotation" }, rotation), true);
+      assert.deepEqual({ ...runtime.backupImportValues }, {
+        screen_rotation: rotation,
+        portrait_pairing: runtime.isPortraitScreenRotation(rotation) ? false : enabled,
+      });
+    }
+  }
+  runtime.backupImportValues = {};
+  runtime.applyBackupImportField({ group: "screen", field: "rotation" }, "0");
+  assert.deepEqual({ ...runtime.backupImportValues }, { screen_rotation: "0" },
+    "a partial screen backup must not enable portrait pairing");
+}
+
 async function main() {
+  await rotationPreservesPairing();
   for (const status of [404, 405]) await legacyConnectionRollback(status);
   deferredFailureRender();
   for (const firstFails of [true, false]) {

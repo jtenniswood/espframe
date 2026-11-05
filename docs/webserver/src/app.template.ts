@@ -334,10 +334,9 @@ import {
   function saveScreenRotationSetting(key, value) {
     var rotation = String(value);
     if (screenRotationOptionsForUi().indexOf(rotation) === -1) return Promise.resolve(null);
-    return saveSettingValues({
-      screen_rotation: rotation,
-      portrait_pairing: !isPortraitScreenRotation(rotation)
-    });
+    var values: Record<string, string | boolean> = { screen_rotation: rotation };
+    if (isPortraitScreenRotation(rotation)) values.portrait_pairing = false;
+    return saveSettingValues(values);
   }
 
   function reportSettingSaveFailure() {
