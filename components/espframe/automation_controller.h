@@ -13,7 +13,7 @@ template<typename... Scripts> void stop_scripts_in_order(Scripts *...scripts) {
 
 struct RotationPlan {
   int degrees;
-  bool portrait_pairing;
+  bool portrait_pairing_allowed;
   bool valid;
 };
 inline RotationPlan rotation_plan(const std::string &option, const std::array<int, 4> &panel_rotations) {
@@ -27,8 +27,9 @@ template<typename Display, typename PairingSwitch>
 void apply_rotation_plan(const RotationPlan &plan, Display *display, PairingSwitch *pairing) {
   if (!plan.valid) return;
   display->set_rotation(plan.degrees);
-  if (plan.portrait_pairing) pairing->turn_on();
-  else pairing->turn_off();
+  // Rotation can prohibit pairing, but landscape must preserve the saved
+  // preference when boot, a settings save, or developer-mode changes reapply it.
+  if (!plan.portrait_pairing_allowed) pairing->turn_off();
 }
 
 enum class SlotFetchDecision : uint8_t {

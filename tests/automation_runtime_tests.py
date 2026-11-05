@@ -20,7 +20,7 @@ def main():
     slideshow = (ROOT / 'common/addon/immich_slideshow.yaml').read_text()
     recovery = slideshow.split('stop_slideshow_workers(', 1)[1].split(');', 1)[0]
     workers = re.findall(r'id\((\w+)\)', recovery)
-    if len(workers) != 22 or len(set(workers)) != 22:
+    if len(workers) != 25 or len(set(workers)) != 25:
         raise ValueError('Review the recovery fixture when its worker set changes')
     select = rotation['select'][0]
     select.pop('web_server')
@@ -45,6 +45,8 @@ def main():
         {'delay': '100ms'}, {'lambda': 'id(worker_count)++;'},
     ]} for name in workers]
     actions = [{'delay': '300ms'}, {'lambda': '''
+      automation_require(!id(portrait_pairing_enabled).state, "boot preserves pairing OFF");
+      id(portrait_pairing_enabled).turn_on();
       id(fetch_guard).execute();
       automation_require(id(fetch_count) == 0 && !id(fetch_guard).is_running(), "self-stop suppressed continuation");
       id(developer_features_enabled).turn_on();
@@ -53,7 +55,7 @@ def main():
     '''}, {'delay': '50ms'}, {'lambda': 'id(screen_rotation_select).publish_state("0");'},
         {'delay': '60ms'}, {'lambda': 'automation_require(id(layout_count) == 0, "restart cancelled old delay");'},
         {'delay': '100ms'}, {'lambda': 'automation_require(id(layout_count) == 1, "one delayed layout after restart");'}]
-    for option, angle, pairing in [('90', 180, False), ('180', 270, True), ('270', 0, False), ('0', 90, True)]:
+    for option, angle, pairing in [('90', 180, False), ('180', 270, False), ('270', 0, False), ('0', 90, False)]:
         actions += [{'lambda': f'id(screen_rotation_select).publish_state("{option}");'}, {'delay': '150ms'},
                     {'lambda': f'automation_require(id(frame_lvgl)->rotation == {angle} && id(portrait_pairing_enabled).state == {str(pairing).lower()}, "rotation {option} mapping/pairing");'}]
     actions += [{'lambda': '''
@@ -62,7 +64,7 @@ def main():
       id(screen_rotation_select).publish_state("90");
     '''}, {'delay': '200ms'}, {'lambda': '''
       automation_require(id(screen_rotation_select).current_option() == "0", "developer clamp select");
-      automation_require(id(frame_lvgl)->rotation == 90 && id(portrait_pairing_enabled).state, "developer clamp display");
+      automation_require(id(frame_lvgl)->rotation == 90 && !id(portrait_pairing_enabled).state, "developer clamp preserves pairing OFF");
       automation_require(id(layout_count) == 1, "one delayed layout after reentrant clamp");
     '''}]
     start = '\n'.join(f'id({worker}).execute();' for worker in workers)

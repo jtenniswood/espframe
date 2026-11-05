@@ -464,7 +464,7 @@
         var importedRotation = String(value);
         if (screenRotationOptionsForUi().indexOf(importedRotation) !== -1) {
           queueBackupImportSetting("screen_rotation", importedRotation);
-          queueBackupImportSetting("portrait_pairing", !isPortraitScreenRotation(importedRotation));
+          if (isPortraitScreenRotation(importedRotation)) queueBackupImportSetting("portrait_pairing", false);
           return true;
         }
         return skipBackupImportField("Screen rotation was invalid - not imported");

@@ -2379,10 +2379,9 @@ to {
   function saveScreenRotationSetting(key, value) {
     var rotation = String(value);
     if (screenRotationOptionsForUi().indexOf(rotation) === -1) return Promise.resolve(null);
-    return saveSettingValues({
-      screen_rotation: rotation,
-      portrait_pairing: !isPortraitScreenRotation(rotation)
-    });
+    var values = { screen_rotation: rotation };
+    if (isPortraitScreenRotation(rotation)) values.portrait_pairing = false;
+    return saveSettingValues(values);
   }
   function reportSettingSaveFailure() {
     if (typeof backupImportInProgress !== "undefined" && backupImportInProgress) return;
@@ -6096,7 +6095,7 @@ to {
         var importedRotation = String(value);
         if (screenRotationOptionsForUi().indexOf(importedRotation) !== -1) {
           queueBackupImportSetting("screen_rotation", importedRotation);
-          queueBackupImportSetting("portrait_pairing", !isPortraitScreenRotation(importedRotation));
+          if (isPortraitScreenRotation(importedRotation)) queueBackupImportSetting("portrait_pairing", false);
           return true;
         }
         return skipBackupImportField("Screen rotation was invalid - not imported");
