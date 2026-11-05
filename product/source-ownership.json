@@ -177,7 +177,7 @@
         "docs/.vitepress/theme/usb-installer.ts"
       ],
       "upstream": "https://github.com/esphome/esp-web-tools",
-      "revision": "esp-web-tools 10.4.0 with esptool-js 0.7.0 (https://github.com/espressif/esptool-js) and Material Web 2.4.1; exact dependencies and integrity hashes are recorded in package-lock.json",
+      "revision": "esp-web-tools 10.4.0 with esptool-js 0.7.1 (https://github.com/espressif/esptool-js) and Material Web 2.4.1; exact dependencies and integrity hashes are recorded in package-lock.json",
       "license": "Apache-2.0 (ESP Web Tools and Material Web), MIT (esptool-js)"
     }
   ],
