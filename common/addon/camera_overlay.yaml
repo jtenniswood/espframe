@@ -1,0 +1,257 @@
+# =============================================================================
+# CAMERA OVERLAY - Event-driven camera snapshot from Home Assistant
+# =============================================================================
+# Home Assistant calls show_camera with any HTTP(S) JPEG/WebP snapshot URL
+# (HA camera_proxy, UniFi Protect anonymous snapshot, Frigate latest.jpg, ...).
+# The frame wakes if needed, pauses the slideshow, shows the snapshot full
+# screen with an optional title, optionally re-fetches it for a near-live view,
+# and returns to the previous state after the duration, a tap, or
+# dismiss_camera. The image buffer is released when the overlay closes.
+# =============================================================================
+
+globals:
+  - id: camera_overlay_active
+    type: bool
+    initial_value: 'false'
+  - id: camera_overlay_until_ms
+    type: uint32_t
+    initial_value: '0'
+  - id: camera_overlay_refresh_ms
+    type: uint32_t
+    initial_value: '0'
+  - id: camera_overlay_last_fetch_ms
+    type: uint32_t
+    initial_value: '0'
+  # Sleep state to restore on timeout: 0 awake, 1 manual sleep, 2 schedule sleep.
+  - id: camera_overlay_restore_sleep
+    type: uint8_t
+    initial_value: '0'
+
+remote_image:
+  - id: camera_overlay_img
+    url: "${immich_image_initial_url}"
+    resize: ${display_width}x${display_height}
+    type: RGB565
+    byte_order: little_endian
+    formats: [JPEG, WEBP]
+    on_download_finished:
+      then:
+        - lambda: |-
+            if (!id(camera_overlay_active)) return;
+            auto *dsc = get_lv_image_descriptor_(id(camera_overlay_img), 0);
+            if (dsc == nullptr || dsc->data == nullptr) return;
+            // Redraw only now: the buffer is decoded in place, so invalidating
+            // during a refresh download would show a half-decoded frame.
+            lv_img_set_src(id(camera_overlay_image), dsc);
+            lv_obj_clear_flag(id(camera_overlay_image), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(camera_overlay_error_icon), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_invalidate(id(camera_overlay));
+    on_error:
+      then:
+        - lambda: |-
+            if (!id(camera_overlay_active)) return;
+            ESP_LOGW("camera", "Camera snapshot download failed");
+            if (lv_obj_has_flag(id(camera_overlay_image), LV_OBJ_FLAG_HIDDEN)) {
+              lv_obj_clear_flag(id(camera_overlay_error_icon), LV_OBJ_FLAG_HIDDEN);
+            }
+
+api:
+  actions:
+    # duration: seconds on screen (<= 0 uses 30, max 3600).
+    # refresh: seconds between re-fetches, 0 for a single snapshot.
+    # fill: true crops to cover the screen, false shows the whole image.
+    - action: show_camera
+      variables:
+        url: string
+        title: string
+        duration: int
+        refresh: int
+        fill: bool
+      then:
+        - lambda: 'id(camera_overlay_show).execute(url, title, duration, refresh, fill, "", "");'
+
+    # Same as show_camera, plus one request header for authenticated sources,
+    # e.g. "Authorization" / "Bearer <token>" for HA camera_proxy.
+    - action: show_camera_with_header
+      variables:
+        url: string
+        title: string
+        duration: int
+        refresh: int
+        fill: bool
+        header_name: string
+        header_value: string
+      then:
+        - lambda: 'id(camera_overlay_show).execute(url, title, duration, refresh, fill, header_name, header_value);'
+
+    - action: dismiss_camera
+      then:
+        - lambda: 'id(camera_overlay_dismiss).execute(true);'
+
+lvgl:
+  top_layer:
+    widgets:
+      - obj:
+          id: camera_overlay
+          align: CENTER
+          width: 100%
+          height: 100%
+          radius: 0
+          bg_color: 0x000000
+          bg_opa: 100%
+          border_width: 0
+          pad_all: 0
+          scrollable: false
+          clickable: true
+          hidden: true
+          on_short_click:
+            then:
+              - lambda: 'id(camera_overlay_dismiss).execute(false);'
+          widgets:
+            - image:
+                id: camera_overlay_image
+                align: CENTER
+                src: camera_overlay_img
+                hidden: true
+            - label:
+                id: camera_overlay_error_icon
+                align: CENTER
+                text_font: icon_font_setup
+                text: $icon_cloud_off
+                text_color: 0xFFFFFF
+                hidden: true
+            - obj:
+                id: camera_overlay_banner
+                align: TOP_MID
+                width: 100%
+                height: SIZE_CONTENT
+                radius: 0
+                bg_color: 0x000000
+                bg_opa: 55%
+                border_width: 0
+                pad_all: 20
+                scrollable: false
+                widgets:
+                  - label:
+                      id: camera_overlay_title
+                      align: CENTER
+                      width: 100%
+                      text: ""
+                      text_font: noto_400_46_font
+                      text_color: 0xFFFFFF
+                      text_align: center
+                      long_mode: dot
+
+script:
+  - id: camera_overlay_show
+    mode: queued
+    parameters:
+      url: string
+      title: string
+      duration: int
+      refresh: int
+      fill: bool
+      header_name: string
+      header_value: string
+    then:
+      - lambda: |-
+          if (url.rfind("http://", 0) != 0 && url.rfind("https://", 0) != 0) {
+            ESP_LOGW("camera", "show_camera ignored: url must start with http:// or https://");
+            return;
+          }
+          const uint32_t now = millis();
+          const bool was_active = id(camera_overlay_active);
+          if (!was_active) {
+            if (id(backlight_manual_off)) {
+              id(camera_overlay_restore_sleep) = 1;
+            } else if (id(screen_schedule_asleep) || id(backlight_paused) ||
+                       id(screensaver_display_off_active)) {
+              id(camera_overlay_restore_sleep) = 2;
+            } else {
+              id(camera_overlay_restore_sleep) = 0;
+            }
+          }
+
+          int duration_s = duration <= 0 ? 30 : std::min<int>(duration, 3600);
+          id(camera_overlay_until_ms) = now + (uint32_t) duration_s * 1000;
+          id(camera_overlay_refresh_ms) = refresh <= 0 ? 0 : (uint32_t) std::min<int>(refresh, 3600) * 1000;
+          id(camera_overlay_last_fetch_ms) = now;
+
+          auto *img = id(camera_overlay_img);
+          img->abort_download();
+          img->clear_request_headers();
+          if (!header_name.empty()) img->add_request_header(header_name, header_value);
+          img->set_fill_mode(fill);
+          if (!was_active) {
+            bool portrait_screen = id(screen_rotation_select).current_option() == "90" ||
+                                   id(screen_rotation_select).current_option() == "270";
+            img->set_target_size(portrait_screen ? ${portrait_display_width} : ${display_width},
+                                 portrait_screen ? ${portrait_display_height} : ${display_height});
+            img->set_vertical_align(esphome::remote_image::VERTICAL_ALIGN_CENTER);
+          }
+          img->set_url(url);
+          img->update();
+
+          lv_label_set_text(id(camera_overlay_title), title.c_str());
+          if (title.empty()) lv_obj_add_flag(id(camera_overlay_banner), LV_OBJ_FLAG_HIDDEN);
+          else lv_obj_clear_flag(id(camera_overlay_banner), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(id(camera_overlay_error_icon), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_clear_flag(id(camera_overlay), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_move_foreground(id(camera_overlay));
+          id(camera_overlay_active) = true;
+          ESP_LOGI("camera", "Showing camera for %ds (refresh %ds)", duration_s,
+                   (int) (id(camera_overlay_refresh_ms) / 1000));
+
+          // The overlay keeps any off-hours wake alive (see the interval) and
+          // restores sleep itself when it closes.
+          if (id(camera_overlay_restore_sleep) != 0) id(backlight_wake).execute();
+
+  # restore=true (timeout or HA dismiss) returns to the sleep state the frame
+  # was in before the event; a tap keeps the screen awake like any other touch.
+  - id: camera_overlay_dismiss
+    mode: queued
+    parameters:
+      restore: bool
+    then:
+      - lambda: |-
+          if (!id(camera_overlay_active)) return;
+          id(camera_overlay_active) = false;
+          lv_obj_add_flag(id(camera_overlay), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(id(camera_overlay_image), LV_OBJ_FLAG_HIDDEN);
+          id(camera_overlay_img)->abort_download();
+          id(camera_overlay_img)->clear_request_headers();
+          id(camera_overlay_img)->release();
+          // backlight_wake marks every wake as touch-initiated; this one was not.
+          id(touch_started_while_off) = false;
+          id(wake_touch_ms) = 0;
+          ESP_LOGI("camera", "Camera overlay closed");
+
+          const uint8_t sleep_state = restore ? id(camera_overlay_restore_sleep) : 0;
+          id(camera_overlay_restore_sleep) = 0;
+          if (sleep_state == 1) {
+            id(screen_schedule_manual_sleep).execute();
+          } else if (sleep_state == 2) {
+            id(manual_wake_ms) = 0;
+            id(screen_schedule_sleep).execute();
+          } else if (id(manual_wake_ms) != 0) {
+            // Off-hours: fall back to the normal temporary-wake timeout.
+            id(manual_wake_ms) = millis();
+            id(screen_schedule_wake_timeout_check).execute();
+          }
+
+interval:
+  - interval: 250ms
+    then:
+      - lambda: |-
+          if (!id(camera_overlay_active)) return;
+          const uint32_t now = millis();
+          if ((int32_t) (now - id(camera_overlay_until_ms)) >= 0) {
+            id(camera_overlay_dismiss).execute(true);
+            return;
+          }
+          if (id(manual_wake_ms) != 0) id(manual_wake_ms) = now;
+          if (id(camera_overlay_refresh_ms) > 0 && !id(camera_overlay_img)->is_downloading() &&
+              (now - id(camera_overlay_last_fetch_ms)) >= id(camera_overlay_refresh_ms)) {
+            id(camera_overlay_last_fetch_ms) = now;
+            id(camera_overlay_img)->update();
+          }
