@@ -1,6 +1,7 @@
 """Exercise component registration with and without LVGL and parent overrides."""
 import asyncio
 from itertools import product
+import os
 from pathlib import Path
 import runpy
 import sys
@@ -45,7 +46,8 @@ class MemoryCodegenTests(unittest.TestCase):
                     "esphome.components": types.ModuleType("esphome.components"),
                     "esphome.components.esp32": esp32,
                 }
-                with patch.dict(sys.modules, modules):
+                with patch.dict(sys.modules, modules), patch.dict(os.environ):
+                    os.environ.pop("ESPHOME_LDGEN_FULL_DEPS", None)
                     component = runpy.run_path(str(ROOT / "components/espframe/__init__.py"))
                     config = {
                         "id": "parent", "setup_priority": 500,
@@ -53,6 +55,7 @@ class MemoryCodegenTests(unittest.TestCase):
                         "memory_before_id": "before", "memory_after_id": "after",
                     }
                     asyncio.run(component["to_code"](config))
+                    self.assertEqual(os.environ.get("ESPHOME_LDGEN_FULL_DEPS"), "1" if psram else None)
                 registrations = cg.register_component.await_args_list
                 self.assertEqual(registrations[0].args[1], config)
                 self.assertEqual(len(registrations), 3 if lvgl and psram else 1)

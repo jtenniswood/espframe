@@ -62,15 +62,4 @@ select:
                 lv_label_set_text(id(wifi_setup_instructions), instructions.c_str());
                 id(update_photo_metadata_display).execute();
             };
-            // Restored selects publish during setup. Repaint only after every
-            // display component is ready, using the core's existing scheduler.
-            id(espframe_core).cancel_interval("device-language-startup");
-            if (App.is_setup_complete()) {
-              id(espframe_core).defer("device-language-refresh", refresh);
-            } else {
-              id(espframe_core).set_interval("device-language-startup", 100, [refresh]() {
-                if (!App.is_setup_complete()) return;
-                id(espframe_core).cancel_interval("device-language-startup");
-                refresh();
-              });
-            }
+            id(espframe_core).schedule_language_refresh(refresh);
