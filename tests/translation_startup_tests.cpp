@@ -11,13 +11,8 @@ struct Application {
 
 struct Scheduler {
   std::map<std::string, std::function<void()>> intervals, deferred;
-  void cancel_interval(const std::string &name) { intervals.erase(name); }
-  void set_interval(const std::string &name, unsigned, std::function<void()> callback) {
-    intervals[name] = std::move(callback);
-  }
-  void defer(const std::string &name, std::function<void()> callback) {
-    deferred[name] = std::move(callback);
-  }
+#include "translation_scheduler_fixture.inc"
+
   void tick() {
     // Call a copy: callbacks may cancel their own interval.
     auto callbacks = intervals;
@@ -27,6 +22,15 @@ struct Scheduler {
     auto callbacks = std::move(deferred);
     deferred.clear();
     for (auto &entry : callbacks) entry.second();
+  }
+
+ private:
+  void cancel_interval(const std::string &name) { intervals.erase(name); }
+  void set_interval(const std::string &name, unsigned, std::function<void()> callback) {
+    intervals[name] = std::move(callback);
+  }
+  void defer(const std::string &name, std::function<void()> callback) {
+    deferred[name] = std::move(callback);
   }
 } espframe_core;
 

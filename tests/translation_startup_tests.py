@@ -18,6 +18,10 @@ with tempfile.TemporaryDirectory(prefix="espframe-translation-startup-") as dire
     fixture = "\n".join(f"lv_obj_t {name}_storage; auto *{name} = &{name}_storage;" for name in sorted(labels))
     fixture += '\nvoid on_language_value(const std::string &x) {\n' + body + '\n}\n'
     (folder / "translation_startup_fixture.inc").write_text(fixture)
+    header = (ROOT / "components/espframe/espframe_component.h").read_text()
+    method = "  void schedule_language_refresh("
+    scheduler = method + header.split(method, 1)[1].split("\n  }", 1)[0] + "\n  }\n"
+    (folder / "translation_scheduler_fixture.inc").write_text(scheduler)
     binary = folder / "translation_startup_tests"
     subprocess.run(["g++", "-std=c++17", "-I", str(ROOT), "-I", directory,
                     str(ROOT / "tests/translation_startup_tests.cpp"), "-o", str(binary)], check=True)

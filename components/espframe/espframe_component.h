@@ -61,6 +61,21 @@ class EspFrameComponent : public Component, public ConfigurationUpdateScheduler 
 
   void schedule_configuration_update(std::function<void()> &&update) override { this->defer(std::move(update)); }
 
+  void schedule_language_refresh(std::function<void()> &&refresh) {
+    // Restored selects publish during setup, before the display is ready.
+    this->cancel_interval("device-language-startup");
+    if (App.is_setup_complete()) {
+      this->defer("device-language-refresh", std::move(refresh));
+      return;
+    }
+
+    this->set_interval("device-language-startup", 100, [this, refresh = std::move(refresh)]() {
+      if (!App.is_setup_complete()) return;
+      this->cancel_interval("device-language-startup");
+      refresh();
+    });
+  }
+
   void set_firmware_update_in_progress(bool value) { this->reset_.set_firmware_update_in_progress(value); }
   bool clear_factory_wifi_reset() { return this->reset_.clear_factory_wifi_reset(); }
 

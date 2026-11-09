@@ -53,6 +53,10 @@ def _register_psram_bss_component():
     # CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY.
     from esphome.components.esp32 import add_idf_component
 
+    # Native ESPHome builds otherwise omit libsrc.a from linker generation.
+    # This fragment needs it to keep generated state out of internal RAM.
+    os.environ["ESPHOME_LDGEN_FULL_DEPS"] = "1"
+
     dest_path = str(CORE.relative_build_path("components", "espframe_psram_bss"))
     shutil.copytree(
         os.path.join(os.path.dirname(__file__), "psram_bss"),
