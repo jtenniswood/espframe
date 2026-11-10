@@ -48,7 +48,7 @@ Currently documented hardware:
 
 | Item | Link |
 |------|------|
-| 10.1-inch Guition ESP32-P4 panel (`JC8012P4A1`) | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) |
+| 10.1-inch Guition ESP32-P4 panel (`JC8012P4A1`) | [AliExpress](https://s.click.aliexpress.com/e/_c3KMTQsB) |
 | 10" printable stand | [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046) |
 
 The [installation guide](https://jtenniswood.github.io/espframe/install) helps you choose the right firmware for your display.

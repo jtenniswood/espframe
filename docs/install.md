@@ -13,7 +13,7 @@ description: Choose the right firmware for your Guition display, install it from
 
 You need a **Guition JC8012P4A1** display, a **USB-C data cable** (not a charge-only cable), and **Chrome or Edge on a desktop computer**. Have your Immich server URL and [API key](/api-key) ready.
 
-Need a display? [Buy the panel](https://s.click.aliexpress.com/e/_c4LLo3rH) or [print a stand](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046).
+Need a display? [Buy the panel](https://s.click.aliexpress.com/e/_c3KMTQsB) or [print a stand](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046).
 
 <span id="connect-the-display"></span>
 <span id="flash-the-firmware"></span>

@@ -231,7 +231,7 @@
       "icon_cog": "\\U000F0493",
       "icon_cloud_off": "\\U000F0164"
     },
-    "panel_url": "https://s.click.aliexpress.com/e/_c4LLo3rH",
+    "panel_url": "https://s.click.aliexpress.com/e/_c3KMTQsB",
     "stand_url": "https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046",
     "build_yaml": "builds/guition-esp32-p4-jc8012p4a1.factory.yaml",
     "package_yaml": "devices/guition-esp32-p4-jc8012p4a1/packages.yaml",
@@ -469,7 +469,7 @@
       "icon_cog": "\\U000F0493",
       "icon_cloud_off": "\\U000F0164"
     },
-    "panel_url": "https://s.click.aliexpress.com/e/_c4LLo3rH",
+    "panel_url": "https://s.click.aliexpress.com/e/_c3KMTQsB",
     "stand_url": "https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046",
     "build_yaml": "builds/guition-esp32-p4-jc8012p4a1-v2.factory.yaml",
     "package_yaml": "devices/guition-esp32-p4-jc8012p4a1-v2/packages.yaml",
@@ -709,7 +709,7 @@
       "icon_cog": "\\U000F0493",
       "icon_cloud_off": "\\U000F0164"
     },
-    "panel_url": "https://s.click.aliexpress.com/e/_c4LLo3rH",
+    "panel_url": "https://s.click.aliexpress.com/e/_c3KMTQsB",
     "stand_url": "https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046",
     "build_yaml": "builds/guition-esp32-p4-jc8012p4a1-v3.factory.yaml",
     "package_yaml": "devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml",
