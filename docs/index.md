@@ -56,7 +56,7 @@ EspFrame does not upload photos or send your library through a hosted service. T
 
 | Model | Panel | Stand |
 |-------|-------|-------|
-| Guition ESP32-P4 10.1-inch `JC8012P4A1` | [AliExpress](https://s.click.aliexpress.com/e/_c4LLo3rH) | [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046) |
+| Guition ESP32-P4 10.1-inch `JC8012P4A1` | [AliExpress](https://s.click.aliexpress.com/e/_c3KMTQsB) | [MakerWorld](https://makerworld.com/en/models/2490049-guition-p4-10inch-screen-stand#profileId-2736046) |
 
 The [installer](/install) helps you choose the right firmware for your display.
 
