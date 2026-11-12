@@ -58,7 +58,7 @@
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "esbuild": "^0.28.1",
-    "esp-web-tools": "10.4.0",
+    "esp-web-tools": "10.5.2",
     "typescript": "^7.0.2",
     "vitepress": "^1.6.3"
   },
