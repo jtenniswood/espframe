@@ -176,6 +176,7 @@ script:
           then:
             - script.execute: immich_check_config_ready
             - script.stop: immich_discover_capabilities
+      - script.execute: wireguard_log_immich_route
       - http_request.get:
           id: http_req
           url: !lambda 'return id(immich_url).state + "/api/server/version";'
@@ -221,6 +222,7 @@ script:
                   }
           on_error:
             then:
+              - script.execute: wireguard_log_immich_route
               - lambda: |-
                   const bool use_flat_fallback =
                     id(immich_request_state).register_capability_discovery_failure();

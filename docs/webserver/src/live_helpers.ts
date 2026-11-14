@@ -33,6 +33,10 @@
     } else if (id === "text_sensor/Screen: Sunset") {
       S.sunset = d.value || d.state || "";
       updateSunInfoElement(document.getElementById("sun-info"));
+    } else if (stateSpec && (stateSpec.key === "wireguard_connected" || stateSpec.key === "wireguard_tunnel_enabled" ||
+      stateSpec.key === "wireguard_handshake_age")) {
+      applyEntityToState(d);
+      updateWireguardStatusFromPage();
     } else if (stateSpec && LIVE_RENDER_STATE_KEYS.indexOf(stateSpec.key) !== -1) {
       applyEntityToState(d);
       renderSettingsAfterEditing();

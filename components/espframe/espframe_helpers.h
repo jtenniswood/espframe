@@ -3,6 +3,8 @@
 #include "duration_helpers.h"
 #include "immich_helpers.h"
 #include "ntp_helpers.h"
+#include "wireguard_helpers.h"
+#include "wireguard_runtime.h"
 #include "sun_calc.h"
 #include "slideshow_model.h"
 #include "slideshow_controller.h"
