@@ -1,9 +1,15 @@
 name: Build Release
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the existing draft for the selected tag after verifying its firmware
+        type: boolean
+        default: false
+
+concurrency:
+  group: firmware-release-${{ github.ref }}
 
 permissions:
   contents: write
@@ -43,7 +49,7 @@ jobs:
 
   release-notes:
     name: Update Release Notes
-    if: github.event_name == 'release'
+    if: inputs.publish && github.ref_type == 'tag'
     runs-on: espframe
     timeout-minutes: 10
     steps:
@@ -52,16 +58,23 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Require an existing draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ github.ref_name }}
+        run: test "$(gh release view "$VERSION" --json isDraft --jq .isDraft)" = true
+
       - name: Build detailed changelog
         env:
-          VERSION: ${{ github.event.release.tag_name }}
+          VERSION: ${{ github.ref_name }}
         run: python3 scripts/release_changelog.py "$VERSION" --output "$RUNNER_TEMP/release-notes.md"
 
       - name: Update GitHub release notes
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          VERSION: ${{ github.event.release.tag_name }}
+          VERSION: ${{ github.ref_name }}
         run: gh release edit "$VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"
 
   build-firmware:
@@ -106,7 +119,7 @@ jobs:
 
       - name: Compile firmware
         env:
-          VERSION: ${{ github.event.release.tag_name || github.ref_name }}
+          VERSION: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           python3 scripts/firmware_release.py inject \
@@ -207,7 +220,7 @@ jobs:
 
       - name: Collect firmware files and generate manifest
         env:
-          VERSION: ${{ github.event.release.tag_name || github.ref_name }}
+          VERSION: ${{ github.ref_name }}
         run: |
           mkdir -p output
 
@@ -264,7 +277,7 @@ jobs:
 
       - name: Verify assembled release assets
         env:
-          VERSION: ${{ github.event.release.tag_name || github.ref_name }}
+          VERSION: ${{ github.ref_name }}
           DEVICE_SLUGS: ${{ needs.release-metadata.outputs.device_slugs }}
         run: >-
           python3 scripts/firmware_release.py verify-directory
@@ -276,13 +289,16 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: verified-firmware-candidate
-          path: firmware/
+          path: |
+            firmware/*.manifest.json
+            firmware/*.factory.bin
+            firmware/*.ota.bin
           if-no-files-found: error
 
   publish:
     name: Publish to Release
-    if: github.event_name == 'release'
-    needs: [assemble-candidate, release-metadata]
+    if: inputs.publish && github.ref_type == 'tag'
+    needs: [assemble-candidate, release-metadata, release-notes]
     runs-on: espframe
     timeout-minutes: 20
     steps:
@@ -305,7 +321,7 @@ jobs:
 
       - name: Verify assembled release assets
         env:
-          VERSION: ${{ github.event.release.tag_name }}
+          VERSION: ${{ github.ref_name }}
           DEVICE_SLUGS: ${{ needs.release-metadata.outputs.device_slugs }}
         run: >-
           python3 scripts/firmware_release.py verify-directory
@@ -313,17 +329,25 @@ jobs:
           --dir firmware
           --slugs $DEVICE_SLUGS
 
+      - name: Require an existing draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ github.ref_name }}
+        run: test "$(gh release view "$VERSION" --json isDraft --jq .isDraft)" = true
+
       - name: Upload firmware to release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: gh release upload "${{ github.event.release.tag_name }}" firmware/* --clobber
+          VERSION: ${{ github.ref_name }}
+        run: gh release upload "$VERSION" firmware/* --clobber
 
       - name: Verify uploaded release assets
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          VERSION: ${{ github.event.release.tag_name }}
+          VERSION: ${{ github.ref_name }}
           DEVICE_SLUGS: ${{ needs.release-metadata.outputs.device_slugs }}
         run: |
           mkdir -p published
@@ -336,3 +360,14 @@ jobs:
             --version "${VERSION}" \
             --dir published \
             --slugs $DEVICE_SLUGS
+
+          for asset in firmware/*; do
+            cmp "$asset" "published/${asset##*/}"
+          done
+
+      - name: Publish verified draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ github.ref_name }}
+        run: gh release edit "$VERSION" --draft=false

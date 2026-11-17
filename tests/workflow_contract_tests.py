@@ -2745,6 +2745,25 @@ def test_firmware_workflows_copy_sources_into_isolated_docker() -> None:
         assert '-v "${PWD}:${ESPHOME_CONFIG_MOUNT}"' not in workflow_text
 
 
+def test_release_promotes_only_the_verified_draft() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text()
+    assert "default: false" in workflow
+    assert "types: [published]" not in workflow
+    publish = workflow.split("\n  publish:\n", 1)[1]
+    assert "if: inputs.publish && github.ref_type == 'tag'" in publish
+    steps = [
+        "Download verified firmware candidate",
+        "Verify assembled release assets",
+        "Require an existing draft release",
+        "Upload firmware to release",
+        "Verify uploaded release assets",
+        'cmp "$asset" "published/${asset##*/}"',
+        "Publish verified draft",
+    ]
+    positions = [publish.index(step) for step in steps]
+    assert positions == sorted(positions)
+
+
 def main() -> int:
     run_discovered_tests(globals())
     print("workflow contract tests passed")

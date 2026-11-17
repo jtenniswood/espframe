@@ -1696,7 +1696,7 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         candidate_inputs = {"name": candidate_name, "path": release_publish_dir}
         for job, action, inputs in (
             ("release.assemble-candidate", upload_artifact_action, {
-                **candidate_inputs, "path": f"{release_publish_dir}/", "if-no-files-found": "error",
+                "name": candidate_name, "if-no-files-found": "error",
             }),
             ("release.publish", download_artifact_action, candidate_inputs),
         ):

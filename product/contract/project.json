@@ -1754,8 +1754,8 @@
   },
   "github_release_notes_fetch_depth": 0,
   "github_release_notes_fetch_tags": true,
-  "github_release_notes_version_ref": "${{ github.event.release.tag_name }}",
-  "github_release_build_version_ref": "${{ github.event.release.tag_name || github.ref_name }}",
+  "github_release_notes_version_ref": "${{ github.ref_name }}",
+  "github_release_build_version_ref": "${{ github.ref_name }}",
   "github_release_build_ref": "${{ github.sha }}",
   "github_release_build_fail_fast": false,
   "github_release_notes_output": "$RUNNER_TEMP/release-notes.md",
@@ -1801,16 +1801,12 @@
       "workflow_dispatch"
     ],
     "release": [
-      "release",
       "workflow_dispatch"
     ]
   },
   "github_workflow_event_types": {
     "docs.workflow_run": [
       "completed"
-    ],
-    "release.release": [
-      "published"
     ]
   },
   "github_docs_workflow_run_success_conclusion": "success",
@@ -1851,7 +1847,8 @@
     ],
     "release.publish": [
       "assemble-candidate",
-      "release-metadata"
+      "release-metadata",
+      "release-notes"
     ]
   },
   "github_workflow_job_conditions": {
@@ -1862,10 +1859,10 @@
     "docs.download-firmware": "github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'",
     "docs.deploy-docs": null,
     "release.release-metadata": null,
-    "release.release-notes": "github.event_name == 'release'",
+    "release.release-notes": "inputs.publish && github.ref_type == 'tag'",
     "release.build-firmware": null,
     "release.assemble-candidate": null,
-    "release.publish": "github.event_name == 'release'"
+    "release.publish": "inputs.publish && github.ref_type == 'tag'"
   },
   "github_sparse_checkout_files": [
     "scripts/firmware_release.py",
