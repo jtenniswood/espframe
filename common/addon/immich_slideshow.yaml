@@ -1154,14 +1154,9 @@ script:
                      (unsigned) reclaimed.released_bytes, (unsigned) reclaimed.retained_bytes);
             id(espframe_core).record_memory("portrait-reclaimed");
           }
-          id(espframe_core).slideshow().request_prefetch(
-            id(backlight_paused),
-            id(immich_request_state).cooldown_active(millis()),
-            millis(), id(espframe_core).slideshow().state().last_prefetch_start_ms, id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().target_slot,
-            id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().fetch_queue, id(espframe_core).slideshow().state().portrait,
-            id(espframe_core).slideshow().state().active_slot_displayed, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight, id(espframe_core).slideshow().state().portrait_preload_slot,
-            id(espframe_core).slideshow().state().portrait_preload_left_ready, id(espframe_core).slideshow().state().portrait_preload_right_ready,
-            id(espframe_core).allow_background_work());
+          const uint32_t now = millis();
+          slideshow.request_prefetch(id(backlight_paused), id(immich_request_state).cooldown_active(now),
+                                     now, id(espframe_core).allow_background_work());
           id(espframe_slideshow_dispatch).execute();
 
   # Run prefetch after short delay to avoid socket exhaustion when many callbacks fire at once

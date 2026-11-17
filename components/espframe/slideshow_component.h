@@ -806,16 +806,15 @@ class EspFrameSlideshow {
   }
 
   bool request_prefetch(bool backlight_paused, bool retry_cooldown_active, uint32_t now_ms,
-                        uint32_t &last_prefetch_start_ms, int active_slot, int &target_slot,
-                        const SlotMeta &slot0, const SlotMeta &slot1, const SlotMeta &slot2,
-                        const SlotFlags &flags, FetchQueue &queue, const PortraitState &portrait,
-                        bool active_slot_displayed, int noncritical_count, int portrait_preload_slot,
-                        bool portrait_preload_left_ready, bool portrait_preload_right_ready,
                         bool background_memory_available = true) {
+    auto &state = this->state_;
+    const int active_slot = state.active_slot;
+    const auto &portrait = state.portrait;
+    const auto &flags = state.slot_flags;
     if (backlight_paused || retry_cooldown_active) return false;
-    if (!active_slot_displayed) return false;
+    if (!state.active_slot_displayed) return false;
 
-    const SlotMeta &active = this->slot_const_(active_slot, slot0, slot1, slot2);
+    const SlotMeta &active = state.slot(active_slot);
     bool active_portrait_busy = false;
     if (active.is_portrait) {
       bool left_pending = !portrait.left_ready;
@@ -823,12 +822,12 @@ class EspFrameSlideshow {
       active_portrait_busy = left_pending || right_pending;
     }
 
-    bool preload_busy = (portrait_preload_slot != -1) &&
-                        !(portrait_preload_left_ready && portrait_preload_right_ready);
+    bool preload_busy = (state.portrait_preload_slot != -1) &&
+                        !(state.portrait_preload_left_ready && state.portrait_preload_right_ready);
     if (any_slot_fetch_in_flight(flags) || active_portrait_busy || preload_busy ||
-        portrait.workflow_busy || noncritical_count > 0)
+        portrait.workflow_busy || state.noncritical_remote_updates_in_flight > 0)
       return false;
-    if ((now_ms - last_prefetch_start_ms) < 600) return false;
+    if ((now_ms - state.last_prefetch_start_ms) < 600) return false;
 
     if (!background_memory_available) {
       this->emit_command(SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY, active_slot, 1200);
@@ -836,14 +835,14 @@ class EspFrameSlideshow {
     }
 
     if (!SlideshowController::enqueue_prefetch_slots(
-            queue, active_slot, slot0, slot1, slot2, flags, now_ms)) {
+            state.fetch_queue, active_slot, state.slot0, state.slot1, state.slot2, flags, now_ms)) {
       return false;
     }
 
     FetchJob job;
-    if (!queue.pop(job)) return false;
-    target_slot = job.slot;
-    last_prefetch_start_ms = now_ms;
+    if (!state.fetch_queue.pop(job)) return false;
+    state.target_slot = job.slot;
+    state.last_prefetch_start_ms = now_ms;
     this->emit_command(SLIDESHOW_COMMAND_FETCH_INTO_SLOT, job.slot);
     return true;
   }

@@ -30,10 +30,9 @@ static void test_memory_pressure_prefetch() {
   auto &state = slideshow.state();
   state.slot0.ready = true;
   state.target_slot = 2;
+  state.active_slot_displayed = true;
   auto prefetch = [&](bool available) {
-    return slideshow.request_prefetch(false, false, 1000, state.last_prefetch_start_ms,
-        0, state.target_slot, state.slot0, state.slot1, state.slot2, state.slot_flags,
-        state.fetch_queue, state.portrait, true, 0, -1, false, false, available);
+    return slideshow.request_prefetch(false, false, 1000, available);
   };
   assert(!prefetch(false));
   assert(state.target_slot == 2 && state.last_prefetch_start_ms == 0);
@@ -1026,21 +1025,17 @@ static void test_slideshow_component_commands() {
 
 static void test_slideshow_component_prefetch_and_deferred_updates() {
   EspFrameSlideshow slideshow;
-  SlotMeta slot0 = make_slot("active", false);
-  SlotMeta slot1 = make_slot("next", false);
-  SlotMeta slot2 = make_slot("next-next", false);
-  slot0.ready = true;
-  slot1.ready = false;
-  slot2.ready = false;
-  SlotFlags flags;
-  FetchQueue queue;
-  PortraitState portrait;
-  uint32_t last_prefetch = 0;
-  int target_slot = 0;
+  auto &state = slideshow.state();
+  state.slot0 = make_slot("active", false);
+  state.slot1 = make_slot("next", false);
+  state.slot2 = make_slot("next-next", false);
+  state.slot0.ready = true;
+  state.active_slot_displayed = true;
+  auto &flags = state.slot_flags;
+  auto &last_prefetch = state.last_prefetch_start_ms;
+  auto &target_slot = state.target_slot;
 
-  bool queued = slideshow.request_prefetch(
-      false, false, 1000, last_prefetch, 0, target_slot, slot0, slot1, slot2,
-      flags, queue, portrait, true, 0, -1, false, false);
+  bool queued = slideshow.request_prefetch(false, false, 1000);
   assert(queued);
   assert(target_slot == 1);
   assert(last_prefetch == 1000);
@@ -1049,22 +1044,18 @@ static void test_slideshow_component_prefetch_and_deferred_updates() {
   assert(cmd.kind == SLIDESHOW_COMMAND_FETCH_INTO_SLOT);
   assert(cmd.slot == 1);
 
-  queued = slideshow.request_prefetch(
-      false, false, 1200, last_prefetch, 0, target_slot, slot0, slot1, slot2,
-      flags, queue, portrait, true, 0, -1, false, false);
+  queued = slideshow.request_prefetch(false, false, 1200);
   assert(!queued);
   assert(!slideshow.has_command());
 
-  queued = slideshow.request_prefetch(
-      false, false, 2000, last_prefetch, 0, target_slot, slot0, slot1, slot2,
-      flags, queue, portrait, false, 0, -1, false, false);
+  state.active_slot_displayed = false;
+  queued = slideshow.request_prefetch(false, false, 2000);
   assert(!queued);
   assert(!slideshow.has_command());
 
+  state.active_slot_displayed = true;
   flags.fetch_in_flight[2] = true;
-  queued = slideshow.request_prefetch(
-      false, false, 2600, last_prefetch, 0, target_slot, slot0, slot1, slot2,
-      flags, queue, portrait, true, 0, -1, false, false);
+  queued = slideshow.request_prefetch(false, false, 2600);
   assert(!queued);
   assert(!slideshow.has_command());
   flags.fetch_in_flight[2] = false;
@@ -1514,12 +1505,7 @@ static void test_visible_portrait_download_protection() {
 
   // A completed rerouted pair must allow the next photo to prefetch without
   // waiting for navigation to reset the active portrait state.
-  assert(slideshow.request_prefetch(
-      false, false, 5000, state.last_prefetch_start_ms, state.active_slot,
-      state.target_slot, state.slot0, state.slot1, state.slot2, state.slot_flags,
-      state.fetch_queue, state.portrait, state.active_slot_displayed,
-      state.noncritical_remote_updates_in_flight, state.portrait_preload_slot,
-      state.portrait_preload_left_ready, state.portrait_preload_right_ready));
+  assert(slideshow.request_prefetch(false, false, 5000));
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_FETCH_INTO_SLOT && cmd.slot == 2);
   assert(!slideshow.pop_command(cmd));
