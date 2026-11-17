@@ -1173,21 +1173,20 @@ static void test_slideshow_pipeline_watchdog() {
 
 static void test_slideshow_component_portrait_flow() {
   EspFrameSlideshow slideshow;
-  SlotMeta slot0 = make_slot("portrait-active", true);
+  auto &state = slideshow.state();
+  auto &slot0 = state.slot0;
+  slot0 = make_slot("portrait-active", true);
   slot0.companion_url = "https://example.test/companion";
   SlotMeta slot1 = make_slot("slot1", false);
   SlotMeta slot2 = make_slot("slot2", false);
   auto &portrait = slideshow.state().portrait;
   auto &displayed = slideshow.state().active_slot_displayed;
-  std::string primary_id;
-  std::string companion_url;
-  std::string search_datetime;
-  int companion_slot = -1;
-  bool search_expanded = false;
+  const auto &primary_id = state.portrait_primary_asset_id;
+  const auto &companion_url = state.portrait_companion_url;
+  const auto &search_datetime = state.portrait_search_datetime;
+  auto &companion_slot = state.companion_target_slot;
 
-  bool started = slideshow.start_active_portrait(
-      0, slot0, slot1, slot2, portrait, displayed, primary_id, companion_url,
-      search_datetime, companion_slot, search_expanded);
+  bool started = slideshow.start_active_portrait();
   assert(started);
   assert(portrait.workflow_busy);
   assert(portrait.companion_found);
@@ -1214,11 +1213,10 @@ static void test_slideshow_component_portrait_flow() {
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_PORTRAIT_PAIR);
 
   portrait = PortraitState{};
-  SlotMeta no_companion = make_slot("portrait-search", true);
+  auto &no_companion = slot0;
+  no_companion = make_slot("portrait-search", true);
   no_companion.companion_url = "";
-  bool search_started = slideshow.start_active_portrait(
-      0, no_companion, slot1, slot2, portrait, displayed, primary_id, companion_url,
-      search_datetime, companion_slot, search_expanded);
+  bool search_started = slideshow.start_active_portrait();
   assert(search_started);
   assert(portrait.workflow_busy);
   assert(!portrait.companion_found);
@@ -1519,11 +1517,7 @@ static void test_visible_portrait_download_protection() {
       true, state.preload_noncritical_in_flight, state.noncritical_remote_updates_in_flight));
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_UPDATE_PRELOAD_LEFT);
-  assert(!slideshow.start_active_portrait(
-      1, state.slot0, state.slot1, state.slot2, state.portrait, false,
-      state.portrait_primary_asset_id, state.portrait_companion_url,
-      state.portrait_search_datetime, state.companion_target_slot,
-      state.portrait_search_expanded));
+  assert(!slideshow.start_active_portrait());
   assert(!slideshow.pop_command(cmd));
   slideshow.on_preload_left_finished();
   assert(slideshow.pop_command(cmd));
@@ -1632,8 +1626,8 @@ static void test_portrait_single_display_guard() {
   // Completions arriving after rejection cannot resurrect an abandoned pair.
   slideshow.reject_portrait_slot(21000, 1);
   slideshow.clear_commands();
-  assert(!slideshow.request_portrait_left_update(state.portrait));
-  assert(!slideshow.request_portrait_right_update(state.portrait));
+  assert(!slideshow.request_portrait_update(EspFrameSlideshow::PortraitSide::LEFT));
+  assert(!slideshow.request_portrait_update(EspFrameSlideshow::PortraitSide::RIGHT));
   slideshow.on_portrait_download_finished(EspFrameSlideshow::PortraitSide::LEFT);
   slideshow.on_portrait_download_finished(EspFrameSlideshow::PortraitSide::RIGHT);
   assert(!state.portrait.left_ready && !state.portrait.right_ready);

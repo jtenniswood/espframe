@@ -281,22 +281,19 @@ class EspFrameSlideshow {
     return {slot, attempt, retry};
   }
 
-  bool start_active_portrait(int active_slot, SlotMeta &slot0, SlotMeta &slot1, SlotMeta &slot2,
-                             PortraitState &portrait, bool active_slot_displayed,
-                             std::string &portrait_primary_asset_id,
-                             std::string &portrait_companion_url,
-                             std::string &portrait_search_datetime,
-                             int &companion_target_slot,
-                             bool &portrait_search_expanded) {
-    if (active_slot_displayed && portrait.is_pair && portrait.using_preload) return false;
-    if (this->state_.portrait_preload_slot == active_slot &&
-        this->state_.preload_noncritical_in_flight) {
+  bool start_active_portrait() {
+    auto &state = this->state_;
+    auto &portrait = state.portrait;
+    const int active_slot = state.active_slot;
+    if (state.active_slot_displayed && portrait.is_pair && portrait.using_preload) return false;
+    if (state.portrait_preload_slot == active_slot &&
+        state.preload_noncritical_in_flight) {
       portrait.workflow_busy = true;
       return false;
     }
 
-    SlotMeta &meta = this->slot_mut_(active_slot, slot0, slot1, slot2);
-    if (portrait.workflow_busy && portrait_primary_asset_id == meta.asset_id) return false;
+    SlotMeta &meta = state.slot(active_slot);
+    if (portrait.workflow_busy && state.portrait_primary_asset_id == meta.asset_id) return false;
 
     portrait.left_ready = false;
     portrait.right_ready = false;
@@ -305,25 +302,25 @@ class EspFrameSlideshow {
     portrait.right_requested = false;
     portrait.using_preload = false;
     portrait.workflow_busy = true;
-    portrait_primary_asset_id = meta.asset_id;
+    state.portrait_primary_asset_id = meta.asset_id;
 
     if (!meta.companion_url.empty()) {
       portrait.companion_found = true;
-      portrait_companion_url = meta.companion_url;
+      state.portrait_companion_url = meta.companion_url;
       portrait.left_requested = true;
       this->emit_command(SLIDESHOW_COMMAND_START_PORTRAIT_LEFT, active_slot);
       return true;
     }
 
     portrait.companion_found = false;
-    portrait_companion_url = "";
-    portrait_search_datetime = meta.datetime;
-    companion_target_slot = active_slot;
-    portrait_search_expanded = false;
-    this->state_.portrait_search_exhaustive = false;
-    this->state_.portrait_search_page = 1;
-    this->state_.portrait_search_cursor.clear();
-    this->state_.portrait_search_generation++;
+    state.portrait_companion_url = "";
+    state.portrait_search_datetime = meta.datetime;
+    state.companion_target_slot = active_slot;
+    state.portrait_search_expanded = false;
+    state.portrait_search_exhaustive = false;
+    state.portrait_search_page = 1;
+    state.portrait_search_cursor.clear();
+    state.portrait_search_generation++;
     this->emit_command(SLIDESHOW_COMMAND_DEFER_COMPANION_SEARCH, active_slot, 200);
     return true;
   }
@@ -934,15 +931,15 @@ class EspFrameSlideshow {
     this->state_.target_slot = this->state_.active_slot;
   }
 
-  bool request_portrait_left_update(const PortraitState &portrait) {
-    if (!portrait.left_requested || portrait.left_ready) return false;
-    this->emit_command(SLIDESHOW_COMMAND_UPDATE_PORTRAIT_LEFT);
-    return true;
-  }
-
-  bool request_portrait_right_update(const PortraitState &portrait) {
-    if (!portrait.right_requested || portrait.right_ready) return false;
-    this->emit_command(SLIDESHOW_COMMAND_UPDATE_PORTRAIT_RIGHT);
+  bool request_portrait_update(PortraitSide side) {
+    const auto &portrait = this->state_.portrait;
+    if (side == PortraitSide::LEFT) {
+      if (!portrait.left_requested || portrait.left_ready) return false;
+      this->emit_command(SLIDESHOW_COMMAND_UPDATE_PORTRAIT_LEFT);
+    } else {
+      if (!portrait.right_requested || portrait.right_ready) return false;
+      this->emit_command(SLIDESHOW_COMMAND_UPDATE_PORTRAIT_RIGHT);
+    }
     return true;
   }
 

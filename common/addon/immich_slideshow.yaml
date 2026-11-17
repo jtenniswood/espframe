@@ -825,12 +825,7 @@ script:
     mode: restart
     then:
       - lambda: |-
-          id(espframe_core).slideshow().start_active_portrait(
-            id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().portrait,
-            id(espframe_core).slideshow().state().active_slot_displayed, id(espframe_core).slideshow().state().portrait_primary_asset_id,
-            id(espframe_core).slideshow().state().portrait_companion_url, id(espframe_core).slideshow().state().portrait_search_datetime,
-            id(espframe_core).slideshow().state().companion_target_slot,
-            id(espframe_core).slideshow().state().portrait_search_expanded);
+          id(espframe_core).slideshow().start_active_portrait();
           id(espframe_slideshow_dispatch).execute();
 
   # Record what is on screen before a display script swaps widgets.
@@ -1269,7 +1264,8 @@ script:
     then:
       - delay: 450ms
       - lambda: |-
-          id(espframe_core).slideshow().request_portrait_left_update(id(espframe_core).slideshow().state().portrait);
+          id(espframe_core).slideshow().request_portrait_update(
+              esphome::espframe::EspFrameSlideshow::PortraitSide::LEFT);
           id(espframe_slideshow_dispatch).execute();
 
   - id: deferred_portrait_right_update
@@ -1277,7 +1273,8 @@ script:
     then:
       - delay: 450ms
       - lambda: |-
-          id(espframe_core).slideshow().request_portrait_right_update(id(espframe_core).slideshow().state().portrait);
+          id(espframe_core).slideshow().request_portrait_update(
+              esphome::espframe::EspFrameSlideshow::PortraitSide::RIGHT);
           id(espframe_slideshow_dispatch).execute();
 
   - id: deferred_preload_left_update
