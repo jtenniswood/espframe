@@ -23,8 +23,14 @@ def main():
     body = dispatch['then'][-1]['lambda']
     # Host globals expose references; device components expose pointers when
     # passed to the layout helper. Adapt only those hardware arguments.
-    dispatch['then'][-1]['lambda'] = body.replace('apply_slot_layout(id(', 'apply_slot_layout(&id(')
-    endpoints = sorted(set(re.findall(r'id\((\w+)\)', body)) - {'espframe_core', 'photo_source_menu_open'})
+    dispatch['then'][-1]['lambda'] = (body.replace('apply_slot_layout(id(', 'apply_slot_layout(&id(')
+                                         .replace('id(tft_display)->', 'id(tft_display).'))
+    real_scripts = {'deferred_fetch_into_slot', 'deferred_rejected_slot_fetch', 'immich_fetch_into_slot'}
+    deferred = [script for script in source['script'] if script['id'] in
+                {'deferred_fetch_into_slot', 'deferred_rejected_slot_fetch'}]
+    fetch = {'id': 'immich_fetch_into_slot', 'then': [{'lambda': 'id(photo_fetch_count)++;'}]}
+    endpoints = sorted(set(re.findall(r'id\((\w+)\)', body))
+                       - {'espframe_core', 'photo_source_menu_open'} - real_scripts)
     api = yaml.load((ROOT / 'common/addon/immich_api.yaml').read_text(), Loader=LambdaLoader)
     tag_scope = next(script for script in api['script'] if script['id'] == 'immich_fetch_asset_tag_scope')
     # Run the production scheduling and stale/offline guards, replacing only
@@ -117,6 +123,27 @@ def main():
           dispatch_require(!id(immich_request_state).filter_scope_request_pending(),
                            "offline guard clears pending request");
           dispatch_require(!id(espframe_core).slideshow().state().slot0.filter_tag_scope_known, "offline scope remains unknown");
+          id(espframe_core).slideshow().emit_command(SLIDESHOW_COMMAND_DEFER_FETCH_INTO_SLOT, 1);
+          id(espframe_core).slideshow().emit_command(SLIDESHOW_COMMAND_REFETCH_REJECTED_SLOT, 2);
+          id(espframe_slideshow_dispatch).execute();
+        '''},
+        {'delay': '100ms'},
+        {'lambda': '''
+          dispatch_require(id(deferred_fetch_into_slot).is_running(), "ordinary fetch was scheduled");
+          dispatch_require(id(deferred_rejected_slot_fetch).is_running(), "rejected slot fetch was scheduled");
+          id(espframe_core).slideshow().invalidate_filter_slots();
+        '''},
+        {'delay': '1300ms'},
+        {'lambda': '''
+          dispatch_require(id(photo_fetch_count) == 0, "invalidated source suppresses both delayed fetches");
+          id(espframe_core).slideshow().emit_command(SLIDESHOW_COMMAND_DEFER_FETCH_INTO_SLOT, 1);
+          id(espframe_core).slideshow().emit_command(SLIDESHOW_COMMAND_REFETCH_REJECTED_SLOT, 2);
+          id(espframe_slideshow_dispatch).execute();
+        '''},
+        {'delay': '1400ms'},
+        {'lambda': '''
+          dispatch_require(id(photo_fetch_count) == 2, "current delayed fetches execute once each");
+          dispatch_require(id(espframe_core).slideshow().state().target_slot == 2, "rejected slot fetched last");
           std::puts("Slideshow dispatch runtime tests passed");
           std::exit(0);
         '''},
@@ -132,10 +159,11 @@ def main():
         'globals': [{'id': 'espframe_core', 'type': 'DispatchTestCore'},
                     {'id': 'immich_request_state', 'type': 'DispatchTestRequestState'},
                     {'id': 'tag_request_count', 'type': 'int', 'initial_value': '0'},
+                    {'id': 'photo_fetch_count', 'type': 'int', 'initial_value': '0'},
                     {'id': 'test_wifi_connected', 'type': 'bool', 'initial_value': 'true'},
                     {'id': 'photo_source_menu_open', 'type': 'bool', 'initial_value': 'false'}] +
                    [{'id': name, 'type': 'DispatchTestEndpoint'} for name in endpoints],
-        'script': [dispatch, tag_scope],
+        'script': [dispatch, tag_scope, fetch, *deferred],
     }
     CACHE.mkdir(parents=True, exist_ok=True)
     config_path = CACHE / 'runtime.yaml'
