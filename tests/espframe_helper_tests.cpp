@@ -1428,18 +1428,18 @@ static void test_slideshow_component_previous_flow() {
 
 static void test_slideshow_component_companion_result_flow() {
   EspFrameSlideshow slideshow;
-  SlotMeta slot0 = make_slot("active-portrait", true);
-  SlotMeta slot1 = make_slot("prefetch-portrait", true);
-  SlotMeta slot2 = make_slot("slot2", false);
-  PortraitState portrait;
-  std::string companion_url;
-  int preload_slot = -1;
-  bool preload_left_ready = true;
-  bool preload_right_ready = true;
+  auto &state = slideshow.state();
+  auto &slot0 = state.slot0;
+  slot0 = make_slot("active-portrait", true);
+  auto &slot1 = state.slot1;
+  slot1 = make_slot("prefetch-portrait", true);
+  auto &portrait = state.portrait;
+  auto &companion_url = state.portrait_companion_url;
+  const auto &preload_slot = state.portrait_preload_slot;
+  state.portrait_preload_left_ready = state.portrait_preload_right_ready = true;
+  state.companion_target_slot = 0;
 
-  bool handled = slideshow.on_companion_found(
-      "https://example.test/companion", portrait, companion_url, 0, 0,
-      slot0, slot1, slot2, preload_slot, preload_left_ready, preload_right_ready);
+  bool handled = slideshow.on_companion_found("https://example.test/companion");
   assert(handled);
   assert(portrait.companion_found);
   assert(portrait.left_requested);
@@ -1451,27 +1451,25 @@ static void test_slideshow_component_companion_result_flow() {
   assert(cmd.slot == 0);
 
   portrait = PortraitState{};
-  companion_url = "";
-  handled = slideshow.on_companion_found(
-      "https://example.test/preload-companion", portrait, companion_url, 1, 0,
-      slot0, slot1, slot2, preload_slot, preload_left_ready, preload_right_ready);
+  companion_url.clear();
+  state.companion_target_slot = 1;
+  handled = slideshow.on_companion_found("https://example.test/preload-companion");
   assert(handled);
   assert(preload_slot == 1);
-  assert(!preload_left_ready);
-  assert(!preload_right_ready);
+  assert(!state.portrait_preload_left_ready);
+  assert(!state.portrait_preload_right_ready);
   assert(slot1.companion_url == "https://example.test/preload-companion");
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_START_PRELOAD_LEFT);
   assert(cmd.slot == 1);
 
-  bool displayed = false;
+  state.companion_target_slot = 0;
   portrait.workflow_busy = true;
-  slideshow.handle_companion_not_found(
-      portrait, companion_url, 0, 0, slot0, slot1, slot2, displayed, false);
+  slideshow.handle_companion_not_found(false);
   assert(!portrait.companion_found);
   assert(portrait.no_companion_active);
   assert(!portrait.workflow_busy);
-  assert(displayed);
+  assert(state.active_slot_displayed);
   assert(slot0.companion_url.empty());
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
@@ -1712,10 +1710,13 @@ static void test_slideshow_component_paired_only_flow() {
   SlotMeta slot0 = make_slot("unpaired", true);
   SlotMeta slot1 = make_slot("slot1", false);
   SlotMeta slot2 = make_slot("slot2", false);
-  slideshow.handle_companion_not_found(
-      portrait, companion_url, 0, 0, slot0, slot1, slot2, displayed, true);
-  assert(!displayed);
-  assert(!portrait.workflow_busy);
+  state.portrait = portrait;
+  state.slot0 = slot0;
+  state.active_slot = state.companion_target_slot = 0;
+  state.active_slot_displayed = false;
+  slideshow.handle_companion_not_found(true);
+  assert(!state.active_slot_displayed);
+  assert(!state.portrait.workflow_busy);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT);
   assert(cmd.slot == 0);
@@ -1786,24 +1787,12 @@ static void test_slideshow_component_paired_only_flow() {
   slideshow.reject_portrait_slot(8000, 1);
   assert(!slideshow.portrait_search_response_is_current());
 
-  SlotMeta stale0 = make_slot("stale0", true);
-  SlotMeta stale1 = make_slot("stale1", true);
-  SlotMeta stale2 = make_slot("stale2", true);
-  PortraitState stale_portrait;
-  std::string stale_url;
-  bool stale_displayed = false;
-  bool stale_handled = slideshow.on_companion_found(
-      "https://example.test/stale", stale_portrait, stale_url, -1, 0,
-      stale0, stale1, stale2, state.portrait_preload_slot,
-      state.portrait_preload_left_ready, state.portrait_preload_right_ready);
-  assert(!stale_handled);
-  assert(stale2.companion_url.empty());
+  assert(!slideshow.on_companion_found("https://example.test/stale"));
+  assert(state.slot1.companion_url.empty());
   slideshow.clear_commands();
-  slideshow.handle_companion_not_found(
-      stale_portrait, stale_url, -1, 0, stale0, stale1, stale2,
-      stale_displayed, true);
+  slideshow.handle_companion_not_found(true);
   assert(!slideshow.has_command());
-  assert(stale2.companion_url.empty());
+  assert(state.slot1.companion_url.empty());
 }
 
 static void test_configuration_contract_capabilities() {

@@ -523,49 +523,45 @@ class EspFrameSlideshow {
     return true;
   }
 
-  void handle_companion_not_found(PortraitState &portrait,
-                                  std::string &portrait_companion_url,
-                                  int companion_target_slot, int active_slot,
-                                  SlotMeta &slot0, SlotMeta &slot1, SlotMeta &slot2,
-                                  bool &active_slot_displayed, bool portrait_pairs_only) {
+  void handle_companion_not_found(bool portrait_pairs_only) {
+    auto &state = this->state_;
+    auto &portrait = state.portrait;
+    const int companion_target_slot = state.companion_target_slot;
     if (companion_target_slot < 0 || companion_target_slot > 2) return;
     portrait.companion_found = false;
-    portrait_companion_url = "";
+    state.portrait_companion_url = "";
     portrait.left_requested = false;
     portrait.right_requested = false;
-    SlotMeta &meta = this->slot_mut_(companion_target_slot, slot0, slot1, slot2);
+    SlotMeta &meta = state.slot(companion_target_slot);
     meta.companion_url = "";
     if (portrait_pairs_only) {
       portrait.workflow_busy = false;
       this->emit_command(SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT, companion_target_slot);
       return;
     }
-    if (companion_target_slot == active_slot) {
+    if (companion_target_slot == state.active_slot) {
       portrait.no_companion_active = true;
       portrait.workflow_busy = false;
-      if (!active_slot_displayed) {
-        active_slot_displayed = true;
-        this->emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT, active_slot);
+      if (!state.active_slot_displayed) {
+        state.active_slot_displayed = true;
+        this->emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT, state.active_slot);
       }
     }
   }
 
-  bool on_companion_found(const std::string &companion_url, PortraitState &portrait,
-                          std::string &portrait_companion_url, int companion_target_slot,
-                          int active_slot, SlotMeta &slot0, SlotMeta &slot1,
-                          SlotMeta &slot2, int &portrait_preload_slot,
-                          bool &portrait_preload_left_ready,
-                          bool &portrait_preload_right_ready) {
-    if (companion_url.empty() || companion_target_slot < 0 || companion_target_slot > 2)
-      return false;
+  bool on_companion_found(const std::string &companion_url) {
+    auto &state = this->state_;
+    auto &portrait = state.portrait;
+    const int companion_target_slot = state.companion_target_slot;
+    if (companion_url.empty() || !this->portrait_search_response_is_current()) return false;
 
     portrait.no_companion_active = false;
     portrait.companion_found = true;
-    portrait_companion_url = companion_url;
-    SlotMeta &meta = this->slot_mut_(companion_target_slot, slot0, slot1, slot2);
+    state.portrait_companion_url = companion_url;
+    SlotMeta &meta = state.slot(companion_target_slot);
     meta.companion_url = companion_url;
 
-    if (companion_target_slot == active_slot && !portrait.left_requested && !portrait.left_ready) {
+    if (companion_target_slot == state.active_slot && !portrait.left_requested && !portrait.left_ready) {
       portrait.left_ready = false;
       portrait.right_ready = false;
       portrait.left_requested = true;
@@ -574,10 +570,10 @@ class EspFrameSlideshow {
       return true;
     }
 
-    if (companion_target_slot != active_slot) {
-      portrait_preload_slot = companion_target_slot;
-      portrait_preload_left_ready = false;
-      portrait_preload_right_ready = false;
+    if (companion_target_slot != state.active_slot) {
+      state.portrait_preload_slot = companion_target_slot;
+      state.portrait_preload_left_ready = false;
+      state.portrait_preload_right_ready = false;
       this->emit_command(SLIDESHOW_COMMAND_START_PRELOAD_LEFT, companion_target_slot);
       return true;
     }

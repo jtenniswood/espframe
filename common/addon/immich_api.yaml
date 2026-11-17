@@ -49,10 +49,7 @@ script:
     mode: single
     then:
       - lambda: |-
-          id(espframe_core).slideshow().handle_companion_not_found(
-            id(espframe_core).slideshow().state().portrait, id(espframe_core).slideshow().state().portrait_companion_url, id(espframe_core).slideshow().state().companion_target_slot,
-            id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2,
-            id(espframe_core).slideshow().state().active_slot_displayed, id(portrait_pairs_only).state);
+          id(espframe_core).slideshow().handle_companion_not_found(id(portrait_pairs_only).state);
           id(espframe_slideshow_dispatch).execute();
 
   # ---------------------------------------------------------------------------
@@ -1626,11 +1623,7 @@ script:
                     id(handle_companion_not_found).execute();
                     return;
                   }
-                  id(espframe_core).slideshow().on_companion_found(
-                    companion_url, id(espframe_core).slideshow().state().portrait, id(espframe_core).slideshow().state().portrait_companion_url,
-                    id(espframe_core).slideshow().state().companion_target_slot, id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2,
-                    id(espframe_core).slideshow().state().portrait_preload_slot, id(espframe_core).slideshow().state().portrait_preload_left_ready,
-                    id(espframe_core).slideshow().state().portrait_preload_right_ready);
+                  id(espframe_core).slideshow().on_companion_found(companion_url);
                   id(espframe_slideshow_dispatch).execute();
           on_error:
             then:
