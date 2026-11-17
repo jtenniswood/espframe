@@ -1166,8 +1166,8 @@ static void test_slideshow_component_portrait_flow() {
   slot0.companion_url = "https://example.test/companion";
   SlotMeta slot1 = make_slot("slot1", false);
   SlotMeta slot2 = make_slot("slot2", false);
-  PortraitState portrait;
-  bool displayed = false;
+  auto &portrait = slideshow.state().portrait;
+  auto &displayed = slideshow.state().active_slot_displayed;
   std::string primary_id;
   std::string companion_url;
   std::string search_datetime;
@@ -1189,90 +1189,88 @@ static void test_slideshow_component_portrait_flow() {
   assert(cmd.kind == SLIDESHOW_COMMAND_START_PORTRAIT_LEFT);
   assert(cmd.slot == 0);
 
-  slideshow.on_portrait_left_finished(portrait);
+  slideshow.on_portrait_download_finished(EspFrameSlideshow::PortraitSide::LEFT);
   assert(portrait.left_ready);
   assert(!portrait.left_requested);
   assert(portrait.right_requested);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_START_PORTRAIT_RIGHT);
 
-  slideshow.on_portrait_right_finished(portrait);
+  slideshow.on_portrait_download_finished(EspFrameSlideshow::PortraitSide::RIGHT);
   assert(portrait.right_ready);
   assert(!portrait.right_requested);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_PORTRAIT_PAIR);
 
-  PortraitState searching;
+  portrait = PortraitState{};
   SlotMeta no_companion = make_slot("portrait-search", true);
   no_companion.companion_url = "";
   bool search_started = slideshow.start_active_portrait(
-      0, no_companion, slot1, slot2, searching, displayed, primary_id, companion_url,
+      0, no_companion, slot1, slot2, portrait, displayed, primary_id, companion_url,
       search_datetime, companion_slot, search_expanded);
   assert(search_started);
-  assert(searching.workflow_busy);
-  assert(!searching.companion_found);
+  assert(portrait.workflow_busy);
+  assert(!portrait.companion_found);
   assert(companion_url.empty());
   assert(search_datetime == no_companion.datetime);
   assert(companion_slot == 0);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DEFER_COMPANION_SEARCH);
 
-  std::string reason;
-  slideshow.on_portrait_left_error(searching, reason, displayed, false);
+  const auto &reason = slideshow.state().diagnostic_reason;
+  slideshow.on_portrait_download_error(EspFrameSlideshow::PortraitSide::LEFT, false);
   assert(reason == "portrait left error");
   assert(displayed);
-  assert(!searching.workflow_busy);
-  assert(searching.no_companion_active);
+  assert(!portrait.workflow_busy);
+  assert(portrait.no_companion_active);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
-  slideshow.after_display_current(0, no_companion, slot1, slot2, searching, true, displayed,
+  slideshow.after_display_current(0, no_companion, slot1, slot2, portrait, true, displayed,
                                   companion_slot, false, false);
   assert(!slideshow.has_command());
 
-  PortraitState right_error;
-  right_error.workflow_busy = true;
-  right_error.companion_found = true;
-  right_error.left_ready = true;
+  portrait = PortraitState{};
+  portrait.workflow_busy = true;
+  portrait.companion_found = true;
+  portrait.left_ready = true;
   displayed = false;
-  slideshow.on_portrait_right_error(right_error, reason, displayed, false);
+  slideshow.on_portrait_download_error(EspFrameSlideshow::PortraitSide::RIGHT, false);
   assert(reason == "portrait right error");
   assert(displayed);
-  assert(!right_error.workflow_busy);
-  assert(right_error.no_companion_active);
+  assert(!portrait.workflow_busy);
+  assert(portrait.no_companion_active);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
-  slideshow.after_display_current(0, no_companion, slot1, slot2, right_error, true, displayed,
+  slideshow.after_display_current(0, no_companion, slot1, slot2, portrait, true, displayed,
                                   companion_slot, false, false);
   assert(!slideshow.has_command());
 
   // A transient pair download failure can occur while the previous image is
   // still visible. It must release the workflow gate or slideshow advancement
   // remains blocked indefinitely.
-  PortraitState visible_left_error;
-  visible_left_error.workflow_busy = true;
-  visible_left_error.left_requested = true;
-  bool already_displayed = true;
-  slideshow.on_portrait_left_error(
-      visible_left_error, reason, already_displayed, false);
-  assert(already_displayed);
-  assert(!visible_left_error.workflow_busy);
-  assert(!visible_left_error.left_requested);
+  portrait = PortraitState{};
+  portrait.workflow_busy = true;
+  portrait.left_requested = true;
+  displayed = true;
+  slideshow.on_portrait_download_error(EspFrameSlideshow::PortraitSide::LEFT, false);
+  assert(displayed);
+  assert(!portrait.workflow_busy);
+  assert(!portrait.left_requested);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
   assert(!slideshow.has_command());
 
-  PortraitState visible_right_error;
-  visible_right_error.workflow_busy = true;
-  visible_right_error.right_requested = true;
-  slideshow.on_portrait_right_error(
-      visible_right_error, reason, already_displayed, false);
-  assert(already_displayed);
-  assert(!visible_right_error.workflow_busy);
-  assert(!visible_right_error.right_requested);
+  portrait = PortraitState{};
+  portrait.workflow_busy = true;
+  portrait.right_requested = true;
+  slideshow.on_portrait_download_error(EspFrameSlideshow::PortraitSide::RIGHT, false);
+  assert(displayed);
+  assert(!portrait.workflow_busy);
+  assert(!portrait.right_requested);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
   assert(!slideshow.has_command());
@@ -1309,7 +1307,7 @@ static void test_slideshow_component_preload_flow() {
   slideshow.invalidate_filter_slots();
   slideshow.on_preload_left_finished();
   slideshow.on_preload_right_finished();
-  slideshow.on_portrait_preload_error(EspFrameSlideshow::PreloadSide::RIGHT, 100, true);
+  slideshow.on_portrait_preload_error(EspFrameSlideshow::PortraitSide::RIGHT, 100, true);
   assert(!state.portrait_preload_left_ready && !state.portrait_preload_right_ready);
   assert(!slideshow.has_command());
 }
@@ -1614,7 +1612,7 @@ static void test_portrait_single_display_guard() {
   assert(state.portrait.right_requested);
   assert(state.current_display.asset_id == "previous-landscape");
   assert(!slideshow.pop_command(cmd));
-  slideshow.on_portrait_right_finished(state.portrait);
+  slideshow.on_portrait_download_finished(EspFrameSlideshow::PortraitSide::RIGHT);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_PORTRAIT_PAIR);
 
@@ -1623,8 +1621,8 @@ static void test_portrait_single_display_guard() {
   slideshow.clear_commands();
   assert(!slideshow.request_portrait_left_update(state.portrait));
   assert(!slideshow.request_portrait_right_update(state.portrait));
-  slideshow.on_portrait_left_finished(state.portrait);
-  slideshow.on_portrait_right_finished(state.portrait);
+  slideshow.on_portrait_download_finished(EspFrameSlideshow::PortraitSide::LEFT);
+  slideshow.on_portrait_download_finished(EspFrameSlideshow::PortraitSide::RIGHT);
   assert(!state.portrait.left_ready && !state.portrait.right_ready);
   assert(!slideshow.pop_command(cmd));
 }
@@ -1747,7 +1745,12 @@ static void test_slideshow_component_paired_only_flow() {
   portrait = PortraitState{};
   portrait.workflow_busy = true;
   std::string reason;
-  slideshow.on_portrait_right_error(portrait, reason, displayed, true);
+  slideshow.state().portrait = portrait;
+  slideshow.state().active_slot_displayed = displayed;
+  slideshow.on_portrait_download_error(EspFrameSlideshow::PortraitSide::RIGHT, true);
+  portrait = slideshow.state().portrait;
+  displayed = slideshow.state().active_slot_displayed;
+  reason = slideshow.state().diagnostic_reason;
   assert(!displayed);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);

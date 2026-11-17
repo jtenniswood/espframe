@@ -134,7 +134,7 @@ static void test_failed_portrait_preload() {
       state.portrait_preload_right_ready = true;
       state.preload_noncritical_in_flight = true;
       state.noncritical_remote_updates_in_flight = 1;
-      slideshow.on_portrait_preload_error(EspFrameSlideshow::PreloadSide::RIGHT, 100, pairs_only);
+      slideshow.on_portrait_preload_error(EspFrameSlideshow::PortraitSide::RIGHT, 100, pairs_only);
       assert(!state.portrait_preload_right_ready);
       assert(!state.preload_noncritical_in_flight);
       assert(state.noncritical_remote_updates_in_flight == 0);

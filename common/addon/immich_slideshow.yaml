@@ -306,15 +306,14 @@ remote_image:
         - lambda: |-
             id(espframe_core).record_memory("photo-decoded");
             ESP_LOGD("immich", "Portrait left ready");
-            id(espframe_core).slideshow().on_portrait_left_finished(id(espframe_core).slideshow().state().portrait);
+            id(espframe_core).slideshow().on_portrait_download_finished(esphome::espframe::EspFrameSlideshow::PortraitSide::LEFT);
             id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
             ESP_LOGE("immich", "Portrait left decode failed");
-            id(espframe_core).slideshow().on_portrait_left_error(
-              id(espframe_core).slideshow().state().portrait, id(espframe_core).slideshow().state().diagnostic_reason,
-              id(espframe_core).slideshow().state().active_slot_displayed, id(portrait_pairs_only).state);
+            id(espframe_core).slideshow().on_portrait_download_error(
+              esphome::espframe::EspFrameSlideshow::PortraitSide::LEFT, id(portrait_pairs_only).state);
             id(espframe_slideshow_dispatch).execute();
 
   - id: immich_portrait_right
@@ -332,15 +331,14 @@ remote_image:
         - lambda: |-
             id(espframe_core).record_memory("photo-decoded");
             ESP_LOGD("immich", "Portrait right ready");
-            id(espframe_core).slideshow().on_portrait_right_finished(id(espframe_core).slideshow().state().portrait);
+            id(espframe_core).slideshow().on_portrait_download_finished(esphome::espframe::EspFrameSlideshow::PortraitSide::RIGHT);
             id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
             ESP_LOGE("immich", "Portrait right decode failed");
-            id(espframe_core).slideshow().on_portrait_right_error(
-              id(espframe_core).slideshow().state().portrait, id(espframe_core).slideshow().state().diagnostic_reason,
-              id(espframe_core).slideshow().state().active_slot_displayed, id(portrait_pairs_only).state);
+            id(espframe_core).slideshow().on_portrait_download_error(
+              esphome::espframe::EspFrameSlideshow::PortraitSide::RIGHT, id(portrait_pairs_only).state);
             id(espframe_slideshow_dispatch).execute();
 
   # Portrait preload components (downloaded during prefetch for instant pair display)
@@ -366,7 +364,7 @@ remote_image:
         - lambda: |-
             ESP_LOGE("immich", "Portrait preload left failed");
             id(espframe_core).slideshow().on_portrait_preload_error(
-              esphome::espframe::EspFrameSlideshow::PreloadSide::LEFT, millis(), id(portrait_pairs_only).state);
+              esphome::espframe::EspFrameSlideshow::PortraitSide::LEFT, millis(), id(portrait_pairs_only).state);
             id(espframe_slideshow_dispatch).execute();
 
   - id: immich_portrait_preload_right
@@ -391,7 +389,7 @@ remote_image:
         - lambda: |-
             ESP_LOGE("immich", "Portrait preload right failed");
             id(espframe_core).slideshow().on_portrait_preload_error(
-              esphome::espframe::EspFrameSlideshow::PreloadSide::RIGHT, millis(), id(portrait_pairs_only).state);
+              esphome::espframe::EspFrameSlideshow::PortraitSide::RIGHT, millis(), id(portrait_pairs_only).state);
             id(espframe_slideshow_dispatch).execute();
 
 # -----------------------------------------------------------------------------

@@ -311,63 +311,50 @@ class EspFrameSlideshow {
     return true;
   }
 
-  void on_portrait_left_finished(PortraitState &portrait) {
-    if (!portrait.left_requested) return;
-    portrait.left_ready = true;
-    portrait.left_requested = false;
-    if (portrait.companion_found && !portrait.right_ready && !portrait.right_requested) {
-      portrait.right_requested = true;
-      this->emit_command(SLIDESHOW_COMMAND_START_PORTRAIT_RIGHT);
+  enum class PortraitSide { LEFT, RIGHT };
+
+  void on_portrait_download_finished(PortraitSide side) {
+    auto &portrait = this->state_.portrait;
+    if (side == PortraitSide::LEFT) {
+      if (!portrait.left_requested) return;
+      portrait.left_ready = true;
+      portrait.left_requested = false;
+      if (portrait.companion_found && !portrait.right_ready && !portrait.right_requested) {
+        portrait.right_requested = true;
+        this->emit_command(SLIDESHOW_COMMAND_START_PORTRAIT_RIGHT);
+      }
+    } else {
+      if (!portrait.right_requested) return;
+      portrait.right_ready = true;
+      portrait.right_requested = false;
     }
     if (portrait.left_ready && portrait.right_ready) {
       this->emit_command(SLIDESHOW_COMMAND_DISPLAY_PORTRAIT_PAIR);
     }
   }
 
-  void on_portrait_right_finished(PortraitState &portrait) {
-    if (!portrait.right_requested) return;
-    portrait.right_ready = true;
-    portrait.right_requested = false;
-    if (portrait.left_ready && portrait.right_ready) {
-      this->emit_command(SLIDESHOW_COMMAND_DISPLAY_PORTRAIT_PAIR);
+  void on_portrait_download_error(PortraitSide side, bool pairs_only) {
+    auto &state = this->state_;
+    auto &portrait = state.portrait;
+    if (side == PortraitSide::LEFT) {
+      portrait.left_ready = false;
+      portrait.left_requested = false;
+      state.diagnostic_reason = "portrait left error";
+    } else {
+      portrait.right_ready = false;
+      portrait.right_requested = false;
+      state.diagnostic_reason = "portrait right error";
     }
-  }
-
-  void on_portrait_left_error(PortraitState &portrait, std::string &diag_reason,
-                              bool &active_slot_displayed, bool portrait_pairs_only) {
-    portrait.left_ready = false;
-    portrait.left_requested = false;
     portrait.companion_found = false;
     portrait.no_companion_active = true;
     portrait.workflow_busy = false;
-    diag_reason = "portrait left error";
     this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG);
-    if (!active_slot_displayed) {
-      if (portrait_pairs_only) {
-        this->emit_command(SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT, this->state_.active_slot);
-      } else {
-        active_slot_displayed = true;
-        this->emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT);
-      }
-    }
-  }
-
-  void on_portrait_right_error(PortraitState &portrait, std::string &diag_reason,
-                               bool &active_slot_displayed, bool portrait_pairs_only) {
-    portrait.right_ready = false;
-    portrait.right_requested = false;
-    portrait.companion_found = false;
-    portrait.no_companion_active = true;
-    portrait.workflow_busy = false;
-    diag_reason = "portrait right error";
-    this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG);
-    if (!active_slot_displayed) {
-      if (portrait_pairs_only) {
-        this->emit_command(SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT, this->state_.active_slot);
-      } else {
-        active_slot_displayed = true;
-        this->emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT);
-      }
+    if (state.active_slot_displayed) return;
+    if (pairs_only) {
+      this->emit_command(SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT, state.active_slot);
+    } else {
+      state.active_slot_displayed = true;
+      this->emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT);
     }
   }
 
@@ -791,12 +778,10 @@ class EspFrameSlideshow {
     }
   }
 
-  enum class PreloadSide { LEFT, RIGHT };
-
-  void on_portrait_preload_error(PreloadSide side, uint32_t now_ms, bool pairs_only) {
+  void on_portrait_preload_error(PortraitSide side, uint32_t now_ms, bool pairs_only) {
     const int slot = this->state_.portrait_preload_slot;
     if (slot < 0 || slot > 2) return;
-    if (side == PreloadSide::LEFT) {
+    if (side == PortraitSide::LEFT) {
       this->state_.portrait_preload_left_ready = false;
       this->state_.diagnostic_reason = "portrait preload left error";
     } else {
