@@ -186,7 +186,34 @@ static void test_active_preload_presentation() {
   }
 }
 
+static void test_live_portrait_presentation() {
+  using Presentation = EspFrameSlideshow::LivePairPresentation;
+  for (bool pairs_only : {false, true}) {
+    EspFrameSlideshow slideshow;
+    auto &state = slideshow.state();
+    state.active_slot = 1;
+    state.portrait.left_ready = true;
+    assert(slideshow.prepare_live_portrait_pair(true) == Presentation::WAIT);
+    state.portrait.right_ready = true;
+    assert(slideshow.prepare_live_portrait_pair(true) == Presentation::READY);
+    state.portrait.is_pair = true;
+    state.portrait.workflow_busy = true;
+    assert(slideshow.recover_live_portrait_pair(100, pairs_only) == !pairs_only);
+    assert(!state.portrait.left_ready && !state.portrait.right_ready);
+    assert(!state.portrait.is_pair && !state.portrait.workflow_busy);
+    assert(state.active_slot_displayed == !pairs_only);
+    SlideshowCommand command;
+    assert(slideshow.pop_command(command) == pairs_only);
+    if (pairs_only) assert(command.kind == SLIDESHOW_COMMAND_REFETCH_REJECTED_SLOT && command.slot == 1);
+
+    state.portrait.left_ready = true;
+    assert(slideshow.prepare_live_portrait_pair(false) == Presentation::HIDE);
+    assert(!state.portrait.left_ready);
+  }
+}
+
 int main() {
+  test_live_portrait_presentation();
   test_active_preload_presentation();
   test_failed_portrait_preload();
   test_recovery_stop_order();

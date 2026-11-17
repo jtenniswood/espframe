@@ -747,6 +747,36 @@ class EspFrameSlideshow {
                this->state_.portrait_search_generation;
   }
 
+  enum class LivePairPresentation { HIDE, WAIT, READY };
+
+  LivePairPresentation prepare_live_portrait_pair(bool pairing_enabled) {
+    auto &portrait = this->state_.portrait;
+    if (!pairing_enabled) {
+      portrait = PortraitState{};
+      return LivePairPresentation::HIDE;
+    }
+    if (!portrait.left_ready || !portrait.right_ready) {
+      this->state_.diagnostic_reason = "portrait pair deferred waiting both loaded";
+      return LivePairPresentation::WAIT;
+    }
+    return LivePairPresentation::READY;
+  }
+
+  // Return true when the display adapter should present the single image.
+  bool recover_live_portrait_pair(uint32_t now_ms, bool pairs_only) {
+    auto &portrait = this->state_.portrait;
+    portrait.left_ready = false;
+    portrait.right_ready = false;
+    portrait.is_pair = false;
+    portrait.workflow_busy = false;
+    if (pairs_only) {
+      this->reject_portrait_slot(now_ms, this->state_.active_slot);
+      return false;
+    }
+    this->state_.active_slot_displayed = true;
+    return true;
+  }
+
   void mark_portrait_pair_displayed(bool using_preload) {
     SlotMeta &meta = this->state_.slot(this->state_.active_slot);
     copy_slot_to_display(meta, this->state_.current_display);

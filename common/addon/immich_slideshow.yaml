@@ -1054,17 +1054,19 @@ script:
       - script.execute: hide_connection_failed
       - script.execute: photo_transition_capture
       - lambda: |-
+          auto &slideshow = id(espframe_core).slideshow();
+          using Presentation = esphome::espframe::EspFrameSlideshow::LivePairPresentation;
           const bool portrait_screen = id(screen_rotation_select).current_option() == "90" ||
                                        id(screen_rotation_select).current_option() == "270";
-          if (portrait_screen || !id(portrait_pairing_enabled).state) {
+          const auto presentation = slideshow.prepare_live_portrait_pair(
+              !portrait_screen && id(portrait_pairing_enabled).state);
+          if (presentation == Presentation::HIDE) {
             lv_obj_add_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
-            id(espframe_core).slideshow().state().portrait = PortraitState{};
             return;
           }
-          if (!id(espframe_core).slideshow().state().portrait.left_ready || !id(espframe_core).slideshow().state().portrait.right_ready) {
+          if (presentation == Presentation::WAIT) {
             ESP_LOGW("immich", "Portrait pair display deferred (left_ready=%d right_ready=%d)",
-                     id(espframe_core).slideshow().state().portrait.left_ready, id(espframe_core).slideshow().state().portrait.right_ready);
-            id(espframe_core).slideshow().state().diagnostic_reason = "portrait pair deferred waiting both loaded";
+                     slideshow.state().portrait.left_ready, slideshow.state().portrait.right_ready);
             id(log_immich_diag).execute();
             id(delayed_prefetch_chain).execute();
             return;
@@ -1078,17 +1080,10 @@ script:
             ESP_LOGW("immich", "Portrait pair descriptors not ready");
             id(espframe_core).slideshow().state().diagnostic_reason = "portrait pair descriptor not ready";
             id(log_immich_diag).execute();
-            id(espframe_core).slideshow().state().portrait.left_ready = false;
-            id(espframe_core).slideshow().state().portrait.right_ready = false;
-            id(espframe_core).slideshow().state().portrait.is_pair = false;
-            id(espframe_core).slideshow().state().portrait.workflow_busy = false;
-            if (id(portrait_pairs_only).state) {
-              id(espframe_core).slideshow().reject_portrait_slot(
-                millis(), id(espframe_core).slideshow().state().active_slot);
-              id(espframe_slideshow_dispatch).execute();
-            } else {
-              id(espframe_core).slideshow().state().active_slot_displayed = true;
+            if (slideshow.recover_live_portrait_pair(millis(), id(portrait_pairs_only).state)) {
               id(immich_display_current).execute();
+            } else {
+              id(espframe_slideshow_dispatch).execute();
             }
             return;
           }
