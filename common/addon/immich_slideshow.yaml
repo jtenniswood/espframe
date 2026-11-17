@@ -625,21 +625,15 @@ script:
       - script.execute: hide_connection_failed
       - script.execute: photo_transition_capture
       - lambda: |-
-          const int active_slot = id(espframe_core).slideshow().state().active_slot;
+          auto &slideshow = id(espframe_core).slideshow();
           auto reject_or_fallback = [&]() {
-            if (id(portrait_pairs_only).state) {
-              id(espframe_core).slideshow().reject_portrait_slot(millis(), active_slot);
-            } else {
-              id(espframe_core).slideshow().fallback_preloaded_pair_to_single(active_slot);
-            }
+            slideshow.recover_active_preloaded_pair(millis(), id(portrait_pairs_only).state);
             id(espframe_slideshow_dispatch).execute();
           };
 
-          if (id(espframe_core).slideshow().state().portrait_preload_slot != active_slot ||
-              !id(espframe_core).slideshow().state().portrait_preload_left_ready ||
-              !id(espframe_core).slideshow().state().portrait_preload_right_ready) {
-            ESP_LOGW("immich", "Preloaded pair not fully ready for active slot %d", active_slot);
-            id(espframe_core).slideshow().state().diagnostic_reason = "preloaded pair not ready";
+          if (!slideshow.active_preloaded_pair_ready()) {
+            ESP_LOGW("immich", "Preloaded pair not fully ready for active slot %d", slideshow.state().active_slot);
+            slideshow.state().diagnostic_reason = "preloaded pair not ready";
             id(log_immich_diag).execute();
             reject_or_fallback();
             return;

@@ -614,11 +614,23 @@ class EspFrameSlideshow {
     return false;
   }
 
+  bool active_preloaded_pair_ready() const {
+    return this->state_.portrait_preload_slot == this->state_.active_slot &&
+           this->state_.portrait_preload_left_ready && this->state_.portrait_preload_right_ready;
+  }
+
   void display_completed_active_preload() {
-    const auto &state = this->state_;
-    if (!state.active_slot_displayed && state.portrait_preload_slot == state.active_slot &&
-        state.portrait_preload_left_ready && state.portrait_preload_right_ready)
-      this->emit_command(SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR, state.active_slot);
+    if (!this->state_.active_slot_displayed && this->active_preloaded_pair_ready())
+      this->emit_command(SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR, this->state_.active_slot);
+  }
+
+  void recover_active_preloaded_pair(uint32_t now_ms, bool pairs_only) {
+    const int slot = this->state_.active_slot;
+    if (pairs_only) {
+      this->reject_portrait_slot(now_ms, slot);
+    } else {
+      this->fallback_preloaded_pair_to_single(slot);
+    }
   }
 
   // Called before any single-image widget or transition is changed. Queued

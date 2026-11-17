@@ -156,7 +156,38 @@ static void test_failed_portrait_preload() {
   }
 }
 
+static void test_active_preload_presentation() {
+  for (bool pairs_only : {false, true}) {
+    EspFrameSlideshow slideshow;
+    auto &state = slideshow.state();
+    state.active_slot = 1;
+    state.portrait_preload_slot = 2;
+    state.portrait_preload_left_ready = true;
+    state.portrait_preload_right_ready = true;
+    assert(!slideshow.active_preloaded_pair_ready());
+
+    state.portrait_preload_slot = 1;
+    state.portrait_preload_right_ready = false;
+    assert(!slideshow.active_preloaded_pair_ready());
+    state.portrait_preload_right_ready = true;
+    assert(slideshow.active_preloaded_pair_ready());
+
+    slideshow.display_completed_active_preload();
+    SlideshowCommand command;
+    assert(slideshow.pop_command(command));
+    assert(command.kind == SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR && command.slot == 1);
+
+    slideshow.recover_active_preloaded_pair(100, pairs_only);
+    assert(slideshow.pop_command(command));
+    assert(command.slot == 1);
+    assert(command.kind == (pairs_only ? SLIDESHOW_COMMAND_REFETCH_REJECTED_SLOT
+                                       : SLIDESHOW_COMMAND_DISPLAY_CURRENT));
+    assert(!slideshow.active_preloaded_pair_ready());
+  }
+}
+
 int main() {
+  test_active_preload_presentation();
   test_failed_portrait_preload();
   test_recovery_stop_order();
   test_rotation();
