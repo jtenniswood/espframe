@@ -804,23 +804,16 @@ script:
   - id: handle_slot_download_error
     mode: restart
     then:
-      - lambda: |-
-          id(espframe_core).slideshow().state().download_retries++;
-          int s = id(espframe_core).slideshow().state().last_downloaded_slot;
-          ESP_LOGE("immich", "Slot %d decode failed (attempt %d)", s, id(espframe_core).slideshow().state().download_retries);
-          auto &meta = get_slot(s, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2);
-          meta.ready = false;
-          meta.asset_id = "";
-          meta.pending_asset_id = "";
-          meta.image_url = "";
       - if:
           condition:
-            lambda: 'return id(espframe_core).slideshow().state().download_retries < MAX_ERROR_RETRIES;'
+            lambda: |-
+              const auto recovery = id(espframe_core).slideshow().recover_slot_download(MAX_ERROR_RETRIES);
+              ESP_LOGE("immich", "Slot %d decode failed (attempt %d)", recovery.slot, recovery.attempt);
+              return recovery.retry;
           then:
             - delay: 2s
             - script.execute: immich_prefetch_chain
           else:
-            - lambda: 'id(espframe_core).slideshow().state().download_retries = 0;'
             - lambda: |-
                 uint32_t cooldown_ms = id(immich_request_state).register_download_failure(millis());
                 ESP_LOGW("immich",

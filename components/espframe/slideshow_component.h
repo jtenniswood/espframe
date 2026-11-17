@@ -261,6 +261,26 @@ class EspFrameSlideshow {
     this->emit_command(SLIDESHOW_COMMAND_HANDLE_SLOT_DOWNLOAD_ERROR, slot);
   }
 
+  struct SlotDownloadRecovery {
+    int slot;
+    int attempt;
+    bool retry;
+  };
+
+  SlotDownloadRecovery recover_slot_download(int max_attempts) {
+    auto &state = this->state_;
+    const int slot = state.last_downloaded_slot;
+    const int attempt = ++state.download_retries;
+    auto &meta = state.slot(slot);
+    meta.ready = false;
+    meta.asset_id.clear();
+    meta.pending_asset_id.clear();
+    meta.image_url.clear();
+    const bool retry = attempt < max_attempts;
+    if (!retry) state.download_retries = 0;
+    return {slot, attempt, retry};
+  }
+
   bool start_active_portrait(int active_slot, SlotMeta &slot0, SlotMeta &slot1, SlotMeta &slot2,
                              PortraitState &portrait, bool active_slot_displayed,
                              std::string &portrait_primary_asset_id,

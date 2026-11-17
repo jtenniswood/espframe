@@ -1012,6 +1012,16 @@ static void test_slideshow_component_commands() {
   assert(cmd.kind == SLIDESHOW_COMMAND_HANDLE_SLOT_DOWNLOAD_ERROR);
   assert(cmd.slot == 2);
   assert(!slideshow.has_command());
+
+  state.slot2.ready = true;
+  const auto retry = slideshow.recover_slot_download(2);
+  assert(retry.slot == 2 && retry.attempt == 1 && retry.retry);
+  assert(!state.slot2.ready && state.slot2.asset_id.empty());
+  assert(state.slot2.pending_asset_id.empty() && state.slot2.image_url.empty());
+  assert(state.download_retries == 1);
+  const auto cooldown = slideshow.recover_slot_download(2);
+  assert(cooldown.slot == 2 && cooldown.attempt == 2 && !cooldown.retry);
+  assert(state.download_retries == 0);
 }
 
 static void test_slideshow_component_prefetch_and_deferred_updates() {
