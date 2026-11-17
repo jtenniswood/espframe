@@ -1743,6 +1743,8 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             "Compile firmware",
             [
                 '-s firmware_version "${VERSION}"',
+                '-s espframe_component_url "file://${ESPHOME_CONFIG_MOUNT}"',
+                "-s espframe_component_ref HEAD",
                 'compile "${ESPHOME_CONFIG_MOUNT}/builds/${config_file}"',
                 '"${{ matrix.yaml }}.yaml" ota firmware.ota.bin',
             ],

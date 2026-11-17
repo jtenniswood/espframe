@@ -166,6 +166,8 @@ jobs:
               --mount "type=volume,source=${workspace_volume},target=${ESPHOME_CONFIG_MOUNT}" \
               "${image}" \
               -s firmware_version "${VERSION}" \
+              -s espframe_component_url "file://${ESPHOME_CONFIG_MOUNT}" \
+              -s espframe_component_ref HEAD \
               compile "${ESPHOME_CONFIG_MOUNT}/builds/${config_file}")
 
             cleanup_container() {
