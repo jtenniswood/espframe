@@ -977,14 +977,8 @@ script:
       - lambda: |-
           id(photo_transition_reverse) = false;
           id(espframe_core).slideshow().advance_forward(
-            millis(),
-            id(immich_request_state).cooldown_active(millis()),
-            id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().active_slot_displayed,
-            id(espframe_core).slideshow().state().last_advance_ms, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2,
-            id(espframe_core).slideshow().state().current_display, id(espframe_core).slideshow().state().previous_display, id(espframe_core).slideshow().state().portrait, id(espframe_core).slideshow().state().slot_flags,
-            id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight, id(portrait_pairing_enabled).state, id(portrait_pairs_only).state,
-            id(espframe_core).slideshow().state().portrait_preload_slot, id(espframe_core).slideshow().state().portrait_preload_left_ready,
-            id(espframe_core).slideshow().state().portrait_preload_right_ready, id(espframe_core).slideshow().state().diagnostic_reason);
+            millis(), id(immich_request_state).cooldown_active(millis()),
+            id(portrait_pairing_enabled).state, id(portrait_pairs_only).state);
           id(espframe_slideshow_dispatch).execute();
 
   # Show previous image (swipe back); re-downloads into slot from stored URL
@@ -993,10 +987,7 @@ script:
     then:
       - lambda: |-
           id(photo_transition_reverse) = true;
-          id(espframe_core).slideshow().show_previous(
-            millis(), id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().active_slot_displayed,
-            id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().current_display,
-            id(espframe_core).slideshow().state().previous_display, id(espframe_core).slideshow().state().portrait, id(espframe_core).slideshow().state().slot_flags);
+          id(espframe_core).slideshow().show_previous(millis());
           id(espframe_slideshow_dispatch).execute();
 
   # Display portrait pair when both left and right images are ready

@@ -398,18 +398,14 @@ class EspFrameSlideshow {
   }
 
   void advance_forward(uint32_t now_ms, bool retry_cooldown_active,
-                       int &active_slot, int &target_slot, bool &active_slot_displayed,
-                       uint32_t &last_advance_ms, SlotMeta &slot0, SlotMeta &slot1,
-                       SlotMeta &slot2, DisplayMeta &current_display,
-                       DisplayMeta &prev_display, PortraitState &portrait,
-                       SlotFlags &flags, int &noncritical_count,
-                       bool portrait_pairing_enabled, bool portrait_pairs_only,
-                       int portrait_preload_slot,
-                       bool portrait_preload_left_ready, bool portrait_preload_right_ready,
-                       std::string &diag_reason) {
-    if (!active_slot_displayed) {
+                       bool portrait_pairing_enabled, bool portrait_pairs_only) {
+    auto &state = this->state_;
+    auto &active_slot = state.active_slot;
+    auto &portrait = state.portrait;
+    auto &flags = state.slot_flags;
+    if (!state.active_slot_displayed) {
       int slot = active_slot;
-      SlotMeta &meta = this->slot_mut_(slot, slot0, slot1, slot2);
+      SlotMeta &meta = state.slot(slot);
       if (meta.ready && portrait.workflow_busy) {
         if (meta.is_portrait && portrait_pairing_enabled) {
           if (portrait_pairs_only) {
@@ -425,8 +421,8 @@ class EspFrameSlideshow {
         portrait.right_ready = false;
         portrait.right_requested = false;
         portrait.companion_found = false;
-        active_slot_displayed = true;
-        copy_slot_to_display(meta, current_display);
+        state.active_slot_displayed = true;
+        copy_slot_to_display(meta, state.current_display);
         this->emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT, slot);
         return;
       }
@@ -434,49 +430,48 @@ class EspFrameSlideshow {
         bool in_flight = flags.fetch_in_flight[slot];
         uint32_t fetch_age = slot_fetch_age_ms(slot, flags, now_ms);
         if (in_flight && fetch_age > 15000) {
-          clear_noncritical(slot, flags, noncritical_count);
+          clear_noncritical(slot, flags, state.noncritical_remote_updates_in_flight);
           clear_slot_fetch_in_flight(slot, flags);
-          diag_reason = "h3 stuck slot";
+          state.diagnostic_reason = "h3 stuck slot";
           this->emit_command(SLIDESHOW_COMMAND_ABORT_SLOT_DOWNLOAD, slot);
           this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG, slot);
           in_flight = false;
         }
         if (!in_flight && !any_slot_fetch_in_flight(flags) && !retry_cooldown_active) {
           portrait.workflow_busy = false;
-          last_advance_ms = now_ms;
-          target_slot = slot;
+          state.last_advance_ms = now_ms;
+          state.target_slot = slot;
           this->emit_command(SLIDESHOW_COMMAND_DEFER_FETCH_INTO_SLOT, slot, 200);
         }
       }
       return;
     }
 
-    if (!current_display.asset_id.empty()) {
+    if (!state.current_display.asset_id.empty()) {
       int old_slot = active_slot;
-      SlotMeta &old_meta = this->slot_mut_(old_slot, slot0, slot1, slot2);
-      prev_display = current_display;
-      prev_display.zoom = old_meta.zoom;
-      prev_display.valid = true;
+      SlotMeta &old_meta = state.slot(old_slot);
+      state.previous_display = state.current_display;
+      state.previous_display.zoom = old_meta.zoom;
+      state.previous_display.valid = true;
     }
 
     portrait = PortraitState{};
     int old_slot = active_slot;
     active_slot = (old_slot + 1) % 3;
-    active_slot_displayed = false;
-    SlotMeta &cleared = this->slot_mut_(old_slot, slot0, slot1, slot2);
+    state.active_slot_displayed = false;
+    SlotMeta &cleared = state.slot(old_slot);
     cleared.ready = false;
-    last_advance_ms = now_ms;
+    state.last_advance_ms = now_ms;
 
-    SlotMeta &meta = this->slot_mut_(active_slot, slot0, slot1, slot2);
+    SlotMeta &meta = state.slot(active_slot);
     if (meta.ready) {
       bool pair = meta.is_portrait && portrait_pairing_enabled;
       if (!pair) {
-        copy_slot_to_display(meta, current_display);
-        active_slot_displayed = true;
+        copy_slot_to_display(meta, state.current_display);
+        state.active_slot_displayed = true;
       }
 
-      bool preload_ready = pair && portrait_preload_slot == active_slot &&
-                           portrait_preload_left_ready && portrait_preload_right_ready;
+      const bool preload_ready = pair && this->active_preloaded_pair_ready();
       if (!pair) {
         this->emit_command(SLIDESHOW_COMMAND_DISPLAY_CURRENT, active_slot);
       } else if (preload_ready) {
@@ -489,42 +484,40 @@ class EspFrameSlideshow {
     }
 
     if (!flags.fetch_in_flight[active_slot]) {
-      target_slot = active_slot;
+      state.target_slot = active_slot;
       this->emit_command(SLIDESHOW_COMMAND_DEFER_FETCH_INTO_SLOT, active_slot, 200);
     }
   }
 
-  bool show_previous(uint32_t now_ms, int &active_slot, bool &active_slot_displayed,
-                     SlotMeta &slot0, SlotMeta &slot1, SlotMeta &slot2,
-                     DisplayMeta &current_display, DisplayMeta &prev_display,
-                     PortraitState &portrait, SlotFlags &flags) {
-    if (!prev_display.valid) {
+  bool show_previous(uint32_t now_ms) {
+    auto &state = this->state_;
+    if (!state.previous_display.valid) {
       this->emit_command(SLIDESHOW_COMMAND_LOG_NO_PREVIOUS);
       return false;
     }
 
-    const int previous_slot = (active_slot + 2) % 3;
+    const int previous_slot = (state.active_slot + 2) % 3;
     // An API or image callback for this slot could overwrite the history that
     // is about to be restored. Let that refill finish before accepting back.
-    if (flags.fetch_in_flight[previous_slot]) return false;
+    if (state.slot_flags.fetch_in_flight[previous_slot]) return false;
 
-    int current_slot = active_slot;
-    SlotMeta &current_meta = this->slot_mut_(current_slot, slot0, slot1, slot2);
-    DisplayMeta tmp = current_display;
+    int current_slot = state.active_slot;
+    SlotMeta &current_meta = state.slot(current_slot);
+    DisplayMeta tmp = state.current_display;
     tmp.zoom = current_meta.zoom;
 
-    current_display = prev_display;
-    prev_display = tmp;
+    state.current_display = state.previous_display;
+    state.previous_display = tmp;
 
-    portrait = PortraitState{};
-    active_slot = previous_slot;
-    active_slot_displayed = false;
+    state.portrait = PortraitState{};
+    state.active_slot = previous_slot;
+    state.active_slot_displayed = false;
 
-    SlotMeta &meta = this->slot_mut_(previous_slot, slot0, slot1, slot2);
+    SlotMeta &meta = state.slot(previous_slot);
     meta.ready = false;
-    copy_display_to_slot(current_display, meta);
-    meta.pending_asset_id = current_display.asset_id;
-    mark_slot_fetch_in_flight(previous_slot, flags, now_ms);
+    copy_display_to_slot(state.current_display, meta);
+    meta.pending_asset_id = state.current_display.asset_id;
+    mark_slot_fetch_in_flight(previous_slot, state.slot_flags, now_ms);
 
     this->emit_command(SLIDESHOW_COMMAND_LOAD_PREVIOUS_SLOT, previous_slot);
     return true;
