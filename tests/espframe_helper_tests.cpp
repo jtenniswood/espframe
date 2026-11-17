@@ -29,6 +29,7 @@ static void test_memory_pressure_prefetch() {
   EspFrameSlideshow slideshow;
   auto &state = slideshow.state();
   state.slot0.ready = true;
+  state.slot0.pending_asset_id = "active";
   state.target_slot = 2;
   state.active_slot_displayed = true;
   auto prefetch = [&](bool available) {
@@ -46,8 +47,7 @@ static void test_memory_pressure_prefetch() {
   assert(slideshow.pop_command(command));
   assert(command.kind == SLIDESHOW_COMMAND_FETCH_INTO_SLOT && command.slot == 1);
   // Pressure only gates speculative prefetch: active-slot image updates still run.
-  assert(slideshow.request_deferred_slot_update(0, 0, state.slot_flags, false,
-                                               state.noncritical_remote_updates_in_flight));
+  assert(slideshow.request_deferred_slot_update(0));
   assert(slideshow.pop_command(command));
   assert(command.kind == SLIDESHOW_COMMAND_UPDATE_SLOT_IMAGE && command.slot == 0);
 }
@@ -1060,8 +1060,8 @@ static void test_slideshow_component_prefetch_and_deferred_updates() {
   assert(!slideshow.has_command());
   flags.fetch_in_flight[2] = false;
 
-  int noncritical_count = 0;
-  bool update = slideshow.request_deferred_slot_update(1, 0, flags, false, noncritical_count);
+  auto &noncritical_count = state.noncritical_remote_updates_in_flight;
+  bool update = slideshow.request_deferred_slot_update(1);
   assert(update);
   assert(noncritical_count == 1);
   assert(flags.noncritical_update[1]);
@@ -1070,7 +1070,7 @@ static void test_slideshow_component_prefetch_and_deferred_updates() {
   assert(cmd.kind == SLIDESHOW_COMMAND_UPDATE_SLOT_IMAGE);
   assert(cmd.slot == 1);
 
-  slideshow.defer_slot_update_due_to_busy(1, flags, noncritical_count);
+  slideshow.defer_slot_update_due_to_busy(1);
   assert(!flags.fetch_in_flight[1]);
   assert(flags.fetch_started_ms[1] == 0);
   assert(!flags.noncritical_update[1]);
@@ -1079,20 +1079,26 @@ static void test_slideshow_component_prefetch_and_deferred_updates() {
   assert(cmd.kind == SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY);
   assert(cmd.slot == 1);
 
-  update = slideshow.request_deferred_slot_update(2, 0, flags, true, noncritical_count);
+  state.portrait.workflow_busy = true;
+  update = slideshow.request_deferred_slot_update(2);
   assert(!update);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY);
 
-  bool preload_in_flight = false;
-  update = slideshow.request_preload_left_update(false, preload_in_flight, noncritical_count);
+  assert(!slideshow.request_preload_update(EspFrameSlideshow::PortraitSide::LEFT));
+  assert(!slideshow.has_command());
+  auto &preload_in_flight = state.preload_noncritical_in_flight;
+  state.portrait_preload_slot = 1;
+  state.portrait.workflow_busy = false;
+  update = slideshow.request_preload_update(EspFrameSlideshow::PortraitSide::LEFT);
   assert(update);
   assert(preload_in_flight);
   assert(noncritical_count == 1);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_UPDATE_PRELOAD_LEFT);
 
-  update = slideshow.request_preload_right_update(true, preload_in_flight, noncritical_count);
+  state.portrait.workflow_busy = true;
+  update = slideshow.request_preload_update(EspFrameSlideshow::PortraitSide::RIGHT);
   assert(!update);
   assert(!preload_in_flight);
   assert(noncritical_count == 0);
@@ -1482,8 +1488,7 @@ static void test_visible_portrait_download_protection() {
   assert(state.portrait_preload_slot == 1);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_START_PRELOAD_LEFT && cmd.slot == 1);
-  assert(slideshow.request_preload_left_update(
-      true, state.preload_noncritical_in_flight, state.noncritical_remote_updates_in_flight));
+  assert(slideshow.request_preload_update(EspFrameSlideshow::PortraitSide::LEFT));
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_UPDATE_PRELOAD_LEFT);
   assert(!slideshow.start_active_portrait());
@@ -1492,8 +1497,7 @@ static void test_visible_portrait_download_protection() {
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_START_PRELOAD_RIGHT);
   assert(!slideshow.pop_command(cmd));
-  assert(slideshow.request_preload_right_update(
-      true, state.preload_noncritical_in_flight, state.noncritical_remote_updates_in_flight));
+  assert(slideshow.request_preload_update(EspFrameSlideshow::PortraitSide::RIGHT));
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_UPDATE_PRELOAD_RIGHT);
   slideshow.on_preload_right_finished();
@@ -1836,6 +1840,7 @@ static void test_filter_invalidation_preserves_display_and_clears_work() {
   slideshow.invalidate_filter_slots();
   assert(slideshow.on_slot_download_finished(1, true) == SLIDESHOW_ACTION_NONE);
   slideshow.on_slot_download_error(2, "late error");
+  assert(!slideshow.request_deferred_slot_update(2));
   slideshow.on_portrait_download_finished(EspFrameSlideshow::PortraitSide::LEFT);
   slideshow.on_portrait_download_error(EspFrameSlideshow::PortraitSide::RIGHT, false);
   assert(!slideshow.has_command());

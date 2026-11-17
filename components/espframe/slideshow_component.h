@@ -847,10 +847,12 @@ class EspFrameSlideshow {
     return true;
   }
 
-  bool request_deferred_slot_update(int slot, int active_slot, SlotFlags &flags,
-                                    bool portrait_workflow_busy, int &noncritical_count) {
+  bool request_deferred_slot_update(int slot) {
+    auto &state = this->state_;
+    if (slot < 0 || slot > 2 || state.slot(slot).pending_asset_id.empty()) return false;
     if (!prepare_deferred_slot_update(
-            slot, active_slot, flags, portrait_workflow_busy, noncritical_count)) {
+            slot, state.active_slot, state.slot_flags, state.portrait.workflow_busy,
+            state.noncritical_remote_updates_in_flight)) {
       this->emit_command(SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY, slot, 500);
       return false;
     }
@@ -858,10 +860,11 @@ class EspFrameSlideshow {
     return true;
   }
 
-  void defer_slot_update_due_to_busy(int slot, SlotFlags &flags, int &noncritical_count) {
+  void defer_slot_update_due_to_busy(int slot) {
     if (slot < 0 || slot > 2) return;
-    clear_noncritical(slot, flags, noncritical_count);
-    clear_slot_fetch_in_flight(slot, flags);
+    auto &state = this->state_;
+    clear_noncritical(slot, state.slot_flags, state.noncritical_remote_updates_in_flight);
+    clear_slot_fetch_in_flight(slot, state.slot_flags);
     this->emit_command(SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY, slot, 500);
   }
 
@@ -919,33 +922,26 @@ class EspFrameSlideshow {
     return true;
   }
 
-  bool request_preload_left_update(bool portrait_workflow_busy,
-                                   bool &preload_noncritical_in_flight,
-                                   int &noncritical_count) {
-    if (portrait_workflow_busy && this->state_.portrait_preload_slot != this->state_.active_slot) {
-      this->emit_command(SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY, -1, 500);
-      return false;
-    }
-    if (!preload_noncritical_in_flight) {
-      preload_noncritical_in_flight = true;
-      noncritical_count++;
-    }
-    this->emit_command(SLIDESHOW_COMMAND_UPDATE_PRELOAD_LEFT);
-    return true;
-  }
-
-  bool request_preload_right_update(bool portrait_workflow_busy,
-                                    bool &preload_noncritical_in_flight,
-                                    int &noncritical_count) {
-    if (portrait_workflow_busy && this->state_.portrait_preload_slot != this->state_.active_slot) {
-      if (preload_noncritical_in_flight) {
-        preload_noncritical_in_flight = false;
-        if (noncritical_count > 0) noncritical_count--;
+  bool request_preload_update(PortraitSide side) {
+    auto &state = this->state_;
+    if (state.portrait_preload_slot < 0 || state.portrait_preload_slot > 2) return false;
+    if (state.portrait.workflow_busy && state.portrait_preload_slot != state.active_slot) {
+      if (side == PortraitSide::RIGHT) {
+        this->clear_preload_noncritical_(state.preload_noncritical_in_flight,
+                                         state.noncritical_remote_updates_in_flight);
       }
       this->emit_command(SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY, -1, 500);
       return false;
     }
-    this->emit_command(SLIDESHOW_COMMAND_UPDATE_PRELOAD_RIGHT);
+    if (side == PortraitSide::LEFT) {
+      if (!state.preload_noncritical_in_flight) {
+        state.preload_noncritical_in_flight = true;
+        state.noncritical_remote_updates_in_flight++;
+      }
+      this->emit_command(SLIDESHOW_COMMAND_UPDATE_PRELOAD_LEFT);
+    } else {
+      this->emit_command(SLIDESHOW_COMMAND_UPDATE_PRELOAD_RIGHT);
+    }
     return true;
   }
 

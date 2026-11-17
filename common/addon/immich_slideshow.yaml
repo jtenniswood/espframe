@@ -453,9 +453,7 @@ script:
                   // Non-active slot updates are best-effort; defer them if network/decoder work
                   // is already active to avoid cascaded cancel/restart churn.
                   if (any_downloading && cmd.slot != id(espframe_core).slideshow().state().active_slot) {
-                    id(espframe_core).slideshow().defer_slot_update_due_to_busy(
-                      cmd.slot, id(espframe_core).slideshow().state().slot_flags,
-                      id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+                    id(espframe_core).slideshow().defer_slot_update_due_to_busy(cmd.slot);
                     break;
                   }
                   bool portrait_screen = id(screen_rotation_select).current_option() == "90" ||
@@ -1213,9 +1211,7 @@ script:
     then:
       - delay: 450ms
       - lambda: |-
-          id(espframe_core).slideshow().request_deferred_slot_update(
-            0, id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().portrait.workflow_busy,
-            id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+          id(espframe_core).slideshow().request_deferred_slot_update(0);
           id(espframe_slideshow_dispatch).execute();
 
   - id: deferred_slot1_image_update
@@ -1223,9 +1219,7 @@ script:
     then:
       - delay: 450ms
       - lambda: |-
-          id(espframe_core).slideshow().request_deferred_slot_update(
-            1, id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().portrait.workflow_busy,
-            id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+          id(espframe_core).slideshow().request_deferred_slot_update(1);
           id(espframe_slideshow_dispatch).execute();
 
   - id: deferred_slot2_image_update
@@ -1233,9 +1227,7 @@ script:
     then:
       - delay: 450ms
       - lambda: |-
-          id(espframe_core).slideshow().request_deferred_slot_update(
-            2, id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().portrait.workflow_busy,
-            id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+          id(espframe_core).slideshow().request_deferred_slot_update(2);
           id(espframe_slideshow_dispatch).execute();
 
   - id: deferred_portrait_left_update
@@ -1261,9 +1253,8 @@ script:
     then:
       - delay: 450ms
       - lambda: |-
-          id(espframe_core).slideshow().request_preload_left_update(
-            id(espframe_core).slideshow().state().portrait.workflow_busy, id(espframe_core).slideshow().state().preload_noncritical_in_flight,
-            id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+          id(espframe_core).slideshow().request_preload_update(
+            esphome::espframe::EspFrameSlideshow::PortraitSide::LEFT);
           id(espframe_slideshow_dispatch).execute();
 
   - id: deferred_preload_right_update
@@ -1271,7 +1262,6 @@ script:
     then:
       - delay: 450ms
       - lambda: |-
-          id(espframe_core).slideshow().request_preload_right_update(
-            id(espframe_core).slideshow().state().portrait.workflow_busy, id(espframe_core).slideshow().state().preload_noncritical_in_flight,
-            id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+          id(espframe_core).slideshow().request_preload_update(
+            esphome::espframe::EspFrameSlideshow::PortraitSide::RIGHT);
           id(espframe_slideshow_dispatch).execute();
