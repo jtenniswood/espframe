@@ -131,9 +131,18 @@ static void test_failed_portrait_preload() {
       state.active_slot = 0;
       state.target_slot = 2;
       state.portrait_preload_slot = slot;
-      slideshow.recover_failed_portrait_preload(100, pairs_only);
+      state.portrait_preload_right_ready = true;
+      state.preload_noncritical_in_flight = true;
+      state.noncritical_remote_updates_in_flight = 1;
+      slideshow.on_portrait_preload_error(EspFrameSlideshow::PreloadSide::RIGHT, 100, pairs_only);
+      assert(!state.portrait_preload_right_ready);
+      assert(!state.preload_noncritical_in_flight);
+      assert(state.noncritical_remote_updates_in_flight == 0);
+      assert(state.diagnostic_reason == "portrait preload right error");
 
       SlideshowCommand command;
+      assert(slideshow.pop_command(command));
+      assert(command.kind == SLIDESHOW_COMMAND_LOG_DIAG);
       const bool should_recover = slot >= 0 && (pairs_only || slot == 0);
       assert(slideshow.pop_command(command) == should_recover);
       if (!should_recover) continue;

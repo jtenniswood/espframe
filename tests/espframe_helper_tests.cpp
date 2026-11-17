@@ -1314,16 +1314,7 @@ static void test_slideshow_component_preload_flow() {
   assert(!preload_in_flight);
   assert(noncritical_count == 0);
 
-  std::string reason;
-  preload_in_flight = true;
-  noncritical_count = 1;
-  slideshow.on_preload_left_error(reason, left_ready, preload_in_flight, noncritical_count);
-  assert(reason == "portrait preload left error");
-  assert(!left_ready);
-  assert(!preload_in_flight);
-  assert(noncritical_count == 0);
-  assert(slideshow.pop_command(cmd));
-  assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
+
 }
 
 static void test_slideshow_component_navigation_flow() {

@@ -391,27 +391,11 @@ class EspFrameSlideshow {
     this->clear_preload_noncritical_(preload_noncritical_in_flight, noncritical_count);
   }
 
-  void on_preload_left_error(std::string &diag_reason, bool &portrait_preload_left_ready,
-                             bool &preload_noncritical_in_flight, int &noncritical_count) {
-    portrait_preload_left_ready = false;
-    diag_reason = "portrait preload left error";
-    this->clear_preload_noncritical_(preload_noncritical_in_flight, noncritical_count);
-    this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG);
-  }
-
   void on_preload_right_finished(bool &portrait_preload_right_ready,
                                  bool &preload_noncritical_in_flight,
                                  int &noncritical_count) {
     portrait_preload_right_ready = true;
     this->clear_preload_noncritical_(preload_noncritical_in_flight, noncritical_count);
-  }
-
-  void on_preload_right_error(std::string &diag_reason, bool &portrait_preload_right_ready,
-                              bool &preload_noncritical_in_flight, int &noncritical_count) {
-    portrait_preload_right_ready = false;
-    diag_reason = "portrait preload right error";
-    this->clear_preload_noncritical_(preload_noncritical_in_flight, noncritical_count);
-    this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG);
   }
 
   void advance_forward(uint32_t now_ms, bool retry_cooldown_active,
@@ -769,7 +753,19 @@ class EspFrameSlideshow {
     }
   }
 
-  void recover_failed_portrait_preload(uint32_t now_ms, bool pairs_only) {
+  enum class PreloadSide { LEFT, RIGHT };
+
+  void on_portrait_preload_error(PreloadSide side, uint32_t now_ms, bool pairs_only) {
+    if (side == PreloadSide::LEFT) {
+      this->state_.portrait_preload_left_ready = false;
+      this->state_.diagnostic_reason = "portrait preload left error";
+    } else {
+      this->state_.portrait_preload_right_ready = false;
+      this->state_.diagnostic_reason = "portrait preload right error";
+    }
+    this->clear_preload_noncritical_(this->state_.preload_noncritical_in_flight,
+                                     this->state_.noncritical_remote_updates_in_flight);
+    this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG);
     const int slot = this->state_.portrait_preload_slot;
     if (slot < 0) return;
     if (pairs_only) {
