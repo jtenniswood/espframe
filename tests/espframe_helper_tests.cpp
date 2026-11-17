@@ -1000,6 +1000,7 @@ static void test_slideshow_component_commands() {
   assert(cmd.slot == 0);
 
   state.slot_flags.fetch_in_flight[2] = true;
+  state.slot2 = make_slot("background", false);
   slideshow.on_slot_download_error(2, "slot2 image error");
   assert(state.diagnostic_reason == "slot2 image error");
   assert(state.last_downloaded_slot == 2);
@@ -1218,6 +1219,7 @@ static void test_slideshow_component_portrait_flow() {
   assert(cmd.kind == SLIDESHOW_COMMAND_DEFER_COMPANION_SEARCH);
 
   const auto &reason = slideshow.state().diagnostic_reason;
+  portrait.left_requested = true;
   slideshow.on_portrait_download_error(EspFrameSlideshow::PortraitSide::LEFT, false);
   assert(reason == "portrait left error");
   assert(displayed);
@@ -1235,6 +1237,7 @@ static void test_slideshow_component_portrait_flow() {
   portrait.workflow_busy = true;
   portrait.companion_found = true;
   portrait.left_ready = true;
+  portrait.right_requested = true;
   displayed = false;
   slideshow.on_portrait_download_error(EspFrameSlideshow::PortraitSide::RIGHT, false);
   assert(reason == "portrait right error");
@@ -1747,6 +1750,7 @@ static void test_slideshow_component_paired_only_flow() {
   std::string reason;
   slideshow.state().portrait = portrait;
   slideshow.state().active_slot_displayed = displayed;
+  slideshow.state().portrait.right_requested = true;
   slideshow.on_portrait_download_error(EspFrameSlideshow::PortraitSide::RIGHT, true);
   portrait = slideshow.state().portrait;
   displayed = slideshow.state().active_slot_displayed;
@@ -1863,6 +1867,13 @@ static void test_filter_invalidation_preserves_display_and_clears_work() {
   state.active_slot = 1;
   state.target_slot = 2;
   state.active_slot_displayed = true;
+  state.portrait.left_requested = true;
+  state.portrait.right_requested = true;
+  state.portrait.workflow_busy = true;
+  state.companion_target_slot = 2;
+  slideshow.mark_portrait_search_request_started();
+  assert(slideshow.portrait_search_response_is_current());
+  slideshow.emit_command(SLIDESHOW_COMMAND_START_PORTRAIT_RIGHT);
   state.current_display.asset_id = "visible-photo";
   state.current_display.valid = true;
   state.previous_display.asset_id = "old-filter-photo";
@@ -1872,12 +1883,20 @@ static void test_filter_invalidation_preserves_display_and_clears_work() {
   state.preload_noncritical_in_flight = true;
   state.noncritical_remote_updates_in_flight = 3;
   for (int slot = 0; slot < 3; ++slot) {
+    state.slot(slot) = make_slot("old-filter-asset", false);
     state.slot(slot).ready = true;
     state.slot_flags.fetch_in_flight[slot] = true;
     state.slot_flags.fetch_started_ms[slot] = 1234;
     state.slot_flags.noncritical_update[slot] = true;
   }
   slideshow.invalidate_filter_slots();
+  assert(slideshow.on_slot_download_finished(1, true) == SLIDESHOW_ACTION_NONE);
+  slideshow.on_slot_download_error(2, "late error");
+  slideshow.on_portrait_download_finished(EspFrameSlideshow::PortraitSide::LEFT);
+  slideshow.on_portrait_download_error(EspFrameSlideshow::PortraitSide::RIGHT, false);
+  assert(!slideshow.has_command());
+  assert(!slideshow.portrait_search_response_is_current());
+  assert(!state.portrait.workflow_busy);
   assert(state.active_slot == 1 && state.target_slot == 1);
   assert(!state.active_slot_displayed);
   assert(state.current_display.valid && state.current_display.asset_id == "visible-photo");

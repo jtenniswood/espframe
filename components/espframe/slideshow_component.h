@@ -180,29 +180,24 @@ class EspFrameSlideshow {
 
   // Hardware downloads must be aborted before discarding their tracking.
   void invalidate_filter_slots() {
-    clear_slot_fetch_in_flight(0, this->state_.slot_flags);
-    clear_slot_fetch_in_flight(1, this->state_.slot_flags);
-    clear_slot_fetch_in_flight(2, this->state_.slot_flags);
-    this->state_.slot0.ready = false;
-    this->state_.slot1.ready = false;
-    this->state_.slot2.ready = false;
-    this->state_.portrait_preload_slot = -1;
-    this->state_.portrait_preload_left_ready = false;
-    this->state_.portrait_preload_right_ready = false;
-    // Same reasoning for the non-critical update tracking: the flush
-    // cancels every outstanding update, so the per-slot flags and the
-    // counter both have to go, not just the preload flag. Clearing them
-    // together is what makes zeroing the counter safe — clear_noncritical()
-    // only decrements when the slot's flag is still set, so a completion
-    // arriving after the flush finds the flag already false and leaves the
-    // counter alone. Left partially reset, a stuck non-zero count makes
-    // both request_prefetch() and prepare_deferred_slot_update() refuse to
-    // do any further work.
-    this->state_.slot_flags.noncritical_update[0] = false;
-    this->state_.slot_flags.noncritical_update[1] = false;
-    this->state_.slot_flags.noncritical_update[2] = false;
-    this->state_.preload_noncritical_in_flight = false;
-    this->state_.noncritical_remote_updates_in_flight = 0;
+    auto &state = this->state_;
+    this->commands_.clear();
+    for (int slot = 0; slot < 3; ++slot) {
+      clear_slot_fetch_in_flight(slot, state.slot_flags);
+      state.slot_flags.noncritical_update[slot] = false;
+      state.slot(slot).ready = false;
+      state.slot(slot).pending_asset_id.clear();
+    }
+    state.portrait.left_requested = false;
+    state.portrait.right_requested = false;
+    state.portrait.workflow_busy = false;
+    state.companion_target_slot = -1;
+    state.portrait_search_generation++;
+    state.portrait_preload_slot = -1;
+    state.portrait_preload_left_ready = false;
+    state.portrait_preload_right_ready = false;
+    state.preload_noncritical_in_flight = false;
+    state.noncritical_remote_updates_in_flight = 0;
     // Backward navigation must not restore a photo selected by the old
     // filter after this slot generation is discarded.
     this->state_.previous_display = DisplayMeta{};
@@ -238,6 +233,7 @@ class EspFrameSlideshow {
   SlideshowAction on_slot_download_finished(int slot, bool portrait_pairing_enabled) {
     if (slot < 0 || slot > 2) return SLIDESHOW_ACTION_NONE;
     auto &state = this->state_;
+    if (state.slot(slot).pending_asset_id.empty()) return SLIDESHOW_ACTION_NONE;
     SlideshowAction action = SlideshowController::handle_slot_download_finished(
         slot, state.slot(slot), state.slot_flags, state.noncritical_remote_updates_in_flight,
         state.download_retries, state.active_slot, portrait_pairing_enabled, state.active_slot_displayed,
@@ -257,6 +253,7 @@ class EspFrameSlideshow {
   void on_slot_download_error(int slot, const char *reason) {
     if (slot < 0 || slot > 2) return;
     auto &state = this->state_;
+    if (state.slot(slot).pending_asset_id.empty()) return;
     SlideshowController::handle_slot_download_error(
         slot, state.slot_flags, state.noncritical_remote_updates_in_flight,
         state.diagnostic_reason, state.last_downloaded_slot, reason);
@@ -337,10 +334,12 @@ class EspFrameSlideshow {
     auto &state = this->state_;
     auto &portrait = state.portrait;
     if (side == PortraitSide::LEFT) {
+      if (!portrait.left_requested) return;
       portrait.left_ready = false;
       portrait.left_requested = false;
       state.diagnostic_reason = "portrait left error";
     } else {
+      if (!portrait.right_requested) return;
       portrait.right_ready = false;
       portrait.right_requested = false;
       state.diagnostic_reason = "portrait right error";
