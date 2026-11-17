@@ -1290,31 +1290,38 @@ static void test_slideshow_component_portrait_flow() {
 
 static void test_slideshow_component_preload_flow() {
   EspFrameSlideshow slideshow;
-  SlotMeta slot0 = make_slot("active", false);
-  SlotMeta slot1 = make_slot("portrait-preload", true);
-  slot1.companion_url = "https://example.test/preload-companion";
-  SlotMeta slot2 = make_slot("slot2", false);
-  bool left_ready = false;
-  bool right_ready = false;
-  bool preload_in_flight = true;
-  int noncritical_count = 1;
+  auto &state = slideshow.state();
+  state.active_slot = 1;
+  state.portrait_preload_slot = 1;
+  state.slot1.companion_url = "https://example.test/preload-companion";
+  state.preload_noncritical_in_flight = true;
+  state.noncritical_remote_updates_in_flight = 1;
 
-  slideshow.on_preload_left_finished(1, slot0, slot1, slot2, left_ready, right_ready,
-                                     preload_in_flight, noncritical_count);
-  assert(left_ready);
-  assert(preload_in_flight);
-  assert(noncritical_count == 1);
+  slideshow.on_preload_right_finished();
+  assert(!state.portrait_preload_right_ready);
+  assert(!slideshow.has_command());
+
+  slideshow.on_preload_left_finished();
+  assert(state.portrait_preload_left_ready);
+  assert(state.preload_noncritical_in_flight);
+  assert(state.noncritical_remote_updates_in_flight == 1);
   SlideshowCommand cmd;
   assert(slideshow.pop_command(cmd));
-  assert(cmd.kind == SLIDESHOW_COMMAND_START_PRELOAD_RIGHT);
-  assert(cmd.slot == 1);
+  assert(cmd.kind == SLIDESHOW_COMMAND_START_PRELOAD_RIGHT && cmd.slot == 1);
 
-  slideshow.on_preload_right_finished(right_ready, preload_in_flight, noncritical_count);
-  assert(right_ready);
-  assert(!preload_in_flight);
-  assert(noncritical_count == 0);
+  slideshow.on_preload_right_finished();
+  assert(state.portrait_preload_right_ready);
+  assert(!state.preload_noncritical_in_flight);
+  assert(state.noncritical_remote_updates_in_flight == 0);
+  assert(slideshow.pop_command(cmd));
+  assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR && cmd.slot == 1);
 
-
+  slideshow.invalidate_filter_slots();
+  slideshow.on_preload_left_finished();
+  slideshow.on_preload_right_finished();
+  slideshow.on_portrait_preload_error(EspFrameSlideshow::PreloadSide::RIGHT, 100, true);
+  assert(!state.portrait_preload_left_ready && !state.portrait_preload_right_ready);
+  assert(!slideshow.has_command());
 }
 
 static void test_slideshow_component_navigation_flow() {
@@ -1517,11 +1524,7 @@ static void test_visible_portrait_download_protection() {
       state.portrait_search_datetime, state.companion_target_slot,
       state.portrait_search_expanded));
   assert(!slideshow.pop_command(cmd));
-  slideshow.on_preload_left_finished(
-      1, state.slot0, state.slot1, state.slot2, state.portrait_preload_left_ready,
-      state.portrait_preload_right_ready, state.preload_noncritical_in_flight,
-      state.noncritical_remote_updates_in_flight);
-  slideshow.display_completed_active_preload();
+  slideshow.on_preload_left_finished();
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_START_PRELOAD_RIGHT);
   assert(!slideshow.pop_command(cmd));
@@ -1529,10 +1532,7 @@ static void test_visible_portrait_download_protection() {
       true, state.preload_noncritical_in_flight, state.noncritical_remote_updates_in_flight));
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_UPDATE_PRELOAD_RIGHT);
-  slideshow.on_preload_right_finished(
-      state.portrait_preload_right_ready, state.preload_noncritical_in_flight,
-      state.noncritical_remote_updates_in_flight);
-  slideshow.display_completed_active_preload();
+  slideshow.on_preload_right_finished();
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR && cmd.slot == 1);
   assert(!slideshow.pop_command(cmd));

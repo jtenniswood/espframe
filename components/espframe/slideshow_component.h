@@ -375,27 +375,27 @@ class EspFrameSlideshow {
     }
   }
 
-  void on_preload_left_finished(int portrait_preload_slot, SlotMeta &slot0, SlotMeta &slot1,
-                                SlotMeta &slot2, bool &portrait_preload_left_ready,
-                                bool &portrait_preload_right_ready,
-                                bool &preload_noncritical_in_flight, int &noncritical_count) {
-    portrait_preload_left_ready = true;
-    if (portrait_preload_slot >= 0) {
-      SlotMeta &meta = this->slot_mut_(portrait_preload_slot, slot0, slot1, slot2);
-      if (!meta.companion_url.empty()) {
-        this->emit_command(SLIDESHOW_COMMAND_START_PRELOAD_RIGHT, portrait_preload_slot);
-        return;
-      }
+  void on_preload_left_finished() {
+    auto &state = this->state_;
+    const int slot = state.portrait_preload_slot;
+    if (slot < 0 || slot > 2) return;
+    state.portrait_preload_left_ready = true;
+    if (!state.slot(slot).companion_url.empty()) {
+      this->emit_command(SLIDESHOW_COMMAND_START_PRELOAD_RIGHT, slot);
+      return;
     }
-    portrait_preload_right_ready = false;
-    this->clear_preload_noncritical_(preload_noncritical_in_flight, noncritical_count);
+    state.portrait_preload_right_ready = false;
+    this->clear_preload_noncritical_(state.preload_noncritical_in_flight,
+                                     state.noncritical_remote_updates_in_flight);
   }
 
-  void on_preload_right_finished(bool &portrait_preload_right_ready,
-                                 bool &preload_noncritical_in_flight,
-                                 int &noncritical_count) {
-    portrait_preload_right_ready = true;
-    this->clear_preload_noncritical_(preload_noncritical_in_flight, noncritical_count);
+  void on_preload_right_finished() {
+    auto &state = this->state_;
+    if (state.portrait_preload_slot < 0 || !state.portrait_preload_left_ready) return;
+    state.portrait_preload_right_ready = true;
+    this->clear_preload_noncritical_(state.preload_noncritical_in_flight,
+                                     state.noncritical_remote_updates_in_flight);
+    this->display_completed_active_preload();
   }
 
   void advance_forward(uint32_t now_ms, bool retry_cooldown_active,
@@ -798,6 +798,8 @@ class EspFrameSlideshow {
   enum class PreloadSide { LEFT, RIGHT };
 
   void on_portrait_preload_error(PreloadSide side, uint32_t now_ms, bool pairs_only) {
+    const int slot = this->state_.portrait_preload_slot;
+    if (slot < 0 || slot > 2) return;
     if (side == PreloadSide::LEFT) {
       this->state_.portrait_preload_left_ready = false;
       this->state_.diagnostic_reason = "portrait preload left error";
@@ -808,8 +810,6 @@ class EspFrameSlideshow {
     this->clear_preload_noncritical_(this->state_.preload_noncritical_in_flight,
                                      this->state_.noncritical_remote_updates_in_flight);
     this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG);
-    const int slot = this->state_.portrait_preload_slot;
-    if (slot < 0) return;
     if (pairs_only) {
       this->reject_portrait_slot(now_ms, slot);
     } else if (slot == this->state_.active_slot) {

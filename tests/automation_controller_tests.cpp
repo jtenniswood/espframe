@@ -125,7 +125,7 @@ static void test_slot_fetch_guards() {
 
 static void test_failed_portrait_preload() {
   for (bool pairs_only : {false, true}) {
-    for (int slot : {-1, 0, 1}) {
+    for (int slot : {0, 1}) {
       EspFrameSlideshow slideshow;
       auto &state = slideshow.state();
       state.active_slot = 0;
