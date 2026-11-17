@@ -2725,7 +2725,7 @@ def test_trusted_workflows_target_the_dedicated_runner() -> None:
     assert "runs-on: ubuntu-latest" not in docs_workflow
     assert "runs-on: ubuntu-latest" not in release_workflow
     assert docs_workflow.count("runs-on: espframe") == 3
-    assert release_workflow.count("runs-on: espframe") == 4
+    assert release_workflow.count("runs-on: espframe") == 5
     assert cleanup_workflow.count("runs-on: espframe") == 1
     assert "docker volume prune --all --force" in cleanup_workflow
     assert '"tzdata==2026.3"' in compile_workflow

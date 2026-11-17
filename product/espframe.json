@@ -1752,6 +1752,7 @@
       "release.release-metadata": "espframe",
       "release.release-notes": "espframe",
       "release.build-firmware": "espframe",
+      "release.assemble-candidate": "espframe",
       "release.publish": "espframe"
     },
     "github_cli_env": {
@@ -1762,7 +1763,7 @@
     "github_release_notes_fetch_tags": true,
     "github_release_notes_version_ref": "${{ github.event.release.tag_name }}",
     "github_release_build_version_ref": "${{ github.event.release.tag_name || github.ref_name }}",
-    "github_release_build_ref": "${{ github.event.release.tag_name || github.ref }}",
+    "github_release_build_ref": "${{ github.sha }}",
     "github_release_build_fail_fast": false,
     "github_release_notes_output": "$RUNNER_TEMP/release-notes.md",
     "github_workflow_permissions": {
@@ -1835,6 +1836,7 @@
         "release-metadata": "Read Product Release Metadata",
         "release-notes": "Update Release Notes",
         "build-firmware": "Build espframe",
+        "assemble-candidate": "Assemble verified firmware candidate",
         "publish": "Publish to Release"
       }
     },
@@ -1850,8 +1852,12 @@
       "release.build-firmware": [
         "release-metadata"
       ],
-      "release.publish": [
+      "release.assemble-candidate": [
         "build-firmware",
+        "release-metadata"
+      ],
+      "release.publish": [
+        "assemble-candidate",
         "release-metadata"
       ]
     },
@@ -1865,6 +1871,7 @@
       "release.release-metadata": null,
       "release.release-notes": "github.event_name == 'release'",
       "release.build-firmware": null,
+      "release.assemble-candidate": null,
       "release.publish": "github.event_name == 'release'"
     },
     "github_sparse_checkout_files": [

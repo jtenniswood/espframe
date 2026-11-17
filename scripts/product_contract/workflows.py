@@ -1684,7 +1684,7 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         if release_publish_dir:
             release_artifact_download_inputs["path"] = release_publish_dir
         check_workflow_action_step_inputs(
-            "release.publish",
+            "release.assemble-candidate",
             download_artifact_action,
             "pattern",
             f"{artifact_prefix}*",
@@ -1692,6 +1692,18 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             {"release": (".github/workflows/release.yml", release_workflow)},
             errors,
         )
+        candidate_name = "verified-firmware-candidate"
+        candidate_inputs = {"name": candidate_name, "path": release_publish_dir}
+        for job, action, inputs in (
+            ("release.assemble-candidate", upload_artifact_action, {
+                **candidate_inputs, "path": f"{release_publish_dir}/", "if-no-files-found": "error",
+            }),
+            ("release.publish", download_artifact_action, candidate_inputs),
+        ):
+            check_workflow_action_step_inputs(
+                job, action, "name", candidate_name, inputs,
+                {"release": (".github/workflows/release.yml", release_workflow)}, errors,
+            )
     if release_build_output_dir:
         check_workflow_named_step_run_contains(
             "release.build-firmware",
@@ -1748,6 +1760,13 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             errors,
         )
     if release_publish_dir:
+        check_workflow_named_step_run_contains(
+            "release.assemble-candidate",
+            "Verify assembled release assets",
+            ["scripts/firmware_release.py verify-directory", f"--dir {release_publish_dir}"],
+            workflow_texts,
+            errors,
+        )
         check_workflow_named_step_run_contains(
             "release.publish",
             "Verify assembled release assets",

@@ -28,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.release.tag_name || github.ref }}
+          ref: ${{ github.sha }}
           sparse-checkout: |
             scripts/product_config.py
             product/contract/devices.json
@@ -83,7 +83,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.release.tag_name || github.ref }}
+          ref: ${{ github.sha }}
 
       - name: Reclaim runner Docker storage
         run: |
@@ -237,15 +237,15 @@ jobs:
           name: firmware-${{ matrix.slug }}
           path: output/
 
-  publish:
-    name: Publish to Release
-    if: github.event_name == 'release'
+  assemble-candidate:
+    name: Assemble verified firmware candidate
     needs: [build-firmware, release-metadata]
     runs-on: espframe
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.sha }}
           sparse-checkout: |
             scripts/firmware_release.py
             scripts/product_config.py
@@ -260,6 +260,47 @@ jobs:
         with:
           pattern: firmware-*
           merge-multiple: true
+          path: firmware
+
+      - name: Verify assembled release assets
+        env:
+          VERSION: ${{ github.event.release.tag_name || github.ref_name }}
+          DEVICE_SLUGS: ${{ needs.release-metadata.outputs.device_slugs }}
+        run: >-
+          python3 scripts/firmware_release.py verify-directory
+          --version "${VERSION}"
+          --dir firmware
+          --slugs $DEVICE_SLUGS
+
+      - name: Upload verified firmware candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: verified-firmware-candidate
+          path: firmware/
+          if-no-files-found: error
+
+  publish:
+    name: Publish to Release
+    if: github.event_name == 'release'
+    needs: [assemble-candidate, release-metadata]
+    runs-on: espframe
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            scripts/firmware_release.py
+            scripts/product_config.py
+            product/contract/devices.json
+            product/contract/manifest.json
+            product/contract/project.json
+            product/contract/settings.json
+          sparse-checkout-cone-mode: false
+
+      - name: Download verified firmware candidate
+        uses: actions/download-artifact@v8
+        with:
+          name: verified-firmware-candidate
           path: firmware
 
       - name: Verify assembled release assets
