@@ -769,6 +769,16 @@ class EspFrameSlideshow {
     }
   }
 
+  void recover_failed_portrait_preload(uint32_t now_ms, bool pairs_only) {
+    const int slot = this->state_.portrait_preload_slot;
+    if (slot < 0) return;
+    if (pairs_only) {
+      this->reject_portrait_slot(now_ms, slot);
+    } else if (slot == this->state_.active_slot) {
+      this->fallback_preloaded_pair_to_single(slot);
+    }
+  }
+
   void fallback_preloaded_pair_to_single(int slot) {
     if (slot < 0 || slot > 2) return;
     this->clear_preload_for_slot(

@@ -123,7 +123,32 @@ static void test_slot_fetch_guards() {
   std::cout << "Checked " << cases << " valid-slot guard combinations\n";
 }
 
+static void test_failed_portrait_preload() {
+  for (bool pairs_only : {false, true}) {
+    for (int slot : {-1, 0, 1}) {
+      EspFrameSlideshow slideshow;
+      auto &state = slideshow.state();
+      state.active_slot = 0;
+      state.target_slot = 2;
+      state.portrait_preload_slot = slot;
+      slideshow.recover_failed_portrait_preload(100, pairs_only);
+
+      SlideshowCommand command;
+      const bool should_recover = slot >= 0 && (pairs_only || slot == 0);
+      assert(slideshow.pop_command(command) == should_recover);
+      if (!should_recover) continue;
+      assert(command.slot == slot);
+      assert(command.kind == (pairs_only ? SLIDESHOW_COMMAND_REFETCH_REJECTED_SLOT
+                                         : SLIDESHOW_COMMAND_DISPLAY_CURRENT));
+      assert(state.portrait_preload_slot == -1);
+      assert(state.target_slot == 2);
+      assert(!slideshow.pop_command(command));
+    }
+  }
+}
+
 int main() {
+  test_failed_portrait_preload();
   test_recovery_stop_order();
   test_rotation();
   test_slot_fetch_guards();
