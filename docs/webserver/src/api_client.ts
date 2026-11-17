@@ -170,13 +170,15 @@ export class EspframeApiClient {
     await this.legacyPost(setting.url + "/set", body);
   }
 
-  updateSettings(values: ConfigurationValues, legacy: LegacySettingWrite[]): Promise<ConfigurationUpdateResponse | null> {
+  updateSettings(values: ConfigurationValues, legacy: LegacySettingWrite[],
+                 compatibilityValues: ConfigurationValues = values): Promise<ConfigurationUpdateResponse | null> {
     return this.enqueue(async () => {
       if (this.resetAccepted) throw new EspframeApiError("conflict", "reset_pending", 409, "reset_pending");
       const capabilities = await this.negotiate();
       if (!capabilities) { for (const setting of legacy) await this.legacyWrite(setting); return null; }
       if (this.resetEpoch === undefined) await this.getConfigurationSnapshot();
-      const body = new URLSearchParams({ [capabilities.configuration_parameter || "configuration"]: JSON.stringify({ api_version: capabilities.api_version, reset_epoch: this.resetEpoch, values }) }).toString();
+      const supportedValues = capabilities.firmware_rotation_policy === true ? values : compatibilityValues;
+      const body = new URLSearchParams({ [capabilities.configuration_parameter || "configuration"]: JSON.stringify({ api_version: capabilities.api_version, reset_epoch: this.resetEpoch, values: supportedValues }) }).toString();
       try {
         const payload = await this.requestJson(capabilities.configuration_path, {
           method: "POST", headers: { "Content-Type": capabilities.configuration_encoding || "application/x-www-form-urlencoded" }, body,

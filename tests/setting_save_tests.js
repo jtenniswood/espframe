@@ -138,6 +138,7 @@ async function rotationPreservesPairing() {
     screenRotationOptionsForUi: () => ["0", "90", "180", "270"],
     isPortraitScreenRotation: value => value === "90" || value === "270",
     saveSettingValues: async values => { writes.push({ ...values }); },
+    URLSearchParams,
   };
   vm.runInNewContext(transformSync(template.slice(template.indexOf("  function saveScreenRotationSetting"),
     template.indexOf("  function reportSettingSaveFailure")), { loader: "ts" }).code, runtime);
@@ -148,10 +149,15 @@ async function rotationPreservesPairing() {
   }
   for (const rotation of ["90", "270"]) {
     await runtime.saveScreenRotationSetting("screen_rotation", rotation);
-    assert.deepEqual(writes.pop(), { screen_rotation: rotation, portrait_pairing: false });
+    assert.deepEqual(writes.pop(), { screen_rotation: rotation });
   }
   await runtime.saveScreenRotationSetting("screen_rotation", "invalid");
   assert.equal(writes.length, 0);
+
+  vm.runInNewContext(transformSync(template.slice(template.indexOf("  function legacyRotationValues"),
+    template.indexOf("  function saveSettingValues")), { loader: "ts" }).code, runtime);
+  assert.deepEqual({ ...runtime.legacyRotationValues({ portrait_pairing: true }, "90") }, { portrait_pairing: false });
+  assert.deepEqual({ ...runtime.legacyRotationValues({ unrelated: true }, "90") }, { unrelated: true });
 
   const backupSource = fs.readFileSync("docs/webserver/src/backup_import.ts", "utf8");
   vm.runInNewContext(transformSync(backupSource, { loader: "ts" }).code, runtime);
@@ -163,10 +169,18 @@ async function rotationPreservesPairing() {
       assert.equal(runtime.applyBackupImportField({ group: "screen", field: "rotation" }, rotation), true);
       assert.deepEqual({ ...runtime.backupImportValues }, {
         screen_rotation: rotation,
-        portrait_pairing: runtime.isPortraitScreenRotation(rotation) ? false : enabled,
+        portrait_pairing: enabled,
       });
     }
   }
+  const batches = runtime.backupImportSettingsBatches({
+    portrait_pairing: true,
+    long_field: "x".repeat(4096),
+    screen_rotation: "0",
+  });
+  assert.ok(batches.length > 1);
+  assert.deepEqual(Object.keys(batches[0]), ["screen_rotation", "portrait_pairing"]);
+
   runtime.backupImportValues = {};
   runtime.applyBackupImportField({ group: "screen", field: "rotation" }, "0");
   assert.deepEqual({ ...runtime.backupImportValues }, { screen_rotation: "0" },

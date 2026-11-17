@@ -293,16 +293,24 @@ import {
     return { key: key, domain: domain, url: endpoints[key], value: savedValue };
   }
 
-  function saveSettingValues(values) {
+  function legacyRotationValues(values, requestedRotation = values.screen_rotation) {
+    return isPortraitScreenRotation(requestedRotation) &&
+      ("screen_rotation" in values || "portrait_pairing" in values)
+      ? Object.assign({}, values, { portrait_pairing: false })
+      : values;
+  }
+
+  function saveSettingValues(values, requestedRotation?) {
+    var legacyValues = legacyRotationValues(values, requestedRotation);
     var trackedValues = Object.assign({}, values);
     var includesApiKey = Object.prototype.hasOwnProperty.call(trackedValues, "api_key");
     // The API key is write-only and must never enter the browser's settings
     // state, even when a backup restore batches it with other values.
     delete trackedValues.api_key;
     return settingSaves.save(trackedValues, function () {
-      return apiClient.updateSettings(values, Object.keys(values).map(function (key) {
-        return legacySettingWrite(key, values[key]);
-      }));
+      return apiClient.updateSettings(values, Object.keys(legacyValues).map(function (key) {
+        return legacySettingWrite(key, legacyValues[key]);
+      }), legacyValues);
     }).then(function (response) {
       if (includesApiKey) settingSaves.receive("api_key_configured", true);
       return response;
@@ -334,9 +342,7 @@ import {
   function saveScreenRotationSetting(key, value) {
     var rotation = String(value);
     if (screenRotationOptionsForUi().indexOf(rotation) === -1) return Promise.resolve(null);
-    var values: Record<string, string | boolean> = { screen_rotation: rotation };
-    if (isPortraitScreenRotation(rotation)) values.portrait_pairing = false;
-    return saveSettingValues(values);
+    return saveSettingValues({ screen_rotation: rotation });
   }
 
   function reportSettingSaveFailure() {

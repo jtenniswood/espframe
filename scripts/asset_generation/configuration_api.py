@@ -70,6 +70,7 @@ def configuration_capabilities() -> dict[str, object]:
         "configuration_encoding": "application/x-www-form-urlencoded",
         "configuration_parameter": "configuration",
         "legacy_entity_api": True,
+        "firmware_rotation_policy": True,
         "backup_versions": compatibility["backup_versions"],
         "setting_count": len(product["settings"]),
     }

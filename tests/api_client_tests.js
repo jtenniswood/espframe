@@ -54,6 +54,24 @@ async function main() {
   const oldSnapshot = await oldFirmware.getConfigurationSnapshot();
   assert.equal(oldSnapshot.reset_epoch, 0, "older firmware snapshots should default to epoch zero");
 
+  for (const firmwarePolicy of [undefined, true]) {
+    const capabilities = { ...contract, firmware_rotation_policy: firmwarePolicy };
+    const rotationClient = new EspframeApiClient(contract, 1000);
+    let sent;
+    context.fetch = async (url, init) => {
+      if (url.endsWith("/capabilities")) return response(capabilities);
+      if (init && init.method === "POST") {
+        sent = JSON.parse(new URLSearchParams(init.body).get("configuration")).values;
+        return response({ api_version: 1, status: "accepted" });
+      }
+      return response({ api_version: 1, reset_epoch: 0, values: {}, unavailable: [] });
+    };
+    const requested = { screen_rotation: "90", portrait_pairing: true };
+    const compatible = { ...requested, portrait_pairing: false };
+    await rotationClient.updateSettings(requested, [], compatible);
+    assert.deepEqual(sent, firmwarePolicy ? requested : compatible);
+  }
+
   const offline = new EspframeApiClient(contract, 1000);
   context.fetch = async () => { throw new TypeError("network"); };
   await assert.rejects(offline.getConfigurationSnapshot(), error => error instanceof EspframeApiError && error.kind === "offline");
