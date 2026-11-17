@@ -141,6 +141,31 @@ def test_exact_candidate_requires_only_the_requested_release_files() -> None:
         run_fails(args)
 
 
+def test_candidate_provenance_binds_source_web_assets_and_firmware() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        version = "v0.0.0-candidate.123.1"
+        manifest, factory, ota = make_release_files(base, version=version)
+        commit = "a" * 40
+        run_ok([
+            "manifest", "--slug", SLUG, "--chip", CHIP, "--version", version,
+            "--factory", str(factory), "--ota", str(ota), "--out", str(manifest),
+            "--source-commit", commit,
+        ])
+        args = ["verify-directory", "--exact", "--version", version, "--dir", str(base),
+                "--slugs", SLUG, "--source-commit"]
+        run_ok([*args, commit])
+        run_fails([*args, "b" * 40])
+        original_manifest = manifest.read_text()
+        data = json.loads(original_manifest)
+        data["espframe_candidate"]["sha256"]["app.js"] = "0" * 64
+        manifest.write_text(json.dumps(data))
+        run_fails([*args, commit])
+        manifest.write_text(original_manifest)
+        factory.write_bytes(factory.read_bytes() + b"changed")
+        run_fails([*args, commit])
+
+
 def test_versions_index_accepts_current_plus_four_previous_releases() -> None:
     with TemporaryDirectory() as tmp:
         base = Path(tmp)

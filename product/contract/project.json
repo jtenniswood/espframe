@@ -1755,7 +1755,7 @@
   "github_release_notes_fetch_depth": 0,
   "github_release_notes_fetch_tags": true,
   "github_release_notes_version_ref": "${{ github.ref_name }}",
-  "github_release_build_version_ref": "${{ github.ref_name }}",
+  "github_release_build_version_ref": "${{ github.ref_type == 'tag' && github.ref_name || format('v0.0.0-candidate.{0}.{1}', github.run_id, github.run_attempt) }}",
   "github_release_build_ref": "${{ github.sha }}",
   "github_release_build_fail_fast": false,
   "github_release_notes_output": "$RUNNER_TEMP/release-notes.md",

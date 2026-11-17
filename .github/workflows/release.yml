@@ -119,7 +119,7 @@ jobs:
 
       - name: Compile firmware
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.0.0-candidate.{0}.{1}', github.run_id, github.run_attempt) }}
         run: |
           set -euo pipefail
           python3 scripts/firmware_release.py inject \
@@ -220,7 +220,7 @@ jobs:
 
       - name: Collect firmware files and generate manifest
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.0.0-candidate.{0}.{1}', github.run_id, github.run_attempt) }}
         run: |
           mkdir -p output
 
@@ -235,6 +235,7 @@ jobs:
             --version "${VERSION}" \
             --factory "output/${{ matrix.slug }}.factory.bin" \
             --ota "output/${{ matrix.slug }}.ota.bin" \
+            --source-commit "$GITHUB_SHA" \
             --out "output/${{ matrix.slug }}.manifest.json"
 
           python3 scripts/firmware_release.py verify-files \
@@ -295,14 +296,14 @@ jobs:
 
       - name: Verify assembled release assets
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.0.0-candidate.{0}.{1}', github.run_id, github.run_attempt) }}
           DEVICE_SLUGS: ${{ needs.release-metadata.outputs.device_slugs }}
         run: >-
           python3 scripts/firmware_release.py verify-directory
           --version "${VERSION}"
           --dir firmware
           --exact
-          --exact
+          --source-commit "$GITHUB_SHA"
           --slugs $DEVICE_SLUGS
 
       - name: Upload verified firmware candidate

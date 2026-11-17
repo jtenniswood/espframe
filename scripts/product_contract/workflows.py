@@ -1763,7 +1763,7 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         check_workflow_named_step_run_contains(
             "release.assemble-candidate",
             "Verify assembled release assets",
-            ["scripts/firmware_release.py verify-directory", f"--dir {release_publish_dir}", "--exact"],
+            ["scripts/firmware_release.py verify-directory", f"--dir {release_publish_dir}", "--exact", '--source-commit "$GITHUB_SHA"'],
             workflow_texts,
             errors,
         )
