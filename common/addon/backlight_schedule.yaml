@@ -394,11 +394,7 @@ script:
 
           if (id(manual_wake_ms) != 0) {
             uint32_t elapsed = (uint32_t) (millis() - id(manual_wake_ms));
-            float timeout_s = id(schedule_wake_timeout).state;
-            if (std::isnan(timeout_s) || timeout_s <= 0) timeout_s = 60;
-            if (timeout_s < 10) timeout_s = 10;
-            if (timeout_s > 3600) timeout_s = 3600;
-            uint32_t timeout_ms = (uint32_t) (timeout_s * 1000.0f);
+            const uint32_t timeout_ms = esphome::espframe::schedule_wake_timeout_ms(id(schedule_wake_timeout).state);
             if (elapsed < timeout_ms) return;
             id(manual_wake_ms) = 0;
           }
@@ -414,11 +410,7 @@ script:
     mode: restart
     then:
       - delay: !lambda |-
-          float timeout_s = id(schedule_wake_timeout).state;
-          if (std::isnan(timeout_s) || timeout_s <= 0) timeout_s = 60;
-          if (timeout_s < 10) timeout_s = 10;
-          if (timeout_s > 3600) timeout_s = 3600;
-          return (int) (timeout_s * 1000.0f);
+          return esphome::espframe::schedule_wake_timeout_ms(id(schedule_wake_timeout).state);
       - lambda: |-
           if (!id(schedule_enabled).state || id(manual_wake_ms) == 0 ||
               id(backlight_manual_off)) {
@@ -446,11 +438,7 @@ script:
             return;
           }
 
-          float timeout_s = id(schedule_wake_timeout).state;
-          if (std::isnan(timeout_s) || timeout_s <= 0) timeout_s = 60;
-          if (timeout_s < 10) timeout_s = 10;
-          if (timeout_s > 3600) timeout_s = 3600;
-          uint32_t timeout_ms = (uint32_t) (timeout_s * 1000.0f);
+          const uint32_t timeout_ms = esphome::espframe::schedule_wake_timeout_ms(id(schedule_wake_timeout).state);
           uint32_t elapsed = (uint32_t) (millis() - id(manual_wake_ms));
           if (elapsed >= timeout_ms && !id(screen_schedule_asleep)) {
             id(manual_wake_ms) = 0;

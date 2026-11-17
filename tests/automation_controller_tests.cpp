@@ -1,5 +1,6 @@
 #include <cassert>
 #include <iostream>
+#include <limits>
 #include <vector>
 
 #include "components/espframe/automation_controller.h"
@@ -143,7 +144,17 @@ static void test_rotation_settings_order() {
   assert((pairing_only == std::vector<std::string>{"pairing", "unrelated"}));
 }
 
+static void test_schedule_wake_timeout() {
+  assert(schedule_wake_timeout_ms(std::numeric_limits<float>::quiet_NaN()) == 60000);
+  assert(schedule_wake_timeout_ms(0) == 60000);
+  assert(schedule_wake_timeout_ms(-1) == 60000);
+  assert(schedule_wake_timeout_ms(1) == 10000);
+  assert(schedule_wake_timeout_ms(10.5f) == 10500);
+  assert(schedule_wake_timeout_ms(7200) == 3600000);
+}
+
 int main() {
+  test_schedule_wake_timeout();
   test_rotation_settings_order();
   test_recovery_stop_order();
   test_rotation();
