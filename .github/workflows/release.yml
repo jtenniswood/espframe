@@ -285,7 +285,13 @@ jobs:
         with:
           pattern: firmware-*
           merge-multiple: true
-          path: firmware
+          path: board-builds
+
+      - name: Collect release assets
+        shell: bash
+        run: |
+          mkdir firmware
+          cp board-builds/*.manifest.json board-builds/*.factory.bin board-builds/*.ota.bin firmware/
 
       - name: Verify assembled release assets
         env:
@@ -295,6 +301,8 @@ jobs:
           python3 scripts/firmware_release.py verify-directory
           --version "${VERSION}"
           --dir firmware
+          --exact
+          --exact
           --slugs $DEVICE_SLUGS
 
       - name: Upload verified firmware candidate
@@ -339,6 +347,7 @@ jobs:
           python3 scripts/firmware_release.py verify-directory
           --version "${VERSION}"
           --dir firmware
+          --exact
           --slugs $DEVICE_SLUGS
 
       - name: Require an existing draft release
@@ -371,6 +380,7 @@ jobs:
           python3 scripts/firmware_release.py verify-directory \
             --version "${VERSION}" \
             --dir published \
+            --exact \
             --slugs $DEVICE_SLUGS
 
           for asset in firmware/*; do

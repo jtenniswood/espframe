@@ -1682,7 +1682,7 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             "merge-multiple": "true",
         }
         if release_publish_dir:
-            release_artifact_download_inputs["path"] = release_publish_dir
+            release_artifact_download_inputs["path"] = "board-builds"
         check_workflow_action_step_inputs(
             "release.assemble-candidate",
             download_artifact_action,
@@ -1763,7 +1763,7 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
         check_workflow_named_step_run_contains(
             "release.assemble-candidate",
             "Verify assembled release assets",
-            ["scripts/firmware_release.py verify-directory", f"--dir {release_publish_dir}"],
+            ["scripts/firmware_release.py verify-directory", f"--dir {release_publish_dir}", "--exact"],
             workflow_texts,
             errors,
         )

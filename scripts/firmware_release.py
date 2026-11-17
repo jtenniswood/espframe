@@ -619,8 +619,24 @@ def cmd_verify_files(args: argparse.Namespace) -> None:
 
 
 def cmd_verify_directory(args: argparse.Namespace) -> None:
+    base_dir = Path(args.dir)
+    if args.exact:
+        if args.allow_missing_slugs:
+            raise FirmwareReleaseError("--exact requires all requested slugs")
+        expected = {
+            f"{slug}{suffix}"
+            for slug in args.slugs
+            for suffix in (".manifest.json", ".factory.bin", ".ota.bin")
+        }
+        entries = list(base_dir.iterdir())
+        actual = {entry.name for entry in entries}
+        if actual != expected or any(not entry.is_file() or entry.is_symlink() for entry in entries):
+            raise FirmwareReleaseError(
+                f"Unexpected release candidate contents: missing={sorted(expected - actual)}, "
+                f"extra={sorted(actual - expected)}"
+            )
     verify_directory(
-        Path(args.dir),
+        base_dir,
         args.slugs,
         args.version,
         allow_missing_slugs=set(args.allow_missing_slugs),
@@ -680,6 +696,7 @@ def build_parser() -> argparse.ArgumentParser:
     verify_directory_cmd.add_argument("--dir", required=True)
     verify_directory_cmd.add_argument("--slugs", nargs="+", required=True)
     verify_directory_cmd.add_argument("--allow-missing-slugs", nargs="+", default=[])
+    verify_directory_cmd.add_argument("--exact", action="store_true", help="Require exactly the three release files for every slug")
     verify_directory_cmd.set_defaults(func=cmd_verify_directory)
 
     stage_directory_cmd = sub.add_parser("stage-directory", help="Stage release assets at their public paths")

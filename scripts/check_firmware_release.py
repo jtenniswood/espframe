@@ -126,6 +126,21 @@ def test_valid_files_and_directory() -> None:
         run_ok(["verify-directory", "--version", VERSION, "--dir", str(base), "--slugs", SLUG])
 
 
+def test_exact_candidate_requires_only_the_requested_release_files() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        slugs = [device.slug for device in firmware_release.DEVICES.values()]
+        for slug in slugs:
+            make_release_files(base, slug)
+        args = ["verify-directory", "--exact", "--version", VERSION, "--dir", str(base), "--slugs", *slugs]
+        run_ok(args)
+        (base / "unexpected.ota.bin").touch()
+        run_fails(args)
+        (base / "unexpected.ota.bin").unlink()
+        (base / f"{slugs[-1]}.ota.bin").unlink()
+        run_fails(args)
+
+
 def test_versions_index_accepts_current_plus_four_previous_releases() -> None:
     with TemporaryDirectory() as tmp:
         base = Path(tmp)
