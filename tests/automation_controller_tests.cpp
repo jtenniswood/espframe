@@ -36,6 +36,14 @@ static void test_rotation() {
     void turn_on() { calls.push_back(1); state = true; }
     void turn_off() { calls.push_back(-1); state = false; }
   } pairing{calls};
+  for (const std::string rotation : {"", "0", "180"}) {
+    assert(resolve_portrait_pairing(rotation, true));
+    assert(!resolve_portrait_pairing(rotation, false));
+  }
+  for (const std::string rotation : {"90", "270"}) {
+    assert(!resolve_portrait_pairing(rotation, true));
+    assert(!resolve_portrait_pairing(rotation, false));
+  }
   const std::array<std::string, 4> options{"0", "90", "180", "270"};
   // Both current panels use the offset mapping; the helper must also preserve
   // board substitutions when another panel supplies a different mapping.

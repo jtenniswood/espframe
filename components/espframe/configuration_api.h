@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <cstring>
@@ -354,6 +355,8 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
     std::vector<PendingValue> pending_values;
     JsonObject values = root["values"].as<JsonObject>();
     pending_values.reserve(values.size());
+    size_t rotation_index = values.size();
+    size_t pairing_index = values.size();
     for (JsonPair pair : values) {
       const char *key = pair.key().c_str();
       const auto *field = find_field_(key);
@@ -367,7 +370,15 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
         send_error_(request, 422, error, key);
         return;
       }
+      if (std::strcmp(key, "screen_rotation") == 0) rotation_index = pending_values.size();
+      if (std::strcmp(key, "portrait_pairing") == 0) pairing_index = pending_values.size();
       pending_values.push_back(std::move(pending));
+    }
+
+    // Evaluate pairing against the requested rotation regardless of JSON key order.
+    if (pairing_index < rotation_index && rotation_index < pending_values.size()) {
+      std::rotate(pending_values.begin() + pairing_index, pending_values.begin() + pairing_index + 1,
+                  pending_values.begin() + rotation_index + 1);
     }
 
     this->update_pending_.store(true);

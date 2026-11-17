@@ -11,16 +11,21 @@ template<typename... Scripts> void stop_scripts_in_order(Scripts *...scripts) {
   (scripts->stop(), ...);
 }
 
+inline bool resolve_portrait_pairing(const std::string &rotation, bool requested) {
+  return requested && rotation != "90" && rotation != "270";
+}
+
 struct RotationPlan {
   int degrees;
   bool portrait_pairing_allowed;
   bool valid;
 };
 inline RotationPlan rotation_plan(const std::string &option, const std::array<int, 4> &panel_rotations) {
-  if (option == "0") return {panel_rotations[0], true, true};
-  if (option == "90") return {panel_rotations[1], false, true};
-  if (option == "180") return {panel_rotations[2], true, true};
-  if (option == "270") return {panel_rotations[3], false, true};
+  const bool pairing_allowed = resolve_portrait_pairing(option, true);
+  if (option == "0") return {panel_rotations[0], pairing_allowed, true};
+  if (option == "90") return {panel_rotations[1], pairing_allowed, true};
+  if (option == "180") return {panel_rotations[2], pairing_allowed, true};
+  if (option == "270") return {panel_rotations[3], pairing_allowed, true};
   return {0, false, false};
 }
 template<typename Display, typename PairingSwitch>

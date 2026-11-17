@@ -164,7 +164,14 @@ switch:
     name: "Photos: Portrait Pairing"
     id: portrait_pairing_enabled
     internal: true
-    optimistic: true
+    turn_on_action:
+      - lambda: |-
+          const std::string rotation = id(screen_rotation_select).current_option();
+          const bool portrait_allowed = id(developer_features_enabled).state;
+          id(portrait_pairing_enabled).publish_state(
+              esphome::espframe::resolve_portrait_pairing(portrait_allowed ? rotation : "0", true));
+    turn_off_action:
+      - lambda: id(portrait_pairing_enabled).publish_state(false);
     # ESPFRAME:SETTING_FIELDS portrait_pairing START
     restore_mode: RESTORE_DEFAULT_ON
     # ESPFRAME:SETTING_FIELDS portrait_pairing END
