@@ -9,11 +9,14 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import gzip
 import io
 import json
+import os
 from pathlib import Path
+import subprocess
 from tempfile import TemporaryDirectory
 from threading import Thread
 
 import firmware_release
+from product_contract.workflows import workflow_job_block, workflow_job_step_blocks, workflow_step_run
 from script_test_discovery import run_discovered_tests
 
 
@@ -175,6 +178,60 @@ def test_candidate_provenance_binds_source_web_assets_and_firmware() -> None:
         factory.write_bytes(original_factory + gzip.compress(web_assets["app.js"]))
         run_ok(make_manifest)
         run_fails([*args, commit])
+
+
+def test_release_promotion_keeps_unverified_assets_private() -> None:
+    path = firmware_release.ROOT / ".github/workflows/release.yml"
+    errors: list[str] = []
+    publish = workflow_job_block(path.read_text(), "publish", str(path), errors)
+    assert not errors
+    commands = []
+    for step in workflow_job_step_blocks(publish):
+        command = workflow_step_run(step)
+        if command:
+            commands.append(" ".join(command.splitlines()) if "run: >-" in step else command)
+
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        gh = base / "gh"
+        gh.write_text("""#!/bin/bash
+set -eu
+[ "$1" = release ]
+printf '%s\n' "$2" >> calls
+case "$2" in
+  view) [ "$GH_TEST_MODE" != published ] && echo true || echo false ;;
+  upload) mkdir -p remote; cp firmware/* remote/ ;;
+  download)
+    cp remote/* published/
+    if [ "$GH_TEST_MODE" = corrupt ]; then
+      printf 'changed without removing version records' >> "published/$DEVICE_SLUGS.factory.bin"
+    fi
+    ;;
+  edit) [ "$4" = --draft=false ]; touch made-public ;;
+  *) exit 1 ;;
+esac
+""")
+        gh.chmod(0o755)
+        for mode in ("valid", "corrupt", "published"):
+            case = base / mode
+            case.mkdir()
+            (case / "scripts").symlink_to(firmware_release.ROOT / "scripts", target_is_directory=True)
+            (case / "firmware").mkdir()
+            make_release_files(case / "firmware", REAL_SLUG)
+            env = {**os.environ, "PATH": f"{base}{os.pathsep}{os.environ['PATH']}",
+                   "VERSION": VERSION, "DEVICE_SLUGS": REAL_SLUG, "GH_TEST_MODE": mode}
+            result = subprocess.run(
+                ["bash", "-eo", "pipefail", "-c", "\n".join(commands)], cwd=case, env=env,
+                capture_output=True, text=True, timeout=30,
+            )
+            expected = {
+                "valid": ["view", "upload", "download", "edit"],
+                "corrupt": ["view", "upload", "download"],
+                "published": ["view"],
+            }[mode]
+            assert (case / "calls").read_text().splitlines() == expected, result.stderr
+            assert (result.returncode == 0) == (mode == "valid"), result.stderr
+            assert (case / "made-public").exists() == (mode == "valid")
 
 
 def test_versions_index_accepts_current_plus_four_previous_releases() -> None:
