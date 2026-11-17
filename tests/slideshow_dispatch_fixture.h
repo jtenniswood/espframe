@@ -19,11 +19,13 @@ inline void dispatch_require(bool passed, const char *message) {
 struct DispatchTestCore {
   EspFrameSlideshow model;
   EspFrameSlideshow &slideshow() { return model; }
+  void record_memory(const char *) {}
 };
 
 // Hardware endpoints are replaced; the production command queue, dispatch
 // lambda, and ESPHome Script/Delay/Scheduler implementations run unchanged.
 struct DispatchTestEndpoint {
+  bool state = false;
   int calls = 0;
   std::function<void()> on_call;
   void execute() { ++calls; if (on_call) on_call(); }

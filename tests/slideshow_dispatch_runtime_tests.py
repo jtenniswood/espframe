@@ -25,12 +25,19 @@ def main():
     # passed to the layout helper. Adapt only those hardware arguments.
     dispatch['then'][-1]['lambda'] = (body.replace('apply_slot_layout(id(', 'apply_slot_layout(&id(')
                                          .replace('id(tft_display)->', 'id(tft_display).'))
-    real_scripts = {'deferred_fetch_into_slot', 'deferred_rejected_slot_fetch', 'immich_fetch_into_slot'}
+    callbacks = [
+        {'id': f"{image['id']}_{event}", 'then': image[event]['then']}
+        for image in source['remote_image']
+        for event in ('on_download_finished', 'on_error')
+    ]
+    real_scripts = {'deferred_fetch_into_slot', 'deferred_rejected_slot_fetch',
+                    'immich_fetch_into_slot', 'espframe_slideshow_dispatch'}
     deferred = [script for script in source['script'] if script['id'] in
                 {'deferred_fetch_into_slot', 'deferred_rejected_slot_fetch'}]
     fetch = {'id': 'immich_fetch_into_slot', 'then': [{'lambda': 'id(photo_fetch_count)++;'}]}
-    endpoints = sorted(set(re.findall(r'id\((\w+)\)', body))
-                       - {'espframe_core', 'photo_source_menu_open'} - real_scripts)
+    callback_bodies = [action['lambda'] for callback in callbacks for action in callback['then']]
+    references = re.findall(r'id\((\w+)\)', '\n'.join([body, *callback_bodies]))
+    endpoints = sorted(set(references) - {'espframe_core', 'photo_source_menu_open'} - real_scripts)
     api = yaml.load((ROOT / 'common/addon/immich_api.yaml').read_text(), Loader=LambdaLoader)
     tag_scope = next(script for script in api['script'] if script['id'] == 'immich_fetch_asset_tag_scope')
     # Run the production scheduling and stale/offline guards, replacing only
@@ -144,6 +151,18 @@ def main():
         {'lambda': '''
           dispatch_require(id(photo_fetch_count) == 2, "current delayed fetches execute once each");
           dispatch_require(id(espframe_core).slideshow().state().target_slot == 2, "rejected slot fetched last");
+          auto &state = id(espframe_core).slideshow().state();
+          state.active_slot = 0;
+          state.slot0.asset_id = state.slot0.pending_asset_id = "downloaded";
+          id(immich_img_0_on_download_finished).execute();
+          state.portrait.left_ready = true;
+          state.portrait.right_requested = true;
+          id(immich_portrait_right_on_download_finished).execute();
+        '''},
+        {'delay': '100ms'},
+        {'lambda': '''
+          dispatch_require(id(immich_display_current).calls == 1, "single decode presents its slot");
+          dispatch_require(id(immich_display_portrait_pair).calls == 1, "companion decode presents the pair");
           std::puts("Slideshow dispatch runtime tests passed");
           std::exit(0);
         '''},
@@ -163,7 +182,7 @@ def main():
                     {'id': 'test_wifi_connected', 'type': 'bool', 'initial_value': 'true'},
                     {'id': 'photo_source_menu_open', 'type': 'bool', 'initial_value': 'false'}] +
                    [{'id': name, 'type': 'DispatchTestEndpoint'} for name in endpoints],
-        'script': [dispatch, tag_scope, fetch, *deferred],
+        'script': [dispatch, tag_scope, fetch, *deferred, *callbacks],
     }
     CACHE.mkdir(parents=True, exist_ok=True)
     config_path = CACHE / 'runtime.yaml'
