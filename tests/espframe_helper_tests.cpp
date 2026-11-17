@@ -987,33 +987,23 @@ static void test_slideshow_component_commands() {
   assert(cmd.delay_ms == 500);
   assert(!slideshow.has_command());
 
-  SlotFlags flags;
-  int noncritical_count = 0;
-  int retries = 1;
-  bool displayed = false;
-  DisplayMeta current;
-  PortraitState portrait;
-  int companion_slot = -1;
-  std::string search_datetime;
-  std::string primary_asset_id;
-  SlotMeta active = make_slot("active-landscape", false);
-  flags.fetch_in_flight[0] = true;
+  auto &state = slideshow.state();
+  state.slot0 = make_slot("active-landscape", false);
+  state.download_retries = 1;
+  state.slot_flags.fetch_in_flight[0] = true;
 
-  SlideshowAction action = slideshow.on_slot_download_finished(
-      0, active, flags, noncritical_count, retries, 0, true, displayed, current,
-      portrait, companion_slot, -1, search_datetime, primary_asset_id);
-  assert(action == SLIDESHOW_ACTION_DISPLAY_CURRENT);
+  assert(slideshow.on_slot_download_finished(0, true) == SLIDESHOW_ACTION_DISPLAY_CURRENT);
+  assert(state.slot0.ready && state.active_slot_displayed);
+  assert(state.download_retries == 0 && !state.slot_flags.fetch_in_flight[0]);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
   assert(cmd.slot == 0);
 
-  std::string reason;
-  int last_downloaded = -1;
-  flags.fetch_in_flight[2] = true;
-  slideshow.on_slot_download_error(2, flags, noncritical_count, reason, last_downloaded,
-                                   "slot2 image error");
-  assert(reason == "slot2 image error");
-  assert(last_downloaded == 2);
+  state.slot_flags.fetch_in_flight[2] = true;
+  slideshow.on_slot_download_error(2, "slot2 image error");
+  assert(state.diagnostic_reason == "slot2 image error");
+  assert(state.last_downloaded_slot == 2);
+  assert(!state.slot_flags.fetch_in_flight[2]);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
   assert(cmd.slot == 2);

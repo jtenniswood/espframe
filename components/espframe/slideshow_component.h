@@ -235,19 +235,14 @@ class EspFrameSlideshow {
     }
   }
 
-  SlideshowAction on_slot_download_finished(int slot, SlotMeta &meta, SlotFlags &flags,
-                                            int &noncritical_count, int &download_retries,
-                                            int active_slot, bool portrait_pairing_enabled,
-                                            bool &active_slot_displayed, DisplayMeta &current_display,
-                                            PortraitState &portrait, int &companion_target_slot,
-                                            int portrait_preload_slot,
-                                            std::string &portrait_search_datetime,
-                                            std::string &portrait_primary_asset_id) {
+  SlideshowAction on_slot_download_finished(int slot, bool portrait_pairing_enabled) {
+    if (slot < 0 || slot > 2) return SLIDESHOW_ACTION_NONE;
+    auto &state = this->state_;
     SlideshowAction action = SlideshowController::handle_slot_download_finished(
-        slot, meta, flags, noncritical_count, download_retries, active_slot,
-        portrait_pairing_enabled, active_slot_displayed, current_display, portrait,
-        companion_target_slot, portrait_preload_slot, portrait_search_datetime,
-        portrait_primary_asset_id);
+        slot, state.slot(slot), state.slot_flags, state.noncritical_remote_updates_in_flight,
+        state.download_retries, state.active_slot, portrait_pairing_enabled, state.active_slot_displayed,
+        state.current_display, state.portrait, state.companion_target_slot, state.portrait_preload_slot,
+        state.portrait_search_datetime, state.portrait_primary_asset_id);
     if (action == SLIDESHOW_ACTION_FETCH_COMPANION) {
       this->state_.portrait_search_expanded = false;
       this->state_.portrait_search_exhaustive = false;
@@ -259,11 +254,12 @@ class EspFrameSlideshow {
     return action;
   }
 
-  void on_slot_download_error(int slot, SlotFlags &flags, int &noncritical_count,
-                              std::string &diag_reason, int &last_downloaded_slot,
-                              const char *reason) {
+  void on_slot_download_error(int slot, const char *reason) {
+    if (slot < 0 || slot > 2) return;
+    auto &state = this->state_;
     SlideshowController::handle_slot_download_error(
-        slot, flags, noncritical_count, diag_reason, last_downloaded_slot, reason);
+        slot, state.slot_flags, state.noncritical_remote_updates_in_flight,
+        state.diagnostic_reason, state.last_downloaded_slot, reason);
     this->emit_command(SLIDESHOW_COMMAND_LOG_DIAG, slot);
     this->emit_command(SLIDESHOW_COMMAND_HANDLE_SLOT_DOWNLOAD_ERROR, slot);
   }

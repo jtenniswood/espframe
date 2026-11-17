@@ -242,21 +242,12 @@ remote_image:
       then:
         - lambda: |-
             id(espframe_core).record_memory("photo-decoded");
-            const int slot = 0;
-            auto &meta = id(espframe_core).slideshow().state().slot0;
-            id(espframe_core).slideshow().on_slot_download_finished(
-              slot, meta, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight,
-              id(espframe_core).slideshow().state().download_retries, id(espframe_core).slideshow().state().active_slot, id(portrait_pairing_enabled).state,
-              id(espframe_core).slideshow().state().active_slot_displayed, id(espframe_core).slideshow().state().current_display, id(espframe_core).slideshow().state().portrait,
-              id(espframe_core).slideshow().state().companion_target_slot, id(espframe_core).slideshow().state().portrait_preload_slot,
-              id(espframe_core).slideshow().state().portrait_search_datetime, id(espframe_core).slideshow().state().portrait_primary_asset_id);
+            id(espframe_core).slideshow().on_slot_download_finished(0, id(portrait_pairing_enabled).state);
             id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
-            id(espframe_core).slideshow().on_slot_download_error(
-              0, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight,
-              id(espframe_core).slideshow().state().diagnostic_reason, id(espframe_core).slideshow().state().last_downloaded_slot, "slot0 image error");
+            id(espframe_core).slideshow().on_slot_download_error(0, "slot0 image error");
             id(espframe_slideshow_dispatch).execute();
 
   - id: immich_img_1
@@ -271,21 +262,12 @@ remote_image:
       then:
         - lambda: |-
             id(espframe_core).record_memory("photo-decoded");
-            const int slot = 1;
-            auto &meta = id(espframe_core).slideshow().state().slot1;
-            id(espframe_core).slideshow().on_slot_download_finished(
-              slot, meta, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight,
-              id(espframe_core).slideshow().state().download_retries, id(espframe_core).slideshow().state().active_slot, id(portrait_pairing_enabled).state,
-              id(espframe_core).slideshow().state().active_slot_displayed, id(espframe_core).slideshow().state().current_display, id(espframe_core).slideshow().state().portrait,
-              id(espframe_core).slideshow().state().companion_target_slot, id(espframe_core).slideshow().state().portrait_preload_slot,
-              id(espframe_core).slideshow().state().portrait_search_datetime, id(espframe_core).slideshow().state().portrait_primary_asset_id);
+            id(espframe_core).slideshow().on_slot_download_finished(1, id(portrait_pairing_enabled).state);
             id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
-            id(espframe_core).slideshow().on_slot_download_error(
-              1, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight,
-              id(espframe_core).slideshow().state().diagnostic_reason, id(espframe_core).slideshow().state().last_downloaded_slot, "slot1 image error");
+            id(espframe_core).slideshow().on_slot_download_error(1, "slot1 image error");
             id(espframe_slideshow_dispatch).execute();
 
   - id: immich_img_2
@@ -300,21 +282,12 @@ remote_image:
       then:
         - lambda: |-
             id(espframe_core).record_memory("photo-decoded");
-            const int slot = 2;
-            auto &meta = id(espframe_core).slideshow().state().slot2;
-            id(espframe_core).slideshow().on_slot_download_finished(
-              slot, meta, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight,
-              id(espframe_core).slideshow().state().download_retries, id(espframe_core).slideshow().state().active_slot, id(portrait_pairing_enabled).state,
-              id(espframe_core).slideshow().state().active_slot_displayed, id(espframe_core).slideshow().state().current_display, id(espframe_core).slideshow().state().portrait,
-              id(espframe_core).slideshow().state().companion_target_slot, id(espframe_core).slideshow().state().portrait_preload_slot,
-              id(espframe_core).slideshow().state().portrait_search_datetime, id(espframe_core).slideshow().state().portrait_primary_asset_id);
+            id(espframe_core).slideshow().on_slot_download_finished(2, id(portrait_pairing_enabled).state);
             id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
-            id(espframe_core).slideshow().on_slot_download_error(
-              2, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight,
-              id(espframe_core).slideshow().state().diagnostic_reason, id(espframe_core).slideshow().state().last_downloaded_slot, "slot2 image error");
+            id(espframe_core).slideshow().on_slot_download_error(2, "slot2 image error");
             id(espframe_slideshow_dispatch).execute();
 
   # Portrait pair half-width components (640x800 each, side-by-side)
