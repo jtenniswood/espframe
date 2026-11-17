@@ -4,10 +4,12 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <vector>
 
 #include "configuration_contract_generated.h"
+#include "ntp_helpers.h"
 
 namespace esphome::espframe {
 
@@ -15,6 +17,15 @@ inline uint32_t schedule_wake_timeout_ms(float seconds) {
   if (std::isnan(seconds) || seconds <= 0) seconds = contract::SCHEDULE_WAKE_TIMEOUT_DEFAULT;
   return static_cast<uint32_t>(
       std::clamp(seconds, contract::SCHEDULE_WAKE_TIMEOUT_MIN, contract::SCHEDULE_WAKE_TIMEOUT_MAX) * 1000.0f);
+}
+
+inline bool validate_configuration_text(const char *key, const std::string &value) {
+  if (std::strcmp(key, "ntp_server_1") == 0 ||
+      std::strcmp(key, "ntp_server_2") == 0 ||
+      std::strcmp(key, "ntp_server_3") == 0) {
+    return espframe_is_valid_ntp_server(value);
+  }
+  return true;
 }
 
 inline bool is_portrait_rotation(const std::string &rotation) {

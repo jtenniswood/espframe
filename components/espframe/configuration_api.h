@@ -306,6 +306,10 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
       pending.domain = PendingDomain::TEXT;
       pending.entity = entity;
       pending.string_value = text_value;
+      if (!validate_configuration_text(field.key, pending.string_value)) {
+        error = "invalid_value";
+        return false;
+      }
       return true;
     }
 

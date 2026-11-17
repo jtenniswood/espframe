@@ -166,7 +166,19 @@ static void test_schedule_wake_timeout() {
   assert(schedule_wake_timeout_ms(7200) == 3600000);
 }
 
+static void test_configuration_ntp_validation() {
+  for (const char *key : {"ntp_server_1", "ntp_server_2", "ntp_server_3"}) {
+    assert(validate_configuration_text(key, ""));
+    assert(validate_configuration_text(key, "  pool.ntp.org  "));
+    assert(validate_configuration_text(key, "2001:db8::1"));
+    assert(!validate_configuration_text(key, "two hosts"));
+    assert(!validate_configuration_text(key, "https://pool.ntp.org"));
+  }
+  assert(validate_configuration_text("immich_url", "https://immich.example/path"));
+}
+
 int main() {
+  test_configuration_ntp_validation();
   test_schedule_wake_timeout();
   test_rotation_settings_order();
   test_recovery_stop_order();
