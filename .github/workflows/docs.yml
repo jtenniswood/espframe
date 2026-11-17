@@ -33,7 +33,8 @@ jobs:
     name: Build Docs
     if: >-
       github.event_name != 'workflow_run' ||
-      github.event.workflow_run.conclusion == 'success'
+      (github.event.workflow_run.conclusion == 'success' &&
+       startsWith(github.event.workflow_run.display_title, 'Publish firmware '))
     runs-on: espframe
     timeout-minutes: 20
     steps:
@@ -60,7 +61,8 @@ jobs:
     name: Download Firmware
     if: >-
       github.event_name != 'workflow_run' ||
-      github.event.workflow_run.conclusion == 'success'
+      (github.event.workflow_run.conclusion == 'success' &&
+       startsWith(github.event.workflow_run.display_title, 'Publish firmware '))
     runs-on: espframe
     timeout-minutes: 20
     outputs:

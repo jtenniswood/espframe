@@ -2766,6 +2766,13 @@ def test_release_promotes_only_the_verified_draft() -> None:
     assert positions == sorted(positions)
 
 
+def test_candidate_only_runs_do_not_deploy_docs() -> None:
+    release = (ROOT / ".github" / "workflows" / "release.yml").read_text()
+    docs = (ROOT / ".github" / "workflows" / "docs.yml").read_text()
+    assert "inputs.publish && github.ref_type == 'tag' && format('Publish firmware {0}'" in release
+    assert docs.count("startsWith(github.event.workflow_run.display_title, 'Publish firmware ')") == 2
+
+
 def main() -> int:
     run_discovered_tests(globals())
     print("workflow contract tests passed")

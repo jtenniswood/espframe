@@ -1,4 +1,5 @@
 name: Build Release
+run-name: ${{ inputs.publish && github.ref_type == 'tag' && format('Publish firmware {0}', github.ref_name) || format('Build firmware candidate {0}', github.ref_name) }}
 
 on:
   workflow_dispatch:
