@@ -70,6 +70,11 @@ async function main() {
     const compatible = { ...requested, portrait_pairing: false };
     await rotationClient.updateSettings(requested, [], compatible);
     assert.deepEqual(sent, firmwarePolicy ? requested : compatible);
+
+    const disableDeveloperMode = { developer_features_enabled: false };
+    const disableWithRotation = { ...disableDeveloperMode, screen_rotation: "0" };
+    await rotationClient.updateSettings(disableDeveloperMode, [], disableWithRotation);
+    assert.deepEqual(sent, firmwarePolicy ? disableDeveloperMode : disableWithRotation);
   }
 
   const offline = new EspframeApiClient(contract.capabilities_path, 1000);

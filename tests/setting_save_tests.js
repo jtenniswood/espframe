@@ -139,6 +139,7 @@ async function rotationPreservesPairing() {
     isPortraitScreenRotation: value => value === "90" || value === "270",
     saveSettingValues: async values => { writes.push({ ...values }); },
     URLSearchParams,
+    S: { screen_rotation: "90" },
   };
   vm.runInNewContext(transformSync(template.slice(template.indexOf("  function saveScreenRotationSetting"),
     template.indexOf("  function reportSettingSaveFailure")), { loader: "ts" }).code, runtime);
@@ -158,6 +159,11 @@ async function rotationPreservesPairing() {
     template.indexOf("  function saveSettingValues")), { loader: "ts" }).code, runtime);
   assert.deepEqual({ ...runtime.legacyRotationValues({ portrait_pairing: true }, "90") }, { portrait_pairing: false });
   assert.deepEqual({ ...runtime.legacyRotationValues({ unrelated: true }, "90") }, { unrelated: true });
+  assert.deepEqual({ ...runtime.legacyRotationValues({ developer_features_enabled: false }) },
+    { developer_features_enabled: false, screen_rotation: "0" });
+  runtime.S.screen_rotation = "180";
+  assert.deepEqual({ ...runtime.legacyRotationValues({ developer_features_enabled: false }) },
+    { developer_features_enabled: false });
 
   const backupSource = fs.readFileSync("docs/webserver/src/backup_import.ts", "utf8");
   vm.runInNewContext(transformSync(backupSource, { loader: "ts" }).code, runtime);

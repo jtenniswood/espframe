@@ -294,6 +294,9 @@ import {
   }
 
   function legacyRotationValues(values, requestedRotation = values.screen_rotation) {
+    if (values.developer_features_enabled === false && isPortraitScreenRotation(S.screen_rotation)) {
+      return Object.assign({}, values, { screen_rotation: "0" });
+    }
     return isPortraitScreenRotation(requestedRotation) &&
       ("screen_rotation" in values || "portrait_pairing" in values)
       ? Object.assign({}, values, { portrait_pairing: false })

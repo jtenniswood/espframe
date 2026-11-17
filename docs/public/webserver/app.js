@@ -2346,6 +2346,9 @@ to {
     return { key, domain, url: endpoints[key], value: savedValue };
   }
   function legacyRotationValues(values, requestedRotation = values.screen_rotation) {
+    if (values.developer_features_enabled === false && isPortraitScreenRotation(S.screen_rotation)) {
+      return Object.assign({}, values, { screen_rotation: "0" });
+    }
     return isPortraitScreenRotation(requestedRotation) && ("screen_rotation" in values || "portrait_pairing" in values) ? Object.assign({}, values, { portrait_pairing: false }) : values;
   }
   function saveSettingValues(values, requestedRotation) {
@@ -4738,9 +4741,6 @@ to {
       badge: devBadge,
       onChange: function() {
         saveSetting("developer_features_enabled", S.developer_features_enabled);
-        if (!S.developer_features_enabled && isPortraitScreenRotation(S.screen_rotation)) {
-          saveSetting("screen_rotation", "0");
-        }
         renderSettings();
       }
     }).field);

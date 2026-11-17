@@ -717,9 +717,6 @@
       badge: devBadge,
       onChange: function () {
         saveSetting("developer_features_enabled", S.developer_features_enabled);
-        if (!S.developer_features_enabled && isPortraitScreenRotation(S.screen_rotation)) {
-          saveSetting("screen_rotation", "0");
-        }
         renderSettings();
       }
     }).field);
