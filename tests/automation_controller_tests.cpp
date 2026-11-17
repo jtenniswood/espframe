@@ -133,14 +133,27 @@ static void test_slot_fetch_guards() {
 }
 
 static void test_rotation_settings_order() {
+  std::vector<std::string> ordered{"developer", "pairing", "rotation"};
+  do {
+    auto writes = ordered;
+    const auto developer = std::find(writes.begin(), writes.end(), "developer") - writes.begin();
+    const auto rotation = std::find(writes.begin(), writes.end(), "rotation") - writes.begin();
+    const auto pairing = std::find(writes.begin(), writes.end(), "pairing") - writes.begin();
+    order_rotation_settings(writes, developer, rotation, pairing);
+    assert((writes == std::vector<std::string>{"developer", "rotation", "pairing"}));
+  } while (std::next_permutation(ordered.begin(), ordered.end()));
+  assert(rotation_requires_developer_mode("90", false));
+  assert(!rotation_requires_developer_mode("90", true));
+  assert(!rotation_requires_developer_mode("0", false));
+
   std::vector<std::string> pairing_first{"pairing", "unrelated", "rotation"};
-  order_rotation_and_pairing(pairing_first, 2, 0);
+  order_rotation_settings(pairing_first, pairing_first.size(), 2, 0);
   assert((pairing_first == std::vector<std::string>{"unrelated", "rotation", "pairing"}));
   std::vector<std::string> rotation_first{"rotation", "unrelated", "pairing"};
-  order_rotation_and_pairing(rotation_first, 0, 2);
+  order_rotation_settings(rotation_first, rotation_first.size(), 0, 2);
   assert((rotation_first == std::vector<std::string>{"rotation", "unrelated", "pairing"}));
   std::vector<std::string> pairing_only{"pairing", "unrelated"};
-  order_rotation_and_pairing(pairing_only, pairing_only.size(), 0);
+  order_rotation_settings(pairing_only, pairing_only.size(), pairing_only.size(), 0);
   assert((pairing_only == std::vector<std::string>{"pairing", "unrelated"}));
 }
 

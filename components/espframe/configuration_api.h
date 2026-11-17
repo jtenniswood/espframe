@@ -355,6 +355,7 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
     std::vector<PendingValue> pending_values;
     JsonObject values = root["values"].as<JsonObject>();
     pending_values.reserve(values.size());
+    size_t developer_index = values.size();
     size_t rotation_index = values.size();
     size_t pairing_index = values.size();
     for (JsonPair pair : values) {
@@ -370,12 +371,13 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
         send_error_(request, 422, error, key);
         return;
       }
+      if (std::strcmp(key, "developer_features_enabled") == 0) developer_index = pending_values.size();
       if (std::strcmp(key, "screen_rotation") == 0) rotation_index = pending_values.size();
       if (std::strcmp(key, "portrait_pairing") == 0) pairing_index = pending_values.size();
       pending_values.push_back(std::move(pending));
     }
 
-    order_rotation_and_pairing(pending_values, rotation_index, pairing_index);
+    order_rotation_settings(pending_values, developer_index, rotation_index, pairing_index);
 
     this->update_pending_.store(true);
     this->reset_->set_settings_update_in_progress(true);

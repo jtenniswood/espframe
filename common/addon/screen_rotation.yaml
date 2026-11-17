@@ -43,7 +43,7 @@ script:
           condition:
             lambda: |-
               const std::string current = id(screen_rotation_select).current_option();
-              return !id(developer_features_enabled).state && (current == "90" || current == "270");
+              return esphome::espframe::rotation_requires_developer_mode(current, id(developer_features_enabled).state);
           then:
             - select.set:
                 id: screen_rotation_select

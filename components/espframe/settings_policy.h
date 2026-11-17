@@ -17,15 +17,31 @@ inline uint32_t schedule_wake_timeout_ms(float seconds) {
       std::clamp(seconds, contract::SCHEDULE_WAKE_TIMEOUT_MIN, contract::SCHEDULE_WAKE_TIMEOUT_MAX) * 1000.0f);
 }
 
-inline bool resolve_portrait_pairing(const std::string &rotation, bool requested) {
-  return requested && rotation != "90" && rotation != "270";
+inline bool is_portrait_rotation(const std::string &rotation) {
+  return rotation == "90" || rotation == "270";
 }
 
-// Apply explicit pairing against the new rotation while keeping the other
-// setting writes in their original relative order.
+inline bool rotation_requires_developer_mode(const std::string &rotation, bool developer_enabled) {
+  return !developer_enabled && is_portrait_rotation(rotation);
+}
+
+inline bool resolve_portrait_pairing(const std::string &rotation, bool requested) {
+  return requested && !is_portrait_rotation(rotation);
+}
+
+// Apply developer mode before rotation, then evaluate explicit pairing
+// against the resulting rotation. Other writes keep their relative order.
 template<typename Setting>
-void order_rotation_and_pairing(std::vector<Setting> &settings, std::size_t rotation, std::size_t pairing) {
-  if (pairing < rotation && rotation < settings.size()) {
+void order_rotation_settings(std::vector<Setting> &settings, std::size_t developer,
+                             std::size_t rotation, std::size_t pairing) {
+  if (rotation == settings.size()) return;
+  if (rotation < developer && developer < settings.size()) {
+    std::rotate(settings.begin() + rotation, settings.begin() + developer,
+                settings.begin() + developer + 1);
+    if (rotation <= pairing && pairing < developer) ++pairing;
+    ++rotation;
+  }
+  if (pairing < rotation) {
     std::rotate(settings.begin() + pairing, settings.begin() + pairing + 1,
                 settings.begin() + rotation + 1);
   }

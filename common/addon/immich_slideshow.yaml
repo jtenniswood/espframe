@@ -167,9 +167,10 @@ switch:
     turn_on_action:
       - lambda: |-
           const std::string rotation = id(screen_rotation_select).current_option();
-          const bool portrait_allowed = id(developer_features_enabled).state;
+          const bool rotation_clamped = esphome::espframe::rotation_requires_developer_mode(
+              rotation, id(developer_features_enabled).state);
           id(portrait_pairing_enabled).publish_state(
-              esphome::espframe::resolve_portrait_pairing(portrait_allowed ? rotation : "0", true));
+              esphome::espframe::resolve_portrait_pairing(rotation_clamped ? "0" : rotation, true));
     turn_off_action:
       - lambda: id(portrait_pairing_enabled).publish_state(false);
     # ESPFRAME:SETTING_FIELDS portrait_pairing START
