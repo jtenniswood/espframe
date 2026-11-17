@@ -1175,10 +1175,13 @@ script:
   - id: deferred_fetch_into_slot
     mode: single
     then:
-      - lambda: 'id(espframe_core).slideshow().state().deferred_fetch_target = id(espframe_core).slideshow().state().target_slot;'
+      - lambda: 'id(espframe_core).slideshow().capture_deferred_fetch_target();'
       - delay: 400ms
-      - lambda: 'id(espframe_core).slideshow().state().target_slot = id(espframe_core).slideshow().state().deferred_fetch_target;'
-      - script.execute: immich_fetch_into_slot
+      - if:
+          condition:
+            lambda: 'return id(espframe_core).slideshow().claim_deferred_fetch(false);'
+          then:
+            - script.execute: immich_fetch_into_slot
 
   - id: deferred_rejected_slot_fetch
     mode: restart
@@ -1195,12 +1198,11 @@ script:
                      !id(immich_portrait_right).is_downloading() &&
                      !id(immich_portrait_preload_left).is_downloading() &&
                      !id(immich_portrait_preload_right).is_downloading();
-      - lambda: |-
-          int slot = id(espframe_core).slideshow().state().rejected_fetch_target;
-          if (slot < 0 || slot > 2) return;
-          id(espframe_core).slideshow().state().target_slot = slot;
-          id(espframe_core).slideshow().state().rejected_fetch_target = -1;
-      - script.execute: immich_fetch_into_slot
+      - if:
+          condition:
+            lambda: 'return id(espframe_core).slideshow().claim_deferred_fetch(true);'
+          then:
+            - script.execute: immich_fetch_into_slot
 
   # Per-slot deferred update scripts — split from a single shared script to avoid
   # collisions when two API responses arrive within 150ms of each other.

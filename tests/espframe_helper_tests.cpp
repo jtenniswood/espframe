@@ -1814,6 +1814,13 @@ static void test_filter_invalidation_preserves_display_and_clears_work() {
   auto &state = slideshow.state();
   state.active_slot = 1;
   state.target_slot = 2;
+  slideshow.capture_deferred_fetch_target();
+  state.target_slot = 0;
+  assert(slideshow.claim_deferred_fetch(false) && state.target_slot == 2);
+  assert(!slideshow.claim_deferred_fetch(false));
+  slideshow.capture_deferred_fetch_target();
+  state.rejected_fetch_target = 0;
+  assert(state.fetch_queue.enqueue(FETCH_JOB_SLOT, 0, 1, 100));
   state.active_slot_displayed = true;
   state.portrait.left_requested = true;
   state.portrait.right_requested = true;
@@ -1838,6 +1845,9 @@ static void test_filter_invalidation_preserves_display_and_clears_work() {
     state.slot_flags.noncritical_update[slot] = true;
   }
   slideshow.invalidate_filter_slots();
+  assert(state.fetch_queue.empty());
+  assert(!slideshow.claim_deferred_fetch(false));
+  assert(!slideshow.claim_deferred_fetch(true));
   assert(slideshow.on_slot_download_finished(1, true) == SLIDESHOW_ACTION_NONE);
   slideshow.on_slot_download_error(2, "late error");
   assert(!slideshow.request_deferred_slot_update(2));

@@ -104,7 +104,7 @@ struct SlideshowRuntimeState {
   int last_downloaded_slot = -1;
   std::string diagnostic_reason;
   uint32_t last_diagnostic_ms = 0;
-  int deferred_fetch_target = 0;
+  int deferred_fetch_target = -1;
   int rejected_fetch_target = -1;
   int download_retries = 0;
 
@@ -182,6 +182,9 @@ class EspFrameSlideshow {
   void invalidate_filter_slots() {
     auto &state = this->state_;
     this->commands_.clear();
+    state.fetch_queue.clear();
+    state.deferred_fetch_target = -1;
+    state.rejected_fetch_target = -1;
     for (int slot = 0; slot < 3; ++slot) {
       clear_slot_fetch_in_flight(slot, state.slot_flags);
       state.slot_flags.noncritical_update[slot] = false;
@@ -203,6 +206,19 @@ class EspFrameSlideshow {
     this->state_.previous_display = DisplayMeta{};
     this->state_.active_slot_displayed = false;
     this->state_.target_slot = this->state_.active_slot;
+  }
+
+  void capture_deferred_fetch_target() {
+    this->state_.deferred_fetch_target = this->state_.target_slot;
+  }
+
+  bool claim_deferred_fetch(bool rejected) {
+    auto &state = this->state_;
+    int &pending_slot = rejected ? state.rejected_fetch_target : state.deferred_fetch_target;
+    if (pending_slot < 0 || pending_slot > 2) return false;
+    state.target_slot = pending_slot;
+    pending_slot = -1;
+    return true;
   }
 
   bool has_command() const { return !this->commands_.empty(); }
@@ -902,6 +918,7 @@ class EspFrameSlideshow {
     this->state_.portrait_search_cursor.clear();
     this->state_.portrait_search_generation++;
     this->state_.portrait_search_request_generation = 0;
+    this->state_.deferred_fetch_target = -1;
     this->state_.rejected_fetch_target = -1;
     this->state_.download_retries = 0;
     this->state_.last_prefetch_start_ms = 0;
@@ -946,15 +963,6 @@ class EspFrameSlideshow {
   }
 
  private:
-  static SlotMeta &slot_mut_(int slot, SlotMeta &slot0, SlotMeta &slot1, SlotMeta &slot2) {
-    return slot == 0 ? slot0 : (slot == 1 ? slot1 : slot2);
-  }
-
-  static const SlotMeta &slot_const_(int slot, const SlotMeta &slot0, const SlotMeta &slot1,
-                                     const SlotMeta &slot2) {
-    return slot == 0 ? slot0 : (slot == 1 ? slot1 : slot2);
-  }
-
   static void clear_preload_noncritical_(bool &preload_noncritical_in_flight,
                                          int &noncritical_count) {
     if (preload_noncritical_in_flight) {
