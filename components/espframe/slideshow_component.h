@@ -636,49 +636,37 @@ class EspFrameSlideshow {
       this->emit_command(SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT, state.active_slot);
       return false;
     }
-    this->after_display_current(
-        state.active_slot, state.slot0, state.slot1, state.slot2, state.portrait,
-        portrait_pairing_enabled, state.active_slot_displayed,
-        state.portrait_preload_slot, state.portrait_preload_left_ready,
-        state.portrait_preload_right_ready);
+    this->after_display_current(portrait_pairing_enabled);
     return false;
   }
 
-  bool begin_display_current(int active_slot, SlotMeta &slot0, SlotMeta &slot1,
-                             SlotMeta &slot2, PortraitState &portrait,
-                             bool portrait_pairing_enabled, bool &active_slot_displayed,
-                             DisplayMeta &current_display) {
-    SlotMeta &meta = this->slot_mut_(active_slot, slot0, slot1, slot2);
-    copy_slot_to_display(meta, current_display);
-    portrait.is_pair = false;
-    bool pair = meta.is_portrait && portrait_pairing_enabled;
+  bool begin_display_current(bool portrait_pairing_enabled) {
+    auto &state = this->state_;
+    const auto &meta = state.slot(state.active_slot);
+    copy_slot_to_display(meta, state.current_display);
+    state.portrait.is_pair = false;
+    const bool pair = meta.is_portrait && portrait_pairing_enabled;
     if (!pair) {
-      active_slot_displayed = true;
-      portrait.workflow_busy = false;
+      state.active_slot_displayed = true;
+      state.portrait.workflow_busy = false;
     }
     return pair;
   }
 
-  void after_display_current(int active_slot, SlotMeta &slot0, SlotMeta &slot1,
-                             SlotMeta &slot2, PortraitState &portrait,
-                             bool portrait_pairing_enabled, bool &active_slot_displayed,
-                             int &portrait_preload_slot,
-                             bool portrait_preload_left_ready,
-                             bool portrait_preload_right_ready) {
-    SlotMeta &meta = this->slot_mut_(active_slot, slot0, slot1, slot2);
-    bool pair = meta.is_portrait && portrait_pairing_enabled;
-    if (!pair) return;
+  void after_display_current(bool portrait_pairing_enabled) {
+    auto &state = this->state_;
+    const auto &meta = state.slot(state.active_slot);
+    if (!meta.is_portrait || !portrait_pairing_enabled) return;
 
-    if (portrait_preload_slot == active_slot && portrait_preload_left_ready &&
-        portrait_preload_right_ready) {
-      portrait.is_pair = true;
-      portrait.using_preload = true;
-      this->emit_command(SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR, active_slot);
+    if (this->active_preloaded_pair_ready()) {
+      state.portrait.is_pair = true;
+      state.portrait.using_preload = true;
+      this->emit_command(SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR, state.active_slot);
       return;
     }
 
-    if (!portrait.is_pair && !portrait.no_companion_active) {
-      this->emit_command(SLIDESHOW_COMMAND_START_ACTIVE_PAIR, active_slot);
+    if (!state.portrait.is_pair && !state.portrait.no_companion_active) {
+      this->emit_command(SLIDESHOW_COMMAND_START_ACTIVE_PAIR, state.active_slot);
     }
   }
 

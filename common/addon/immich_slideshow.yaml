@@ -915,17 +915,10 @@ script:
           lv_img_set_zoom(id(slideshow_img), meta.zoom);
           id(photo_transition_start).execute(false);
           ESP_LOGI("immich", "SHOW slot %d: %s | %s | %s | portrait=%d", s, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.is_portrait);
-          id(espframe_core).slideshow().begin_display_current(
-            s, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().portrait,
-            id(portrait_pairing_enabled).state, id(espframe_core).slideshow().state().active_slot_displayed,
-            id(espframe_core).slideshow().state().current_display);
+          id(espframe_core).slideshow().begin_display_current(id(portrait_pairing_enabled).state);
       - script.execute: apply_warm_tones
       - lambda: |-
-          id(espframe_core).slideshow().after_display_current(
-            id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().portrait,
-            id(portrait_pairing_enabled).state, id(espframe_core).slideshow().state().active_slot_displayed,
-            id(espframe_core).slideshow().state().portrait_preload_slot, id(espframe_core).slideshow().state().portrait_preload_left_ready,
-            id(espframe_core).slideshow().state().portrait_preload_right_ready);
+          id(espframe_core).slideshow().after_display_current(id(portrait_pairing_enabled).state);
           id(espframe_slideshow_dispatch).execute();
       - script.execute: update_clock_display
       - script.execute: update_photo_metadata_display

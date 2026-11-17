@@ -1237,8 +1237,7 @@ static void test_slideshow_component_portrait_flow() {
   assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
-  slideshow.after_display_current(0, no_companion, slot1, slot2, portrait, true, displayed,
-                                  companion_slot, false, false);
+  slideshow.after_display_current(true);
   assert(!slideshow.has_command());
 
   portrait = PortraitState{};
@@ -1256,8 +1255,7 @@ static void test_slideshow_component_portrait_flow() {
   assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
-  slideshow.after_display_current(0, no_companion, slot1, slot2, portrait, true, displayed,
-                                  companion_slot, false, false);
+  slideshow.after_display_current(true);
   assert(!slideshow.has_command());
 
   // A transient pair download failure can occur while the previous image is
@@ -1613,30 +1611,27 @@ static void test_portrait_single_display_guard() {
 
 static void test_slideshow_component_display_current_flow() {
   EspFrameSlideshow slideshow;
-  SlotMeta slot0 = make_slot("landscape", false);
-  SlotMeta slot1 = make_slot("portrait", true);
-  SlotMeta slot2 = make_slot("slot2", false);
-  PortraitState portrait;
-  bool displayed = false;
+  auto &state = slideshow.state();
+  state.slot0 = make_slot("landscape", false);
+  state.slot1 = make_slot("portrait", true);
 
-  DisplayMeta current;
-  bool pair = slideshow.begin_display_current(0, slot0, slot1, slot2, portrait, true, displayed, current);
-  assert(!pair);
-  assert(displayed);
-  assert(!portrait.workflow_busy);
+  assert(!slideshow.begin_display_current(true));
+  assert(state.active_slot_displayed);
+  assert(state.current_display.asset_id == "landscape");
+  assert(!state.portrait.workflow_busy);
 
-  displayed = false;
-  portrait = PortraitState{};
-  portrait.workflow_busy = true;
-  int preload_slot = 1;
-  pair = slideshow.begin_display_current(1, slot0, slot1, slot2, portrait, true, displayed, current);
-  assert(pair);
-  assert(!displayed);
-  slideshow.after_display_current(1, slot0, slot1, slot2, portrait, true, displayed,
-                                  preload_slot, true, true);
-  assert(!displayed);
-  assert(portrait.is_pair);
-  assert(portrait.using_preload);
+  state.active_slot = 1;
+  state.active_slot_displayed = false;
+  state.portrait.workflow_busy = true;
+  auto &preload_slot = state.portrait_preload_slot;
+  preload_slot = 1;
+  state.portrait_preload_left_ready = state.portrait_preload_right_ready = true;
+  assert(slideshow.begin_display_current(true));
+  assert(!state.active_slot_displayed);
+  slideshow.after_display_current(true);
+  assert(!state.active_slot_displayed);
+  assert(state.portrait.is_pair);
+  assert(state.portrait.using_preload);
   assert(preload_slot == 1);
   SlideshowCommand cmd;
   assert(slideshow.pop_command(cmd));
