@@ -6,6 +6,7 @@ from __future__ import annotations
 from contextlib import redirect_stderr
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+import gzip
 import io
 import json
 from pathlib import Path
@@ -147,11 +148,17 @@ def test_candidate_provenance_binds_source_web_assets_and_firmware() -> None:
         version = "v0.0.0-candidate.123.1"
         manifest, factory, ota = make_release_files(base, version=version)
         commit = "a" * 40
-        run_ok([
+        web_assets = firmware_release.candidate_web_assets()
+        original_factory = factory.read_bytes()
+        gzip_assets = b"".join(gzip.compress(content) for content in web_assets.values())
+        for image in (factory, ota):
+            image.write_bytes(image.read_bytes() + gzip_assets)
+        make_manifest = [
             "manifest", "--slug", SLUG, "--chip", CHIP, "--version", version,
             "--factory", str(factory), "--ota", str(ota), "--out", str(manifest),
             "--source-commit", commit,
-        ])
+        ]
+        run_ok(make_manifest)
         args = ["verify-directory", "--exact", "--version", version, "--dir", str(base),
                 "--slugs", SLUG, "--source-commit"]
         run_ok([*args, commit])
@@ -163,6 +170,10 @@ def test_candidate_provenance_binds_source_web_assets_and_firmware() -> None:
         run_fails([*args, commit])
         manifest.write_text(original_manifest)
         factory.write_bytes(factory.read_bytes() + b"changed")
+        run_fails([*args, commit])
+        # Even freshly hashed firmware must embed both assets from the checkout.
+        factory.write_bytes(original_factory + gzip.compress(web_assets["app.js"]))
+        run_ok(make_manifest)
         run_fails([*args, commit])
 
 
