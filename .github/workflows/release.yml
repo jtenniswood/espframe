@@ -259,14 +259,26 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
-          sparse-checkout: |
-            scripts/firmware_release.py
-            scripts/product_config.py
-            product/contract/devices.json
-            product/contract/manifest.json
-            product/contract/project.json
-            product/contract/settings.json
-          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify generated assets at the candidate revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          tzdata_venv="${RUNNER_TEMP}/espframe-release-tzdata"
+          python3 -m venv "$tzdata_venv"
+          "$tzdata_venv/bin/python" -m pip install --disable-pip-version-check "tzdata==2026.3"
+          tzdata_site=$("$tzdata_venv/bin/python" -c 'import site; print(site.getsitepackages()[0])')
+          export PYTHONPATH="$tzdata_site${PYTHONPATH:+:$PYTHONPATH}"
+          export PYTHONTZPATH="$tzdata_site/tzdata/zoneinfo"
+          npm run check:generated
 
       - name: Download all firmware artifacts
         uses: actions/download-artifact@v8

@@ -2328,6 +2328,7 @@ def test_workflow_action_usage_checks_expected_workflows() -> None:
                 "        uses: actions/cache@v6",
                 "        uses: actions/upload-artifact@v7",
                 "        uses: actions/download-artifact@v8",
+                "      - uses: actions/setup-node@v6",
             ]
         ),
         ".github/workflows/docs.yml": "\n".join(
@@ -2749,6 +2750,7 @@ def test_release_promotes_only_the_verified_draft() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text()
     assert "default: false" in workflow
     assert "types: [published]" not in workflow
+    assert "npm run check:generated" in workflow.split("\n  assemble-candidate:\n", 1)[1].split("\n  publish:\n", 1)[0]
     publish = workflow.split("\n  publish:\n", 1)[1]
     assert "if: inputs.publish && github.ref_type == 'tag'" in publish
     steps = [
