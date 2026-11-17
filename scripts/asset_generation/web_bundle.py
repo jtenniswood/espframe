@@ -187,7 +187,7 @@ def web_app_source() -> str:
         separators=(",", ":"),
     )
     css_json = json.dumps(css, separators=(",", ":"))
-    configuration_api_contract_json = json.dumps(configuration_capabilities(), separators=(",", ":"))
+    configuration_capabilities_path_json = json.dumps(configuration_capabilities()["capabilities_path"])
     bundle = template
     for placeholder, module_source in web_modules.items():
         bundle = replace_placeholder_once(bundle, placeholder, module_source)
@@ -214,7 +214,7 @@ def web_app_source() -> str:
         "__ESPFRAME_WEB_UI_LOGS_RETAINED_LINES__": web_ui_logs_retained_lines_json,
         "__ESPFRAME_SUPPORT_URL__": support_url_json,
         "__ESPFRAME_SUPPORT_BUTTON_IMAGE_DATA_URI__": support_button_image_data_uri_json,
-        "__ESPFRAME_CONFIGURATION_API_CONTRACT__": configuration_api_contract_json,
+        "__ESPFRAME_CONFIGURATION_CAPABILITIES_PATH__": configuration_capabilities_path_json,
         "__ESPFRAME_CSS__": css_json,
     }
     for placeholder, value in replacements.items():

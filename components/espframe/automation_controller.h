@@ -4,15 +4,13 @@
 #include <cstdint>
 #include <string>
 
+#include "settings_policy.h"
+
 namespace esphome::espframe {
 
 // Immediate calls only: no callbacks, allocation, or persistent pointer registry.
 template<typename... Scripts> void stop_scripts_in_order(Scripts *...scripts) {
   (scripts->stop(), ...);
-}
-
-inline bool resolve_portrait_pairing(const std::string &rotation, bool requested) {
-  return requested && rotation != "90" && rotation != "270";
 }
 
 struct RotationPlan {

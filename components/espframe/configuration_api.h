@@ -1,6 +1,5 @@
 #pragma once
 
-#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <cstring>
@@ -19,6 +18,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "reset_coordinator.h"
+#include "settings_policy.h"
 
 namespace esphome::espframe {
 
@@ -375,11 +375,7 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
       pending_values.push_back(std::move(pending));
     }
 
-    // Evaluate pairing against the requested rotation regardless of JSON key order.
-    if (pairing_index < rotation_index && rotation_index < pending_values.size()) {
-      std::rotate(pending_values.begin() + pairing_index, pending_values.begin() + pairing_index + 1,
-                  pending_values.begin() + rotation_index + 1);
-    }
+    order_rotation_and_pairing(pending_values, rotation_index, pairing_index);
 
     this->update_pending_.store(true);
     this->reset_->set_settings_update_in_progress(true);

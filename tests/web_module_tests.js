@@ -63,7 +63,7 @@ assert.match(publicApp, /function importConfig\(\)/, "public app should include 
 assert.match(publicApp, /BACKUP_CONFIG_VERSION\s*=/, "public app should include generated backup version");
 assert.match(publicApp, /BACKUP_SCHEMA\s*=/, "public app should include generated backup schema");
 assert.match(publicApp, /function renderWizard\(\)/, "public app should include the startup wizard");
-assert.ok(publicApp.includes("/espframe/api/v1/configuration"), "public app should use the versioned configuration API");
+assert.ok(publicApp.includes("/espframe/api/v1/capabilities"), "public app should negotiate the versioned configuration API");
 assert.ok(publicApp.includes("api_key_configured"), "public app should use write-only API-key status");
 assert.ok(!runtimeStateSource.includes("S.api_key"), "browser runtime state must not retain the API key");
 assert.ok(!/\bS\.api_key\b/.test(publicApp), "browser app must not retain the API key in S.api_key");

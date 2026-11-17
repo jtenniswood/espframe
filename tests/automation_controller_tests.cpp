@@ -131,7 +131,20 @@ static void test_slot_fetch_guards() {
   std::cout << "Checked " << cases << " valid-slot guard combinations\n";
 }
 
+static void test_rotation_settings_order() {
+  std::vector<std::string> pairing_first{"pairing", "unrelated", "rotation"};
+  order_rotation_and_pairing(pairing_first, 2, 0);
+  assert((pairing_first == std::vector<std::string>{"unrelated", "rotation", "pairing"}));
+  std::vector<std::string> rotation_first{"rotation", "unrelated", "pairing"};
+  order_rotation_and_pairing(rotation_first, 0, 2);
+  assert((rotation_first == std::vector<std::string>{"rotation", "unrelated", "pairing"}));
+  std::vector<std::string> pairing_only{"pairing", "unrelated"};
+  order_rotation_and_pairing(pairing_only, pairing_only.size(), 0);
+  assert((pairing_only == std::vector<std::string>{"pairing", "unrelated"}));
+}
+
 int main() {
+  test_rotation_settings_order();
   test_recovery_stop_order();
   test_rotation();
   test_slot_fetch_guards();

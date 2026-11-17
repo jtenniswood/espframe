@@ -30,7 +30,7 @@ export class EspframeApiClient {
   private resetEpoch: number | undefined;
   private resetAccepted = false;
 
-  constructor(private readonly generated: ConfigurationCapabilities, private readonly timeoutMs = 5000) {}
+  constructor(private readonly capabilitiesPath: string, private readonly timeoutMs = 5000) {}
 
   waitForWrites(): Promise<unknown> { return this.queue; }
 
@@ -86,7 +86,6 @@ export class EspframeApiClient {
 
   private parseCapabilities(value: unknown): ConfigurationCapabilities | null {
     if (!object(value) || typeof value.contract_version !== "number" || typeof value.api_version !== "number" ||
-        typeof value.base_path !== "string" || typeof value.capabilities_path !== "string" ||
         typeof value.configuration_path !== "string" || value.update_mode !== "atomic" ||
         typeof value.configuration_available !== "boolean" || typeof value.configuration_read !== "boolean" ||
         typeof value.configuration_write !== "boolean" || typeof value.legacy_entity_api !== "boolean") return null;
@@ -96,7 +95,7 @@ export class EspframeApiClient {
   private negotiate(): Promise<ConfigurationCapabilities | null> {
     if (this.negotiated !== undefined) return Promise.resolve(this.negotiated);
     if (!this.capabilities) {
-      this.capabilities = this.requestJson(this.generated.capabilities_path, { cache: "no-store" }, "capabilities_unavailable")
+      this.capabilities = this.requestJson(this.capabilitiesPath, { cache: "no-store" }, "capabilities_unavailable")
         .then(payload => {
           const capabilities = this.parseCapabilities(payload);
           // Older firmware may route this unknown path through the generic web

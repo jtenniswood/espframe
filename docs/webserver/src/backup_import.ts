@@ -193,10 +193,8 @@
     var current = {};
     var keys = Object.keys(values);
     var rotationIndex = keys.indexOf("screen_rotation");
-    var pairingIndex = keys.indexOf("portrait_pairing");
-    if (pairingIndex >= 0 && pairingIndex < rotationIndex) {
-      keys.splice(rotationIndex, 1);
-      keys.unshift("screen_rotation");
+    if (rotationIndex > 0 && "portrait_pairing" in values) {
+      keys.unshift(keys.splice(rotationIndex, 1)[0]);
     }
     keys.forEach(function (key) {
       var candidate = Object.assign({}, current);
