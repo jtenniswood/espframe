@@ -96,6 +96,9 @@ c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
   firmware/native/tests/swipe_test.cpp -o /tmp/espframe-swipe-test
 /tmp/espframe-swipe-test
 c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+  firmware/native/tests/swipe_input_test.cpp -o /tmp/espframe-swipe-input-test
+/tmp/espframe-swipe-input-test
+c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
   firmware/native/tests/slide_cache_test.cpp -o /tmp/espframe-slide-cache-test
 /tmp/espframe-slide-cache-test
 c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
@@ -161,9 +164,15 @@ unavailable selection leaves the current photo or startup scene visible.
    move the photo slightly with resistance, keep the screen filled, and ease
    back when released. When a neighbor becomes ready mid-drag, continuing the
    gesture should move from its current position without a jump.
-5. Record high-frame-rate video for touch-to-visible-motion and pacing.
-   USB logs report recognition-to-DMA-scanout as `gesture_to_scanout_us`.
-   This is an estimate before the new pixels are physically visible.
+5. Record high-frame-rate video for touch-to-visible motion and pacing.
+   `gesture_to_scanout_us` in the USB log measures from the touch report
+   that first moved the photo to the LCD DMA handoff. `compose_and_submit_us`
+   is the part spent composing and submitting that frame. Capture both with
+   cached photos and while the frame is downloading and decoding. Use the
+   video to measure the physical touch and the first visible movement. The
+   target is for 95% of cached gestures to move within 50 ms, with no visible
+   tearing. Compare moving frames with the panel's measured refresh interval
+   when checking pacing.
 6. With Immich configured, wait for autoplay. Check the easing at either end
    of the glide. Press midway to pause it, then release without dragging.
    Repeat with a drag against the glide and compare touch response with an

@@ -2,10 +2,11 @@
 
 #include "slide_geometry.h"
 
-#include <atomic>
 #include <cstdint>
+#include <optional>
 
 #include "esp_lcd_mipi_dsi.h"
+#include "freertos/FreeRTOS.h"
 
 namespace espframe::native {
 
@@ -13,7 +14,7 @@ class Display {
  public:
   void init();
   void enable_backlight() const;
-  bool poll_presented();
+  std::optional<int64_t> poll_presented();
   PixelPosition presented_position() const { return position_; }
   // A queued frame can still reach the panel after touch arrives. Start
   // from that frame so taking over doesn't visibly undo the pending swap.
@@ -26,8 +27,9 @@ class Display {
 
   esp_lcd_panel_handle_t panel_{};
   uint16_t *buffers_[2]{};
-  std::atomic<uint32_t> frame_count_{};
-  uint32_t submitted_at_{};
+  portMUX_TYPE boundary_lock_ = portMUX_INITIALIZER_UNLOCKED;
+  int64_t latched_us_{};
+  bool awaiting_latch_{};
   unsigned front_{};
   PixelPosition pending_position_{};
   PixelPosition position_{-1};

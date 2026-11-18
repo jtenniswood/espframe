@@ -101,7 +101,7 @@ void start_usb_setup() {
     return;
   }
   uart_vfs_dev_use_driver(uart);
-  if (xTaskCreatePinnedToCore(listen, "usb-setup", 6144, nullptr, 1, nullptr, 1) != pdPASS)
+  if (xTaskCreatePinnedToCore(listen, "usb-setup", 6144, nullptr, 1, nullptr, 0) != pdPASS)
     ESP_LOGW("usb-setup", "Could not allocate the USB setup task");
 }
 

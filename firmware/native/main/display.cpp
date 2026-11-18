@@ -124,17 +124,27 @@ void Display::enable_backlight() const {
 
 bool Display::frame_done_(esp_lcd_panel_handle_t, esp_lcd_dpi_panel_event_data_t *, void *context) {
   auto &display = *static_cast<Display *>(context);
-  display.frame_count_.fetch_add(1, std::memory_order_relaxed);
+  portENTER_CRITICAL_ISR(&display.boundary_lock_);
+  if (display.awaiting_latch_) {
+    display.latched_us_ = esp_timer_get_time();
+    display.awaiting_latch_ = false;
+  }
+  portEXIT_CRITICAL_ISR(&display.boundary_lock_);
   return false;
 }
 
-bool Display::poll_presented() {
-  if (!this->pending_ || this->frame_count_.load(std::memory_order_relaxed) == this->submitted_at_)
-    return false;
+std::optional<int64_t> Display::poll_presented() {
+  if (!this->pending_)
+    return {};
+  portENTER_CRITICAL(&this->boundary_lock_);
+  const auto latched_us = this->latched_us_;
+  portEXIT_CRITICAL(&this->boundary_lock_);
+  if (latched_us == 0)
+    return {};
   this->front_ ^= 1;
   this->position_ = this->pending_position_;
   this->pending_ = false;
-  return true;
+  return latched_us;
 }
 
 uint16_t *Display::writable_buffer() {
@@ -145,7 +155,10 @@ void Display::submit(PixelPosition position) {
   ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(this->panel_, 0, 0, panel_width, panel_height, this->writable_buffer()));
   // Observe a boundary after the submission so the old front buffer cannot
   // be reused while the panel could still be scanning it.
-  this->submitted_at_ = this->frame_count_.load(std::memory_order_relaxed);
+  portENTER_CRITICAL(&this->boundary_lock_);
+  this->latched_us_ = 0;
+  this->awaiting_latch_ = true;
+  portEXIT_CRITICAL(&this->boundary_lock_);
   this->pending_position_ = position;
   this->pending_ = true;
 }
