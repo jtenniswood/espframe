@@ -229,6 +229,33 @@ carry over in Espframe backups.
 
 ## Test on the frame
 
+### Temporary V1 swipe trial from ESPHome
+
+The V1 trial is a separate app-only build that uses the 16 MiB ESPHome
+partition layout. It boots into the cached sample slides for three minutes
+and then returns to the confirmed ESPHome app in the other slot. Wi-Fi, USB
+setup and Immich loading are disabled in this trial. The trial does not read
+or change saved frame settings. It uses the same touch and rendering path as
+the normal player and publishes timing logs on the USB console.
+
+```sh
+idf.py -C firmware/native -B firmware/native/build/esphome-trial-v1 \
+  -D SWIPE_BOARD=v1 -D SWIPE_ESPHOME_TRIAL=ON -D SWIPE_TRACE=ON build
+```
+
+The artifact `espframe_v1_legacy_swipe_trial.bin` is only for an ESPHome app
+OTA upload on an original Guition V1. Verify the installed ESPHome partition
+table, rollback-capable bootloader, and working firmware in the active slot
+before uploading. Have USB recovery available for the first hardware trial.
+Use only the app binary. The regular browser installer and native settings
+updater expect the regular native firmware.
+
+The demo checks the running partition map and the previous ESPHome app before
+starting the display. The bootloader must mark the demo pending verification.
+The demo never confirms its boot, so a reset during it should also go back to
+ESPHome. On hardware, verify both the timed return and the return after a
+reset, then confirm the original frame reconnects and retains its settings.
+
 1. Boot to the middle scene and drag toward each adjacent scene slowly. The
    image boundary should follow your finger with no visible tearing.
 2. Drag only a short distance and pause before lifting. The view should

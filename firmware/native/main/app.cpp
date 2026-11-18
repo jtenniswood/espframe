@@ -2,6 +2,7 @@
 #include "clock_overlay.h"
 #include "daylight.h"
 #include "display.h"
+#include "esphome_trial.h"
 #include "firmware_update.h"
 #include "frame_blend.h"
 #include "immich.h"
@@ -44,6 +45,7 @@ constexpr int player_core = 1;
 constexpr int loader_core = 0;
 constexpr UBaseType_t player_priority = 4;
 constexpr bool trace_enabled = SWIPE_TRACE;
+constexpr bool esphome_trial = SWIPE_ESPHOME_TRIAL;
 extern const uint8_t clock_atlas[] asm("_binary_clock_glyphs_bin_start");
 extern const uint8_t recovery_atlas[] asm("_binary_recovery_glyphs_bin_start");
 NativeNetwork network;
@@ -209,7 +211,7 @@ class SlideLoader {
   }
 
   void start() {
-    this->live_ = this->settings_.read() && this->settings_.has_immich();
+    this->live_ = !esphome_trial && this->settings_.read() && this->settings_.has_immich();
     this->requests_ = xQueueCreate(1, sizeof(SlideCache::Lease));
     this->completed_ = xQueueCreate(1, sizeof(Completion));
     if constexpr (!trace_enabled)
@@ -281,7 +283,8 @@ class SlideLoader {
 };
 
 void run(void *) {
-  start_firmware_boot_check();
+  if constexpr (!esphome_trial)
+    start_firmware_boot_check();
   SlideCache cache{allocate_slide_buffers()};
   static SlideLoader loader;
   loader.start();
@@ -346,7 +349,8 @@ void run(void *) {
   int64_t refill_started_us{};
   if constexpr (trace_enabled)
     trace.start(Display::nominal_frame_period_us());
-  loader.start_network();
+  if constexpr (!esphome_trial)
+    loader.start_network();
   const auto submit_frame = [&](PixelPosition position, bool moving = true) {
     display.submit(position);
     if constexpr (trace_enabled)
@@ -420,7 +424,8 @@ void run(void *) {
       if (!backlight_ready)
         continue;
       if (report.valid) {
-        confirm_firmware_boot();
+        if constexpr (!esphome_trial)
+          confirm_firmware_boot();
         if (report.contacts != 0 && fade.running()) {
           if (fade.interrupt(snapshot != nullptr))
             pin_fade();
@@ -644,7 +649,12 @@ void run(void *) {
 }  // namespace
 
 void start_player() {
-  start_usb_setup(network);
+  if constexpr (esphome_trial) {
+    if (!start_esphome_trial())
+      return;
+  } else {
+    start_usb_setup(network);
+  }
   const auto result = xTaskCreatePinnedToCore(run, "photo-player", 4096, nullptr, player_priority, nullptr, player_core);
   ESP_ERROR_CHECK(result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
 }

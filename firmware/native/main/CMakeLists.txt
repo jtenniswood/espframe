@@ -13,12 +13,16 @@ set(panel_init "${CMAKE_CURRENT_BINARY_DIR}/panel_init.inc")
 set(clock_catalog "${repo_root}/components/espframe/timezones.py")
 set(clock_generator "${CMAKE_CURRENT_LIST_DIR}/../tools/generate_clock_zones.py")
 set(clock_zones "${CMAKE_CURRENT_BINARY_DIR}/native_clock_zones.inc")
+if(SWIPE_ESPHOME_TRIAL)
+    set(trial_source esphome_trial.cpp)
+endif()
 
 idf_component_register(
     SRCS app.cpp clock_overlay.cpp clock_settings.cpp daylight.cpp display.cpp frame_blend.cpp immich.cpp immich_http.cpp
          immich_selection.cpp improv_serial.cpp native_network.cpp p4_jpeg_decoder.cpp playback_trace.cpp preview_decoder.cpp
          recovery_card.cpp settings.cpp touch.cpp
          firmware_update.cpp usb_setup.cpp web_settings.cpp
+         ${trial_source}
          "${touch_source}/gsl_point_id.cpp"
     PRIV_INCLUDE_DIRS "${touch_source}" "${repo_root}/components/remote_image" "${repo_root}/components/espframe"
                       "${CMAKE_CURRENT_BINARY_DIR}"
@@ -36,7 +40,8 @@ if(SWIPE_BOARD STREQUAL "v3")
 else()
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SWIPE_EARLY_P4=1)
 endif()
-target_compile_definitions(${COMPONENT_LIB} PRIVATE NATIVE_BOARD="${SWIPE_BOARD}" SWIPE_TRACE=$<BOOL:${SWIPE_TRACE}>)
+target_compile_definitions(${COMPONENT_LIB} PRIVATE NATIVE_BOARD="${SWIPE_BOARD}" SWIPE_TRACE=$<BOOL:${SWIPE_TRACE}>
+                                                   SWIPE_ESPHOME_TRIAL=$<BOOL:${SWIPE_ESPHOME_TRIAL}>)
 
 idf_build_get_property(python PYTHON)
 add_custom_command(
