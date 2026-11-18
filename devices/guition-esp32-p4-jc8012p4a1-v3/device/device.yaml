@@ -16,11 +16,15 @@ substitutions:
   log_level: "INFO"
   # ESPHome 2026.10 requires active_high. Set false for ESPHome 2026.11+.
   esp32_hosted_legacy_reset: true
+  esp32_hosted_use_v3: false
 
 packages:
   esp32_hosted_legacy_reset: !include
     file: ../../../common/esp32_hosted_legacy_reset.yaml
     condition: ${esp32_hosted_legacy_reset}
+  esp32_hosted_v3: !include
+    file: ../../../common/esp32_hosted_v3.yaml
+    condition: ${esp32_hosted_use_v3}
 
 esp32:
   variant: ESP32P4

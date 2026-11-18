@@ -100,6 +100,12 @@ When testing with ESPHome 2026.11 or later, pass `-s esp32_hosted_legacy_reset f
 before `compile` to omit the deprecated Wi-Fi coprocessor reset setting. The
 ESPHome 2026.10 builds above still require that setting.
 
+If your frame already reports `3.1.0` under **ESP32-C6: Current Firmware**,
+you can pair it with the same P4 host driver by adding
+`-s esp32_hosted_use_v3 true` to the ESPHome compile command. The option defaults
+to off and changes only the P4 host driver. It does not install firmware on the
+C6 coprocessor.
+
 ### In-Development Firmware Features
 
 In-progress firmware experiences are built into normal firmware, but must stay off unless the hidden developer setting is enabled. Open the device web UI with `?developer=experimental`, for example `http://<device-ip>/?developer=experimental`, then use the **Developer** panel to turn them on for that device.
