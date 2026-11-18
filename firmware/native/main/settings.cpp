@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <cstring>
 #include <memory>
+#include <mutex>
+#include <utility>
 
 namespace espframe::native {
 namespace {
@@ -14,6 +16,7 @@ namespace {
 constexpr const char *partition = "native_config";
 constexpr const char *store_namespace = "player";
 constexpr const char *settings_key = "settings_v1";
+std::mutex storage_mutex;
 
 bool load_string(nvs_handle_t storage, const char *key, std::string &value, size_t maximum) {
   size_t size = 0;
@@ -28,6 +31,8 @@ bool load_string(nvs_handle_t storage, const char *key, std::string &value, size
 
 bool normalize(Settings &settings) {
   if (settings.ssid.empty() || settings.ssid.size() > 32 || settings.password.size() > 64 ||
+      settings.web_password.size() > 64 || (!settings.web_password.empty() && settings.web_password.size() < 8) ||
+      settings.slide_seconds < 2 || settings.slide_seconds > 3'600 ||
       settings.immich_key.empty() || settings.immich_key.size() > 256 ||
       std::any_of(settings.immich_key.begin(), settings.immich_key.end(),
                   [](unsigned char c) { return c <= 32 || c >= 127; }))
@@ -45,46 +50,65 @@ bool normalize(Settings &settings) {
   return true;
 }
 
-bool parse(const char *json, Settings &settings) {
+using Json = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>;
+
+Json parse(const char *json) {
   if (json == nullptr || std::strlen(json) > Settings::max_json_size)
-    return false;
-  const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> root(cJSON_ParseWithOpts(json, nullptr, true),
-                                                           cJSON_Delete);
-  if (!cJSON_IsObject(root.get()))
-    return false;
-  auto get = [&](const char *name, std::string &value) {
-    const char *field = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(root.get(), name));
-    if (field == nullptr)
-      return false;
-    value = field;
-    return true;
-  };
-  return get("ssid", settings.ssid) && get("password", settings.password) &&
-         get("immich_url", settings.immich_url) && get("immich_key", settings.immich_key) && normalize(settings);
+    return {nullptr, cJSON_Delete};
+  return {cJSON_ParseWithOpts(json, nullptr, true), cJSON_Delete};
 }
 
-}  // namespace
+bool read_field(const cJSON *root, const char *name, std::string &value, bool optional = false) {
+  const cJSON *field = cJSON_GetObjectItemCaseSensitive(root, name);
+  if (!field && optional)
+    return true;
+  const char *text = cJSON_GetStringValue(field);
+  if (!text)
+    return false;
+  value = text;
+  return true;
+}
 
-bool Settings::read() {
+bool read_interval(const cJSON *root, uint16_t &seconds) {
+  const auto *field = cJSON_GetObjectItemCaseSensitive(root, "slide_seconds");
+  if (field == nullptr)
+    return true;
+  if (!cJSON_IsNumber(field) || field->valueint < 2 || field->valueint > 3'600 ||
+      field->valueint != field->valuedouble)
+    return false;
+  seconds = field->valueint;
+  return true;
+}
+
+bool parse_all(const char *json, Settings &settings) {
+  const auto root = parse(json);
+  return cJSON_IsObject(root.get()) && read_field(root.get(), "ssid", settings.ssid) &&
+         read_field(root.get(), "password", settings.password) &&
+         read_field(root.get(), "immich_url", settings.immich_url) &&
+         read_field(root.get(), "immich_key", settings.immich_key) &&
+         read_field(root.get(), "web_password", settings.web_password, true) &&
+         read_interval(root.get(), settings.slide_seconds) && normalize(settings);
+}
+
+bool load(Settings &settings) {
   if (nvs_flash_init_partition(partition) != ESP_OK)
     return false;
   nvs_handle_t storage;
   if (nvs_open_from_partition(partition, store_namespace, NVS_READONLY, &storage) != ESP_OK)
     return false;
   std::string json;
-  const bool ok = load_string(storage, settings_key, json, max_json_size)
-                      ? parse(json.c_str(), *this)
-                      : load_string(storage, "ssid", this->ssid, 32) &&
-                            load_string(storage, "password", this->password, 64) &&
-                            load_string(storage, "immich_url", this->immich_url, 256) &&
-                            load_string(storage, "immich_key", this->immich_key, 256) && normalize(*this);
+  const bool ok = load_string(storage, settings_key, json, Settings::max_json_size)
+                      ? parse_all(json.c_str(), settings)
+                      : load_string(storage, "ssid", settings.ssid, 32) &&
+                            load_string(storage, "password", settings.password, 64) &&
+                            load_string(storage, "immich_url", settings.immich_url, 256) &&
+                            load_string(storage, "immich_key", settings.immich_key, 256) && normalize(settings);
   nvs_close(storage);
   return ok;
 }
 
-bool Settings::save(const char *json) {
-  Settings candidate;
-  if (!parse(json, candidate) || nvs_flash_init_partition(partition) != ESP_OK)
+bool write(const char *json) {
+  if (std::strlen(json) > Settings::max_json_size || nvs_flash_init_partition(partition) != ESP_OK)
     return false;
   nvs_handle_t storage;
   if (nvs_open_from_partition(partition, store_namespace, NVS_READWRITE, &storage) != ESP_OK)
@@ -92,6 +116,47 @@ bool Settings::save(const char *json) {
   const bool ok = nvs_set_str(storage, settings_key, json) == ESP_OK && nvs_commit(storage) == ESP_OK;
   nvs_close(storage);
   return ok;
+}
+
+}  // namespace
+
+bool Settings::read() {
+  Settings candidate;
+  const std::lock_guard lock(storage_mutex);
+  if (!load(candidate))
+    return false;
+  *this = std::move(candidate);
+  return true;
+}
+
+bool Settings::save(const char *json) {
+  Settings candidate;
+  const std::lock_guard lock(storage_mutex);
+  return parse_all(json, candidate) && write(json);
+}
+
+bool Settings::save_playback(const char *json) {
+  const auto update = parse(json);
+  std::string replacement_key;
+  const std::lock_guard lock(storage_mutex);
+  Settings settings;
+  if (!cJSON_IsObject(update.get()) || !load(settings) || settings.web_password.empty() ||
+      !read_field(update.get(), "immich_url", settings.immich_url) ||
+      !read_field(update.get(), "immich_key", replacement_key, true) ||
+      !read_interval(update.get(), settings.slide_seconds))
+    return false;
+  if (!replacement_key.empty())
+    settings.immich_key = replacement_key;
+  const Json updated(cJSON_CreateObject(), cJSON_Delete);
+  if (!updated || !cJSON_AddStringToObject(updated.get(), "ssid", settings.ssid.c_str()) ||
+      !cJSON_AddStringToObject(updated.get(), "password", settings.password.c_str()) ||
+      !cJSON_AddStringToObject(updated.get(), "immich_url", settings.immich_url.c_str()) ||
+      !cJSON_AddStringToObject(updated.get(), "immich_key", settings.immich_key.c_str()) ||
+      !cJSON_AddStringToObject(updated.get(), "web_password", settings.web_password.c_str()) ||
+      !cJSON_AddNumberToObject(updated.get(), "slide_seconds", settings.slide_seconds))
+    return false;
+  const std::unique_ptr<char, decltype(&cJSON_free)> serialized(cJSON_PrintUnformatted(updated.get()), cJSON_free);
+  return serialized && parse_all(serialized.get(), settings) && write(serialized.get());
 }
 
 }  // namespace espframe::native

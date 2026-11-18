@@ -23,6 +23,7 @@ class ImmichSource {
 
   bool read_settings();
   bool prepare(int slide, uint16_t *panel);
+  uint16_t slide_seconds() const { return this->settings_.slide_seconds; }
 
  private:
   using AssetId = std::array<char, 37>;

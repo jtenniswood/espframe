@@ -12,12 +12,13 @@ set(panel_generator "${CMAKE_CURRENT_LIST_DIR}/../tools/generate_panel_init.py")
 set(panel_init "${CMAKE_CURRENT_BINARY_DIR}/panel_init.inc")
 
 idf_component_register(
-    SRCS app.cpp display.cpp immich.cpp preview_decoder.cpp settings.cpp touch.cpp usb_setup.cpp
+    SRCS app.cpp display.cpp immich.cpp preview_decoder.cpp settings.cpp touch.cpp usb_setup.cpp web_settings.cpp
          "${touch_source}/gsl_point_id.cpp"
     PRIV_INCLUDE_DIRS "${touch_source}" "${repo_root}/components/remote_image" "${CMAKE_CURRENT_BINARY_DIR}"
     PRIV_REQUIRES esp_lcd esp_hw_support esp_driver_gpio esp_driver_i2c esp_driver_ledc esp_timer esp_mm esp_driver_jpeg
-                  esp_driver_uart esp_event esp_http_client esp_netif esp_wifi mbedtls nvs_flash
+                  esp_driver_uart esp_event esp_http_client esp_http_server esp_netif esp_wifi mbedtls nvs_flash
                   libjpeg-turbo-esp32 libwebp-esp32
+    EMBED_TXTFILES web/settings.html web/settings.js "../installer/setup.css"
 )
 
 if(SWIPE_BOARD STREQUAL "v3")

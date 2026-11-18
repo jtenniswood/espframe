@@ -1,6 +1,7 @@
 #include "immich.h"
 
 #include "preview_decoder.h"
+#include "web_settings.h"
 
 #include "cJSON.h"
 #include "esp_crt_bundle.h"
@@ -57,9 +58,12 @@ void ImmichSource::wifi_event_(void *argument, esp_event_base_t base, int32_t ev
 
 bool ImmichSource::start_wifi_() {
   this->wifi_events_ = xEventGroupCreate();
-  if (this->wifi_events_ == nullptr || esp_netif_init() != ESP_OK ||
-      esp_event_loop_create_default() != ESP_OK || esp_netif_create_default_wifi_sta() == nullptr)
+  if (this->wifi_events_ == nullptr || esp_netif_init() != ESP_OK || esp_event_loop_create_default() != ESP_OK)
     return false;
+  auto *netif = esp_netif_create_default_wifi_sta();
+  if (netif == nullptr)
+    return false;
+  esp_netif_set_hostname(netif, "espframe-native");
 
   wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
   init.nvs_enable = 0;
@@ -90,6 +94,7 @@ bool ImmichSource::online_() {
     if (!(xEventGroupWaitBits(this->wifi_events_, got_ip, pdFALSE, pdFALSE, pdMS_TO_TICKS(8'000)) & got_ip))
       return false;
   }
+  start_web_settings(this->settings_);
   if (this->settings_.immich_url.starts_with("https://") && std::time(nullptr) < 1'690'000'000) {
     if (!this->sntp_started_) {
       esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");

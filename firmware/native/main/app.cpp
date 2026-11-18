@@ -25,7 +25,6 @@ namespace {
 constexpr const char *tag = "swipe-probe";
 constexpr int fixture_count = 5;
 constexpr int fixture_slides = 30;
-constexpr int64_t idle_slide_us = 15'000'000;
 constexpr int64_t touch_period_us = 5'000;
 
 struct EncodedPhoto {
@@ -167,6 +166,7 @@ class SlideLoader {
   };
 
   bool live() const { return this->live_; }
+  int64_t slide_interval_us() const { return this->source_.slide_seconds() * 1'000'000LL; }
 
   void start() {
     this->live_ = this->source_.read_settings();
@@ -310,7 +310,7 @@ void run() {
             first_motion_us = 0;
             touch_down = true;
           }
-          next_advance_us = now + idle_slide_us;
+          next_advance_us = now + loader.slide_interval_us();
           const bool was_dragging = swipe.dragging();
           swipe.move(sample.x, sample.y, now);
           if (!was_dragging && swipe.dragging() && std::lround(swipe.position()) != display.presented_position())
@@ -320,7 +320,7 @@ void run() {
     }
 
     if (live && lit && !touch_down && !wait_for_release && now >= next_advance_us && swipe.advance(now))
-      next_advance_us = now + idle_slide_us;
+      next_advance_us = now + loader.slide_interval_us();
     swipe.tick(now);
     const int position = static_cast<int>(std::lround(swipe.position()));
     if (auto *output = display.writable_buffer(); output != nullptr && position != last_submitted) {

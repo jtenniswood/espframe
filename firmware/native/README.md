@@ -50,6 +50,15 @@ Then run:
 node firmware/native/tools/package_installer.mjs firmware/native/build firmware/native/build/browser-installer
 ```
 
+### Open the frame's web settings
+
+Set a web settings password when saving over USB to enable the frame's
+settings page. Use the IP address shown in the USB logs or find
+`espframe-native` in your router's device list. Sign in as `espframe`
+with the password you chose. The settings page can change the Immich
+URL, API key and time per photo. Saving applies the changes on restart.
+The page uses HTTP on the local network. Keep it on a trusted network.
+
 Host regression checks run without the ESP-IDF toolchain:
 
 ```sh

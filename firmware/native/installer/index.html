@@ -34,6 +34,8 @@
         <label>Immich base URL <input name="immich_url" type="url" maxlength="256" placeholder="https://photos.example.com" required></label>
         <label>Immich API key <input name="immich_key" type="password" maxlength="256" aria-describedby="permissions" required></label>
         <small id="permissions">Use a key with asset.read and asset.view permissions.</small>
+        <label>Web settings password <input name="web_password" type="password" minlength="8" maxlength="64" aria-describedby="web-password"></label>
+        <small id="web-password">Optional. Set a password to enable settings on your local network.</small>
         <button type="submit" disabled>Save settings over USB</button>
       </form>
     </section>
