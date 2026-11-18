@@ -9,6 +9,7 @@ on:
       - 'components/libwebp-esp32/**'
       - 'components/remote_image/jpeg_accelerator_helpers.h'
       - 'components/remote_image/webp_rgb565.h'
+      - 'components/espframe/timezones.py'
       - 'devices/guition-esp32-p4-jc8012p4a1*/device/device.yaml'
       - 'components/mipi_dsi/models/guition.py'
       - 'package.json'
@@ -64,11 +65,17 @@ jobs:
         if: matrix.board == 'v3'
         run: |
           cjson=firmware/native/managed_components/espressif__cjson/cJSON
+          zones=firmware/native/build/v3/esp-idf/main
           cc -c "$cjson/cJSON.c" -o "$RUNNER_TEMP/cjson.o"
-          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/stubs -I"$cjson" \
-            firmware/native/main/settings.cpp firmware/native/tests/settings_test.cpp "$RUNNER_TEMP/cjson.o" \
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/stubs -I"$cjson" -I"$zones" \
+            firmware/native/main/settings.cpp firmware/native/main/clock_settings.cpp \
+            firmware/native/tests/settings_test.cpp "$RUNNER_TEMP/cjson.o" \
             -o "$RUNNER_TEMP/settings-test"
           "$RUNNER_TEMP/settings-test"
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/stubs -I"$zones" \
+            firmware/native/main/clock_settings.cpp firmware/native/main/clock_overlay.cpp \
+            firmware/native/tests/clock_overlay_test.cpp -o "$RUNNER_TEMP/clock-overlay-test"
+          "$RUNNER_TEMP/clock-overlay-test" firmware/native/assets/clock_glyphs.bin
           c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -I"$cjson" \
             firmware/native/main/immich_selection.cpp firmware/native/tests/immich_selection_test.cpp "$RUNNER_TEMP/cjson.o" \
             -o "$RUNNER_TEMP/immich-selection-test"

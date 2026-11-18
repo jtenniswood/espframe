@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -62,4 +63,10 @@ await build({
   bundle: true,
   minify: true,
 })
-await Promise.all(['index.html', 'setup.css'].map(name => copyFile(join(source, name), join(output, name))))
+const clockGenerator = fileURLToPath(new URL('./generate_clock_zones.py', import.meta.url))
+const clockOptions = execFileSync('python3', [clockGenerator, '--options'], { encoding: 'utf8' })
+const html = await readFile(join(source, 'index.html'), 'utf8')
+await Promise.all([
+  writeFile(join(output, 'index.html'), html.replace('<!-- CLOCK_TIMEZONES -->', clockOptions.trim())),
+  copyFile(join(source, 'setup.css'), join(output, 'setup.css')),
+])

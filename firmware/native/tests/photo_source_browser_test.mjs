@@ -16,6 +16,11 @@ const albumId = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
 const setup = {
   immich_url: 'https://photos.test/api', slide_seconds: 15, portrait_pairing: true,
   photo_source: 'favorites', album_id: '', display_mode: 'Fill',
+  show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
+}
+const clockTimezones = {
+  'Europe/London (GMT+0)': 'Europe/London (GMT+0; daylight GMT+1)',
+  'America/New_York (GMT-5)': 'America/New_York (GMT-5; daylight GMT-4)',
 }
 const fixture = html.replace('</body>', `<script>
   const form = document.querySelector('#settings')
@@ -36,10 +41,12 @@ const fixture = html.replace('</body>', `<script>
     const backup = JSON.parse(await downloaded.text())
     if (!filename.startsWith('espframe-config-') || backup.version !== 3 || !backup.photos.favorites_enabled
       || backup.frequency.interval !== '15 seconds' || Object.keys(backup.connection).join() !== 'immich_url'
-      || backup.photos.display_mode !== 'Fill')
+      || backup.photos.display_mode !== 'Fill' || backup.clock?.show !== true || backup.clock.timezone !== '${setup.timezone}')
       throw new Error('Unexpected saved settings backup')
     source.value = 'album'
     mode.value = 'Fit'
+    form.elements.timezone.value = 'America/New_York (GMT-5)'
+    form.elements.clock_format.value = '12 Hour'
     source.dispatchEvent(new Event('change'))
     if (!album.required || album.disabled) throw new Error('Album selection did not enable the album field')
     album.value = 'https://photos.test/share/${albumId}'
@@ -94,7 +101,8 @@ const server = createServer(async (request, response) => {
     response.end('{"saved":true}')
   } else if (request.method === 'GET' && request.url === '/api/playback') {
     response.setHeader('Content-Type', 'application/json')
-    response.end(JSON.stringify(firmwareAvailable ? { ...setup, firmware_update: true, board_revision: 'v3' } : setup))
+    const playback = { ...setup, clock_timezones: clockTimezones }
+    response.end(JSON.stringify(firmwareAvailable ? { ...playback, firmware_update: true, board_revision: 'v3' } : playback))
   } else if (request.method === 'POST' && request.url === '/api/firmware') {
     const chunks = []
     for await (const chunk of request) chunks.push(chunk)
@@ -136,7 +144,10 @@ try {
   const page = await render('/')
   assert.match(page, /Settings saved\. The frame is restarting\./)
   assert.match(page, /<section id="firmware"[^>]* hidden="">/)
-  assert.deepEqual(updates, [{ ...setup, photo_source: 'album', album_id: albumId, display_mode: 'Fit', immich_key: '' }])
+  assert.deepEqual(updates, [{
+    ...setup, photo_source: 'album', album_id: albumId, display_mode: 'Fit', immich_key: '',
+    clock_format: '12 Hour', timezone: 'America/New_York (GMT-5)',
+  }])
   console.log('Native photo source settings accept Immich album links and reject share links')
 
   firmwareAvailable = true

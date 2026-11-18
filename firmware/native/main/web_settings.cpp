@@ -78,9 +78,19 @@ esp_err_t current(httpd_req_t *request) {
       !cJSON_AddStringToObject(document.get(), "display_mode", display_mode_name(settings.display_mode)) ||
       !cJSON_AddStringToObject(document.get(), "photo_source", photo_source_name(settings.photo_source.mode)) ||
       !cJSON_AddStringToObject(document.get(), "album_id", settings.photo_source.album_id.c_str()) ||
+      !cJSON_AddBoolToObject(document.get(), "show_clock", settings.clock.show) ||
+      !cJSON_AddStringToObject(document.get(), "clock_format", settings.clock.format.c_str()) ||
+      !cJSON_AddStringToObject(document.get(), "timezone", settings.clock.timezone.c_str()) ||
       !cJSON_AddBoolToObject(document.get(), "firmware_update", can_update_firmware()) ||
       !cJSON_AddStringToObject(document.get(), "board_revision", NATIVE_BOARD))
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to load settings.");
+  auto *zones = cJSON_AddObjectToObject(document.get(), "clock_timezones");
+  if (!zones)
+    return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to load timezones.");
+  for (const auto &zone : clock_zones()) {
+    if (!cJSON_AddStringToObject(zones, zone.option, zone.label))
+      return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to load timezones.");
+  }
   std::unique_ptr<char, decltype(&cJSON_free)> body(cJSON_PrintUnformatted(document.get()), cJSON_free);
   if (!body)
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to load settings.");

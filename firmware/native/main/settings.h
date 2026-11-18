@@ -1,5 +1,6 @@
 #pragma once
 
+#include "clock_settings.h"
 #include "photo_framing.h"
 #include "photo_source.h"
 
@@ -18,6 +19,7 @@ struct Settings {
   bool portrait_pairing{true};
   DisplayMode display_mode{DisplayMode::Fit};
   PhotoSource photo_source;
+  ClockSettings clock;
 
   static constexpr size_t max_json_size = 1536;
   bool read();

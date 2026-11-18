@@ -2,6 +2,7 @@ import { normalizeAlbum } from './photo_source.mjs'
 
 const legacySources = ['All Photos', 'Album', 'Favorites', 'Custom']
 const displayModes = ['Fill', 'Fit']
+const clockFormats = ['24 Hour', '12 Hour']
 const groups = ['connection', 'photos', 'frequency', 'screen', 'clock', 'firmware_updates', 'identity']
 const own = (object, key) => Object.hasOwn(object, key)
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -81,6 +82,7 @@ export function readBackup(data) {
   const photos = data.photos ?? {}
   const connection = data.connection ?? {}
   const frequency = data.frequency ?? {}
+  const clock = data.clock ?? {}
   if (own(connection, 'immich_url')) {
     const url = immichUrl(connection.immich_url)
     if (url) settings.immich_url = url
@@ -96,13 +98,18 @@ export function readBackup(data) {
     if (displayModes.includes(photos.display_mode)) settings.display_mode = photos.display_mode
     else notices.push('Choose a display mode.')
   }
+  if (typeof clock.show === 'boolean') settings.show_clock = clock.show
+  if (clockFormats.includes(clock.format)) settings.clock_format = clock.format
+  if (typeof clock.timezone === 'string' && clock.timezone.length <= 96) {
+    settings.timezone = clock.timezone === 'Asia/Almaty (GMT+6)' ? 'Asia/Almaty (GMT+5)' : clock.timezone
+  }
   const { chooseSource = false, ...sourceSettings } = importSource(photos, data.version)
   Object.assign(settings, sourceSettings)
   if (chooseSource)
     notices.push('This backup uses photo filters the native player cannot apply. Choose a photo source before saving.')
   const skipped = []
   if (own(data, 'screen')) skipped.push('screen settings')
-  if (own(data, 'clock')) skipped.push('clock settings')
+  if (own(clock, 'ntp_servers')) skipped.push('custom time servers')
   if (own(data, 'firmware_updates')) skipped.push('firmware update settings')
   if (own(data, 'identity')) skipped.push('the frame name')
   if (['transition', 'transition_speed', 'portrait_pairing_range'].some(key => own(photos, key)) ||
@@ -123,6 +130,11 @@ function formatInterval(seconds) {
 export function createBackup(settings, date = new Date()) {
   const favorites = settings.photo_source === 'favorites'
   const album = settings.photo_source === 'album'
+  const clock = {
+    ...(typeof settings.show_clock === 'boolean' ? { show: settings.show_clock } : {}),
+    ...(clockFormats.includes(settings.clock_format) ? { format: settings.clock_format } : {}),
+    ...(typeof settings.timezone === 'string' ? { timezone: settings.timezone } : {}),
+  }
   return {
     version: 3,
     exported_at: date.toISOString(),
@@ -137,5 +149,6 @@ export function createBackup(settings, date = new Date()) {
       ...(displayModes.includes(settings.display_mode) ? { display_mode: settings.display_mode } : {}),
     },
     frequency: { interval: formatInterval(settings.slide_seconds) },
+    ...(Object.keys(clock).length ? { clock } : {}),
   }
 }

@@ -10,9 +10,13 @@ endif()
 set(panel_profile "${repo_root}/devices/${device}/device/device.yaml")
 set(panel_generator "${CMAKE_CURRENT_LIST_DIR}/../tools/generate_panel_init.py")
 set(panel_init "${CMAKE_CURRENT_BINARY_DIR}/panel_init.inc")
+set(clock_catalog "${repo_root}/components/espframe/timezones.py")
+set(clock_generator "${CMAKE_CURRENT_LIST_DIR}/../tools/generate_clock_zones.py")
+set(clock_zones "${CMAKE_CURRENT_BINARY_DIR}/native_clock_zones.inc")
 
 idf_component_register(
-    SRCS app.cpp display.cpp frame_blend.cpp immich.cpp immich_http.cpp immich_selection.cpp p4_jpeg_decoder.cpp preview_decoder.cpp
+    SRCS app.cpp clock_overlay.cpp clock_settings.cpp display.cpp frame_blend.cpp immich.cpp immich_http.cpp
+         immich_selection.cpp p4_jpeg_decoder.cpp preview_decoder.cpp
          settings.cpp touch.cpp
          firmware_update.cpp usb_setup.cpp web_settings.cpp
          "${touch_source}/gsl_point_id.cpp"
@@ -22,6 +26,7 @@ idf_component_register(
                   app_update bootloader_support esp_app_format libjpeg-turbo-esp32 libwebp-esp32
     EMBED_TXTFILES web/settings.html web/settings.js "../installer/setup.css" "../installer/photo_source.mjs"
                    "../installer/backup.mjs"
+    EMBED_FILES "../assets/clock_glyphs.bin"
 )
 
 if(SWIPE_BOARD STREQUAL "v3")
@@ -39,6 +44,13 @@ add_custom_command(
     VERBATIM
 )
 set_source_files_properties(display.cpp PROPERTIES OBJECT_DEPENDS "${panel_init}")
+add_custom_command(
+    OUTPUT "${clock_zones}"
+    COMMAND "${python}" "${clock_generator}" --header "${clock_zones}"
+    DEPENDS "${clock_generator}" "${clock_catalog}"
+    VERBATIM
+)
+set_source_files_properties(clock_settings.cpp PROPERTIES OBJECT_DEPENDS "${clock_zones}")
 
 # Probe with personal fixtures without adding them to the repository. The two
 # required dimensions are already native-MCU-aligned for 4:2:0 JPEG.

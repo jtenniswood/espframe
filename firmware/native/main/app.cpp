@@ -1,4 +1,5 @@
 #include "autoplay_fade.h"
+#include "clock_overlay.h"
 #include "display.h"
 #include "firmware_update.h"
 #include "frame_blend.h"
@@ -36,6 +37,7 @@ constexpr int fixture_slides = 30;
 constexpr int player_core = 1;
 constexpr int loader_core = 0;
 constexpr UBaseType_t player_priority = 4;
+extern const uint8_t clock_atlas[] asm("_binary_clock_glyphs_bin_start");
 
 struct GestureTiming {
   int64_t gesture_to_scanout_us{};
@@ -184,6 +186,7 @@ class SlideLoader {
 
   bool live() const { return this->live_; }
   int64_t slide_interval_us() const { return this->source_.slide_seconds() * 1'000'000LL; }
+  const ClockSettings &clock() const { return this->source_.clock(); }
 
   void start() {
     this->live_ = this->source_.read_settings();
@@ -260,7 +263,9 @@ void run(void *) {
   bool can_fade = live && blend.init();
   static Display display;
   display.init(can_fade);
-  if (can_fade && !display.can_pin_frame()) {
+  ClockOverlay clock;
+  const bool can_layer_fade = clock.init(loader.clock(), clock_atlas, can_fade && display.can_pin_frame());
+  if (can_fade && (!display.can_pin_frame() || !can_layer_fade)) {
     blend.release();
     can_fade = false;
   }
@@ -274,7 +279,13 @@ void run(void *) {
   SlidePrefetch prefetch{swipe.settled()};
   AutoplayFade fade;
   const uint16_t *snapshot = nullptr;
+  const auto pin_fade = [&] {
+    snapshot = display.pin_handoff();
+    clock.pin_underlay();
+  };
   uint8_t pending_opacity = 0;
+  int64_t next_clock_poll = 0;
+  bool clock_dirty = false;
 
   int64_t submitted_motion_us = 0;
   int64_t motion_render_us = 0;
@@ -291,6 +302,10 @@ void run(void *) {
 
   while (true) {
     auto now = esp_timer_get_time();
+    if (now >= next_clock_poll) {
+      clock_dirty |= clock.update(std::time(nullptr));
+      next_clock_poll = now + 250'000;
+    }
     if (const auto scanout = display.poll_presented()) {
       if (!lit) {
         display.enable_backlight();
@@ -335,7 +350,7 @@ void run(void *) {
       if (report.valid) {
         confirm_firmware_boot();
         if (report.contacts != 0 && fade.running() && fade.interrupt(snapshot != nullptr))
-          snapshot = display.pin_handoff();
+          pin_fade();
       }
       input.update(swipe, report, display.handoff_position());
       if (swipe.dragging()) {
@@ -348,6 +363,11 @@ void run(void *) {
     if (blend.poll_complete() && fade.running()) {
       // Touch is handled before this block so a superseded blend can never
       // replace the frame the finger just took over.
+      auto *output = display.writable_buffer();
+      if (snapshot != nullptr)
+        clock.restore_blend(output, cache.find(fade.target()), pending_opacity);
+      clock.draw(output, true);
+      clock_dirty = false;
       display.submit(fade.anchor() * slide_width);
       fade.submitted(pending_opacity);
     }
@@ -416,6 +436,8 @@ void run(void *) {
         if (target && from) {
           if (opacity == AutoplayFade::opaque) {
             blit_slides(output, target, nullptr, panel_width, panel_height, 0);
+            clock.draw(output);
+            clock_dirty = false;
             swipe.show(fade.target());
             last_submitted = last_inside = swipe.position();
             display.submit(last_submitted);
@@ -428,7 +450,7 @@ void run(void *) {
             ESP_LOGW(tag, "Could not start the frame blend; using the slideshow glide");
             const bool advance = fade.target() != fade.anchor();
             if (fade.interrupt(snapshot != nullptr))
-              snapshot = display.pin_handoff();
+              pin_fade();
             blend.release();
             can_fade = false;
             if (advance)
@@ -442,8 +464,9 @@ void run(void *) {
 
     const auto inside = std::clamp(position, ready_first * slide_width, ready_last * slide_width);
     const bool use_edge = inside != position;
+    const bool show_clock = live && swipe.settled() != 0;
     if (auto *output = display.writable_buffer(); output != nullptr &&
-        (position != last_submitted || inside != last_inside)) {
+        (position != last_submitted || inside != last_inside || (show_clock && clock_dirty))) {
       const auto index = inside / slide_width;
       const int offset = inside % slide_width;
       const auto slide_pixels = [&](SlideIndex slide) {
@@ -458,8 +481,18 @@ void run(void *) {
           constexpr auto limit = PixelPosition{slide_width - 1};
           const int pull = static_cast<int>(std::clamp(position - inside, -limit, limit));
           blit_slide_edge(output, left, panel_width, panel_height, pull);
+          if (left == snapshot)
+            clock.restore_rows(output, std::max(0, pull), std::max(0, -pull), panel_height - std::abs(pull));
         } else {
           blit_slides(output, left, right, panel_width, panel_height, offset);
+          if (left == snapshot)
+            clock.restore_rows(output, offset, 0, panel_height - offset);
+          if (offset != 0 && right == snapshot)
+            clock.restore_rows(output, 0, panel_height - offset, offset);
+        }
+        if (show_clock) {
+          clock.draw(output);
+          clock_dirty = false;
         }
         display.submit(position);
         submitted_motion_us = motion;

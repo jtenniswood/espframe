@@ -50,7 +50,8 @@ display mode and portrait-pairing preference. Backups that use filters the
 native player cannot apply require you to choose a photo source before saving.
 Enter the required Wi-Fi and Immich credentials in the setup form.
 
-To build the same installer locally, run `npm ci` and place each
+To build the same installer locally, use Python 3.10 or later, run `npm ci`,
+and place each
 `merged-binary.bin` and `espframe_native_vN.bin` in the matching
 `v1`, `v2` or `v3` build directory. Then run:
 
@@ -66,6 +67,11 @@ settings page. Use the IP address shown in the USB logs or find
 with the password you chose. The settings page can change the Immich
 URL, API key, photo source, display mode, time per photo and portrait pairing.
 Saving applies the changes on restart.
+Under **Clock**, choose whether to show the local time and select the timezone
+and 12- or 24-hour format. After time synchronization, the clock stays fixed
+while photos move beneath it. New browser installs enable the clock by
+default. Older native settings keep it hidden until enabled. Backups carry
+the three clock settings. Time synchronization uses `pool.ntp.org`.
 Use **Download settings backup** to save a copy of the active playback
 settings for a future install.
 The page uses HTTP on the local network. Keep it on a trusted network.

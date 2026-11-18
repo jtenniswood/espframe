@@ -32,9 +32,10 @@ backup.addEventListener('change', async () => {
     if (chooseSource) form.elements.photo_source.value = ''
     if (settings.photo_source && settings.photo_source !== 'album') form.elements.album_id.value = ''
     for (const [name, value] of Object.entries(settings)) {
-      if (name === 'portrait_pairing') form.elements[name].checked = value
+      if (typeof value === 'boolean') form.elements[name].checked = value
       else form.elements[name].value = value
     }
+    if (!form.elements.timezone.value) notices.push('Choose a timezone supported by the frame.')
     refreshSource()
     playback.open = true
     const message = Object.keys(settings).length ? 'Backup loaded. Review the settings before saving.'
@@ -69,6 +70,7 @@ if ('serial' in navigator) {
     if (!validateAlbum(form, data)) return
     data.slide_seconds = Number(data.slide_seconds)
     data.portrait_pairing = form.elements.portrait_pairing.checked
+    data.show_clock = form.elements.show_clock.checked
     submit.disabled = true
     backup.disabled = true
     try {

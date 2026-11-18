@@ -84,11 +84,12 @@ bool ImmichSource::online_() {
       return false;
   }
   start_web_settings(this->settings_);
-  if (this->settings_.immich_url.starts_with("https://") && std::time(nullptr) < 1'690'000'000) {
-    if (!this->sntp_started_) {
-      esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
-      this->sntp_started_ = esp_netif_sntp_init(&config) == ESP_OK;
-    }
+  const bool needs_tls_time = this->settings_.immich_url.starts_with("https://") && std::time(nullptr) < 1'690'000'000;
+  if (!this->sntp_started_ && (needs_tls_time || this->settings_.clock.show)) {
+    esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+    this->sntp_started_ = esp_netif_sntp_init(&config) == ESP_OK;
+  }
+  if (needs_tls_time) {
     if (!this->sntp_started_)
       return false;
     const auto deadline = esp_timer_get_time() + 3'000'000;

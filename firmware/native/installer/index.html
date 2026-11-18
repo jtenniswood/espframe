@@ -61,6 +61,18 @@
           </label>
           <label>Seconds per photo <input name="slide_seconds" type="number" min="2" max="86400" value="15" step="1" required></label>
           <label><input name="portrait_pairing" type="checkbox" class="inline-option" checked> Pair portrait photos from the same day</label>
+          <label><input name="show_clock" type="checkbox" class="inline-option" checked> Show clock</label>
+          <label>Time format
+            <select name="clock_format">
+              <option>24 Hour</option>
+              <option>12 Hour</option>
+            </select>
+          </label>
+          <label>Timezone
+            <select name="timezone" required>
+              <!-- CLOCK_TIMEZONES -->
+            </select>
+          </label>
         </details>
         <button type="submit" disabled>Save settings over USB</button>
       </form>

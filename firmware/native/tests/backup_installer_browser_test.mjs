@@ -17,6 +17,7 @@ const backup = {
   version: 3,
   connection: { immich_url: 'https://photos.test', api_key: 'old-api-key' },
   photos: { albums_enabled: true, album_ids: album, portrait_pairing: false, display_mode: 'Fit' },
+  clock: { show: false, format: '12 Hour', timezone: 'America/New_York (GMT-5)' },
   frequency: { interval: '24 hours' },
 }
 const verify = `
@@ -80,6 +81,8 @@ const verify = `
       || received.photo_source !== 'album' || received.album_id !== '${album}' || received.slide_seconds !== 86400
       || received.portrait_pairing !== false || received.display_mode !== 'Fit' || Object.hasOwn(received, 'backup'))
       throw new Error('Unexpected migrated USB settings')
+    if (received.show_clock !== false || received.clock_format !== '12 Hour' || received.timezone !== 'America/New_York (GMT-5)')
+      throw new Error('The clock settings did not reach USB setup')
     document.body.dataset.backupTest = 'passed'
   })
 `

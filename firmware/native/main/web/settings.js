@@ -30,6 +30,13 @@ try {
   form.elements.display_mode.value = settings.display_mode ?? 'Fit'
   form.elements.photo_source.value = settings.photo_source ?? 'all'
   form.elements.album_id.value = settings.album_id ?? ''
+  form.elements.show_clock.checked = settings.show_clock === true
+  form.elements.clock_format.value = settings.clock_format ?? '24 Hour'
+  const timezone = settings.timezone ?? 'Europe/London (GMT+0)'
+  for (const [value, label] of Object.entries(settings.clock_timezones ?? { [timezone]: timezone })) {
+    form.elements.timezone.add(new Option(label.replaceAll('_', ' '), value))
+  }
+  form.elements.timezone.value = timezone
   updateSource()
   status.textContent = ''
   form.hidden = false
@@ -55,6 +62,7 @@ form.addEventListener('submit', async event => {
   submit.disabled = true
   data.slide_seconds = Number(data.slide_seconds)
   data.portrait_pairing = form.elements.portrait_pairing.checked
+  data.show_clock = form.elements.show_clock.checked
   download.disabled = true
   try {
     await request({

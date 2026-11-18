@@ -16,6 +16,7 @@ for (const name of ['v1-full', 'v2-full']) {
   const result = readBackup(await fixture(name))
   assert.deepEqual(result.settings, {
     immich_url: 'https://photos.example.com', slide_seconds: 15, portrait_pairing: true, display_mode: 'Fill',
+    show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
   })
   assert.equal(result.chooseSource, true)
   assert.ok(result.notices.some(text => text.includes('Choose a photo source')))
@@ -68,6 +69,7 @@ for (const source of ['all', 'favorites', 'album']) {
     const settings = {
       immich_url: 'https://photos.test', photo_source: source, portrait_pairing: false,
       slide_seconds: duration, display_mode: duration % 60 ? 'Fit' : 'Fill',
+      show_clock: false, clock_format: '12 Hour', timezone: 'America/New_York (GMT-5)',
       ...(source === 'album' ? { album_id: album } : {}),
     }
     const exported = createBackup(

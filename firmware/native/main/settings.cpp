@@ -91,6 +91,17 @@ bool read_pairing(const cJSON *root, bool &enabled) {
   return true;
 }
 
+bool read_clock(const cJSON *root, ClockSettings &clock) {
+  const auto *show = cJSON_GetObjectItemCaseSensitive(root, "show_clock");
+  if (show && !cJSON_IsBool(show))
+    return false;
+  if (show)
+    clock.show = cJSON_IsTrue(show);
+  return read_field(root, "clock_format", clock.format, true) &&
+         (clock.format == "24 Hour" || clock.format == "12 Hour") &&
+         read_field(root, "timezone", clock.timezone, true) && clock_timezone(clock.timezone) != nullptr;
+}
+
 bool read_display_mode(const cJSON *root, DisplayMode &mode) {
   const auto *field = cJSON_GetObjectItemCaseSensitive(root, "display_mode");
   if (!field)
@@ -138,7 +149,7 @@ bool parse_all(const char *json, Settings &settings) {
          read_field(root.get(), "web_password", settings.web_password, true) &&
          read_interval(root.get(), settings.slide_seconds) && read_pairing(root.get(), settings.portrait_pairing) &&
          read_display_mode(root.get(), settings.display_mode) && read_source(root.get(), settings.photo_source) &&
-         normalize(settings);
+         read_clock(root.get(), settings.clock) && normalize(settings);
 }
 
 bool load(Settings &settings) {
@@ -195,7 +206,8 @@ bool Settings::save_playback(const char *json) {
       !read_field(update.get(), "immich_url", settings.immich_url) ||
       !read_field(update.get(), "immich_key", replacement_key, true) ||
       !read_interval(update.get(), settings.slide_seconds) || !read_pairing(update.get(), settings.portrait_pairing) ||
-      !read_display_mode(update.get(), settings.display_mode) || !read_source(update.get(), settings.photo_source))
+      !read_display_mode(update.get(), settings.display_mode) || !read_source(update.get(), settings.photo_source) ||
+      !read_clock(update.get(), settings.clock))
     return false;
   if (!replacement_key.empty())
     settings.immich_key = replacement_key;
@@ -209,7 +221,10 @@ bool Settings::save_playback(const char *json) {
       !cJSON_AddBoolToObject(updated.get(), "portrait_pairing", settings.portrait_pairing) ||
       !cJSON_AddStringToObject(updated.get(), "display_mode", display_mode_name(settings.display_mode)) ||
       !cJSON_AddStringToObject(updated.get(), "photo_source", photo_source_name(settings.photo_source.mode)) ||
-      !cJSON_AddStringToObject(updated.get(), "album_id", settings.photo_source.album_id.c_str()))
+      !cJSON_AddStringToObject(updated.get(), "album_id", settings.photo_source.album_id.c_str()) ||
+      !cJSON_AddBoolToObject(updated.get(), "show_clock", settings.clock.show) ||
+      !cJSON_AddStringToObject(updated.get(), "clock_format", settings.clock.format.c_str()) ||
+      !cJSON_AddStringToObject(updated.get(), "timezone", settings.clock.timezone.c_str()))
     return false;
   const std::unique_ptr<char, decltype(&cJSON_free)> serialized(cJSON_PrintUnformatted(updated.get()), cJSON_free);
   return serialized && parse_all(serialized.get(), settings) && write(serialized.get());
