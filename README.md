@@ -96,6 +96,10 @@ docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.10.2 compile /c
 docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.10.2 compile /config/builds/guition-esp32-p4-jc8012p4a1-v3.factory.yaml
 ```
 
+When testing with ESPHome 2026.11 or later, pass `-s esp32_hosted_legacy_reset false`
+before `compile` to omit the deprecated Wi-Fi coprocessor reset setting. The
+ESPHome 2026.10 builds above still require that setting.
+
 ### In-Development Firmware Features
 
 In-progress firmware experiences are built into normal firmware, but must stay off unless the hidden developer setting is enabled. Open the device web UI with `?developer=experimental`, for example `http://<device-ip>/?developer=experimental`, then use the **Developer** panel to turn them on for that device.
