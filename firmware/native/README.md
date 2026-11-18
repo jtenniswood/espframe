@@ -216,7 +216,7 @@ The caption font covers Latin, Greek and Cyrillic text. When a name cannot
 be rendered, the frame can still show the other location field. These
 settings are included in the native player's backups.
 
-The photo source defaults to **All photos**. Choose **Favourites** or
+The photo source defaults to **All photos** from the Immich timeline. Choose **Favourites** or
 **Album** in the frame's web settings to limit both photos and their
 portrait companions. For an album, paste its Immich link or ID and give the
 frame's API key `album.read` permission. Album playback uses scoped random

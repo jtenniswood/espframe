@@ -123,14 +123,14 @@ PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, Im
   const bool paged = album && !structured;
   PhotoSearchRequest request{paged ? "/search/metadata" : "/search/random", "{", paged};
   if (!structured)
-    request.body += "\"type\":\"IMAGE\",";
+    request.body += "\"type\":\"IMAGE\",\"visibility\":\"timeline\",";
   request.body += "\"size\":" + std::to_string(count);
   if (paged)
     request.body += ",\"page\":" + std::to_string(page);
   if (local_day || with_location)
     request.body += ",\"withExif\":true";
   if (structured) {
-    request.body += ",\"filter\":{\"type\":{\"eq\":\"IMAGE\"}";
+    request.body += ",\"filter\":{\"type\":{\"eq\":\"IMAGE\"},\"visibility\":{\"eq\":\"timeline\"}";
   }
   if (album) {
     request.body += ",\"albumIds\":";
@@ -182,6 +182,8 @@ PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool p
     if (photos.size() == limit)
       break;
     if (favorites_only && !cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(record, "isFavorite")))
+      continue;
+    if (const auto *visibility = get_text(record, "visibility"); visibility && std::string_view(visibility) != "timeline")
       continue;
     const auto photo = read_asset(record);
     if (photo && dates.includes(photo->metadata.capture_day) &&

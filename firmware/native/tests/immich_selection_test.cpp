@@ -33,6 +33,13 @@ int main() {
   assert(photos[4].portrait && !is_portrait_companion(primary, photos[4]));
   assert(!photos[5].metadata.capture_day && !is_portrait_companion(primary, photos[5]));
   assert(parse_photo_search(response, 2, false, false).photos.size() == 2);
+  const auto visible = parse_photo_search(R"([
+    {"id":"c48e2980-18ac-4d7d-876a-a636759a1aec","visibility":"archive"},
+    {"id":"eb492926-9046-408b-be47-a959620753bb","visibility":"hidden"},
+    {"id":"0406c468-dabf-4777-bb93-ac6fdac62857","visibility":"timeline"}
+  ])", 3, false, false);
+  assert(visible.photos.size() == 1);
+  assert(std::string_view(visible.photos.front().id.data()) == "0406c468-dabf-4777-bb93-ac6fdac62857");
   assert(!parse_photo_search("[] invalid", 16, false, false).valid);
   assert(!parse_photo_search("{\"assets\":[]}", 16, true, false).valid);
 
@@ -56,13 +63,13 @@ int main() {
 
   using Api = ImmichSearchApi;
   const auto all = make_photo_search(4, {}, Api::Unknown);
-  assert(all.path == "/search/random" && !all.paged && all.body == R"({"type":"IMAGE","size":4})");
+  assert(all.path == "/search/random" && !all.paged && all.body == R"({"type":"IMAGE","visibility":"timeline","size":4})");
   assert(make_photo_search(12, {}, Api::Unknown, primary.metadata.capture_day).body ==
-         R"({"type":"IMAGE","size":12,"withExif":true,"takenAfter":"2024-02-29T00:00:00.000Z","takenBefore":"2024-03-02T23:59:59.999Z"})");
+         R"({"type":"IMAGE","visibility":"timeline","size":12,"withExif":true,"takenAfter":"2024-02-29T00:00:00.000Z","takenBefore":"2024-03-02T23:59:59.999Z"})");
   assert(make_photo_search(4, {}, Api::Legacy, {}, 1, false, {march_first, {}}).body ==
-         R"({"type":"IMAGE","size":4,"takenAfter":"2024-02-29T00:00:00.000Z"})");
+         R"({"type":"IMAGE","visibility":"timeline","size":4,"takenAfter":"2024-02-29T00:00:00.000Z"})");
   assert(make_photo_search(4, {}, Api::Structured, {}, 1, false, {{}, leap_day}).body ==
-         R"({"size":4,"filter":{"type":{"eq":"IMAGE"},"takenAt":{"lte":"2024-03-01T23:59:59.999Z"}}})");
+         R"({"size":4,"filter":{"type":{"eq":"IMAGE"},"visibility":{"eq":"timeline"},"takenAt":{"lte":"2024-03-01T23:59:59.999Z"}}})");
   assert(make_photo_search(4, {}, Api::Structured, leap_day, 1, true, march).path.empty());
 
   assert(parse_search_api(R"({"major":2,"minor":5,"patch":6})") == Api::Legacy);
@@ -79,24 +86,24 @@ int main() {
   assert(make_photo_search(16, {PhotoSourceMode::Album, {}}, Api::Legacy).path.empty());
   const auto legacy = make_photo_search(16, album, Api::Legacy, {}, 7);
   assert(legacy.path == "/search/metadata" && legacy.paged);
-  assert(legacy.body == R"({"type":"IMAGE","size":16,"page":7,"albumIds":["c48e2980-18ac-4d7d-876a-a636759a1aec"]})");
+  assert(legacy.body == R"({"type":"IMAGE","visibility":"timeline","size":16,"page":7,"albumIds":["c48e2980-18ac-4d7d-876a-a636759a1aec"]})");
   const auto modern = make_photo_search(16, album, Api::Structured);
   assert(modern.path == "/search/random" && !modern.paged);
-  assert(modern.body == R"({"size":16,"filter":{"type":{"eq":"IMAGE"},"albumIds":{"any":["c48e2980-18ac-4d7d-876a-a636759a1aec"]}}})");
+  assert(modern.body == R"({"size":16,"filter":{"type":{"eq":"IMAGE"},"visibility":{"eq":"timeline"},"albumIds":{"any":["c48e2980-18ac-4d7d-876a-a636759a1aec"]}}})");
   assert(make_photo_search(4, album, Api::Legacy).body ==
-         R"({"type":"IMAGE","size":4,"page":1,"albumIds":["c48e2980-18ac-4d7d-876a-a636759a1aec"]})");
+         R"({"type":"IMAGE","visibility":"timeline","size":4,"page":1,"albumIds":["c48e2980-18ac-4d7d-876a-a636759a1aec"]})");
   assert(make_photo_search(12, album, Api::Legacy, primary.metadata.capture_day).body ==
-         R"({"type":"IMAGE","size":12,"page":1,"withExif":true,"albumIds":["c48e2980-18ac-4d7d-876a-a636759a1aec"],"takenAfter":"2024-02-29T00:00:00.000Z","takenBefore":"2024-03-02T23:59:59.999Z"})");
+         R"({"type":"IMAGE","visibility":"timeline","size":12,"page":1,"withExif":true,"albumIds":["c48e2980-18ac-4d7d-876a-a636759a1aec"],"takenAfter":"2024-02-29T00:00:00.000Z","takenBefore":"2024-03-02T23:59:59.999Z"})");
   assert(make_photo_search(12, album, Api::Structured, primary.metadata.capture_day).body ==
-         R"({"size":12,"withExif":true,"filter":{"type":{"eq":"IMAGE"},"albumIds":{"any":["c48e2980-18ac-4d7d-876a-a636759a1aec"]},"takenAt":{"gte":"2024-02-29T00:00:00.000Z","lte":"2024-03-02T23:59:59.999Z"}}})");
-  assert(make_photo_search(4, favorites, Api::Legacy).body == R"({"type":"IMAGE","size":4,"isFavorite":true})");
+         R"({"size":12,"withExif":true,"filter":{"type":{"eq":"IMAGE"},"visibility":{"eq":"timeline"},"albumIds":{"any":["c48e2980-18ac-4d7d-876a-a636759a1aec"]},"takenAt":{"gte":"2024-02-29T00:00:00.000Z","lte":"2024-03-02T23:59:59.999Z"}}})");
+  assert(make_photo_search(4, favorites, Api::Legacy).body == R"({"type":"IMAGE","visibility":"timeline","size":4,"isFavorite":true})");
   assert(make_photo_search(12, favorites, Api::Structured, primary.metadata.capture_day).body ==
-         R"({"size":12,"withExif":true,"filter":{"type":{"eq":"IMAGE"},"isFavorite":{"eq":true},"takenAt":{"gte":"2024-02-29T00:00:00.000Z","lte":"2024-03-02T23:59:59.999Z"}}})");
+         R"({"size":12,"withExif":true,"filter":{"type":{"eq":"IMAGE"},"visibility":{"eq":"timeline"},"isFavorite":{"eq":true},"takenAt":{"gte":"2024-02-29T00:00:00.000Z","lte":"2024-03-02T23:59:59.999Z"}}})");
 
   assert(make_photo_search(4, {}, Api::Legacy, {}, 1, true).body ==
-         R"({"type":"IMAGE","size":4,"withExif":true})");
+         R"({"type":"IMAGE","visibility":"timeline","size":4,"withExif":true})");
   assert(make_photo_search(4, favorites, Api::Structured, {}, 1, true).body ==
-         R"({"size":4,"withExif":true,"filter":{"type":{"eq":"IMAGE"},"isFavorite":{"eq":true}}})");
+         R"({"size":4,"withExif":true,"filter":{"type":{"eq":"IMAGE"},"visibility":{"eq":"timeline"},"isFavorite":{"eq":true}}})");
 
   const auto page = parse_photo_search(R"({"assets":{"items":[{"id":"c48e2980-18ac-4d7d-876a-a636759a1aec"}],"nextPage":"8"}})",
                                        16, true, false);
