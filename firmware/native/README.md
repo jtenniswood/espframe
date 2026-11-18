@@ -1,12 +1,12 @@
-# Native photo swipe prototype
+# Native Immich player prototype
 
 This standalone ESP-IDF app exercises the photo gesture on the Guition
-JC8012P4A1. It starts on slide three of a longer sequence that repeats
-five local fixtures. A background task prepares the requested slide and
-keeps two behind and up to three ahead in memory. Drag either way, release a
-short drag, flick, or press again to take over a moving slide.
+JC8012P4A1. A background task keeps two slides behind and up to three ahead
+in memory as panel-ready pixels. Drag either way, release a short drag,
+flick, or press again to take over a moving slide.
 
-The prototype works offline. It uses the matching panel initialization sequence
+With no settings provisioned, it starts on slide three in a sequence of local
+fixtures and works offline. It uses the matching panel initialization sequence
 from the maintained Espframe device profile and the GSL3680 firmware and
 point identification sources already in the repository. See
 [the touchscreen component's attribution](../../components/gsl3680/LICENSE.md).
@@ -37,7 +37,31 @@ c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
 c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
   firmware/native/tests/slide_cache_test.cpp -o /tmp/espframe-slide-cache-test
 /tmp/espframe-slide-cache-test
+python3 firmware/native/tests/test_preview_decoder.py
 ```
+
+## Connect to Immich on a test frame
+
+Provision Wi-Fi and a read-only Immich API key with the `asset.read` and
+`asset.view` permissions. Activate ESP-IDF on the host and run the settings
+generator.
+The base URL accepts a reverse proxy prefix and may end in `/api`.
+For HTTPS, use a certificate trusted by the ESP-IDF certificate bundle. The
+frame synchronizes its clock with `pool.ntp.org` before its first TLS request.
+
+```sh
+python3 firmware/native/tools/provision.py /tmp/espframe-native-settings.bin
+python -m esptool --chip esp32p4 --port PORT write-flash 0x410000 /tmp/espframe-native-settings.bin
+```
+
+Use that flash offset with this prototype's partition table on the dedicated
+test frame. The generated file contains the Wi-Fi password and API key in
+plaintext. Keep it private and remove it after provisioning. The player shows a
+local scene until the first preview is ready, then starts the slideshow. It
+loads additional photos directly from Immich and advances every 15 seconds
+when a new slide is ready. It keeps the current photo visible during a network
+failure. This build uses a random image feed and retains up to 1,999 positions
+per boot, with a fitted single image per position.
 
 ## Test on the frame
 
@@ -59,3 +83,8 @@ Prepare the landscape image as 1280 × 800, rotate it 90 degrees clockwise
 into 800 × 1280, and bake in the rotation. Compose a portrait pair into the
 landscape canvas before rotating. After adding files, run the same command
 with `reconfigure` before `build`. Missing or rejected JPEGs use the built-in test scenes.
+
+With Immich configured, repeat the gesture checks while a JPEG or WebP is
+downloading and after disconnecting Wi-Fi. Cached neighbors should still
+move together and reverse. Reconnect Wi-Fi and confirm the gallery resumes
+prefetching while keeping the same photo on screen.

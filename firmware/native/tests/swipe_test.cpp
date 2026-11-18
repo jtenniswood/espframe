@@ -89,6 +89,18 @@ int main() {
   cold_boundary.tick(start + 600'000);
   assert(cold_boundary.settled() == 3);
 
+  Swipe autoplay{width, 5, 0};
+  autoplay.set_ready_range(0, 0);
+  assert(!autoplay.advance(start));
+  autoplay.set_ready_range(0, 1);
+  autoplay.press(950, 300, 0, start);
+  assert(!autoplay.advance(start));
+  autoplay.release(start + 20'000);
+  assert(autoplay.advance(start + 30'000));
+  assert(!autoplay.advance(start + 40'000));
+  autoplay.tick(start + 500'000);
+  assert(autoplay.settled() == 1 && !autoplay.advance(start + 1'000'000));
+
   const std::array<uint16_t, 6> left{0, 1, 2, 3, 4, 5};
   const std::array<uint16_t, 6> right{6, 7, 8, 9, 10, 11};
   std::array<uint16_t, 6> output{};

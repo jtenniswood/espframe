@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.22)
 set(IDF_TARGET esp32p4)
 set(COMPONENTS main)
+set(EXTRA_COMPONENT_DIRS
+    "${CMAKE_CURRENT_LIST_DIR}/../../components/libjpeg-turbo-esp32"
+    "${CMAKE_CURRENT_LIST_DIR}/../../components/libwebp-esp32")
 set(PROJECT_VER "swipe-prototype")
 set(SWIPE_BOARD "v3" CACHE STRING "Guition JC8012P4A1 prototype board: v1, v2, or v3")
 if(NOT SWIPE_BOARD MATCHES "^v[123]$")

@@ -1,4 +1,5 @@
 #include "display.h"
+#include "immich.h"
 #include "slide_blit.h"
 #include "slide_cache.h"
 #include "swipe.h"
@@ -22,8 +23,8 @@ namespace {
 
 constexpr const char *tag = "swipe-probe";
 constexpr int fixture_count = 5;
-constexpr int slide_count = 30;
-constexpr int initial_slide = 2;
+constexpr int fixture_slides = 30;
+constexpr int64_t idle_slide_us = 15'000'000;
 constexpr int64_t touch_period_us = 5'000;
 
 struct EncodedPhoto {
@@ -157,11 +158,19 @@ SlideCache::Buffers allocate_slide_buffers() {
   return buffers;
 }
 
-class FixtureLoader {
+class SlideLoader {
  public:
+  struct Completion {
+    SlideCache::Lease lease;
+    bool ready;
+  };
+
+  bool live() const { return this->live_; }
+
   void start() {
+    this->live_ = this->source_.read_settings();
     this->requests_ = xQueueCreate(1, sizeof(SlideCache::Lease));
-    this->completed_ = xQueueCreate(1, sizeof(SlideCache::Lease));
+    this->completed_ = xQueueCreate(1, sizeof(Completion));
     ESP_ERROR_CHECK(this->requests_ && this->completed_ ? ESP_OK : ESP_ERR_NO_MEM);
     const auto result = xTaskCreatePinnedToCore(run_, "slide-prepare", 6144, this, 2, nullptr, 1);
     ESP_ERROR_CHECK(result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
@@ -171,38 +180,48 @@ class FixtureLoader {
     ESP_ERROR_CHECK(xQueueSend(this->requests_, &lease, 0) == pdPASS ? ESP_OK : ESP_ERR_INVALID_STATE);
   }
 
-  bool poll(SlideCache::Lease &lease) {
-    return xQueueReceive(this->completed_, &lease, 0) == pdPASS;
+  bool poll(Completion &completion) {
+    return xQueueReceive(this->completed_, &completion, 0) == pdPASS;
   }
 
  private:
   static void run_(void *context) {
-    auto &loader = *static_cast<FixtureLoader *>(context);
+    auto &loader = *static_cast<SlideLoader *>(context);
     jpeg_decoder_handle_t decoder{};
     while (true) {
       SlideCache::Lease lease{};
       if (xQueueReceive(loader.requests_, &lease, portMAX_DELAY) != pdPASS)
         continue;
-      const int fixture = lease.slide % fixture_count;
-      if (!decode_photo(photos[fixture], lease.pixels, decoder))
-        draw_test_slide(lease.pixels, fixture);
-      xQueueSend(loader.completed_, &lease, portMAX_DELAY);
+      bool ready = true;
+      if (loader.live_ && lease.slide > 0) {
+        ready = loader.source_.prepare(lease.slide, lease.pixels);
+      } else {
+        const int fixture = lease.slide % fixture_count;
+        if (!decode_photo(photos[fixture], lease.pixels, decoder))
+          draw_test_slide(lease.pixels, fixture);
+      }
+      const Completion completion{lease, ready};
+      xQueueSend(loader.completed_, &completion, portMAX_DELAY);
     }
   }
 
+  ImmichSource source_;
   QueueHandle_t requests_{};
   QueueHandle_t completed_{};
+  bool live_{};
 };
 
 void run() {
   SlideCache cache{allocate_slide_buffers()};
-  static FixtureLoader loader;
+  static SlideLoader loader;
   loader.start();
+  const bool live = loader.live();
+  const int slide_count = live ? ImmichSource::slide_limit : fixture_slides;
   static Display display;
   display.init();
   Touch touch;
   touch.init();
-  Swipe swipe{slide_width, slide_count, initial_slide};
+  Swipe swipe{slide_width, slide_count, live ? 0 : 2};
 
   bool touch_down = false;
   bool wait_for_release = false;
@@ -213,6 +232,8 @@ void run() {
   int last_submitted = -1;
   bool lit = false;
   bool preparing = false;
+  int64_t next_advance_us = 0;
+  std::array<int64_t, SlideCache::capacity> retry_until{};
 
   while (true) {
     auto now = esp_timer_get_time();
@@ -220,7 +241,7 @@ void run() {
       if (!lit) {
         display.enable_backlight();
         lit = true;
-        ESP_LOGI(tag, "Probe ready (background fixture preparation)");
+        ESP_LOGI(tag, "Player ready (background %s preparation)", live ? "Immich" : "fixture");
       }
       if (submitted_motion_us != 0) {
         ESP_LOGI(tag, "gesture_to_scanout_us=%" PRId64, now - submitted_motion_us);
@@ -228,13 +249,14 @@ void run() {
       }
     }
 
-    SlideCache::Lease completion{};
+    SlideLoader::Completion completion{};
     if (loader.poll(completion)) {
-      ESP_ERROR_CHECK(cache.complete(completion, true) ? ESP_OK : ESP_ERR_INVALID_STATE);
+      ESP_ERROR_CHECK(cache.complete(completion.lease, completion.ready) ? ESP_OK : ESP_ERR_INVALID_STATE);
+      retry_until[completion.lease.slide % retry_until.size()] = completion.ready ? 0 : now + 2'000'000;
       preparing = false;
     }
     const int center = swipe.settled();
-    const int keep_first = std::max(0, center - 2);
+    const int keep_first = std::max(live && center > 0 ? 1 : 0, center - 2);
     const int keep_last = std::min(slide_count - 1, center + 3);
     int ready_first = center;
     int ready_last = center;
@@ -247,7 +269,8 @@ void run() {
     if (!preparing) {
       for (const int offset : {0, 1, -1, 2, -2, 3}) {
         const int candidate = center + offset;
-        if (candidate < keep_first || candidate > keep_last)
+        if (candidate < keep_first || candidate > keep_last ||
+            now < retry_until[candidate % retry_until.size()])
           continue;
         if (const auto lease = cache.reserve(candidate, keep_first, keep_last)) {
           loader.submit(*lease);
@@ -285,6 +308,7 @@ void run() {
             first_motion_us = 0;
             touch_down = true;
           }
+          next_advance_us = now + idle_slide_us;
           const bool was_dragging = swipe.dragging();
           swipe.move(sample.x, sample.y, now);
           if (!was_dragging && swipe.dragging() && std::lround(swipe.position()) != display.presented_position())
@@ -293,6 +317,8 @@ void run() {
       }
     }
 
+    if (live && lit && !touch_down && !wait_for_release && now >= next_advance_us && swipe.advance(now))
+      next_advance_us = now + idle_slide_us;
     swipe.tick(now);
     const int position = static_cast<int>(std::lround(swipe.position()));
     if (auto *output = display.writable_buffer(); output != nullptr && position != last_submitted) {

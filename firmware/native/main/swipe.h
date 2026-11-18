@@ -92,6 +92,13 @@ class Swipe {
       this->settle_to_(this->resume_, now_us);
   }
 
+  bool advance(int64_t now_us) {
+    if (this->phase_ != Phase::Idle || this->settled_ >= this->ready_last_)
+      return false;
+    this->settle_to_(this->settled_ + 1, now_us);
+    return true;
+  }
+
   void tick(int64_t now_us) {
     if (this->phase_ != Phase::Settling)
       return;
