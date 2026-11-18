@@ -75,6 +75,7 @@ esp_err_t current(httpd_req_t *request) {
       !cJSON_AddStringToObject(document.get(), "immich_url", settings.immich_url.c_str()) ||
       !cJSON_AddNumberToObject(document.get(), "slide_seconds", settings.slide_seconds) ||
       !cJSON_AddBoolToObject(document.get(), "portrait_pairing", settings.portrait_pairing) ||
+      !cJSON_AddStringToObject(document.get(), "display_mode", display_mode_name(settings.display_mode)) ||
       !cJSON_AddStringToObject(document.get(), "photo_source", photo_source_name(settings.photo_source.mode)) ||
       !cJSON_AddStringToObject(document.get(), "album_id", settings.photo_source.album_id.c_str()) ||
       !cJSON_AddBoolToObject(document.get(), "firmware_update", can_update_firmware()) ||
@@ -110,7 +111,7 @@ esp_err_t update(httpd_req_t *request) {
   }
   body[received] = '\0';
   if (std::memchr(body.get(), '\0', received) || !Settings::save_playback(body.get()))
-    return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Check the Immich connection, photo source and slide interval.");
+    return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Check the Immich connection and playback settings.");
   if (esp_timer_start_once(restart_timer, 800'000) != ESP_OK)
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Saved. Restart the frame to apply settings.");
   httpd_resp_set_type(request, "application/json");

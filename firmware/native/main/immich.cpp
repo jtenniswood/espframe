@@ -222,7 +222,7 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
     return PreviewStatus::Retry;
   const bool optional = deadline_us != 0;
   const auto decode = [&](const uint8_t *data, size_t length) {
-    return preview.decode(data, length, companion, &this->jpeg_);
+    return preview.decode(data, length, companion, &this->jpeg_, this->settings_.display_mode);
   };
   const auto cached = this->previews_.find(id);
   if (!cached.empty()) {
@@ -317,7 +317,7 @@ bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
   }
   if (!remembered && frame.companion[0] != '\0')
     std::erase_if(this->pending_, [&](const ImmichPhoto &photo) { return photo.id == frame.companion; });
-  primary.render(panel, frame.companion[0] == '\0' ? nullptr : &companion);
+  primary.render(panel, frame.companion[0] == '\0' ? nullptr : &companion, this->settings_.display_mode);
   if (new_position)
     this->history_.append(frame);
   else

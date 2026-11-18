@@ -27,6 +27,7 @@ try {
   form.elements.immich_url.value = settings.immich_url
   form.elements.slide_seconds.value = settings.slide_seconds
   form.elements.portrait_pairing.checked = settings.portrait_pairing === true
+  form.elements.display_mode.value = settings.display_mode ?? 'Fit'
   form.elements.photo_source.value = settings.photo_source ?? 'all'
   form.elements.album_id.value = settings.album_id ?? ''
   updateSource()

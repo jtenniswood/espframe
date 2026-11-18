@@ -1,6 +1,7 @@
 import { normalizeAlbum } from './photo_source.mjs'
 
 const legacySources = ['All Photos', 'Album', 'Favorites', 'Custom']
+const displayModes = ['Fill', 'Fit']
 const groups = ['connection', 'photos', 'frequency', 'screen', 'clock', 'firmware_updates', 'identity']
 const own = (object, key) => Object.hasOwn(object, key)
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -91,6 +92,10 @@ export function readBackup(data) {
     else notices.push('Choose a slideshow interval.')
   }
   if (typeof photos.portrait_pairing === 'boolean') settings.portrait_pairing = photos.portrait_pairing
+  if (own(photos, 'display_mode')) {
+    if (displayModes.includes(photos.display_mode)) settings.display_mode = photos.display_mode
+    else notices.push('Choose a display mode.')
+  }
   const { chooseSource = false, ...sourceSettings } = importSource(photos, data.version)
   Object.assign(settings, sourceSettings)
   if (chooseSource)
@@ -100,7 +105,7 @@ export function readBackup(data) {
   if (own(data, 'clock')) skipped.push('clock settings')
   if (own(data, 'firmware_updates')) skipped.push('firmware update settings')
   if (own(data, 'identity')) skipped.push('the frame name')
-  if (['display_mode', 'transition', 'transition_speed', 'portrait_pairing_range'].some(key => own(photos, key)) ||
+  if (['transition', 'transition_speed', 'portrait_pairing_range'].some(key => own(photos, key)) ||
       own(frequency, 'conn_timeout'))
     skipped.push('advanced playback settings')
   if (skipped.length) notices.push(`Keep the original backup for ${skipped.join(', ')}.`)
@@ -129,6 +134,7 @@ export function createBackup(settings, date = new Date()) {
       albums_enabled: album,
       ...(album ? { album_ids: settings.album_id } : {}),
       portrait_pairing: settings.portrait_pairing,
+      ...(displayModes.includes(settings.display_mode) ? { display_mode: settings.display_mode } : {}),
     },
     frequency: { interval: formatInterval(settings.slide_seconds) },
   }

@@ -18,17 +18,18 @@ DmaBuffer allocate(size_t bytes, jpeg_dec_buffer_alloc_direction_t direction, si
   return DmaBuffer(static_cast<uint8_t *>(jpeg_alloc_decoder_mem(bytes, &config, &capacity)), heap_caps_free);
 }
 
-void resize(const uint16_t *source, const P4JpegInfo &info, uint16_t *pixels, int width, int height) {
-  const uint32_t step = (info.width << 16) / width;
-  for (int y = 0; y < height; ++y) {
-    const auto *row = source + (y * info.height / height) * info.padded_width;
-    auto *target = pixels + y * width;
-    if (static_cast<uint32_t>(width) == info.width) {
-      std::memcpy(target, row, width * sizeof(*pixels));
+void resize(const uint16_t *source, uint32_t stride, uint16_t *pixels, const PhotoFraming &framing) {
+  const auto &crop = framing.source;
+  const uint32_t step = (static_cast<uint32_t>(crop.width) << 16) / framing.width;
+  for (int y = 0; y < framing.height; ++y) {
+    const auto *row = source + (crop.y + y * crop.height / framing.height) * stride + crop.x;
+    auto *target = pixels + y * framing.width;
+    if (framing.width == crop.width) {
+      std::memcpy(target, row, framing.width * sizeof(*pixels));
       continue;
     }
     uint32_t source_x = 0;
-    for (int x = 0; x < width; ++x) {
+    for (int x = 0; x < framing.width; ++x) {
       target[x] = row[source_x >> 16];
       source_x += step;
     }
@@ -42,14 +43,16 @@ P4JpegDecoder::~P4JpegDecoder() {
     jpeg_del_decoder_engine(engine_);
 }
 
-bool P4JpegDecoder::decode(const uint8_t *encoded, size_t length, uint16_t *pixels, int width, int height) {
+bool P4JpegDecoder::decode(const uint8_t *encoded, size_t length, uint16_t *pixels, const PhotoFraming &framing) {
   using esphome::remote_image::parse_p4_baseline_jpeg;
   using esphome::remote_image::p4_jpeg_fits_workspace;
   P4JpegInfo info;
   // The hardware parser requires a whole stream and a pixel count divisible by eight.
   if (disabled_ || length < 4 || encoded[length - 2] != 0xff || encoded[length - 1] != 0xd9 ||
       !parse_p4_baseline_jpeg(encoded, length, &info) || !p4_jpeg_fits_workspace(info, length) ||
-      info.width * info.height % 8 != 0)
+      info.width * info.height % 8 != 0 ||
+      static_cast<uint32_t>(framing.source.x + framing.source.width) > info.width ||
+      static_cast<uint32_t>(framing.source.y + framing.source.height) > info.height)
     return false;
 
   size_t input_capacity = 0;
@@ -84,7 +87,7 @@ bool P4JpegDecoder::decode(const uint8_t *encoded, size_t length, uint16_t *pixe
   }
   if (result != ESP_OK || written != info.decoded_bytes)
     return false;
-  resize(reinterpret_cast<const uint16_t *>(output.get()), info, pixels, width, height);
+  resize(reinterpret_cast<const uint16_t *>(output.get()), info.padded_width, pixels, framing);
   return true;
 }
 

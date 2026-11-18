@@ -54,6 +54,7 @@ void nvs_close(nvs_handle_t) { staged.clear(); }
 
 int main() {
   using espframe::native::Settings;
+  using espframe::native::DisplayMode;
   using espframe::native::PhotoSourceMode;
 
   stored = {{"ssid", "Legacy"}, {"password", "legacy secret"}, {"immich_url", "http://legacy.local/"},
@@ -64,6 +65,7 @@ int main() {
   assert(legacy.immich_url == "http://legacy.local/api" && legacy.slide_seconds == 15);
   assert(legacy.portrait_pairing);
   assert(legacy.photo_source.mode == PhotoSourceMode::Library);
+  assert(legacy.display_mode == DisplayMode::Fit);
   assert(legacy.web_password.empty());
   assert(!Settings::save_playback(R"({"immich_url":"http://new.local"})"));
 
@@ -74,28 +76,33 @@ int main() {
   assert(current.read());
   assert(current.immich_url == "https://photos.test/api" && current.slide_seconds == 20);
   assert(current.web_password == "only-settings");
+  assert(current.display_mode == DisplayMode::Fit);
   auto before = stored;
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","slide_seconds":20.3})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","slide_seconds":86401})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://name@photos.test","slide_seconds":20})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","immich_key":"key with space"})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","portrait_pairing":"false"})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","display_mode":"Stretch"})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","display_mode":true})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","photo_source":"album"})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","photo_source":"unknown"})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","album_id":"not-an-album"})"));
   assert(stored == before);
 
   assert(Settings::save_playback(
-      R"({"immich_url":"https://photos.test/family","immich_key":"","slide_seconds":35,"portrait_pairing":false})"));
+      R"({"immich_url":"https://photos.test/family","immich_key":"","slide_seconds":35,"portrait_pairing":false,"display_mode":"Fill"})"));
   assert(current.read());
   assert(current.immich_url == "https://photos.test/family/api" && current.slide_seconds == 35);
   assert(!current.portrait_pairing);
+  assert(current.display_mode == DisplayMode::Fill);
   assert(current.ssid == "Photo Lab" && current.password == "wifi secret");
   assert(current.web_password == "only-settings" && current.immich_key == "first-key");
   assert(Settings::save_playback(R"({"immich_url":"http://photos.test","immich_key":"next-key","slide_seconds":2})"));
   assert(current.read());
   assert(current.immich_key == "next-key" && current.slide_seconds == 2);
   assert(!current.portrait_pairing);
+  assert(current.display_mode == DisplayMode::Fill);
   assert(Settings::save_playback(
       R"({"immich_url":"http://photos.test","photo_source":"album","album_id":"C48E2980-18AC-4D7D-876A-A636759A1AEC"})"));
   assert(current.read());
@@ -112,4 +119,5 @@ int main() {
   assert(current.web_password.empty() && current.slide_seconds == 15);
   assert(current.portrait_pairing);
   assert(current.photo_source.mode == PhotoSourceMode::Library && current.photo_source.album_id.empty());
+  assert(current.display_mode == DisplayMode::Fit);
 }

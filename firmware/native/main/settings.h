@@ -1,5 +1,6 @@
 #pragma once
 
+#include "photo_framing.h"
 #include "photo_source.h"
 
 #include <cstdint>
@@ -15,6 +16,7 @@ struct Settings {
   std::string web_password;
   uint32_t slide_seconds{15};
   bool portrait_pairing{true};
+  DisplayMode display_mode{DisplayMode::Fit};
   PhotoSource photo_source;
 
   static constexpr size_t max_json_size = 1536;

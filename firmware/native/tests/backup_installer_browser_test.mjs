@@ -16,7 +16,7 @@ const album = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
 const backup = {
   version: 3,
   connection: { immich_url: 'https://photos.test', api_key: 'old-api-key' },
-  photos: { albums_enabled: true, album_ids: album, portrait_pairing: false },
+  photos: { albums_enabled: true, album_ids: album, portrait_pairing: false, display_mode: 'Fit' },
   frequency: { interval: '24 hours' },
 }
 const verify = `
@@ -67,6 +67,7 @@ const verify = `
     form.elements.immich_key.value = 'entered-api-key'
     await loadBackup(${JSON.stringify(oldBackup)}, 'Choose a photo source before saving.')
     if (form.elements.photo_source.value || form.checkValidity()) throw new Error('Unrepresentable filters allowed a save')
+    if (form.elements.display_mode.value !== 'Fill') throw new Error('Existing crop mode was not imported')
     form.requestSubmit()
     if (attempts) throw new Error('USB opened with unresolved photo filters')
     await loadBackup(${JSON.stringify(JSON.stringify(backup))}, 'Backup loaded.')
@@ -77,7 +78,7 @@ const verify = `
     await saved
     if (attempts !== 1 || received.immich_key !== 'entered-api-key' || received.ssid !== 'Test Wi-Fi'
       || received.photo_source !== 'album' || received.album_id !== '${album}' || received.slide_seconds !== 86400
-      || received.portrait_pairing !== false || Object.hasOwn(received, 'backup'))
+      || received.portrait_pairing !== false || received.display_mode !== 'Fit' || Object.hasOwn(received, 'backup'))
       throw new Error('Unexpected migrated USB settings')
     document.body.dataset.backupTest = 'passed'
   })

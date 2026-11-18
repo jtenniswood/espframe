@@ -28,6 +28,12 @@
           <label>Immich album link or ID <input name="album_id" maxlength="512" aria-describedby="album-help"></label>
           <small id="album-help">Copy the link from the album page in Immich. The API key needs album.read permission.</small>
         </div>
+        <label>Display mode
+          <select name="display_mode">
+            <option value="Fill">Crop to fit</option>
+            <option value="Fit" selected>Show full image</option>
+          </select>
+        </label>
         <label>Seconds per photo <input name="slide_seconds" type="number" min="2" max="86400" step="1" required></label>
         <label><input name="portrait_pairing" type="checkbox" class="inline-option"> Pair portrait photos from the same day</label>
         <button type="submit">Save and restart</button>

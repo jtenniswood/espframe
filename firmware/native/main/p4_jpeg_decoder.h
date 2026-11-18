@@ -1,5 +1,6 @@
 #pragma once
 
+#include "photo_framing.h"
 #include "driver/jpeg_decode.h"
 
 #include <cstddef>
@@ -16,7 +17,7 @@ class P4JpegDecoder {
   P4JpegDecoder(const P4JpegDecoder &) = delete;
   P4JpegDecoder &operator=(const P4JpegDecoder &) = delete;
 
-  bool decode(const uint8_t *encoded, size_t length, uint16_t *pixels, int width, int height);
+  bool decode(const uint8_t *encoded, size_t length, uint16_t *pixels, const PhotoFraming &framing);
 
  private:
   jpeg_decoder_handle_t engine_{};

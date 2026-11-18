@@ -1,5 +1,7 @@
 #pragma once
 
+#include "photo_framing.h"
+
 #include <cstddef>
 #include <cstdint>
 
@@ -18,13 +20,14 @@ class DecodedPreview {
   DecodedPreview(const DecodedPreview &) = delete;
   DecodedPreview &operator=(const DecodedPreview &) = delete;
 
-  Result decode(const uint8_t *encoded, size_t length, bool companion = false, P4JpegDecoder *hardware = nullptr);
+  Result decode(const uint8_t *encoded, size_t length, bool companion = false, P4JpegDecoder *hardware = nullptr,
+                DisplayMode mode = DisplayMode::Fit);
   bool portrait() const { return this->portrait_; }
   bool hardware_jpeg() const { return this->hardware_jpeg_; }
-  void render(uint16_t *panel, const DecodedPreview *companion = nullptr) const;
+  void render(uint16_t *panel, const DecodedPreview *companion = nullptr, DisplayMode mode = DisplayMode::Fit) const;
 
  private:
-  void paint_(uint16_t *panel, int x, int width) const;
+  void paint_(uint16_t *panel, int x, int width, DisplayMode mode) const;
 
   uint16_t *pixels_{};
   int width_{};

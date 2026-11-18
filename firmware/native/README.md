@@ -45,10 +45,10 @@ restarts when it saves them.
 
 When upgrading an existing frame, export an Espframe settings backup from
 its web page before installation. In the native installer, choose that
-backup to prefill the Immich URL, supported photo source, slideshow interval
-and portrait-pairing preference. Backups that use filters the native player
-cannot apply require you to choose a photo source before saving. Enter the
-required Wi-Fi and Immich credentials in the setup form.
+backup to prefill the Immich URL, supported photo source, slideshow interval,
+display mode and portrait-pairing preference. Backups that use filters the
+native player cannot apply require you to choose a photo source before saving.
+Enter the required Wi-Fi and Immich credentials in the setup form.
 
 To build the same installer locally, run `npm ci` and place each
 `merged-binary.bin` and `espframe_native_vN.bin` in the matching
@@ -64,8 +64,8 @@ Set a web settings password when saving over USB to enable the frame's
 settings page. Use the IP address shown in the USB logs or find
 `espframe-native` in your router's device list. Sign in as `espframe`
 with the password you chose. The settings page can change the Immich
-URL, API key, photo source, time per photo and portrait pairing. Saving applies the
-changes on restart.
+URL, API key, photo source, display mode, time per photo and portrait pairing.
+Saving applies the changes on restart.
 Use **Download settings backup** to save a copy of the active playback
 settings for a future install.
 The page uses HTTP on the local network. Keep it on a trusted network.
@@ -152,6 +152,9 @@ Portrait pairing is on by default. From the second slide onward, the player
 looks for a portrait from the same local capture day. A pair is composed
 into one slide before it can be shown or swiped. If a new companion is
 missing or slow to arrive, the primary photo fills the slide by itself.
+**Show full image** is the default for the native prototype. **Crop to fit**
+center-crops landscape photos to the screen and paired portraits to their
+respective halves. A single portrait stays fully visible on a landscape frame.
 
 The photo source defaults to **All photos**. Choose **Favourites** or
 **Album** in the frame's web settings to limit both photos and their

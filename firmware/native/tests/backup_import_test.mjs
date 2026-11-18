@@ -8,13 +8,14 @@ const fixture = async name => JSON.parse(await readFile(
 const partial = readBackup(await fixture('v1-partial'))
 assert.deepEqual(partial.settings, {
   immich_url: 'http://192.168.1.30:2283',
+  display_mode: 'Fit',
   photo_source: 'favorites',
 })
 assert.equal(partial.chooseSource, false)
 for (const name of ['v1-full', 'v2-full']) {
   const result = readBackup(await fixture(name))
   assert.deepEqual(result.settings, {
-    immich_url: 'https://photos.example.com', slide_seconds: 15, portrait_pairing: true,
+    immich_url: 'https://photos.example.com', slide_seconds: 15, portrait_pairing: true, display_mode: 'Fill',
   })
   assert.equal(result.chooseSource, true)
   assert.ok(result.notices.some(text => text.includes('Choose a photo source')))
@@ -57,13 +58,17 @@ const invalid = readBackup({
 })
 assert.deepEqual(invalid.settings, {})
 assert.deepEqual(invalid.notices, ['Enter your Immich URL.', 'Choose a slideshow interval.'])
+assert.deepEqual(readBackup({ version: 3, photos: { display_mode: 'Stretch' } }), {
+  settings: {}, notices: ['Choose a display mode.'], chooseSource: false,
+})
 assert.throws(() => readBackup({ version: 4 }), /Espframe settings backup/)
 assert.throws(() => readBackup({ version: 3, connection: 'invalid' }), /Espframe settings backup/)
 for (const source of ['all', 'favorites', 'album']) {
   for (const duration of [2, 15, 60, 120, 3600, 86400]) {
     const settings = {
       immich_url: 'https://photos.test', photo_source: source, portrait_pairing: false,
-      slide_seconds: duration, ...(source === 'album' ? { album_id: album } : {}),
+      slide_seconds: duration, display_mode: duration % 60 ? 'Fit' : 'Fill',
+      ...(source === 'album' ? { album_id: album } : {}),
     }
     const exported = createBackup(
       { ...settings, ssid: 'secret', password: 'secret', immich_key: 'secret', web_password: 'secret' },

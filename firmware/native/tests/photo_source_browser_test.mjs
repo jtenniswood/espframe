@@ -15,7 +15,7 @@ const [html, script, css, sourceScript, backupScript] = await Promise.all([
 const albumId = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
 const setup = {
   immich_url: 'https://photos.test/api', slide_seconds: 15, portrait_pairing: true,
-  photo_source: 'favorites', album_id: '',
+  photo_source: 'favorites', album_id: '', display_mode: 'Fill',
 }
 const fixture = html.replace('</body>', `<script>
   const form = document.querySelector('#settings')
@@ -29,12 +29,17 @@ const fixture = html.replace('</body>', `<script>
     const source = form.elements.photo_source
     const album = form.elements.album_id
     if (source.value !== 'favorites' || !album.disabled) throw new Error('Incorrect initial source')
+    const mode = form.elements.display_mode
+    if (mode.value !== 'Fill' || mode.selectedOptions[0].text !== 'Crop to fit')
+      throw new Error('Incorrect initial framing')
     document.querySelector('#download-backup').click()
     const backup = JSON.parse(await downloaded.text())
     if (!filename.startsWith('espframe-config-') || backup.version !== 3 || !backup.photos.favorites_enabled
-      || backup.frequency.interval !== '15 seconds' || Object.keys(backup.connection).join() !== 'immich_url')
+      || backup.frequency.interval !== '15 seconds' || Object.keys(backup.connection).join() !== 'immich_url'
+      || backup.photos.display_mode !== 'Fill')
       throw new Error('Unexpected saved settings backup')
     source.value = 'album'
+    mode.value = 'Fit'
     source.dispatchEvent(new Event('change'))
     if (!album.required || album.disabled) throw new Error('Album selection did not enable the album field')
     album.value = 'https://photos.test/share/${albumId}'
@@ -131,7 +136,7 @@ try {
   const page = await render('/')
   assert.match(page, /Settings saved\. The frame is restarting\./)
   assert.match(page, /<section id="firmware"[^>]* hidden="">/)
-  assert.deepEqual(updates, [{ ...setup, photo_source: 'album', album_id: albumId, immich_key: '' }])
+  assert.deepEqual(updates, [{ ...setup, photo_source: 'album', album_id: albumId, display_mode: 'Fit', immich_key: '' }])
   console.log('Native photo source settings accept Immich album links and reject share links')
 
   firmwareAvailable = true

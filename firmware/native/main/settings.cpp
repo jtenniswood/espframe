@@ -8,6 +8,7 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+#include <string_view>
 #include <utility>
 
 namespace espframe::native {
@@ -90,6 +91,23 @@ bool read_pairing(const cJSON *root, bool &enabled) {
   return true;
 }
 
+bool read_display_mode(const cJSON *root, DisplayMode &mode) {
+  const auto *field = cJSON_GetObjectItemCaseSensitive(root, "display_mode");
+  if (!field)
+    return true;
+  const char *text = cJSON_GetStringValue(field);
+  if (!text)
+    return false;
+  const std::string_view value{text};
+  if (value == "Fill")
+    mode = DisplayMode::Fill;
+  else if (value == "Fit")
+    mode = DisplayMode::Fit;
+  else
+    return false;
+  return true;
+}
+
 bool read_source(const cJSON *root, PhotoSource &source) {
   std::string mode = photo_source_name(source.mode);
   if (!read_field(root, "photo_source", mode, true) || !read_field(root, "album_id", source.album_id, true))
@@ -119,7 +137,8 @@ bool parse_all(const char *json, Settings &settings) {
          read_field(root.get(), "immich_key", settings.immich_key) &&
          read_field(root.get(), "web_password", settings.web_password, true) &&
          read_interval(root.get(), settings.slide_seconds) && read_pairing(root.get(), settings.portrait_pairing) &&
-         read_source(root.get(), settings.photo_source) && normalize(settings);
+         read_display_mode(root.get(), settings.display_mode) && read_source(root.get(), settings.photo_source) &&
+         normalize(settings);
 }
 
 bool load(Settings &settings) {
@@ -176,7 +195,7 @@ bool Settings::save_playback(const char *json) {
       !read_field(update.get(), "immich_url", settings.immich_url) ||
       !read_field(update.get(), "immich_key", replacement_key, true) ||
       !read_interval(update.get(), settings.slide_seconds) || !read_pairing(update.get(), settings.portrait_pairing) ||
-      !read_source(update.get(), settings.photo_source))
+      !read_display_mode(update.get(), settings.display_mode) || !read_source(update.get(), settings.photo_source))
     return false;
   if (!replacement_key.empty())
     settings.immich_key = replacement_key;
@@ -188,6 +207,7 @@ bool Settings::save_playback(const char *json) {
       !cJSON_AddStringToObject(updated.get(), "web_password", settings.web_password.c_str()) ||
       !cJSON_AddNumberToObject(updated.get(), "slide_seconds", settings.slide_seconds) ||
       !cJSON_AddBoolToObject(updated.get(), "portrait_pairing", settings.portrait_pairing) ||
+      !cJSON_AddStringToObject(updated.get(), "display_mode", display_mode_name(settings.display_mode)) ||
       !cJSON_AddStringToObject(updated.get(), "photo_source", photo_source_name(settings.photo_source.mode)) ||
       !cJSON_AddStringToObject(updated.get(), "album_id", settings.photo_source.album_id.c_str()))
     return false;

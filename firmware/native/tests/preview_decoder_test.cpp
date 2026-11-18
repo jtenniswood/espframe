@@ -55,14 +55,17 @@ int jpeg_decoder_process(jpeg_decoder_handle_t engine, const jpeg_decode_cfg_t *
 
   esphome::remote_image::P4JpegInfo info;
   assert(esphome::remote_image::parse_p4_baseline_jpeg(encoded, length, &info));
-  assert(info.width == 30 && info.height == 32 && info.padded_width == 32);
+  assert(((info.width == 30 && info.height == 32) || (info.width == 32 && info.height == 30)) &&
+         info.padded_width == 32 && info.padded_height == 32);
   assert(capacity >= info.decoded_bytes);
   auto *pixels = reinterpret_cast<uint16_t *>(output);
   constexpr uint16_t colors[2][2]{{0xf800, 0x07e0}, {0x001f, 0xffff}};
   std::fill_n(pixels, info.decoded_bytes / sizeof(*pixels), 0xf81f);
   for (unsigned y = 0; y < info.height; ++y) {
-    for (unsigned x = 0; x < info.width; ++x)
-      pixels[y * info.padded_width + x] = colors[y >= info.height / 2][x >= info.width / 2];
+    for (unsigned x = 0; x < info.width; ++x) {
+      if (y >= 4 && y < info.height - 4)
+        pixels[y * info.padded_width + x] = colors[y >= info.height / 2][x >= info.width / 2];
+    }
   }
   *written = info.decoded_bytes - (short_output ? 2 : 0);
   return ESP_OK;
@@ -94,6 +97,13 @@ void verify(const char *path) {
   assert((at(panel, 880, 150) & 0x07e0) >= 0x07c0);
   assert((at(panel, 400, 650) & 0x001f) >= 0x001e);
   assert(at(panel, 880, 650) >= 0xf7de);
+  assert(decoded.decode(photo.data(), photo.size(), false, nullptr, DisplayMode::Fill) == Decode::Ready);
+  decoded.render(panel.data() + 1, nullptr, DisplayMode::Fill);
+  assert(panel.front() == guard && panel.back() == guard);
+  assert((at(panel, 0, 150) & 0xf800) >= 0xf000);
+  assert((at(panel, slide_width - 1, 150) & 0x07e0) >= 0x07c0);
+  assert((at(panel, 0, 650) & 0x001f) >= 0x001e);
+  assert(at(panel, slide_width - 1, 650) >= 0xf7de);
   assert(decoded.decode(photo.data(), photo.size() / 2) == Decode::Invalid);
 }
 
@@ -112,6 +122,13 @@ void verify_pair(const char *primary_path, const char *companion_path) {
   assert((at(panel, 960, 420) & 0x001f) >= 0x001e);
   assert(at(panel, 639, 420) == 0 && at(panel, 640, 420) == 0);
   assert(at(panel, 320, 0) == 0 && at(panel, 960, 0) != 0);
+  assert(left.decode(primary.data(), primary.size(), false, nullptr, DisplayMode::Fill) == Decode::Ready);
+  left.render(panel.data() + 1, nullptr, DisplayMode::Fill);
+  assert(at(panel, 0, 420) == 0 && (at(panel, 640, 420) & 0xf800) >= 0xf000);
+  assert(right.decode(companion.data(), companion.size(), true, nullptr, DisplayMode::Fill) == Decode::Ready);
+  left.render(panel.data() + 1, &right, DisplayMode::Fill);
+  assert((at(panel, 0, 420) & 0xf800) >= 0xf000 && (at(panel, 1279, 420) & 0x001f) >= 0x001e);
+  assert(at(panel, 639, 420) == 0 && at(panel, 640, 420) == 0);
   assert(right.decode(companion.data(), companion.size() / 2, true) == Decode::Invalid);
   left.render(panel.data() + 1, &right);
   assert((at(panel, 640, 420) & 0xf800) >= 0xf000 && at(panel, 0, 420) == 0);
@@ -150,25 +167,35 @@ void verify_hardware(const char *baseline_path, const char *progressive_path, co
   assert(at(panel, 264, 650) == 0 && at(panel, 1015, 650) == 0);
   assert(at(panel, 265, 150) == 0xf800 && at(panel, 1014, 150) == 0x07e0);
   assert(at(panel, 265, 650) == 0x001f && at(panel, 1014, 650) == 0xffff);
+  sof[6] = 30;
+  sof[8] = 32;
+  assert(decoded.decode(baseline.data(), baseline.size(), false, &hardware, DisplayMode::Fill) == Decode::Ready);
+  assert(decoded.hardware_jpeg() && hardware_calls == 2 && engine_creates == 1);
+  decoded.render(panel.data() + 1, nullptr, DisplayMode::Fill);
+  assert(at(panel, 0, 0) == 0xf800 && at(panel, slide_width - 1, slide_height - 1) == 0xffff);
 
   dma_allocations_fail = true;
   assert(decoded.decode(baseline.data(), baseline.size(), false, &hardware) == Decode::Ready);
-  assert(!decoded.hardware_jpeg() && hardware_calls == 1);
+  assert(!decoded.hardware_jpeg() && hardware_calls == 2);
   dma_allocations_fail = false;
   short_output = true;
   assert(decoded.decode(baseline.data(), baseline.size(), false, &hardware) == Decode::Ready);
-  assert(!decoded.hardware_jpeg() && hardware_calls == 2 && engine_creates == 1);
+  assert(!decoded.hardware_jpeg() && hardware_calls == 3 && engine_creates == 1);
   short_output = false;
   force_timeout = true;
   assert(decoded.decode(baseline.data(), baseline.size(), false, &hardware) == Decode::Ready);
-  assert(!decoded.hardware_jpeg() && hardware_calls == 3);
+  assert(!decoded.hardware_jpeg() && hardware_calls == 4);
   force_timeout = false;
   assert(decoded.decode(baseline.data(), baseline.size(), false, &hardware) == Decode::Ready);
-  assert(!decoded.hardware_jpeg() && hardware_calls == 3 && engine_creates == 1);
+  assert(!decoded.hardware_jpeg() && hardware_calls == 4 && engine_creates == 1);
 }
 
 int main(int argc, char **argv) {
   assert(argc == 6);
+  const auto wide = frame_photo(1600, 900, slide_width, slide_height, DisplayMode::Fill);
+  assert(wide.source.x == 80 && wide.source.y == 0 && wide.source.width == 1440 && wide.source.height == 900);
+  const auto narrow = frame_photo(600, 500, slide_width, slide_height, DisplayMode::Fill);
+  assert(narrow.source.x == 0 && narrow.source.y == 62 && narrow.source.width == 600 && narrow.source.height == 375);
   for (int i = 1; i < 4; ++i)
     verify(argv[i]);
   verify_pair(argv[4], argv[5]);
