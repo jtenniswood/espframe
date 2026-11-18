@@ -25,6 +25,7 @@ constexpr size_t memory_pool_capacity = 3 * photo_search_batch;
 constexpr int64_t memory_search_budget_us = 3'000'000;
 constexpr int64_t memory_retry_us = 30'000'000;
 constexpr int64_t pairing_time_us = 1'500'000;
+constexpr unsigned pairing_searches_per_prepare = 4;
 extern const uint8_t caption_atlas[] asm("_binary_caption_glyphs_bin_start");
 extern const uint8_t caption_atlas_end[] asm("_binary_caption_glyphs_bin_end");
 
@@ -92,10 +93,10 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
   const bool legacy_album = source.mode == PhotoSourceMode::Album && this->search_api_ == ImmichSearchApi::Legacy;
   uint32_t page = !pairing && legacy_album ? this->album_page_ : 1;
   size_t count = !pairing && legacy_album ? this->album_page_size_ : photo_search_batch;
-  const bool with_location = this->settings_.metadata.show_location;
+  const bool with_exif = this->settings_.metadata.show_location || this->settings_.portrait_pairs_only;
   const auto dates = this->settings_.photo_source.mode == PhotoSourceMode::Memories
                          ? CaptureDateRange{} : this->capture_date_range_;
-  auto request = make_photo_search(count, source, this->search_api_, local_day, page, with_location, dates);
+  auto request = make_photo_search(count, source, this->search_api_, local_day, page, with_exif, dates);
   if (request.path.empty())
     return {};
   size_t length;
@@ -108,10 +109,10 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
       this->album_page_ = 1;
       page = 1;
     }
-    request = make_photo_search(count, source, this->search_api_, local_day, page, with_location, dates);
+    request = make_photo_search(count, source, this->search_api_, local_day, page, with_exif, dates);
     status = this->fetch_(request.path, request.body, search_capacity, length);
   }
-  if (!pairing && with_location && (status == 400 || status == 413)) {
+  if (!pairing && with_exif && (status == 400 || status == 413)) {
     request = make_photo_search(count, source, this->search_api_, local_day, page, false, dates);
     status = this->fetch_(request.path, request.body, search_capacity, length);
   }
@@ -231,6 +232,8 @@ bool ImmichSource::next_asset_(ImmichPhoto &asset) {
     return false;
   if (this->pending_.empty()) {
     this->pending_ = memory_mode ? this->memories_() : this->search_(source);
+    if (this->settings_.portrait_pairs_only)
+      std::erase_if(this->pending_, [](const ImmichPhoto &photo) { return !can_start_portrait_pair(photo); });
     if (this->pending_.empty())
       return false;
     if (source.mode == PhotoSourceMode::Album && this->search_api_ == ImmichSearchApi::Legacy) {
@@ -243,9 +246,39 @@ bool ImmichSource::next_asset_(ImmichPhoto &asset) {
       });
     }
   }
+  return this->take_pending_(asset);
+}
+
+bool ImmichSource::take_pending_(ImmichPhoto &asset) {
+  if (this->pending_.empty())
+    return false;
+  if (this->settings_.portrait_pairs_only &&
+      (this->settings_.photo_source.mode != PhotoSourceMode::Album || this->search_api_ != ImmichSearchApi::Legacy)) {
+    if (const auto match = find_pair_seed(this->pending_)) {
+      const auto seed = this->pending_.begin() + *match;
+      asset = *seed;
+      this->pending_.erase(seed);
+      return true;
+    }
+  }
   asset = this->pending_.back();
   this->pending_.pop_back();
   return true;
+}
+
+bool ImmichSource::select_pair_(ImmichPhoto &seed, AssetId &companion) {
+  const auto deadline = esp_timer_get_time() + pairing_time_us;
+  for (unsigned search = 1;; ++search) {
+    companion = this->companion_for_(seed, deadline);
+    if (this->cancelled_) {
+      this->pending_.push_back(seed);
+      return false;
+    }
+    if (companion[0] != '\0')
+      return true;
+    if (search == pairing_searches_per_prepare || esp_timer_get_time() >= deadline || !this->take_pending_(seed))
+      return false;
+  }
 }
 
 AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, int64_t deadline_us) {
@@ -335,12 +368,15 @@ bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
   if (!new_position && existing == nullptr)
     return false;
   const bool remembered = existing != nullptr && existing->primary[0] != '\0';
+  const bool pairs_only = this->settings_.portrait_pairs_only;
   ImmichPhoto seed;
   PhotoSlide frame;
   if (remembered) {
     frame = *existing;
   } else {
     if (!this->next_asset_(seed))
+      return false;
+    if (pairs_only && !this->select_pair_(seed, frame.companion))
       return false;
     frame.primary = seed.id;
     frame.metadata = seed.metadata;
@@ -358,10 +394,9 @@ bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
     return false;
   }
 
-  // Show the first preview immediately unless the source requires a pair.
+  // Optional pairing leaves the first preview on the fast path.
   const auto pair_deadline_us = esp_timer_get_time() + (remembered ? 2 : 1) * pairing_time_us;
-  const bool pairs_only = this->settings_.portrait_pairs_only;
-  if (!remembered && (slide > 1 || pairs_only) && this->settings_.portrait_pairing && primary.portrait())
+  if (!remembered && !pairs_only && slide > 1 && this->settings_.portrait_pairing && primary.portrait())
     frame.companion = this->companion_for_(seed, pair_deadline_us);
 
   DecodedPreview companion;
@@ -380,8 +415,11 @@ bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
       this->pending_.push_back(seed);
     return false;
   }
-  if (pairs_only && frame.companion[0] == '\0')
+  if (pairs_only && frame.companion[0] == '\0') {
+    if (remembered)
+      *existing = {};
     return false;
+  }
   if (!remembered && frame.companion[0] != '\0')
     std::erase_if(this->pending_, [&](const ImmichPhoto &photo) { return photo.id == frame.companion; });
   primary.render(panel, frame.companion[0] == '\0' ? nullptr : &companion, this->settings_.display_mode,

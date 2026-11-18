@@ -32,6 +32,21 @@ int main() {
   assert(!is_portrait_companion(primary, photos[3])); // Normalized dimensions take precedence over EXIF.
   assert(photos[4].portrait && !is_portrait_companion(primary, photos[4]));
   assert(!photos[5].metadata.capture_day && !is_portrait_companion(primary, photos[5]));
+  assert(primary.orientation_known && photos[2].orientation_known && photos[3].orientation_known);
+  assert(can_start_portrait_pair(primary));
+  assert(!can_start_portrait_pair(photos[3]));
+  assert(!can_start_portrait_pair(photos[5]));
+  assert(find_pair_seed(photos) == 2);
+  assert(!find_pair_seed(std::span(photos).last(3)));
+  const auto uncertain = parse_photo_search(R"([
+    {"id":"ef492926-9046-408b-be47-a959620753bb","localDateTime":"2024-03-01T19:00:00Z","width":null,"height":null},
+    {"id":"ec492926-9046-408b-be47-a959620753bb","localDateTime":"2024-03-01T19:00:00Z","exifInfo":{"exifImageWidth":1920,"exifImageHeight":1080}},
+    {"id":"ed492926-9046-408b-be47-a959620753bb","localDateTime":"2024-03-01T19:00:00Z","isEdited":true,"width":1920,"height":1080}
+  ])", 3, false, false).photos;
+  assert(uncertain.size() == 3);
+  for (const auto &photo : uncertain)
+    assert(!photo.orientation_known && can_start_portrait_pair(photo));
+  assert(!find_pair_seed(uncertain));
   assert(parse_photo_search(response, 2, false, false).photos.size() == 2);
   const auto visible = parse_photo_search(R"([
     {"id":"c48e2980-18ac-4d7d-876a-a636759a1aec","visibility":"archive"},

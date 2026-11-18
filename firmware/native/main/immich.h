@@ -42,6 +42,8 @@ class ImmichSource {
   bool update_memory_day_();
   std::vector<ImmichPhoto> memories_();
   bool next_asset_(ImmichPhoto &asset);
+  bool take_pending_(ImmichPhoto &asset);
+  bool select_pair_(ImmichPhoto &seed, AssetId &companion);
   AssetId companion_for_(const ImmichPhoto &primary, int64_t deadline_us);
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, bool companion, int64_t deadline_us = 0);
 

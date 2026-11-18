@@ -6,6 +6,7 @@
 
 #include <chrono>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -16,6 +17,7 @@ struct ImmichPhoto {
   AssetId id{};
   PhotoMetadata metadata{};
   bool portrait{};
+  bool orientation_known{};
 };
 
 inline constexpr size_t photo_search_batch = 16;
@@ -43,5 +45,7 @@ PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool p
 std::optional<ImmichPhoto> parse_memory_asset(std::string_view json);
 std::string memory_request_path(std::chrono::sys_days date, unsigned index);
 bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candidate);
+bool can_start_portrait_pair(const ImmichPhoto &photo);
+std::optional<size_t> find_pair_seed(std::span<const ImmichPhoto> photos);
 
 }  // namespace espframe::native

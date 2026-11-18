@@ -2,6 +2,7 @@
 
 #include "cJSON.h"
 
+#include <algorithm>
 #include <charconv>
 #include <cstdio>
 #include <cstring>
@@ -80,13 +81,19 @@ std::optional<ImmichPhoto> read_asset(const cJSON *record) {
   read_place(exif, "country", photo.metadata.country);
   int width = get_integer(record, "width", 0);
   int height = get_integer(record, "height", 0);
+  photo.orientation_known = width > 0 && height > 0;
   if (width <= 0 || height <= 0) {
     width = get_integer(exif, "exifImageWidth", 0);
     height = get_integer(exif, "exifImageHeight", 0);
     if (const char *orientation = get_text(exif, "orientation"); orientation != nullptr &&
-        orientation[0] >= '5' && orientation[0] <= '8' && orientation[1] == '\0')
-      std::swap(width, height);
+        orientation[0] >= '1' && orientation[0] <= '8' && orientation[1] == '\0') {
+      photo.orientation_known = width > 0 && height > 0;
+      if (orientation[0] >= '5')
+        std::swap(width, height);
+    }
   }
+  if (cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(record, "isEdited")))
+    photo.orientation_known = false;
   photo.portrait = width > 0 && height > width;
   return photo;
 }
@@ -210,6 +217,23 @@ std::string memory_request_path(std::chrono::sys_days date, unsigned index) {
 bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candidate) {
   return candidate.id != primary.id && candidate.portrait && primary.metadata.capture_day.has_value() &&
          candidate.metadata.capture_day == primary.metadata.capture_day;
+}
+
+bool can_start_portrait_pair(const ImmichPhoto &photo) {
+  return photo.metadata.capture_day && (!photo.orientation_known || photo.portrait);
+}
+
+std::optional<size_t> find_pair_seed(std::span<const ImmichPhoto> photos) {
+  // Match the pending queue's back-to-front preference. A known pair can
+  // be tried with no additional metadata request.
+  for (size_t i = photos.size(); i > 0; --i) {
+    const auto &seed = photos[i - 1];
+    if (seed.portrait && std::any_of(photos.begin(), photos.end(), [&](const ImmichPhoto &candidate) {
+          return is_portrait_companion(seed, candidate);
+        }))
+      return i - 1;
+  }
+  return {};
 }
 
 }  // namespace espframe::native

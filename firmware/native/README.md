@@ -330,7 +330,8 @@ idf.py -C firmware/native -B firmware/native/build/esphome-live-trial-v1 \
 After the readiness diagnostic reports **Ready**, upload only
 `espframe_v1_live_trial.bin`. When the frame joins Wi-Fi, `/api/trial`
 reports the count of prepared Immich slides, time to prepare the first
-photo, and touch-report-to-LCD-handoff timing for the most recent swipe.
+photo, the preview requests needed for the first slide, and
+touch-report-to-LCD-handoff timing for the most recent swipe.
 Use the USB trace or high-frame-rate video to evaluate the full swipe test.
 The status route also reports clock and connection readiness, HTTP status
 codes, and candidate counts. ESPHome returns automatically after five minutes.
