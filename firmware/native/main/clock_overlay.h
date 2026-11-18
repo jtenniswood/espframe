@@ -26,7 +26,7 @@ class ClockOverlay {
   static constexpr int columns = glyph_height + 2;
 
   bool init(const ClockSettings &settings, const uint8_t *atlas, bool snapshots);
-  bool update(std::time_t now);
+  bool update(const std::optional<std::tm> &local);
   void draw(uint16_t *frame, bool remember_underlay = false);
   void pin_underlay();
   void restore_rows(uint16_t *frame, int source_row, int target_row, int count) const;

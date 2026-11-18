@@ -70,20 +70,21 @@ bool read_field(const cJSON *root, const char *name, std::string &value, bool op
   return true;
 }
 
-bool read_interval(const cJSON *root, uint32_t &seconds) {
-  const auto *field = cJSON_GetObjectItemCaseSensitive(root, "slide_seconds");
-  if (field == nullptr)
+template <typename Integer>
+bool read_integer(const cJSON *root, const char *name, int minimum, int maximum, Integer &value) {
+  const auto *field = cJSON_GetObjectItemCaseSensitive(root, name);
+  if (!field)
     return true;
-  if (!cJSON_IsNumber(field) || field->valueint < 2 || field->valueint > 86'400 ||
+  if (!cJSON_IsNumber(field) || field->valueint < minimum || field->valueint > maximum ||
       field->valueint != field->valuedouble)
     return false;
-  seconds = field->valueint;
+  value = field->valueint;
   return true;
 }
 
-bool read_pairing(const cJSON *root, bool &enabled) {
-  const auto *field = cJSON_GetObjectItemCaseSensitive(root, "portrait_pairing");
-  if (field == nullptr)
+bool read_flag(const cJSON *root, const char *name, bool &enabled) {
+  const auto *field = cJSON_GetObjectItemCaseSensitive(root, name);
+  if (!field)
     return true;
   if (!cJSON_IsBool(field))
     return false;
@@ -91,26 +92,17 @@ bool read_pairing(const cJSON *root, bool &enabled) {
   return true;
 }
 
-bool read_brightness(const cJSON *root, uint8_t &brightness) {
-  const auto *field = cJSON_GetObjectItemCaseSensitive(root, "brightness_day");
-  if (!field)
-    return true;
-  if (!cJSON_IsNumber(field) || field->valueint < 10 || field->valueint > 100 ||
-      field->valueint != field->valuedouble)
-    return false;
-  brightness = field->valueint;
-  return true;
-}
-
 bool read_clock(const cJSON *root, ClockSettings &clock) {
-  const auto *show = cJSON_GetObjectItemCaseSensitive(root, "show_clock");
-  if (show && !cJSON_IsBool(show))
-    return false;
-  if (show)
-    clock.show = cJSON_IsTrue(show);
-  return read_field(root, "clock_format", clock.format, true) &&
+  return read_flag(root, "show_clock", clock.show) && read_field(root, "clock_format", clock.format, true) &&
          (clock.format == "24 Hour" || clock.format == "12 Hour") &&
          read_field(root, "timezone", clock.timezone, true) && clock_timezone(clock.timezone) != nullptr;
+}
+
+bool read_schedule(const cJSON *root, ScreenScheduleSettings &schedule) {
+  return read_flag(root, "schedule_enabled", schedule.enabled) &&
+         read_integer(root, "schedule_on_hour", 0, 23, schedule.on_hour) &&
+         read_integer(root, "schedule_off_hour", 0, 23, schedule.off_hour) &&
+         read_integer(root, "schedule_wake_timeout", 10, 3600, schedule.wake_seconds);
 }
 
 bool read_display_mode(const cJSON *root, DisplayMode &mode) {
@@ -151,6 +143,14 @@ bool read_source(const cJSON *root, PhotoSource &source) {
   return true;
 }
 
+bool read_playback(const cJSON *root, Settings &settings) {
+  return read_integer(root, "slide_seconds", 2, 86'400, settings.slide_seconds) &&
+         read_flag(root, "portrait_pairing", settings.portrait_pairing) &&
+         read_display_mode(root, settings.display_mode) && read_source(root, settings.photo_source) &&
+         read_clock(root, settings.clock) && read_integer(root, "brightness_day", 10, 100, settings.brightness_day) &&
+         read_schedule(root, settings.schedule);
+}
+
 bool parse_all(const char *json, Settings &settings) {
   const auto root = parse(json);
   return cJSON_IsObject(root.get()) && read_field(root.get(), "ssid", settings.ssid) &&
@@ -158,10 +158,7 @@ bool parse_all(const char *json, Settings &settings) {
          read_field(root.get(), "immich_url", settings.immich_url) &&
          read_field(root.get(), "immich_key", settings.immich_key) &&
          read_field(root.get(), "web_password", settings.web_password, true) &&
-         read_interval(root.get(), settings.slide_seconds) && read_pairing(root.get(), settings.portrait_pairing) &&
-         read_display_mode(root.get(), settings.display_mode) && read_source(root.get(), settings.photo_source) &&
-         read_clock(root.get(), settings.clock) && read_brightness(root.get(), settings.brightness_day) &&
-         normalize(settings);
+         read_playback(root.get(), settings) && normalize(settings);
 }
 
 bool load(Settings &settings) {
@@ -217,9 +214,7 @@ bool Settings::save_playback(const char *json) {
   if (!cJSON_IsObject(update.get()) || !load(settings) || settings.web_password.empty() ||
       !read_field(update.get(), "immich_url", settings.immich_url) ||
       !read_field(update.get(), "immich_key", replacement_key, true) ||
-      !read_interval(update.get(), settings.slide_seconds) || !read_pairing(update.get(), settings.portrait_pairing) ||
-      !read_display_mode(update.get(), settings.display_mode) || !read_source(update.get(), settings.photo_source) ||
-      !read_clock(update.get(), settings.clock) || !read_brightness(update.get(), settings.brightness_day))
+      !read_playback(update.get(), settings))
     return false;
   if (!replacement_key.empty())
     settings.immich_key = replacement_key;
@@ -231,6 +226,10 @@ bool Settings::save_playback(const char *json) {
       !cJSON_AddStringToObject(updated.get(), "web_password", settings.web_password.c_str()) ||
       !cJSON_AddNumberToObject(updated.get(), "slide_seconds", settings.slide_seconds) ||
       !cJSON_AddNumberToObject(updated.get(), "brightness_day", settings.brightness_day) ||
+      !cJSON_AddBoolToObject(updated.get(), "schedule_enabled", settings.schedule.enabled) ||
+      !cJSON_AddNumberToObject(updated.get(), "schedule_on_hour", settings.schedule.on_hour) ||
+      !cJSON_AddNumberToObject(updated.get(), "schedule_off_hour", settings.schedule.off_hour) ||
+      !cJSON_AddNumberToObject(updated.get(), "schedule_wake_timeout", settings.schedule.wake_seconds) ||
       !cJSON_AddBoolToObject(updated.get(), "portrait_pairing", settings.portrait_pairing) ||
       !cJSON_AddStringToObject(updated.get(), "display_mode", display_mode_name(settings.display_mode)) ||
       !cJSON_AddStringToObject(updated.get(), "photo_source", photo_source_name(settings.photo_source.mode)) ||

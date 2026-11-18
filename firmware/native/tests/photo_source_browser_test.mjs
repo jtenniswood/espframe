@@ -16,6 +16,7 @@ const albumId = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
 const setup = {
   immich_url: 'https://photos.test/api', slide_seconds: 15, portrait_pairing: true,
   photo_source: 'favorites', album_id: '', display_mode: 'Fill', brightness_day: 74,
+  schedule_enabled: true, schedule_on_hour: 6, schedule_off_hour: 22, schedule_wake_timeout: 60,
   show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
 }
 const clockTimezones = {
@@ -41,18 +42,26 @@ const fixture = html.replace('</body>', `<script>
     const brightnessReadout = form.querySelector('output[for="brightness_day"]')
     if (brightness.value !== '74' || brightnessReadout.textContent !== '74%')
       throw new Error('Incorrect initial brightness')
+    if (!form.elements.schedule_enabled.checked || form.elements.schedule_off_hour.value !== '22'
+      || !document.querySelector('#screen-schedule').open)
+      throw new Error('Incorrect initial screen schedule')
     document.querySelector('#download-backup').click()
     const backup = JSON.parse(await downloaded.text())
     if (!filename.startsWith('espframe-config-') || backup.version !== 3 || !backup.photos.favorites_enabled
       || backup.frequency.interval !== '15 seconds' || Object.keys(backup.connection).join() !== 'immich_url'
       || backup.photos.display_mode !== 'Fill' || backup.clock?.show !== true || backup.clock.timezone !== '${setup.timezone}'
-      || backup.screen?.brightness_day !== 74)
+      || backup.screen?.brightness_day !== 74 || backup.screen.schedule_enabled !== true
+      || backup.screen.schedule_on_hour !== 6 || backup.screen.schedule_off_hour !== 22
+      || backup.screen.schedule_wake_timeout !== 60)
       throw new Error('Unexpected saved settings backup')
     source.value = 'album'
     mode.value = 'Fit'
     brightness.value = '45'
     brightness.dispatchEvent(new Event('input'))
     if (brightnessReadout.textContent !== '45%') throw new Error('Brightness readout did not update')
+    form.elements.schedule_enabled.checked = false
+    form.elements.schedule_off_hour.value = '0'
+    form.elements.schedule_wake_timeout.value = '90'
     form.elements.timezone.value = 'America/New_York (GMT-5)'
     form.elements.clock_format.value = '12 Hour'
     source.dispatchEvent(new Event('change'))
@@ -154,6 +163,7 @@ try {
   assert.match(page, /<section id="firmware"[^>]* hidden="">/)
   assert.deepEqual(updates, [{
     ...setup, photo_source: 'album', album_id: albumId, display_mode: 'Fit', brightness_day: 45, immich_key: '',
+    schedule_enabled: false, schedule_off_hour: 0, schedule_wake_timeout: 90,
     clock_format: '12 Hour', timezone: 'America/New_York (GMT-5)',
   }])
   console.log('Native photo source settings accept Immich album links and reject share links')

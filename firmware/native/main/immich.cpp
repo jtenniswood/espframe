@@ -85,7 +85,7 @@ bool ImmichSource::online_() {
   }
   start_web_settings(this->settings_);
   const bool needs_tls_time = this->settings_.immich_url.starts_with("https://") && std::time(nullptr) < 1'690'000'000;
-  if (!this->sntp_started_ && (needs_tls_time || this->settings_.clock.show)) {
+  if (!this->sntp_started_ && (needs_tls_time || this->settings_.clock.show || this->settings_.schedule.enabled)) {
     esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
     this->sntp_started_ = esp_netif_sntp_init(&config) == ESP_OK;
   }

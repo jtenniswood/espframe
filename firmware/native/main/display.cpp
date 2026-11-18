@@ -113,7 +113,7 @@ void Display::init(bool request_snapshot) {
   ESP_ERROR_CHECK(esp_lcd_dpi_panel_register_event_callbacks(this->panel_, &callbacks, this));
 }
 
-void Display::init_backlight(uint8_t brightness) {
+void Display::init_backlight(uint8_t brightness, bool on) {
   ledc_timer_config_t timer{};
   timer.speed_mode = LEDC_LOW_SPEED_MODE;
   timer.duty_resolution = LEDC_TIMER_10_BIT;
@@ -127,7 +127,7 @@ void Display::init_backlight(uint8_t brightness) {
   channel.channel = LEDC_CHANNEL_0;
   channel.timer_sel = LEDC_TIMER_0;
   this->backlight_duty_ = (1023u * brightness + 50) / 100;
-  channel.duty = this->backlight_duty_;
+  channel.duty = on ? this->backlight_duty_ : 0;
   ESP_ERROR_CHECK(ledc_channel_config(&channel));
 }
 

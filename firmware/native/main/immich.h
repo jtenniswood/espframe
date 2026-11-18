@@ -33,6 +33,7 @@ class ImmichSource {
   uint32_t slide_seconds() const { return this->settings_.slide_seconds; }
   uint8_t brightness() const { return this->settings_.brightness_day; }
   const ClockSettings &clock() const { return this->settings_.clock; }
+  const ScreenScheduleSettings &schedule() const { return this->settings_.schedule; }
 
  private:
   enum class PreviewStatus { Ready, Missing, Retry };

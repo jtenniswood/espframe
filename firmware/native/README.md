@@ -46,7 +46,8 @@ restarts when it saves them.
 When upgrading an existing frame, export an Espframe settings backup from
 its web page before installation. In the native installer, choose that
 backup to prefill the Immich URL, supported photo source, slideshow interval,
-display mode and portrait-pairing preference. Backups that use filters the
+display mode, portrait pairing, clock, brightness, and screen schedule.
+Backups that use filters the
 native player cannot apply require you to choose a photo source before saving.
 Enter the required Wi-Fi and Immich credentials in the setup form.
 
@@ -72,7 +73,7 @@ and 12- or 24-hour format. After time synchronization, the clock stays fixed
 while photos move beneath it. New browser installs enable the clock by
 default. Older native settings keep it hidden until enabled. Backups carry
 the three clock settings. Time synchronization uses `pool.ntp.org`.
-Use **Download settings backup** to save a copy of the active playback
+Use **Download settings backup** to save the active playback and screen
 settings for a future install.
 The page uses HTTP on the local network. Keep it on a trusted network.
 
@@ -180,6 +181,15 @@ for at least three seconds and release to turn off the backlight. Touch the
 screen to wake it to the same photo. Autoplay starts a fresh interval after
 you lift your finger.
 
+Enable **Screen schedule** to keep the display on between two local hours.
+It uses the configured timezone even when the clock is hidden. Overnight
+windows can span midnight, and matching hours leave the screen on all day.
+Outside the window, tap to wake temporarily. The default wake duration is
+60 seconds. If you're swiping when the timer ends, the screen waits for the
+gesture to settle. A manual hold-to-sleep keeps the frame dark until you tap.
+The schedule takes effect once the frame has valid local time. Its settings
+carry over in Espframe backups.
+
 ## Test on the frame
 
 1. Boot to the middle scene and drag toward each adjacent scene slowly. The
@@ -215,6 +225,11 @@ you lift your finger.
    screen and drag without lifting. The photo should stay in place. Lift your
    finger and check that a new swipe works and autoplay waits the full interval.
    Save a lower brightness and check that it survives sleep, wake, and restart.
+8. Set an on window that excludes the current local hour, hide the clock,
+   and restart. After time sync, confirm the display turns off. Tap to wake,
+   keep swiping through the timeout, and check that the screen turns off
+   after the gesture settles. Confirm the local on hour wakes the display
+   automatically and a previous manual sleep stays in effect until touch.
 
 To probe with real photos, place baseline JPEGs in the ignored
 `firmware/native/photos/` directory as `slide-0.jpg` through `slide-4.jpg`.

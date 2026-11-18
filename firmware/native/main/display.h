@@ -14,7 +14,7 @@ namespace espframe::native {
 class Display {
  public:
   void init(bool request_snapshot = false);
-  void init_backlight(uint8_t brightness);
+  void init_backlight(uint8_t brightness, bool on);
   void set_backlight(bool on) const;
   std::optional<int64_t> poll_presented();
   PixelPosition presented_position() const { return position_; }

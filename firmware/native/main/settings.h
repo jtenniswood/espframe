@@ -3,6 +3,7 @@
 #include "clock_settings.h"
 #include "photo_framing.h"
 #include "photo_source.h"
+#include "screen_schedule.h"
 
 #include <cstdint>
 #include <string>
@@ -21,6 +22,7 @@ struct Settings {
   DisplayMode display_mode{DisplayMode::Fit};
   PhotoSource photo_source;
   ClockSettings clock;
+  ScreenScheduleSettings schedule;
 
   static constexpr size_t max_json_size = 1536;
   bool read();

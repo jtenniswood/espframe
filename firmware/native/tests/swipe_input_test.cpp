@@ -1,3 +1,4 @@
+#include "screen_schedule.h"
 #include "slide_dwell.h"
 #include "swipe_input.h"
 
@@ -7,6 +8,7 @@
 using espframe::native::Swipe;
 using espframe::native::SwipeInput;
 using espframe::native::TouchReport;
+using espframe::native::ScreenSchedule;
 using Effect = SwipeInput::Effect;
 
 namespace {
@@ -145,6 +147,55 @@ void only_a_continuous_stationary_hold_can_sleep() {
   assert(input.awake() && swipe.settled() == 2);
 }
 
+void scheduled_hours_preserve_manual_sleep_and_handle_midnight() {
+  ScreenSchedule disabled{{false, 6, 22, 60}};
+  assert(disabled.update(4, 100, false));
+  ScreenSchedule all_day{{true, 8, 8, 60}};
+  assert(all_day.update(0, 100, false) && all_day.update(8, 200, false));
+
+  ScreenSchedule ordinary{{true, 6, 23, 60}};
+  assert(ordinary.update(std::nullopt, 100, false));
+  assert(!ordinary.update(5, 200, false));
+  assert(ordinary.update(6, 300, false) && ordinary.update(22, 400, false));
+  assert(ordinary.update(23, 450, true));
+  assert(!ordinary.update(23, 500, false));
+  ordinary.sleep();
+  assert(!ordinary.update(6, 600, false));
+  ordinary.wake(700);
+  assert(ordinary.update(6, 800, false));
+
+  ScreenSchedule overnight{{true, 22, 6, 60}};
+  assert(!overnight.update(21, 100, false));
+  assert(overnight.update(22, 200, false) && overnight.update(0, 300, false));
+  assert(overnight.update(5, 400, false) && !overnight.update(6, 500, false));
+}
+
+void a_scheduled_wake_consumes_the_touch_and_expires_after_its_duration() {
+  Swipe swipe{width, 5, 2};
+  SwipeInput input;
+  ScreenSchedule schedule{{true, 6, 22, 10}};
+  assert(!schedule.update(23, 1'000, false));
+  input.sleep(swipe);
+  assert(input.update(swipe, report(1, 5'000, 900), initial_position) == Effect::Wake);
+  schedule.wake(5'000);
+  assert(schedule.update(23, 5'000, input.engaged()));
+  assert(input.update(swipe, report(2, 10'000, 300), initial_position) == Effect::None);
+  assert(swipe.idle() && swipe.settled() == 2);
+  input.update(swipe, report(3, 15'000, 0, 0), initial_position);
+  assert(schedule.update(23, 10'004'999, input.engaged()));
+
+  input.update(swipe, report(4, 10'005'000, 800), initial_position);
+  assert(schedule.update(23, 10'005'000, input.engaged()));
+  input.update(swipe, report(5, 10'010'000, 0, 0), initial_position);
+  assert(!schedule.update(23, 10'010'000, input.engaged()));
+  input.sleep(swipe);
+  assert(schedule.update(6, 10'020'000, false));
+  input.wake();
+  assert(input.update(swipe, report(6, 10'025'000, 800), initial_position) == Effect::None);
+  input.update(swipe, report(7, 10'030'000, 740), initial_position);
+  assert(swipe.dragging() && input.take_first_motion() == 10'030'000);
+}
+
 }  // namespace
 
 int main() {
@@ -154,4 +205,6 @@ int main() {
   a_second_finger_blocks_until_release_even_at_sequence_rollover();
   a_hold_sleeps_on_release_and_the_wake_contact_never_swipes();
   only_a_continuous_stationary_hold_can_sleep();
+  scheduled_hours_preserve_manual_sleep_and_handle_midnight();
+  a_scheduled_wake_consumes_the_touch_and_expires_after_its_duration();
 }

@@ -76,6 +76,15 @@
               <!-- CLOCK_TIMEZONES -->
             </select>
           </label>
+          <details id="screen-schedule">
+            <summary>Screen schedule</summary>
+            <label><input name="schedule_enabled" type="checkbox" class="inline-option"> Turn off screen outside these hours</label>
+            <label>On hour <input name="schedule_on_hour" type="number" min="0" max="23" value="6" required></label>
+            <label>Off hour <input name="schedule_off_hour" type="number" min="0" max="23" value="23" required></label>
+            <small>Uses the frame’s timezone and a 24-hour clock. Matching hours keep the screen on all day.</small>
+            <label>Wake duration in seconds <input name="schedule_wake_timeout" type="number" min="10" max="3600" value="60" required></label>
+            <small>How long the screen stays on when tapped outside the scheduled hours.</small>
+          </details>
         </details>
         <button type="submit" disabled>Save settings over USB</button>
       </form>

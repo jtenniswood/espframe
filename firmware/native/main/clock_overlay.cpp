@@ -3,7 +3,6 @@
 #include "esp_heap_caps.h"
 
 #include <algorithm>
-#include <cstdlib>
 #include <cstring>
 
 namespace espframe::native {
@@ -24,10 +23,6 @@ ClockOverlay::~ClockOverlay() { heap_caps_free(underlays_); }
 bool ClockOverlay::init(const ClockSettings &settings, const uint8_t *atlas, bool snapshots) {
   if (!settings.show)
     return true;
-  const char *timezone = clock_timezone(settings.timezone);
-  if (!timezone || setenv("TZ", timezone, 1) != 0)
-    return true;
-  tzset();
   atlas_ = atlas;
   twelve_hour_ = settings.format == "12 Hour";
   if (snapshots)
@@ -35,18 +30,17 @@ bool ClockOverlay::init(const ClockSettings &settings, const uint8_t *atlas, boo
   return !snapshots || underlays_ != nullptr;
 }
 
-bool ClockOverlay::update(std::time_t now) {
+bool ClockOverlay::update(const std::optional<std::tm> &local) {
   if (!atlas_)
     return false;
   std::array<char, 6> next{};
-  std::tm local{};
-  if (now >= 1'690'000'000 && localtime_r(&now, &local)) {
-    int hour = local.tm_hour;
+  if (local) {
+    int hour = local->tm_hour;
     if (twelve_hour_)
       hour = (hour + 11) % 12 + 1;
     next = {twelve_hour_ && hour < 10 ? ' ' : static_cast<char>('0' + hour / 10),
-            static_cast<char>('0' + hour % 10), ':', static_cast<char>('0' + local.tm_min / 10),
-            static_cast<char>('0' + local.tm_min % 10), '\0'};
+            static_cast<char>('0' + hour % 10), ':', static_cast<char>('0' + local->tm_min / 10),
+            static_cast<char>('0' + local->tm_min % 10), '\0'};
   }
   if (next == text_)
     return false;

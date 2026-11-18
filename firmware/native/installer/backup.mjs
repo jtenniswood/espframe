@@ -6,7 +6,14 @@ const clockFormats = ['24 Hour', '12 Hour']
 const groups = ['connection', 'photos', 'frequency', 'screen', 'clock', 'firmware_updates', 'identity']
 const own = (object, key) => Object.hasOwn(object, key)
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
-const validBrightness = value => Number.isInteger(value) && value >= 10 && value <= 100
+const integerIn = (min, max) => value => Number.isInteger(value) && value >= min && value <= max
+const screenFields = {
+  brightness_day: [integerIn(10, 100), 'Choose a screen brightness from 10% to 100%.'],
+  schedule_enabled: [value => typeof value === 'boolean', 'Review whether the screen schedule is enabled.'],
+  schedule_on_hour: [integerIn(0, 23), 'Choose an on hour from 0 to 23.'],
+  schedule_off_hour: [integerIn(0, 23), 'Choose an off hour from 0 to 23.'],
+  schedule_wake_timeout: [integerIn(10, 3600), 'Choose a wake duration from 10 to 3600 seconds.'],
+}
 
 function immichUrl(value) {
   if (typeof value !== 'string') return ''
@@ -105,16 +112,21 @@ export function readBackup(data) {
   if (typeof clock.timezone === 'string' && clock.timezone.length <= 96) {
     settings.timezone = clock.timezone === 'Asia/Almaty (GMT+6)' ? 'Asia/Almaty (GMT+5)' : clock.timezone
   }
-  if (own(screen, 'brightness_day')) {
-    if (validBrightness(screen.brightness_day)) settings.brightness_day = screen.brightness_day
-    else notices.push('Choose a screen brightness from 10% to 100%.')
+  for (const [key, [valid, notice]] of Object.entries(screenFields)) {
+    if (!own(screen, key)) continue
+    if (valid(screen[key])) settings[key] = screen[key]
+    else {
+      notices.push(notice)
+      // Keep a malformed schedule from activating with unexpected hours.
+      if (key.startsWith('schedule_')) settings.schedule_enabled = false
+    }
   }
   const { chooseSource = false, ...sourceSettings } = importSource(photos, data.version)
   Object.assign(settings, sourceSettings)
   if (chooseSource)
     notices.push('This backup uses photo filters the native player cannot apply. Choose a photo source before saving.')
   const skipped = []
-  if (Object.keys(screen).some(key => key !== 'brightness_day')) skipped.push('screen settings')
+  if (Object.keys(screen).some(key => !own(screenFields, key))) skipped.push('screen settings')
   if (own(clock, 'ntp_servers')) skipped.push('custom time servers')
   if (own(data, 'firmware_updates')) skipped.push('firmware update settings')
   if (own(data, 'identity')) skipped.push('the frame name')
@@ -141,6 +153,10 @@ export function createBackup(settings, date = new Date()) {
     ...(clockFormats.includes(settings.clock_format) ? { format: settings.clock_format } : {}),
     ...(typeof settings.timezone === 'string' ? { timezone: settings.timezone } : {}),
   }
+  const screen = {}
+  for (const [key, [valid]] of Object.entries(screenFields)) {
+    if (valid(settings[key])) screen[key] = settings[key]
+  }
   return {
     version: 3,
     exported_at: date.toISOString(),
@@ -156,6 +172,6 @@ export function createBackup(settings, date = new Date()) {
     },
     frequency: { interval: formatInterval(settings.slide_seconds) },
     ...(Object.keys(clock).length ? { clock } : {}),
-    ...(validBrightness(settings.brightness_day) ? { screen: { brightness_day: settings.brightness_day } } : {}),
+    ...(Object.keys(screen).length ? { screen } : {}),
   }
 }

@@ -38,15 +38,17 @@ int main(int argc, char **argv) {
 
   ClockSettings settings;
   settings.show = true;
+  assert(configure_local_time(settings.timezone));
   ClockOverlay clock;
   assert(clock.init(settings, atlas.data(), true));
-  assert(!clock.update(0));
+  assert(!clock.update(local_clock_time(0)));
   clock.draw(baked.data(), true);
   assert(baked == plain);
 
   // 12:34 UTC on 1 July is 13:34 in Europe/London.
   constexpr std::time_t summer = 1'782'909'240;
-  assert(clock.update(summer) && !clock.update(summer + 1));
+  assert(clock.update(local_clock_time(summer)) && !clock.update(local_clock_time(summer + 1)));
+  assert(local_clock_time(summer)->tm_hour == 13);
   clock.draw(baked.data(), true);
   expect_glyph(baked, atlas, 0, 1);
   expect_glyph(baked, atlas, 1, 3);
@@ -80,7 +82,9 @@ int main(int argc, char **argv) {
   settings.format = "12 Hour";
   ClockOverlay twelve_hour;
   assert(twelve_hour.init(settings, atlas.data(), false));
-  assert(twelve_hour.update(1'767'225'900));  // 00:05 UTC in London in winter.
+  constexpr std::time_t winter = 1'767'225'900;  // 00:05 UTC in London in winter.
+  assert(local_clock_time(winter)->tm_hour == 0);
+  assert(twelve_hour.update(local_clock_time(winter)));
   auto midnight = plain;
   twelve_hour.draw(midnight.data());
   expect_glyph(midnight, atlas, 0, 1);

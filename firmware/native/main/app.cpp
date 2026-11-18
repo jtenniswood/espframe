@@ -4,6 +4,7 @@
 #include "firmware_update.h"
 #include "frame_blend.h"
 #include "immich.h"
+#include "screen_schedule.h"
 #include "slide_blit.h"
 #include "slide_cache.h"
 #include "slide_dwell.h"
@@ -188,6 +189,7 @@ class SlideLoader {
   int64_t slide_interval_us() const { return this->source_.slide_seconds() * 1'000'000LL; }
   uint8_t brightness() const { return this->source_.brightness(); }
   const ClockSettings &clock() const { return this->source_.clock(); }
+  const ScreenScheduleSettings &schedule() const { return this->source_.schedule(); }
 
   void start() {
     this->live_ = this->source_.read_settings();
@@ -265,6 +267,8 @@ void run(void *) {
   static Display display;
   display.init(can_fade);
   ClockOverlay clock;
+  const bool use_local_time = (loader.clock().show || loader.schedule().enabled) &&
+                              configure_local_time(loader.clock().timezone);
   const bool can_layer_fade = clock.init(loader.clock(), clock_atlas, can_fade && display.can_pin_frame());
   if (can_fade && (!display.can_pin_frame() || !can_layer_fade)) {
     blend.release();
@@ -276,6 +280,7 @@ void run(void *) {
   touch.start();
   Swipe swipe{slide_width, slide_count, live ? 0 : 2};
   SwipeInput input;
+  ScreenSchedule schedule{loader.schedule()};
   SlideDwell dwell;
   SlidePrefetch prefetch{swipe.settled()};
   AutoplayFade fade;
@@ -284,15 +289,22 @@ void run(void *) {
     snapshot = display.pin_handoff();
     clock.pin_underlay();
   };
+  const auto suspend_fade = [&] {
+    if (fade.running() && fade.interrupt(snapshot != nullptr))
+      pin_fade();
+    if (fade.held())
+      fade.note_drag();
+  };
   uint8_t pending_opacity = 0;
   int64_t next_clock_poll = 0;
   bool clock_dirty = false;
+  std::optional<int> local_hour;
 
   int64_t submitted_motion_us = 0;
   int64_t motion_render_us = 0;
   PixelPosition last_submitted = -1;
   PixelPosition last_inside = -1;
-  bool lit = false;
+  bool backlight_ready = false;
   std::optional<SlideIndex> preparing;
   SlideIndex first_photo = 1;
   struct Retry {
@@ -303,14 +315,18 @@ void run(void *) {
 
   while (true) {
     auto now = esp_timer_get_time();
-    if (now >= next_clock_poll) {
-      clock_dirty |= clock.update(std::time(nullptr));
+    if (use_local_time && now >= next_clock_poll) {
+      const auto local = local_clock_time(std::time(nullptr));
+      clock_dirty |= clock.update(local);
+      local_hour = local ? std::optional<int>{local->tm_hour} : std::nullopt;
       next_clock_poll = now + 250'000;
     }
     if (const auto scanout = display.poll_presented()) {
-      if (!lit) {
-        display.init_backlight(loader.brightness());
-        lit = true;
+      if (!backlight_ready) {
+        if (!schedule.update(local_hour, now, false))
+          input.sleep(swipe);
+        display.init_backlight(loader.brightness(), input.awake());
+        backlight_ready = true;
         ESP_LOGI(tag, "Player ready (background %s preparation)", live ? "Immich" : "fixture");
       }
       if (submitted_motion_us != 0) {
@@ -346,7 +362,7 @@ void run(void *) {
 
     TouchReport report;
     while (touch.poll(report)) {
-      if (!lit)
+      if (!backlight_ready)
         continue;
       if (report.valid) {
         confirm_firmware_boot();
@@ -355,16 +371,31 @@ void run(void *) {
       }
       const auto effect = input.update(swipe, report, display.handoff_position());
       if (effect == SwipeInput::Effect::Sleep) {
+        schedule.sleep();
         display.set_backlight(false);
-        if (fade.held())
-          fade.note_drag();  // A sleeping frame returns to the original photo on wake.
+        suspend_fade();
       } else if (effect == SwipeInput::Effect::Wake) {
+        schedule.wake(report.sampled_us);
         display.set_backlight(true);
       }
       if (swipe.dragging()) {
         if (fade.held())
           fade.note_drag();
         prefetch.request_at_edge(swipe.position(), {ready_first, ready_last}, available);
+      }
+    }
+
+    now = esp_timer_get_time();
+    if (backlight_ready) {
+      const bool awake = schedule.update(local_hour, now, input.engaged() || !swipe.idle());
+      if (awake != input.awake()) {
+        if (awake) {
+          input.wake();
+        } else {
+          input.sleep(swipe);
+          suspend_fade();
+        }
+        display.set_backlight(awake);
       }
     }
 
@@ -380,7 +411,6 @@ void run(void *) {
       fade.submitted(pending_opacity);
     }
 
-    now = esp_timer_get_time();
     const auto keep = prefetch.window(available);
     const auto eligible = [&](SlideIndex candidate) {
       if (!keep.contains(candidate))
@@ -408,7 +438,7 @@ void run(void *) {
     }
     swipe.tick(now);
     const auto position = swipe.position();
-    const bool visible_and_idle = lit && input.awake() && !input.engaged() && swipe.idle() &&
+    const bool visible_and_idle = backlight_ready && input.awake() && !input.engaged() && swipe.idle() &&
                                   position == display.presented_position();
     if (fade.held() && !blend.pending() && visible_and_idle) {
       if (can_fade && swipe.settled() == fade.anchor()) {

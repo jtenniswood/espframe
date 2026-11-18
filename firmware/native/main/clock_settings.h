@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ctime>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -20,5 +22,7 @@ struct ClockZone {
 
 std::span<const ClockZone> clock_zones();
 const char *clock_timezone(std::string_view option);
+bool configure_local_time(std::string_view timezone);
+std::optional<std::tm> local_clock_time(std::time_t now);
 
 }  // namespace espframe::native

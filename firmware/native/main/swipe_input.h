@@ -15,6 +15,14 @@ class SwipeInput {
   bool engaged() const { return down_ || wait_for_release_; }
   bool awake() const { return !sleeping_; }
 
+  void sleep(Swipe &swipe) {
+    swipe.show(swipe.settled());
+    first_motion_us_ = 0;
+    sleeping_ = true;
+  }
+
+  void wake() { sleeping_ = false; }
+
   Effect update(Swipe &swipe, const TouchReport &report, PixelPosition handoff) {
     const bool lost_samples = seen_report_ && report.sequence != sequence_ + uint32_t{1};
     seen_report_ = true;
@@ -36,11 +44,8 @@ class SwipeInput {
     if (report.contacts == 0) {
       const bool sleep = down_ && hold_candidate_ && report.sampled_us - down_since_us_ >= hold_duration_us;
       if (sleep) {
-        swipe.show(swipe.settled());
-        first_motion_us_ = 0;
-        sleeping_ = true;
-      }
-      if (down_ && !sleep) {
+        this->sleep(swipe);
+      } else if (down_) {
         swipe.release(report.sampled_us);
         if (swipe.idle() && swipe.position() == handoff)
           first_motion_us_ = 0;
@@ -54,7 +59,7 @@ class SwipeInput {
       return Effect::None;
     if (sleeping_) {
       // Consume the whole wake contact, including any drag before release.
-      sleeping_ = false;
+      wake();
       wait_for_release_ = true;
       return Effect::Wake;
     }

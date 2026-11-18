@@ -11,6 +11,7 @@ const status = document.querySelector('#status')
 const backup = document.querySelector('#backup')
 const backupStatus = document.querySelector('#backup-status')
 const playback = document.querySelector('#playback')
+const schedule = document.querySelector('#screen-schedule')
 const refreshSource = bindPhotoSource(form)
 const brightness = form.elements.brightness_day
 const brightnessValue = form.querySelector('output[for="brightness_day"]')
@@ -43,6 +44,7 @@ backup.addEventListener('change', async () => {
     refreshSource()
     showBrightness()
     playback.open = true
+    if (form.elements.schedule_enabled.checked) schedule.open = true
     const message = Object.keys(settings).length ? 'Backup loaded. Review the settings before saving.'
       : 'This backup has no settings the native installer can prefill.'
     backupStatus.textContent = [message, ...notices].join(' ')
@@ -55,6 +57,7 @@ backup.addEventListener('change', async () => {
 })
 form.addEventListener('invalid', event => {
   if (playback.contains(event.target)) playback.open = true
+  if (schedule.contains(event.target)) schedule.open = true
 }, true)
 
 revision.addEventListener('change', () => {
@@ -77,6 +80,10 @@ if ('serial' in navigator) {
     data.brightness_day = Number(data.brightness_day)
     data.portrait_pairing = form.elements.portrait_pairing.checked
     data.show_clock = form.elements.show_clock.checked
+    data.schedule_enabled = form.elements.schedule_enabled.checked
+    data.schedule_on_hour = Number(data.schedule_on_hour)
+    data.schedule_off_hour = Number(data.schedule_off_hour)
+    data.schedule_wake_timeout = Number(data.schedule_wake_timeout)
     submit.disabled = true
     backup.disabled = true
     try {

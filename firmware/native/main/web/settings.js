@@ -11,9 +11,13 @@ const updateForm = document.querySelector('#firmware-update')
 const updateButton = updateForm.querySelector('button')
 const updateStatus = document.querySelector('#firmware-status')
 const brightness = form.elements.brightness_day
+const schedule = document.querySelector('#screen-schedule')
 const brightnessValue = form.querySelector('output[for="brightness_day"]')
 const showBrightness = () => { brightnessValue.value = `${brightness.value}%` }
 brightness.addEventListener('input', showBrightness)
+form.addEventListener('invalid', event => {
+  if (schedule.contains(event.target)) schedule.open = true
+}, true)
 
 async function request(options) {
   const response = await fetch('/api/playback', options)
@@ -38,6 +42,11 @@ try {
   form.elements.album_id.value = settings.album_id ?? ''
   form.elements.show_clock.checked = settings.show_clock === true
   form.elements.clock_format.value = settings.clock_format ?? '24 Hour'
+  form.elements.schedule_enabled.checked = settings.schedule_enabled === true
+  form.elements.schedule_on_hour.value = settings.schedule_on_hour ?? 6
+  form.elements.schedule_off_hour.value = settings.schedule_off_hour ?? 23
+  form.elements.schedule_wake_timeout.value = settings.schedule_wake_timeout ?? 60
+  schedule.open = form.elements.schedule_enabled.checked
   const timezone = settings.timezone ?? 'Europe/London (GMT+0)'
   for (const [value, label] of Object.entries(settings.clock_timezones ?? { [timezone]: timezone })) {
     form.elements.timezone.add(new Option(label.replaceAll('_', ' '), value))
@@ -70,6 +79,10 @@ form.addEventListener('submit', async event => {
   data.brightness_day = Number(data.brightness_day)
   data.portrait_pairing = form.elements.portrait_pairing.checked
   data.show_clock = form.elements.show_clock.checked
+  data.schedule_enabled = form.elements.schedule_enabled.checked
+  data.schedule_on_hour = Number(data.schedule_on_hour)
+  data.schedule_off_hour = Number(data.schedule_off_hour)
+  data.schedule_wake_timeout = Number(data.schedule_wake_timeout)
   download.disabled = true
   try {
     await request({

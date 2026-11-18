@@ -18,7 +18,9 @@ const backup = {
   connection: { immich_url: 'https://photos.test', api_key: 'old-api-key' },
   photos: { albums_enabled: true, album_ids: album, portrait_pairing: false, display_mode: 'Fit' },
   clock: { show: false, format: '12 Hour', timezone: 'America/New_York (GMT-5)' },
-  screen: { brightness_day: 35 },
+  screen: {
+    brightness_day: 35, schedule_enabled: true, schedule_on_hour: 21, schedule_off_hour: 6, schedule_wake_timeout: 30,
+  },
   frequency: { interval: '24 hours' },
 }
 const verify = `
@@ -78,6 +80,8 @@ const verify = `
     if (form.elements.immich_key.value !== 'entered-api-key') throw new Error('A backup replaced the entered key')
     if (form.querySelector('output[for="brightness_day"]').textContent !== '35%')
       throw new Error('Imported brightness was not shown')
+    if (!document.querySelector('#screen-schedule').open || !form.elements.schedule_enabled.checked)
+      throw new Error('Imported screen schedule was not shown')
     const saved = waitFor(document.querySelector('#status'), 'Settings saved.')
     form.requestSubmit()
     await saved
@@ -88,6 +92,8 @@ const verify = `
     if (received.show_clock !== false || received.clock_format !== '12 Hour' || received.timezone !== 'America/New_York (GMT-5)')
       throw new Error('The clock settings did not reach USB setup')
     if (received.brightness_day !== 35) throw new Error('Brightness did not reach USB setup')
+    if (!received.schedule_enabled || received.schedule_on_hour !== 21 || received.schedule_off_hour !== 6
+      || received.schedule_wake_timeout !== 30) throw new Error('Screen schedule did not reach USB setup')
     document.body.dataset.backupTest = 'passed'
   })
 `

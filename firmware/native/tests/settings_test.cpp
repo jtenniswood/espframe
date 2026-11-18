@@ -68,6 +68,8 @@ int main() {
   assert(legacy.photo_source.mode == PhotoSourceMode::Library);
   assert(legacy.display_mode == DisplayMode::Fit);
   assert(!legacy.clock.show && legacy.clock.format == "24 Hour");
+  assert(!legacy.schedule.enabled && legacy.schedule.on_hour == 6 && legacy.schedule.off_hour == 23 &&
+         legacy.schedule.wake_seconds == 60);
   assert(legacy.web_password.empty());
   assert(!Settings::save_playback(R"({"immich_url":"http://new.local"})"));
 
@@ -79,6 +81,7 @@ int main() {
   assert(current.immich_url == "https://photos.test/api" && current.slide_seconds == 20);
   assert(current.web_password == "only-settings");
   assert(current.display_mode == DisplayMode::Fit);
+  assert(!current.schedule.enabled && current.schedule.wake_seconds == 60);
   auto before = stored;
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","slide_seconds":20.3})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","slide_seconds":86401})"));
@@ -93,6 +96,11 @@ int main() {
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","brightness_day":9})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","brightness_day":100.5})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","brightness_day":"80"})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","schedule_enabled":"true"})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","schedule_on_hour":24})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","schedule_off_hour":6.5})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","schedule_wake_timeout":9})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","schedule_wake_timeout":3601})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","photo_source":"album"})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","photo_source":"unknown"})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","album_id":"not-an-album"})"));
@@ -107,6 +115,8 @@ int main() {
   assert(current.ssid == "Photo Lab" && current.password == "wifi secret");
   assert(current.web_password == "only-settings" && current.immich_key == "first-key");
   assert(Settings::save_playback(R"({"immich_url":"http://photos.test","brightness_day":42})"));
+  assert(Settings::save_playback(R"({"immich_url":"http://photos.test","schedule_enabled":true,
+                                  "schedule_on_hour":23,"schedule_off_hour":0,"schedule_wake_timeout":3600})"));
   assert(Settings::save_playback(R"json({"immich_url":"http://photos.test","show_clock":true,"clock_format":"12 Hour",
                                        "timezone":"America/New_York (GMT-5)"})json"));
   assert(Settings::save_playback(R"({"immich_url":"http://photos.test","immich_key":"next-key","slide_seconds":2})"));
@@ -114,6 +124,8 @@ int main() {
   assert(current.immich_key == "next-key" && current.slide_seconds == 2);
   assert(current.clock.show && current.clock.format == "12 Hour" && current.clock.timezone == "America/New_York (GMT-5)");
   assert(current.brightness_day == 42);
+  assert(current.schedule.enabled && current.schedule.on_hour == 23 && current.schedule.off_hour == 0 &&
+         current.schedule.wake_seconds == 3600);
   assert(!current.portrait_pairing);
   assert(current.display_mode == DisplayMode::Fill);
   assert(Settings::save_playback(
