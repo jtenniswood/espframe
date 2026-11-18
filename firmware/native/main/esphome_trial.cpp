@@ -16,6 +16,10 @@ namespace {
 constexpr const char *tag = "esphome-trial";
 constexpr uint64_t duration_us = 180'000'000;
 
+using espframe_native_ota::is_app_in_ota_state;
+using espframe_native_ota::is_v1_esphome_app;
+using espframe_native_ota::other_esphome_v1_slot;
+
 const esp_partition_t *previous_esphome(const esp_partition_t *running) {
   const auto *candidate = other_esphome_v1_slot(running);
   return is_v1_esphome_app(candidate) && is_app_in_ota_state(candidate, ESP_OTA_IMG_VALID) &&

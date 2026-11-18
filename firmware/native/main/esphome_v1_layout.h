@@ -5,7 +5,7 @@
 
 #include <cstring>
 
-namespace espframe::native {
+namespace espframe_native_ota {
 
 inline const esp_partition_t *matching_partition(esp_partition_type_t type, esp_partition_subtype_t subtype,
                                                  uint32_t address, size_t size) {
@@ -53,4 +53,4 @@ inline const char *esphome_v1_trial_readiness(bool rollback_observed) {
   return "Ready";
 }
 
-}  // namespace espframe::native
+}  // namespace espframe_native_ota

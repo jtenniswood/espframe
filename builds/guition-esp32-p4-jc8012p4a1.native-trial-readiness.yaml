@@ -12,7 +12,7 @@ esphome:
     - priority: 1100
       then:
         - lambda: |-
-            id(native_trial_rollback_observed) = espframe::native::is_app_in_ota_state(
+            id(native_trial_rollback_observed) = espframe_native_ota::is_app_in_ota_state(
                 esp_ota_get_running_partition(), ESP_OTA_IMG_PENDING_VERIFY);
 
 globals:
@@ -27,4 +27,4 @@ text_sensor:
     entity_category: diagnostic
     update_interval: 2s
     lambda: |-
-      return std::string(espframe::native::esphome_v1_trial_readiness(id(native_trial_rollback_observed)));
+      return std::string(espframe_native_ota::esphome_v1_trial_readiness(id(native_trial_rollback_observed)));

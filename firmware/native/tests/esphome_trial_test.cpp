@@ -10,7 +10,7 @@
 #include <cstring>
 
 using espframe::native::start_esphome_trial;
-using espframe::native::esphome_v1_trial_readiness;
+using espframe_native_ota::esphome_v1_trial_readiness;
 
 namespace {
 
