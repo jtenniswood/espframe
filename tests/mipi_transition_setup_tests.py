@@ -20,9 +20,13 @@ harness = r"""
 #include <iostream>
 
 constexpr int MALLOC_CAP_SPIRAM = 1, MALLOC_CAP_8BIT = 2;
-constexpr int ESP_OK = 0, PPA_OPERATION_BLEND = 1;
+constexpr int ESP_OK = 0, PPA_OPERATION_BLEND = 1, PPA_DATA_BURST_LENGTH_32 = 32;
 #define ESP_LOGW(...) ((void) 0)
-struct ppa_client_config_t { int oper_type{}; int max_pending_trans_num{}; };
+struct ppa_client_config_t {
+  int oper_type{};
+  int max_pending_trans_num{};
+  int data_burst_length{};
+};
 using ppa_client_handle_t = void *;
 static std::set<void *> allocations;
 static int allocation_calls = 0, fail_allocation = 0, register_calls = 0;
@@ -45,6 +49,7 @@ void heap_caps_free(void *p) {
 }
 int ppa_register_client(const ppa_client_config_t *config, ppa_client_handle_t *handle) {
   assert(config->oper_type == PPA_OPERATION_BLEND && config->max_pending_trans_num == 1);
+  assert(config->data_burst_length == PPA_DATA_BURST_LENGTH_32);
   ++register_calls;
   if (fail_registration) return -1;
   *handle = &client;
