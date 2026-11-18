@@ -8,6 +8,11 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "sdkconfig.h"
+
+#if defined(CONFIG_ESP32P4_SELECTS_REV_LESS_V3) != SWIPE_EARLY_P4
+#error "Use a fresh build directory for each SWIPE_BOARD silicon profile"
+#endif
 
 namespace espframe::native {
 namespace {
@@ -19,6 +24,7 @@ struct PanelCommand {
   uint8_t command;
   uint8_t parameter;
   uint16_t delay_ms;
+  bool has_parameter;
 };
 
 #include "panel_init.inc"
@@ -45,7 +51,7 @@ void Display::init() {
   esp_lcd_dsi_bus_config_t bus_config{};
   bus_config.bus_id = 0;
   bus_config.num_data_lanes = 2;
-  bus_config.lane_bit_rate_mbps = 840;
+  bus_config.lane_bit_rate_mbps = lane_rate_mbps;
   esp_lcd_dsi_bus_handle_t bus{};
   ESP_ERROR_CHECK(esp_lcd_new_dsi_bus(&bus_config, &bus));
 
@@ -57,17 +63,17 @@ void Display::init() {
 
   esp_lcd_dpi_panel_config_t panel_config{};
   panel_config.dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT;
-  panel_config.dpi_clock_freq_mhz = 70;
+  panel_config.dpi_clock_freq_mhz = pixel_clock_mhz;
   panel_config.in_color_format = LCD_COLOR_FMT_RGB565;
   panel_config.num_fbs = 2;
   panel_config.video_timing.h_size = panel_width;
   panel_config.video_timing.v_size = panel_height;
-  panel_config.video_timing.hsync_pulse_width = 20;
-  panel_config.video_timing.hsync_back_porch = 20;
-  panel_config.video_timing.hsync_front_porch = 40;
-  panel_config.video_timing.vsync_pulse_width = 4;
-  panel_config.video_timing.vsync_back_porch = 10;
-  panel_config.video_timing.vsync_front_porch = 30;
+  panel_config.video_timing.hsync_pulse_width = hsync_pulse;
+  panel_config.video_timing.hsync_back_porch = hsync_back;
+  panel_config.video_timing.hsync_front_porch = hsync_front;
+  panel_config.video_timing.vsync_pulse_width = vsync_pulse;
+  panel_config.video_timing.vsync_back_porch = vsync_back;
+  panel_config.video_timing.vsync_front_porch = vsync_front;
   ESP_ERROR_CHECK(esp_lcd_new_panel_dpi(bus, &panel_config, &this->panel_));
 
   reset_panel();
@@ -83,7 +89,10 @@ void Display::init() {
       if (remaining > 0)
         vTaskDelay(pdMS_TO_TICKS((remaining + 999) / 1000));
     }
-    ESP_ERROR_CHECK(esp_lcd_panel_io_tx_param(io, entry.command, &entry.parameter, 1));
+    const auto *parameters = entry.has_parameter ? &entry.parameter : nullptr;
+    ESP_ERROR_CHECK(esp_lcd_panel_io_tx_param(io, entry.command, parameters, entry.has_parameter ? 1 : 0));
+    if (entry.command == 0x11)
+      vTaskDelay(pdMS_TO_TICKS(10));
   }
 
   void *first{};
