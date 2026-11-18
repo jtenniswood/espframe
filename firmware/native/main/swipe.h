@@ -24,6 +24,14 @@ class Swipe {
   bool settling() const { return this->phase_ == Phase::Settling; }
 
   void set_ready_range(SlideIndex first, SlideIndex last) {
+    if (this->phase_ == Phase::Dragging &&
+        ((first < this->ready_first_ && this->offset_ < this->slide_offset_(this->ready_first_)) ||
+         (last > this->ready_last_ && this->offset_ > this->slide_offset_(this->ready_last_)))) {
+      // A neighbor can finish downloading while the finger is at a resisted
+      // edge. Continue from what's visible, without jumping to the raw drag.
+      this->origin_offset_ = this->offset_;
+      this->origin_x_ = this->last_x_;
+    }
     this->ready_first_ = first;
     this->ready_last_ = last;
   }
@@ -68,9 +76,18 @@ class Swipe {
       this->last_motion_us_ = now_us;
       this->last_x_ = x;
     }
-    this->offset_ = std::clamp(this->origin_offset_ + this->origin_x_ - x,
-                               this->slide_offset_(this->minimum_slide_()),
-                               this->slide_offset_(this->maximum_slide_()));
+    const auto first = this->minimum_slide_();
+    const auto last = this->maximum_slide_();
+    const float lower = this->slide_offset_(first);
+    const float upper = this->slide_offset_(last);
+    const float drawn = this->origin_offset_ + this->origin_x_ - x;
+    if (drawn < lower && first == this->ready_first_) {
+      this->offset_ = lower + this->resist_(drawn - lower);
+    } else if (drawn > upper && last == this->ready_last_) {
+      this->offset_ = upper + this->resist_(drawn - upper);
+    } else {
+      this->offset_ = std::clamp(drawn, lower, upper);
+    }
   }
 
   void release(int64_t now_us) {
@@ -134,6 +151,11 @@ class Swipe {
 
   // Animation arithmetic stays near zero even after millions of photos.
   float slide_offset_(SlideIndex slide) const { return static_cast<float>((slide - this->settled_) * this->width_); }
+
+  float resist_(float overshoot) const {
+    const float limit = this->width_ * 0.0375f;
+    return overshoot * limit / (std::abs(overshoot) + limit * 3.0f);
+  }
 
   SlideIndex minimum_slide_() const { return std::max(this->ready_first_, this->origin_slide_ - 1); }
   SlideIndex maximum_slide_() const { return std::min(this->ready_last_, this->origin_slide_ + 1); }

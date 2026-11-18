@@ -114,8 +114,10 @@ the sizes of the previews and available PSRAM. Older previews need Wi-Fi.
    settle back. Repeat with a quick flick and check that it advances.
 3. Start a transition, then grab it again and pull back. Repeat rapid
    forward and backward swipes, including the split scene.
-4. Check the first and last scenes. Dragging beyond those boundaries should
-   keep the displayed pixels filled.
+4. Check the first and last scenes. Dragging beyond a ready boundary should
+   move the photo slightly with resistance, keep the screen filled, and ease
+   back when released. When a neighbor becomes ready mid-drag, continuing the
+   gesture should move from its current position without a jump.
 5. Record high-frame-rate video for touch-to-visible-motion and pacing.
    USB logs report recognition-to-DMA-scanout as `gesture_to_scanout_us`.
    This is an estimate before the new pixels are physically visible.

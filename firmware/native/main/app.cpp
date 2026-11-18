@@ -251,6 +251,7 @@ void run() {
   int64_t first_motion_us = 0;
   int64_t submitted_motion_us = 0;
   PixelPosition last_submitted = -1;
+  PixelPosition last_inside = -1;
   bool lit = false;
   bool preparing = false;
   SlideIndex first_photo = 1;
@@ -365,17 +366,27 @@ void run() {
         swipe.advance(now, transition);
       }
     }
-    if (auto *output = display.writable_buffer(); output != nullptr && position != last_submitted) {
-      const auto index = position / slide_width;
-      const int offset = position % slide_width;
+    const auto inside = std::clamp(position, ready_first * slide_width, ready_last * slide_width);
+    const bool use_edge = inside != position;
+    if (auto *output = display.writable_buffer(); output != nullptr &&
+        (position != last_submitted || inside != last_inside)) {
+      const auto index = inside / slide_width;
+      const int offset = inside % slide_width;
       const auto *left = cache.find(index);
       const auto *right = offset == 0 ? nullptr : cache.find(index + 1);
       if (left != nullptr && (offset == 0 || right != nullptr)) {
-        blit_slides(output, left, right, panel_width, panel_height, offset);
+        if (use_edge) {
+          constexpr auto limit = PixelPosition{slide_width - 1};
+          const int pull = static_cast<int>(std::clamp(position - inside, -limit, limit));
+          blit_slide_edge(output, left, panel_width, panel_height, pull);
+        } else {
+          blit_slides(output, left, right, panel_width, panel_height, offset);
+        }
         display.submit(position);
         submitted_motion_us = first_motion_us;
         first_motion_us = 0;
         last_submitted = position;
+        last_inside = inside;
       }
     }
     vTaskDelay(1);

@@ -73,25 +73,56 @@ int main() {
   Swipe edge{width, 5, 0};
   edge.press(300, 390, 0, start - 100'000);
   edge.move(900, 390, start);
+  assert(edge.position() < 0 && edge.position() > -48);
   edge.release(start + 50'000);
+  assert(edge.settling());
+  edge.tick(start + 300'000);
   assert(edge.position() == 0 && !edge.settling());
-  edge.press(300, 200, 0, start + 50'000);
-  edge.move(280, 250, start + 100'000);
-  edge.move(40, 250, start + 200'000);
-  edge.release(start + 250'000);
+  edge.press(300, 200, 0, start + 300'000);
+  edge.move(280, 250, start + 350'000);
+  edge.move(40, 250, start + 450'000);
+  edge.release(start + 500'000);
   assert(edge.position() == 0 && !edge.settling());
 
   Swipe cold_boundary{width, 5, 2};
   cold_boundary.set_ready_range(1, 2);
   cold_boundary.press(950, 300, 2 * width, start);
   cold_boundary.move(300, 300, start + 80'000);
-  assert(cold_boundary.position() == 2 * width);
+  const auto resisted = cold_boundary.position();
+  assert(resisted > 2 * width && resisted < 2 * width + 48);
   cold_boundary.set_ready_range(1, 3);
   cold_boundary.move(300, 300, start + 100'000);
-  assert(cold_boundary.position() == 2 * width + 650);
-  cold_boundary.release(start + 300'000);
+  assert(cold_boundary.position() == resisted);
+  cold_boundary.move(265, 300, start + 110'000);
+  assert(cold_boundary.position() == resisted + 35);
+  cold_boundary.release(start + 120'000);
   cold_boundary.tick(start + 600'000);
   assert(cold_boundary.settled() == 3);
+
+  Swipe previous_waiting{width, 5, 2};
+  previous_waiting.set_ready_range(2, 3);
+  previous_waiting.press(150, 300, 2 * width, start);
+  previous_waiting.move(800, 300, start + 80'000);
+  const auto resisted_previous = previous_waiting.position();
+  assert(resisted_previous < 2 * width && resisted_previous > 2 * width - 48);
+  previous_waiting.set_ready_range(1, 3);
+  previous_waiting.move(800, 300, start + 100'000);
+  assert(previous_waiting.position() == resisted_previous);
+  previous_waiting.move(835, 300, start + 110'000);
+  assert(previous_waiting.position() == resisted_previous - 35);
+  previous_waiting.release(start + 120'000);
+  previous_waiting.tick(start + 600'000);
+  assert(previous_waiting.settled() == 1);
+
+  // A missing preview never commits an unavailable destination.
+  Swipe waiting{width, 5, 2};
+  waiting.set_ready_range(1, 2);
+  waiting.press(900, 400, 2 * width, start);
+  waiting.move(100, 400, start + 50'000);
+  assert(waiting.position() > 2 * width && waiting.position() < 2 * width + 48);
+  waiting.release(start + 55'000);
+  waiting.tick(start + 300'000);
+  assert(waiting.position() == 2 * width && waiting.idle());
 
   Swipe autoplay{width, 5, 0};
   autoplay.set_ready_range(0, 0);
@@ -190,4 +221,8 @@ int main() {
   assert((output == std::array<uint16_t, 6>{2, 3, 4, 5, 6, 7}));
   espframe::native::blit_slides(output.data(), left.data(), right.data(), 2, 3, 2);
   assert((output == std::array<uint16_t, 6>{4, 5, 6, 7, 8, 9}));
+  espframe::native::blit_slide_edge(output.data(), left.data(), 2, 3, -1);
+  assert((output == std::array<uint16_t, 6>{0, 1, 0, 1, 2, 3}));
+  espframe::native::blit_slide_edge(output.data(), left.data(), 2, 3, 1);
+  assert((output == std::array<uint16_t, 6>{2, 3, 4, 5, 4, 5}));
 }
