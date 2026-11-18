@@ -10,6 +10,8 @@ namespace espframe::native {
 
 class Swipe {
  public:
+  enum class Transition { Quick, Glide };
+
   Swipe(int width, SlideIndex slide_count, SlideIndex initial_slide)
       : width_(width), ready_last_(slide_count - 1), settled_(initial_slide), target_(initial_slide) {}
 
@@ -17,6 +19,7 @@ class Swipe {
     return this->settled_ * this->width_ + static_cast<PixelPosition>(std::floor(this->offset_ + 0.5f));
   }
   SlideIndex settled() const { return this->settled_; }
+  bool idle() const { return this->phase_ == Phase::Idle; }
   bool dragging() const { return this->phase_ == Phase::Dragging; }
   bool settling() const { return this->phase_ == Phase::Settling; }
 
@@ -27,6 +30,7 @@ class Swipe {
 
   void press(int x, int y, PixelPosition presented_position, int64_t now_us) {
     this->resume_ = this->target_;
+    this->resume_transition_ = this->transition_;
     this->offset_ = static_cast<float>(presented_position - this->settled_ * this->width_);
     this->origin_offset_ = this->offset_;
     // Use the original rounding rule at a slide boundary, including when a
@@ -71,7 +75,7 @@ class Swipe {
 
   void release(int64_t now_us) {
     if (this->phase_ == Phase::Tracking || this->phase_ == Phase::Ignored) {
-      this->settle_to_(this->resume_, now_us);
+      this->settle_to_(this->resume_, now_us, this->resume_transition_);
       return;
     }
     if (this->phase_ != Phase::Dragging)
@@ -88,20 +92,21 @@ class Swipe {
       direction = 1;
     else if (from_center <= -threshold)
       direction = -1;
-    this->settle_to_(std::clamp(this->origin_slide_ + direction, this->minimum_slide_(),
-                                this->maximum_slide_()), now_us);
+    const auto destination =
+        std::clamp(this->origin_slide_ + direction, this->minimum_slide_(), this->maximum_slide_());
+    this->settle_to_(destination, now_us, Transition::Quick);
   }
 
   void cancel(int64_t now_us) {
     if (this->phase_ == Phase::Dragging || this->phase_ == Phase::Tracking ||
         this->phase_ == Phase::Ignored)
-      this->settle_to_(this->resume_, now_us);
+      this->settle_to_(this->resume_, now_us, this->resume_transition_);
   }
 
-  bool advance(int64_t now_us) {
+  bool advance(int64_t now_us, Transition transition) {
     if (this->phase_ != Phase::Idle || this->settled_ >= this->ready_last_)
       return false;
-    this->settle_to_(this->settled_ + 1, now_us);
+    this->settle_to_(this->settled_ + 1, now_us, transition);
     return true;
   }
 
@@ -111,9 +116,15 @@ class Swipe {
 
     const float t = std::clamp(static_cast<float>(now_us - this->settle_us_) / this->duration_us_,
                                0.0f, 1.0f);
-    const float inverse = 1.0f - t;
     const float end = this->slide_offset_(this->target_);
-    this->offset_ = end + (this->settle_from_ - end) * inverse * inverse * inverse;
+    if (this->transition_ == Transition::Glide) {
+      // Symmetric easing makes idle playback start and end at rest.
+      const float progress = t * t * (3.0f - 2.0f * t);
+      this->offset_ = this->settle_from_ + (end - this->settle_from_) * progress;
+    } else {
+      const float inverse = 1.0f - t;
+      this->offset_ = end + (this->settle_from_ - end) * inverse * inverse * inverse;
+    }
     if (t == 1.0f)
       this->finish_settle_();
   }
@@ -130,10 +141,11 @@ class Swipe {
   void finish_settle_() {
     this->settled_ = this->target_;
     this->offset_ = 0;
+    this->transition_ = Transition::Quick;
     this->phase_ = Phase::Idle;
   }
 
-  void settle_to_(SlideIndex slide, int64_t now_us) {
+  void settle_to_(SlideIndex slide, int64_t now_us, Transition transition) {
     this->target_ = slide;
     this->settle_from_ = this->offset_;
     this->settle_us_ = now_us;
@@ -142,7 +154,10 @@ class Swipe {
       this->finish_settle_();
       return;
     }
-    this->duration_us_ = 120'000.0f + 100'000.0f * std::min(distance / this->width_, 1.0f);
+    const float fraction = std::min(distance / this->width_, 1.0f);
+    this->transition_ = transition;
+    this->duration_us_ = transition == Transition::Glide ? std::max(180'000.0f, 640'000.0f * fraction)
+                                                       : 120'000.0f + 100'000.0f * fraction;
     this->phase_ = Phase::Settling;
   }
 
@@ -153,6 +168,8 @@ class Swipe {
   SlideIndex settled_;
   SlideIndex target_;
   Phase phase_{Phase::Idle};
+  Transition transition_{Transition::Quick};
+  Transition resume_transition_{Transition::Quick};
   SlideIndex resume_{};
   SlideIndex origin_slide_{};
   int origin_x_{};

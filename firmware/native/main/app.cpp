@@ -2,6 +2,7 @@
 #include "immich.h"
 #include "slide_blit.h"
 #include "slide_cache.h"
+#include "slide_dwell.h"
 #include "swipe.h"
 #include "touch.h"
 #include "usb_setup.h"
@@ -174,17 +175,26 @@ class SlideLoader {
     this->live_ = this->source_.read_settings();
     this->requests_ = xQueueCreate(1, sizeof(SlideCache::Lease));
     this->completed_ = xQueueCreate(1, sizeof(Completion));
-    ESP_ERROR_CHECK(this->requests_ && this->completed_ ? ESP_OK : ESP_ERR_NO_MEM);
-    const auto result = xTaskCreatePinnedToCore(run_, "slide-prepare", 6144, this, 2, nullptr, 1);
+    this->timings_ = xQueueCreate(8, sizeof(int64_t));
+    ESP_ERROR_CHECK(this->requests_ && this->completed_ && this->timings_ ? ESP_OK : ESP_ERR_NO_MEM);
+    const auto result = xTaskCreatePinnedToCore(run_, "slide-prepare", 6144, this, 2, &this->task_, 1);
     ESP_ERROR_CHECK(result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
   }
 
   void submit(const SlideCache::Lease &lease) {
     ESP_ERROR_CHECK(xQueueSend(this->requests_, &lease, 0) == pdPASS ? ESP_OK : ESP_ERR_INVALID_STATE);
+    xTaskNotifyGive(this->task_);
   }
 
   bool poll(Completion &completion) {
     return xQueueReceive(this->completed_, &completion, 0) == pdPASS;
+  }
+
+  void report_gesture(int64_t latency_us) {
+    // USB output can block. Leave it to the worker and drop a diagnostic
+    // sample if downloads keep the worker occupied for too long.
+    if (xQueueSend(this->timings_, &latency_us, 0) == pdPASS)
+      xTaskNotifyGive(this->task_);
   }
 
  private:
@@ -192,8 +202,12 @@ class SlideLoader {
     auto &loader = *static_cast<SlideLoader *>(context);
     jpeg_decoder_handle_t decoder{};
     while (true) {
+      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+      int64_t latency_us;
+      while (xQueueReceive(loader.timings_, &latency_us, 0) == pdPASS)
+        ESP_LOGI(tag, "gesture_to_scanout_us=%" PRId64, latency_us);
       SlideCache::Lease lease{};
-      if (xQueueReceive(loader.requests_, &lease, portMAX_DELAY) != pdPASS)
+      if (xQueueReceive(loader.requests_, &lease, 0) != pdPASS)
         continue;
       bool ready = true;
       if (loader.live_ && lease.slide > 0) {
@@ -211,6 +225,8 @@ class SlideLoader {
   ImmichSource source_;
   QueueHandle_t requests_{};
   QueueHandle_t completed_{};
+  QueueHandle_t timings_{};
+  TaskHandle_t task_{};
   bool live_{};
 };
 
@@ -226,6 +242,7 @@ void run() {
   Touch touch;
   touch.init();
   Swipe swipe{slide_width, slide_count, live ? 0 : 2};
+  SlideDwell dwell;
 
   bool touch_down = false;
   bool wait_for_release = false;
@@ -236,7 +253,6 @@ void run() {
   PixelPosition last_submitted = -1;
   bool lit = false;
   bool preparing = false;
-  int64_t next_advance_us = 0;
   SlideIndex first_photo = 1;
   SlideIndex previous_center = swipe.settled();
   int direction = 1;
@@ -255,7 +271,7 @@ void run() {
         ESP_LOGI(tag, "Player ready (background %s preparation)", live ? "Immich" : "fixture");
       }
       if (submitted_motion_us != 0) {
-        ESP_LOGI(tag, "gesture_to_scanout_us=%" PRId64, now - submitted_motion_us);
+        loader.report_gesture(now - submitted_motion_us);
         submitted_motion_us = 0;
       }
     }
@@ -326,23 +342,29 @@ void run() {
           wait_for_release = false;
         } else if (!wait_for_release) {
           if (!touch_down) {
-            swipe.press(sample.x, sample.y, display.presented_position(), now);
+            swipe.press(sample.x, sample.y, display.handoff_position(), now);
             first_motion_us = 0;
             touch_down = true;
           }
-          next_advance_us = now + loader.slide_interval_us();
           const bool was_dragging = swipe.dragging();
           swipe.move(sample.x, sample.y, now);
-          if (!was_dragging && swipe.dragging() && swipe.position() != display.presented_position())
+          if (!was_dragging && swipe.dragging() && swipe.position() != display.handoff_position())
             first_motion_us = now;
         }
       }
     }
 
-    if (live && lit && !touch_down && !wait_for_release && now >= next_advance_us && swipe.advance(now))
-      next_advance_us = now + loader.slide_interval_us();
     swipe.tick(now);
     const auto position = swipe.position();
+    if (live) {
+      const bool first_photo = swipe.settled() == 0;
+      const bool visible_and_idle = lit && !touch_down && !wait_for_release && swipe.idle() &&
+                                    position == display.presented_position();
+      if (dwell.elapsed(now, visible_and_idle, first_photo ? 0 : loader.slide_interval_us())) {
+        const auto transition = first_photo ? Swipe::Transition::Quick : Swipe::Transition::Glide;
+        swipe.advance(now, transition);
+      }
+    }
     if (auto *output = display.writable_buffer(); output != nullptr && position != last_submitted) {
       const auto index = position / slide_width;
       const int offset = position % slide_width;

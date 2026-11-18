@@ -1,4 +1,5 @@
 #include "slide_blit.h"
+#include "slide_dwell.h"
 #include "swipe.h"
 
 #include <array>
@@ -7,6 +8,7 @@
 using espframe::native::Swipe;
 using espframe::native::SlideIndex;
 using espframe::native::PixelPosition;
+using espframe::native::SlideDwell;
 
 int main() {
   constexpr int width = 1280;
@@ -93,15 +95,15 @@ int main() {
 
   Swipe autoplay{width, 5, 0};
   autoplay.set_ready_range(0, 0);
-  assert(!autoplay.advance(start));
+  assert(!autoplay.advance(start, Swipe::Transition::Quick));
   autoplay.set_ready_range(0, 1);
   autoplay.press(950, 300, 0, start);
-  assert(!autoplay.advance(start));
+  assert(!autoplay.advance(start, Swipe::Transition::Quick));
   autoplay.release(start + 20'000);
-  assert(autoplay.advance(start + 30'000));
-  assert(!autoplay.advance(start + 40'000));
+  assert(autoplay.advance(start + 30'000, Swipe::Transition::Quick));
+  assert(!autoplay.advance(start + 40'000, Swipe::Transition::Quick));
   autoplay.tick(start + 500'000);
-  assert(autoplay.settled() == 1 && !autoplay.advance(start + 1'000'000));
+  assert(autoplay.settled() == 1 && !autoplay.advance(start + 1'000'000, Swipe::Transition::Glide));
 
   constexpr SlideIndex far = 3'000'000'000;
   constexpr PixelPosition far_pixels = far * width;
@@ -118,7 +120,7 @@ int main() {
   long_running.release(start + 300'000);
   long_running.tick(start + 600'000);
   assert(long_running.position() == far_pixels);
-  assert(long_running.advance(start + 700'000));
+  assert(long_running.advance(start + 700'000, Swipe::Transition::Quick));
   long_running.tick(start + 730'000);
   const auto moving = long_running.position();
   assert(moving > far_pixels && moving < far_pixels + width);
@@ -127,6 +129,57 @@ int main() {
   long_running.release(start + 750'000);
   long_running.tick(start + 1'000'000);
   assert(long_running.position() == far_pixels + width && long_running.settled() == far + 1);
+
+  Swipe glide{width, 5, 2};
+  assert(glide.advance(start, Swipe::Transition::Glide));
+  glide.tick(start + 32'000);
+  const auto first_glide_frame = glide.position();
+  assert(first_glide_frame > 2 * width && first_glide_frame < 2 * width + width / 50);
+  glide.tick(start + 320'000);
+  assert(glide.position() == 2 * width + width / 2);
+  glide.tick(start + 608'000);
+  assert(3 * width - glide.position() == first_glide_frame - 2 * width);
+  glide.tick(start + 640'000);
+  assert(glide.idle() && glide.position() == 3 * width);
+
+  // Take over an actual presented frame midway through the ambient move.
+  Swipe grab{width, 5, 2};
+  assert(grab.advance(start, Swipe::Transition::Glide));
+  grab.tick(start + 280'000);
+  const auto frozen = grab.position();
+  grab.press(540, 300, frozen, start + 290'000);
+  grab.tick(start + 430'000);
+  assert(grab.position() == frozen);
+  grab.move(850, 300, start + 450'000);
+  assert(grab.position() == frozen - 310);
+  grab.release(start + 470'000);
+  grab.tick(start + 700'000);
+  assert(grab.position() == 2 * width && grab.idle());
+
+  // A tap pauses and resumes the glide without converting it into a flick.
+  Swipe tap{width, 5, 2};
+  assert(tap.advance(start, Swipe::Transition::Glide));
+  tap.tick(start + 320'000);
+  const auto half = tap.position();
+  tap.press(540, 300, half, start + 320'000);
+  tap.release(start + 345'000);
+  tap.tick(start + 540'000);
+  assert(tap.settling() && tap.position() > half && tap.position() < 3 * width);
+  tap.tick(start + 680'000);
+  assert(tap.idle() && tap.position() == 3 * width);
+
+  SlideDwell dwell;
+  constexpr int64_t display_time = 2'000'000;
+  assert(!dwell.elapsed(start, false, 0));
+  assert(dwell.elapsed(start, true, 0));  // Start as soon as the first preview is ready.
+  assert(!dwell.elapsed(start + 100'000, false, display_time));
+  const auto full_frame = start + 640'000;
+  assert(!dwell.elapsed(full_frame, true, display_time));
+  assert(!dwell.elapsed(full_frame + display_time - 1, true, display_time));
+  assert(dwell.elapsed(full_frame + display_time, true, display_time));
+  assert(dwell.elapsed(full_frame + display_time * 2, true, display_time));  // Waiting for a download.
+  assert(!dwell.elapsed(full_frame + display_time * 2, false, display_time));  // A touch.
+  assert(!dwell.elapsed(full_frame + display_time * 2 + 1, true, display_time));
 
   const std::array<uint16_t, 6> left{0, 1, 2, 3, 4, 5};
   const std::array<uint16_t, 6> right{6, 7, 8, 9, 10, 11};

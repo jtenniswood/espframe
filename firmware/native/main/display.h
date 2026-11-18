@@ -15,6 +15,9 @@ class Display {
   void enable_backlight() const;
   bool poll_presented();
   PixelPosition presented_position() const { return position_; }
+  // A queued frame can still reach the panel after touch arrives. Start
+  // from that frame so taking over doesn't visibly undo the pending swap.
+  PixelPosition handoff_position() const { return pending_ ? pending_position_ : position_; }
   uint16_t *writable_buffer();
   void submit(PixelPosition position);
 

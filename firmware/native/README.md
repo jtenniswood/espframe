@@ -97,8 +97,10 @@ Use that flash offset with this prototype's partition table on the dedicated
 test frame. The generated file contains the Wi-Fi password and API key in
 plaintext. Keep it private and remove it after provisioning. The player shows a
 local scene until the first preview is ready, then starts the slideshow. It
-loads additional photos directly from Immich and advances every 15 seconds
-when a new slide is ready. It keeps the current photo visible during a network
+loads additional photos directly from Immich. Each photo is fully visible
+for 15 seconds by default before the next photo glides into place. A touch
+pauses the glide at the frame already sent to the panel, and a swipe can
+take it over in either direction. It keeps the current photo visible during a network
 failure. The random feed continues as new previews become available. It
 remembers the last 128 photo positions per session. It can decode up to
 16 recent previews from a 2 MiB memory cache while offline, depending on
@@ -117,6 +119,11 @@ the sizes of the previews and available PSRAM. Older previews need Wi-Fi.
 5. Record high-frame-rate video for touch-to-visible-motion and pacing.
    USB logs report recognition-to-DMA-scanout as `gesture_to_scanout_us`.
    This is an estimate before the new pixels are physically visible.
+6. With Immich configured, wait for autoplay. Check the easing at either end
+   of the glide. Press midway to pause it, then release without dragging.
+   Repeat with a drag against the glide and compare touch response with an
+   ordinary swipe. With a two-second interval, verify each photo is fully
+   visible for two seconds before the next glide starts.
 
 To probe with real photos, place baseline JPEGs in the ignored
 `firmware/native/photos/` directory as `slide-0.jpg` through `slide-4.jpg`.
