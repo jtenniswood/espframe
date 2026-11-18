@@ -49,6 +49,21 @@ jobs:
       - name: Run PR checks
         run: npm run check:pr
 
+      - name: Exercise production ESPHome automations on the host platform
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=$(PYTHONPATH=scripts python3 -c '
+          from product_config import github_workflow_metadata
+          metadata = github_workflow_metadata()
+          print(metadata["ESPHOME_DOCKER_IMAGE"] + ":" + metadata["ESPHOME_VERSION"])
+          ')
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "$PWD:/config" --entrypoint sh "$image" -ec '
+              python /config/tests/automation_runtime_tests.py
+              python /config/tests/slideshow_dispatch_runtime_tests.py
+            '
+
   firmware-metadata:
     name: Read Firmware Build Metadata
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'

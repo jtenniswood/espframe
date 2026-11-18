@@ -123,7 +123,99 @@ static void test_slot_fetch_guards() {
   std::cout << "Checked " << cases << " valid-slot guard combinations\n";
 }
 
+static void test_failed_portrait_preload() {
+  for (bool pairs_only : {false, true}) {
+    for (int slot : {0, 1}) {
+      EspFrameSlideshow slideshow;
+      auto &state = slideshow.state();
+      state.active_slot = 0;
+      state.target_slot = 2;
+      state.portrait_preload_slot = slot;
+      state.portrait_preload_right_ready = true;
+      state.preload_noncritical_in_flight = true;
+      state.noncritical_remote_updates_in_flight = 1;
+      slideshow.on_portrait_preload_error(EspFrameSlideshow::PortraitSide::RIGHT, 100, pairs_only);
+      assert(!state.portrait_preload_right_ready);
+      assert(!state.preload_noncritical_in_flight);
+      assert(state.noncritical_remote_updates_in_flight == 0);
+      assert(state.diagnostic_reason == "portrait preload right error");
+
+      SlideshowCommand command;
+      assert(slideshow.pop_command(command));
+      assert(command.kind == SLIDESHOW_COMMAND_LOG_DIAG);
+      const bool should_recover = slot >= 0 && (pairs_only || slot == 0);
+      assert(slideshow.pop_command(command) == should_recover);
+      if (!should_recover) continue;
+      assert(command.slot == slot);
+      assert(command.kind == (pairs_only ? SLIDESHOW_COMMAND_REFETCH_REJECTED_SLOT
+                                         : SLIDESHOW_COMMAND_DISPLAY_CURRENT));
+      assert(state.portrait_preload_slot == -1);
+      assert(state.target_slot == 2);
+      assert(!slideshow.pop_command(command));
+    }
+  }
+}
+
+static void test_active_preload_presentation() {
+  for (bool pairs_only : {false, true}) {
+    EspFrameSlideshow slideshow;
+    auto &state = slideshow.state();
+    state.active_slot = 1;
+    state.portrait_preload_slot = 2;
+    state.portrait_preload_left_ready = true;
+    state.portrait_preload_right_ready = true;
+    assert(!slideshow.active_preloaded_pair_ready());
+
+    state.portrait_preload_slot = 1;
+    state.portrait_preload_right_ready = false;
+    assert(!slideshow.active_preloaded_pair_ready());
+    state.portrait_preload_right_ready = true;
+    assert(slideshow.active_preloaded_pair_ready());
+
+    slideshow.display_completed_active_preload();
+    SlideshowCommand command;
+    assert(slideshow.pop_command(command));
+    assert(command.kind == SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR && command.slot == 1);
+
+    slideshow.recover_active_preloaded_pair(100, pairs_only);
+    assert(slideshow.pop_command(command));
+    assert(command.slot == 1);
+    assert(command.kind == (pairs_only ? SLIDESHOW_COMMAND_REFETCH_REJECTED_SLOT
+                                       : SLIDESHOW_COMMAND_DISPLAY_CURRENT));
+    assert(!slideshow.active_preloaded_pair_ready());
+  }
+}
+
+static void test_live_portrait_presentation() {
+  using Presentation = EspFrameSlideshow::LivePairPresentation;
+  for (bool pairs_only : {false, true}) {
+    EspFrameSlideshow slideshow;
+    auto &state = slideshow.state();
+    state.active_slot = 1;
+    state.portrait.left_ready = true;
+    assert(slideshow.prepare_live_portrait_pair(true) == Presentation::WAIT);
+    state.portrait.right_ready = true;
+    assert(slideshow.prepare_live_portrait_pair(true) == Presentation::READY);
+    state.portrait.is_pair = true;
+    state.portrait.workflow_busy = true;
+    assert(slideshow.recover_live_portrait_pair(100, pairs_only) == !pairs_only);
+    assert(!state.portrait.left_ready && !state.portrait.right_ready);
+    assert(!state.portrait.is_pair && !state.portrait.workflow_busy);
+    assert(state.active_slot_displayed == !pairs_only);
+    SlideshowCommand command;
+    assert(slideshow.pop_command(command) == pairs_only);
+    if (pairs_only) assert(command.kind == SLIDESHOW_COMMAND_REFETCH_REJECTED_SLOT && command.slot == 1);
+
+    state.portrait.left_ready = true;
+    assert(slideshow.prepare_live_portrait_pair(false) == Presentation::HIDE);
+    assert(!state.portrait.left_ready);
+  }
+}
+
 int main() {
+  test_live_portrait_presentation();
+  test_active_preload_presentation();
+  test_failed_portrait_preload();
   test_recovery_stop_order();
   test_rotation();
   test_slot_fetch_guards();

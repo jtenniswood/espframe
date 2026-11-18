@@ -29,11 +29,11 @@ static void test_memory_pressure_prefetch() {
   EspFrameSlideshow slideshow;
   auto &state = slideshow.state();
   state.slot0.ready = true;
+  state.slot0.pending_asset_id = "active";
   state.target_slot = 2;
+  state.active_slot_displayed = true;
   auto prefetch = [&](bool available) {
-    return slideshow.request_prefetch(false, false, 1000, state.last_prefetch_start_ms,
-        0, state.target_slot, state.slot0, state.slot1, state.slot2, state.slot_flags,
-        state.fetch_queue, state.portrait, true, 0, -1, false, false, available);
+    return slideshow.request_prefetch(false, false, 1000, available);
   };
   assert(!prefetch(false));
   assert(state.target_slot == 2 && state.last_prefetch_start_ms == 0);
@@ -47,8 +47,7 @@ static void test_memory_pressure_prefetch() {
   assert(slideshow.pop_command(command));
   assert(command.kind == SLIDESHOW_COMMAND_FETCH_INTO_SLOT && command.slot == 1);
   // Pressure only gates speculative prefetch: active-slot image updates still run.
-  assert(slideshow.request_deferred_slot_update(0, 0, state.slot_flags, false,
-                                               state.noncritical_remote_updates_in_flight));
+  assert(slideshow.request_deferred_slot_update(0));
   assert(slideshow.pop_command(command));
   assert(command.kind == SLIDESHOW_COMMAND_UPDATE_SLOT_IMAGE && command.slot == 0);
 }
@@ -987,33 +986,24 @@ static void test_slideshow_component_commands() {
   assert(cmd.delay_ms == 500);
   assert(!slideshow.has_command());
 
-  SlotFlags flags;
-  int noncritical_count = 0;
-  int retries = 1;
-  bool displayed = false;
-  DisplayMeta current;
-  PortraitState portrait;
-  int companion_slot = -1;
-  std::string search_datetime;
-  std::string primary_asset_id;
-  SlotMeta active = make_slot("active-landscape", false);
-  flags.fetch_in_flight[0] = true;
+  auto &state = slideshow.state();
+  state.slot0 = make_slot("active-landscape", false);
+  state.download_retries = 1;
+  state.slot_flags.fetch_in_flight[0] = true;
 
-  SlideshowAction action = slideshow.on_slot_download_finished(
-      0, active, flags, noncritical_count, retries, 0, true, displayed, current,
-      portrait, companion_slot, -1, search_datetime, primary_asset_id);
-  assert(action == SLIDESHOW_ACTION_DISPLAY_CURRENT);
+  assert(slideshow.on_slot_download_finished(0, true) == SLIDESHOW_ACTION_DISPLAY_CURRENT);
+  assert(state.slot0.ready && state.active_slot_displayed);
+  assert(state.download_retries == 0 && !state.slot_flags.fetch_in_flight[0]);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
   assert(cmd.slot == 0);
 
-  std::string reason;
-  int last_downloaded = -1;
-  flags.fetch_in_flight[2] = true;
-  slideshow.on_slot_download_error(2, flags, noncritical_count, reason, last_downloaded,
-                                   "slot2 image error");
-  assert(reason == "slot2 image error");
-  assert(last_downloaded == 2);
+  state.slot_flags.fetch_in_flight[2] = true;
+  state.slot2 = make_slot("background", false);
+  slideshow.on_slot_download_error(2, "slot2 image error");
+  assert(state.diagnostic_reason == "slot2 image error");
+  assert(state.last_downloaded_slot == 2);
+  assert(!state.slot_flags.fetch_in_flight[2]);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
   assert(cmd.slot == 2);
@@ -1021,25 +1011,31 @@ static void test_slideshow_component_commands() {
   assert(cmd.kind == SLIDESHOW_COMMAND_HANDLE_SLOT_DOWNLOAD_ERROR);
   assert(cmd.slot == 2);
   assert(!slideshow.has_command());
+
+  state.slot2.ready = true;
+  const auto retry = slideshow.recover_slot_download(2);
+  assert(retry.slot == 2 && retry.attempt == 1 && retry.retry);
+  assert(!state.slot2.ready && state.slot2.asset_id.empty());
+  assert(state.slot2.pending_asset_id.empty() && state.slot2.image_url.empty());
+  assert(state.download_retries == 1);
+  const auto cooldown = slideshow.recover_slot_download(2);
+  assert(cooldown.slot == 2 && cooldown.attempt == 2 && !cooldown.retry);
+  assert(state.download_retries == 0);
 }
 
 static void test_slideshow_component_prefetch_and_deferred_updates() {
   EspFrameSlideshow slideshow;
-  SlotMeta slot0 = make_slot("active", false);
-  SlotMeta slot1 = make_slot("next", false);
-  SlotMeta slot2 = make_slot("next-next", false);
-  slot0.ready = true;
-  slot1.ready = false;
-  slot2.ready = false;
-  SlotFlags flags;
-  FetchQueue queue;
-  PortraitState portrait;
-  uint32_t last_prefetch = 0;
-  int target_slot = 0;
+  auto &state = slideshow.state();
+  state.slot0 = make_slot("active", false);
+  state.slot1 = make_slot("next", false);
+  state.slot2 = make_slot("next-next", false);
+  state.slot0.ready = true;
+  state.active_slot_displayed = true;
+  auto &flags = state.slot_flags;
+  auto &last_prefetch = state.last_prefetch_start_ms;
+  auto &target_slot = state.target_slot;
 
-  bool queued = slideshow.request_prefetch(
-      false, false, 1000, last_prefetch, 0, target_slot, slot0, slot1, slot2,
-      flags, queue, portrait, true, 0, -1, false, false);
+  bool queued = slideshow.request_prefetch(false, false, 1000);
   assert(queued);
   assert(target_slot == 1);
   assert(last_prefetch == 1000);
@@ -1048,28 +1044,24 @@ static void test_slideshow_component_prefetch_and_deferred_updates() {
   assert(cmd.kind == SLIDESHOW_COMMAND_FETCH_INTO_SLOT);
   assert(cmd.slot == 1);
 
-  queued = slideshow.request_prefetch(
-      false, false, 1200, last_prefetch, 0, target_slot, slot0, slot1, slot2,
-      flags, queue, portrait, true, 0, -1, false, false);
+  queued = slideshow.request_prefetch(false, false, 1200);
   assert(!queued);
   assert(!slideshow.has_command());
 
-  queued = slideshow.request_prefetch(
-      false, false, 2000, last_prefetch, 0, target_slot, slot0, slot1, slot2,
-      flags, queue, portrait, false, 0, -1, false, false);
+  state.active_slot_displayed = false;
+  queued = slideshow.request_prefetch(false, false, 2000);
   assert(!queued);
   assert(!slideshow.has_command());
 
+  state.active_slot_displayed = true;
   flags.fetch_in_flight[2] = true;
-  queued = slideshow.request_prefetch(
-      false, false, 2600, last_prefetch, 0, target_slot, slot0, slot1, slot2,
-      flags, queue, portrait, true, 0, -1, false, false);
+  queued = slideshow.request_prefetch(false, false, 2600);
   assert(!queued);
   assert(!slideshow.has_command());
   flags.fetch_in_flight[2] = false;
 
-  int noncritical_count = 0;
-  bool update = slideshow.request_deferred_slot_update(1, 0, flags, false, noncritical_count);
+  auto &noncritical_count = state.noncritical_remote_updates_in_flight;
+  bool update = slideshow.request_deferred_slot_update(1);
   assert(update);
   assert(noncritical_count == 1);
   assert(flags.noncritical_update[1]);
@@ -1078,7 +1070,7 @@ static void test_slideshow_component_prefetch_and_deferred_updates() {
   assert(cmd.kind == SLIDESHOW_COMMAND_UPDATE_SLOT_IMAGE);
   assert(cmd.slot == 1);
 
-  slideshow.defer_slot_update_due_to_busy(1, flags, noncritical_count);
+  slideshow.defer_slot_update_due_to_busy(1);
   assert(!flags.fetch_in_flight[1]);
   assert(flags.fetch_started_ms[1] == 0);
   assert(!flags.noncritical_update[1]);
@@ -1087,20 +1079,26 @@ static void test_slideshow_component_prefetch_and_deferred_updates() {
   assert(cmd.kind == SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY);
   assert(cmd.slot == 1);
 
-  update = slideshow.request_deferred_slot_update(2, 0, flags, true, noncritical_count);
+  state.portrait.workflow_busy = true;
+  update = slideshow.request_deferred_slot_update(2);
   assert(!update);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY);
 
-  bool preload_in_flight = false;
-  update = slideshow.request_preload_left_update(false, preload_in_flight, noncritical_count);
+  assert(!slideshow.request_preload_update(EspFrameSlideshow::PortraitSide::LEFT));
+  assert(!slideshow.has_command());
+  auto &preload_in_flight = state.preload_noncritical_in_flight;
+  state.portrait_preload_slot = 1;
+  state.portrait.workflow_busy = false;
+  update = slideshow.request_preload_update(EspFrameSlideshow::PortraitSide::LEFT);
   assert(update);
   assert(preload_in_flight);
   assert(noncritical_count == 1);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_UPDATE_PRELOAD_LEFT);
 
-  update = slideshow.request_preload_right_update(true, preload_in_flight, noncritical_count);
+  state.portrait.workflow_busy = true;
+  update = slideshow.request_preload_update(EspFrameSlideshow::PortraitSide::RIGHT);
   assert(!update);
   assert(!preload_in_flight);
   assert(noncritical_count == 0);
@@ -1172,21 +1170,20 @@ static void test_slideshow_pipeline_watchdog() {
 
 static void test_slideshow_component_portrait_flow() {
   EspFrameSlideshow slideshow;
-  SlotMeta slot0 = make_slot("portrait-active", true);
+  auto &state = slideshow.state();
+  auto &slot0 = state.slot0;
+  slot0 = make_slot("portrait-active", true);
   slot0.companion_url = "https://example.test/companion";
   SlotMeta slot1 = make_slot("slot1", false);
   SlotMeta slot2 = make_slot("slot2", false);
-  PortraitState portrait;
-  bool displayed = false;
-  std::string primary_id;
-  std::string companion_url;
-  std::string search_datetime;
-  int companion_slot = -1;
-  bool search_expanded = false;
+  auto &portrait = slideshow.state().portrait;
+  auto &displayed = slideshow.state().active_slot_displayed;
+  const auto &primary_id = state.portrait_primary_asset_id;
+  const auto &companion_url = state.portrait_companion_url;
+  const auto &search_datetime = state.portrait_search_datetime;
+  auto &companion_slot = state.companion_target_slot;
 
-  bool started = slideshow.start_active_portrait(
-      0, slot0, slot1, slot2, portrait, displayed, primary_id, companion_url,
-      search_datetime, companion_slot, search_expanded);
+  bool started = slideshow.start_active_portrait();
   assert(started);
   assert(portrait.workflow_busy);
   assert(portrait.companion_found);
@@ -1199,90 +1196,87 @@ static void test_slideshow_component_portrait_flow() {
   assert(cmd.kind == SLIDESHOW_COMMAND_START_PORTRAIT_LEFT);
   assert(cmd.slot == 0);
 
-  slideshow.on_portrait_left_finished(portrait);
+  slideshow.on_portrait_download_finished(EspFrameSlideshow::PortraitSide::LEFT);
   assert(portrait.left_ready);
   assert(!portrait.left_requested);
   assert(portrait.right_requested);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_START_PORTRAIT_RIGHT);
 
-  slideshow.on_portrait_right_finished(portrait);
+  slideshow.on_portrait_download_finished(EspFrameSlideshow::PortraitSide::RIGHT);
   assert(portrait.right_ready);
   assert(!portrait.right_requested);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_PORTRAIT_PAIR);
 
-  PortraitState searching;
-  SlotMeta no_companion = make_slot("portrait-search", true);
+  portrait = PortraitState{};
+  auto &no_companion = slot0;
+  no_companion = make_slot("portrait-search", true);
   no_companion.companion_url = "";
-  bool search_started = slideshow.start_active_portrait(
-      0, no_companion, slot1, slot2, searching, displayed, primary_id, companion_url,
-      search_datetime, companion_slot, search_expanded);
+  bool search_started = slideshow.start_active_portrait();
   assert(search_started);
-  assert(searching.workflow_busy);
-  assert(!searching.companion_found);
+  assert(portrait.workflow_busy);
+  assert(!portrait.companion_found);
   assert(companion_url.empty());
   assert(search_datetime == no_companion.datetime);
   assert(companion_slot == 0);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DEFER_COMPANION_SEARCH);
 
-  std::string reason;
-  slideshow.on_portrait_left_error(searching, reason, displayed, false);
+  const auto &reason = slideshow.state().diagnostic_reason;
+  portrait.left_requested = true;
+  slideshow.on_portrait_download_error(EspFrameSlideshow::PortraitSide::LEFT, false);
   assert(reason == "portrait left error");
   assert(displayed);
-  assert(!searching.workflow_busy);
-  assert(searching.no_companion_active);
+  assert(!portrait.workflow_busy);
+  assert(portrait.no_companion_active);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
-  slideshow.after_display_current(0, no_companion, slot1, slot2, searching, true, displayed,
-                                  companion_slot, false, false);
+  slideshow.after_display_current(true);
   assert(!slideshow.has_command());
 
-  PortraitState right_error;
-  right_error.workflow_busy = true;
-  right_error.companion_found = true;
-  right_error.left_ready = true;
+  portrait = PortraitState{};
+  portrait.workflow_busy = true;
+  portrait.companion_found = true;
+  portrait.left_ready = true;
+  portrait.right_requested = true;
   displayed = false;
-  slideshow.on_portrait_right_error(right_error, reason, displayed, false);
+  slideshow.on_portrait_download_error(EspFrameSlideshow::PortraitSide::RIGHT, false);
   assert(reason == "portrait right error");
   assert(displayed);
-  assert(!right_error.workflow_busy);
-  assert(right_error.no_companion_active);
+  assert(!portrait.workflow_busy);
+  assert(portrait.no_companion_active);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
-  slideshow.after_display_current(0, no_companion, slot1, slot2, right_error, true, displayed,
-                                  companion_slot, false, false);
+  slideshow.after_display_current(true);
   assert(!slideshow.has_command());
 
   // A transient pair download failure can occur while the previous image is
   // still visible. It must release the workflow gate or slideshow advancement
   // remains blocked indefinitely.
-  PortraitState visible_left_error;
-  visible_left_error.workflow_busy = true;
-  visible_left_error.left_requested = true;
-  bool already_displayed = true;
-  slideshow.on_portrait_left_error(
-      visible_left_error, reason, already_displayed, false);
-  assert(already_displayed);
-  assert(!visible_left_error.workflow_busy);
-  assert(!visible_left_error.left_requested);
+  portrait = PortraitState{};
+  portrait.workflow_busy = true;
+  portrait.left_requested = true;
+  displayed = true;
+  slideshow.on_portrait_download_error(EspFrameSlideshow::PortraitSide::LEFT, false);
+  assert(displayed);
+  assert(!portrait.workflow_busy);
+  assert(!portrait.left_requested);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
   assert(!slideshow.has_command());
 
-  PortraitState visible_right_error;
-  visible_right_error.workflow_busy = true;
-  visible_right_error.right_requested = true;
-  slideshow.on_portrait_right_error(
-      visible_right_error, reason, already_displayed, false);
-  assert(already_displayed);
-  assert(!visible_right_error.workflow_busy);
-  assert(!visible_right_error.right_requested);
+  portrait = PortraitState{};
+  portrait.workflow_busy = true;
+  portrait.right_requested = true;
+  slideshow.on_portrait_download_error(EspFrameSlideshow::PortraitSide::RIGHT, false);
+  assert(displayed);
+  assert(!portrait.workflow_busy);
+  assert(!portrait.right_requested);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
   assert(!slideshow.has_command());
@@ -1290,69 +1284,55 @@ static void test_slideshow_component_portrait_flow() {
 
 static void test_slideshow_component_preload_flow() {
   EspFrameSlideshow slideshow;
-  SlotMeta slot0 = make_slot("active", false);
-  SlotMeta slot1 = make_slot("portrait-preload", true);
-  slot1.companion_url = "https://example.test/preload-companion";
-  SlotMeta slot2 = make_slot("slot2", false);
-  bool left_ready = false;
-  bool right_ready = false;
-  bool preload_in_flight = true;
-  int noncritical_count = 1;
+  auto &state = slideshow.state();
+  state.active_slot = 1;
+  state.portrait_preload_slot = 1;
+  state.slot1.companion_url = "https://example.test/preload-companion";
+  state.preload_noncritical_in_flight = true;
+  state.noncritical_remote_updates_in_flight = 1;
 
-  slideshow.on_preload_left_finished(1, slot0, slot1, slot2, left_ready, right_ready,
-                                     preload_in_flight, noncritical_count);
-  assert(left_ready);
-  assert(preload_in_flight);
-  assert(noncritical_count == 1);
+  slideshow.on_preload_right_finished();
+  assert(!state.portrait_preload_right_ready);
+  assert(!slideshow.has_command());
+
+  slideshow.on_preload_left_finished();
+  assert(state.portrait_preload_left_ready);
+  assert(state.preload_noncritical_in_flight);
+  assert(state.noncritical_remote_updates_in_flight == 1);
   SlideshowCommand cmd;
   assert(slideshow.pop_command(cmd));
-  assert(cmd.kind == SLIDESHOW_COMMAND_START_PRELOAD_RIGHT);
-  assert(cmd.slot == 1);
+  assert(cmd.kind == SLIDESHOW_COMMAND_START_PRELOAD_RIGHT && cmd.slot == 1);
 
-  slideshow.on_preload_right_finished(right_ready, preload_in_flight, noncritical_count);
-  assert(right_ready);
-  assert(!preload_in_flight);
-  assert(noncritical_count == 0);
-
-  std::string reason;
-  preload_in_flight = true;
-  noncritical_count = 1;
-  slideshow.on_preload_left_error(reason, left_ready, preload_in_flight, noncritical_count);
-  assert(reason == "portrait preload left error");
-  assert(!left_ready);
-  assert(!preload_in_flight);
-  assert(noncritical_count == 0);
+  slideshow.on_preload_right_finished();
+  assert(state.portrait_preload_right_ready);
+  assert(!state.preload_noncritical_in_flight);
+  assert(state.noncritical_remote_updates_in_flight == 0);
   assert(slideshow.pop_command(cmd));
-  assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
+  assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR && cmd.slot == 1);
+
+  slideshow.invalidate_filter_slots();
+  slideshow.on_preload_left_finished();
+  slideshow.on_preload_right_finished();
+  slideshow.on_portrait_preload_error(EspFrameSlideshow::PortraitSide::RIGHT, 100, true);
+  assert(!state.portrait_preload_left_ready && !state.portrait_preload_right_ready);
+  assert(!slideshow.has_command());
 }
 
 static void test_slideshow_component_navigation_flow() {
   EspFrameSlideshow slideshow;
-  SlotMeta slot0 = make_slot("slot0", false);
-  SlotMeta slot1 = make_slot("slot1", false);
-  SlotMeta slot2 = make_slot("slot2", true);
-  slot0.ready = true;
-  slot1.ready = true;
-  slot2.ready = true;
-  DisplayMeta current;
-  copy_slot_to_display(slot0, current);
-  DisplayMeta previous;
-  PortraitState portrait;
-  SlotFlags flags;
-  int active_slot = 0;
-  int target_slot = 0;
-  bool displayed = true;
-  uint32_t last_advance = 0;
-  int noncritical_count = 0;
-  std::string reason;
+  auto &state = slideshow.state();
+  state.slot0 = make_slot("slot0", false);
+  state.slot1 = make_slot("slot1", false);
+  state.slot2 = make_slot("slot2", true);
+  state.slot0.ready = state.slot1.ready = state.slot2.ready = true;
+  copy_slot_to_display(state.slot0, state.current_display);
+  state.active_slot_displayed = true;
 
-  slideshow.advance_forward(2000, false, active_slot, target_slot, displayed, last_advance,
-                             slot0, slot1, slot2, current, previous, portrait, flags,
-                             noncritical_count, true, false, -1, false, false, reason);
-  assert(active_slot == 1);
-  assert(displayed);
-  assert(previous.valid);
-  assert(previous.asset_id == "slot0");
+  slideshow.advance_forward(2000, false, true, false);
+  assert(state.active_slot == 1);
+  assert(state.active_slot_displayed);
+  assert(state.previous_display.valid);
+  assert(state.previous_display.asset_id == "slot0");
   SlideshowCommand cmd;
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
@@ -1360,26 +1340,22 @@ static void test_slideshow_component_navigation_flow() {
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY);
 
-  slideshow.advance_forward(3000, false, active_slot, target_slot, displayed, last_advance,
-                             slot0, slot1, slot2, current, previous, portrait, flags,
-                             noncritical_count, true, false, -1, false, false, reason);
-  assert(active_slot == 2);
-  assert(!displayed);
+  slideshow.advance_forward(3000, false, true, false);
+  assert(state.active_slot == 2);
+  assert(!state.active_slot_displayed);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_START_ACTIVE_PAIR);
   assert(cmd.slot == 2);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_PREFETCH_AFTER_DELAY);
 
-  slot2.ready = false;
-  flags.fetch_in_flight[2] = true;
-  flags.fetch_started_ms[2] = 1000;
-  slideshow.advance_forward(20000, false, active_slot, target_slot, displayed, last_advance,
-                             slot0, slot1, slot2, current, previous, portrait, flags,
-                             noncritical_count, true, false, -1, false, false, reason);
-  assert(reason == "h3 stuck slot");
-  assert(!flags.fetch_in_flight[2]);
-  assert(target_slot == 2);
+  state.slot2.ready = false;
+  state.slot_flags.fetch_in_flight[2] = true;
+  state.slot_flags.fetch_started_ms[2] = 1000;
+  slideshow.advance_forward(20000, false, true, false);
+  assert(state.diagnostic_reason == "h3 stuck slot");
+  assert(!state.slot_flags.fetch_in_flight[2]);
+  assert(state.target_slot == 2);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_ABORT_SLOT_DOWNLOAD);
   assert(slideshow.pop_command(cmd));
@@ -1390,14 +1366,15 @@ static void test_slideshow_component_navigation_flow() {
 
 static void test_slideshow_component_previous_flow() {
   EspFrameSlideshow slideshow;
-  SlotMeta slot0 = make_slot("current", false);
+  auto &state = slideshow.state();
+  auto &slot0 = state.slot0;
+  slot0 = make_slot("current", false);
   slot0.filter_person_ids = "person-456,person-789";
-  SlotMeta slot1 = make_slot("slot1", false);
-  SlotMeta slot2 = make_slot("slot2", false);
-  DisplayMeta current;
+  auto &slot2 = state.slot2;
+  auto &current = state.current_display;
   copy_slot_to_display(slot0, current);
   assert(current.filter_person_ids == "person-456,person-789");
-  DisplayMeta previous;
+  auto &previous = state.previous_display;
   previous.asset_id = "previous";
   previous.image_url = "https://example.test/previous";
   previous.datetime = "2026-04-20T10:00:00";
@@ -1406,22 +1383,20 @@ static void test_slideshow_component_previous_flow() {
   previous.filter_tag_ids = "tag-456";
   previous.is_portrait = true;
   previous.valid = true;
-  PortraitState portrait;
-  SlotFlags flags;
-  int active_slot = 0;
-  bool displayed = true;
+  auto &flags = state.slot_flags;
+  auto &active_slot = state.active_slot;
+  auto &displayed = state.active_slot_displayed;
+  displayed = true;
 
   flags.fetch_in_flight[2] = true;
-  bool shown = slideshow.show_previous(1200, active_slot, displayed, slot0, slot1, slot2,
-                                       current, previous, portrait, flags);
+  bool shown = slideshow.show_previous(1200);
   assert(!shown);
   assert(active_slot == 0);
   assert(current.asset_id == "current");
   assert(previous.asset_id == "previous");
   flags.fetch_in_flight[2] = false;
 
-  shown = slideshow.show_previous(1234, active_slot, displayed, slot0, slot1, slot2,
-                                  current, previous, portrait, flags);
+  shown = slideshow.show_previous(1234);
   assert(shown);
   assert(active_slot == 2);
   assert(!displayed);
@@ -1442,27 +1417,26 @@ static void test_slideshow_component_previous_flow() {
   assert(cmd.kind == SLIDESHOW_COMMAND_LOAD_PREVIOUS_SLOT);
   assert(cmd.slot == 2);
 
-  DisplayMeta empty_previous;
-  slideshow.show_previous(2000, active_slot, displayed, slot0, slot1, slot2,
-                           current, empty_previous, portrait, flags);
+  previous = DisplayMeta{};
+  slideshow.show_previous(2000);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_LOG_NO_PREVIOUS);
 }
 
 static void test_slideshow_component_companion_result_flow() {
   EspFrameSlideshow slideshow;
-  SlotMeta slot0 = make_slot("active-portrait", true);
-  SlotMeta slot1 = make_slot("prefetch-portrait", true);
-  SlotMeta slot2 = make_slot("slot2", false);
-  PortraitState portrait;
-  std::string companion_url;
-  int preload_slot = -1;
-  bool preload_left_ready = true;
-  bool preload_right_ready = true;
+  auto &state = slideshow.state();
+  auto &slot0 = state.slot0;
+  slot0 = make_slot("active-portrait", true);
+  auto &slot1 = state.slot1;
+  slot1 = make_slot("prefetch-portrait", true);
+  auto &portrait = state.portrait;
+  auto &companion_url = state.portrait_companion_url;
+  const auto &preload_slot = state.portrait_preload_slot;
+  state.portrait_preload_left_ready = state.portrait_preload_right_ready = true;
+  state.companion_target_slot = 0;
 
-  bool handled = slideshow.on_companion_found(
-      "https://example.test/companion", portrait, companion_url, 0, 0,
-      slot0, slot1, slot2, preload_slot, preload_left_ready, preload_right_ready);
+  bool handled = slideshow.on_companion_found("https://example.test/companion");
   assert(handled);
   assert(portrait.companion_found);
   assert(portrait.left_requested);
@@ -1474,27 +1448,25 @@ static void test_slideshow_component_companion_result_flow() {
   assert(cmd.slot == 0);
 
   portrait = PortraitState{};
-  companion_url = "";
-  handled = slideshow.on_companion_found(
-      "https://example.test/preload-companion", portrait, companion_url, 1, 0,
-      slot0, slot1, slot2, preload_slot, preload_left_ready, preload_right_ready);
+  companion_url.clear();
+  state.companion_target_slot = 1;
+  handled = slideshow.on_companion_found("https://example.test/preload-companion");
   assert(handled);
   assert(preload_slot == 1);
-  assert(!preload_left_ready);
-  assert(!preload_right_ready);
+  assert(!state.portrait_preload_left_ready);
+  assert(!state.portrait_preload_right_ready);
   assert(slot1.companion_url == "https://example.test/preload-companion");
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_START_PRELOAD_LEFT);
   assert(cmd.slot == 1);
 
-  bool displayed = false;
+  state.companion_target_slot = 0;
   portrait.workflow_busy = true;
-  slideshow.handle_companion_not_found(
-      portrait, companion_url, 0, 0, slot0, slot1, slot2, displayed, false);
+  slideshow.handle_companion_not_found(false);
   assert(!portrait.companion_found);
   assert(portrait.no_companion_active);
   assert(!portrait.workflow_busy);
-  assert(displayed);
+  assert(state.active_slot_displayed);
   assert(slot0.companion_url.empty());
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_CURRENT);
@@ -1516,32 +1488,19 @@ static void test_visible_portrait_download_protection() {
   assert(state.portrait_preload_slot == 1);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_START_PRELOAD_LEFT && cmd.slot == 1);
-  assert(slideshow.request_preload_left_update(
-      true, state.preload_noncritical_in_flight, state.noncritical_remote_updates_in_flight));
+  assert(slideshow.request_preload_update(EspFrameSlideshow::PortraitSide::LEFT));
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_UPDATE_PRELOAD_LEFT);
-  assert(!slideshow.start_active_portrait(
-      1, state.slot0, state.slot1, state.slot2, state.portrait, false,
-      state.portrait_primary_asset_id, state.portrait_companion_url,
-      state.portrait_search_datetime, state.companion_target_slot,
-      state.portrait_search_expanded));
+  assert(!slideshow.start_active_portrait());
   assert(!slideshow.pop_command(cmd));
-  slideshow.on_preload_left_finished(
-      1, state.slot0, state.slot1, state.slot2, state.portrait_preload_left_ready,
-      state.portrait_preload_right_ready, state.preload_noncritical_in_flight,
-      state.noncritical_remote_updates_in_flight);
-  slideshow.display_completed_active_preload();
+  slideshow.on_preload_left_finished();
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_START_PRELOAD_RIGHT);
   assert(!slideshow.pop_command(cmd));
-  assert(slideshow.request_preload_right_update(
-      true, state.preload_noncritical_in_flight, state.noncritical_remote_updates_in_flight));
+  assert(slideshow.request_preload_update(EspFrameSlideshow::PortraitSide::RIGHT));
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_UPDATE_PRELOAD_RIGHT);
-  slideshow.on_preload_right_finished(
-      state.portrait_preload_right_ready, state.preload_noncritical_in_flight,
-      state.noncritical_remote_updates_in_flight);
-  slideshow.display_completed_active_preload();
+  slideshow.on_preload_right_finished();
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_PRELOADED_PAIR && cmd.slot == 1);
   assert(!slideshow.pop_command(cmd));
@@ -1550,12 +1509,7 @@ static void test_visible_portrait_download_protection() {
 
   // A completed rerouted pair must allow the next photo to prefetch without
   // waiting for navigation to reset the active portrait state.
-  assert(slideshow.request_prefetch(
-      false, false, 5000, state.last_prefetch_start_ms, state.active_slot,
-      state.target_slot, state.slot0, state.slot1, state.slot2, state.slot_flags,
-      state.fetch_queue, state.portrait, state.active_slot_displayed,
-      state.noncritical_remote_updates_in_flight, state.portrait_preload_slot,
-      state.portrait_preload_left_ready, state.portrait_preload_right_ready));
+  assert(slideshow.request_prefetch(false, false, 5000));
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_FETCH_INTO_SLOT && cmd.slot == 2);
   assert(!slideshow.pop_command(cmd));
@@ -1622,58 +1576,50 @@ static void test_portrait_single_display_guard() {
   state.portrait.companion_found = true;
   state.portrait.left_ready = true;
   state.portrait.right_requested = true;
-  slideshow.advance_forward(
-      20000, false, state.active_slot, state.target_slot, state.active_slot_displayed,
-      state.last_advance_ms, state.slot0, state.slot1, state.slot2,
-      state.current_display, state.previous_display, state.portrait, state.slot_flags,
-      state.noncritical_remote_updates_in_flight, true, false,
-      -1, false, false, state.diagnostic_reason);
+  slideshow.advance_forward(20000, false, true, false);
   assert(!state.active_slot_displayed);
   assert(state.portrait.workflow_busy);
   assert(state.portrait.right_requested);
   assert(state.current_display.asset_id == "previous-landscape");
   assert(!slideshow.pop_command(cmd));
-  slideshow.on_portrait_right_finished(state.portrait);
+  slideshow.on_portrait_download_finished(EspFrameSlideshow::PortraitSide::RIGHT);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_DISPLAY_PORTRAIT_PAIR);
 
   // Completions arriving after rejection cannot resurrect an abandoned pair.
   slideshow.reject_portrait_slot(21000, 1);
   slideshow.clear_commands();
-  assert(!slideshow.request_portrait_left_update(state.portrait));
-  assert(!slideshow.request_portrait_right_update(state.portrait));
-  slideshow.on_portrait_left_finished(state.portrait);
-  slideshow.on_portrait_right_finished(state.portrait);
+  assert(!slideshow.request_portrait_update(EspFrameSlideshow::PortraitSide::LEFT));
+  assert(!slideshow.request_portrait_update(EspFrameSlideshow::PortraitSide::RIGHT));
+  slideshow.on_portrait_download_finished(EspFrameSlideshow::PortraitSide::LEFT);
+  slideshow.on_portrait_download_finished(EspFrameSlideshow::PortraitSide::RIGHT);
   assert(!state.portrait.left_ready && !state.portrait.right_ready);
   assert(!slideshow.pop_command(cmd));
 }
 
 static void test_slideshow_component_display_current_flow() {
   EspFrameSlideshow slideshow;
-  SlotMeta slot0 = make_slot("landscape", false);
-  SlotMeta slot1 = make_slot("portrait", true);
-  SlotMeta slot2 = make_slot("slot2", false);
-  PortraitState portrait;
-  bool displayed = false;
+  auto &state = slideshow.state();
+  state.slot0 = make_slot("landscape", false);
+  state.slot1 = make_slot("portrait", true);
 
-  DisplayMeta current;
-  bool pair = slideshow.begin_display_current(0, slot0, slot1, slot2, portrait, true, displayed, current);
-  assert(!pair);
-  assert(displayed);
-  assert(!portrait.workflow_busy);
+  assert(!slideshow.begin_display_current(true));
+  assert(state.active_slot_displayed);
+  assert(state.current_display.asset_id == "landscape");
+  assert(!state.portrait.workflow_busy);
 
-  displayed = false;
-  portrait = PortraitState{};
-  portrait.workflow_busy = true;
-  int preload_slot = 1;
-  pair = slideshow.begin_display_current(1, slot0, slot1, slot2, portrait, true, displayed, current);
-  assert(pair);
-  assert(!displayed);
-  slideshow.after_display_current(1, slot0, slot1, slot2, portrait, true, displayed,
-                                  preload_slot, true, true);
-  assert(!displayed);
-  assert(portrait.is_pair);
-  assert(portrait.using_preload);
+  state.active_slot = 1;
+  state.active_slot_displayed = false;
+  state.portrait.workflow_busy = true;
+  auto &preload_slot = state.portrait_preload_slot;
+  preload_slot = 1;
+  state.portrait_preload_left_ready = state.portrait_preload_right_ready = true;
+  assert(slideshow.begin_display_current(true));
+  assert(!state.active_slot_displayed);
+  slideshow.after_display_current(true);
+  assert(!state.active_slot_displayed);
+  assert(state.portrait.is_pair);
+  assert(state.portrait.using_preload);
   assert(preload_slot == 1);
   SlideshowCommand cmd;
   assert(slideshow.pop_command(cmd));
@@ -1754,10 +1700,13 @@ static void test_slideshow_component_paired_only_flow() {
   SlotMeta slot0 = make_slot("unpaired", true);
   SlotMeta slot1 = make_slot("slot1", false);
   SlotMeta slot2 = make_slot("slot2", false);
-  slideshow.handle_companion_not_found(
-      portrait, companion_url, 0, 0, slot0, slot1, slot2, displayed, true);
-  assert(!displayed);
-  assert(!portrait.workflow_busy);
+  state.portrait = portrait;
+  state.slot0 = slot0;
+  state.active_slot = state.companion_target_slot = 0;
+  state.active_slot_displayed = false;
+  slideshow.handle_companion_not_found(true);
+  assert(!state.active_slot_displayed);
+  assert(!state.portrait.workflow_busy);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT);
   assert(cmd.slot == 0);
@@ -1766,7 +1715,13 @@ static void test_slideshow_component_paired_only_flow() {
   portrait = PortraitState{};
   portrait.workflow_busy = true;
   std::string reason;
-  slideshow.on_portrait_right_error(portrait, reason, displayed, true);
+  slideshow.state().portrait = portrait;
+  slideshow.state().active_slot_displayed = displayed;
+  slideshow.state().portrait.right_requested = true;
+  slideshow.on_portrait_download_error(EspFrameSlideshow::PortraitSide::RIGHT, true);
+  portrait = slideshow.state().portrait;
+  displayed = slideshow.state().active_slot_displayed;
+  reason = slideshow.state().diagnostic_reason;
   assert(!displayed);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_LOG_DIAG);
@@ -1774,22 +1729,15 @@ static void test_slideshow_component_paired_only_flow() {
   assert(cmd.kind == SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT);
 
   slideshow.clear_commands();
-  int active_slot = 0;
-  int target_slot = 0;
-  uint32_t last_advance = 0;
-  DisplayMeta current;
-  DisplayMeta previous;
-  SlotFlags flags;
-  int noncritical_count = 0;
-  portrait = PortraitState{};
-  portrait.workflow_busy = true;
-  slot0.ready = true;
-  slideshow.advance_forward(
-      7000, false, active_slot, target_slot, displayed, last_advance,
-      slot0, slot1, slot2, current, previous, portrait, flags, noncritical_count,
-      true, true, -1, false, false, reason);
-  assert(!displayed);
-  assert(!portrait.workflow_busy);
+  state.active_slot = 0;
+  state.active_slot_displayed = false;
+  state.portrait = PortraitState{};
+  state.portrait.workflow_busy = true;
+  state.slot0 = slot0;
+  state.slot0.ready = true;
+  slideshow.advance_forward(7000, false, true, true);
+  assert(!state.active_slot_displayed);
+  assert(!state.portrait.workflow_busy);
   assert(slideshow.pop_command(cmd));
   assert(cmd.kind == SLIDESHOW_COMMAND_REJECT_PORTRAIT_SLOT);
   assert(cmd.slot == 0);
@@ -1829,24 +1777,12 @@ static void test_slideshow_component_paired_only_flow() {
   slideshow.reject_portrait_slot(8000, 1);
   assert(!slideshow.portrait_search_response_is_current());
 
-  SlotMeta stale0 = make_slot("stale0", true);
-  SlotMeta stale1 = make_slot("stale1", true);
-  SlotMeta stale2 = make_slot("stale2", true);
-  PortraitState stale_portrait;
-  std::string stale_url;
-  bool stale_displayed = false;
-  bool stale_handled = slideshow.on_companion_found(
-      "https://example.test/stale", stale_portrait, stale_url, -1, 0,
-      stale0, stale1, stale2, state.portrait_preload_slot,
-      state.portrait_preload_left_ready, state.portrait_preload_right_ready);
-  assert(!stale_handled);
-  assert(stale2.companion_url.empty());
+  assert(!slideshow.on_companion_found("https://example.test/stale"));
+  assert(state.slot1.companion_url.empty());
   slideshow.clear_commands();
-  slideshow.handle_companion_not_found(
-      stale_portrait, stale_url, -1, 0, stale0, stale1, stale2,
-      stale_displayed, true);
+  slideshow.handle_companion_not_found(true);
   assert(!slideshow.has_command());
-  assert(stale2.companion_url.empty());
+  assert(state.slot1.companion_url.empty());
 }
 
 static void test_configuration_contract_capabilities() {
@@ -1878,7 +1814,21 @@ static void test_filter_invalidation_preserves_display_and_clears_work() {
   auto &state = slideshow.state();
   state.active_slot = 1;
   state.target_slot = 2;
+  slideshow.capture_deferred_fetch_target();
+  state.target_slot = 0;
+  assert(slideshow.claim_deferred_fetch(false) && state.target_slot == 2);
+  assert(!slideshow.claim_deferred_fetch(false));
+  slideshow.capture_deferred_fetch_target();
+  state.rejected_fetch_target = 0;
+  assert(state.fetch_queue.enqueue(FETCH_JOB_SLOT, 0, 1, 100));
   state.active_slot_displayed = true;
+  state.portrait.left_requested = true;
+  state.portrait.right_requested = true;
+  state.portrait.workflow_busy = true;
+  state.companion_target_slot = 2;
+  slideshow.mark_portrait_search_request_started();
+  assert(slideshow.portrait_search_response_is_current());
+  slideshow.emit_command(SLIDESHOW_COMMAND_START_PORTRAIT_RIGHT);
   state.current_display.asset_id = "visible-photo";
   state.current_display.valid = true;
   state.previous_display.asset_id = "old-filter-photo";
@@ -1888,12 +1838,24 @@ static void test_filter_invalidation_preserves_display_and_clears_work() {
   state.preload_noncritical_in_flight = true;
   state.noncritical_remote_updates_in_flight = 3;
   for (int slot = 0; slot < 3; ++slot) {
+    state.slot(slot) = make_slot("old-filter-asset", false);
     state.slot(slot).ready = true;
     state.slot_flags.fetch_in_flight[slot] = true;
     state.slot_flags.fetch_started_ms[slot] = 1234;
     state.slot_flags.noncritical_update[slot] = true;
   }
   slideshow.invalidate_filter_slots();
+  assert(state.fetch_queue.empty());
+  assert(!slideshow.claim_deferred_fetch(false));
+  assert(!slideshow.claim_deferred_fetch(true));
+  assert(slideshow.on_slot_download_finished(1, true) == SLIDESHOW_ACTION_NONE);
+  slideshow.on_slot_download_error(2, "late error");
+  assert(!slideshow.request_deferred_slot_update(2));
+  slideshow.on_portrait_download_finished(EspFrameSlideshow::PortraitSide::LEFT);
+  slideshow.on_portrait_download_error(EspFrameSlideshow::PortraitSide::RIGHT, false);
+  assert(!slideshow.has_command());
+  assert(!slideshow.portrait_search_response_is_current());
+  assert(!state.portrait.workflow_busy);
   assert(state.active_slot == 1 && state.target_slot == 1);
   assert(!state.active_slot_displayed);
   assert(state.current_display.valid && state.current_display.asset_id == "visible-photo");
