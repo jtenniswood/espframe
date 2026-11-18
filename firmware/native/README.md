@@ -1,9 +1,10 @@
 # Native Immich player prototype
 
 This standalone ESP-IDF app exercises the photo gesture on the Guition
-JC8012P4A1. A background task keeps two slides behind and up to three ahead
-in memory as panel-ready pixels. Drag either way, release a short drag,
-flick, or press again to take over a moving slide.
+JC8012P4A1. A background task keeps up to three slides in the direction of
+travel and two in the other direction in memory as panel-ready pixels.
+Drag either way, release a short drag, flick, or press again to take over a
+moving slide.
 
 With no settings provisioned, it starts on slide three in a sequence of local
 fixtures and works offline. It uses the matching panel initialization sequence
@@ -68,6 +69,12 @@ c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
 c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
   firmware/native/tests/slide_cache_test.cpp -o /tmp/espframe-slide-cache-test
 /tmp/espframe-slide-cache-test
+c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+  firmware/native/tests/photo_history_test.cpp -o /tmp/espframe-photo-history-test
+/tmp/espframe-photo-history-test
+c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/stubs \
+  firmware/native/tests/recent_previews_test.cpp -o /tmp/espframe-recent-previews-test
+/tmp/espframe-recent-previews-test
 python3 firmware/native/tests/test_preview_decoder.py
 node firmware/native/tests/serial_setup_test.mjs
 ```
@@ -92,8 +99,10 @@ plaintext. Keep it private and remove it after provisioning. The player shows a
 local scene until the first preview is ready, then starts the slideshow. It
 loads additional photos directly from Immich and advances every 15 seconds
 when a new slide is ready. It keeps the current photo visible during a network
-failure. This build uses a random image feed and retains up to 1,999 positions
-per boot, with a fitted single image per position.
+failure. The random feed continues as new previews become available. It
+remembers the last 128 photo positions per session. It can decode up to
+16 recent previews from a 2 MiB memory cache while offline, depending on
+the sizes of the previews and available PSRAM. Older previews need Wi-Fi.
 
 ## Test on the frame
 

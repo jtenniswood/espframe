@@ -1,5 +1,7 @@
 #pragma once
 
+#include "photo_history.h"
+#include "recent_previews.h"
 #include "settings.h"
 
 #include "esp_event.h"
@@ -19,14 +21,12 @@ namespace espframe::native {
 // after startup, including the HTTP client and per-session photo order.
 class ImmichSource {
  public:
-  static constexpr int slide_limit = 2'000;
-
   bool read_settings();
-  bool prepare(int slide, uint16_t *panel);
+  bool prepare(SlideIndex slide, uint16_t *panel);
+  SlideIndex first_slide() const { return this->history_.first(); }
   uint16_t slide_seconds() const { return this->settings_.slide_seconds; }
 
  private:
-  using AssetId = std::array<char, 37>;
   enum class Request { Search, Preview };
 
   static void wifi_event_(void *argument, esp_event_base_t base, int32_t event, void *);
@@ -43,7 +43,8 @@ class ImmichSource {
   bool wifi_ready_{};
   bool sntp_started_{};
   uint8_t *encoded_{};
-  std::vector<AssetId> history_;
+  PhotoHistory history_;
+  RecentPreviews previews_;
   std::vector<AssetId> pending_;
 };
 

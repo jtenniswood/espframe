@@ -5,6 +5,8 @@
 #include <cassert>
 
 using espframe::native::Swipe;
+using espframe::native::SlideIndex;
+using espframe::native::PixelPosition;
 
 int main() {
   constexpr int width = 1280;
@@ -100,6 +102,31 @@ int main() {
   assert(!autoplay.advance(start + 40'000));
   autoplay.tick(start + 500'000);
   assert(autoplay.settled() == 1 && !autoplay.advance(start + 1'000'000));
+
+  constexpr SlideIndex far = 3'000'000'000;
+  constexpr PixelPosition far_pixels = far * width;
+  Swipe long_running{width, far + 5, far};
+  long_running.set_ready_range(far - 1, far + 1);
+  assert(long_running.position() == far_pixels);
+  long_running.press(600, 300, far_pixels, start);
+  long_running.move(569, 300, start + 30'000);
+  assert(long_running.position() == far_pixels + 31);
+  long_running.move(568, 300, start + 60'000);
+  assert(long_running.position() == far_pixels + 32);
+  long_running.move(635, 300, start + 70'000);
+  assert(long_running.position() == far_pixels - 35);
+  long_running.release(start + 300'000);
+  long_running.tick(start + 600'000);
+  assert(long_running.position() == far_pixels);
+  assert(long_running.advance(start + 700'000));
+  long_running.tick(start + 730'000);
+  const auto moving = long_running.position();
+  assert(moving > far_pixels && moving < far_pixels + width);
+  long_running.press(500, 300, moving, start + 730'000);
+  assert(long_running.position() == moving);
+  long_running.release(start + 750'000);
+  long_running.tick(start + 1'000'000);
+  assert(long_running.position() == far_pixels + width && long_running.settled() == far + 1);
 
   const std::array<uint16_t, 6> left{0, 1, 2, 3, 4, 5};
   const std::array<uint16_t, 6> right{6, 7, 8, 9, 10, 11};

@@ -37,6 +37,12 @@ jobs:
           c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
             firmware/native/tests/slide_cache_test.cpp -o "$RUNNER_TEMP/slide-cache-test"
           "$RUNNER_TEMP/slide-cache-test"
+          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+            firmware/native/tests/photo_history_test.cpp -o "$RUNNER_TEMP/photo-history-test"
+          "$RUNNER_TEMP/photo-history-test"
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/stubs \
+            firmware/native/tests/recent_previews_test.cpp -o "$RUNNER_TEMP/recent-previews-test"
+          "$RUNNER_TEMP/recent-previews-test"
           python3 firmware/native/tests/test_preview_decoder.py
       - name: Build native factory binary
         run: |

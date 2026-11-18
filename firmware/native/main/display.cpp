@@ -141,7 +141,7 @@ uint16_t *Display::writable_buffer() {
   return this->pending_ ? nullptr : this->buffers_[this->front_ ^ 1];
 }
 
-void Display::submit(int position) {
+void Display::submit(PixelPosition position) {
   ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(this->panel_, 0, 0, panel_width, panel_height, this->writable_buffer()));
   // Observe a boundary after the submission so the old front buffer cannot
   // be reused while the panel could still be scanning it.

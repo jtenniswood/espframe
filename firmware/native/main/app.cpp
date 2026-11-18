@@ -18,6 +18,7 @@
 #include <cinttypes>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 
 namespace espframe::native {
 namespace {
@@ -162,6 +163,7 @@ class SlideLoader {
  public:
   struct Completion {
     SlideCache::Lease lease;
+    SlideIndex first_photo;
     bool ready;
   };
 
@@ -201,7 +203,7 @@ class SlideLoader {
         if (!decode_photo(photos[fixture], lease.pixels, decoder))
           draw_test_slide(lease.pixels, fixture);
       }
-      const Completion completion{lease, ready};
+      const Completion completion{lease, loader.source_.first_slide(), ready};
       xQueueSend(loader.completed_, &completion, portMAX_DELAY);
     }
   }
@@ -218,7 +220,7 @@ void run() {
   loader.start();
   start_usb_setup();
   const bool live = loader.live();
-  const int slide_count = live ? ImmichSource::slide_limit : fixture_slides;
+  const SlideIndex slide_count = live ? std::numeric_limits<PixelPosition>::max() / slide_width : fixture_slides;
   static Display display;
   display.init();
   Touch touch;
@@ -231,11 +233,18 @@ void run() {
   int64_t next_sample_us = 0;
   int64_t first_motion_us = 0;
   int64_t submitted_motion_us = 0;
-  int last_submitted = -1;
+  PixelPosition last_submitted = -1;
   bool lit = false;
   bool preparing = false;
   int64_t next_advance_us = 0;
-  std::array<int64_t, SlideCache::capacity> retry_until{};
+  SlideIndex first_photo = 1;
+  SlideIndex previous_center = swipe.settled();
+  int direction = 1;
+  struct Retry {
+    SlideIndex slide{};
+    int64_t until{};
+  };
+  std::array<Retry, SlideCache::capacity> retries{};
 
   while (true) {
     auto now = esp_timer_get_time();
@@ -254,14 +263,23 @@ void run() {
     SlideLoader::Completion completion{};
     if (loader.poll(completion)) {
       ESP_ERROR_CHECK(cache.complete(completion.lease, completion.ready) ? ESP_OK : ESP_ERR_INVALID_STATE);
-      retry_until[completion.lease.slide % retry_until.size()] = completion.ready ? 0 : now + 2'000'000;
+      const auto slide = completion.lease.slide;
+      retries[slide % retries.size()] = {slide, completion.ready ? 0 : now + 2'000'000};
+      first_photo = completion.first_photo;
       preparing = false;
     }
-    const int center = swipe.settled();
-    const int keep_first = std::max(live && center > 0 ? 1 : 0, center - 2);
-    const int keep_last = std::min(slide_count - 1, center + 3);
-    int ready_first = center;
-    int ready_last = center;
+    const auto center = swipe.settled();
+    if (center != previous_center) {
+      direction = center > previous_center ? 1 : -1;
+      previous_center = center;
+    }
+    // The boot scene may still be visible while the first photo's final frame
+    // is pending. Keep its pixels available if the user interrupts that swap.
+    const SlideIndex first = live && display.presented_position() >= slide_width ? first_photo : 0;
+    const auto keep_first = std::max(first, center - (direction < 0 ? 3 : 2));
+    const auto keep_last = std::min(slide_count - 1, center + (direction > 0 ? 3 : 2));
+    auto ready_first = center;
+    auto ready_last = center;
     while (ready_first > keep_first && cache.find(ready_first - 1) != nullptr)
       --ready_first;
     while (ready_last < keep_last && cache.find(ready_last + 1) != nullptr)
@@ -270,9 +288,11 @@ void run() {
 
     if (!preparing) {
       for (const int offset : {0, 1, -1, 2, -2, 3}) {
-        const int candidate = center + offset;
-        if (candidate < keep_first || candidate > keep_last ||
-            now < retry_until[candidate % retry_until.size()])
+        const auto candidate = center + direction * offset;
+        if (candidate < keep_first || candidate > keep_last)
+          continue;
+        const auto &retry = retries[candidate % retries.size()];
+        if (retry.slide == candidate && now < retry.until)
           continue;
         if (const auto lease = cache.reserve(candidate, keep_first, keep_last)) {
           loader.submit(*lease);
@@ -313,7 +333,7 @@ void run() {
           next_advance_us = now + loader.slide_interval_us();
           const bool was_dragging = swipe.dragging();
           swipe.move(sample.x, sample.y, now);
-          if (!was_dragging && swipe.dragging() && std::lround(swipe.position()) != display.presented_position())
+          if (!was_dragging && swipe.dragging() && swipe.position() != display.presented_position())
             first_motion_us = now;
         }
       }
@@ -322,9 +342,9 @@ void run() {
     if (live && lit && !touch_down && !wait_for_release && now >= next_advance_us && swipe.advance(now))
       next_advance_us = now + loader.slide_interval_us();
     swipe.tick(now);
-    const int position = static_cast<int>(std::lround(swipe.position()));
+    const auto position = swipe.position();
     if (auto *output = display.writable_buffer(); output != nullptr && position != last_submitted) {
-      const int index = position / slide_width;
+      const auto index = position / slide_width;
       const int offset = position % slide_width;
       const auto *left = cache.find(index);
       const auto *right = offset == 0 ? nullptr : cache.find(index + 1);

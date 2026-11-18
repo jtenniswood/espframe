@@ -1,5 +1,7 @@
 #pragma once
 
+#include "slide_geometry.h"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -16,14 +18,14 @@ class SlideCache {
 
   struct Lease {
     uint16_t *pixels;
-    int slide;
+    SlideIndex slide;
     size_t slot;
     uint32_t ticket;
   };
 
   explicit SlideCache(const Buffers &buffers) : buffers_(buffers) {}
 
-  const uint16_t *find(int slide) const {
+  const uint16_t *find(SlideIndex slide) const {
     for (size_t index = 0; index < capacity; ++index) {
       const auto &entry = this->entries_[index];
       if (entry.state == State::Ready && entry.slide == slide)
@@ -32,7 +34,7 @@ class SlideCache {
     return nullptr;
   }
 
-  std::optional<Lease> reserve(int slide, int keep_first, int keep_last) {
+  std::optional<Lease> reserve(SlideIndex slide, SlideIndex keep_first, SlideIndex keep_last) {
     size_t available = capacity;
     for (size_t index = 0; index < capacity; ++index) {
       const auto &entry = this->entries_[index];
@@ -65,7 +67,7 @@ class SlideCache {
   enum class State { Empty, Preparing, Ready };
   struct Entry {
     State state{State::Empty};
-    int slide{};
+    SlideIndex slide{};
     uint32_t ticket{};
   };
 

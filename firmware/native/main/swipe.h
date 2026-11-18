@@ -1,5 +1,7 @@
 #pragma once
 
+#include "slide_geometry.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -8,25 +10,29 @@ namespace espframe::native {
 
 class Swipe {
  public:
-  Swipe(int width, int slide_count, int initial_slide)
-      : width_(width), last_(slide_count - 1), ready_last_(last_), position_(static_cast<float>(initial_slide * width)),
-        settled_(initial_slide), target_(initial_slide) {}
+  Swipe(int width, SlideIndex slide_count, SlideIndex initial_slide)
+      : width_(width), ready_last_(slide_count - 1), settled_(initial_slide), target_(initial_slide) {}
 
-  float position() const { return this->position_; }
-  int settled() const { return this->settled_; }
+  PixelPosition position() const {
+    return this->settled_ * this->width_ + static_cast<PixelPosition>(std::floor(this->offset_ + 0.5f));
+  }
+  SlideIndex settled() const { return this->settled_; }
   bool dragging() const { return this->phase_ == Phase::Dragging; }
   bool settling() const { return this->phase_ == Phase::Settling; }
 
-  void set_ready_range(int first, int last) {
+  void set_ready_range(SlideIndex first, SlideIndex last) {
     this->ready_first_ = first;
     this->ready_last_ = last;
   }
 
-  void press(int x, int y, int presented_position, int64_t now_us) {
+  void press(int x, int y, PixelPosition presented_position, int64_t now_us) {
     this->resume_ = this->target_;
-    this->position_ = static_cast<float>(presented_position);
-    this->origin_position_ = this->position_;
-    this->origin_slide_ = this->nearest_slide_(this->position_);
+    this->offset_ = static_cast<float>(presented_position - this->settled_ * this->width_);
+    this->origin_offset_ = this->offset_;
+    // Use the original rounding rule at a slide boundary, including when a
+    // touch takes over the last frame of an animation in the other direction.
+    const auto nearest = (presented_position + this->width_ / 2) / this->width_;
+    this->origin_slide_ = std::clamp(nearest, this->ready_first_, this->ready_last_);
     this->origin_x_ = x;
     this->origin_y_ = y;
     this->last_x_ = x;
@@ -58,9 +64,9 @@ class Swipe {
       this->last_motion_us_ = now_us;
       this->last_x_ = x;
     }
-    this->position_ = std::clamp(this->origin_position_ + this->origin_x_ - x,
-                                 static_cast<float>(this->minimum_slide_() * this->width_),
-                                 static_cast<float>(this->maximum_slide_() * this->width_));
+    this->offset_ = std::clamp(this->origin_offset_ + this->origin_x_ - x,
+                               this->slide_offset_(this->minimum_slide_()),
+                               this->slide_offset_(this->maximum_slide_()));
   }
 
   void release(int64_t now_us) {
@@ -74,8 +80,8 @@ class Swipe {
     const float velocity = now_us - this->last_motion_us_ < 85'000
                                ? std::clamp(this->velocity_, -3.0f, 3.0f)
                                : 0.0f;
-    const float projected = this->position_ + velocity * 170.0f;
-    const float from_center = projected - this->origin_slide_ * this->width_;
+    const float projected = this->offset_ + velocity * 170.0f;
+    const float from_center = projected - this->slide_offset_(this->origin_slide_);
     const float threshold = this->width_ * 0.30f;
     int direction = 0;
     if (from_center >= threshold)
@@ -106,33 +112,34 @@ class Swipe {
     const float t = std::clamp(static_cast<float>(now_us - this->settle_us_) / this->duration_us_,
                                0.0f, 1.0f);
     const float inverse = 1.0f - t;
-    const float end = static_cast<float>(this->target_ * this->width_);
-    this->position_ = end + (this->settle_from_ - end) * inverse * inverse * inverse;
-    if (t == 1.0f) {
-      this->settled_ = this->target_;
-      this->phase_ = Phase::Idle;
-    }
+    const float end = this->slide_offset_(this->target_);
+    this->offset_ = end + (this->settle_from_ - end) * inverse * inverse * inverse;
+    if (t == 1.0f)
+      this->finish_settle_();
   }
 
  private:
   enum class Phase { Idle, Tracking, Ignored, Dragging, Settling };
 
-  int nearest_slide_(float pixels) const {
-    return std::clamp(static_cast<int>(std::lround(pixels / this->width_)), 0, this->last_);
+  // Animation arithmetic stays near zero even after millions of photos.
+  float slide_offset_(SlideIndex slide) const { return static_cast<float>((slide - this->settled_) * this->width_); }
+
+  SlideIndex minimum_slide_() const { return std::max(this->ready_first_, this->origin_slide_ - 1); }
+  SlideIndex maximum_slide_() const { return std::min(this->ready_last_, this->origin_slide_ + 1); }
+
+  void finish_settle_() {
+    this->settled_ = this->target_;
+    this->offset_ = 0;
+    this->phase_ = Phase::Idle;
   }
 
-  int minimum_slide_() const { return std::max(this->ready_first_, this->origin_slide_ - 1); }
-  int maximum_slide_() const { return std::min(this->ready_last_, this->origin_slide_ + 1); }
-
-  void settle_to_(int slide, int64_t now_us) {
+  void settle_to_(SlideIndex slide, int64_t now_us) {
     this->target_ = slide;
-    this->settle_from_ = this->position_;
+    this->settle_from_ = this->offset_;
     this->settle_us_ = now_us;
-    const float distance = std::abs(this->position_ - slide * this->width_);
+    const float distance = std::abs(this->offset_ - this->slide_offset_(slide));
     if (distance < 0.5f) {
-      this->position_ = static_cast<float>(slide * this->width_);
-      this->settled_ = slide;
-      this->phase_ = Phase::Idle;
+      this->finish_settle_();
       return;
     }
     this->duration_us_ = 120'000.0f + 100'000.0f * std::min(distance / this->width_, 1.0f);
@@ -140,19 +147,18 @@ class Swipe {
   }
 
   int width_;
-  int last_;
-  int ready_first_{};
-  int ready_last_;
-  float position_;
-  int settled_;
-  int target_;
+  SlideIndex ready_first_{};
+  SlideIndex ready_last_;
+  float offset_{};
+  SlideIndex settled_;
+  SlideIndex target_;
   Phase phase_{Phase::Idle};
-  int resume_{};
-  int origin_slide_{};
+  SlideIndex resume_{};
+  SlideIndex origin_slide_{};
   int origin_x_{};
   int origin_y_{};
   int last_x_{};
-  float origin_position_{};
+  float origin_offset_{};
   float velocity_{};
   int64_t last_motion_us_{};
   float settle_from_{};

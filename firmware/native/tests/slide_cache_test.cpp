@@ -45,4 +45,11 @@ int main() {
   assert(pending);
   assert(!cache.reserve(8, 2, 6));
   assert(cache.complete(*pending, true));
+
+  // Reversing direction shifts the extra prefetch slot behind the current
+  // photo. Keep both adjacent slides readable during that refill.
+  auto reversed = cache.reserve(1, 1, 6);
+  assert(reversed && cache.find(7) == nullptr);
+  assert(cache.find(3) && cache.find(4) && cache.find(5));
+  assert(cache.complete(*reversed, true));
 }

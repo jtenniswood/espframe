@@ -204,9 +204,8 @@ bool ImmichSource::refill_() {
       break;
   }
   // Prefer fresh results without stalling a library smaller than one batch.
-  const auto cutoff = this->history_.end() - std::min<size_t>(this->history_.size(), batch_size);
   std::stable_partition(this->pending_.begin(), this->pending_.end(), [&](const AssetId &id) {
-    return std::find(cutoff, this->history_.end(), id) != this->history_.end();
+    return this->history_.recently_seen(id, batch_size);
   });
   return !this->pending_.empty();
 }
@@ -219,20 +218,34 @@ bool ImmichSource::next_asset_(AssetId &id) {
   return true;
 }
 
-bool ImmichSource::prepare(int slide, uint16_t *panel) {
-  const size_t index = slide - 1;
-  if (index > this->history_.size() || !this->online_())
+bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
+  const bool new_position = slide == this->history_.next();
+  auto *existing = this->history_.find(slide);
+  if (!new_position && existing == nullptr)
+    return false;
+  if (existing != nullptr && (*existing)[0] != '\0') {
+    const auto cached = this->previews_.find(*existing);
+    if (!cached.empty()) {
+      const auto decode_us = esp_timer_get_time();
+      if (decode_preview(cached.data(), cached.size(), panel)) {
+        ESP_LOGI(tag, "Slide %" PRId64 " prepared from memory, preview_bytes=%zu decode_us=%" PRId64,
+                 slide, cached.size(), esp_timer_get_time() - decode_us);
+        return true;
+      }
+      this->previews_.discard(*existing);
+    }
+  }
+  if (!this->online_())
     return false;
   if (this->encoded_ == nullptr) {
     this->encoded_ = static_cast<uint8_t *>(heap_caps_malloc(photo_capacity, MALLOC_CAP_SPIRAM));
     if (this->encoded_ == nullptr)
       return false;
   }
-  const bool new_position = index == this->history_.size();
-  const bool remembered = !new_position && this->history_[index][0] != '\0';
+  const bool remembered = existing != nullptr && (*existing)[0] != '\0';
   AssetId id{};
   if (remembered)
-    id = this->history_[index];
+    id = *existing;
   else if (!this->next_asset_(id))
     return false;
 
@@ -242,11 +255,12 @@ bool ImmichSource::prepare(int slide, uint16_t *panel) {
   const auto decode_us = esp_timer_get_time();
   const bool ready = status == 200 && decode_preview(this->encoded_, length, panel);
   if (ready) {
+    this->previews_.remember(id, {this->encoded_, length});
     if (new_position)
-      this->history_.push_back(id);
+      this->history_.append(id);
     else if (!remembered)
-      this->history_[index] = id;
-    ESP_LOGI(tag, "Slide %d prepared, preview_bytes=%zu fetch_us=%" PRId64 " decode_us=%" PRId64,
+      *existing = id;
+    ESP_LOGI(tag, "Slide %" PRId64 " prepared, preview_bytes=%zu fetch_us=%" PRId64 " decode_us=%" PRId64,
              slide, length, decode_us - request_us, esp_timer_get_time() - decode_us);
     return true;
   }
@@ -256,7 +270,7 @@ bool ImmichSource::prepare(int slide, uint16_t *panel) {
     if (remembered) {
       // A photo from history may disappear from Immich after eviction.
       // Fill that position with another real photo on its next attempt.
-      this->history_[index] = {};
+      *existing = {};
     }
   } else if (!remembered) {
     this->pending_.push_back(id);
