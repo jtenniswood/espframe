@@ -38,12 +38,13 @@ python3 -m http.server 8080 --bind 127.0.0.1
 ```
 
 Open <http://localhost:8080> in desktop Chrome or Edge. Select the frame
-revision and install the firmware. Close the installer dialog when it
-finishes, then enter your Wi-Fi and Immich settings and select the frame's
-USB port. The browser sends settings directly over USB and the frame
-restarts when it saves them. Leave USB connected and choose **Find frame
-on Wi-Fi** after it restarts. If you set a web settings password, the
-installer links to the frame’s settings page once it is ready.
+revision and install the firmware. In the installer dialog, connect Wi-Fi
+using Improv Serial. The frame saves the credentials after it joins and
+gets an IPv4 address. Close the dialog, select **Use Wi-Fi already saved
+on the frame**, and enter your Immich settings. You can also enter Wi-Fi
+and Immich together in the page's USB form. Select the frame's USB port
+to save. After it restarts, **Find frame on Wi-Fi** shows its address and
+links to the settings page if you set a web settings password.
 
 When upgrading an existing frame, export an Espframe settings backup from
 its web page before installation. In the native installer, choose that
@@ -273,6 +274,12 @@ that the frame is waiting. After reconnecting, check that it links to the
 frame’s current address. Test with a syntactically valid but unusable Immich
 configuration as well, so browser setup remains accessible before playback
 works.
+
+On a fresh native install, use the browser dialog to scan and join Wi-Fi
+before entering any Immich settings. Restart and check that **Find frame
+on Wi-Fi** reports the address. Complete Immich setup with the saved Wi-Fi
+option. On a configured frame, also try an invalid Wi-Fi password in the
+Improv dialog and check that the previous connection recovers.
 
 ### Collect and compare performance traces
 

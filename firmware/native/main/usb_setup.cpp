@@ -1,5 +1,6 @@
 #include "usb_setup.h"
 
+#include "improv_serial.h"
 #include "native_network.h"
 #include "settings.h"
 
@@ -60,7 +61,8 @@ void report_address(const NativeNetwork &network, std::string_view challenge) {
 }
 
 void listen(void *context) {
-  const auto &network = *static_cast<const NativeNetwork *>(context);
+  auto &network = *static_cast<NativeNetwork *>(context);
+  ImprovSerial improv(network);
   std::array<char, Settings::max_json_size + 96> line;
   std::array<char, 128> chunk;
   std::string challenge;
@@ -69,8 +71,12 @@ void listen(void *context) {
   bool overflow = false;
   while (true) {
     const int read = uart_read_bytes(uart, chunk.data(), chunk.size(), pdMS_TO_TICKS(100));
+    const auto now = esp_timer_get_time();
+    improv.poll(now);
     for (int index = 0; index < read; ++index) {
       const char byte = chunk[index];
+      if (improv.consume(static_cast<uint8_t>(byte), length == 0, now))
+        continue;
       if (byte != '\n') {
         if (length == line.size() - 1)
           overflow = true;
@@ -104,7 +110,7 @@ void listen(void *context) {
       if (!command.starts_with(challenge) || command.size() <= challenge.size() || command[challenge.size()] != ' ')
         continue;
       command.remove_prefix(challenge.size() + 1);
-      if (!Settings::save(command.data())) {
+      if (improv.busy() || !Settings::save(command.data())) {
         reply("REJECTED", challenge);
         challenge.clear();
         continue;

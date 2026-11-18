@@ -28,7 +28,7 @@ esp_err_t nvs_open_from_partition(const char *partition, const char *name, int m
 esp_err_t nvs_get_str(nvs_handle_t, const char *key, char *out, size_t *size) {
   auto value = stored.find(key);
   if (value == stored.end())
-    return 1;
+    return ESP_ERR_NVS_NOT_FOUND;
   if (out != nullptr) {
     assert(*size >= value->second.size() + 1);
     std::memcpy(out, value->second.c_str(), value->second.size() + 1);
@@ -160,4 +160,24 @@ int main() {
   assert(current.portrait_pairing);
   assert(current.photo_source.mode == PhotoSourceMode::Library && current.photo_source.album_id.empty());
   assert(current.display_mode == DisplayMode::Fit);
+
+  const auto new_wifi = espframe::native::WifiCredentials::from("New Wi-Fi", "New secret");
+  assert(new_wifi);
+  stored.clear();
+  assert(!Settings::save(R"({"immich_url":"http://photos.test","immich_key":"test-key"})"));
+  assert(!Settings::save(R"({"ssid":"Lab","password":"","immich_url":"","immich_key":""})"));
+  assert(Settings::save_wifi(*new_wifi));
+  assert(current.read() && current.ssid == "New Wi-Fi" && current.password == "New secret" && !current.has_immich());
+  assert(!Settings::save(R"({"ssid":"Another Wi-Fi","immich_url":"http://photos.test","immich_key":"test-key"})"));
+  assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"test-key",
+                            "slide_seconds":25,"screen_rotation":"180","web_password":"only-settings"})"));
+  assert(current.read() && current.ssid == "New Wi-Fi" && current.has_immich());
+  const auto replacement_wifi = espframe::native::WifiCredentials::from("Different Wi-Fi", "");
+  assert(replacement_wifi && Settings::save_wifi(*replacement_wifi));
+  assert(current.read() && current.ssid == "Different Wi-Fi" && current.password.empty());
+  assert(current.immich_key == "test-key" && current.slide_seconds == 25 && current.web_password == "only-settings");
+  assert(current.screen_rotation == ScreenRotation::UpsideDown);
+  stored["settings_v1"] = "malformed";
+  assert(!Settings::save_wifi(*new_wifi));
+  assert(stored["settings_v1"] == "malformed");
 }

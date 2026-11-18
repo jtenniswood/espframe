@@ -27,13 +27,16 @@
     </section>
     <section aria-labelledby="connection">
       <h2 id="connection">Connect Wi-Fi and Immich</h2>
-      <p>After installation, close the installer dialog. Send your settings directly to the frame over USB.</p>
+      <p>Connect Wi-Fi in the installer dialog, then close it to send your Immich settings over USB.</p>
       <form id="settings" method="post" autocomplete="off">
         <label>Espframe settings backup <input id="backup" type="file" accept=".json,application/json" aria-describedby="backup-help"></label>
         <small id="backup-help">Optional. Load your Immich URL and playback settings. Enter credentials below.</small>
         <div id="backup-status" role="status" aria-live="polite"></div>
-        <label>Wi-Fi name <input name="ssid" maxlength="32" required></label>
-        <label>Wi-Fi password <input name="password" type="password" maxlength="64"></label>
+        <label><input id="reuse-wifi" type="checkbox" class="inline-option"> Use Wi-Fi already saved on the frame</label>
+        <div id="wifi-fields">
+          <label>Wi-Fi name <input name="ssid" maxlength="32" required></label>
+          <label>Wi-Fi password <input name="password" type="password" maxlength="64"></label>
+        </div>
         <label>Immich base URL <input name="immich_url" type="url" maxlength="256" placeholder="https://photos.example.com" required></label>
         <label>Immich API key <input name="immich_key" type="password" maxlength="256" aria-describedby="permissions" required></label>
         <small id="permissions">Use a key with asset.read and asset.view permissions.</small>

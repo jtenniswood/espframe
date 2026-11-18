@@ -6,6 +6,7 @@ using esp_err_t = int;
 using nvs_handle_t = int;
 
 inline constexpr esp_err_t ESP_OK = 0;
+inline constexpr esp_err_t ESP_ERR_NVS_NOT_FOUND = 1;
 inline constexpr int NVS_READONLY = 0;
 inline constexpr int NVS_READWRITE = 1;
 

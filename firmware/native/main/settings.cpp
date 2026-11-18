@@ -34,11 +34,15 @@ bool normalize(Settings &settings) {
   if (settings.ssid.empty() || settings.ssid.size() > 32 || settings.password.size() > 64 ||
       settings.web_password.size() > 64 || (!settings.web_password.empty() && settings.web_password.size() < 8) ||
       settings.slide_seconds < 2 || settings.slide_seconds > 86'400 ||
-      settings.immich_key.empty() || settings.immich_key.size() > 256 ||
+      settings.immich_key.size() > 256 ||
       std::any_of(settings.immich_key.begin(), settings.immich_key.end(),
                   [](unsigned char c) { return c <= 32 || c >= 127; }))
     return false;
   auto &url = settings.immich_url;
+  if (url.empty() && settings.immich_key.empty())
+    return settings.web_password.empty();
+  if (!settings.has_immich())
+    return false;
   const size_t host = url.starts_with("https://") ? 8 : url.starts_with("http://") ? 7 : 0;
   if (host == 0 || host >= url.size() || url.size() > 256 || url[host] == '/' ||
       url.find_first_of("@?#\\") != std::string::npos ||
@@ -181,31 +185,56 @@ bool read_playback(const cJSON *root, Settings &settings) {
          read_schedule(root, settings.schedule);
 }
 
-bool parse_all(const char *json, Settings &settings) {
-  const auto root = parse(json);
-  return cJSON_IsObject(root.get()) && read_field(root.get(), "ssid", settings.ssid) &&
-         read_field(root.get(), "password", settings.password) &&
-         read_field(root.get(), "immich_url", settings.immich_url) &&
-         read_field(root.get(), "immich_key", settings.immich_key) &&
-         read_field(root.get(), "web_password", settings.web_password, true) &&
-         read_playback(root.get(), settings) && normalize(settings);
+bool parse_all(const cJSON *root, Settings &settings) {
+  return cJSON_IsObject(root) && read_field(root, "ssid", settings.ssid) &&
+         read_field(root, "password", settings.password) &&
+         read_field(root, "immich_url", settings.immich_url) &&
+         read_field(root, "immich_key", settings.immich_key) &&
+         read_field(root, "web_password", settings.web_password, true) &&
+         read_playback(root, settings) && normalize(settings);
+}
+
+Json load_document(bool *may_create = nullptr) {
+  if (may_create)
+    *may_create = false;
+  if (nvs_flash_init_partition(partition) != ESP_OK)
+    return {nullptr, cJSON_Delete};
+  nvs_handle_t storage;
+  const auto opened = nvs_open_from_partition(partition, store_namespace, NVS_READONLY, &storage);
+  if (opened != ESP_OK) {
+    if (may_create)
+      *may_create = opened == ESP_ERR_NVS_NOT_FOUND;
+    return {nullptr, cJSON_Delete};
+  }
+  std::string json;
+  Json document(nullptr, cJSON_Delete);
+  if (load_string(storage, settings_key, json, Settings::max_json_size)) {
+    document = parse(json.c_str());
+  } else {
+    Settings legacy;
+    if (load_string(storage, "ssid", legacy.ssid, 32) &&
+        load_string(storage, "password", legacy.password, 64) &&
+        load_string(storage, "immich_url", legacy.immich_url, 256) &&
+        load_string(storage, "immich_key", legacy.immich_key, 256)) {
+      document.reset(cJSON_CreateObject());
+      if (!document || !cJSON_AddStringToObject(document.get(), "ssid", legacy.ssid.c_str()) ||
+          !cJSON_AddStringToObject(document.get(), "password", legacy.password.c_str()) ||
+          !cJSON_AddStringToObject(document.get(), "immich_url", legacy.immich_url.c_str()) ||
+          !cJSON_AddStringToObject(document.get(), "immich_key", legacy.immich_key.c_str()))
+        document.reset();
+    } else if (may_create) {
+      size_t size = 0;
+      *may_create = nvs_get_str(storage, settings_key, nullptr, &size) == ESP_ERR_NVS_NOT_FOUND &&
+                    nvs_get_str(storage, "ssid", nullptr, &size) == ESP_ERR_NVS_NOT_FOUND;
+    }
+  }
+  nvs_close(storage);
+  return document;
 }
 
 bool load(Settings &settings) {
-  if (nvs_flash_init_partition(partition) != ESP_OK)
-    return false;
-  nvs_handle_t storage;
-  if (nvs_open_from_partition(partition, store_namespace, NVS_READONLY, &storage) != ESP_OK)
-    return false;
-  std::string json;
-  const bool ok = load_string(storage, settings_key, json, Settings::max_json_size)
-                      ? parse_all(json.c_str(), settings)
-                      : load_string(storage, "ssid", settings.ssid, 32) &&
-                            load_string(storage, "password", settings.password, 64) &&
-                            load_string(storage, "immich_url", settings.immich_url, 256) &&
-                            load_string(storage, "immich_key", settings.immich_key, 256) && normalize(settings);
-  nvs_close(storage);
-  return ok;
+  const auto document = load_document();
+  return parse_all(document.get(), settings);
 }
 
 bool write(const char *json) {
@@ -217,6 +246,17 @@ bool write(const char *json) {
   const bool ok = nvs_set_str(storage, settings_key, json) == ESP_OK && nvs_commit(storage) == ESP_OK;
   nvs_close(storage);
   return ok;
+}
+
+bool write_document(const cJSON *document) {
+  const std::unique_ptr<char, decltype(&cJSON_free)> serialized(cJSON_PrintUnformatted(document), cJSON_free);
+  return serialized && write(serialized.get());
+}
+
+bool put_wifi(cJSON *document, const char *ssid, const char *password) {
+  cJSON_DeleteItemFromObjectCaseSensitive(document, "ssid");
+  cJSON_DeleteItemFromObjectCaseSensitive(document, "password");
+  return cJSON_AddStringToObject(document, "ssid", ssid) && cJSON_AddStringToObject(document, "password", password);
 }
 
 }  // namespace
@@ -231,9 +271,37 @@ bool Settings::read() {
 }
 
 bool Settings::save(const char *json) {
-  Settings candidate;
+  const auto document = parse(json);
+  if (!cJSON_IsObject(document.get()))
+    return false;
   const std::lock_guard lock(storage_mutex);
-  return parse_all(json, candidate) && write(json);
+  if (!cJSON_HasObjectItem(document.get(), "ssid") && !cJSON_HasObjectItem(document.get(), "password")) {
+    Settings saved;
+    if (!load(saved) || !put_wifi(document.get(), saved.ssid.c_str(), saved.password.c_str()))
+      return false;
+  }
+  Settings candidate;
+  return parse_all(document.get(), candidate) && candidate.has_immich() && write_document(document.get());
+}
+
+bool Settings::save_wifi(const WifiCredentials &wifi) {
+  if (!wifi.configured() || wifi.ssid.back() != '\0' || wifi.password.back() != '\0')
+    return false;
+  const std::lock_guard lock(storage_mutex);
+  bool may_create = false;
+  auto document = load_document(&may_create);
+  Settings existing;
+  if (!parse_all(document.get(), existing)) {
+    if (!may_create)
+      return false;
+    document.reset(cJSON_CreateObject());
+    if (!document || !cJSON_AddStringToObject(document.get(), "immich_url", "") ||
+        !cJSON_AddStringToObject(document.get(), "immich_key", ""))
+      return false;
+  }
+  Settings candidate;
+  return put_wifi(document.get(), wifi.ssid.data(), wifi.password.data()) &&
+         parse_all(document.get(), candidate) && write_document(document.get());
 }
 
 bool Settings::save_playback(const char *json) {
@@ -241,7 +309,7 @@ bool Settings::save_playback(const char *json) {
   std::string replacement_key;
   const std::lock_guard lock(storage_mutex);
   Settings settings;
-  if (!cJSON_IsObject(update.get()) || !load(settings) || settings.web_password.empty() ||
+  if (!cJSON_IsObject(update.get()) || !load(settings) || !settings.has_immich() || settings.web_password.empty() ||
       !read_field(update.get(), "immich_url", settings.immich_url) ||
       !read_field(update.get(), "immich_key", replacement_key, true) ||
       !read_playback(update.get(), settings))
@@ -270,8 +338,7 @@ bool Settings::save_playback(const char *json) {
       !cJSON_AddStringToObject(updated.get(), "clock_format", settings.clock.format.c_str()) ||
       !cJSON_AddStringToObject(updated.get(), "timezone", settings.clock.timezone.c_str()))
     return false;
-  const std::unique_ptr<char, decltype(&cJSON_free)> serialized(cJSON_PrintUnformatted(updated.get()), cJSON_free);
-  return serialized && parse_all(serialized.get(), settings) && write(serialized.get());
+  return parse_all(updated.get(), settings) && write_document(updated.get());
 }
 
 }  // namespace espframe::native

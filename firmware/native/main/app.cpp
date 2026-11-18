@@ -203,12 +203,11 @@ class SlideLoader {
   ScreenRotation rotation() const { return this->settings_.screen_rotation; }
 
   void start_network() const {
-    if (this->live_)
-      network.start(this->settings_);
+    network.start(this->settings_);
   }
 
   void start() {
-    this->live_ = this->settings_.read();
+    this->live_ = this->settings_.read() && this->settings_.has_immich();
     this->requests_ = xQueueCreate(1, sizeof(SlideCache::Lease));
     this->completed_ = xQueueCreate(1, sizeof(Completion));
     if constexpr (!trace_enabled)

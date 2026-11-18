@@ -10,12 +10,21 @@ const submit = form.querySelector('button')
 const status = document.querySelector('#status')
 const find = document.querySelector('#find-frame')
 const networkStatus = document.querySelector('#network-status')
+const reuseWifi = document.querySelector('#reuse-wifi')
+const wifiFields = document.querySelector('#wifi-fields')
 const backup = document.querySelector('#backup')
 const backupStatus = document.querySelector('#backup-status')
 const playback = document.querySelector('#playback')
 const schedule = document.querySelector('#screen-schedule')
 const refreshSource = bindPhotoSource(form)
 const brightnessFields = ['brightness_day', 'brightness_night']
+const refreshWifi = () => {
+  wifiFields.hidden = reuseWifi.checked
+  form.elements.ssid.disabled = reuseWifi.checked
+  form.elements.password.disabled = reuseWifi.checked
+}
+reuseWifi.addEventListener('change', refreshWifi)
+refreshWifi()
 const showBrightness = () => {
   for (const name of brightnessFields) {
     form.querySelector(`output[for="${name}"]`).value = `${form.elements[name].value}%`
@@ -128,6 +137,7 @@ if ('serial' in navigator) {
       form.reset()
       refreshSource()
       showBrightness()
+      refreshWifi()
       backupStatus.textContent = ''
       status.textContent = 'Settings saved. After the frame restarts, choose Find frame on Wi-Fi to open its settings.'
     } catch (error) {

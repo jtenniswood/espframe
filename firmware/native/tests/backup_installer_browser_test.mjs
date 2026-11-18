@@ -118,6 +118,17 @@ const verify = `
     const link = networkStatus.querySelector('a')
     if (attempts !== 3 || link?.href !== 'http://192.168.50.10/' || link.textContent !== 'Open frame settings')
       throw new Error('Wi-Fi lookup did not link to the frame’s settings')
+    const reuse = document.querySelector('#reuse-wifi')
+    reuse.checked = true
+    reuse.dispatchEvent(new Event('change'))
+    form.elements.immich_url.value = 'https://photos.test'
+    form.elements.immich_key.value = 'after-improv'
+    const reused = waitFor(document.querySelector('#status'), 'Settings saved.')
+    form.requestSubmit()
+    await reused
+    if (attempts !== 4 || received.immich_key !== 'after-improv'
+      || Object.hasOwn(received, 'ssid') || Object.hasOwn(received, 'password'))
+      throw new Error('Immich setup asked for Wi-Fi credentials a second time')
     document.body.dataset.backupTest = 'passed'
   })
 `
