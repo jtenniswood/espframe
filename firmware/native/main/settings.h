@@ -6,6 +6,7 @@
 #include "screen_schedule.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 
 namespace espframe::native {
@@ -18,11 +19,14 @@ struct Settings {
   std::string web_password;
   uint32_t slide_seconds{15};
   uint8_t brightness_day{64};
+  std::optional<uint8_t> brightness_night;
   bool portrait_pairing{true};
   DisplayMode display_mode{DisplayMode::Fit};
   PhotoSource photo_source;
   ClockSettings clock;
   ScreenScheduleSettings schedule;
+
+  uint8_t night_brightness() const { return brightness_night.value_or(brightness_day); }
 
   static constexpr size_t max_json_size = 1536;
   bool read();

@@ -75,6 +75,7 @@ esp_err_t current(httpd_req_t *request) {
       !cJSON_AddStringToObject(document.get(), "immich_url", settings.immich_url.c_str()) ||
       !cJSON_AddNumberToObject(document.get(), "slide_seconds", settings.slide_seconds) ||
       !cJSON_AddNumberToObject(document.get(), "brightness_day", settings.brightness_day) ||
+      !cJSON_AddNumberToObject(document.get(), "brightness_night", settings.night_brightness()) ||
       !cJSON_AddBoolToObject(document.get(), "schedule_enabled", settings.schedule.enabled) ||
       !cJSON_AddNumberToObject(document.get(), "schedule_on_hour", settings.schedule.on_hour) ||
       !cJSON_AddNumberToObject(document.get(), "schedule_off_hour", settings.schedule.off_hour) ||

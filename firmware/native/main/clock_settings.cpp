@@ -13,12 +13,17 @@ constexpr ClockZone zones[]{
 
 std::span<const ClockZone> clock_zones() { return zones; }
 
-const char *clock_timezone(std::string_view option) {
+const ClockZone *find_clock_zone(std::string_view option) {
   for (const auto &zone : zones) {
     if (option == zone.option)
-      return zone.posix;
+      return &zone;
   }
   return nullptr;
+}
+
+const char *clock_timezone(std::string_view option) {
+  const auto *zone = find_clock_zone(option);
+  return zone ? zone->posix : nullptr;
 }
 
 bool configure_local_time(std::string_view timezone) {

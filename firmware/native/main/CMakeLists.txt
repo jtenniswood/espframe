@@ -15,12 +15,13 @@ set(clock_generator "${CMAKE_CURRENT_LIST_DIR}/../tools/generate_clock_zones.py"
 set(clock_zones "${CMAKE_CURRENT_BINARY_DIR}/native_clock_zones.inc")
 
 idf_component_register(
-    SRCS app.cpp clock_overlay.cpp clock_settings.cpp display.cpp frame_blend.cpp immich.cpp immich_http.cpp
+    SRCS app.cpp clock_overlay.cpp clock_settings.cpp daylight.cpp display.cpp frame_blend.cpp immich.cpp immich_http.cpp
          immich_selection.cpp p4_jpeg_decoder.cpp preview_decoder.cpp
          settings.cpp touch.cpp
          firmware_update.cpp usb_setup.cpp web_settings.cpp
          "${touch_source}/gsl_point_id.cpp"
-    PRIV_INCLUDE_DIRS "${touch_source}" "${repo_root}/components/remote_image" "${CMAKE_CURRENT_BINARY_DIR}"
+    PRIV_INCLUDE_DIRS "${touch_source}" "${repo_root}/components/remote_image" "${repo_root}/components/espframe"
+                      "${CMAKE_CURRENT_BINARY_DIR}"
     PRIV_REQUIRES esp_lcd esp_hw_support esp_driver_gpio esp_driver_i2c esp_driver_ledc esp_timer esp_mm esp_driver_jpeg esp_driver_ppa
                   esp_driver_uart esp_event esp_http_client esp_http_server esp_netif esp_wifi mbedtls nvs_flash
                   app_update bootloader_support esp_app_format libjpeg-turbo-esp32 libwebp-esp32

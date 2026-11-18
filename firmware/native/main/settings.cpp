@@ -105,6 +105,18 @@ bool read_schedule(const cJSON *root, ScreenScheduleSettings &schedule) {
          read_integer(root, "schedule_wake_timeout", 10, 3600, schedule.wake_seconds);
 }
 
+bool read_brightness(const cJSON *root, Settings &settings) {
+  if (!read_integer(root, "brightness_day", 10, 100, settings.brightness_day))
+    return false;
+  if (cJSON_HasObjectItem(root, "brightness_night")) {
+    uint8_t night{};
+    if (!read_integer(root, "brightness_night", 10, 100, night))
+      return false;
+    settings.brightness_night = night;
+  }
+  return true;
+}
+
 bool read_display_mode(const cJSON *root, DisplayMode &mode) {
   const auto *field = cJSON_GetObjectItemCaseSensitive(root, "display_mode");
   if (!field)
@@ -147,7 +159,7 @@ bool read_playback(const cJSON *root, Settings &settings) {
   return read_integer(root, "slide_seconds", 2, 86'400, settings.slide_seconds) &&
          read_flag(root, "portrait_pairing", settings.portrait_pairing) &&
          read_display_mode(root, settings.display_mode) && read_source(root, settings.photo_source) &&
-         read_clock(root, settings.clock) && read_integer(root, "brightness_day", 10, 100, settings.brightness_day) &&
+         read_clock(root, settings.clock) && read_brightness(root, settings) &&
          read_schedule(root, settings.schedule);
 }
 
@@ -226,6 +238,7 @@ bool Settings::save_playback(const char *json) {
       !cJSON_AddStringToObject(updated.get(), "web_password", settings.web_password.c_str()) ||
       !cJSON_AddNumberToObject(updated.get(), "slide_seconds", settings.slide_seconds) ||
       !cJSON_AddNumberToObject(updated.get(), "brightness_day", settings.brightness_day) ||
+      (settings.brightness_night && !cJSON_AddNumberToObject(updated.get(), "brightness_night", *settings.brightness_night)) ||
       !cJSON_AddBoolToObject(updated.get(), "schedule_enabled", settings.schedule.enabled) ||
       !cJSON_AddNumberToObject(updated.get(), "schedule_on_hour", settings.schedule.on_hour) ||
       !cJSON_AddNumberToObject(updated.get(), "schedule_off_hour", settings.schedule.off_hour) ||

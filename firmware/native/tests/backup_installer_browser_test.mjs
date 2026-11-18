@@ -19,7 +19,8 @@ const backup = {
   photos: { albums_enabled: true, album_ids: album, portrait_pairing: false, display_mode: 'Fit' },
   clock: { show: false, format: '12 Hour', timezone: 'America/New_York (GMT-5)' },
   screen: {
-    brightness_day: 35, schedule_enabled: true, schedule_on_hour: 21, schedule_off_hour: 6, schedule_wake_timeout: 30,
+    brightness_day: 75, brightness_night: 35, schedule_enabled: true,
+    schedule_on_hour: 21, schedule_off_hour: 6, schedule_wake_timeout: 30,
   },
   frequency: { interval: '24 hours' },
 }
@@ -73,12 +74,14 @@ const verify = `
     if (form.elements.photo_source.value || form.checkValidity()) throw new Error('Unrepresentable filters allowed a save')
     if (form.elements.display_mode.value !== 'Fill') throw new Error('Existing crop mode was not imported')
     if (form.elements.brightness_day.value !== '100') throw new Error('Existing brightness was not imported')
+    if (form.elements.brightness_night.value !== '75') throw new Error('Existing nighttime brightness was not imported')
     form.requestSubmit()
     if (attempts) throw new Error('USB opened with unresolved photo filters')
     await loadBackup(${JSON.stringify(JSON.stringify(backup))}, 'Backup loaded.')
     if (form.elements.immich_url.value !== 'https://photos.test') throw new Error('Immich URL was not prefilled')
     if (form.elements.immich_key.value !== 'entered-api-key') throw new Error('A backup replaced the entered key')
-    if (form.querySelector('output[for="brightness_day"]').textContent !== '35%')
+    if (form.querySelector('output[for="brightness_day"]').textContent !== '75%'
+      || form.querySelector('output[for="brightness_night"]').textContent !== '35%')
       throw new Error('Imported brightness was not shown')
     if (!document.querySelector('#screen-schedule').open || !form.elements.schedule_enabled.checked)
       throw new Error('Imported screen schedule was not shown')
@@ -91,7 +94,8 @@ const verify = `
       throw new Error('Unexpected migrated USB settings')
     if (received.show_clock !== false || received.clock_format !== '12 Hour' || received.timezone !== 'America/New_York (GMT-5)')
       throw new Error('The clock settings did not reach USB setup')
-    if (received.brightness_day !== 35) throw new Error('Brightness did not reach USB setup')
+    if (received.brightness_day !== 75 || received.brightness_night !== 35)
+      throw new Error('Brightness did not reach USB setup')
     if (!received.schedule_enabled || received.schedule_on_hour !== 21 || received.schedule_off_hour !== 6
       || received.schedule_wake_timeout !== 30) throw new Error('Screen schedule did not reach USB setup')
     document.body.dataset.backupTest = 'passed'

@@ -8,7 +8,8 @@ const own = (object, key) => Object.hasOwn(object, key)
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const integerIn = (min, max) => value => Number.isInteger(value) && value >= min && value <= max
 const screenFields = {
-  brightness_day: [integerIn(10, 100), 'Choose a screen brightness from 10% to 100%.'],
+  brightness_day: [integerIn(10, 100), 'Choose a daytime brightness from 10% to 100%.'],
+  brightness_night: [integerIn(10, 100), 'Choose a nighttime brightness from 10% to 100%.'],
   schedule_enabled: [value => typeof value === 'boolean', 'Review whether the screen schedule is enabled.'],
   schedule_on_hour: [integerIn(0, 23), 'Choose an on hour from 0 to 23.'],
   schedule_off_hour: [integerIn(0, 23), 'Choose an off hour from 0 to 23.'],

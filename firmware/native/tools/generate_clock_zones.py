@@ -23,8 +23,9 @@ def main():
     labels = zones.generate_web_timezone_labels()
     if args.header:
         rows = (
-            "  {" + ", ".join(map(json.dumps, (option, labels[option], posix))) + "},"
-            for option, (_, _, _, _, posix) in zip(labels, zones.TIMEZONES, strict=True)
+            "  {" + ", ".join(map(json.dumps, (option, labels[option], posix)))
+            + f", {lat:.4f}f, {lon:.4f}f" + "},"
+            for option, (_, _, lat, lon, posix) in zip(labels, zones.TIMEZONES, strict=True)
         )
         args.header.write_text("\n".join(rows) + "\n", encoding="utf-8")
     if args.options:

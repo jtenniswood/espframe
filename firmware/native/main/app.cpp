@@ -1,5 +1,6 @@
 #include "autoplay_fade.h"
 #include "clock_overlay.h"
+#include "daylight.h"
 #include "display.h"
 #include "firmware_update.h"
 #include "frame_blend.h"
@@ -188,6 +189,7 @@ class SlideLoader {
   bool live() const { return this->live_; }
   int64_t slide_interval_us() const { return this->source_.slide_seconds() * 1'000'000LL; }
   uint8_t brightness() const { return this->source_.brightness(); }
+  uint8_t night_brightness() const { return this->source_.night_brightness(); }
   const ClockSettings &clock() const { return this->source_.clock(); }
   const ScreenScheduleSettings &schedule() const { return this->source_.schedule(); }
 
@@ -267,8 +269,14 @@ void run(void *) {
   static Display display;
   display.init(can_fade);
   ClockOverlay clock;
-  const bool use_local_time = (loader.clock().show || loader.schedule().enabled) &&
+  const auto day_level = loader.brightness();
+  const auto night_level = loader.night_brightness();
+  const bool solar_brightness = day_level != night_level;
+  const bool use_local_time = (loader.clock().show || loader.schedule().enabled || solar_brightness) &&
                               configure_local_time(loader.clock().timezone);
+  Daylight daylight{solar_brightness ? find_clock_zone(loader.clock().timezone) : nullptr};
+  uint8_t brightness = day_level;
+  uint8_t applied_brightness = 0;
   const bool can_layer_fade = clock.init(loader.clock(), clock_atlas, can_fade && display.can_pin_frame());
   if (can_fade && (!display.can_pin_frame() || !can_layer_fade)) {
     blend.release();
@@ -319,13 +327,15 @@ void run(void *) {
       const auto local = local_clock_time(std::time(nullptr));
       clock_dirty |= clock.update(local);
       local_hour = local ? std::optional<int>{local->tm_hour} : std::nullopt;
+      brightness = daylight.is_day(local) ? day_level : night_level;
       next_clock_poll = now + 250'000;
     }
     if (const auto scanout = display.poll_presented()) {
       if (!backlight_ready) {
         if (!schedule.update(local_hour, now, false))
           input.sleep(swipe);
-        display.init_backlight(loader.brightness(), input.awake());
+        applied_brightness = input.awake() ? brightness : 0;
+        display.init_backlight(applied_brightness);
         backlight_ready = true;
         ESP_LOGI(tag, "Player ready (background %s preparation)", live ? "Immich" : "fixture");
       }
@@ -372,11 +382,9 @@ void run(void *) {
       const auto effect = input.update(swipe, report, display.handoff_position());
       if (effect == SwipeInput::Effect::Sleep) {
         schedule.sleep();
-        display.set_backlight(false);
         suspend_fade();
       } else if (effect == SwipeInput::Effect::Wake) {
         schedule.wake(report.sampled_us);
-        display.set_backlight(true);
       }
       if (swipe.dragging()) {
         if (fade.held())
@@ -395,7 +403,11 @@ void run(void *) {
           input.sleep(swipe);
           suspend_fade();
         }
-        display.set_backlight(awake);
+      }
+      const uint8_t target = awake ? brightness : 0;
+      if (target != applied_brightness) {
+        display.set_backlight(target);
+        applied_brightness = target;
       }
     }
 

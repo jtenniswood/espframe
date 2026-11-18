@@ -17,7 +17,7 @@ for (const name of ['v1-full', 'v2-full']) {
   const result = readBackup(await fixture(name))
   assert.deepEqual(result.settings, {
     immich_url: 'https://photos.example.com', slide_seconds: 15, portrait_pairing: true, display_mode: 'Fill',
-    brightness_day: 100,
+    brightness_day: 100, brightness_night: 75,
     schedule_enabled: false, schedule_on_hour: 6, schedule_off_hour: 23, schedule_wake_timeout: 60,
     show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
   })
@@ -70,6 +70,9 @@ for (const brightness_day of [9, 100.5, '80']) {
   assert.deepEqual(result.settings, {})
   assert.ok(result.notices.some(text => text.includes('brightness')))
 }
+const invalidNight = readBackup({ version: 3, screen: { brightness_day: 70, brightness_night: null } })
+assert.deepEqual(invalidNight.settings, { brightness_day: 70 })
+assert.match(invalidNight.notices[0], /nighttime brightness/)
 const invalidSchedule = readBackup({
   version: 3, screen: { schedule_enabled: true, schedule_on_hour: 24, schedule_off_hour: 0 },
 })
@@ -83,6 +86,7 @@ for (const source of ['all', 'favorites', 'album']) {
       immich_url: 'https://photos.test', photo_source: source, portrait_pairing: false,
       slide_seconds: duration, display_mode: duration % 60 ? 'Fit' : 'Fill',
       brightness_day: duration % 60 ? 10 : 100,
+      brightness_night: 36,
       schedule_enabled: duration % 60 !== 0, schedule_on_hour: 22, schedule_off_hour: 0, schedule_wake_timeout: 3600,
       show_clock: false, clock_format: '12 Hour', timezone: 'America/New_York (GMT-5)',
       ...(source === 'album' ? { album_id: album } : {}),

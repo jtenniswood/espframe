@@ -13,10 +13,13 @@ const backupStatus = document.querySelector('#backup-status')
 const playback = document.querySelector('#playback')
 const schedule = document.querySelector('#screen-schedule')
 const refreshSource = bindPhotoSource(form)
-const brightness = form.elements.brightness_day
-const brightnessValue = form.querySelector('output[for="brightness_day"]')
-const showBrightness = () => { brightnessValue.value = `${brightness.value}%` }
-brightness.addEventListener('input', showBrightness)
+const brightnessFields = ['brightness_day', 'brightness_night']
+const showBrightness = () => {
+  for (const name of brightnessFields) {
+    form.querySelector(`output[for="${name}"]`).value = `${form.elements[name].value}%`
+  }
+}
+for (const name of brightnessFields) form.elements[name].addEventListener('input', showBrightness)
 let importSequence = 0
 let importing = false
 
@@ -77,7 +80,7 @@ if ('serial' in navigator) {
     const data = Object.fromEntries(new FormData(form))
     if (!validateAlbum(form, data)) return
     data.slide_seconds = Number(data.slide_seconds)
-    data.brightness_day = Number(data.brightness_day)
+    for (const name of brightnessFields) data[name] = form.elements[name].valueAsNumber
     data.portrait_pairing = form.elements.portrait_pairing.checked
     data.show_clock = form.elements.show_clock.checked
     data.schedule_enabled = form.elements.schedule_enabled.checked

@@ -65,6 +65,7 @@ int main() {
   assert(legacy.immich_url == "http://legacy.local/api" && legacy.slide_seconds == 15);
   assert(legacy.portrait_pairing);
   assert(legacy.brightness_day == 64);
+  assert(!legacy.brightness_night && legacy.night_brightness() == 64);
   assert(legacy.photo_source.mode == PhotoSourceMode::Library);
   assert(legacy.display_mode == DisplayMode::Fit);
   assert(!legacy.clock.show && legacy.clock.format == "24 Hour");
@@ -96,6 +97,9 @@ int main() {
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","brightness_day":9})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","brightness_day":100.5})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","brightness_day":"80"})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","brightness_night":9})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","brightness_night":100.5})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","brightness_night":null})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","schedule_enabled":"true"})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","schedule_on_hour":24})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","schedule_off_hour":6.5})"));
@@ -115,6 +119,8 @@ int main() {
   assert(current.ssid == "Photo Lab" && current.password == "wifi secret");
   assert(current.web_password == "only-settings" && current.immich_key == "first-key");
   assert(Settings::save_playback(R"({"immich_url":"http://photos.test","brightness_day":42})"));
+  assert(current.read() && !current.brightness_night && current.night_brightness() == 42);
+  assert(Settings::save_playback(R"({"immich_url":"http://photos.test","brightness_night":26})"));
   assert(Settings::save_playback(R"({"immich_url":"http://photos.test","schedule_enabled":true,
                                   "schedule_on_hour":23,"schedule_off_hour":0,"schedule_wake_timeout":3600})"));
   assert(Settings::save_playback(R"json({"immich_url":"http://photos.test","show_clock":true,"clock_format":"12 Hour",
@@ -124,6 +130,7 @@ int main() {
   assert(current.immich_key == "next-key" && current.slide_seconds == 2);
   assert(current.clock.show && current.clock.format == "12 Hour" && current.clock.timezone == "America/New_York (GMT-5)");
   assert(current.brightness_day == 42);
+  assert(current.brightness_night == 26 && current.night_brightness() == 26);
   assert(current.schedule.enabled && current.schedule.on_hour == 23 && current.schedule.off_hour == 0 &&
          current.schedule.wake_seconds == 3600);
   assert(!current.portrait_pairing);

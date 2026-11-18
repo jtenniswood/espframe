@@ -174,12 +174,19 @@ search with Immich 3.2 or later. On earlier supported Immich versions it
 plays the available photos in capture-date order, newest first. An empty or
 unavailable selection leaves the current photo or startup scene visible.
 
-Set **Screen brightness** in the USB installer or the frame's web settings.
-The frame defaults to 64% and accepts 10–100%. Importing an Espframe backup
-restores its saved daytime brightness. Hold one finger still on the screen
-for at least three seconds and release to turn off the backlight. Touch the
-screen to wake it to the same photo. Autoplay starts a fresh interval after
-you lift your finger.
+Set **Daytime brightness** and **Nighttime brightness** in the USB installer
+or the frame's web settings. Both accept 10–100%. New browser installations
+default to 64% by day and 40% at night. Older native installations keep their
+existing level until a separate nighttime level is saved. Espframe backups
+can restore both levels. The frame estimates sunrise and sunset from the
+selected timezone and uses the daytime level until it has valid local time.
+At locations without a sunrise or sunset on that day, the corresponding
+fallback is 06:00 or 18:00.
+
+Hold one finger still on the screen for at least three seconds and release
+to turn off the backlight. Touch the screen to wake it to the same photo at
+the current brightness. Autoplay starts a fresh interval after you lift your
+finger.
 
 Enable **Screen schedule** to keep the display on between two local hours.
 It uses the configured timezone even when the clock is hidden. Overnight
@@ -230,6 +237,11 @@ carry over in Espframe backups.
    keep swiping through the timeout, and check that the screen turns off
    after the gesture settles. Confirm the local on hour wakes the display
    automatically and a previous manual sleep stays in effect until touch.
+9. Set different daytime and nighttime brightness levels and select a timezone
+   where the sun has already set. Hide the clock. After the frame syncs its
+   time, confirm the nighttime brightness applies and a tap wakes the screen
+   at that level. Restore the local timezone and confirm the display uses its
+   corresponding level.
 
 To probe with real photos, place baseline JPEGs in the ignored
 `firmware/native/photos/` directory as `slide-0.jpg` through `slide-4.jpg`.

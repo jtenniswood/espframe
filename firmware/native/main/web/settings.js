@@ -10,11 +10,14 @@ const firmware = document.querySelector('#firmware')
 const updateForm = document.querySelector('#firmware-update')
 const updateButton = updateForm.querySelector('button')
 const updateStatus = document.querySelector('#firmware-status')
-const brightness = form.elements.brightness_day
+const brightnessFields = ['brightness_day', 'brightness_night']
 const schedule = document.querySelector('#screen-schedule')
-const brightnessValue = form.querySelector('output[for="brightness_day"]')
-const showBrightness = () => { brightnessValue.value = `${brightness.value}%` }
-brightness.addEventListener('input', showBrightness)
+const showBrightness = () => {
+  for (const name of brightnessFields) {
+    form.querySelector(`output[for="${name}"]`).value = `${form.elements[name].value}%`
+  }
+}
+for (const name of brightnessFields) form.elements[name].addEventListener('input', showBrightness)
 form.addEventListener('invalid', event => {
   if (schedule.contains(event.target)) schedule.open = true
 }, true)
@@ -34,7 +37,8 @@ try {
   }
   form.elements.immich_url.value = settings.immich_url
   form.elements.slide_seconds.value = settings.slide_seconds
-  brightness.value = settings.brightness_day ?? 64
+  form.elements.brightness_day.value = settings.brightness_day ?? 64
+  form.elements.brightness_night.value = settings.brightness_night ?? form.elements.brightness_day.value
   showBrightness()
   form.elements.portrait_pairing.checked = settings.portrait_pairing === true
   form.elements.display_mode.value = settings.display_mode ?? 'Fit'
@@ -76,7 +80,7 @@ form.addEventListener('submit', async event => {
   if (!validateAlbum(form, data)) return
   submit.disabled = true
   data.slide_seconds = Number(data.slide_seconds)
-  data.brightness_day = Number(data.brightness_day)
+  for (const name of brightnessFields) data[name] = form.elements[name].valueAsNumber
   data.portrait_pairing = form.elements.portrait_pairing.checked
   data.show_clock = form.elements.show_clock.checked
   data.schedule_enabled = form.elements.schedule_enabled.checked

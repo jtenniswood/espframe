@@ -32,6 +32,7 @@ class ImmichSource {
   SlideIndex first_slide() const { return this->history_.first(); }
   uint32_t slide_seconds() const { return this->settings_.slide_seconds; }
   uint8_t brightness() const { return this->settings_.brightness_day; }
+  uint8_t night_brightness() const { return this->settings_.night_brightness(); }
   const ClockSettings &clock() const { return this->settings_.clock; }
   const ScreenScheduleSettings &schedule() const { return this->settings_.schedule; }
 

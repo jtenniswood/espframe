@@ -16,6 +16,7 @@ const albumId = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
 const setup = {
   immich_url: 'https://photos.test/api', slide_seconds: 15, portrait_pairing: true,
   photo_source: 'favorites', album_id: '', display_mode: 'Fill', brightness_day: 74,
+  brightness_night: 44,
   schedule_enabled: true, schedule_on_hour: 6, schedule_off_hour: 22, schedule_wake_timeout: 60,
   show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
 }
@@ -39,9 +40,12 @@ const fixture = html.replace('</body>', `<script>
     if (mode.value !== 'Fill' || mode.selectedOptions[0].text !== 'Crop to fit')
       throw new Error('Incorrect initial framing')
     const brightness = form.elements.brightness_day
+    const nightBrightness = form.elements.brightness_night
     const brightnessReadout = form.querySelector('output[for="brightness_day"]')
     if (brightness.value !== '74' || brightnessReadout.textContent !== '74%')
       throw new Error('Incorrect initial brightness')
+    if (nightBrightness.value !== '44' || form.querySelector('output[for="brightness_night"]').textContent !== '44%')
+      throw new Error('Incorrect initial nighttime brightness')
     if (!form.elements.schedule_enabled.checked || form.elements.schedule_off_hour.value !== '22'
       || !document.querySelector('#screen-schedule').open)
       throw new Error('Incorrect initial screen schedule')
@@ -50,7 +54,8 @@ const fixture = html.replace('</body>', `<script>
     if (!filename.startsWith('espframe-config-') || backup.version !== 3 || !backup.photos.favorites_enabled
       || backup.frequency.interval !== '15 seconds' || Object.keys(backup.connection).join() !== 'immich_url'
       || backup.photos.display_mode !== 'Fill' || backup.clock?.show !== true || backup.clock.timezone !== '${setup.timezone}'
-      || backup.screen?.brightness_day !== 74 || backup.screen.schedule_enabled !== true
+      || backup.screen?.brightness_day !== 74 || backup.screen.brightness_night !== 44
+      || backup.screen.schedule_enabled !== true
       || backup.screen.schedule_on_hour !== 6 || backup.screen.schedule_off_hour !== 22
       || backup.screen.schedule_wake_timeout !== 60)
       throw new Error('Unexpected saved settings backup')
@@ -58,6 +63,8 @@ const fixture = html.replace('</body>', `<script>
     mode.value = 'Fit'
     brightness.value = '45'
     brightness.dispatchEvent(new Event('input'))
+    nightBrightness.value = '30'
+    nightBrightness.dispatchEvent(new Event('input'))
     if (brightnessReadout.textContent !== '45%') throw new Error('Brightness readout did not update')
     form.elements.schedule_enabled.checked = false
     form.elements.schedule_off_hour.value = '0'
@@ -163,6 +170,7 @@ try {
   assert.match(page, /<section id="firmware"[^>]* hidden="">/)
   assert.deepEqual(updates, [{
     ...setup, photo_source: 'album', album_id: albumId, display_mode: 'Fit', brightness_day: 45, immich_key: '',
+    brightness_night: 30,
     schedule_enabled: false, schedule_off_hour: 0, schedule_wake_timeout: 90,
     clock_format: '12 Hour', timezone: 'America/New_York (GMT-5)',
   }])

@@ -20,6 +20,8 @@ namespace {
 constexpr gpio_num_t panel_reset = GPIO_NUM_27;
 constexpr int backlight_pin = 23;
 
+uint32_t backlight_duty(uint8_t brightness) { return (1023u * brightness + 50) / 100; }
+
 struct PanelCommand {
   uint8_t command;
   uint8_t parameter;
@@ -113,7 +115,7 @@ void Display::init(bool request_snapshot) {
   ESP_ERROR_CHECK(esp_lcd_dpi_panel_register_event_callbacks(this->panel_, &callbacks, this));
 }
 
-void Display::init_backlight(uint8_t brightness, bool on) {
+void Display::init_backlight(uint8_t brightness) {
   ledc_timer_config_t timer{};
   timer.speed_mode = LEDC_LOW_SPEED_MODE;
   timer.duty_resolution = LEDC_TIMER_10_BIT;
@@ -126,14 +128,12 @@ void Display::init_backlight(uint8_t brightness, bool on) {
   channel.speed_mode = LEDC_LOW_SPEED_MODE;
   channel.channel = LEDC_CHANNEL_0;
   channel.timer_sel = LEDC_TIMER_0;
-  this->backlight_duty_ = (1023u * brightness + 50) / 100;
-  channel.duty = on ? this->backlight_duty_ : 0;
+  channel.duty = backlight_duty(brightness);
   ESP_ERROR_CHECK(ledc_channel_config(&channel));
 }
 
-void Display::set_backlight(bool on) const {
-  ESP_ERROR_CHECK(ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0,
-                                           on ? this->backlight_duty_ : 0, 0));
+void Display::set_backlight(uint8_t brightness) const {
+  ESP_ERROR_CHECK(ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, backlight_duty(brightness), 0));
 }
 
 bool Display::frame_done_(esp_lcd_panel_handle_t, esp_lcd_dpi_panel_event_data_t *, void *context) {
