@@ -3,6 +3,7 @@ import { normalizeAlbum } from './photo_source.mjs'
 const legacySources = ['All Photos', 'Album', 'Favorites', 'Custom']
 const displayModes = ['Fill', 'Fit']
 const clockFormats = ['24 Hour', '12 Hour']
+const memoriesWindows = ['Same Day', 'Within 1 Day', 'Within 2 Days', 'Within 3 Days', 'Within 7 Days']
 const groups = ['connection', 'photos', 'frequency', 'screen', 'clock', 'metadata', 'firmware_updates', 'identity']
 const own = (object, key) => Object.hasOwn(object, key)
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -51,6 +52,10 @@ function intervalSeconds(value) {
 function importSource(photos, version) {
   const flag = (key, fallback = false) => own(photos, key) ? photos[key] !== false : fallback
   const legacy = photos.source
+  if (legacy === 'Memories') {
+    const savedAlbum = normalizeAlbum(photos.album_ids)
+    return { photo_source: 'memories', ...(savedAlbum ? { album_id: savedAlbum } : {}) }
+  }
   const flags = ['albums_enabled', 'people_enabled', 'tags_enabled', 'favorites_enabled', 'rating_enabled',
     'location_enabled', 'date_filter_enabled', 'portrait_pairs_only']
   const exclusions = ['album', 'person', 'tag'].filter(group => {
@@ -105,6 +110,8 @@ export function readBackup(data) {
   const clock = data.clock ?? {}
   const screen = data.screen ?? {}
   const metadata = data.metadata ?? {}
+  if (memoriesWindows.includes(photos.memories_window)) settings.memories_window = photos.memories_window
+  if (typeof photos.memories_fallback === 'boolean') settings.memories_fallback = photos.memories_fallback
   for (const [key, [valid, field]] of Object.entries(metadataFields)) {
     if (valid(metadata[key])) settings[field] = metadata[key]
   }
@@ -182,11 +189,13 @@ export function createBackup(settings, date = new Date()) {
     exported_at: date.toISOString(),
     connection: { immich_url: settings.immich_url },
     photos: {
-      source: 'All Photos',
+      source: settings.photo_source === 'memories' ? 'Memories' : 'All Photos',
       favorites_enabled: favorites,
       favorite_mode: favorites ? 'Favorites only' : 'Any',
       albums_enabled: album,
-      ...(album ? { album_ids: settings.album_id } : {}),
+      ...((album || settings.photo_source === 'memories') && normalizeAlbum(settings.album_id) ? { album_ids: settings.album_id } : {}),
+      ...(memoriesWindows.includes(settings.memories_window) ? { memories_window: settings.memories_window } : {}),
+      ...(typeof settings.memories_fallback === 'boolean' ? { memories_fallback: settings.memories_fallback } : {}),
       portrait_pairing: settings.portrait_pairing,
       ...(displayModes.includes(settings.display_mode) ? { display_mode: settings.display_mode } : {}),
     },

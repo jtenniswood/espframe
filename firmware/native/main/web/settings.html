@@ -22,11 +22,25 @@
             <option value="all">All photos</option>
             <option value="favorites">Favourites</option>
             <option value="album">Album</option>
+            <option value="memories">On This Day</option>
           </select>
         </label>
         <div id="album-choice" hidden>
           <label>Immich album link or ID <input name="album_id" maxlength="512" aria-describedby="album-help"></label>
           <small id="album-help">Copy the link from the album page in Immich. The API key needs album.read permission.</small>
+        </div>
+        <div id="memories-choice" hidden>
+          <label>Memories window
+            <select name="memories_window">
+              <option>Same Day</option>
+              <option value="Within 1 Day">±1 day</option>
+              <option value="Within 2 Days" selected>±2 days</option>
+              <option value="Within 3 Days">±3 days</option>
+              <option value="Within 7 Days">±7 days</option>
+            </select>
+          </label>
+          <label><input name="memories_fallback" type="checkbox" class="inline-option" checked> Fall back to all photos</label>
+          <small>The Immich key needs memory.read permission.</small>
         </div>
         <label>Display mode
           <select name="display_mode">

@@ -38,6 +38,14 @@ void text(uint16_t *frame, const uint8_t *atlas, ScreenRotation rotation, int x,
   }
 }
 
+void card(uint16_t *frame, ScreenRotation rotation, int left, int top, int width, int height) {
+  for (int column = left; column < left + width; ++column) {
+    const int first = panel_offset(column, panel_width - top - height, rotation);
+    const int last = panel_offset(column, panel_width - 1 - top, rotation);
+    std::fill_n(frame + std::min(first, last), height, background);
+  }
+}
+
 }  // namespace
 
 void draw_recovery_card(uint16_t *frame, const uint8_t *atlas, const RecoveryNetwork &network, ScreenRotation rotation) {
@@ -47,11 +55,7 @@ void draw_recovery_card(uint16_t *frame, const uint8_t *atlas, const RecoveryNet
   constexpr int top = panel_width - height - 48;
   constexpr int x = left + 24;
   constexpr int value = x + 139;
-  for (int column = left; column < left + width; ++column) {
-    const int first = panel_offset(column, panel_width - top - height, rotation);
-    const int last = panel_offset(column, panel_width - 1 - top, rotation);
-    std::fill_n(frame + std::min(first, last), height, background);
-  }
+  card(frame, rotation, left, top, width, height);
   text(frame, atlas, rotation, x, top + 12, "Reconnect Wi-Fi", white);
   text(frame, atlas, rotation, x, top + 52, "Network", muted);
   text(frame, atlas, rotation, value, top + 52, network.ssid.data(), white);
@@ -59,6 +63,18 @@ void draw_recovery_card(uint16_t *frame, const uint8_t *atlas, const RecoveryNet
   text(frame, atlas, rotation, value, top + 90, network.password.data(), white);
   text(frame, atlas, rotation, x, top + 128, "Open", muted);
   text(frame, atlas, rotation, value, top + 128, recovery_url, white);
+}
+
+void draw_memories_status(uint16_t *frame, const uint8_t *atlas, MemoriesStatus status, ScreenRotation rotation) {
+  std::string_view message;
+  switch (status) {
+    case MemoriesStatus::WaitingForTime: message = "Waiting for the date"; break;
+    case MemoriesStatus::Empty: message = "No On This Day photos"; break;
+    case MemoriesStatus::Unavailable: message = "Couldn't load On This Day"; break;
+    case MemoriesStatus::None: return;
+  }
+  card(frame, rotation, 48, 612, 396, 60);
+  text(frame, atlas, rotation, 68, 622, message, white);
 }
 
 }  // namespace espframe::native

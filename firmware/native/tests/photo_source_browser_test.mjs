@@ -16,6 +16,7 @@ const albumId = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
 const setup = {
   immich_url: 'https://photos.test/api', slide_seconds: 15, portrait_pairing: true,
   photo_source: 'favorites', album_id: '', display_mode: 'Fill', brightness_day: 74,
+  memories_window: 'Within 2 Days', memories_fallback: true,
   brightness_night: 44,
   base_tone_enabled: true, base_tone: 25, warm_tones_enabled: true, warm_tone_intensity: 60,
   screen_rotation: '180',
@@ -75,6 +76,13 @@ const fixture = html.replace('</body>', `<script>
     if (!backup.screen.base_tone_enabled || backup.screen.base_tone !== 25
       || !backup.screen.warm_tones_enabled || backup.screen.warm_tone_intensity !== 60)
       throw new Error('Unexpected screen tone backup settings')
+    const memories = document.querySelector('#memories-choice')
+    if (!memories.hidden) throw new Error('On This Day options visible for favourites')
+    source.value = 'memories'
+    source.dispatchEvent(new Event('change'))
+    if (memories.hidden || !album.disabled) throw new Error('On This Day options did not replace the album field')
+    form.elements.memories_window.value = 'Within 7 Days'
+    form.elements.memories_fallback.checked = false
     source.value = 'album'
     mode.value = 'Fit'
     form.elements.screen_rotation.value = '0'
@@ -187,6 +195,7 @@ try {
   assert.match(page, /<section id="firmware"[^>]* hidden="">/)
   assert.deepEqual(updates, [{
     ...setup, photo_source: 'album', album_id: albumId, display_mode: 'Fit', brightness_day: 45, immich_key: '',
+    memories_window: 'Within 7 Days', memories_fallback: false,
     brightness_night: 30,
     screen_rotation: '0',
     schedule_enabled: false, schedule_off_hour: 0, schedule_wake_timeout: 90,

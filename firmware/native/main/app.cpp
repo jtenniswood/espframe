@@ -194,6 +194,7 @@ class SlideLoader {
     SlideCache::Lease lease;
     SlideIndex first_photo;
     uint32_t connection;
+    MemoriesStatus memories_status;
     bool ready;
     bool cancelled;
   };
@@ -203,7 +204,10 @@ class SlideLoader {
   uint8_t brightness() const { return this->settings_.brightness_day; }
   uint8_t night_brightness() const { return this->settings_.night_brightness(); }
   const ClockSettings &clock() const { return this->settings_.clock; }
-  bool photos_need_time() const { return this->settings_.metadata.needs_time() || this->settings_.tone.night_enabled; }
+  bool photos_need_time() const {
+    return this->settings_.metadata.needs_time() || this->settings_.tone.night_enabled ||
+           this->settings_.photo_source.mode == PhotoSourceMode::Memories;
+  }
   const ScreenScheduleSettings &schedule() const { return this->settings_.schedule; }
   ScreenRotation rotation() const { return this->settings_.screen_rotation; }
 
@@ -267,7 +271,7 @@ class SlideLoader {
         else if (loader.rotation() == ScreenRotation::UpsideDown)
           std::reverse(lease.pixels, lease.pixels + pixel_count);
       }
-      const Completion completion{lease, loader.source_.first_slide(), connection,
+      const Completion completion{lease, loader.source_.first_slide(), connection, loader.source_.memories_status(),
                                   ready, !ready && loader.cancelled_.load()};
       xQueueSend(loader.completed_, &completion, portMAX_DELAY);
     }
@@ -336,6 +340,8 @@ void run(void *) {
   int64_t next_clock_poll = 0;
   bool clock_dirty = false;
   bool recovery_painted = false;
+  MemoriesStatus memories_status = MemoriesStatus::None;
+  MemoriesStatus painted_memories_status = MemoriesStatus::None;
   std::optional<int> local_hour;
 
   int64_t submitted_motion_us = 0;
@@ -404,6 +410,7 @@ void run(void *) {
       if (completion.ready)
         prefetch.prepared(slide);
       first_photo = completion.first_photo;
+      memories_status = completion.memories_status;
       preparing.reset();
     }
     const auto center = swipe.settled();
@@ -484,6 +491,7 @@ void run(void *) {
         motion_epoch.update(MotionPhase::Crossfade);
       submit_frame(fade.anchor() * slide_width);
       recovery_painted = false;
+      painted_memories_status = MemoriesStatus::None;
       fade.submitted(pending_opacity);
     }
 
@@ -571,6 +579,7 @@ void run(void *) {
             last_submitted = last_inside = swipe.position();
             submit_frame(last_submitted);
             recovery_painted = false;
+            painted_memories_status = MemoriesStatus::None;
             fade.finish();
             display.unpin();
             snapshot = nullptr;
@@ -595,11 +604,12 @@ void run(void *) {
     const auto inside = std::clamp(position, ready_first * slide_width, ready_last * slide_width);
     const bool use_edge = inside != position;
     const bool show_clock = live && swipe.settled() != 0;
-    const bool show_recovery = backlight_ready && input.awake() && !input.engaged() && swipe.idle() &&
-                               !fade.held() && network.recovery_status() != NativeNetwork::RecoveryStatus::Off;
+    const bool show_notice = backlight_ready && input.awake() && !input.engaged() && swipe.idle() && !fade.held();
+    const bool show_recovery = show_notice && network.recovery_status() != NativeNetwork::RecoveryStatus::Off;
+    const auto memory_notice = show_notice && !show_recovery && ready_last == center ? memories_status : MemoriesStatus::None;
     if (auto *output = display.writable_buffer(); output != nullptr &&
         (position != last_submitted || inside != last_inside || show_recovery != recovery_painted ||
-         (show_clock && clock_dirty))) {
+         memory_notice != painted_memories_status || (show_clock && clock_dirty))) {
       const auto index = inside / slide_width;
       const int offset = inside % slide_width;
       const auto slide_pixels = [&](SlideIndex slide) {
@@ -631,7 +641,10 @@ void run(void *) {
         }
         if (show_recovery)
           draw_recovery_card(output, recovery_atlas, network.recovery_network(), rotation);
+        else if (memory_notice != MemoriesStatus::None)
+          draw_memories_status(output, recovery_atlas, memory_notice, rotation);
         recovery_painted = show_recovery;
+        painted_memories_status = memory_notice;
         submit_frame(position, position != last_submitted);
         submitted_motion_us = motion;
         motion_render_us = motion != 0 ? esp_timer_get_time() - started_render : 0;

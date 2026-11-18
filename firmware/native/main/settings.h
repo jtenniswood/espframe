@@ -40,7 +40,7 @@ struct Settings {
   uint8_t night_brightness() const { return brightness_night.value_or(brightness_day); }
   bool has_immich() const { return !immich_url.empty() && !immich_key.empty(); }
 
-  static constexpr size_t max_json_size = 1536;
+  static constexpr size_t max_json_size = 3072;
   bool read();
   static bool save(const char *json);
   static bool save_wifi(const WifiCredentials &wifi);

@@ -16,7 +16,8 @@ const album = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
 const backup = {
   version: 3,
   connection: { immich_url: 'https://photos.test', api_key: 'old-api-key' },
-  photos: { albums_enabled: true, album_ids: album, portrait_pairing: false, display_mode: 'Fit' },
+  photos: { source: 'Memories', album_ids: album, portrait_pairing: false, display_mode: 'Fit',
+    memories_window: 'Within 7 Days', memories_fallback: false },
   clock: { show: false, format: '12 Hour', timezone: 'America/New_York (GMT-5)' },
   metadata: { show_date: true, show_location: false, date_format: 'Relative Date', date_taken_format: 'January 1, 2026' },
   screen: {
@@ -89,6 +90,8 @@ const verify = `
     await loadBackup(${JSON.stringify(JSON.stringify(backup))}, 'Backup loaded.')
     if (form.elements.immich_url.value !== 'https://photos.test') throw new Error('Immich URL was not prefilled')
     if (form.elements.immich_key.value !== 'entered-api-key') throw new Error('A backup replaced the entered key')
+    if (document.querySelector('#memories-choice').hidden || form.elements.memories_window.value !== 'Within 7 Days'
+      || form.elements.memories_fallback.checked) throw new Error('On This Day settings were not prefilled')
     if (form.querySelector('output[for="brightness_day"]').textContent !== '75%'
       || form.querySelector('output[for="brightness_night"]').textContent !== '35%')
       throw new Error('Imported brightness was not shown')
@@ -99,7 +102,8 @@ const verify = `
     form.requestSubmit()
     await saved
     if (attempts !== 1 || received.immich_key !== 'entered-api-key' || received.ssid !== 'Test Wi-Fi'
-      || received.photo_source !== 'album' || received.album_id !== '${album}' || received.slide_seconds !== 86400
+      || received.photo_source !== 'memories' || received.album_id !== '${album}' || received.slide_seconds !== 86400
+      || received.memories_window !== 'Within 7 Days' || received.memories_fallback !== false
       || received.portrait_pairing !== false || received.display_mode !== 'Fit' || Object.hasOwn(received, 'backup'))
       throw new Error('Unexpected migrated USB settings')
     if (received.show_clock !== false || received.clock_format !== '12 Hour' || received.timezone !== 'America/New_York (GMT-5)')

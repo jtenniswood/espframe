@@ -63,7 +63,7 @@ void report_address(const NativeNetwork &network, std::string_view challenge) {
 void listen(void *context) {
   auto &network = *static_cast<NativeNetwork *>(context);
   ImprovSerial improv(network);
-  std::array<char, Settings::max_json_size + 96> line;
+  static std::array<char, Settings::max_json_size + 96> line{};
   std::array<char, 128> chunk;
   std::string challenge;
   int64_t expires_us = 0;

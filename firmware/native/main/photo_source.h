@@ -1,15 +1,24 @@
 #pragma once
 
+#include <array>
+#include <cstdint>
 #include <string>
 #include <string_view>
 
 namespace espframe::native {
 
-enum class PhotoSourceMode { Library, Favorites, Album };
+enum class PhotoSourceMode { Library, Favorites, Album, Memories };
+enum class MemoriesStatus : uint8_t { None, WaitingForTime, Empty, Unavailable };
+
+inline constexpr std::array<std::string_view, 5> memory_windows{
+    "Same Day", "Within 1 Day", "Within 2 Days", "Within 3 Days", "Within 7 Days"};
+inline constexpr std::array<uint8_t, 5> memory_window_days{0, 1, 2, 3, 7};
 
 struct PhotoSource {
   PhotoSourceMode mode{PhotoSourceMode::Library};
   std::string album_id;
+  uint8_t memory_window{2};
+  bool memory_fallback{true};
 };
 
 inline const char *photo_source_name(PhotoSourceMode mode) {
@@ -20,6 +29,8 @@ inline const char *photo_source_name(PhotoSourceMode mode) {
       return "favorites";
     case PhotoSourceMode::Album:
       return "album";
+    case PhotoSourceMode::Memories:
+      return "memories";
   }
   return "all";
 }

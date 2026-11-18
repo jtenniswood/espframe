@@ -105,6 +105,10 @@ jobs:
             firmware/native/main/immich_selection.cpp firmware/native/tests/immich_selection_test.cpp "$RUNNER_TEMP/cjson.o" \
             -o "$RUNNER_TEMP/immich-selection-test"
           "$RUNNER_TEMP/immich-selection-test"
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -I"$cjson" \
+            firmware/native/main/immich_memories.cpp firmware/native/main/immich_selection.cpp \
+            firmware/native/tests/immich_memories_test.cpp "$RUNNER_TEMP/cjson.o" -o "$RUNNER_TEMP/immich-memories-test"
+          "$RUNNER_TEMP/immich-memories-test"
       - name: Test firmware update staging and rollback
         if: matrix.board == 'v3'
         run: |

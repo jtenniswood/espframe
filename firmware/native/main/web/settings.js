@@ -49,6 +49,8 @@ try {
   form.elements.screen_rotation.value = settings.screen_rotation ?? '0'
   form.elements.photo_source.value = settings.photo_source ?? 'all'
   form.elements.album_id.value = settings.album_id ?? ''
+  form.elements.memories_window.value = settings.memories_window ?? 'Within 2 Days'
+  form.elements.memories_fallback.checked = settings.memories_fallback !== false
   form.elements.show_clock.checked = settings.show_clock === true
   form.elements.photo_metadata_date_enabled.checked = settings.photo_metadata_date_enabled !== false
   form.elements.photo_metadata_location_enabled.checked = settings.photo_metadata_location_enabled !== false
@@ -94,6 +96,7 @@ form.addEventListener('submit', async event => {
   data.warm_tones_enabled = form.elements.warm_tones_enabled.checked
   data.portrait_pairing = form.elements.portrait_pairing.checked
   data.show_clock = form.elements.show_clock.checked
+  data.memories_fallback = form.elements.memories_fallback.checked
   data.photo_metadata_date_enabled = form.elements.photo_metadata_date_enabled.checked
   data.photo_metadata_location_enabled = form.elements.photo_metadata_location_enabled.checked
   data.schedule_enabled = form.elements.schedule_enabled.checked

@@ -27,15 +27,19 @@ class ImmichSource {
       : cancelled_(cancelled), settings_(settings), network_(network), http_(cancelled) {}
   bool prepare(SlideIndex slide, uint16_t *panel);
   SlideIndex first_slide() const { return this->history_.first(); }
+  MemoriesStatus memories_status() const { return this->memories_status_; }
 
  private:
   enum class PreviewStatus { Ready, Missing, Retry };
 
   bool online_();
   bool allocate_download_();
-  bool select_search_api_();
+  bool select_search_api_(PhotoSourceMode mode);
   int fetch_(std::string_view path, std::string_view body, size_t limit, size_t &received, int64_t deadline_us = 0);
-  std::vector<ImmichPhoto> search_(std::optional<std::chrono::sys_days> local_day = {}, int64_t deadline_us = 0);
+  std::vector<ImmichPhoto> search_(const PhotoSource &source, std::optional<std::chrono::sys_days> local_day = {},
+                                  int64_t deadline_us = 0);
+  bool update_memory_day_();
+  std::vector<ImmichPhoto> memories_();
   bool next_asset_(ImmichPhoto &asset);
   AssetId companion_for_(const ImmichPhoto &primary, int64_t deadline_us);
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, bool companion, int64_t deadline_us = 0);
@@ -54,6 +58,13 @@ class ImmichSource {
   RecentPreviews previews_;
   std::optional<Daylight> tone_daylight_;
   std::vector<ImmichPhoto> pending_;
+  std::optional<std::chrono::sys_days> memory_day_;
+  std::vector<ImmichPhoto> memory_pool_;
+  int64_t memory_retry_at_{};
+  unsigned next_memory_date_{};
+  bool using_memory_fallback_{};
+  bool memory_response_too_large_{};
+  MemoriesStatus memories_status_{MemoriesStatus::None};
 };
 
 }  // namespace espframe::native

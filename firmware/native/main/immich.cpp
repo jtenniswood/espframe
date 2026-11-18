@@ -1,5 +1,6 @@
 #include "immich.h"
 
+#include "immich_memories.h"
 #include "native_network.h"
 #include "photo_caption.h"
 #include "preview_decoder.h"
@@ -18,6 +19,10 @@ namespace {
 constexpr const char *tag = "immich";
 constexpr size_t photo_capacity = 2 * 1024 * 1024;
 constexpr size_t search_capacity = 64 * 1024;
+constexpr size_t memory_capacity = 1024 * 1024;
+constexpr size_t memory_pool_capacity = 3 * photo_search_batch;
+constexpr int64_t memory_search_budget_us = 3'000'000;
+constexpr int64_t memory_retry_us = 30'000'000;
 constexpr int64_t pairing_time_us = 1'500'000;
 extern const uint8_t caption_atlas[] asm("_binary_caption_glyphs_bin_start");
 extern const uint8_t caption_atlas_end[] asm("_binary_caption_glyphs_bin_end");
@@ -50,8 +55,8 @@ int ImmichSource::fetch_(std::string_view path, std::string_view body, size_t li
   return this->http_.read(url, this->settings_.immich_key.c_str(), body, {this->encoded_, limit}, received, deadline_us);
 }
 
-bool ImmichSource::select_search_api_() {
-  if (this->settings_.photo_source.mode == PhotoSourceMode::Library || this->search_api_ != ImmichSearchApi::Unknown)
+bool ImmichSource::select_search_api_(PhotoSourceMode mode) {
+  if (mode == PhotoSourceMode::Library || this->search_api_ != ImmichSearchApi::Unknown)
     return true;
   size_t length;
   const int status = this->fetch_("/server/version", {}, 1024, length);
@@ -64,16 +69,16 @@ bool ImmichSource::select_search_api_() {
   return true;
 }
 
-std::vector<ImmichPhoto> ImmichSource::search_(std::optional<std::chrono::sys_days> local_day, int64_t deadline_us) {
+std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
+                                              std::optional<std::chrono::sys_days> local_day, int64_t deadline_us) {
   const bool pairing = local_day.has_value();
   if (!online_())
     return {};
   if (!this->allocate_download_())
     return {};
-  if (!pairing && !this->select_search_api_())
+  if (!pairing && !this->select_search_api_(source.mode))
     return {};
 
-  const auto &source = this->settings_.photo_source;
   const bool legacy_album = source.mode == PhotoSourceMode::Album && this->search_api_ == ImmichSearchApi::Legacy;
   uint32_t page = !pairing && legacy_album ? this->album_page_ : 1;
   size_t count = !pairing && legacy_album ? this->album_page_size_ : photo_search_batch;
@@ -110,12 +115,94 @@ std::vector<ImmichPhoto> ImmichSource::search_(std::optional<std::chrono::sys_da
   return std::move(response.photos);
 }
 
+bool ImmichSource::update_memory_day_() {
+  const auto local = local_clock_time(std::time(nullptr));
+  if (!local) {
+    this->memories_status_ = MemoriesStatus::WaitingForTime;
+    return false;
+  }
+  using namespace std::chrono;
+  const sys_days today{year(local->tm_year + 1900) / (local->tm_mon + 1) / local->tm_mday};
+  if (this->memory_day_ != today) {
+    this->memory_day_ = today;
+    this->pending_.clear();
+    this->memory_pool_.clear();
+    this->next_memory_date_ = 0;
+    this->memory_retry_at_ = 0;
+    this->using_memory_fallback_ = false;
+    this->memory_response_too_large_ = false;
+    this->memories_status_ = MemoriesStatus::None;
+  } else if (this->using_memory_fallback_ && esp_timer_get_time() >= this->memory_retry_at_) {
+    this->pending_.clear();
+    this->using_memory_fallback_ = false;
+  }
+  return true;
+}
+
+std::vector<ImmichPhoto> ImmichSource::memories_() {
+  const auto &source = this->settings_.photo_source;
+  const unsigned date_count = 1 + 2 * memory_window_days[source.memory_window];
+  const auto start = esp_timer_get_time();
+  if (start >= this->memory_retry_at_ && this->next_memory_date_ < date_count && online_() && allocate_download_()) {
+    const auto deadline = start + memory_search_budget_us;
+    while (this->next_memory_date_ < date_count && esp_timer_get_time() < deadline) {
+      size_t length{};
+      const auto path = memory_request_path(*this->memory_day_, this->next_memory_date_);
+      const int status = this->fetch_(path, {}, memory_capacity, length, deadline);
+      if (this->cancelled_ || (status == 0 && esp_timer_get_time() >= deadline))
+        return {};
+      auto results = status == 200 ? parse_memories({reinterpret_cast<const char *>(this->encoded_), length},
+                                                   photo_search_batch) : std::nullopt;
+      // A single oversized date should not prevent the rest of the window
+      // from producing memories. Other request failures use the retry delay.
+      if (!results && status != 413) {
+        ESP_LOGW(tag, "On This Day request failed (%d). Check the Immich connection and memory.read permission.", status);
+        this->memory_retry_at_ = esp_timer_get_time() + memory_retry_us;
+        this->memories_status_ = MemoriesStatus::Unavailable;
+        break;
+      }
+      this->memory_response_too_large_ |= status == 413;
+      ++this->next_memory_date_;
+      if (!results || results->empty())
+        continue;
+      this->memories_status_ = MemoriesStatus::None;
+      for (const auto &photo : *results) {
+        if (this->memory_pool_.size() == memory_pool_capacity)
+          break;
+        if (std::none_of(this->memory_pool_.begin(), this->memory_pool_.end(),
+                         [&](const ImmichPhoto &other) { return other.id == photo.id; }))
+          this->memory_pool_.push_back(photo);
+      }
+      return std::move(*results);
+    }
+  }
+  if (this->next_memory_date_ == date_count && this->memory_pool_.empty()) {
+    if (!this->memory_response_too_large_)
+      ESP_LOGI(tag, "No On This Day photos in the configured window");
+    this->next_memory_date_ = 0;
+    this->memory_retry_at_ = esp_timer_get_time() + memory_retry_us;
+    this->memories_status_ = this->memory_response_too_large_ ? MemoriesStatus::Unavailable : MemoriesStatus::Empty;
+    this->memory_response_too_large_ = false;
+  }
+  if (!this->memory_pool_.empty())
+    return this->memory_pool_;
+  this->using_memory_fallback_ = source.memory_fallback && esp_timer_get_time() < this->memory_retry_at_;
+  auto fallback = this->using_memory_fallback_ ? this->search_(PhotoSource{}) : std::vector<ImmichPhoto>{};
+  if (!fallback.empty())
+    this->memories_status_ = MemoriesStatus::None;
+  return fallback;
+}
+
 bool ImmichSource::next_asset_(ImmichPhoto &asset) {
+  const auto &source = this->settings_.photo_source;
+  const bool memory_mode = source.mode == PhotoSourceMode::Memories;
+  if (memory_mode && !this->update_memory_day_())
+    return false;
   if (this->pending_.empty()) {
-    this->pending_ = this->search_();
+    this->pending_ = memory_mode ? this->memories_() : this->search_(source);
     if (this->pending_.empty())
       return false;
-    if (this->settings_.photo_source.mode == PhotoSourceMode::Album && this->search_api_ == ImmichSearchApi::Legacy) {
+    if (source.mode == PhotoSourceMode::Album && this->search_api_ == ImmichSearchApi::Legacy) {
       // Consume the paged album from newest to oldest across batches.
       std::reverse(this->pending_.begin(), this->pending_.end());
     } else {
@@ -146,7 +233,15 @@ AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, int64_t deadlin
     return first;
   };
   const auto known = choose(this->pending_);
-  return known[0] != '\0' ? known : choose(this->search_(primary.metadata.capture_day, deadline_us));
+  if (known[0] != '\0')
+    return known;
+  const auto &source = this->settings_.photo_source;
+  if (source.mode == PhotoSourceMode::Memories) {
+    if (!this->using_memory_fallback_)
+      return choose(this->memory_pool_);
+    return choose(this->search_(PhotoSource{}, primary.metadata.capture_day, deadline_us));
+  }
+  return choose(this->search_(source, primary.metadata.capture_day, deadline_us));
 }
 
 ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, DecodedPreview &preview,
@@ -225,6 +320,8 @@ bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
       this->pending_.push_back(seed);
     if (remembered && status == PreviewStatus::Missing && !this->cancelled_)
       *existing = {};
+    if (status == PreviewStatus::Missing)
+      std::erase_if(this->memory_pool_, [&](const ImmichPhoto &photo) { return photo.id == frame.primary; });
     return false;
   }
 

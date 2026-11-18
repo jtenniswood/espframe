@@ -126,6 +126,7 @@ if ('serial' in navigator) {
     data.warm_tones_enabled = form.elements.warm_tones_enabled.checked
     data.portrait_pairing = form.elements.portrait_pairing.checked
     data.show_clock = form.elements.show_clock.checked
+    data.memories_fallback = form.elements.memories_fallback.checked
     data.photo_metadata_date_enabled = form.elements.photo_metadata_date_enabled.checked
     data.photo_metadata_location_enabled = form.elements.photo_metadata_location_enabled.checked
     data.schedule_enabled = form.elements.schedule_enabled.checked

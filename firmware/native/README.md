@@ -217,6 +217,19 @@ search with Immich 3.2 or later. On earlier supported Immich versions it
 plays the available photos in capture-date order, newest first. An empty or
 unavailable selection leaves the current photo or startup scene visible.
 
+Choose **On This Day** to play Immich memories from prior years. Pick a
+window from **Same Day** to **±7 days**, with **±2 days** as the default. The
+frame needs local time and an API key with `memory.read` permission. The
+worker begins with today's date, checks neighbouring dates as slides are
+needed, and keeps a bounded sample available for replay. Portrait companions
+for memories come from those candidates.
+
+If the selected window is empty or Immich cannot answer the request,
+**Fall back to all photos** continues with the full library. With fallback
+off, the idle frame keeps its current photo and shows a status message when
+it runs out of prepared memories. Backups preserve the source, date window,
+fallback choice, and a saved single album.
+
 Set **Daytime brightness** and **Nighttime brightness** in the USB installer
 or the frame's web settings. Both accept 10–100%. New browser installations
 default to 64% by day and 40% at night. Older native installations keep their

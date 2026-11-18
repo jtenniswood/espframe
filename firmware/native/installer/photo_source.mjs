@@ -20,9 +20,11 @@ export function bindPhotoSource(form) {
   const source = form.elements.photo_source
   const album = form.elements.album_id
   const albumChoice = form.querySelector('#album-choice')
+  const memoriesChoice = form.querySelector('#memories-choice')
   const refresh = () => {
     const selected = source.value === 'album'
     albumChoice.hidden = !selected
+    memoriesChoice.hidden = source.value !== 'memories'
     album.disabled = !selected
     album.required = selected
     album.setCustomValidity('')
@@ -33,10 +35,11 @@ export function bindPhotoSource(form) {
 }
 
 export function validateAlbum(form, data) {
-  if (data.photo_source !== 'album') return true
-  data.album_id = normalizeAlbum(data.album_id)
-  if (data.album_id) return true
   const album = form.elements.album_id
+  const id = normalizeAlbum(album.value)
+  if (id) data.album_id = id
+  if (data.photo_source !== 'album') return true
+  if (id) return true
   album.setCustomValidity('Enter a link to an Immich album or its ID.')
   album.reportValidity()
   return false

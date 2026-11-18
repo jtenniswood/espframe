@@ -43,4 +43,13 @@ int main(int argc, char **argv) {
   assert(std::equal(normal.begin(), normal.end(), inverted.rbegin()));
   assert(std::count(normal.begin(), normal.end(), photo) == pixel_count - 504 * 184);
   assert(std::count(normal.begin(), normal.end(), 0xffff) > 900);
+
+  for (auto status : {MemoriesStatus::WaitingForTime, MemoriesStatus::Empty, MemoriesStatus::Unavailable}) {
+    std::fill(normal.begin(), normal.end(), photo);
+    std::fill(inverted.begin(), inverted.end(), photo);
+    draw_memories_status(normal.data(), atlas.data(), status, ScreenRotation::Normal);
+    draw_memories_status(inverted.data(), atlas.data(), status, ScreenRotation::UpsideDown);
+    assert(std::equal(normal.begin(), normal.end(), inverted.rbegin()));
+    assert(std::count(normal.begin(), normal.end(), photo) == pixel_count - 396 * 60);
+  }
 }

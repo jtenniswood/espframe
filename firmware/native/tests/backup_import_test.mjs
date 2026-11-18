@@ -22,6 +22,7 @@ for (const name of ['v1-full', 'v2-full']) {
     base_tone_enabled: false, base_tone: 0, warm_tones_enabled: false, warm_tone_intensity: 50,
     schedule_enabled: false, schedule_on_hour: 6, schedule_off_hour: 23, schedule_wake_timeout: 60,
     show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
+    ...(name === 'v2-full' ? { memories_window: 'Within 2 Days', memories_fallback: true } : {}),
   })
   assert.equal(result.chooseSource, true)
   assert.ok(result.notices.some(text => text.includes('Choose a photo source')))
@@ -51,7 +52,10 @@ assert.deepEqual(readBackup({ version: 2, photos: { favorite_mode: 'Favorites on
   { photo_source: 'favorites' })
 assert.equal(readBackup({ version: 2, photos: { excluded_album_ids: album } }).chooseSource, true)
 assert.equal(readBackup({ version: 2, photos: { minimum_rating: '4+' } }).chooseSource, true)
-assert.equal(readBackup({ version: 3, photos: { source: 'Memories' } }).chooseSource, true)
+assert.deepEqual(readBackup({ version: 3, photos: { source: 'Memories', albums_enabled: true, album_ids: album,
+  memories_window: 'Within 7 Days', memories_fallback: false } }).settings, {
+  photo_source: 'memories', album_id: album, memories_window: 'Within 7 Days', memories_fallback: false,
+})
 assert.equal(readBackup({ version: 3, photos: { source: 'Favorites', people_enabled: true } }).chooseSource, true)
 assert.equal(readBackup({ version: 3, photos: { source: 'All Photos', orientation: 'Portrait Only' } }).chooseSource, true)
 assert.equal(readBackup({
@@ -85,7 +89,7 @@ assert.deepEqual(invalidSchedule.settings, { schedule_enabled: false, schedule_o
 assert.match(invalidSchedule.notices[0], /on hour/)
 assert.throws(() => readBackup({ version: 4 }), /Espframe settings backup/)
 assert.throws(() => readBackup({ version: 3, connection: 'invalid' }), /Espframe settings backup/)
-for (const source of ['all', 'favorites', 'album']) {
+for (const source of ['all', 'favorites', 'album', 'memories']) {
   for (const duration of [2, 15, 60, 120, 3600, 86400]) {
     const settings = {
       immich_url: 'https://photos.test', photo_source: source, portrait_pairing: false,
@@ -98,7 +102,8 @@ for (const source of ['all', 'favorites', 'album']) {
       show_clock: false, clock_format: '12 Hour', timezone: 'America/New_York (GMT-5)',
       photo_metadata_date_enabled: false, photo_metadata_location_enabled: true,
       photo_metadata_date_format: 'Relative Date', photo_metadata_date_taken_format: 'January 1, 2026',
-      ...(source === 'album' ? { album_id: album } : {}),
+      memories_window: 'Within 7 Days', memories_fallback: false,
+      ...(['album', 'memories'].includes(source) ? { album_id: album } : {}),
     }
     const exported = createBackup(
       { ...settings, ssid: 'secret', password: 'secret', immich_key: 'secret', web_password: 'secret' },

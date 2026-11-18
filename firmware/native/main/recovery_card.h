@@ -1,5 +1,6 @@
 #pragma once
 
+#include "photo_source.h"
 #include "slide_geometry.h"
 #include "wifi_recovery.h"
 
@@ -9,5 +10,6 @@ namespace espframe::native {
 
 void draw_recovery_card(uint16_t *frame, const uint8_t *atlas, const RecoveryNetwork &network,
                         ScreenRotation rotation);
+void draw_memories_status(uint16_t *frame, const uint8_t *atlas, MemoriesStatus status, ScreenRotation rotation);
 
 }  // namespace espframe::native

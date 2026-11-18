@@ -80,6 +80,31 @@ uint32_t next_metadata_page(const cJSON *assets) {
   return page > 0 ? static_cast<uint32_t>(page) : 0;
 }
 
+std::optional<ImmichPhoto> read_asset(const cJSON *record) {
+  const char *id = get_text(record, "id");
+  if (!id || !is_immich_id(id))
+    return {};
+  ImmichPhoto photo;
+  std::memcpy(photo.id.data(), id, photo.id.size());
+  const auto *exif = cJSON_GetObjectItemCaseSensitive(record, "exifInfo");
+  photo.metadata.capture_day = read_day(get_text(record, "localDateTime"));
+  if (!photo.metadata.capture_day)
+    photo.metadata.capture_day = read_day(get_text(exif, "dateTimeOriginal"));
+  read_place(exif, "city", photo.metadata.city);
+  read_place(exif, "country", photo.metadata.country);
+  int width = get_integer(record, "width", 0);
+  int height = get_integer(record, "height", 0);
+  if (width <= 0 || height <= 0) {
+    width = get_integer(exif, "exifImageWidth", 0);
+    height = get_integer(exif, "exifImageHeight", 0);
+    if (const char *orientation = get_text(exif, "orientation"); orientation != nullptr &&
+        orientation[0] >= '5' && orientation[0] <= '8' && orientation[1] == '\0')
+      std::swap(width, height);
+  }
+  photo.portrait = width > 0 && height > width;
+  return photo;
+}
+
 }  // namespace
 
 ImmichSearchApi parse_search_api(std::string_view json) {
@@ -94,6 +119,8 @@ ImmichSearchApi parse_search_api(std::string_view json) {
 PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, ImmichSearchApi api,
                                      std::optional<std::chrono::sys_days> local_day, uint32_t page,
                                      bool with_location) {
+  if (source.mode == PhotoSourceMode::Memories)
+    return {};
   const bool album = source.mode == PhotoSourceMode::Album;
   const bool favorites = source.mode == PhotoSourceMode::Favorites;
   if ((album || favorites) && api == ImmichSearchApi::Unknown)
@@ -155,33 +182,27 @@ PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool p
   cJSON_ArrayForEach(record, items) {
     if (photos.size() == limit)
       break;
-    const char *id = get_text(record, "id");
-    if (!id || !is_immich_id(id) ||
-        (favorites_only && !cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(record, "isFavorite"))))
+    if (favorites_only && !cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(record, "isFavorite")))
       continue;
-    ImmichPhoto photo;
-    std::memcpy(photo.id.data(), id, photo.id.size());
-    if (std::any_of(photos.begin(), photos.end(), [&](const ImmichPhoto &prev) { return prev.id == photo.id; }))
-      continue;
-    const auto *exif = cJSON_GetObjectItemCaseSensitive(record, "exifInfo");
-    photo.metadata.capture_day = read_day(get_text(record, "localDateTime"));
-    if (!photo.metadata.capture_day)
-      photo.metadata.capture_day = read_day(get_text(exif, "dateTimeOriginal"));
-    read_place(exif, "city", photo.metadata.city);
-    read_place(exif, "country", photo.metadata.country);
-    int width = get_integer(record, "width", 0);
-    int height = get_integer(record, "height", 0);
-    if (width <= 0 || height <= 0) {
-      width = get_integer(exif, "exifImageWidth", 0);
-      height = get_integer(exif, "exifImageHeight", 0);
-      if (const char *orientation = get_text(exif, "orientation"); orientation != nullptr &&
-          orientation[0] >= '5' && orientation[0] <= '8' && orientation[1] == '\0')
-        std::swap(width, height);
-    }
-    photo.portrait = width > 0 && height > width;
-    photos.push_back(photo);
+    const auto photo = read_asset(record);
+    if (photo && std::none_of(photos.begin(), photos.end(), [&](const ImmichPhoto &prev) { return prev.id == photo->id; }))
+      photos.push_back(*photo);
   }
   return result;
+}
+
+std::optional<ImmichPhoto> parse_memory_asset(std::string_view json) {
+  const auto record = parse_json(json);
+  const auto *type = get_text(record.get(), "type");
+  if (!type || std::string_view(type) != "IMAGE")
+    return {};
+  return read_asset(record.get());
+}
+
+std::string memory_request_path(std::chrono::sys_days date, unsigned index) {
+  const int step = (index + 1) / 2;
+  const auto offset = std::chrono::days(index % 2 ? -step : step);
+  return "/memories?type=on_this_day&for=" + iso_day(date + offset);
 }
 
 bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candidate) {

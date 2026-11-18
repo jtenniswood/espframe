@@ -86,6 +86,7 @@ int main() {
   assert(current.display_mode == DisplayMode::Fit);
   assert(current.metadata.show_date && current.metadata.show_location && !current.metadata.relative);
   assert(!current.tone.base_enabled && !current.tone.night_enabled && current.tone.night_amount == 50);
+  assert(current.photo_source.memory_window == 2 && current.photo_source.memory_fallback);
   assert(current.screen_rotation == ScreenRotation::Normal);
   assert(!current.schedule.enabled && current.schedule.wake_seconds == 60);
   auto before = stored;
@@ -122,6 +123,8 @@ int main() {
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","schedule_wake_timeout":3601})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","photo_source":"album"})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","photo_source":"unknown"})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","memories_window":"Within 60 Days"})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","memories_fallback":0})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","album_id":"not-an-album"})"));
   assert(stored == before);
 
@@ -165,11 +168,17 @@ int main() {
   assert(current.read());
   assert(current.photo_source.mode == PhotoSourceMode::Album);
   assert(current.photo_source.album_id == "c48e2980-18ac-4d7d-876a-a636759a1aec");
+  assert(Settings::save_playback(R"({"immich_url":"http://photos.test","photo_source":"memories",
+                                  "memories_window":"Within 7 Days","memories_fallback":false})"));
+  assert(current.read() && current.photo_source.mode == PhotoSourceMode::Memories);
+  assert(current.photo_source.memory_window == 4 && !current.photo_source.memory_fallback);
+  assert(current.photo_source.album_id == "c48e2980-18ac-4d7d-876a-a636759a1aec");
   assert(Settings::save_playback(R"({"immich_url":"http://photos.test","slide_seconds":86400})"));
   assert(current.read() && current.slide_seconds == 86'400);
   assert(current.immich_key == "next-key" && !current.portrait_pairing);
   assert(Settings::save_playback(R"({"immich_url":"http://photos.test","photo_source":"favorites"})"));
   assert(current.read() && current.photo_source.mode == PhotoSourceMode::Favorites);
+  assert(current.photo_source.memory_window == 4 && !current.photo_source.memory_fallback);
   assert(current.photo_source.album_id == "c48e2980-18ac-4d7d-876a-a636759a1aec");
   stored = legacy_store;
   assert(current.read());
@@ -197,4 +206,18 @@ int main() {
   stored["settings_v1"] = "malformed";
   assert(!Settings::save_wifi(*new_wifi));
   assert(stored["settings_v1"] == "malformed");
+
+  std::string quoted_password;
+  for (int i = 0; i < 64; ++i)
+    quoted_password += R"(\")";
+  const std::string endpoint = "http://test/" + std::string(239, 'p');
+  const std::string large = "{\"ssid\":\"" + std::string(32, 's') + "\",\"password\":\"" + quoted_password +
+      "\",\"web_password\":\"" + quoted_password + "\",\"immich_url\":\"" + endpoint +
+      "\",\"immich_key\":\"" + std::string(256, 'k') + "\"}";
+  assert(Settings::save(large.c_str()));
+  const auto playback = "{\"immich_url\":\"" + endpoint + "\",\"brightness_night\":100,\"slide_seconds\":86400," +
+      R"("photo_source":"memories","album_id":"c48e2980-18ac-4d7d-876a-a636759a1aec","memories_window":"Within 7 Days"})";
+  assert(Settings::save_playback(playback.c_str()));
+  assert(stored.at("settings_v1").size() > 1536 && current.read());
+  assert(current.web_password == std::string(64, '"') && current.photo_source.memory_window == 4);
 }

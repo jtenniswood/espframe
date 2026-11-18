@@ -180,8 +180,14 @@ bool read_rotation(const cJSON *root, ScreenRotation &rotation) {
 
 bool read_source(const cJSON *root, PhotoSource &source) {
   std::string mode = photo_source_name(source.mode);
-  if (!read_field(root, "photo_source", mode, true) || !read_field(root, "album_id", source.album_id, true))
+  std::string window{memory_windows[source.memory_window]};
+  if (!read_field(root, "photo_source", mode, true) || !read_field(root, "album_id", source.album_id, true) ||
+      !read_field(root, "memories_window", window, true) || !read_flag(root, "memories_fallback", source.memory_fallback))
     return false;
+  const auto match = std::find(memory_windows.begin(), memory_windows.end(), window);
+  if (match == memory_windows.end())
+    return false;
+  source.memory_window = std::distance(memory_windows.begin(), match);
   for (char &c : source.album_id) {
     if (c >= 'A' && c <= 'F')
       c = static_cast<char>(c + ('a' - 'A'));
@@ -194,6 +200,8 @@ bool read_source(const cJSON *root, PhotoSource &source) {
     source.mode = PhotoSourceMode::Favorites;
   else if (mode == "album")
     source.mode = PhotoSourceMode::Album;
+  else if (mode == "memories")
+    source.mode = PhotoSourceMode::Memories;
   else
     return false;
   return true;
@@ -361,6 +369,8 @@ bool Settings::save_playback(const char *json) {
       !cJSON_AddStringToObject(updated.get(), "screen_rotation", screen_rotation_name(settings.screen_rotation)) ||
       !cJSON_AddStringToObject(updated.get(), "photo_source", photo_source_name(settings.photo_source.mode)) ||
       !cJSON_AddStringToObject(updated.get(), "album_id", settings.photo_source.album_id.c_str()) ||
+      !cJSON_AddStringToObject(updated.get(), "memories_window", memory_windows[settings.photo_source.memory_window].data()) ||
+      !cJSON_AddBoolToObject(updated.get(), "memories_fallback", settings.photo_source.memory_fallback) ||
       !cJSON_AddBoolToObject(updated.get(), "photo_metadata_date_enabled", settings.metadata.show_date) ||
       !cJSON_AddBoolToObject(updated.get(), "photo_metadata_location_enabled", settings.metadata.show_location) ||
       !cJSON_AddStringToObject(updated.get(), "photo_metadata_date_format", settings.metadata.date_format()) ||
