@@ -227,7 +227,7 @@ jobs:
             idf.py -C firmware/native -B "$trial" \
               -D SWIPE_BOARD=v1 -D SWIPE_ESPHOME_TRIAL=ON -D SWIPE_TRIAL_IMMICH=ON -D SWIPE_TRACE=ON build
             riscv32-esp-elf-nm --defined-only -C "$trial/espframe_v1_live_trial.elf" > /tmp/trial-symbols
-            grep -Fq "espframe::native::start_live_trial_status()" /tmp/trial-symbols
+            grep -Fq "espframe::native::start_live_trial_status(" /tmp/trial-symbols
             if grep -E "espframe::native::(Settings::save|start_usb_setup|stage_firmware)|[[:space:]](esp_ota_mark_app_valid_cancel_rollback|nvs_erase_all|nvs_flash_erase|nvs_set_str)$" /tmp/trial-symbols; then
               exit 1
             fi

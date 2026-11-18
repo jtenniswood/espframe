@@ -332,8 +332,8 @@ After the readiness diagnostic reports **Ready**, upload only
 reports the count of prepared Immich slides, time to prepare the first
 photo, and touch-report-to-LCD-handoff timing for the most recent swipe.
 Use the USB trace or high-frame-rate video to evaluate the full swipe test.
-The status route exposes timing and counts. ESPHome returns automatically
-after five minutes.
+The status route also reports clock and connection readiness, HTTP status
+codes, and candidate counts. ESPHome returns automatically after five minutes.
 
 #### Verify the rollback and gestures
 

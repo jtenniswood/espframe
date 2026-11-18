@@ -365,7 +365,7 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
       }
       if (!web_started) {
         if constexpr (trial_immich) {
-          web_started = start_live_trial_status();
+          web_started = start_live_trial_status(*this);
         } else {
           web_started = settings_->web_password.empty() || start_web_settings(*settings_, *this);
           if (web_started && !settings_->web_password.empty())

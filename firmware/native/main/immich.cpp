@@ -1,6 +1,7 @@
 #include "immich.h"
 
 #include "immich_memories.h"
+#include "live_trial.h"
 #include "native_network.h"
 #include "photo_caption.h"
 #include "preview_decoder.h"
@@ -115,6 +116,8 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
     status = this->fetch_(request.path, request.body, search_capacity, length);
   }
   if (status != 200) {
+    if constexpr (SWIPE_TRIAL_IMMICH)
+      record_live_trial_search(pairing, status, 0);
     if (!pairing)
       ESP_LOGW(tag, "Photo search failed (%d)", status);
     return {};
@@ -122,6 +125,8 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
   auto response = parse_photo_search({reinterpret_cast<const char *>(this->encoded_), length}, count, request.paged,
                                      source.mode == PhotoSourceMode::Favorites,
                                      local_day ? CaptureDateRange{local_day, local_day} : dates);
+  if constexpr (SWIPE_TRIAL_IMMICH)
+    record_live_trial_search(pairing, status, response.photos.size());
   if (!pairing && request.paged && response.valid)
     this->album_page_ = response.next_page > page ? response.next_page : 1;
   return std::move(response.photos);
@@ -300,6 +305,8 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
   size_t length;
   const auto path = std::string("/assets/") + id.data() + "/thumbnail?size=preview";
   const int status = this->fetch_(path, {}, photo_capacity, length, deadline_us);
+  if constexpr (SWIPE_TRIAL_IMMICH)
+    record_live_trial_preview(status);
   const auto decode_us = esp_timer_get_time();
   if (status == 200 && !this->cancelled_) {
     const auto result = decode(this->encoded_, length);

@@ -1,5 +1,6 @@
 #include "live_trial.h"
 #include "live_trial_credentials.h"
+#include "native_network.h"
 #include "settings.h"
 
 #include "esp_http_server.h"
@@ -11,6 +12,7 @@
 #include <atomic>
 #include <cinttypes>
 #include <cstdio>
+#include <ctime>
 
 namespace espframe::native {
 namespace {
@@ -19,6 +21,12 @@ std::atomic<uint32_t> prepared_slides{};
 std::atomic<uint32_t> first_photo_ms{};
 std::atomic<uint32_t> swipes{};
 std::atomic<uint32_t> last_motion_us{};
+std::atomic<uint32_t> prepare_attempts{};
+std::atomic<uint32_t> photo_candidates{};
+std::atomic<uint32_t> pair_candidates{};
+std::atomic<int> search_http{};
+std::atomic<int> pairing_http{};
+std::atomic<int> preview_http{};
 
 template <size_t Size>
 bool read_preference(nvs_handle_t storage, const char *key, std::array<uint8_t, Size> &payload) {
@@ -69,14 +77,23 @@ bool read_trial_scope(nvs_handle_t storage, Settings &settings) {
 }
 
 esp_err_t status(httpd_req_t *request) {
+  const auto &network = *static_cast<const NativeNetwork *>(request->user_ctx);
   const auto prepared = prepared_slides.load(std::memory_order_acquire);
   const auto gestures = swipes.load(std::memory_order_acquire);
-  char body[192]{};
+  char body[384]{};
   std::snprintf(body, sizeof(body),
                 "{\"trial\":\"v1-live\",\"uptime_ms\":%" PRIu32 ",\"prepared_slides\":%" PRIu32
-                ",\"first_photo_ms\":%" PRIu32 ",\"swipes\":%" PRIu32 ",\"last_motion_us\":%" PRIu32 "}",
+                ",\"first_photo_ms\":%" PRIu32 ",\"swipes\":%" PRIu32 ",\"last_motion_us\":%" PRIu32
+                ",\"clock_ready\":%s,\"photo_connection\":%s,\"prepare_attempts\":%" PRIu32
+                ",\"search_http\":%d,\"photo_candidates\":%" PRIu32 ",\"pairing_http\":%d,\"pair_candidates\":%" PRIu32
+                ",\"preview_http\":%d}",
                 static_cast<uint32_t>(esp_timer_get_time() / 1000), prepared,
-                first_photo_ms.load(std::memory_order_relaxed), gestures, last_motion_us.load(std::memory_order_relaxed));
+                first_photo_ms.load(std::memory_order_relaxed), gestures, last_motion_us.load(std::memory_order_relaxed),
+                clock_time_is_valid(std::time(nullptr)) ? "true" : "false",
+                network.photo_connection() ? "true" : "false", prepare_attempts.load(std::memory_order_relaxed),
+                search_http.load(std::memory_order_relaxed), photo_candidates.load(std::memory_order_relaxed),
+                pairing_http.load(std::memory_order_relaxed), pair_candidates.load(std::memory_order_relaxed),
+                preview_http.load(std::memory_order_relaxed));
   httpd_resp_set_type(request, "application/json");
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
   return httpd_resp_sendstr(request, body);
@@ -111,7 +128,7 @@ bool read_live_trial_credentials(Settings &settings) {
   return true;
 }
 
-bool start_live_trial_status() {
+bool start_live_trial_status(NativeNetwork &network) {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.core_id = 0;
   config.max_uri_handlers = 1;
@@ -122,11 +139,21 @@ bool start_live_trial_status() {
   route.uri = "/api/trial";
   route.method = HTTP_GET;
   route.handler = status;
+  route.user_ctx = &network;
   if (httpd_register_uri_handler(server, &route) == ESP_OK)
     return true;
   httpd_stop(server);
   return false;
 }
+
+void record_live_trial_prepare() { prepare_attempts.fetch_add(1, std::memory_order_relaxed); }
+
+void record_live_trial_search(bool pairing, int http_status, size_t candidates) {
+  (pairing ? pairing_http : search_http).store(http_status, std::memory_order_relaxed);
+  (pairing ? pair_candidates : photo_candidates).store(candidates, std::memory_order_relaxed);
+}
+
+void record_live_trial_preview(int http_status) { preview_http.store(http_status, std::memory_order_relaxed); }
 
 void record_live_trial_photo(uint32_t elapsed_ms) {
   if (prepared_slides.load(std::memory_order_relaxed) == 0)

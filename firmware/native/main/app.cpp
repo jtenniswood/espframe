@@ -275,6 +275,8 @@ class SlideLoader {
       const auto connection = network.photo_connection();
       bool ready = true;
       if ((!esphome_trial || trial_immich) && loader.live_ && lease.slide > 0) {
+        if constexpr (trial_immich)
+          record_live_trial_prepare();
         ready = loader.source_.prepare(lease.slide, lease.pixels);
       } else {
         const int fixture = lease.slide % fixture_count;
