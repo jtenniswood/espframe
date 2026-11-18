@@ -96,7 +96,7 @@
         "home_assistant_api_encryption_key_exclusions": { "const": ["public YAML", "factory firmware", "release workflows", "EspFrame backups", "device web UI"] },
         "home_assistant_api_encryption_persistence": { "type": "string", "minLength": 1 },
         "home_assistant_api_encryption_factory_reset_behavior": { "type": "string", "minLength": 1 },
-        "esphome_version": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]+\\.[0-9]+$" }
+        "esphome_version": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]+\\.[0-9]+(?:b[1-9][0-9]*)?$" }
       },
       "additionalProperties": true
     },

@@ -9,6 +9,7 @@
 #include "slideshow_component.h"
 #include "photo_buffer_ownership.h"
 #include "slideshow_transition.h"
+#include "slideshow_gesture.h"
 #include <string>
 #include <cstdint>
 #include <cstring>

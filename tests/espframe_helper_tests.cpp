@@ -14,6 +14,7 @@
 #include "components/espframe/slideshow_component.h"
 #include "components/espframe/memory_pressure.h"
 #include "components/espframe/slideshow_transition.h"
+#include "components/espframe/slideshow_gesture.h"
 
 static void test_memory_pressure_prefetch() {
   esphome::espframe::MemoryPressurePolicy policy;
@@ -2056,7 +2057,21 @@ static void test_slide_transitions() {
   assert(dx == -1 && dy == 0);
 }
 
+static void test_slideshow_swipe_threshold() {
+  using esphome::espframe::is_slideshow_swipe;
+  assert(!is_slideshow_swipe(0, 0, 1280));
+  assert(!is_slideshow_swipe(63, 0, 1280));
+  assert(is_slideshow_swipe(64, 0, 1280));
+  assert(is_slideshow_swipe(-64, -42, 1280));
+  assert(!is_slideshow_swipe(-64, -43, 1280));
+  assert(!is_slideshow_swipe(47, 0, 800));
+  assert(is_slideshow_swipe(-48, 0, 800));
+  assert(!is_slideshow_swipe(48, 32, 800));
+  assert(!is_slideshow_swipe(0, 200, 800));
+}
+
 int main() {
+  test_slideshow_swipe_threshold();
   test_structured_companion_pagination();
   test_memory_pressure_prefetch();
   test_filter_invalidation_preserves_display_and_clears_work();
