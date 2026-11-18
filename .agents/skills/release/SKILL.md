@@ -13,10 +13,9 @@ description: >-
 # GitHub Release
 
 Create a GitHub release from `main` and wait for the `Build Release` action to
-complete successfully. Do not report the release as successful while the
-workflow is queued or in progress. In this repo, publishing a release is the
-normal way to start the firmware build because `.github/workflows/release.yml`
-uploads firmware assets only for the `release` event.
+complete successfully. Start with a draft for an existing tag. The workflow
+builds and verifies the firmware, uploads it to the draft, and publishes the
+draft only after verifying the uploaded files.
 
 ## Release Flow
 
@@ -79,36 +78,20 @@ Before publishing, run the compile-aware release-readiness check:
 npm run check:release-ready-with-compile
 ```
 
-Use a published release, not a draft, so GitHub emits the `release.published`
-event and starts the firmware build.
+Create and push the authorized release tag at the exact verified commit from
+`origin/main`. If the tag already exists, verify that it points to the intended
+commit. Create the release as a draft, or reuse an existing draft for that tag.
 
 Stable release:
 
 ```bash
-TAG="vX.Y.Z"
-gh release create "$TAG" \
-  --target main \
-  --generate-notes \
-  --fail-on-no-commits
+gh release create "$TAG" --verify-tag --draft --generate-notes
 ```
 
 Pre-release:
 
 ```bash
-TAG="vX.Y.Z-beta.N"
-gh release create "$TAG" \
-  --target main \
-  --generate-notes \
-  --fail-on-no-commits \
-  --prerelease \
-  --latest=false
-```
-
-If a draft release already exists for the tag and the user wants to publish it,
-publish the draft instead of creating a duplicate:
-
-```bash
-gh release edit "$TAG" --draft=false
+gh release create "$TAG" --verify-tag --draft --generate-notes --prerelease --latest=false
 ```
 
 Do not close GitHub issues as part of this workflow unless the user explicitly
@@ -117,12 +100,13 @@ asks; they prefer to test before issues are closed.
 ### 4. Wait for and verify the Release Action
 
 The related action is `Build Release` in `.github/workflows/release.yml`.
-Publishing the release should start it automatically.
+Dispatch the workflow explicitly on the tag with publishing enabled.
 
 ```bash
+gh workflow run release.yml --ref "$TAG" -f publish=true
 gh run list \
   --workflow release.yml \
-  --event release \
+  --event workflow_dispatch \
   --limit 10 \
   --json databaseId,status,conclusion,createdAt,headBranch,displayTitle,url
 ```
@@ -138,18 +122,9 @@ If the run is queued or in progress, report that state and keep waiting. If it
 fails, report the failed run and relevant job or log details; do not report
 success and do not silently switch to manual dispatch.
 
-If no `release` event run appears after a short wait, report that the release
-was created but the automatic action was not found. Do not silently switch to
-manual dispatch.
-
-Manual dispatch is only a test-build fallback:
-
-```bash
-gh workflow run release.yml --ref "$TAG"
-```
-
-Warn the user before using this fallback because workflow-dispatched runs
-produce an artifact but do not upload firmware files to the GitHub release.
+If no matching dispatch appears after a short wait, report that the draft
+remains unpublished and the expected run could not be found. A candidate-only
+run can be dispatched without the `publish` input.
 
 ### 5. Verify Outputs After a Successful Build
 

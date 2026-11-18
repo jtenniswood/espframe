@@ -16,7 +16,7 @@ WORKFLOW_ACTION_TARGETS = {
     "checkout": (".github/workflows/release.yml", ".github/workflows/docs.yml", ".github/workflows/compile.yml"),
     "deploy_pages": (".github/workflows/docs.yml",),
     "download_artifact": (".github/workflows/release.yml", ".github/workflows/docs.yml"),
-    "setup_node": (".github/workflows/docs.yml", ".github/workflows/compile.yml"),
+    "setup_node": (".github/workflows/docs.yml", ".github/workflows/compile.yml", ".github/workflows/release.yml"),
     "upload_artifact": (".github/workflows/release.yml", ".github/workflows/docs.yml", ".github/workflows/compile.yml"),
     "upload_pages_artifact": (".github/workflows/docs.yml",),
 }
@@ -1682,9 +1682,9 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             "merge-multiple": "true",
         }
         if release_publish_dir:
-            release_artifact_download_inputs["path"] = release_publish_dir
+            release_artifact_download_inputs["path"] = "board-builds"
         check_workflow_action_step_inputs(
-            "release.publish",
+            "release.assemble-candidate",
             download_artifact_action,
             "pattern",
             f"{artifact_prefix}*",
@@ -1692,6 +1692,18 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             {"release": (".github/workflows/release.yml", release_workflow)},
             errors,
         )
+        candidate_name = "verified-firmware-candidate"
+        candidate_inputs = {"name": candidate_name, "path": release_publish_dir}
+        for job, action, inputs in (
+            ("release.assemble-candidate", upload_artifact_action, {
+                "name": candidate_name, "if-no-files-found": "error",
+            }),
+            ("release.publish", download_artifact_action, candidate_inputs),
+        ):
+            check_workflow_action_step_inputs(
+                job, action, "name", candidate_name, inputs,
+                {"release": (".github/workflows/release.yml", release_workflow)}, errors,
+            )
     if release_build_output_dir:
         check_workflow_named_step_run_contains(
             "release.build-firmware",
@@ -1731,6 +1743,8 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             "Compile firmware",
             [
                 '-s firmware_version "${VERSION}"',
+                '-s espframe_component_url "file://${ESPHOME_CONFIG_MOUNT}"',
+                "-s espframe_component_ref HEAD",
                 'compile "${ESPHOME_CONFIG_MOUNT}/builds/${config_file}"',
                 '"${{ matrix.yaml }}.yaml" ota firmware.ota.bin',
             ],
@@ -1748,6 +1762,13 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             errors,
         )
     if release_publish_dir:
+        check_workflow_named_step_run_contains(
+            "release.assemble-candidate",
+            "Verify assembled release assets",
+            ["scripts/firmware_release.py verify-directory", f"--dir {release_publish_dir}", "--exact", '--source-commit "$GITHUB_SHA"'],
+            workflow_texts,
+            errors,
+        )
         check_workflow_named_step_run_contains(
             "release.publish",
             "Verify assembled release assets",
@@ -2502,12 +2523,13 @@ def check_node_version(product: dict, errors: list[str]) -> None:
     docs_workflow = read(ROOT / ".github" / "workflows" / "docs.yml", errors)
     workflow_texts = {
         "compile": (".github/workflows/compile.yml", compile_workflow),
+        "release": (".github/workflows/release.yml", read(ROOT / ".github" / "workflows" / "release.yml", errors)),
         "docs": (".github/workflows/docs.yml", docs_workflow),
     }
     setup_node_inputs = {"node-version": version}
     if package_cache:
         setup_node_inputs["cache"] = package_cache
-    for target in ("compile.validate", "docs.build-docs"):
+    for target in ("compile.validate", "docs.build-docs", "release.assemble-candidate"):
         check_workflow_action_step_inputs(
             target,
             setup_node_action,
@@ -2518,7 +2540,7 @@ def check_node_version(product: dict, errors: list[str]) -> None:
             errors,
         )
     if install_command:
-        for target in ("compile.validate", "docs.build-docs"):
+        for target in ("compile.validate", "docs.build-docs", "release.assemble-candidate"):
             check_workflow_job_run_command(target, install_command, workflow_texts, errors)
     if local_check_command:
         check_workflow_job_run_command("compile.validate", local_check_command, workflow_texts, errors)

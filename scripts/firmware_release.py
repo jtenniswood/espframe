@@ -17,6 +17,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import zlib
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -582,6 +583,43 @@ def cmd_inject(args: argparse.Namespace) -> None:
     path.write_text(text.replace(FIRMWARE_VERSION_PLACEHOLDER, replacement, 1))
 
 
+def candidate_web_assets() -> dict[str, bytes]:
+    web_root = ROOT / "docs/public/webserver"
+    return {name: (web_root / name).read_bytes() for name in ("app.js", "style.css")}
+
+
+def verify_embedded_web_assets(image: Path, assets: dict[str, bytes]) -> None:
+    # ESPHome serves js_include and css_include as independent gzip streams.
+    firmware = image.read_bytes()
+    remaining = set(assets)
+    max_output = max(map(len, assets.values())) + 1
+    offset = 0
+    while remaining:
+        start = firmware.find(b"\x1f\x8b\x08", offset)
+        if start < 0:
+            break
+        offset = start + 3
+        stream = zlib.decompressobj(wbits=31)
+        try:
+            content = stream.decompress(memoryview(firmware)[start:], max_output)
+        except zlib.error:
+            continue
+        if stream.eof:
+            remaining.difference_update(name for name, asset in assets.items() if content == asset)
+    if remaining:
+        raise FirmwareReleaseError(f"{image} is missing embedded web assets: {', '.join(sorted(remaining))}")
+
+
+def candidate_provenance(commit: str, factory: Path, ota: Path) -> dict[str, object]:
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise FirmwareReleaseError("Candidate source commit must be a full Git SHA")
+    assets = {"factory": factory.read_bytes(), "ota": ota.read_bytes(), **candidate_web_assets()}
+    return {
+        "source_commit": commit,
+        "sha256": {name: hashlib.sha256(content).hexdigest() for name, content in assets.items()},
+    }
+
+
 def cmd_manifest(args: argparse.Namespace) -> None:
     assert_release_version(args.version)
     factory = Path(args.factory)
@@ -609,6 +647,8 @@ def cmd_manifest(args: argparse.Namespace) -> None:
             },
         ],
     }
+    if args.source_commit:
+        data["espframe_candidate"] = candidate_provenance(args.source_commit, factory, ota)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(data, indent=2) + "\n")
@@ -619,8 +659,36 @@ def cmd_verify_files(args: argparse.Namespace) -> None:
 
 
 def cmd_verify_directory(args: argparse.Namespace) -> None:
+    base_dir = Path(args.dir)
+    if args.exact:
+        if args.allow_missing_slugs:
+            raise FirmwareReleaseError("--exact requires all requested slugs")
+        expected = {
+            f"{slug}{suffix}"
+            for slug in args.slugs
+            for suffix in (".manifest.json", ".factory.bin", ".ota.bin")
+        }
+        entries = list(base_dir.iterdir())
+        actual = {entry.name for entry in entries}
+        if actual != expected or any(not entry.is_file() or entry.is_symlink() for entry in entries):
+            raise FirmwareReleaseError(
+                f"Unexpected release candidate contents: missing={sorted(expected - actual)}, "
+                f"extra={sorted(actual - expected)}"
+            )
+    if args.source_commit:
+        if not args.exact:
+            raise FirmwareReleaseError("--source-commit verification requires --exact")
+        web_assets = candidate_web_assets()
+        for slug in args.slugs:
+            factory = base_dir / f"{slug}.factory.bin"
+            ota = base_dir / f"{slug}.ota.bin"
+            manifest = load_manifest(base_dir / f"{slug}.manifest.json")
+            if manifest.get("espframe_candidate") != candidate_provenance(args.source_commit, factory, ota):
+                raise FirmwareReleaseError(f"{slug} candidate provenance did not match the source and artifacts")
+            verify_embedded_web_assets(factory, web_assets)
+            verify_embedded_web_assets(ota, web_assets)
     verify_directory(
-        Path(args.dir),
+        base_dir,
         args.slugs,
         args.version,
         allow_missing_slugs=set(args.allow_missing_slugs),
@@ -664,6 +732,7 @@ def build_parser() -> argparse.ArgumentParser:
     manifest.add_argument("--version", required=True)
     manifest.add_argument("--factory", required=True)
     manifest.add_argument("--ota", required=True)
+    manifest.add_argument("--source-commit")
     manifest.add_argument("--out", required=True)
     manifest.set_defaults(func=cmd_manifest)
 
@@ -680,6 +749,8 @@ def build_parser() -> argparse.ArgumentParser:
     verify_directory_cmd.add_argument("--dir", required=True)
     verify_directory_cmd.add_argument("--slugs", nargs="+", required=True)
     verify_directory_cmd.add_argument("--allow-missing-slugs", nargs="+", default=[])
+    verify_directory_cmd.add_argument("--exact", action="store_true", help="Require exactly the three release files for every slug")
+    verify_directory_cmd.add_argument("--source-commit")
     verify_directory_cmd.set_defaults(func=cmd_verify_directory)
 
     stage_directory_cmd = sub.add_parser("stage-directory", help="Stage release assets at their public paths")

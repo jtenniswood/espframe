@@ -2328,6 +2328,7 @@ def test_workflow_action_usage_checks_expected_workflows() -> None:
                 "        uses: actions/cache@v6",
                 "        uses: actions/upload-artifact@v7",
                 "        uses: actions/download-artifact@v8",
+                "      - uses: actions/setup-node@v6",
             ]
         ),
         ".github/workflows/docs.yml": "\n".join(
@@ -2725,7 +2726,7 @@ def test_trusted_workflows_target_the_dedicated_runner() -> None:
     assert "runs-on: ubuntu-latest" not in docs_workflow
     assert "runs-on: ubuntu-latest" not in release_workflow
     assert docs_workflow.count("runs-on: espframe") == 3
-    assert release_workflow.count("runs-on: espframe") == 4
+    assert release_workflow.count("runs-on: espframe") == 5
     assert cleanup_workflow.count("runs-on: espframe") == 1
     assert "docker volume prune --all --force" in cleanup_workflow
     assert '"tzdata==2026.3"' in compile_workflow
@@ -2743,6 +2744,33 @@ def test_firmware_workflows_copy_sources_into_isolated_docker() -> None:
         assert "type=volume,source=${workspace_volume}" in workflow_text
         assert 'rm -rf "${RELEASE_ESPHOME_CACHE_DIR}"' in workflow_text
         assert '-v "${PWD}:${ESPHOME_CONFIG_MOUNT}"' not in workflow_text
+
+
+def test_release_promotes_only_the_verified_draft() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text()
+    assert "default: false" in workflow
+    assert "types: [published]" not in workflow
+    assert "npm run check:generated" in workflow.split("\n  assemble-candidate:\n", 1)[1].split("\n  publish:\n", 1)[0]
+    publish = workflow.split("\n  publish:\n", 1)[1]
+    assert "if: inputs.publish && github.ref_type == 'tag'" in publish
+    steps = [
+        "Download verified firmware candidate",
+        "Verify assembled release assets",
+        "Require an existing draft release",
+        "Upload firmware to release",
+        "Verify uploaded release assets",
+        'cmp "$asset" "published/${asset##*/}"',
+        "Publish verified draft",
+    ]
+    positions = [publish.index(step) for step in steps]
+    assert positions == sorted(positions)
+
+
+def test_candidate_only_runs_do_not_deploy_docs() -> None:
+    release = (ROOT / ".github" / "workflows" / "release.yml").read_text()
+    docs = (ROOT / ".github" / "workflows" / "docs.yml").read_text()
+    assert "inputs.publish && github.ref_type == 'tag' && format('Publish firmware {0}'" in release
+    assert docs.count("startsWith(github.event.workflow_run.display_title, 'Publish firmware ')") == 2
 
 
 def main() -> int:

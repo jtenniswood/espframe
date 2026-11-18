@@ -1,9 +1,16 @@
 name: Build Release
+run-name: ${{ inputs.publish && github.ref_type == 'tag' && format('Publish firmware {0}', github.ref_name) || format('Build firmware candidate {0}', github.ref_name) }}
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the existing draft for the selected tag after verifying its firmware
+        type: boolean
+        default: false
+
+concurrency:
+  group: firmware-release-${{ github.ref }}
 
 permissions:
   contents: write
@@ -28,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.release.tag_name || github.ref }}
+          ref: ${{ github.sha }}
           sparse-checkout: |
             scripts/product_config.py
             product/contract/devices.json
@@ -43,7 +50,7 @@ jobs:
 
   release-notes:
     name: Update Release Notes
-    if: github.event_name == 'release'
+    if: inputs.publish && github.ref_type == 'tag'
     runs-on: espframe
     timeout-minutes: 10
     steps:
@@ -52,16 +59,23 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Require an existing draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ github.ref_name }}
+        run: test "$(gh release view "$VERSION" --json isDraft --jq .isDraft)" = true
+
       - name: Build detailed changelog
         env:
-          VERSION: ${{ github.event.release.tag_name }}
+          VERSION: ${{ github.ref_name }}
         run: python3 scripts/release_changelog.py "$VERSION" --output "$RUNNER_TEMP/release-notes.md"
 
       - name: Update GitHub release notes
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          VERSION: ${{ github.event.release.tag_name }}
+          VERSION: ${{ github.ref_name }}
         run: gh release edit "$VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"
 
   build-firmware:
@@ -83,7 +97,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.release.tag_name || github.ref }}
+          ref: ${{ github.sha }}
 
       - name: Reclaim runner Docker storage
         run: |
@@ -106,7 +120,7 @@ jobs:
 
       - name: Compile firmware
         env:
-          VERSION: ${{ github.event.release.tag_name || github.ref_name }}
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.0.0-candidate.{0}.{1}', github.run_id, github.run_attempt) }}
         run: |
           set -euo pipefail
           python3 scripts/firmware_release.py inject \
@@ -152,6 +166,8 @@ jobs:
               --mount "type=volume,source=${workspace_volume},target=${ESPHOME_CONFIG_MOUNT}" \
               "${image}" \
               -s firmware_version "${VERSION}" \
+              -s espframe_component_url "file://${ESPHOME_CONFIG_MOUNT}" \
+              -s espframe_component_ref HEAD \
               compile "${ESPHOME_CONFIG_MOUNT}/builds/${config_file}")
 
             cleanup_container() {
@@ -207,7 +223,7 @@ jobs:
 
       - name: Collect firmware files and generate manifest
         env:
-          VERSION: ${{ github.event.release.tag_name || github.ref_name }}
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.0.0-candidate.{0}.{1}', github.run_id, github.run_attempt) }}
         run: |
           mkdir -p output
 
@@ -222,6 +238,7 @@ jobs:
             --version "${VERSION}" \
             --factory "output/${{ matrix.slug }}.factory.bin" \
             --ota "output/${{ matrix.slug }}.ota.bin" \
+            --source-commit "$GITHUB_SHA" \
             --out "output/${{ matrix.slug }}.manifest.json"
 
           python3 scripts/firmware_release.py verify-files \
@@ -237,10 +254,75 @@ jobs:
           name: firmware-${{ matrix.slug }}
           path: output/
 
+  assemble-candidate:
+    name: Assemble verified firmware candidate
+    needs: [build-firmware, release-metadata]
+    runs-on: espframe
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify generated assets at the candidate revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          tzdata_venv="${RUNNER_TEMP}/espframe-release-tzdata"
+          python3 -m venv "$tzdata_venv"
+          "$tzdata_venv/bin/python" -m pip install --disable-pip-version-check "tzdata==2026.3"
+          tzdata_site=$("$tzdata_venv/bin/python" -c 'import site; print(site.getsitepackages()[0])')
+          export PYTHONPATH="$tzdata_site${PYTHONPATH:+:$PYTHONPATH}"
+          export PYTHONTZPATH="$tzdata_site/tzdata/zoneinfo"
+          npm run check:generated
+
+      - name: Download all firmware artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: firmware-*
+          merge-multiple: true
+          path: board-builds
+
+      - name: Collect release assets
+        shell: bash
+        run: |
+          mkdir firmware
+          cp board-builds/*.manifest.json board-builds/*.factory.bin board-builds/*.ota.bin firmware/
+
+      - name: Verify assembled release assets
+        env:
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.0.0-candidate.{0}.{1}', github.run_id, github.run_attempt) }}
+          DEVICE_SLUGS: ${{ needs.release-metadata.outputs.device_slugs }}
+        run: >-
+          python3 scripts/firmware_release.py verify-directory
+          --version "${VERSION}"
+          --dir firmware
+          --exact
+          --source-commit "$GITHUB_SHA"
+          --slugs $DEVICE_SLUGS
+
+      - name: Upload verified firmware candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: verified-firmware-candidate
+          path: |
+            firmware/*.manifest.json
+            firmware/*.factory.bin
+            firmware/*.ota.bin
+          if-no-files-found: error
+
   publish:
     name: Publish to Release
-    if: github.event_name == 'release'
-    needs: [build-firmware, release-metadata]
+    if: inputs.publish && github.ref_type == 'tag'
+    needs: [assemble-candidate, release-metadata, release-notes]
     runs-on: espframe
     timeout-minutes: 20
     steps:
@@ -255,34 +337,42 @@ jobs:
             product/contract/settings.json
           sparse-checkout-cone-mode: false
 
-      - name: Download all firmware artifacts
+      - name: Download verified firmware candidate
         uses: actions/download-artifact@v8
         with:
-          pattern: firmware-*
-          merge-multiple: true
+          name: verified-firmware-candidate
           path: firmware
 
       - name: Verify assembled release assets
         env:
-          VERSION: ${{ github.event.release.tag_name }}
+          VERSION: ${{ github.ref_name }}
           DEVICE_SLUGS: ${{ needs.release-metadata.outputs.device_slugs }}
         run: >-
           python3 scripts/firmware_release.py verify-directory
           --version "${VERSION}"
           --dir firmware
+          --exact
           --slugs $DEVICE_SLUGS
+
+      - name: Require an existing draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ github.ref_name }}
+        run: test "$(gh release view "$VERSION" --json isDraft --jq .isDraft)" = true
 
       - name: Upload firmware to release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: gh release upload "${{ github.event.release.tag_name }}" firmware/* --clobber
+          VERSION: ${{ github.ref_name }}
+        run: gh release upload "$VERSION" firmware/* --clobber
 
       - name: Verify uploaded release assets
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          VERSION: ${{ github.event.release.tag_name }}
+          VERSION: ${{ github.ref_name }}
           DEVICE_SLUGS: ${{ needs.release-metadata.outputs.device_slugs }}
         run: |
           mkdir -p published
@@ -294,4 +384,16 @@ jobs:
           python3 scripts/firmware_release.py verify-directory \
             --version "${VERSION}" \
             --dir published \
+            --exact \
             --slugs $DEVICE_SLUGS
+
+          for asset in firmware/*; do
+            cmp "$asset" "published/${asset##*/}"
+          done
+
+      - name: Publish verified draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ github.ref_name }}
+        run: gh release edit "$VERSION" --draft=false

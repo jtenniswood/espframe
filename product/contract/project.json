@@ -1745,6 +1745,7 @@
     "release.release-metadata": "espframe",
     "release.release-notes": "espframe",
     "release.build-firmware": "espframe",
+    "release.assemble-candidate": "espframe",
     "release.publish": "espframe"
   },
   "github_cli_env": {
@@ -1753,9 +1754,9 @@
   },
   "github_release_notes_fetch_depth": 0,
   "github_release_notes_fetch_tags": true,
-  "github_release_notes_version_ref": "${{ github.event.release.tag_name }}",
-  "github_release_build_version_ref": "${{ github.event.release.tag_name || github.ref_name }}",
-  "github_release_build_ref": "${{ github.event.release.tag_name || github.ref }}",
+  "github_release_notes_version_ref": "${{ github.ref_name }}",
+  "github_release_build_version_ref": "${{ github.ref_type == 'tag' && github.ref_name || format('v0.0.0-candidate.{0}.{1}', github.run_id, github.run_attempt) }}",
+  "github_release_build_ref": "${{ github.sha }}",
   "github_release_build_fail_fast": false,
   "github_release_notes_output": "$RUNNER_TEMP/release-notes.md",
   "github_workflow_permissions": {
@@ -1800,16 +1801,12 @@
       "workflow_dispatch"
     ],
     "release": [
-      "release",
       "workflow_dispatch"
     ]
   },
   "github_workflow_event_types": {
     "docs.workflow_run": [
       "completed"
-    ],
-    "release.release": [
-      "published"
     ]
   },
   "github_docs_workflow_run_success_conclusion": "success",
@@ -1828,6 +1825,7 @@
       "release-metadata": "Read Product Release Metadata",
       "release-notes": "Update Release Notes",
       "build-firmware": "Build espframe",
+      "assemble-candidate": "Assemble verified firmware candidate",
       "publish": "Publish to Release"
     }
   },
@@ -1843,22 +1841,28 @@
     "release.build-firmware": [
       "release-metadata"
     ],
-    "release.publish": [
+    "release.assemble-candidate": [
       "build-firmware",
       "release-metadata"
+    ],
+    "release.publish": [
+      "assemble-candidate",
+      "release-metadata",
+      "release-notes"
     ]
   },
   "github_workflow_job_conditions": {
     "compile.validate": null,
     "compile.firmware-metadata": "github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'",
     "compile.compile": "github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'",
-    "docs.build-docs": "github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'",
-    "docs.download-firmware": "github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'",
+    "docs.build-docs": "github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.display_title, 'Publish firmware '))",
+    "docs.download-firmware": "github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.display_title, 'Publish firmware '))",
     "docs.deploy-docs": null,
     "release.release-metadata": null,
-    "release.release-notes": "github.event_name == 'release'",
+    "release.release-notes": "inputs.publish && github.ref_type == 'tag'",
     "release.build-firmware": null,
-    "release.publish": "github.event_name == 'release'"
+    "release.assemble-candidate": null,
+    "release.publish": "inputs.publish && github.ref_type == 'tag'"
   },
   "github_sparse_checkout_files": [
     "scripts/firmware_release.py",

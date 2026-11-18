@@ -45,6 +45,40 @@ esphome run esphome.yaml
 
 First build takes a few minutes; OTA updates are faster.
 
+### Pin the firmware and embed its web configurator
+
+For a repeatable custom build, use a full Espframe commit SHA for both
+`packages.espframe.ref` and the `espframe_component_ref` substitution. Copy
+the configurator from that same commit into the directory containing your
+top-level `esphome.yaml`:
+
+```bash
+ESPFRAME_REV="<full Espframe commit SHA>"
+git clone https://github.com/jtenniswood/espframe.git espframe-source
+mkdir -p espframe-web
+git -C espframe-source show "${ESPFRAME_REV}:docs/public/webserver/app.js" > espframe-web/app.js
+git -C espframe-source show "${ESPFRAME_REV}:docs/public/webserver/style.css" > espframe-web/style.css
+```
+
+Add the substitution to your existing `substitutions` block and add this
+top-level web server override. Replace the placeholder with the same SHA used
+in the commands and the package ref.
+
+```yaml
+substitutions:
+  espframe_component_ref: "<full Espframe commit SHA>"
+
+web_server:
+  js_url: ""
+  css_url: ""
+  js_include: espframe-web/app.js
+  css_include: espframe-web/style.css
+```
+
+The resulting firmware serves both files locally. When upgrading, update both
+refs and refresh both files before compiling. The basic package example above
+continues to use the hosted configurator.
+
 ### Optional user-managed Home Assistant key
 
 By default, Home Assistant 2026.8+ provisions a unique ESPHome API encryption key on first connection and the frame preserves it across OTA updates. Advanced users who want to manage that key in their ESPHome configuration can override the package configuration:

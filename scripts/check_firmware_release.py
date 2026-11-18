@@ -6,13 +6,17 @@ from __future__ import annotations
 from contextlib import redirect_stderr
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+import gzip
 import io
 import json
+import os
 from pathlib import Path
+import subprocess
 from tempfile import TemporaryDirectory
 from threading import Thread
 
 import firmware_release
+from product_contract.workflows import workflow_job_block, workflow_job_step_blocks, workflow_step_run
 from script_test_discovery import run_discovered_tests
 
 
@@ -124,6 +128,110 @@ def test_valid_files_and_directory() -> None:
             "--ota", str(ota),
         ])
         run_ok(["verify-directory", "--version", VERSION, "--dir", str(base), "--slugs", SLUG])
+
+
+def test_exact_candidate_requires_only_the_requested_release_files() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        slugs = [device.slug for device in firmware_release.DEVICES.values()]
+        for slug in slugs:
+            make_release_files(base, slug)
+        args = ["verify-directory", "--exact", "--version", VERSION, "--dir", str(base), "--slugs", *slugs]
+        run_ok(args)
+        (base / "unexpected.ota.bin").touch()
+        run_fails(args)
+        (base / "unexpected.ota.bin").unlink()
+        (base / f"{slugs[-1]}.ota.bin").unlink()
+        run_fails(args)
+
+
+def test_candidate_provenance_binds_source_web_assets_and_firmware() -> None:
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        version = "v0.0.0-candidate.123.1"
+        manifest, factory, ota = make_release_files(base, version=version)
+        commit = "a" * 40
+        web_assets = firmware_release.candidate_web_assets()
+        original_factory = factory.read_bytes()
+        gzip_assets = b"".join(gzip.compress(content) for content in web_assets.values())
+        for image in (factory, ota):
+            image.write_bytes(image.read_bytes() + gzip_assets)
+        make_manifest = [
+            "manifest", "--slug", SLUG, "--chip", CHIP, "--version", version,
+            "--factory", str(factory), "--ota", str(ota), "--out", str(manifest),
+            "--source-commit", commit,
+        ]
+        run_ok(make_manifest)
+        args = ["verify-directory", "--exact", "--version", version, "--dir", str(base),
+                "--slugs", SLUG, "--source-commit"]
+        run_ok([*args, commit])
+        run_fails([*args, "b" * 40])
+        original_manifest = manifest.read_text()
+        data = json.loads(original_manifest)
+        data["espframe_candidate"]["sha256"]["app.js"] = "0" * 64
+        manifest.write_text(json.dumps(data))
+        run_fails([*args, commit])
+        manifest.write_text(original_manifest)
+        factory.write_bytes(factory.read_bytes() + b"changed")
+        run_fails([*args, commit])
+        # Even freshly hashed firmware must embed both assets from the checkout.
+        factory.write_bytes(original_factory + gzip.compress(web_assets["app.js"]))
+        run_ok(make_manifest)
+        run_fails([*args, commit])
+
+
+def test_release_promotion_keeps_unverified_assets_private() -> None:
+    path = firmware_release.ROOT / ".github/workflows/release.yml"
+    errors: list[str] = []
+    publish = workflow_job_block(path.read_text(), "publish", str(path), errors)
+    assert not errors
+    commands = []
+    for step in workflow_job_step_blocks(publish):
+        command = workflow_step_run(step)
+        if command:
+            commands.append(" ".join(command.splitlines()) if "run: >-" in step else command)
+
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        gh = base / "gh"
+        gh.write_text("""#!/bin/bash
+set -eu
+[ "$1" = release ]
+printf '%s\n' "$2" >> calls
+case "$2" in
+  view) [ "$GH_TEST_MODE" != published ] && echo true || echo false ;;
+  upload) mkdir -p remote; cp firmware/* remote/ ;;
+  download)
+    cp remote/* published/
+    if [ "$GH_TEST_MODE" = corrupt ]; then
+      printf 'changed without removing version records' >> "published/$DEVICE_SLUGS.factory.bin"
+    fi
+    ;;
+  edit) [ "$4" = --draft=false ]; touch made-public ;;
+  *) exit 1 ;;
+esac
+""")
+        gh.chmod(0o755)
+        for mode in ("valid", "corrupt", "published"):
+            case = base / mode
+            case.mkdir()
+            (case / "scripts").symlink_to(firmware_release.ROOT / "scripts", target_is_directory=True)
+            (case / "firmware").mkdir()
+            make_release_files(case / "firmware", REAL_SLUG)
+            env = {**os.environ, "PATH": f"{base}{os.pathsep}{os.environ['PATH']}",
+                   "VERSION": VERSION, "DEVICE_SLUGS": REAL_SLUG, "GH_TEST_MODE": mode}
+            result = subprocess.run(
+                ["bash", "-eo", "pipefail", "-c", "\n".join(commands)], cwd=case, env=env,
+                capture_output=True, text=True, timeout=30,
+            )
+            expected = {
+                "valid": ["view", "upload", "download", "edit"],
+                "corrupt": ["view", "upload", "download"],
+                "published": ["view"],
+            }[mode]
+            assert (case / "calls").read_text().splitlines() == expected, result.stderr
+            assert (result.returncode == 0) == (mode == "valid"), result.stderr
+            assert (case / "made-public").exists() == (mode == "valid")
 
 
 def test_versions_index_accepts_current_plus_four_previous_releases() -> None:
