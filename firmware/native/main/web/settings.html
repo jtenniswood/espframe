@@ -42,6 +42,30 @@
           <label><input name="memories_fallback" type="checkbox" class="inline-option" checked> Fall back to all photos</label>
           <small>The Immich key needs memory.read permission.</small>
         </div>
+        <details id="capture-dates">
+          <summary>Capture date filter</summary>
+          <label><input name="date_filter_enabled" type="checkbox" class="inline-option"> Limit photos by capture date</label>
+          <label>Date range
+            <select name="date_filter_mode">
+              <option>Fixed Range</option>
+              <option>Relative Range</option>
+            </select>
+          </label>
+          <div id="fixed-dates">
+            <label>From <input type="date" name="date_from" min="0002-01-01" max="9998-12-31"></label>
+            <label>Through <input type="date" name="date_to" min="0002-01-01" max="9998-12-31"></label>
+            <small>Dates are inclusive. Leave an end blank to keep it open.</small>
+          </div>
+          <div id="relative-dates" hidden>
+            <label>Last <input type="number" name="relative_amount" value="1" min="1" max="120" required></label>
+            <label>Unit
+              <select name="relative_unit">
+                <option>Years</option>
+                <option>Months</option>
+              </select>
+            </label>
+          </div>
+        </details>
         <label>Display mode
           <select name="display_mode">
             <option value="Fill">Crop to fit</option>

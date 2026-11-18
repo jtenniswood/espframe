@@ -1,5 +1,6 @@
 #pragma once
 
+#include "capture_date.h"
 #include "photo_history.h"
 #include "photo_source.h"
 
@@ -36,8 +37,9 @@ struct PhotoSearchResult {
 ImmichSearchApi parse_search_api(std::string_view json);
 PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, ImmichSearchApi api,
                                      std::optional<std::chrono::sys_days> local_day = {}, uint32_t page = 1,
-                                     bool with_location = false);
-PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool paged, bool favorites_only);
+                                     bool with_location = false, CaptureDateRange dates = {});
+PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool paged, bool favorites_only,
+                                     CaptureDateRange dates = {});
 std::optional<ImmichPhoto> parse_memory_asset(std::string_view json);
 std::string memory_request_path(std::chrono::sys_days date, unsigned index);
 bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candidate);

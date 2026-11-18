@@ -27,6 +27,14 @@ constexpr int64_t pairing_time_us = 1'500'000;
 extern const uint8_t caption_atlas[] asm("_binary_caption_glyphs_bin_start");
 extern const uint8_t caption_atlas_end[] asm("_binary_caption_glyphs_bin_end");
 
+std::optional<std::chrono::sys_days> local_today() {
+  const auto local = local_clock_time(std::time(nullptr));
+  if (!local)
+    return {};
+  using namespace std::chrono;
+  return sys_days{year(local->tm_year + 1900) / (local->tm_mon + 1) / local->tm_mday};
+}
+
 }  // namespace
 
 bool ImmichSource::online_() {
@@ -56,7 +64,8 @@ int ImmichSource::fetch_(std::string_view path, std::string_view body, size_t li
 }
 
 bool ImmichSource::select_search_api_(PhotoSourceMode mode) {
-  if (mode == PhotoSourceMode::Library || this->search_api_ != ImmichSearchApi::Unknown)
+  const bool library = mode == PhotoSourceMode::Library;
+  if ((library && !this->capture_date_range_.active()) || this->search_api_ != ImmichSearchApi::Unknown)
     return true;
   size_t length;
   const int status = this->fetch_("/server/version", {}, 1024, length);
@@ -64,7 +73,7 @@ bool ImmichSource::select_search_api_(PhotoSourceMode mode) {
     this->search_api_ = parse_search_api({reinterpret_cast<const char *>(this->encoded_), length});
   if (this->search_api_ == ImmichSearchApi::Unknown) {
     ESP_LOGW(tag, "Could not determine Immich search capabilities for the selected photo source (%d)", status);
-    return false;
+    return library;
   }
   return true;
 }
@@ -83,7 +92,9 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
   uint32_t page = !pairing && legacy_album ? this->album_page_ : 1;
   size_t count = !pairing && legacy_album ? this->album_page_size_ : photo_search_batch;
   const bool with_location = this->settings_.metadata.show_location;
-  auto request = make_photo_search(count, source, this->search_api_, local_day, page, with_location);
+  const auto dates = this->settings_.photo_source.mode == PhotoSourceMode::Memories
+                         ? CaptureDateRange{} : this->capture_date_range_;
+  auto request = make_photo_search(count, source, this->search_api_, local_day, page, with_location, dates);
   if (request.path.empty())
     return {};
   size_t length;
@@ -96,11 +107,11 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
       this->album_page_ = 1;
       page = 1;
     }
-    request = make_photo_search(count, source, this->search_api_, local_day, page, with_location);
+    request = make_photo_search(count, source, this->search_api_, local_day, page, with_location, dates);
     status = this->fetch_(request.path, request.body, search_capacity, length);
   }
   if (!pairing && with_location && (status == 400 || status == 413)) {
-    request = make_photo_search(count, source, this->search_api_, local_day, page);
+    request = make_photo_search(count, source, this->search_api_, local_day, page, false, dates);
     status = this->fetch_(request.path, request.body, search_capacity, length);
   }
   if (status != 200) {
@@ -109,20 +120,19 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
     return {};
   }
   auto response = parse_photo_search({reinterpret_cast<const char *>(this->encoded_), length}, count, request.paged,
-                                     source.mode == PhotoSourceMode::Favorites);
+                                     source.mode == PhotoSourceMode::Favorites,
+                                     local_day ? CaptureDateRange{local_day, local_day} : dates);
   if (!pairing && request.paged && response.valid)
     this->album_page_ = response.next_page > page ? response.next_page : 1;
   return std::move(response.photos);
 }
 
 bool ImmichSource::update_memory_day_() {
-  const auto local = local_clock_time(std::time(nullptr));
-  if (!local) {
+  const auto today = local_today();
+  if (!today) {
     this->memories_status_ = MemoriesStatus::WaitingForTime;
     return false;
   }
-  using namespace std::chrono;
-  const sys_days today{year(local->tm_year + 1900) / (local->tm_mon + 1) / local->tm_mday};
   if (this->memory_day_ != today) {
     this->memory_day_ = today;
     this->pending_.clear();
@@ -135,6 +145,22 @@ bool ImmichSource::update_memory_day_() {
   } else if (this->using_memory_fallback_ && esp_timer_get_time() >= this->memory_retry_at_) {
     this->pending_.clear();
     this->using_memory_fallback_ = false;
+  }
+  return true;
+}
+
+bool ImmichSource::update_capture_dates_() {
+  const auto &settings = this->settings_.capture_dates;
+  const auto range = settings.resolve(settings.needs_time() ? local_today() : std::nullopt);
+  if (!range) {
+    this->memories_status_ = MemoriesStatus::WaitingForTime;
+    return false;
+  }
+  this->memories_status_ = MemoriesStatus::None;
+  if (this->capture_date_range_ != *range) {
+    this->capture_date_range_ = *range;
+    this->pending_.clear();
+    this->album_page_ = 1;
   }
   return true;
 }
@@ -196,7 +222,7 @@ std::vector<ImmichPhoto> ImmichSource::memories_() {
 bool ImmichSource::next_asset_(ImmichPhoto &asset) {
   const auto &source = this->settings_.photo_source;
   const bool memory_mode = source.mode == PhotoSourceMode::Memories;
-  if (memory_mode && !this->update_memory_day_())
+  if (!(memory_mode ? this->update_memory_day_() : this->update_capture_dates_()))
     return false;
   if (this->pending_.empty()) {
     this->pending_ = memory_mode ? this->memories_() : this->search_(source);

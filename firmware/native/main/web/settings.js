@@ -1,4 +1,4 @@
-import { bindPhotoSource, validateAlbum } from './photo_source.mjs'
+import { addCaptureDates, bindPhotoSource, validateAlbum } from './photo_source.mjs'
 import { createBackup } from './backup.mjs'
 
 const form = document.querySelector('#settings')
@@ -51,6 +51,12 @@ try {
   form.elements.album_id.value = settings.album_id ?? ''
   form.elements.memories_window.value = settings.memories_window ?? 'Within 2 Days'
   form.elements.memories_fallback.checked = settings.memories_fallback !== false
+  form.elements.date_filter_enabled.checked = settings.date_filter_enabled === true
+  form.elements.date_filter_mode.value = settings.date_filter_mode ?? 'Fixed Range'
+  form.elements.date_from.value = settings.date_from ?? ''
+  form.elements.date_to.value = settings.date_to ?? ''
+  form.elements.relative_amount.value = settings.relative_amount ?? 1
+  form.elements.relative_unit.value = settings.relative_unit ?? 'Years'
   form.elements.show_clock.checked = settings.show_clock === true
   form.elements.photo_metadata_date_enabled.checked = settings.photo_metadata_date_enabled !== false
   form.elements.photo_metadata_location_enabled.checked = settings.photo_metadata_location_enabled !== false
@@ -88,7 +94,7 @@ try {
 form.addEventListener('submit', async event => {
   event.preventDefault()
   const data = Object.fromEntries(new FormData(form))
-  if (!validateAlbum(form, data)) return
+  if (!validateAlbum(form, data) || !addCaptureDates(form, data)) return
   submit.disabled = true
   data.slide_seconds = Number(data.slide_seconds)
   for (const name of percentageFields) data[name] = form.elements[name].valueAsNumber

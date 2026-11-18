@@ -206,7 +206,7 @@ class SlideLoader {
   const ClockSettings &clock() const { return this->settings_.clock; }
   bool photos_need_time() const {
     return this->settings_.metadata.needs_time() || this->settings_.tone.night_enabled ||
-           this->settings_.photo_source.mode == PhotoSourceMode::Memories;
+           this->settings_.photo_source.mode == PhotoSourceMode::Memories || this->settings_.capture_dates.needs_time();
   }
   const ScreenScheduleSettings &schedule() const { return this->settings_.schedule; }
   ScreenRotation rotation() const { return this->settings_.screen_rotation; }

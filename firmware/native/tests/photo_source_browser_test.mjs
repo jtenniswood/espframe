@@ -17,6 +17,8 @@ const setup = {
   immich_url: 'https://photos.test/api', slide_seconds: 15, portrait_pairing: true,
   photo_source: 'favorites', album_id: '', display_mode: 'Fill', brightness_day: 74,
   memories_window: 'Within 2 Days', memories_fallback: true,
+  date_filter_enabled: true, date_filter_mode: 'Fixed Range', date_from: '2024-02-29',
+  date_to: '2024-03-01', relative_amount: 1, relative_unit: 'Years',
   brightness_night: 44,
   base_tone_enabled: true, base_tone: 25, warm_tones_enabled: true, warm_tone_intensity: 60,
   screen_rotation: '180',
@@ -76,11 +78,15 @@ const fixture = html.replace('</body>', `<script>
     if (!backup.screen.base_tone_enabled || backup.screen.base_tone !== 25
       || !backup.screen.warm_tones_enabled || backup.screen.warm_tone_intensity !== 60)
       throw new Error('Unexpected screen tone backup settings')
+    if (!backup.photos.date_filter_enabled || backup.photos.date_from !== '2024-02-29')
+      throw new Error('Capture date filter missing from backup')
     const memories = document.querySelector('#memories-choice')
+    const dates = document.querySelector('#capture-dates')
     if (!memories.hidden) throw new Error('On This Day options visible for favourites')
     source.value = 'memories'
     source.dispatchEvent(new Event('change'))
     if (memories.hidden || !album.disabled) throw new Error('On This Day options did not replace the album field')
+    if (!dates.hidden) throw new Error('Capture date controls visible for On This Day')
     form.elements.memories_window.value = 'Within 7 Days'
     form.elements.memories_fallback.checked = false
     source.value = 'album'
@@ -98,6 +104,14 @@ const fixture = html.replace('</body>', `<script>
     form.elements.clock_format.value = '12 Hour'
     source.dispatchEvent(new Event('change'))
     if (!album.required || album.disabled) throw new Error('Album selection did not enable the album field')
+    if (dates.hidden || document.querySelector('#fixed-dates').hidden)
+      throw new Error('Fixed capture date controls missing for album')
+    form.elements.date_filter_mode.value = 'Relative Range'
+    form.elements.date_filter_mode.dispatchEvent(new Event('change'))
+    if (!document.querySelector('#fixed-dates').hidden || document.querySelector('#relative-dates').hidden)
+      throw new Error('Relative capture date controls did not replace fixed range')
+    form.elements.relative_amount.value = '3'
+    form.elements.relative_unit.value = 'Months'
     album.value = 'https://photos.test/share/${albumId}'
     form.requestSubmit()
     if (album.validity.valid) throw new Error('A share link was accepted as an album')
@@ -196,6 +210,7 @@ try {
   assert.deepEqual(updates, [{
     ...setup, photo_source: 'album', album_id: albumId, display_mode: 'Fit', brightness_day: 45, immich_key: '',
     memories_window: 'Within 7 Days', memories_fallback: false,
+    date_filter_mode: 'Relative Range', relative_amount: 3, relative_unit: 'Months',
     brightness_night: 30,
     screen_rotation: '0',
     schedule_enabled: false, schedule_off_hour: 0, schedule_wake_timeout: 90,

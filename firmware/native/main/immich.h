@@ -38,6 +38,7 @@ class ImmichSource {
   int fetch_(std::string_view path, std::string_view body, size_t limit, size_t &received, int64_t deadline_us = 0);
   std::vector<ImmichPhoto> search_(const PhotoSource &source, std::optional<std::chrono::sys_days> local_day = {},
                                   int64_t deadline_us = 0);
+  bool update_capture_dates_();
   bool update_memory_day_();
   std::vector<ImmichPhoto> memories_();
   bool next_asset_(ImmichPhoto &asset);
@@ -58,6 +59,7 @@ class ImmichSource {
   RecentPreviews previews_;
   std::optional<Daylight> tone_daylight_;
   std::vector<ImmichPhoto> pending_;
+  CaptureDateRange capture_date_range_;
   std::optional<std::chrono::sys_days> memory_day_;
   std::vector<ImmichPhoto> memory_pool_;
   int64_t memory_retry_at_{};

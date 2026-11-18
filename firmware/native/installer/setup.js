@@ -1,6 +1,6 @@
 import 'esp-web-tools/dist/install-button.js'
 import { readBackup } from './backup.mjs'
-import { bindPhotoSource, validateAlbum } from './photo_source.mjs'
+import { addCaptureDates, bindPhotoSource, validateAlbum } from './photo_source.mjs'
 import { configure, findFrame } from './serial.mjs'
 
 const revision = document.querySelector('#revision')
@@ -119,7 +119,7 @@ if ('serial' in navigator) {
       return
     }
     const data = Object.fromEntries(new FormData(form))
-    if (!validateAlbum(form, data)) return
+    if (!validateAlbum(form, data) || !addCaptureDates(form, data)) return
     data.slide_seconds = Number(data.slide_seconds)
     for (const name of percentageFields) data[name] = form.elements[name].valueAsNumber
     data.base_tone_enabled = form.elements.base_tone_enabled.checked

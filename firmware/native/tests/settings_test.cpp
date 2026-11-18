@@ -180,12 +180,25 @@ int main() {
   assert(current.read() && current.photo_source.mode == PhotoSourceMode::Favorites);
   assert(current.photo_source.memory_window == 4 && !current.photo_source.memory_fallback);
   assert(current.photo_source.album_id == "c48e2980-18ac-4d7d-876a-a636759a1aec");
+  assert(!current.capture_dates.enabled && !current.capture_dates.relative && current.capture_dates.years);
+  assert(Settings::save_playback(R"({"immich_url":"http://photos.test","date_filter_enabled":true,
+    "date_filter_mode":"Relative Range","date_from":"2024-02-29","date_to":"","relative_amount":2,"relative_unit":"Months"})"));
+  assert(Settings::save_playback(R"({"immich_url":"http://photos.test","photo_source":"memories"})"));
+  assert(current.read() && current.capture_dates.needs_time() && current.capture_dates.relative);
+  assert(current.capture_dates.from == "2024-02-29" && current.capture_dates.through.empty());
+  assert(current.capture_dates.amount == 2 && !current.capture_dates.years);
+  assert(!Settings::save_playback(R"({"immich_url":"http://photos.test","date_to":"2024-02-28"})"));
+  assert(!Settings::save_playback(R"({"immich_url":"http://photos.test","date_from":"2023-02-29"})"));
+  assert(!Settings::save_playback(R"({"immich_url":"http://photos.test","relative_amount":121})"));
+  assert(!Settings::save_playback(R"({"immich_url":"http://photos.test","relative_unit":"Weeks"})"));
+  assert(current.read() && current.capture_dates.amount == 2 && current.capture_dates.through.empty());
   stored = legacy_store;
   assert(current.read());
   assert(current.web_password.empty() && current.slide_seconds == 15);
   assert(current.portrait_pairing);
   assert(current.photo_source.mode == PhotoSourceMode::Library && current.photo_source.album_id.empty());
   assert(current.display_mode == DisplayMode::Fit);
+  assert(!current.capture_dates.enabled && !current.capture_dates.relative && current.capture_dates.years);
 
   const auto new_wifi = espframe::native::WifiCredentials::from("New Wi-Fi", "New secret");
   assert(new_wifi);

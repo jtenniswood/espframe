@@ -1,5 +1,7 @@
 #pragma once
 
+#include "capture_date.h"
+
 #include "clock_settings.h"
 #include "photo_framing.h"
 #include "photo_metadata.h"
@@ -32,6 +34,7 @@ struct Settings {
   DisplayMode display_mode{DisplayMode::Fit};
   ScreenRotation screen_rotation{ScreenRotation::Normal};
   PhotoSource photo_source;
+  CaptureDateSettings capture_dates;
   PhotoMetadataSettings metadata;
   ClockSettings clock;
   ScreenScheduleSettings schedule;

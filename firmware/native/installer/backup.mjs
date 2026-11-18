@@ -1,4 +1,4 @@
-import { normalizeAlbum } from './photo_source.mjs'
+import { normalizeAlbum, validCaptureDay } from './photo_source.mjs'
 
 const legacySources = ['All Photos', 'Album', 'Favorites', 'Custom']
 const displayModes = ['Fill', 'Fit']
@@ -8,6 +8,34 @@ const groups = ['connection', 'photos', 'frequency', 'screen', 'clock', 'metadat
 const own = (object, key) => Object.hasOwn(object, key)
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const integerIn = (min, max) => value => Number.isInteger(value) && value >= min && value <= max
+const captureDateFields = {
+  date_filter_enabled: value => typeof value === 'boolean',
+  date_filter_mode: value => ['Fixed Range', 'Relative Range'].includes(value),
+  date_from: validCaptureDay,
+  date_to: validCaptureDay,
+  relative_amount: integerIn(1, 120),
+  relative_unit: value => ['Years', 'Months'].includes(value),
+}
+
+function captureDateFieldsFrom(source, notices) {
+  const fields = {}
+  let invalid = false
+  for (const [key, valid] of Object.entries(captureDateFields)) {
+    if (!own(source, key)) continue
+    if (valid(source[key])) fields[key] = source[key]
+    else invalid = true
+  }
+  if (fields.date_from && fields.date_to && fields.date_from > fields.date_to) {
+    delete fields.date_from
+    delete fields.date_to
+    invalid = true
+  }
+  if (invalid) {
+    fields.date_filter_enabled = false
+    notices?.push('Review the capture date filter before turning it on.')
+  }
+  return fields
+}
 const metadataFields = {
   show_date: [value => typeof value === 'boolean', 'photo_metadata_date_enabled'],
   show_location: [value => typeof value === 'boolean', 'photo_metadata_location_enabled'],
@@ -74,8 +102,8 @@ function importSource(photos, version) {
     legacy === 'Favorites' || (version === 2 && !!photos.favorite_mode && photos.favorite_mode !== 'Any'))
   const excludesPhotos = exclusions.some(group =>
     version === 2 || flag({ album: 'albums_enabled', person: 'people_enabled', tag: 'tags_enabled' }[group]))
-  const hasOtherFilter = flags.some(key => own(photos, key) && typeof photos[key] !== 'boolean')
-    || !supported || flag('people_enabled') || flag('tags_enabled') || flag('date_filter_enabled')
+  const hasOtherFilter = flags.some(key => key !== 'date_filter_enabled' && own(photos, key) && typeof photos[key] !== 'boolean')
+    || !supported || flag('people_enabled') || flag('tags_enabled')
     || flag('portrait_pairs_only') || (photos.orientation !== undefined && photos.orientation !== 'Any')
     || flag('rating_enabled', version === 2 && !!photos.minimum_rating && photos.minimum_rating !== 'Any')
     || flag('location_enabled', version === 2 && !!(photos.country || photos.state || photos.city))
@@ -92,7 +120,7 @@ function importSource(photos, version) {
     if (mode === 'Favorites only') return { photo_source: 'favorites' }
     if (mode !== 'Any') return { chooseSource: true }
   }
-  if (legacy === 'Custom' && !flags.slice(0, 6).some(key => own(photos, key)))
+  if (legacy === 'Custom' && !flags.slice(0, 7).some(key => own(photos, key)))
     return { chooseSource: true }
   return { photo_source: 'all' }
 }
@@ -112,6 +140,7 @@ export function readBackup(data) {
   const metadata = data.metadata ?? {}
   if (memoriesWindows.includes(photos.memories_window)) settings.memories_window = photos.memories_window
   if (typeof photos.memories_fallback === 'boolean') settings.memories_fallback = photos.memories_fallback
+  Object.assign(settings, captureDateFieldsFrom(photos, notices))
   for (const [key, [valid, field]] of Object.entries(metadataFields)) {
     if (valid(metadata[key])) settings[field] = metadata[key]
   }
@@ -196,6 +225,7 @@ export function createBackup(settings, date = new Date()) {
       ...((album || settings.photo_source === 'memories') && normalizeAlbum(settings.album_id) ? { album_ids: settings.album_id } : {}),
       ...(memoriesWindows.includes(settings.memories_window) ? { memories_window: settings.memories_window } : {}),
       ...(typeof settings.memories_fallback === 'boolean' ? { memories_fallback: settings.memories_fallback } : {}),
+      ...captureDateFieldsFrom(settings),
       portrait_pairing: settings.portrait_pairing,
       ...(displayModes.includes(settings.display_mode) ? { display_mode: settings.display_mode } : {}),
     },

@@ -36,11 +36,34 @@ int main() {
   assert(!parse_photo_search("[] invalid", 16, false, false).valid);
   assert(!parse_photo_search("{\"assets\":[]}", 16, true, false).valid);
 
+  const auto march_first = parse_calendar_day("2024-03-01");
+  const auto leap_day = parse_calendar_day("2024-02-29");
+  assert(march_first && leap_day);
+  assert(!parse_calendar_day("2023-02-29"));
+  assert(!parse_calendar_day("2024-2-09"));
+  assert(!parse_calendar_day("2024-02-29T00:00:00"));
+  const CaptureDateRange march{march_first, march_first};
+  const auto march_photos = parse_photo_search(response, 16, false, false, march).photos;
+  assert(march_photos.size() == 4 && march_photos.front().id == primary.id);
+  assert(parse_photo_search(response, 16, false, false, {{}, leap_day}).photos.size() == 1);
+  CaptureDateSettings relative;
+  relative.enabled = relative.relative = true;
+  assert(!relative.resolve({}));
+  assert(relative.resolve(leap_day)->from == parse_calendar_day("2023-02-28"));
+  relative.years = false;
+  const auto rolling = relative.resolve(parse_calendar_day("2024-03-31"));
+  assert(rolling && rolling->from == leap_day && rolling->through == parse_calendar_day("2024-03-31"));
+
   using Api = ImmichSearchApi;
   const auto all = make_photo_search(4, {}, Api::Unknown);
   assert(all.path == "/search/random" && !all.paged && all.body == R"({"type":"IMAGE","size":4})");
   assert(make_photo_search(12, {}, Api::Unknown, primary.metadata.capture_day).body ==
          R"({"type":"IMAGE","size":12,"withExif":true,"takenAfter":"2024-02-29T00:00:00.000Z","takenBefore":"2024-03-02T23:59:59.999Z"})");
+  assert(make_photo_search(4, {}, Api::Legacy, {}, 1, false, {march_first, {}}).body ==
+         R"({"type":"IMAGE","size":4,"takenAfter":"2024-02-29T00:00:00.000Z"})");
+  assert(make_photo_search(4, {}, Api::Structured, {}, 1, false, {{}, leap_day}).body ==
+         R"({"size":4,"filter":{"type":{"eq":"IMAGE"},"takenAt":{"lte":"2024-03-01T23:59:59.999Z"}}})");
+  assert(make_photo_search(4, {}, Api::Structured, leap_day, 1, true, march).path.empty());
 
   assert(parse_search_api(R"({"major":2,"minor":5,"patch":6})") == Api::Legacy);
   assert(parse_search_api(R"({"major":3,"minor":1,"patch":9})") == Api::Legacy);

@@ -22,6 +22,8 @@ for (const name of ['v1-full', 'v2-full']) {
     base_tone_enabled: false, base_tone: 0, warm_tones_enabled: false, warm_tone_intensity: 50,
     schedule_enabled: false, schedule_on_hour: 6, schedule_off_hour: 23, schedule_wake_timeout: 60,
     show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
+    date_filter_enabled: true, date_filter_mode: 'Relative Range', date_from: '2024-01-01',
+    date_to: name === 'v2-full' ? '2026-08-30' : '2026-06-07', relative_amount: 2, relative_unit: 'Years',
     ...(name === 'v2-full' ? { memories_window: 'Within 2 Days', memories_fallback: true } : {}),
   })
   assert.equal(result.chooseSource, true)
@@ -47,6 +49,15 @@ assert.deepEqual(cleanAlbum.settings, {
 })
 assert.equal(cleanAlbum.chooseSource, false)
 assert.doesNotMatch(JSON.stringify(cleanAlbum), /ignore-this/)
+const dateOnly = readBackup({ version: 3, photos: { source: 'Custom', date_filter_enabled: true,
+  date_filter_mode: 'Fixed Range', date_from: '2024-02-29', date_to: '' } })
+assert.equal(dateOnly.chooseSource, false)
+assert.equal(dateOnly.settings.photo_source, 'all')
+assert.equal(dateOnly.settings.date_filter_enabled, true)
+const invalidDates = readBackup({ version: 3, photos: { source: 'Favorites', date_filter_enabled: true,
+  date_from: '2024-03-01', date_to: '2024-02-29', relative_amount: 0 } })
+assert.deepEqual(invalidDates.settings, { photo_source: 'favorites', date_filter_enabled: false })
+assert.match(invalidDates.notices[0], /capture date filter/)
 
 assert.deepEqual(readBackup({ version: 2, photos: { favorite_mode: 'Favorites only' } }).settings,
   { photo_source: 'favorites' })
@@ -103,6 +114,8 @@ for (const source of ['all', 'favorites', 'album', 'memories']) {
       photo_metadata_date_enabled: false, photo_metadata_location_enabled: true,
       photo_metadata_date_format: 'Relative Date', photo_metadata_date_taken_format: 'January 1, 2026',
       memories_window: 'Within 7 Days', memories_fallback: false,
+      date_filter_enabled: true, date_filter_mode: 'Relative Range', date_from: '', date_to: '2024-02-29',
+      relative_amount: 2, relative_unit: 'Months',
       ...(['album', 'memories'].includes(source) ? { album_id: album } : {}),
     }
     const exported = createBackup(

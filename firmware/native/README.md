@@ -217,6 +217,14 @@ search with Immich 3.2 or later. On earlier supported Immich versions it
 plays the available photos in capture-date order, newest first. An empty or
 unavailable selection leaves the current photo or startup scene visible.
 
+For All photos, Favourites, or Album, enable **Capture date filter** to
+limit playback and portrait pairing by the photo's local capture date.
+Fixed ranges include both endpoints, and either end can be blank. Relative
+ranges use the frame's local day and wait for the clock to synchronise.
+The worker updates the range when it next prepares photos after midnight.
+Already prepared photos and swipe history stay available. Both ranges are
+saved in Espframe backups and are ignored during On This Day and its fallback.
+
 Choose **On This Day** to play Immich memories from prior years. Pick a
 window from **Same Day** to **±7 days**, with **±2 days** as the default. The
 frame needs local time and an API key with `memory.read` permission. The

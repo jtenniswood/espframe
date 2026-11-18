@@ -17,7 +17,8 @@ const backup = {
   version: 3,
   connection: { immich_url: 'https://photos.test', api_key: 'old-api-key' },
   photos: { source: 'Memories', album_ids: album, portrait_pairing: false, display_mode: 'Fit',
-    memories_window: 'Within 7 Days', memories_fallback: false },
+    memories_window: 'Within 7 Days', memories_fallback: false, date_filter_enabled: true,
+    date_filter_mode: 'Fixed Range', date_from: '2024-02-29', date_to: '', relative_amount: 2, relative_unit: 'Months' },
   clock: { show: false, format: '12 Hour', timezone: 'America/New_York (GMT-5)' },
   metadata: { show_date: true, show_location: false, date_format: 'Relative Date', date_taken_format: 'January 1, 2026' },
   screen: {
@@ -92,6 +93,8 @@ const verify = `
     if (form.elements.immich_key.value !== 'entered-api-key') throw new Error('A backup replaced the entered key')
     if (document.querySelector('#memories-choice').hidden || form.elements.memories_window.value !== 'Within 7 Days'
       || form.elements.memories_fallback.checked) throw new Error('On This Day settings were not prefilled')
+    if (!document.querySelector('#capture-dates').hidden || form.elements.date_from.value !== '2024-02-29')
+      throw new Error('Inactive capture date options were not preserved')
     if (form.querySelector('output[for="brightness_day"]').textContent !== '75%'
       || form.querySelector('output[for="brightness_night"]').textContent !== '35%')
       throw new Error('Imported brightness was not shown')
@@ -108,6 +111,9 @@ const verify = `
       throw new Error('Unexpected migrated USB settings')
     if (received.show_clock !== false || received.clock_format !== '12 Hour' || received.timezone !== 'America/New_York (GMT-5)')
       throw new Error('The clock settings did not reach USB setup')
+    if (!received.date_filter_enabled || received.date_filter_mode !== 'Fixed Range' || received.date_from !== '2024-02-29'
+      || received.date_to !== '' || received.relative_amount !== 2 || received.relative_unit !== 'Months')
+      throw new Error('The capture date filter did not reach USB setup')
     if (!received.photo_metadata_date_enabled || received.photo_metadata_location_enabled !== false
       || received.photo_metadata_date_format !== 'Relative Date' || received.photo_metadata_date_taken_format !== 'January 1, 2026')
       throw new Error('The caption settings did not reach USB setup')

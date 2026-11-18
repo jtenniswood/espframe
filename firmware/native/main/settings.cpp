@@ -207,11 +207,29 @@ bool read_source(const cJSON *root, PhotoSource &source) {
   return true;
 }
 
+bool read_capture_dates(const cJSON *root, CaptureDateSettings &dates) {
+  std::string mode = dates.mode_name();
+  std::string unit = dates.unit_name();
+  if (!read_flag(root, "date_filter_enabled", dates.enabled) || !read_field(root, "date_filter_mode", mode, true) ||
+      !read_field(root, "date_from", dates.from, true) || !read_field(root, "date_to", dates.through, true) ||
+      !read_integer(root, "relative_amount", 1, 120, dates.amount) || !read_field(root, "relative_unit", unit, true) ||
+      (mode != CaptureDateSettings::fixed_mode && mode != CaptureDateSettings::relative_mode) ||
+      (unit != "Months" && unit != "Years"))
+    return false;
+  if ((!dates.from.empty() && !parse_calendar_day(dates.from)) ||
+      (!dates.through.empty() && !parse_calendar_day(dates.through)) ||
+      (!dates.from.empty() && !dates.through.empty() && dates.from > dates.through))
+    return false;
+  dates.relative = mode == CaptureDateSettings::relative_mode;
+  dates.years = unit == "Years";
+  return true;
+}
+
 bool read_playback(const cJSON *root, Settings &settings) {
   return read_integer(root, "slide_seconds", 2, 86'400, settings.slide_seconds) &&
          read_flag(root, "portrait_pairing", settings.portrait_pairing) &&
          read_display_mode(root, settings.display_mode) && read_rotation(root, settings.screen_rotation) &&
-         read_source(root, settings.photo_source) &&
+         read_source(root, settings.photo_source) && read_capture_dates(root, settings.capture_dates) &&
          read_clock(root, settings.clock) && read_brightness(root, settings) &&
          read_schedule(root, settings.schedule) && read_metadata(root, settings.metadata) && read_tone(root, settings.tone);
 }
@@ -371,6 +389,12 @@ bool Settings::save_playback(const char *json) {
       !cJSON_AddStringToObject(updated.get(), "album_id", settings.photo_source.album_id.c_str()) ||
       !cJSON_AddStringToObject(updated.get(), "memories_window", memory_windows[settings.photo_source.memory_window].data()) ||
       !cJSON_AddBoolToObject(updated.get(), "memories_fallback", settings.photo_source.memory_fallback) ||
+      !cJSON_AddBoolToObject(updated.get(), "date_filter_enabled", settings.capture_dates.enabled) ||
+      !cJSON_AddStringToObject(updated.get(), "date_filter_mode", settings.capture_dates.mode_name()) ||
+      !cJSON_AddStringToObject(updated.get(), "date_from", settings.capture_dates.from.c_str()) ||
+      !cJSON_AddStringToObject(updated.get(), "date_to", settings.capture_dates.through.c_str()) ||
+      !cJSON_AddNumberToObject(updated.get(), "relative_amount", settings.capture_dates.amount) ||
+      !cJSON_AddStringToObject(updated.get(), "relative_unit", settings.capture_dates.unit_name()) ||
       !cJSON_AddBoolToObject(updated.get(), "photo_metadata_date_enabled", settings.metadata.show_date) ||
       !cJSON_AddBoolToObject(updated.get(), "photo_metadata_location_enabled", settings.metadata.show_location) ||
       !cJSON_AddStringToObject(updated.get(), "photo_metadata_date_format", settings.metadata.date_format()) ||

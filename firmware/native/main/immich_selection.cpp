@@ -22,21 +22,7 @@ Json parse_json(std::string_view json) {
 }
 
 std::optional<std::chrono::sys_days> read_day(const char *date) {
-  if (!date || std::strlen(date) < 10 || date[4] != '-' || date[7] != '-')
-    return {};
-  auto read_part = [date](int first, int last) {
-    unsigned value{};
-    const auto out = std::from_chars(date + first, date + last, value);
-    return out.ptr == date + last && out.ec == std::errc{} ? value : 0;
-  };
-  const auto y = read_part(0, 4);
-  const auto m = read_part(5, 7);
-  const auto d = read_part(8, 10);
-  const std::chrono::year_month_day day{std::chrono::year(static_cast<int>(y)), std::chrono::month(m),
-                                       std::chrono::day(d)};
-  if (!day.ok() || y < 2 || y > 9998)
-    return {};
-  return std::chrono::sys_days(day);
+  return date ? parse_calendar_day(std::string_view(date).substr(0, 10)) : std::nullopt;
 }
 
 std::string iso_day(std::chrono::sys_days value) {
@@ -118,7 +104,7 @@ ImmichSearchApi parse_search_api(std::string_view json) {
 
 PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, ImmichSearchApi api,
                                      std::optional<std::chrono::sys_days> local_day, uint32_t page,
-                                     bool with_location) {
+                                     bool with_location, CaptureDateRange dates) {
   if (source.mode == PhotoSourceMode::Memories)
     return {};
   const bool album = source.mode == PhotoSourceMode::Album;
@@ -127,6 +113,11 @@ PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, Im
     return {};
   if (album && !is_immich_id(source.album_id))
     return {};
+  if (local_day) {
+    if (!dates.includes(local_day))
+      return {};
+    dates = {local_day, local_day};
+  }
 
   const bool structured = api == ImmichSearchApi::Structured;
   const bool paged = album && !structured;
@@ -151,14 +142,21 @@ PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, Im
   }
   if (favorites)
     request.body += structured ? ",\"isFavorite\":{\"eq\":true}" : ",\"isFavorite\":true";
-  if (local_day) {
-    // Widen the UTC window, then compare local capture days after parsing.
-    const auto after = iso_day(*local_day - std::chrono::days(1)) + "T00:00:00.000Z";
-    const auto before = iso_day(*local_day + std::chrono::days(1)) + "T23:59:59.999Z";
+  if (dates.active()) {
+    // Immich searches UTC instants. Include adjacent days for timezone
+    // offsets, then check the recorded local capture day after parsing.
     if (structured)
-      request.body += ",\"takenAt\":{\"gte\":\"" + after + "\",\"lte\":\"" + before + "\"}";
-    else
-      request.body += ",\"takenAfter\":\"" + after + "\",\"takenBefore\":\"" + before + "\"";
+      request.body += ",\"takenAt\":{";
+    if (dates.from) {
+      request.body += structured ? "\"gte\":\"" : ",\"takenAfter\":\"";
+      request.body += iso_day(*dates.from - std::chrono::days(1)) + "T00:00:00.000Z\"";
+    }
+    if (dates.through) {
+      request.body += structured ? (dates.from ? ",\"lte\":\"" : "\"lte\":\"") : ",\"takenBefore\":\"";
+      request.body += iso_day(*dates.through + std::chrono::days(1)) + "T23:59:59.999Z\"";
+    }
+    if (structured)
+      request.body += "}";
   }
   if (structured)
     request.body += "}";
@@ -166,7 +164,8 @@ PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, Im
   return request;
 }
 
-PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool paged, bool favorites_only) {
+PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool paged, bool favorites_only,
+                                     CaptureDateRange dates) {
   PhotoSearchResult result;
   const auto document = parse_json(json);
   const auto *assets = paged ? cJSON_GetObjectItemCaseSensitive(document.get(), "assets") : nullptr;
@@ -185,7 +184,8 @@ PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool p
     if (favorites_only && !cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(record, "isFavorite")))
       continue;
     const auto photo = read_asset(record);
-    if (photo && std::none_of(photos.begin(), photos.end(), [&](const ImmichPhoto &prev) { return prev.id == photo->id; }))
+    if (photo && dates.includes(photo->metadata.capture_day) &&
+        std::none_of(photos.begin(), photos.end(), [&](const ImmichPhoto &prev) { return prev.id == photo->id; }))
       photos.push_back(*photo);
   }
   return result;

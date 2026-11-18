@@ -219,6 +219,12 @@ esp_err_t current(httpd_req_t *request) {
       !cJSON_AddStringToObject(document.get(), "album_id", settings.photo_source.album_id.c_str()) ||
       !cJSON_AddStringToObject(document.get(), "memories_window", memory_windows[settings.photo_source.memory_window].data()) ||
       !cJSON_AddBoolToObject(document.get(), "memories_fallback", settings.photo_source.memory_fallback) ||
+      !cJSON_AddBoolToObject(document.get(), "date_filter_enabled", settings.capture_dates.enabled) ||
+      !cJSON_AddStringToObject(document.get(), "date_filter_mode", settings.capture_dates.mode_name()) ||
+      !cJSON_AddStringToObject(document.get(), "date_from", settings.capture_dates.from.c_str()) ||
+      !cJSON_AddStringToObject(document.get(), "date_to", settings.capture_dates.through.c_str()) ||
+      !cJSON_AddNumberToObject(document.get(), "relative_amount", settings.capture_dates.amount) ||
+      !cJSON_AddStringToObject(document.get(), "relative_unit", settings.capture_dates.unit_name()) ||
       !cJSON_AddBoolToObject(document.get(), "photo_metadata_date_enabled", settings.metadata.show_date) ||
       !cJSON_AddBoolToObject(document.get(), "photo_metadata_location_enabled", settings.metadata.show_location) ||
       !cJSON_AddStringToObject(document.get(), "photo_metadata_date_format", settings.metadata.date_format()) ||
