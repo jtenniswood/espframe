@@ -37,8 +37,13 @@ wireguard:
   private_key: "YBk6X3pP8KjUnS4VvXG0Zk1d3b0Qn0q9yYQe2jqk0Gs="
   peer_endpoint: wireguard.invalid
   peer_public_key: "n6XQ3yS2m0b5y4Vf8qkq1Qn0q9yYQe2jqk0GsYBk6X0="
+  # ESPHome collapses adjacent networks before sizing the library's allowed-IP
+  # table. Keep four disjoint, non-adjacent placeholders plus the frame's slot.
   peer_allowed_ips:
     - 192.0.2.0/32
+    - 192.0.2.4/32
+    - 192.0.2.8/32
+    - 192.0.2.12/32
   peer_persistent_keepalive: 25s
   reboot_timeout: 0s
   require_connection_to_proceed: false

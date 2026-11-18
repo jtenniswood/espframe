@@ -180,6 +180,19 @@ def test_configuration_api_redacts_secret_fields() -> None:
     assert "api_key_configured" in product["project"]["web_local_state_keys"]
 
 
+def test_wireguard_build_reserves_slots_for_every_configurable_allowed_ip() -> None:
+    import ipaddress
+    import re
+
+    config = (ROOT / "common/addon/wireguard.yaml").read_text(encoding="utf-8")
+    helpers = (ROOT / "components/espframe/wireguard_helpers.h").read_text(encoding="utf-8")
+    max_user_entries = re.search(r"ESPFRAME_WIREGUARD_MAX_ALLOWED_IPS = (\d+);", helpers)
+    compile_time_entries = re.search(r"^  peer_allowed_ips:\n((?:    - [^\n]+\n)+)", config, re.MULTILINE)
+    assert max_user_entries is not None and compile_time_entries is not None
+    networks = [ipaddress.ip_network(line.split()[1]) for line in compile_time_entries[1].splitlines()]
+    assert len(list(ipaddress.collapse_addresses(networks))) == int(max_user_entries[1])
+
+
 def test_wireguard_private_key_is_write_only_and_kept_out_of_backups() -> None:
     import re
 
