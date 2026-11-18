@@ -51,8 +51,8 @@ cannot apply require you to choose a photo source before saving. Enter the
 required Wi-Fi and Immich credentials in the setup form.
 
 To build the same installer locally, run `npm ci` and place each
-`merged-binary.bin` in the matching `v1`, `v2` or `v3` build directory.
-Then run:
+`merged-binary.bin` and `espframe_native_vN.bin` in the matching
+`v1`, `v2` or `v3` build directory. Then run:
 
 ```sh
 node firmware/native/tools/package_installer.mjs firmware/native/build firmware/native/build/browser-installer
@@ -69,6 +69,25 @@ changes on restart.
 Use **Download settings backup** to save a copy of the active playback
 settings for a future install.
 The page uses HTTP on the local network. Keep it on a trusted network.
+
+### Update the native firmware from the web settings
+
+Download the installer artifact for the build you want to use. In the frame's
+web settings, under **Firmware update**, select `v1-ota.bin`, `v2-ota.bin` or
+`v3-ota.bin` for the revision shown, then select **Install update and restart**. Use
+images from builds you trust. The package includes SHA-256 checksums for those
+files. The prototype checks image integrity and board identity and accepts
+unsigned firmware.
+
+The frame writes to an inactive slot and restarts after validating the image.
+The first boot must initialize the display, submit a frame and read the touch
+controller. A failed trial returns to the previously bootable image. Wi-Fi
+and Immich settings stay in the dedicated settings partition.
+
+An older native prototype needs one USB install to add the update slots. Export
+a backup first and leave the installer's full erase option unchecked to retain
+its native settings. The OTA files are for the web settings and the installer
+uses the corresponding factory images for USB.
 
 Host regression checks run without the ESP-IDF toolchain:
 

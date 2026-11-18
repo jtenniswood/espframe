@@ -1,4 +1,5 @@
 #include "web_settings.h"
+#include "firmware_update.h"
 
 #include "cJSON.h"
 #include "esp_http_server.h"
@@ -75,7 +76,9 @@ esp_err_t current(httpd_req_t *request) {
       !cJSON_AddNumberToObject(document.get(), "slide_seconds", settings.slide_seconds) ||
       !cJSON_AddBoolToObject(document.get(), "portrait_pairing", settings.portrait_pairing) ||
       !cJSON_AddStringToObject(document.get(), "photo_source", photo_source_name(settings.photo_source.mode)) ||
-      !cJSON_AddStringToObject(document.get(), "album_id", settings.photo_source.album_id.c_str()))
+      !cJSON_AddStringToObject(document.get(), "album_id", settings.photo_source.album_id.c_str()) ||
+      !cJSON_AddBoolToObject(document.get(), "firmware_update", can_update_firmware()) ||
+      !cJSON_AddStringToObject(document.get(), "board_revision", NATIVE_BOARD))
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to load settings.");
   std::unique_ptr<char, decltype(&cJSON_free)> body(cJSON_PrintUnformatted(document.get()), cJSON_free);
   if (!body)
@@ -112,6 +115,46 @@ esp_err_t update(httpd_req_t *request) {
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Saved. Restart the frame to apply settings.");
   httpd_resp_set_type(request, "application/json");
   return httpd_resp_sendstr(request, "{\"saved\":true}");
+}
+
+int receive_firmware(void *context, uint8_t *buffer, size_t length) {
+  return httpd_req_recv(static_cast<httpd_req_t *>(context), reinterpret_cast<char *>(buffer), length);
+}
+
+esp_err_t update_firmware(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  char mime[40]{};
+  if (httpd_req_get_hdr_value_str(request, "Content-Type", mime, sizeof(mime)) != ESP_OK ||
+      std::string_view(mime) != "application/octet-stream")
+    return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Choose a native firmware update image.");
+  if (esp_timer_is_active(restart_timer)) {
+    httpd_resp_set_status(request, "409 Conflict");
+    return httpd_resp_sendstr(request, "The frame is restarting.");
+  }
+  using Result = FirmwareUpdateResult;
+  switch (stage_firmware(request->content_len, receive_firmware, request)) {
+    case Result::Staged:
+      if (esp_timer_start_once(restart_timer, 800'000) != ESP_OK)
+        return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "The update is ready. Restart the frame to boot it.");
+      httpd_resp_set_type(request, "application/json");
+      return httpd_resp_sendstr(request, "{\"staged\":true}");
+    case Result::Unavailable:
+      return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Install an update-capable factory image over USB first.");
+    case Result::RestartPending:
+      httpd_resp_set_status(request, "409 Conflict");
+      return httpd_resp_sendstr(request, "An update is waiting for restart or startup checks.");
+    case Result::Size:
+    case Result::WrongBoard:
+      return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Choose the native OTA image for this Guition revision.");
+    case Result::Interrupted:
+      return httpd_resp_send_err(request, HTTPD_408_REQ_TIMEOUT, "The firmware transfer was interrupted.");
+    case Result::Invalid:
+      return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "The firmware image failed validation.");
+    case Result::WriteFailed:
+      return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not stage the firmware update.");
+  }
+  return ESP_FAIL;
 }
 
 void restart(void *) { esp_restart(); }
@@ -153,6 +196,7 @@ void start_web_settings(const Settings &settings) {
       {.uri = "/settings.css", .method = HTTP_GET, .handler = style, .user_ctx = nullptr},
       {.uri = "/api/playback", .method = HTTP_GET, .handler = current, .user_ctx = nullptr},
       {.uri = "/api/playback", .method = HTTP_POST, .handler = update, .user_ctx = nullptr},
+      {.uri = "/api/firmware", .method = HTTP_POST, .handler = update_firmware, .user_ctx = nullptr},
   };
   for (const auto &route : routes) {
     if (httpd_register_uri_handler(server, &route) != ESP_OK) {

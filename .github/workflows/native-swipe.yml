@@ -63,10 +63,20 @@ jobs:
             firmware/native/main/immich_selection.cpp firmware/native/tests/immich_selection_test.cpp "$RUNNER_TEMP/cjson.o" \
             -o "$RUNNER_TEMP/immich-selection-test"
           "$RUNNER_TEMP/immich-selection-test"
+      - name: Test firmware update staging and rollback
+        if: matrix.board == 'v3'
+        run: |
+          c++ -std=c++20 -Wall -Wextra -Werror -DNATIVE_BOARD='"v3"' \
+            -Ifirmware/native/main -Ifirmware/native/tests/ota_stubs \
+            firmware/native/main/firmware_update.cpp firmware/native/tests/firmware_update_test.cpp \
+            -o "$RUNNER_TEMP/firmware-update-test"
+          "$RUNNER_TEMP/firmware-update-test" firmware/native/build/v3/espframe_native_v3.bin
       - uses: actions/upload-artifact@v7
         with:
           name: firmware-test-native-swipe-${{ matrix.board }}
-          path: firmware/native/build/${{ matrix.board }}/merged-binary.bin
+          path: |
+            firmware/native/build/${{ matrix.board }}/merged-binary.bin
+            firmware/native/build/${{ matrix.board }}/espframe_native_${{ matrix.board }}.bin
           if-no-files-found: error
 
   browser-installer:
@@ -95,6 +105,8 @@ jobs:
           done
           node firmware/native/tools/package_installer.mjs firmware/native/build firmware/native/build/browser-installer
           node firmware/native/tests/backup_installer_browser_test.mjs firmware/native/build/browser-installer
+          cd firmware/native/build/browser-installer
+          sha256sum -c SHA256SUMS
       - uses: actions/upload-artifact@v7
         with:
           name: native-browser-installer

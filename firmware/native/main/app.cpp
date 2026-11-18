@@ -1,4 +1,5 @@
 #include "display.h"
+#include "firmware_update.h"
 #include "immich.h"
 #include "slide_blit.h"
 #include "slide_cache.h"
@@ -231,6 +232,7 @@ class SlideLoader {
 };
 
 void run() {
+  start_firmware_boot_check();
   SlideCache cache{allocate_slide_buffers()};
   static SlideLoader loader;
   loader.start();
@@ -331,6 +333,7 @@ void run() {
           wait_for_release = true;
         }
       } else {
+        confirm_firmware_boot();
         touch_errors = 0;
         if (sample.contacts > 1) {
           swipe.cancel(now);

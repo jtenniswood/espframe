@@ -45,15 +45,41 @@ const fixture = html.replace('</body>', `<script>
     form.requestSubmit()
   }).observe(form, {attributes: true})
 </script></body>`)
+const firmwareImage = [0xe9, 0x01, 0x00, 0x00]
+const firmwareFixture = html.replace('</body>', `<script>
+  const section = document.querySelector('#firmware')
+  const form = document.querySelector('#firmware-update')
+  const button = form.querySelector('button')
+  const status = document.querySelector('#firmware-status')
+  new MutationObserver((_, observer) => {
+    if (section.hidden) return
+    observer.disconnect()
+    if (!document.querySelector('#firmware-help').textContent.includes('v3-ota.bin'))
+      throw new Error('Missing firmware filename for this board')
+    const transfer = new DataTransfer()
+    transfer.items.add(new File([new Uint8Array(${JSON.stringify(firmwareImage)})], 'v3-ota.bin'))
+    form.elements.image.files = transfer.files
+    const retry = new MutationObserver((_, errors) => {
+      if (status.textContent !== 'The firmware transfer was interrupted.') return
+      errors.disconnect()
+      if (button.disabled) throw new Error('Firmware update cannot be retried')
+      form.requestSubmit()
+    })
+    retry.observe(status, {childList: true})
+    form.requestSubmit()
+  }).observe(section, {attributes: true})
+</script></body>`)
 const pages = new Map([
   ['/', ['text/html', fixture]],
+  ['/firmware', ['text/html', firmwareFixture]],
   ['/settings.js', ['text/javascript', script]],
   ['/photo_source.mjs', ['text/javascript', sourceScript]],
   ['/backup.mjs', ['text/javascript', backupScript]],
   ['/settings.css', ['text/css', css]],
-  ['/api/playback', ['application/json', JSON.stringify(setup)]],
 ])
 const updates = []
+const uploads = []
+let firmwareAvailable = false
 const server = createServer(async (request, response) => {
   if (request.method === 'POST' && request.url === '/api/playback') {
     let body = ''
@@ -61,6 +87,19 @@ const server = createServer(async (request, response) => {
     updates.push(JSON.parse(body))
     response.setHeader('Content-Type', 'application/json')
     response.end('{"saved":true}')
+  } else if (request.method === 'GET' && request.url === '/api/playback') {
+    response.setHeader('Content-Type', 'application/json')
+    response.end(JSON.stringify(firmwareAvailable ? { ...setup, firmware_update: true, board_revision: 'v3' } : setup))
+  } else if (request.method === 'POST' && request.url === '/api/firmware') {
+    const chunks = []
+    for await (const chunk of request) chunks.push(chunk)
+    uploads.push({ type: request.headers['content-type'], bytes: [...Buffer.concat(chunks)] })
+    if (uploads.length === 1) {
+      response.writeHead(408).end('The firmware transfer was interrupted.')
+    } else {
+      response.setHeader('Content-Type', 'application/json')
+      response.end('{"staged":true}')
+    }
   } else if (pages.has(request.url)) {
     const [contentType, body] = pages.get(request.url)
     response.setHeader('Content-Type', contentType)
@@ -70,12 +109,10 @@ const server = createServer(async (request, response) => {
   }
 })
 
-assert.equal(spawnSync(browser, ['--version']).status, 0, 'Set CHROME_BIN to a Chromium executable')
-await new Promise((resolve, reject) => server.listen(0, '127.0.0.1', resolve).once('error', reject))
-try {
+async function render(path) {
   const chrome = spawn(browser, [
     '--headless', '--no-sandbox', '--disable-gpu', '--dump-dom', '--virtual-time-budget=5000',
-    `http://127.0.0.1:${server.address().port}/`,
+    `http://127.0.0.1:${server.address().port}${path}`,
   ], { signal: AbortSignal.timeout(15_000) })
   let page = ''
   let errors = ''
@@ -85,9 +122,24 @@ try {
     chrome.once('error', reject)
     chrome.once('close', code => code === 0 ? resolve() : reject(new Error(errors)))
   })
+  return page
+}
+
+assert.equal(spawnSync(browser, ['--version']).status, 0, 'Set CHROME_BIN to a Chromium executable')
+await new Promise((resolve, reject) => server.listen(0, '127.0.0.1', resolve).once('error', reject))
+try {
+  const page = await render('/')
   assert.match(page, /Settings saved\. The frame is restarting\./)
+  assert.match(page, /<section id="firmware"[^>]* hidden="">/)
   assert.deepEqual(updates, [{ ...setup, photo_source: 'album', album_id: albumId, immich_key: '' }])
   console.log('Native photo source settings accept Immich album links and reject share links')
+
+  firmwareAvailable = true
+  const firmwarePage = await render('/firmware')
+  assert.match(firmwarePage, /Update ready\. The frame is restarting\./)
+  const upload = { type: 'application/octet-stream', bytes: firmwareImage }
+  assert.deepEqual(uploads, [upload, upload])
+  console.log('Native firmware settings retry an interrupted upload and report successful staging')
 } finally {
   server.close()
 }

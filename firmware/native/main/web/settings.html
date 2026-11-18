@@ -35,6 +35,15 @@
       </form>
       <p id="status" role="status" aria-live="polite">Loading frame settings…</p>
     </section>
+    <section id="firmware" aria-labelledby="firmware-title" hidden>
+      <h2 id="firmware-title">Firmware update</h2>
+      <p id="firmware-help"></p>
+      <form id="firmware-update" method="post">
+        <label>Native update image <input name="image" type="file" accept=".bin,application/octet-stream" required aria-describedby="firmware-help"></label>
+        <button type="submit">Install update and restart</button>
+      </form>
+      <p id="firmware-status" role="status" aria-live="polite"></p>
+    </section>
   </main>
 </body>
 </html>
