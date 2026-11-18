@@ -293,7 +293,7 @@ import {
     return { key: key, domain: domain, url: endpoints[key], value: savedValue };
   }
 
-  function legacyRotationValues(values, requestedRotation = values.screen_rotation) {
+  function legacyRotationValues(values, requestedRotation = values.screen_rotation ?? S.screen_rotation) {
     if (values.developer_features_enabled === false && isPortraitScreenRotation(S.screen_rotation)) {
       return Object.assign({}, values, { screen_rotation: "0" });
     }
@@ -310,11 +310,26 @@ import {
     // The API key is write-only and must never enter the browser's settings
     // state, even when a backup restore batches it with other values.
     delete trackedValues.api_key;
-    return settingSaves.save(trackedValues, function () {
-      return apiClient.updateSettings(values, Object.keys(legacyValues).map(function (key) {
+    var appliedValues = legacyValues;
+    var policyKeys = ["developer_features_enabled", "screen_rotation", "portrait_pairing"];
+    var affectsRotationPolicy = policyKeys.some(function (key) { return key in values; });
+    return settingSaves.save(trackedValues, async function () {
+      var response = await apiClient.updateSettings(values, Object.keys(legacyValues).map(function (key) {
         return legacySettingWrite(key, legacyValues[key]);
       }), legacyValues);
-    }).then(function (response) {
+      if (response && affectsRotationPolicy) {
+        try {
+          var snapshot = await apiClient.getConfigurationSnapshot();
+          appliedValues = Object.assign({}, legacyValues);
+          for (var key of policyKeys) {
+            if (key in snapshot.values) appliedValues[key] = snapshot.values[key];
+          }
+        } catch (_) {
+          // The write was accepted. Keep the compatible values if readback fails.
+        }
+      }
+      return response;
+    }, function () { return appliedValues; }).then(function (response) {
       if (includesApiKey) settingSaves.receive("api_key_configured", true);
       return response;
     });

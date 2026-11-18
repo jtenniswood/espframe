@@ -45,6 +45,9 @@ static void test_rotation_settings_order() {
   std::vector<std::string> rotation_first{"rotation", "unrelated", "pairing"};
   order_rotation_settings(rotation_first, rotation_first.size(), 0, 2);
   assert((rotation_first == std::vector<std::string>{"rotation", "unrelated", "pairing"}));
+  std::vector<std::string> developer_and_pairing{"pairing", "developer"};
+  order_rotation_settings(developer_and_pairing, 1, developer_and_pairing.size(), 0);
+  assert((developer_and_pairing == std::vector<std::string>{"developer", "pairing"}));
   std::vector<std::string> pairing_only{"pairing", "unrelated"};
   order_rotation_settings(pairing_only, pairing_only.size(), pairing_only.size(), 0);
   assert((pairing_only == std::vector<std::string>{"pairing", "unrelated"}));

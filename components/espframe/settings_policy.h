@@ -45,7 +45,14 @@ inline bool resolve_portrait_pairing(const std::string &rotation, bool requested
 template<typename Setting>
 void order_rotation_settings(std::vector<Setting> &settings, std::size_t developer,
                              std::size_t rotation, std::size_t pairing) {
-  if (rotation == settings.size()) return;
+  if (rotation == settings.size()) {
+    // Disabling developer mode can itself reset a portrait rotation.
+    if (pairing < developer && developer < settings.size()) {
+      std::rotate(settings.begin() + pairing, settings.begin() + developer,
+                  settings.begin() + developer + 1);
+    }
+    return;
+  }
   if (rotation < developer && developer < settings.size()) {
     std::rotate(settings.begin() + rotation, settings.begin() + developer,
                 settings.begin() + developer + 1);

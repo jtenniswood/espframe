@@ -27,7 +27,8 @@ export class SettingSaveCoordinator {
     this.write(key, value);
   }
 
-  save<T>(values: Record<string, SettingValue>, send: () => Promise<T>): Promise<T> {
+  save<T>(values: Record<string, SettingValue>, send: () => Promise<T>,
+          appliedValues?: (result: T) => Record<string, SettingValue>): Promise<T> {
     const revision = ++this.sequence;
     const entries = Object.entries(values);
     for (const [key, value] of entries) {
@@ -48,19 +49,20 @@ export class SettingSaveCoordinator {
       catch (error) { request = Promise.reject(error); }
     }
     request = request.then(
-      result => { this.finish(entries, revision, true); return result; },
+      result => { this.finish(entries, revision, true, appliedValues?.(result)); return result; },
       error => { this.finish(entries, revision, false); throw error; },
     );
     this.queue = request.catch(() => undefined);
     return request;
   }
 
-  private finish(entries: [string, SettingValue][], revision: number, accepted: boolean): void {
+  private finish(entries: [string, SettingValue][], revision: number, accepted: boolean,
+                 applied?: Record<string, SettingValue>): void {
     for (const [key, value] of entries) {
       const pending = this.pending.get(key)!;
       if (accepted) {
-        pending.confirmed = value;
-        this.confirmed.set(key, value);
+        pending.confirmed = applied?.[key] ?? value;
+        this.confirmed.set(key, pending.confirmed);
       }
       if (pending.latest === revision) this.write(key, pending.confirmed);
       if (--pending.remaining === 0) this.pending.delete(key);

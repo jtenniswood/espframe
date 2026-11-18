@@ -20,7 +20,7 @@
       this.confirmed.set(key, value);
       this.write(key, value);
     }
-    save(values, send) {
+    save(values, send, appliedValues) {
       const revision = ++this.sequence;
       const entries = Object.entries(values);
       for (const [key, value] of entries) {
@@ -45,7 +45,7 @@
       }
       request = request.then(
         (result) => {
-          this.finish(entries, revision, true);
+          this.finish(entries, revision, true, appliedValues == null ? void 0 : appliedValues(result));
           return result;
         },
         (error) => {
@@ -56,12 +56,13 @@
       this.queue = request.catch(() => void 0);
       return request;
     }
-    finish(entries, revision, accepted) {
+    finish(entries, revision, accepted, applied) {
+      var _a;
       for (const [key, value] of entries) {
         const pending = this.pending.get(key);
         if (accepted) {
-          pending.confirmed = value;
-          this.confirmed.set(key, value);
+          pending.confirmed = (_a = applied == null ? void 0 : applied[key]) != null ? _a : value;
+          this.confirmed.set(key, pending.confirmed);
         }
         if (pending.latest === revision) this.write(key, pending.confirmed);
         if (--pending.remaining === 0) this.pending.delete(key);
@@ -2345,7 +2346,7 @@ to {
     var domain = settingEntityDomain(key);
     return { key, domain, url: endpoints[key], value: savedValue };
   }
-  function legacyRotationValues(values, requestedRotation = values.screen_rotation) {
+  function legacyRotationValues(values, requestedRotation = ((_a) => (_a = values.screen_rotation) != null ? _a : S.screen_rotation)()) {
     if (values.developer_features_enabled === false && isPortraitScreenRotation(S.screen_rotation)) {
       return Object.assign({}, values, { screen_rotation: "0" });
     }
@@ -2356,10 +2357,28 @@ to {
     var trackedValues = Object.assign({}, values);
     var includesApiKey = Object.prototype.hasOwnProperty.call(trackedValues, "api_key");
     delete trackedValues.api_key;
-    return settingSaves.save(trackedValues, function() {
-      return apiClient.updateSettings(values, Object.keys(legacyValues).map(function(key) {
-        return legacySettingWrite(key, legacyValues[key]);
+    var appliedValues = legacyValues;
+    var policyKeys = ["developer_features_enabled", "screen_rotation", "portrait_pairing"];
+    var affectsRotationPolicy = policyKeys.some(function(key) {
+      return key in values;
+    });
+    return settingSaves.save(trackedValues, async function() {
+      var response = await apiClient.updateSettings(values, Object.keys(legacyValues).map(function(key2) {
+        return legacySettingWrite(key2, legacyValues[key2]);
       }), legacyValues);
+      if (response && affectsRotationPolicy) {
+        try {
+          var snapshot = await apiClient.getConfigurationSnapshot();
+          appliedValues = Object.assign({}, legacyValues);
+          for (var key of policyKeys) {
+            if (key in snapshot.values) appliedValues[key] = snapshot.values[key];
+          }
+        } catch (_) {
+        }
+      }
+      return response;
+    }, function() {
+      return appliedValues;
     }).then(function(response) {
       if (includesApiKey) settingSaves.receive("api_key_configured", true);
       return response;

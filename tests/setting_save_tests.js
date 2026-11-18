@@ -193,8 +193,38 @@ async function rotationPreservesPairing() {
     "a partial screen backup must not enable portrait pairing");
 }
 
+async function confirmAppliedRotationPolicy(atomic) {
+  const template = fs.readFileSync("docs/webserver/src/app.template.ts", "utf8");
+  const state = { screen_rotation: "0", portrait_pairing: true };
+  const saves = new SettingSaveCoordinator(key => state[key], (key, value) => { state[key] = value; });
+  const runtime = {
+    S: state,
+    settingSaves: saves,
+    isPortraitScreenRotation: value => value === "90" || value === "270",
+    legacySettingWrite: (key, value) => ({ key, value }),
+    apiClient: {
+      async updateSettings(requested, _, compatibility) {
+        assert.equal(requested.portrait_pairing, true);
+        assert.equal(compatibility.portrait_pairing, false);
+        saves.receive("portrait_pairing", false);
+        return atomic ? { status: "accepted" } : null;
+      },
+      async getConfigurationSnapshot() {
+        assert.equal(atomic, true);
+        return { values: { screen_rotation: "90", portrait_pairing: false } };
+      },
+    },
+  };
+  vm.runInNewContext(transformSync(template.slice(template.indexOf("  function legacyRotationValues"),
+    template.indexOf("  function saveGenericSetting")), { loader: "ts" }).code, runtime);
+  await runtime.saveSettingValues({ screen_rotation: "90", portrait_pairing: true });
+  assert.deepEqual(state, { screen_rotation: "90", portrait_pairing: false });
+}
+
 async function main() {
   await rotationPreservesPairing();
+  await confirmAppliedRotationPolicy(true);
+  await confirmAppliedRotationPolicy(false);
   for (const status of [404, 405]) await legacyConnectionRollback(status);
   deferredFailureRender();
   for (const firstFails of [true, false]) {
