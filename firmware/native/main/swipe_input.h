@@ -14,6 +14,7 @@ class SwipeInput {
 
   bool engaged() const { return down_ || wait_for_release_; }
   bool awake() const { return !sleeping_; }
+  int64_t contact_started_us() const { return down_since_us_; }
 
   void sleep(Swipe &swipe) {
     swipe.show(swipe.settled());

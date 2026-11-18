@@ -13,6 +13,7 @@
 #include "swipe.h"
 #include "swipe_input.h"
 #include "touch.h"
+#include "trace_logger.h"
 #include "usb_setup.h"
 
 #include "driver/jpeg_decode.h"
@@ -39,6 +40,7 @@ constexpr int fixture_slides = 30;
 constexpr int player_core = 1;
 constexpr int loader_core = 0;
 constexpr UBaseType_t player_priority = 4;
+constexpr bool trace_enabled = SWIPE_TRACE;
 extern const uint8_t clock_atlas[] asm("_binary_clock_glyphs_bin_start");
 
 struct GestureTiming {
@@ -197,8 +199,9 @@ class SlideLoader {
     this->live_ = this->source_.read_settings();
     this->requests_ = xQueueCreate(1, sizeof(SlideCache::Lease));
     this->completed_ = xQueueCreate(1, sizeof(Completion));
-    this->timings_ = xQueueCreate(32, sizeof(GestureTiming));
-    ESP_ERROR_CHECK(this->requests_ && this->completed_ && this->timings_ ? ESP_OK : ESP_ERR_NO_MEM);
+    if constexpr (!trace_enabled)
+      this->timings_ = xQueueCreate(32, sizeof(GestureTiming));
+    ESP_ERROR_CHECK(this->requests_ && this->completed_ && (trace_enabled || this->timings_) ? ESP_OK : ESP_ERR_NO_MEM);
     const auto result = xTaskCreatePinnedToCore(run_, "slide-prepare", 6144, this, 2, &this->task_, loader_core);
     ESP_ERROR_CHECK(result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
   }
@@ -228,10 +231,12 @@ class SlideLoader {
     jpeg_decoder_handle_t decoder{};
     while (true) {
       ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-      GestureTiming timing;
-      while (xQueueReceive(loader.timings_, &timing, 0) == pdPASS)
-        ESP_LOGI(tag, "gesture_to_scanout_us=%" PRId64 " compose_and_submit_us=%" PRId64,
-                 timing.gesture_to_scanout_us, timing.compose_and_submit_us);
+      if constexpr (!trace_enabled) {
+        GestureTiming timing;
+        while (xQueueReceive(loader.timings_, &timing, 0) == pdPASS)
+          ESP_LOGI(tag, "gesture_to_scanout_us=%" PRId64 " compose_and_submit_us=%" PRId64,
+                   timing.gesture_to_scanout_us, timing.compose_and_submit_us);
+      }
       SlideCache::Lease lease{};
       if (xQueueReceive(loader.requests_, &lease, 0) != pdPASS)
         continue;
@@ -314,6 +319,18 @@ void run(void *) {
   PixelPosition last_inside = -1;
   bool backlight_ready = false;
   std::optional<SlideIndex> preparing;
+  static TraceLogger trace;
+  MotionEpoch motion_epoch;
+  MotionStamp submitted_stamp;
+  FirstMotionTrace first_motion;
+  int64_t refill_started_us{};
+  if constexpr (trace_enabled)
+    trace.start(Display::nominal_frame_period_us());
+  const auto submit_frame = [&](PixelPosition position, bool moving = true) {
+    display.submit(position);
+    if constexpr (trace_enabled)
+      submitted_stamp = moving ? motion_epoch.stamp(preparing.has_value()) : MotionStamp{};
+  };
   SlideIndex first_photo = 1;
   struct Retry {
     SlideIndex slide{};
@@ -340,15 +357,25 @@ void run(void *) {
         ESP_LOGI(tag, "Player ready (background %s preparation)", live ? "Immich" : "fixture");
       }
       if (submitted_motion_us != 0) {
-        loader.report_gesture({*scanout - submitted_motion_us, motion_render_us});
+        if constexpr (trace_enabled)
+          trace.gesture(*scanout, first_motion);
+        else
+          loader.report_gesture({*scanout - submitted_motion_us, motion_render_us});
         submitted_motion_us = 0;
       }
+      if constexpr (trace_enabled)
+        trace.frame(*scanout, submitted_stamp);
     }
 
     SlideLoader::Completion completion{};
     if (loader.poll(completion)) {
       ESP_ERROR_CHECK(cache.complete(completion.lease, completion.ready) ? ESP_OK : ESP_ERR_INVALID_STATE);
       const auto slide = completion.lease.slide;
+      if constexpr (trace_enabled) {
+        const auto outcome = completion.ready ? RefillOutcome::Ready
+                             : completion.cancelled ? RefillOutcome::Cancelled : RefillOutcome::Retry;
+        trace.refill(esp_timer_get_time(), refill_started_us, slide, outcome);
+      }
       retries[slide % retries.size()] = {slide, completion.ready || completion.cancelled ? 0 : now + 2'000'000};
       if (completion.ready)
         prefetch.prepared(slide);
@@ -376,10 +403,19 @@ void run(void *) {
         continue;
       if (report.valid) {
         confirm_firmware_boot();
-        if (report.contacts != 0 && fade.running() && fade.interrupt(snapshot != nullptr))
-          pin_fade();
+        if (report.contacts != 0 && fade.running()) {
+          if (fade.interrupt(snapshot != nullptr))
+            pin_fade();
+          if constexpr (trace_enabled)
+            motion_epoch.update(MotionPhase::Still);
+        }
       }
+      const bool was_dragging = swipe.dragging();
       const auto effect = input.update(swipe, report, display.handoff_position());
+      if constexpr (trace_enabled) {
+        if (was_dragging && !swipe.dragging())
+          motion_epoch.update(MotionPhase::Still);
+      }
       if (effect == SwipeInput::Effect::Sleep) {
         schedule.sleep();
         suspend_fade();
@@ -419,7 +455,9 @@ void run(void *) {
         clock.restore_blend(output, cache.find(fade.target()), pending_opacity);
       clock.draw(output, true);
       clock_dirty = false;
-      display.submit(fade.anchor() * slide_width);
+      if constexpr (trace_enabled)
+        motion_epoch.update(MotionPhase::Crossfade);
+      submit_frame(fade.anchor() * slide_width);
       fade.submitted(pending_opacity);
     }
 
@@ -442,12 +480,15 @@ void run(void *) {
         if (!eligible(candidate))
           continue;
         if (const auto lease = cache.reserve(candidate, keep.first, keep.last)) {
+          if constexpr (trace_enabled)
+            refill_started_us = esp_timer_get_time();
           loader.submit(*lease);
           preparing = candidate;
           break;
         }
       }
     }
+    const bool was_settling = swipe.settling();
     swipe.tick(now);
     const auto position = swipe.position();
     const bool visible_and_idle = backlight_ready && input.awake() && !input.engaged() && swipe.idle() &&
@@ -474,6 +515,19 @@ void run(void *) {
       }
     }
 
+    if constexpr (trace_enabled) {
+      const bool final_settle = motion_epoch.phase() == MotionPhase::Settle &&
+                                !input.engaged() && position != last_submitted;
+      MotionPhase phase = MotionPhase::Still;
+      if (fade.running())
+        phase = MotionPhase::Crossfade;
+      else if (swipe.dragging())
+        phase = MotionPhase::Drag;
+      else if (swipe.settling() || was_settling || final_settle)
+        phase = MotionPhase::Settle;
+      motion_epoch.update(input.awake() ? phase : MotionPhase::Still);
+    }
+
     if (blend.pending()) {
       vTaskDelay(1);
       continue;
@@ -491,7 +545,7 @@ void run(void *) {
             clock_dirty = false;
             swipe.show(fade.target());
             last_submitted = last_inside = swipe.position();
-            display.submit(last_submitted);
+            submit_frame(last_submitted);
             fade.finish();
             display.unpin();
             snapshot = nullptr;
@@ -545,9 +599,14 @@ void run(void *) {
           clock.draw(output);
           clock_dirty = false;
         }
-        display.submit(position);
+        submit_frame(position, position != last_submitted);
         submitted_motion_us = motion;
         motion_render_us = motion != 0 ? esp_timer_get_time() - started_render : 0;
+        if constexpr (trace_enabled) {
+          if (motion != 0)
+            first_motion = {motion, input.contact_started_us(), motion_render_us,
+                            ready_at_motion(position, {ready_first, ready_last}, available), preparing.has_value()};
+        }
         last_submitted = position;
         last_inside = inside;
       }

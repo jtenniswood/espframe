@@ -16,7 +16,7 @@ set(clock_zones "${CMAKE_CURRENT_BINARY_DIR}/native_clock_zones.inc")
 
 idf_component_register(
     SRCS app.cpp clock_overlay.cpp clock_settings.cpp daylight.cpp display.cpp frame_blend.cpp immich.cpp immich_http.cpp
-         immich_selection.cpp p4_jpeg_decoder.cpp preview_decoder.cpp
+         immich_selection.cpp p4_jpeg_decoder.cpp playback_trace.cpp preview_decoder.cpp
          settings.cpp touch.cpp
          firmware_update.cpp usb_setup.cpp web_settings.cpp
          "${touch_source}/gsl_point_id.cpp"
@@ -35,7 +35,7 @@ if(SWIPE_BOARD STREQUAL "v3")
 else()
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SWIPE_EARLY_P4=1)
 endif()
-target_compile_definitions(${COMPONENT_LIB} PRIVATE NATIVE_BOARD="${SWIPE_BOARD}")
+target_compile_definitions(${COMPONENT_LIB} PRIVATE NATIVE_BOARD="${SWIPE_BOARD}" SWIPE_TRACE=$<BOOL:${SWIPE_TRACE}>)
 
 idf_build_get_property(python PYTHON)
 add_custom_command(

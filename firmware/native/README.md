@@ -213,14 +213,11 @@ carry over in Espframe backups.
    photos. Try this in both directions on a slow connection, including a drag
    back to an older cached preview while a new photo is downloading.
 5. Record high-frame-rate video for touch-to-visible motion and pacing.
-   `gesture_to_scanout_us` in the USB log measures from the touch report
-   that first moved the photo to the LCD DMA handoff. `compose_and_submit_us`
-   is the part spent composing and submitting that frame. Capture both with
-   cached photos and while the frame is downloading and decoding. Use the
-   video to measure the physical touch and the first visible movement. The
-   target is for 95% of cached gestures to move within 50 ms, with no visible
-   tearing. Compare moving frames with the panel's measured refresh interval
-   when checking pacing.
+   Use the USB trace below to measure from the first moving touch report to
+   the LCD DMA handoff, with cached neighbours and during background work.
+   Use the video to measure physical touch to the first visible movement.
+   The target is for 95% of cached gestures to move within 50 ms, with no
+   visible tearing.
 6. With Immich configured, wait for autoplay. Tap during the fade and check
    that it pauses and resumes smoothly. Grab it again, pull in each direction,
    and release after a short drag. The blended image should move with your
@@ -254,3 +251,37 @@ With Immich configured, repeat the gesture checks while a JPEG or WebP is
 downloading and after disconnecting Wi-Fi. Cached neighbors should still
 move together and reverse. Reconnect Wi-Fi and confirm the gallery resumes
 prefetching while keeping the same photo on screen.
+
+### Collect and compare performance traces
+
+The Native Swipe Prototype CI installer enables USB performance traces.
+For a local trace build, add `-D SWIPE_TRACE=ON` to the build command. A
+normal local build leaves detailed traces disabled. Capture the 115200-baud
+USB console from boot through the test and save each condition to a separate
+file. Keep the log running until the tested slides finish preparing.
+
+```sh
+python3 firmware/native/tools/report_performance.py v1-warm-cache.log
+```
+
+Capture repeated swipes over warm cached slides, while fetching JPEG and WebP
+previews, and with weak and disconnected Wi-Fi. Include steady slow drags,
+quick flicks, reversals, and automatic crossfades. The report gives:
+
+- First contact and first movement report to LCD handoff, plus the first
+  moving frame's composition time. Contact-to-handoff includes the time
+  until the finger moves far enough for the player to recognize a swipe.
+- Changed-frame gaps by drag, settle or glide, and crossfade. Quiet and
+  preparing samples show whether a slide preparation lease was active at
+  both ends of the interval. A stationary finger or an easing animation
+  can hold a frame intentionally. Read pacing with the video and the
+  nominal panel period reported for the board.
+- Ready-cache hits and misses at the first submitted movement, excluding
+  the true edge of the library or retained history. The report also measures
+  preparation from worker dispatch to cache publish and matches misses to
+  the next ready event for the missing slide. It counts unresolved misses.
+- Free and largest contiguous PSRAM blocks after display and cache
+  allocation. Trace sequence gaps and logger overruns are flagged.
+
+USB traces measure the firmware and DMA path. Repeat the camera test with
+`SWIPE_TRACE=OFF` to check perceived latency and tearing without trace logging.

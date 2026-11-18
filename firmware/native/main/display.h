@@ -16,6 +16,7 @@ class Display {
   void init(bool request_snapshot = false);
   void init_backlight(uint8_t brightness);
   void set_backlight(uint8_t brightness) const;
+  static unsigned nominal_frame_period_us();
   std::optional<int64_t> poll_presented();
   PixelPosition presented_position() const { return position_; }
   // A queued frame can still reach the panel after touch arrives. Start

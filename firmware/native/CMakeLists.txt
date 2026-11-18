@@ -6,6 +6,7 @@ set(EXTRA_COMPONENT_DIRS
     "${CMAKE_CURRENT_LIST_DIR}/../../components/libwebp-esp32")
 set(PROJECT_VER "swipe-prototype")
 set(SWIPE_BOARD "v3" CACHE STRING "Guition JC8012P4A1 prototype board: v1, v2, or v3")
+option(SWIPE_TRACE "Record native playback timings over USB" OFF)
 if(NOT SWIPE_BOARD MATCHES "^v[123]$")
     message(FATAL_ERROR "SWIPE_BOARD must be v1, v2, or v3")
 endif()

@@ -136,6 +136,12 @@ void Display::set_backlight(uint8_t brightness) const {
   ESP_ERROR_CHECK(ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, backlight_duty(brightness), 0));
 }
 
+unsigned Display::nominal_frame_period_us() {
+  constexpr auto columns = panel_width + hsync_pulse + hsync_back + hsync_front;
+  constexpr auto rows = panel_height + vsync_pulse + vsync_back + vsync_front;
+  return (columns * rows + pixel_clock_mhz / 2) / pixel_clock_mhz;
+}
+
 bool Display::frame_done_(esp_lcd_panel_handle_t, esp_lcd_dpi_panel_event_data_t *, void *context) {
   auto &display = *static_cast<Display *>(context);
   portENTER_CRITICAL_ISR(&display.boundary_lock_);

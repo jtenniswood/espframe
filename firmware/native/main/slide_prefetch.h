@@ -15,6 +15,14 @@ struct SlideRange {
   bool contains(SlideIndex slide) const { return slide >= first && slide <= last; }
 };
 
+inline std::optional<SlideIndex> missing_neighbor_at_edge(PixelPosition position, SlideRange ready, SlideRange available) {
+  if (position < ready.first * slide_width && ready.first > available.first)
+    return ready.first - 1;
+  if (position > ready.last * slide_width && ready.last < available.last)
+    return ready.last + 1;
+  return {};
+}
+
 class SlidePrefetch {
  public:
   explicit SlidePrefetch(SlideIndex center) : center_(center) {}
@@ -28,12 +36,9 @@ class SlidePrefetch {
   }
 
   void request_at_edge(PixelPosition position, SlideRange ready, SlideRange available) {
-    if (position < ready.first * slide_width && ready.first > available.first) {
-      requested_ = ready.first - 1;
-      direction_ = -1;
-    } else if (position > ready.last * slide_width && ready.last < available.last) {
-      requested_ = ready.last + 1;
-      direction_ = 1;
+    if (const auto missing = missing_neighbor_at_edge(position, ready, available)) {
+      requested_ = missing;
+      direction_ = *missing < ready.first ? -1 : 1;
     }
   }
 

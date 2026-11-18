@@ -27,6 +27,7 @@ void ordered_reports_keep_release_and_next_press() {
   input.update(swipe, report(2, 10'000, 700), initial_position);
   assert(swipe.dragging() && input.engaged());
   assert(swipe.position() == initial_position + 100);
+  assert(input.contact_started_us() == 5'000);
   assert(input.take_first_motion() == 10'000);
   assert(input.take_first_motion() == 0);
 
@@ -36,6 +37,7 @@ void ordered_reports_keep_release_and_next_press() {
   input.update(swipe, report(4, 20'000, 700), first_handoff);
   input.update(swipe, report(5, 25'000, 755), first_handoff);
   assert(swipe.dragging() && input.engaged());
+  assert(input.contact_started_us() == 20'000);
   assert(swipe.position() == first_handoff - 55 && input.take_first_motion() == 25'000);
 }
 

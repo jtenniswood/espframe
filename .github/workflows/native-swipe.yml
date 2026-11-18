@@ -44,6 +44,10 @@ jobs:
             firmware/native/tests/autoplay_fade_test.cpp -o "$RUNNER_TEMP/autoplay-fade-test"
           "$RUNNER_TEMP/autoplay-fade-test"
           c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+            firmware/native/tests/playback_trace_test.cpp -o "$RUNNER_TEMP/playback-trace-test"
+          "$RUNNER_TEMP/playback-trace-test"
+          python3 firmware/native/tests/report_performance_test.py
+          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
             firmware/native/tests/slide_cache_test.cpp -o "$RUNNER_TEMP/slide-cache-test"
           "$RUNNER_TEMP/slide-cache-test"
           c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
@@ -61,7 +65,7 @@ jobs:
           docker pull espressif/idf:v6.1.1
           docker run --rm -v "$PWD:/workspace" -w /workspace \
             espressif/idf:v6.1.1 idf.py -C firmware/native -B "firmware/native/build/${{ matrix.board }}" \
-            -D SWIPE_BOARD="${{ matrix.board }}" build merge-bin
+            -D SWIPE_BOARD="${{ matrix.board }}" -D SWIPE_TRACE=ON build merge-bin
       - name: Test settings persistence
         if: matrix.board == 'v3'
         run: |
