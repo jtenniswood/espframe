@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <optional>
+#include <span>
 #include <string_view>
 
 namespace espframe::native {
@@ -21,6 +23,17 @@ struct WifiCredentials {
     std::copy(name.begin(), name.end(), result.ssid.begin());
     std::copy(secret.begin(), secret.end(), result.password.begin());
     return result;
+  }
+
+  static std::optional<WifiCredentials> from_length_prefixed(std::span<const uint8_t> data) {
+    if (data.size() < 2 || data[0] >= data.size() - 1)
+      return {};
+    const auto ssid_length = data[0];
+    const auto password_length = data[1 + ssid_length];
+    if (data.size() != 2u + ssid_length + password_length)
+      return {};
+    const auto *text = reinterpret_cast<const char *>(data.data());
+    return from({text + 1, ssid_length}, {text + 2 + ssid_length, password_length});
   }
 };
 

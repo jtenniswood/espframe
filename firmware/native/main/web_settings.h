@@ -4,6 +4,7 @@
 
 namespace espframe::native {
 
-bool start_web_settings(const Settings &settings);
+class NativeNetwork;
+bool start_web_settings(const Settings &settings, NativeNetwork &network);
 
 }  // namespace espframe::native

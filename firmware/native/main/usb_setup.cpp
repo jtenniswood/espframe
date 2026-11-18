@@ -110,7 +110,7 @@ void listen(void *context) {
       if (!command.starts_with(challenge) || command.size() <= challenge.size() || command[challenge.size()] != ' ')
         continue;
       command.remove_prefix(challenge.size() + 1);
-      if (improv.busy() || !Settings::save(command.data())) {
+      if (improv.busy() || network.busy() || !Settings::save(command.data())) {
         reply("REJECTED", challenge);
         challenge.clear();
         continue;

@@ -6,6 +6,7 @@
 #include "frame_blend.h"
 #include "immich.h"
 #include "native_network.h"
+#include "recovery_card.h"
 #include "screen_schedule.h"
 #include "slide_blit.h"
 #include "slide_cache.h"
@@ -44,6 +45,7 @@ constexpr int loader_core = 0;
 constexpr UBaseType_t player_priority = 4;
 constexpr bool trace_enabled = SWIPE_TRACE;
 extern const uint8_t clock_atlas[] asm("_binary_clock_glyphs_bin_start");
+extern const uint8_t recovery_atlas[] asm("_binary_recovery_glyphs_bin_start");
 NativeNetwork network;
 
 struct GestureTiming {
@@ -328,6 +330,7 @@ void run(void *) {
   uint8_t pending_opacity = 0;
   int64_t next_clock_poll = 0;
   bool clock_dirty = false;
+  bool recovery_painted = false;
   std::optional<int> local_hour;
 
   int64_t submitted_motion_us = 0;
@@ -473,6 +476,7 @@ void run(void *) {
       if constexpr (trace_enabled)
         motion_epoch.update(MotionPhase::Crossfade);
       submit_frame(fade.anchor() * slide_width);
+      recovery_painted = false;
       fade.submitted(pending_opacity);
     }
 
@@ -559,6 +563,7 @@ void run(void *) {
             swipe.show(fade.target());
             last_submitted = last_inside = swipe.position();
             submit_frame(last_submitted);
+            recovery_painted = false;
             fade.finish();
             display.unpin();
             snapshot = nullptr;
@@ -583,8 +588,11 @@ void run(void *) {
     const auto inside = std::clamp(position, ready_first * slide_width, ready_last * slide_width);
     const bool use_edge = inside != position;
     const bool show_clock = live && swipe.settled() != 0;
+    const bool show_recovery = backlight_ready && input.awake() && !input.engaged() && swipe.idle() &&
+                               !fade.held() && network.recovery_status() != NativeNetwork::RecoveryStatus::Off;
     if (auto *output = display.writable_buffer(); output != nullptr &&
-        (position != last_submitted || inside != last_inside || (show_clock && clock_dirty))) {
+        (position != last_submitted || inside != last_inside || show_recovery != recovery_painted ||
+         (show_clock && clock_dirty))) {
       const auto index = inside / slide_width;
       const int offset = inside % slide_width;
       const auto slide_pixels = [&](SlideIndex slide) {
@@ -614,6 +622,9 @@ void run(void *) {
           clock.draw(output);
           clock_dirty = false;
         }
+        if (show_recovery)
+          draw_recovery_card(output, recovery_atlas, network.recovery_network(), rotation);
+        recovery_painted = show_recovery;
         submit_frame(position, position != last_submitted);
         submitted_motion_us = motion;
         motion_render_us = motion != 0 ? esp_timer_get_time() - started_render : 0;

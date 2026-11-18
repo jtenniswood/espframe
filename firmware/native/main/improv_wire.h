@@ -88,15 +88,7 @@ inline bool valid_command(std::span<const uint8_t> payload) {
 }
 
 inline std::optional<WifiCredentials> read_wifi(std::span<const uint8_t> data) {
-  if (data.size() < 2 || data[0] >= data.size() - 1)
-    return {};
-  const auto ssid_length = data[0];
-  const auto password_length = data[1 + ssid_length];
-  if (data.size() != 2u + ssid_length + password_length)
-    return {};
-  const std::string_view ssid(reinterpret_cast<const char *>(data.data() + 1), ssid_length);
-  const std::string_view password(reinterpret_cast<const char *>(data.data() + 2 + ssid_length), password_length);
-  return WifiCredentials::from(ssid, password);
+  return WifiCredentials::from_length_prefixed(data);
 }
 
 }  // namespace espframe::native::improv

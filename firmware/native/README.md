@@ -96,6 +96,22 @@ The first boot must initialize the display, submit a frame and read the touch
 controller. A failed trial returns to the previously bootable image. Wi-Fi
 and Immich settings stay in the dedicated settings partition.
 
+### Recover Wi-Fi from the frame
+
+A fresh frame opens a protected setup hotspot when it has no saved Wi-Fi.
+A configured frame opens it after 90 seconds without a home-network address.
+The frame displays the `espframe_` network name and a password generated at
+boot over the photo when the screen is awake and idle. If the screen is asleep,
+tap it to wake it. Cached photos remain available to swipe.
+
+Join that network on a phone or laptop and open `http://192.168.4.1` in a
+browser. Enter the home network name and its password. The frame tests the
+connection and waits for an IPv4 address before saving the new credentials.
+If the trial fails, try again on the setup network. Existing Immich and
+playback settings stay in place. The setup hotspot turns off 15 seconds after
+the frame reconnects to home Wi-Fi, which gives the browser time to show the
+new address. Use the USB installer to enter Immich settings on a fresh frame.
+
 An older native prototype needs one USB install to add the update slots. Export
 a backup first and leave the installer's full erase option unchecked to retain
 its native settings. The OTA files are for the web settings and the installer
@@ -280,6 +296,13 @@ before entering any Immich settings. Restart and check that **Find frame
 on Wi-Fi** reports the address. Complete Immich setup with the saved Wi-Fi
 option. On a configured frame, also try an invalid Wi-Fi password in the
 Improv dialog and check that the previous connection recovers.
+
+On a configured frame, turn off its Wi-Fi network and verify that cached swipes
+still work and the hotspot card appears after 90 seconds. Join the hotspot with
+the password shown on the frame and open `http://192.168.4.1`. Try a wrong
+password, then recover through a network on a different channel. Check that the
+browser shows the assigned address, the hotspot closes after 15 seconds, and
+Immich playback resumes with the existing settings after a reboot.
 
 ### Collect and compare performance traces
 

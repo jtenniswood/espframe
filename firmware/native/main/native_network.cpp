@@ -7,10 +7,12 @@
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_netif_sntp.h"
+#include "esp_random.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <ctime>
 
@@ -46,14 +48,29 @@ uint32_t NativeNetwork::photo_connection() const {
 }
 
 bool NativeNetwork::submit(Request request, const WifiCredentials &wifi) {
-  if (!available())
+  bool idle = false;
+  if (!available() || !busy_.compare_exchange_strong(idle, true))
     return false;
+  const auto recovery = recovery_status();
+  if (request == Request::Recover) {
+    if (recovery == RecoveryStatus::Off || address().ipv4) {
+      busy_.store(false, std::memory_order_release);
+      return false;
+    }
+    recovery_status_.store(RecoveryStatus::Joining, std::memory_order_release);
+  }
   const Command command{request, wifi};
-  if (xQueueSend(commands_, &command, 0) != pdPASS)
+  if (xQueueSend(commands_, &command, 0) != pdPASS) {
+    if (request == Request::Recover)
+      recovery_status_.store(recovery, std::memory_order_release);
+    busy_.store(false, std::memory_order_release);
     return false;
+  }
   xTaskNotify(task_, command_ready, eSetBits);
   return true;
 }
+
+bool NativeNetwork::submit_recovery(const WifiCredentials &wifi) { return submit(Request::Recover, wifi); }
 
 bool NativeNetwork::poll(Reply &reply) {
   return available() && xQueueReceive(replies_, &reply, 0) == pdPASS;
@@ -101,10 +118,23 @@ bool NativeNetwork::init_station_(const WifiCredentials &wifi) {
       esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, station_event_, this) != ESP_OK)
     return false;
 
-  return esp_wifi_set_mode(WIFI_MODE_STA) == ESP_OK && start_station_(wifi);
+  hotspot_configured_ = prepare_recovery_();
+  if (!hotspot_configured_)
+    ESP_LOGW(tag, "Could not configure the Wi-Fi setup hotspot");
+  if (esp_wifi_set_mode(WIFI_MODE_STA) != ESP_OK)
+    return false;
+  station_config_valid_ = start_station_(wifi);
+  return station_config_valid_ || (wifi.configured() && start_station_({}));
 }
 
 bool NativeNetwork::start_station_(const WifiCredentials &wifi) {
+  if (recovery_status() != RecoveryStatus::Off) {
+    // Switching from AP to AP+STA starts the station without cycling the
+    // hotspot. Its client may still have to follow the home network's channel.
+    if (esp_wifi_set_mode(WIFI_MODE_APSTA) != ESP_OK)
+      return false;
+    station_running_ = true;
+  }
   if (wifi.configured()) {
     wifi_config_t station{};
     std::memcpy(station.sta.ssid, wifi.ssid.data(), sizeof(station.sta.ssid));
@@ -113,13 +143,15 @@ bool NativeNetwork::start_station_(const WifiCredentials &wifi) {
     if (esp_wifi_set_config(WIFI_IF_STA, &station) != ESP_OK)
       return false;
   }
-  station_running_ = esp_wifi_start() == ESP_OK;
+  if (!station_running_)
+    station_running_ = esp_wifi_start() == ESP_OK;
   return station_running_;
 }
 
 bool NativeNetwork::replace_station_(const WifiCredentials &wifi) {
   if (station_running_) {
-    if (esp_wifi_stop() != ESP_OK)
+    const auto stopped = recovery_status() != RecoveryStatus::Off ? esp_wifi_set_mode(WIFI_MODE_AP) : esp_wifi_stop();
+    if (stopped != ESP_OK)
       return false;
     station_running_ = false;
     // ESP-NETIF handles STA_STOP before this callback. Wait for it so an
@@ -134,6 +166,63 @@ bool NativeNetwork::replace_station_(const WifiCredentials &wifi) {
     return false;
   }
   return start_station_(wifi);
+}
+
+bool NativeNetwork::prepare_recovery_() {
+  uint8_t mac[6]{};
+  if (esp_wifi_get_mac(WIFI_IF_AP, mac) != ESP_OK || esp_wifi_set_mode(WIFI_MODE_APSTA) != ESP_OK)
+    return false;
+  std::snprintf(recovery_network_.ssid.data(), recovery_network_.ssid.size(), "espframe_%02X%02X%02X",
+                static_cast<unsigned>(mac[3]), static_cast<unsigned>(mac[4]), static_cast<unsigned>(mac[5]));
+  // ESP-IDF leaves the P4 SAR ADC random source enabled at application startup.
+  constexpr char alphabet[] = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  static_assert(sizeof(alphabet) == 33);
+  esp_fill_random(recovery_network_.password.data(), recovery_network_.password.size() - 1);
+  for (size_t i = 0; i + 1 < recovery_network_.password.size(); ++i)
+    recovery_network_.password[i] = alphabet[static_cast<uint8_t>(recovery_network_.password[i]) & 31u];
+  wifi_config_t config{};
+  std::memcpy(config.ap.ssid, recovery_network_.ssid.data(), recovery_network_.ssid.size());
+  std::memcpy(config.ap.password, recovery_network_.password.data(), recovery_network_.password.size());
+  config.ap.ssid_len = std::strlen(recovery_network_.ssid.data());
+  config.ap.channel = 1;
+  config.ap.max_connection = 2;
+  config.ap.authmode = WIFI_AUTH_WPA2_PSK;
+  // Set WPA2 credentials before the radio can advertise the hotspot.
+  return esp_wifi_set_config(WIFI_IF_AP, &config) == ESP_OK;
+}
+
+bool NativeNetwork::start_recovery_() {
+  if (!hotspot_configured_)
+    return false;
+  if (!hotspot_)
+    hotspot_ = esp_netif_create_default_wifi_ap();
+  if (!hotspot_ || !start_web_settings(*settings_, *this) || esp_wifi_set_mode(WIFI_MODE_APSTA) != ESP_OK)
+    return false;
+  if (!station_running_) {
+    if (esp_wifi_start() != ESP_OK) {
+      esp_wifi_set_mode(WIFI_MODE_STA);
+      return false;
+    }
+    station_running_ = true;
+  }
+  const int64_t deadline = esp_timer_get_time() + 2'000'000;
+  while (!esp_netif_is_netif_up(hotspot_)) {
+    if (esp_timer_get_time() >= deadline) {
+      esp_wifi_set_mode(WIFI_MODE_STA);
+      return false;
+    }
+    vTaskDelay(pdMS_TO_TICKS(25));
+  }
+  recovery_status_.store(RecoveryStatus::Ready, std::memory_order_release);
+  ESP_LOGI(tag, "Wi-Fi setup hotspot %s ready at %s", recovery_network_.ssid.data(), recovery_url);
+  return true;
+}
+
+bool NativeNetwork::stop_recovery_() {
+  if (esp_wifi_set_mode(WIFI_MODE_STA) != ESP_OK)
+    return false;
+  recovery_status_.store(RecoveryStatus::Off, std::memory_order_release);
+  return true;
 }
 
 bool NativeNetwork::try_provision_(const WifiCredentials &wifi) {
@@ -189,14 +278,19 @@ void NativeNetwork::handle_(const Command &command, WifiCredentials &saved) {
     reply.success = try_provision_(command.wifi);
     if (reply.success) {
       saved = command.wifi;
-    } else if (!replace_station_(saved)) {
-      ESP_LOGW(tag, "Could not restore the saved Wi-Fi station");
-      // A failed restart must not reconnect using the rejected candidate.
-      station_running_ = false;
+      station_config_valid_ = true;
+    } else {
+      station_config_valid_ = replace_station_(saved);
+      if (!station_config_valid_)
+        ESP_LOGW(tag, "Could not restore the saved Wi-Fi station");
     }
     provisioning_.store(false, std::memory_order_release);
   }
-  xQueueOverwrite(replies_, &reply);
+  if (command.request == Request::Recover)
+    recovery_status_.store(reply.success ? RecoveryStatus::Saved : RecoveryStatus::Failed, std::memory_order_release);
+  else
+    xQueueOverwrite(replies_, &reply);
+  busy_.store(false, std::memory_order_release);
 }
 
 void NativeNetwork::connect_loop_(WifiCredentials saved) {
@@ -208,13 +302,15 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
   uint32_t events = 0;
   uint32_t last_lease = 0;
   StationRetry retry;
+  RecoveryWindow recovery;
+  int64_t next_hotspot_attempt = 0;
   photo_time_ready_.store(!https || clock_time_is_valid(std::time(nullptr)), std::memory_order_release);
 
   while (true) {
     Command command{};
     if (xQueueReceive(commands_, &command, 0) == pdPASS) {
       handle_(command, saved);
-      if (command.request == Request::Provision) {
+      if (command.request != Request::Scan) {
         retry = {};
         events = 0;
       }
@@ -222,10 +318,22 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
     const int64_t now = esp_timer_get_time();
     const auto lease = lease_version_.load(std::memory_order_acquire);
     const bool connected = has_station_address(lease);
+    recovery.update(now, connected);
+    bool hotspot = recovery_status() != RecoveryStatus::Off;
+    if (const auto change = recovery.change_at(saved.configured(), hotspot);
+        hotspot_configured_ && change && now >= std::max(*change, next_hotspot_attempt)) {
+      if (hotspot ? stop_recovery_() : start_recovery_()) {
+        hotspot = !hotspot;
+        next_hotspot_attempt = 0;
+      } else {
+        next_hotspot_attempt = now + 5'000'000;
+        ESP_LOGW(tag, "Could not %s the Wi-Fi setup hotspot", hotspot ? "stop" : "start");
+      }
+    }
     const auto event = (events & address_lost) ? StationRetry::Event::AddressLost
                        : (events & disconnected) ? StationRetry::Event::Disconnected : StationRetry::Event::None;
-    switch (saved.configured() && station_running_ ? retry.step(now, connected, event)
-                                                   : StationRetry::Action::Wait) {
+    const bool auto_reconnect = saved.configured() && station_running_ && station_config_valid_;
+    switch (auto_reconnect ? retry.step(now, connected, event) : StationRetry::Action::Wait) {
       case StationRetry::Action::Connect:
         if (esp_wifi_connect() != ESP_OK)
           retry.failed(esp_timer_get_time());
@@ -246,7 +354,7 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
           ESP_LOGI(tag, "Wi-Fi connected at " IPSTR, IP2STR(&ip.ip));
       }
       if (!web_started) {
-        web_started = start_web_settings(*settings_);
+        web_started = settings_->web_password.empty() || start_web_settings(*settings_, *this);
         if (web_started && !settings_->web_password.empty())
           web_status_.store(WebStatus::Ready, std::memory_order_release);
       }
@@ -260,12 +368,16 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
     } else {
       if (has_station_address(last_lease))
         ESP_LOGI(tag, "Wi-Fi disconnected; reconnecting in the background");
-      if (saved.configured() && station_running_) {
+      if (auto_reconnect) {
         const auto remaining_us = retry.next_at_us() - esp_timer_get_time();
         wait = pdMS_TO_TICKS(std::max<int64_t>(1, (remaining_us + 999) / 1000));
       } else {
         wait = portMAX_DELAY;
       }
+    }
+    if (const auto change = recovery.change_at(saved.configured(), hotspot); hotspot_configured_ && change) {
+      const auto remaining_us = std::max(*change, next_hotspot_attempt) - esp_timer_get_time();
+      wait = std::min(wait, pdMS_TO_TICKS(std::max<int64_t>(1, (remaining_us + 999) / 1000)));
     }
     last_lease = lease;
     events = 0;

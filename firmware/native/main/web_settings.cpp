@@ -1,5 +1,6 @@
 #include "web_settings.h"
 #include "firmware_update.h"
+#include "native_network.h"
 
 #include "cJSON.h"
 #include "esp_http_server.h"
@@ -7,9 +8,13 @@
 #include "esp_netif.h"
 #include "esp_system.h"
 #include "esp_timer.h"
+#include "esp_wifi.h"
+#include "esp_wifi_ap_get_sta_list.h"
+#include "lwip/sockets.h"
 #include "mbedtls/base64.h"
 
 #include <array>
+#include <cstdio>
 #include <cstring>
 #include <memory>
 #include <string_view>
@@ -33,11 +38,63 @@ extern const char backup_start[] asm("_binary_backup_mjs_start");
 extern const char backup_end[] asm("_binary_backup_mjs_end");
 extern const char style_start[] asm("_binary_setup_css_start");
 extern const char style_end[] asm("_binary_setup_css_end");
+extern const char recovery_start[] asm("_binary_recovery_html_start");
+extern const char recovery_end[] asm("_binary_recovery_html_end");
+extern const char recovery_script_start[] asm("_binary_recovery_js_start");
+extern const char recovery_script_end[] asm("_binary_recovery_js_end");
 
-bool authorize(httpd_req_t *request) {
+void set_response_headers(httpd_req_t *request) {
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
   httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
   httpd_resp_set_hdr(request, "Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'; form-action 'none'");
+}
+
+NativeNetwork &network(httpd_req_t *request) { return *static_cast<NativeNetwork *>(request->user_ctx); }
+
+uint32_t local_address(httpd_req_t *request) {
+  sockaddr_in address{};
+  socklen_t length = sizeof(address);
+  if (getsockname(httpd_req_to_sockfd(request), reinterpret_cast<sockaddr *>(&address), &length) != 0 ||
+      address.sin_family != AF_INET)
+    return 0;
+  return address.sin_addr.s_addr;
+}
+
+bool hotspot_socket(httpd_req_t *request) {
+  return network(request).recovery_status() != NativeNetwork::RecoveryStatus::Off &&
+         local_address(request) == inet_addr(recovery_host);
+}
+
+bool header_is(httpd_req_t *request, const char *name, std::string_view value) {
+  char header[64]{};
+  return httpd_req_get_hdr_value_str(request, name, header, sizeof(header)) == ESP_OK && value == header;
+}
+
+bool from_hotspot_client(httpd_req_t *request) {
+  sockaddr_in peer{};
+  socklen_t length = sizeof(peer);
+  if (getpeername(httpd_req_to_sockfd(request), reinterpret_cast<sockaddr *>(&peer), &length) != 0 ||
+      peer.sin_family != AF_INET)
+    return false;
+
+  wifi_sta_list_t associated{};
+  wifi_sta_mac_ip_list_t addresses{};
+  if (esp_wifi_ap_get_sta_list(&associated) != ESP_OK || esp_wifi_ap_get_sta_list_with_ip(&associated, &addresses) != ESP_OK)
+    return false;
+  for (int i = 0; i < addresses.num; ++i) {
+    if (addresses.sta[i].ip.addr == peer.sin_addr.s_addr)
+      return true;
+  }
+  return false;
+}
+
+bool authorize(httpd_req_t *request) {
+  set_response_headers(request);
+  const auto station = network(request).address().ipv4;
+  if (!station || local_address(request) != station || hotspot_socket(request) || authorization.empty()) {
+    httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "Settings are unavailable on this connection.");
+    return false;
+  }
   std::array<char, auth_capacity> header{};
   if (httpd_req_get_hdr_value_str(request, "Authorization", header.data(), header.size()) == ESP_OK &&
       std::strlen(header.data()) == authorization.size()) {
@@ -53,18 +110,89 @@ bool authorize(httpd_req_t *request) {
   return false;
 }
 
-esp_err_t serve(httpd_req_t *request, const char *type, const char *start, const char *end) {
-  if (!authorize(request))
-    return ESP_OK;
+esp_err_t asset(httpd_req_t *request, const char *type, const char *start, const char *end) {
   httpd_resp_set_type(request, type);
   return httpd_resp_send(request, start, end - start - 1);
 }
 
-esp_err_t page(httpd_req_t *request) { return serve(request, "text/html; charset=utf-8", page_start, page_end); }
+esp_err_t serve(httpd_req_t *request, const char *type, const char *start, const char *end) {
+  return authorize(request) ? asset(request, type, start, end) : ESP_OK;
+}
+
+esp_err_t recovery_asset(httpd_req_t *request, const char *type, const char *start, const char *end) {
+  set_response_headers(request);
+  if (!hotspot_socket(request) || !header_is(request, "Host", recovery_host))
+    return httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "Open Wi-Fi setup at http://192.168.4.1.");
+  return asset(request, type, start, end);
+}
+
+esp_err_t page(httpd_req_t *request) {
+  if (hotspot_socket(request))
+    return recovery_asset(request, "text/html; charset=utf-8", recovery_start, recovery_end);
+  return serve(request, "text/html; charset=utf-8", page_start, page_end);
+}
 esp_err_t script(httpd_req_t *request) { return serve(request, "text/javascript", script_start, script_end); }
 esp_err_t source_script(httpd_req_t *request) { return serve(request, "text/javascript", source_start, source_end); }
 esp_err_t backup_script(httpd_req_t *request) { return serve(request, "text/javascript", backup_start, backup_end); }
-esp_err_t style(httpd_req_t *request) { return serve(request, "text/css", style_start, style_end); }
+esp_err_t style(httpd_req_t *request) {
+  if (hotspot_socket(request))
+    return recovery_asset(request, "text/css", style_start, style_end);
+  return serve(request, "text/css", style_start, style_end);
+}
+esp_err_t recovery_script(httpd_req_t *request) {
+  return recovery_asset(request, "text/javascript", recovery_script_start, recovery_script_end);
+}
+
+esp_err_t recovery_status(httpd_req_t *request) {
+  set_response_headers(request);
+  if (!hotspot_socket(request) || !header_is(request, "Host", recovery_host))
+    return httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "The Wi-Fi setup hotspot is unavailable.");
+  using Status = NativeNetwork::RecoveryStatus;
+  auto &wifi = network(request);
+  const auto status = wifi.recovery_status();
+  const auto ip = esp_ip4_addr_t{wifi.address().ipv4};
+  httpd_resp_set_type(request, "application/json");
+  if (status != Status::Joining && ip.addr) {
+    char body[64]{};
+    std::snprintf(body, sizeof(body), "{\"status\":\"connected\",\"ipv4\":\"" IPSTR "\"}", IP2STR(&ip));
+    return httpd_resp_sendstr(request, body);
+  }
+  if (status == Status::Saved)
+    return httpd_resp_sendstr(request, "{\"status\":\"saved\"}");
+  if (status == Status::Joining)
+    return httpd_resp_sendstr(request, "{\"status\":\"joining\"}");
+  if (status == Status::Failed)
+    return httpd_resp_sendstr(request, "{\"status\":\"failed\"}");
+  return httpd_resp_sendstr(request, "{\"status\":\"ready\"}");
+}
+
+esp_err_t recover_wifi(httpd_req_t *request) {
+  set_response_headers(request);
+  if (!hotspot_socket(request) || !header_is(request, "Host", recovery_host) ||
+      !header_is(request, "Origin", recovery_url) || !from_hotspot_client(request))
+    return httpd_resp_send_err(request, HTTPD_403_FORBIDDEN, "Join the frame's Wi-Fi setup hotspot to continue.");
+
+  std::array<uint8_t, 2 + 32 + 64> body{};
+  if (!header_is(request, "Content-Type", "application/octet-stream") ||
+      request->content_len == 0 || request->content_len > body.size())
+    return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Enter a valid Wi-Fi network name and password.");
+  size_t offset = 0;
+  while (offset < request->content_len) {
+    const int bytes = httpd_req_recv(request, reinterpret_cast<char *>(body.data() + offset), request->content_len - offset);
+    if (bytes <= 0)
+      return ESP_FAIL;
+    offset += bytes;
+  }
+  const auto credentials = WifiCredentials::from_length_prefixed({body.data(), offset});
+  if (!credentials)
+    return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Enter a valid Wi-Fi network name and password.");
+  if (esp_timer_is_active(restart_timer) || !network(request).submit_recovery(*credentials)) {
+    httpd_resp_set_status(request, "409 Conflict");
+    return httpd_resp_sendstr(request, "The frame is already connecting or restarting.");
+  }
+  httpd_resp_set_status(request, "202 Accepted");
+  return httpd_resp_sendstr(request, "Connecting to Wi-Fi.");
+}
 
 esp_err_t current(httpd_req_t *request) {
   if (!authorize(request))
@@ -179,17 +307,19 @@ void restart(void *) { esp_restart(); }
 
 }  // namespace
 
-bool start_web_settings(const Settings &settings) {
-  if (server || settings.web_password.empty())
+bool start_web_settings(const Settings &settings, NativeNetwork &network) {
+  if (server)
     return true;
-  const std::string credentials = "espframe:" + settings.web_password;
-  std::array<unsigned char, auth_capacity> base64{};
-  size_t size = 0;
-  if (mbedtls_base64_encode(base64.data(), base64.size(), &size,
-                            reinterpret_cast<const unsigned char *>(credentials.data()), credentials.size()) != 0)
-    return false;
-  authorization = "Basic ";
-  authorization.append(reinterpret_cast<const char *>(base64.data()), size);
+  if (!settings.web_password.empty()) {
+    const std::string credentials = "espframe:" + settings.web_password;
+    std::array<unsigned char, auth_capacity> base64{};
+    size_t size = 0;
+    if (mbedtls_base64_encode(base64.data(), base64.size(), &size,
+                              reinterpret_cast<const unsigned char *>(credentials.data()), credentials.size()) != 0)
+      return false;
+    authorization = "Basic ";
+    authorization.append(reinterpret_cast<const char *>(base64.data()), size);
+  }
 
   esp_timer_create_args_t timer{};
   timer.callback = restart;
@@ -200,6 +330,7 @@ bool start_web_settings(const Settings &settings) {
   config.lru_purge_enable = true;
   config.stack_size = 6144;
   config.max_open_sockets = 4;
+  config.max_uri_handlers = 11;
   config.recv_wait_timeout = 3;
   if (httpd_start(&server, &config) != ESP_OK) {
     esp_timer_delete(restart_timer);
@@ -207,14 +338,17 @@ bool start_web_settings(const Settings &settings) {
   }
 
   const httpd_uri_t routes[]{
-      {.uri = "/", .method = HTTP_GET, .handler = page, .user_ctx = nullptr},
-      {.uri = "/settings.js", .method = HTTP_GET, .handler = script, .user_ctx = nullptr},
-      {.uri = "/photo_source.mjs", .method = HTTP_GET, .handler = source_script, .user_ctx = nullptr},
-      {.uri = "/backup.mjs", .method = HTTP_GET, .handler = backup_script, .user_ctx = nullptr},
-      {.uri = "/settings.css", .method = HTTP_GET, .handler = style, .user_ctx = nullptr},
-      {.uri = "/api/playback", .method = HTTP_GET, .handler = current, .user_ctx = nullptr},
-      {.uri = "/api/playback", .method = HTTP_POST, .handler = update, .user_ctx = nullptr},
-      {.uri = "/api/firmware", .method = HTTP_POST, .handler = update_firmware, .user_ctx = nullptr},
+      {.uri = "/", .method = HTTP_GET, .handler = page, .user_ctx = &network},
+      {.uri = "/settings.js", .method = HTTP_GET, .handler = script, .user_ctx = &network},
+      {.uri = "/photo_source.mjs", .method = HTTP_GET, .handler = source_script, .user_ctx = &network},
+      {.uri = "/backup.mjs", .method = HTTP_GET, .handler = backup_script, .user_ctx = &network},
+      {.uri = "/settings.css", .method = HTTP_GET, .handler = style, .user_ctx = &network},
+      {.uri = "/api/playback", .method = HTTP_GET, .handler = current, .user_ctx = &network},
+      {.uri = "/api/playback", .method = HTTP_POST, .handler = update, .user_ctx = &network},
+      {.uri = "/api/firmware", .method = HTTP_POST, .handler = update_firmware, .user_ctx = &network},
+      {.uri = "/recovery.js", .method = HTTP_GET, .handler = recovery_script, .user_ctx = &network},
+      {.uri = "/api/recovery", .method = HTTP_GET, .handler = recovery_status, .user_ctx = &network},
+      {.uri = "/api/recovery", .method = HTTP_POST, .handler = recover_wifi, .user_ctx = &network},
   };
   for (const auto &route : routes) {
     if (httpd_register_uri_handler(server, &route) != ESP_OK) {
@@ -226,7 +360,8 @@ bool start_web_settings(const Settings &settings) {
   }
 
   esp_netif_ip_info_t ip{};
-  if (esp_netif_get_ip_info(esp_netif_get_handle_from_ifkey("WIFI_STA_DEF"), &ip) == ESP_OK)
+  if (!settings.web_password.empty() &&
+      esp_netif_get_ip_info(esp_netif_get_handle_from_ifkey("WIFI_STA_DEF"), &ip) == ESP_OK && ip.ip.addr)
     ESP_LOGI(tag, "Settings page listening at http://" IPSTR "/", IP2STR(&ip.ip));
   return true;
 }

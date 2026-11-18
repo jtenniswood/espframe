@@ -83,12 +83,12 @@
   "vendored": [
     {
       "path": "firmware/native/assets",
-      "name": "Noto Sans clock glyph atlas",
+      "name": "Noto Sans native glyph atlases",
       "upstream": "https://github.com/notofonts/latin-greek-cyrillic/releases/tag/NotoSans-v2.015",
       "revision": "Noto Sans Regular 2.015, source SHA-256 f5f552c8c5edb61fe6efb824baf4d4de47b1a8689ab4925ff43f7bd6a4ebece5",
       "license": "OFL-1.1",
       "license_file": "firmware/native/assets/OFL-Noto-Sans.txt",
-      "local_changes": "Rasterized the digits and colon at 55 pixels with firmware/native/tools/rasterize_clock.py. The firmware embeds 4-bit masks and has no font runtime dependency."
+      "local_changes": "Rasterized digits and colon at 55 pixels for the clock and printable ASCII at 26 pixels for the Wi-Fi recovery card with firmware/native/tools/rasterize_clock.py. The firmware embeds 4-bit masks and has no font runtime dependency."
     },
     {
       "path": "components/captive_portal",
