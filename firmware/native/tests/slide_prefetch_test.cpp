@@ -7,10 +7,19 @@
 using espframe::native::SlideCache;
 using espframe::native::SlidePrefetch;
 using espframe::native::SlideRange;
+using espframe::native::SlideRetry;
 using espframe::native::Swipe;
 using espframe::native::slide_width;
 
 int main() {
+  const SlideRetry offline_retry{10, 2'000'000, 0};
+  assert(!offline_retry.due(10, 1, 0));
+  assert(offline_retry.due(10, 1, 1));
+  const SlideRetry online_retry{10, 2'000'000, 1};
+  assert(!online_retry.due(10, 1, 1) && !online_retry.due(10, 1, 0));
+  assert(online_retry.due(10, 1, 3));
+  assert(online_retry.due(10, 2'000'000, 1) && online_retry.due(11, 1, 1));
+
   constexpr SlideRange available{1, 100};
   SlidePrefetch prefetch{10};
   auto window = prefetch.window(available);

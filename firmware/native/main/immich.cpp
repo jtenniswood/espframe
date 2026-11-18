@@ -1,110 +1,33 @@
 #include "immich.h"
 
+#include "native_network.h"
 #include "preview_decoder.h"
-#include "web_settings.h"
 
 #include "esp_heap_caps.h"
 #include "esp_log.h"
-#include "esp_netif.h"
-#include "esp_netif_sntp.h"
 #include "esp_timer.h"
-#include "esp_wifi.h"
 
 #include <algorithm>
 #include <cinttypes>
-#include <cstring>
-#include <ctime>
 #include <utility>
 
 namespace espframe::native {
 namespace {
 
 constexpr const char *tag = "immich";
-constexpr EventBits_t got_ip = BIT0;
 constexpr size_t photo_capacity = 2 * 1024 * 1024;
 constexpr size_t search_capacity = 64 * 1024;
 constexpr int64_t pairing_time_us = 1'500'000;
 
 }  // namespace
 
-bool ImmichSource::read_settings() {
-  return this->settings_.read();
-}
-
-void ImmichSource::wifi_event_(void *argument, esp_event_base_t base, int32_t event, void *) {
-  auto &source = *static_cast<ImmichSource *>(argument);
-  if (base == IP_EVENT && event == IP_EVENT_STA_GOT_IP)
-    xEventGroupSetBits(source.wifi_events_, got_ip);
-  else if (base == WIFI_EVENT && event == WIFI_EVENT_STA_DISCONNECTED)
-    xEventGroupClearBits(source.wifi_events_, got_ip);
-}
-
-bool ImmichSource::start_wifi_() {
-  this->wifi_events_ = xEventGroupCreate();
-  if (this->wifi_events_ == nullptr || esp_netif_init() != ESP_OK || esp_event_loop_create_default() != ESP_OK)
-    return false;
-  auto *netif = esp_netif_create_default_wifi_sta();
-  if (netif == nullptr)
-    return false;
-  esp_netif_set_hostname(netif, "espframe-native");
-
-  wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
-  init.nvs_enable = 0;
-  if (esp_wifi_init(&init) != ESP_OK || esp_wifi_set_storage(WIFI_STORAGE_RAM) != ESP_OK ||
-      esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, wifi_event_, this) != ESP_OK ||
-      esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, wifi_event_, this) != ESP_OK)
-    return false;
-
-  wifi_config_t station{};
-  std::memcpy(station.sta.ssid, this->settings_.ssid.data(), this->settings_.ssid.size());
-  std::memcpy(station.sta.password, this->settings_.password.data(), this->settings_.password.size());
-  station.sta.threshold.authmode = this->settings_.password.empty() ? WIFI_AUTH_OPEN : WIFI_AUTH_WPA2_PSK;
-  return esp_wifi_set_mode(WIFI_MODE_STA) == ESP_OK &&
-         esp_wifi_set_config(WIFI_IF_STA, &station) == ESP_OK && esp_wifi_start() == ESP_OK;
-}
-
 bool ImmichSource::online_() {
-  if (this->cancelled_)
-    return false;
-  if (!this->wifi_started_) {
-    this->wifi_started_ = true;
-    this->wifi_ready_ = this->start_wifi_();
-    if (!this->wifi_ready_)
-      ESP_LOGW(tag, "Could not initialize Guition Wi-Fi");
+  const auto connection = network_.photo_connection();
+  if (connection != http_connection_) {
+    http_.disconnect();
+    http_connection_ = connection;
   }
-  if (!this->wifi_ready_)
-    return false;
-  if (!this->has_ip_()) {
-    this->http_.disconnect();
-    esp_wifi_connect();
-    const auto deadline = esp_timer_get_time() + 8'000'000;
-    while (!this->has_ip_() && !this->cancelled_ && esp_timer_get_time() < deadline)
-      xEventGroupWaitBits(this->wifi_events_, got_ip, pdFALSE, pdFALSE, pdMS_TO_TICKS(100));
-    if (this->cancelled_ || !this->has_ip_())
-      return false;
-  }
-  start_web_settings(this->settings_);
-  const bool needs_tls_time = this->settings_.immich_url.starts_with("https://") && std::time(nullptr) < 1'690'000'000;
-  const bool uses_local_time = this->settings_.clock.show || this->settings_.schedule.enabled ||
-                               this->settings_.brightness_day != this->settings_.night_brightness();
-  if (!this->sntp_started_ && (needs_tls_time || uses_local_time)) {
-    esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
-    this->sntp_started_ = esp_netif_sntp_init(&config) == ESP_OK;
-  }
-  if (needs_tls_time) {
-    if (!this->sntp_started_)
-      return false;
-    const auto deadline = esp_timer_get_time() + 3'000'000;
-    while (!this->cancelled_ && esp_timer_get_time() < deadline) {
-      const auto result = esp_netif_sntp_sync_wait(pdMS_TO_TICKS(100));
-      if (result == ESP_OK)
-        return true;
-      if (result != ESP_ERR_TIMEOUT)
-        break;
-    }
-    return false;
-  }
-  return true;
+  return connection != 0 && !cancelled_;
 }
 
 bool ImmichSource::allocate_download_() {
@@ -113,12 +36,12 @@ bool ImmichSource::allocate_download_() {
   return this->encoded_ != nullptr;
 }
 
-bool ImmichSource::has_ip_() const {
-  return this->wifi_events_ != nullptr && (xEventGroupGetBits(this->wifi_events_) & got_ip) != 0;
-}
-
 int ImmichSource::fetch_(std::string_view path, std::string_view body, size_t limit, size_t &received,
                          int64_t deadline_us) {
+  if (!online_()) {
+    received = 0;
+    return 0;
+  }
   std::string url = this->settings_.immich_url;
   url += path;
   return this->http_.read(url, this->settings_.immich_key.c_str(), body, {this->encoded_, limit}, received, deadline_us);
@@ -139,9 +62,8 @@ bool ImmichSource::select_search_api_() {
 }
 
 std::vector<ImmichPhoto> ImmichSource::search_(std::optional<std::chrono::sys_days> local_day, int64_t deadline_us) {
-  // Optional pairing work should not wait for a new Wi-Fi association.
   const bool pairing = local_day.has_value();
-  if (!(pairing ? this->has_ip_() : this->online_()))
+  if (!online_())
     return {};
   if (!this->allocate_download_())
     return {};
@@ -240,7 +162,7 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
       return PreviewStatus::Retry;
     this->previews_.discard(id);
   }
-  if (!(optional ? this->has_ip_() : this->online_()))
+  if (!online_())
     return PreviewStatus::Retry;
   if (!this->allocate_download_())
     return PreviewStatus::Retry;

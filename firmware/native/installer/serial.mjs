@@ -13,7 +13,11 @@ async function readReply(reader, challenge, accepted) {
       if (character === '\n') {
         const message = !overflow && line.trimEnd()
         for (const status of accepted) {
-          if (message === `${prefix}${status} ${challenge}`) return status
+          const expected = `${prefix}${status} ${challenge}`
+          if (message === expected) return { status, detail: '' }
+          if (status === 'CONNECTED' && message && message.startsWith(expected + ' ')) {
+            return { status, detail: message.slice(expected.length + 1) }
+          }
         }
         line = ''
         overflow = false
@@ -40,18 +44,14 @@ async function waitForReply(reader, challenge, accepted, timeout) {
   }
 }
 
-export async function configure(port, settings, { challenge = crypto.randomUUID(), timeout = 5000 } = {}) {
+async function withPort(port, action) {
   await port.open({ baudRate: 115200 })
   let reader
   let writer
   try {
     reader = port.readable.getReader()
     writer = port.writable.getWriter()
-    await writer.write(encoder.encode(`\n${prefix}HELLO ${challenge}\n`))
-    await waitForReply(reader, challenge, ['READY'], timeout)
-    await writer.write(encoder.encode(`${prefix}SET ${challenge} ${JSON.stringify(settings)}\n`))
-    const status = await waitForReply(reader, challenge, ['SAVED', 'REJECTED'], timeout)
-    if (status !== 'SAVED') throw new Error('The frame rejected the settings. Check each field and try again.')
+    return await action(reader, writer)
   } finally {
     writer?.releaseLock()
     if (reader) {
@@ -60,4 +60,30 @@ export async function configure(port, settings, { challenge = crypto.randomUUID(
     }
     await port.close().catch(() => {})
   }
+}
+
+export function configure(port, settings, { challenge = crypto.randomUUID(), timeout = 5000 } = {}) {
+  return withPort(port, async (reader, writer) => {
+    await writer.write(encoder.encode(`\n${prefix}HELLO ${challenge}\n`))
+    await waitForReply(reader, challenge, ['READY'], timeout)
+    await writer.write(encoder.encode(`${prefix}SET ${challenge} ${JSON.stringify(settings)}\n`))
+    const { status } = await waitForReply(reader, challenge, ['SAVED', 'REJECTED'], timeout)
+    if (status !== 'SAVED') throw new Error('The frame rejected the settings. Check each field and try again.')
+  })
+}
+
+export function findFrame(port, { challenge = crypto.randomUUID(), timeout = 5000 } = {}) {
+  return withPort(port, async (reader, writer) => {
+    await writer.write(encoder.encode(`\n${prefix}STATUS ${challenge}\n`))
+    const { status, detail } = await waitForReply(reader, challenge, ['CONNECTED', 'OFFLINE'], timeout)
+    if (status === 'OFFLINE') return null
+    const fields = detail.split(' ')
+    const [address, web] = fields
+    const octets = address.split('.')
+    if (fields.length !== 2 || !['0', '1', '2'].includes(web) || octets.length !== 4 ||
+        !octets.every(octet => /^(0|[1-9]\d{0,2})$/.test(octet) && Number(octet) <= 255)) {
+      throw new Error('The frame returned an invalid Wi-Fi address.')
+    }
+    return { address, web: ['disabled', 'starting', 'ready'][Number(web)] }
+  })
 }

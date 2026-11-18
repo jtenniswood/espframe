@@ -1,13 +1,15 @@
 import 'esp-web-tools/dist/install-button.js'
 import { readBackup } from './backup.mjs'
 import { bindPhotoSource, validateAlbum } from './photo_source.mjs'
-import { configure } from './serial.mjs'
+import { configure, findFrame } from './serial.mjs'
 
 const revision = document.querySelector('#revision')
 const install = document.querySelector('esp-web-install-button')
 const form = document.querySelector('#settings')
 const submit = form.querySelector('button')
 const status = document.querySelector('#status')
+const find = document.querySelector('#find-frame')
+const networkStatus = document.querySelector('#network-status')
 const backup = document.querySelector('#backup')
 const backupStatus = document.querySelector('#backup-status')
 const playback = document.querySelector('#playback')
@@ -70,6 +72,36 @@ revision.addEventListener('change', () => {
 
 if ('serial' in navigator) {
   submit.disabled = false
+  find.disabled = false
+  const setSerialBusy = busy => {
+    submit.disabled = busy
+    find.disabled = busy
+    backup.disabled = busy
+  }
+  find.addEventListener('click', async () => {
+    setSerialBusy(true)
+    networkStatus.textContent = 'Checking the frame’s Wi-Fi connection…'
+    try {
+      const port = await navigator.serial.requestPort()
+      const frame = await findFrame(port)
+      if (!frame) {
+        networkStatus.textContent = 'The frame is waiting for Wi-Fi. Check the Wi-Fi name and password if it stays offline.'
+      } else if (frame.web === 'disabled') {
+        networkStatus.textContent = `Connected at ${frame.address}. Set a web settings password to open the frame’s settings.`
+      } else if (frame.web === 'starting') {
+        networkStatus.textContent = `Connected at ${frame.address}. The settings page is starting. Try again in a moment.`
+      } else {
+        const link = document.createElement('a')
+        link.href = `http://${frame.address}/`
+        link.textContent = 'Open frame settings'
+        networkStatus.replaceChildren(`Connected at ${frame.address}. `, link)
+      }
+    } catch (error) {
+      networkStatus.textContent = error.name === 'NotFoundError' ? 'Choose the frame’s USB port to continue.' : error.message
+    } finally {
+      setSerialBusy(false)
+    }
+  })
   form.addEventListener('submit', async event => {
     event.preventDefault()
     if (submit.disabled) return
@@ -87,8 +119,8 @@ if ('serial' in navigator) {
     data.schedule_on_hour = Number(data.schedule_on_hour)
     data.schedule_off_hour = Number(data.schedule_off_hour)
     data.schedule_wake_timeout = Number(data.schedule_wake_timeout)
-    submit.disabled = true
-    backup.disabled = true
+    setSerialBusy(true)
+    networkStatus.textContent = ''
     try {
       const port = await navigator.serial.requestPort()
       status.textContent = 'Saving settings on the frame…'
@@ -97,12 +129,11 @@ if ('serial' in navigator) {
       refreshSource()
       showBrightness()
       backupStatus.textContent = ''
-      status.textContent = 'Settings saved. The frame will restart and load photos from Immich.'
+      status.textContent = 'Settings saved. After the frame restarts, choose Find frame on Wi-Fi to open its settings.'
     } catch (error) {
       status.textContent = error.name === 'NotFoundError' ? 'Choose the frame’s USB port to continue.' : error.message
     } finally {
-      submit.disabled = false
-      backup.disabled = false
+      setSerialBusy(false)
     }
   })
 } else {

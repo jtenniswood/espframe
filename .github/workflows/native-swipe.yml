@@ -54,6 +54,9 @@ jobs:
             firmware/native/tests/slide_prefetch_test.cpp -o "$RUNNER_TEMP/slide-prefetch-test"
           "$RUNNER_TEMP/slide-prefetch-test"
           c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+            firmware/native/tests/station_retry_test.cpp -o "$RUNNER_TEMP/station-retry-test"
+          "$RUNNER_TEMP/station-retry-test"
+          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
             firmware/native/tests/photo_history_test.cpp -o "$RUNNER_TEMP/photo-history-test"
           "$RUNNER_TEMP/photo-history-test"
           c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/stubs \

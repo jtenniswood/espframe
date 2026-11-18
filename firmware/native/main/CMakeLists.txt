@@ -16,7 +16,7 @@ set(clock_zones "${CMAKE_CURRENT_BINARY_DIR}/native_clock_zones.inc")
 
 idf_component_register(
     SRCS app.cpp clock_overlay.cpp clock_settings.cpp daylight.cpp display.cpp frame_blend.cpp immich.cpp immich_http.cpp
-         immich_selection.cpp p4_jpeg_decoder.cpp playback_trace.cpp preview_decoder.cpp
+         immich_selection.cpp native_network.cpp p4_jpeg_decoder.cpp playback_trace.cpp preview_decoder.cpp
          settings.cpp touch.cpp
          firmware_update.cpp usb_setup.cpp web_settings.cpp
          "${touch_source}/gsl_point_id.cpp"

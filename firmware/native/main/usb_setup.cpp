@@ -1,16 +1,19 @@
 #include "usb_setup.h"
 
+#include "native_network.h"
 #include "settings.h"
 
 #include "driver/uart.h"
 #include "driver/uart_vfs.h"
 #include "esp_log.h"
+#include "esp_netif_ip_addr.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
 #include <array>
+#include <cstdio>
 #include <string_view>
 
 namespace espframe::native {
@@ -34,13 +37,30 @@ bool uuid(std::string_view id) {
   return true;
 }
 
-void reply(std::string_view status, std::string_view challenge) {
-  const std::string line = "\r\n" + std::string(prefix) + std::string(status) + " " +
-                           std::string(challenge) + "\r\n";
+void reply(std::string_view status, std::string_view challenge, std::string_view detail = {}) {
+  std::string line = "\r\n" + std::string(prefix) + std::string(status) + " " + std::string(challenge);
+  if (!detail.empty()) {
+    line += ' ';
+    line += detail;
+  }
+  line += "\r\n";
   uart_write_bytes(uart, line.data(), line.size());
 }
 
-void listen(void *) {
+void report_address(const NativeNetwork &network, std::string_view challenge) {
+  const auto address = network.address();
+  if (!address.ipv4) {
+    reply("OFFLINE", challenge);
+    return;
+  }
+  const esp_ip4_addr_t ip{address.ipv4};
+  char detail[24]{};
+  std::snprintf(detail, sizeof(detail), IPSTR " %u", IP2STR(&ip), static_cast<unsigned>(address.web));
+  reply("CONNECTED", challenge, detail);
+}
+
+void listen(void *context) {
+  const auto &network = *static_cast<const NativeNetwork *>(context);
   std::array<char, Settings::max_json_size + 96> line;
   std::array<char, 128> chunk;
   std::string challenge;
@@ -68,6 +88,10 @@ void listen(void *) {
       if (!command.starts_with(prefix) || command.find('\0') != std::string_view::npos)
         continue;
       command.remove_prefix(prefix.size());
+      if (command.starts_with("STATUS ") && uuid(command.substr(7))) {
+        report_address(network, command.substr(7));
+        continue;
+      }
       if (command.starts_with("HELLO ") && uuid(command.substr(6))) {
         challenge = command.substr(6);
         expires_us = esp_timer_get_time() + 15'000'000;
@@ -95,13 +119,13 @@ void listen(void *) {
 
 }  // namespace
 
-void start_usb_setup() {
+void start_usb_setup(NativeNetwork &network) {
   if (uart_driver_install(uart, 2048, 0, 0, nullptr, 0) != ESP_OK) {
     ESP_LOGW("usb-setup", "Could not start setup on the USB console");
     return;
   }
   uart_vfs_dev_use_driver(uart);
-  if (xTaskCreatePinnedToCore(listen, "usb-setup", 6144, nullptr, 1, nullptr, 0) != pdPASS)
+  if (xTaskCreatePinnedToCore(listen, "usb-setup", 6144, &network, 1, nullptr, 0) != pdPASS)
     ESP_LOGW("usb-setup", "Could not allocate the USB setup task");
 }
 

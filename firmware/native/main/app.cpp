@@ -5,6 +5,7 @@
 #include "firmware_update.h"
 #include "frame_blend.h"
 #include "immich.h"
+#include "native_network.h"
 #include "screen_schedule.h"
 #include "slide_blit.h"
 #include "slide_cache.h"
@@ -43,6 +44,7 @@ constexpr int loader_core = 0;
 constexpr UBaseType_t player_priority = 4;
 constexpr bool trace_enabled = SWIPE_TRACE;
 extern const uint8_t clock_atlas[] asm("_binary_clock_glyphs_bin_start");
+NativeNetwork network;
 
 struct GestureTiming {
   int64_t gesture_to_scanout_us{};
@@ -187,20 +189,26 @@ class SlideLoader {
   struct Completion {
     SlideCache::Lease lease;
     SlideIndex first_photo;
+    uint32_t connection;
     bool ready;
     bool cancelled;
   };
 
   bool live() const { return this->live_; }
-  int64_t slide_interval_us() const { return this->source_.slide_seconds() * 1'000'000LL; }
-  uint8_t brightness() const { return this->source_.brightness(); }
-  uint8_t night_brightness() const { return this->source_.night_brightness(); }
-  const ClockSettings &clock() const { return this->source_.clock(); }
-  const ScreenScheduleSettings &schedule() const { return this->source_.schedule(); }
-  ScreenRotation rotation() const { return this->source_.screen_rotation(); }
+  int64_t slide_interval_us() const { return this->settings_.slide_seconds * 1'000'000LL; }
+  uint8_t brightness() const { return this->settings_.brightness_day; }
+  uint8_t night_brightness() const { return this->settings_.night_brightness(); }
+  const ClockSettings &clock() const { return this->settings_.clock; }
+  const ScreenScheduleSettings &schedule() const { return this->settings_.schedule; }
+  ScreenRotation rotation() const { return this->settings_.screen_rotation; }
+
+  void start_network() const {
+    if (this->live_)
+      network.start(this->settings_);
+  }
 
   void start() {
-    this->live_ = this->source_.read_settings();
+    this->live_ = this->settings_.read();
     this->requests_ = xQueueCreate(1, sizeof(SlideCache::Lease));
     this->completed_ = xQueueCreate(1, sizeof(Completion));
     if constexpr (!trace_enabled)
@@ -244,6 +252,7 @@ class SlideLoader {
       SlideCache::Lease lease{};
       if (xQueueReceive(loader.requests_, &lease, 0) != pdPASS)
         continue;
+      const auto connection = network.photo_connection();
       bool ready = true;
       if (loader.live_ && lease.slide > 0) {
         ready = loader.source_.prepare(lease.slide, lease.pixels);
@@ -254,13 +263,15 @@ class SlideLoader {
         else if (loader.rotation() == ScreenRotation::UpsideDown)
           std::reverse(lease.pixels, lease.pixels + pixel_count);
       }
-      const Completion completion{lease, loader.source_.first_slide(), ready, !ready && loader.cancelled_.load()};
+      const Completion completion{lease, loader.source_.first_slide(), connection,
+                                  ready, !ready && loader.cancelled_.load()};
       xQueueSend(loader.completed_, &completion, portMAX_DELAY);
     }
   }
 
   std::atomic<bool> cancelled_{};
-  ImmichSource source_{cancelled_};
+  Settings settings_;
+  ImmichSource source_{settings_, network, cancelled_};
   QueueHandle_t requests_{};
   QueueHandle_t completed_{};
   QueueHandle_t timings_{};
@@ -333,17 +344,14 @@ void run(void *) {
   int64_t refill_started_us{};
   if constexpr (trace_enabled)
     trace.start(Display::nominal_frame_period_us());
+  loader.start_network();
   const auto submit_frame = [&](PixelPosition position, bool moving = true) {
     display.submit(position);
     if constexpr (trace_enabled)
       submitted_stamp = moving ? motion_epoch.stamp(preparing.has_value()) : MotionStamp{};
   };
   SlideIndex first_photo = 1;
-  struct Retry {
-    SlideIndex slide{};
-    int64_t until{};
-  };
-  std::array<Retry, SlideCache::capacity> retries{};
+  std::array<SlideRetry, SlideCache::capacity> retries{};
 
   while (true) {
     auto now = esp_timer_get_time();
@@ -383,7 +391,8 @@ void run(void *) {
                              : completion.cancelled ? RefillOutcome::Cancelled : RefillOutcome::Retry;
         trace.refill(esp_timer_get_time(), refill_started_us, slide, outcome);
       }
-      retries[slide % retries.size()] = {slide, completion.ready || completion.cancelled ? 0 : now + 2'000'000};
+      retries[slide % retries.size()] = {slide, completion.ready || completion.cancelled ? 0 : now + 2'000'000,
+                                        completion.connection};
       if (completion.ready)
         prefetch.prepared(slide);
       first_photo = completion.first_photo;
@@ -469,11 +478,9 @@ void run(void *) {
     }
 
     const auto keep = prefetch.window(available);
+    const auto active_connection = network.photo_connection();
     const auto eligible = [&](SlideIndex candidate) {
-      if (!keep.contains(candidate))
-        return false;
-      const auto &retry = retries[candidate % retries.size()];
-      return retry.slide != candidate || now >= retry.until;
+      return keep.contains(candidate) && retries[candidate % retries.size()].due(candidate, now, active_connection);
     };
     if (const auto wanted = prefetch.requested(); wanted && cache.find(*wanted))
       prefetch.prepared(*wanted);
@@ -627,7 +634,7 @@ void run(void *) {
 }  // namespace
 
 void start_player() {
-  start_usb_setup();
+  start_usb_setup(network);
   const auto result = xTaskCreatePinnedToCore(run, "photo-player", 4096, nullptr, player_priority, nullptr, player_core);
   ESP_ERROR_CHECK(result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
 }

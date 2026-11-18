@@ -38,10 +38,16 @@ const verify = `
         readable: new ReadableStream({start(controller) { output = controller }}),
         writable: new WritableStream({write(bytes) {
           const text = new TextDecoder().decode(bytes).trim()
-          const match = /^ESPFRAME_SETUP 1 (HELLO|SET) ([^ ]+)(?: (.*))?$/.exec(text)
+          const match = /^ESPFRAME_SETUP 1 (HELLO|SET|STATUS) ([^ ]+)(?: (.*))?$/.exec(text)
           if (!match) throw new Error('Invalid USB message')
           if (match[1] === 'SET') received = JSON.parse(match[3])
-          output.enqueue(encoder.encode('ESPFRAME_SETUP 1 ' + (match[1] === 'HELLO' ? 'READY' : 'SAVED') + ' ' + match[2] + '\\n'))
+          if (match[1] === 'STATUS') {
+            if (match[3]) throw new Error('Wi-Fi lookup sent unexpected data')
+            const response = attempts === 2 ? 'OFFLINE ' + match[2] : 'CONNECTED ' + match[2] + ' 192.168.50.10 2'
+            output.enqueue(encoder.encode('ESPFRAME_SETUP 1 ' + response + '\\n'))
+          } else {
+            output.enqueue(encoder.encode('ESPFRAME_SETUP 1 ' + (match[1] === 'HELLO' ? 'READY' : 'SAVED') + ' ' + match[2] + '\\n'))
+          }
         }}),
       }
     },
@@ -101,6 +107,17 @@ const verify = `
     if (received.screen_rotation !== '180') throw new Error('Mounting orientation did not reach USB setup')
     if (!received.schedule_enabled || received.schedule_on_hour !== 21 || received.schedule_off_hour !== 6
       || received.schedule_wake_timeout !== 30) throw new Error('Screen schedule did not reach USB setup')
+    const find = document.querySelector('#find-frame')
+    const networkStatus = document.querySelector('#network-status')
+    const waiting = waitFor(networkStatus, 'waiting for Wi-Fi')
+    find.click()
+    await waiting
+    const connected = waitFor(networkStatus, 'Connected at 192.168.50.10')
+    find.click()
+    await connected
+    const link = networkStatus.querySelector('a')
+    if (attempts !== 3 || link?.href !== 'http://192.168.50.10/' || link.textContent !== 'Open frame settings')
+      throw new Error('Wi-Fi lookup did not link to the frame’s settings')
     document.body.dataset.backupTest = 'passed'
   })
 `

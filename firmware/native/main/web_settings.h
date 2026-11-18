@@ -4,6 +4,6 @@
 
 namespace espframe::native {
 
-void start_web_settings(const Settings &settings);
+bool start_web_settings(const Settings &settings);
 
 }  // namespace espframe::native

@@ -41,7 +41,9 @@ Open <http://localhost:8080> in desktop Chrome or Edge. Select the frame
 revision and install the firmware. Close the installer dialog when it
 finishes, then enter your Wi-Fi and Immich settings and select the frame's
 USB port. The browser sends settings directly over USB and the frame
-restarts when it saves them.
+restarts when it saves them. Leave USB connected and choose **Find frame
+on Wi-Fi** after it restarts. If you set a web settings password, the
+installer links to the frame’s settings page once it is ready.
 
 When upgrading an existing frame, export an Espframe settings backup from
 its web page before installation. In the native installer, choose that
@@ -64,7 +66,8 @@ node firmware/native/tools/package_installer.mjs firmware/native/build firmware/
 ### Open the frame's web settings
 
 Set a web settings password when saving over USB to enable the frame's
-settings page. Use the IP address shown in the USB logs or find
+settings page. Use **Find frame on Wi-Fi** in the browser installer, the IP
+address shown in the USB logs, or find
 `espframe-native` in your router's device list. Sign in as `espframe`
 with the password you chose. The settings page can change the Immich
 URL, API key, photo source, display mode, time per photo and portrait pairing.
@@ -154,6 +157,11 @@ remembers the last 128 photo positions per session. It can decode up to
 the sizes of the previews and available PSRAM. Older previews need Wi-Fi.
 The frame reuses the Immich connection when the server allows it, and
 reconnects if an idle connection has closed before the next response.
+Wi-Fi association and time synchronization run independently of photo
+preparation, so the worker can prepare cached previews during reconnect.
+When connectivity returns, a new connection gets priority over a pending
+photo retry delay. If Wi-Fi disconnects or the frame gets a different IP,
+the next Immich request uses a fresh HTTP connection.
 Eligible baseline JPEG previews use the ESP32-P4 JPEG decoder. The frame
 uses software decoding for progressive JPEG and WebP, and falls back to
 software if the hardware path cannot finish. Compare `decode_us` and
@@ -260,6 +268,11 @@ With Immich configured, repeat the gesture checks while a JPEG or WebP is
 downloading and after disconnecting Wi-Fi. Cached neighbors should still
 move together and reverse. Reconnect Wi-Fi and confirm the gallery resumes
 prefetching while keeping the same photo on screen.
+During the outage, use **Find frame on Wi-Fi** over USB and check it reports
+that the frame is waiting. After reconnecting, check that it links to the
+frame’s current address. Test with a syntactically valid but unusable Immich
+configuration as well, so browser setup remains accessible before playback
+works.
 
 ### Collect and compare performance traces
 

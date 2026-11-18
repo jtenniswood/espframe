@@ -15,6 +15,16 @@ struct SlideRange {
   bool contains(SlideIndex slide) const { return slide >= first && slide <= last; }
 };
 
+struct SlideRetry {
+  SlideIndex slide{};
+  int64_t until{};
+  uint32_t connection{};
+
+  bool due(SlideIndex candidate, int64_t now, uint32_t active_connection) const {
+    return slide != candidate || now >= until || (active_connection != 0 && active_connection != connection);
+  }
+};
+
 inline std::optional<SlideIndex> missing_neighbor_at_edge(PixelPosition position, SlideRange ready, SlideRange available) {
   if (position < ready.first * slide_width && ready.first > available.first)
     return ready.first - 1;

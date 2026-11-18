@@ -7,10 +7,6 @@
 #include "recent_previews.h"
 #include "settings.h"
 
-#include "esp_event.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/event_groups.h"
-
 #include <array>
 #include <atomic>
 #include <cstddef>
@@ -21,29 +17,20 @@
 namespace espframe::native {
 
 class DecodedPreview;
+class NativeNetwork;
 
-// Settings are optional. This source is owned by the slide preparation task
-// after startup, including the HTTP client and per-session photo order.
+// The slide preparation task owns the Immich HTTP client and photo order.
 class ImmichSource {
  public:
-  explicit ImmichSource(const std::atomic<bool> &cancelled) : cancelled_(cancelled), http_(cancelled) {}
-  bool read_settings();
+  ImmichSource(const Settings &settings, const NativeNetwork &network, const std::atomic<bool> &cancelled)
+      : cancelled_(cancelled), settings_(settings), network_(network), http_(cancelled) {}
   bool prepare(SlideIndex slide, uint16_t *panel);
   SlideIndex first_slide() const { return this->history_.first(); }
-  uint32_t slide_seconds() const { return this->settings_.slide_seconds; }
-  uint8_t brightness() const { return this->settings_.brightness_day; }
-  uint8_t night_brightness() const { return this->settings_.night_brightness(); }
-  const ClockSettings &clock() const { return this->settings_.clock; }
-  const ScreenScheduleSettings &schedule() const { return this->settings_.schedule; }
-  ScreenRotation screen_rotation() const { return this->settings_.screen_rotation; }
 
  private:
   enum class PreviewStatus { Ready, Missing, Retry };
 
-  static void wifi_event_(void *argument, esp_event_base_t base, int32_t event, void *);
-  bool start_wifi_();
   bool online_();
-  bool has_ip_() const;
   bool allocate_download_();
   bool select_search_api_();
   int fetch_(std::string_view path, std::string_view body, size_t limit, size_t &received, int64_t deadline_us = 0);
@@ -53,13 +40,11 @@ class ImmichSource {
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, bool companion, int64_t deadline_us = 0);
 
   const std::atomic<bool> &cancelled_;
-  Settings settings_;
+  const Settings &settings_;
+  const NativeNetwork &network_;
   ImmichHttp http_;
   P4JpegDecoder jpeg_;
-  EventGroupHandle_t wifi_events_{};
-  bool wifi_started_{};
-  bool wifi_ready_{};
-  bool sntp_started_{};
+  uint32_t http_connection_{};
   ImmichSearchApi search_api_{ImmichSearchApi::Unknown};
   uint32_t album_page_{1};
   size_t album_page_size_{photo_search_batch};

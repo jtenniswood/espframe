@@ -36,7 +36,7 @@ bool configure_local_time(std::string_view timezone) {
 
 std::optional<std::tm> local_clock_time(std::time_t now) {
   std::tm local{};
-  if (now < 1'690'000'000 || !localtime_r(&now, &local))
+  if (!clock_time_is_valid(now) || !localtime_r(&now, &local))
     return {};
   return local;
 }

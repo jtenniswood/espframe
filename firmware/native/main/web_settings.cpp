@@ -179,15 +179,15 @@ void restart(void *) { esp_restart(); }
 
 }  // namespace
 
-void start_web_settings(const Settings &settings) {
+bool start_web_settings(const Settings &settings) {
   if (server || settings.web_password.empty())
-    return;
+    return true;
   const std::string credentials = "espframe:" + settings.web_password;
   std::array<unsigned char, auth_capacity> base64{};
   size_t size = 0;
   if (mbedtls_base64_encode(base64.data(), base64.size(), &size,
                             reinterpret_cast<const unsigned char *>(credentials.data()), credentials.size()) != 0)
-    return;
+    return false;
   authorization = "Basic ";
   authorization.append(reinterpret_cast<const char *>(base64.data()), size);
 
@@ -195,7 +195,7 @@ void start_web_settings(const Settings &settings) {
   timer.callback = restart;
   timer.name = "web-restart";
   if (esp_timer_create(&timer, &restart_timer) != ESP_OK)
-    return;
+    return false;
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.lru_purge_enable = true;
   config.stack_size = 6144;
@@ -203,7 +203,7 @@ void start_web_settings(const Settings &settings) {
   config.recv_wait_timeout = 3;
   if (httpd_start(&server, &config) != ESP_OK) {
     esp_timer_delete(restart_timer);
-    return;
+    return false;
   }
 
   const httpd_uri_t routes[]{
@@ -221,13 +221,14 @@ void start_web_settings(const Settings &settings) {
       httpd_stop(server);
       server = nullptr;
       esp_timer_delete(restart_timer);
-      return;
+      return false;
     }
   }
 
   esp_netif_ip_info_t ip{};
   if (esp_netif_get_ip_info(esp_netif_get_handle_from_ifkey("WIFI_STA_DEF"), &ip) == ESP_OK)
     ESP_LOGI(tag, "Settings page listening at http://" IPSTR "/", IP2STR(&ip.ip));
+  return true;
 }
 
 }  // namespace espframe::native

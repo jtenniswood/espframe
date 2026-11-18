@@ -27,5 +27,6 @@ const ClockZone *find_clock_zone(std::string_view option);
 const char *clock_timezone(std::string_view option);
 bool configure_local_time(std::string_view timezone);
 std::optional<std::tm> local_clock_time(std::time_t now);
+inline constexpr bool clock_time_is_valid(std::time_t now) { return now >= 1'690'000'000; }
 
 }  // namespace espframe::native
