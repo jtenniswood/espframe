@@ -109,6 +109,13 @@ bool read_schedule(const cJSON *root, ScreenScheduleSettings &schedule) {
          read_integer(root, "schedule_wake_timeout", 10, 3600, schedule.wake_seconds);
 }
 
+bool read_tone(const cJSON *root, ScreenToneSettings &tone) {
+  return read_flag(root, "base_tone_enabled", tone.base_enabled) &&
+         read_integer(root, "base_tone", 0, 100, tone.base_amount) &&
+         read_flag(root, "warm_tones_enabled", tone.night_enabled) &&
+         read_integer(root, "warm_tone_intensity", 10, 100, tone.night_amount);
+}
+
 bool read_metadata(const cJSON *root, PhotoMetadataSettings &settings) {
   using Format = PhotoMetadataSettings;
   std::string date = settings.date_format();
@@ -198,7 +205,7 @@ bool read_playback(const cJSON *root, Settings &settings) {
          read_display_mode(root, settings.display_mode) && read_rotation(root, settings.screen_rotation) &&
          read_source(root, settings.photo_source) &&
          read_clock(root, settings.clock) && read_brightness(root, settings) &&
-         read_schedule(root, settings.schedule) && read_metadata(root, settings.metadata);
+         read_schedule(root, settings.schedule) && read_metadata(root, settings.metadata) && read_tone(root, settings.tone);
 }
 
 bool parse_all(const cJSON *root, Settings &settings) {
@@ -345,6 +352,10 @@ bool Settings::save_playback(const char *json) {
       !cJSON_AddNumberToObject(updated.get(), "schedule_on_hour", settings.schedule.on_hour) ||
       !cJSON_AddNumberToObject(updated.get(), "schedule_off_hour", settings.schedule.off_hour) ||
       !cJSON_AddNumberToObject(updated.get(), "schedule_wake_timeout", settings.schedule.wake_seconds) ||
+      !cJSON_AddBoolToObject(updated.get(), "base_tone_enabled", settings.tone.base_enabled) ||
+      !cJSON_AddNumberToObject(updated.get(), "base_tone", settings.tone.base_amount) ||
+      !cJSON_AddBoolToObject(updated.get(), "warm_tones_enabled", settings.tone.night_enabled) ||
+      !cJSON_AddNumberToObject(updated.get(), "warm_tone_intensity", settings.tone.night_amount) ||
       !cJSON_AddBoolToObject(updated.get(), "portrait_pairing", settings.portrait_pairing) ||
       !cJSON_AddStringToObject(updated.get(), "display_mode", display_mode_name(settings.display_mode)) ||
       !cJSON_AddStringToObject(updated.get(), "screen_rotation", screen_rotation_name(settings.screen_rotation)) ||

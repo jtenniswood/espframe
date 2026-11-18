@@ -5,6 +5,7 @@
 #include "photo_metadata.h"
 #include "photo_source.h"
 #include "screen_schedule.h"
+#include "screen_tone.h"
 #include "slide_geometry.h"
 #include "wifi_credentials.h"
 
@@ -34,6 +35,7 @@ struct Settings {
   PhotoMetadataSettings metadata;
   ClockSettings clock;
   ScreenScheduleSettings schedule;
+  ScreenToneSettings tone;
 
   uint8_t night_brightness() const { return brightness_night.value_or(brightness_day); }
   bool has_immich() const { return !immich_url.empty() && !immich_key.empty(); }

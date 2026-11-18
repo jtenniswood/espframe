@@ -17,6 +17,7 @@ const setup = {
   immich_url: 'https://photos.test/api', slide_seconds: 15, portrait_pairing: true,
   photo_source: 'favorites', album_id: '', display_mode: 'Fill', brightness_day: 74,
   brightness_night: 44,
+  base_tone_enabled: true, base_tone: 25, warm_tones_enabled: true, warm_tone_intensity: 60,
   screen_rotation: '180',
   schedule_enabled: true, schedule_on_hour: 6, schedule_off_hour: 22, schedule_wake_timeout: 60,
   show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
@@ -51,6 +52,9 @@ const fixture = html.replace('</body>', `<script>
       throw new Error('Incorrect initial brightness')
     if (nightBrightness.value !== '44' || form.querySelector('output[for="brightness_night"]').textContent !== '44%')
       throw new Error('Incorrect initial nighttime brightness')
+    if (!form.elements.warm_tones_enabled.checked || form.elements.warm_tone_intensity.value !== '60'
+      || form.querySelector('output[for="warm_tone_intensity"]').textContent !== '60%')
+      throw new Error('Incorrect initial night warmth')
     if (!form.elements.schedule_enabled.checked || form.elements.schedule_off_hour.value !== '22'
       || !document.querySelector('#screen-schedule').open)
       throw new Error('Incorrect initial screen schedule')
@@ -68,6 +72,9 @@ const fixture = html.replace('</body>', `<script>
     if (!backup.metadata?.show_date || backup.metadata.show_location !== false
       || backup.metadata.date_format !== 'Relative Date' || backup.metadata.date_taken_format !== 'January 1, 2026')
       throw new Error('Unexpected caption backup settings')
+    if (!backup.screen.base_tone_enabled || backup.screen.base_tone !== 25
+      || !backup.screen.warm_tones_enabled || backup.screen.warm_tone_intensity !== 60)
+      throw new Error('Unexpected screen tone backup settings')
     source.value = 'album'
     mode.value = 'Fit'
     form.elements.screen_rotation.value = '0'

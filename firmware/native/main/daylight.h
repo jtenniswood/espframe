@@ -9,8 +9,10 @@ class Daylight {
   explicit Daylight(const ClockZone *zone) : zone_(zone) {}
 
   bool is_day(const std::optional<std::tm> &local);
+  float night_warmth(const std::optional<std::tm> &local);
 
  private:
+  bool update_(const std::optional<std::tm> &local);
   const ClockZone *zone_{};
   int year_{};
   int day_{-1};

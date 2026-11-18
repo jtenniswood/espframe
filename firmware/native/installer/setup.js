@@ -17,7 +17,7 @@ const backupStatus = document.querySelector('#backup-status')
 const playback = document.querySelector('#playback')
 const schedule = document.querySelector('#screen-schedule')
 const refreshSource = bindPhotoSource(form)
-const brightnessFields = ['brightness_day', 'brightness_night']
+const percentageFields = ['brightness_day', 'brightness_night', 'base_tone', 'warm_tone_intensity']
 const refreshWifi = () => {
   wifiFields.hidden = reuseWifi.checked
   form.elements.ssid.disabled = reuseWifi.checked
@@ -25,12 +25,12 @@ const refreshWifi = () => {
 }
 reuseWifi.addEventListener('change', refreshWifi)
 refreshWifi()
-const showBrightness = () => {
-  for (const name of brightnessFields) {
+const showPercentages = () => {
+  for (const name of percentageFields) {
     form.querySelector(`output[for="${name}"]`).value = `${form.elements[name].value}%`
   }
 }
-for (const name of brightnessFields) form.elements[name].addEventListener('input', showBrightness)
+for (const name of percentageFields) form.elements[name].addEventListener('input', showPercentages)
 let importSequence = 0
 let importing = false
 
@@ -56,7 +56,7 @@ backup.addEventListener('change', async () => {
     }
     if (!form.elements.timezone.value) notices.push('Choose a timezone supported by the frame.')
     refreshSource()
-    showBrightness()
+    showPercentages()
     playback.open = true
     if (form.elements.schedule_enabled.checked) schedule.open = true
     const message = Object.keys(settings).length ? 'Backup loaded. Review the settings before saving.'
@@ -121,7 +121,9 @@ if ('serial' in navigator) {
     const data = Object.fromEntries(new FormData(form))
     if (!validateAlbum(form, data)) return
     data.slide_seconds = Number(data.slide_seconds)
-    for (const name of brightnessFields) data[name] = form.elements[name].valueAsNumber
+    for (const name of percentageFields) data[name] = form.elements[name].valueAsNumber
+    data.base_tone_enabled = form.elements.base_tone_enabled.checked
+    data.warm_tones_enabled = form.elements.warm_tones_enabled.checked
     data.portrait_pairing = form.elements.portrait_pairing.checked
     data.show_clock = form.elements.show_clock.checked
     data.photo_metadata_date_enabled = form.elements.photo_metadata_date_enabled.checked
@@ -138,7 +140,7 @@ if ('serial' in navigator) {
       await configure(port, data)
       form.reset()
       refreshSource()
-      showBrightness()
+      showPercentages()
       refreshWifi()
       backupStatus.textContent = ''
       status.textContent = 'Settings saved. After the frame restarts, choose Find frame on Wi-Fi to open its settings.'

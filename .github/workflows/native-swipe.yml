@@ -11,6 +11,7 @@ on:
       - 'components/remote_image/webp_rgb565.h'
       - 'components/espframe/timezones.py'
       - 'components/espframe/solar_times.h'
+      - 'components/espframe/warm_tone_luts.h'
       - 'devices/guition-esp32-p4-jc8012p4a1*/device/device.yaml'
       - 'components/mipi_dsi/models/guition.py'
       - 'package.json'
@@ -68,6 +69,9 @@ jobs:
           c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Icomponents/espframe \
             firmware/native/main/photo_caption.cpp firmware/native/tests/photo_caption_test.cpp -o "$RUNNER_TEMP/photo-caption-test"
           "$RUNNER_TEMP/photo-caption-test" firmware/native/assets/caption_glyphs.bin
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Icomponents/espframe \
+            firmware/native/main/screen_tone.cpp firmware/native/tests/screen_tone_test.cpp -o "$RUNNER_TEMP/screen-tone-test"
+          "$RUNNER_TEMP/screen-tone-test"
           c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/stubs \
             firmware/native/tests/recent_previews_test.cpp -o "$RUNNER_TEMP/recent-previews-test"
           "$RUNNER_TEMP/recent-previews-test"

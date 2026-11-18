@@ -106,6 +106,18 @@
               </select>
             </label>
           </details>
+          <details>
+            <summary>Screen tone</summary>
+            <label><input name="base_tone_enabled" type="checkbox" class="inline-option"> Adjust photo tone</label>
+            <label for="base_tone">Base warmth</label>
+            <input id="base_tone" name="base_tone" type="range" min="0" max="100" value="0">
+            <output for="base_tone">0%</output>
+            <label><input name="warm_tones_enabled" type="checkbox" class="inline-option"> Warm photos at night</label>
+            <label for="warm_tone_intensity">Night warmth</label>
+            <input id="warm_tone_intensity" name="warm_tone_intensity" type="range" min="10" max="100" value="50">
+            <output for="warm_tone_intensity">50%</output>
+            <small>Uses sunrise and sunset in the frame’s timezone.</small>
+          </details>
           <details id="screen-schedule">
             <summary>Screen schedule</summary>
             <label><input name="schedule_enabled" type="checkbox" class="inline-option"> Turn off screen outside these hours</label>

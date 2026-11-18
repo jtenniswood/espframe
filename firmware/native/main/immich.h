@@ -1,5 +1,6 @@
 #pragma once
 
+#include "daylight.h"
 #include "immich_http.h"
 #include "immich_selection.h"
 #include "p4_jpeg_decoder.h"
@@ -51,6 +52,7 @@ class ImmichSource {
   uint8_t *encoded_{};
   PhotoHistory history_;
   RecentPreviews previews_;
+  std::optional<Daylight> tone_daylight_;
   std::vector<ImmichPhoto> pending_;
 };
 

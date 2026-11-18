@@ -2,6 +2,7 @@
 #include "solar_times.h"
 
 #include <cassert>
+#include <cmath>
 
 using namespace espframe::native;
 
@@ -26,6 +27,22 @@ void check_solar_boundaries(Daylight &daylight, const ClockZone &zone, int year,
   assert(is_day(rise_h * 60 + rise_m));
   assert(is_day(set_h * 60 + set_m - 1));
   assert(!is_day(set_h * 60 + set_m));
+
+  const int sunrise = rise_h * 60 + rise_m;
+  const int sunset = set_h * 60 + set_m;
+  const auto warmth = [&](int minute) {
+    local.tm_hour = minute / 60;
+    local.tm_min = minute % 60;
+    return daylight.night_warmth(local);
+  };
+  assert(warmth(sunrise - 1) == 1.0f);
+  assert(warmth(sunrise) == 1.0f);
+  assert(std::abs(warmth(sunrise + 30) - 0.5f) < 0.001f);
+  assert(warmth(sunrise + 60) == 0.0f);
+  assert(warmth(sunset - 60) == 0.0f);
+  assert(std::abs(warmth(sunset - 30) - 0.5f) < 0.001f);
+  assert(warmth(sunset) == 1.0f);
+  assert(warmth(sunset + 1) == 1.0f);
 }
 
 int main() {
@@ -33,6 +50,7 @@ int main() {
   assert(london && configure_local_time(london->option));
   Daylight london_solar{london};
   assert(london_solar.is_day(local_clock_time(0)));
+  assert(london_solar.night_warmth(local_clock_time(0)) == 0.0f);
   check_solar_boundaries(london_solar, *london, 2026, 7, 1, 1.0f);
   check_solar_boundaries(london_solar, *london, 2026, 1, 1, 0.0f);
   // The same local date in a different year must discard the previous solar times.

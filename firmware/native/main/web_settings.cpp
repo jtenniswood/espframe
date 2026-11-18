@@ -208,6 +208,10 @@ esp_err_t current(httpd_req_t *request) {
       !cJSON_AddNumberToObject(document.get(), "schedule_on_hour", settings.schedule.on_hour) ||
       !cJSON_AddNumberToObject(document.get(), "schedule_off_hour", settings.schedule.off_hour) ||
       !cJSON_AddNumberToObject(document.get(), "schedule_wake_timeout", settings.schedule.wake_seconds) ||
+      !cJSON_AddBoolToObject(document.get(), "base_tone_enabled", settings.tone.base_enabled) ||
+      !cJSON_AddNumberToObject(document.get(), "base_tone", settings.tone.base_amount) ||
+      !cJSON_AddBoolToObject(document.get(), "warm_tones_enabled", settings.tone.night_enabled) ||
+      !cJSON_AddNumberToObject(document.get(), "warm_tone_intensity", settings.tone.night_amount) ||
       !cJSON_AddBoolToObject(document.get(), "portrait_pairing", settings.portrait_pairing) ||
       !cJSON_AddStringToObject(document.get(), "display_mode", display_mode_name(settings.display_mode)) ||
       !cJSON_AddStringToObject(document.get(), "screen_rotation", screen_rotation_name(settings.screen_rotation)) ||

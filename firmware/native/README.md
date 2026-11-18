@@ -226,6 +226,17 @@ selected timezone and uses the daytime level until it has valid local time.
 At locations without a sunrise or sunset on that day, the corresponding
 fallback is 06:00 or 18:00.
 
+**Screen tone** lets you add base warmth to photos and additional warmth at
+night. The night amount ramps up in the hour before sunset and ramps back down
+in the hour after sunrise, using the frame's timezone. Before the clock is
+synchronized, photos use the base setting. Tone uses the same RGB565 colour
+curve as the ESPHome player and leaves the caption and clock colours alone.
+
+The worker applies the tone when preparing each photo or portrait pair. Cached
+slides keep the tone they were prepared with until the next preparation, so a
+swipe or crossfade can use ready pixels. Base and night settings transfer in
+Espframe backups.
+
 Hold one finger still on the screen for at least three seconds and release
 to turn off the backlight. Touch the screen to wake it to the same photo at
 the current brightness. Autoplay starts a fresh interval after you lift your

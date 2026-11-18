@@ -2,6 +2,8 @@
 
 #include "solar_times.h"
 
+#include <algorithm>
+
 namespace espframe::native {
 namespace {
 
@@ -25,9 +27,9 @@ float offset_at_noon(std::tm local) {
 
 }  // namespace
 
-bool Daylight::is_day(const std::optional<std::tm> &local) {
+bool Daylight::update_(const std::optional<std::tm> &local) {
   if (!zone_ || !local)
-    return true;
+    return false;
   if (year_ != local->tm_year || day_ != local->tm_yday) {
     int rise_hour{}, rise_minute{}, set_hour{}, set_minute{};
     calc_sunrise_sunset(local->tm_year + 1900, local->tm_mon + 1, local->tm_mday,
@@ -38,10 +40,29 @@ bool Daylight::is_day(const std::optional<std::tm> &local) {
     year_ = local->tm_year;
     day_ = local->tm_yday;
   }
+  return true;
+}
+
+bool Daylight::is_day(const std::optional<std::tm> &local) {
+  if (!update_(local))
+    return true;
   const int minute = minute_of_day(*local);
   if (rise_ <= set_)
     return minute >= rise_ && minute < set_;
   return minute >= rise_ || minute < set_;
+}
+
+float Daylight::night_warmth(const std::optional<std::tm> &local) {
+  if (!update_(local))
+    return 0.0f;
+  constexpr int minutes_per_day = 24 * 60;
+  constexpr int ramp = 60;
+  const int length = (set_ - rise_ + minutes_per_day) % minutes_per_day;
+  const int after_rise = (minute_of_day(*local) - rise_ + minutes_per_day) % minutes_per_day;
+  if (after_rise >= length)
+    return 1.0f;
+  const int before_set = length - after_rise;
+  return 1.0f - static_cast<float>(std::min({after_rise, before_set, ramp})) / ramp;
 }
 
 }  // namespace espframe::native

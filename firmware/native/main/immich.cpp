@@ -254,7 +254,12 @@ bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
   primary.render(panel, frame.companion[0] == '\0' ? nullptr : &companion, this->settings_.display_mode,
                  this->settings_.screen_rotation);
   const auto &captions = this->settings_.metadata;
-  const auto local = captions.needs_time() ? local_clock_time(std::time(nullptr)) : std::nullopt;
+  const auto &tone = this->settings_.tone;
+  const auto local = captions.needs_time() || tone.night_enabled ? local_clock_time(std::time(nullptr)) : std::nullopt;
+  if (tone.night_enabled && !this->tone_daylight_)
+    this->tone_daylight_.emplace(find_clock_zone(this->settings_.clock.timezone));
+  const float night_progress = this->tone_daylight_ ? this->tone_daylight_->night_warmth(local) : 0.0f;
+  tint_photo({panel, pixel_count}, tone.warmth(night_progress));
   paint_photo_caption(panel, {caption_atlas, static_cast<size_t>(caption_atlas_end - caption_atlas)},
                       frame.metadata, captions, this->settings_.screen_rotation, local);
   if (new_position)

@@ -19,6 +19,7 @@ for (const name of ['v1-full', 'v2-full']) {
   assert.deepEqual(result.settings, {
     immich_url: 'https://photos.example.com', slide_seconds: 15, portrait_pairing: true, display_mode: 'Fill',
     brightness_day: 100, brightness_night: 75, screen_rotation: '0',
+    base_tone_enabled: false, base_tone: 0, warm_tones_enabled: false, warm_tone_intensity: 50,
     schedule_enabled: false, schedule_on_hour: 6, schedule_off_hour: 23, schedule_wake_timeout: 60,
     show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
   })
@@ -91,6 +92,7 @@ for (const source of ['all', 'favorites', 'album']) {
       slide_seconds: duration, display_mode: duration % 60 ? 'Fit' : 'Fill',
       brightness_day: duration % 60 ? 10 : 100,
       brightness_night: 36,
+      base_tone_enabled: false, base_tone: 24, warm_tones_enabled: true, warm_tone_intensity: 65,
       screen_rotation: duration % 60 ? '180' : '0',
       schedule_enabled: duration % 60 !== 0, schedule_on_hour: 22, schedule_off_hour: 0, schedule_wake_timeout: 3600,
       show_clock: false, clock_format: '12 Hour', timezone: 'America/New_York (GMT-5)',

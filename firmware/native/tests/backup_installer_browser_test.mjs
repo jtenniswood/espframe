@@ -21,6 +21,7 @@ const backup = {
   metadata: { show_date: true, show_location: false, date_format: 'Relative Date', date_taken_format: 'January 1, 2026' },
   screen: {
     brightness_day: 75, brightness_night: 35, schedule_enabled: true, rotation: '180',
+    base_tone_enabled: true, base_tone: 25, warm_tones_enabled: true, warm_tone_intensity: 60,
     schedule_on_hour: 21, schedule_off_hour: 6, schedule_wake_timeout: 30,
   },
   frequency: { interval: '24 hours' },
@@ -108,6 +109,8 @@ const verify = `
       throw new Error('The caption settings did not reach USB setup')
     if (received.brightness_day !== 75 || received.brightness_night !== 35)
       throw new Error('Brightness did not reach USB setup')
+    if (!received.base_tone_enabled || received.base_tone !== 25 || !received.warm_tones_enabled || received.warm_tone_intensity !== 60)
+      throw new Error('Screen tone did not reach USB setup')
     if (received.screen_rotation !== '180') throw new Error('Mounting orientation did not reach USB setup')
     if (!received.schedule_enabled || received.schedule_on_hour !== 21 || received.schedule_off_hour !== 6
       || received.schedule_wake_timeout !== 30) throw new Error('Screen schedule did not reach USB setup')

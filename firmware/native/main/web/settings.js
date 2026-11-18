@@ -10,14 +10,14 @@ const firmware = document.querySelector('#firmware')
 const updateForm = document.querySelector('#firmware-update')
 const updateButton = updateForm.querySelector('button')
 const updateStatus = document.querySelector('#firmware-status')
-const brightnessFields = ['brightness_day', 'brightness_night']
+const percentageFields = ['brightness_day', 'brightness_night', 'base_tone', 'warm_tone_intensity']
 const schedule = document.querySelector('#screen-schedule')
-const showBrightness = () => {
-  for (const name of brightnessFields) {
+const showPercentages = () => {
+  for (const name of percentageFields) {
     form.querySelector(`output[for="${name}"]`).value = `${form.elements[name].value}%`
   }
 }
-for (const name of brightnessFields) form.elements[name].addEventListener('input', showBrightness)
+for (const name of percentageFields) form.elements[name].addEventListener('input', showPercentages)
 form.addEventListener('invalid', event => {
   if (schedule.contains(event.target)) schedule.open = true
 }, true)
@@ -39,7 +39,11 @@ try {
   form.elements.slide_seconds.value = settings.slide_seconds
   form.elements.brightness_day.value = settings.brightness_day ?? 64
   form.elements.brightness_night.value = settings.brightness_night ?? form.elements.brightness_day.value
-  showBrightness()
+  form.elements.base_tone_enabled.checked = settings.base_tone_enabled === true
+  form.elements.base_tone.value = settings.base_tone ?? 0
+  form.elements.warm_tones_enabled.checked = settings.warm_tones_enabled === true
+  form.elements.warm_tone_intensity.value = settings.warm_tone_intensity ?? 50
+  showPercentages()
   form.elements.portrait_pairing.checked = settings.portrait_pairing === true
   form.elements.display_mode.value = settings.display_mode ?? 'Fit'
   form.elements.screen_rotation.value = settings.screen_rotation ?? '0'
@@ -85,7 +89,9 @@ form.addEventListener('submit', async event => {
   if (!validateAlbum(form, data)) return
   submit.disabled = true
   data.slide_seconds = Number(data.slide_seconds)
-  for (const name of brightnessFields) data[name] = form.elements[name].valueAsNumber
+  for (const name of percentageFields) data[name] = form.elements[name].valueAsNumber
+  data.base_tone_enabled = form.elements.base_tone_enabled.checked
+  data.warm_tones_enabled = form.elements.warm_tones_enabled.checked
   data.portrait_pairing = form.elements.portrait_pairing.checked
   data.show_clock = form.elements.show_clock.checked
   data.photo_metadata_date_enabled = form.elements.photo_metadata_date_enabled.checked
