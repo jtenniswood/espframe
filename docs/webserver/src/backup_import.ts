@@ -183,18 +183,23 @@
     backupImportSaveTasks.push(tracked);
   }
 
-  function backupImportBatchBodyLength(values) {
-    var configuration = JSON.stringify({ api_version: 1, reset_epoch: 0, values: values });
+  function backupImportBatchBodyLength(values, requestedRotation) {
+    var configuration = JSON.stringify({ api_version: 1, reset_epoch: 0, values: legacyRotationValues(values, requestedRotation) });
     return new URLSearchParams({ configuration: configuration }).toString().length;
   }
 
   function backupImportSettingsBatches(values) {
     var batches = [];
     var current = {};
-    Object.keys(values).forEach(function (key) {
+    var keys = Object.keys(values);
+    var rotationIndex = keys.indexOf("screen_rotation");
+    if (rotationIndex > 0 && "portrait_pairing" in values) {
+      keys.unshift(keys.splice(rotationIndex, 1)[0]);
+    }
+    keys.forEach(function (key) {
       var candidate = Object.assign({}, current);
       candidate[key] = values[key];
-      if (Object.keys(current).length && backupImportBatchBodyLength(candidate) > BACKUP_IMPORT_MAX_BODY) {
+      if (Object.keys(current).length && backupImportBatchBodyLength(candidate, values.screen_rotation) > BACKUP_IMPORT_MAX_BODY) {
         batches.push(current);
         current = {};
         candidate = {};
@@ -211,9 +216,9 @@
       (error.status === 400 && (!error.code || error.code === "invalid_json")));
   }
 
-  function saveBackupImportBatch(values) {
+  function saveBackupImportBatch(values, requestedRotation) {
     var keys = Object.keys(values);
-    return saveSettingValues(values).then(function () {
+    return saveSettingValues(values, requestedRotation).then(function () {
       return { failedCount: 0 };
     }).catch(function (error) {
       if (keys.length > 1 && backupImportCanRetrySmaller(error)) {
@@ -223,8 +228,8 @@
         keys.forEach(function (key, index) {
           (index < midpoint ? first : second)[key] = values[key];
         });
-        return saveBackupImportBatch(first).then(function (firstResult) {
-          return saveBackupImportBatch(second).then(function (secondResult) {
+        return saveBackupImportBatch(first, requestedRotation).then(function (firstResult) {
+          return saveBackupImportBatch(second, requestedRotation).then(function (secondResult) {
             return { failedCount: firstResult.failedCount + secondResult.failedCount };
           });
         });
@@ -238,7 +243,7 @@
     var batches = backupImportSettingsBatches(values);
     return batches.reduce(function (chain, batch) {
       return chain.then(function (result) {
-        return saveBackupImportBatch(batch).then(function (batchResult) {
+        return saveBackupImportBatch(batch, values.screen_rotation).then(function (batchResult) {
           return { failedCount: result.failedCount + batchResult.failedCount };
         });
       });
@@ -464,7 +469,6 @@
         var importedRotation = String(value);
         if (screenRotationOptionsForUi().indexOf(importedRotation) !== -1) {
           queueBackupImportSetting("screen_rotation", importedRotation);
-          if (isPortraitScreenRotation(importedRotation)) queueBackupImportSetting("portrait_pairing", false);
           return true;
         }
         return skipBackupImportField("Screen rotation was invalid - not imported");

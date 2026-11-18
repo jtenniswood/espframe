@@ -31,7 +31,7 @@ async function main() {
     return response({});
   };
   context.fetch = fakeFetch;
-  const client = new EspframeApiClient(contract, 1000);
+  const client = new EspframeApiClient(contract.capabilities_path, 1000);
   await Promise.all([
     client.updateSettings({ amount: 2 }, [{ key: "amount", domain: "number", url: "/number/Amount", value: 2 }]),
     client.updateSettings({ amount: 3 }, [{ key: "amount", domain: "number", url: "/number/Amount", value: 3 }]),
@@ -44,7 +44,7 @@ async function main() {
   await assert.rejects(client.updateSettings({ amount: 4 }, []), error => error.code === "reset_pending");
 
   const oldCapabilities = { ...contract, reset_path: undefined, reset_modes: undefined };
-  const oldFirmware = new EspframeApiClient(oldCapabilities, 1000);
+  const oldFirmware = new EspframeApiClient(oldCapabilities.capabilities_path, 1000);
   context.fetch = async (url, init) => {
     if (url.endsWith("/capabilities")) return response(oldCapabilities);
     if (url.endsWith("/configuration")) return response({ api_version: 1, values: { amount: 2 }, unavailable: [] });
@@ -54,7 +54,30 @@ async function main() {
   const oldSnapshot = await oldFirmware.getConfigurationSnapshot();
   assert.equal(oldSnapshot.reset_epoch, 0, "older firmware snapshots should default to epoch zero");
 
-  const offline = new EspframeApiClient(contract, 1000);
+  for (const firmwarePolicy of [undefined, true]) {
+    const capabilities = { ...contract, firmware_rotation_policy: firmwarePolicy };
+    const rotationClient = new EspframeApiClient(contract.capabilities_path, 1000);
+    let sent;
+    context.fetch = async (url, init) => {
+      if (url.endsWith("/capabilities")) return response(capabilities);
+      if (init && init.method === "POST") {
+        sent = JSON.parse(new URLSearchParams(init.body).get("configuration")).values;
+        return response({ api_version: 1, status: "accepted" });
+      }
+      return response({ api_version: 1, reset_epoch: 0, values: {}, unavailable: [] });
+    };
+    const requested = { screen_rotation: "90", portrait_pairing: true };
+    const compatible = { ...requested, portrait_pairing: false };
+    await rotationClient.updateSettings(requested, [], compatible);
+    assert.deepEqual(sent, firmwarePolicy ? requested : compatible);
+
+    const disableDeveloperMode = { developer_features_enabled: false };
+    const disableWithRotation = { ...disableDeveloperMode, screen_rotation: "0" };
+    await rotationClient.updateSettings(disableDeveloperMode, [], disableWithRotation);
+    assert.deepEqual(sent, firmwarePolicy ? disableDeveloperMode : disableWithRotation);
+  }
+
+  const offline = new EspframeApiClient(contract.capabilities_path, 1000);
   context.fetch = async () => { throw new TypeError("network"); };
   await assert.rejects(offline.getConfigurationSnapshot(), error => error instanceof EspframeApiError && error.kind === "offline");
   context.fetch = fakeFetch;

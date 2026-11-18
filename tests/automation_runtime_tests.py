@@ -18,6 +18,17 @@ CACHE = ROOT / '.esphome' / 'automation-runtime'
 def main():
     rotation = yaml.safe_load((ROOT / 'common/addon/screen_rotation.yaml').read_text())
     slideshow = (ROOT / 'common/addon/immich_slideshow.yaml').read_text()
+    developer = yaml.safe_load((ROOT / 'common/addon/developer_features.yaml').read_text())
+    pairing_start = slideshow.index('  - platform: template\n    name: "Photos: Portrait Pairing"')
+    pairing_end = slideshow.index('  - platform: template', pairing_start + 1)
+    pairing_switch = yaml.safe_load(slideshow[pairing_start:pairing_end])[0]
+    developer_switch = developer['switch'][0]
+    for switch in (developer_switch, pairing_switch):
+        switch.pop('web_server')
+        switch['restore_mode'] = 'ALWAYS_OFF'
+    developer['globals'][0]['restore_value'] = False
+    boot_actions = developer['esphome']['on_boot'] + rotation['esphome']['on_boot']
+
     recovery = slideshow.split('stop_slideshow_workers(', 1)[1].split(');', 1)[0]
     workers = re.findall(r'id\((\w+)\)', recovery)
     if len(workers) != 25 or len(set(workers)) != 25:
@@ -25,7 +36,7 @@ def main():
     select = rotation['select'][0]
     select.pop('web_server')
     select['restore_value'] = False  # Tests must not depend on host preferences.
-    globals_ = [
+    globals_ = developer['globals'] + [
         {'id': 'espframe_core', 'type': 'AutomationTestCore'},
         {'id': 'frame_lvgl', 'type': 'AutomationTestDisplay *', 'initial_value': 'new AutomationTestDisplay()'},
         {'id': 'test_state', 'type': 'AutomationTestState'},
@@ -59,13 +70,17 @@ def main():
         actions += [{'lambda': f'id(screen_rotation_select).publish_state("{option}");'}, {'delay': '150ms'},
                     {'lambda': f'automation_require(id(frame_lvgl)->rotation == {angle} && id(portrait_pairing_enabled).state == {str(pairing).lower()}, "rotation {option} mapping/pairing");'}]
     actions += [{'lambda': '''
-      id(developer_features_enabled).turn_off();
-      id(layout_count) = 0;
       id(screen_rotation_select).publish_state("90");
+      id(portrait_pairing_enabled).turn_on();
+      automation_require(!id(portrait_pairing_enabled).state, "direct pairing write is blocked in portrait");
+      id(layout_count) = 0;
+      id(developer_features_enabled).turn_off();
     '''}, {'delay': '200ms'}, {'lambda': '''
-      automation_require(id(screen_rotation_select).current_option() == "0", "developer clamp select");
+      automation_require(id(screen_rotation_select).current_option() == "0", "developer off applies firmware clamp");
       automation_require(id(frame_lvgl)->rotation == 90 && !id(portrait_pairing_enabled).state, "developer clamp preserves pairing OFF");
       automation_require(id(layout_count) == 1, "one delayed layout after reentrant clamp");
+      id(portrait_pairing_enabled).turn_on();
+      automation_require(id(portrait_pairing_enabled).state, "direct pairing write succeeds in landscape");
     '''}]
     start = '\n'.join(f'id({worker}).execute();' for worker in workers)
     stopped = ' && '.join(f'!id({worker}).is_running()' for worker in workers)
@@ -81,10 +96,9 @@ def main():
                           'screen_rotation_180': '270', 'screen_rotation_270': '0'},
         'esphome': {'name': 'automation-runtime-test',
                     'platformio_options': {'build_flags': [f'-include {ROOT / "tests/automation_runtime_fixture.h"}']},
-                    'on_boot': [{'priority': -200, 'then': actions}]},
+                    'on_boot': boot_actions + [{'priority': -200, 'then': actions}]},
         'host': {}, 'logger': {'level': 'INFO'}, 'globals': globals_, 'select': [select],
-        'switch': [{'platform': 'template', 'id': name, 'optimistic': True} for name in
-                   ('developer_features_enabled', 'portrait_pairing_enabled')],
+        'switch': [developer_switch, pairing_switch],
         'script': scripts,
     }
     CACHE.mkdir(parents=True, exist_ok=True)

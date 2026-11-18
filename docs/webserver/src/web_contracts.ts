@@ -32,6 +32,7 @@ export interface ConfigurationCapabilities {
   configuration_encoding?: string;
   configuration_parameter?: string;
   legacy_entity_api: boolean;
+  firmware_rotation_policy?: boolean;
   backup_versions: number[];
   setting_count?: number;
 }

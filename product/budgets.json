@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "web": {
-    "app_bytes_max": 263000,
+    "app_bytes_max": 264000,
     "style_bytes_max": 27000,
-    "combined_bytes_max": 290000,
-    "app_gzip_bytes_max": 58500,
+    "combined_bytes_max": 291000,
+    "app_gzip_bytes_max": 58600,
     "style_gzip_bytes_max": 6000,
     "combined_gzip_bytes_max": 64500
   },

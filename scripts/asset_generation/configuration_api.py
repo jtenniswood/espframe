@@ -70,6 +70,7 @@ def configuration_capabilities() -> dict[str, object]:
         "configuration_encoding": "application/x-www-form-urlencoded",
         "configuration_parameter": "configuration",
         "legacy_entity_api": True,
+        "firmware_rotation_policy": True,
         "backup_versions": compatibility["backup_versions"],
         "setting_count": len(product["settings"]),
     }
@@ -77,7 +78,9 @@ def configuration_capabilities() -> dict[str, object]:
 
 def configuration_contract_header() -> str:
     capabilities = configuration_capabilities()
-    fields = configuration_fields()
+    product = load_product()
+    fields = configuration_fields(product)
+    wake_timeout = next(setting for setting in product["settings"] if setting["key"] == "schedule_wake_timeout")
     capabilities_json = json.dumps(capabilities, separators=(",", ":"), ensure_ascii=True)
     field_rows = "\n".join(
         f'    {{"{field["key"]}", "{field["domain"]}", "{field["name"]}", {str(field["secret"]).lower()}}},'
@@ -101,6 +104,9 @@ inline constexpr unsigned int CONTRACT_VERSION = {capabilities["contract_version
 inline constexpr unsigned int API_VERSION = {capabilities["api_version"]};
 inline constexpr unsigned int SETTING_COUNT = {capabilities["setting_count"]};
 inline constexpr unsigned int CONFIGURATION_FIELD_COUNT = {len(fields)};
+inline constexpr float SCHEDULE_WAKE_TIMEOUT_DEFAULT = {wake_timeout["default"]};
+inline constexpr float SCHEDULE_WAKE_TIMEOUT_MIN = {wake_timeout["min"]};
+inline constexpr float SCHEDULE_WAKE_TIMEOUT_MAX = {wake_timeout["max"]};
 inline constexpr const char CAPABILITIES_PATH[] = "{capabilities["capabilities_path"]}";
 inline constexpr const char CONFIGURATION_PATH[] = "{capabilities["configuration_path"]}";
 inline constexpr const char RESET_PATH[] = "{capabilities["reset_path"]}";

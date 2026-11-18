@@ -1,5 +1,6 @@
 #include <cassert>
 #include <iostream>
+#include <limits>
 #include <vector>
 
 #include "components/espframe/automation_controller.h"
@@ -24,6 +25,54 @@ static void test_recovery_stop_order() {
   assert((calls == std::vector<int>{1, 2, 3, 1, 2, 3}));
 }
 
+static void test_rotation_settings_order() {
+  std::vector<std::string> ordered{"developer", "pairing", "rotation"};
+  do {
+    auto writes = ordered;
+    const auto developer = std::find(writes.begin(), writes.end(), "developer") - writes.begin();
+    const auto rotation = std::find(writes.begin(), writes.end(), "rotation") - writes.begin();
+    const auto pairing = std::find(writes.begin(), writes.end(), "pairing") - writes.begin();
+    order_rotation_settings(writes, developer, rotation, pairing);
+    assert((writes == std::vector<std::string>{"developer", "rotation", "pairing"}));
+  } while (std::next_permutation(ordered.begin(), ordered.end()));
+  assert(rotation_requires_developer_mode("90", false));
+  assert(!rotation_requires_developer_mode("90", true));
+  assert(!rotation_requires_developer_mode("0", false));
+
+  std::vector<std::string> pairing_first{"pairing", "unrelated", "rotation"};
+  order_rotation_settings(pairing_first, pairing_first.size(), 2, 0);
+  assert((pairing_first == std::vector<std::string>{"unrelated", "rotation", "pairing"}));
+  std::vector<std::string> rotation_first{"rotation", "unrelated", "pairing"};
+  order_rotation_settings(rotation_first, rotation_first.size(), 0, 2);
+  assert((rotation_first == std::vector<std::string>{"rotation", "unrelated", "pairing"}));
+  std::vector<std::string> developer_and_pairing{"pairing", "developer"};
+  order_rotation_settings(developer_and_pairing, 1, developer_and_pairing.size(), 0);
+  assert((developer_and_pairing == std::vector<std::string>{"developer", "pairing"}));
+  std::vector<std::string> pairing_only{"pairing", "unrelated"};
+  order_rotation_settings(pairing_only, pairing_only.size(), pairing_only.size(), 0);
+  assert((pairing_only == std::vector<std::string>{"pairing", "unrelated"}));
+}
+
+static void test_schedule_wake_timeout() {
+  assert(schedule_wake_timeout_ms(std::numeric_limits<float>::quiet_NaN()) == 60000);
+  assert(schedule_wake_timeout_ms(0) == 60000);
+  assert(schedule_wake_timeout_ms(-1) == 60000);
+  assert(schedule_wake_timeout_ms(1) == 10000);
+  assert(schedule_wake_timeout_ms(10.5f) == 10500);
+  assert(schedule_wake_timeout_ms(7200) == 3600000);
+}
+
+static void test_configuration_ntp_validation() {
+  for (const char *key : {"ntp_server_1", "ntp_server_2", "ntp_server_3"}) {
+    assert(validate_configuration_text(key, ""));
+    assert(validate_configuration_text(key, "  pool.ntp.org  "));
+    assert(validate_configuration_text(key, "2001:db8::1"));
+    assert(!validate_configuration_text(key, "two hosts"));
+    assert(!validate_configuration_text(key, "https://pool.ntp.org"));
+  }
+  assert(validate_configuration_text("immich_url", "https://immich.example/path"));
+}
+
 static void test_rotation() {
   std::vector<int> calls;
   struct Display {
@@ -36,6 +85,14 @@ static void test_rotation() {
     void turn_on() { calls.push_back(1); state = true; }
     void turn_off() { calls.push_back(-1); state = false; }
   } pairing{calls};
+  for (const std::string rotation : {"", "0", "180"}) {
+    assert(resolve_portrait_pairing(rotation, true));
+    assert(!resolve_portrait_pairing(rotation, false));
+  }
+  for (const std::string rotation : {"90", "270"}) {
+    assert(!resolve_portrait_pairing(rotation, true));
+    assert(!resolve_portrait_pairing(rotation, false));
+  }
   const std::array<std::string, 4> options{"0", "90", "180", "270"};
   // Both current panels use the offset mapping; the helper must also preserve
   // board substitutions when another panel supplies a different mapping.
@@ -218,6 +275,9 @@ int main() {
   test_failed_portrait_preload();
   test_recovery_stop_order();
   test_rotation();
+  test_rotation_settings_order();
+  test_schedule_wake_timeout();
+  test_configuration_ntp_validation();
   test_slot_fetch_guards();
   std::cout << "Automation controller tests passed\n";
 }

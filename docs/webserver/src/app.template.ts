@@ -33,7 +33,7 @@ import {
   var WEB_UI_LOGS_RETAINED_LINES = __ESPFRAME_WEB_UI_LOGS_RETAINED_LINES__;
   var SUPPORT_URL = __ESPFRAME_SUPPORT_URL__;
   var SUPPORT_BUTTON_IMAGE_DATA_URI = __ESPFRAME_SUPPORT_BUTTON_IMAGE_DATA_URI__;
-  var GENERATED_CONFIGURATION_CAPABILITIES: ConfigurationCapabilities = __ESPFRAME_CONFIGURATION_API_CONTRACT__;
+  var CONFIGURATION_CAPABILITIES_PATH: string = __ESPFRAME_CONFIGURATION_CAPABILITIES_PATH__;
   var highlightApiKeyAfterRestore = false;
 
   var S: AppState = {
@@ -139,7 +139,7 @@ import {
 
   __ESPFRAME_WEB_APP_SHELL__
 
-  var apiClient = new EspframeApiClient(GENERATED_CONFIGURATION_CAPABILITIES);
+  var apiClient = new EspframeApiClient(CONFIGURATION_CAPABILITIES_PATH);
 
   __ESPFRAME_WEB_ENDPOINTS__
 
@@ -293,17 +293,43 @@ import {
     return { key: key, domain: domain, url: endpoints[key], value: savedValue };
   }
 
-  function saveSettingValues(values) {
+  function legacyRotationValues(values, requestedRotation = values.screen_rotation ?? S.screen_rotation) {
+    if (values.developer_features_enabled === false && isPortraitScreenRotation(S.screen_rotation)) {
+      return Object.assign({}, values, { screen_rotation: "0" });
+    }
+    return isPortraitScreenRotation(requestedRotation) &&
+      ("screen_rotation" in values || "portrait_pairing" in values)
+      ? Object.assign({}, values, { portrait_pairing: false })
+      : values;
+  }
+
+  function saveSettingValues(values, requestedRotation?) {
+    var legacyValues = legacyRotationValues(values, requestedRotation);
     var trackedValues = Object.assign({}, values);
     var includesApiKey = Object.prototype.hasOwnProperty.call(trackedValues, "api_key");
     // The API key is write-only and must never enter the browser's settings
     // state, even when a backup restore batches it with other values.
     delete trackedValues.api_key;
-    return settingSaves.save(trackedValues, function () {
-      return apiClient.updateSettings(values, Object.keys(values).map(function (key) {
-        return legacySettingWrite(key, values[key]);
-      }));
-    }).then(function (response) {
+    var appliedValues = legacyValues;
+    var policyKeys = ["developer_features_enabled", "screen_rotation", "portrait_pairing"];
+    var affectsRotationPolicy = policyKeys.some(function (key) { return key in values; });
+    return settingSaves.save(trackedValues, async function () {
+      var response = await apiClient.updateSettings(values, Object.keys(legacyValues).map(function (key) {
+        return legacySettingWrite(key, legacyValues[key]);
+      }), legacyValues);
+      if (response && affectsRotationPolicy) {
+        try {
+          var snapshot = await apiClient.getConfigurationSnapshot();
+          appliedValues = Object.assign({}, legacyValues);
+          for (var key of policyKeys) {
+            if (key in snapshot.values) appliedValues[key] = snapshot.values[key];
+          }
+        } catch (_) {
+          // The write was accepted. Keep the compatible values if readback fails.
+        }
+      }
+      return response;
+    }, function () { return appliedValues; }).then(function (response) {
       if (includesApiKey) settingSaves.receive("api_key_configured", true);
       return response;
     });
@@ -334,9 +360,7 @@ import {
   function saveScreenRotationSetting(key, value) {
     var rotation = String(value);
     if (screenRotationOptionsForUi().indexOf(rotation) === -1) return Promise.resolve(null);
-    var values: Record<string, string | boolean> = { screen_rotation: rotation };
-    if (isPortraitScreenRotation(rotation)) values.portrait_pairing = false;
-    return saveSettingValues(values);
+    return saveSettingValues({ screen_rotation: rotation });
   }
 
   function reportSettingSaveFailure() {

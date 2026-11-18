@@ -18,6 +18,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "reset_coordinator.h"
+#include "settings_policy.h"
 
 namespace esphome::espframe {
 
@@ -210,7 +211,10 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
     root["status"] = "rejected";
     root["error"] = code;
     if (field != nullptr) root["field"] = field;
-    auto payload = builder.serialize();
+    // Field validation can reject a request while its parsed document is
+    // still live on the HTTP task. Keep the response buffer off that stack.
+    std::string payload;
+    serializeJson(root, payload);
     request->send(status, "application/json", payload.c_str());
   }
 
@@ -305,6 +309,10 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
       pending.domain = PendingDomain::TEXT;
       pending.entity = entity;
       pending.string_value = text_value;
+      if (!validate_configuration_text(field.key, pending.string_value)) {
+        error = "invalid_value";
+        return false;
+      }
       return true;
     }
 
@@ -354,6 +362,9 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
     std::vector<PendingValue> pending_values;
     JsonObject values = root["values"].as<JsonObject>();
     pending_values.reserve(values.size());
+    size_t developer_index = values.size();
+    size_t rotation_index = values.size();
+    size_t pairing_index = values.size();
     for (JsonPair pair : values) {
       const char *key = pair.key().c_str();
       const auto *field = find_field_(key);
@@ -367,8 +378,13 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
         send_error_(request, 422, error, key);
         return;
       }
+      if (std::strcmp(key, "developer_features_enabled") == 0) developer_index = pending_values.size();
+      if (std::strcmp(key, "screen_rotation") == 0) rotation_index = pending_values.size();
+      if (std::strcmp(key, "portrait_pairing") == 0) pairing_index = pending_values.size();
       pending_values.push_back(std::move(pending));
     }
+
+    order_rotation_settings(pending_values, developer_index, rotation_index, pairing_index);
 
     this->update_pending_.store(true);
     this->reset_->set_settings_update_in_progress(true);

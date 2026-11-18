@@ -20,7 +20,7 @@
       this.confirmed.set(key, value);
       this.write(key, value);
     }
-    save(values, send) {
+    save(values, send, appliedValues) {
       const revision = ++this.sequence;
       const entries = Object.entries(values);
       for (const [key, value] of entries) {
@@ -45,7 +45,7 @@
       }
       request = request.then(
         (result) => {
-          this.finish(entries, revision, true);
+          this.finish(entries, revision, true, appliedValues == null ? void 0 : appliedValues(result));
           return result;
         },
         (error) => {
@@ -56,12 +56,13 @@
       this.queue = request.catch(() => void 0);
       return request;
     }
-    finish(entries, revision, accepted) {
+    finish(entries, revision, accepted, applied) {
+      var _a;
       for (const [key, value] of entries) {
         const pending = this.pending.get(key);
         if (accepted) {
-          pending.confirmed = value;
-          this.confirmed.set(key, value);
+          pending.confirmed = (_a = applied == null ? void 0 : applied[key]) != null ? _a : value;
+          this.confirmed.set(key, pending.confirmed);
         }
         if (pending.latest === revision) this.write(key, pending.confirmed);
         if (--pending.remaining === 0) this.pending.delete(key);
@@ -84,8 +85,8 @@
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
   var EspframeApiClient = class {
-    constructor(generated, timeoutMs = 5e3) {
-      __publicField(this, "generated", generated);
+    constructor(capabilitiesPath, timeoutMs = 5e3) {
+      __publicField(this, "capabilitiesPath", capabilitiesPath);
       __publicField(this, "timeoutMs", timeoutMs);
       __publicField(this, "queue", Promise.resolve());
       __publicField(this, "capabilities", null);
@@ -149,13 +150,13 @@
       return payload;
     }
     parseCapabilities(value) {
-      if (!object(value) || typeof value.contract_version !== "number" || typeof value.api_version !== "number" || typeof value.base_path !== "string" || typeof value.capabilities_path !== "string" || typeof value.configuration_path !== "string" || value.update_mode !== "atomic" || typeof value.configuration_available !== "boolean" || typeof value.configuration_read !== "boolean" || typeof value.configuration_write !== "boolean" || typeof value.legacy_entity_api !== "boolean") return null;
+      if (!object(value) || typeof value.contract_version !== "number" || typeof value.api_version !== "number" || typeof value.configuration_path !== "string" || value.update_mode !== "atomic" || typeof value.configuration_available !== "boolean" || typeof value.configuration_read !== "boolean" || typeof value.configuration_write !== "boolean" || typeof value.legacy_entity_api !== "boolean") return null;
       return value;
     }
     negotiate() {
       if (this.negotiated !== void 0) return Promise.resolve(this.negotiated);
       if (!this.capabilities) {
-        this.capabilities = this.requestJson(this.generated.capabilities_path, { cache: "no-store" }, "capabilities_unavailable").then((payload) => {
+        this.capabilities = this.requestJson(this.capabilitiesPath, { cache: "no-store" }, "capabilities_unavailable").then((payload) => {
           const capabilities = this.parseCapabilities(payload);
           if (!capabilities) {
             this.negotiated = null;
@@ -232,7 +233,7 @@
       const body = new URLSearchParams({ [setting.domain === "select" ? "option" : "value"]: String(setting.value) }).toString();
       await this.legacyPost(setting.url + "/set", body);
     }
-    updateSettings(values, legacy) {
+    updateSettings(values, legacy, compatibilityValues = values) {
       return this.enqueue(async () => {
         if (this.resetAccepted) throw new EspframeApiError("conflict", "reset_pending", 409, "reset_pending");
         const capabilities = await this.negotiate();
@@ -241,7 +242,8 @@
           return null;
         }
         if (this.resetEpoch === void 0) await this.getConfigurationSnapshot();
-        const body = new URLSearchParams({ [capabilities.configuration_parameter || "configuration"]: JSON.stringify({ api_version: capabilities.api_version, reset_epoch: this.resetEpoch, values }) }).toString();
+        const supportedValues = capabilities.firmware_rotation_policy === true ? values : compatibilityValues;
+        const body = new URLSearchParams({ [capabilities.configuration_parameter || "configuration"]: JSON.stringify({ api_version: capabilities.api_version, reset_epoch: this.resetEpoch, values: supportedValues }) }).toString();
         try {
           const payload = await this.requestJson(capabilities.configuration_path, {
             method: "POST",
@@ -436,7 +438,7 @@
   var WEB_UI_LOGS_RETAINED_LINES = 1e3;
   var SUPPORT_URL = "https://www.buymeacoffee.com/jtenniswood";
   var SUPPORT_BUTTON_IMAGE_DATA_URI = "data:image/webp;base64,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";
-  var GENERATED_CONFIGURATION_CAPABILITIES = { "contract_version": 2, "api_version": 1, "base_path": "/espframe/api/v1", "capabilities_path": "/espframe/api/v1/capabilities", "configuration_path": "/espframe/api/v1/configuration", "reset_path": "/espframe/api/v1/reset", "reset_modes": ["customization", "factory"], "update_mode": "atomic", "configuration_available": true, "configuration_read": true, "configuration_write": true, "configuration_encoding": "application/x-www-form-urlencoded", "configuration_parameter": "configuration", "legacy_entity_api": true, "backup_versions": [1, 2, 3], "setting_count": 55 };
+  var CONFIGURATION_CAPABILITIES_PATH = "/espframe/api/v1/capabilities";
   var highlightApiKeyAfterRestore = false;
   var S = {
     tz_options: TIMEZONES,
@@ -2133,7 +2135,7 @@ to {
       apiKeyField.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }
-  var apiClient = new EspframeApiClient(GENERATED_CONFIGURATION_CAPABILITIES);
+  var apiClient = new EspframeApiClient(CONFIGURATION_CAPABILITIES_PATH);
   function eid(domain, name) {
     return "/" + domain + "/" + encodeURIComponent(name);
   }
@@ -2344,14 +2346,39 @@ to {
     var domain = settingEntityDomain(key);
     return { key, domain, url: endpoints[key], value: savedValue };
   }
-  function saveSettingValues(values) {
+  function legacyRotationValues(values, requestedRotation = ((_a) => (_a = values.screen_rotation) != null ? _a : S.screen_rotation)()) {
+    if (values.developer_features_enabled === false && isPortraitScreenRotation(S.screen_rotation)) {
+      return Object.assign({}, values, { screen_rotation: "0" });
+    }
+    return isPortraitScreenRotation(requestedRotation) && ("screen_rotation" in values || "portrait_pairing" in values) ? Object.assign({}, values, { portrait_pairing: false }) : values;
+  }
+  function saveSettingValues(values, requestedRotation) {
+    var legacyValues = legacyRotationValues(values, requestedRotation);
     var trackedValues = Object.assign({}, values);
     var includesApiKey = Object.prototype.hasOwnProperty.call(trackedValues, "api_key");
     delete trackedValues.api_key;
-    return settingSaves.save(trackedValues, function() {
-      return apiClient.updateSettings(values, Object.keys(values).map(function(key) {
-        return legacySettingWrite(key, values[key]);
-      }));
+    var appliedValues = legacyValues;
+    var policyKeys = ["developer_features_enabled", "screen_rotation", "portrait_pairing"];
+    var affectsRotationPolicy = policyKeys.some(function(key) {
+      return key in values;
+    });
+    return settingSaves.save(trackedValues, async function() {
+      var response = await apiClient.updateSettings(values, Object.keys(legacyValues).map(function(key2) {
+        return legacySettingWrite(key2, legacyValues[key2]);
+      }), legacyValues);
+      if (response && affectsRotationPolicy) {
+        try {
+          var snapshot = await apiClient.getConfigurationSnapshot();
+          appliedValues = Object.assign({}, legacyValues);
+          for (var key of policyKeys) {
+            if (key in snapshot.values) appliedValues[key] = snapshot.values[key];
+          }
+        } catch (_) {
+        }
+      }
+      return response;
+    }, function() {
+      return appliedValues;
     }).then(function(response) {
       if (includesApiKey) settingSaves.receive("api_key_configured", true);
       return response;
@@ -2379,9 +2406,7 @@ to {
   function saveScreenRotationSetting(key, value) {
     var rotation = String(value);
     if (screenRotationOptionsForUi().indexOf(rotation) === -1) return Promise.resolve(null);
-    var values = { screen_rotation: rotation };
-    if (isPortraitScreenRotation(rotation)) values.portrait_pairing = false;
-    return saveSettingValues(values);
+    return saveSettingValues({ screen_rotation: rotation });
   }
   function reportSettingSaveFailure() {
     if (typeof backupImportInProgress !== "undefined" && backupImportInProgress) return;
@@ -4735,9 +4760,6 @@ to {
       badge: devBadge,
       onChange: function() {
         saveSetting("developer_features_enabled", S.developer_features_enabled);
-        if (!S.developer_features_enabled && isPortraitScreenRotation(S.screen_rotation)) {
-          saveSetting("screen_rotation", "0");
-        }
         renderSettings();
       }
     }).field);
@@ -5838,17 +5860,22 @@ to {
     });
     backupImportSaveTasks.push(tracked);
   }
-  function backupImportBatchBodyLength(values) {
-    var configuration = JSON.stringify({ api_version: 1, reset_epoch: 0, values });
+  function backupImportBatchBodyLength(values, requestedRotation) {
+    var configuration = JSON.stringify({ api_version: 1, reset_epoch: 0, values: legacyRotationValues(values, requestedRotation) });
     return new URLSearchParams({ configuration }).toString().length;
   }
   function backupImportSettingsBatches(values) {
     var batches = [];
     var current = {};
-    Object.keys(values).forEach(function(key) {
+    var keys = Object.keys(values);
+    var rotationIndex = keys.indexOf("screen_rotation");
+    if (rotationIndex > 0 && "portrait_pairing" in values) {
+      keys.unshift(keys.splice(rotationIndex, 1)[0]);
+    }
+    keys.forEach(function(key) {
       var candidate = Object.assign({}, current);
       candidate[key] = values[key];
-      if (Object.keys(current).length && backupImportBatchBodyLength(candidate) > BACKUP_IMPORT_MAX_BODY) {
+      if (Object.keys(current).length && backupImportBatchBodyLength(candidate, values.screen_rotation) > BACKUP_IMPORT_MAX_BODY) {
         batches.push(current);
         current = {};
         candidate = {};
@@ -5862,9 +5889,9 @@ to {
   function backupImportCanRetrySmaller(error) {
     return error && (error.status === 413 || error.status === 422 || error.status === 400 && (!error.code || error.code === "invalid_json"));
   }
-  function saveBackupImportBatch(values) {
+  function saveBackupImportBatch(values, requestedRotation) {
     var keys = Object.keys(values);
-    return saveSettingValues(values).then(function() {
+    return saveSettingValues(values, requestedRotation).then(function() {
       return { failedCount: 0 };
     }).catch(function(error) {
       if (keys.length > 1 && backupImportCanRetrySmaller(error)) {
@@ -5874,8 +5901,8 @@ to {
         keys.forEach(function(key, index) {
           (index < midpoint ? first : second)[key] = values[key];
         });
-        return saveBackupImportBatch(first).then(function(firstResult) {
-          return saveBackupImportBatch(second).then(function(secondResult) {
+        return saveBackupImportBatch(first, requestedRotation).then(function(firstResult) {
+          return saveBackupImportBatch(second, requestedRotation).then(function(secondResult) {
             return { failedCount: firstResult.failedCount + secondResult.failedCount };
           });
         });
@@ -5888,7 +5915,7 @@ to {
     var batches = backupImportSettingsBatches(values);
     return batches.reduce(function(chain, batch) {
       return chain.then(function(result) {
-        return saveBackupImportBatch(batch).then(function(batchResult) {
+        return saveBackupImportBatch(batch, values.screen_rotation).then(function(batchResult) {
           return { failedCount: result.failedCount + batchResult.failedCount };
         });
       });
@@ -6095,7 +6122,6 @@ to {
         var importedRotation = String(value);
         if (screenRotationOptionsForUi().indexOf(importedRotation) !== -1) {
           queueBackupImportSetting("screen_rotation", importedRotation);
-          if (isPortraitScreenRotation(importedRotation)) queueBackupImportSetting("portrait_pairing", false);
           return true;
         }
         return skipBackupImportField("Screen rotation was invalid - not imported");

@@ -16,10 +16,13 @@ inline constexpr unsigned int CONTRACT_VERSION = 2;
 inline constexpr unsigned int API_VERSION = 1;
 inline constexpr unsigned int SETTING_COUNT = 55;
 inline constexpr unsigned int CONFIGURATION_FIELD_COUNT = 76;
+inline constexpr float SCHEDULE_WAKE_TIMEOUT_DEFAULT = 60;
+inline constexpr float SCHEDULE_WAKE_TIMEOUT_MIN = 10;
+inline constexpr float SCHEDULE_WAKE_TIMEOUT_MAX = 3600;
 inline constexpr const char CAPABILITIES_PATH[] = "/espframe/api/v1/capabilities";
 inline constexpr const char CONFIGURATION_PATH[] = "/espframe/api/v1/configuration";
 inline constexpr const char RESET_PATH[] = "/espframe/api/v1/reset";
-inline constexpr const char CAPABILITIES_JSON[] = R"ESPFRAME_JSON({"contract_version":2,"api_version":1,"base_path":"/espframe/api/v1","capabilities_path":"/espframe/api/v1/capabilities","configuration_path":"/espframe/api/v1/configuration","reset_path":"/espframe/api/v1/reset","reset_modes":["customization","factory"],"update_mode":"atomic","configuration_available":true,"configuration_read":true,"configuration_write":true,"configuration_encoding":"application/x-www-form-urlencoded","configuration_parameter":"configuration","legacy_entity_api":true,"backup_versions":[1,2,3],"setting_count":55})ESPFRAME_JSON";
+inline constexpr const char CAPABILITIES_JSON[] = R"ESPFRAME_JSON({"contract_version":2,"api_version":1,"base_path":"/espframe/api/v1","capabilities_path":"/espframe/api/v1/capabilities","configuration_path":"/espframe/api/v1/configuration","reset_path":"/espframe/api/v1/reset","reset_modes":["customization","factory"],"update_mode":"atomic","configuration_available":true,"configuration_read":true,"configuration_write":true,"configuration_encoding":"application/x-www-form-urlencoded","configuration_parameter":"configuration","legacy_entity_api":true,"firmware_rotation_policy":true,"backup_versions":[1,2,3],"setting_count":55})ESPFRAME_JSON";
 inline constexpr ConfigurationField CONFIGURATION_FIELDS[] = {
     {"photo_source", "select", "Photos: Source", false},
     {"memories_window", "select", "Photos: Memories Window", false},
