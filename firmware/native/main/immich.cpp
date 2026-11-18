@@ -1,6 +1,7 @@
 #include "immich.h"
 
 #include "native_network.h"
+#include "photo_caption.h"
 #include "preview_decoder.h"
 
 #include "esp_heap_caps.h"
@@ -18,6 +19,8 @@ constexpr const char *tag = "immich";
 constexpr size_t photo_capacity = 2 * 1024 * 1024;
 constexpr size_t search_capacity = 64 * 1024;
 constexpr int64_t pairing_time_us = 1'500'000;
+extern const uint8_t caption_atlas[] asm("_binary_caption_glyphs_bin_start");
+extern const uint8_t caption_atlas_end[] asm("_binary_caption_glyphs_bin_end");
 
 }  // namespace
 
@@ -74,7 +77,8 @@ std::vector<ImmichPhoto> ImmichSource::search_(std::optional<std::chrono::sys_da
   const bool legacy_album = source.mode == PhotoSourceMode::Album && this->search_api_ == ImmichSearchApi::Legacy;
   uint32_t page = !pairing && legacy_album ? this->album_page_ : 1;
   size_t count = !pairing && legacy_album ? this->album_page_size_ : photo_search_batch;
-  auto request = make_photo_search(count, source, this->search_api_, local_day, page);
+  const bool with_location = this->settings_.metadata.show_location;
+  auto request = make_photo_search(count, source, this->search_api_, local_day, page, with_location);
   if (request.path.empty())
     return {};
   size_t length;
@@ -87,6 +91,10 @@ std::vector<ImmichPhoto> ImmichSource::search_(std::optional<std::chrono::sys_da
       this->album_page_ = 1;
       page = 1;
     }
+    request = make_photo_search(count, source, this->search_api_, local_day, page, with_location);
+    status = this->fetch_(request.path, request.body, search_capacity, length);
+  }
+  if (!pairing && with_location && (status == 400 || status == 413)) {
     request = make_photo_search(count, source, this->search_api_, local_day, page);
     status = this->fetch_(request.path, request.body, search_capacity, length);
   }
@@ -123,7 +131,7 @@ bool ImmichSource::next_asset_(ImmichPhoto &asset) {
 }
 
 AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, int64_t deadline_us) {
-  if (!primary.capture_day)
+  if (!primary.metadata.capture_day)
     return {};
   auto choose = [&](const std::vector<ImmichPhoto> &photos) {
     AssetId first{};
@@ -138,7 +146,7 @@ AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, int64_t deadlin
     return first;
   };
   const auto known = choose(this->pending_);
-  return known[0] != '\0' ? known : choose(this->search_(primary.capture_day, deadline_us));
+  return known[0] != '\0' ? known : choose(this->search_(primary.metadata.capture_day, deadline_us));
 }
 
 ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, DecodedPreview &preview,
@@ -207,6 +215,7 @@ bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
     if (!this->next_asset_(seed))
       return false;
     frame.primary = seed.id;
+    frame.metadata = seed.metadata;
   }
 
   DecodedPreview primary;
@@ -244,6 +253,10 @@ bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
     std::erase_if(this->pending_, [&](const ImmichPhoto &photo) { return photo.id == frame.companion; });
   primary.render(panel, frame.companion[0] == '\0' ? nullptr : &companion, this->settings_.display_mode,
                  this->settings_.screen_rotation);
+  const auto &captions = this->settings_.metadata;
+  const auto local = captions.needs_time() ? local_clock_time(std::time(nullptr)) : std::nullopt;
+  paint_photo_caption(panel, {caption_atlas, static_cast<size_t>(caption_atlas_end - caption_atlas)},
+                      frame.metadata, captions, this->settings_.screen_rotation, local);
   if (new_position)
     this->history_.append(frame);
   else

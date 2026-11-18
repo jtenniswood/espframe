@@ -46,6 +46,10 @@ try {
   form.elements.photo_source.value = settings.photo_source ?? 'all'
   form.elements.album_id.value = settings.album_id ?? ''
   form.elements.show_clock.checked = settings.show_clock === true
+  form.elements.photo_metadata_date_enabled.checked = settings.photo_metadata_date_enabled !== false
+  form.elements.photo_metadata_location_enabled.checked = settings.photo_metadata_location_enabled !== false
+  form.elements.photo_metadata_date_format.value = settings.photo_metadata_date_format ?? 'Date Taken'
+  form.elements.photo_metadata_date_taken_format.value = settings.photo_metadata_date_taken_format ?? '1 January, 2026'
   form.elements.clock_format.value = settings.clock_format ?? '24 Hour'
   form.elements.schedule_enabled.checked = settings.schedule_enabled === true
   form.elements.schedule_on_hour.value = settings.schedule_on_hour ?? 6
@@ -84,6 +88,8 @@ form.addEventListener('submit', async event => {
   for (const name of brightnessFields) data[name] = form.elements[name].valueAsNumber
   data.portrait_pairing = form.elements.portrait_pairing.checked
   data.show_clock = form.elements.show_clock.checked
+  data.photo_metadata_date_enabled = form.elements.photo_metadata_date_enabled.checked
+  data.photo_metadata_location_enabled = form.elements.photo_metadata_location_enabled.checked
   data.schedule_enabled = form.elements.schedule_enabled.checked
   data.schedule_on_hour = Number(data.schedule_on_hour)
   data.schedule_off_hour = Number(data.schedule_off_hour)

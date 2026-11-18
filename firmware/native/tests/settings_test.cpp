@@ -84,6 +84,7 @@ int main() {
   assert(current.immich_url == "https://photos.test/api" && current.slide_seconds == 20);
   assert(current.web_password == "only-settings");
   assert(current.display_mode == DisplayMode::Fit);
+  assert(current.metadata.show_date && current.metadata.show_location && !current.metadata.relative);
   assert(current.screen_rotation == ScreenRotation::Normal);
   assert(!current.schedule.enabled && current.schedule.wake_seconds == 60);
   auto before = stored;
@@ -100,6 +101,9 @@ int main() {
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","timezone":"Unverified/Zone"})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","show_clock":12})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","clock_format":"Seconds"})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","photo_metadata_date_enabled":"false"})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","photo_metadata_date_format":"Unknown"})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","photo_metadata_date_taken_format":false})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","brightness_day":9})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","brightness_day":100.5})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","brightness_day":"80"})"));
@@ -132,10 +136,14 @@ int main() {
                                   "schedule_on_hour":23,"schedule_off_hour":0,"schedule_wake_timeout":3600})"));
   assert(Settings::save_playback(R"json({"immich_url":"http://photos.test","show_clock":true,"clock_format":"12 Hour",
                                        "timezone":"America/New_York (GMT-5)"})json"));
+  assert(Settings::save_playback(R"({"immich_url":"http://photos.test","photo_metadata_date_enabled":true,
+                                  "photo_metadata_location_enabled":false,"photo_metadata_date_format":"Relative Date",
+                                  "photo_metadata_date_taken_format":"January 1, 2026"})"));
   assert(Settings::save_playback(R"({"immich_url":"http://photos.test","immich_key":"next-key","slide_seconds":2})"));
   assert(current.read());
   assert(current.immich_key == "next-key" && current.slide_seconds == 2);
   assert(current.clock.show && current.clock.format == "12 Hour" && current.clock.timezone == "America/New_York (GMT-5)");
+  assert(current.metadata.needs_time() && !current.metadata.show_location && current.metadata.month_before_day);
   assert(current.brightness_day == 42);
   assert(current.brightness_night == 26 && current.night_brightness() == 26);
   assert(current.schedule.enabled && current.schedule.on_hour == 23 && current.schedule.off_hour == 0 &&

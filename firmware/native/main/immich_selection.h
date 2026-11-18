@@ -13,7 +13,7 @@ namespace espframe::native {
 
 struct ImmichPhoto {
   AssetId id{};
-  std::optional<std::chrono::sys_days> capture_day;
+  PhotoMetadata metadata{};
   bool portrait{};
 };
 
@@ -35,7 +35,8 @@ struct PhotoSearchResult {
 
 ImmichSearchApi parse_search_api(std::string_view json);
 PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, ImmichSearchApi api,
-                                     std::optional<std::chrono::sys_days> local_day = {}, uint32_t page = 1);
+                                     std::optional<std::chrono::sys_days> local_day = {}, uint32_t page = 1,
+                                     bool with_location = false);
 PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool paged, bool favorites_only);
 bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candidate);
 

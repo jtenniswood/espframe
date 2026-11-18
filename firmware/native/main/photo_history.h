@@ -1,5 +1,6 @@
 #pragma once
 
+#include "photo_metadata.h"
 #include "slide_geometry.h"
 
 #include <algorithm>
@@ -12,6 +13,7 @@ using AssetId = std::array<char, 37>;
 struct PhotoSlide {
   AssetId primary{};
   AssetId companion{};
+  PhotoMetadata metadata{};
 };
 
 // Keep recent Immich IDs, while the slide cache separately owns decoded pixels.

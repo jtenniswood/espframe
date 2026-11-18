@@ -213,6 +213,10 @@ esp_err_t current(httpd_req_t *request) {
       !cJSON_AddStringToObject(document.get(), "screen_rotation", screen_rotation_name(settings.screen_rotation)) ||
       !cJSON_AddStringToObject(document.get(), "photo_source", photo_source_name(settings.photo_source.mode)) ||
       !cJSON_AddStringToObject(document.get(), "album_id", settings.photo_source.album_id.c_str()) ||
+      !cJSON_AddBoolToObject(document.get(), "photo_metadata_date_enabled", settings.metadata.show_date) ||
+      !cJSON_AddBoolToObject(document.get(), "photo_metadata_location_enabled", settings.metadata.show_location) ||
+      !cJSON_AddStringToObject(document.get(), "photo_metadata_date_format", settings.metadata.date_format()) ||
+      !cJSON_AddStringToObject(document.get(), "photo_metadata_date_taken_format", settings.metadata.taken_format()) ||
       !cJSON_AddBoolToObject(document.get(), "show_clock", settings.clock.show) ||
       !cJSON_AddStringToObject(document.get(), "clock_format", settings.clock.format.c_str()) ||
       !cJSON_AddStringToObject(document.get(), "timezone", settings.clock.timezone.c_str()) ||

@@ -109,6 +109,22 @@ bool read_schedule(const cJSON *root, ScreenScheduleSettings &schedule) {
          read_integer(root, "schedule_wake_timeout", 10, 3600, schedule.wake_seconds);
 }
 
+bool read_metadata(const cJSON *root, PhotoMetadataSettings &settings) {
+  using Format = PhotoMetadataSettings;
+  std::string date = settings.date_format();
+  std::string taken = settings.taken_format();
+  if (!read_flag(root, "photo_metadata_date_enabled", settings.show_date) ||
+      !read_flag(root, "photo_metadata_location_enabled", settings.show_location) ||
+      !read_field(root, "photo_metadata_date_format", date, true) ||
+      !read_field(root, "photo_metadata_date_taken_format", taken, true) ||
+      (date != Format::date_taken && date != Format::relative_date) ||
+      (taken != Format::day_first && taken != Format::month_first))
+    return false;
+  settings.relative = date == Format::relative_date;
+  settings.month_before_day = taken == Format::month_first;
+  return true;
+}
+
 bool read_brightness(const cJSON *root, Settings &settings) {
   if (!read_integer(root, "brightness_day", 10, 100, settings.brightness_day))
     return false;
@@ -182,7 +198,7 @@ bool read_playback(const cJSON *root, Settings &settings) {
          read_display_mode(root, settings.display_mode) && read_rotation(root, settings.screen_rotation) &&
          read_source(root, settings.photo_source) &&
          read_clock(root, settings.clock) && read_brightness(root, settings) &&
-         read_schedule(root, settings.schedule);
+         read_schedule(root, settings.schedule) && read_metadata(root, settings.metadata);
 }
 
 bool parse_all(const cJSON *root, Settings &settings) {
@@ -334,6 +350,10 @@ bool Settings::save_playback(const char *json) {
       !cJSON_AddStringToObject(updated.get(), "screen_rotation", screen_rotation_name(settings.screen_rotation)) ||
       !cJSON_AddStringToObject(updated.get(), "photo_source", photo_source_name(settings.photo_source.mode)) ||
       !cJSON_AddStringToObject(updated.get(), "album_id", settings.photo_source.album_id.c_str()) ||
+      !cJSON_AddBoolToObject(updated.get(), "photo_metadata_date_enabled", settings.metadata.show_date) ||
+      !cJSON_AddBoolToObject(updated.get(), "photo_metadata_location_enabled", settings.metadata.show_location) ||
+      !cJSON_AddStringToObject(updated.get(), "photo_metadata_date_format", settings.metadata.date_format()) ||
+      !cJSON_AddStringToObject(updated.get(), "photo_metadata_date_taken_format", settings.metadata.taken_format()) ||
       !cJSON_AddBoolToObject(updated.get(), "show_clock", settings.clock.show) ||
       !cJSON_AddStringToObject(updated.get(), "clock_format", settings.clock.format.c_str()) ||
       !cJSON_AddStringToObject(updated.get(), "timezone", settings.clock.timezone.c_str()))

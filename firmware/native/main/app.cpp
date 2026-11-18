@@ -203,6 +203,7 @@ class SlideLoader {
   uint8_t brightness() const { return this->settings_.brightness_day; }
   uint8_t night_brightness() const { return this->settings_.night_brightness(); }
   const ClockSettings &clock() const { return this->settings_.clock; }
+  bool caption_needs_time() const { return this->settings_.metadata.needs_time(); }
   const ScreenScheduleSettings &schedule() const { return this->settings_.schedule; }
   ScreenRotation rotation() const { return this->settings_.screen_rotation; }
 
@@ -257,7 +258,7 @@ class SlideLoader {
         continue;
       const auto connection = network.photo_connection();
       bool ready = true;
-      if (loader.live_ && lease.slide > 0) {
+      if (!esphome_trial && loader.live_ && lease.slide > 0) {
         ready = loader.source_.prepare(lease.slide, lease.pixels);
       } else {
         const int fixture = lease.slide % fixture_count;
@@ -299,8 +300,9 @@ void run(void *) {
   const auto day_level = loader.brightness();
   const auto night_level = loader.night_brightness();
   const bool solar_brightness = day_level != night_level;
-  const bool use_local_time = (loader.clock().show || loader.schedule().enabled || solar_brightness) &&
-                              configure_local_time(loader.clock().timezone);
+  const bool use_local_time = loader.clock().show || loader.schedule().enabled || solar_brightness;
+  const bool local_time_configured = (use_local_time || loader.caption_needs_time()) &&
+                                     configure_local_time(loader.clock().timezone);
   Daylight daylight{solar_brightness ? find_clock_zone(loader.clock().timezone) : nullptr};
   uint8_t brightness = day_level;
   uint8_t applied_brightness = 0;
@@ -361,7 +363,7 @@ void run(void *) {
 
   while (true) {
     auto now = esp_timer_get_time();
-    if (use_local_time && now >= next_clock_poll) {
+    if (use_local_time && local_time_configured && now >= next_clock_poll) {
       const auto local = local_clock_time(std::time(nullptr));
       clock_dirty |= clock.update(local);
       local_hour = local ? std::optional<int>{local->tm_hour} : std::nullopt;

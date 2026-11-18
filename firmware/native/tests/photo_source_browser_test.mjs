@@ -20,6 +20,8 @@ const setup = {
   screen_rotation: '180',
   schedule_enabled: true, schedule_on_hour: 6, schedule_off_hour: 22, schedule_wake_timeout: 60,
   show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
+  photo_metadata_date_enabled: true, photo_metadata_location_enabled: false,
+  photo_metadata_date_format: 'Relative Date', photo_metadata_date_taken_format: 'January 1, 2026',
 }
 const clockTimezones = {
   'Europe/London (GMT+0)': 'Europe/London (GMT+0; daylight GMT+1)',
@@ -63,6 +65,9 @@ const fixture = html.replace('</body>', `<script>
       || backup.screen.schedule_on_hour !== 6 || backup.screen.schedule_off_hour !== 22
       || backup.screen.schedule_wake_timeout !== 60)
       throw new Error('Unexpected saved settings backup')
+    if (!backup.metadata?.show_date || backup.metadata.show_location !== false
+      || backup.metadata.date_format !== 'Relative Date' || backup.metadata.date_taken_format !== 'January 1, 2026')
+      throw new Error('Unexpected caption backup settings')
     source.value = 'album'
     mode.value = 'Fit'
     form.elements.screen_rotation.value = '0'

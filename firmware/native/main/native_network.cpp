@@ -296,7 +296,7 @@ void NativeNetwork::handle_(const Command &command, WifiCredentials &saved) {
 void NativeNetwork::connect_loop_(WifiCredentials saved) {
   const bool https = settings_->immich_url.starts_with("https://");
   const bool need_time = https || settings_->clock.show || settings_->schedule.enabled ||
-                         settings_->brightness_day != settings_->night_brightness();
+                         settings_->brightness_day != settings_->night_brightness() || settings_->metadata.needs_time();
   bool sntp_started = !need_time;
   bool web_started = false;
   uint32_t events = 0;

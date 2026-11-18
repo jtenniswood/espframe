@@ -3,10 +3,16 @@ import { normalizeAlbum } from './photo_source.mjs'
 const legacySources = ['All Photos', 'Album', 'Favorites', 'Custom']
 const displayModes = ['Fill', 'Fit']
 const clockFormats = ['24 Hour', '12 Hour']
-const groups = ['connection', 'photos', 'frequency', 'screen', 'clock', 'firmware_updates', 'identity']
+const groups = ['connection', 'photos', 'frequency', 'screen', 'clock', 'metadata', 'firmware_updates', 'identity']
 const own = (object, key) => Object.hasOwn(object, key)
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const integerIn = (min, max) => value => Number.isInteger(value) && value >= min && value <= max
+const metadataFields = {
+  show_date: [value => typeof value === 'boolean', 'photo_metadata_date_enabled'],
+  show_location: [value => typeof value === 'boolean', 'photo_metadata_location_enabled'],
+  date_format: [value => ['Date Taken', 'Relative Date'].includes(value), 'photo_metadata_date_format'],
+  date_taken_format: [value => ['1 January, 2026', 'January 1, 2026'].includes(value), 'photo_metadata_date_taken_format'],
+}
 const screenFields = {
   rotation: [value => ['0', '180'].includes(value), 'Choose Normal or Upside down for mounting orientation.', 'screen_rotation'],
   brightness_day: [integerIn(10, 100), 'Choose a daytime brightness from 10% to 100%.'],
@@ -94,6 +100,10 @@ export function readBackup(data) {
   const frequency = data.frequency ?? {}
   const clock = data.clock ?? {}
   const screen = data.screen ?? {}
+  const metadata = data.metadata ?? {}
+  for (const [key, [valid, field]] of Object.entries(metadataFields)) {
+    if (valid(metadata[key])) settings[field] = metadata[key]
+  }
   if (own(connection, 'immich_url')) {
     const url = immichUrl(connection.immich_url)
     if (url) settings.immich_url = url
@@ -156,6 +166,10 @@ export function createBackup(settings, date = new Date()) {
     ...(typeof settings.timezone === 'string' ? { timezone: settings.timezone } : {}),
   }
   const screen = {}
+  const metadata = {}
+  for (const [key, [valid, field]] of Object.entries(metadataFields)) {
+    if (valid(settings[field])) metadata[key] = settings[field]
+  }
   for (const [key, [valid, , field = key]] of Object.entries(screenFields)) {
     if (valid(settings[field])) screen[key] = settings[field]
   }
@@ -175,5 +189,6 @@ export function createBackup(settings, date = new Date()) {
     frequency: { interval: formatInterval(settings.slide_seconds) },
     ...(Object.keys(clock).length ? { clock } : {}),
     ...(Object.keys(screen).length ? { screen } : {}),
+    ...(Object.keys(metadata).length ? { metadata } : {}),
   }
 }

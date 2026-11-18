@@ -196,6 +196,19 @@ mounted the other way round. After restart, photos, portrait pairs, the clock,
 and touch follow the new orientation together. Espframe backups carry the
 landscape mounting choice.
 
+Under **Photo captions**, enable the capture date, location, or both. The
+frame uses the photo's local capture day and the city and country supplied by
+Immich. When two portraits are paired, the caption describes the primary
+photo. The caption is composed with the cached slide, so dragging and
+swiping need no extra image, text, or network work. The frame can show the
+date in either date-taken format or as a relative age in the configured
+timezone. Relative captions update as slides are prepared or prepared again.
+Before time sync the frame shows the capture date.
+
+The caption font covers Latin, Greek and Cyrillic text. When a name cannot
+be rendered, the frame can still show the other location field. These
+settings are included in the native player's backups.
+
 The photo source defaults to **All photos**. Choose **Favourites** or
 **Album** in the frame's web settings to limit both photos and their
 portrait companions. For an album, paste its Immich link or ID and give the

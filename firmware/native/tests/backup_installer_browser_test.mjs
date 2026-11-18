@@ -18,6 +18,7 @@ const backup = {
   connection: { immich_url: 'https://photos.test', api_key: 'old-api-key' },
   photos: { albums_enabled: true, album_ids: album, portrait_pairing: false, display_mode: 'Fit' },
   clock: { show: false, format: '12 Hour', timezone: 'America/New_York (GMT-5)' },
+  metadata: { show_date: true, show_location: false, date_format: 'Relative Date', date_taken_format: 'January 1, 2026' },
   screen: {
     brightness_day: 75, brightness_night: 35, schedule_enabled: true, rotation: '180',
     schedule_on_hour: 21, schedule_off_hour: 6, schedule_wake_timeout: 30,
@@ -102,6 +103,9 @@ const verify = `
       throw new Error('Unexpected migrated USB settings')
     if (received.show_clock !== false || received.clock_format !== '12 Hour' || received.timezone !== 'America/New_York (GMT-5)')
       throw new Error('The clock settings did not reach USB setup')
+    if (!received.photo_metadata_date_enabled || received.photo_metadata_location_enabled !== false
+      || received.photo_metadata_date_format !== 'Relative Date' || received.photo_metadata_date_taken_format !== 'January 1, 2026')
+      throw new Error('The caption settings did not reach USB setup')
     if (received.brightness_day !== 75 || received.brightness_night !== 35)
       throw new Error('Brightness did not reach USB setup')
     if (received.screen_rotation !== '180') throw new Error('Mounting orientation did not reach USB setup')

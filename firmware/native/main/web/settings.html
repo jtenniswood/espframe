@@ -62,6 +62,23 @@
             <select name="timezone" required></select>
           </label>
         </details>
+        <details>
+          <summary>Photo captions</summary>
+          <label><input name="photo_metadata_location_enabled" type="checkbox" class="inline-option" checked> Show location</label>
+          <label><input name="photo_metadata_date_enabled" type="checkbox" class="inline-option" checked> Show date</label>
+          <label>Date format
+            <select name="photo_metadata_date_format">
+              <option>Date Taken</option>
+              <option>Relative Date</option>
+            </select>
+          </label>
+          <label>Date taken format
+            <select name="photo_metadata_date_taken_format">
+              <option>1 January, 2026</option>
+              <option>January 1, 2026</option>
+            </select>
+          </label>
+        </details>
         <details id="screen-schedule">
           <summary>Screen schedule</summary>
           <label><input name="schedule_enabled" type="checkbox" class="inline-option"> Turn off screen outside these hours</label>

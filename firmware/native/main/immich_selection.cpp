@@ -51,6 +51,18 @@ const char *get_text(const cJSON *object, const char *key) {
   return cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(object, key));
 }
 
+template <size_t Size>
+void read_place(const cJSON *exif, const char *key, std::array<char, Size> &place) {
+  if (const auto *value = get_text(exif, key)) {
+    const std::string_view input(value, strnlen(value, Size));
+    const auto first = input.find_first_not_of(" \t\r\n");
+    if (input.size() < Size && first != input.npos) {
+      const auto length = input.find_last_not_of(" \t\r\n") - first + 1;
+      std::memcpy(place.data(), input.data() + first, length);
+    }
+  }
+}
+
 int get_integer(const cJSON *object, const char *key, int fallback) {
   const auto *value = cJSON_GetObjectItemCaseSensitive(object, key);
   return cJSON_IsNumber(value) && value->valueint == value->valuedouble ? value->valueint : fallback;
@@ -80,7 +92,8 @@ ImmichSearchApi parse_search_api(std::string_view json) {
 }
 
 PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, ImmichSearchApi api,
-                                     std::optional<std::chrono::sys_days> local_day, uint32_t page) {
+                                     std::optional<std::chrono::sys_days> local_day, uint32_t page,
+                                     bool with_location) {
   const bool album = source.mode == PhotoSourceMode::Album;
   const bool favorites = source.mode == PhotoSourceMode::Favorites;
   if ((album || favorites) && api == ImmichSearchApi::Unknown)
@@ -96,9 +109,9 @@ PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, Im
   request.body += "\"size\":" + std::to_string(count);
   if (paged)
     request.body += ",\"page\":" + std::to_string(page);
+  if (local_day || with_location)
+    request.body += ",\"withExif\":true";
   if (structured) {
-    if (local_day)
-      request.body += ",\"withExif\":true";
     request.body += ",\"filter\":{\"type\":{\"eq\":\"IMAGE\"}";
   }
   if (album) {
@@ -118,7 +131,7 @@ PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, Im
     if (structured)
       request.body += ",\"takenAt\":{\"gte\":\"" + after + "\",\"lte\":\"" + before + "\"}";
     else
-      request.body += ",\"withExif\":true,\"takenAfter\":\"" + after + "\",\"takenBefore\":\"" + before + "\"";
+      request.body += ",\"takenAfter\":\"" + after + "\",\"takenBefore\":\"" + before + "\"";
   }
   if (structured)
     request.body += "}";
@@ -151,9 +164,11 @@ PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool p
     if (std::any_of(photos.begin(), photos.end(), [&](const ImmichPhoto &prev) { return prev.id == photo.id; }))
       continue;
     const auto *exif = cJSON_GetObjectItemCaseSensitive(record, "exifInfo");
-    photo.capture_day = read_day(get_text(record, "localDateTime"));
-    if (!photo.capture_day)
-      photo.capture_day = read_day(get_text(exif, "dateTimeOriginal"));
+    photo.metadata.capture_day = read_day(get_text(record, "localDateTime"));
+    if (!photo.metadata.capture_day)
+      photo.metadata.capture_day = read_day(get_text(exif, "dateTimeOriginal"));
+    read_place(exif, "city", photo.metadata.city);
+    read_place(exif, "country", photo.metadata.country);
     int width = get_integer(record, "width", 0);
     int height = get_integer(record, "height", 0);
     if (width <= 0 || height <= 0) {
@@ -170,8 +185,8 @@ PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool p
 }
 
 bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candidate) {
-  return candidate.id != primary.id && candidate.portrait && primary.capture_day.has_value() &&
-         candidate.capture_day == primary.capture_day;
+  return candidate.id != primary.id && candidate.portrait && primary.metadata.capture_day.has_value() &&
+         candidate.metadata.capture_day == primary.metadata.capture_day;
 }
 
 }  // namespace espframe::native

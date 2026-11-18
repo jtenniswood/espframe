@@ -124,6 +124,8 @@ if ('serial' in navigator) {
     for (const name of brightnessFields) data[name] = form.elements[name].valueAsNumber
     data.portrait_pairing = form.elements.portrait_pairing.checked
     data.show_clock = form.elements.show_clock.checked
+    data.photo_metadata_date_enabled = form.elements.photo_metadata_date_enabled.checked
+    data.photo_metadata_location_enabled = form.elements.photo_metadata_location_enabled.checked
     data.schedule_enabled = form.elements.schedule_enabled.checked
     data.schedule_on_hour = Number(data.schedule_on_hour)
     data.schedule_off_hour = Number(data.schedule_off_hour)

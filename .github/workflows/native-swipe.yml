@@ -62,9 +62,12 @@ jobs:
           c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main \
             firmware/native/tests/improv_wire_test.cpp -o "$RUNNER_TEMP/improv-wire-test"
           "$RUNNER_TEMP/improv-wire-test"
-          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main \
             firmware/native/tests/photo_history_test.cpp -o "$RUNNER_TEMP/photo-history-test"
           "$RUNNER_TEMP/photo-history-test"
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Icomponents/espframe \
+            firmware/native/main/photo_caption.cpp firmware/native/tests/photo_caption_test.cpp -o "$RUNNER_TEMP/photo-caption-test"
+          "$RUNNER_TEMP/photo-caption-test" firmware/native/assets/caption_glyphs.bin
           c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/stubs \
             firmware/native/tests/recent_previews_test.cpp -o "$RUNNER_TEMP/recent-previews-test"
           "$RUNNER_TEMP/recent-previews-test"

@@ -94,6 +94,8 @@ for (const source of ['all', 'favorites', 'album']) {
       screen_rotation: duration % 60 ? '180' : '0',
       schedule_enabled: duration % 60 !== 0, schedule_on_hour: 22, schedule_off_hour: 0, schedule_wake_timeout: 3600,
       show_clock: false, clock_format: '12 Hour', timezone: 'America/New_York (GMT-5)',
+      photo_metadata_date_enabled: false, photo_metadata_location_enabled: true,
+      photo_metadata_date_format: 'Relative Date', photo_metadata_date_taken_format: 'January 1, 2026',
       ...(source === 'album' ? { album_id: album } : {}),
     }
     const exported = createBackup(
