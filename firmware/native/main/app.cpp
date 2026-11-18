@@ -4,6 +4,7 @@
 #include "slide_cache.h"
 #include "swipe.h"
 #include "touch.h"
+#include "usb_setup.h"
 
 #include "driver/jpeg_decode.h"
 #include "esp_heap_caps.h"
@@ -215,6 +216,7 @@ void run() {
   SlideCache cache{allocate_slide_buffers()};
   static SlideLoader loader;
   loader.start();
+  start_usb_setup();
   const bool live = loader.live();
   const int slide_count = live ? ImmichSource::slide_limit : fixture_slides;
   static Display display;

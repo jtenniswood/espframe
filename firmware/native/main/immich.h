@@ -1,5 +1,7 @@
 #pragma once
 
+#include "settings.h"
+
 #include "esp_event.h"
 #include "esp_http_client.h"
 #include "freertos/FreeRTOS.h"
@@ -33,10 +35,7 @@ class ImmichSource {
   bool refill_();
   bool next_asset_(AssetId &id);
 
-  std::string base_url_;
-  std::string ssid_;
-  std::string password_;
-  std::string api_key_;
+  Settings settings_;
   esp_http_client_handle_t http_{};
   EventGroupHandle_t wifi_events_{};
   bool wifi_started_{};

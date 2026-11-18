@@ -25,8 +25,30 @@ Espframe installer and use a different build directory per board. The
 merged binary is in the selected build directory. Use USB on a dedicated
 test frame after exporting its settings. Have the regular Espframe
 factory image for that revision available to restore the device after the
-test. The prototype uses USB installation outside the regular OTA and
-browser installer flow.
+test. You can use the prototype browser installer or the ESP-IDF USB tools.
+
+### Install and connect in a browser
+
+Download and extract the `native-browser-installer` artifact from the Native
+Swipe Prototype workflow. From the extracted directory run:
+
+```sh
+python3 -m http.server 8080 --bind 127.0.0.1
+```
+
+Open <http://localhost:8080> in desktop Chrome or Edge. Select the frame
+revision and install the firmware. Close the installer dialog when it
+finishes, then enter your Wi-Fi and Immich settings and select the frame's
+USB port. The browser sends settings directly over USB and the frame
+restarts when it saves them.
+
+To build the same installer locally, run `npm ci` and place each
+`merged-binary.bin` in the matching `v1`, `v2` or `v3` build directory.
+Then run:
+
+```sh
+node firmware/native/tools/package_installer.mjs firmware/native/build firmware/native/build/browser-installer
+```
 
 Host regression checks run without the ESP-IDF toolchain:
 
@@ -38,9 +60,10 @@ c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
   firmware/native/tests/slide_cache_test.cpp -o /tmp/espframe-slide-cache-test
 /tmp/espframe-slide-cache-test
 python3 firmware/native/tests/test_preview_decoder.py
+node firmware/native/tests/serial_setup_test.mjs
 ```
 
-## Connect to Immich on a test frame
+## Connect to Immich with the ESP-IDF USB tools
 
 Provision Wi-Fi and a read-only Immich API key with the `asset.read` and
 `asset.view` permissions. Activate ESP-IDF on the host and run the settings

@@ -10,8 +10,6 @@
 #include "esp_netif_sntp.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
-#include "nvs.h"
-#include "nvs_flash.h"
 
 #include <algorithm>
 #include <cinttypes>
@@ -23,35 +21,10 @@ namespace espframe::native {
 namespace {
 
 constexpr const char *tag = "immich";
-constexpr const char *settings_partition = "native_config";
 constexpr EventBits_t got_ip = BIT0;
 constexpr size_t photo_capacity = 2 * 1024 * 1024;
 constexpr size_t search_capacity = 64 * 1024;
 constexpr size_t batch_size = 16;
-
-bool load_string(nvs_handle_t settings, const char *key, std::string &value, size_t maximum) {
-  size_t size = 0;
-  if (nvs_get_str(settings, key, nullptr, &size) != ESP_OK || size == 0 || size > maximum + 1)
-    return false;
-  value.resize(size);
-  if (nvs_get_str(settings, key, value.data(), &size) != ESP_OK)
-    return false;
-  value.resize(size - 1);
-  return true;
-}
-
-bool normalize_url(std::string &url) {
-  const size_t host = url.starts_with("https://") ? 8 : url.starts_with("http://") ? 7 : 0;
-  if (host == 0 || host >= url.size() || url[host] == '/' ||
-      url.find_first_of("@?#\\") != std::string::npos ||
-      std::any_of(url.begin(), url.end(), [](unsigned char c) { return c <= 32 || c == 127; }))
-    return false;
-  while (url.back() == '/')
-    url.pop_back();
-  if (!url.ends_with("/api"))
-    url += "/api";
-  return true;
-}
 
 bool valid_asset_id(const char *id) {
   if (id == nullptr || std::strlen(id) != 36)
@@ -71,22 +44,7 @@ bool valid_asset_id(const char *id) {
 }  // namespace
 
 bool ImmichSource::read_settings() {
-  if (nvs_flash_init_partition(settings_partition) != ESP_OK)
-    return false;
-  nvs_handle_t settings;
-  if (nvs_open_from_partition(settings_partition, "player", NVS_READONLY, &settings) != ESP_OK)
-    return false;
-  const bool loaded = load_string(settings, "ssid", this->ssid_, 32) &&
-                      load_string(settings, "password", this->password_, 64) &&
-                      load_string(settings, "immich_url", this->base_url_, 256) &&
-                      load_string(settings, "immich_key", this->api_key_, 256);
-  nvs_close(settings);
-  if (!loaded || this->ssid_.empty() || this->api_key_.empty() || !normalize_url(this->base_url_) ||
-      std::any_of(this->api_key_.begin(), this->api_key_.end(), [](unsigned char c) { return c <= 32 || c >= 127; })) {
-    ESP_LOGW(tag, "Invalid native photo source settings");
-    return false;
-  }
-  return true;
+  return this->settings_.read();
 }
 
 void ImmichSource::wifi_event_(void *argument, esp_event_base_t base, int32_t event, void *) {
@@ -111,9 +69,9 @@ bool ImmichSource::start_wifi_() {
     return false;
 
   wifi_config_t station{};
-  std::memcpy(station.sta.ssid, this->ssid_.data(), this->ssid_.size());
-  std::memcpy(station.sta.password, this->password_.data(), this->password_.size());
-  station.sta.threshold.authmode = this->password_.empty() ? WIFI_AUTH_OPEN : WIFI_AUTH_WPA2_PSK;
+  std::memcpy(station.sta.ssid, this->settings_.ssid.data(), this->settings_.ssid.size());
+  std::memcpy(station.sta.password, this->settings_.password.data(), this->settings_.password.size());
+  station.sta.threshold.authmode = this->settings_.password.empty() ? WIFI_AUTH_OPEN : WIFI_AUTH_WPA2_PSK;
   return esp_wifi_set_mode(WIFI_MODE_STA) == ESP_OK &&
          esp_wifi_set_config(WIFI_IF_STA, &station) == ESP_OK && esp_wifi_start() == ESP_OK;
 }
@@ -132,7 +90,7 @@ bool ImmichSource::online_() {
     if (!(xEventGroupWaitBits(this->wifi_events_, got_ip, pdFALSE, pdFALSE, pdMS_TO_TICKS(8'000)) & got_ip))
       return false;
   }
-  if (this->base_url_.starts_with("https://") && std::time(nullptr) < 1'690'000'000) {
+  if (this->settings_.immich_url.starts_with("https://") && std::time(nullptr) < 1'690'000'000) {
     if (!this->sntp_started_) {
       esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
       this->sntp_started_ = esp_netif_sntp_init(&config) == ESP_OK;
@@ -146,7 +104,7 @@ bool ImmichSource::online_() {
 int ImmichSource::fetch_(Request request, const char *asset, size_t limit, size_t &received) {
   received = 0;
   const bool search = request == Request::Search;
-  std::string url = this->base_url_;
+  std::string url = this->settings_.immich_url;
   if (search)
     url += "/search/random";
   else
@@ -162,7 +120,7 @@ int ImmichSource::fetch_(Request request, const char *asset, size_t limit, size_
     this->http_ = esp_http_client_init(&config);
     if (this->http_ == nullptr)
       return 0;
-    if (esp_http_client_set_header(this->http_, "x-api-key", this->api_key_.c_str()) != ESP_OK) {
+    if (esp_http_client_set_header(this->http_, "x-api-key", this->settings_.immich_key.c_str()) != ESP_OK) {
       esp_http_client_cleanup(this->http_);
       this->http_ = nullptr;
       return 0;

@@ -184,11 +184,12 @@
       "license": "MIT"
     },
     {
-      "usage": "Documentation USB firmware installer",
+      "usage": "Browser USB firmware installers",
       "declarations": [
         "package.json",
         "package-lock.json",
-        "docs/.vitepress/theme/usb-installer.ts"
+        "docs/.vitepress/theme/usb-installer.ts",
+        "firmware/native/tools/package_installer.mjs"
       ],
       "upstream": "https://github.com/esphome/esp-web-tools",
       "revision": "esp-web-tools 10.5.2 with esptool-js 0.7.1 (https://github.com/espressif/esptool-js) and Material Web 2.5.0; exact dependencies and integrity hashes are recorded in package-lock.json",
