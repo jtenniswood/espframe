@@ -468,8 +468,8 @@ touchscreen:
       - lambda: |-
           if (touches.empty()) return;
           const auto &touch = touches.front();
-          auto map_visible = [](int x, int y, int &screen_x, int &screen_y) {
-            const std::string rotation = id(screen_rotation_select).current_option();
+          const std::string rotation = id(screen_rotation_select).current_option();
+          auto map_visible = [&rotation](int x, int y, int &screen_x, int &screen_y) {
             if (rotation == "90") {
               screen_x = ${display_height} - y;
               screen_y = x;
@@ -526,13 +526,13 @@ touchscreen:
           map_visible(touch.x, touch.y, current_x, current_y);
           const int horizontal_delta = current_x - start_x;
           const int vertical_delta = current_y - start_y;
-          const int horizontal_distance = std::abs(horizontal_delta);
-          const int vertical_distance = std::abs(vertical_delta);
+          const int visible_width = rotation == "90" || rotation == "270"
+            ? ${portrait_display_width} : ${display_width};
           const bool slideshow_visible = lv_scr_act() == id(slideshow_page)->obj &&
             lv_obj_has_flag(id(connection_failed_overlay), LV_OBJ_FLAG_HIDDEN) &&
             !id(photo_source_menu_open);
           if (slideshow_visible && !id(touch_started_while_off) &&
-              horizontal_distance >= 120 && horizontal_distance > (vertical_distance * 3) / 2) {
+              esphome::espframe::is_slideshow_swipe(horizontal_delta, vertical_delta, visible_width)) {
             id(photo_source_swipe_triggered) = true;
             id(slideshow_swipe_suppress_tap_until_ms) = millis() + 700;
             id(last_short_tap_ms) = 0;
@@ -547,9 +547,7 @@ touchscreen:
             return;
           }
           if (!id(developer_features_enabled).state) return;
-          const int dy = current_y - start_y;
-          const int dx = std::abs(current_x - start_x);
-          if (start_y <= 140 && dy >= 110 && dx <= 220) {
+          if (start_y <= 140 && vertical_delta >= 110 && std::abs(horizontal_delta) <= 220) {
             id(photo_source_swipe_triggered) = true;
             id(show_photo_source_menu).execute();
           }
