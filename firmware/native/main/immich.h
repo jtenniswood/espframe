@@ -1,12 +1,12 @@
 #pragma once
 
+#include "immich_http.h"
 #include "immich_selection.h"
 #include "photo_history.h"
 #include "recent_previews.h"
 #include "settings.h"
 
 #include "esp_event.h"
-#include "esp_http_client.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 
@@ -25,7 +25,7 @@ class DecodedPreview;
 // after startup, including the HTTP client and per-session photo order.
 class ImmichSource {
  public:
-  explicit ImmichSource(const std::atomic<bool> &cancelled) : cancelled_(cancelled) {}
+  explicit ImmichSource(const std::atomic<bool> &cancelled) : cancelled_(cancelled), http_(cancelled) {}
   bool read_settings();
   bool prepare(SlideIndex slide, uint16_t *panel);
   SlideIndex first_slide() const { return this->history_.first(); }
@@ -48,7 +48,7 @@ class ImmichSource {
 
   const std::atomic<bool> &cancelled_;
   Settings settings_;
-  esp_http_client_handle_t http_{};
+  ImmichHttp http_;
   EventGroupHandle_t wifi_events_{};
   bool wifi_started_{};
   bool wifi_ready_{};

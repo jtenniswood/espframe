@@ -3,7 +3,6 @@
 #include "preview_decoder.h"
 #include "web_settings.h"
 
-#include "esp_crt_bundle.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_netif.h"
@@ -76,6 +75,7 @@ bool ImmichSource::online_() {
   if (!this->wifi_ready_)
     return false;
   if (!this->has_ip_()) {
+    this->http_.disconnect();
     esp_wifi_connect();
     const auto deadline = esp_timer_get_time() + 8'000'000;
     while (!this->has_ip_() && !this->cancelled_ && esp_timer_get_time() < deadline)
@@ -116,83 +116,9 @@ bool ImmichSource::has_ip_() const {
 
 int ImmichSource::fetch_(std::string_view path, std::string_view body, size_t limit, size_t &received,
                          int64_t deadline_us) {
-  received = 0;
-  const bool optional = deadline_us != 0;
-  const auto now = esp_timer_get_time();
-  if (!optional)
-    deadline_us = now + 12'000'000;
-  if (this->cancelled_ || now >= deadline_us)
-    return 0;
   std::string url = this->settings_.immich_url;
   url += path;
-
-  if (this->http_ == nullptr) {
-    esp_http_client_config_t config{};
-    config.url = url.c_str();
-    config.disable_auto_redirect = true;
-    config.crt_bundle_attach = esp_crt_bundle_attach;
-    config.timeout_ms = 3000;
-    config.buffer_size = 4096;
-    this->http_ = esp_http_client_init(&config);
-    if (this->http_ == nullptr)
-      return 0;
-    if (esp_http_client_set_header(this->http_, "x-api-key", this->settings_.immich_key.c_str()) != ESP_OK) {
-      esp_http_client_cleanup(this->http_);
-      this->http_ = nullptr;
-      return 0;
-    }
-  }
-
-  const auto set_timeout = [&]() {
-    const auto remaining = deadline_us - esp_timer_get_time();
-    return !this->cancelled_ && remaining > 0 &&
-           esp_http_client_set_timeout_ms(this->http_, std::min<int64_t>(optional ? 1'000 : 3'000,
-                                                                         (remaining + 999) / 1000)) == ESP_OK;
-  };
-  if (esp_http_client_set_url(this->http_, url.c_str()) != ESP_OK || !set_timeout() ||
-      esp_http_client_set_method(this->http_, body.empty() ? HTTP_METHOD_GET : HTTP_METHOD_POST) != ESP_OK ||
-      esp_http_client_set_header(this->http_, "Content-Type", "application/json") != ESP_OK)
-    return 0;
-  if (esp_http_client_open(this->http_, body.size()) != ESP_OK) {
-    esp_http_client_close(this->http_);
-    return 0;
-  }
-
-  const int status = [&]() {
-    if (!body.empty() && (!set_timeout() ||
-                         esp_http_client_write(this->http_, body.data(), body.size()) != static_cast<int>(body.size())))
-      return 0;
-    if (!set_timeout())
-      return 0;
-    const int64_t content_length = esp_http_client_fetch_headers(this->http_);
-    if (content_length < 0 && !esp_http_client_is_chunked_response(this->http_))
-      return 0;
-    const int code = esp_http_client_get_status_code(this->http_);
-    if (code != 200)
-      return code;
-    if (content_length > static_cast<int64_t>(limit))
-      return 413;
-
-    // A complete parser state can still have buffered bytes from the
-    // header read. Drain those bytes before trusting the completion flag.
-    while (set_timeout()) {
-      char overflow;
-      const bool at_limit = received == limit;
-      char *target = at_limit ? &overflow : reinterpret_cast<char *>(this->encoded_ + received);
-      const int count = esp_http_client_read(this->http_, target, at_limit ? 1 : std::min<size_t>(limit - received, 4096));
-      if (count == 0)
-        return received > 0 && esp_http_client_is_complete_data_received(this->http_) ? code : 0;
-      if (count < 0)
-        return 0;
-      if (at_limit)
-        return 413;
-      received += count;
-    }
-    return 0;
-  }();
-  esp_http_client_close(this->http_);
-  esp_http_client_clear_response_buffer(this->http_);
-  return status;
+  return this->http_.read(url, this->settings_.immich_key.c_str(), body, {this->encoded_, limit}, received, deadline_us);
 }
 
 bool ImmichSource::select_search_api_() {
