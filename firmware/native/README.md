@@ -302,6 +302,16 @@ before uploading. Have USB recovery available for the first hardware trial.
 Use only the app binary. The regular browser installer and native settings
 updater expect the regular native firmware.
 
+To check an ESPHome device through its browser, build
+`builds/guition-esp32-p4-jc8012p4a1.native-trial-readiness.yaml` with
+the same ESP-Hosted version as the running frame. Upload its ESPHome app
+over OTA. The **Native V1 swipe trial readiness** diagnostic reports
+**Ready** once the bootloader has put this boot in pending verification
+and ESPHome has confirmed the app. It also verifies the partition layout
+and the other OTA target. Read the result before any other reboot or
+update, since a normal reboot of a confirmed app cannot prove rollback.
+Keep the working ESPHome OTA binary and USB recovery available.
+
 The demo checks the running partition map and the previous ESPHome app before
 starting the display. The bootloader must mark the demo pending verification.
 The demo never confirms its boot, so a reset during it should also go back to

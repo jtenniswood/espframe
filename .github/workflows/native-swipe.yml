@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'firmware/native/**'
+      - 'builds/guition-esp32-p4-jc8012p4a1.native-trial-readiness.yaml'
       - 'components/gsl3680/**'
       - 'components/libjpeg-turbo-esp32/**'
       - 'components/libwebp-esp32/**'

@@ -1,4 +1,5 @@
 #include "esphome_trial.h"
+#include "esphome_v1_layout.h"
 
 #include "esp_app_desc.h"
 #include "esp_ota_ops.h"
@@ -9,6 +10,7 @@
 #include <cstring>
 
 using espframe::native::start_esphome_trial;
+using espframe::native::esphome_v1_trial_readiness;
 
 namespace {
 
@@ -19,6 +21,8 @@ const esp_partition_t native_nvs{0x9000, 0x4000};
 struct Fixture {
   unsigned running{};
   bool legacy_layout{true};
+  bool wrong_target{};
+  const char *running_project{"immich-frame-10inch"};
   const char *last_project{"immich-frame-10inch"};
   int running_state{ESP_OTA_IMG_PENDING_VERIFY};
   int previous_state{ESP_OTA_IMG_VALID};
@@ -35,6 +39,12 @@ struct Fixture {
 }  // namespace
 
 const esp_partition_t *esp_ota_get_running_partition() { return &apps.at(fixture.running); }
+const esp_partition_t *esp_ota_get_next_update_partition(const esp_partition_t *) {
+  return fixture.wrong_target ? nullptr : &apps.at(1 - fixture.running);
+}
+const esp_partition_t *esp_ota_get_boot_partition() {
+  return fixture.selected ? fixture.selected : esp_ota_get_running_partition();
+}
 
 const esp_partition_t *esp_partition_find_first(esp_partition_type_t type, esp_partition_subtype_t subtype,
                                                 const char *label) {
@@ -48,8 +58,8 @@ const esp_partition_t *esp_partition_find_first(esp_partition_type_t type, esp_p
 }
 
 esp_err_t esp_ota_get_partition_description(const esp_partition_t *partition, esp_app_desc_t *app) {
-  assert(partition == &apps.at(1 - fixture.running));
-  std::strcpy(app->project_name, fixture.last_project);
+  std::strcpy(app->project_name, partition == esp_ota_get_running_partition() ? fixture.running_project
+                                                                           : fixture.last_project);
   return ESP_OK;
 }
 
@@ -127,4 +137,20 @@ int main() {
   assert(start_esphome_trial());
   fixture.timer.callback(nullptr);
   assert(fixture.rollback_calls == 1 && fixture.restarts == 1 && !fixture.selected);
+
+  for (const unsigned running : {0u, 1u}) {
+    fixture = {.running = running};
+    assert(std::strcmp(esphome_v1_trial_readiness(true), "Waiting for ESPHome confirmation") == 0);
+    fixture.running_state = ESP_OTA_IMG_VALID;
+    assert(std::strcmp(esphome_v1_trial_readiness(true), "Ready") == 0);
+    assert(std::strcmp(esphome_v1_trial_readiness(false), "Bootloader rollback unverified") == 0);
+    fixture.selected = &apps.at(1 - running);
+    assert(std::strcmp(esphome_v1_trial_readiness(true), "Another boot is staged") == 0);
+  }
+  fixture = {.legacy_layout = false};
+  assert(std::strcmp(esphome_v1_trial_readiness(true), "Unsupported V1 partition layout") == 0);
+  fixture = {.wrong_target = true};
+  assert(std::strcmp(esphome_v1_trial_readiness(true), "Unsupported V1 partition layout") == 0);
+  fixture = {.running_project = "immich-frame-10inch-v2"};
+  assert(std::strcmp(esphome_v1_trial_readiness(true), "Unexpected ESPHome app") == 0);
 }
