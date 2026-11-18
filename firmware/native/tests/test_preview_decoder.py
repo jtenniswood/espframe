@@ -43,7 +43,8 @@ with TemporaryDirectory(prefix="espframe-native-decode-") as work:
         "-I", NATIVE / "main", "-I", NATIVE / "tests/stubs",
         "-I", ROOT / "components/remote_image",
         "-I", LIBRARIES[0] / "src", "-I", LIBRARIES[1] / "src",
-        NATIVE / "main/preview_decoder.cpp", NATIVE / "tests/preview_decoder_test.cpp", *objects, discard_unused,
+        NATIVE / "main/preview_decoder.cpp", NATIVE / "main/p4_jpeg_decoder.cpp",
+        NATIVE / "tests/preview_decoder_test.cpp", *objects, discard_unused,
         "-lm", "-o", binary)
     fixtures = NATIVE / "tests/fixtures"
     run(binary, fixtures / "quadrants.jpg", fixtures / "quadrants-progressive.jpg", fixtures / "quadrants.webp",

@@ -143,6 +143,10 @@ remembers the last 128 photo positions per session. It can decode up to
 the sizes of the previews and available PSRAM. Older previews need Wi-Fi.
 The frame reuses the Immich connection when the server allows it, and
 reconnects if an idle connection has closed before the next response.
+Eligible baseline JPEG previews use the ESP32-P4 JPEG decoder. The frame
+uses software decoding for progressive JPEG and WebP, and falls back to
+software if the hardware path cannot finish. Compare `decode_us` and
+`hardware_jpeg` in the USB log when testing live playback.
 
 Portrait pairing is on by default. From the second slide onward, the player
 looks for a portrait from the same local capture day. A pair is composed

@@ -5,6 +5,8 @@
 
 namespace espframe::native {
 
+class P4JpegDecoder;
+
 // Worker-owned packed RGB565 preview. Retain the primary until the optional
 // companion is ready so a single photo can still fill the slide on failure.
 class DecodedPreview {
@@ -16,8 +18,9 @@ class DecodedPreview {
   DecodedPreview(const DecodedPreview &) = delete;
   DecodedPreview &operator=(const DecodedPreview &) = delete;
 
-  Result decode(const uint8_t *encoded, size_t length, bool companion = false);
+  Result decode(const uint8_t *encoded, size_t length, bool companion = false, P4JpegDecoder *hardware = nullptr);
   bool portrait() const { return this->portrait_; }
+  bool hardware_jpeg() const { return this->hardware_jpeg_; }
   void render(uint16_t *panel, const DecodedPreview *companion = nullptr) const;
 
  private:
@@ -27,6 +30,7 @@ class DecodedPreview {
   int width_{};
   int height_{};
   bool portrait_{};
+  bool hardware_jpeg_{};
 };
 
 }  // namespace espframe::native

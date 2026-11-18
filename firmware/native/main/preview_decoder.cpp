@@ -1,6 +1,7 @@
 #include "preview_decoder.h"
 
 #include "esp_heap_caps.h"
+#include "p4_jpeg_decoder.h"
 #include "slide_geometry.h"
 #include "webp_rgb565.h"
 
@@ -55,7 +56,8 @@ void jpeg_message(j_common_ptr info, int) {
 }
 
 Decode read_jpeg(jpeg_decompress_struct &decoder, JpegError &error, const uint8_t *encoded,
-                 size_t length, uint16_t *&pixels, Size &size, int max_width) {
+                 size_t length, uint16_t *&pixels, Size &size, int max_width, P4JpegDecoder *hardware,
+                 bool &accelerated) {
   if (setjmp(error.escape) != 0)
     return error.manager.msg_code == JERR_OUT_OF_MEMORY ? Decode::NoMemory : Decode::Invalid;
 
@@ -68,6 +70,15 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegError &error, const uint8_
   pixels = allocate(size);
   if (pixels == nullptr)
     return Decode::NoMemory;
+
+  // Reuse libjpeg's header interpretation to keep RGB, progressive, and
+  // non-interleaved JPEGs out of the hardware YCbCr path.
+  if (hardware && decoder.jpeg_color_space == JCS_YCbCr && !decoder.progressive_mode &&
+      !decoder.arith_code && decoder.comps_in_scan == 3 &&
+      hardware->decode(encoded, length, pixels, size.width, size.height)) {
+    accelerated = true;
+    return Decode::Ready;
+  }
   // Let the DCT do the first downsampling step when both axes can afford it.
   for (unsigned divisor : {2, 4, 8}) {
     if (decoder.image_width / divisor < static_cast<unsigned>(size.width) ||
@@ -99,13 +110,14 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegError &error, const uint8_
   return jpeg_finish_decompress(&decoder) ? Decode::Ready : Decode::Invalid;
 }
 
-Decode decode_jpeg(const uint8_t *encoded, size_t length, uint16_t *&pixels, Size &size, int max_width) {
+Decode decode_jpeg(const uint8_t *encoded, size_t length, uint16_t *&pixels, Size &size, int max_width,
+                   P4JpegDecoder *hardware, bool &accelerated) {
   jpeg_decompress_struct decoder{};
   JpegError error{};
   decoder.err = jpeg_std_error(&error.manager);
   error.manager.error_exit = jpeg_failure;
   error.manager.emit_message = jpeg_message;
-  const auto result = read_jpeg(decoder, error, encoded, length, pixels, size, max_width);
+  const auto result = read_jpeg(decoder, error, encoded, length, pixels, size, max_width, hardware, accelerated);
   jpeg_destroy_decompress(&decoder);
   return result;
 }
@@ -159,12 +171,14 @@ void DecodedPreview::paint_(uint16_t *panel, int left, int max_width) const {
   }
 }
 
-DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t length, bool companion) {
+DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t length, bool companion,
+                                              P4JpegDecoder *hardware) {
   heap_caps_free(this->pixels_);
   this->pixels_ = nullptr;
   this->width_ = 0;
   this->height_ = 0;
   this->portrait_ = false;
+  this->hardware_jpeg_ = false;
   const bool jpeg = length >= 2 && encoded[0] == 0xff && encoded[1] == 0xd8;
   const bool webp = length >= 12 && std::memcmp(encoded, "RIFF", 4) == 0 &&
                     std::memcmp(encoded + 8, "WEBP", 4) == 0;
@@ -172,7 +186,7 @@ DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t len
     return Result::Invalid;
   Size size{};
   const int max_width = companion ? pair_width : slide_width;
-  const auto result = jpeg ? decode_jpeg(encoded, length, this->pixels_, size, max_width)
+  const auto result = jpeg ? decode_jpeg(encoded, length, this->pixels_, size, max_width, hardware, this->hardware_jpeg_)
                            : decode_webp(encoded, length, this->pixels_, size, max_width);
   if (result == Result::Ready) {
     this->width_ = size.width;

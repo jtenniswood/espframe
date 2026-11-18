@@ -221,14 +221,16 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
   if (this->cancelled_)
     return PreviewStatus::Retry;
   const bool optional = deadline_us != 0;
-  const auto decode = [&](const uint8_t *data, size_t length) { return preview.decode(data, length, companion); };
+  const auto decode = [&](const uint8_t *data, size_t length) {
+    return preview.decode(data, length, companion, &this->jpeg_);
+  };
   const auto cached = this->previews_.find(id);
   if (!cached.empty()) {
     const auto start = esp_timer_get_time();
     const auto result = decode(cached.data(), cached.size());
     if (result == DecodedPreview::Result::Ready) {
-      ESP_LOGI(tag, "Preview prepared from memory, bytes=%zu decode_us=%" PRId64,
-               cached.size(), esp_timer_get_time() - start);
+      ESP_LOGI(tag, "Preview prepared from memory, bytes=%zu decode_us=%" PRId64 " hardware_jpeg=%d",
+               cached.size(), esp_timer_get_time() - start, preview.hardware_jpeg());
       return PreviewStatus::Ready;
     }
     if (result == DecodedPreview::Result::NoMemory)
@@ -249,8 +251,8 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
     const auto result = decode(this->encoded_, length);
     if (result == DecodedPreview::Result::Ready) {
       this->previews_.remember(id, {this->encoded_, length});
-      ESP_LOGI(tag, "Preview prepared, bytes=%zu fetch_us=%" PRId64 " decode_us=%" PRId64,
-               length, decode_us - request_us, esp_timer_get_time() - decode_us);
+      ESP_LOGI(tag, "Preview prepared, bytes=%zu fetch_us=%" PRId64 " decode_us=%" PRId64 " hardware_jpeg=%d",
+               length, decode_us - request_us, esp_timer_get_time() - decode_us, preview.hardware_jpeg());
       return PreviewStatus::Ready;
     }
     if (result == DecodedPreview::Result::NoMemory)

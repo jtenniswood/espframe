@@ -7,6 +7,7 @@ on:
       - 'components/gsl3680/**'
       - 'components/libjpeg-turbo-esp32/**'
       - 'components/libwebp-esp32/**'
+      - 'components/remote_image/jpeg_accelerator_helpers.h'
       - 'components/remote_image/webp_rgb565.h'
       - 'devices/guition-esp32-p4-jc8012p4a1*/device/device.yaml'
       - 'components/mipi_dsi/models/guition.py'

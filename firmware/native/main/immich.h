@@ -2,6 +2,7 @@
 
 #include "immich_http.h"
 #include "immich_selection.h"
+#include "p4_jpeg_decoder.h"
 #include "photo_history.h"
 #include "recent_previews.h"
 #include "settings.h"
@@ -49,6 +50,7 @@ class ImmichSource {
   const std::atomic<bool> &cancelled_;
   Settings settings_;
   ImmichHttp http_;
+  P4JpegDecoder jpeg_;
   EventGroupHandle_t wifi_events_{};
   bool wifi_started_{};
   bool wifi_ready_{};

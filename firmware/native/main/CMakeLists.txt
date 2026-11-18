@@ -12,7 +12,8 @@ set(panel_generator "${CMAKE_CURRENT_LIST_DIR}/../tools/generate_panel_init.py")
 set(panel_init "${CMAKE_CURRENT_BINARY_DIR}/panel_init.inc")
 
 idf_component_register(
-    SRCS app.cpp display.cpp immich.cpp immich_http.cpp immich_selection.cpp preview_decoder.cpp settings.cpp touch.cpp
+    SRCS app.cpp display.cpp immich.cpp immich_http.cpp immich_selection.cpp p4_jpeg_decoder.cpp preview_decoder.cpp
+         settings.cpp touch.cpp
          firmware_update.cpp usb_setup.cpp web_settings.cpp
          "${touch_source}/gsl_point_id.cpp"
     PRIV_INCLUDE_DIRS "${touch_source}" "${repo_root}/components/remote_image" "${CMAKE_CURRENT_BINARY_DIR}"
