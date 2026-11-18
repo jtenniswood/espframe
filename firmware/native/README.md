@@ -102,6 +102,9 @@ c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
   firmware/native/tests/slide_cache_test.cpp -o /tmp/espframe-slide-cache-test
 /tmp/espframe-slide-cache-test
 c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+  firmware/native/tests/slide_prefetch_test.cpp -o /tmp/espframe-slide-prefetch-test
+/tmp/espframe-slide-prefetch-test
+c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
   firmware/native/tests/photo_history_test.cpp -o /tmp/espframe-photo-history-test
 /tmp/espframe-photo-history-test
 c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/stubs \
@@ -163,7 +166,10 @@ unavailable selection leaves the current photo or startup scene visible.
 4. Check the first and last scenes. Dragging beyond a ready boundary should
    move the photo slightly with resistance, keep the screen filled, and ease
    back when released. When a neighbor becomes ready mid-drag, continuing the
-   gesture should move from its current position without a jump.
+   gesture should move from its current position without a jump. When a missing
+   photo exists in that direction, the frame prepares it ahead of speculative
+   photos. Try this in both directions on a slow connection, including a drag
+   back to an older cached preview while a new photo is downloading.
 5. Record high-frame-rate video for touch-to-visible motion and pacing.
    `gesture_to_scanout_us` in the USB log measures from the touch report
    that first moved the photo to the LCD DMA handoff. `compose_and_submit_us`

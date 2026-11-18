@@ -65,6 +65,8 @@ bool ImmichSource::start_wifi_() {
 }
 
 bool ImmichSource::online_() {
+  if (this->cancelled_)
+    return false;
   if (!this->wifi_started_) {
     this->wifi_started_ = true;
     this->wifi_ready_ = this->start_wifi_();
@@ -73,9 +75,12 @@ bool ImmichSource::online_() {
   }
   if (!this->wifi_ready_)
     return false;
-  if ((xEventGroupGetBits(this->wifi_events_) & got_ip) == 0) {
+  if (!this->has_ip_()) {
     esp_wifi_connect();
-    if (!(xEventGroupWaitBits(this->wifi_events_, got_ip, pdFALSE, pdFALSE, pdMS_TO_TICKS(8'000)) & got_ip))
+    const auto deadline = esp_timer_get_time() + 8'000'000;
+    while (!this->has_ip_() && !this->cancelled_ && esp_timer_get_time() < deadline)
+      xEventGroupWaitBits(this->wifi_events_, got_ip, pdFALSE, pdFALSE, pdMS_TO_TICKS(100));
+    if (this->cancelled_ || !this->has_ip_())
       return false;
   }
   start_web_settings(this->settings_);
@@ -84,8 +89,17 @@ bool ImmichSource::online_() {
       esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
       this->sntp_started_ = esp_netif_sntp_init(&config) == ESP_OK;
     }
-    if (!this->sntp_started_ || esp_netif_sntp_sync_wait(pdMS_TO_TICKS(3'000)) != ESP_OK)
+    if (!this->sntp_started_)
       return false;
+    const auto deadline = esp_timer_get_time() + 3'000'000;
+    while (!this->cancelled_ && esp_timer_get_time() < deadline) {
+      const auto result = esp_netif_sntp_sync_wait(pdMS_TO_TICKS(100));
+      if (result == ESP_OK)
+        return true;
+      if (result != ESP_ERR_TIMEOUT)
+        break;
+    }
+    return false;
   }
   return true;
 }
@@ -107,7 +121,7 @@ int ImmichSource::fetch_(std::string_view path, std::string_view body, size_t li
   const auto now = esp_timer_get_time();
   if (!optional)
     deadline_us = now + 12'000'000;
-  if (now >= deadline_us)
+  if (this->cancelled_ || now >= deadline_us)
     return 0;
   std::string url = this->settings_.immich_url;
   url += path;
@@ -131,7 +145,7 @@ int ImmichSource::fetch_(std::string_view path, std::string_view body, size_t li
 
   const auto set_timeout = [&]() {
     const auto remaining = deadline_us - esp_timer_get_time();
-    return remaining > 0 &&
+    return !this->cancelled_ && remaining > 0 &&
            esp_http_client_set_timeout_ms(this->http_, std::min<int64_t>(optional ? 1'000 : 3'000,
                                                                          (remaining + 999) / 1000)) == ESP_OK;
   };
@@ -177,6 +191,7 @@ int ImmichSource::fetch_(std::string_view path, std::string_view body, size_t li
     return 0;
   }();
   esp_http_client_close(this->http_);
+  esp_http_client_clear_response_buffer(this->http_);
   return status;
 }
 
@@ -277,6 +292,8 @@ AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, int64_t deadlin
 
 ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, DecodedPreview &preview,
                                                         bool companion, int64_t deadline_us) {
+  if (this->cancelled_)
+    return PreviewStatus::Retry;
   const bool optional = deadline_us != 0;
   const auto decode = [&](const uint8_t *data, size_t length) { return preview.decode(data, length, companion); };
   const auto cached = this->previews_.find(id);
@@ -302,7 +319,7 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
   const auto path = std::string("/assets/") + id.data() + "/thumbnail?size=preview";
   const int status = this->fetch_(path, {}, photo_capacity, length, deadline_us);
   const auto decode_us = esp_timer_get_time();
-  if (status == 200) {
+  if (status == 200 && !this->cancelled_) {
     const auto result = decode(this->encoded_, length);
     if (result == DecodedPreview::Result::Ready) {
       this->previews_.remember(id, {this->encoded_, length});
@@ -313,6 +330,8 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
     if (result == DecodedPreview::Result::NoMemory)
       return PreviewStatus::Retry;
   }
+  if (this->cancelled_)
+    return PreviewStatus::Retry;
   if (!optional)
     ESP_LOGW(tag, "Photo preview was unavailable or could not be decoded (%d)", status);
   return status == 404 || status == 410 || status == 413 || status == 200 ? PreviewStatus::Missing
@@ -320,6 +339,8 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
 }
 
 bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
+  if (this->cancelled_)
+    return false;
   const bool new_position = slide == this->history_.next();
   auto *existing = this->history_.find(slide);
   if (!new_position && existing == nullptr)
@@ -337,10 +358,10 @@ bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
 
   DecodedPreview primary;
   const auto status = this->load_preview_(frame.primary, primary, false);
-  if (status != PreviewStatus::Ready) {
-    if (!remembered && status == PreviewStatus::Retry)
+  if (status != PreviewStatus::Ready || this->cancelled_) {
+    if (!remembered && (status == PreviewStatus::Retry || this->cancelled_))
       this->pending_.push_back(seed);
-    if (remembered && status == PreviewStatus::Missing)
+    if (remembered && status == PreviewStatus::Missing && !this->cancelled_)
       *existing = {};
     return false;
   }
@@ -361,6 +382,11 @@ bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
     frame.companion = {};
   }
 
+  if (this->cancelled_) {
+    if (!remembered)
+      this->pending_.push_back(seed);
+    return false;
+  }
   if (!remembered && frame.companion[0] != '\0')
     std::erase_if(this->pending_, [&](const ImmichPhoto &photo) { return photo.id == frame.companion; });
   primary.render(panel, frame.companion[0] == '\0' ? nullptr : &companion);

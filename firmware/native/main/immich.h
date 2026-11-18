@@ -11,6 +11,7 @@
 #include "freertos/event_groups.h"
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -24,6 +25,7 @@ class DecodedPreview;
 // after startup, including the HTTP client and per-session photo order.
 class ImmichSource {
  public:
+  explicit ImmichSource(const std::atomic<bool> &cancelled) : cancelled_(cancelled) {}
   bool read_settings();
   bool prepare(SlideIndex slide, uint16_t *panel);
   SlideIndex first_slide() const { return this->history_.first(); }
@@ -44,6 +46,7 @@ class ImmichSource {
   AssetId companion_for_(const ImmichPhoto &primary, int64_t deadline_us);
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, bool companion, int64_t deadline_us = 0);
 
+  const std::atomic<bool> &cancelled_;
   Settings settings_;
   esp_http_client_handle_t http_{};
   EventGroupHandle_t wifi_events_{};

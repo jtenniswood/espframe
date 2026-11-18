@@ -4,6 +4,7 @@
 #include "slide_blit.h"
 #include "slide_cache.h"
 #include "slide_dwell.h"
+#include "slide_prefetch.h"
 #include "swipe.h"
 #include "swipe_input.h"
 #include "touch.h"
@@ -18,6 +19,7 @@
 #include "freertos/task.h"
 
 #include <array>
+#include <atomic>
 #include <cinttypes>
 #include <cmath>
 #include <cstdint>
@@ -175,6 +177,7 @@ class SlideLoader {
     SlideCache::Lease lease;
     SlideIndex first_photo;
     bool ready;
+    bool cancelled;
   };
 
   bool live() const { return this->live_; }
@@ -191,6 +194,7 @@ class SlideLoader {
   }
 
   void submit(const SlideCache::Lease &lease) {
+    this->cancelled_ = false;
     ESP_ERROR_CHECK(xQueueSend(this->requests_, &lease, 0) == pdPASS ? ESP_OK : ESP_ERR_INVALID_STATE);
     xTaskNotifyGive(this->task_);
   }
@@ -198,6 +202,8 @@ class SlideLoader {
   bool poll(Completion &completion) {
     return xQueueReceive(this->completed_, &completion, 0) == pdPASS;
   }
+
+  void yield_to_swipe() { this->cancelled_ = true; }
 
   void report_gesture(const GestureTiming &timing) {
     // USB output can block. Leave it to the worker and drop a diagnostic
@@ -227,12 +233,13 @@ class SlideLoader {
         if (!decode_photo(photos[fixture], lease.pixels, decoder))
           draw_test_slide(lease.pixels, fixture);
       }
-      const Completion completion{lease, loader.source_.first_slide(), ready};
+      const Completion completion{lease, loader.source_.first_slide(), ready, !ready && loader.cancelled_.load()};
       xQueueSend(loader.completed_, &completion, portMAX_DELAY);
     }
   }
 
-  ImmichSource source_;
+  std::atomic<bool> cancelled_{};
+  ImmichSource source_{cancelled_};
   QueueHandle_t requests_{};
   QueueHandle_t completed_{};
   QueueHandle_t timings_{};
@@ -254,16 +261,15 @@ void run(void *) {
   Swipe swipe{slide_width, slide_count, live ? 0 : 2};
   SwipeInput input;
   SlideDwell dwell;
+  SlidePrefetch prefetch{swipe.settled()};
 
   int64_t submitted_motion_us = 0;
   int64_t motion_render_us = 0;
   PixelPosition last_submitted = -1;
   PixelPosition last_inside = -1;
   bool lit = false;
-  bool preparing = false;
+  std::optional<SlideIndex> preparing;
   SlideIndex first_photo = 1;
-  SlideIndex previous_center = swipe.settled();
-  int direction = 1;
   struct Retry {
     SlideIndex slide{};
     int64_t until{};
@@ -288,43 +294,26 @@ void run(void *) {
     if (loader.poll(completion)) {
       ESP_ERROR_CHECK(cache.complete(completion.lease, completion.ready) ? ESP_OK : ESP_ERR_INVALID_STATE);
       const auto slide = completion.lease.slide;
-      retries[slide % retries.size()] = {slide, completion.ready ? 0 : now + 2'000'000};
+      retries[slide % retries.size()] = {slide, completion.ready || completion.cancelled ? 0 : now + 2'000'000};
+      if (completion.ready)
+        prefetch.prepared(slide);
       first_photo = completion.first_photo;
-      preparing = false;
+      preparing.reset();
     }
     const auto center = swipe.settled();
-    if (center != previous_center) {
-      direction = center > previous_center ? 1 : -1;
-      previous_center = center;
-    }
+    prefetch.moved_to(center);
     // The boot scene may still be visible while the first photo's final frame
     // is pending. Keep its pixels available if the user interrupts that swap.
     const SlideIndex first = live && display.presented_position() >= slide_width ? first_photo : 0;
-    const auto keep_first = std::max(first, center - (direction < 0 ? 3 : 2));
-    const auto keep_last = std::min(slide_count - 1, center + (direction > 0 ? 3 : 2));
+    const SlideRange available{first, slide_count - 1};
+    const auto window = prefetch.window(available);
     auto ready_first = center;
     auto ready_last = center;
-    while (ready_first > keep_first && cache.find(ready_first - 1) != nullptr)
+    while (ready_first > window.first && cache.find(ready_first - 1) != nullptr)
       --ready_first;
-    while (ready_last < keep_last && cache.find(ready_last + 1) != nullptr)
+    while (ready_last < window.last && cache.find(ready_last + 1) != nullptr)
       ++ready_last;
     swipe.set_ready_range(ready_first, ready_last);
-
-    if (!preparing) {
-      for (const int offset : {0, 1, -1, 2, -2, 3}) {
-        const auto candidate = center + direction * offset;
-        if (candidate < keep_first || candidate > keep_last)
-          continue;
-        const auto &retry = retries[candidate % retries.size()];
-        if (retry.slide == candidate && now < retry.until)
-          continue;
-        if (const auto lease = cache.reserve(candidate, keep_first, keep_last)) {
-          loader.submit(*lease);
-          preparing = true;
-          break;
-        }
-      }
-    }
 
     TouchReport report;
     while (touch.poll(report)) {
@@ -333,9 +322,34 @@ void run(void *) {
       if (report.valid)
         confirm_firmware_boot();
       input.update(swipe, report, display.handoff_position());
+      if (swipe.dragging())
+        prefetch.request_at_edge(swipe.position(), {ready_first, ready_last}, available);
     }
 
     now = esp_timer_get_time();
+    const auto keep = prefetch.window(available);
+    const auto eligible = [&](SlideIndex candidate) {
+      if (!keep.contains(candidate))
+        return false;
+      const auto &retry = retries[candidate % retries.size()];
+      return retry.slide != candidate || now >= retry.until;
+    };
+    if (const auto wanted = prefetch.requested(); wanted && cache.find(*wanted))
+      prefetch.prepared(*wanted);
+    if (preparing) {
+      if (const auto wanted = prefetch.requested(); wanted && eligible(*wanted) && prefetch.can_yield(*preparing, *wanted))
+        loader.yield_to_swipe();
+    } else {
+      for (const auto candidate : prefetch.candidates()) {
+        if (!eligible(candidate))
+          continue;
+        if (const auto lease = cache.reserve(candidate, keep.first, keep.last)) {
+          loader.submit(*lease);
+          preparing = candidate;
+          break;
+        }
+      }
+    }
     swipe.tick(now);
     const auto position = swipe.position();
     if (live) {
