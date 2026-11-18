@@ -22,6 +22,12 @@ esphome:
     name: jtenniswood.immich-frame
     version: "${firmware_version}"
   on_boot:
+    - priority: 600
+      then:
+        - lambda: |-
+            id(firmware_update).add_on_state_callback([] {
+              id(firmware_auto_install_available_update).execute();
+            });
     - priority: -50
       then:
         - if:
@@ -60,6 +66,9 @@ script:
               - switch.is_on: auto_update_switch
               - lambda: 'return !id(manual_check_only);'
               - update.is_available: firmware_update
+              - lambda: |-
+                  const auto &info = id(firmware_update).update_info;
+                  return esphome::espframe::firmware_version_is_newer(info.latest_version, info.current_version);
           then:
             - lambda: |-
                 id(firmware_update_reboot_pending) = true;
@@ -154,9 +163,6 @@ update:
     internal: true
     source: ${firmware_manifest_url}
     update_interval: never
-    on_update_available:
-      then:
-        - script.execute: firmware_auto_install_available_update
 
 # -----------------------------------------------------------------------------
 # User controls: auto-update and check frequency
@@ -174,13 +180,7 @@ switch:
     web_server:
       sorting_group_id: sg_firmware
     on_turn_on:
-      - if:
-          condition:
-            update.is_available: firmware_update
-          then:
-            - script.execute: firmware_auto_install_available_update
-          else:
-            - update.check: firmware_update
+      - update.check: firmware_update
 
 select:
   - platform: template
@@ -220,13 +220,7 @@ interval:
               id(update_check_counter) = counter + 1;
               return counter % threshold == 0;
           then:
-            - if:
-                condition:
-                  update.is_available: firmware_update
-                then:
-                  - script.execute: firmware_auto_install_available_update
-                else:
-                  - update.check: firmware_update
+            - update.check: firmware_update
 
 # -----------------------------------------------------------------------------
 # Exposed version and manual check button

@@ -9,6 +9,7 @@
 #include "espframe_helpers.h"
 #include "memory_pressure.h"
 #include "automation_controller.h"
+#include "firmware_version.h"
 #include "memory_diagnostics.h"
 
 namespace esphome {
