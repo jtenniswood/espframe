@@ -12,6 +12,7 @@ struct Settings {
   std::string immich_key;
   std::string web_password;
   uint16_t slide_seconds{15};
+  bool portrait_pairing{true};
 
   static constexpr size_t max_json_size = 1536;
   bool read();

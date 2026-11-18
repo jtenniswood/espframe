@@ -57,7 +57,8 @@ Set a web settings password when saving over USB to enable the frame's
 settings page. Use the IP address shown in the USB logs or find
 `espframe-native` in your router's device list. Sign in as `espframe`
 with the password you chose. The settings page can change the Immich
-URL, API key and time per photo. Saving applies the changes on restart.
+URL, API key, time per photo and portrait pairing. Saving applies the
+changes on restart.
 The page uses HTTP on the local network. Keep it on a trusted network.
 
 Host regression checks run without the ESP-IDF toolchain:
@@ -105,6 +106,11 @@ failure. The random feed continues as new previews become available. It
 remembers the last 128 photo positions per session. It can decode up to
 16 recent previews from a 2 MiB memory cache while offline, depending on
 the sizes of the previews and available PSRAM. Older previews need Wi-Fi.
+
+Portrait pairing is on by default. From the second slide onward, the player
+looks for a portrait from the same local capture day. A pair is composed
+into one slide before it can be shown or swiped. If a new companion is
+missing or slow to arrive, the primary photo fills the slide by itself.
 
 ## Test on the frame
 

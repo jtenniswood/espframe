@@ -19,12 +19,12 @@ int main() {
   // Advance well past the old autoplay limit and wrap the ring many times.
   for (SlideIndex slide = 1; slide <= 5'000; ++slide) {
     assert(history.next() == slide);
-    history.append(photo(slide));
+    history.append({photo(slide), {}});
     assert(history.first() == std::max(SlideIndex{1}, slide - PhotoHistory::capacity + 1));
     assert(history.find(history.first() - 1) == nullptr);
     assert(history.find(history.next()) == nullptr);
-    assert(*history.find(history.first()) == photo(history.first()));
-    assert(*history.find(slide) == photo(slide));
+    assert(history.find(history.first())->primary == photo(history.first()));
+    assert(history.find(slide)->primary == photo(slide));
   }
 
   assert(history.recently_seen(photo(5'000), 16));
@@ -34,7 +34,8 @@ int main() {
   // A preview removed from Immich can be replaced in place without renumbering.
   *history.find(4'999) = {};
   assert(!history.recently_seen(photo(4'999), 16));
-  *history.find(4'999) = photo(2);
+  *history.find(4'999) = {photo(2), photo(3)};
   assert(history.recently_seen(photo(2), 16));
-  assert(history.next() == 5'001 && *history.find(5'000) == photo(5'000));
+  assert(history.recently_seen(photo(3), 16));
+  assert(history.next() == 5'001 && history.find(5'000)->primary == photo(5'000));
 }

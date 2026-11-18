@@ -80,6 +80,16 @@ bool read_interval(const cJSON *root, uint16_t &seconds) {
   return true;
 }
 
+bool read_pairing(const cJSON *root, bool &enabled) {
+  const auto *field = cJSON_GetObjectItemCaseSensitive(root, "portrait_pairing");
+  if (field == nullptr)
+    return true;
+  if (!cJSON_IsBool(field))
+    return false;
+  enabled = cJSON_IsTrue(field);
+  return true;
+}
+
 bool parse_all(const char *json, Settings &settings) {
   const auto root = parse(json);
   return cJSON_IsObject(root.get()) && read_field(root.get(), "ssid", settings.ssid) &&
@@ -87,7 +97,8 @@ bool parse_all(const char *json, Settings &settings) {
          read_field(root.get(), "immich_url", settings.immich_url) &&
          read_field(root.get(), "immich_key", settings.immich_key) &&
          read_field(root.get(), "web_password", settings.web_password, true) &&
-         read_interval(root.get(), settings.slide_seconds) && normalize(settings);
+         read_interval(root.get(), settings.slide_seconds) && read_pairing(root.get(), settings.portrait_pairing) &&
+         normalize(settings);
 }
 
 bool load(Settings &settings) {
@@ -143,7 +154,7 @@ bool Settings::save_playback(const char *json) {
   if (!cJSON_IsObject(update.get()) || !load(settings) || settings.web_password.empty() ||
       !read_field(update.get(), "immich_url", settings.immich_url) ||
       !read_field(update.get(), "immich_key", replacement_key, true) ||
-      !read_interval(update.get(), settings.slide_seconds))
+      !read_interval(update.get(), settings.slide_seconds) || !read_pairing(update.get(), settings.portrait_pairing))
     return false;
   if (!replacement_key.empty())
     settings.immich_key = replacement_key;
@@ -153,7 +164,8 @@ bool Settings::save_playback(const char *json) {
       !cJSON_AddStringToObject(updated.get(), "immich_url", settings.immich_url.c_str()) ||
       !cJSON_AddStringToObject(updated.get(), "immich_key", settings.immich_key.c_str()) ||
       !cJSON_AddStringToObject(updated.get(), "web_password", settings.web_password.c_str()) ||
-      !cJSON_AddNumberToObject(updated.get(), "slide_seconds", settings.slide_seconds))
+      !cJSON_AddNumberToObject(updated.get(), "slide_seconds", settings.slide_seconds) ||
+      !cJSON_AddBoolToObject(updated.get(), "portrait_pairing", settings.portrait_pairing))
     return false;
   const std::unique_ptr<char, decltype(&cJSON_free)> serialized(cJSON_PrintUnformatted(updated.get()), cJSON_free);
   return serialized && parse_all(serialized.get(), settings) && write(serialized.get());

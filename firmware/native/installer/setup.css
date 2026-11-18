@@ -63,6 +63,12 @@ button {
   font-weight: 600;
 }
 
+input.inline-option {
+  display: inline-block;
+  width: auto;
+  margin-inline-end: .3rem;
+}
+
 button:disabled {
   opacity: .55;
   cursor: default;

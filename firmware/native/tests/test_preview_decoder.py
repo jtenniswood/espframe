@@ -46,5 +46,6 @@ with TemporaryDirectory(prefix="espframe-native-decode-") as work:
         NATIVE / "main/preview_decoder.cpp", NATIVE / "tests/preview_decoder_test.cpp", *objects, discard_unused,
         "-lm", "-o", binary)
     fixtures = NATIVE / "tests/fixtures"
-    run(binary, fixtures / "quadrants.jpg", fixtures / "quadrants-progressive.jpg", fixtures / "quadrants.webp")
+    run(binary, fixtures / "quadrants.jpg", fixtures / "quadrants-progressive.jpg", fixtures / "quadrants.webp",
+        fixtures / "portrait-primary.jpg", fixtures / "portrait-companion.webp")
     print("Native JPEG and WebP preview tests passed")

@@ -12,6 +12,7 @@ try {
   const settings = await request()
   form.elements.immich_url.value = settings.immich_url
   form.elements.slide_seconds.value = settings.slide_seconds
+  form.elements.portrait_pairing.checked = settings.portrait_pairing === true
   status.textContent = ''
   form.hidden = false
 } catch {
@@ -23,6 +24,7 @@ form.addEventListener('submit', async event => {
   submit.disabled = true
   const data = Object.fromEntries(new FormData(form))
   data.slide_seconds = Number(data.slide_seconds)
+  data.portrait_pairing = form.elements.portrait_pairing.checked
   try {
     await request({
       method: 'POST',

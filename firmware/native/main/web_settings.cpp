@@ -66,7 +66,8 @@ esp_err_t current(httpd_req_t *request) {
   std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(cJSON_CreateObject(), cJSON_Delete);
   if (!settings.read() || !document ||
       !cJSON_AddStringToObject(document.get(), "immich_url", settings.immich_url.c_str()) ||
-      !cJSON_AddNumberToObject(document.get(), "slide_seconds", settings.slide_seconds))
+      !cJSON_AddNumberToObject(document.get(), "slide_seconds", settings.slide_seconds) ||
+      !cJSON_AddBoolToObject(document.get(), "portrait_pairing", settings.portrait_pairing))
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to load settings.");
   std::unique_ptr<char, decltype(&cJSON_free)> body(cJSON_PrintUnformatted(document.get()), cJSON_free);
   if (!body)

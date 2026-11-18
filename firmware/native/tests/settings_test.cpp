@@ -61,6 +61,7 @@ int main() {
   const auto legacy_store = stored;
   assert(legacy.read());
   assert(legacy.immich_url == "http://legacy.local/api" && legacy.slide_seconds == 15);
+  assert(legacy.portrait_pairing);
   assert(legacy.web_password.empty());
   assert(!Settings::save_playback(R"({"immich_url":"http://new.local"})"));
 
@@ -75,17 +76,22 @@ int main() {
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","slide_seconds":20.3})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://name@photos.test","slide_seconds":20})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","immich_key":"key with space"})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","portrait_pairing":"false"})"));
   assert(stored == before);
 
-  assert(Settings::save_playback(R"({"immich_url":"https://photos.test/family","immich_key":"","slide_seconds":35})"));
+  assert(Settings::save_playback(
+      R"({"immich_url":"https://photos.test/family","immich_key":"","slide_seconds":35,"portrait_pairing":false})"));
   assert(current.read());
   assert(current.immich_url == "https://photos.test/family/api" && current.slide_seconds == 35);
+  assert(!current.portrait_pairing);
   assert(current.ssid == "Photo Lab" && current.password == "wifi secret");
   assert(current.web_password == "only-settings" && current.immich_key == "first-key");
   assert(Settings::save_playback(R"({"immich_url":"http://photos.test","immich_key":"next-key","slide_seconds":2})"));
   assert(current.read());
   assert(current.immich_key == "next-key" && current.slide_seconds == 2);
+  assert(!current.portrait_pairing);
   stored = legacy_store;
   assert(current.read());
   assert(current.web_password.empty() && current.slide_seconds == 15);
+  assert(current.portrait_pairing);
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "immich_selection.h"
 #include "photo_history.h"
 #include "recent_previews.h"
 #include "settings.h"
@@ -17,6 +18,8 @@
 
 namespace espframe::native {
 
+class DecodedPreview;
+
 // Settings are optional. This source is owned by the slide preparation task
 // after startup, including the HTTP client and per-session photo order.
 class ImmichSource {
@@ -27,14 +30,18 @@ class ImmichSource {
   uint16_t slide_seconds() const { return this->settings_.slide_seconds; }
 
  private:
-  enum class Request { Search, Preview };
+  enum class PreviewStatus { Ready, Missing, Retry };
 
   static void wifi_event_(void *argument, esp_event_base_t base, int32_t event, void *);
   bool start_wifi_();
   bool online_();
-  int fetch_(Request request, const char *asset, size_t limit, size_t &received);
-  bool refill_();
-  bool next_asset_(AssetId &id);
+  bool has_ip_() const;
+  bool allocate_download_();
+  int fetch_(std::string_view path, std::string_view body, size_t limit, size_t &received, int64_t deadline_us = 0);
+  std::vector<ImmichPhoto> search_(std::optional<std::chrono::sys_days> local_day = {}, int64_t deadline_us = 0);
+  bool next_asset_(ImmichPhoto &asset);
+  AssetId companion_for_(const ImmichPhoto &primary, int64_t deadline_us);
+  PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, bool companion, int64_t deadline_us = 0);
 
   Settings settings_;
   esp_http_client_handle_t http_{};
@@ -45,7 +52,7 @@ class ImmichSource {
   uint8_t *encoded_{};
   PhotoHistory history_;
   RecentPreviews previews_;
-  std::vector<AssetId> pending_;
+  std::vector<ImmichPhoto> pending_;
 };
 
 }  // namespace espframe::native
