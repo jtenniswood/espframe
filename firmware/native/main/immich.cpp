@@ -351,9 +351,10 @@ bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
     return false;
   }
 
-  // The first photo should appear as soon as its preview is ready.
+  // Show the first preview immediately unless the source requires a pair.
   const auto pair_deadline_us = esp_timer_get_time() + (remembered ? 2 : 1) * pairing_time_us;
-  if (!remembered && slide > 1 && this->settings_.portrait_pairing && primary.portrait())
+  const bool pairs_only = this->settings_.portrait_pairs_only;
+  if (!remembered && (slide > 1 || pairs_only) && this->settings_.portrait_pairing && primary.portrait())
     frame.companion = this->companion_for_(seed, pair_deadline_us);
 
   DecodedPreview companion;
@@ -372,6 +373,8 @@ bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
       this->pending_.push_back(seed);
     return false;
   }
+  if (pairs_only && frame.companion[0] == '\0')
+    return false;
   if (!remembered && frame.companion[0] != '\0')
     std::erase_if(this->pending_, [&](const ImmichPhoto &photo) { return photo.id == frame.companion; });
   primary.render(panel, frame.companion[0] == '\0' ? nullptr : &companion, this->settings_.display_mode,

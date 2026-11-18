@@ -1,4 +1,5 @@
 #include "settings.h"
+#include "live_trial.h"
 
 #include "cJSON.h"
 #include "nvs.h"
@@ -309,6 +310,16 @@ bool put_wifi(cJSON *document, const char *ssid, const char *password) {
 }
 
 }  // namespace
+
+#if SWIPE_TRIAL_IMMICH
+bool Settings::read_esphome_trial() {
+  Settings candidate;
+  if (!read_live_trial_credentials(candidate) || !normalize(candidate))
+    return false;
+  *this = std::move(candidate);
+  return true;
+}
+#endif
 
 bool Settings::read() {
   Settings candidate;

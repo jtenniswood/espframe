@@ -138,6 +138,12 @@ int main() {
   fixture.timer.callback(nullptr);
   assert(fixture.rollback_calls == 1 && fixture.restarts == 1 && !fixture.selected);
 
+  fixture = {};
+  assert(start_esphome_trial(300));
+  assert(fixture.duration == 300'000'000);
+  espframe::native::end_esphome_trial();
+  assert(fixture.rollback_calls == 1 && fixture.selected == &apps[1]);
+
   for (const unsigned running : {0u, 1u}) {
     fixture = {.running = running};
     assert(std::strcmp(esphome_v1_trial_readiness(true), "Waiting for ESPHome confirmation") == 0);

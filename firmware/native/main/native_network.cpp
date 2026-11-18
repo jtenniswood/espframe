@@ -1,5 +1,6 @@
 #include "native_network.h"
 
+#include "live_trial.h"
 #include "settings.h"
 #include "station_retry.h"
 #include "web_settings.h"
@@ -26,6 +27,7 @@ constexpr uint32_t address_lost = BIT2;
 constexpr uint32_t station_stopped = BIT3;
 constexpr uint32_t command_ready = BIT4;
 constexpr int network_core = 0;
+constexpr bool trial_immich = SWIPE_TRIAL_IMMICH;
 
 }  // namespace
 
@@ -118,9 +120,11 @@ bool NativeNetwork::init_station_(const WifiCredentials &wifi) {
       esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, station_event_, this) != ESP_OK)
     return false;
 
-  hotspot_configured_ = prepare_recovery_();
-  if (!hotspot_configured_)
-    ESP_LOGW(tag, "Could not configure the Wi-Fi setup hotspot");
+  if constexpr (!trial_immich) {
+    hotspot_configured_ = prepare_recovery_();
+    if (!hotspot_configured_)
+      ESP_LOGW(tag, "Could not configure the Wi-Fi setup hotspot");
+  }
   if (esp_wifi_set_mode(WIFI_MODE_STA) != ESP_OK)
     return false;
   station_config_valid_ = start_station_(wifi);
@@ -309,12 +313,14 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
   photo_time_ready_.store(!https || clock_time_is_valid(std::time(nullptr)), std::memory_order_release);
 
   while (true) {
-    Command command{};
-    if (xQueueReceive(commands_, &command, 0) == pdPASS) {
-      handle_(command, saved);
-      if (command.request != Request::Scan) {
-        retry = {};
-        events = 0;
+    if constexpr (!trial_immich) {
+      Command command{};
+      if (xQueueReceive(commands_, &command, 0) == pdPASS) {
+        handle_(command, saved);
+        if (command.request != Request::Scan) {
+          retry = {};
+          events = 0;
+        }
       }
     }
     const int64_t now = esp_timer_get_time();
@@ -322,14 +328,16 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
     const bool connected = has_station_address(lease);
     recovery.update(now, connected);
     bool hotspot = recovery_status() != RecoveryStatus::Off;
-    if (const auto change = recovery.change_at(saved.configured(), hotspot);
-        hotspot_configured_ && change && now >= std::max(*change, next_hotspot_attempt)) {
-      if (hotspot ? stop_recovery_() : start_recovery_()) {
-        hotspot = !hotspot;
-        next_hotspot_attempt = 0;
-      } else {
-        next_hotspot_attempt = now + 5'000'000;
-        ESP_LOGW(tag, "Could not %s the Wi-Fi setup hotspot", hotspot ? "stop" : "start");
+    if constexpr (!trial_immich) {
+      if (const auto change = recovery.change_at(saved.configured(), hotspot);
+          hotspot_configured_ && change && now >= std::max(*change, next_hotspot_attempt)) {
+        if (hotspot ? stop_recovery_() : start_recovery_()) {
+          hotspot = !hotspot;
+          next_hotspot_attempt = 0;
+        } else {
+          next_hotspot_attempt = now + 5'000'000;
+          ESP_LOGW(tag, "Could not %s the Wi-Fi setup hotspot", hotspot ? "stop" : "start");
+        }
       }
     }
     const auto event = (events & address_lost) ? StationRetry::Event::AddressLost
@@ -356,9 +364,13 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
           ESP_LOGI(tag, "Wi-Fi connected at " IPSTR, IP2STR(&ip.ip));
       }
       if (!web_started) {
-        web_started = settings_->web_password.empty() || start_web_settings(*settings_, *this);
-        if (web_started && !settings_->web_password.empty())
-          web_status_.store(WebStatus::Ready, std::memory_order_release);
+        if constexpr (trial_immich) {
+          web_started = start_live_trial_status();
+        } else {
+          web_started = settings_->web_password.empty() || start_web_settings(*settings_, *this);
+          if (web_started && !settings_->web_password.empty())
+            web_status_.store(WebStatus::Ready, std::memory_order_release);
+        }
       }
       if (!sntp_started) {
         esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
@@ -390,10 +402,12 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
 void NativeNetwork::run_(void *context) {
   auto &network = *static_cast<NativeNetwork *>(context);
   network.task_ = xTaskGetCurrentTaskHandle();
-  network.commands_ = xQueueCreate(1, sizeof(Command));
-  network.replies_ = xQueueCreate(1, sizeof(Reply));
+  if constexpr (!trial_immich) {
+    network.commands_ = xQueueCreate(1, sizeof(Command));
+    network.replies_ = xQueueCreate(1, sizeof(Reply));
+  }
   const auto wifi = WifiCredentials::from(network.settings_->ssid, network.settings_->password).value_or(WifiCredentials{});
-  if (network.commands_ && network.replies_ && network.init_station_(wifi)) {
+  if ((trial_immich || (network.commands_ && network.replies_)) && network.init_station_(wifi)) {
     network.available_.store(true, std::memory_order_release);
     network.connect_loop_(wifi);
   }

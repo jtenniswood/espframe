@@ -16,6 +16,9 @@ set(clock_zones "${CMAKE_CURRENT_BINARY_DIR}/native_clock_zones.inc")
 if(SWIPE_ESPHOME_TRIAL)
     set(trial_source esphome_trial.cpp)
 endif()
+if(SWIPE_TRIAL_IMMICH)
+    list(APPEND trial_source live_trial.cpp)
+endif()
 
 idf_component_register(
     SRCS app.cpp clock_overlay.cpp clock_settings.cpp daylight.cpp display.cpp frame_blend.cpp immich.cpp immich_http.cpp
@@ -41,7 +44,8 @@ else()
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SWIPE_EARLY_P4=1)
 endif()
 target_compile_definitions(${COMPONENT_LIB} PRIVATE NATIVE_BOARD="${SWIPE_BOARD}" SWIPE_TRACE=$<BOOL:${SWIPE_TRACE}>
-                                                   SWIPE_ESPHOME_TRIAL=$<BOOL:${SWIPE_ESPHOME_TRIAL}>)
+                                                   SWIPE_ESPHOME_TRIAL=$<BOOL:${SWIPE_ESPHOME_TRIAL}>
+                                                   SWIPE_TRIAL_IMMICH=$<BOOL:${SWIPE_TRIAL_IMMICH}>)
 
 idf_build_get_property(python PYTHON)
 add_custom_command(

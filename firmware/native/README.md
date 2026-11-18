@@ -312,6 +312,31 @@ and the other OTA target. Read the result before any other reboot or
 update, since a normal reboot of a confirmed app cannot prove rollback.
 Keep the working ESPHome OTA binary and USB recovery available.
 
+#### Test live Immich over Wi-Fi
+
+For a V1 configured through the stock ESPHome installer, build the
+five-minute Immich trial against the same app slots. It reads the saved
+Wi-Fi and Immich connection from the ESPHome 2026.11 preference format.
+The trial keeps the saved date range, paired-portraits-only selection,
+and mounting orientation. It uses the native player's same-day portrait
+pairing. The trial returns immediately to ESPHome if its required settings
+are missing or invalid, or an active photo filter is outside that scope.
+
+```sh
+idf.py -C firmware/native -B firmware/native/build/esphome-live-trial-v1 \
+  -D SWIPE_BOARD=v1 -D SWIPE_ESPHOME_TRIAL=ON -D SWIPE_TRIAL_IMMICH=ON -D SWIPE_TRACE=ON build
+```
+
+After the readiness diagnostic reports **Ready**, upload only
+`espframe_v1_live_trial.bin`. When the frame joins Wi-Fi, `/api/trial`
+reports the count of prepared Immich slides, time to prepare the first
+photo, and touch-report-to-LCD-handoff timing for the most recent swipe.
+Use the USB trace or high-frame-rate video to evaluate the full swipe test.
+The status route exposes timing and counts. ESPHome returns automatically
+after five minutes.
+
+#### Verify the rollback and gestures
+
 The demo checks the running partition map and the previous ESPHome app before
 starting the display. The bootloader must mark the demo pending verification.
 The demo never confirms its boot, so a reset during it should also go back to

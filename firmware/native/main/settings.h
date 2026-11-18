@@ -31,6 +31,7 @@ struct Settings {
   uint8_t brightness_day{64};
   std::optional<uint8_t> brightness_night;
   bool portrait_pairing{true};
+  bool portrait_pairs_only{};
   DisplayMode display_mode{DisplayMode::Fit};
   ScreenRotation screen_rotation{ScreenRotation::Normal};
   PhotoSource photo_source;
@@ -45,6 +46,7 @@ struct Settings {
 
   static constexpr size_t max_json_size = 3072;
   bool read();
+  bool read_esphome_trial();
   static bool save(const char *json);
   static bool save_wifi(const WifiCredentials &wifi);
   static bool save_playback(const char *json);

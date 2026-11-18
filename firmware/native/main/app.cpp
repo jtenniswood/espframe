@@ -6,6 +6,7 @@
 #include "firmware_update.h"
 #include "frame_blend.h"
 #include "immich.h"
+#include "live_trial.h"
 #include "native_network.h"
 #include "recovery_card.h"
 #include "screen_schedule.h"
@@ -46,6 +47,7 @@ constexpr int loader_core = 0;
 constexpr UBaseType_t player_priority = 4;
 constexpr bool trace_enabled = SWIPE_TRACE;
 constexpr bool esphome_trial = SWIPE_ESPHOME_TRIAL;
+constexpr bool trial_immich = SWIPE_TRIAL_IMMICH;
 extern const uint8_t clock_atlas[] asm("_binary_clock_glyphs_bin_start");
 extern const uint8_t recovery_atlas[] asm("_binary_recovery_glyphs_bin_start");
 NativeNetwork network;
@@ -215,8 +217,17 @@ class SlideLoader {
     network.start(this->settings_);
   }
 
-  void start() {
-    this->live_ = !esphome_trial && this->settings_.read() && this->settings_.has_immich();
+  bool start() {
+    if constexpr (trial_immich) {
+      if (!this->settings_.read_esphome_trial()) {
+        ESP_LOGW(tag, "Could not read compatible ESPHome Wi-Fi and Immich settings");
+        end_esphome_trial();
+        return false;
+      }
+      this->live_ = true;
+    } else {
+      this->live_ = !esphome_trial && this->settings_.read() && this->settings_.has_immich();
+    }
     this->requests_ = xQueueCreate(1, sizeof(SlideCache::Lease));
     this->completed_ = xQueueCreate(1, sizeof(Completion));
     if constexpr (!trace_enabled)
@@ -224,6 +235,7 @@ class SlideLoader {
     ESP_ERROR_CHECK(this->requests_ && this->completed_ && (trace_enabled || this->timings_) ? ESP_OK : ESP_ERR_NO_MEM);
     const auto result = xTaskCreatePinnedToCore(run_, "slide-prepare", 6144, this, 2, &this->task_, loader_core);
     ESP_ERROR_CHECK(result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
+    return true;
   }
 
   void submit(const SlideCache::Lease &lease) {
@@ -262,7 +274,7 @@ class SlideLoader {
         continue;
       const auto connection = network.photo_connection();
       bool ready = true;
-      if (!esphome_trial && loader.live_ && lease.slide > 0) {
+      if ((!esphome_trial || trial_immich) && loader.live_ && lease.slide > 0) {
         ready = loader.source_.prepare(lease.slide, lease.pixels);
       } else {
         const int fixture = lease.slide % fixture_count;
@@ -290,9 +302,12 @@ class SlideLoader {
 void run(void *) {
   if constexpr (!esphome_trial)
     start_firmware_boot_check();
-  SlideCache cache{allocate_slide_buffers()};
   static SlideLoader loader;
-  loader.start();
+  if (!loader.start()) {
+    vTaskDelete(nullptr);
+    return;
+  }
+  SlideCache cache{allocate_slide_buffers()};
   const bool live = loader.live();
   const auto rotation = loader.rotation();
   const SlideIndex slide_count = live ? std::numeric_limits<PixelPosition>::max() / slide_width : fixture_slides;
@@ -357,7 +372,7 @@ void run(void *) {
   int64_t refill_started_us{};
   if constexpr (trace_enabled)
     trace.start(Display::nominal_frame_period_us());
-  if constexpr (!esphome_trial)
+  if constexpr (!esphome_trial || trial_immich)
     loader.start_network();
   const auto submit_frame = [&](PixelPosition position, bool moving = true) {
     display.submit(position);
@@ -386,6 +401,8 @@ void run(void *) {
         ESP_LOGI(tag, "Player ready (background %s preparation)", live ? "Immich" : "fixture");
       }
       if (submitted_motion_us != 0) {
+        if constexpr (trial_immich)
+          record_live_trial_gesture(static_cast<uint32_t>(*scanout - submitted_motion_us));
         if constexpr (trace_enabled)
           trace.gesture(*scanout, first_motion);
         else
@@ -407,8 +424,13 @@ void run(void *) {
       }
       retries[slide % retries.size()] = {slide, completion.ready || completion.cancelled ? 0 : now + 2'000'000,
                                         completion.connection};
-      if (completion.ready)
+      if (completion.ready) {
         prefetch.prepared(slide);
+        if constexpr (trial_immich) {
+          if (slide > 0)
+            record_live_trial_photo(static_cast<uint32_t>(esp_timer_get_time() / 1000));
+        }
+      }
       first_photo = completion.first_photo;
       memories_status = completion.memories_status;
       preparing.reset();
@@ -665,7 +687,7 @@ void run(void *) {
 
 void start_player() {
   if constexpr (esphome_trial) {
-    if (!start_esphome_trial())
+    if (!start_esphome_trial(trial_immich ? 300 : 180))
       return;
   } else {
     start_usb_setup(network);
