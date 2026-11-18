@@ -186,6 +186,7 @@ class SlideLoader {
 
   bool live() const { return this->live_; }
   int64_t slide_interval_us() const { return this->source_.slide_seconds() * 1'000'000LL; }
+  uint8_t brightness() const { return this->source_.brightness(); }
   const ClockSettings &clock() const { return this->source_.clock(); }
 
   void start() {
@@ -308,7 +309,7 @@ void run(void *) {
     }
     if (const auto scanout = display.poll_presented()) {
       if (!lit) {
-        display.enable_backlight();
+        display.init_backlight(loader.brightness());
         lit = true;
         ESP_LOGI(tag, "Player ready (background %s preparation)", live ? "Immich" : "fixture");
       }
@@ -352,7 +353,14 @@ void run(void *) {
         if (report.contacts != 0 && fade.running() && fade.interrupt(snapshot != nullptr))
           pin_fade();
       }
-      input.update(swipe, report, display.handoff_position());
+      const auto effect = input.update(swipe, report, display.handoff_position());
+      if (effect == SwipeInput::Effect::Sleep) {
+        display.set_backlight(false);
+        if (fade.held())
+          fade.note_drag();  // A sleeping frame returns to the original photo on wake.
+      } else if (effect == SwipeInput::Effect::Wake) {
+        display.set_backlight(true);
+      }
       if (swipe.dragging()) {
         if (fade.held())
           fade.note_drag();
@@ -400,7 +408,8 @@ void run(void *) {
     }
     swipe.tick(now);
     const auto position = swipe.position();
-    const bool visible_and_idle = lit && !input.engaged() && swipe.idle() && position == display.presented_position();
+    const bool visible_and_idle = lit && input.awake() && !input.engaged() && swipe.idle() &&
+                                  position == display.presented_position();
     if (fade.held() && !blend.pending() && visible_and_idle) {
       if (can_fade && swipe.settled() == fade.anchor()) {
         fade.resume(now);

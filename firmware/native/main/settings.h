@@ -16,6 +16,7 @@ struct Settings {
   std::string immich_key;
   std::string web_password;
   uint32_t slide_seconds{15};
+  uint8_t brightness_day{64};
   bool portrait_pairing{true};
   DisplayMode display_mode{DisplayMode::Fit};
   PhotoSource photo_source;

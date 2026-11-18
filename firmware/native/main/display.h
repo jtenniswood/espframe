@@ -14,7 +14,8 @@ namespace espframe::native {
 class Display {
  public:
   void init(bool request_snapshot = false);
-  void enable_backlight() const;
+  void init_backlight(uint8_t brightness);
+  void set_backlight(bool on) const;
   std::optional<int64_t> poll_presented();
   PixelPosition presented_position() const { return position_; }
   // A queued frame can still reach the panel after touch arrives. Start
@@ -35,6 +36,7 @@ class Display {
   portMUX_TYPE boundary_lock_ = portMUX_INITIALIZER_UNLOCKED;
   int64_t latched_us_{};
   bool awaiting_latch_{};
+  uint32_t backlight_duty_{};
   PixelPosition pending_position_{};
   PixelPosition position_{-1};
 };

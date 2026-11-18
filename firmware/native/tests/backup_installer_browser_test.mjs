@@ -18,6 +18,7 @@ const backup = {
   connection: { immich_url: 'https://photos.test', api_key: 'old-api-key' },
   photos: { albums_enabled: true, album_ids: album, portrait_pairing: false, display_mode: 'Fit' },
   clock: { show: false, format: '12 Hour', timezone: 'America/New_York (GMT-5)' },
+  screen: { brightness_day: 35 },
   frequency: { interval: '24 hours' },
 }
 const verify = `
@@ -69,11 +70,14 @@ const verify = `
     await loadBackup(${JSON.stringify(oldBackup)}, 'Choose a photo source before saving.')
     if (form.elements.photo_source.value || form.checkValidity()) throw new Error('Unrepresentable filters allowed a save')
     if (form.elements.display_mode.value !== 'Fill') throw new Error('Existing crop mode was not imported')
+    if (form.elements.brightness_day.value !== '100') throw new Error('Existing brightness was not imported')
     form.requestSubmit()
     if (attempts) throw new Error('USB opened with unresolved photo filters')
     await loadBackup(${JSON.stringify(JSON.stringify(backup))}, 'Backup loaded.')
     if (form.elements.immich_url.value !== 'https://photos.test') throw new Error('Immich URL was not prefilled')
     if (form.elements.immich_key.value !== 'entered-api-key') throw new Error('A backup replaced the entered key')
+    if (form.querySelector('output[for="brightness_day"]').textContent !== '35%')
+      throw new Error('Imported brightness was not shown')
     const saved = waitFor(document.querySelector('#status'), 'Settings saved.')
     form.requestSubmit()
     await saved
@@ -83,6 +87,7 @@ const verify = `
       throw new Error('Unexpected migrated USB settings')
     if (received.show_clock !== false || received.clock_format !== '12 Hour' || received.timezone !== 'America/New_York (GMT-5)')
       throw new Error('The clock settings did not reach USB setup')
+    if (received.brightness_day !== 35) throw new Error('Brightness did not reach USB setup')
     document.body.dataset.backupTest = 'passed'
   })
 `

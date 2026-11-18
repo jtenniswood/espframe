@@ -6,6 +6,7 @@ const clockFormats = ['24 Hour', '12 Hour']
 const groups = ['connection', 'photos', 'frequency', 'screen', 'clock', 'firmware_updates', 'identity']
 const own = (object, key) => Object.hasOwn(object, key)
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
+const validBrightness = value => Number.isInteger(value) && value >= 10 && value <= 100
 
 function immichUrl(value) {
   if (typeof value !== 'string') return ''
@@ -83,6 +84,7 @@ export function readBackup(data) {
   const connection = data.connection ?? {}
   const frequency = data.frequency ?? {}
   const clock = data.clock ?? {}
+  const screen = data.screen ?? {}
   if (own(connection, 'immich_url')) {
     const url = immichUrl(connection.immich_url)
     if (url) settings.immich_url = url
@@ -103,12 +105,16 @@ export function readBackup(data) {
   if (typeof clock.timezone === 'string' && clock.timezone.length <= 96) {
     settings.timezone = clock.timezone === 'Asia/Almaty (GMT+6)' ? 'Asia/Almaty (GMT+5)' : clock.timezone
   }
+  if (own(screen, 'brightness_day')) {
+    if (validBrightness(screen.brightness_day)) settings.brightness_day = screen.brightness_day
+    else notices.push('Choose a screen brightness from 10% to 100%.')
+  }
   const { chooseSource = false, ...sourceSettings } = importSource(photos, data.version)
   Object.assign(settings, sourceSettings)
   if (chooseSource)
     notices.push('This backup uses photo filters the native player cannot apply. Choose a photo source before saving.')
   const skipped = []
-  if (own(data, 'screen')) skipped.push('screen settings')
+  if (Object.keys(screen).some(key => key !== 'brightness_day')) skipped.push('screen settings')
   if (own(clock, 'ntp_servers')) skipped.push('custom time servers')
   if (own(data, 'firmware_updates')) skipped.push('firmware update settings')
   if (own(data, 'identity')) skipped.push('the frame name')
@@ -150,5 +156,6 @@ export function createBackup(settings, date = new Date()) {
     },
     frequency: { interval: formatInterval(settings.slide_seconds) },
     ...(Object.keys(clock).length ? { clock } : {}),
+    ...(validBrightness(settings.brightness_day) ? { screen: { brightness_day: settings.brightness_day } } : {}),
   }
 }

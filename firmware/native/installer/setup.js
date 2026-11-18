@@ -12,6 +12,10 @@ const backup = document.querySelector('#backup')
 const backupStatus = document.querySelector('#backup-status')
 const playback = document.querySelector('#playback')
 const refreshSource = bindPhotoSource(form)
+const brightness = form.elements.brightness_day
+const brightnessValue = form.querySelector('output[for="brightness_day"]')
+const showBrightness = () => { brightnessValue.value = `${brightness.value}%` }
+brightness.addEventListener('input', showBrightness)
 let importSequence = 0
 let importing = false
 
@@ -37,6 +41,7 @@ backup.addEventListener('change', async () => {
     }
     if (!form.elements.timezone.value) notices.push('Choose a timezone supported by the frame.')
     refreshSource()
+    showBrightness()
     playback.open = true
     const message = Object.keys(settings).length ? 'Backup loaded. Review the settings before saving.'
       : 'This backup has no settings the native installer can prefill.'
@@ -69,6 +74,7 @@ if ('serial' in navigator) {
     const data = Object.fromEntries(new FormData(form))
     if (!validateAlbum(form, data)) return
     data.slide_seconds = Number(data.slide_seconds)
+    data.brightness_day = Number(data.brightness_day)
     data.portrait_pairing = form.elements.portrait_pairing.checked
     data.show_clock = form.elements.show_clock.checked
     submit.disabled = true
@@ -79,6 +85,7 @@ if ('serial' in navigator) {
       await configure(port, data)
       form.reset()
       refreshSource()
+      showBrightness()
       backupStatus.textContent = ''
       status.textContent = 'Settings saved. The frame will restart and load photos from Immich.'
     } catch (error) {

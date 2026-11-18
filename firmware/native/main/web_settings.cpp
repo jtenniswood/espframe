@@ -74,6 +74,7 @@ esp_err_t current(httpd_req_t *request) {
   if (!settings.read() || !document ||
       !cJSON_AddStringToObject(document.get(), "immich_url", settings.immich_url.c_str()) ||
       !cJSON_AddNumberToObject(document.get(), "slide_seconds", settings.slide_seconds) ||
+      !cJSON_AddNumberToObject(document.get(), "brightness_day", settings.brightness_day) ||
       !cJSON_AddBoolToObject(document.get(), "portrait_pairing", settings.portrait_pairing) ||
       !cJSON_AddStringToObject(document.get(), "display_mode", display_mode_name(settings.display_mode)) ||
       !cJSON_AddStringToObject(document.get(), "photo_source", photo_source_name(settings.photo_source.mode)) ||

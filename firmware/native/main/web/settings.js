@@ -10,6 +10,10 @@ const firmware = document.querySelector('#firmware')
 const updateForm = document.querySelector('#firmware-update')
 const updateButton = updateForm.querySelector('button')
 const updateStatus = document.querySelector('#firmware-status')
+const brightness = form.elements.brightness_day
+const brightnessValue = form.querySelector('output[for="brightness_day"]')
+const showBrightness = () => { brightnessValue.value = `${brightness.value}%` }
+brightness.addEventListener('input', showBrightness)
 
 async function request(options) {
   const response = await fetch('/api/playback', options)
@@ -26,6 +30,8 @@ try {
   }
   form.elements.immich_url.value = settings.immich_url
   form.elements.slide_seconds.value = settings.slide_seconds
+  brightness.value = settings.brightness_day ?? 64
+  showBrightness()
   form.elements.portrait_pairing.checked = settings.portrait_pairing === true
   form.elements.display_mode.value = settings.display_mode ?? 'Fit'
   form.elements.photo_source.value = settings.photo_source ?? 'all'
@@ -61,6 +67,7 @@ form.addEventListener('submit', async event => {
   if (!validateAlbum(form, data)) return
   submit.disabled = true
   data.slide_seconds = Number(data.slide_seconds)
+  data.brightness_day = Number(data.brightness_day)
   data.portrait_pairing = form.elements.portrait_pairing.checked
   data.show_clock = form.elements.show_clock.checked
   download.disabled = true

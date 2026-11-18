@@ -173,6 +173,13 @@ search with Immich 3.2 or later. On earlier supported Immich versions it
 plays the available photos in capture-date order, newest first. An empty or
 unavailable selection leaves the current photo or startup scene visible.
 
+Set **Screen brightness** in the USB installer or the frame's web settings.
+The frame defaults to 64% and accepts 10–100%. Importing an Espframe backup
+restores its saved daytime brightness. Hold one finger still on the screen
+for at least three seconds and release to turn off the backlight. Touch the
+screen to wake it to the same photo. Autoplay starts a fresh interval after
+you lift your finger.
+
 ## Test on the frame
 
 1. Boot to the middle scene and drag toward each adjacent scene slowly. The
@@ -203,6 +210,11 @@ unavailable selection leaves the current photo or startup scene visible.
    finger until the gesture settles. Repeat while Immich is downloading or
    decoding a preview and check for visible tearing. With a two-second
    interval, verify each photo is fully visible for two seconds before fading.
+7. Hold for three seconds with a photo visible and again during a transition.
+   Check that the backlight turns off when you lift your finger. Wake the
+   screen and drag without lifting. The photo should stay in place. Lift your
+   finger and check that a new swipe works and autoplay waits the full interval.
+   Save a lower brightness and check that it survives sleep, wake, and restart.
 
 To probe with real photos, place baseline JPEGs in the ignored
 `firmware/native/photos/` directory as `slide-0.jpg` through `slide-4.jpg`.

@@ -64,6 +64,7 @@ int main() {
   assert(legacy.read());
   assert(legacy.immich_url == "http://legacy.local/api" && legacy.slide_seconds == 15);
   assert(legacy.portrait_pairing);
+  assert(legacy.brightness_day == 64);
   assert(legacy.photo_source.mode == PhotoSourceMode::Library);
   assert(legacy.display_mode == DisplayMode::Fit);
   assert(!legacy.clock.show && legacy.clock.format == "24 Hour");
@@ -89,6 +90,9 @@ int main() {
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","timezone":"Unverified/Zone"})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","show_clock":12})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","clock_format":"Seconds"})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","brightness_day":9})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","brightness_day":100.5})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","brightness_day":"80"})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","photo_source":"album"})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","photo_source":"unknown"})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","album_id":"not-an-album"})"));
@@ -102,12 +106,14 @@ int main() {
   assert(current.display_mode == DisplayMode::Fill);
   assert(current.ssid == "Photo Lab" && current.password == "wifi secret");
   assert(current.web_password == "only-settings" && current.immich_key == "first-key");
+  assert(Settings::save_playback(R"({"immich_url":"http://photos.test","brightness_day":42})"));
   assert(Settings::save_playback(R"json({"immich_url":"http://photos.test","show_clock":true,"clock_format":"12 Hour",
                                        "timezone":"America/New_York (GMT-5)"})json"));
   assert(Settings::save_playback(R"({"immich_url":"http://photos.test","immich_key":"next-key","slide_seconds":2})"));
   assert(current.read());
   assert(current.immich_key == "next-key" && current.slide_seconds == 2);
   assert(current.clock.show && current.clock.format == "12 Hour" && current.clock.timezone == "America/New_York (GMT-5)");
+  assert(current.brightness_day == 42);
   assert(!current.portrait_pairing);
   assert(current.display_mode == DisplayMode::Fill);
   assert(Settings::save_playback(

@@ -61,6 +61,9 @@
           </label>
           <label>Seconds per photo <input name="slide_seconds" type="number" min="2" max="86400" value="15" step="1" required></label>
           <label><input name="portrait_pairing" type="checkbox" class="inline-option" checked> Pair portrait photos from the same day</label>
+          <label for="brightness_day">Screen brightness</label>
+          <input id="brightness_day" name="brightness_day" type="range" min="10" max="100" value="64">
+          <output for="brightness_day">64%</output>
           <label><input name="show_clock" type="checkbox" class="inline-option" checked> Show clock</label>
           <label>Time format
             <select name="clock_format">

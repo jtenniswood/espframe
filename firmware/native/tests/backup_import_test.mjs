@@ -9,6 +9,7 @@ const partial = readBackup(await fixture('v1-partial'))
 assert.deepEqual(partial.settings, {
   immich_url: 'http://192.168.1.30:2283',
   display_mode: 'Fit',
+  brightness_day: 80,
   photo_source: 'favorites',
 })
 assert.equal(partial.chooseSource, false)
@@ -16,6 +17,7 @@ for (const name of ['v1-full', 'v2-full']) {
   const result = readBackup(await fixture(name))
   assert.deepEqual(result.settings, {
     immich_url: 'https://photos.example.com', slide_seconds: 15, portrait_pairing: true, display_mode: 'Fill',
+    brightness_day: 100,
     show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
   })
   assert.equal(result.chooseSource, true)
@@ -62,6 +64,11 @@ assert.deepEqual(invalid.notices, ['Enter your Immich URL.', 'Choose a slideshow
 assert.deepEqual(readBackup({ version: 3, photos: { display_mode: 'Stretch' } }), {
   settings: {}, notices: ['Choose a display mode.'], chooseSource: false,
 })
+for (const brightness_day of [9, 100.5, '80']) {
+  const result = readBackup({ version: 3, screen: { brightness_day } })
+  assert.deepEqual(result.settings, {})
+  assert.ok(result.notices.some(text => text.includes('brightness')))
+}
 assert.throws(() => readBackup({ version: 4 }), /Espframe settings backup/)
 assert.throws(() => readBackup({ version: 3, connection: 'invalid' }), /Espframe settings backup/)
 for (const source of ['all', 'favorites', 'album']) {
@@ -69,6 +76,7 @@ for (const source of ['all', 'favorites', 'album']) {
     const settings = {
       immich_url: 'https://photos.test', photo_source: source, portrait_pairing: false,
       slide_seconds: duration, display_mode: duration % 60 ? 'Fit' : 'Fill',
+      brightness_day: duration % 60 ? 10 : 100,
       show_clock: false, clock_format: '12 Hour', timezone: 'America/New_York (GMT-5)',
       ...(source === 'album' ? { album_id: album } : {}),
     }

@@ -91,6 +91,17 @@ bool read_pairing(const cJSON *root, bool &enabled) {
   return true;
 }
 
+bool read_brightness(const cJSON *root, uint8_t &brightness) {
+  const auto *field = cJSON_GetObjectItemCaseSensitive(root, "brightness_day");
+  if (!field)
+    return true;
+  if (!cJSON_IsNumber(field) || field->valueint < 10 || field->valueint > 100 ||
+      field->valueint != field->valuedouble)
+    return false;
+  brightness = field->valueint;
+  return true;
+}
+
 bool read_clock(const cJSON *root, ClockSettings &clock) {
   const auto *show = cJSON_GetObjectItemCaseSensitive(root, "show_clock");
   if (show && !cJSON_IsBool(show))
@@ -149,7 +160,8 @@ bool parse_all(const char *json, Settings &settings) {
          read_field(root.get(), "web_password", settings.web_password, true) &&
          read_interval(root.get(), settings.slide_seconds) && read_pairing(root.get(), settings.portrait_pairing) &&
          read_display_mode(root.get(), settings.display_mode) && read_source(root.get(), settings.photo_source) &&
-         read_clock(root.get(), settings.clock) && normalize(settings);
+         read_clock(root.get(), settings.clock) && read_brightness(root.get(), settings.brightness_day) &&
+         normalize(settings);
 }
 
 bool load(Settings &settings) {
@@ -207,7 +219,7 @@ bool Settings::save_playback(const char *json) {
       !read_field(update.get(), "immich_key", replacement_key, true) ||
       !read_interval(update.get(), settings.slide_seconds) || !read_pairing(update.get(), settings.portrait_pairing) ||
       !read_display_mode(update.get(), settings.display_mode) || !read_source(update.get(), settings.photo_source) ||
-      !read_clock(update.get(), settings.clock))
+      !read_clock(update.get(), settings.clock) || !read_brightness(update.get(), settings.brightness_day))
     return false;
   if (!replacement_key.empty())
     settings.immich_key = replacement_key;
@@ -218,6 +230,7 @@ bool Settings::save_playback(const char *json) {
       !cJSON_AddStringToObject(updated.get(), "immich_key", settings.immich_key.c_str()) ||
       !cJSON_AddStringToObject(updated.get(), "web_password", settings.web_password.c_str()) ||
       !cJSON_AddNumberToObject(updated.get(), "slide_seconds", settings.slide_seconds) ||
+      !cJSON_AddNumberToObject(updated.get(), "brightness_day", settings.brightness_day) ||
       !cJSON_AddBoolToObject(updated.get(), "portrait_pairing", settings.portrait_pairing) ||
       !cJSON_AddStringToObject(updated.get(), "display_mode", display_mode_name(settings.display_mode)) ||
       !cJSON_AddStringToObject(updated.get(), "photo_source", photo_source_name(settings.photo_source.mode)) ||

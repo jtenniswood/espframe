@@ -31,6 +31,7 @@ class ImmichSource {
   bool prepare(SlideIndex slide, uint16_t *panel);
   SlideIndex first_slide() const { return this->history_.first(); }
   uint32_t slide_seconds() const { return this->settings_.slide_seconds; }
+  uint8_t brightness() const { return this->settings_.brightness_day; }
   const ClockSettings &clock() const { return this->settings_.clock; }
 
  private:

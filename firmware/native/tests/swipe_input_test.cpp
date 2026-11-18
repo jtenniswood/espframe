@@ -1,3 +1,4 @@
+#include "slide_dwell.h"
 #include "swipe_input.h"
 
 #include <cassert>
@@ -6,6 +7,7 @@
 using espframe::native::Swipe;
 using espframe::native::SwipeInput;
 using espframe::native::TouchReport;
+using Effect = SwipeInput::Effect;
 
 namespace {
 
@@ -89,6 +91,60 @@ void a_second_finger_blocks_until_release_even_at_sequence_rollover() {
   assert(input.take_first_motion() == 0 && !input.engaged());
 }
 
+void a_hold_sleeps_on_release_and_the_wake_contact_never_swipes() {
+  Swipe swipe{width, 5, 2};
+  SwipeInput input;
+  espframe::native::SlideDwell dwell;
+  constexpr int64_t interval = 15'000'000;
+  assert(!dwell.elapsed(0, true, interval));
+  assert(input.update(swipe, report(1, 5'000, 800), initial_position) == Effect::None);
+  assert(input.update(swipe, report(2, 3'005'000, 808), initial_position) == Effect::None);
+  assert(input.awake());
+  assert(input.update(swipe, report(3, 3'010'000, 0, 0), initial_position) == Effect::Sleep);
+  assert(!input.awake() && swipe.idle() && swipe.settled() == 2);
+  assert(!dwell.elapsed(60'000'000, input.awake(), interval));
+
+  assert(input.update(swipe, report(4, 60'005'000, 820, 2), initial_position) == Effect::None);
+  assert(input.update(swipe, report(5, 60'010'000, 820), initial_position) == Effect::None);
+  assert(!input.awake());
+  input.update(swipe, report(6, 60'015'000, 0, 0), initial_position);
+  assert(input.update(swipe, report(7, 60'020'000, 820), initial_position) == Effect::Wake);
+  assert(input.awake() && input.engaged());
+  assert(!dwell.elapsed(60'020'000, input.awake() && !input.engaged(), interval));
+  assert(input.update(swipe, report(8, 64'000'000, 240), initial_position) == Effect::None);
+  assert(input.take_first_motion() == 0 && swipe.idle() && swipe.position() == initial_position);
+  assert(input.update(swipe, report(9, 64'010'000, 0, 0), initial_position) == Effect::None);
+  assert(input.awake() && !input.engaged() && swipe.settled() == 2);
+  assert(!dwell.elapsed(64'010'000, true, interval));
+  assert(!dwell.elapsed(79'009'999, true, interval));
+  assert(dwell.elapsed(79'010'000, true, interval));
+
+  input.update(swipe, report(10, 80'005'000, 800), initial_position);
+  input.update(swipe, report(11, 80'015'000, 280), initial_position);
+  assert(swipe.dragging() && input.take_first_motion() == 80'015'000);
+  input.update(swipe, report(12, 80'020'000, 0, 0), initial_position);
+  swipe.tick(81'000'000);
+  assert(swipe.settled() == 3 && input.awake());
+}
+
+void only_a_continuous_stationary_hold_can_sleep() {
+  Swipe swipe{width, 5, 2};
+  SwipeInput input;
+  input.update(swipe, report(1, 5'000, 800), initial_position);
+  assert(input.update(swipe, report(2, 3'004'999, 0, 0), initial_position) == Effect::None);
+  input.update(swipe, report(3, 4'000'000, 800), initial_position);
+  auto moved = report(4, 4'005'000, 800);
+  moved.y += 13;
+  input.update(swipe, moved, initial_position);
+  assert(input.update(swipe, report(5, 7'010'000, 0, 0), initial_position) == Effect::None);
+  input.update(swipe, report(6, 8'000'000, 800), initial_position);
+  input.update(swipe, report(7, 8'005'000, 0, 0, false), initial_position);
+  assert(input.update(swipe, report(8, 11'010'000, 0, 0), initial_position) == Effect::None);
+  input.update(swipe, report(9, 12'000'000, 800), initial_position);
+  assert(input.update(swipe, report(11, 15'010'000, 0, 0), initial_position) == Effect::None);
+  assert(input.awake() && swipe.settled() == 2);
+}
+
 }  // namespace
 
 int main() {
@@ -96,4 +152,6 @@ int main() {
   a_gap_cancels_without_flinging_into_another_photo();
   a_transient_transfer_failure_preserves_the_drag();
   a_second_finger_blocks_until_release_even_at_sequence_rollover();
+  a_hold_sleeps_on_release_and_the_wake_contact_never_swipes();
+  only_a_continuous_stationary_hold_can_sleep();
 }
