@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.22)
+set(IDF_TARGET esp32p4)
+set(COMPONENTS main)
+set(PROJECT_VER "swipe-prototype")
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+project(espframe_native)
