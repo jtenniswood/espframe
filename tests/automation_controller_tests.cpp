@@ -8,6 +8,18 @@
 
 using namespace esphome::espframe;
 
+static void test_automatic_firmware_version_order() {
+  assert(firmware_version_is_newer("v1.18.0", "v1.17.2"));
+  assert(!firmware_version_is_newer("v1.17.2", "v1.18.0"));
+  assert(!firmware_version_is_newer("v1.17.2", "v1.17.2"));
+  assert(firmware_version_is_newer("v1.18.0", "v1.18.0-beta.4"));
+  assert(!firmware_version_is_newer("v1.18.0-beta.4", "v1.18.0"));
+  assert(firmware_version_is_newer("v1.18.0-beta.10", "v1.18.0-beta.9"));
+  assert(!firmware_version_is_newer("v1.17.2", "v1.18.0-hosted.2"));
+  assert(!firmware_version_is_newer("v1.17.2", "dev"));
+  assert(!firmware_version_is_newer("v1.18.0-beta..1", "v1.17.2"));
+}
+
 static void test_recovery_stop_order() {
   std::vector<int> calls;
   struct Worker {
@@ -124,22 +136,10 @@ static void test_slot_fetch_guards() {
   std::cout << "Checked " << cases << " valid-slot guard combinations\n";
 }
 
-static void test_automatic_firmware_version_order() {
-  assert(firmware_version_is_newer("v1.18.0", "v1.17.2"));
-  assert(!firmware_version_is_newer("v1.17.2", "v1.18.0"));
-  assert(!firmware_version_is_newer("v1.17.2", "v1.17.2"));
-  assert(firmware_version_is_newer("v1.18.0", "v1.18.0-beta.4"));
-  assert(!firmware_version_is_newer("v1.18.0-beta.4", "v1.18.0"));
-  assert(firmware_version_is_newer("v1.18.0-beta.10", "v1.18.0-beta.9"));
-  assert(!firmware_version_is_newer("v1.17.2", "v1.18.0-hosted.2"));
-  assert(!firmware_version_is_newer("v1.17.2", "dev"));
-  assert(!firmware_version_is_newer("v1.18.0-beta..1", "v1.17.2"));
-}
-
 int main() {
-  test_automatic_firmware_version_order();
   test_recovery_stop_order();
   test_rotation();
   test_slot_fetch_guards();
+  test_automatic_firmware_version_order();
   std::cout << "Automation controller tests passed\n";
 }
