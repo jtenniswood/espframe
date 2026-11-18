@@ -170,6 +170,17 @@ void scheduled_hours_preserve_manual_sleep_and_handle_midnight() {
   assert(overnight.update(5, 400, false) && !overnight.update(6, 500, false));
 }
 
+void entering_the_on_window_clears_a_temporary_wake() {
+  ScreenSchedule schedule{{true, 6, 23, 60}};
+  assert(!schedule.update(5, 1'000, false));
+  schedule.wake(5'000);
+  assert(schedule.update(5, 10'000, false));
+  assert(schedule.update(6, 20'000, false));
+  // A local time correction can return to off-hours before the timer would
+  // have expired. The previous off-hours tap no longer applies.
+  assert(!schedule.update(5, 30'000, false));
+}
+
 void a_scheduled_wake_consumes_the_touch_and_expires_after_its_duration() {
   Swipe swipe{width, 5, 2};
   SwipeInput input;
@@ -206,5 +217,6 @@ int main() {
   a_hold_sleeps_on_release_and_the_wake_contact_never_swipes();
   only_a_continuous_stationary_hold_can_sleep();
   scheduled_hours_preserve_manual_sleep_and_handle_midnight();
+  entering_the_on_window_clears_a_temporary_wake();
   a_scheduled_wake_consumes_the_touch_and_expires_after_its_duration();
 }
