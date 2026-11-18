@@ -28,6 +28,13 @@ test frame after exporting its settings. Have the regular Espframe
 factory image for that revision available to restore the device after the
 test. You can use the prototype browser installer or the ESP-IDF USB tools.
 
+The player uses ESP-Hosted 3.1.0 on the P4 to talk to the frame's ESP32-C6
+Wi-Fi radio. Espressif documents compatibility with C6 firmware from the 2.x
+and 3.x generations. [ESP-Hosted migration guide](https://github.com/espressif/esp-hosted-mcu/blob/v3.1.0/docs/migration.md#compatibility)
+
+The player only updates the P4. Use a fresh build directory if you previously
+configured the project with ESP-Hosted 2.x.
+
 ### Install and connect in a browser
 
 Download and extract the `native-browser-installer` artifact from the Native

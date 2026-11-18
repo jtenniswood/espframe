@@ -82,6 +82,15 @@ jobs:
           docker run --rm -v "$PWD:/workspace" -w /workspace \
             espressif/idf:v6.1.1 idf.py -C firmware/native -B "firmware/native/build/${{ matrix.board }}" \
             -D SWIPE_BOARD="${{ matrix.board }}" -D SWIPE_TRACE=ON build merge-bin
+      - name: Check the effective Guition Wi-Fi configuration
+        run: |
+          settings='^(CONFIG_|# CONFIG_)(SLAVE_IDF_TARGET|ESP_WIFI_REMOTE|ESP_HOSTED|EH_HOST_PORT)'
+          while IFS= read -r setting; do
+            if ! grep -Fxq "$setting" "firmware/native/build/${{ matrix.board }}/sdkconfig"; then
+              printf 'Missing effective Wi-Fi setting: %s\n' "$setting" >&2
+              exit 1
+            fi
+          done < <(grep -E "$settings" firmware/native/sdkconfig.defaults)
       - name: Test settings persistence
         if: matrix.board == 'v3'
         run: |
@@ -153,7 +162,7 @@ jobs:
             idf.py -C firmware/native -B "$trial" \
               -D SWIPE_BOARD=v1 -D SWIPE_ESPHOME_TRIAL=ON -D SWIPE_TRACE=ON build
             riscv32-esp-elf-nm --defined-only "$trial/espframe_v1_legacy_swipe_trial.elf" > /tmp/trial-symbols
-            if grep -E "[[:space:]](esp_ota_mark_app_valid_cancel_rollback|esp_wifi_init|nvs_flash_init_partition|nvs_erase_all|nvs_set_str|httpd_start)$" /tmp/trial-symbols; then
+            if grep -E "[[:space:]](esp_ota_mark_app_valid_cancel_rollback|esp_wifi_init|eh_host_auto_init_ctor|eh_wifi_remote_glue_anchor|nvs_flash_init_partition|nvs_erase_all|nvs_set_str|httpd_start)$" /tmp/trial-symbols; then
               exit 1
             fi
           '
