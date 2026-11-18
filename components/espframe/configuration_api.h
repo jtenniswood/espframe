@@ -211,7 +211,10 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
     root["status"] = "rejected";
     root["error"] = code;
     if (field != nullptr) root["field"] = field;
-    auto payload = builder.serialize();
+    // Field validation can reject a request while its parsed document is
+    // still live on the HTTP task. Keep the response buffer off that stack.
+    std::string payload;
+    serializeJson(root, payload);
     request->send(status, "application/json", payload.c_str());
   }
 
