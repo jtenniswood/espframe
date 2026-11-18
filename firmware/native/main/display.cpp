@@ -41,7 +41,7 @@ void reset_panel() {
 
 }  // namespace
 
-void Display::init() {
+void Display::init(bool request_snapshot) {
   esp_ldo_channel_config_t ldo_config{};
   ldo_config.chan_id = 3;
   ldo_config.voltage_mv = 2500;
@@ -65,7 +65,7 @@ void Display::init() {
   panel_config.dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT;
   panel_config.dpi_clock_freq_mhz = pixel_clock_mhz;
   panel_config.in_color_format = LCD_COLOR_FMT_RGB565;
-  panel_config.num_fbs = 2;
+  panel_config.num_fbs = request_snapshot ? 3 : 2;
   panel_config.video_timing.h_size = panel_width;
   panel_config.video_timing.v_size = panel_height;
   panel_config.video_timing.hsync_pulse_width = hsync_pulse;
@@ -74,7 +74,13 @@ void Display::init() {
   panel_config.video_timing.vsync_pulse_width = vsync_pulse;
   panel_config.video_timing.vsync_back_porch = vsync_back;
   panel_config.video_timing.vsync_front_porch = vsync_front;
-  ESP_ERROR_CHECK(esp_lcd_new_panel_dpi(bus, &panel_config, &this->panel_));
+  auto result = esp_lcd_new_panel_dpi(bus, &panel_config, &this->panel_);
+  if (result != ESP_OK && request_snapshot) {
+    panel_config.num_fbs = 2;
+    result = esp_lcd_new_panel_dpi(bus, &panel_config, &this->panel_);
+  }
+  ESP_ERROR_CHECK(result);
+  this->slots_ = FrameSlots{panel_config.num_fbs};
 
   reset_panel();
   const int64_t sleep_out_ready = esp_timer_get_time() + 120'000;
@@ -97,9 +103,11 @@ void Display::init() {
 
   void *first{};
   void *second{};
-  ESP_ERROR_CHECK(esp_lcd_dpi_panel_get_frame_buffer(this->panel_, 2, &first, &second));
+  void *third{};
+  ESP_ERROR_CHECK(esp_lcd_dpi_panel_get_frame_buffer(this->panel_, panel_config.num_fbs, &first, &second, &third));
   this->buffers_[0] = static_cast<uint16_t *>(first);
   this->buffers_[1] = static_cast<uint16_t *>(second);
+  this->buffers_[2] = static_cast<uint16_t *>(third);
   esp_lcd_dpi_panel_event_callbacks_t callbacks{};
   callbacks.on_frame_buf_complete = frame_done_;
   ESP_ERROR_CHECK(esp_lcd_dpi_panel_register_event_callbacks(this->panel_, &callbacks, this));
@@ -134,25 +142,32 @@ bool Display::frame_done_(esp_lcd_panel_handle_t, esp_lcd_dpi_panel_event_data_t
 }
 
 std::optional<int64_t> Display::poll_presented() {
-  if (!this->pending_)
+  if (!this->slots_.queued())
     return {};
   portENTER_CRITICAL(&this->boundary_lock_);
   const auto latched_us = this->latched_us_;
   portEXIT_CRITICAL(&this->boundary_lock_);
   if (latched_us == 0)
     return {};
-  this->front_ ^= 1;
+  this->slots_.latch();
   this->position_ = this->pending_position_;
-  this->pending_ = false;
   return latched_us;
 }
 
 uint16_t *Display::writable_buffer() {
-  return this->pending_ ? nullptr : this->buffers_[this->front_ ^ 1];
+  const auto index = this->slots_.writable();
+  return index == FrameSlots::none ? nullptr : this->buffers_[index];
+}
+
+const uint16_t *Display::pin_handoff() {
+  const auto index = this->slots_.pin();
+  return index == FrameSlots::none ? nullptr : this->buffers_[index];
 }
 
 void Display::submit(PixelPosition position) {
-  ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(this->panel_, 0, 0, panel_width, panel_height, this->writable_buffer()));
+  const auto index = this->slots_.writable();
+  ESP_ERROR_CHECK(index == FrameSlots::none ? ESP_ERR_INVALID_STATE : ESP_OK);
+  ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(this->panel_, 0, 0, panel_width, panel_height, this->buffers_[index]));
   // Observe a boundary after the submission so the old front buffer cannot
   // be reused while the panel could still be scanning it.
   portENTER_CRITICAL(&this->boundary_lock_);
@@ -160,7 +175,7 @@ void Display::submit(PixelPosition position) {
   this->awaiting_latch_ = true;
   portEXIT_CRITICAL(&this->boundary_lock_);
   this->pending_position_ = position;
-  this->pending_ = true;
+  this->slots_.submit(index);
 }
 
 }  // namespace espframe::native

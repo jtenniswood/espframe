@@ -134,10 +134,13 @@ test frame. The generated file contains the Wi-Fi password and API key in
 plaintext. Keep it private and remove it after provisioning. The player shows a
 local scene until the first preview is ready, then starts the slideshow. It
 loads additional photos directly from Immich. Each photo is fully visible
-for 15 seconds by default before the next photo glides into place. A touch
-pauses the glide at the frame already sent to the panel, and a swipe can
-take it over in either direction. It keeps the current photo visible during a network
-failure. The random feed continues as new previews become available. It
+for 15 seconds by default before a half-second crossfade. A touch holds the
+frame already sent to the panel, and a swipe can take over from that frame in
+either direction. A tap resumes the fade. Cancelling a drag settles back
+and fades into the original photo. The player uses a glide when the pixel
+accelerator or third display buffer is unavailable. It keeps the current
+photo visible during a network failure. The random feed continues as new
+previews become available. It
 remembers the last 128 photo positions per session. It can decode up to
 16 recent previews from a 2 MiB memory cache while offline, depending on
 the sizes of the previews and available PSRAM. Older previews need Wi-Fi.
@@ -188,11 +191,12 @@ unavailable selection leaves the current photo or startup scene visible.
    target is for 95% of cached gestures to move within 50 ms, with no visible
    tearing. Compare moving frames with the panel's measured refresh interval
    when checking pacing.
-6. With Immich configured, wait for autoplay. Check the easing at either end
-   of the glide. Press midway to pause it, then release without dragging.
-   Repeat with a drag against the glide and compare touch response with an
-   ordinary swipe. With a two-second interval, verify each photo is fully
-   visible for two seconds before the next glide starts.
+6. With Immich configured, wait for autoplay. Tap during the fade and check
+   that it pauses and resumes smoothly. Grab it again, pull in each direction,
+   and release after a short drag. The blended image should move with your
+   finger until the gesture settles. Repeat while Immich is downloading or
+   decoding a preview and check for visible tearing. With a two-second
+   interval, verify each photo is fully visible for two seconds before fading.
 
 To probe with real photos, place baseline JPEGs in the ignored
 `firmware/native/photos/` directory as `slide-0.jpg` through `slide-4.jpg`.

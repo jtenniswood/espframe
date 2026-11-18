@@ -127,6 +127,11 @@ class Swipe {
     return true;
   }
 
+  void show(SlideIndex slide) {
+    this->target_ = slide;
+    this->finish_settle_();
+  }
+
   void tick(int64_t now_us) {
     if (this->phase_ != Phase::Settling)
       return;

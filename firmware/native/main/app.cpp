@@ -1,5 +1,7 @@
+#include "autoplay_fade.h"
 #include "display.h"
 #include "firmware_update.h"
+#include "frame_blend.h"
 #include "immich.h"
 #include "slide_blit.h"
 #include "slide_cache.h"
@@ -254,14 +256,25 @@ void run(void *) {
   loader.start();
   const bool live = loader.live();
   const SlideIndex slide_count = live ? std::numeric_limits<PixelPosition>::max() / slide_width : fixture_slides;
+  FrameBlend blend;
+  bool can_fade = live && blend.init();
   static Display display;
-  display.init();
+  display.init(can_fade);
+  if (can_fade && !display.can_pin_frame()) {
+    blend.release();
+    can_fade = false;
+  }
+  if (live && !can_fade)
+    ESP_LOGI(tag, "Crossfade unavailable; using the slideshow glide");
   TouchReader touch;
   touch.start();
   Swipe swipe{slide_width, slide_count, live ? 0 : 2};
   SwipeInput input;
   SlideDwell dwell;
   SlidePrefetch prefetch{swipe.settled()};
+  AutoplayFade fade;
+  const uint16_t *snapshot = nullptr;
+  uint8_t pending_opacity = 0;
 
   int64_t submitted_motion_us = 0;
   int64_t motion_render_us = 0;
@@ -319,11 +332,24 @@ void run(void *) {
     while (touch.poll(report)) {
       if (!lit)
         continue;
-      if (report.valid)
+      if (report.valid) {
         confirm_firmware_boot();
+        if (report.contacts != 0 && fade.running() && fade.interrupt(snapshot != nullptr))
+          snapshot = display.pin_handoff();
+      }
       input.update(swipe, report, display.handoff_position());
-      if (swipe.dragging())
+      if (swipe.dragging()) {
+        if (fade.held())
+          fade.note_drag();
         prefetch.request_at_edge(swipe.position(), {ready_first, ready_last}, available);
+      }
+    }
+
+    if (blend.poll_complete() && fade.running()) {
+      // Touch is handled before this block so a superseded blend can never
+      // replace the frame the finger just took over.
+      display.submit(fade.anchor() * slide_width);
+      fade.submitted(pending_opacity);
     }
 
     now = esp_timer_get_time();
@@ -339,7 +365,9 @@ void run(void *) {
     if (preparing) {
       if (const auto wanted = prefetch.requested(); wanted && eligible(*wanted) && prefetch.can_yield(*preparing, *wanted))
         loader.yield_to_swipe();
-    } else {
+    } else if (!blend.pending()) {
+      // Until PPA finishes, its input slides must stay readable even if a
+      // touch has moved the cache window in the other direction.
       for (const auto candidate : prefetch.candidates()) {
         if (!eligible(candidate))
           continue;
@@ -352,22 +380,77 @@ void run(void *) {
     }
     swipe.tick(now);
     const auto position = swipe.position();
-    if (live) {
-      const bool first_photo = swipe.settled() == 0;
-      const bool visible_and_idle = lit && !input.engaged() && swipe.idle() && position == display.presented_position();
-      if (dwell.elapsed(now, visible_and_idle, first_photo ? 0 : loader.slide_interval_us())) {
-        const auto transition = first_photo ? Swipe::Transition::Quick : Swipe::Transition::Glide;
-        swipe.advance(now, transition);
+    const bool visible_and_idle = lit && !input.engaged() && swipe.idle() && position == display.presented_position();
+    if (fade.held() && !blend.pending() && visible_and_idle) {
+      if (can_fade && swipe.settled() == fade.anchor()) {
+        fade.resume(now);
+      } else {
+        if (swipe.settled() == fade.anchor())
+          last_submitted = -1;  // Restore the clean anchor if the PPA failed.
+        fade.finish();
+        display.unpin();
+        snapshot = nullptr;
       }
     }
+    if (live) {
+      const bool first_photo = swipe.settled() == 0;
+      const bool dwelling = visible_and_idle && !fade.running() && !fade.held();
+      if (dwell.elapsed(now, dwelling, first_photo ? 0 : loader.slide_interval_us())) {
+        if (can_fade && !first_photo && swipe.settled() < ready_last)
+          fade.start(swipe.settled(), swipe.settled() + 1, now);
+        else
+          swipe.advance(now, first_photo ? Swipe::Transition::Quick : Swipe::Transition::Glide);
+      }
+    }
+
+    if (blend.pending()) {
+      vTaskDelay(1);
+      continue;
+    }
+    if (fade.running()) {
+      const auto opacity = fade.opacity(now);
+      auto *output = display.writable_buffer();
+      if (output != nullptr && opacity > fade.submitted_opacity()) {
+        const auto *target = cache.find(fade.target());
+        const auto *from = snapshot != nullptr ? snapshot : cache.find(fade.anchor());
+        if (target && from) {
+          if (opacity == AutoplayFade::opaque) {
+            blit_slides(output, target, nullptr, panel_width, panel_height, 0);
+            swipe.show(fade.target());
+            last_submitted = last_inside = swipe.position();
+            display.submit(last_submitted);
+            fade.finish();
+            display.unpin();
+            snapshot = nullptr;
+          } else if (blend.start(from, target, output, opacity)) {
+            pending_opacity = opacity;
+          } else {
+            ESP_LOGW(tag, "Could not start the frame blend; using the slideshow glide");
+            const bool advance = fade.target() != fade.anchor();
+            if (fade.interrupt(snapshot != nullptr))
+              snapshot = display.pin_handoff();
+            blend.release();
+            can_fade = false;
+            if (advance)
+              swipe.advance(now, Swipe::Transition::Glide);
+          }
+        }
+      }
+      vTaskDelay(1);
+      continue;
+    }
+
     const auto inside = std::clamp(position, ready_first * slide_width, ready_last * slide_width);
     const bool use_edge = inside != position;
     if (auto *output = display.writable_buffer(); output != nullptr &&
         (position != last_submitted || inside != last_inside)) {
       const auto index = inside / slide_width;
       const int offset = inside % slide_width;
-      const auto *left = cache.find(index);
-      const auto *right = offset == 0 ? nullptr : cache.find(index + 1);
+      const auto slide_pixels = [&](SlideIndex slide) {
+        return snapshot != nullptr && slide == fade.anchor() ? snapshot : cache.find(slide);
+      };
+      const auto *left = slide_pixels(index);
+      const auto *right = offset == 0 ? nullptr : slide_pixels(index + 1);
       if (left != nullptr && (offset == 0 || right != nullptr)) {
         const auto motion = input.take_first_motion();
         const auto started_render = motion != 0 ? esp_timer_get_time() : 0;
