@@ -230,6 +230,10 @@ void MipiDsi::setup_frame_transitions_() {
     ppa_client_config_t blend_config{};
     blend_config.oper_type = PPA_OPERATION_BLEND;
     blend_config.max_pending_trans_num = 1;
+
+    // Full-frame blends compete with DSI scanout for PSRAM bandwidth.
+    // Shorter DMA bursts let the display fetch pixels between blend transfers.
+    blend_config.data_burst_length = PPA_DATA_BURST_LENGTH_32;
     if (this->snapshot_ != nullptr && this->target_ != nullptr &&
         ppa_register_client(&blend_config, &this->blend_client_) == ESP_OK)
       return;
