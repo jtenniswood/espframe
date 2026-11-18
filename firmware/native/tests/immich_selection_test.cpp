@@ -19,7 +19,7 @@ int main() {
     {"id":"not-a-uuid","localDateTime":"2024-03-01T19:00:00.000Z","width":80,"height":90}
   ] )";
 
-  const auto photos = parse_photo_search(response, 16);
+  const auto photos = parse_photo_search(response, 16, false, false).photos;
   assert(photos.size() == 6);
   const auto &primary = photos[0];
   assert(primary.portrait && primary.capture_day == sys_days{year(2024)/3/1});
@@ -29,11 +29,54 @@ int main() {
   assert(!is_portrait_companion(primary, photos[3])); // Normalized dimensions take precedence over EXIF.
   assert(photos[4].portrait && !is_portrait_companion(primary, photos[4]));
   assert(!photos[5].capture_day && !is_portrait_companion(primary, photos[5]));
-  assert(parse_photo_search(response, 2).size() == 2);
-  assert(parse_photo_search("[] invalid", 16).empty());
-  assert(parse_photo_search("{\"assets\":[]}", 16).empty());
+  assert(parse_photo_search(response, 2, false, false).photos.size() == 2);
+  assert(!parse_photo_search("[] invalid", 16, false, false).valid);
+  assert(!parse_photo_search("{\"assets\":[]}", 16, true, false).valid);
 
-  assert(random_photo_request(4) == R"({"type":"IMAGE","size":4})");
-  assert(random_photo_request(12, primary.capture_day) ==
+  using Api = ImmichSearchApi;
+  const auto all = make_photo_search(4, {}, Api::Unknown);
+  assert(all.path == "/search/random" && !all.paged && all.body == R"({"type":"IMAGE","size":4})");
+  assert(make_photo_search(12, {}, Api::Unknown, primary.capture_day).body ==
          R"({"type":"IMAGE","size":12,"withExif":true,"takenAfter":"2024-02-29T00:00:00.000Z","takenBefore":"2024-03-02T23:59:59.999Z"})");
+
+  assert(parse_search_api(R"({"major":2,"minor":5,"patch":6})") == Api::Legacy);
+  assert(parse_search_api(R"({"major":3,"minor":1,"patch":9})") == Api::Legacy);
+  assert(parse_search_api(R"({"major":3,"minor":2,"patch":0})") == Api::Structured);
+  assert(parse_search_api(R"({"major":4,"minor":0,"patch":0})") == Api::Structured);
+  assert(parse_search_api(R"({"major":"3","minor":2})") == Api::Unknown);
+  assert(parse_search_api(R"({"major":3})") == Api::Unknown);
+
+  const PhotoSource album{PhotoSourceMode::Album, "c48e2980-18ac-4d7d-876a-a636759a1aec"};
+  const PhotoSource favorites{PhotoSourceMode::Favorites, {}};
+  assert(make_photo_search(16, album, Api::Unknown).path.empty());
+  assert(make_photo_search(16, favorites, Api::Unknown).path.empty());
+  assert(make_photo_search(16, {PhotoSourceMode::Album, {}}, Api::Legacy).path.empty());
+  const auto legacy = make_photo_search(16, album, Api::Legacy, {}, 7);
+  assert(legacy.path == "/search/metadata" && legacy.paged);
+  assert(legacy.body == R"({"type":"IMAGE","size":16,"page":7,"albumIds":["c48e2980-18ac-4d7d-876a-a636759a1aec"]})");
+  const auto modern = make_photo_search(16, album, Api::Structured);
+  assert(modern.path == "/search/random" && !modern.paged);
+  assert(modern.body == R"({"size":16,"filter":{"type":{"eq":"IMAGE"},"albumIds":{"any":["c48e2980-18ac-4d7d-876a-a636759a1aec"]}}})");
+  assert(make_photo_search(4, album, Api::Legacy).body ==
+         R"({"type":"IMAGE","size":4,"page":1,"albumIds":["c48e2980-18ac-4d7d-876a-a636759a1aec"]})");
+  assert(make_photo_search(12, album, Api::Legacy, primary.capture_day).body ==
+         R"({"type":"IMAGE","size":12,"page":1,"albumIds":["c48e2980-18ac-4d7d-876a-a636759a1aec"],"withExif":true,"takenAfter":"2024-02-29T00:00:00.000Z","takenBefore":"2024-03-02T23:59:59.999Z"})");
+  assert(make_photo_search(12, album, Api::Structured, primary.capture_day).body ==
+         R"({"size":12,"withExif":true,"filter":{"type":{"eq":"IMAGE"},"albumIds":{"any":["c48e2980-18ac-4d7d-876a-a636759a1aec"]},"takenAt":{"gte":"2024-02-29T00:00:00.000Z","lte":"2024-03-02T23:59:59.999Z"}}})");
+  assert(make_photo_search(4, favorites, Api::Legacy).body == R"({"type":"IMAGE","size":4,"isFavorite":true})");
+  assert(make_photo_search(12, favorites, Api::Structured, primary.capture_day).body ==
+         R"({"size":12,"withExif":true,"filter":{"type":{"eq":"IMAGE"},"isFavorite":{"eq":true},"takenAt":{"gte":"2024-02-29T00:00:00.000Z","lte":"2024-03-02T23:59:59.999Z"}}})");
+
+  const auto page = parse_photo_search(R"({"assets":{"items":[{"id":"c48e2980-18ac-4d7d-876a-a636759a1aec"}],"nextPage":"8"}})",
+                                       16, true, false);
+  assert(page.valid && page.photos.size() == 1 && page.next_page == 8);
+  const auto last_page = parse_photo_search(R"({"assets":{"items":[],"nextPage":null}})", 16, true, false);
+  assert(last_page.valid && last_page.photos.empty() && last_page.next_page == 0);
+  assert(!parse_photo_search(response, 16, true, false).valid);
+  const auto favorite_results = parse_photo_search(R"([
+    {"id":"c48e2980-18ac-4d7d-876a-a636759a1aec","isFavorite":false},
+    {"id":"eb492926-9046-408b-be47-a959620753bb","isFavorite":true},
+    {"id":"0406c468-dabf-4777-bb93-ac6fdac62857"}])", 16, false, true);
+  assert(favorite_results.valid && favorite_results.photos.size() == 1);
+  assert(std::string_view(favorite_results.photos[0].id.data()) == "eb492926-9046-408b-be47-a959620753bb");
 }

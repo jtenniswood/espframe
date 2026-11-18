@@ -37,6 +37,7 @@ class ImmichSource {
   bool online_();
   bool has_ip_() const;
   bool allocate_download_();
+  bool select_search_api_();
   int fetch_(std::string_view path, std::string_view body, size_t limit, size_t &received, int64_t deadline_us = 0);
   std::vector<ImmichPhoto> search_(std::optional<std::chrono::sys_days> local_day = {}, int64_t deadline_us = 0);
   bool next_asset_(ImmichPhoto &asset);
@@ -49,6 +50,9 @@ class ImmichSource {
   bool wifi_started_{};
   bool wifi_ready_{};
   bool sntp_started_{};
+  ImmichSearchApi search_api_{ImmichSearchApi::Unknown};
+  uint32_t album_page_{1};
+  size_t album_page_size_{photo_search_batch};
   uint8_t *encoded_{};
   PhotoHistory history_;
   RecentPreviews previews_;

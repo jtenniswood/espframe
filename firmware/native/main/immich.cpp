@@ -15,6 +15,7 @@
 #include <cinttypes>
 #include <cstring>
 #include <ctime>
+#include <utility>
 
 namespace espframe::native {
 namespace {
@@ -179,6 +180,20 @@ int ImmichSource::fetch_(std::string_view path, std::string_view body, size_t li
   return status;
 }
 
+bool ImmichSource::select_search_api_() {
+  if (this->settings_.photo_source.mode == PhotoSourceMode::Library || this->search_api_ != ImmichSearchApi::Unknown)
+    return true;
+  size_t length;
+  const int status = this->fetch_("/server/version", {}, 1024, length);
+  if (status == 200)
+    this->search_api_ = parse_search_api({reinterpret_cast<const char *>(this->encoded_), length});
+  if (this->search_api_ == ImmichSearchApi::Unknown) {
+    ESP_LOGW(tag, "Could not determine Immich search capabilities for the selected photo source (%d)", status);
+    return false;
+  }
+  return true;
+}
+
 std::vector<ImmichPhoto> ImmichSource::search_(std::optional<std::chrono::sys_days> local_day, int64_t deadline_us) {
   // Optional pairing work should not wait for a new Wi-Fi association.
   const bool pairing = local_day.has_value();
@@ -186,22 +201,39 @@ std::vector<ImmichPhoto> ImmichSource::search_(std::optional<std::chrono::sys_da
     return {};
   if (!this->allocate_download_())
     return {};
+  if (!pairing && !this->select_search_api_())
+    return {};
 
+  const auto &source = this->settings_.photo_source;
+  const bool legacy_album = source.mode == PhotoSourceMode::Album && this->search_api_ == ImmichSearchApi::Legacy;
+  uint32_t page = !pairing && legacy_album ? this->album_page_ : 1;
+  size_t count = !pairing && legacy_album ? this->album_page_size_ : photo_search_batch;
+  auto request = make_photo_search(count, source, this->search_api_, local_day, page);
+  if (request.path.empty())
+    return {};
   size_t length;
-  size_t count = photo_search_batch;
-  auto request = random_photo_request(count, local_day);
-  int status = this->fetch_("/search/random", request, search_capacity, length, deadline_us);
-  if (!pairing && status == 413) {
+  int status = this->fetch_(request.path, request.body, search_capacity, length, deadline_us);
+  if (!pairing && status == 413 && count > 4) {
     count = 4;
-    request = random_photo_request(count);
-    status = this->fetch_("/search/random", request, search_capacity, length);
+    if (legacy_album) {
+      // A smaller page size changes the offsets. Restart the same album.
+      this->album_page_size_ = count;
+      this->album_page_ = 1;
+      page = 1;
+    }
+    request = make_photo_search(count, source, this->search_api_, local_day, page);
+    status = this->fetch_(request.path, request.body, search_capacity, length);
   }
   if (status != 200) {
     if (!pairing)
       ESP_LOGW(tag, "Photo search failed (%d)", status);
     return {};
   }
-  return parse_photo_search({reinterpret_cast<const char *>(this->encoded_), length}, count);
+  auto response = parse_photo_search({reinterpret_cast<const char *>(this->encoded_), length}, count, request.paged,
+                                     source.mode == PhotoSourceMode::Favorites);
+  if (!pairing && request.paged && response.valid)
+    this->album_page_ = response.next_page > page ? response.next_page : 1;
+  return std::move(response.photos);
 }
 
 bool ImmichSource::next_asset_(ImmichPhoto &asset) {
@@ -209,10 +241,15 @@ bool ImmichSource::next_asset_(ImmichPhoto &asset) {
     this->pending_ = this->search_();
     if (this->pending_.empty())
       return false;
-    // Prefer fresh results without stalling a library smaller than one batch.
-    std::stable_partition(this->pending_.begin(), this->pending_.end(), [&](const ImmichPhoto &photo) {
-      return this->history_.recently_seen(photo.id, photo_search_batch);
-    });
+    if (this->settings_.photo_source.mode == PhotoSourceMode::Album && this->search_api_ == ImmichSearchApi::Legacy) {
+      // Consume the paged album from newest to oldest across batches.
+      std::reverse(this->pending_.begin(), this->pending_.end());
+    } else {
+      // Prefer fresh results without stalling a library smaller than one batch.
+      std::stable_partition(this->pending_.begin(), this->pending_.end(), [&](const ImmichPhoto &photo) {
+        return this->history_.recently_seen(photo.id, photo_search_batch);
+      });
+    }
   }
   asset = this->pending_.back();
   this->pending_.pop_back();

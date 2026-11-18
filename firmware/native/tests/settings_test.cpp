@@ -54,6 +54,7 @@ void nvs_close(nvs_handle_t) { staged.clear(); }
 
 int main() {
   using espframe::native::Settings;
+  using espframe::native::PhotoSourceMode;
 
   stored = {{"ssid", "Legacy"}, {"password", "legacy secret"}, {"immich_url", "http://legacy.local/"},
             {"immich_key", "legacy-key"}};
@@ -62,6 +63,7 @@ int main() {
   assert(legacy.read());
   assert(legacy.immich_url == "http://legacy.local/api" && legacy.slide_seconds == 15);
   assert(legacy.portrait_pairing);
+  assert(legacy.photo_source.mode == PhotoSourceMode::Library);
   assert(legacy.web_password.empty());
   assert(!Settings::save_playback(R"({"immich_url":"http://new.local"})"));
 
@@ -77,6 +79,9 @@ int main() {
   assert(!Settings::save_playback(R"({"immich_url":"https://name@photos.test","slide_seconds":20})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","immich_key":"key with space"})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","portrait_pairing":"false"})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","photo_source":"album"})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","photo_source":"unknown"})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","album_id":"not-an-album"})"));
   assert(stored == before);
 
   assert(Settings::save_playback(
@@ -90,8 +95,18 @@ int main() {
   assert(current.read());
   assert(current.immich_key == "next-key" && current.slide_seconds == 2);
   assert(!current.portrait_pairing);
+  assert(Settings::save_playback(
+      R"({"immich_url":"http://photos.test","photo_source":"album","album_id":"C48E2980-18AC-4D7D-876A-A636759A1AEC"})"));
+  assert(current.read());
+  assert(current.photo_source.mode == PhotoSourceMode::Album);
+  assert(current.photo_source.album_id == "c48e2980-18ac-4d7d-876a-a636759a1aec");
+  assert(current.immich_key == "next-key" && !current.portrait_pairing);
+  assert(Settings::save_playback(R"({"immich_url":"http://photos.test","photo_source":"favorites"})"));
+  assert(current.read() && current.photo_source.mode == PhotoSourceMode::Favorites);
+  assert(current.photo_source.album_id == "c48e2980-18ac-4d7d-876a-a636759a1aec");
   stored = legacy_store;
   assert(current.read());
   assert(current.web_password.empty() && current.slide_seconds == 15);
   assert(current.portrait_pairing);
+  assert(current.photo_source.mode == PhotoSourceMode::Library && current.photo_source.album_id.empty());
 }

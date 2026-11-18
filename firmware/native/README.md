@@ -57,7 +57,7 @@ Set a web settings password when saving over USB to enable the frame's
 settings page. Use the IP address shown in the USB logs or find
 `espframe-native` in your router's device list. Sign in as `espframe`
 with the password you chose. The settings page can change the Immich
-URL, API key, time per photo and portrait pairing. Saving applies the
+URL, API key, photo source, time per photo and portrait pairing. Saving applies the
 changes on restart.
 The page uses HTTP on the local network. Keep it on a trusted network.
 
@@ -78,6 +78,7 @@ c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/te
 /tmp/espframe-recent-previews-test
 python3 firmware/native/tests/test_preview_decoder.py
 node firmware/native/tests/serial_setup_test.mjs
+node firmware/native/tests/photo_source_browser_test.mjs
 ```
 
 ## Connect to Immich with the ESP-IDF USB tools
@@ -111,6 +112,14 @@ Portrait pairing is on by default. From the second slide onward, the player
 looks for a portrait from the same local capture day. A pair is composed
 into one slide before it can be shown or swiped. If a new companion is
 missing or slow to arrive, the primary photo fills the slide by itself.
+
+The photo source defaults to **All photos**. Choose **Favourites** or
+**Album** in the frame's web settings to limit both photos and their
+portrait companions. For an album, paste its Immich link or ID and give the
+frame's API key `album.read` permission. Album playback uses scoped random
+search with Immich 3.2 or later. On earlier supported Immich versions it
+plays the available photos in capture-date order, newest first. An empty or
+unavailable selection leaves the current photo or startup scene visible.
 
 ## Test on the frame
 

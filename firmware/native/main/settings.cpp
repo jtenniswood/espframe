@@ -90,6 +90,27 @@ bool read_pairing(const cJSON *root, bool &enabled) {
   return true;
 }
 
+bool read_source(const cJSON *root, PhotoSource &source) {
+  std::string mode = photo_source_name(source.mode);
+  if (!read_field(root, "photo_source", mode, true) || !read_field(root, "album_id", source.album_id, true))
+    return false;
+  for (char &c : source.album_id) {
+    if (c >= 'A' && c <= 'F')
+      c = static_cast<char>(c + ('a' - 'A'));
+  }
+  if ((!source.album_id.empty() || mode == "album") && !is_immich_id(source.album_id))
+    return false;
+  if (mode == "all")
+    source.mode = PhotoSourceMode::Library;
+  else if (mode == "favorites")
+    source.mode = PhotoSourceMode::Favorites;
+  else if (mode == "album")
+    source.mode = PhotoSourceMode::Album;
+  else
+    return false;
+  return true;
+}
+
 bool parse_all(const char *json, Settings &settings) {
   const auto root = parse(json);
   return cJSON_IsObject(root.get()) && read_field(root.get(), "ssid", settings.ssid) &&
@@ -98,7 +119,7 @@ bool parse_all(const char *json, Settings &settings) {
          read_field(root.get(), "immich_key", settings.immich_key) &&
          read_field(root.get(), "web_password", settings.web_password, true) &&
          read_interval(root.get(), settings.slide_seconds) && read_pairing(root.get(), settings.portrait_pairing) &&
-         normalize(settings);
+         read_source(root.get(), settings.photo_source) && normalize(settings);
 }
 
 bool load(Settings &settings) {
@@ -154,7 +175,8 @@ bool Settings::save_playback(const char *json) {
   if (!cJSON_IsObject(update.get()) || !load(settings) || settings.web_password.empty() ||
       !read_field(update.get(), "immich_url", settings.immich_url) ||
       !read_field(update.get(), "immich_key", replacement_key, true) ||
-      !read_interval(update.get(), settings.slide_seconds) || !read_pairing(update.get(), settings.portrait_pairing))
+      !read_interval(update.get(), settings.slide_seconds) || !read_pairing(update.get(), settings.portrait_pairing) ||
+      !read_source(update.get(), settings.photo_source))
     return false;
   if (!replacement_key.empty())
     settings.immich_key = replacement_key;
@@ -165,7 +187,9 @@ bool Settings::save_playback(const char *json) {
       !cJSON_AddStringToObject(updated.get(), "immich_key", settings.immich_key.c_str()) ||
       !cJSON_AddStringToObject(updated.get(), "web_password", settings.web_password.c_str()) ||
       !cJSON_AddNumberToObject(updated.get(), "slide_seconds", settings.slide_seconds) ||
-      !cJSON_AddBoolToObject(updated.get(), "portrait_pairing", settings.portrait_pairing))
+      !cJSON_AddBoolToObject(updated.get(), "portrait_pairing", settings.portrait_pairing) ||
+      !cJSON_AddStringToObject(updated.get(), "photo_source", photo_source_name(settings.photo_source.mode)) ||
+      !cJSON_AddStringToObject(updated.get(), "album_id", settings.photo_source.album_id.c_str()))
     return false;
   const std::unique_ptr<char, decltype(&cJSON_free)> serialized(cJSON_PrintUnformatted(updated.get()), cJSON_free);
   return serialized && parse_all(serialized.get(), settings) && write(serialized.get());

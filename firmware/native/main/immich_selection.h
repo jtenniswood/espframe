@@ -1,6 +1,7 @@
 #pragma once
 
 #include "photo_history.h"
+#include "photo_source.h"
 
 #include <chrono>
 #include <optional>
@@ -18,10 +19,24 @@ struct ImmichPhoto {
 
 inline constexpr size_t photo_search_batch = 16;
 
-// Pair searches use a widened UTC window and verify the local calendar day
-// from each result. Immich's server-side date filter uses fileCreatedAt.
-std::string random_photo_request(size_t count, std::optional<std::chrono::sys_days> local_day = {});
-std::vector<ImmichPhoto> parse_photo_search(std::string_view json, size_t limit);
+enum class ImmichSearchApi { Unknown, Legacy, Structured };
+
+struct PhotoSearchRequest {
+  std::string_view path;
+  std::string body;
+  bool paged{};
+};
+
+struct PhotoSearchResult {
+  std::vector<ImmichPhoto> photos;
+  uint32_t next_page{};
+  bool valid{};
+};
+
+ImmichSearchApi parse_search_api(std::string_view json);
+PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, ImmichSearchApi api,
+                                     std::optional<std::chrono::sys_days> local_day = {}, uint32_t page = 1);
+PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool paged, bool favorites_only);
 bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candidate);
 
 }  // namespace espframe::native

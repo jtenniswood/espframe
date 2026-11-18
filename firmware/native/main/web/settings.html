@@ -17,6 +17,17 @@
         <label>Immich base URL <input name="immich_url" type="url" maxlength="256" required></label>
         <label>Replacement Immich API key <input name="immich_key" type="password" maxlength="256" aria-describedby="keep-key"></label>
         <small id="keep-key">Leave blank to keep your current key.</small>
+        <label>Photo source
+          <select name="photo_source">
+            <option value="all">All photos</option>
+            <option value="favorites">Favourites</option>
+            <option value="album">Album</option>
+          </select>
+        </label>
+        <div id="album-choice" hidden>
+          <label>Immich album link or ID <input name="album_id" maxlength="512" aria-describedby="album-help"></label>
+          <small id="album-help">Copy the link from the album page in Immich. The API key needs album.read permission.</small>
+        </div>
         <label>Seconds per photo <input name="slide_seconds" type="number" min="2" max="3600" step="1" required></label>
         <label><input name="portrait_pairing" type="checkbox" class="inline-option"> Pair portrait photos from the same day</label>
         <button type="submit">Save and restart</button>

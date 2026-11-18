@@ -88,6 +88,7 @@ jobs:
         run: |
           npm ci
           node firmware/native/tests/serial_setup_test.mjs
+          node firmware/native/tests/photo_source_browser_test.mjs
           for board in v1 v2 v3; do
             mv "firmware/native/build/firmware-test-native-swipe-$board" "firmware/native/build/$board"
           done

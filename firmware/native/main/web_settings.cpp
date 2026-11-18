@@ -67,7 +67,9 @@ esp_err_t current(httpd_req_t *request) {
   if (!settings.read() || !document ||
       !cJSON_AddStringToObject(document.get(), "immich_url", settings.immich_url.c_str()) ||
       !cJSON_AddNumberToObject(document.get(), "slide_seconds", settings.slide_seconds) ||
-      !cJSON_AddBoolToObject(document.get(), "portrait_pairing", settings.portrait_pairing))
+      !cJSON_AddBoolToObject(document.get(), "portrait_pairing", settings.portrait_pairing) ||
+      !cJSON_AddStringToObject(document.get(), "photo_source", photo_source_name(settings.photo_source.mode)) ||
+      !cJSON_AddStringToObject(document.get(), "album_id", settings.photo_source.album_id.c_str()))
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to load settings.");
   std::unique_ptr<char, decltype(&cJSON_free)> body(cJSON_PrintUnformatted(document.get()), cJSON_free);
   if (!body)
@@ -99,7 +101,7 @@ esp_err_t update(httpd_req_t *request) {
   }
   body[received] = '\0';
   if (std::memchr(body.get(), '\0', received) || !Settings::save_playback(body.get()))
-    return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Check the Immich URL, API key and slide interval.");
+    return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Check the Immich connection, photo source and slide interval.");
   if (esp_timer_start_once(restart_timer, 800'000) != ESP_OK)
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Saved. Restart the frame to apply settings.");
   httpd_resp_set_type(request, "application/json");
