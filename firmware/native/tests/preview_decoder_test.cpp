@@ -82,6 +82,15 @@ uint16_t at(const std::vector<uint16_t> &panel, int x, int y) {
   return panel[1 + x * panel_width + panel_width - 1 - y];
 }
 
+void expect_flipped(const std::vector<uint16_t> &upright, const DecodedPreview &photo,
+                    const DecodedPreview *companion = nullptr, DisplayMode mode = DisplayMode::Fit) {
+  const auto guard = upright.front();
+  std::vector<uint16_t> flipped(pixel_count + 2, guard);
+  photo.render(flipped.data() + 1, companion, mode, ScreenRotation::UpsideDown);
+  assert(flipped.front() == guard && flipped.back() == guard);
+  assert(std::equal(flipped.begin() + 1, flipped.end() - 1, upright.rbegin() + 1));
+}
+
 void verify(const char *path) {
   const auto photo = load(path);
   DecodedPreview decoded;
@@ -97,6 +106,7 @@ void verify(const char *path) {
   assert((at(panel, 880, 150) & 0x07e0) >= 0x07c0);
   assert((at(panel, 400, 650) & 0x001f) >= 0x001e);
   assert(at(panel, 880, 650) >= 0xf7de);
+  expect_flipped(panel, decoded);
   assert(decoded.decode(photo.data(), photo.size(), false, nullptr, DisplayMode::Fill) == Decode::Ready);
   decoded.render(panel.data() + 1, nullptr, DisplayMode::Fill);
   assert(panel.front() == guard && panel.back() == guard);
@@ -104,6 +114,7 @@ void verify(const char *path) {
   assert((at(panel, slide_width - 1, 150) & 0x07e0) >= 0x07c0);
   assert((at(panel, 0, 650) & 0x001f) >= 0x001e);
   assert(at(panel, slide_width - 1, 650) >= 0xf7de);
+  expect_flipped(panel, decoded, nullptr, DisplayMode::Fill);
   assert(decoded.decode(photo.data(), photo.size() / 2) == Decode::Invalid);
 }
 
@@ -122,6 +133,7 @@ void verify_pair(const char *primary_path, const char *companion_path) {
   assert((at(panel, 960, 420) & 0x001f) >= 0x001e);
   assert(at(panel, 639, 420) == 0 && at(panel, 640, 420) == 0);
   assert(at(panel, 320, 0) == 0 && at(panel, 960, 0) != 0);
+  expect_flipped(panel, left, &right);
   assert(left.decode(primary.data(), primary.size(), false, nullptr, DisplayMode::Fill) == Decode::Ready);
   left.render(panel.data() + 1, nullptr, DisplayMode::Fill);
   assert(at(panel, 0, 420) == 0 && (at(panel, 640, 420) & 0xf800) >= 0xf000);
@@ -129,6 +141,7 @@ void verify_pair(const char *primary_path, const char *companion_path) {
   left.render(panel.data() + 1, &right, DisplayMode::Fill);
   assert((at(panel, 0, 420) & 0xf800) >= 0xf000 && (at(panel, 1279, 420) & 0x001f) >= 0x001e);
   assert(at(panel, 639, 420) == 0 && at(panel, 640, 420) == 0);
+  expect_flipped(panel, left, &right, DisplayMode::Fill);
   assert(right.decode(companion.data(), companion.size() / 2, true) == Decode::Invalid);
   left.render(panel.data() + 1, &right);
   assert((at(panel, 640, 420) & 0xf800) >= 0xf000 && at(panel, 0, 420) == 0);
@@ -167,6 +180,7 @@ void verify_hardware(const char *baseline_path, const char *progressive_path, co
   assert(at(panel, 264, 650) == 0 && at(panel, 1015, 650) == 0);
   assert(at(panel, 265, 150) == 0xf800 && at(panel, 1014, 150) == 0x07e0);
   assert(at(panel, 265, 650) == 0x001f && at(panel, 1014, 650) == 0xffff);
+  expect_flipped(panel, decoded);
   sof[6] = 30;
   sof[8] = 32;
   assert(decoded.decode(baseline.data(), baseline.size(), false, &hardware, DisplayMode::Fill) == Decode::Ready);

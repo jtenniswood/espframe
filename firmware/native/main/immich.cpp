@@ -320,7 +320,8 @@ bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
   }
   if (!remembered && frame.companion[0] != '\0')
     std::erase_if(this->pending_, [&](const ImmichPhoto &photo) { return photo.id == frame.companion; });
-  primary.render(panel, frame.companion[0] == '\0' ? nullptr : &companion, this->settings_.display_mode);
+  primary.render(panel, frame.companion[0] == '\0' ? nullptr : &companion, this->settings_.display_mode,
+                 this->settings_.screen_rotation);
   if (new_position)
     this->history_.append(frame);
   else

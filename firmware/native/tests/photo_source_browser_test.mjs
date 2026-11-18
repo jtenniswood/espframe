@@ -17,6 +17,7 @@ const setup = {
   immich_url: 'https://photos.test/api', slide_seconds: 15, portrait_pairing: true,
   photo_source: 'favorites', album_id: '', display_mode: 'Fill', brightness_day: 74,
   brightness_night: 44,
+  screen_rotation: '180',
   schedule_enabled: true, schedule_on_hour: 6, schedule_off_hour: 22, schedule_wake_timeout: 60,
   show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
 }
@@ -39,6 +40,8 @@ const fixture = html.replace('</body>', `<script>
     const mode = form.elements.display_mode
     if (mode.value !== 'Fill' || mode.selectedOptions[0].text !== 'Crop to fit')
       throw new Error('Incorrect initial framing')
+    if (form.elements.screen_rotation.value !== '180')
+      throw new Error('Incorrect initial mounting orientation')
     const brightness = form.elements.brightness_day
     const nightBrightness = form.elements.brightness_night
     const brightnessReadout = form.querySelector('output[for="brightness_day"]')
@@ -55,12 +58,14 @@ const fixture = html.replace('</body>', `<script>
       || backup.frequency.interval !== '15 seconds' || Object.keys(backup.connection).join() !== 'immich_url'
       || backup.photos.display_mode !== 'Fill' || backup.clock?.show !== true || backup.clock.timezone !== '${setup.timezone}'
       || backup.screen?.brightness_day !== 74 || backup.screen.brightness_night !== 44
+      || backup.screen.rotation !== '180'
       || backup.screen.schedule_enabled !== true
       || backup.screen.schedule_on_hour !== 6 || backup.screen.schedule_off_hour !== 22
       || backup.screen.schedule_wake_timeout !== 60)
       throw new Error('Unexpected saved settings backup')
     source.value = 'album'
     mode.value = 'Fit'
+    form.elements.screen_rotation.value = '0'
     brightness.value = '45'
     brightness.dispatchEvent(new Event('input'))
     nightBrightness.value = '30'
@@ -171,6 +176,7 @@ try {
   assert.deepEqual(updates, [{
     ...setup, photo_source: 'album', album_id: albumId, display_mode: 'Fit', brightness_day: 45, immich_key: '',
     brightness_night: 30,
+    screen_rotation: '0',
     schedule_enabled: false, schedule_off_hour: 0, schedule_wake_timeout: 90,
     clock_format: '12 Hour', timezone: 'America/New_York (GMT-5)',
   }])

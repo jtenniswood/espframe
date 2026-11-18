@@ -1,10 +1,27 @@
 #pragma once
 
+#include "slide_geometry.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 
 namespace espframe::native {
+
+struct SlideSpan {
+  const uint16_t *first;
+  const uint16_t *second;
+  int offset;
+};
+
+// Cached pixels already face the viewer. Rotating the whole swipe swaps the
+// order of its two slices and mirrors their split, without another pixel pass.
+inline SlideSpan orient_slide_span(const uint16_t *left, const uint16_t *right, int native_height,
+                                   int offset, ScreenRotation rotation) {
+  if (rotation == ScreenRotation::UpsideDown && offset != 0)
+    return {right, left, native_height - offset};
+  return {left, right, offset};
+}
 
 // The panel scans landscape x along its native rows after a 90-degree
 // rotation. Adjacent clipped slides therefore need at most two contiguous

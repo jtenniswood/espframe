@@ -10,6 +10,7 @@ assert.deepEqual(partial.settings, {
   immich_url: 'http://192.168.1.30:2283',
   display_mode: 'Fit',
   brightness_day: 80,
+  screen_rotation: '180',
   photo_source: 'favorites',
 })
 assert.equal(partial.chooseSource, false)
@@ -17,7 +18,7 @@ for (const name of ['v1-full', 'v2-full']) {
   const result = readBackup(await fixture(name))
   assert.deepEqual(result.settings, {
     immich_url: 'https://photos.example.com', slide_seconds: 15, portrait_pairing: true, display_mode: 'Fill',
-    brightness_day: 100, brightness_night: 75,
+    brightness_day: 100, brightness_night: 75, screen_rotation: '0',
     schedule_enabled: false, schedule_on_hour: 6, schedule_off_hour: 23, schedule_wake_timeout: 60,
     show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
   })
@@ -73,6 +74,9 @@ for (const brightness_day of [9, 100.5, '80']) {
 const invalidNight = readBackup({ version: 3, screen: { brightness_day: 70, brightness_night: null } })
 assert.deepEqual(invalidNight.settings, { brightness_day: 70 })
 assert.match(invalidNight.notices[0], /nighttime brightness/)
+const portraitMount = readBackup({ version: 3, screen: { rotation: '90' } })
+assert.deepEqual(portraitMount.settings, {})
+assert.match(portraitMount.notices[0], /mounting orientation/)
 const invalidSchedule = readBackup({
   version: 3, screen: { schedule_enabled: true, schedule_on_hour: 24, schedule_off_hour: 0 },
 })
@@ -87,6 +91,7 @@ for (const source of ['all', 'favorites', 'album']) {
       slide_seconds: duration, display_mode: duration % 60 ? 'Fit' : 'Fill',
       brightness_day: duration % 60 ? 10 : 100,
       brightness_night: 36,
+      screen_rotation: duration % 60 ? '180' : '0',
       schedule_enabled: duration % 60 !== 0, schedule_on_hour: 22, schedule_off_hour: 0, schedule_wake_timeout: 3600,
       show_clock: false, clock_format: '12 Hour', timezone: 'America/New_York (GMT-5)',
       ...(source === 'album' ? { album_id: album } : {}),

@@ -46,7 +46,8 @@ restarts when it saves them.
 When upgrading an existing frame, export an Espframe settings backup from
 its web page before installation. In the native installer, choose that
 backup to prefill the Immich URL, supported photo source, slideshow interval,
-display mode, portrait pairing, clock, brightness, and screen schedule.
+display mode, portrait pairing, mounting orientation, clock, brightness, and
+screen schedule.
 Backups that use filters the
 native player cannot apply require you to choose a photo source before saving.
 Enter the required Wi-Fi and Immich credentials in the setup form.
@@ -165,6 +166,10 @@ missing or slow to arrive, the primary photo fills the slide by itself.
 **Show full image** is the default for the native prototype. **Crop to fit**
 center-crops landscape photos to the screen and paired portraits to their
 respective halves. A single portrait stays fully visible on a landscape frame.
+Set **Mounting orientation** to **Upside down (180°)** when the frame is
+mounted the other way round. After restart, photos, portrait pairs, the clock,
+and touch follow the new orientation together. Espframe backups carry the
+landscape mounting choice.
 
 The photo source defaults to **All photos**. Choose **Favourites** or
 **Album** in the frame's web settings to limit both photos and their
@@ -239,6 +244,10 @@ carry over in Espframe backups.
    time, confirm the nighttime brightness applies and a tap wakes the screen
    at that level. Restore the local timezone and confirm the display uses its
    corresponding level.
+10. Rotate the frame physically and choose **Upside down (180°)**. After
+    restarting, swipe forward and back, including over a portrait pair and
+    a cold cache edge. Interrupt an automatic crossfade and check that the
+    clock stays in the viewer's lower-left corner with no duplicate.
 
 To probe with real photos, place baseline JPEGs in the ignored
 `firmware/native/photos/` directory as `slide-0.jpg` through `slide-4.jpg`.

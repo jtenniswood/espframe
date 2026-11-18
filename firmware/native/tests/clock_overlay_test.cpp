@@ -1,12 +1,69 @@
 #include "clock_overlay.h"
 #include "slide_blit.h"
 
+#include <algorithm>
 #include <cassert>
+#include <cstdlib>
 #include <fstream>
 #include <iterator>
 #include <vector>
 
 using namespace espframe::native;
+
+void verify_upside_down_clock(const ClockSettings &settings, const std::vector<uint8_t> &atlas,
+                             std::time_t time) {
+  std::vector<uint16_t> photo(pixel_count);
+  for (int pixel = 0; pixel < pixel_count; ++pixel)
+    photo[pixel] = static_cast<uint16_t>(pixel * 3);
+  const std::vector<uint16_t> flipped_photo(photo.rbegin(), photo.rend());
+
+  ClockOverlay upright;
+  ClockOverlay upside_down;
+  assert(upright.init(settings, atlas.data(), true));
+  constexpr auto rotation = ScreenRotation::UpsideDown;
+  assert(upside_down.init(settings, atlas.data(), true, rotation));
+  assert(upright.update(local_clock_time(time)) && upside_down.update(local_clock_time(time)));
+  auto held = photo;
+  auto flipped_held = flipped_photo;
+  upright.draw(held.data(), true);
+  upside_down.draw(flipped_held.data(), true);
+  assert(std::equal(held.rbegin(), held.rend(), flipped_held.begin()));
+  upright.pin_underlay();
+  upside_down.pin_underlay();
+
+  std::vector<uint16_t> expected(pixel_count);
+  std::vector<uint16_t> actual(pixel_count);
+  for (const int offset : {70, panel_height - 70}) {
+    // Use the held frame on both sides of the seam to exercise both copy
+    // ranges for the original clock patch.
+    for (const bool held_on_left : {false, true}) {
+      blit_slides(expected.data(), photo.data(), photo.data(), panel_width, panel_height, offset);
+      const auto *left = held_on_left ? flipped_held.data() : flipped_photo.data();
+      const auto *right = held_on_left ? flipped_photo.data() : flipped_held.data();
+      const auto span = orient_slide_span(left, right, panel_height, offset, rotation);
+      blit_slides(actual.data(), span.first, span.second, panel_width, panel_height, span.offset);
+      if (span.first == flipped_held.data())
+        upside_down.restore_rows(actual.data(), span.offset, 0, panel_height - span.offset);
+      if (span.second == flipped_held.data())
+        upside_down.restore_rows(actual.data(), 0, panel_height - span.offset, span.offset);
+      assert(std::equal(expected.rbegin(), expected.rend(), actual.begin()));
+    }
+  }
+
+  for (const int logical_pull : {-40, 40}) {
+    const int pull = logical_pull * axis_direction(rotation);
+    blit_slide_edge(expected.data(), photo.data(), panel_width, panel_height, logical_pull);
+    blit_slide_edge(actual.data(), flipped_held.data(), panel_width, panel_height, pull);
+    upside_down.restore_rows(actual.data(), std::max(0, pull), std::max(0, -pull), panel_height - std::abs(pull));
+    assert(std::equal(expected.rbegin(), expected.rend(), actual.begin()));
+  }
+
+  std::fill(expected.begin(), expected.end(), 0);
+  std::fill(actual.begin(), actual.end(), 0);
+  upright.restore_blend(expected.data(), photo.data(), 128);
+  upside_down.restore_blend(actual.data(), flipped_photo.data(), 128);
+  assert(std::equal(expected.rbegin(), expected.rend(), actual.begin()));
+}
 
 void expect_glyph(const std::vector<uint16_t> &frame, const std::vector<uint8_t> &atlas, int place, int glyph) {
   constexpr int width = ClockOverlay::glyph_width;
@@ -48,6 +105,7 @@ int main(int argc, char **argv) {
   // 12:34 UTC on 1 July is 13:34 in Europe/London.
   constexpr std::time_t summer = 1'782'909'240;
   assert(clock.update(local_clock_time(summer)) && !clock.update(local_clock_time(summer + 1)));
+  verify_upside_down_clock(settings, atlas, summer);
   assert(local_clock_time(summer)->tm_hour == 13);
   clock.draw(baked.data(), true);
   expect_glyph(baked, atlas, 0, 1);

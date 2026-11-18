@@ -154,7 +154,8 @@ Decode decode_webp(const uint8_t *encoded, size_t length, uint16_t *&pixels, Pho
 
 DecodedPreview::~DecodedPreview() { heap_caps_free(this->pixels_); }
 
-void DecodedPreview::paint_(uint16_t *panel, int left, int max_width, DisplayMode mode) const {
+void DecodedPreview::paint_(uint16_t *panel, int left, int max_width, DisplayMode mode,
+                            ScreenRotation rotation) const {
   // An existing fit can be placed as-is. Avoid a second rounding step on
   // images already scaled to the destination before rotating the pixels.
   const auto size = mode == DisplayMode::Fit && this->width_ <= max_width
@@ -167,15 +168,16 @@ void DecodedPreview::paint_(uint16_t *panel, int left, int max_width, DisplayMod
   const auto &crop = size.source;
   const uint32_t scale_x = (static_cast<uint32_t>(crop.width) << 16) / size.width;
   const uint32_t scale_y = (static_cast<uint32_t>(crop.height) << 16) / size.height;
+  const int column_step = -axis_direction(rotation);
   constexpr int tile = 16;
   for (int y0 = 0; y0 < size.height; y0 += tile) {
     for (int x0 = 0; x0 < size.width; x0 += tile) {
       for (int x = x0; x < std::min(x0 + tile, size.width); ++x) {
-        auto *column = panel + (x + left) * panel_width;
+        auto *column = panel + panel_offset(x + left, panel_width - 1 - top, rotation);
         const int source_x = crop.x + ((x * scale_x) >> 16);
         for (int y = y0; y < std::min(y0 + tile, size.height); ++y) {
           const int source_y = crop.y + ((y * scale_y) >> 16);
-          column[panel_width - 1 - top - y] = this->pixels_[source_y * this->width_ + source_x];
+          column[y * column_step] = this->pixels_[source_y * this->width_ + source_x];
         }
       }
     }
@@ -210,15 +212,16 @@ DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t len
   return result;
 }
 
-void DecodedPreview::render(uint16_t *panel, const DecodedPreview *companion, DisplayMode mode) const {
+void DecodedPreview::render(uint16_t *panel, const DecodedPreview *companion, DisplayMode mode,
+                            ScreenRotation rotation) const {
   const bool pair = companion != nullptr && this->portrait() && companion->portrait();
   if (pair || this->width_ != slide_width || this->height_ != slide_height)
     std::fill_n(panel, pixel_count, 0);
   if (this->width_ == 0)
     return;
-  this->paint_(panel, 0, pair ? pair_width : slide_width, pair ? mode : DisplayMode::Fit);
+  this->paint_(panel, 0, pair ? pair_width : slide_width, pair ? mode : DisplayMode::Fit, rotation);
   if (pair)
-    companion->paint_(panel, pair_width + pair_gap, pair_width, mode);
+    companion->paint_(panel, pair_width + pair_gap, pair_width, mode, rotation);
 }
 
 }  // namespace espframe::native

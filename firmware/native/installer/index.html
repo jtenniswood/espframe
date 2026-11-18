@@ -61,6 +61,12 @@
           </label>
           <label>Seconds per photo <input name="slide_seconds" type="number" min="2" max="86400" value="15" step="1" required></label>
           <label><input name="portrait_pairing" type="checkbox" class="inline-option" checked> Pair portrait photos from the same day</label>
+          <label>Mounting orientation
+            <select name="screen_rotation">
+              <option value="0">Normal</option>
+              <option value="180">Upside down (180°)</option>
+            </select>
+          </label>
           <label for="brightness_day">Daytime brightness</label>
           <input id="brightness_day" name="brightness_day" type="range" min="10" max="100" value="64">
           <output for="brightness_day">64%</output>

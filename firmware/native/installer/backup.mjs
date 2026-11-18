@@ -8,6 +8,7 @@ const own = (object, key) => Object.hasOwn(object, key)
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const integerIn = (min, max) => value => Number.isInteger(value) && value >= min && value <= max
 const screenFields = {
+  rotation: [value => ['0', '180'].includes(value), 'Choose Normal or Upside down for mounting orientation.', 'screen_rotation'],
   brightness_day: [integerIn(10, 100), 'Choose a daytime brightness from 10% to 100%.'],
   brightness_night: [integerIn(10, 100), 'Choose a nighttime brightness from 10% to 100%.'],
   schedule_enabled: [value => typeof value === 'boolean', 'Review whether the screen schedule is enabled.'],
@@ -113,9 +114,9 @@ export function readBackup(data) {
   if (typeof clock.timezone === 'string' && clock.timezone.length <= 96) {
     settings.timezone = clock.timezone === 'Asia/Almaty (GMT+6)' ? 'Asia/Almaty (GMT+5)' : clock.timezone
   }
-  for (const [key, [valid, notice]] of Object.entries(screenFields)) {
+  for (const [key, [valid, notice, field = key]] of Object.entries(screenFields)) {
     if (!own(screen, key)) continue
-    if (valid(screen[key])) settings[key] = screen[key]
+    if (valid(screen[key])) settings[field] = screen[key]
     else {
       notices.push(notice)
       // Keep a malformed schedule from activating with unexpected hours.
@@ -155,8 +156,8 @@ export function createBackup(settings, date = new Date()) {
     ...(typeof settings.timezone === 'string' ? { timezone: settings.timezone } : {}),
   }
   const screen = {}
-  for (const [key, [valid]] of Object.entries(screenFields)) {
-    if (valid(settings[key])) screen[key] = settings[key]
+  for (const [key, [valid, , field = key]] of Object.entries(screenFields)) {
+    if (valid(settings[field])) screen[key] = settings[field]
   }
   return {
     version: 3,

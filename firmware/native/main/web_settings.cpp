@@ -82,6 +82,7 @@ esp_err_t current(httpd_req_t *request) {
       !cJSON_AddNumberToObject(document.get(), "schedule_wake_timeout", settings.schedule.wake_seconds) ||
       !cJSON_AddBoolToObject(document.get(), "portrait_pairing", settings.portrait_pairing) ||
       !cJSON_AddStringToObject(document.get(), "display_mode", display_mode_name(settings.display_mode)) ||
+      !cJSON_AddStringToObject(document.get(), "screen_rotation", screen_rotation_name(settings.screen_rotation)) ||
       !cJSON_AddStringToObject(document.get(), "photo_source", photo_source_name(settings.photo_source.mode)) ||
       !cJSON_AddStringToObject(document.get(), "album_id", settings.photo_source.album_id.c_str()) ||
       !cJSON_AddBoolToObject(document.get(), "show_clock", settings.clock.show) ||

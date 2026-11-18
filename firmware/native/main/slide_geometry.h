@@ -13,4 +13,18 @@ inline constexpr int slide_width = panel_height;
 inline constexpr int slide_height = panel_width;
 inline constexpr int pixel_count = panel_width * panel_height;
 
+enum class ScreenRotation : uint8_t { Normal, UpsideDown };
+
+inline constexpr int axis_direction(ScreenRotation rotation) {
+  return rotation == ScreenRotation::UpsideDown ? -1 : 1;
+}
+
+inline constexpr int oriented_axis(int coordinate, int extent, ScreenRotation rotation) {
+  return rotation == ScreenRotation::UpsideDown ? extent - 1 - coordinate : coordinate;
+}
+
+inline constexpr int panel_offset(int row, int column, ScreenRotation rotation) {
+  return oriented_axis(row * panel_width + column, pixel_count, rotation);
+}
+
 }  // namespace espframe::native

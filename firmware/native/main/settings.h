@@ -4,12 +4,17 @@
 #include "photo_framing.h"
 #include "photo_source.h"
 #include "screen_schedule.h"
+#include "slide_geometry.h"
 
 #include <cstdint>
 #include <optional>
 #include <string>
 
 namespace espframe::native {
+
+inline constexpr const char *screen_rotation_name(ScreenRotation rotation) {
+  return rotation == ScreenRotation::UpsideDown ? "180" : "0";
+}
 
 struct Settings {
   std::string ssid;
@@ -22,6 +27,7 @@ struct Settings {
   std::optional<uint8_t> brightness_night;
   bool portrait_pairing{true};
   DisplayMode display_mode{DisplayMode::Fit};
+  ScreenRotation screen_rotation{ScreenRotation::Normal};
   PhotoSource photo_source;
   ClockSettings clock;
   ScreenScheduleSettings schedule;

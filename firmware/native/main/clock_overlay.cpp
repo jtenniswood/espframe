@@ -20,11 +20,16 @@ uint16_t mix_rgb565(uint16_t from, uint16_t to, unsigned alpha) {
 
 ClockOverlay::~ClockOverlay() { heap_caps_free(underlays_); }
 
-bool ClockOverlay::init(const ClockSettings &settings, const uint8_t *atlas, bool snapshots) {
+bool ClockOverlay::init(const ClockSettings &settings, const uint8_t *atlas, bool snapshots,
+                        ScreenRotation rotation) {
   if (!settings.show)
     return true;
   atlas_ = atlas;
   twelve_hour_ = settings.format == "12 Hour";
+  rotation_ = rotation;
+  const bool upside_down = rotation == ScreenRotation::UpsideDown;
+  physical_row_ = upside_down ? panel_height - first_row - rows : first_row;
+  physical_column_ = upside_down ? panel_width - first_column - columns : first_column;
   if (snapshots)
     underlays_ = static_cast<Underlays *>(heap_caps_malloc(sizeof(Underlays), MALLOC_CAP_SPIRAM));
   return !snapshots || underlays_ != nullptr;
@@ -54,11 +59,12 @@ void ClockOverlay::draw(uint16_t *frame, bool remember_underlay) {
     if (latest_painted_) {
       for (int row = 0; row < rows; ++row)
         std::memcpy(underlays_->latest.data() + row * columns,
-                    frame + (first_row + row) * panel_width + first_column, columns * sizeof(*frame));
+                    frame + (physical_row_ + row) * panel_width + physical_column_, columns * sizeof(*frame));
     }
   }
   if (text_[0] == '\0')
     return;
+  const int column_step = -axis_direction(rotation_);
   for (int layer : {shadow, 0}) {
     const uint16_t color = layer == 0 ? 0xffff : 0;
     int left = first_row + layer;
@@ -71,12 +77,12 @@ void ClockOverlay::draw(uint16_t *frame, bool remember_underlay) {
       const auto *mask = atlas_ + digit * glyph_width * glyph_height / 2;
       const int advance = ch == ':' ? glyph_width / 2 : glyph_width;
       for (int x = 0; x < advance; ++x) {
-        auto *column = frame + (left + x) * panel_width + first_column + columns - 1 - layer;
+        auto *column = frame + panel_offset(left + x, first_column + columns - 1 - layer, rotation_);
         for (int y = 0; y < glyph_height; ++y) {
           const auto packed = mask[y * (glyph_width / 2) + x / 2];
           const unsigned opacity = (x % 2 ? packed & 15 : packed >> 4) * (layer == 0 ? 17 : 11);
           if (opacity)
-            column[-y] = mix_rgb565(column[-y], color, opacity);
+            column[y * column_step] = mix_rgb565(column[y * column_step], color, opacity);
         }
       }
       left += advance;
@@ -93,17 +99,17 @@ void ClockOverlay::pin_underlay() {
 void ClockOverlay::restore_rows(uint16_t *frame, int source_row, int target_row, int count) const {
   if (!pinned_painted_)
     return;
-  const int end = std::min(source_row + count, first_row + rows);
-  for (int row = std::max(source_row, first_row); row < end; ++row)
-    std::memcpy(frame + (target_row + row - source_row) * panel_width + first_column,
-                underlays_->pinned.data() + (row - first_row) * columns, columns * sizeof(*frame));
+  const int end = std::min(source_row + count, physical_row_ + rows);
+  for (int row = std::max(source_row, physical_row_); row < end; ++row)
+    std::memcpy(frame + (target_row + row - source_row) * panel_width + physical_column_,
+                underlays_->pinned.data() + (row - physical_row_) * columns, columns * sizeof(*frame));
 }
 
 void ClockOverlay::restore_blend(uint16_t *frame, const uint16_t *target, uint8_t opacity) const {
   if (!pinned_painted_)
     return;
   for (int row = 0; row < rows; ++row) {
-    const auto offset = (first_row + row) * panel_width + first_column;
+    const auto offset = (physical_row_ + row) * panel_width + physical_column_;
     for (int column = 0; column < columns; ++column)
       frame[offset + column] = mix_rgb565(underlays_->pinned[row * columns + column], target[offset + column], opacity);
   }

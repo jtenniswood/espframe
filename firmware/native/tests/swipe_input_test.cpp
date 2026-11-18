@@ -41,6 +41,30 @@ void ordered_reports_keep_release_and_next_press() {
   assert(swipe.position() == first_handoff - 55 && input.take_first_motion() == 25'000);
 }
 
+void an_upside_down_panel_keeps_the_same_viewer_swipe_direction() {
+  using espframe::native::ScreenRotation;
+  Swipe swipe{width, 5, 2};
+  SwipeInput input;
+  const auto send = [&](TouchReport touch) {
+    espframe::native::orient_touch(touch, ScreenRotation::UpsideDown);
+    assert(touch.y == 599);
+    input.update(swipe, touch, swipe.position());
+  };
+  send(report(1, 5'000, 300));
+  send(report(2, 15'000, 800));
+  assert(swipe.dragging() && swipe.position() == initial_position + 500);
+  send(report(3, 20'000, 0, 0));
+  swipe.tick(300'000);
+  assert(swipe.settled() == 3);
+
+  send(report(4, 305'000, 850));
+  send(report(5, 315'000, 350));
+  assert(swipe.dragging() && swipe.position() == 3 * width - 500);
+  send(report(6, 320'000, 0, 0));
+  swipe.tick(600'000);
+  assert(swipe.settled() == 2);
+}
+
 void a_gap_cancels_without_flinging_into_another_photo() {
   Swipe swipe{width, 5, 2};
   SwipeInput input;
@@ -213,6 +237,7 @@ void a_scheduled_wake_consumes_the_touch_and_expires_after_its_duration() {
 
 int main() {
   ordered_reports_keep_release_and_next_press();
+  an_upside_down_panel_keeps_the_same_viewer_swipe_direction();
   a_gap_cancels_without_flinging_into_another_photo();
   a_transient_transfer_failure_preserves_the_drag();
   a_second_finger_blocks_until_release_even_at_sequence_rollover();

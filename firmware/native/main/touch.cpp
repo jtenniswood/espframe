@@ -142,7 +142,8 @@ esp_err_t Touch::read(TouchReport &sample) const {
 
 }  // namespace
 
-void TouchReader::start() {
+void TouchReader::start(ScreenRotation rotation) {
+  this->rotation_ = rotation;
   this->reports_ = xQueueCreate(8, sizeof(TouchReport));
   ESP_ERROR_CHECK(this->reports_ != nullptr ? ESP_OK : ESP_ERR_NO_MEM);
   const auto result = xTaskCreatePinnedToCore(run_, "touch-reader", 3072, this, touch_priority, nullptr, touch_core);
@@ -162,6 +163,8 @@ void TouchReader::run_(void *context) {
     auto started = xTaskGetTickCount();
     TouchReport report;
     report.valid = touch.read(report) == ESP_OK;
+    if (report.valid && report.contacts != 0)
+      orient_touch(report, reader.rotation_);
     report.sequence = ++sequence;
     report.sampled_us = esp_timer_get_time();
     if (xQueueSend(reader.reports_, &report, 0) != pdPASS) {

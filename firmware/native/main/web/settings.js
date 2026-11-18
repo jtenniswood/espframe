@@ -42,6 +42,7 @@ try {
   showBrightness()
   form.elements.portrait_pairing.checked = settings.portrait_pairing === true
   form.elements.display_mode.value = settings.display_mode ?? 'Fit'
+  form.elements.screen_rotation.value = settings.screen_rotation ?? '0'
   form.elements.photo_source.value = settings.photo_source ?? 'all'
   form.elements.album_id.value = settings.album_id ?? ''
   form.elements.show_clock.checked = settings.show_clock === true

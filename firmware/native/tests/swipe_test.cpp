@@ -225,4 +225,22 @@ int main() {
   assert((output == std::array<uint16_t, 6>{0, 1, 0, 1, 2, 3}));
   espframe::native::blit_slide_edge(output.data(), left.data(), 2, 3, 1);
   assert((output == std::array<uint16_t, 6>{2, 3, 4, 5, 4, 5}));
+
+  const std::array<uint16_t, 6> flipped_left{5, 4, 3, 2, 1, 0};
+  const std::array<uint16_t, 6> flipped_right{11, 10, 9, 8, 7, 6};
+  constexpr auto upside_down = espframe::native::ScreenRotation::UpsideDown;
+  auto reference = output;
+  for (int offset = 0; offset < 3; ++offset) {
+    espframe::native::blit_slides(reference.data(), left.data(), right.data(), 2, 3, offset);
+    const auto span = espframe::native::orient_slide_span(
+        flipped_left.data(), offset ? flipped_right.data() : nullptr, 3, offset, upside_down);
+    espframe::native::blit_slides(output.data(), span.first, span.second, 2, 3, span.offset);
+    assert(std::equal(output.begin(), output.end(), reference.rbegin()));
+  }
+  for (const int pull : {-1, 1}) {
+    espframe::native::blit_slide_edge(reference.data(), left.data(), 2, 3, pull);
+    espframe::native::blit_slide_edge(output.data(), flipped_left.data(), 2, 3,
+                                    pull * espframe::native::axis_direction(upside_down));
+    assert(std::equal(output.begin(), output.end(), reference.rbegin()));
+  }
 }

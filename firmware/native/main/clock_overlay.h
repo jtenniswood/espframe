@@ -25,7 +25,8 @@ class ClockOverlay {
   static constexpr int rows = 5 * glyph_width + 2;
   static constexpr int columns = glyph_height + 2;
 
-  bool init(const ClockSettings &settings, const uint8_t *atlas, bool snapshots);
+  bool init(const ClockSettings &settings, const uint8_t *atlas, bool snapshots,
+            ScreenRotation rotation = ScreenRotation::Normal);
   bool update(const std::optional<std::tm> &local);
   void draw(uint16_t *frame, bool remember_underlay = false);
   void pin_underlay();
@@ -41,6 +42,9 @@ class ClockOverlay {
   const uint8_t *atlas_{};
   Underlays *underlays_{};
   std::array<char, 6> text_{};
+  ScreenRotation rotation_{};
+  int physical_row_{first_row};
+  int physical_column_{first_column};
   bool twelve_hour_{};
   bool latest_painted_{};
   bool pinned_painted_{};

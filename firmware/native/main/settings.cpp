@@ -134,6 +134,23 @@ bool read_display_mode(const cJSON *root, DisplayMode &mode) {
   return true;
 }
 
+bool read_rotation(const cJSON *root, ScreenRotation &rotation) {
+  const auto *field = cJSON_GetObjectItemCaseSensitive(root, "screen_rotation");
+  if (!field)
+    return true;
+  const char *text = cJSON_GetStringValue(field);
+  if (!text)
+    return false;
+  const std::string_view value{text};
+  if (value == "0")
+    rotation = ScreenRotation::Normal;
+  else if (value == "180")
+    rotation = ScreenRotation::UpsideDown;
+  else
+    return false;
+  return true;
+}
+
 bool read_source(const cJSON *root, PhotoSource &source) {
   std::string mode = photo_source_name(source.mode);
   if (!read_field(root, "photo_source", mode, true) || !read_field(root, "album_id", source.album_id, true))
@@ -158,7 +175,8 @@ bool read_source(const cJSON *root, PhotoSource &source) {
 bool read_playback(const cJSON *root, Settings &settings) {
   return read_integer(root, "slide_seconds", 2, 86'400, settings.slide_seconds) &&
          read_flag(root, "portrait_pairing", settings.portrait_pairing) &&
-         read_display_mode(root, settings.display_mode) && read_source(root, settings.photo_source) &&
+         read_display_mode(root, settings.display_mode) && read_rotation(root, settings.screen_rotation) &&
+         read_source(root, settings.photo_source) &&
          read_clock(root, settings.clock) && read_brightness(root, settings) &&
          read_schedule(root, settings.schedule);
 }
@@ -245,6 +263,7 @@ bool Settings::save_playback(const char *json) {
       !cJSON_AddNumberToObject(updated.get(), "schedule_wake_timeout", settings.schedule.wake_seconds) ||
       !cJSON_AddBoolToObject(updated.get(), "portrait_pairing", settings.portrait_pairing) ||
       !cJSON_AddStringToObject(updated.get(), "display_mode", display_mode_name(settings.display_mode)) ||
+      !cJSON_AddStringToObject(updated.get(), "screen_rotation", screen_rotation_name(settings.screen_rotation)) ||
       !cJSON_AddStringToObject(updated.get(), "photo_source", photo_source_name(settings.photo_source.mode)) ||
       !cJSON_AddStringToObject(updated.get(), "album_id", settings.photo_source.album_id.c_str()) ||
       !cJSON_AddBoolToObject(updated.get(), "show_clock", settings.clock.show) ||

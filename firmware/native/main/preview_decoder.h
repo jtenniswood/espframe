@@ -1,6 +1,7 @@
 #pragma once
 
 #include "photo_framing.h"
+#include "slide_geometry.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -24,10 +25,11 @@ class DecodedPreview {
                 DisplayMode mode = DisplayMode::Fit);
   bool portrait() const { return this->portrait_; }
   bool hardware_jpeg() const { return this->hardware_jpeg_; }
-  void render(uint16_t *panel, const DecodedPreview *companion = nullptr, DisplayMode mode = DisplayMode::Fit) const;
+  void render(uint16_t *panel, const DecodedPreview *companion = nullptr, DisplayMode mode = DisplayMode::Fit,
+              ScreenRotation rotation = ScreenRotation::Normal) const;
 
  private:
-  void paint_(uint16_t *panel, int x, int width, DisplayMode mode) const;
+  void paint_(uint16_t *panel, int x, int width, DisplayMode mode, ScreenRotation rotation) const;
 
   uint16_t *pixels_{};
   int width_{};

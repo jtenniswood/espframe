@@ -35,6 +35,7 @@ class ImmichSource {
   uint8_t night_brightness() const { return this->settings_.night_brightness(); }
   const ClockSettings &clock() const { return this->settings_.clock; }
   const ScreenScheduleSettings &schedule() const { return this->settings_.schedule; }
+  ScreenRotation screen_rotation() const { return this->settings_.screen_rotation; }
 
  private:
   enum class PreviewStatus { Ready, Missing, Retry };

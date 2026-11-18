@@ -56,6 +56,7 @@ int main() {
   using espframe::native::Settings;
   using espframe::native::DisplayMode;
   using espframe::native::PhotoSourceMode;
+  using espframe::native::ScreenRotation;
 
   stored = {{"ssid", "Legacy"}, {"password", "legacy secret"}, {"immich_url", "http://legacy.local/"},
             {"immich_key", "legacy-key"}};
@@ -68,6 +69,7 @@ int main() {
   assert(!legacy.brightness_night && legacy.night_brightness() == 64);
   assert(legacy.photo_source.mode == PhotoSourceMode::Library);
   assert(legacy.display_mode == DisplayMode::Fit);
+  assert(legacy.screen_rotation == ScreenRotation::Normal);
   assert(!legacy.clock.show && legacy.clock.format == "24 Hour");
   assert(!legacy.schedule.enabled && legacy.schedule.on_hour == 6 && legacy.schedule.off_hour == 23 &&
          legacy.schedule.wake_seconds == 60);
@@ -82,6 +84,7 @@ int main() {
   assert(current.immich_url == "https://photos.test/api" && current.slide_seconds == 20);
   assert(current.web_password == "only-settings");
   assert(current.display_mode == DisplayMode::Fit);
+  assert(current.screen_rotation == ScreenRotation::Normal);
   assert(!current.schedule.enabled && current.schedule.wake_seconds == 60);
   auto before = stored;
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","slide_seconds":20.3})"));
@@ -91,6 +94,9 @@ int main() {
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","portrait_pairing":"false"})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","display_mode":"Stretch"})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","display_mode":true})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","screen_rotation":180})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","screen_rotation":"90"})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","screen_rotation":"270"})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","timezone":"Unverified/Zone"})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","show_clock":12})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","clock_format":"Seconds"})"));
@@ -121,6 +127,7 @@ int main() {
   assert(Settings::save_playback(R"({"immich_url":"http://photos.test","brightness_day":42})"));
   assert(current.read() && !current.brightness_night && current.night_brightness() == 42);
   assert(Settings::save_playback(R"({"immich_url":"http://photos.test","brightness_night":26})"));
+  assert(Settings::save_playback(R"({"immich_url":"http://photos.test","screen_rotation":"180"})"));
   assert(Settings::save_playback(R"({"immich_url":"http://photos.test","schedule_enabled":true,
                                   "schedule_on_hour":23,"schedule_off_hour":0,"schedule_wake_timeout":3600})"));
   assert(Settings::save_playback(R"json({"immich_url":"http://photos.test","show_clock":true,"clock_format":"12 Hour",
@@ -135,6 +142,7 @@ int main() {
          current.schedule.wake_seconds == 3600);
   assert(!current.portrait_pairing);
   assert(current.display_mode == DisplayMode::Fill);
+  assert(current.screen_rotation == ScreenRotation::UpsideDown);
   assert(Settings::save_playback(
       R"({"immich_url":"http://photos.test","photo_source":"album","album_id":"C48E2980-18AC-4D7D-876A-A636759A1AEC"})"));
   assert(current.read());

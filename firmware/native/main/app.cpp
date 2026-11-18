@@ -24,6 +24,7 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cinttypes>
@@ -109,10 +110,12 @@ uint16_t rgb565(int r, int g, int b) {
 
 // Distinct horizons and one split scene make dropped frames, a wrong swipe
 // direction, incorrect rotation, or a broken seam easy to spot without assets.
-void draw_test_slide(uint16_t *destination, int slide) {
+void draw_test_slide(uint16_t *destination, int slide, ScreenRotation rotation) {
   constexpr int sky[][3]{{224, 143, 99}, {64, 162, 190}, {101, 146, 220},
                          {199, 112, 143}, {77, 165, 146}};
+  const int column_step = -axis_direction(rotation);
   for (int x = 0; x < slide_width; ++x) {
+    auto *column = destination + panel_offset(x, panel_width - 1, rotation);
     const int scene = slide == 3 && x >= slide_width / 2 ? 4 : slide;
     const float phase = scene * 1.6f + x * 0.008f;
     const int ridge = static_cast<int>(485 + 90 * std::sin(phase) + 35 * std::sin(phase * 2.4f));
@@ -132,7 +135,7 @@ void draw_test_slide(uint16_t *destination, int slide) {
       } else {
         color = rgb565(20 + scene * 16, 89 + y / 20, 112 + scene * 12);
       }
-      destination[x * panel_width + panel_width - 1 - y] = color;
+      column[y * column_step] = color;
     }
   }
 }
@@ -194,6 +197,7 @@ class SlideLoader {
   uint8_t night_brightness() const { return this->source_.night_brightness(); }
   const ClockSettings &clock() const { return this->source_.clock(); }
   const ScreenScheduleSettings &schedule() const { return this->source_.schedule(); }
+  ScreenRotation rotation() const { return this->source_.screen_rotation(); }
 
   void start() {
     this->live_ = this->source_.read_settings();
@@ -246,7 +250,9 @@ class SlideLoader {
       } else {
         const int fixture = lease.slide % fixture_count;
         if (!decode_photo(photos[fixture], lease.pixels, decoder))
-          draw_test_slide(lease.pixels, fixture);
+          draw_test_slide(lease.pixels, fixture, loader.rotation());
+        else if (loader.rotation() == ScreenRotation::UpsideDown)
+          std::reverse(lease.pixels, lease.pixels + pixel_count);
       }
       const Completion completion{lease, loader.source_.first_slide(), ready, !ready && loader.cancelled_.load()};
       xQueueSend(loader.completed_, &completion, portMAX_DELAY);
@@ -268,6 +274,7 @@ void run(void *) {
   static SlideLoader loader;
   loader.start();
   const bool live = loader.live();
+  const auto rotation = loader.rotation();
   const SlideIndex slide_count = live ? std::numeric_limits<PixelPosition>::max() / slide_width : fixture_slides;
   FrameBlend blend;
   bool can_fade = live && blend.init();
@@ -282,7 +289,7 @@ void run(void *) {
   Daylight daylight{solar_brightness ? find_clock_zone(loader.clock().timezone) : nullptr};
   uint8_t brightness = day_level;
   uint8_t applied_brightness = 0;
-  const bool can_layer_fade = clock.init(loader.clock(), clock_atlas, can_fade && display.can_pin_frame());
+  const bool can_layer_fade = clock.init(loader.clock(), clock_atlas, can_fade && display.can_pin_frame(), rotation);
   if (can_fade && (!display.can_pin_frame() || !can_layer_fade)) {
     blend.release();
     can_fade = false;
@@ -290,7 +297,7 @@ void run(void *) {
   if (live && !can_fade)
     ESP_LOGI(tag, "Crossfade unavailable; using the slideshow glide");
   TouchReader touch;
-  touch.start();
+  touch.start(rotation);
   Swipe swipe{slide_width, slide_count, live ? 0 : 2};
   SwipeInput input;
   ScreenSchedule schedule{loader.schedule()};
@@ -584,16 +591,18 @@ void run(void *) {
         const auto started_render = motion != 0 ? esp_timer_get_time() : 0;
         if (use_edge) {
           constexpr auto limit = PixelPosition{slide_width - 1};
-          const int pull = static_cast<int>(std::clamp(position - inside, -limit, limit));
+          const int logical_pull = static_cast<int>(std::clamp(position - inside, -limit, limit));
+          const int pull = logical_pull * axis_direction(rotation);
           blit_slide_edge(output, left, panel_width, panel_height, pull);
           if (left == snapshot)
             clock.restore_rows(output, std::max(0, pull), std::max(0, -pull), panel_height - std::abs(pull));
         } else {
-          blit_slides(output, left, right, panel_width, panel_height, offset);
-          if (left == snapshot)
-            clock.restore_rows(output, offset, 0, panel_height - offset);
-          if (offset != 0 && right == snapshot)
-            clock.restore_rows(output, 0, panel_height - offset, offset);
+          const auto span = orient_slide_span(left, right, panel_height, offset, rotation);
+          blit_slides(output, span.first, span.second, panel_width, panel_height, span.offset);
+          if (span.first == snapshot)
+            clock.restore_rows(output, span.offset, 0, panel_height - span.offset);
+          if (span.offset != 0 && span.second == snapshot)
+            clock.restore_rows(output, 0, panel_height - span.offset, span.offset);
         }
         if (show_clock) {
           clock.draw(output);
