@@ -32,7 +32,7 @@ bool load_string(nvs_handle_t storage, const char *key, std::string &value, size
 bool normalize(Settings &settings) {
   if (settings.ssid.empty() || settings.ssid.size() > 32 || settings.password.size() > 64 ||
       settings.web_password.size() > 64 || (!settings.web_password.empty() && settings.web_password.size() < 8) ||
-      settings.slide_seconds < 2 || settings.slide_seconds > 3'600 ||
+      settings.slide_seconds < 2 || settings.slide_seconds > 86'400 ||
       settings.immich_key.empty() || settings.immich_key.size() > 256 ||
       std::any_of(settings.immich_key.begin(), settings.immich_key.end(),
                   [](unsigned char c) { return c <= 32 || c >= 127; }))
@@ -69,11 +69,11 @@ bool read_field(const cJSON *root, const char *name, std::string &value, bool op
   return true;
 }
 
-bool read_interval(const cJSON *root, uint16_t &seconds) {
+bool read_interval(const cJSON *root, uint32_t &seconds) {
   const auto *field = cJSON_GetObjectItemCaseSensitive(root, "slide_seconds");
   if (field == nullptr)
     return true;
-  if (!cJSON_IsNumber(field) || field->valueint < 2 || field->valueint > 3'600 ||
+  if (!cJSON_IsNumber(field) || field->valueint < 2 || field->valueint > 86'400 ||
       field->valueint != field->valuedouble)
     return false;
   seconds = field->valueint;

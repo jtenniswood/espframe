@@ -88,11 +88,13 @@ jobs:
         run: |
           npm ci
           node firmware/native/tests/serial_setup_test.mjs
+          node firmware/native/tests/backup_import_test.mjs
           node firmware/native/tests/photo_source_browser_test.mjs
           for board in v1 v2 v3; do
             mv "firmware/native/build/firmware-test-native-swipe-$board" "firmware/native/build/$board"
           done
           node firmware/native/tools/package_installer.mjs firmware/native/build firmware/native/build/browser-installer
+          node firmware/native/tests/backup_installer_browser_test.mjs firmware/native/build/browser-installer
       - uses: actions/upload-artifact@v7
         with:
           name: native-browser-installer

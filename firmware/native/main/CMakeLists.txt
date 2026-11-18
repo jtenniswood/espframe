@@ -19,7 +19,8 @@ idf_component_register(
     PRIV_REQUIRES esp_lcd esp_hw_support esp_driver_gpio esp_driver_i2c esp_driver_ledc esp_timer esp_mm esp_driver_jpeg
                   esp_driver_uart esp_event esp_http_client esp_http_server esp_netif esp_wifi mbedtls nvs_flash
                   libjpeg-turbo-esp32 libwebp-esp32
-    EMBED_TXTFILES web/settings.html web/settings.js "../installer/setup.css"
+    EMBED_TXTFILES web/settings.html web/settings.js "../installer/setup.css" "../installer/photo_source.mjs"
+                   "../installer/backup.mjs"
 )
 
 if(SWIPE_BOARD STREQUAL "v3")

@@ -69,6 +69,10 @@ input.inline-option {
   margin-inline-end: .3rem;
 }
 
+details {
+  margin-top: 1rem;
+}
+
 button:disabled {
   opacity: .55;
   cursor: default;

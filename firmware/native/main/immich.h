@@ -27,7 +27,7 @@ class ImmichSource {
   bool read_settings();
   bool prepare(SlideIndex slide, uint16_t *panel);
   SlideIndex first_slide() const { return this->history_.first(); }
-  uint16_t slide_seconds() const { return this->settings_.slide_seconds; }
+  uint32_t slide_seconds() const { return this->settings_.slide_seconds; }
 
  private:
   enum class PreviewStatus { Ready, Missing, Retry };

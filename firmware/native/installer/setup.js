@@ -1,4 +1,6 @@
 import 'esp-web-tools/dist/install-button.js'
+import { readBackup } from './backup.mjs'
+import { bindPhotoSource, validateAlbum } from './photo_source.mjs'
 import { configure } from './serial.mjs'
 
 const revision = document.querySelector('#revision')
@@ -6,6 +8,48 @@ const install = document.querySelector('esp-web-install-button')
 const form = document.querySelector('#settings')
 const submit = form.querySelector('button')
 const status = document.querySelector('#status')
+const backup = document.querySelector('#backup')
+const backupStatus = document.querySelector('#backup-status')
+const playback = document.querySelector('#playback')
+const refreshSource = bindPhotoSource(form)
+let importSequence = 0
+let importing = false
+
+backup.addEventListener('change', async () => {
+  const file = backup.files[0]
+  if (!file) return
+  const sequence = ++importSequence
+  backup.value = ''
+  importing = false
+  if (file.size > 128 * 1024) {
+    backupStatus.textContent = 'This file is too large to be an Espframe settings backup.'
+    return
+  }
+  importing = true
+  try {
+    const { settings, notices, chooseSource } = readBackup(JSON.parse(await file.text()))
+    if (sequence !== importSequence) return
+    if (chooseSource) form.elements.photo_source.value = ''
+    if (settings.photo_source && settings.photo_source !== 'album') form.elements.album_id.value = ''
+    for (const [name, value] of Object.entries(settings)) {
+      if (name === 'portrait_pairing') form.elements[name].checked = value
+      else form.elements[name].value = value
+    }
+    refreshSource()
+    playback.open = true
+    const message = Object.keys(settings).length ? 'Backup loaded. Review the settings before saving.'
+      : 'This backup has no settings the native installer can prefill.'
+    backupStatus.textContent = [message, ...notices].join(' ')
+  } catch (error) {
+    if (sequence !== importSequence) return
+    backupStatus.textContent = error instanceof SyntaxError ? 'Could not read the backup JSON.' : error.message
+  } finally {
+    if (sequence === importSequence) importing = false
+  }
+})
+form.addEventListener('invalid', event => {
+  if (playback.contains(event.target)) playback.open = true
+}, true)
 
 revision.addEventListener('change', () => {
   install.hidden = !revision.value
@@ -17,18 +61,29 @@ if ('serial' in navigator) {
   form.addEventListener('submit', async event => {
     event.preventDefault()
     if (submit.disabled) return
+    if (importing) {
+      backupStatus.textContent = 'Wait for the backup to finish loading.'
+      return
+    }
+    const data = Object.fromEntries(new FormData(form))
+    if (!validateAlbum(form, data)) return
+    data.slide_seconds = Number(data.slide_seconds)
+    data.portrait_pairing = form.elements.portrait_pairing.checked
     submit.disabled = true
+    backup.disabled = true
     try {
       const port = await navigator.serial.requestPort()
-      const data = Object.fromEntries(new FormData(form))
       status.textContent = 'Saving settings on the frame…'
       await configure(port, data)
       form.reset()
+      refreshSource()
+      backupStatus.textContent = ''
       status.textContent = 'Settings saved. The frame will restart and load photos from Immich.'
     } catch (error) {
       status.textContent = error.name === 'NotFoundError' ? 'Choose the frame’s USB port to continue.' : error.message
     } finally {
       submit.disabled = false
+      backup.disabled = false
     }
   })
 } else {

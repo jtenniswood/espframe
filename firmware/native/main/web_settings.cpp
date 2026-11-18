@@ -26,6 +26,10 @@ extern const char page_start[] asm("_binary_settings_html_start");
 extern const char page_end[] asm("_binary_settings_html_end");
 extern const char script_start[] asm("_binary_settings_js_start");
 extern const char script_end[] asm("_binary_settings_js_end");
+extern const char source_start[] asm("_binary_photo_source_mjs_start");
+extern const char source_end[] asm("_binary_photo_source_mjs_end");
+extern const char backup_start[] asm("_binary_backup_mjs_start");
+extern const char backup_end[] asm("_binary_backup_mjs_end");
 extern const char style_start[] asm("_binary_setup_css_start");
 extern const char style_end[] asm("_binary_setup_css_end");
 
@@ -57,6 +61,8 @@ esp_err_t serve(httpd_req_t *request, const char *type, const char *start, const
 
 esp_err_t page(httpd_req_t *request) { return serve(request, "text/html; charset=utf-8", page_start, page_end); }
 esp_err_t script(httpd_req_t *request) { return serve(request, "text/javascript", script_start, script_end); }
+esp_err_t source_script(httpd_req_t *request) { return serve(request, "text/javascript", source_start, source_end); }
+esp_err_t backup_script(httpd_req_t *request) { return serve(request, "text/javascript", backup_start, backup_end); }
 esp_err_t style(httpd_req_t *request) { return serve(request, "text/css", style_start, style_end); }
 
 esp_err_t current(httpd_req_t *request) {
@@ -142,6 +148,8 @@ void start_web_settings(const Settings &settings) {
   const httpd_uri_t routes[]{
       {.uri = "/", .method = HTTP_GET, .handler = page, .user_ctx = nullptr},
       {.uri = "/settings.js", .method = HTTP_GET, .handler = script, .user_ctx = nullptr},
+      {.uri = "/photo_source.mjs", .method = HTTP_GET, .handler = source_script, .user_ctx = nullptr},
+      {.uri = "/backup.mjs", .method = HTTP_GET, .handler = backup_script, .user_ctx = nullptr},
       {.uri = "/settings.css", .method = HTTP_GET, .handler = style, .user_ctx = nullptr},
       {.uri = "/api/playback", .method = HTTP_GET, .handler = current, .user_ctx = nullptr},
       {.uri = "/api/playback", .method = HTTP_POST, .handler = update, .user_ctx = nullptr},

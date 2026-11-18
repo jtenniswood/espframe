@@ -5,10 +5,12 @@ import { createServer } from 'node:http'
 
 const browser = process.env.CHROME_BIN || 'google-chrome'
 const read = path => readFile(new URL(path, import.meta.url), 'utf8')
-const [html, script, css] = await Promise.all([
+const [html, script, css, sourceScript, backupScript] = await Promise.all([
   read('../main/web/settings.html'),
   read('../main/web/settings.js'),
   read('../installer/setup.css'),
+  read('../installer/photo_source.mjs'),
+  read('../installer/backup.mjs'),
 ])
 const albumId = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
 const setup = {
@@ -17,12 +19,21 @@ const setup = {
 }
 const fixture = html.replace('</body>', `<script>
   const form = document.querySelector('#settings')
-  new MutationObserver((_, observer) => {
+  let downloaded
+  let filename
+  URL.createObjectURL = blob => { downloaded = blob; return 'blob:mock-backup' }
+  HTMLAnchorElement.prototype.click = function () { filename = this.download }
+  new MutationObserver(async (_, observer) => {
     if (form.hidden) return
     observer.disconnect()
     const source = form.elements.photo_source
     const album = form.elements.album_id
     if (source.value !== 'favorites' || !album.disabled) throw new Error('Incorrect initial source')
+    document.querySelector('#download-backup').click()
+    const backup = JSON.parse(await downloaded.text())
+    if (!filename.startsWith('espframe-config-') || backup.version !== 3 || !backup.photos.favorites_enabled
+      || backup.frequency.interval !== '15 seconds' || Object.keys(backup.connection).join() !== 'immich_url')
+      throw new Error('Unexpected saved settings backup')
     source.value = 'album'
     source.dispatchEvent(new Event('change'))
     if (!album.required || album.disabled) throw new Error('Album selection did not enable the album field')
@@ -37,6 +48,8 @@ const fixture = html.replace('</body>', `<script>
 const pages = new Map([
   ['/', ['text/html', fixture]],
   ['/settings.js', ['text/javascript', script]],
+  ['/photo_source.mjs', ['text/javascript', sourceScript]],
+  ['/backup.mjs', ['text/javascript', backupScript]],
   ['/settings.css', ['text/css', css]],
   ['/api/playback', ['application/json', JSON.stringify(setup)]],
 ])

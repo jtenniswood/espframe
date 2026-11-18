@@ -76,6 +76,7 @@ int main() {
   assert(current.web_password == "only-settings");
   auto before = stored;
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","slide_seconds":20.3})"));
+  assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","slide_seconds":86401})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://name@photos.test","slide_seconds":20})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","immich_key":"key with space"})"));
   assert(!Settings::save_playback(R"({"immich_url":"https://photos.test","portrait_pairing":"false"})"));
@@ -100,6 +101,8 @@ int main() {
   assert(current.read());
   assert(current.photo_source.mode == PhotoSourceMode::Album);
   assert(current.photo_source.album_id == "c48e2980-18ac-4d7d-876a-a636759a1aec");
+  assert(Settings::save_playback(R"({"immich_url":"http://photos.test","slide_seconds":86400})"));
+  assert(current.read() && current.slide_seconds == 86'400);
   assert(current.immich_key == "next-key" && !current.portrait_pairing);
   assert(Settings::save_playback(R"({"immich_url":"http://photos.test","photo_source":"favorites"})"));
   assert(current.read() && current.photo_source.mode == PhotoSourceMode::Favorites);

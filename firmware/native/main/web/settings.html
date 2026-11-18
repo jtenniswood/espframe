@@ -28,9 +28,10 @@
           <label>Immich album link or ID <input name="album_id" maxlength="512" aria-describedby="album-help"></label>
           <small id="album-help">Copy the link from the album page in Immich. The API key needs album.read permission.</small>
         </div>
-        <label>Seconds per photo <input name="slide_seconds" type="number" min="2" max="3600" step="1" required></label>
+        <label>Seconds per photo <input name="slide_seconds" type="number" min="2" max="86400" step="1" required></label>
         <label><input name="portrait_pairing" type="checkbox" class="inline-option"> Pair portrait photos from the same day</label>
         <button type="submit">Save and restart</button>
+        <button type="button" id="download-backup">Download settings backup</button>
       </form>
       <p id="status" role="status" aria-live="polite">Loading frame settings…</p>
     </section>

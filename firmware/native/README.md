@@ -43,6 +43,13 @@ finishes, then enter your Wi-Fi and Immich settings and select the frame's
 USB port. The browser sends settings directly over USB and the frame
 restarts when it saves them.
 
+When upgrading an existing frame, export an Espframe settings backup from
+its web page before installation. In the native installer, choose that
+backup to prefill the Immich URL, supported photo source, slideshow interval
+and portrait-pairing preference. Backups that use filters the native player
+cannot apply require you to choose a photo source before saving. Enter the
+required Wi-Fi and Immich credentials in the setup form.
+
 To build the same installer locally, run `npm ci` and place each
 `merged-binary.bin` in the matching `v1`, `v2` or `v3` build directory.
 Then run:
@@ -59,6 +66,8 @@ settings page. Use the IP address shown in the USB logs or find
 with the password you chose. The settings page can change the Immich
 URL, API key, photo source, time per photo and portrait pairing. Saving applies the
 changes on restart.
+Use **Download settings backup** to save a copy of the active playback
+settings for a future install.
 The page uses HTTP on the local network. Keep it on a trusted network.
 
 Host regression checks run without the ESP-IDF toolchain:

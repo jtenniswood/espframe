@@ -13,7 +13,7 @@ struct Settings {
   std::string immich_url;
   std::string immich_key;
   std::string web_password;
-  uint16_t slide_seconds{15};
+  uint32_t slide_seconds{15};
   bool portrait_pairing{true};
   PhotoSource photo_source;
 
