@@ -1,5 +1,6 @@
 #include "display.h"
 #include "slide_blit.h"
+#include "slide_cache.h"
 #include "swipe.h"
 #include "touch.h"
 
@@ -8,6 +9,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "freertos/task.h"
 
 #include <array>
@@ -19,7 +21,8 @@ namespace espframe::native {
 namespace {
 
 constexpr const char *tag = "swipe-probe";
-constexpr int slide_count = 5;
+constexpr int fixture_count = 5;
+constexpr int slide_count = 30;
 constexpr int initial_slide = 2;
 constexpr int64_t touch_period_us = 5'000;
 
@@ -50,7 +53,7 @@ DECLARE_PHOTO(4)
 
 #undef DECLARE_PHOTO
 
-constexpr EncodedPhoto photos[slide_count]{
+constexpr EncodedPhoto photos[fixture_count]{
 #ifdef SWIPE_PHOTO_0
     {photo_0_start, photo_0_end},
 #else
@@ -144,23 +147,57 @@ bool decode_photo(const EncodedPhoto &photo, uint16_t *pixels, jpeg_decoder_hand
   return true;
 }
 
-std::array<uint16_t *, slide_count> prepare_slides() {
-  std::array<uint16_t *, slide_count> slides{};
-  jpeg_decoder_handle_t decoder{};
-  for (int index = 0; index < slide_count; ++index) {
+SlideCache::Buffers allocate_slide_buffers() {
+  SlideCache::Buffers buffers{};
+  for (auto &pixels : buffers) {
     constexpr size_t bytes = pixel_count * sizeof(uint16_t);
-    slides[index] = static_cast<uint16_t *>(heap_caps_aligned_alloc(128, bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    ESP_ERROR_CHECK(slides[index] != nullptr ? ESP_OK : ESP_ERR_NO_MEM);
-    if (!decode_photo(photos[index], slides[index], decoder))
-      draw_test_slide(slides[index], index);
+    pixels = static_cast<uint16_t *>(heap_caps_aligned_alloc(128, bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    ESP_ERROR_CHECK(pixels != nullptr ? ESP_OK : ESP_ERR_NO_MEM);
   }
-  if (decoder != nullptr)
-    ESP_ERROR_CHECK(jpeg_del_decoder_engine(decoder));
-  return slides;
+  return buffers;
 }
 
+class FixtureLoader {
+ public:
+  void start() {
+    this->requests_ = xQueueCreate(1, sizeof(SlideCache::Lease));
+    this->completed_ = xQueueCreate(1, sizeof(SlideCache::Lease));
+    ESP_ERROR_CHECK(this->requests_ && this->completed_ ? ESP_OK : ESP_ERR_NO_MEM);
+    const auto result = xTaskCreatePinnedToCore(run_, "slide-prepare", 6144, this, 2, nullptr, 1);
+    ESP_ERROR_CHECK(result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
+  }
+
+  void submit(const SlideCache::Lease &lease) {
+    ESP_ERROR_CHECK(xQueueSend(this->requests_, &lease, 0) == pdPASS ? ESP_OK : ESP_ERR_INVALID_STATE);
+  }
+
+  bool poll(SlideCache::Lease &lease) {
+    return xQueueReceive(this->completed_, &lease, 0) == pdPASS;
+  }
+
+ private:
+  static void run_(void *context) {
+    auto &loader = *static_cast<FixtureLoader *>(context);
+    jpeg_decoder_handle_t decoder{};
+    while (true) {
+      SlideCache::Lease lease{};
+      if (xQueueReceive(loader.requests_, &lease, portMAX_DELAY) != pdPASS)
+        continue;
+      const int fixture = lease.slide % fixture_count;
+      if (!decode_photo(photos[fixture], lease.pixels, decoder))
+        draw_test_slide(lease.pixels, fixture);
+      xQueueSend(loader.completed_, &lease, portMAX_DELAY);
+    }
+  }
+
+  QueueHandle_t requests_{};
+  QueueHandle_t completed_{};
+};
+
 void run() {
-  const auto slides = prepare_slides();
+  SlideCache cache{allocate_slide_buffers()};
+  static FixtureLoader loader;
+  loader.start();
   static Display display;
   display.init();
   Touch touch;
@@ -175,6 +212,7 @@ void run() {
   int64_t submitted_motion_us = 0;
   int last_submitted = -1;
   bool lit = false;
+  bool preparing = false;
 
   while (true) {
     auto now = esp_timer_get_time();
@@ -182,11 +220,40 @@ void run() {
       if (!lit) {
         display.enable_backlight();
         lit = true;
-        ESP_LOGI(tag, "Probe ready (five cached slides)");
+        ESP_LOGI(tag, "Probe ready (background fixture preparation)");
       }
       if (submitted_motion_us != 0) {
         ESP_LOGI(tag, "gesture_to_scanout_us=%" PRId64, now - submitted_motion_us);
         submitted_motion_us = 0;
+      }
+    }
+
+    SlideCache::Lease completion{};
+    if (loader.poll(completion)) {
+      ESP_ERROR_CHECK(cache.complete(completion, true) ? ESP_OK : ESP_ERR_INVALID_STATE);
+      preparing = false;
+    }
+    const int center = swipe.settled();
+    const int keep_first = std::max(0, center - 2);
+    const int keep_last = std::min(slide_count - 1, center + 3);
+    int ready_first = center;
+    int ready_last = center;
+    while (ready_first > keep_first && cache.find(ready_first - 1) != nullptr)
+      --ready_first;
+    while (ready_last < keep_last && cache.find(ready_last + 1) != nullptr)
+      ++ready_last;
+    swipe.set_ready_range(ready_first, ready_last);
+
+    if (!preparing) {
+      for (const int offset : {0, 1, -1, 2, -2, 3}) {
+        const int candidate = center + offset;
+        if (candidate < keep_first || candidate > keep_last)
+          continue;
+        if (const auto lease = cache.reserve(candidate, keep_first, keep_last)) {
+          loader.submit(*lease);
+          preparing = true;
+          break;
+        }
       }
     }
 
@@ -231,12 +298,15 @@ void run() {
     if (auto *output = display.writable_buffer(); output != nullptr && position != last_submitted) {
       const int index = position / slide_width;
       const int offset = position % slide_width;
-      const auto *right = offset == 0 ? nullptr : slides[index + 1];
-      blit_slides(output, slides[index], right, panel_width, panel_height, offset);
-      display.submit(position);
-      submitted_motion_us = first_motion_us;
-      first_motion_us = 0;
-      last_submitted = position;
+      const auto *left = cache.find(index);
+      const auto *right = offset == 0 ? nullptr : cache.find(index + 1);
+      if (left != nullptr && (offset == 0 || right != nullptr)) {
+        blit_slides(output, left, right, panel_width, panel_height, offset);
+        display.submit(position);
+        submitted_motion_us = first_motion_us;
+        first_motion_us = 0;
+        last_submitted = position;
+      }
     }
     vTaskDelay(1);
   }

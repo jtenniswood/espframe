@@ -77,6 +77,18 @@ int main() {
   edge.release(start + 250'000);
   assert(edge.position() == 0 && !edge.settling());
 
+  Swipe cold_boundary{width, 5, 2};
+  cold_boundary.set_ready_range(1, 2);
+  cold_boundary.press(950, 300, 2 * width, start);
+  cold_boundary.move(300, 300, start + 80'000);
+  assert(cold_boundary.position() == 2 * width);
+  cold_boundary.set_ready_range(1, 3);
+  cold_boundary.move(300, 300, start + 100'000);
+  assert(cold_boundary.position() == 2 * width + 650);
+  cold_boundary.release(start + 300'000);
+  cold_boundary.tick(start + 600'000);
+  assert(cold_boundary.settled() == 3);
+
   const std::array<uint16_t, 6> left{0, 1, 2, 3, 4, 5};
   const std::array<uint16_t, 6> right{6, 7, 8, 9, 10, 11};
   std::array<uint16_t, 6> output{};

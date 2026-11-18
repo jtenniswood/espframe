@@ -29,6 +29,9 @@ jobs:
           c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
             firmware/native/tests/swipe_test.cpp -o "$RUNNER_TEMP/swipe-test"
           "$RUNNER_TEMP/swipe-test"
+          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+            firmware/native/tests/slide_cache_test.cpp -o "$RUNNER_TEMP/slide-cache-test"
+          "$RUNNER_TEMP/slide-cache-test"
       - name: Build native factory binary
         run: |
           docker pull espressif/idf:v6.1.1

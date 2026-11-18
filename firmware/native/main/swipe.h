@@ -9,13 +9,18 @@ namespace espframe::native {
 class Swipe {
  public:
   Swipe(int width, int slide_count, int initial_slide)
-      : width_(width), last_(slide_count - 1), position_(static_cast<float>(initial_slide * width)),
+      : width_(width), last_(slide_count - 1), ready_last_(last_), position_(static_cast<float>(initial_slide * width)),
         settled_(initial_slide), target_(initial_slide) {}
 
   float position() const { return this->position_; }
   int settled() const { return this->settled_; }
   bool dragging() const { return this->phase_ == Phase::Dragging; }
   bool settling() const { return this->phase_ == Phase::Settling; }
+
+  void set_ready_range(int first, int last) {
+    this->ready_first_ = first;
+    this->ready_last_ = last;
+  }
 
   void press(int x, int y, int presented_position, int64_t now_us) {
     this->resume_ = this->target_;
@@ -109,8 +114,8 @@ class Swipe {
     return std::clamp(static_cast<int>(std::lround(pixels / this->width_)), 0, this->last_);
   }
 
-  int minimum_slide_() const { return std::max(0, this->origin_slide_ - 1); }
-  int maximum_slide_() const { return std::min(this->last_, this->origin_slide_ + 1); }
+  int minimum_slide_() const { return std::max(this->ready_first_, this->origin_slide_ - 1); }
+  int maximum_slide_() const { return std::min(this->ready_last_, this->origin_slide_ + 1); }
 
   void settle_to_(int slide, int64_t now_us) {
     this->target_ = slide;
@@ -129,6 +134,8 @@ class Swipe {
 
   int width_;
   int last_;
+  int ready_first_{};
+  int ready_last_;
   float position_;
   int settled_;
   int target_;

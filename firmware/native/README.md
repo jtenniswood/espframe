@@ -1,9 +1,10 @@
 # Native photo swipe prototype
 
 This standalone ESP-IDF app exercises the photo gesture on the Guition
-JC8012P4A1. It starts on the middle of five
-locally prepared slides. Drag either way, release a short drag, flick, or
-press while a slide is settling to take over from its visible position.
+JC8012P4A1. It starts on slide three of a longer sequence that repeats
+five local fixtures. A background task prepares the requested slide and
+keeps two behind and up to three ahead in memory. Drag either way, release a
+short drag, flick, or press again to take over a moving slide.
 
 The prototype works offline. It uses the matching panel initialization sequence
 from the maintained Espframe device profile and the GSL3680 firmware and
@@ -33,6 +34,9 @@ Host regression checks run without the ESP-IDF toolchain:
 c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
   firmware/native/tests/swipe_test.cpp -o /tmp/espframe-swipe-test
 /tmp/espframe-swipe-test
+c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+  firmware/native/tests/slide_cache_test.cpp -o /tmp/espframe-slide-cache-test
+/tmp/espframe-slide-cache-test
 ```
 
 ## Test on the frame
