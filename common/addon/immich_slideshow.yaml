@@ -250,21 +250,12 @@ remote_image:
       then:
         - lambda: |-
             id(espframe_core).record_memory("photo-decoded");
-            const int slot = 0;
-            auto &meta = id(espframe_core).slideshow().state().slot0;
-            id(espframe_core).slideshow().on_slot_download_finished(
-              slot, meta, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight,
-              id(espframe_core).slideshow().state().download_retries, id(espframe_core).slideshow().state().active_slot, id(portrait_pairing_enabled).state,
-              id(espframe_core).slideshow().state().active_slot_displayed, id(espframe_core).slideshow().state().current_display, id(espframe_core).slideshow().state().portrait,
-              id(espframe_core).slideshow().state().companion_target_slot, id(espframe_core).slideshow().state().portrait_preload_slot,
-              id(espframe_core).slideshow().state().portrait_search_datetime, id(espframe_core).slideshow().state().portrait_primary_asset_id);
+            id(espframe_core).slideshow().on_slot_download_finished(0, id(portrait_pairing_enabled).state);
             id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
-            id(espframe_core).slideshow().on_slot_download_error(
-              0, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight,
-              id(espframe_core).slideshow().state().diagnostic_reason, id(espframe_core).slideshow().state().last_downloaded_slot, "slot0 image error");
+            id(espframe_core).slideshow().on_slot_download_error(0, "slot0 image error");
             id(espframe_slideshow_dispatch).execute();
 
   - id: immich_img_1
@@ -279,21 +270,12 @@ remote_image:
       then:
         - lambda: |-
             id(espframe_core).record_memory("photo-decoded");
-            const int slot = 1;
-            auto &meta = id(espframe_core).slideshow().state().slot1;
-            id(espframe_core).slideshow().on_slot_download_finished(
-              slot, meta, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight,
-              id(espframe_core).slideshow().state().download_retries, id(espframe_core).slideshow().state().active_slot, id(portrait_pairing_enabled).state,
-              id(espframe_core).slideshow().state().active_slot_displayed, id(espframe_core).slideshow().state().current_display, id(espframe_core).slideshow().state().portrait,
-              id(espframe_core).slideshow().state().companion_target_slot, id(espframe_core).slideshow().state().portrait_preload_slot,
-              id(espframe_core).slideshow().state().portrait_search_datetime, id(espframe_core).slideshow().state().portrait_primary_asset_id);
+            id(espframe_core).slideshow().on_slot_download_finished(1, id(portrait_pairing_enabled).state);
             id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
-            id(espframe_core).slideshow().on_slot_download_error(
-              1, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight,
-              id(espframe_core).slideshow().state().diagnostic_reason, id(espframe_core).slideshow().state().last_downloaded_slot, "slot1 image error");
+            id(espframe_core).slideshow().on_slot_download_error(1, "slot1 image error");
             id(espframe_slideshow_dispatch).execute();
 
   - id: immich_img_2
@@ -308,21 +290,12 @@ remote_image:
       then:
         - lambda: |-
             id(espframe_core).record_memory("photo-decoded");
-            const int slot = 2;
-            auto &meta = id(espframe_core).slideshow().state().slot2;
-            id(espframe_core).slideshow().on_slot_download_finished(
-              slot, meta, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight,
-              id(espframe_core).slideshow().state().download_retries, id(espframe_core).slideshow().state().active_slot, id(portrait_pairing_enabled).state,
-              id(espframe_core).slideshow().state().active_slot_displayed, id(espframe_core).slideshow().state().current_display, id(espframe_core).slideshow().state().portrait,
-              id(espframe_core).slideshow().state().companion_target_slot, id(espframe_core).slideshow().state().portrait_preload_slot,
-              id(espframe_core).slideshow().state().portrait_search_datetime, id(espframe_core).slideshow().state().portrait_primary_asset_id);
+            id(espframe_core).slideshow().on_slot_download_finished(2, id(portrait_pairing_enabled).state);
             id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
-            id(espframe_core).slideshow().on_slot_download_error(
-              2, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight,
-              id(espframe_core).slideshow().state().diagnostic_reason, id(espframe_core).slideshow().state().last_downloaded_slot, "slot2 image error");
+            id(espframe_core).slideshow().on_slot_download_error(2, "slot2 image error");
             id(espframe_slideshow_dispatch).execute();
 
   # Portrait pair half-width components (640x800 each, side-by-side)
@@ -341,15 +314,14 @@ remote_image:
         - lambda: |-
             id(espframe_core).record_memory("photo-decoded");
             ESP_LOGD("immich", "Portrait left ready");
-            id(espframe_core).slideshow().on_portrait_left_finished(id(espframe_core).slideshow().state().portrait);
+            id(espframe_core).slideshow().on_portrait_download_finished(::EspFrameSlideshow::PortraitSide::LEFT);
             id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
             ESP_LOGE("immich", "Portrait left decode failed");
-            id(espframe_core).slideshow().on_portrait_left_error(
-              id(espframe_core).slideshow().state().portrait, id(espframe_core).slideshow().state().diagnostic_reason,
-              id(espframe_core).slideshow().state().active_slot_displayed, id(portrait_pairs_only).state);
+            id(espframe_core).slideshow().on_portrait_download_error(
+              ::EspFrameSlideshow::PortraitSide::LEFT, id(portrait_pairs_only).state);
             id(espframe_slideshow_dispatch).execute();
 
   - id: immich_portrait_right
@@ -367,15 +339,14 @@ remote_image:
         - lambda: |-
             id(espframe_core).record_memory("photo-decoded");
             ESP_LOGD("immich", "Portrait right ready");
-            id(espframe_core).slideshow().on_portrait_right_finished(id(espframe_core).slideshow().state().portrait);
+            id(espframe_core).slideshow().on_portrait_download_finished(::EspFrameSlideshow::PortraitSide::RIGHT);
             id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
             ESP_LOGE("immich", "Portrait right decode failed");
-            id(espframe_core).slideshow().on_portrait_right_error(
-              id(espframe_core).slideshow().state().portrait, id(espframe_core).slideshow().state().diagnostic_reason,
-              id(espframe_core).slideshow().state().active_slot_displayed, id(portrait_pairs_only).state);
+            id(espframe_core).slideshow().on_portrait_download_error(
+              ::EspFrameSlideshow::PortraitSide::RIGHT, id(portrait_pairs_only).state);
             id(espframe_slideshow_dispatch).execute();
 
   # Portrait preload components (downloaded during prefetch for instant pair display)
@@ -394,27 +365,14 @@ remote_image:
         - lambda: |-
             id(espframe_core).record_memory("photo-decoded");
             ESP_LOGD("immich", "Portrait preload left ready (slot %d)", id(espframe_core).slideshow().state().portrait_preload_slot);
-            id(espframe_core).slideshow().on_preload_left_finished(
-              id(espframe_core).slideshow().state().portrait_preload_slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2,
-              id(espframe_core).slideshow().state().portrait_preload_left_ready, id(espframe_core).slideshow().state().portrait_preload_right_ready,
-              id(espframe_core).slideshow().state().preload_noncritical_in_flight, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+            id(espframe_core).slideshow().on_preload_left_finished();
             id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
             ESP_LOGE("immich", "Portrait preload left failed");
-            id(espframe_core).slideshow().on_preload_left_error(
-              id(espframe_core).slideshow().state().diagnostic_reason, id(espframe_core).slideshow().state().portrait_preload_left_ready,
-              id(espframe_core).slideshow().state().preload_noncritical_in_flight, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
-            if (!id(portrait_pairs_only).state &&
-                id(espframe_core).slideshow().state().portrait_preload_slot == id(espframe_core).slideshow().state().active_slot) {
-              id(espframe_core).slideshow().fallback_preloaded_pair_to_single(
-                id(espframe_core).slideshow().state().active_slot);
-            }
-            if (id(portrait_pairs_only).state && id(espframe_core).slideshow().state().portrait_preload_slot >= 0) {
-              id(espframe_core).slideshow().reject_portrait_slot(
-                millis(), id(espframe_core).slideshow().state().portrait_preload_slot);
-            }
+            id(espframe_core).slideshow().on_portrait_preload_error(
+              ::EspFrameSlideshow::PortraitSide::LEFT, millis(), id(portrait_pairs_only).state);
             id(espframe_slideshow_dispatch).execute();
 
   - id: immich_portrait_preload_right
@@ -432,27 +390,14 @@ remote_image:
         - lambda: |-
             id(espframe_core).record_memory("photo-decoded");
             ESP_LOGD("immich", "Portrait preload right ready (slot %d)", id(espframe_core).slideshow().state().portrait_preload_slot);
-            id(espframe_core).slideshow().on_preload_right_finished(
-              id(espframe_core).slideshow().state().portrait_preload_right_ready, id(espframe_core).slideshow().state().preload_noncritical_in_flight,
-              id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
-            id(espframe_core).slideshow().display_completed_active_preload();
+            id(espframe_core).slideshow().on_preload_right_finished();
             id(espframe_slideshow_dispatch).execute();
     on_error:
       then:
         - lambda: |-
             ESP_LOGE("immich", "Portrait preload right failed");
-            id(espframe_core).slideshow().on_preload_right_error(
-              id(espframe_core).slideshow().state().diagnostic_reason, id(espframe_core).slideshow().state().portrait_preload_right_ready,
-              id(espframe_core).slideshow().state().preload_noncritical_in_flight, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
-            if (!id(portrait_pairs_only).state &&
-                id(espframe_core).slideshow().state().portrait_preload_slot == id(espframe_core).slideshow().state().active_slot) {
-              id(espframe_core).slideshow().fallback_preloaded_pair_to_single(
-                id(espframe_core).slideshow().state().active_slot);
-            }
-            if (id(portrait_pairs_only).state && id(espframe_core).slideshow().state().portrait_preload_slot >= 0) {
-              id(espframe_core).slideshow().reject_portrait_slot(
-                millis(), id(espframe_core).slideshow().state().portrait_preload_slot);
-            }
+            id(espframe_core).slideshow().on_portrait_preload_error(
+              ::EspFrameSlideshow::PortraitSide::RIGHT, millis(), id(portrait_pairs_only).state);
             id(espframe_slideshow_dispatch).execute();
 
 # -----------------------------------------------------------------------------
@@ -516,9 +461,7 @@ script:
                   // Non-active slot updates are best-effort; defer them if network/decoder work
                   // is already active to avoid cascaded cancel/restart churn.
                   if (any_downloading && cmd.slot != id(espframe_core).slideshow().state().active_slot) {
-                    id(espframe_core).slideshow().defer_slot_update_due_to_busy(
-                      cmd.slot, id(espframe_core).slideshow().state().slot_flags,
-                      id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+                    id(espframe_core).slideshow().defer_slot_update_due_to_busy(cmd.slot);
                     break;
                   }
                   bool portrait_screen = id(screen_rotation_select).current_option() == "90" ||
@@ -653,21 +596,15 @@ script:
       - script.execute: hide_connection_failed
       - script.execute: photo_transition_capture
       - lambda: |-
-          const int active_slot = id(espframe_core).slideshow().state().active_slot;
+          auto &slideshow = id(espframe_core).slideshow();
           auto reject_or_fallback = [&]() {
-            if (id(portrait_pairs_only).state) {
-              id(espframe_core).slideshow().reject_portrait_slot(millis(), active_slot);
-            } else {
-              id(espframe_core).slideshow().fallback_preloaded_pair_to_single(active_slot);
-            }
+            slideshow.recover_active_preloaded_pair(millis(), id(portrait_pairs_only).state);
             id(espframe_slideshow_dispatch).execute();
           };
 
-          if (id(espframe_core).slideshow().state().portrait_preload_slot != active_slot ||
-              !id(espframe_core).slideshow().state().portrait_preload_left_ready ||
-              !id(espframe_core).slideshow().state().portrait_preload_right_ready) {
-            ESP_LOGW("immich", "Preloaded pair not fully ready for active slot %d", active_slot);
-            id(espframe_core).slideshow().state().diagnostic_reason = "preloaded pair not ready";
+          if (!slideshow.active_preloaded_pair_ready()) {
+            ESP_LOGW("immich", "Preloaded pair not fully ready for active slot %d", slideshow.state().active_slot);
+            slideshow.state().diagnostic_reason = "preloaded pair not ready";
             id(log_immich_diag).execute();
             reject_or_fallback();
             return;
@@ -873,23 +810,16 @@ script:
   - id: handle_slot_download_error
     mode: restart
     then:
-      - lambda: |-
-          id(espframe_core).slideshow().state().download_retries++;
-          int s = id(espframe_core).slideshow().state().last_downloaded_slot;
-          ESP_LOGE("immich", "Slot %d decode failed (attempt %d)", s, id(espframe_core).slideshow().state().download_retries);
-          auto &meta = get_slot(s, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2);
-          meta.ready = false;
-          meta.asset_id = "";
-          meta.pending_asset_id = "";
-          meta.image_url = "";
       - if:
           condition:
-            lambda: 'return id(espframe_core).slideshow().state().download_retries < MAX_ERROR_RETRIES;'
+            lambda: |-
+              const auto recovery = id(espframe_core).slideshow().recover_slot_download(MAX_ERROR_RETRIES);
+              ESP_LOGE("immich", "Slot %d decode failed (attempt %d)", recovery.slot, recovery.attempt);
+              return recovery.retry;
           then:
             - delay: 2s
             - script.execute: immich_prefetch_chain
           else:
-            - lambda: 'id(espframe_core).slideshow().state().download_retries = 0;'
             - lambda: |-
                 uint32_t cooldown_ms = id(immich_request_state).register_download_failure(millis());
                 ESP_LOGW("immich",
@@ -901,12 +831,7 @@ script:
     mode: restart
     then:
       - lambda: |-
-          id(espframe_core).slideshow().start_active_portrait(
-            id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().portrait,
-            id(espframe_core).slideshow().state().active_slot_displayed, id(espframe_core).slideshow().state().portrait_primary_asset_id,
-            id(espframe_core).slideshow().state().portrait_companion_url, id(espframe_core).slideshow().state().portrait_search_datetime,
-            id(espframe_core).slideshow().state().companion_target_slot,
-            id(espframe_core).slideshow().state().portrait_search_expanded);
+          id(espframe_core).slideshow().start_active_portrait();
           id(espframe_slideshow_dispatch).execute();
 
   # Record what is on screen before a display script swaps widgets.
@@ -996,17 +921,10 @@ script:
           lv_img_set_zoom(id(slideshow_img), meta.zoom);
           id(photo_transition_start).execute(false);
           ESP_LOGI("immich", "SHOW slot %d: %s | %s | %s | portrait=%d", s, meta.asset_id.c_str(), meta.date.c_str(), meta.person.c_str(), meta.is_portrait);
-          id(espframe_core).slideshow().begin_display_current(
-            s, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().portrait,
-            id(portrait_pairing_enabled).state, id(espframe_core).slideshow().state().active_slot_displayed,
-            id(espframe_core).slideshow().state().current_display);
+          id(espframe_core).slideshow().begin_display_current(id(portrait_pairing_enabled).state);
       - script.execute: apply_warm_tones
       - lambda: |-
-          id(espframe_core).slideshow().after_display_current(
-            id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().portrait,
-            id(portrait_pairing_enabled).state, id(espframe_core).slideshow().state().active_slot_displayed,
-            id(espframe_core).slideshow().state().portrait_preload_slot, id(espframe_core).slideshow().state().portrait_preload_left_ready,
-            id(espframe_core).slideshow().state().portrait_preload_right_ready);
+          id(espframe_core).slideshow().after_display_current(id(portrait_pairing_enabled).state);
           id(espframe_slideshow_dispatch).execute();
       - script.execute: update_clock_display
       - script.execute: update_photo_metadata_display
@@ -1058,14 +976,8 @@ script:
       - lambda: |-
           id(photo_transition_reverse) = false;
           id(espframe_core).slideshow().advance_forward(
-            millis(),
-            id(immich_request_state).cooldown_active(millis()),
-            id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().target_slot, id(espframe_core).slideshow().state().active_slot_displayed,
-            id(espframe_core).slideshow().state().last_advance_ms, id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2,
-            id(espframe_core).slideshow().state().current_display, id(espframe_core).slideshow().state().previous_display, id(espframe_core).slideshow().state().portrait, id(espframe_core).slideshow().state().slot_flags,
-            id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight, id(portrait_pairing_enabled).state, id(portrait_pairs_only).state,
-            id(espframe_core).slideshow().state().portrait_preload_slot, id(espframe_core).slideshow().state().portrait_preload_left_ready,
-            id(espframe_core).slideshow().state().portrait_preload_right_ready, id(espframe_core).slideshow().state().diagnostic_reason);
+            millis(), id(immich_request_state).cooldown_active(millis()),
+            id(portrait_pairing_enabled).state, id(portrait_pairs_only).state);
           id(espframe_slideshow_dispatch).execute();
 
   # Show previous image (swipe back); re-downloads into slot from stored URL
@@ -1074,10 +986,7 @@ script:
     then:
       - lambda: |-
           id(photo_transition_reverse) = true;
-          id(espframe_core).slideshow().show_previous(
-            millis(), id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().active_slot_displayed,
-            id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().current_display,
-            id(espframe_core).slideshow().state().previous_display, id(espframe_core).slideshow().state().portrait, id(espframe_core).slideshow().state().slot_flags);
+          id(espframe_core).slideshow().show_previous(millis());
           id(espframe_slideshow_dispatch).execute();
 
   # Display portrait pair when both left and right images are ready
@@ -1088,17 +997,19 @@ script:
       - script.execute: hide_connection_failed
       - script.execute: photo_transition_capture
       - lambda: |-
+          auto &slideshow = id(espframe_core).slideshow();
+          using Presentation = ::EspFrameSlideshow::LivePairPresentation;
           const bool portrait_screen = id(screen_rotation_select).current_option() == "90" ||
                                        id(screen_rotation_select).current_option() == "270";
-          if (portrait_screen || !id(portrait_pairing_enabled).state) {
+          const auto presentation = slideshow.prepare_live_portrait_pair(
+              !portrait_screen && id(portrait_pairing_enabled).state);
+          if (presentation == Presentation::HIDE) {
             lv_obj_add_flag(id(portrait_pair_container), LV_OBJ_FLAG_HIDDEN);
-            id(espframe_core).slideshow().state().portrait = PortraitState{};
             return;
           }
-          if (!id(espframe_core).slideshow().state().portrait.left_ready || !id(espframe_core).slideshow().state().portrait.right_ready) {
+          if (presentation == Presentation::WAIT) {
             ESP_LOGW("immich", "Portrait pair display deferred (left_ready=%d right_ready=%d)",
-                     id(espframe_core).slideshow().state().portrait.left_ready, id(espframe_core).slideshow().state().portrait.right_ready);
-            id(espframe_core).slideshow().state().diagnostic_reason = "portrait pair deferred waiting both loaded";
+                     slideshow.state().portrait.left_ready, slideshow.state().portrait.right_ready);
             id(log_immich_diag).execute();
             id(delayed_prefetch_chain).execute();
             return;
@@ -1112,17 +1023,10 @@ script:
             ESP_LOGW("immich", "Portrait pair descriptors not ready");
             id(espframe_core).slideshow().state().diagnostic_reason = "portrait pair descriptor not ready";
             id(log_immich_diag).execute();
-            id(espframe_core).slideshow().state().portrait.left_ready = false;
-            id(espframe_core).slideshow().state().portrait.right_ready = false;
-            id(espframe_core).slideshow().state().portrait.is_pair = false;
-            id(espframe_core).slideshow().state().portrait.workflow_busy = false;
-            if (id(portrait_pairs_only).state) {
-              id(espframe_core).slideshow().reject_portrait_slot(
-                millis(), id(espframe_core).slideshow().state().active_slot);
-              id(espframe_slideshow_dispatch).execute();
-            } else {
-              id(espframe_core).slideshow().state().active_slot_displayed = true;
+            if (slideshow.recover_live_portrait_pair(millis(), id(portrait_pairs_only).state)) {
               id(immich_display_current).execute();
+            } else {
+              id(espframe_slideshow_dispatch).execute();
             }
             return;
           }
@@ -1256,14 +1160,9 @@ script:
                      (unsigned) reclaimed.released_bytes, (unsigned) reclaimed.retained_bytes);
             id(espframe_core).record_memory("portrait-reclaimed");
           }
-          id(espframe_core).slideshow().request_prefetch(
-            id(backlight_paused),
-            id(immich_request_state).cooldown_active(millis()),
-            millis(), id(espframe_core).slideshow().state().last_prefetch_start_ms, id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().target_slot,
-            id(espframe_core).slideshow().state().slot0, id(espframe_core).slideshow().state().slot1, id(espframe_core).slideshow().state().slot2, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().fetch_queue, id(espframe_core).slideshow().state().portrait,
-            id(espframe_core).slideshow().state().active_slot_displayed, id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight, id(espframe_core).slideshow().state().portrait_preload_slot,
-            id(espframe_core).slideshow().state().portrait_preload_left_ready, id(espframe_core).slideshow().state().portrait_preload_right_ready,
-            id(espframe_core).allow_background_work());
+          const uint32_t now = millis();
+          slideshow.request_prefetch(id(backlight_paused), id(immich_request_state).cooldown_active(now),
+                                     now, id(espframe_core).allow_background_work());
           id(espframe_slideshow_dispatch).execute();
 
   # Run prefetch after short delay to avoid socket exhaustion when many callbacks fire at once
@@ -1284,10 +1183,13 @@ script:
   - id: deferred_fetch_into_slot
     mode: single
     then:
-      - lambda: 'id(espframe_core).slideshow().state().deferred_fetch_target = id(espframe_core).slideshow().state().target_slot;'
+      - lambda: 'id(espframe_core).slideshow().capture_deferred_fetch_target();'
       - delay: 400ms
-      - lambda: 'id(espframe_core).slideshow().state().target_slot = id(espframe_core).slideshow().state().deferred_fetch_target;'
-      - script.execute: immich_fetch_into_slot
+      - if:
+          condition:
+            lambda: 'return id(espframe_core).slideshow().claim_deferred_fetch(false);'
+          then:
+            - script.execute: immich_fetch_into_slot
 
   - id: deferred_rejected_slot_fetch
     mode: restart
@@ -1304,12 +1206,11 @@ script:
                      !id(immich_portrait_right).is_downloading() &&
                      !id(immich_portrait_preload_left).is_downloading() &&
                      !id(immich_portrait_preload_right).is_downloading();
-      - lambda: |-
-          int slot = id(espframe_core).slideshow().state().rejected_fetch_target;
-          if (slot < 0 || slot > 2) return;
-          id(espframe_core).slideshow().state().target_slot = slot;
-          id(espframe_core).slideshow().state().rejected_fetch_target = -1;
-      - script.execute: immich_fetch_into_slot
+      - if:
+          condition:
+            lambda: 'return id(espframe_core).slideshow().claim_deferred_fetch(true);'
+          then:
+            - script.execute: immich_fetch_into_slot
 
   # Per-slot deferred update scripts — split from a single shared script to avoid
   # collisions when two API responses arrive within 150ms of each other.
@@ -1320,9 +1221,7 @@ script:
     then:
       - delay: 450ms
       - lambda: |-
-          id(espframe_core).slideshow().request_deferred_slot_update(
-            0, id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().portrait.workflow_busy,
-            id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+          id(espframe_core).slideshow().request_deferred_slot_update(0);
           id(espframe_slideshow_dispatch).execute();
 
   - id: deferred_slot1_image_update
@@ -1330,9 +1229,7 @@ script:
     then:
       - delay: 450ms
       - lambda: |-
-          id(espframe_core).slideshow().request_deferred_slot_update(
-            1, id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().portrait.workflow_busy,
-            id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+          id(espframe_core).slideshow().request_deferred_slot_update(1);
           id(espframe_slideshow_dispatch).execute();
 
   - id: deferred_slot2_image_update
@@ -1340,9 +1237,7 @@ script:
     then:
       - delay: 450ms
       - lambda: |-
-          id(espframe_core).slideshow().request_deferred_slot_update(
-            2, id(espframe_core).slideshow().state().active_slot, id(espframe_core).slideshow().state().slot_flags, id(espframe_core).slideshow().state().portrait.workflow_busy,
-            id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+          id(espframe_core).slideshow().request_deferred_slot_update(2);
           id(espframe_slideshow_dispatch).execute();
 
   - id: deferred_portrait_left_update
@@ -1350,7 +1245,8 @@ script:
     then:
       - delay: 450ms
       - lambda: |-
-          id(espframe_core).slideshow().request_portrait_left_update(id(espframe_core).slideshow().state().portrait);
+          id(espframe_core).slideshow().request_portrait_update(
+              ::EspFrameSlideshow::PortraitSide::LEFT);
           id(espframe_slideshow_dispatch).execute();
 
   - id: deferred_portrait_right_update
@@ -1358,7 +1254,8 @@ script:
     then:
       - delay: 450ms
       - lambda: |-
-          id(espframe_core).slideshow().request_portrait_right_update(id(espframe_core).slideshow().state().portrait);
+          id(espframe_core).slideshow().request_portrait_update(
+              ::EspFrameSlideshow::PortraitSide::RIGHT);
           id(espframe_slideshow_dispatch).execute();
 
   - id: deferred_preload_left_update
@@ -1366,9 +1263,8 @@ script:
     then:
       - delay: 450ms
       - lambda: |-
-          id(espframe_core).slideshow().request_preload_left_update(
-            id(espframe_core).slideshow().state().portrait.workflow_busy, id(espframe_core).slideshow().state().preload_noncritical_in_flight,
-            id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+          id(espframe_core).slideshow().request_preload_update(
+            ::EspFrameSlideshow::PortraitSide::LEFT);
           id(espframe_slideshow_dispatch).execute();
 
   - id: deferred_preload_right_update
@@ -1376,7 +1272,6 @@ script:
     then:
       - delay: 450ms
       - lambda: |-
-          id(espframe_core).slideshow().request_preload_right_update(
-            id(espframe_core).slideshow().state().portrait.workflow_busy, id(espframe_core).slideshow().state().preload_noncritical_in_flight,
-            id(espframe_core).slideshow().state().noncritical_remote_updates_in_flight);
+          id(espframe_core).slideshow().request_preload_update(
+            ::EspFrameSlideshow::PortraitSide::RIGHT);
           id(espframe_slideshow_dispatch).execute();

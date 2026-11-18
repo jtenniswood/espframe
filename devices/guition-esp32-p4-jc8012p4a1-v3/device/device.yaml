@@ -14,6 +14,13 @@ substitutions:
   espframe_component_url: "https://github.com/jtenniswood/espframe"
   espframe_component_ref: "main"
   log_level: "INFO"
+  # ESPHome 2026.10 requires active_high. Set false for ESPHome 2026.11+.
+  esp32_hosted_legacy_reset: true
+
+packages:
+  esp32_hosted_legacy_reset: !include
+    file: ../../../common/esp32_hosted_legacy_reset.yaml
+    condition: ${esp32_hosted_legacy_reset}
 
 esp32:
   variant: ESP32P4
@@ -58,7 +65,6 @@ esp32_hosted:
   d1_pin: GPIO15
   d2_pin: GPIO16
   d3_pin: GPIO17
-  active_high: true
 
 # -----------------------------------------------------------------------------
 # PSRAM (hex mode, 200 MHz)
