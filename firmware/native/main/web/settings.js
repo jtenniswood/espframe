@@ -15,6 +15,9 @@ const resetSection = document.querySelector('#customization-reset')
 const resetButton = document.querySelector('#open-reset')
 const resetDialog = document.querySelector('#confirm-reset')
 const resetStatus = document.querySelector('#reset-status')
+const factorySection = document.querySelector('#factory-reset')
+const factoryButton = document.querySelector('#open-factory-reset')
+const factoryDialog = document.querySelector('#confirm-factory-reset')
 let resetPath = ''
 let resetEpoch
 const percentageFields = ['brightness_day', 'brightness_night', 'base_tone', 'warm_tone_intensity']
@@ -52,6 +55,7 @@ try {
   if (settings.reset_path === '/espframe/api/v1/reset') {
     resetPath = settings.reset_path
     resetSection.hidden = false
+    factorySection.hidden = settings.factory_reset !== true
   }
   form.elements.slide_seconds.value = settings.slide_seconds
   form.elements.brightness_day.value = settings.brightness_day ?? 64
@@ -174,27 +178,26 @@ updateForm.addEventListener('submit', async event => {
   }
 })
 
-resetButton.addEventListener('click', () => {
+async function applyReset(mode) {
   if (!resetPath || submit.disabled) return
-  resetDialog.showModal()
-})
-document.querySelector('#cancel-reset').addEventListener('click', () => resetDialog.close())
-document.querySelector('#apply-reset').addEventListener('click', async () => {
-  resetDialog.close()
-  if (!resetPath || submit.disabled) return
-  for (const button of [resetButton, submit, download, updateButton]) button.disabled = true
+  const actions = [resetButton, factoryButton, submit, download, updateButton]
+  for (const button of actions) button.disabled = true
   resetStatus.textContent = 'Resetting settings…'
   try {
     const response = await fetch(resetPath, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ mode: 'customization' }),
+      body: new URLSearchParams({ mode }),
     })
     const payload = await response.json()
     if (!response.ok || payload.status !== 'accepted') throw new Error('reset_failed')
   } catch {
-    for (const button of [resetButton, submit, download, updateButton]) button.disabled = false
+    for (const button of actions) button.disabled = false
     resetStatus.textContent = 'Could not confirm the reset. Reload the settings to check the frame.'
+    return
+  }
+  if (mode === 'factory') {
+    resetStatus.textContent = 'Factory reset accepted. After the frame restarts, connect it by USB and open “Connect Wi-Fi and Immich” in the native browser installer.'
     return
   }
   resetStatus.textContent = 'Settings reset. The frame is restarting.'
@@ -211,4 +214,18 @@ document.querySelector('#apply-reset').addEventListener('click', async () => {
     }
   }
   resetStatus.textContent = 'Reload this page when the frame reconnects to set up Immich.'
-})
+}
+
+for (const [mode, button, dialog, suffix] of [
+  ['customization', resetButton, resetDialog, 'reset'],
+  ['factory', factoryButton, factoryDialog, 'factory-reset'],
+]) {
+  button.addEventListener('click', () => {
+    if (resetPath && !submit.disabled) dialog.showModal()
+  })
+  document.querySelector(`#cancel-${suffix}`).addEventListener('click', () => dialog.close())
+  document.querySelector(`#apply-${suffix}`).addEventListener('click', () => {
+    dialog.close()
+    applyReset(mode)
+  })
+}

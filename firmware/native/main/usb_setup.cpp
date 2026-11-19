@@ -62,6 +62,11 @@ void report_address(const NativeNetwork &network, std::string_view challenge) {
 
 void listen(void *context) {
   auto &network = *static_cast<NativeNetwork *>(context);
+  const auto reset_epoch = [] {
+    Settings settings;
+    settings.read();
+    return settings.reset_epoch;
+  }();
   ImprovSerial improv(network);
   static std::array<char, Settings::max_json_size + 96> line{};
   std::array<char, 128> chunk;
@@ -110,7 +115,7 @@ void listen(void *context) {
       if (!command.starts_with(challenge) || command.size() <= challenge.size() || command[challenge.size()] != ' ')
         continue;
       command.remove_prefix(challenge.size() + 1);
-      if (improv.busy() || network.busy() || !Settings::save(command.data())) {
+      if (improv.busy() || network.busy() || !Settings::save(command.data(), reset_epoch)) {
         reply("REJECTED", challenge);
         challenge.clear();
         continue;

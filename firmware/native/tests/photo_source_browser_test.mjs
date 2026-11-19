@@ -183,10 +183,26 @@ const resetFixture = html.replace('</body>', `<script>
     document.querySelector('#apply-reset').click()
   }).observe(form, {attributes: true})
 </script></body>`)
+const factoryFixture = html.replace('</body>', `<script>
+  const form = document.querySelector('#settings')
+  const button = document.querySelector('#open-factory-reset')
+  const confirmation = document.querySelector('#confirm-factory-reset')
+  new MutationObserver(() => {
+    if (form.hidden) return
+    if (button.closest('#factory-reset').hidden) throw new Error('Factory reset was not offered')
+    button.click()
+    if (!confirmation.open) throw new Error('Factory reset skipped confirmation')
+    document.querySelector('#cancel-factory-reset').click()
+    if (confirmation.open || button.disabled) throw new Error('Could not cancel factory reset')
+    button.click()
+    document.querySelector('#apply-factory-reset').click()
+  }).observe(form, {attributes: true})
+</script></body>`)
 const pages = new Map([
   ['/', ['text/html', fixture]],
   ['/firmware', ['text/html', firmwareFixture]],
   ['/reset-test', ['text/html', resetFixture]],
+  ['/factory-reset-test', ['text/html', factoryFixture]],
   ['/settings.js', ['text/javascript', script]],
   ['/photo_source.mjs', ['text/javascript', sourceScript]],
   ['/backup.mjs', ['text/javascript', backupScript]],
@@ -197,6 +213,7 @@ const uploads = []
 const resets = []
 let firmwareAvailable = false
 let resetAvailable = false
+let factoryAvailable = false
 let resetPolls = 0
 const server = createServer(async (request, response) => {
   if (request.method === 'POST' && request.url === '/api/playback') {
@@ -210,6 +227,7 @@ const server = createServer(async (request, response) => {
     const playback = { ...setup, clock_timezones: clockTimezones }
     if (resetAvailable) {
       playback.reset_path = resetPath
+      playback.factory_reset = factoryAvailable
       playback.api_key_configured = resets.length === 0
       playback.reset_epoch = resets.length
       if (resets.length) playback.immich_url = ''
@@ -296,6 +314,14 @@ try {
   assert.equal(updates[1].immich_key, 'fresh-key')
   assert.equal(updates[1].reset_epoch, 1)
   console.log('Native device tools confirm a customization reset and reconnect Immich after restart')
+
+  factoryAvailable = true
+  const factoryPage = await render('/factory-reset-test')
+  assert.match(factoryPage, /Factory reset accepted\. After the frame restarts, connect it by USB/)
+  assert.deepEqual(resets.map(({ body }) => body), ['mode=customization', 'mode=factory'])
+  assert.equal(resetPolls, 1, 'Factory reset must not poll the old Wi-Fi address')
+  assert.equal(updates.length, 2, 'Factory reset must not submit playback settings')
+  console.log('Native device tools confirm factory reset and hand off to browser setup')
 } finally {
   server.close()
 }

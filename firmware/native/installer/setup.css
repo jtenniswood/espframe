@@ -89,7 +89,8 @@ button:disabled {
   margin: 0;
 }
 
-#confirm-reset button + button {
+#confirm-reset button + button,
+#confirm-factory-reset button + button {
   margin-inline-start: .5rem;
 }
 

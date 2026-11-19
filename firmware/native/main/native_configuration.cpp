@@ -99,10 +99,14 @@ cJSON *configuration_capabilities() {
       !cJSON_AddBoolToObject(body.get(), "legacy_entity_api", false))
     return nullptr;
   auto *modes = cJSON_AddArrayToObject(body.get(), "reset_modes");
-  Json mode(cJSON_CreateString("customization"), cJSON_Delete);
-  if (!modes || !mode || !cJSON_AddItemToArray(modes, mode.get()))
+  if (!modes)
     return nullptr;
-  mode.release();
+  for (const auto mode : {ResetMode::Customization, ResetMode::Factory}) {
+    Json name(cJSON_CreateString(reset_mode_name(mode)), cJSON_Delete);
+    if (!name || !cJSON_AddItemToArray(modes, name.get()))
+      return nullptr;
+    name.release();
+  }
   return body.release();
 }
 
@@ -247,10 +251,20 @@ ConfigurationUpdate update_configuration(const char *json) {
   return {"200 OK", nullptr, {}, count};
 }
 
-ConfigurationUpdate reset_configuration(std::string_view form) {
-  if (form != "mode=customization")
-    return {"400 Bad Request", "invalid_mode", {}};
-  if (!Settings::reset_customization())
+std::optional<ResetMode> decode_reset_form(std::string_view form) {
+  if (form == "mode=customization")
+    return ResetMode::Customization;
+  if (form == "mode=factory")
+    return ResetMode::Factory;
+  return {};
+}
+
+const char *reset_mode_name(ResetMode mode) {
+  return mode == ResetMode::Factory ? "factory" : "customization";
+}
+
+ConfigurationUpdate reset_configuration(ResetMode mode) {
+  if (!Settings::reset(mode))
     return {"500 Internal Server Error", "settings_unavailable", {}};
   return {"200 OK", nullptr, {}};
 }

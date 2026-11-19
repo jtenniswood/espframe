@@ -165,12 +165,22 @@
       <h2 id="reset-title">Reset settings</h2>
       <p>Clear photo connections and restore playback and display defaults. Keep Wi-Fi and the web settings password.</p>
       <button id="open-reset" type="button">Reset customization</button>
+      <div id="factory-reset" hidden>
+        <p>Clear Wi-Fi, the settings password, photo connections, and playback preferences.</p>
+        <button id="open-factory-reset" type="button">Factory reset</button>
+      </div>
       <p id="reset-status" role="status"></p>
       <dialog id="confirm-reset" aria-labelledby="reset-dialog-title">
         <h2 id="reset-dialog-title">Reset customization?</h2>
         <p>Download a settings backup first if you want a copy. After restart, enter your Immich URL and API key on this page.</p>
         <button id="cancel-reset" type="button" autofocus>Cancel</button>
         <button id="apply-reset" type="button">Reset and restart</button>
+      </dialog>
+      <dialog id="confirm-factory-reset" aria-labelledby="factory-reset-title">
+        <h2 id="factory-reset-title">Factory reset this frame?</h2>
+        <p>Download a settings backup first if you want a copy. The frame will disconnect from Wi-Fi. Connect by USB and use “Connect Wi-Fi and Immich” in the native browser installer to set it up again.</p>
+        <button id="cancel-factory-reset" type="button" autofocus>Cancel</button>
+        <button id="apply-factory-reset" type="button">Factory reset and restart</button>
       </dialog>
     </section>
   </main>

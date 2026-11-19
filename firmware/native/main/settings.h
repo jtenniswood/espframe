@@ -23,6 +23,8 @@ inline constexpr const char *screen_rotation_name(ScreenRotation rotation) {
   return rotation == ScreenRotation::UpsideDown ? "180" : "0";
 }
 
+enum class ResetMode { Customization, Factory };
+
 struct Settings {
   enum class UpdateResult { Saved, Invalid, Stale, Failed };
 
@@ -57,11 +59,11 @@ struct Settings {
   static constexpr size_t max_json_size = 3072;
   bool read();
   bool read_esphome_trial();
-  static bool save(const char *json);
-  static bool save_wifi(const WifiCredentials &wifi);
+  static bool save(const char *json, std::optional<uint32_t> expected_epoch = {});
+  static bool save_wifi(const WifiCredentials &wifi, uint32_t expected_epoch);
   static bool save_playback(const char *json);
   static UpdateResult update_playback(const cJSON *update, std::optional<uint32_t> expected_epoch = {});
-  static bool reset_customization();
+  static bool reset(ResetMode mode);
   bool add_playback_fields(cJSON *object) const;
 };
 

@@ -49,7 +49,7 @@ const server = createServer(async (request, response) => {
     response.writeHead(202).end('Connecting to Wi-Fi.')
   } else if (request.url === '/api/recovery') {
     const result = pending ? { status: 'joining' } : requests.length === 0 ? { status: 'ready' }
-      : requests.length === 1 ? { status: 'failed' } : { status: 'connected', ipv4: '192.168.6.17' }
+      : requests.length === 1 ? { status: 'failed' } : { status: 'connected', ipv4: '192.168.6.17', web_settings: false }
     pending = false
     response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(result))
   } else {
@@ -75,6 +75,7 @@ try {
   assert.deepEqual(requests, [Buffer.from([ssid.length, ...ssid, 5, ...Buffer.from('wrong')]),
     Buffer.from([ssid.length, ...ssid, 0])])
   assert.match(page, /Connected\. Rejoin your usual Wi-Fi\. The frame’s address is 192\.168\.6\.17/)
+  assert.match(page, /To set up Immich or enable web settings, connect by USB/)
   assert.match(page, /<form id="recovery" hidden="">/)
   console.log('Native Wi-Fi recovery handles encoded credentials, a rejected trial, and a successful retry')
 } finally {

@@ -44,7 +44,11 @@ bool normalize_http_base(std::string &url) {
 }
 
 bool normalize(Settings &settings) {
-  if (settings.ssid.empty() || settings.ssid.size() > 32 || settings.password.size() > 64 ||
+  if (settings.ssid.empty())
+    return settings.reset_epoch != 0 && settings.password.empty() && settings.web_password.empty() &&
+           settings.immich_url.empty() && settings.immich_key.empty() && settings.prepared_slide_url.empty() &&
+           settings.prepared_slide_token.empty();
+  if (settings.ssid.size() > 32 || settings.password.size() > 64 ||
       settings.web_password.size() > 64 || (!settings.web_password.empty() && settings.web_password.size() < 8) ||
       settings.slide_seconds < 2 || settings.slide_seconds > 86'400 ||
       settings.immich_key.size() > 256 ||
@@ -318,20 +322,31 @@ bool load(Settings &settings) {
   return parse_all(document.get(), settings);
 }
 
-bool write(const char *json) {
+bool write(const char *json, bool clear_legacy) {
   if (std::strlen(json) > Settings::max_json_size || nvs_flash_init_partition(partition) != ESP_OK)
     return false;
   nvs_handle_t storage;
   if (nvs_open_from_partition(partition, store_namespace, NVS_READWRITE, &storage) != ESP_OK)
     return false;
-  const bool ok = nvs_set_str(storage, settings_key, json) == ESP_OK && nvs_commit(storage) == ESP_OK;
+  bool ok = true;
+  if (clear_legacy) {
+    // Remove the pre-versioned settings so there are no credentials to fall back to.
+    for (const char *key : {"ssid", "password", "immich_url", "immich_key"}) {
+      const auto result = nvs_erase_key(storage, key);
+      if (result != ESP_OK && result != ESP_ERR_NVS_NOT_FOUND) {
+        ok = false;
+        break;
+      }
+    }
+  }
+  ok = ok && nvs_set_str(storage, settings_key, json) == ESP_OK && nvs_commit(storage) == ESP_OK;
   nvs_close(storage);
   return ok;
 }
 
-bool write_document(const cJSON *document) {
+bool write_document(const cJSON *document, bool clear_legacy = false) {
   const std::unique_ptr<char, decltype(&cJSON_free)> serialized(cJSON_PrintUnformatted(document), cJSON_free);
-  return serialized && write(serialized.get());
+  return serialized && write(serialized.get(), clear_legacy);
 }
 
 bool put_wifi(cJSON *document, const char *ssid, const char *password) {
@@ -346,7 +361,7 @@ bool put_epoch(cJSON *document, uint32_t epoch) {
   return epoch == 0 || cJSON_AddNumberToObject(document, "reset_epoch", epoch) != nullptr;
 }
 
-Settings::UpdateResult store_settings(Settings &settings) {
+Settings::UpdateResult store_settings(Settings &settings, bool clear_legacy = false) {
   using Result = Settings::UpdateResult;
   const Json updated(cJSON_CreateObject(), cJSON_Delete);
   if (!updated || !cJSON_AddStringToObject(updated.get(), "ssid", settings.ssid.c_str()) ||
@@ -360,7 +375,7 @@ Settings::UpdateResult store_settings(Settings &settings) {
     cJSON_DeleteItemFromObjectCaseSensitive(updated.get(), "brightness_night");
   if (!parse_all(updated.get(), settings))
     return Result::Invalid;
-  return write_document(updated.get()) ? Result::Saved : Result::Failed;
+  return write_document(updated.get(), clear_legacy) ? Result::Saved : Result::Failed;
 }
 
 }  // namespace
@@ -384,23 +399,26 @@ bool Settings::read() {
   return true;
 }
 
-bool Settings::save(const char *json) {
+bool Settings::save(const char *json, std::optional<uint32_t> expected_epoch) {
   const auto document = parse(json);
   if (!cJSON_IsObject(document.get()))
     return false;
   const std::lock_guard lock(storage_mutex);
   Settings saved;
   const bool configured = load(saved);
+  const auto epoch = configured ? saved.reset_epoch : 0;
+  if (expected_epoch && *expected_epoch != epoch)
+    return false;
   if (!cJSON_HasObjectItem(document.get(), "ssid") && !cJSON_HasObjectItem(document.get(), "password")) {
     if (!configured || !put_wifi(document.get(), saved.ssid.c_str(), saved.password.c_str()))
       return false;
   }
   Settings candidate;
-  return put_epoch(document.get(), configured ? saved.reset_epoch : 0) &&
+  return put_epoch(document.get(), epoch) &&
          parse_all(document.get(), candidate) && candidate.has_immich() && write_document(document.get());
 }
 
-bool Settings::save_wifi(const WifiCredentials &wifi) {
+bool Settings::save_wifi(const WifiCredentials &wifi, uint32_t expected_epoch) {
   if (!wifi.configured() || wifi.ssid.back() != '\0' || wifi.password.back() != '\0')
     return false;
   const std::lock_guard lock(storage_mutex);
@@ -416,7 +434,7 @@ bool Settings::save_wifi(const WifiCredentials &wifi) {
       return false;
   }
   Settings candidate;
-  return put_wifi(document.get(), wifi.ssid.data(), wifi.password.data()) &&
+  return existing.reset_epoch == expected_epoch && put_wifi(document.get(), wifi.ssid.data(), wifi.password.data()) &&
          parse_all(document.get(), candidate) && write_document(document.get());
 }
 
@@ -505,17 +523,19 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   return store_settings(settings);
 }
 
-bool Settings::reset_customization() {
+bool Settings::reset(ResetMode mode) {
   const std::lock_guard lock(storage_mutex);
   Settings saved;
   if (!load(saved) || saved.web_password.empty())
     return false;
   Settings reset;
-  reset.ssid = std::move(saved.ssid);
-  reset.password = std::move(saved.password);
-  reset.web_password = std::move(saved.web_password);
+  if (mode == ResetMode::Customization) {
+    reset.ssid = std::move(saved.ssid);
+    reset.password = std::move(saved.password);
+    reset.web_password = std::move(saved.web_password);
+  }
   reset.reset_epoch = saved.reset_epoch == std::numeric_limits<uint32_t>::max() ? 1 : saved.reset_epoch + 1;
-  return store_settings(reset) == UpdateResult::Saved;
+  return store_settings(reset, mode == ResetMode::Factory) == UpdateResult::Saved;
 }
 
 }  // namespace espframe::native

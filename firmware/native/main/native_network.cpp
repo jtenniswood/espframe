@@ -252,7 +252,7 @@ bool NativeNetwork::try_provision_(const WifiCredentials &wifi) {
         const auto *name = reinterpret_cast<const char *>(ap.ssid);
         if (std::string_view(name, strnlen(name, sizeof(ap.ssid))) == wifi.ssid.data() &&
             lease_version_.load(std::memory_order_acquire) == lease)
-          return Settings::save_wifi(wifi);
+          return Settings::save_wifi(wifi, settings_->reset_epoch);
       }
     }
     if (events & disconnected)

@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <string_view>
 
 namespace espframe::native {
@@ -29,7 +30,7 @@ constexpr size_t auth_capacity = 120;
 namespace contract = esphome::espframe::contract;
 httpd_handle_t server{};
 esp_timer_handle_t restart_timer{};
-bool resetting_customization{};
+std::optional<ResetMode> resetting;
 std::string authorization;
 
 extern const char page_start[] asm("_binary_settings_html_start");
@@ -174,11 +175,14 @@ esp_err_t recovery_status(httpd_req_t *request) {
   using Status = NativeNetwork::RecoveryStatus;
   auto &wifi = network(request);
   const auto status = wifi.recovery_status();
-  const auto ip = esp_ip4_addr_t{wifi.address().ipv4};
+  const auto address = wifi.address();
+  const auto ip = esp_ip4_addr_t{address.ipv4};
   httpd_resp_set_type(request, "application/json");
   if (status != Status::Joining && ip.addr) {
-    char body[64]{};
-    std::snprintf(body, sizeof(body), "{\"status\":\"connected\",\"ipv4\":\"" IPSTR "\"}", IP2STR(&ip));
+    char body[96]{};
+    const char *web_settings = address.web == NativeNetwork::WebStatus::Disabled ? "false" : "true";
+    std::snprintf(body, sizeof(body), "{\"status\":\"connected\",\"ipv4\":\"" IPSTR "\",\"web_settings\":%s}",
+                  IP2STR(&ip), web_settings);
     return httpd_resp_sendstr(request, body);
   }
   if (status == Status::Saved)
@@ -228,6 +232,7 @@ esp_err_t current(httpd_req_t *request) {
       !cJSON_AddBoolToObject(document.get(), "api_key_configured", settings.has_immich()) ||
       !cJSON_AddNumberToObject(document.get(), "reset_epoch", settings.reset_epoch) ||
       !cJSON_AddStringToObject(document.get(), "reset_path", contract::RESET_PATH) ||
+      !cJSON_AddBoolToObject(document.get(), "factory_reset", true) ||
       !cJSON_AddBoolToObject(document.get(), "firmware_update", can_update_firmware()) ||
       !cJSON_AddStringToObject(document.get(), "board_revision", NATIVE_BOARD))
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to load settings.");
@@ -346,8 +351,8 @@ esp_err_t reset_status(httpd_req_t *request) {
   Settings settings;
   const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> body(cJSON_CreateObject(), cJSON_Delete);
   if (!settings.read() || !body || !cJSON_AddNumberToObject(body.get(), "epoch", settings.reset_epoch) ||
-      !cJSON_AddStringToObject(body.get(), "status", resetting_customization ? "pending" : "ready") ||
-      !cJSON_AddStringToObject(body.get(), "mode", resetting_customization ? "customization" : "none"))
+      !cJSON_AddStringToObject(body.get(), "status", resetting ? "pending" : "ready") ||
+      !cJSON_AddStringToObject(body.get(), "mode", resetting ? reset_mode_name(*resetting) : "none"))
     return send_configuration(request, nullptr);
   return send_configuration(request, body.get());
 }
@@ -357,7 +362,7 @@ esp_err_t reset_settings(httpd_req_t *request) {
     return ESP_OK;
   if (!same_origin(request))
     return configuration_reply(request, {"403 Forbidden", "invalid_origin", {}});
-  if (esp_timer_is_active(restart_timer))
+  if (esp_timer_is_active(restart_timer) || network(request).busy())
     return configuration_reply(request, {"409 Conflict", "operation_in_progress", {}});
 
   std::array<char, sizeof("mode=customization") - 1> form{};
@@ -371,11 +376,14 @@ esp_err_t reset_settings(httpd_req_t *request) {
       return ESP_FAIL;
     received += bytes;
   }
-  const auto result = reset_configuration({form.data(), received});
+  const auto mode = decode_reset_form({form.data(), received});
+  if (!mode)
+    return configuration_reply(request, {"400 Bad Request", "invalid_mode", {}});
+  const auto result = reset_configuration(*mode);
   if (!result.error) {
     if (esp_timer_start_once(restart_timer, 800'000) != ESP_OK)
       return configuration_reply(request, {"500 Internal Server Error", "restart_required", {}});
-    resetting_customization = true;
+    resetting = mode;
   }
   return configuration_reply(request, result);
 }

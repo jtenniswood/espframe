@@ -32,6 +32,9 @@ function show(result) {
   switch (result.status) {
     case 'connected':
       status.textContent = `Connected. Rejoin your usual Wi-Fi. The frame’s address is ${result.ipv4}.`
+      if (result.web_settings === false) {
+        status.textContent += ' To set up Immich or enable web settings, connect by USB and open “Connect Wi-Fi and Immich” in the native browser installer.'
+      }
       break
     case 'saved':
       status.textContent = 'Wi-Fi settings saved. The frame is reconnecting.'
