@@ -29,8 +29,8 @@ const contract::ConfigurationField *find_field(std::string_view key) {
   return nullptr;
 }
 
-// The native player currently models photo selection as an exclusive source.
-// The common API combines sources with independent include/exclude filters.
+// The native playback endpoint uses its own source names. The shared API
+// exposes the independent filters instead.
 bool passes_through(const char *key, const cJSON *playback) {
   return std::string_view(key) != "photo_source" && cJSON_HasObjectItem(playback, key);
 }
@@ -155,7 +155,7 @@ cJSON *frame_status_snapshot(const FrameStatus &status, bool network_ready, bool
 cJSON *configuration_snapshot(const Settings &settings) {
   Json body(cJSON_CreateObject(), cJSON_Delete);
   Json playback(cJSON_CreateObject(), cJSON_Delete);
-  if (!body || !playback || !settings.add_playback_fields(playback.get()) ||
+  if (!body || !playback || !settings.add_playback_fields(playback.get(), PhotoFilterUpdate::Compose) ||
       !cJSON_AddNumberToObject(body.get(), "api_version", contract::API_VERSION) ||
       !cJSON_AddNumberToObject(body.get(), "reset_epoch", settings.reset_epoch) ||
       !cJSON_AddBoolToObject(body.get(), "api_key_configured", settings.has_immich()))
@@ -313,7 +313,8 @@ ConfigurationUpdate update_configuration(const char *json) {
   }
 
   const auto result = count == 0 && !expected_epoch ? Settings::UpdateResult::Unchanged
-                                                    : Settings::update_playback(update.get(), expected_epoch);
+                                                    : Settings::update_playback(update.get(), expected_epoch,
+                                                                                PhotoFilterUpdate::Compose);
   if (result == Settings::UpdateResult::Invalid)
     return {"422 Unprocessable Entity", "invalid_value", {}};
   if (result == Settings::UpdateResult::Stale)

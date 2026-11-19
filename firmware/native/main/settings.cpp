@@ -562,13 +562,31 @@ bool put_epoch(cJSON *document, uint32_t epoch) {
   return epoch == 0 || cJSON_AddNumberToObject(document, "reset_epoch", epoch) != nullptr;
 }
 
-bool changes_photo_source(std::string_view key) {
+bool is_composable_filter(std::string_view key) {
   const auto matches = [key](const auto &field) { return key == field.first; };
   constexpr std::string_view options[]{
-      "photo_source", "album_id", "album_order", "minimum_rating", "album_matching",
-      "person_matching", "tag_matching", "inclusion_matching", "favorite_mode"};
+      "minimum_rating", "album_matching", "person_matching", "tag_matching", "inclusion_matching", "favorite_mode"};
   return std::ranges::any_of(filter_flags, matches) || std::ranges::any_of(filter_lists, matches) ||
          std::ranges::any_of(filter_places, matches) || std::ranges::find(options, key) != std::end(options);
+}
+
+PhotoFilters shared_photo_filters(const PhotoFeedSettings &settings) {
+  auto filters = settings.photo_filters;
+  if (settings.photo_source.mode == PhotoSourceMode::Album) {
+    if (filters.criteria.album_ids.empty()) {
+      filters.criteria.album_ids = settings.photo_source.album_id;
+      filters.criteria.album_matching = "Any selected album";
+    }
+    filters.criteria.albums_enabled = true;
+  } else if (settings.photo_source.mode == PhotoSourceMode::Favorites) {
+    filters.criteria.favorites_enabled = true;
+    filters.criteria.favorite_mode = "Favorites only";
+  }
+  return filters;
+}
+
+bool changes_photo_source(std::string_view key) {
+  return key == "photo_source" || key == "album_id" || key == "album_order" || is_composable_filter(key);
 }
 
 bool changes_photo_selection(std::string_view key) {
@@ -814,8 +832,11 @@ std::optional<PhotoFeedSettings> Settings::take_live_photo_feed(uint32_t revisio
   return std::exchange(published_feed, std::nullopt);
 }
 
-bool Settings::add_playback_fields(cJSON *object) const {
-  return add_photo_filter_fields(object, photo_filters) &&
+bool Settings::add_playback_fields(cJSON *object, PhotoFilterUpdate filter_update) const {
+  const bool filters_added = filter_update == PhotoFilterUpdate::Compose
+                                 ? add_photo_filter_fields(object, shared_photo_filters(*this))
+                                 : add_photo_filter_fields(object, photo_filters);
+  return filters_added &&
          cJSON_AddStringToObject(object, "frame_name", frame_name.c_str()) &&
          cJSON_AddStringToObject(object, "immich_url", immich_url.c_str()) &&
          cJSON_AddStringToObject(object, "prepared_slide_url", prepared_slide_url.c_str()) &&
@@ -883,7 +904,8 @@ void Settings::publish_live_presentation() const {
                                    std::memory_order_relaxed);
 }
 
-Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optional<uint32_t> expected_epoch) {
+Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optional<uint32_t> expected_epoch,
+                                                 PhotoFilterUpdate filter_update) {
   std::string replacement_key;
   std::string replacement_token;
   const std::lock_guard lock(storage_mutex);
@@ -894,6 +916,22 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
     return UpdateResult::Stale;
   if (!update->child)
     return UpdateResult::Unchanged;
+  const bool shared_filters = filter_update == PhotoFilterUpdate::Compose;
+  const bool compose_filters = shared_filters && settings.photo_source.mode != PhotoSourceMode::Memories;
+  std::optional<ImmichFilterConfig> stored_criteria;
+  // Compare the submitted fields with the same implied filter values the
+  // shared API returns. Only save those values when the filter really changes.
+  if (compose_filters && (settings.photo_source.mode == PhotoSourceMode::Album ||
+                         settings.photo_source.mode == PhotoSourceMode::Favorites)) {
+    const cJSON *field;
+    cJSON_ArrayForEach(field, update) {
+      if (!is_composable_filter(field->string))
+        continue;
+      auto filters = shared_photo_filters(settings);
+      stored_criteria = std::exchange(settings.photo_filters.criteria, std::move(filters.criteria));
+      break;
+    }
+  }
   Json previous(cJSON_CreateObject(), cJSON_Delete);
   Json next(cJSON_CreateObject(), cJSON_Delete);
   if (!previous || !next || !settings.add_playback_fields(previous.get()))
@@ -935,6 +973,7 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   bool selection_changed = false;
   bool photo_changed = false;
   bool live_presentation_changed = false;
+  bool filters_changed = false;
   const cJSON *field;
   cJSON_ArrayForEach(field, next.get()) {
     const std::string_view key(field->string);
@@ -944,6 +983,11 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
     changed = true;
     if (changes_photo_source(key))
       settings.photo_source.legacy_preset.reset();
+    if (shared_filters && is_composable_filter(key)) {
+      if (!compose_filters)
+        continue;
+      filters_changed = true;
+    }
     const bool selects_photos = changes_photo_selection(key);
     const bool presents_photos = changes_photo_presentation(key);
     const bool presents_playback = changes_live_presentation(key);
@@ -954,6 +998,16 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   }
   if (!changed)
     return UpdateResult::Unchanged;
+  if (filters_changed) {
+    const auto &criteria = settings.photo_filters.criteria;
+    const bool any_enabled = std::ranges::any_of(filter_flags, [&](const auto &flag) {
+      return criteria.*flag.second;
+    });
+    settings.photo_source.mode = any_enabled || settings.photo_source.mode == PhotoSourceMode::Custom
+                                     ? PhotoSourceMode::Custom : PhotoSourceMode::Library;
+  } else if (stored_criteria) {
+    settings.photo_filters.criteria = std::move(*stored_criteria);
+  }
   previous.reset();
   next.reset();
   const auto result = store_settings(settings);

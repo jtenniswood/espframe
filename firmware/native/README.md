@@ -116,8 +116,13 @@ The API key is write-only. Under **Photo sources & device tools**, use
 and display defaults. The frame retains Wi-Fi and the web settings password,
 so you can reconnect Immich from the same page after it restarts. The shared
 configuration API reports the new reset epoch and rejects stale writes that
-carry an earlier epoch. Independent photo-source filters and a complete reset
-still need integration.
+carry an earlier epoch. A complete reset also clears Wi-Fi and returns the
+frame to first-time setup.
+Changes to independent filters through the shared API apply to playback
+immediately. The frame uses the active album as the starting album filter
+when no album list has been saved, and carries over an active Favorites
+selection. On This Day keeps running while independent filter changes are
+saved for later.
 
 ### Connect Home Assistant
 

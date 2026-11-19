@@ -28,6 +28,7 @@ inline constexpr const char *screen_rotation_name(ScreenRotation rotation) {
 }
 
 enum class ResetMode { Customization, Factory };
+enum class PhotoFilterUpdate { KeepSource, Compose };
 
 struct PhotoFeedSettings {
   bool portrait_pairing{true};
@@ -96,10 +97,11 @@ struct Settings : PhotoFeedSettings {
   static bool save_photo_preset(PhotoPreset preset, std::string_view paired_key);
   static std::optional<PhotoFeedSettings> take_live_photo_feed(uint32_t revision);
   static bool save_playback(const char *json, bool *restart_required = nullptr);
-  static UpdateResult update_playback(const cJSON *update, std::optional<uint32_t> expected_epoch = {});
+  static UpdateResult update_playback(const cJSON *update, std::optional<uint32_t> expected_epoch = {},
+                                      PhotoFilterUpdate filter_update = PhotoFilterUpdate::KeepSource);
   void publish_live_presentation() const;
   static bool reset(ResetMode mode);
-  bool add_playback_fields(cJSON *object) const;
+  bool add_playback_fields(cJSON *object, PhotoFilterUpdate filter_update = PhotoFilterUpdate::KeepSource) const;
 };
 
 }  // namespace espframe::native

@@ -939,6 +939,79 @@ int main() {
   assert(!reset_configuration(ResetMode::Factory).error);
   assert(current.read() && current.frame_name.empty() && current.home_assistant_key.empty());
 
+  const auto save_filter_frame = [](const char *source) {
+    const std::string data = R"({"ssid":"Test","password":"","immich_url":"http://fresh.test","immich_key":"fresh-key",
+        "web_password":"new-settings","photo_source":")" + std::string(source) +
+        R"(","album_id":"11111111-1111-4111-8111-111111111111"})";
+    assert(Settings::save(data.c_str()));
+  };
+  const auto apply_shared_filters = [&](const char *request) {
+    const auto revision = photo_source_revision.load();
+    const auto applied = update_configuration(request);
+    assert(!applied.error && !applied.restart_required && photo_source_revision.load() == revision + 1);
+    assert(espframe::native::photo_selection_revision.load() == revision + 1);
+    const auto feed = Settings::take_live_photo_feed(revision + 1);
+    assert(feed && current.read() && feed->photo_source.mode == current.photo_source.mode);
+    return *feed;
+  };
+
+  save_filter_frame("all");
+  const auto filtered = apply_shared_filters(R"({"values":{"people_enabled":true,
+      "person_ids":"22222222-2222-4222-8222-222222222222","favorites_enabled":true,
+      "favorite_mode":"Exclude favorites"}})");
+  assert(filtered.photo_source.mode == PhotoSourceMode::Custom);
+  assert(filtered.photo_filters.criteria.people_enabled &&
+         filtered.photo_filters.criteria.person_ids == "22222222-2222-4222-8222-222222222222" &&
+         filtered.photo_filters.criteria.favorites_enabled &&
+         filtered.photo_filters.criteria.favorite_mode == "Exclude favorites");
+  assert(active_photo_preset.load() == PhotoPreset::Custom);
+
+  save_filter_frame("album");
+  assert(current.read() && !current.photo_filters.criteria.albums_enabled &&
+         current.photo_filters.criteria.album_ids.empty());
+  const Json album_snapshot(configuration_snapshot(current), cJSON_Delete);
+  const auto *album_values = cJSON_GetObjectItemCaseSensitive(album_snapshot.get(), "values");
+  assert(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(album_values, "albums_enabled")));
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(album_values, "album_ids")) == current.photo_source.album_id);
+  const auto album_revision = photo_source_revision.load();
+  const auto before_noop = stored;
+  assert(!update_configuration(R"({"values":{"albums_enabled":true,
+      "album_ids":"11111111-1111-4111-8111-111111111111"}})").error);
+  assert(stored == before_noop && photo_source_revision.load() == album_revision);
+  assert(update_configuration(R"({"values":{"albums_enabled":false,"rating_enabled":"true"}})").error);
+  assert(stored == before_noop && photo_source_revision.load() == album_revision);
+  const auto composed_album = apply_shared_filters(R"({"values":{"location_enabled":true,"filter_city":"London"}})");
+  assert(composed_album.photo_source.mode == PhotoSourceMode::Custom && composed_album.photo_filters.criteria.albums_enabled);
+  assert(composed_album.photo_filters.criteria.album_ids == "11111111-1111-4111-8111-111111111111");
+  assert(composed_album.photo_filters.criteria.location_enabled && composed_album.photo_filters.criteria.city == "London");
+
+  save_filter_frame("album");
+  assert(Settings::save_playback(R"({"immich_url":"http://fresh.test",
+      "album_ids":"33333333-3333-4333-8333-333333333333"})"));
+  const auto saved_list = apply_shared_filters(R"({"values":{"location_enabled":true,"filter_city":"London"}})");
+  assert(saved_list.photo_filters.criteria.album_ids == "33333333-3333-4333-8333-333333333333");
+  assert(saved_list.photo_source.album_id == "11111111-1111-4111-8111-111111111111");
+
+  save_filter_frame("favorites");
+  assert(current.read() && !current.photo_filters.criteria.favorites_enabled);
+  const Json favorites_snapshot(configuration_snapshot(current), cJSON_Delete);
+  const auto *favorites_values = cJSON_GetObjectItemCaseSensitive(favorites_snapshot.get(), "values");
+  assert(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(favorites_values, "favorites_enabled")));
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(favorites_values, "favorite_mode")) ==
+         std::string_view("Favorites only"));
+  const auto no_favorites = apply_shared_filters(R"({"values":{"favorites_enabled":false}})");
+  assert(no_favorites.photo_source.mode == PhotoSourceMode::Library && !no_favorites.photo_filters.criteria.favorites_enabled);
+
+  save_filter_frame("memories");
+  const auto memories_revision = photo_source_revision.load();
+  const auto dormant = update_configuration(R"({"values":{"favorites_enabled":true,"favorite_mode":"Favorites only"}})");
+  assert(!dormant.error && !dormant.restart_required && photo_source_revision.load() == memories_revision);
+  assert(current.read() && current.photo_source.mode == PhotoSourceMode::Memories &&
+         current.photo_filters.criteria.favorites_enabled);
+  assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","photo_source":"all","favorites_enabled":true})"));
+  assert(current.read() && current.photo_source.mode == PhotoSourceMode::Library &&
+         current.photo_filters.criteria.favorites_enabled);
+
   using espframe::native::frame_status_snapshot;
   using espframe::native::FrameStatusStore;
   using espframe::native::ImmichResponse;
