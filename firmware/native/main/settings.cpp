@@ -50,6 +50,10 @@ bool normalize_http_base(std::string &url) {
   return true;
 }
 
+bool valid_immich_key(std::string_view key) {
+  return key.size() <= 256 && std::none_of(key.begin(), key.end(), [](unsigned char c) { return c <= 32 || c >= 127; });
+}
+
 bool normalize(Settings &settings) {
   std::string name;
   if (!esphome::espframe::normalize_frame_name(settings.frame_name, name))
@@ -63,10 +67,7 @@ bool normalize(Settings &settings) {
            settings.prepared_slide_token.empty() && settings.home_assistant_key.empty();
   if (settings.ssid.size() > 32 || settings.password.size() > 64 ||
       settings.web_password.size() > 64 || (!settings.web_password.empty() && settings.web_password.size() < 8) ||
-      settings.slide_seconds < 2 || settings.slide_seconds > 86'400 ||
-      settings.immich_key.size() > 256 ||
-      std::any_of(settings.immich_key.begin(), settings.immich_key.end(),
-                  [](unsigned char c) { return c <= 32 || c >= 127; }))
+      settings.slide_seconds < 2 || settings.slide_seconds > 86'400 || !valid_immich_key(settings.immich_key))
     return false;
   if (!settings.prepared_slide_url.empty()) {
     const auto &token = settings.prepared_slide_token;
@@ -590,27 +591,48 @@ bool Settings::save(const char *json, std::optional<uint32_t> expected_epoch) {
 }
 
 Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint32_t> expected_epoch,
-                                          std::optional<HomeAssistantKey> (*read_stock_pairing)()) {
+                                          StockSettingsRequest request, StockSettings (*read_stock)(StockSettingsRequest)) {
   using Result = UsbSaveResult;
   const auto document = parse(json);
   if (!cJSON_IsObject(document.get()))
     return Result::Rejected;
-  const bool new_key = cJSON_HasObjectItem(document.get(), "home_assistant_key");
-  if (read_stock_pairing && new_key)
+  const auto provided = [&](const char *field) { return cJSON_HasObjectItem(document.get(), field); };
+  const bool new_key = provided("home_assistant_key");
+  const bool new_wifi = provided("ssid") || provided("password");
+  if ((request.any() && !read_stock) || (request.wifi && new_wifi) || (request.pairing && new_key) ||
+      (request.immich && (provided("immich_url") || provided("immich_key"))))
     return Result::Rejected;
   const std::lock_guard lock(storage_mutex);
   Settings saved;
   bool may_create = false;
-  const bool configured = load(saved, read_stock_pairing ? &may_create : nullptr);
+  const bool configured = load(saved, request.any() ? &may_create : nullptr);
   const auto epoch = configured ? saved.reset_epoch : 0;
   if (expected_epoch && *expected_epoch != epoch)
     return Result::Rejected;
-  // An explicit native key choice (including an empty key) blocks a later
-  // import. A factory-reset epoch also blocks reusing old stock credentials.
-  if (read_stock_pairing && ((!configured && !may_create) || epoch != 0 || saved.home_assistant_key_set))
+  // A reset or unreadable native configuration blocks reimport. Existing
+  // native connections and explicit pairing choices take precedence.
+  const bool blocked = (!configured && !may_create) || epoch != 0;
+  if (request.wifi && (blocked || configured))
+    return Result::WifiUnavailable;
+  if (request.immich && (blocked || saved.has_immich()))
+    return Result::ImmichUnavailable;
+  if (request.pairing && (blocked || saved.home_assistant_key_set))
     return Result::PairingUnavailable;
-  if (!cJSON_HasObjectItem(document.get(), "ssid") && !cJSON_HasObjectItem(document.get(), "password")) {
+  auto stock = request.any() ? read_stock(request) : StockSettings{};
+  if (request.wifi) {
+    if (!stock.wifi || !stock.wifi->configured())
+      return Result::WifiUnavailable;
+    if (!put_wifi(document.get(), stock.wifi->ssid.data(), stock.wifi->password.data()))
+      return Result::Rejected;
+  } else if (!new_wifi) {
     if (!configured || !put_wifi(document.get(), saved.ssid.c_str(), saved.password.c_str()))
+      return Result::Rejected;
+  }
+  if (request.immich) {
+    if (stock.immich_key.empty() || !valid_immich_key(stock.immich_key) || !normalize_http_base(stock.immich_url))
+      return Result::ImmichUnavailable;
+    if (!cJSON_AddStringToObject(document.get(), "immich_url", stock.immich_url.c_str()) ||
+        !cJSON_AddStringToObject(document.get(), "immich_key", stock.immich_key.c_str()))
       return Result::Rejected;
   }
   if (!cJSON_HasObjectItem(document.get(), "frame_name") && !saved.frame_name.empty() &&
@@ -625,11 +647,10 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
   Settings candidate;
   if (!put_epoch(document.get(), epoch) || !parse_all(document.get(), candidate) || !candidate.has_immich())
     return Result::Rejected;
-  if (read_stock_pairing) {
-    const auto key = read_stock_pairing();
-    if (!key || !valid_home_assistant_key(*key))
+  if (request.pairing) {
+    if (!stock.pairing || !valid_home_assistant_key(*stock.pairing))
       return Result::PairingUnavailable;
-    if (!cJSON_AddStringToObject(document.get(), "home_assistant_key", encode_home_assistant_key(*key).c_str()))
+    if (!cJSON_AddStringToObject(document.get(), "home_assistant_key", encode_home_assistant_key(*stock.pairing).c_str()))
       return Result::Rejected;
   }
   return write_document(document.get()) ? Result::Saved : Result::Rejected;

@@ -41,6 +41,7 @@ const verify = `
   const encoder = new TextEncoder()
   let received
   let lastWrite
+  let lastFlags
   let attempts = 0
   let writes = 0
   let addressChecks = 0
@@ -55,22 +56,25 @@ const verify = `
         async close() {},
         writable: new WritableStream({write(bytes) {
           const text = new TextDecoder().decode(bytes).trim()
-          const match = /^ESPFRAME_SETUP 1 (HELLO|SET|MIGRATE|STATUS) ([^ ]+)(?: (.*))?$/.exec(text)
+          const match = /^ESPFRAME_SETUP 1 (HELLO|SET|MIGRATE|IMPORT|STATUS) ([^ ]+)(?: ([1-7])(?= ))?(?: (.*))?$/.exec(text)
           if (!match) throw new Error('Invalid USB message')
-          if (match[1] === 'SET' || match[1] === 'MIGRATE') {
+          if (match[1] === 'SET' || match[1] === 'MIGRATE' || match[1] === 'IMPORT') {
             writes++
             lastWrite = match[1]
-            received = JSON.parse(match[3])
+            lastFlags = match[3]
+            received = JSON.parse(match[4])
           }
           if (match[1] === 'STATUS') {
-            if (match[3]) throw new Error('Wi-Fi lookup sent unexpected data')
+            if (match[3] || match[4]) throw new Error('Wi-Fi lookup sent unexpected data')
             addressChecks++
             const offline = selection === 2 || (selection === 1 && addressChecks === 1)
             const state = selection === 1 && addressChecks === 2 ? 1 : 2
             const response = offline ? 'OFFLINE ' + match[2] : 'CONNECTED ' + match[2] + ' 192.168.50.10 ' + state
             output.enqueue(encoder.encode('ESPFRAME_SETUP 1 ' + response + '\\n'))
           } else {
-            const reply = match[1] === 'HELLO' ? 'READY' : match[1] === 'MIGRATE' && selection === 6 ? 'PAIRING_UNAVAILABLE' : 'SAVED'
+            const missing = match[1] === 'IMPORT' && { 8: 'WIFI_UNAVAILABLE', 9: 'IMMICH_UNAVAILABLE' }[selection]
+            const reply = match[1] === 'HELLO' ? 'READY' : match[1] === 'MIGRATE' && selection === 6
+              ? 'PAIRING_UNAVAILABLE' : missing || 'SAVED'
             output.enqueue(encoder.encode('ESPFRAME_SETUP 1 ' + reply + ' ' + match[2] + '\\n'))
           }
         }}),
@@ -256,6 +260,34 @@ const verify = `
     await online
     if (attempts !== 7 || lastWrite !== 'MIGRATE' || Object.hasOwn(received, 'home_assistant_key'))
       throw new Error('The installer did not migrate the existing pairing on the frame')
+
+    const keepWifi = document.querySelector('#keep-stock-wifi')
+    const keepImmich = document.querySelector('#keep-stock-immich')
+    form.elements.immich_url.value = 'https://manual.test'
+    form.elements.immich_key.value = 'manual-value'
+    reuse.checked = true
+    reuse.dispatchEvent(new Event('change'))
+    for (const option of [keepWifi, keepImmich, keepPairing]) {
+      option.checked = true
+      option.dispatchEvent(new Event('change'))
+    }
+    if (reuse.checked || !form.elements.ssid.disabled ||
+        !form.elements.immich_url.disabled || !form.elements.immich_key.disabled)
+      throw new Error('Keeping stock connections allowed conflicting manual entries')
+    for (const source of ['Wi-Fi', 'Immich']) {
+      const missing = waitFor(saveStatus, 'could not keep the ESPHome ' + source)
+      form.requestSubmit()
+      await missing
+      if (form.elements.immich_url.value !== 'https://manual.test' || form.elements.immich_key.value !== 'manual-value')
+        throw new Error('An unavailable stock connection lost the unsent settings')
+    }
+    const kept = waitFor(networkStatus, 'Open frame settings')
+    form.requestSubmit()
+    await kept
+    const privateFields = ['ssid', 'password', 'immich_url', 'immich_key', 'home_assistant_key']
+    if (attempts !== 10 || lastWrite !== 'IMPORT' || lastFlags !== '7' ||
+        privateFields.some(field => Object.hasOwn(received, field)))
+      throw new Error('Stock connection migration included credentials in the browser request')
   }
   window.addEventListener('DOMContentLoaded', () => {
     function report(result) {
@@ -292,7 +324,7 @@ const profile = await mkdtemp(join(tmpdir(), 'espframe-installer-browser-'))
 const chrome = spawn(process.env.CHROME_BIN || 'google-chrome', [
   '--headless', '--no-sandbox', '--disable-gpu', `--user-data-dir=${profile}`,
   `http://127.0.0.1:${server.address().port}/`,
-], { signal: AbortSignal.timeout(20_000), stdio: ['ignore', 'ignore', 'pipe'] })
+], { signal: AbortSignal.timeout(30_000), stdio: ['ignore', 'ignore', 'pipe'] })
 let errors = ''
 chrome.stderr.on('data', chunk => { errors += chunk })
 const stopped = new Promise(resolve => chrome.once('close', resolve))

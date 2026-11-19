@@ -190,8 +190,8 @@ bool read_trial_scope(nvs_handle_t storage, Settings &settings) {
         !read_optional_preference(storage, "2159838271", from) ||
         !read_optional_preference(storage, "3290519044", to))
       return false;
-    scope.date_from = read_trial_preference(from);
-    scope.date_to = read_trial_preference(to);
+    scope.date_from = read_stock_preference_text(from);
+    scope.date_to = read_stock_preference_text(to);
     if ((from[0] && scope.date_from.empty()) || (to[0] && scope.date_to.empty()))
       return false;
   }
@@ -313,9 +313,9 @@ bool read_live_trial_credentials(Settings &settings) {
       read_trial_presentation(storage, settings);
   }
   nvs_close(storage);
-  const auto wifi = read_trial_station(station);
-  const auto immich_url = read_trial_preference(url);
-  const auto immich_key = read_trial_preference(key);
+  const auto wifi = read_stock_station(station);
+  const auto immich_url = read_stock_preference_text(url);
+  const auto immich_key = read_stock_preference_text(key);
   if (!found || !wifi || immich_url.empty() || immich_key.empty())
     return false;
   settings.ssid = wifi->ssid.data();

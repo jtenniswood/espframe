@@ -13,35 +13,35 @@ int main() {
   constexpr std::string_view password = "test-password";
   std::copy(ssid.begin(), ssid.end(), station.begin());
   std::copy(password.begin(), password.end(), station.begin() + 33);
-  const auto wifi = read_trial_station(station);
+  const auto wifi = read_stock_station(station);
   assert(wifi && wifi->ssid.data() == ssid && wifi->password.data() == password);
-  assert(!read_trial_station(std::span(station).first(station.size() - 1)));
+  assert(!read_stock_station(std::span(station).first(station.size() - 1)));
 
   station[33] = 0;
-  assert(read_trial_station(station)->password[0] == '\0');
+  assert(read_stock_station(station)->password[0] == '\0');
   station[0] = 0;
-  assert(!read_trial_station(station));
+  assert(!read_stock_station(station));
   station.fill('x');
-  assert(!read_trial_station(station));
+  assert(!read_stock_station(station));
   station[32] = 0;
   station[97] = 0;
-  assert(read_trial_station(station));
+  assert(read_stock_station(station));
 
   std::array<uint8_t, esphome_url_bytes> url{};
   constexpr std::string_view address = "https://photos.test";
   url[0] = address.size();
   std::copy(address.begin(), address.end(), url.begin() + 1);
-  assert(read_trial_preference(url) == address);
+  assert(read_stock_preference_text(url) == address);
   url[1] = 0;
-  assert(read_trial_preference(url).empty());
+  assert(read_stock_preference_text(url).empty());
 
   std::array<uint8_t, esphome_api_key_bytes> key{};
   key.fill('x');
   key[0] = 254;
-  assert(read_trial_preference(key).size() == 254);
+  assert(read_stock_preference_text(key).size() == 254);
   key[0] = 255;
-  assert(read_trial_preference(key).empty());
-  assert(read_trial_preference({}).empty());
+  assert(read_stock_preference_text(key).empty());
+  assert(read_stock_preference_text({}).empty());
 
   Settings settings;
   assert(TrialScope{}.apply(settings) && !settings.capture_dates.enabled && !settings.portrait_pairs_only);

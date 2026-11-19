@@ -55,7 +55,12 @@ display mode, portrait pairing, mounting orientation, clock, brightness, and
 screen schedule.
 Backups that use filters the
 native player cannot apply require you to choose a photo source before saving.
-Enter the required Wi-Fi and Immich credentials in the setup form.
+To keep saved connections, leave **Erase device** unchecked during firmware
+installation. In the setup form, select **Keep the Wi-Fi connection from
+ESPHome** or **Keep the Immich connection from ESPHome**. The frame reads the
+selected connection directly from its retained settings. It keeps the Immich
+URL and API key together. If a connection is unavailable, clear its checkbox
+and enter the details in the form.
 
 To build the same installer locally, use Python 3.10 or later, run `npm ci`,
 and place each

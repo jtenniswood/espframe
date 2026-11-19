@@ -12,7 +12,10 @@ const status = document.querySelector('#status')
 const find = document.querySelector('#find-frame')
 const networkStatus = document.querySelector('#network-status')
 const reuseWifi = document.querySelector('#reuse-wifi')
+const keepStockWifi = document.querySelector('#keep-stock-wifi')
+const keepStockImmich = document.querySelector('#keep-stock-immich')
 const wifiFields = document.querySelector('#wifi-fields')
+const immichFields = document.querySelector('#immich-fields')
 const backup = document.querySelector('#backup')
 const backupStatus = document.querySelector('#backup-status')
 const playback = document.querySelector('#playback')
@@ -26,12 +29,27 @@ const refreshSource = bindPhotoSource(form)
 const refreshPairing = bindPortraitPairing(form)
 const percentageFields = ['brightness_day', 'brightness_night', 'base_tone', 'warm_tone_intensity']
 const refreshWifi = () => {
-  wifiFields.hidden = reuseWifi.checked
-  form.elements.ssid.disabled = reuseWifi.checked
-  form.elements.password.disabled = reuseWifi.checked
+  const useSavedWifi = reuseWifi.checked || keepStockWifi.checked
+  wifiFields.hidden = useSavedWifi
+  form.elements.ssid.disabled = useSavedWifi
+  form.elements.password.disabled = useSavedWifi
 }
-reuseWifi.addEventListener('change', refreshWifi)
+reuseWifi.addEventListener('change', () => {
+  if (reuseWifi.checked) keepStockWifi.checked = false
+  refreshWifi()
+})
+keepStockWifi.addEventListener('change', () => {
+  if (keepStockWifi.checked) reuseWifi.checked = false
+  refreshWifi()
+})
 refreshWifi()
+const refreshImmich = () => {
+  immichFields.hidden = keepStockImmich.checked
+  form.elements.immich_url.disabled = keepStockImmich.checked
+  form.elements.immich_key.disabled = keepStockImmich.checked
+}
+keepStockImmich.addEventListener('change', refreshImmich)
+refreshImmich()
 const refreshHomeAssistant = () => {
   homeAssistantKey.disabled = removeHomeAssistantKey.checked || keepStockPairing.checked
   homeAssistantKey.setCustomValidity('')
@@ -177,6 +195,8 @@ if ('serial' in navigator) {
     }
     const data = Object.fromEntries(new FormData(form))
     const keepPairing = keepStockPairing.checked
+    const keepWifi = keepStockWifi.checked
+    const keepImmich = keepStockImmich.checked
     if (frameNameSpecified) data.frame_name = normalizeFrameName(frameName.value)
     else delete data.frame_name
     if (keepPairing) delete data.home_assistant_key
@@ -211,13 +231,14 @@ if ('serial' in navigator) {
     try {
       const port = await navigator.serial.requestPort()
       status.textContent = 'Saving settings on the frame…'
-      await configure(port, data, { keepPairing })
+      await configure(port, data, { keepPairing, keepWifi, keepImmich })
       form.reset()
       frameNameSpecified = false
       refreshSource()
       refreshPairing()
       showPercentages()
       refreshWifi()
+      refreshImmich()
       refreshHomeAssistant()
       backupStatus.textContent = ''
       status.textContent = keepPairing ? 'Settings saved. Home Assistant pairing kept.' : 'Settings saved.'

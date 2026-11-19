@@ -3,7 +3,7 @@
 #include "improv_serial.h"
 #include "native_network.h"
 #include "settings.h"
-#include "stock_home_assistant_key.h"
+#include "stock_settings.h"
 
 #include "driver/uart.h"
 #include "driver/uart_vfs.h"
@@ -111,19 +111,37 @@ void listen(void *context) {
         continue;
       }
       const bool migrate = command.starts_with("MIGRATE ");
-      if ((!migrate && !command.starts_with("SET ")) || challenge.empty() || esp_timer_get_time() >= expires_us)
+      const bool import_connections = command.starts_with("IMPORT ");
+      if ((!migrate && !import_connections && !command.starts_with("SET ")) ||
+          challenge.empty() || esp_timer_get_time() >= expires_us)
         continue;
-      command.remove_prefix(migrate ? 8 : 4);
+      command.remove_prefix(migrate ? 8 : import_connections ? 7 : 4);
       if (!command.starts_with(challenge) || command.size() <= challenge.size() || command[challenge.size()] != ' ')
         continue;
       command.remove_prefix(challenge.size() + 1);
+      StockSettingsRequest request{.pairing = migrate};
+      if (import_connections) {
+        // One digit encodes Wi-Fi (1), Immich (2) and Home Assistant (4).
+        if (command.size() < 3 || command[0] < '1' || command[0] > '7' || command[1] != ' ') {
+          reply("REJECTED", challenge);
+          challenge.clear();
+          continue;
+        }
+        const auto flags = command[0] - '0';
+        request = {.wifi = (flags & 1) != 0, .immich = (flags & 2) != 0, .pairing = (flags & 4) != 0};
+        command.remove_prefix(2);
+      }
       using Result = Settings::UsbSaveResult;
       const auto result = improv.busy() || network.busy()
                               ? Result::Rejected
-                              : Settings::save_usb(command.data(), reset_epoch,
-                                                   migrate ? read_stock_home_assistant_key : nullptr);
+                              : Settings::save_usb(command.data(), reset_epoch, request, read_stock_settings);
       if (result != Result::Saved) {
-        reply(result == Result::PairingUnavailable ? "PAIRING_UNAVAILABLE" : "REJECTED", challenge);
+        switch (result) {
+          case Result::WifiUnavailable: reply("WIFI_UNAVAILABLE", challenge); break;
+          case Result::ImmichUnavailable: reply("IMMICH_UNAVAILABLE", challenge); break;
+          case Result::PairingUnavailable: reply("PAIRING_UNAVAILABLE", challenge); break;
+          default: reply("REJECTED", challenge); break;
+        }
         challenge.clear();
         continue;
       }

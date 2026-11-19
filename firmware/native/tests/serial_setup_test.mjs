@@ -25,7 +25,8 @@ function mockPort({ correct = true, status = 'SAVED', network = '192.168.1.42 2'
       if (line.startsWith(`${prefix}HELLO`)) {
         receive.enqueue(encoder.encode(`\r\nI console line\r\n${prefix}READY ${correct ? nonce.slice(0, 16) : 'another-id'}`))
         receive.enqueue(encoder.encode(`${correct ? nonce.slice(16) : ''}\r\n`))
-      } else if (line.startsWith(`${prefix}SET `) || (supportsMigration && line.startsWith(`${prefix}MIGRATE `))) {
+      } else if (line.startsWith(`${prefix}SET `) ||
+          (supportsMigration && (line.startsWith(`${prefix}MIGRATE `) || line.startsWith(`${prefix}IMPORT `)))) {
         receive.enqueue(encoder.encode(`\r\n${prefix}${status} ${nonce}\r\n`))
       } else if (line.startsWith(`${prefix}STATUS`)) {
         const id = correct ? nonce : 'another-id'
@@ -78,6 +79,19 @@ const oldFirmware = mockPort({ supportsMigration: false })
 await assert.rejects(configure(oldFirmware, credentials, { challenge, keepPairing: true, timeout: 30 }), /did not answer/)
 assert.deepEqual(oldFirmware.writes, migrated.writes)
 assert.equal(oldFirmware.openState, false)
+
+const retained = mockPort()
+const playback = { slide_seconds: 10 }
+await configure(retained, playback, { challenge, keepWifi: true, keepImmich: true, keepPairing: true })
+assert.deepEqual(retained.writes, [`${prefix}HELLO ${challenge}`, `${prefix}IMPORT ${challenge} 7 ${JSON.stringify(playback)}`])
+for (const [status, options, message] of [
+  ['WIFI_UNAVAILABLE', { keepWifi: true }, /could not keep the ESPHome Wi-Fi connection/],
+  ['IMMICH_UNAVAILABLE', { keepImmich: true }, /could not keep the ESPHome Immich connection/],
+]) {
+  const port = mockPort({ status })
+  await assert.rejects(configure(port, playback, { challenge, ...options }), message)
+  assert.equal(port.openState, false)
+}
 
 const connected = mockPort()
 assert.deepEqual(await findFrame(connected, { challenge }), { address: '192.168.1.42', web: 'ready' })

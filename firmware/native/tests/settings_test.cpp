@@ -7,7 +7,8 @@
 #include "nvs_flash.h"
 #include "settings.h"
 #include "slideshow_interval.h"
-#include "stock_home_assistant_key.h"
+#include "stock_connection_preferences.h"
+#include "stock_settings.h"
 
 #include <cassert>
 #include <cstring>
@@ -29,7 +30,7 @@ constexpr nvs_handle_t stock_handle = 2;
 bool stock_partition_available{true};
 bool stock_initialized{};
 bool stock_opened{};
-std::optional<std::string> stock_pairing;
+std::map<std::string, std::string> stock_preferences;
 unsigned stock_reads{};
 
 }  // namespace
@@ -87,14 +88,15 @@ esp_err_t nvs_set_str(nvs_handle_t handle, const char *key, const char *value) {
 
 esp_err_t nvs_get_blob(nvs_handle_t handle, const char *key, void *out, size_t *size) {
   if (handle == stock_handle) {
-    assert(stock_opened && std::string_view(key) == "88491486" && out);
+    assert(stock_opened && out);
     ++stock_reads;
-    if (!stock_pairing)
+    const auto value = stock_preferences.find(key);
+    if (value == stock_preferences.end())
       return ESP_ERR_NVS_NOT_FOUND;
-    if (*size < stock_pairing->size())
+    if (*size < value->second.size())
       return ESP_ERR_NVS_TYPE_MISMATCH;
-    *size = stock_pairing->size();
-    std::memcpy(out, stock_pairing->data(), *size);
+    *size = value->second.size();
+    std::memcpy(out, value->second.data(), *size);
     return ESP_OK;
   }
   const auto value = stored.find(key);
@@ -165,25 +167,27 @@ void verify_stock_pairing_migration() {
 
   stored.clear();
   stored_blobs.clear();
+  stock_preferences.clear();
   const auto wifi = WifiCredentials::from("Photo Lab", "test-password");
   assert(wifi && Settings::save_wifi(*wifi, 0));
   const auto before = stored;
-  const auto migrate = [&] { return Settings::save_usb(setup, 0, read_stock_home_assistant_key); };
+  constexpr StockSettingsRequest pairing{.pairing = true};
+  const auto migrate = [&] { return Settings::save_usb(setup, 0, pairing, read_stock_settings); };
   stock_partition_available = false;
   assert(migrate() == Result::PairingUnavailable && stored == before);
   stock_partition_available = true;
   assert(migrate() == Result::PairingUnavailable && stored == before);
   for (size_t bytes : {31, 32, 33}) {
-    stock_pairing = std::string(bytes, '\0');
+    stock_preferences["88491486"] = std::string(bytes, '\0');
     assert(migrate() == Result::PairingUnavailable && stored == before);
     assert(!stock_initialized && !stock_opened);
   }
 
-  stock_pairing = std::string(reinterpret_cast<const char *>(key->data()), key->size());
-  const auto original = stock_pairing;
+  stock_preferences["88491486"] = std::string(reinterpret_cast<const char *>(key->data()), key->size());
+  const auto original = stock_preferences;
   const auto initial_reads = stock_reads;
-  assert(Settings::save_usb(manual, 0, read_stock_home_assistant_key) == Result::Rejected);
-  assert(Settings::save_usb(setup, 1, read_stock_home_assistant_key) == Result::Rejected);
+  assert(Settings::save_usb(manual, 0, pairing, read_stock_settings) == Result::Rejected);
+  assert(Settings::save_usb(setup, 1, pairing, read_stock_settings) == Result::Rejected);
   assert(stock_reads == initial_reads && stored == before);
 
   fail_commit = true;
@@ -201,11 +205,84 @@ void verify_stock_pairing_migration() {
   assert(migrate() == Result::PairingUnavailable && stock_reads == imported_reads);
   assert(Settings::reset(ResetMode::Factory));
   assert(Settings::save_wifi(*wifi, 1));
-  assert(Settings::save_usb(setup, 1, read_stock_home_assistant_key) == Result::PairingUnavailable);
-  assert(loaded.read() && loaded.home_assistant_key.empty() && stock_pairing == original);
+  assert(Settings::save_usb(setup, 1, pairing, read_stock_settings) == Result::PairingUnavailable);
+  assert(loaded.read() && loaded.home_assistant_key.empty() && stock_preferences == original);
   assert(stock_reads == imported_reads && !stock_initialized && !stock_opened);
   stored["settings_v1"] = "{corrupt";
   assert(migrate() == Result::PairingUnavailable && stock_reads == imported_reads);
+}
+
+void verify_stock_connection_migration() {
+  using namespace espframe::native;
+  using Result = Settings::UsbSaveResult;
+  constexpr StockSettingsRequest both{.wifi = true, .immich = true};
+  constexpr StockSettingsRequest all{.wifi = true, .immich = true, .pairing = true};
+  constexpr StockSettingsRequest wifi_only{.wifi = true};
+  constexpr StockSettingsRequest immich_only{.immich = true};
+  constexpr char setup[] = R"({"slide_seconds":35,"display_mode":"Fill","web_password":"frame-web-test"})";
+  constexpr char manual_immich[] = R"({"immich_url":"https://replacement.test","immich_key":"replacement-key"})";
+
+  stored.clear();
+  stored_blobs.clear();
+  stock_preferences.clear();
+  assert(Settings::save_usb(setup, 0, both, read_stock_settings) == Result::WifiUnavailable);
+  assert(stored.empty());
+  const auto station = WifiCredentials::from("Photo Lab", "fixture-password");
+  assert(station);
+  const auto wifi = std::string(station->ssid.data(), station->ssid.size()) +
+                    std::string(station->password.data(), station->password.size());
+  const auto text_record = [](std::string_view value, size_t size) {
+    std::string record(size, '\0');
+    record[0] = static_cast<char>(value.size());
+    record.replace(1, value.size(), value);
+    return record;
+  };
+  stock_preferences[esphome_station_key] = wifi.substr(0, wifi.size() - 1);
+  assert(Settings::save_usb(setup, 0, both, read_stock_settings) == Result::WifiUnavailable && stored.empty());
+  stock_preferences[esphome_station_key] = wifi;
+  stock_preferences[esphome_immich_url_key] = text_record("https://stock.test/library/", esphome_url_bytes);
+  assert(Settings::save_usb(setup, 0, both, read_stock_settings) == Result::ImmichUnavailable && stored.empty());
+  stock_preferences[esphome_immich_api_key] = text_record("bad key", esphome_api_key_bytes);
+  assert(Settings::save_usb(setup, 0, both, read_stock_settings) == Result::ImmichUnavailable && stored.empty());
+  stock_preferences[esphome_immich_api_key] = text_record("fixture-immich-key", esphome_api_key_bytes);
+  assert(Settings::save_usb(setup, 0, all, read_stock_settings) == Result::PairingUnavailable && stored.empty());
+  stock_preferences["88491486"] = std::string(32, '\x01');
+  const auto source = stock_preferences;
+  const auto before_conflicts = stock_reads;
+  assert(Settings::save_usb(manual_immich, 0, both, read_stock_settings) == Result::Rejected);
+  assert(Settings::save_usb(R"({"ssid":"conflict"})", 0, both, read_stock_settings) == Result::Rejected);
+  assert(stock_reads == before_conflicts && stored.empty());
+  fail_commit = true;
+  assert(Settings::save_usb(setup, 0, all, read_stock_settings) == Result::Rejected && stored.empty());
+  fail_commit = false;
+  assert(Settings::save_usb(setup, 0, all, read_stock_settings) == Result::Saved);
+  Settings loaded;
+  assert(loaded.read() && loaded.ssid == "Photo Lab" && loaded.password == "fixture-password");
+  assert(loaded.immich_url == "https://stock.test/library/api" && loaded.immich_key == "fixture-immich-key");
+  const auto pairing = decode_home_assistant_key(loaded.home_assistant_key);
+  assert(pairing && pairing->front() == 1 && pairing->back() == 1);
+  assert(loaded.slide_seconds == 35 && loaded.display_mode == DisplayMode::Fill);
+  const auto after_import = stock_reads;
+  assert(Settings::save_usb(setup, 0, both, read_stock_settings) == Result::WifiUnavailable);
+  assert(Settings::save_usb(setup, 0, immich_only, read_stock_settings) == Result::ImmichUnavailable);
+  assert(Settings::reset(ResetMode::Factory));
+  assert(Settings::save_usb(setup, 1, both, read_stock_settings) == Result::WifiUnavailable);
+  assert(Settings::save_usb(setup, 1, immich_only, read_stock_settings) == Result::ImmichUnavailable);
+  assert(stock_reads == after_import && stock_preferences == source && !stock_initialized && !stock_opened);
+
+  stored.clear();
+  stored_blobs.clear();
+  assert(Settings::save_usb(manual_immich, 0, wifi_only, read_stock_settings) == Result::Saved);
+  assert(stock_reads == after_import + 1);
+  assert(loaded.read() && loaded.ssid == "Photo Lab" && loaded.immich_url == "https://replacement.test/api");
+  stored.clear();
+  stored_blobs.clear();
+  const auto native_wifi = WifiCredentials::from("Native Network", "");
+  assert(native_wifi && Settings::save_wifi(*native_wifi, 0));
+  assert(Settings::save_usb(setup, 0, immich_only, read_stock_settings) == Result::Saved);
+  assert(stock_reads == after_import + 3);
+  assert(loaded.read() && loaded.ssid == "Native Network" && loaded.immich_url == "https://stock.test/library/api");
+  assert(stock_preferences == source);
 }
 
 int main() {
@@ -772,4 +849,5 @@ int main() {
   status.set_screen(false);
   expect_status(true, true, "asleep", "paused", "memories", "responding", "waiting_for_pair");
   verify_stock_pairing_migration();
+  verify_stock_connection_migration();
 }

@@ -62,15 +62,23 @@ async function withPort(port, action) {
   }
 }
 
-export function configure(port, settings, { challenge = crypto.randomUUID(), timeout = 5000, keepPairing = false } = {}) {
+export function configure(port, settings, { challenge = crypto.randomUUID(), timeout = 5000,
+  keepPairing = false, keepWifi = false, keepImmich = false } = {}) {
   return withPort(port, async (reader, writer) => {
     await writer.write(encoder.encode(`\n${prefix}HELLO ${challenge}\n`))
     await waitForReply(reader, challenge, ['READY'], timeout)
-    const command = keepPairing ? 'MIGRATE' : 'SET'
-    await writer.write(encoder.encode(`${prefix}${command} ${challenge} ${JSON.stringify(settings)}\n`))
-    const { status } = await waitForReply(reader, challenge, ['SAVED', 'REJECTED', 'PAIRING_UNAVAILABLE'], timeout)
+    const connections = (keepWifi ? 1 : 0) | (keepImmich ? 2 : 0)
+    const command = connections ? 'IMPORT' : keepPairing ? 'MIGRATE' : 'SET'
+    const flags = connections ? ` ${connections | (keepPairing ? 4 : 0)}` : ''
+    await writer.write(encoder.encode(`${prefix}${command} ${challenge}${flags} ${JSON.stringify(settings)}\n`))
+    const { status } = await waitForReply(reader, challenge,
+      ['SAVED', 'REJECTED', 'PAIRING_UNAVAILABLE', 'WIFI_UNAVAILABLE', 'IMMICH_UNAVAILABLE'], timeout)
     if (status === 'PAIRING_UNAVAILABLE')
       throw new Error('The frame could not keep the ESPHome pairing. Clear the checkbox to continue setup, or enter an existing key.')
+    if (status === 'WIFI_UNAVAILABLE')
+      throw new Error('The frame could not keep the ESPHome Wi-Fi connection. Clear the checkbox and enter Wi-Fi details, or use Wi-Fi already saved on the frame.')
+    if (status === 'IMMICH_UNAVAILABLE')
+      throw new Error('The frame could not keep the ESPHome Immich connection. Clear the checkbox and enter the Immich URL and API key.')
     if (status !== 'SAVED') throw new Error('The frame rejected the settings. Check each field and try again.')
   })
 }
