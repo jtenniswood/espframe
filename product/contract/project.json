@@ -1547,6 +1547,7 @@
     "devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml",
     "docs/public/webserver/app.js",
     "docs/public/webserver/style.css",
+    "firmware/native/main/web/shared_settings.js",
     "components/espframe/i18n_generated.h"
   ],
   "generated_asset_output_headers": {
@@ -1558,6 +1559,7 @@
     "devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml": "# ESPFRAME: generated from product/contract; run `npm run generate` to update.",
     "docs/public/webserver/app.js": "// ESPFRAME: generated from typed docs/webserver/src and product/contract; run `npm run generate` to update.",
     "docs/public/webserver/style.css": "/* ESPFRAME: generated from docs/webserver/src/style.css; run `npm run generate` to update. */",
+    "firmware/native/main/web/shared_settings.js": "// ESPFRAME: generated from typed docs/webserver/src and product/contract; run `npm run generate` to update.",
     "components/espframe/i18n_generated.h": "// ESPFRAME: generated from product/translations; run `npm run generate` to update."
   },
   "generated_asset_sources": [
@@ -1571,6 +1573,8 @@
     "docs/webserver/src/setting_save.ts",
     "docs/webserver/src/endpoints.ts",
     "docs/webserver/src/live_helpers.ts",
+    "docs/webserver/src/native_settings.ts",
+    "docs/webserver/src/shared_controls.ts",
     "docs/webserver/src/runtime_state.ts",
     "docs/webserver/src/settings_firmware_card.ts",
     "docs/webserver/src/settings_immich_cards.ts",
@@ -1646,6 +1650,15 @@
     "__ESPFRAME_WEB_SETTINGS_FIRMWARE_CARD__",
     "__ESPFRAME_WEB_SETTINGS_CONTROLS__",
     "__ESPFRAME_WEB_LIVE_HELPERS__",
+    "__ESPFRAME_SHARED_CONTROL_SELECT__",
+    "__ESPFRAME_SHARED_CONTROL_ELEMENT__",
+    "__ESPFRAME_SHARED_CONTROL_ACTIONS__",
+    "__ESPFRAME_SHARED_CONTROL_CARDS__",
+    "__ESPFRAME_SHARED_CONTROL_FIELD__",
+    "__ESPFRAME_NATIVE_CAPABILITIES_PATH__",
+    "__ESPFRAME_NATIVE_PRODUCT_SETTINGS__",
+    "__ESPFRAME_NATIVE_TIMEZONES__",
+    "__ESPFRAME_NATIVE_TIMEZONE_LABELS__",
     "__ESPFRAME_WEB_BACKUP_IMPORT__",
     "__ESPFRAME_SETTING_STATE_TYPES__",
     "__ESPFRAME_CSS__"
