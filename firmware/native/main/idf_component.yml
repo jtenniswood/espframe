@@ -1,0 +1,4 @@
+dependencies:
+  espressif/esp_hosted: "==2.12.13"
+  espressif/esp_wifi_remote: "==1.6.5"
+  espressif/cjson: "==1.7.19~2"
