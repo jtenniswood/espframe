@@ -69,7 +69,7 @@ esp_err_t benchmark_status(httpd_req_t *request) {
   const auto used = std::strlen(scripted_counts);
   std::snprintf(scripted_counts + used, sizeof(scripted_counts) - used,
                 ",\"scenario\":\"rapid\",\"cold_starts\":%" PRIu32 ",\"cold_releases_unready\":%" PRIu32
-                ",\"cold_returns\":%" PRIu32 ",\"refill_limit_us\":%u"
+                ",\"cold_returns\":%" PRIu32 ",\"refill_limit_us\":%" PRIu32
                 ",\"refill\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}",
                 script.cold_starts, script.cold_releases_unready, script.cold_returns, TrialSwipeBenchmark::refill_limit_us,
                 script.refill.count, script.refill.worst_us, script.refill.over_limit);
