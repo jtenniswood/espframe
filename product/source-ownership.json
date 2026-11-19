@@ -175,6 +175,13 @@
       "license": "MIT"
     },
     {
+      "usage": "Optional native Immich image preparation service",
+      "declarations": ["firmware/native/prepared-slides/package.json", "firmware/native/prepared-slides/package-lock.json"],
+      "upstream": "https://github.com/lovell/sharp",
+      "revision": "sharp 0.35.5 with its platform libvips packages pinned in package-lock.json",
+      "license": "Apache-2.0 (Sharp); libvips and bundled dependency notices in the platform packages"
+    },
+    {
       "usage": "Device text fonts",
       "declarations": ["devices/guition-esp32-p4-jc8012p4a1/assets/fonts.yaml"],
       "upstream": "https://fonts.google.com/noto",

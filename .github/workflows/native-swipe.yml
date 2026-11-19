@@ -26,6 +26,20 @@ permissions:
   contents: read
 
 jobs:
+  prepared-slides:
+    name: Test prepared Immich slides
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: firmware/native/prepared-slides/package-lock.json
+      - run: npm ci && npm run typecheck && npm test
+        working-directory: firmware/native/prepared-slides
+
   build:
     name: Test and build Guition ${{ matrix.board }} prototype
     runs-on: ubuntu-latest
