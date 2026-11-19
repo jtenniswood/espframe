@@ -29,6 +29,8 @@ struct EspHomeControls {
   bool (*set_photo_preset)(const void *, PhotoPreset);
   std::string_view station_address;
   std::optional<int8_t> (*wifi_rssi)(const void *);
+  std::string_view reset_reason;
+  void (*restart)(const void *);
 };
 
 enum class EspHomeReadiness { Ready, Idle, Closed };

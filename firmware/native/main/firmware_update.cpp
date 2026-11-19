@@ -12,6 +12,7 @@
 #include <atomic>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <new>
 #include <string_view>
 
@@ -32,6 +33,7 @@ static_assert(prelude_bytes <= buffer_size);
 
 std::atomic<bool> checking_boot{};
 esp_timer_handle_t boot_timer{};
+std::mutex firmware_operation;
 
 bool matches_board(const uint8_t *bytes) {
   esp_image_header_t image{};
@@ -104,6 +106,9 @@ bool can_update_firmware() { return esp_ota_get_next_update_partition(nullptr) !
 
 FirmwareUpdateResult stage_firmware(size_t length, FirmwareRead read, void *context) {
   using Result = FirmwareUpdateResult;
+  const std::unique_lock operation(firmware_operation, std::try_to_lock);
+  if (!operation.owns_lock())
+    return Result::RestartPending;
   const auto *running = esp_ota_get_running_partition();
   const auto *target = esp_ota_get_next_update_partition(nullptr);
   const auto *boot = esp_ota_get_boot_partition();
@@ -140,6 +145,38 @@ FirmwareUpdateResult stage_firmware(size_t length, FirmwareRead read, void *cont
   // The existing boot partition is selected until the entire image passes
   // validation. Interrupted uploads only touch the inactive OTA slot.
   return esp_ota_set_boot_partition(target) == ESP_OK ? Result::Staged : Result::WriteFailed;
+}
+
+std::string_view last_reset_reason() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON: return "power-on event";
+    case ESP_RST_EXT: return "external pin";
+    case ESP_RST_SW: return "software via esp_restart";
+    case ESP_RST_PANIC: return "exception/panic";
+    case ESP_RST_INT_WDT: return "interrupt watchdog";
+    case ESP_RST_TASK_WDT: return "task watchdog";
+    case ESP_RST_WDT: return "other watchdogs";
+    case ESP_RST_DEEPSLEEP: return "exiting deep sleep mode";
+    case ESP_RST_BROWNOUT: return "brownout";
+    case ESP_RST_SDIO: return "SDIO";
+    case ESP_RST_USB: return "USB peripheral";
+    case ESP_RST_JTAG: return "JTAG";
+    case ESP_RST_EFUSE: return "efuse error";
+    case ESP_RST_PWR_GLITCH: return "power glitch detected";
+    case ESP_RST_CPU_LOCKUP: return "CPU lock up";
+    default: return "unknown source";
+  }
+}
+
+void request_frame_restart() {
+  const std::unique_lock operation(firmware_operation, std::try_to_lock);
+  if (!operation.owns_lock())
+    return;
+  const auto *running = esp_ota_get_running_partition();
+  const auto *boot = esp_ota_get_boot_partition();
+  // Let the uploader finish its response and a new image finish startup.
+  if (running && boot && running->address == boot->address && !boot_trial(running))
+    esp_restart();
 }
 
 void start_firmware_boot_check() {

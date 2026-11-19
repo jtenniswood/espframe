@@ -186,7 +186,7 @@ jobs:
       - name: Test firmware update staging and rollback
         if: matrix.board == 'v3'
         run: |
-          c++ -std=c++20 -Wall -Wextra -Werror -DNATIVE_BOARD='"v3"' \
+          c++ -std=c++20 -Wall -Wextra -Werror -pthread -DNATIVE_BOARD='"v3"' \
             -Ifirmware/native/main -Ifirmware/native/tests/ota_stubs \
             firmware/native/main/firmware_update.cpp firmware/native/tests/firmware_update_test.cpp \
             -o "$RUNNER_TEMP/firmware-update-test"

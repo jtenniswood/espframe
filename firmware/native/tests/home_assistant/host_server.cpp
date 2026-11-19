@@ -19,6 +19,16 @@
 
 using namespace espframe::native;
 
+namespace {
+
+struct TestDevice {
+  std::atomic<int8_t> rssi{-65};
+  int connection{-1};
+  mutable bool rebooted{};
+};
+
+}  // namespace
+
 extern "C" void noise_rand_bytes(void *output, size_t size) {
   if (size > 256 || getentropy(output, size) != 0)
     std::abort();
@@ -51,9 +61,9 @@ int main() {
     return 1;
   active_slideshow_interval.store(17);
   screen_control.publish_backlight(64);
-  std::atomic<int8_t> rssi{-65};
-  const EspHomeControls controls{
-      screen_control, &rssi,
+  TestDevice device;
+  EspHomeControls controls{
+      screen_control, &device,
       [](const void *) { return active_slideshow_interval.load(); },
       [](const void *, uint32_t seconds) {
         if (seconds == 60)
@@ -70,11 +80,17 @@ int main() {
       },
       "127.0.0.1",
       [](const void *context) -> std::optional<int8_t> {
-        const auto value = static_cast<const std::atomic<int8_t> *>(context)->load();
+        const auto value = static_cast<const TestDevice *>(context)->rssi.load();
         return value == 0 ? std::nullopt : std::optional<int8_t>{value};
       },
+      {},
+      [](const void *context) {
+        const auto &device = *static_cast<const TestDevice *>(context);
+        device.rebooted = true;
+        shutdown(device.connection, SHUT_RDWR);
+      },
   };
-  std::jthread player([&rssi](std::stop_token stop) {
+  std::jthread player([&device](std::stop_token stop) {
     ScreenSchedule schedule{{true, 6, 22, 60}};
     std::optional<uint8_t> manual_brightness;
     int hour = 8;
@@ -84,9 +100,9 @@ int main() {
       if (poll(&input, 1, 0) > 0 && (input.revents & POLLIN) != 0 && read(STDIN_FILENO, &hour_change, 1) == 1) {
         switch (hour_change) {
           case 'n': hour = 23; break;
-          case 'x': rssi.store(0); break;
-          case 'w': rssi.store(-110); break;
-          case 's': rssi.store(-45); break;
+          case 'x': device.rssi.store(0); break;
+          case 'w': device.rssi.store(-110); break;
+          case 's': device.rssi.store(-45); break;
         }
       }
       const bool commanded = screen_control.apply_pending(schedule, 1'000, hour, manual_brightness);
@@ -104,6 +120,8 @@ int main() {
     int connection = accept(listener, nullptr, nullptr);
     if (connection < 0)
       break;
+    device.connection = connection;
+    controls.reset_reason = device.rebooted ? "software via esp_restart" : "power-on event";
     serve_esphome_socket(connection, identity, *fixture_key, controls);
     close(connection);
   }

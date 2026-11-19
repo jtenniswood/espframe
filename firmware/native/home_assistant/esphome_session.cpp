@@ -230,7 +230,10 @@ constexpr uint32_t backlight_key = 2211332998U;
 constexpr uint32_t online_key = 3727615758U;
 constexpr uint32_t wifi_strength_key = 3943756064U;
 constexpr uint32_t ip_address_key = 3394986237U;
+constexpr uint32_t reboot_key = 2194406813U;
+constexpr uint32_t reset_reason_key = 2962208445U;
 constexpr uint8_t brightness_color_mode = 3;
+constexpr uint8_t configuration_category = 1;
 constexpr uint8_t diagnostic_category = 2;
 
 }  // namespace
@@ -275,6 +278,27 @@ bool send_device_info(NoiseSession &session, const EspHomeIdentity &identity) {
 bool stock_interval(uint32_t seconds) {
   return std::find(stock_slideshow_intervals.begin(), stock_slideshow_intervals.end(), seconds) !=
          stock_slideshow_intervals.end();
+}
+
+bool send_device_entities(NoiseSession &session) {
+  {
+    ProtoReply reboot;
+    reboot.text(1, "device__reboot_screen");
+    reboot.fixed32(2, reboot_key);
+    reboot.text(3, "Device: Reboot Screen");
+    reboot.text(5, "mdi:restart");
+    reboot.number(7, configuration_category);
+    reboot.text(8, "restart");
+    if (!reboot.send(session, Message::Button))
+      return false;
+  }
+  ProtoReply reason;
+  reason.text(1, "reset_reason");
+  reason.fixed32(2, reset_reason_key);
+  reason.text(3, "Reset Reason");
+  reason.text(5, "mdi:restart");
+  reason.number(7, diagnostic_category);
+  return reason.send(session, Message::TextSensor);
 }
 
 bool send_network_entities(NoiseSession &session) {
@@ -348,7 +372,8 @@ bool send_entities(NoiseSession &session, uint32_t custom_interval) {
   source.text(5, "mdi:image-filter-frames");
   for (const auto option : photo_presets)
     source.text(6, option);
-  return source.send(session, Message::Select) && send_network_entities(session) && session.send(Message::EntitiesDone);
+  return source.send(session, Message::Select) && send_network_entities(session) && send_device_entities(session) &&
+         session.send(Message::EntitiesDone);
 }
 
 bool send_select_state(NoiseSession &session, uint32_t key, std::string_view option) {
@@ -383,21 +408,21 @@ bool send_wifi_strength(NoiseSession &session, std::optional<uint8_t> strength) 
   return reply.send(session, Message::SensorState);
 }
 
-bool send_network_status(NoiseSession &session, std::string_view address) {
-  {
-    ProtoReply reply;
-    reply.fixed32(1, online_key);
-    reply.number(2, 1);  // The authenticated station connection is online.
-    if (!reply.send(session, Message::BinarySensorState))
-      return false;
-  }
+bool send_text_state(NoiseSession &session, uint32_t key, std::string_view value) {
   ProtoReply reply;
-  reply.fixed32(1, ip_address_key);
-  if (address.empty())
+  reply.fixed32(1, key);
+  if (value.empty())
     reply.number(3, 1);
   else
-    reply.text(2, address);
+    reply.text(2, value);
   return reply.send(session, Message::TextSensorState);
+}
+
+bool send_network_status(NoiseSession &session, std::string_view address) {
+  ProtoReply reply;
+  reply.fixed32(1, online_key);
+  reply.number(2, 1);  // The authenticated station connection is online.
+  return reply.send(session, Message::BinarySensorState) && send_text_state(session, ip_address_key, address);
 }
 
 std::optional<uint32_t> take_varint(std::span<const uint8_t> &payload) {
@@ -499,15 +524,19 @@ uint32_t requested_interval(std::string_view option, uint32_t custom_interval) {
          interval_label(seconds) == option ? seconds : 0;
 }
 
-void accept_button(std::span<const uint8_t> payload, ScreenControl &screen) {
+void accept_button(std::span<const uint8_t> payload, const EspHomeControls &controls) {
   // aioesphomeapi sends a fixed32 key. The parent device's ID is zero,
   // omitted by proto3. Honor only commands for that device.
   if (payload.size() != 5 || payload.front() != 0x0d)
     return;
   const uint32_t key = read_le32(payload.subspan(1));
+  if (key == reboot_key) {
+    controls.restart(controls.context);
+    return;
+  }
   for (const auto &button : buttons) {
     if (key == button.key) {
-      screen.submit(button.action);
+      controls.screen.submit(button.action);
       return;
     }
   }
@@ -578,7 +607,8 @@ void serve_esphome(EspHomeStream stream, const EspHomeIdentity &identity,
         sent = send_select_state(session, interval_key, interval_label(controls.interval(controls.context))) &&
                send_backlight(session, reported_backlight) &&
                send_select_state(session, photo_source_key, photo_preset_name(controls.photo_preset(controls.context))) &&
-               send_network_status(session, controls.station_address) && send_wifi_strength(session, reported_strength);
+               send_network_status(session, controls.station_address) && send_wifi_strength(session, reported_strength) &&
+               send_text_state(session, reset_reason_key, controls.reset_reason);
         break;
       case Message::SelectCommand:
         if (const auto request = select_request(body)) {
@@ -597,7 +627,7 @@ void serve_esphome(EspHomeStream stream, const EspHomeIdentity &identity,
           }
         }
         break;
-      case Message::ButtonCommand: accept_button(body, controls.screen); break;
+      case Message::ButtonCommand: accept_button(body, controls); break;
       case Message::LightCommand: accept_backlight(body, controls.screen); break;
       default: break;
     }

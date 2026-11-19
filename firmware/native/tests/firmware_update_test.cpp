@@ -3,6 +3,7 @@
 #include "esp_app_desc.h"
 #include "esp_app_format.h"
 #include "esp_ota_ops.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 
 #include <algorithm>
@@ -10,9 +11,12 @@
 #include <cstring>
 #include <fstream>
 #include <iterator>
+#include <thread>
 #include <vector>
 
 using espframe::native::FirmwareUpdateResult;
+using espframe::native::last_reset_reason;
+using espframe::native::request_frame_restart;
 using espframe::native::stage_firmware;
 
 namespace {
@@ -38,6 +42,7 @@ struct Fake {
   bool pending{};
   bool fail_write{};
   bool timer_armed{};
+  esp_reset_reason_t last_reset{ESP_RST_POWERON};
   int64_t current_time{};
   esp_timer_create_args_t timer{};
 } fake;
@@ -47,10 +52,17 @@ struct Stream {
   size_t available;
   size_t offset{};
   bool slow{};
+  bool request_restart{};
 };
 
 int receive(void *context, uint8_t *output, size_t length) {
   auto &stream = *static_cast<Stream *>(context);
+  if (stream.request_restart && fake.begins != 0) {
+    stream.request_restart = false;
+    std::thread restart(request_frame_restart);
+    restart.join();
+    assert(fake.restarts == 0);
+  }
   const size_t count = std::min({length, stream.available - stream.offset, size_t{257}});
   std::memcpy(output, stream.contents.data() + stream.offset, count);
   stream.offset += count;
@@ -109,7 +121,11 @@ esp_err_t esp_ota_mark_app_invalid_rollback_and_reboot() {
 const esp_partition_t *esp_ota_get_running_partition() { return fake.running; }
 const esp_partition_t *esp_ota_get_next_update_partition(const esp_partition_t *) { return fake.next; }
 const esp_partition_t *esp_ota_get_boot_partition() { return fake.boot; }
-void esp_restart() { ++fake.restarts; }
+esp_reset_reason_t esp_reset_reason() { return fake.last_reset; }
+void esp_restart() {
+  ++fake.restarts;
+  fake.last_reset = ESP_RST_SW;
+}
 
 int64_t esp_timer_get_time() { return fake.current_time; }
 esp_err_t esp_timer_create(const esp_timer_create_args_t *config, esp_timer_handle_t *timer) {
@@ -140,10 +156,26 @@ int main(int argc, char **argv) {
 
   using Result = FirmwareUpdateResult;
   Stream stream{expected, expected.size()};
+  stream.request_restart = true;
   assert(stage_firmware(expected.size(), receive, &stream) == Result::Staged);
+  assert(!stream.request_restart);
   assert(fake.running == &factory && fake.boot == &slot);
   assert(fake.begins == 1 && fake.ends == 1 && fake.aborts == 0 && fake.boot_selections == 1);
   assert(stage_firmware(expected.size(), receive, &stream) == Result::RestartPending);
+  request_frame_restart();
+  assert(fake.restarts == 0);
+  fake.running = &slot;
+  fake.pending = true;
+  request_frame_restart();
+  assert(fake.restarts == 0);
+  fake.pending = false;
+  assert(last_reset_reason() == "power-on event");
+  request_frame_restart();
+  assert(fake.restarts == 1 && last_reset_reason() == "software via esp_restart");
+  fake.last_reset = ESP_RST_TASK_WDT;
+  assert(last_reset_reason() == "task watchdog");
+  fake.last_reset = ESP_RST_UNKNOWN;
+  assert(last_reset_reason() == "unknown source");
 
   fake = {};
   assert(stage_firmware(partition_size + 1, receive, &stream) == Result::Size);

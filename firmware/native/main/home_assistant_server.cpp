@@ -1,6 +1,7 @@
 #include "home_assistant_server.h"
 
 #include "esphome_socket.h"
+#include "firmware_update.h"
 #include "home_assistant_key.h"
 #include "native_network.h"
 #include "screen_control.h"
@@ -113,6 +114,8 @@ struct HomeAssistantServer {
         },
         station_address.data(),
         [](const void *context) { return static_cast<const HomeAssistantServer *>(context)->wifi_rssi(); },
+        last_reset_reason(),
+        [](const void *) { request_frame_restart(); },
     };
     while (network->station_lease() == lease) {
       const Socket client{accept(listener.fd, nullptr, nullptr)};

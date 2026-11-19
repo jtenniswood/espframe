@@ -27,6 +27,8 @@ extern "C" void app_main() {
       [](const void *, PhotoPreset) { return false; },
       "127.0.0.1",
       [](const void *) -> std::optional<int8_t> { return {}; },
+      "power-on event",
+      [](const void *) {},
   };
   serve_esphome(closed, {"espframe-link-test", {}, {}, {2, 0, 0, 0, 0, 1}}, no_key, controls);
 }

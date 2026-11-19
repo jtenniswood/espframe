@@ -25,6 +25,8 @@ BACKLIGHT_KEY = 2211332998
 ONLINE_KEY = 3727615758
 WIFI_STRENGTH_KEY = 3943756064
 IP_ADDRESS_KEY = 3394986237
+REBOOT_KEY = 2194406813
+RESET_REASON_KEY = 2962208445
 CONTRACT = Path(__file__).resolve().parents[4] / "product/contract/settings.json"
 STOCK_FIELDS = {field["key"]: field for field in json.loads(CONTRACT.read_text())}
 STOCK_INTERVALS = STOCK_FIELDS["interval"]["options"]
@@ -114,6 +116,28 @@ async def expect_network_states(states, strength):
     await expect_wifi_strength(states, strength)
 
 
+def check_restart_entities(entities):
+    by_key = {item.key: item for item in entities}
+    reboot = by_key[REBOOT_KEY]
+    assert isinstance(reboot, ButtonInfo) and reboot.name == "Device: Reboot Screen"
+    assert reboot.icon == "mdi:restart" and reboot.device_class == "restart"
+    assert reboot.entity_category == EntityCategory.CONFIG and not reboot.disabled_by_default
+    assert build_device_unique_id(MAC, reboot) == f"{MAC}/0/button/Device: Reboot Screen"
+    assert build_device_unique_id(MAC, reboot, version=1) == f"{MAC}-button-device__reboot_screen"
+    reason = by_key[RESET_REASON_KEY]
+    assert isinstance(reason, TextSensorInfo) and reason.name == "Reset Reason"
+    assert reason.icon == "mdi:restart" and reason.entity_category == EntityCategory.DIAGNOSTIC
+    assert not reason.disabled_by_default
+    assert build_device_unique_id(MAC, reason) == f"{MAC}/0/text_sensor/Reset Reason"
+    assert build_device_unique_id(MAC, reason, version=1) == f"{MAC}-text_sensor-reset_reason"
+
+
+async def expect_reset_reason(states, value):
+    reason = await states.get()
+    assert isinstance(reason, TextSensorState) and reason.key == RESET_REASON_KEY
+    assert reason.state == value and not reason.missing_state
+
+
 async def verify(port, clock_input):
     reader, writer = await asyncio.open_connection(HOST, port)
     try:
@@ -138,17 +162,23 @@ async def verify(port, clock_input):
     else:
         raise AssertionError("The frame accepted the wrong encryption key")
 
+    disconnected = asyncio.Event()
+
+    async def on_stop(_expected):
+        disconnected.set()
+
     api = client(port)
-    await api.connect(login=True)
+    await api.connect(login=True, on_stop=on_stop)
     try:
         info, entities, services = await api.device_info_and_list_entities()
         assert info.name == NAME and info.friendly_name == "Espframe Test"
         assert info.mac_address.lower().replace(":", "") == MAC
         assert info.api_encryption_supported and not info.api_encryption_provisionable
         assert info.project_name == "jtenniswood.immich-frame"
-        assert not services and len(entities) == 8
+        assert not services and len(entities) == 10
         check_network_entities(entities)
-        buttons = [entity for entity in entities if isinstance(entity, ButtonInfo)]
+        check_restart_entities(entities)
+        buttons = [entity for entity in entities if isinstance(entity, ButtonInfo) and entity.key != REBOOT_KEY]
         for button, name, key, object_id in zip(
             buttons, ("Screen: Sleep", "Screen: Wake"), (2655868716, 1917547667),
             ("screen_sleep", "screen_wake"), strict=True,
@@ -189,6 +219,7 @@ async def verify(port, clock_input):
         assert isinstance(initial_source, SelectState) and initial_source.key == PHOTO_SOURCE_KEY
         assert initial_source.state == "All Photos"
         await expect_network_states(states, 70)
+        await expect_reset_reason(states, "power-on event")
         for command, strength in ((b"x", None), (b"w", 0), (b"s", 100)):
             clock_input.write(command)
             await clock_input.drain()
@@ -202,6 +233,7 @@ async def verify(port, clock_input):
         api.select_command(interval.key, "1 minutes")
         api.select_command(source.key, "favorites")
         api.select_command(source.key, "Person", device_id=1)
+        api.button_command(REBOOT_KEY, device_id=1)
         assert isinstance(await connection.send_message_await_response(PingRequest(), PingResponse), PingResponse)
         assert states.empty()
         for requested, applied in (
@@ -252,6 +284,8 @@ async def verify(port, clock_input):
         await expect_backlight(64)
         api.light_command(BACKLIGHT_KEY, brightness=0.20)
         await expect_backlight(20)
+        api.button_command(REBOOT_KEY)
+        await disconnected.wait()
     finally:
         await api.disconnect()
 
@@ -269,6 +303,7 @@ async def verify(port, clock_input):
         source = await states.get()
         assert isinstance(source, SelectState) and source.key == PHOTO_SOURCE_KEY and source.state == "Person"
         await expect_network_states(states, 100)
+        await expect_reset_reason(states, "software via esp_restart")
     finally:
         await api.disconnect()
 
@@ -287,6 +322,7 @@ async def main(executable):
         await process.wait()
     print("ESPHome client authenticated and controlled the backlight, sleep, wake and slideshow interval with stock entity IDs.")
     print("Network status, IP address and Wi-Fi strength used the stock diagnostic identities and reported live state.")
+    print("The stock reboot button disconnected the simulated frame and Reset Reason updated on reconnect.")
     print("Silent clients, wrong keys, plaintext, oversized frames and inconsistent lengths were rejected. The client reconnected.")
 
 
