@@ -1,11 +1,65 @@
 #include "swipe_input.h"
 #include "trial_swipe_benchmark.h"
+#include "trial_swipe_landing.h"
 
 #include <cassert>
 
 using namespace espframe::native;
 
+namespace {
+
+void test_physical_drag_outcomes() {
+  Swipe swipe{slide_width, 5, 2};
+  SwipeInput input;
+  TrialSwipeLanding landing;
+  using End = SwipeInput::DragEnd;
+  uint32_t sequence{};
+  const auto send = [&](int64_t time, int x, uint8_t contacts = 1) {
+    End end;
+    input.update(swipe, {x, 300, contacts, true, ++sequence, time}, swipe.position(), &end);
+    return end;
+  };
+  const auto release = [&](int64_t time, int dx) {
+    assert(send(time, 650) == End::None);
+    assert(send(time + 180'000, 650 + dx) == End::None);
+    assert(send(time + 200'000, 0, 0) == End::Released);
+    landing.released(swipe.origin_slide());
+  };
+
+  release(1'000'000, -120);
+  swipe.tick(1'500'000);
+  assert(landing.presented(swipe.settled()) == TrialDragOutcome::Forward);
+  assert(!landing.presented(swipe.settled()));
+
+  release(2'000'000, 120);
+  swipe.tick(2'500'000);
+  assert(landing.presented(swipe.settled()) == TrialDragOutcome::Backward);
+
+  release(3'000'000, -90);
+  swipe.tick(3'500'000);
+  assert(landing.presented(swipe.settled()) == TrialDragOutcome::Returned);
+
+  assert(send(4'000'000, 650) == End::None);
+  assert(send(4'100'000, 530) == End::None);
+  ++sequence;  // A missing report on release cancels the drag.
+  assert(send(4'110'000, 0, 0) == End::Cancelled);
+  swipe.tick(4'400'000);
+  assert(!landing.presented(swipe.settled()));
+
+  release(5'000'000, -120);
+  const auto previous_contact = input.contact_started_us();
+  assert(send(5'215'000, 640) == End::None);
+  assert(input.contact_started_us() != previous_contact && landing.interrupt());
+  assert(!landing.interrupt());
+  assert(send(5'225'000, 0, 0) == End::None);
+  swipe.tick(5'500'000);
+  assert(!landing.presented(swipe.settled()));
+}
+
+}  // namespace
+
 int main() {
+  test_physical_drag_outcomes();
   constexpr int64_t start = 500'000;
   TrialSwipeBenchmark script;
   assert(!script.poll(start, 0, {0, 1}, true));

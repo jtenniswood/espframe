@@ -6,6 +6,7 @@
 #include "native_network.h"
 #include "settings.h"
 #include "trial_swipe_benchmark.h"
+#include "trial_swipe_landing.h"
 
 #include "esp_http_server.h"
 #include "esp_timer.h"
@@ -70,24 +71,42 @@ TrialSwipeBenchmark benchmark{benchmark_scenario};
 TrialSwipeMetrics metrics;
 portMUX_TYPE swipe_lock = portMUX_INITIALIZER_UNLOCKED;
 
+#if !SWIPE_TRIAL_BENCHMARK
+struct PhysicalDragCounts {
+  uint32_t forward{};
+  uint32_t backward{};
+  uint32_t returned{};
+  uint32_t cancelled{};
+  uint32_t interrupted{};
+};
+PhysicalDragCounts physical_drags;
+#endif
+
 esp_err_t benchmark_status(httpd_req_t *request) {
   portENTER_CRITICAL(&swipe_lock);
   const auto result = metrics.results();
 #if SWIPE_TRIAL_BENCHMARK
   const auto script = benchmark.results();
+#else
+  const auto drags = physical_drags;
 #endif
   portEXIT_CRITICAL(&swipe_lock);
 
-  char scripted_counts[440]{};
+  char gesture_counts[440]{};
 #if SWIPE_TRIAL_BENCHMARK
-  std::snprintf(scripted_counts, sizeof(scripted_counts),
+  std::snprintf(gesture_counts, sizeof(gesture_counts),
                 ",\"target\":%u,\"started\":%" PRIu32 ",\"settled\":%" PRIu32
                 ",\"settled_slide\":%" PRId64 ",\"wrong_slide\":%" PRIu32,
                 benchmark.target(), script.started, script.settled, script.settled_slide, script.wrong_slide);
+#else
+  std::snprintf(gesture_counts, sizeof(gesture_counts),
+                ",\"physical_drags\":{\"forward\":%" PRIu32 ",\"backward\":%" PRIu32 ",\"returned\":%" PRIu32
+                ",\"cancelled\":%" PRIu32 ",\"interrupted\":%" PRIu32 "}",
+                drags.forward, drags.backward, drags.returned, drags.cancelled, drags.interrupted);
 #endif
 #if SWIPE_TRIAL_BENCHMARK_RAPID
-  const auto used = std::strlen(scripted_counts);
-  std::snprintf(scripted_counts + used, sizeof(scripted_counts) - used,
+  const auto used = std::strlen(gesture_counts);
+  std::snprintf(gesture_counts + used, sizeof(gesture_counts) - used,
                 ",\"scenario\":\"%s\",\"cold_starts\":%" PRIu32 ",\"cold_releases_unready\":%" PRIu32
                 ",\"cold_release_advances\":%" PRIu32 ",\"cold_returns\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
                 ",\"refill_limit_us\":%" PRIu32
@@ -111,7 +130,7 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 ",\"drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"busy_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}}",
                 SWIPE_TRIAL_BENCHMARK ? "true" : "false", SWIPE_TRIAL_BENCHMARK_FIXTURES ? "fixtures" : "immich",
-                scripted_counts, result.cache_hits,
+                gesture_counts, result.cache_hits,
                 FrameBlitter::burst_bytes, result.dma_copies, result.cpu_copies,
                 period, period + period / 2,
                 result.first_motion.count, result.first_motion.worst_us, result.first_motion.over_limit,
@@ -364,6 +383,20 @@ void record_live_trial_gesture(uint32_t motion_us, const FirstMotionTrace &motio
   last_motion_us.store(motion_us, std::memory_order_relaxed);
   swipes.fetch_add(1, std::memory_order_release);
 }
+
+#if !SWIPE_TRIAL_BENCHMARK
+void record_live_trial_drag_outcome(TrialDragOutcome outcome) {
+  portENTER_CRITICAL(&swipe_lock);
+  switch (outcome) {
+    case TrialDragOutcome::Forward: ++physical_drags.forward; break;
+    case TrialDragOutcome::Backward: ++physical_drags.backward; break;
+    case TrialDragOutcome::Returned: ++physical_drags.returned; break;
+    case TrialDragOutcome::Cancelled: ++physical_drags.cancelled; break;
+    case TrialDragOutcome::Interrupted: ++physical_drags.interrupted; break;
+  }
+  portEXIT_CRITICAL(&swipe_lock);
+}
+#endif
 
 void record_live_trial_frame(int64_t latched_us, MotionStamp stamp, uint32_t period_us) {
   portENTER_CRITICAL(&swipe_lock);

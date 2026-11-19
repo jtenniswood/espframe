@@ -364,8 +364,13 @@ touch-report-to-LCD-handoff timing for the most recent swipe.
 For a hands-on session, open `/api/trial/benchmark` from another device
 after dragging the photos and save its response before rollback. The response
 shows `"scripted":false` and summarizes the first motion, drag gaps and
-cache hits from physical gestures since boot. Drag continuously to assess
-pacing, since a pause mid-drag can also widen the gap between display updates.
+cache hits from physical gestures since boot. Its `physical_drags` counts
+report forward and backward landings, returns to the starting photo,
+cancellations during a recognized drag, and released drags interrupted
+before their final frame reached the display. Taps and gestures that
+never start a horizontal drag are outside these counts. Drag continuously
+to assess pacing, since a pause mid-drag can also widen the gap between
+display updates.
 Use high-frame-rate video to measure from finger movement to visible motion
 and check the panel for tearing.
 The status route also reports clock and connection readiness, HTTP status

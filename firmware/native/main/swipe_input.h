@@ -11,6 +11,7 @@ namespace espframe::native {
 class SwipeInput {
  public:
   enum class Effect { None, Sleep, Wake };
+  enum class DragEnd { None, Released, Cancelled };
 
   bool engaged() const { return down_ || wait_for_release_; }
   bool awake() const { return !sleeping_; }
@@ -27,22 +28,24 @@ class SwipeInput {
 
   void wake() { sleeping_ = false; }
 
-  Effect update(Swipe &swipe, const TouchReport &report, PixelPosition handoff) {
+  Effect update(Swipe &swipe, const TouchReport &report, PixelPosition handoff, DragEnd *drag_end = nullptr) {
+    if (drag_end)
+      *drag_end = DragEnd::None;
     const bool lost_samples = seen_report_ && report.sequence != sequence_ + uint32_t{1};
     seen_report_ = true;
     sequence_ = report.sequence;
     if (lost_samples && !sleeping_)
-      cancel_(swipe, report.sampled_us);
+      cancel_(swipe, report.sampled_us, drag_end);
 
     if (!report.valid) {
       hold_candidate_ = false;
       if (down_ && ++errors_ == 3)
-        cancel_(swipe, report.sampled_us);
+        cancel_(swipe, report.sampled_us, drag_end);
       return Effect::None;
     }
     errors_ = 0;
     if (report.contacts > 1) {
-      cancel_(swipe, report.sampled_us);
+      cancel_(swipe, report.sampled_us, drag_end);
       return Effect::None;
     }
     if (report.contacts == 0) {
@@ -50,6 +53,8 @@ class SwipeInput {
       if (sleep) {
         this->sleep(swipe);
       } else if (down_) {
+        if (drag_end && swipe.dragging())
+          *drag_end = DragEnd::Released;
         swipe.release(report.sampled_us);
         if (swipe.idle() && swipe.position() == handoff)
           first_motion_us_ = 0;
@@ -95,7 +100,9 @@ class SwipeInput {
   static constexpr int64_t hold_duration_us = 3'000'000;
   static constexpr int hold_slop = 12;
 
-  void cancel_(Swipe &swipe, int64_t now_us) {
+  void cancel_(Swipe &swipe, int64_t now_us, DragEnd *drag_end) {
+    if (drag_end && swipe.dragging())
+      *drag_end = DragEnd::Cancelled;
     swipe.cancel(now_us);
     down_ = false;
     hold_candidate_ = false;

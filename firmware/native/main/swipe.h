@@ -21,6 +21,7 @@ class Swipe {
     return this->settled_ * this->width_ + static_cast<PixelPosition>(std::floor(this->offset_ + 0.5f));
   }
   SlideIndex settled() const { return this->settled_; }
+  SlideIndex origin_slide() const { return this->origin_slide_; }
   bool idle() const { return this->phase_ == Phase::Idle; }
   bool dragging() const { return this->phase_ == Phase::Dragging; }
   bool settling() const { return this->phase_ == Phase::Settling; }

@@ -13,6 +13,7 @@ struct Settings;
 struct FirstMotionTrace;
 struct MotionStamp;
 class NativeNetwork;
+enum class TrialDragOutcome;
 
 enum class TrialPreparationStage : uint8_t {
   Attempt,
@@ -42,6 +43,7 @@ void record_live_trial_preview(int http_status);
 void record_live_trial_preparation_time(TrialPreparationStage stage, uint32_t elapsed_us, size_t bytes = 0);
 void record_live_trial_photo(uint32_t elapsed_ms);
 void record_live_trial_gesture(uint32_t motion_us, const FirstMotionTrace &motion);
+void record_live_trial_drag_outcome(TrialDragOutcome outcome);
 void record_live_trial_frame(int64_t latched_us, MotionStamp stamp, uint32_t period_us);
 void record_live_trial_blit(bool dma);
 

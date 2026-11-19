@@ -19,6 +19,7 @@
 #include "touch.h"
 #include "trace_logger.h"
 #include "trial_replay.h"
+#include "trial_swipe_landing.h"
 #include "usb_setup.h"
 
 #include "driver/jpeg_decode.h"
@@ -49,6 +50,7 @@ constexpr UBaseType_t player_priority = 4;
 constexpr bool trace_enabled = SWIPE_TRACE;
 constexpr bool esphome_trial = SWIPE_ESPHOME_TRIAL;
 constexpr bool trial_immich = SWIPE_TRIAL_IMMICH;
+constexpr bool track_physical_drags = trial_immich && !SWIPE_TRIAL_BENCHMARK;
 constexpr bool capture_motion = trace_enabled || trial_immich;
 constexpr bool trial_fixtures = SWIPE_TRIAL_BENCHMARK_FIXTURES;
 extern const uint8_t clock_atlas[] asm("_binary_clock_glyphs_bin_start");
@@ -414,6 +416,11 @@ void run(void *) {
   MotionEpoch motion_epoch;
   MotionStamp submitted_stamp;
   FirstMotionTrace first_motion;
+  TrialSwipeLanding physical_landing;
+  const auto record_landing = [&] {
+    if (const auto outcome = physical_landing.presented(swipe.settled()))
+      record_live_trial_drag_outcome(*outcome);
+  };
   int64_t refill_started_us{};
   if constexpr (trace_enabled)
     trace.start(Display::nominal_frame_period_us());
@@ -466,6 +473,10 @@ void run(void *) {
       }
       if constexpr (trial_immich)
         record_live_trial_frame(*scanout, submitted_stamp, Display::nominal_frame_period_us());
+      if constexpr (track_physical_drags) {
+        if (input.awake() && !input.engaged() && swipe.idle() && swipe.position() == display.presented_position())
+          record_landing();
+      }
       if constexpr (trace_enabled)
         trace.frame(*scanout, submitted_stamp);
     }
@@ -551,7 +562,21 @@ void run(void *) {
         }
       }
       const bool was_dragging = swipe.dragging();
-      const auto effect = input.update(swipe, report, display.handoff_position());
+      const auto previous_contact = input.contact_started_us();
+      SwipeInput::DragEnd drag_end{};
+      const auto effect = input.update(swipe, report, display.handoff_position(),
+                                       track_physical_drags ? &drag_end : nullptr);
+      if constexpr (track_physical_drags) {
+        if (previous_contact != input.contact_started_us() && physical_landing.interrupt())
+          record_live_trial_drag_outcome(TrialDragOutcome::Interrupted);
+        if (drag_end == SwipeInput::DragEnd::Released) {
+          physical_landing.released(swipe.origin_slide());
+          if (swipe.idle() && swipe.position() == display.presented_position())
+            record_landing();
+        } else if (drag_end == SwipeInput::DragEnd::Cancelled) {
+          record_live_trial_drag_outcome(TrialDragOutcome::Cancelled);
+        }
+      }
       if constexpr (capture_motion) {
         if (was_dragging && !swipe.dragging())
           motion_epoch.update(MotionPhase::Still);
@@ -649,6 +674,12 @@ void run(void *) {
     const auto position = swipe.position();
     const bool visible_and_idle = backlight_ready && input.awake() && !input.engaged() && swipe.idle() &&
                                   position == display.presented_position();
+    if constexpr (track_physical_drags) {
+      if (visible_and_idle)
+        record_landing();
+      else if (!input.awake() && physical_landing.interrupt())
+        record_live_trial_drag_outcome(TrialDragOutcome::Interrupted);
+    }
     if (fade.held() && !blend.pending() && visible_and_idle) {
       if (can_fade && swipe.settled() == fade.anchor()) {
         fade.resume(now);
