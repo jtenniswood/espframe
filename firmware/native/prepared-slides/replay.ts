@@ -91,8 +91,9 @@ const server = createServer(async (request, response) => {
 await once(server.listen(port, host), 'listening')
 if (warmRotation !== undefined) {
   for (let index = 0; index < library.length; index += 2) {
-    const query = `companion=${library[index + 1].id}&rotation=${warmRotation}`
-    const response = await fetch(`${origin}/v1/slides/${library[index].id}?${query}`, {
+    // The native pending queue selects its next photo from the back.
+    const query = `companion=${library[index].id}&rotation=${warmRotation}`
+    const response = await fetch(`${origin}/v1/slides/${library[index + 1].id}?${query}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (!response.ok) throw new Error(`Replay preparation failed (${response.status})`)
