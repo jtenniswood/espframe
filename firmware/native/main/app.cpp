@@ -286,7 +286,17 @@ class SlideLoader {
         result = loader.source_.prepare(lease.slide, lease.pixels);
       } else {
         const int fixture = lease.slide % fixture_count;
-        if (!decode_photo(photos[fixture], lease.pixels, decoder))
+        const auto &photo = photos[fixture];
+        const auto started_us = trial_fixtures && photo.begin ? esp_timer_get_time() : 0;
+        const bool decoded = decode_photo(photo, lease.pixels, decoder);
+        if constexpr (trial_fixtures) {
+          if (photo.begin)
+            record_live_trial_preparation_time(decoded ? TrialPreparationStage::HardwareJpeg
+                                                       : TrialPreparationStage::RejectedPreview,
+                                               static_cast<uint32_t>(esp_timer_get_time() - started_us),
+                                               static_cast<size_t>(photo.end - photo.begin));
+        }
+        if (!decoded)
           draw_test_slide(lease.pixels, fixture, loader.rotation());
         else if (loader.rotation() == ScreenRotation::UpsideDown)
           std::reverse(lease.pixels, lease.pixels + pixel_count);
