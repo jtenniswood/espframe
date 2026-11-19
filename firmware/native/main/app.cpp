@@ -49,6 +49,7 @@ constexpr bool trace_enabled = SWIPE_TRACE;
 constexpr bool capture_motion = SWIPE_TRACE || SWIPE_TRIAL_BENCHMARK;
 constexpr bool esphome_trial = SWIPE_ESPHOME_TRIAL;
 constexpr bool trial_immich = SWIPE_TRIAL_IMMICH;
+constexpr bool trial_fixtures = SWIPE_TRIAL_BENCHMARK_FIXTURES;
 extern const uint8_t clock_atlas[] asm("_binary_clock_glyphs_bin_start");
 extern const uint8_t recovery_atlas[] asm("_binary_recovery_glyphs_bin_start");
 NativeNetwork network;
@@ -278,7 +279,7 @@ class SlideLoader {
         continue;
       const auto connection = network.photo_connection();
       auto result = Result::Ready;
-      if ((!esphome_trial || trial_immich) && loader.live_ && lease.slide > 0) {
+      if ((!esphome_trial || trial_immich) && !trial_fixtures && loader.live_ && lease.slide > 0) {
         if constexpr (trial_immich)
           record_live_trial_prepare();
         result = loader.source_.prepare(lease.slide, lease.pixels);
@@ -317,7 +318,8 @@ void run(void *) {
   SlideCache cache{allocate_slide_buffers()};
   const bool live = loader.live();
   const auto rotation = loader.rotation();
-  const SlideIndex slide_count = live ? std::numeric_limits<PixelPosition>::max() / slide_width : fixture_slides;
+  const SlideIndex slide_count = live && !trial_fixtures ? std::numeric_limits<PixelPosition>::max() / slide_width
+                                                        : fixture_slides;
   FrameBlend blend;
   bool can_fade = live && blend.init();
   static Display display;
@@ -406,7 +408,7 @@ void run(void *) {
         applied_brightness = input.awake() ? brightness : 0;
         display.init_backlight(applied_brightness);
         backlight_ready = true;
-        ESP_LOGI(tag, "Player ready (background %s preparation)", live ? "Immich" : "fixture");
+        ESP_LOGI(tag, "Player ready (background %s preparation)", live && !trial_fixtures ? "Immich" : "fixture");
       }
       if (submitted_motion_us != 0) {
         const auto motion_us = *scanout - submitted_motion_us;
@@ -561,7 +563,7 @@ void run(void *) {
     const auto eligible = [&](SlideIndex candidate) {
       // Live photos have to be assigned in order. Trying a later index would
       // give it a retry delay even though no request for it has gone to Immich.
-      return keep.contains(candidate) && (!live || candidate <= next_photo) &&
+      return keep.contains(candidate) && (!live || trial_fixtures || candidate <= next_photo) &&
              retries[candidate % retries.size()].due(candidate, now, active_connection);
     };
     if (const auto wanted = prefetch.requested(); wanted && cache.find(*wanted))
@@ -729,7 +731,8 @@ void run(void *) {
 
 void start_player() {
   if constexpr (esphome_trial) {
-    if (!start_esphome_trial(trial_immich ? 300 : 180))
+    constexpr unsigned trial_seconds = trial_fixtures ? 120 : trial_immich ? 300 : 180;
+    if (!start_esphome_trial(trial_seconds))
       return;
   } else {
     start_usb_setup(network);

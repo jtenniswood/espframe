@@ -46,14 +46,15 @@ esp_err_t benchmark_status(httpd_req_t *request) {
   const auto period = Display::nominal_frame_period_us();
   char body[600]{};
   std::snprintf(body, sizeof(body),
-                "{\"scripted\":true,\"target\":%u,\"started\":%" PRIu32 ",\"settled\":%" PRIu32
+                "{\"scripted\":true,\"source\":\"%s\",\"target\":%u,\"started\":%" PRIu32 ",\"settled\":%" PRIu32
                 ",\"wrong_slide\":%" PRIu32 ",\"cache_hits\":%" PRIu32
                 ",\"frame_period_us\":%u,\"drag_gap_limit_us\":%u"
                 ",\"first_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
                 ",\"busy_first_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
                 ",\"drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"busy_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}}",
-                TrialSwipeBenchmark::swipe_limit, result.started, result.settled, result.wrong_slide, result.cache_hits,
+                SWIPE_TRIAL_BENCHMARK_FIXTURES ? "fixtures" : "immich", TrialSwipeBenchmark::swipe_limit,
+                result.started, result.settled, result.wrong_slide, result.cache_hits,
                 period, period + period / 2,
                 result.first_motion.count, result.first_motion.worst_us, result.first_motion.over_limit,
                 result.busy_first_motion.count, result.busy_first_motion.worst_us, result.busy_first_motion.over_limit,

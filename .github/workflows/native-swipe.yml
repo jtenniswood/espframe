@@ -255,9 +255,15 @@ jobs:
             if grep -E "espframe::native::(Settings::save|start_usb_setup|stage_firmware)|[[:space:]](esp_ota_mark_app_valid_cancel_rollback|nvs_erase_all|nvs_flash_erase|nvs_set_str)$" /tmp/bench-symbols; then
               exit 1
             fi
+            fixtures=firmware/native/build/esphome-benchmark-fixtures-v1
+            idf.py -C firmware/native -B "$fixtures" -D SWIPE_BOARD=v1 -D SWIPE_ESPHOME_TRIAL=ON \
+              -D SWIPE_TRIAL_IMMICH=ON -D SWIPE_TRIAL_BENCHMARK=ON -D SWIPE_TRIAL_BENCHMARK_FIXTURES=ON build
+            cmp "$live/partition_table/partition-table.bin" "$fixtures/partition_table/partition-table.bin"
           '
       - uses: actions/upload-artifact@v7
         with:
           name: native-v1-esphome-swipe-benchmark
-          path: firmware/native/build/esphome-benchmark-v1/espframe_v1_swipe_benchmark.bin
+          path: |
+            firmware/native/build/esphome-benchmark-v1/espframe_v1_swipe_benchmark.bin
+            firmware/native/build/esphome-benchmark-fixtures-v1/espframe_v1_fixture_benchmark.bin
           if-no-files-found: error
