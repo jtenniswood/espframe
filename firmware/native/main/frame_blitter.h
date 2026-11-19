@@ -1,0 +1,25 @@
+#pragma once
+
+#include "slide_blit.h"
+
+#include "esp_async_color_convert.h"
+
+namespace espframe::native {
+
+// The player owns the input slides and the writable display buffer until
+// each DMA2D copy finishes. Overlays are painted on the finished output.
+class FrameBlitter {
+ public:
+  static constexpr unsigned burst_bytes = 128;
+
+  void init();
+  void slides(uint16_t *output, SlideSpan span);
+  void edge(uint16_t *output, const uint16_t *photo, int pull);
+
+ private:
+  void copy_rows_(uint16_t *destination, const uint16_t *source, int width, int rows);
+
+  async_color_convert_handle_t dma_{};
+};
+
+}  // namespace espframe::native
