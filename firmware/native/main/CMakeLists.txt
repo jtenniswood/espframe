@@ -17,7 +17,7 @@ if(SWIPE_ESPHOME_TRIAL)
     set(trial_source esphome_trial.cpp)
 endif()
 if(SWIPE_TRIAL_IMMICH)
-    list(APPEND trial_source live_trial.cpp)
+    list(APPEND trial_source live_trial.cpp stock_frame_identity.cpp)
 endif()
 
 idf_component_register(

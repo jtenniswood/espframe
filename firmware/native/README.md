@@ -346,8 +346,10 @@ For a V1 configured through the stock ESPHome installer, build the
 five-minute Immich trial against the same app slots. It reads the saved
 Wi-Fi and Immich connection from the ESPHome 2026.11 preference format.
 The trial keeps the saved date range, portrait-pairing settings and
-mounting orientation. The trial returns immediately to ESPHome if its required settings
-are missing or invalid, or an active photo filter is outside that scope.
+mounting orientation. It also uses the saved stock frame name for DHCP
+when connecting to Wi-Fi. The trial returns immediately to ESPHome if
+its required settings are missing or invalid, or an active photo filter
+is outside that scope.
 
 ```sh
 idf.py -C firmware/native -B firmware/native/build/esphome-live-trial-v1 \

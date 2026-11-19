@@ -1,4 +1,5 @@
 #include "live_trial.h"
+#include "stock_frame_identity.h"
 #include "display.h"
 #include "frame_blitter.h"
 #include "live_trial_credentials.h"
@@ -269,6 +270,8 @@ bool read_live_trial_credentials(Settings &settings) {
   settings.password = wifi->password.data();
   settings.immich_url = immich_url;
   settings.immich_key = immich_key;
+  if constexpr (!SWIPE_TRIAL_BENCHMARK)
+    settings.frame_name = read_stock_frame_name().value_or(std::string{});
   return true;
 }
 

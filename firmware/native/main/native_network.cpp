@@ -30,6 +30,7 @@ constexpr uint32_t station_stopped = BIT3;
 constexpr uint32_t command_ready = BIT4;
 constexpr int network_core = 0;
 constexpr bool trial_immich = SWIPE_TRIAL_IMMICH;
+constexpr bool trial_benchmark = SWIPE_TRIAL_BENCHMARK;
 
 FrameMac read_frame_mac() {
   FrameMac mac{};
@@ -126,7 +127,7 @@ bool NativeNetwork::init_station_(const WifiCredentials &wifi) {
   station_ = esp_netif_create_default_wifi_sta();
   if (station_ == nullptr)
     return false;
-  if constexpr (trial_immich) {
+  if constexpr (trial_benchmark) {
     esp_netif_set_hostname(station_, "espframe-native");
   } else {
     frame_mac_ = read_frame_mac();
