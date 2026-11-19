@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Espframe Wi-Fi setup</title>
+<link rel="stylesheet" href="/settings.css">
+<main>
+  <h1>Connect Espframe to Wi-Fi</h1>
+  <section>
+    <form id="recovery" hidden>
+      <label for="ssid">Network name</label>
+      <input id="ssid" name="ssid" required maxlength="32" autocapitalize="off" spellcheck="false">
+      <label for="password">Wi-Fi password</label>
+      <input id="password" name="password" type="password" maxlength="64" autocomplete="off">
+      <small>Leave the password blank for an open network.</small>
+      <button type="submit">Connect</button>
+    </form>
+    <p id="status" role="status">Checking the frame’s connection…</p>
+    <noscript>This page needs JavaScript to connect the frame.</noscript>
+  </section>
+</main>
+<script type="module" src="/recovery.js"></script>
+</html>

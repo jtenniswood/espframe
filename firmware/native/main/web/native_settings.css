@@ -1,0 +1,48 @@
+.native-settings-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  padding: 12px 0 max(12px, env(safe-area-inset-bottom));
+}
+
+.native-settings-actions .status:empty {
+  display: none;
+}
+
+.native-frame-notice {
+  font-size: 0.85rem;
+  margin: 8px 0 0;
+}
+
+#native-frame-status {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+}
+
+#native-frame-status h2 {
+  font-size: 1rem;
+  margin: 0 0 8px;
+}
+
+#native-frame-status dl:not([hidden]) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+}
+
+#native-frame-status dt {
+  color: var(--text2);
+  font-size: 0.8rem;
+}
+
+#native-frame-status dd {
+  font-size: 0.9rem;
+  margin: 0;
+}
