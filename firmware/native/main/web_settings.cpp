@@ -233,6 +233,7 @@ esp_err_t current(httpd_req_t *request) {
   std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(cJSON_CreateObject(), cJSON_Delete);
   if (!settings.read() || !document ||
       !settings.add_playback_fields(document.get()) ||
+      !cJSON_AddBoolToObject(document.get(), "live_photo_settings", true) ||
       !cJSON_AddBoolToObject(document.get(), "api_key_configured", settings.has_immich()) ||
       !cJSON_AddNumberToObject(document.get(), "reset_epoch", settings.reset_epoch) ||
       !cJSON_AddStringToObject(document.get(), "reset_path", contract::RESET_PATH) ||
@@ -276,12 +277,14 @@ esp_err_t update(httpd_req_t *request) {
     received += bytes;
   }
   body[received] = '\0';
-  if (std::memchr(body.get(), '\0', received) || !Settings::save_playback(body.get()))
+  bool restart_required = false;
+  if (std::memchr(body.get(), '\0', received) || !Settings::save_playback(body.get(), &restart_required))
     return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Check the Immich connection and playback settings.");
-  if (esp_timer_start_once(restart_timer, 800'000) != ESP_OK)
+  if (restart_required && esp_timer_start_once(restart_timer, 800'000) != ESP_OK)
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Saved. Restart the frame to apply settings.");
   httpd_resp_set_type(request, "application/json");
-  return httpd_resp_sendstr(request, "{\"saved\":true}");
+  return httpd_resp_sendstr(request, restart_required ? "{\"saved\":true,\"restart_required\":true}"
+                                                     : "{\"saved\":true,\"restart_required\":false}");
 }
 
 esp_err_t send_configuration(httpd_req_t *request, const cJSON *document, const char *status = "200 OK") {
@@ -327,7 +330,8 @@ esp_err_t configuration_reply(httpd_req_t *request, const ConfigurationUpdate &r
                         (!result.field.empty() && !cJSON_AddStringToObject(body.get(), "field", result.field.c_str())))) ||
       (!result.error && (!cJSON_AddNumberToObject(body.get(), "api_version", contract::API_VERSION) ||
                          !cJSON_AddStringToObject(body.get(), "status", "accepted") ||
-                         !cJSON_AddNumberToObject(body.get(), "updated", result.updated))))
+                         !cJSON_AddNumberToObject(body.get(), "updated", result.updated) ||
+                         !cJSON_AddBoolToObject(body.get(), "restart_required", result.restart_required))))
     return send_configuration(request, nullptr);
   if (result.frame_name && !cJSON_AddStringToObject(body.get(), "frame_hostname",
                                                    network(request).identity_for(*result.frame_name).hostname.c_str()))
@@ -358,8 +362,10 @@ esp_err_t identity(httpd_req_t *request) {
     if (!name)
       return configuration_reply(request, {"400 Bad Request", "invalid_name", {}});
     const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> update(cJSON_CreateObject(), cJSON_Delete);
-    if (!update || !cJSON_AddStringToObject(update.get(), "frame_name", name->c_str()) ||
-        Settings::update_playback(update.get()) != Settings::UpdateResult::Saved)
+    if (!update || !cJSON_AddStringToObject(update.get(), "frame_name", name->c_str()))
+      return configuration_reply(request, {"500 Internal Server Error", "settings_unavailable", {}});
+    const auto result = Settings::update_playback(update.get());
+    if (result != Settings::UpdateResult::Saved && result != Settings::UpdateResult::Unchanged)
       return configuration_reply(request, {"500 Internal Server Error", "settings_unavailable", {}});
   }
   Settings settings;
@@ -433,7 +439,7 @@ esp_err_t save_configuration(httpd_req_t *request) {
   if (!json)
     return configuration_reply(request, {"400 Bad Request", "invalid_configuration", {}});
   const auto result = update_configuration(json->c_str());
-  if (!result.error && result.updated != 0 && esp_timer_start_once(restart_timer, 800'000) != ESP_OK)
+  if (!result.error && result.restart_required && esp_timer_start_once(restart_timer, 800'000) != ESP_OK)
     return configuration_reply(request, {"500 Internal Server Error", "restart_required", {}});
   return configuration_reply(request, result);
 }

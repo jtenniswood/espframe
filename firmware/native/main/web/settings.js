@@ -33,13 +33,15 @@ form.addEventListener('invalid', event => {
 }, true)
 
 async function request(options) {
-  const response = await fetch('/api/playback', options)
+  const response = await fetch('/api/playback', { cache: 'no-store', ...options })
   if (!response.ok) throw new Error(await response.text())
   return response.json()
 }
 
+let savedPlayback
 try {
   const settings = await request()
+  savedPlayback = settings
   resetEpoch = settings.reset_epoch
   if (settings.firmware_update && /^v[123]$/.test(settings.board_revision)) {
     document.querySelector('#firmware-help').textContent =
@@ -110,7 +112,7 @@ try {
   status.textContent = ''
   form.hidden = false
   download.addEventListener('click', () => {
-    const backup = createBackup(settings)
+    const backup = createBackup(savedPlayback)
     const json = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(json)
@@ -133,6 +135,8 @@ form.addEventListener('submit', async event => {
   submit.disabled = true
   data.slide_seconds = Number(data.slide_seconds)
   for (const name of percentageFields) data[name] = form.elements[name].valueAsNumber
+  if (savedPlayback?.live_photo_settings && savedPlayback.brightness_night === data.brightness_night)
+    delete data.brightness_night
   data.base_tone_enabled = form.elements.base_tone_enabled.checked
   data.warm_tones_enabled = form.elements.warm_tones_enabled.checked
   data.portrait_pairing = form.elements.portrait_pairing.checked
@@ -149,13 +153,24 @@ form.addEventListener('submit', async event => {
   data.schedule_wake_timeout = Number(data.schedule_wake_timeout)
   download.disabled = true
   try {
-    await request({
+    const result = await request({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     })
     form.elements.immich_key.value = ''
-    status.textContent = 'Settings saved. The frame is restarting.'
+    if (result.restart_required === false) {
+      try {
+        savedPlayback = await request()
+        status.textContent = 'Settings saved.'
+        download.disabled = false
+      } catch {
+        status.textContent = 'Settings saved. Reload this page to see the current values.'
+      }
+      submit.disabled = false
+    } else {
+      status.textContent = 'Settings saved. The frame is restarting.'
+    }
   } catch (error) {
     submit.disabled = false
     download.disabled = false

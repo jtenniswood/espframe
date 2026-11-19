@@ -242,11 +242,14 @@ const server = createServer(async (request, response) => {
     for await (const chunk of request) body += chunk
     updates.push(JSON.parse(body))
     response.setHeader('Content-Type', 'application/json')
-    response.end('{"saved":true}')
+    response.end(customFilters ? '{"saved":true,"restart_required":false}' : '{"saved":true}')
   } else if (request.method === 'GET' && request.url === '/api/playback') {
     response.setHeader('Content-Type', 'application/json')
     const playback = { ...setup, clock_timezones: clockTimezones }
-    if (customFilters) Object.assign(playback, { photo_source: 'custom', people_enabled: true, person_ids: albumId })
+    if (customFilters) Object.assign(playback, {
+      live_photo_settings: true, photo_source: 'custom', people_enabled: true, person_ids: albumId,
+      ...updates.findLast(update => update.photo_source === 'custom'),
+    })
     if (resetAvailable) {
       playback.reset_path = resetPath
       playback.factory_reset = factoryAvailable
@@ -350,14 +353,16 @@ try {
   resetAvailable = false
   customFilters = true
   const filterPage = await render('/filter-test')
-  assert.match(filterPage, /Settings saved\. The frame is restarting\./)
+  assert.match(filterPage, /Settings saved\./)
+  assert.doesNotMatch(filterPage, /The frame is restarting\./)
   assert.equal(updates.length, 3)
   assert.equal(updates[2].photo_source, 'custom')
   assert.equal(updates[2].person_ids, albumId)
   assert.equal(updates[2].excluded_person_ids, '0406c468-dabf-4777-bb93-ac6fdac62857')
   assert.equal(updates[2].rating_enabled, true)
   assert.equal(updates[2].minimum_rating, '4+')
-  console.log('Native device tools preserve and edit compound filters')
+  assert.equal(updates[2].brightness_night, undefined, 'A filter save should not pin the existing night level')
+  console.log('Native device tools apply compound filters live and preserve the night brightness setting')
 } finally {
   server.close()
 }

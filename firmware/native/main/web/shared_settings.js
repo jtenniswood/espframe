@@ -616,7 +616,7 @@
     }
     return control;
   }
-  function nativeSettingsForm(snapshot) {
+  function nativeSettingsForm(snapshot, savedNotice = "") {
     var _a, _b, _c, _d, _e, _f;
     const frameName = typeof snapshot.values.frame_name === "string" ? snapshot.values.frame_name : "";
     document.title = frameName ? `${frameName} \xB7 Espframe` : "Espframe settings";
@@ -657,11 +657,12 @@
       if (body.childElementCount) fields.appendChild(makeCollapsibleCard(title, body, title !== "Playback" && !openConnection));
     }
     const actions = el("div", "native-settings-actions");
-    const save = button("Save and restart", "btn btn-primary");
+    const save = button("Save settings", "btn btn-primary");
     save.type = "submit";
     save.disabled = true;
     const status = el("p", "status");
     status.setAttribute("role", "status");
+    status.textContent = savedNotice;
     actions.append(save, status);
     form.append(fields, actions);
     connectFieldLabels(form);
@@ -717,9 +718,11 @@
       setSaving(true);
       setStatus(status, "Saving settings\u2026");
       let hostname = "";
+      let restartRequired = true;
       try {
         const response = await apiClient.updateSettings(values, []);
         if (!response || response.status !== "accepted") throw new Error("save_failed");
+        restartRequired = response.restart_required !== false;
         if (typeof response.frame_hostname === "string" && /^[a-z0-9-]{1,63}$/.test(response.frame_hostname))
           hostname = response.frame_hostname + ".local";
       } catch (error) {
@@ -732,6 +735,15 @@
       controls.forEach(({ element }, key) => {
         if (nativeSecret(key)) element.value = "";
       });
+      if (!restartRequired) {
+        try {
+          form.replaceWith(nativeSettingsForm(await apiClient.getConfigurationSnapshot(), "Settings saved."));
+        } catch (_) {
+          setStatus(status, "Settings saved. Reload this page to see the current values.");
+          setSaving(false);
+        }
+        return;
+      }
       setStatus(status, "Settings saved. The frame is restarting\u2026");
       if (hostname && hostname !== window.location.hostname) {
         const link = el("a");

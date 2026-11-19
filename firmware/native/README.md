@@ -84,8 +84,10 @@ with the password you chose. The settings page uses Espframe's shared web
 controls and configuration client. It shows the settings supported by the
 running native firmware.
 Edit the Immich connection, display mode, time per photo, and other
-playback and screen settings, then choose **Save and restart** to apply
-the edits together. The page reloads the settings once the frame returns.
+playback and screen settings, then choose **Save settings**. Changes limited
+to photo selection, framing, portrait pairing, or captions keep the current
+photo on screen while the frame prepares the replacement feed. Saves that
+also change connection or device settings apply together after a restart.
 If you change **Frame name**, it also shows the new `.local` address.
 The frame adds its own four-character MAC suffix to the hostname.
 Under **Clock**, choose whether to show the local time and select the timezone
@@ -101,7 +103,8 @@ The native player also answers the shared configuration API at
 `/espframe/api/v1/capabilities` and `/espframe/api/v1/configuration`.
 Authenticated reads report common settings and list unavailable fields.
 Same-origin writes accept the existing form-encoded configuration payload.
-The player saves the supported fields together and restarts to apply them.
+The player saves the supported fields together. The update response reports
+whether applying the save requires a restart.
 The API key is write-only. Under **Photo sources & device tools**, use
 **Reset customization** to clear both photo connections and restore playback
 and display defaults. The frame retains Wi-Fi and the web settings password,

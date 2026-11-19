@@ -312,7 +312,7 @@ ConfigurationUpdate update_configuration(const char *json) {
     ++count;
   }
 
-  const auto result = count == 0 && !expected_epoch ? Settings::UpdateResult::Saved
+  const auto result = count == 0 && !expected_epoch ? Settings::UpdateResult::Unchanged
                                                     : Settings::update_playback(update.get(), expected_epoch);
   if (result == Settings::UpdateResult::Invalid)
     return {"422 Unprocessable Entity", "invalid_value", {}};
@@ -320,7 +320,7 @@ ConfigurationUpdate update_configuration(const char *json) {
     return {"409 Conflict", "reset_epoch_mismatch", {}};
   if (result == Settings::UpdateResult::Failed)
     return {"500 Internal Server Error", "settings_unavailable", {}};
-  return {"200 OK", nullptr, {}, count, std::move(frame_name)};
+  return {"200 OK", nullptr, {}, count, std::move(frame_name), result == Settings::UpdateResult::Saved};
 }
 
 std::optional<ResetMode> decode_reset_form(std::string_view form) {
@@ -338,7 +338,7 @@ const char *reset_mode_name(ResetMode mode) {
 ConfigurationUpdate reset_configuration(ResetMode mode) {
   if (!Settings::reset(mode))
     return {"500 Internal Server Error", "settings_unavailable", {}};
-  return {"200 OK", nullptr, {}};
+  return {"200 OK", nullptr, {}, 0, {}, true};
 }
 
 }  // namespace espframe::native

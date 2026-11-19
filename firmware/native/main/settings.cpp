@@ -27,6 +27,7 @@ constexpr const char *store_namespace = "player";
 constexpr const char *settings_key = "settings_v1";
 constexpr size_t legacy_max_json_size = 3072;
 std::mutex storage_mutex;
+std::optional<PhotoFeedSettings> published_feed;
 
 bool load_string(nvs_handle_t storage, const char *key, std::string &value, size_t maximum) {
   size_t size = 0;
@@ -560,6 +561,30 @@ bool put_epoch(cJSON *document, uint32_t epoch) {
   return epoch == 0 || cJSON_AddNumberToObject(document, "reset_epoch", epoch) != nullptr;
 }
 
+bool changes_photo_source(std::string_view key) {
+  const auto matches = [key](const auto &field) { return key == field.first; };
+  constexpr std::string_view options[]{
+      "photo_source", "album_id", "album_order", "minimum_rating", "album_matching",
+      "person_matching", "tag_matching", "inclusion_matching", "favorite_mode"};
+  return std::ranges::any_of(filter_flags, matches) || std::ranges::any_of(filter_lists, matches) ||
+         std::ranges::any_of(filter_places, matches) || std::ranges::find(options, key) != std::end(options);
+}
+
+bool applies_to_photo_feed(std::string_view key) {
+  constexpr std::string_view options[]{
+      "memories_window", "memories_fallback", "date_filter_enabled", "date_filter_mode", "date_from", "date_to",
+      "relative_amount", "relative_unit", "photo_orientation", "display_mode", "portrait_pairing", "portrait_pairs_only",
+      "portrait_pairing_range", "portrait_pair_framing", "photo_metadata_date_enabled", "photo_metadata_location_enabled",
+      "photo_metadata_date_format", "photo_metadata_date_taken_format"};
+  return changes_photo_source(key) || std::ranges::find(options, key) != std::end(options);
+}
+
+void publish_photo_feed(Settings &settings) {
+  active_photo_preset.store(settings.photo_source.preset(), std::memory_order_relaxed);
+  published_feed = std::move(static_cast<PhotoFeedSettings &>(settings));
+  photo_source_revision.fetch_add(1, std::memory_order_release);
+}
+
 Settings::UpdateResult store_settings(Settings &settings, bool clear_legacy = false) {
   using Result = Settings::UpdateResult;
   const Json updated(cJSON_CreateObject(), cJSON_Delete);
@@ -756,9 +781,15 @@ bool Settings::save_photo_preset(PhotoPreset preset, std::string_view paired_key
   }
   if (store_settings(settings) != UpdateResult::Saved)
     return false;
-  active_photo_preset.store(preset, std::memory_order_relaxed);
-  photo_source_revision.fetch_add(1, std::memory_order_release);
+  publish_photo_feed(settings);
   return true;
+}
+
+std::optional<PhotoFeedSettings> Settings::take_live_photo_feed(uint32_t revision) {
+  const std::lock_guard lock(storage_mutex);
+  if (revision != photo_source_revision.load(std::memory_order_relaxed))
+    return {};
+  return std::exchange(published_feed, std::nullopt);
 }
 
 bool Settings::add_playback_fields(cJSON *object) const {
@@ -807,7 +838,7 @@ bool Settings::add_playback_fields(cJSON *object) const {
          cJSON_AddStringToObject(object, "timezone", clock.timezone.c_str());
 }
 
-bool Settings::save_playback(const char *json) {
+bool Settings::save_playback(const char *json, bool *restart_required) {
   const auto update = parse(json);
   if (!cJSON_HasObjectItem(update.get(), "immich_url"))
     return false;
@@ -818,7 +849,10 @@ bool Settings::save_playback(const char *json) {
       return false;
     expected_epoch = epoch;
   }
-  return update_playback(update.get(), expected_epoch) == UpdateResult::Saved;
+  const auto result = update_playback(update.get(), expected_epoch);
+  if (restart_required)
+    *restart_required = result == UpdateResult::Saved;
+  return result == UpdateResult::Saved || result == UpdateResult::SavedLive || result == UpdateResult::Unchanged;
 }
 
 Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optional<uint32_t> expected_epoch) {
@@ -831,7 +865,13 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   if (expected_epoch && *expected_epoch != settings.reset_epoch)
     return UpdateResult::Stale;
   if (!update->child)
-    return UpdateResult::Saved;
+    return UpdateResult::Unchanged;
+  Json previous(cJSON_CreateObject(), cJSON_Delete);
+  Json next(cJSON_CreateObject(), cJSON_Delete);
+  if (!previous || !next || !settings.add_playback_fields(previous.get()))
+    return UpdateResult::Failed;
+  const bool was_configured = settings.has_immich();
+  const auto previous_night_brightness = settings.brightness_night;
   const auto previous_prepared_url = settings.prepared_slide_url;
   if (!read_field(update, "immich_url", settings.immich_url, true) ||
       !read_field(update, "immich_key", replacement_key, true) ||
@@ -839,15 +879,9 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
       !read_field(update, "prepared_slide_url", settings.prepared_slide_url, true) ||
       !read_field(update, "prepared_slide_token", replacement_token, true) || !read_playback(update, settings))
     return UpdateResult::Invalid;
-  const auto changes_filter = [&](const auto &field) { return cJSON_HasObjectItem(update, field.first); };
-  if (cJSON_HasObjectItem(update, "photo_source") ||
-      std::ranges::any_of(filter_flags, changes_filter) || std::ranges::any_of(filter_lists, changes_filter) ||
-      std::ranges::any_of(filter_places, changes_filter) ||
-      cJSON_HasObjectItem(update, "album_order") || cJSON_HasObjectItem(update, "minimum_rating") ||
-      cJSON_HasObjectItem(update, "album_matching") || cJSON_HasObjectItem(update, "person_matching") ||
-      cJSON_HasObjectItem(update, "tag_matching") || cJSON_HasObjectItem(update, "inclusion_matching") ||
-      cJSON_HasObjectItem(update, "favorite_mode"))
-    settings.photo_source.legacy_preset.reset();
+  const bool connection_secret_changed =
+      (!replacement_key.empty() && replacement_key != settings.immich_key) ||
+      (!replacement_token.empty() && replacement_token != settings.prepared_slide_token);
   if (!replacement_key.empty())
     settings.immich_key = replacement_key;
   if (settings.prepared_slide_url.empty()) {
@@ -861,7 +895,36 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
     if (!replacement_token.empty())
       settings.prepared_slide_token = std::move(replacement_token);
   }
-  return store_settings(settings);
+  if (!normalize(settings))
+    return UpdateResult::Invalid;
+  if (!settings.add_playback_fields(next.get()))
+    return UpdateResult::Failed;
+  const bool fixed_night_brightness = previous_night_brightness != settings.brightness_night;
+  // The device-tools form sends a full snapshot. Classify the actual changes
+  // after validation, including an explicitly pinned night brightness.
+  bool changed = connection_secret_changed || fixed_night_brightness;
+  bool restart = changed || !was_configured;
+  const cJSON *field;
+  cJSON_ArrayForEach(field, next.get()) {
+    const std::string_view key(field->string);
+    if (key == "legacy_photo_preset" ||
+        cJSON_Compare(field, cJSON_GetObjectItemCaseSensitive(previous.get(), field->string), true))
+      continue;
+    changed = true;
+    if (changes_photo_source(key))
+      settings.photo_source.legacy_preset.reset();
+    restart |= !applies_to_photo_feed(key);
+  }
+  if (!changed)
+    return UpdateResult::Unchanged;
+  previous.reset();
+  next.reset();
+  const auto result = store_settings(settings);
+  if (result == UpdateResult::Saved && !restart) {
+    publish_photo_feed(settings);
+    return UpdateResult::SavedLive;
+  }
+  return result;
 }
 
 bool Settings::reset(ResetMode mode) {

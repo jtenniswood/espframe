@@ -116,6 +116,16 @@ const testScript = `
     check(reloadedPairsOnly.checked && !reloadedPairsOnly.disabled, 'Turning pairing on did not restore the option')
     check(reloadedRange.value === 'Within 1 Day' && !reloadedRange.disabled, 'Turning pairing on did not restore its range')
     check(reloadedFraming.value === 'Fill' && !reloadedFraming.disabled, 'The selected pair framing was lost')
+    reloadedFraming.value = 'Fit'
+    reloadedFraming.dispatchEvent(new Event('change', {bubbles: true}))
+    reloaded.requestSubmit()
+    const applied = await waitFor(() => {
+      const next = document.querySelector('#native-settings')
+      return next !== reloaded && next.textContent.includes('Settings saved.') && next
+    })
+    check(applied.elements.namedItem('portrait_pair_framing').value === 'Fit', 'Live framing did not reload')
+    check(applied.elements.namedItem('portrait_pairing').checked, 'Live pairing did not reload')
+    check(applied.querySelector('button[type=submit]').disabled, 'The saved form still has pending edits')
     document.body.dataset.testResult = 'passed'
   }
   verify().catch(error => { document.body.dataset.testResult = error.message })
@@ -303,8 +313,9 @@ const server = createServer(async (request, response) => {
     } else {
       const { api_key, prepared_slide_token, ...settings } = post.values
       Object.assign(snapshot.values, settings)
-      disconnected = true
-      json(200, { api_version: 1, status: 'accepted', updated: Object.keys(post.values).length, frame_hostname: 'salon-t-129a' })
+      disconnected = requests.length === 2
+      json(200, { api_version: 1, status: 'accepted', updated: Object.keys(post.values).length,
+        ...(disconnected ? { frame_hostname: 'salon-t-129a' } : { restart_required: false }) })
     }
   } else if (request.url === settingsPath) {
     if (disconnected) {
@@ -356,10 +367,11 @@ try {
         prepared_slide_url: 'https://new-prepare.test', prepared_slide_token: 'service-token-for-browser-regression-test',
       },
     },
+    { api_version: 1, reset_epoch: 0, values: { portrait_pairing: true, portrait_pair_framing: 'Fit' } },
   ])
   assert.equal(reconnectFailures, 1)
   assert.equal(statusRequests, 0)
-  console.log('Shared settings load on the native page, batch edits and recover after restart')
+  console.log('Shared settings recover after restart and refresh after applying photo framing live')
   withStatus = true
   const result = await render('/status-test', 32000)
   assert.match(result.page, /data-status-test="passed"/, result.page.match(/data-status-test="[^"]*"/)?.[0] || result.errors)

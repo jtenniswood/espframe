@@ -317,12 +317,12 @@ class SlideLoader {
     uint32_t source_revision;
   };
 
-  bool reload_photo_source_(SlideIndex first) {
-    Settings updated;
-    if (!updated.read() || !updated.has_immich())
+  bool reload_photo_source_(SlideIndex first, uint32_t revision) {
+    auto feed = Settings::take_live_photo_feed(revision);
+    if (!feed)
       return false;
-    frame_status.configure(true, updated.photo_source.mode);
-    this->source_.change_source(std::move(updated.photo_source), std::move(updated.photo_filters), first);
+    frame_status.configure(true, feed->photo_source.mode);
+    this->source_.change_source(std::move(*feed), first);
     return true;
   }
 
@@ -350,7 +350,7 @@ class SlideLoader {
           record_live_trial_prepare();
         if constexpr (!esphome_trial) {
           if (request.source_revision != source_revision) {
-            source_ready = loader.reload_photo_source_(lease.slide);
+            source_ready = loader.reload_photo_source_(lease.slide, request.source_revision);
             if (source_ready)
               source_revision = request.source_revision;
           }

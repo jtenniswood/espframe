@@ -19,6 +19,7 @@ struct ConfigurationUpdate {
   std::string field;
   size_t updated{};
   std::optional<std::string> frame_name{};
+  bool restart_required{};
 };
 
 cJSON *configuration_capabilities();

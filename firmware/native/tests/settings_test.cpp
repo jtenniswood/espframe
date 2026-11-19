@@ -816,6 +816,33 @@ int main() {
   assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","filter_city":"London"})"));
   assert(current.read() && current.photo_source.preset() == PhotoPreset::Custom);
 
+  const auto before_live = photo_source_revision.load();
+  const auto live = update_configuration(R"({"values":{"portrait_pair_framing":"Fill","photo_orientation":"Portrait Only",
+      "photo_metadata_location_enabled":false,"date_filter_enabled":true,"date_from":"2024-03-01"}})");
+  assert(!live.error && !live.restart_required && photo_source_revision.load() == before_live + 1);
+  assert(!Settings::take_live_photo_feed(before_live));
+  fail_commit = true;
+  assert(update_configuration(R"({"values":{"portrait_pair_framing":"Fit"}})").error);
+  fail_commit = false;
+  assert(photo_source_revision.load() == before_live + 1);
+  const auto mixed = update_configuration(R"({"values":{"frame_name":"Other name","photo_orientation":"Landscape Only"}})");
+  assert(!mixed.error && mixed.restart_required && photo_source_revision.load() == before_live + 1);
+  const auto feed = Settings::take_live_photo_feed(before_live + 1);
+  assert(feed && feed->pair_display_mode() == DisplayMode::Fill && feed->capture_dates.from == "2024-03-01");
+  assert(feed->photo_orientation == PhotoOrientation::Portrait && !feed->metadata.show_location);
+  assert(!Settings::take_live_photo_feed(before_live + 1));
+  assert(current.read() && current.photo_orientation == PhotoOrientation::Landscape);
+  bool restart_required = true;
+  assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","frame_name":"Other name","display_mode":"Fill"})",
+                                 &restart_required));
+  assert(!restart_required && photo_source_revision.load() == before_live + 2);
+  assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","frame_name":"Other name","display_mode":"Fill"})",
+                                 &restart_required));
+  assert(!restart_required && photo_source_revision.load() == before_live + 2);
+  assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","immich_key":"replacement-key","display_mode":"Fit"})",
+                                 &restart_required));
+  assert(restart_required && photo_source_revision.load() == before_live + 2);
+
   assert(Settings::save_wifi(*new_wifi, current.reset_epoch));
   assert(Settings::save(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","web_password":"new-settings"})"));
   assert(current.read() && current.home_assistant_key == ha_key);

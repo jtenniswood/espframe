@@ -46,6 +46,11 @@ int main() {
   const RecentPreviews::PreparedKey slide{id(1), id(2)};
   mixed.remember(id(1), encoded);
   mixed.remember_prepared(slide, tiny);
+  const RecentPreviews::PreparedKey cropped{id(1), id(2), DisplayMode::Fill};
+  const RecentPreviews::PreparedKey portrait{id(1), id(2), DisplayMode::Fit, PhotoOrientation::Portrait};
+  assert(mixed.find(cropped).empty() && mixed.find(portrait).empty());
+  mixed.remember_prepared(cropped, std::array<uint8_t, 1>{42});
+  assert(mixed.find(slide).front() == 8 && mixed.find(cropped).front() == 42);
   assert(mixed.find(id(1)).size() == encoded.size());
   assert(mixed.find(slide).size() == tiny.size());
   assert(mixed.find(RecentPreviews::PreparedKey{id(1), {}}).empty());

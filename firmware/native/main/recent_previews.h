@@ -1,6 +1,8 @@
 #pragma once
 
+#include "photo_framing.h"
 #include "photo_history.h"
+#include "photo_orientation.h"
 
 #include "esp_heap_caps.h"
 
@@ -21,6 +23,8 @@ class RecentPreviews {
   struct PreparedKey {
     AssetId primary;
     AssetId companion;
+    DisplayMode framing{DisplayMode::Fit};
+    PhotoOrientation orientation{PhotoOrientation::Any};
     bool operator==(const PreparedKey &) const = default;
   };
   using Key = std::variant<AssetId, PreparedKey>;

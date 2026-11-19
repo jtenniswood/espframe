@@ -29,8 +29,32 @@ inline constexpr const char *screen_rotation_name(ScreenRotation rotation) {
 
 enum class ResetMode { Customization, Factory };
 
-struct Settings {
-  enum class UpdateResult { Saved, Invalid, Stale, Failed };
+struct PhotoFeedSettings {
+  bool portrait_pairing{true};
+  bool portrait_pairs_only{};
+  uint8_t portrait_pairing_days{};
+  DisplayMode display_mode{DisplayMode::Fit};
+  PairFraming pair_framing{PairFraming::FollowPhotos};
+  PhotoOrientation photo_orientation{PhotoOrientation::Any};
+  PhotoSource photo_source;
+  PhotoFilters photo_filters;
+  CaptureDateSettings capture_dates;
+  PhotoMetadataSettings metadata;
+
+  bool pairs_portraits() const { return portrait_pairing && photo_orientation != PhotoOrientation::Landscape; }
+  bool requires_portrait_pair() const { return pairs_portraits() && portrait_pairs_only; }
+  DisplayMode pair_display_mode() const {
+    switch (pair_framing) {
+      case PairFraming::Fit: return DisplayMode::Fit;
+      case PairFraming::Fill: return DisplayMode::Fill;
+      case PairFraming::FollowPhotos: return display_mode;
+    }
+    return display_mode;
+  }
+};
+
+struct Settings : PhotoFeedSettings {
+  enum class UpdateResult { Saved, SavedLive, Unchanged, Invalid, Stale, Failed };
   enum class UsbSaveResult { Saved, Rejected, WifiUnavailable, ImmichUnavailable, PairingUnavailable };
 
   std::string ssid;
@@ -49,17 +73,7 @@ struct Settings {
   std::string transition_speed{"Fast"};
   uint8_t brightness_day{64};
   std::optional<uint8_t> brightness_night;
-  bool portrait_pairing{true};
-  bool portrait_pairs_only{};
-  uint8_t portrait_pairing_days{};
-  DisplayMode display_mode{DisplayMode::Fit};
-  PairFraming pair_framing{PairFraming::FollowPhotos};
-  PhotoOrientation photo_orientation{PhotoOrientation::Any};
   ScreenRotation screen_rotation{ScreenRotation::Normal};
-  PhotoSource photo_source;
-  PhotoFilters photo_filters;
-  CaptureDateSettings capture_dates;
-  PhotoMetadataSettings metadata;
   ClockSettings clock;
   ScreenScheduleSettings schedule;
   ScreenToneSettings tone;
@@ -67,17 +81,6 @@ struct Settings {
   uint8_t night_brightness() const { return brightness_night.value_or(brightness_day); }
   bool has_immich() const { return !immich_url.empty() && !immich_key.empty(); }
   bool has_prepared_slides() const { return !prepared_slide_url.empty() && !prepared_slide_token.empty(); }
-  bool pairs_portraits() const { return portrait_pairing && photo_orientation != PhotoOrientation::Landscape; }
-  bool requires_portrait_pair() const { return pairs_portraits() && portrait_pairs_only; }
-  DisplayMode pair_display_mode() const {
-    switch (pair_framing) {
-      case PairFraming::Fit: return DisplayMode::Fit;
-      case PairFraming::Fill: return DisplayMode::Fill;
-      case PairFraming::FollowPhotos: return display_mode;
-    }
-    return display_mode;
-  }
-
   static constexpr size_t max_json_size = 6144;
   bool read();
   bool read_esphome_trial();
@@ -87,7 +90,8 @@ struct Settings {
   static bool save_wifi(const WifiCredentials &wifi, uint32_t expected_epoch);
   static bool save_slide_interval(uint32_t seconds, std::string_view paired_key);
   static bool save_photo_preset(PhotoPreset preset, std::string_view paired_key);
-  static bool save_playback(const char *json);
+  static std::optional<PhotoFeedSettings> take_live_photo_feed(uint32_t revision);
+  static bool save_playback(const char *json, bool *restart_required = nullptr);
   static UpdateResult update_playback(const cJSON *update, std::optional<uint32_t> expected_epoch = {});
   static bool reset(ResetMode mode);
   bool add_playback_fields(cJSON *object) const;

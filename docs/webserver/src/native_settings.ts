@@ -287,7 +287,7 @@ function nativeSettingControl(key: string, value: ConfigurationValue): HTMLInput
   return control;
 }
 
-function nativeSettingsForm(snapshot: ConfigurationSnapshot): HTMLFormElement {
+function nativeSettingsForm(snapshot: ConfigurationSnapshot, savedNotice = ""): HTMLFormElement {
   const frameName = typeof snapshot.values.frame_name === "string" ? snapshot.values.frame_name : "";
   document.title = frameName ? `${frameName} · Espframe` : "Espframe settings";
   const form = el("form");
@@ -331,11 +331,12 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot): HTMLFormElement {
   }
 
   const actions = el("div", "native-settings-actions");
-  const save = button("Save and restart", "btn btn-primary");
+  const save = button("Save settings", "btn btn-primary");
   save.type = "submit";
   save.disabled = true;
   const status = el("p", "status");
   status.setAttribute("role", "status");
+  status.textContent = savedNotice;
   actions.append(save, status);
   form.append(fields, actions);
   connectFieldLabels(form);
@@ -390,9 +391,11 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot): HTMLFormElement {
     setSaving(true);
     setStatus(status, "Saving settings…");
     let hostname = "";
+    let restartRequired = true;
     try {
       const response = await apiClient.updateSettings(values, []);
       if (!response || response.status !== "accepted") throw new Error("save_failed");
+      restartRequired = response.restart_required !== false;
       if (typeof response.frame_hostname === "string" && /^[a-z0-9-]{1,63}$/.test(response.frame_hostname))
         hostname = response.frame_hostname + ".local";
     } catch (error) {
@@ -407,6 +410,15 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot): HTMLFormElement {
     }
 
     controls.forEach(({ element }, key) => { if (nativeSecret(key)) element.value = ""; });
+    if (!restartRequired) {
+      try {
+        form.replaceWith(nativeSettingsForm(await apiClient.getConfigurationSnapshot(), "Settings saved."));
+      } catch (_) {
+        setStatus(status, "Settings saved. Reload this page to see the current values.");
+        setSaving(false);
+      }
+      return;
+    }
     setStatus(status, "Settings saved. The frame is restarting…");
     if (hostname && hostname !== window.location.hostname) {
       const link = el("a");

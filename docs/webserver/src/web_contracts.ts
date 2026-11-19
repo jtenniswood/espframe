@@ -14,6 +14,7 @@ export interface ConfigurationUpdateResponse {
   status: "accepted" | "rejected";
   updated?: number;
   frame_hostname?: string;
+  restart_required?: boolean;
   error?: string;
   field?: string;
 }
