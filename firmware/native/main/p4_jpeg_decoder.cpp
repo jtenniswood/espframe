@@ -2,6 +2,7 @@
 
 #include "esp_heap_caps.h"
 #include "jpeg_accelerator_helpers.h"
+#include "slide_geometry.h"
 
 #include <cstring>
 #include <memory>
@@ -11,6 +12,15 @@ namespace {
 
 using esphome::remote_image::P4JpegInfo;
 using DmaBuffer = std::unique_ptr<uint8_t, decltype(&heap_caps_free)>;
+
+bool inspect(const uint8_t *encoded, size_t length, P4JpegInfo &info) {
+  using esphome::remote_image::parse_p4_baseline_jpeg;
+  using esphome::remote_image::p4_jpeg_fits_workspace;
+  // The hardware parser needs the whole stream and a pixel count divisible by eight.
+  return encoded && length >= 4 && encoded[length - 2] == 0xff && encoded[length - 1] == 0xd9 &&
+         parse_p4_baseline_jpeg(encoded, length, &info) && p4_jpeg_fits_workspace(info, length) &&
+         info.width * info.height % 8 == 0;
+}
 
 DmaBuffer allocate(size_t bytes, jpeg_dec_buffer_alloc_direction_t direction, size_t &capacity) {
   jpeg_decode_memory_alloc_cfg_t config{};
@@ -49,24 +59,34 @@ P4JpegDecoder::~P4JpegDecoder() {
 
 bool P4JpegDecoder::decode(const uint8_t *encoded, size_t length, uint16_t *pixels, const PhotoFraming &framing,
                             PreparationCheckpoint checkpoint) {
-  using esphome::remote_image::parse_p4_baseline_jpeg;
-  using esphome::remote_image::p4_jpeg_fits_workspace;
   P4JpegInfo info;
-  // The hardware parser requires a whole stream and a pixel count divisible by eight.
-  if (disabled_ || length < 4 || encoded[length - 2] != 0xff || encoded[length - 1] != 0xd9 ||
-      !parse_p4_baseline_jpeg(encoded, length, &info) || !p4_jpeg_fits_workspace(info, length) ||
-      info.width * info.height % 8 != 0 ||
+  if (disabled_ || !inspect(encoded, length, info) ||
       static_cast<uint32_t>(framing.source.x + framing.source.width) > info.width ||
       static_cast<uint32_t>(framing.source.y + framing.source.height) > info.height)
     return false;
 
+  size_t output_capacity = 0;
+  const auto output = allocate(info.decoded_bytes, JPEG_DEC_ALLOC_OUTPUT_BUFFER, output_capacity);
+  if (!output || output_capacity < info.decoded_bytes ||
+      !process_(encoded, length, output.get(), output_capacity, info.decoded_bytes, checkpoint))
+    return false;
+  return resize(reinterpret_cast<const uint16_t *>(output.get()), info.padded_width, pixels, framing, checkpoint);
+}
+
+bool P4JpegDecoder::decode_panel(const uint8_t *encoded, size_t length, uint16_t *pixels,
+                                  PreparationCheckpoint checkpoint) {
+  P4JpegInfo info;
+  constexpr size_t bytes = pixel_count * sizeof(*pixels);
+  return !disabled_ && inspect(encoded, length, info) && info.width == panel_width && info.height == panel_height &&
+         info.padded_width == panel_width && info.decoded_bytes == bytes &&
+         process_(encoded, length, reinterpret_cast<uint8_t *>(pixels), bytes, bytes, checkpoint);
+}
+
+bool P4JpegDecoder::process_(const uint8_t *encoded, size_t length, uint8_t *output, size_t capacity,
+                             size_t expected_bytes, PreparationCheckpoint checkpoint) {
   size_t input_capacity = 0;
   const auto input = allocate(length, JPEG_DEC_ALLOC_INPUT_BUFFER, input_capacity);
   if (!input || input_capacity < length)
-    return false;
-  size_t output_capacity = 0;
-  const auto output = allocate(info.decoded_bytes, JPEG_DEC_ALLOC_OUTPUT_BUFFER, output_capacity);
-  if (!output || output_capacity < info.decoded_bytes)
     return false;
 
   if (!engine_) {
@@ -88,15 +108,13 @@ bool P4JpegDecoder::decode(const uint8_t *encoded, size_t length, uint16_t *pixe
   config.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_BGR;
   config.conv_std = JPEG_YUV_RGB_CONV_STD_BT601;
   uint32_t written = 0;
-  const auto result = jpeg_decoder_process(engine_, &config, input.get(), length, output.get(), output_capacity, &written);
+  const auto result = jpeg_decoder_process(engine_, &config, input.get(), length, output, capacity, &written);
   if (result == ESP_ERR_TIMEOUT) {
     jpeg_del_decoder_engine(engine_);
     engine_ = nullptr;
     disabled_ = true;
   }
-  if (result != ESP_OK || written != info.decoded_bytes)
-    return false;
-  return resize(reinterpret_cast<const uint16_t *>(output.get()), info.padded_width, pixels, framing, checkpoint);
+  return result == ESP_OK && written == expected_bytes;
 }
 
 }  // namespace espframe::native

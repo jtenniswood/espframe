@@ -20,8 +20,11 @@ class P4JpegDecoder {
 
   bool decode(const uint8_t *encoded, size_t length, uint16_t *pixels, const PhotoFraming &framing,
               PreparationCheckpoint checkpoint = {});
+  bool decode_panel(const uint8_t *encoded, size_t length, uint16_t *pixels, PreparationCheckpoint checkpoint);
 
  private:
+  bool process_(const uint8_t *encoded, size_t length, uint8_t *output, size_t capacity, size_t expected_bytes,
+                PreparationCheckpoint checkpoint);
   jpeg_decoder_handle_t engine_{};
   bool disabled_{};
 };

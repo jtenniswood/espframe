@@ -8,7 +8,8 @@
   },
   "scripts": {
     "start": "node server.ts",
-    "typecheck": "tsc --noEmit --strict --module nodenext --allowImportingTsExtensions --erasableSyntaxOnly prepare.ts service.ts server.ts service.test.ts",
+    "replay": "node replay.ts",
+    "typecheck": "tsc --noEmit --strict --module nodenext --allowImportingTsExtensions --erasableSyntaxOnly prepare.ts service.ts server.ts service.test.ts replay.ts",
     "test": "node --test service.test.ts"
   },
   "dependencies": {

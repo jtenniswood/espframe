@@ -18,6 +18,7 @@
 #include "swipe_input.h"
 #include "touch.h"
 #include "trace_logger.h"
+#include "trial_replay.h"
 #include "usb_setup.h"
 
 #include "driver/jpeg_decode.h"
@@ -228,6 +229,15 @@ class SlideLoader {
         ESP_LOGW(tag, "Could not read compatible ESPHome Wi-Fi and Immich settings");
         end_esphome_trial();
         return false;
+      }
+      if constexpr (!trial_replay_origin.empty()) {
+        this->settings_.immich_url = std::string(trial_replay_origin) + "/api";
+        this->settings_.immich_key = replay_immich_key;
+        this->settings_.photo_source = {};
+        this->settings_.capture_dates = {};
+        this->settings_.portrait_pairing = this->settings_.portrait_pairs_only = true;
+        this->settings_.portrait_pairing_days = 2;
+        this->settings_.display_mode = DisplayMode::Fit;
       }
       this->live_ = true;
     } else {

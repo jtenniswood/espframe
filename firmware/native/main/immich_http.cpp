@@ -32,7 +32,7 @@ bool ImmichHttp::init_(const char *url, const char *api_key) {
   client_ = esp_http_client_init(&config);
   if (!client_)
     return false;
-  if (esp_http_client_set_header(client_, "x-api-key", api_key) == ESP_OK &&
+  if (esp_http_client_set_header(client_, auth_header_, api_key) == ESP_OK &&
       esp_http_client_set_header(client_, "Content-Type", "application/json") == ESP_OK)
     return true;
   esp_http_client_cleanup(client_);

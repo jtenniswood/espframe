@@ -33,3 +33,11 @@ The in-memory cache holds up to 128 slides and 24 MiB. It serves a hit for up to
 ## Verify the V1 hardware decoder
 
 Request five test slides with `rotation=0` and save them as `slide-0.jpg` through `slide-4.jpg` in the ignored `firmware/native/photos` directory. Use the [V1 fixture benchmark](../README.md#measure-swipe-rendering-over-the-local-network). The frame applies its own mounting rotation for that trial. On `/api/trial/prepare`, `hardware_jpeg` reports successful hardware calls and `rejected_preview` reports JPEGs that fell back to the built-in patterns. Verify all 48 scripted gestures settle and that no embedded JPEG is rejected.
+
+## Compare direct and prepared downloads on V1
+
+The replay server generates a fixed sequence of portrait pairs from synthetic JPEG, progressive JPEG, and WebP previews. It serves the Immich search and preview responses used by the direct player, and the prepared-slide endpoint uses those same previews. It requires no real Immich server or photo credentials.
+
+1. On the test host, use `REPLAY_HOST=<private-IPv4-address> npm run replay` and wait for `Replay ready`. The port defaults to 9116. Restart the process before each run so search starts at the same position. Start with an empty service cache. Set `REPLAY_WARM_ROTATION=0` or `REPLAY_WARM_ROTATION=180` to prewarm the pairs for that mounting rotation.
+2. Build the [V1 rapid swipe trial](../README.md#measure-swipe-rendering-over-the-local-network) in two separate build directories. For both builds, set `-D SWIPE_TRIAL_REPLAY_ORIGIN=http://<private-IPv4-address>:9116`. Set `-D SWIPE_TRIAL_REPLAY_PREPARED=OFF` for direct previews and `-D SWIPE_TRIAL_REPLAY_PREPARED=ON` for prepared slides. These options are only valid for the timed rapid app. It uses the saved Wi‑Fi and mount settings and sets the synthetic photos and Fit layout in memory.
+3. Run the same rollback readiness check before each upload. Save `/api/trial/benchmark` and `/api/trial/prepare` before rollback. Compare bytes, cold returns, refill times and drag gaps after all 48 gestures. The prepared build reports `prepared_transfer` and `prepared_decode`. Direct `transfer` activity in that build indicates a fallback to ordinary previews. The server prints cache hits and misses for each prepared request.

@@ -23,6 +23,8 @@ enum class TrialPreparationStage : uint8_t {
   Webp,
   RejectedPreview,
   Composition,
+  PreparedTransfer,
+  PreparedDecode,
   Count,
 };
 
