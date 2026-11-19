@@ -77,4 +77,14 @@ void draw_memories_status(uint16_t *frame, const uint8_t *atlas, MemoriesStatus 
   text(frame, atlas, rotation, 68, 622, message, white);
 }
 
+void draw_loading_status(uint16_t *frame, const uint8_t *atlas, int direction, ScreenRotation rotation) {
+  constexpr int margin = 44;
+  constexpr int width = 244;
+  constexpr int height = 52;
+  constexpr int top = slide_height - margin - height;
+  const int left = direction < 0 ? margin : slide_width - margin - width;
+  card(frame, rotation, left, top, width, height);
+  text(frame, atlas, rotation, left + 16, top + 8, "Loading photo", white);
+}
+
 }  // namespace espframe::native

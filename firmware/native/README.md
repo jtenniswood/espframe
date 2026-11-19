@@ -412,7 +412,8 @@ with `-D SWIPE_TRIAL_BENCHMARK_RAPID=ON` and upload
 It starts the next gesture 50 ms after the landed frame and lets forward
 swipes reach an uncached neighbour. It also reverses toward cached photos.
 The report adds the number of cold starts, releases before the neighbour
-was ready, and cold gestures that settled back. It tracks first motion on
+was ready, advances after a cold release, cold gestures that settled back,
+and elapsed time from the first swipe to the last settle. It tracks first motion on
 cache misses and measures the time from the first press toward each missing
 neighbour until that slide becomes ready in the swipe range. Repeated
 presses toward the same missing photo keep the original start time.
@@ -444,9 +445,11 @@ reset, then confirm the original frame reconnects and retains its settings.
 4. Check the first and last scenes. Dragging beyond a ready boundary should
    move the photo slightly with resistance, keep the screen filled, and ease
    back when released. When a neighbor becomes ready mid-drag, continuing the
-   gesture should move from its current position without a jump. When a missing
-   photo exists in that direction, the frame prepares it ahead of speculative
-   photos. Try this in both directions on a slow connection, including a drag
+   gesture should move from its current position without a jump. A decisive
+   swipe gives a loading photo up to 750 ms to become ready after release.
+   The current photo stays visible, with a loading label after a brief delay.
+   The swipe finishes when the photo arrives in time. Otherwise it eases back.
+   A new touch takes over immediately. Try this in both directions on a slow connection, including a drag
    back to an older cached preview while a new photo is downloading.
 5. Record high-frame-rate video for touch-to-visible motion and pacing.
    Use the USB trace below to measure from the first moving touch report to

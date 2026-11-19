@@ -114,15 +114,68 @@ int main() {
   previous_waiting.tick(start + 600'000);
   assert(previous_waiting.settled() == 1);
 
-  // A missing preview never commits an unavailable destination.
+  // Hold the visible edge until the missed photo can join the transition.
   Swipe waiting{width, 5, 2};
   waiting.set_ready_range(1, 2);
   waiting.press(900, 400, 2 * width, start);
   waiting.move(100, 400, start + 50'000);
   assert(waiting.position() > 2 * width && waiting.position() < 2 * width + 48);
-  waiting.release(start + 55'000);
-  waiting.tick(start + 300'000);
-  assert(waiting.position() == 2 * width && waiting.idle());
+  constexpr int64_t released = start + 55'000;
+  waiting.release(released);
+  const auto held_edge = waiting.position();
+  waiting.tick(released + 120'000);
+  assert(waiting.position() == held_edge && !waiting.idle() && !waiting.advance(released + 120'000, Swipe::Transition::Glide));
+  assert(waiting.loading_direction(released + 159'999) == 0);
+  assert(waiting.loading_direction(released + 160'000) == 1);
+  waiting.set_ready_range(1, 3);
+  waiting.tick(released + 280'000);
+  assert(waiting.settling() && waiting.position() == held_edge && waiting.loading_direction(released + 280'000) == 0);
+  waiting.tick(released + 600'000);
+  assert(waiting.idle() && waiting.settled() == 3);
+
+  Swipe expired{width, 5, 2};
+  expired.set_ready_range(2, 3);
+  expired.press(200, 400, 2 * width, start);
+  expired.move(900, 400, start + 50'000);
+  expired.release(released);
+  assert(expired.loading_direction(released + 160'000) == -1);
+  const auto deadline = released + Swipe::max_loading_wait_us;
+  expired.tick(deadline - 1);
+  assert(!expired.idle() && !expired.settling());
+  expired.set_ready_range(1, 3);
+  expired.tick(deadline);
+  expired.tick(deadline + 250'000);
+  assert(expired.idle() && expired.settled() == 2);
+
+  // A fresh touch owns the screen, even if the old neighbour loads during it.
+  Swipe retake{width, 5, 2};
+  retake.set_ready_range(1, 2);
+  retake.press(900, 400, 2 * width, start);
+  retake.move(100, 400, start + 50'000);
+  retake.release(released);
+  retake.press(500, 400, retake.position(), released + 200'000);
+  retake.set_ready_range(1, 3);
+  retake.release(released + 240'000);
+  retake.tick(released + 600'000);
+  assert(retake.idle() && retake.settled() == 2);
+
+  // An evicted history position is a true end, even when the panel has pixels for a newer neighbour.
+  Swipe oldest{width, 5, 2};
+  oldest.set_ready_range(2, 3);
+  oldest.set_available_range(2, 4);
+  oldest.press(200, 400, 2 * width, start);
+  oldest.move(900, 400, start + 50'000);
+  oldest.release(released);
+  oldest.tick(released + 200'000);
+  assert(oldest.idle() && oldest.settled() == 2);
+
+  Swipe short_edge{width, 5, 2};
+  short_edge.set_ready_range(1, 2);
+  short_edge.press(900, 400, 2 * width, start);
+  short_edge.move(800, 400, start + 110'000);
+  short_edge.release(start + 220'000);
+  short_edge.tick(start + 420'000);
+  assert(short_edge.idle() && short_edge.settled() == 2);
 
   Swipe autoplay{width, 5, 0};
   autoplay.set_ready_range(0, 0);

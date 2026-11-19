@@ -59,7 +59,7 @@ int main() {
     TrialSwipeBenchmark rapid{TrialSwipeBenchmark::Scenario::Rapid};
     Swipe player{slide_width, 64, 1};
     SwipeInput touch;
-    for (auto now = start; now < start + 700'000 && rapid.results().settled == 0; now += 1'000) {
+    for (auto now = start; now < start + 1'400'000 && rapid.results().settled == 0; now += 1'000) {
       const SlideRange available{1, now - start >= ready_after ? 2 : 1};
       player.set_ready_range(available.first, available.last);
       if (const auto report = rapid.poll(now, player.settled(), available, player.idle()))
@@ -72,9 +72,12 @@ int main() {
     assert(rapid.results().refill.count == 1 && rapid.results().refill.worst_us == ready_after);
     return rapid.results();
   };
-  // A refill during settling must not commit a drag that released cold.
-  const auto late = run_cold(280'000, 1);
-  assert(late.cold_releases_unready == 1 && late.cold_returns == 1);
+  // A refill after release can still complete a deliberate swipe in time.
+  const auto late = run_cold(280'000, 2);
+  assert(late.cold_releases_unready == 1 && late.cold_returns == 0 && late.cold_release_advances == 1);
+  // A refill after the bounded wait leaves the original slide in place.
+  const auto expired = run_cold(1'000'000, 1);
+  assert(expired.cold_releases_unready == 1 && expired.cold_returns == 1 && expired.cold_release_advances == 0);
   // A refill early in the drag leaves enough travel to advance.
   const auto early = run_cold(48'000, 2);
   assert(early.cold_releases_unready == 0 && early.cold_returns == 0);

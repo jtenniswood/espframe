@@ -11,9 +11,11 @@ namespace espframe::native {
 class Swipe {
  public:
   enum class Transition { Quick, Glide };
+  static constexpr int64_t max_loading_wait_us = 750'000;
 
   Swipe(int width, SlideIndex slide_count, SlideIndex initial_slide)
-      : width_(width), ready_last_(slide_count - 1), settled_(initial_slide), target_(initial_slide) {}
+      : width_(width), ready_last_(slide_count - 1), available_last_(slide_count - 1),
+        settled_(initial_slide), target_(initial_slide) {}
 
   PixelPosition position() const {
     return this->settled_ * this->width_ + static_cast<PixelPosition>(std::floor(this->offset_ + 0.5f));
@@ -22,6 +24,17 @@ class Swipe {
   bool idle() const { return this->phase_ == Phase::Idle; }
   bool dragging() const { return this->phase_ == Phase::Dragging; }
   bool settling() const { return this->phase_ == Phase::Settling; }
+  int loading_direction(int64_t now_us) const {
+    constexpr int64_t feedback_delay_us = 160'000;
+    if (this->phase_ != Phase::WaitingForSlide || now_us - this->released_us_ < feedback_delay_us)
+      return 0;
+    return this->loading_slide_ > this->target_ ? 1 : -1;
+  }
+
+  void set_available_range(SlideIndex first, SlideIndex last) {
+    this->available_first_ = first;
+    this->available_last_ = last;
+  }
 
   void set_ready_range(SlideIndex first, SlideIndex last) {
     if (this->phase_ == Phase::Dragging &&
@@ -102,15 +115,27 @@ class Swipe {
                                ? std::clamp(this->velocity_, -3.0f, 3.0f)
                                : 0.0f;
     const float projected = this->offset_ + velocity * 170.0f;
-    const float from_center = projected - this->slide_offset_(this->origin_slide_);
     const float threshold = this->width_ * 0.30f;
-    int direction = 0;
-    if (from_center >= threshold)
-      direction = 1;
-    else if (from_center <= -threshold)
-      direction = -1;
+    const auto center = this->slide_offset_(this->origin_slide_);
+    const auto direction = [center, threshold](float offset) {
+      return offset - center >= threshold ? 1 : offset - center <= -threshold ? -1 : 0;
+    };
     const auto destination =
-        std::clamp(this->origin_slide_ + direction, this->minimum_slide_(), this->maximum_slide_());
+        std::clamp(this->origin_slide_ + direction(projected), this->minimum_slide_(), this->maximum_slide_());
+    // The resisted pixels stay beside the ready photo. Use the actual drag
+    // and its velocity to decide whether the finger committed to a cold edge.
+    const float drawn = this->origin_offset_ + this->origin_x_ - this->last_x_;
+    const auto intended = this->origin_slide_ + direction(drawn + velocity * 170.0f);
+    if (this->available_(intended) &&
+        ((intended < this->ready_first_ && drawn < this->slide_offset_(this->ready_first_)) ||
+         (intended > this->ready_last_ && drawn > this->slide_offset_(this->ready_last_)))) {
+      this->released_us_ = now_us;
+      this->loading_slide_ = intended;
+      this->target_ = this->origin_slide_;
+      this->transition_ = Transition::Quick;
+      this->phase_ = Phase::WaitingForSlide;
+      return;
+    }
     this->settle_to_(destination, now_us, Transition::Quick);
   }
 
@@ -133,6 +158,15 @@ class Swipe {
   }
 
   void tick(int64_t now_us) {
+    if (this->phase_ == Phase::WaitingForSlide) {
+      const bool expired = now_us - this->released_us_ >= max_loading_wait_us;
+      if (expired || !this->available_(this->loading_slide_)) {
+        this->settle_to_(this->target_, now_us, Transition::Quick);
+      } else if (this->loading_slide_ >= this->ready_first_ && this->loading_slide_ <= this->ready_last_) {
+        this->settle_to_(this->loading_slide_, now_us, Transition::Quick);
+      }
+      return;
+    }
     if (this->phase_ != Phase::Settling)
       return;
 
@@ -152,7 +186,7 @@ class Swipe {
   }
 
  private:
-  enum class Phase { Idle, Tracking, Ignored, Dragging, Settling };
+  enum class Phase { Idle, Tracking, Ignored, Dragging, WaitingForSlide, Settling };
 
   // Animation arithmetic stays near zero even after millions of photos.
   float slide_offset_(SlideIndex slide) const { return static_cast<float>((slide - this->settled_) * this->width_); }
@@ -164,6 +198,7 @@ class Swipe {
 
   SlideIndex minimum_slide_() const { return std::max(this->ready_first_, this->origin_slide_ - 1); }
   SlideIndex maximum_slide_() const { return std::min(this->ready_last_, this->origin_slide_ + 1); }
+  bool available_(SlideIndex slide) const { return slide >= this->available_first_ && slide <= this->available_last_; }
 
   void finish_settle_() {
     this->settled_ = this->target_;
@@ -191,6 +226,8 @@ class Swipe {
   int width_;
   SlideIndex ready_first_{};
   SlideIndex ready_last_;
+  SlideIndex available_first_{};
+  SlideIndex available_last_;
   float offset_{};
   SlideIndex settled_;
   SlideIndex target_;
@@ -208,6 +245,8 @@ class Swipe {
   float settle_from_{};
   float duration_us_{};
   int64_t settle_us_{};
+  SlideIndex loading_slide_{};
+  int64_t released_us_{};
 };
 
 }  // namespace espframe::native

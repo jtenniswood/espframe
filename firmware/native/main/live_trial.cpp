@@ -77,7 +77,7 @@ esp_err_t benchmark_status(httpd_req_t *request) {
 #endif
   portEXIT_CRITICAL(&swipe_lock);
 
-  char scripted_counts[352]{};
+  char scripted_counts[440]{};
 #if SWIPE_TRIAL_BENCHMARK
   std::snprintf(scripted_counts, sizeof(scripted_counts),
                 ",\"target\":%u,\"started\":%" PRIu32 ",\"settled\":%" PRIu32
@@ -88,14 +88,16 @@ esp_err_t benchmark_status(httpd_req_t *request) {
   const auto used = std::strlen(scripted_counts);
   std::snprintf(scripted_counts + used, sizeof(scripted_counts) - used,
                 ",\"scenario\":\"%s\",\"cold_starts\":%" PRIu32 ",\"cold_releases_unready\":%" PRIu32
-                ",\"cold_returns\":%" PRIu32 ",\"refill_limit_us\":%" PRIu32
+                ",\"cold_release_advances\":%" PRIu32 ",\"cold_returns\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
+                ",\"refill_limit_us\":%" PRIu32
                 ",\"refill\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}",
                 SWIPE_TRIAL_REPLAY_HISTORY ? "history" : "rapid",
-                script.cold_starts, script.cold_releases_unready, script.cold_returns, TrialSwipeBenchmark::refill_limit_us,
+                script.cold_starts, script.cold_releases_unready, script.cold_release_advances, script.cold_returns,
+                script.elapsed_us, TrialSwipeBenchmark::refill_limit_us,
                 script.refill.count, script.refill.worst_us, script.refill.over_limit);
 #endif
   const auto period = Display::nominal_frame_period_us();
-  char body[1336]{};
+  char body[1488]{};
   const auto length = std::snprintf(body, sizeof(body),
                 "{\"scripted\":%s,\"source\":\"%s\"%s,\"cache_hits\":%" PRIu32
                 ",\"dma_burst_bytes\":%u,\"dma_copies\":%" PRIu32 ",\"cpu_copies\":%" PRIu32

@@ -52,4 +52,15 @@ int main(int argc, char **argv) {
     assert(std::equal(normal.begin(), normal.end(), inverted.rbegin()));
     assert(std::count(normal.begin(), normal.end(), photo) == pixel_count - 396 * 60);
   }
+
+  for (const int direction : {-1, 1}) {
+    std::fill(normal.begin(), normal.end(), photo);
+    std::fill(inverted.begin(), inverted.end(), photo);
+    draw_loading_status(normal.data(), atlas.data(), direction, ScreenRotation::Normal);
+    draw_loading_status(inverted.data(), atlas.data(), direction, ScreenRotation::UpsideDown);
+    assert(std::equal(normal.begin(), normal.end(), inverted.rbegin()));
+    assert(std::count(normal.begin(), normal.end(), photo) == pixel_count - 244 * 52);
+    const auto point = panel_offset(direction < 0 ? 44 : slide_width - 44 - 244, 44, ScreenRotation::Normal);
+    assert(normal[point] != photo);
+  }
 }

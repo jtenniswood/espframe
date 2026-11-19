@@ -392,6 +392,7 @@ void run(void *) {
   int64_t next_clock_poll = 0;
   bool clock_dirty = false;
   bool recovery_painted = false;
+  int painted_loading_direction = 0;
   MemoriesStatus memories_status = MemoriesStatus::None;
   MemoriesStatus painted_memories_status = MemoriesStatus::None;
   std::optional<int> local_hour;
@@ -492,6 +493,7 @@ void run(void *) {
     // is pending. Keep its pixels available if the user interrupts that swap.
     const SlideIndex first = live && display.presented_position() >= slide_width ? first_photo : 0;
     const SlideRange available{first, slide_count - 1};
+    swipe.set_available_range(available.first, available.last);
     const auto window = prefetch.window(available);
     auto ready_first = center;
     auto ready_last = center;
@@ -708,9 +710,11 @@ void run(void *) {
     const bool show_notice = backlight_ready && input.awake() && !input.engaged() && swipe.idle() && !fade.held();
     const bool show_recovery = show_notice && network.recovery_status() != NativeNetwork::RecoveryStatus::Off;
     const auto memory_notice = show_notice && !show_recovery && ready_last == center ? memories_status : MemoriesStatus::None;
+    const int loading_direction = input.awake() ? swipe.loading_direction(now) : 0;
     if (auto *output = display.writable_buffer(); output != nullptr &&
         (position != last_submitted || inside != last_inside || show_recovery != recovery_painted ||
-         memory_notice != painted_memories_status || (show_clock && clock_dirty))) {
+         loading_direction != painted_loading_direction || memory_notice != painted_memories_status ||
+         (show_clock && clock_dirty))) {
       const auto index = inside / slide_width;
       const int offset = inside % slide_width;
       const auto slide_pixels = [&](SlideIndex slide) {
@@ -742,9 +746,12 @@ void run(void *) {
         }
         if (show_recovery)
           draw_recovery_card(output, recovery_atlas, network.recovery_network(), rotation);
+        else if (loading_direction)
+          draw_loading_status(output, recovery_atlas, loading_direction, rotation);
         else if (memory_notice != MemoriesStatus::None)
           draw_memories_status(output, recovery_atlas, memory_notice, rotation);
         recovery_painted = show_recovery;
+        painted_loading_direction = loading_direction;
         painted_memories_status = memory_notice;
         const auto started_submit = trial_immich && motion != 0 ? esp_timer_get_time() : 0;
         submit_frame(position, position != last_submitted);

@@ -91,7 +91,9 @@ class TrialSwipeBenchmark {
     uint32_t wrong_slide{};
     uint32_t cold_starts{};
     uint32_t cold_releases_unready{};
+    uint32_t cold_release_advances{};
     uint32_t cold_returns{};
+    uint32_t elapsed_us{};
     TrialSwipeMetrics::Timing refill;
   };
 
@@ -111,9 +113,9 @@ class TrialSwipeBenchmark {
       const bool down = now - dragged_since_ < drag_us;
       dragging_ = down;
       waiting_for_settle_ = !down;
-      if (!down && cold_start_ && !ready.contains(destination_)) {
-        ++results_.cold_releases_unready;
-        destination_ = origin_;
+      if (!down) {
+        released_cold_ = cold_start_ && !ready.contains(destination_);
+        results_.cold_releases_unready += released_cold_;
       }
       const int64_t elapsed = std::min(now - dragged_since_, drag_us);
       return sample_(now, start_x_ - direction_ * static_cast<int>(elapsed * distance / drag_us), down);
@@ -123,8 +125,10 @@ class TrialSwipeBenchmark {
         return {};
       ++results_.settled;
       results_.settled_slide = center;
+      results_.elapsed_us = static_cast<uint32_t>(now - started_at_);
       const bool returned = cold_start_ && center == origin_;
       results_.cold_returns += returned;
+      results_.cold_release_advances += released_cold_ && center == destination_;
       // If a neighbor arrived during the drag, the movement remaining
       // after re-anchoring determines whether it advances or settles back.
       results_.wrong_slide += center != destination_ && !returned;
@@ -159,6 +163,8 @@ class TrialSwipeBenchmark {
     start_x_ = direction > 0 ? 960 : 320;
     dragged_since_ = now;
     dragging_ = true;
+    if (results_.started == 0)
+      started_at_ = now;
     ++results_.started;
     return sample_(now, start_x_, true);
   }
@@ -178,6 +184,7 @@ class TrialSwipeBenchmark {
   SlideIndex destination_{};
   int64_t dragged_since_{};
   int64_t last_sample_{};
+  int64_t started_at_{};
   int64_t next_swipe_at_{};
   uint32_t sequence_{};
   int start_x_{};
@@ -185,6 +192,7 @@ class TrialSwipeBenchmark {
   bool dragging_{};
   bool waiting_for_settle_{};
   bool cold_start_{};
+  bool released_cold_{};
   Scenario scenario_;
 };
 
