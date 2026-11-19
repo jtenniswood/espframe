@@ -18,5 +18,10 @@ extern "C" void app_main() {
   };
   // Reference the normal session entry point to link its entire call graph.
   const std::array<uint8_t, 32> no_key{};
-  serve_esphome(closed, {"espframe-link-test", {}, {}, {2, 0, 0, 0, 0, 1}}, no_key, screen_control);
+  const EspHomeControls controls{
+      screen_control, nullptr,
+      [](const void *) -> uint32_t { return 15; },
+      [](const void *, uint32_t) { return false; },
+  };
+  serve_esphome(closed, {"espframe-link-test", {}, {}, {2, 0, 0, 0, 0, 1}}, no_key, controls);
 }

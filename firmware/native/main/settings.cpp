@@ -2,6 +2,7 @@
 #include "frame_identity_model.h"
 #include "home_assistant_key.h"
 #include "live_trial.h"
+#include "slideshow_interval.h"
 
 #include "cJSON.h"
 #include "nvs.h"
@@ -613,6 +614,22 @@ bool Settings::save_wifi(const WifiCredentials &wifi, uint32_t expected_epoch) {
   Settings candidate;
   return existing.reset_epoch == expected_epoch && put_wifi(document.get(), wifi.ssid.data(), wifi.password.data()) &&
          parse_all(document.get(), candidate) && write_document(document.get());
+}
+
+bool Settings::save_slide_interval(uint32_t seconds, std::string_view paired_key) {
+  if (seconds < 2 || seconds > 86'400 || paired_key.empty())
+    return false;
+  const std::lock_guard lock(storage_mutex);
+  Settings settings;
+  if (!load(settings) || settings.home_assistant_key != paired_key)
+    return false;
+  if (settings.slide_seconds != seconds) {
+    settings.slide_seconds = seconds;
+    if (store_settings(settings) != UpdateResult::Saved)
+      return false;
+  }
+  active_slideshow_interval.store(seconds, std::memory_order_relaxed);
+  return true;
 }
 
 bool Settings::add_playback_fields(cJSON *object) const {

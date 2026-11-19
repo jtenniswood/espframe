@@ -116,8 +116,11 @@ Devices & services** and configure the discovered ESPHome device with the same
 key. You can also add it manually by IP on port 6053. Use a 32-byte Base64 key as
 described in the [ESPHome native API documentation](https://esphome.io/components/api/).
 
-The native player supports **Screen: Sleep** and **Screen: Wake** with the
-stock entity IDs. A frame without a custom name advertises its stock
+The native player uses the stock entity IDs for **Screen: Sleep**,
+**Screen: Wake**, and **Photos: Slideshow Interval**. Interval changes take effect
+without restarting the player. Home Assistant shows the stock interval
+choices and any custom interval already selected in native settings.
+A frame without a custom name advertises its stock
 MAC-suffixed hostname when Home Assistant is enabled. The key stays on the
 frame across native OTA updates and customization resets. Use **Remove saved
 Home Assistant key** in browser setup or factory reset to clear it. Settings

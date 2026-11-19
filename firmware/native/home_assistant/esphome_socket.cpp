@@ -61,7 +61,7 @@ struct Connection {
 }  // namespace
 
 void serve_esphome_socket(int fd, const EspHomeIdentity &identity, std::span<const uint8_t, 32> key,
-                          ScreenControl &screen, void *context, bool (*current)(void *)) {
+                          const EspHomeControls &controls, void *context, bool (*current)(void *)) {
   const timeval timeout{1, 0};
   if (fcntl(fd, F_SETFL, 0) != 0 ||
       setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) != 0 ||
@@ -69,7 +69,7 @@ void serve_esphome_socket(int fd, const EspHomeIdentity &identity, std::span<con
     return;
   Connection connection{fd, context, current};
   serve_esphome({&connection, Connection::read, Connection::write, Connection::on_authenticated},
-                identity, key, screen);
+                identity, key, controls);
 }
 
 }  // namespace espframe::native

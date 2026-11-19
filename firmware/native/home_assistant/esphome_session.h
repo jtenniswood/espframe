@@ -18,6 +18,13 @@ struct EspHomeIdentity {
   std::array<uint8_t, 6> mac;
 };
 
+struct EspHomeControls {
+  ScreenControl &screen;
+  const void *context;
+  uint32_t (*interval)(const void *);
+  bool (*set_interval)(const void *, uint32_t);
+};
+
 struct EspHomeStream {
   void *context;
   // Transfer the entire span or fail. The caller owns socket deadlines.
@@ -31,6 +38,6 @@ std::array<char, 17> esphome_mac_text(const std::array<uint8_t, 6> &mac, bool pr
 // Serve one authenticated client on its network task. This function returns
 // when the client disconnects or a transfer fails. It never owns the socket.
 void serve_esphome(EspHomeStream stream, const EspHomeIdentity &identity,
-                   std::span<const uint8_t, 32> key, ScreenControl &screen);
+                   std::span<const uint8_t, 32> key, const EspHomeControls &controls);
 
 }  // namespace espframe::native

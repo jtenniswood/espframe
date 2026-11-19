@@ -5,6 +5,7 @@
 #include "frame_status.h"
 #include "screen_control.h"
 #include "settings.h"
+#include "slideshow_interval.h"
 
 #include "cJSON.h"
 
@@ -26,27 +27,6 @@ const contract::ConfigurationField *find_field(std::string_view key) {
       return &field;
   }
   return nullptr;
-}
-
-std::string interval_label(unsigned seconds) {
-  if (seconds % 3600 == 0)
-    return std::to_string(seconds / 3600) + (seconds == 3600 ? " hour" : " hours");
-  if (seconds % 60 == 0)
-    return std::to_string(seconds / 60) + (seconds == 60 ? " minute" : " minutes");
-  return std::to_string(seconds) + " seconds";
-}
-
-unsigned interval_seconds(std::string_view value) {
-  unsigned amount{};
-  const auto end = value.data() + value.size();
-  const auto result = std::from_chars(value.data(), end, amount);
-  if (result.ec != std::errc{} || result.ptr == end || *result.ptr != ' ')
-    return 0;
-  auto unit = std::string_view(result.ptr + 1, end - result.ptr - 1);
-  if (unit.ends_with('s'))
-    unit.remove_suffix(1);
-  const unsigned multiplier = unit == "second" ? 1 : unit == "minute" ? 60 : unit == "hour" ? 3600 : 0;
-  return multiplier && amount <= 86'400 / multiplier ? amount * multiplier : 0;
 }
 
 // The native player currently models photo selection as an exclusive source.

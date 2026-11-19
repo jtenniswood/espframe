@@ -6,6 +6,7 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "settings.h"
+#include "slideshow_interval.h"
 
 #include <cassert>
 #include <cstring>
@@ -115,6 +116,7 @@ int main() {
   using espframe::native::DisplayMode;
   using espframe::native::PhotoSourceMode;
   using espframe::native::ScreenRotation;
+  using espframe::native::active_slideshow_interval;
 
   stored = {{"ssid", "Legacy"}, {"password", "legacy secret"}, {"immich_url", "http://legacy.local/"},
             {"immich_key", "legacy-key"}};
@@ -584,7 +586,23 @@ int main() {
       "web_password":"new-settings","home_assistant_key":")") + ha_key + R"("})";
   assert(Settings::save(usb_pairing.c_str()));
   assert(current.read() && current.home_assistant_key == ha_key);
+  assert(!Settings::save_slide_interval(10, ""));
+  assert(!Settings::save_slide_interval(10, "previous-pairing"));
+  assert(!Settings::save_slide_interval(1, ha_key));
+  assert(Settings::save_slide_interval(45, ha_key));
+  assert(current.read() && current.slide_seconds == 45 && current.home_assistant_key == ha_key);
+  assert(active_slideshow_interval.load() == 45);
+  const auto before_interval_failure = stored;
+  fail_commit = true;
+  assert(Settings::save_slide_interval(45, ha_key));  // No flash write for an unchanged value.
+  assert(!Settings::save_slide_interval(60, ha_key));
+  fail_commit = false;
+  assert(stored == before_interval_failure && active_slideshow_interval.load() == 45);
+  assert(current.read() && current.slide_seconds == 45);
   const Json ha_snapshot(configuration_snapshot(current), cJSON_Delete);
+  const auto *interval_values = cJSON_GetObjectItemCaseSensitive(ha_snapshot.get(), "values");
+  assert(std::string_view(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(interval_values, "interval"))) ==
+         "45 seconds");
   const std::unique_ptr<char, decltype(&cJSON_free)> serialized_ha(cJSON_PrintUnformatted(ha_snapshot.get()), cJSON_free);
   assert(serialized_ha && std::string_view(serialized_ha.get()).find(ha_key) == std::string_view::npos);
   assert(update_configuration(R"({"values":{"home_assistant_key":""}})").error);
@@ -598,6 +616,7 @@ int main() {
   assert(Settings::save(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","web_password":"new-settings",
       "home_assistant_key":""})"));
   assert(current.read() && current.home_assistant_key.empty());
+  assert(!Settings::save_slide_interval(10, ha_key));
   assert(Settings::save(usb_pairing.c_str()));
   assert(!update_configuration(R"({"values":{"frame_name":"Before factory reset"}})").error);
   assert(!reset_configuration(ResetMode::Factory).error);

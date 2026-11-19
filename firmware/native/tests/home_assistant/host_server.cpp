@@ -1,6 +1,7 @@
 #include "esphome_socket.h"
 #include "home_assistant_key.h"
 #include "screen_control.h"
+#include "slideshow_interval.h"
 
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -45,6 +46,17 @@ int main() {
   const auto fixture_key = decode_home_assistant_key("AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=");
   if (!fixture_key)
     return 1;
+  active_slideshow_interval.store(17);
+  const EspHomeControls controls{
+      screen_control, nullptr,
+      [](const void *) { return active_slideshow_interval.load(); },
+      [](const void *, uint32_t seconds) {
+        if (seconds == 60)
+          return false;  // Simulate a failed persistence operation.
+        active_slideshow_interval.store(seconds);
+        return true;
+      },
+  };
   std::jthread player([](std::stop_token stop) {
     ScreenSchedule schedule{{true, 6, 22, 60}};
     while (!stop.stop_requested()) {
@@ -61,7 +73,7 @@ int main() {
     int connection = accept(listener, nullptr, nullptr);
     if (connection < 0)
       break;
-    serve_esphome_socket(connection, identity, *fixture_key, screen_control);
+    serve_esphome_socket(connection, identity, *fixture_key, controls);
     close(connection);
   }
   close(listener);

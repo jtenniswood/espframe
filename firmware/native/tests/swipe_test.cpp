@@ -278,7 +278,10 @@ int main() {
   assert(dwell.elapsed(full_frame + display_time, true, display_time));
   assert(dwell.elapsed(full_frame + display_time * 2, true, display_time));  // Waiting for a download.
   assert(!dwell.elapsed(full_frame + display_time * 2, false, display_time));  // A touch.
-  assert(!dwell.elapsed(full_frame + display_time * 2 + 1, true, display_time));
+  const auto new_frame = full_frame + display_time * 2 + 1;
+  assert(!dwell.elapsed(new_frame, true, display_time));
+  assert(!dwell.elapsed(new_frame + 11'000'000, true, 15'000'000));
+  assert(dwell.elapsed(new_frame + 11'000'000, true, 10'000'000));  // New interval, same photo.
 
   const std::array<uint16_t, 6> left{0, 1, 2, 3, 4, 5};
   const std::array<uint16_t, 6> right{6, 7, 8, 9, 10, 11};

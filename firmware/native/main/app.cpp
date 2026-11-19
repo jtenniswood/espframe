@@ -14,6 +14,7 @@
 #include "slide_cache.h"
 #include "slide_dwell.h"
 #include "slide_prefetch.h"
+#include "slideshow_interval.h"
 #include "swipe.h"
 #include "swipe_input.h"
 #include "touch.h"
@@ -216,7 +217,11 @@ class SlideLoader {
   };
 
   bool live() const { return this->live_; }
-  int64_t slide_interval_us() const { return this->settings_.slide_seconds * 1'000'000LL; }
+  int64_t slide_interval_us() const {
+    const auto seconds = esphome_trial ? this->settings_.slide_seconds
+                                      : active_slideshow_interval.load(std::memory_order_relaxed);
+    return seconds * 1'000'000LL;
+  }
   uint8_t brightness() const { return this->settings_.brightness_day; }
   uint8_t night_brightness() const { return this->settings_.night_brightness(); }
   const ClockSettings &clock() const { return this->settings_.clock; }
@@ -255,8 +260,10 @@ class SlideLoader {
       this->live_ = true;
     } else {
       this->live_ = !esphome_trial && this->settings_.read() && this->settings_.has_immich();
-      if constexpr (!esphome_trial)
+      if constexpr (!esphome_trial) {
+        active_slideshow_interval.store(this->settings_.slide_seconds, std::memory_order_relaxed);
         frame_status.configure(this->live_, this->settings_.photo_source.mode);
+      }
     }
     this->requests_ = xQueueCreate(1, sizeof(SlideCache::Lease));
     this->completed_ = xQueueCreate(1, sizeof(Completion));

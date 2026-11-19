@@ -4,6 +4,8 @@
 #include "home_assistant_key.h"
 #include "native_network.h"
 #include "screen_control.h"
+#include "settings.h"
+#include "slideshow_interval.h"
 
 #include "bootloader_random.h"
 #include "esp_log.h"
@@ -52,6 +54,7 @@ struct HomeAssistantServer {
   const NativeNetwork *network{};
   EspHomeIdentity identity{};
   HomeAssistantKey key{};
+  std::string_view paired_key;
 
   void listen_on_station(uint32_t lease) const {
     const Socket listener{socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)};
@@ -79,6 +82,14 @@ struct HomeAssistantServer {
     if (!advertised)
       ESP_LOGW(tag, "ESPHome API discovery is unavailable");
 
+    const EspHomeControls controls{
+        screen_control, this,
+        [](const void *) { return active_slideshow_interval.load(std::memory_order_relaxed); },
+        [](const void *context, uint32_t seconds) {
+          const auto &server = *static_cast<const HomeAssistantServer *>(context);
+          return Settings::save_slide_interval(seconds, server.paired_key);
+        },
+    };
     while (network->station_lease() == lease) {
       const Socket client{accept(listener.fd, nullptr, nullptr)};
       if (client.fd < 0) {
@@ -88,7 +99,7 @@ struct HomeAssistantServer {
         continue;
       }
       StationConnection connection{*network, lease};
-      serve_esphome_socket(client.fd, identity, key, screen_control, &connection, StationConnection::current);
+      serve_esphome_socket(client.fd, identity, key, controls, &connection, StationConnection::current);
     }
     if (advertised)
       mdns_service_remove(service, "_tcp");
@@ -111,7 +122,7 @@ bool start_home_assistant(const NativeNetwork &network, EspHomeIdentity identity
   if (!decoded || !valid_frame_mac(identity.mac) || identity.name.empty() || identity.name.size() > 31)
     return false;
   static HomeAssistantServer server;
-  server = {&network, identity, *decoded};
+  server = {&network, identity, *decoded, key};
   return xTaskCreatePinnedToCore(HomeAssistantServer::run, tag, 6144, &server, 1, nullptr, 0) == pdPASS;
 }
 
