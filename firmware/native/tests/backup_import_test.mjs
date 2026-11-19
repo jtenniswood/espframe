@@ -17,17 +17,20 @@ assert.equal(partial.chooseSource, false)
 for (const name of ['v1-full', 'v2-full']) {
   const result = readBackup(await fixture(name))
   assert.deepEqual(result.settings, {
-    immich_url: 'https://photos.example.com', slide_seconds: 15, portrait_pairing: true, display_mode: 'Fill',
+    immich_url: 'https://photos.example.com', slide_seconds: 15, portrait_pairing: true, portrait_pairs_only: true,
+    portrait_pairing_range: 'Within 2 Days',
+    display_mode: 'Fill',
     brightness_day: 100, brightness_night: 75, screen_rotation: '0',
     base_tone_enabled: false, base_tone: 0, warm_tones_enabled: false, warm_tone_intensity: 50,
     schedule_enabled: false, schedule_on_hour: 6, schedule_off_hour: 23, schedule_wake_timeout: 60,
     show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
     date_filter_enabled: true, date_filter_mode: 'Relative Range', date_from: '2024-01-01',
     date_to: name === 'v2-full' ? '2026-08-30' : '2026-06-07', relative_amount: 2, relative_unit: 'Years',
-    ...(name === 'v2-full' ? { memories_window: 'Within 2 Days', memories_fallback: true } : {}),
+    ...(name === 'v2-full' ? { memories_window: 'Within 2 Days', memories_fallback: true }
+      : { photo_source: 'album', album_id: '11111111-1111-4111-8111-111111111111' }),
   })
-  assert.equal(result.chooseSource, true)
-  assert.ok(result.notices.some(text => text.includes('Choose a photo source')))
+  assert.equal(result.chooseSource, name === 'v2-full')
+  assert.equal(result.notices.some(text => text.includes('Choose a photo source')), name === 'v2-full')
   assert.ok(result.notices.some(text => text.includes('original backup')))
   assert.doesNotMatch(JSON.stringify(result), /fixture-read-only-api-key/)
 }
@@ -54,6 +57,19 @@ const dateOnly = readBackup({ version: 3, photos: { source: 'Custom', date_filte
 assert.equal(dateOnly.chooseSource, false)
 assert.equal(dateOnly.settings.photo_source, 'all')
 assert.equal(dateOnly.settings.date_filter_enabled, true)
+const pairedOnly = readBackup({ version: 3, photos: { source: 'Custom', portrait_pairing: true, portrait_pairs_only: true } })
+assert.deepEqual(pairedOnly, {
+  settings: { photo_source: 'all', portrait_pairing: true, portrait_pairs_only: true }, chooseSource: false, notices: [],
+})
+const inactivePairing = readBackup({ version: 3, photos: { source: 'Custom', portrait_pairing: false, portrait_pairs_only: true } })
+assert.equal(inactivePairing.chooseSource, true)
+assert.equal(inactivePairing.settings.portrait_pairs_only, true)
+const invalidPairsOnly = readBackup({ version: 3, photos: { source: 'All Photos', portrait_pairs_only: 'true' } })
+assert.deepEqual(invalidPairsOnly.settings, { photo_source: 'all' })
+assert.match(invalidPairsOnly.notices[0], /paired portraits/)
+const invalidPairingRange = readBackup({ version: 3, photos: { portrait_pairing_range: 'Within 3 Days' } })
+assert.deepEqual(invalidPairingRange.settings, {})
+assert.match(invalidPairingRange.notices[0], /pairing range/)
 const invalidDates = readBackup({ version: 3, photos: { source: 'Favorites', date_filter_enabled: true,
   date_from: '2024-03-01', date_to: '2024-02-29', relative_amount: 0 } })
 assert.deepEqual(invalidDates.settings, { photo_source: 'favorites', date_filter_enabled: false })
@@ -103,7 +119,9 @@ assert.throws(() => readBackup({ version: 3, connection: 'invalid' }), /Espframe
 for (const source of ['all', 'favorites', 'album', 'memories']) {
   for (const duration of [2, 15, 60, 120, 3600, 86400]) {
     const settings = {
-      immich_url: 'https://photos.test', photo_source: source, portrait_pairing: false,
+      immich_url: 'https://photos.test', photo_source: source, portrait_pairing: duration % 60 !== 0,
+      portrait_pairs_only: duration !== 2,
+      portrait_pairing_range: duration % 60 ? 'Within 1 Day' : 'Within 2 Days',
       slide_seconds: duration, display_mode: duration % 60 ? 'Fit' : 'Fill',
       brightness_day: duration % 60 ? 10 : 100,
       brightness_night: 36,

@@ -36,6 +36,7 @@ struct Settings {
   std::optional<uint8_t> brightness_night;
   bool portrait_pairing{true};
   bool portrait_pairs_only{};
+  uint8_t portrait_pairing_days{};
   DisplayMode display_mode{DisplayMode::Fit};
   ScreenRotation screen_rotation{ScreenRotation::Normal};
   PhotoSource photo_source;
@@ -47,6 +48,7 @@ struct Settings {
 
   uint8_t night_brightness() const { return brightness_night.value_or(brightness_day); }
   bool has_immich() const { return !immich_url.empty() && !immich_key.empty(); }
+  bool requires_portrait_pair() const { return portrait_pairing && portrait_pairs_only; }
 
   static constexpr size_t max_json_size = 3072;
   bool read();

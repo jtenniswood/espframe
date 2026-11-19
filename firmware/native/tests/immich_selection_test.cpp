@@ -31,6 +31,12 @@ int main() {
   assert(is_portrait_companion(primary, photos[2]));
   assert(!is_portrait_companion(primary, photos[3])); // Normalized dimensions take precedence over EXIF.
   assert(photos[4].portrait && !is_portrait_companion(primary, photos[4]));
+  assert(is_portrait_companion(primary, photos[4], 1)); // February 29 is one local day before March 1.
+  auto two_days_away = photos[4];
+  two_days_away.metadata.capture_day = *primary.metadata.capture_day + days{2};
+  assert(!is_portrait_companion(primary, two_days_away, 1) && is_portrait_companion(primary, two_days_away, 2));
+  const std::array wider_pair{primary, two_days_away};
+  assert(!find_pair_seed(wider_pair, 1) && find_pair_seed(wider_pair, 2) == 1);
   assert(!photos[5].metadata.capture_day && !is_portrait_companion(primary, photos[5]));
   assert(primary.orientation_known && photos[2].orientation_known && photos[3].orientation_known);
   assert(can_start_portrait_pair(primary));
@@ -86,6 +92,13 @@ int main() {
   assert(make_photo_search(4, {}, Api::Structured, {}, 1, false, {{}, leap_day}).body ==
          R"({"size":4,"filter":{"type":{"eq":"IMAGE"},"visibility":{"eq":"timeline"},"takenAt":{"lte":"2024-03-01T23:59:59.999Z"}}})");
   assert(make_photo_search(4, {}, Api::Structured, leap_day, 1, true, march).path.empty());
+  const CaptureDateRange pairing_scope{leap_day, parse_calendar_day("2024-03-02")};
+  const auto expanded = make_photo_search(12, {}, Api::Structured, march_first, 1, false, pairing_scope, 2);
+  assert(expanded.dates == pairing_scope);
+  assert(expanded.body.find(R"("takenAt":{"gte":"2024-02-28T00:00:00.000Z","lte":"2024-03-03T23:59:59.999Z"})") !=
+         std::string::npos);
+  assert(parse_photo_search(response, 16, false, false, expanded.dates).photos.size() == 5);
+  assert(make_photo_search(4, {}, Api::Structured, leap_day, 1, true, march, 2).path.empty());
 
   assert(parse_search_api(R"({"major":2,"minor":5,"patch":6})") == Api::Legacy);
   assert(parse_search_api(R"({"major":3,"minor":1,"patch":9})") == Api::Legacy);

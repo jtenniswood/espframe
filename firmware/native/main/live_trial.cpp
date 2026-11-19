@@ -35,6 +35,7 @@ std::atomic<uint32_t> http_header_timeouts{};
 std::atomic<uint32_t> http_body_timeouts{};
 std::atomic<uint32_t> photo_candidates{};
 std::atomic<uint32_t> pair_candidates{};
+std::atomic<unsigned> pairing_range_days{};
 std::atomic<uint32_t> preview_requests{};
 std::atomic<int> search_http{};
 std::atomic<int> pairing_http{};
@@ -120,7 +121,9 @@ bool read_trial_scope(nvs_handle_t storage, Settings &settings) {
   if (!read_optional_preference(storage, "3905368779", scope.source) ||
       !read_optional_preference(storage, "521046154", scope.orientation) ||
       !read_optional_preference(storage, "612465969", scope.rotation) ||
+      !read_optional_preference(storage, "136111996", scope.pairing_enabled) ||
       !read_optional_preference(storage, "1252659087", scope.pairs_only) ||
+      !read_optional_preference(storage, "1684562378", scope.pairing_range) ||
       !read_optional_preference(storage, "3141050965", scope.date_enabled))
     return false;
   std::array<uint8_t, 11> from{}, to{};
@@ -136,7 +139,10 @@ bool read_trial_scope(nvs_handle_t storage, Settings &settings) {
     if ((from[0] && scope.date_from.empty()) || (to[0] && scope.date_to.empty()))
       return false;
   }
-  return scope.apply(settings);
+  if (!scope.apply(settings))
+    return false;
+  pairing_range_days.store(settings.portrait_pairing_days, std::memory_order_relaxed);
+  return true;
 }
 
 esp_err_t status(httpd_req_t *request) {
@@ -155,6 +161,7 @@ esp_err_t status(httpd_req_t *request) {
                 ",\"http_open_errors\":%" PRIu32 ",\"http_last_open_error\":%d"
                 ",\"http_header_timeouts\":%" PRIu32 ",\"http_body_timeouts\":%" PRIu32
                 ",\"search_http\":%d,\"photo_candidates\":%" PRIu32 ",\"pairing_http\":%d,\"pair_candidates\":%" PRIu32
+                ",\"pairing_range_days\":%u"
                 ",\"preview_http\":%d,\"preview_requests\":%" PRIu32 "}",
                 static_cast<uint32_t>(esp_timer_get_time() / 1000), prepared,
                 first_photo_ms.load(std::memory_order_relaxed),
@@ -170,6 +177,7 @@ esp_err_t status(httpd_req_t *request) {
                 http_header_timeouts.load(std::memory_order_relaxed), http_body_timeouts.load(std::memory_order_relaxed),
                 search_http.load(std::memory_order_relaxed), photo_candidates.load(std::memory_order_relaxed),
                 pairing_http.load(std::memory_order_relaxed), pair_candidates.load(std::memory_order_relaxed),
+                pairing_range_days.load(std::memory_order_relaxed),
                 preview_http.load(std::memory_order_relaxed), preview_requests.load(std::memory_order_relaxed));
   httpd_resp_set_type(request, "application/json");
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");

@@ -3,6 +3,7 @@ import { normalizeAlbum, validCaptureDay } from './photo_source.mjs'
 const legacySources = ['All Photos', 'Album', 'Favorites', 'Custom']
 const displayModes = ['Fill', 'Fit']
 const clockFormats = ['24 Hour', '12 Hour']
+const pairingRanges = ['Same Day', 'Within 1 Day', 'Within 2 Days']
 const memoriesWindows = ['Same Day', 'Within 1 Day', 'Within 2 Days', 'Within 3 Days', 'Within 7 Days']
 const groups = ['connection', 'photos', 'frequency', 'screen', 'clock', 'metadata', 'firmware_updates', 'identity']
 const own = (object, key) => Object.hasOwn(object, key)
@@ -85,14 +86,16 @@ function importSource(photos, version) {
     return { photo_source: 'memories', ...(savedAlbum ? { album_id: savedAlbum } : {}) }
   }
   const flags = ['albums_enabled', 'people_enabled', 'tags_enabled', 'favorites_enabled', 'rating_enabled',
-    'location_enabled', 'date_filter_enabled', 'portrait_pairs_only']
+    'location_enabled']
   const exclusions = ['album', 'person', 'tag'].filter(group => {
     const ids = photos[`excluded_${group}_ids`]
     return ids != null && String(ids).trim() !== ''
   })
   const olderFilterHints = version === 2 &&
     ['favorite_mode', 'minimum_rating', 'country', 'state', 'city'].some(key => own(photos, key))
+  const pairedPortraits = photos.portrait_pairs_only === true && photos.portrait_pairing !== false
   const hasFilter = legacy !== undefined || flags.some(key => own(photos, key))
+    || own(photos, 'date_filter_enabled') || pairedPortraits
     || own(photos, 'orientation') || olderFilterHints || (version === 2 && exclusions.length > 0)
   if (!hasFilter) return {}
 
@@ -102,9 +105,9 @@ function importSource(photos, version) {
     legacy === 'Favorites' || (version === 2 && !!photos.favorite_mode && photos.favorite_mode !== 'Any'))
   const excludesPhotos = exclusions.some(group =>
     version === 2 || flag({ album: 'albums_enabled', person: 'people_enabled', tag: 'tags_enabled' }[group]))
-  const hasOtherFilter = flags.some(key => key !== 'date_filter_enabled' && own(photos, key) && typeof photos[key] !== 'boolean')
+  const hasOtherFilter = flags.some(key => own(photos, key) && typeof photos[key] !== 'boolean')
     || !supported || flag('people_enabled') || flag('tags_enabled')
-    || flag('portrait_pairs_only') || (photos.orientation !== undefined && photos.orientation !== 'Any')
+    || (photos.orientation !== undefined && photos.orientation !== 'Any')
     || flag('rating_enabled', version === 2 && !!photos.minimum_rating && photos.minimum_rating !== 'Any')
     || flag('location_enabled', version === 2 && !!(photos.country || photos.state || photos.city))
     || excludesPhotos
@@ -120,7 +123,8 @@ function importSource(photos, version) {
     if (mode === 'Favorites only') return { photo_source: 'favorites' }
     if (mode !== 'Any') return { chooseSource: true }
   }
-  if (legacy === 'Custom' && !flags.slice(0, 7).some(key => own(photos, key)))
+  if (legacy === 'Custom' && !flags.some(key => own(photos, key))
+    && !own(photos, 'date_filter_enabled') && !pairedPortraits)
     return { chooseSource: true }
   return { photo_source: 'all' }
 }
@@ -155,6 +159,14 @@ export function readBackup(data) {
     else notices.push('Choose a slideshow interval.')
   }
   if (typeof photos.portrait_pairing === 'boolean') settings.portrait_pairing = photos.portrait_pairing
+  if (own(photos, 'portrait_pairs_only')) {
+    if (typeof photos.portrait_pairs_only === 'boolean') settings.portrait_pairs_only = photos.portrait_pairs_only
+    else notices.push('Review whether to show paired portraits only.')
+  }
+  if (own(photos, 'portrait_pairing_range')) {
+    if (pairingRanges.includes(photos.portrait_pairing_range)) settings.portrait_pairing_range = photos.portrait_pairing_range
+    else notices.push('Choose a portrait pairing range.')
+  }
   if (own(photos, 'display_mode')) {
     if (displayModes.includes(photos.display_mode)) settings.display_mode = photos.display_mode
     else notices.push('Choose a display mode.')
@@ -182,7 +194,7 @@ export function readBackup(data) {
   if (own(clock, 'ntp_servers')) skipped.push('custom time servers')
   if (own(data, 'firmware_updates')) skipped.push('firmware update settings')
   if (own(data, 'identity')) skipped.push('the frame name')
-  if (['transition', 'transition_speed', 'portrait_pairing_range'].some(key => own(photos, key)) ||
+  if (['transition', 'transition_speed'].some(key => own(photos, key)) ||
       own(frequency, 'conn_timeout'))
     skipped.push('advanced playback settings')
   if (skipped.length) notices.push(`Keep the original backup for ${skipped.join(', ')}.`)
@@ -227,6 +239,8 @@ export function createBackup(settings, date = new Date()) {
       ...(typeof settings.memories_fallback === 'boolean' ? { memories_fallback: settings.memories_fallback } : {}),
       ...captureDateFieldsFrom(settings),
       portrait_pairing: settings.portrait_pairing,
+      ...(typeof settings.portrait_pairs_only === 'boolean' ? { portrait_pairs_only: settings.portrait_pairs_only } : {}),
+      ...(pairingRanges.includes(settings.portrait_pairing_range) ? { portrait_pairing_range: settings.portrait_pairing_range } : {}),
       ...(displayModes.includes(settings.display_mode) ? { display_mode: settings.display_mode } : {}),
     },
     frequency: { interval: formatInterval(settings.slide_seconds) },

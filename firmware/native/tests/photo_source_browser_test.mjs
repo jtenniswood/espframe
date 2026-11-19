@@ -14,7 +14,8 @@ const [html, script, css, sourceScript, backupScript] = await Promise.all([
 ])
 const albumId = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
 const setup = {
-  immich_url: 'https://photos.test/api', slide_seconds: 15, portrait_pairing: true,
+  immich_url: 'https://photos.test/api', slide_seconds: 15, portrait_pairing: true, portrait_pairs_only: true,
+  portrait_pairing_range: 'Within 2 Days',
   photo_source: 'favorites', album_id: '', display_mode: 'Fill', brightness_day: 74,
   memories_window: 'Within 2 Days', memories_fallback: true,
   date_filter_enabled: true, date_filter_mode: 'Fixed Range', date_from: '2024-02-29',
@@ -48,6 +49,10 @@ const fixture = html.replace('</body>', `<script>
       throw new Error('Incorrect initial framing')
     if (form.elements.screen_rotation.value !== '180')
       throw new Error('Incorrect initial mounting orientation')
+    if (!form.elements.portrait_pairs_only.checked || form.elements.portrait_pairs_only.disabled)
+      throw new Error('Existing paired-portrait setting was not loaded')
+    if (form.elements.portrait_pairing_range.value !== 'Within 2 Days' || form.elements.portrait_pairing_range.disabled)
+      throw new Error('Existing portrait pairing range was not loaded')
     const brightness = form.elements.brightness_day
     const nightBrightness = form.elements.brightness_night
     const brightnessReadout = form.querySelector('output[for="brightness_day"]')
@@ -80,6 +85,8 @@ const fixture = html.replace('</body>', `<script>
       throw new Error('Unexpected screen tone backup settings')
     if (!backup.photos.date_filter_enabled || backup.photos.date_from !== '2024-02-29')
       throw new Error('Capture date filter missing from backup')
+    if (!backup.photos.portrait_pairs_only) throw new Error('Paired-portrait setting missing from backup')
+    if (backup.photos.portrait_pairing_range !== 'Within 2 Days') throw new Error('Pairing range missing from backup')
     const memories = document.querySelector('#memories-choice')
     const dates = document.querySelector('#capture-dates')
     if (!memories.hidden) throw new Error('On This Day options visible for favourites')
@@ -91,6 +98,12 @@ const fixture = html.replace('</body>', `<script>
     form.elements.memories_fallback.checked = false
     source.value = 'album'
     mode.value = 'Fit'
+    form.elements.portrait_pairing.checked = false
+    form.elements.portrait_pairing.dispatchEvent(new Event('change'))
+    if (!form.elements.portrait_pairs_only.disabled || !form.elements.portrait_pairs_only.checked)
+      throw new Error('Pausing pairing should retain the paired-portrait preference')
+    if (!form.elements.portrait_pairing_range.disabled || form.elements.portrait_pairing_range.value !== 'Within 2 Days')
+      throw new Error('Pausing pairing should retain the pairing range')
     form.elements.screen_rotation.value = '0'
     brightness.value = '45'
     brightness.dispatchEvent(new Event('input'))
@@ -209,6 +222,7 @@ try {
   assert.match(page, /<section id="firmware"[^>]* hidden="">/)
   assert.deepEqual(updates, [{
     ...setup, photo_source: 'album', album_id: albumId, display_mode: 'Fit', brightness_day: 45, immich_key: '',
+    portrait_pairing: false,
     memories_window: 'Within 7 Days', memories_fallback: false,
     date_filter_mode: 'Relative Range', relative_amount: 3, relative_unit: 'Months',
     brightness_night: 30,

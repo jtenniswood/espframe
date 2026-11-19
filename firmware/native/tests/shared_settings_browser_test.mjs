@@ -36,6 +36,10 @@ const testScript = `
     check(field('brightness_day').value === '74', 'Daytime brightness was replaced')
     check(!field('brightness_night') && !field('albums_enabled'), 'Unsupported settings were shown')
     check(field('api_key').type === 'password' && !field('api_key').value, 'The key was shown')
+    check(field('portrait_pairing').checked && !field('portrait_pairs_only').disabled,
+      'Paired-portrait setting is unavailable while pairing is on')
+    check(field('portrait_pairing_range').value === 'Within 2 Days' && !field('portrait_pairing_range').disabled,
+      'Pairing range was not shown')
     check(save.disabled, 'A clean form allows saving')
     check(getComputedStyle(document.body).getPropertyValue('--bg').trim(), 'Shared styles did not load')
     check(getComputedStyle(save.parentElement).position === 'sticky', 'Save controls are not kept in view')
@@ -57,6 +61,14 @@ const testScript = `
     check(field('interval').value === '30 seconds', 'A rejected save lost pending edits')
     edit('brightness_day', '60')
     edit('api_key', 'replacement+value&1')
+    edit('portrait_pairing_range', 'Within 1 Day')
+    field('portrait_pairs_only').checked = true
+    field('portrait_pairs_only').dispatchEvent(new Event('change', {bubbles: true}))
+    field('portrait_pairing').checked = false
+    field('portrait_pairing').dispatchEvent(new Event('change', {bubbles: true}))
+    check(field('portrait_pairs_only').checked && field('portrait_pairs_only').disabled,
+      'Turning off pairing lost the saved paired-portrait setting')
+    check(field('portrait_pairing_range').disabled, 'Pairing range is editable while pairing is off')
     form.requestSubmit()
     const reloaded = await waitFor(() => {
       const next = document.querySelector('#native-settings')
@@ -65,6 +77,14 @@ const testScript = `
     check(reloaded.elements.namedItem('brightness_day').value === '60', 'New brightness was not read back')
     check(reloaded.elements.namedItem('interval').value === '30 seconds', 'New interval was not read back')
     check(!reloaded.elements.namedItem('api_key').value, 'The replacement key remained in the form')
+    const reloadedPairing = reloaded.elements.namedItem('portrait_pairing')
+    const reloadedPairsOnly = reloaded.elements.namedItem('portrait_pairs_only')
+    const reloadedRange = reloaded.elements.namedItem('portrait_pairing_range')
+    check(!reloadedPairing.checked && reloadedPairsOnly.checked && reloadedPairsOnly.disabled,
+      'Reconnection lost the inactive paired-portrait state')
+    reloadedPairing.click()
+    check(reloadedPairsOnly.checked && !reloadedPairsOnly.disabled, 'Turning pairing on did not restore the option')
+    check(reloadedRange.value === 'Within 1 Day' && !reloadedRange.disabled, 'Turning pairing on did not restore its range')
     document.body.dataset.testResult = 'passed'
   }
   verify().catch(error => { document.body.dataset.testResult = error.message })
@@ -80,6 +100,7 @@ const snapshot = {
   values: {
     immich_url: 'https://photos.test/api', interval: '25 seconds', display_mode: 'Fit', brightness_day: 74,
     brightness_night: 48, screen_rotation: '180', show_clock: false, timezone: 'Europe/London (GMT+0)',
+    portrait_pairing: true, portrait_pairs_only: false, portrait_pairing_range: 'Within 2 Days',
   },
 }
 const assets = {
@@ -112,10 +133,10 @@ const server = createServer(async (request, response) => {
     if (requests.length === 1) {
       json(422, { error: 'invalid_value', field: 'brightness_day' })
     } else {
-      snapshot.values.brightness_day = post.values.brightness_day
-      snapshot.values.interval = post.values.interval
+      const { api_key, ...settings } = post.values
+      Object.assign(snapshot.values, settings)
       disconnected = true
-      json(200, { api_version: 1, status: 'accepted', updated: 3 })
+      json(200, { api_version: 1, status: 'accepted', updated: Object.keys(post.values).length })
     }
   } else if (request.url === settingsPath) {
     if (disconnected) {
@@ -151,7 +172,10 @@ try {
     { api_version: 1, reset_epoch: 0, values: { interval: '30 seconds', brightness_day: 45 } },
     {
       api_version: 1, reset_epoch: 0,
-      values: { api_key: 'replacement+value&1', interval: '30 seconds', brightness_day: 60 },
+      values: {
+        api_key: 'replacement+value&1', interval: '30 seconds', brightness_day: 60,
+        portrait_pairing: false, portrait_pairs_only: true, portrait_pairing_range: 'Within 1 Day',
+      },
     },
   ])
   assert.equal(reconnectFailures, 1)

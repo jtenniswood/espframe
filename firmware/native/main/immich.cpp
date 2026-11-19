@@ -95,10 +95,11 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
   const bool legacy_album = source.mode == PhotoSourceMode::Album && this->search_api_ == ImmichSearchApi::Legacy;
   uint32_t page = !pairing && legacy_album ? this->album_page_ : 1;
   size_t count = !pairing && legacy_album ? this->album_page_size_ : photo_search_batch;
-  const bool with_exif = this->settings_.metadata.show_location || this->settings_.portrait_pairs_only;
+  const bool with_exif = this->settings_.metadata.show_location || this->settings_.requires_portrait_pair();
   const auto dates = this->settings_.photo_source.mode == PhotoSourceMode::Memories
                          ? CaptureDateRange{} : this->capture_date_range_;
-  auto request = make_photo_search(count, source, this->search_api_, local_day, page, with_exif, dates);
+  auto request = make_photo_search(count, source, this->search_api_, local_day, page, with_exif, dates,
+                                   this->settings_.portrait_pairing_days);
   if (request.path.empty())
     return {};
   size_t length;
@@ -126,8 +127,7 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
     return {};
   }
   auto response = parse_photo_search({reinterpret_cast<const char *>(this->encoded_), length}, count, request.paged,
-                                     source.mode == PhotoSourceMode::Favorites,
-                                     local_day ? CaptureDateRange{local_day, local_day} : dates);
+                                     source.mode == PhotoSourceMode::Favorites, request.dates);
   if constexpr (SWIPE_TRIAL_IMMICH)
     record_live_trial_search(pairing, status, response.photos.size());
   if (!pairing && request.paged && response.valid)
@@ -234,7 +234,7 @@ bool ImmichSource::next_asset_(ImmichPhoto &asset) {
     return false;
   if (this->pending_.empty()) {
     this->pending_ = memory_mode ? this->memories_() : this->search_(source);
-    if (this->settings_.portrait_pairs_only)
+    if (this->settings_.requires_portrait_pair())
       std::erase_if(this->pending_, [](const ImmichPhoto &photo) { return !can_start_portrait_pair(photo); });
     if (this->pending_.empty())
       return false;
@@ -254,9 +254,9 @@ bool ImmichSource::next_asset_(ImmichPhoto &asset) {
 bool ImmichSource::take_pending_(ImmichPhoto &asset) {
   if (this->pending_.empty())
     return false;
-  if (this->settings_.portrait_pairs_only &&
+  if (this->settings_.requires_portrait_pair() &&
       (this->settings_.photo_source.mode != PhotoSourceMode::Album || this->search_api_ != ImmichSearchApi::Legacy)) {
-    if (const auto match = find_pair_seed(this->pending_)) {
+    if (const auto match = find_pair_seed(this->pending_, this->settings_.portrait_pairing_days)) {
       const auto seed = this->pending_.begin() + *match;
       asset = *seed;
       this->pending_.erase(seed);
@@ -287,16 +287,21 @@ AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, int64_t deadlin
   if (!primary.metadata.capture_day)
     return {};
   auto choose = [&](const std::vector<ImmichPhoto> &photos) {
-    AssetId first{};
+    AssetId best{};
+    auto closest = std::chrono::days::max();
+    bool best_seen = true;
     for (const auto &candidate : photos) {
-      if (!is_portrait_companion(primary, candidate))
+      if (!is_portrait_companion(primary, candidate, this->settings_.portrait_pairing_days))
         continue;
-      if (!this->history_.recently_seen(candidate.id, photo_search_batch))
-        return candidate.id;
-      if (first[0] == '\0')
-        first = candidate.id;
+      const bool seen = this->history_.recently_seen(candidate.id, photo_search_batch);
+      const auto distance = std::chrono::abs(*candidate.metadata.capture_day - *primary.metadata.capture_day);
+      if ((!seen && best_seen) || (seen == best_seen && distance < closest)) {
+        best = candidate.id;
+        best_seen = seen;
+        closest = distance;
+      }
     }
-    return first;
+    return best;
   };
   const auto known = choose(this->pending_);
   if (known[0] != '\0')
@@ -391,7 +396,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   if (!new_position && existing == nullptr)
     return PrepareResult::Retry;
   const bool remembered = existing != nullptr && existing->primary[0] != '\0';
-  const bool pairs_only = this->settings_.portrait_pairs_only;
+  const bool pairs_only = this->settings_.requires_portrait_pair();
   ImmichPhoto seed;
   PhotoSlide frame;
   if (remembered) {

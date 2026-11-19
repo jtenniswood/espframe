@@ -28,6 +28,7 @@ struct PhotoSearchRequest {
   std::string_view path;
   std::string body;
   bool paged{};
+  CaptureDateRange dates;
 };
 
 struct PhotoSearchResult {
@@ -39,13 +40,13 @@ struct PhotoSearchResult {
 ImmichSearchApi parse_search_api(std::string_view json);
 PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, ImmichSearchApi api,
                                      std::optional<std::chrono::sys_days> local_day = {}, uint32_t page = 1,
-                                     bool with_location = false, CaptureDateRange dates = {});
+                                     bool with_location = false, CaptureDateRange dates = {}, unsigned pairing_days = 0);
 PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool paged, bool favorites_only,
                                      CaptureDateRange dates = {});
 std::optional<ImmichPhoto> parse_memory_asset(std::string_view json);
 std::string memory_request_path(std::chrono::sys_days date, unsigned index);
-bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candidate);
+bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candidate, unsigned pairing_days = 0);
 bool can_start_portrait_pair(const ImmichPhoto &photo);
-std::optional<size_t> find_pair_seed(std::span<const ImmichPhoto> photos);
+std::optional<size_t> find_pair_seed(std::span<const ImmichPhoto> photos, unsigned pairing_days = 0);
 
 }  // namespace espframe::native

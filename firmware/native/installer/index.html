@@ -101,7 +101,15 @@
             </select>
           </label>
           <label>Seconds per photo <input name="slide_seconds" type="number" min="2" max="86400" value="15" step="1" required></label>
-          <label><input name="portrait_pairing" type="checkbox" class="inline-option" checked> Pair portrait photos from the same day</label>
+          <label><input name="portrait_pairing" type="checkbox" class="inline-option" checked> Pair portrait photos</label>
+          <label><input name="portrait_pairs_only" type="checkbox" class="inline-option"> Show paired portraits only</label>
+          <label>Pairing range
+            <select name="portrait_pairing_range">
+              <option>Same Day</option>
+              <option>Within 1 Day</option>
+              <option>Within 2 Days</option>
+            </select>
+          </label>
           <label>Mounting orientation
             <select name="screen_rotation">
               <option value="0">Normal</option>

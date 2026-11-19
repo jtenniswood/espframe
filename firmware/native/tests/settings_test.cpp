@@ -68,6 +68,7 @@ int main() {
   assert(legacy.read());
   assert(legacy.immich_url == "http://legacy.local/api" && legacy.slide_seconds == 15);
   assert(legacy.portrait_pairing);
+  assert(!legacy.portrait_pairs_only && !legacy.requires_portrait_pair() && legacy.portrait_pairing_days == 0);
   assert(legacy.brightness_day == 64);
   assert(!legacy.brightness_night && legacy.night_brightness() == 64);
   assert(legacy.photo_source.mode == PhotoSourceMode::Library);
@@ -282,6 +283,8 @@ int main() {
            R"({"reset_epoch":1,"values":{"brightness_day":50}})",
            R"({"values":{"brightness_day":50,"photo_source":"Custom"}})",
            R"({"values":{"brightness_day":50,"screen_rotation":"90"}})",
+           R"({"values":{"brightness_day":50,"portrait_pairs_only":"true"}})",
+           R"({"values":{"brightness_day":50,"portrait_pairing_range":"Within 3 Days"}})",
            R"({"values":{"brightness_day":50,"api_key":""}})",
            R"({"values":{"brightness_day":50,"brightness_day":80}})",
            R"({"values":{"brightness_day":50,"unsupported":true}})",
@@ -294,4 +297,20 @@ int main() {
   assert(!Settings::save_playback(R"({"brightness_day":60})"));
   assert(Settings::save_playback(R"({"immich_url":"https://photos.test","brightness_day":60})"));
   assert(current.read() && current.brightness_day == 60 && current.immich_key == "new+&key");
+
+  assert(!update_configuration(
+      R"({"values":{"portrait_pairing":false,"portrait_pairs_only":true,"portrait_pairing_range":"Within 2 Days"}})").error);
+  assert(current.read() && !current.portrait_pairing && current.portrait_pairs_only && !current.requires_portrait_pair());
+  assert(current.portrait_pairing_days == 2);
+  const Json paused(configuration_snapshot(current), cJSON_Delete);
+  assert(paused);
+  const auto *paused_values = cJSON_GetObjectItemCaseSensitive(paused.get(), "values");
+  assert(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(paused_values, "portrait_pairs_only")));
+  assert(cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(paused_values, "portrait_pairing")));
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(paused_values, "portrait_pairing_range")) ==
+         std::string_view("Within 2 Days"));
+  assert(Settings::save_playback(R"({"immich_url":"https://photos.test","portrait_pairing":true})"));
+  assert(current.read() && current.requires_portrait_pair() && current.portrait_pairing_days == 2);
+  assert(Settings::save_playback(R"({"immich_url":"https://photos.test","portrait_pairs_only":false})"));
+  assert(current.read() && current.portrait_pairing && !current.requires_portrait_pair());
 }

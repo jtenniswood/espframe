@@ -13,6 +13,8 @@ enum class MemoriesStatus : uint8_t { None, WaitingForTime, Empty, Unavailable }
 inline constexpr std::array<std::string_view, 5> memory_windows{
     "Same Day", "Within 1 Day", "Within 2 Days", "Within 3 Days", "Within 7 Days"};
 inline constexpr std::array<uint8_t, 5> memory_window_days{0, 1, 2, 3, 7};
+inline constexpr std::array<std::string_view, 3> portrait_pairing_ranges{
+    "Same Day", "Within 1 Day", "Within 2 Days"};
 
 struct PhotoSource {
   PhotoSourceMode mode{PhotoSourceMode::Library};

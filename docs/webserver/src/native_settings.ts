@@ -15,6 +15,8 @@ const nativeSettingGroups: [string, [string, string][]][] = [
   ["Immich connection", [["immich_url", "Immich server URL"], ["api_key", "Replacement Immich API key"]]],
   ["Playback", [
     ["interval", "Time per photo"], ["display_mode", "Photo framing"], ["portrait_pairing", "Pair portrait photos"],
+    ["portrait_pairs_only", "Show paired portraits only"],
+    ["portrait_pairing_range", "Pairing range"],
   ]],
   ["Capture dates", [
     ["date_filter_enabled", "Limit photos by capture date"], ["date_filter_mode", "Date range"],
@@ -125,7 +127,16 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot): HTMLFormElement {
     });
     return changed;
   }
-  const noteChange = () => { save.disabled = saving || Object.keys(changes()).length === 0; };
+  const pairing = controls.get("portrait_pairing")?.element;
+  const pairingOptions = [controls.get("portrait_pairs_only")?.element, controls.get("portrait_pairing_range")?.element];
+  const noteChange = () => {
+    if (pairing instanceof HTMLInputElement) {
+      for (const option of pairingOptions) {
+        if (option) option.disabled = saving || !pairing.checked;
+      }
+    }
+    save.disabled = saving || Object.keys(changes()).length === 0;
+  };
   const setSaving = (value: boolean) => {
     saving = value;
     controls.forEach(({ element }) => { element.disabled = value; });
@@ -133,6 +144,7 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot): HTMLFormElement {
   };
   form.addEventListener("input", noteChange);
   form.addEventListener("change", noteChange);
+  noteChange();
   form.onsubmit = async function (event) {
     event.preventDefault();
     if (saving || !form.reportValidity()) return;

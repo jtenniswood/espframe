@@ -56,6 +56,17 @@ export function bindPhotoSource(form) {
   return refresh
 }
 
+export function bindPortraitPairing(form) {
+  const { portrait_pairing, portrait_pairs_only, portrait_pairing_range } = form.elements
+  const refresh = () => {
+    portrait_pairs_only.disabled = !portrait_pairing.checked
+    portrait_pairing_range.disabled = !portrait_pairing.checked
+  }
+  portrait_pairing.addEventListener('change', refresh)
+  refresh()
+  return refresh
+}
+
 export function addCaptureDates(form, data) {
   const { date_filter_enabled, date_from, date_to, relative_amount } = form.elements
   data.date_filter_enabled = date_filter_enabled.checked

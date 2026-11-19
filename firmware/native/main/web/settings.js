@@ -1,4 +1,4 @@
-import { addCaptureDates, bindPhotoSource, validateAlbum } from './photo_source.mjs'
+import { addCaptureDates, bindPhotoSource, bindPortraitPairing, validateAlbum } from './photo_source.mjs'
 import { createBackup } from './backup.mjs'
 
 const form = document.querySelector('#settings')
@@ -6,6 +6,7 @@ const status = document.querySelector('#status')
 const submit = form.querySelector('button[type="submit"]')
 const download = form.querySelector('#download-backup')
 const updateSource = bindPhotoSource(form)
+const updatePairing = bindPortraitPairing(form)
 const firmware = document.querySelector('#firmware')
 const updateForm = document.querySelector('#firmware-update')
 const updateButton = updateForm.querySelector('button')
@@ -45,6 +46,9 @@ try {
   form.elements.warm_tone_intensity.value = settings.warm_tone_intensity ?? 50
   showPercentages()
   form.elements.portrait_pairing.checked = settings.portrait_pairing === true
+  form.elements.portrait_pairs_only.checked = settings.portrait_pairs_only === true
+  form.elements.portrait_pairing_range.value = settings.portrait_pairing_range ?? 'Same Day'
+  updatePairing()
   form.elements.display_mode.value = settings.display_mode ?? 'Fit'
   form.elements.screen_rotation.value = settings.screen_rotation ?? '0'
   form.elements.photo_source.value = settings.photo_source ?? 'all'
@@ -101,6 +105,8 @@ form.addEventListener('submit', async event => {
   data.base_tone_enabled = form.elements.base_tone_enabled.checked
   data.warm_tones_enabled = form.elements.warm_tones_enabled.checked
   data.portrait_pairing = form.elements.portrait_pairing.checked
+  data.portrait_pairs_only = form.elements.portrait_pairs_only.checked
+  data.portrait_pairing_range = form.elements.portrait_pairing_range.value
   data.show_clock = form.elements.show_clock.checked
   data.memories_fallback = form.elements.memories_fallback.checked
   data.photo_metadata_date_enabled = form.elements.photo_metadata_date_enabled.checked

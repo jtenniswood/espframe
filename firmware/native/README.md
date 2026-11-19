@@ -206,9 +206,14 @@ software if the hardware path cannot finish. Compare `decode_us` and
 `hardware_jpeg` in the USB log when testing live playback.
 
 Portrait pairing is on by default. From the second slide onward, the player
-looks for a portrait from the same local capture day. A pair is composed
+looks for a companion within the selected local capture date range.
+Choose **Same Day**, **Within 1 Day** or **Within 2 Days**. A pair is composed
 into one slide before it can be shown or swiped. If a new companion is
 missing or slow to arrive, the primary photo fills the slide by itself.
+Enable **Show paired portraits only** to wait for a complete pair for
+every slide. Turning off portrait pairing pauses this filter and retains
+its saved value and range. Native setup and Espframe settings backups carry
+both options.
 **Show full image** is the default for the native prototype. **Crop to fit**
 center-crops landscape photos to the screen and paired portraits to their
 respective halves. A single portrait stays fully visible on a landscape frame.
@@ -331,9 +336,8 @@ Keep the working ESPHome OTA binary and USB recovery available.
 For a V1 configured through the stock ESPHome installer, build the
 five-minute Immich trial against the same app slots. It reads the saved
 Wi-Fi and Immich connection from the ESPHome 2026.11 preference format.
-The trial keeps the saved date range, paired-portraits-only selection,
-and mounting orientation. It uses the native player's same-day portrait
-pairing. The trial returns immediately to ESPHome if its required settings
+The trial keeps the saved date range, portrait-pairing settings and
+mounting orientation. The trial returns immediately to ESPHome if its required settings
 are missing or invalid, or an active photo filter is outside that scope.
 
 ```sh

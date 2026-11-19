@@ -1,6 +1,6 @@
 import 'esp-web-tools/dist/install-button.js'
 import { readBackup } from './backup.mjs'
-import { addCaptureDates, bindPhotoSource, validateAlbum } from './photo_source.mjs'
+import { addCaptureDates, bindPhotoSource, bindPortraitPairing, validateAlbum } from './photo_source.mjs'
 import { configure, findFrame } from './serial.mjs'
 
 const revision = document.querySelector('#revision')
@@ -17,6 +17,7 @@ const backupStatus = document.querySelector('#backup-status')
 const playback = document.querySelector('#playback')
 const schedule = document.querySelector('#screen-schedule')
 const refreshSource = bindPhotoSource(form)
+const refreshPairing = bindPortraitPairing(form)
 const percentageFields = ['brightness_day', 'brightness_night', 'base_tone', 'warm_tone_intensity']
 const refreshWifi = () => {
   wifiFields.hidden = reuseWifi.checked
@@ -56,6 +57,7 @@ backup.addEventListener('change', async () => {
     }
     if (!form.elements.timezone.value) notices.push('Choose a timezone supported by the frame.')
     refreshSource()
+    refreshPairing()
     showPercentages()
     playback.open = true
     if (form.elements.schedule_enabled.checked) schedule.open = true
@@ -125,6 +127,8 @@ if ('serial' in navigator) {
     data.base_tone_enabled = form.elements.base_tone_enabled.checked
     data.warm_tones_enabled = form.elements.warm_tones_enabled.checked
     data.portrait_pairing = form.elements.portrait_pairing.checked
+    data.portrait_pairs_only = form.elements.portrait_pairs_only.checked
+    data.portrait_pairing_range = form.elements.portrait_pairing_range.value
     data.show_clock = form.elements.show_clock.checked
     data.memories_fallback = form.elements.memories_fallback.checked
     data.photo_metadata_date_enabled = form.elements.photo_metadata_date_enabled.checked
@@ -141,6 +145,7 @@ if ('serial' in navigator) {
       await configure(port, data)
       form.reset()
       refreshSource()
+      refreshPairing()
       showPercentages()
       refreshWifi()
       backupStatus.textContent = ''

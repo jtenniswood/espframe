@@ -343,7 +343,9 @@
     ["Playback", [
       ["interval", "Time per photo"],
       ["display_mode", "Photo framing"],
-      ["portrait_pairing", "Pair portrait photos"]
+      ["portrait_pairing", "Pair portrait photos"],
+      ["portrait_pairs_only", "Show paired portraits only"],
+      ["portrait_pairing_range", "Pairing range"]
     ]],
     ["Capture dates", [
       ["date_filter_enabled", "Limit photos by capture date"],
@@ -413,6 +415,7 @@
     return control;
   }
   function nativeSettingsForm(snapshot) {
+    var _a, _b, _c;
     const form = el("form");
     form.id = "native-settings";
     const fields = el("div");
@@ -460,7 +463,14 @@
       });
       return changed;
     }
+    const pairing = (_a = controls.get("portrait_pairing")) == null ? void 0 : _a.element;
+    const pairingOptions = [(_b = controls.get("portrait_pairs_only")) == null ? void 0 : _b.element, (_c = controls.get("portrait_pairing_range")) == null ? void 0 : _c.element];
     const noteChange = () => {
+      if (pairing instanceof HTMLInputElement) {
+        for (const option of pairingOptions) {
+          if (option) option.disabled = saving || !pairing.checked;
+        }
+      }
       save.disabled = saving || Object.keys(changes()).length === 0;
     };
     const setSaving = (value) => {
@@ -472,8 +482,9 @@
     };
     form.addEventListener("input", noteChange);
     form.addEventListener("change", noteChange);
+    noteChange();
     form.onsubmit = async function(event) {
-      var _a, _b;
+      var _a2, _b2;
       event.preventDefault();
       if (saving || !form.reportValidity()) return;
       const values = changes();
@@ -484,7 +495,7 @@
         const response = await apiClient.updateSettings(values, []);
         if (!response || response.status !== "accepted") throw new Error("save_failed");
       } catch (error) {
-        const label = error instanceof EspframeApiError && error.field ? (_b = form.querySelector(`label[for="${((_a = controls.get(error.field)) == null ? void 0 : _a.element.id) || ""}"]`)) == null ? void 0 : _b.textContent : "";
+        const label = error instanceof EspframeApiError && error.field ? (_b2 = form.querySelector(`label[for="${((_a2 = controls.get(error.field)) == null ? void 0 : _a2.element.id) || ""}"]`)) == null ? void 0 : _b2.textContent : "";
         const message = label ? `Check the value for ${label}.` : error instanceof EspframeApiError && error.kind === "validation" ? "Check your settings and try again." : "Settings could not be confirmed. Check the frame connection and try again.";
         setStatus(status, message, "red");
         setSaving(false);

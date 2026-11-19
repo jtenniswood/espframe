@@ -45,9 +45,15 @@ int main() {
 
   Settings settings;
   assert(TrialScope{}.apply(settings) && !settings.capture_dates.enabled && !settings.portrait_pairs_only);
-  TrialScope scope{.source = 6, .rotation = 2, .date_mode = 1, .date_enabled = 1, .pairs_only = 1,
+  TrialScope scope{.source = 6, .rotation = 2, .date_mode = 1, .pairing_range = 2, .date_enabled = 1, .pairs_only = 1,
                    .date_amount = 4, .date_from = {}, .date_to = {}};
   assert(scope.apply(settings) && settings.capture_dates.needs_time() && settings.portrait_pairs_only);
+  assert(settings.requires_portrait_pair() && settings.portrait_pairing_days == 2);
+  scope.pairing_enabled = 0;
+  assert(scope.apply(settings) && !settings.requires_portrait_pair() && settings.portrait_pairing_days == 2);
+  scope.pairing_range = 3;
+  assert(!scope.apply(settings));
+  scope.pairing_range = 2;
   assert(settings.capture_dates.amount == 4 && settings.capture_dates.years);
   assert(settings.screen_rotation == ScreenRotation::UpsideDown);
   scope.source = 5;

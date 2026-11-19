@@ -111,7 +111,7 @@ ImmichSearchApi parse_search_api(std::string_view json) {
 
 PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, ImmichSearchApi api,
                                      std::optional<std::chrono::sys_days> local_day, uint32_t page,
-                                     bool with_location, CaptureDateRange dates) {
+                                     bool with_location, CaptureDateRange dates, unsigned pairing_days) {
   if (source.mode == PhotoSourceMode::Memories)
     return {};
   const bool album = source.mode == PhotoSourceMode::Album;
@@ -123,12 +123,16 @@ PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, Im
   if (local_day) {
     if (!dates.includes(local_day))
       return {};
-    dates = {local_day, local_day};
+    using namespace std::chrono;
+    const auto window = days{pairing_days};
+    const auto earliest = std::max(*local_day - window, sys_days{year{2} / January / 1});
+    const auto latest = std::min(*local_day + window, sys_days{year{9998} / December / 31});
+    dates = {std::max(earliest, dates.from.value_or(earliest)), std::min(latest, dates.through.value_or(latest))};
   }
 
   const bool structured = api == ImmichSearchApi::Structured;
   const bool paged = album && !structured;
-  PhotoSearchRequest request{paged ? "/search/metadata" : "/search/random", "{", paged};
+  PhotoSearchRequest request{paged ? "/search/metadata" : "/search/random", "{", paged, dates};
   if (!structured)
     request.body += "\"type\":\"IMAGE\",\"visibility\":\"timeline\",";
   request.body += "\"size\":" + std::to_string(count);
@@ -214,22 +218,22 @@ std::string memory_request_path(std::chrono::sys_days date, unsigned index) {
   return "/memories?type=on_this_day&for=" + iso_day(date + offset);
 }
 
-bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candidate) {
-  return candidate.id != primary.id && candidate.portrait && primary.metadata.capture_day.has_value() &&
-         candidate.metadata.capture_day == primary.metadata.capture_day;
+bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candidate, unsigned pairing_days) {
+  return candidate.id != primary.id && candidate.portrait && primary.metadata.capture_day && candidate.metadata.capture_day &&
+         std::chrono::abs(*candidate.metadata.capture_day - *primary.metadata.capture_day) <= std::chrono::days{pairing_days};
 }
 
 bool can_start_portrait_pair(const ImmichPhoto &photo) {
   return photo.metadata.capture_day && (!photo.orientation_known || photo.portrait);
 }
 
-std::optional<size_t> find_pair_seed(std::span<const ImmichPhoto> photos) {
+std::optional<size_t> find_pair_seed(std::span<const ImmichPhoto> photos, unsigned pairing_days) {
   // Match the pending queue's back-to-front preference. A known pair can
   // be tried with no additional metadata request.
   for (size_t i = photos.size(); i > 0; --i) {
     const auto &seed = photos[i - 1];
     if (seed.portrait && std::any_of(photos.begin(), photos.end(), [&](const ImmichPhoto &candidate) {
-          return is_portrait_companion(seed, candidate);
+          return is_portrait_companion(seed, candidate, pairing_days);
         }))
       return i - 1;
   }

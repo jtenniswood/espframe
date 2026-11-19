@@ -6,17 +6,19 @@ import { join } from 'node:path'
 
 const installer = process.argv[2]
 assert.ok(installer, 'Pass the directory of the packaged native installer')
-const [html, bundle, css, oldBackup] = await Promise.all([
+const [html, bundle, css, oldBackup, unsupportedBackup] = await Promise.all([
   readFile(join(installer, 'index.html'), 'utf8'),
   readFile(join(installer, 'setup.js'), 'utf8'),
   readFile(join(installer, 'setup.css'), 'utf8'),
   readFile(new URL('../../../tests/fixtures/backup/espframe-config-v1-full.json', import.meta.url), 'utf8'),
+  readFile(new URL('../../../tests/fixtures/backup/espframe-config-v2-full.json', import.meta.url), 'utf8'),
 ])
 const album = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
 const backup = {
   version: 3,
   connection: { immich_url: 'https://photos.test', api_key: 'old-api-key' },
-  photos: { source: 'Memories', album_ids: album, portrait_pairing: false, display_mode: 'Fit',
+  photos: { source: 'Memories', album_ids: album, portrait_pairing: false, portrait_pairs_only: true,
+    portrait_pairing_range: 'Within 1 Day', display_mode: 'Fit',
     memories_window: 'Within 7 Days', memories_fallback: false, date_filter_enabled: true,
     date_filter_mode: 'Fixed Range', date_from: '2024-02-29', date_to: '', relative_amount: 2, relative_unit: 'Months' },
   clock: { show: false, format: '12 Hour', timezone: 'America/New_York (GMT-5)' },
@@ -80,12 +82,20 @@ const verify = `
     }
     form.elements.ssid.value = 'Test Wi-Fi'
     form.elements.immich_key.value = 'entered-api-key'
-    await loadBackup(${JSON.stringify(oldBackup)}, 'Choose a photo source before saving.')
-    if (form.elements.photo_source.value || form.checkValidity()) throw new Error('Unrepresentable filters allowed a save')
+    await loadBackup(${JSON.stringify(oldBackup)}, 'Backup loaded.')
+    if (form.elements.photo_source.value !== 'album' ||
+        form.elements.album_id.value !== '11111111-1111-4111-8111-111111111111')
+      throw new Error('The older album source was not preserved')
     if (form.elements.display_mode.value !== 'Fill') throw new Error('Existing crop mode was not imported')
     if (form.elements.brightness_day.value !== '100') throw new Error('Existing brightness was not imported')
     if (form.elements.brightness_night.value !== '75') throw new Error('Existing nighttime brightness was not imported')
     if (form.elements.screen_rotation.value !== '0') throw new Error('Existing mounting orientation was not imported')
+    if (!form.elements.portrait_pairs_only.checked || form.elements.portrait_pairs_only.disabled)
+      throw new Error('Active paired-portrait preference was not imported')
+    if (form.elements.portrait_pairing_range.value !== 'Within 2 Days' || form.elements.portrait_pairing_range.disabled)
+      throw new Error('Existing pairing range was not imported')
+    await loadBackup(${JSON.stringify(unsupportedBackup)}, 'Choose a photo source before saving.')
+    if (form.elements.photo_source.value || form.checkValidity()) throw new Error('Unrepresentable filters allowed a save')
     form.requestSubmit()
     if (attempts) throw new Error('USB opened with unresolved photo filters')
     await loadBackup(${JSON.stringify(JSON.stringify(backup))}, 'Backup loaded.')
@@ -101,13 +111,18 @@ const verify = `
     if (!document.querySelector('#screen-schedule').open || !form.elements.schedule_enabled.checked)
       throw new Error('Imported screen schedule was not shown')
     if (form.elements.screen_rotation.value !== '180') throw new Error('Upside-down mounting was not imported')
+    if (!form.elements.portrait_pairs_only.checked || !form.elements.portrait_pairs_only.disabled)
+      throw new Error('Inactive paired-portrait preference was not retained')
+    if (form.elements.portrait_pairing_range.value !== 'Within 1 Day' || !form.elements.portrait_pairing_range.disabled)
+      throw new Error('Inactive pairing range was not retained')
     const saved = waitFor(document.querySelector('#status'), 'Settings saved.')
     form.requestSubmit()
     await saved
     if (attempts !== 1 || received.immich_key !== 'entered-api-key' || received.ssid !== 'Test Wi-Fi'
       || received.photo_source !== 'memories' || received.album_id !== '${album}' || received.slide_seconds !== 86400
       || received.memories_window !== 'Within 7 Days' || received.memories_fallback !== false
-      || received.portrait_pairing !== false || received.display_mode !== 'Fit' || Object.hasOwn(received, 'backup'))
+      || received.portrait_pairing !== false || received.portrait_pairs_only !== true
+      || received.portrait_pairing_range !== 'Within 1 Day' || received.display_mode !== 'Fit' || Object.hasOwn(received, 'backup'))
       throw new Error('Unexpected migrated USB settings')
     if (received.show_clock !== false || received.clock_format !== '12 Hour' || received.timezone !== 'America/New_York (GMT-5)')
       throw new Error('The clock settings did not reach USB setup')

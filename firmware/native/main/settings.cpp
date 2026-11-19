@@ -226,9 +226,21 @@ bool read_capture_dates(const cJSON *root, CaptureDateSettings &dates) {
   return true;
 }
 
+bool read_pairing(const cJSON *root, Settings &settings) {
+  std::string range{portrait_pairing_ranges[settings.portrait_pairing_days]};
+  if (!read_flag(root, "portrait_pairing", settings.portrait_pairing) ||
+      !read_flag(root, "portrait_pairs_only", settings.portrait_pairs_only) ||
+      !read_field(root, "portrait_pairing_range", range, true))
+    return false;
+  const auto match = std::find(portrait_pairing_ranges.begin(), portrait_pairing_ranges.end(), range);
+  if (match == portrait_pairing_ranges.end())
+    return false;
+  settings.portrait_pairing_days = std::distance(portrait_pairing_ranges.begin(), match);
+  return true;
+}
+
 bool read_playback(const cJSON *root, Settings &settings) {
-  return read_integer(root, "slide_seconds", 2, 86'400, settings.slide_seconds) &&
-         read_flag(root, "portrait_pairing", settings.portrait_pairing) &&
+  return read_integer(root, "slide_seconds", 2, 86'400, settings.slide_seconds) && read_pairing(root, settings) &&
          read_display_mode(root, settings.display_mode) && read_rotation(root, settings.screen_rotation) &&
          read_source(root, settings.photo_source) && read_capture_dates(root, settings.capture_dates) &&
          read_clock(root, settings.clock) && read_brightness(root, settings) &&
@@ -378,6 +390,8 @@ bool Settings::add_playback_fields(cJSON *object) const {
          cJSON_AddBoolToObject(object, "warm_tones_enabled", tone.night_enabled) &&
          cJSON_AddNumberToObject(object, "warm_tone_intensity", tone.night_amount) &&
          cJSON_AddBoolToObject(object, "portrait_pairing", portrait_pairing) &&
+         cJSON_AddBoolToObject(object, "portrait_pairs_only", portrait_pairs_only) &&
+         cJSON_AddStringToObject(object, "portrait_pairing_range", portrait_pairing_ranges[portrait_pairing_days].data()) &&
          cJSON_AddStringToObject(object, "display_mode", display_mode_name(display_mode)) &&
          cJSON_AddStringToObject(object, "screen_rotation", screen_rotation_name(screen_rotation)) &&
          cJSON_AddStringToObject(object, "photo_source", photo_source_name(photo_source.mode)) &&
