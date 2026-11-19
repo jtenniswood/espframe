@@ -1,0 +1,30 @@
+# Optional developer build. Upload only its app binary to a Guition V1.
+packages:
+  espframe: !include guition-esp32-p4-jc8012p4a1.yaml
+
+substitutions:
+  firmware_version: "native-trial-readiness"
+
+esphome:
+  includes:
+    - ../firmware/native/main/esphome_v1_layout.h
+  on_boot:
+    - priority: 1100
+      then:
+        - lambda: |-
+            id(native_trial_rollback_observed) = espframe_native_ota::is_app_in_ota_state(
+                esp_ota_get_running_partition(), ESP_OTA_IMG_PENDING_VERIFY);
+
+globals:
+  - id: native_trial_rollback_observed
+    type: bool
+    initial_value: 'false'
+    restore_value: false
+
+text_sensor:
+  - platform: template
+    name: "Native V1 swipe trial readiness"
+    entity_category: diagnostic
+    update_interval: 2s
+    lambda: |-
+      return std::string(espframe_native_ota::esphome_v1_trial_readiness(id(native_trial_rollback_observed)));
