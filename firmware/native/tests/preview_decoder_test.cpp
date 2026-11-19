@@ -213,8 +213,9 @@ void verify_hardware(const char *baseline_path, const char *progressive_path, co
   assert(!decoded.hardware_jpeg() && hardware_calls == 4 && engine_creates == 1);
 }
 
-void verify_interruption(const char *jpeg_path, const char *webp_path) {
+void verify_interruption(const char *jpeg_path, const char *progressive_path, const char *webp_path) {
   const auto jpeg = load(jpeg_path);
+  const auto progressive = load(progressive_path);
   const auto webp = load(webp_path);
   int remaining{};
   const PreparationCheckpoint checkpoint{&remaining, [](void *context) {
@@ -224,6 +225,19 @@ void verify_interruption(const char *jpeg_path, const char *webp_path) {
   assert(decoded.decode(webp.data(), webp.size(), false, nullptr, DisplayMode::Fit, checkpoint) == Decode::Interrupted);
   remaining = 3;
   assert(decoded.decode(jpeg.data(), jpeg.size(), false, nullptr, DisplayMode::Fit, checkpoint) == Decode::Interrupted);
+
+  // The malformed final scan can only be detected after the earlier scans
+  // have been read. A swipe should be able to interrupt the read before then.
+  auto malformed = progressive;
+  constexpr std::array<uint8_t, 2> scan_marker{0xff, 0xda};
+  const auto last_scan = std::find_end(malformed.begin(), malformed.end(), scan_marker.begin(), scan_marker.end());
+  assert(malformed.end() - last_scan >= 4 && last_scan[2] == 0);
+  last_scan[3] = 1;
+  assert(decoded.decode(malformed.data(), malformed.size()) == Decode::Invalid);
+  remaining = 4;
+  assert(decoded.decode(malformed.data(), malformed.size(), false, nullptr, DisplayMode::Fit, checkpoint) ==
+         Decode::Interrupted);
+  assert(decoded.decode(progressive.data(), progressive.size()) == Decode::Ready);
 
   P4JpegDecoder hardware;
   const auto before = hardware_calls;
@@ -268,7 +282,7 @@ int main(int argc, char **argv) {
     verify(argv[i]);
   verify_pair(argv[4], argv[5]);
   verify_hardware(argv[1], argv[2], argv[3]);
-  verify_interruption(argv[1], argv[3]);
+  verify_interruption(argv[1], argv[2], argv[3]);
   verify_orientation(argv[1], argv[3], argv[4]);
   const uint8_t unsupported[]{0, 1, 2, 3};
   DecodedPreview decoded;

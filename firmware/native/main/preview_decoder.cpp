@@ -35,14 +35,18 @@ uint16_t *allocate(const PhotoFraming &size) {
   return static_cast<uint16_t *>(heap_caps_malloc(size.width * size.height * sizeof(uint16_t), MALLOC_CAP_SPIRAM));
 }
 
-struct JpegError {
+struct JpegCallbacks {
   jpeg_error_mgr manager;
   std::jmp_buf escape;
+  jpeg_progress_mgr progress;
+  PreparationCheckpoint checkpoint;
 };
 
+constexpr int jpeg_cancelled = 2;
+
 void jpeg_failure(j_common_ptr info) {
-  auto *error = reinterpret_cast<JpegError *>(info->err);
-  std::longjmp(error->escape, 1);
+  auto *callbacks = reinterpret_cast<JpegCallbacks *>(info->err);
+  std::longjmp(callbacks->escape, 1);
 }
 
 void jpeg_message(j_common_ptr info, int) {
@@ -50,11 +54,20 @@ void jpeg_message(j_common_ptr info, int) {
     jpeg_failure(info);
 }
 
-Decode read_jpeg(jpeg_decompress_struct &decoder, JpegError &error, const uint8_t *encoded,
+void jpeg_progress(j_common_ptr info) {
+  auto *callbacks = reinterpret_cast<JpegCallbacks *>(info->err);
+  if (!callbacks->checkpoint())
+    std::longjmp(callbacks->escape, jpeg_cancelled);
+}
+
+Decode read_jpeg(jpeg_decompress_struct &decoder, JpegCallbacks &callbacks, const uint8_t *encoded,
                  size_t length, uint16_t *&pixels, PhotoFraming &size, bool companion, DisplayMode mode,
                  P4JpegDecoder *hardware, bool &accelerated, PreparationCheckpoint checkpoint, PhotoOrientation orientation) {
-  if (setjmp(error.escape) != 0)
-    return error.manager.msg_code == JERR_OUT_OF_MEMORY ? Decode::NoMemory : Decode::Invalid;
+  if (const int status = setjmp(callbacks.escape); status != 0) {
+    if (status == jpeg_cancelled)
+      return Decode::Interrupted;
+    return callbacks.manager.msg_code == JERR_OUT_OF_MEMORY ? Decode::NoMemory : Decode::Invalid;
+  }
 
   jpeg_create_decompress(&decoder);
   jpeg_mem_src(&decoder, encoded, length);
@@ -87,8 +100,17 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegError &error, const uint8_
   }
   decoder.out_color_space = JCS_RGB;
   decoder.do_fancy_upsampling = FALSE;
+  // Libjpeg reads progressive scans inside jpeg_start_decompress. Its
+  // progress hook lets a swipe pause or cancel between MCU rows.
+  if (checkpoint.proceed && jpeg_has_multiple_scans(&decoder)) {
+    callbacks.checkpoint = checkpoint;
+    callbacks.progress.progress_monitor = jpeg_progress;
+    decoder.progress = &callbacks.progress;
+  }
   if (!jpeg_start_decompress(&decoder) || decoder.output_components != 3)
     return Decode::Invalid;
+  decoder.progress = nullptr;
+
   auto rows = decoder.mem->alloc_sarray(reinterpret_cast<j_common_ptr>(&decoder), JPOOL_IMAGE,
                                         decoder.output_width * 3, 1);
   const auto &crop = size.source;
@@ -96,6 +118,13 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegError &error, const uint8_
   const auto top = crop.y * decoder.output_height / decoder.image_height;
   const auto crop_width = std::max(1u, (crop.x + crop.width) * decoder.output_width / decoder.image_width - left);
   const auto crop_height = std::max(1u, (crop.y + crop.height) * decoder.output_height / decoder.image_height - top);
+  // Every row uses the same source columns. Compute their exact RGB byte
+  // offsets once, keeping the lookup off the worker's stack.
+  auto *column_offsets = static_cast<uint16_t *>(decoder.mem->alloc_small(
+      reinterpret_cast<j_common_ptr>(&decoder), JPOOL_IMAGE, size.width * sizeof(uint16_t)));
+  for (int x = 0; x < size.width; ++x)
+    column_offsets[x] = 3 * (left + x * crop_width / size.width);
+
   unsigned target_y = 0;
   while (decoder.output_scanline < decoder.output_height) {
     const unsigned source_y = decoder.output_scanline;
@@ -107,7 +136,7 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegError &error, const uint8_
            top + target_y * crop_height / size.height == source_y) {
       auto *line = pixels + target_y * size.width;
       for (int x = 0; x < size.width; ++x) {
-        const auto *rgb = rows[0] + (left + x * crop_width / size.width) * 3;
+        const auto *rgb = rows[0] + column_offsets[x];
         line[x] = static_cast<uint16_t>(((rgb[0] & 0xf8) << 8) | ((rgb[1] & 0xfc) << 3) | (rgb[2] >> 3));
       }
       ++target_y;
@@ -120,11 +149,11 @@ Decode decode_jpeg(const uint8_t *encoded, size_t length, uint16_t *&pixels, Pho
                    DisplayMode mode, P4JpegDecoder *hardware, bool &accelerated, PreparationCheckpoint checkpoint,
                    PhotoOrientation orientation) {
   jpeg_decompress_struct decoder{};
-  JpegError error{};
-  decoder.err = jpeg_std_error(&error.manager);
-  error.manager.error_exit = jpeg_failure;
-  error.manager.emit_message = jpeg_message;
-  const auto result = read_jpeg(decoder, error, encoded, length, pixels, size, companion, mode, hardware, accelerated,
+  JpegCallbacks callbacks{};
+  decoder.err = jpeg_std_error(&callbacks.manager);
+  callbacks.manager.error_exit = jpeg_failure;
+  callbacks.manager.emit_message = jpeg_message;
+  const auto result = read_jpeg(decoder, callbacks, encoded, length, pixels, size, companion, mode, hardware, accelerated,
                                 checkpoint, orientation);
   jpeg_destroy_decompress(&decoder);
   return result;
