@@ -5,7 +5,119 @@ import { button, connectFieldLabels, el, field, makeCollapsibleCard, selectFromO
 const PRODUCT_SETTINGS: Record<string, { options?: string[]; min?: number; max?: number }> = __ESPFRAME_NATIVE_PRODUCT_SETTINGS__;
 const TIMEZONES: string[] = __ESPFRAME_NATIVE_TIMEZONES__;
 const TIMEZONE_LABELS: Record<string, string> = __ESPFRAME_NATIVE_TIMEZONE_LABELS__;
-const apiClient = new EspframeApiClient(__ESPFRAME_NATIVE_CAPABILITIES_PATH__);
+const frameStatusPath = "/espframe/api/v1/status";
+
+interface NativeFrameStatus {
+  screen: string;
+  playback: string;
+  source: string;
+  immich: string;
+  notice: string;
+  restarting: boolean;
+}
+
+class NativeSettingsApi extends EspframeApiClient {
+  async getFrameStatus(): Promise<NativeFrameStatus | null> {
+    const capabilities = await this.negotiate();
+    if (capabilities?.status_path !== frameStatusPath) return null;
+    const payload = await this.requestJson(frameStatusPath, { cache: "no-store" }, "frame_status_failed");
+    if (!payload || typeof payload !== "object") throw new Error("invalid_frame_status");
+    const status = payload as Partial<NativeFrameStatus> & { api_version?: unknown };
+    if (status.api_version !== capabilities.api_version || typeof status.restarting !== "boolean" ||
+        typeof status.screen !== "string" || typeof status.playback !== "string" || typeof status.source !== "string" ||
+        typeof status.immich !== "string" || typeof status.notice !== "string") throw new Error("invalid_frame_status");
+    return status as NativeFrameStatus;
+  }
+}
+
+const apiClient = new NativeSettingsApi(__ESPFRAME_NATIVE_CAPABILITIES_PATH__);
+
+const frameStatusLabels: Record<string, [string, Record<string, string>]> = {
+  screen: ["Screen", { starting: "Starting", awake: "On", asleep: "Asleep" }],
+  playback: ["Playback", { setup: "Waiting for setup", loading: "Waiting for the first photo", showing: "Showing photos",
+    paused: "Paused" }],
+  source: ["Photo source", { none: "None selected", all: "All photos", favorites: "Favourites", album: "Album",
+    memories: "On This Day", custom: "Custom filters" }],
+  immich: ["Immich", { not_configured: "Setup required", waiting_for_network: "Waiting for network or time",
+    connecting: "Waiting for a response", responding: "Responding", rejected: "Access rejected",
+    unreachable: "Unreachable", request_failed: "Request failed" }],
+};
+
+const frameNotices: Record<string, string> = {
+  waiting_for_time: "Waiting for the frame’s clock to sync.",
+  memories_empty: "No On This Day photos in the selected window.",
+  memories_unavailable: "On This Day is unavailable. Check whether the Immich key can read memories.",
+  incomplete_filters: "Choose values for the enabled photo filters.",
+  unsupported_filters: "These filters require a newer Immich server.",
+  filters_unavailable: "Check the photo filters and try again.",
+  no_photos: "Immich returned no photos for this selection.",
+  waiting_for_pair: "Waiting for a matching portrait pair.",
+};
+
+function initNativeFrameStatus() {
+  const panel = document.getElementById("native-frame-status");
+  if (!panel) return;
+  const values = el("dl");
+  const fields = new Map<string, HTMLElement>();
+  for (const [key, [label]] of Object.entries(frameStatusLabels)) {
+    const row = el("div");
+    const title = el("dt");
+    title.textContent = label;
+    const value = el("dd");
+    value.dataset.statusField = key;
+    fields.set(key, value);
+    row.append(title, value);
+    values.append(row);
+  }
+  const notice = el("p", "native-frame-notice");
+  notice.setAttribute("role", "status");
+  notice.hidden = true;
+  panel.append(values, notice);
+
+  let timer: number | undefined;
+  let busy = false;
+  let supported = true;
+  const setNotice = (message: string) => {
+    if (notice.textContent !== message) notice.textContent = message;
+    notice.hidden = !message;
+  };
+  const visibilityChanged = () => {
+    window.clearTimeout(timer);
+    if (!document.hidden) void refresh();
+  };
+  const refresh = async () => {
+    if (document.hidden || busy || !supported) return;
+    busy = true;
+    try {
+      const status = await apiClient.getFrameStatus();
+      if (!status) {
+        supported = false;
+        panel.hidden = true;
+        document.removeEventListener("visibilitychange", visibilityChanged);
+        return;
+      }
+      for (const [key, value] of Object.entries(status)) {
+        const field = fields.get(key);
+        if (!field || typeof value !== "string") continue;
+        const label = frameStatusLabels[key][1][value];
+        if (field.textContent !== label) field.textContent = typeof label === "string" ? label : "Unknown";
+      }
+      const detail = frameNotices[status.notice];
+      setNotice(status.restarting ? "The frame is restarting." :
+        status.immich === "rejected" ? "Check the Immich API key and its permissions." : typeof detail === "string" ? detail : "");
+      values.hidden = status.restarting;
+      panel.hidden = false;
+    } catch (_) {
+      values.hidden = true;
+      setNotice("The frame is unavailable. Waiting to reconnect.");
+    } finally {
+      busy = false;
+      if (supported && !document.hidden) timer = window.setTimeout(refresh, 5000);
+    }
+  };
+  document.addEventListener("visibilitychange", visibilityChanged);
+  void refresh();
+}
 
 function delayMs(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -221,4 +333,5 @@ async function initNativeSettings() {
   }
 }
 
+initNativeFrameStatus();
 initNativeSettings();

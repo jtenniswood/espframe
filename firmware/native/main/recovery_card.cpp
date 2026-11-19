@@ -74,6 +74,8 @@ void draw_source_status(uint16_t *frame, const uint8_t *atlas, PhotoSourceStatus
     case PhotoSourceStatus::IncompleteFilters: message = "Choose filter values"; break;
     case PhotoSourceStatus::UnsupportedFilters: message = "Filters need Immich 3.2"; break;
     case PhotoSourceStatus::FiltersUnavailable: message = "Check photo filters"; break;
+    case PhotoSourceStatus::NoPhotos: message = "No photos found"; break;
+    case PhotoSourceStatus::WaitingForPair: message = "Waiting for a photo pair"; break;
     case PhotoSourceStatus::None: return;
   }
   card(frame, rotation, 48, 612, 396, 60);

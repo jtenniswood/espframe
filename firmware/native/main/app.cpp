@@ -203,6 +203,7 @@ class SlideLoader {
     SlideIndex next_photo;
     uint32_t connection;
     PhotoSourceStatus source_status;
+    ImmichResponse response;
     Result result;
     bool cancelled;
   };
@@ -247,6 +248,8 @@ class SlideLoader {
       this->live_ = true;
     } else {
       this->live_ = !esphome_trial && this->settings_.read() && this->settings_.has_immich();
+      if constexpr (!esphome_trial)
+        frame_status.configure(this->live_, this->settings_.photo_source.mode);
     }
     this->requests_ = xQueueCreate(1, sizeof(SlideCache::Lease));
     this->completed_ = xQueueCreate(1, sizeof(Completion));
@@ -317,7 +320,7 @@ class SlideLoader {
           std::reverse(lease.pixels, lease.pixels + pixel_count);
       }
       const Completion completion{lease, loader.source_.first_slide(), loader.source_.next_slide(), connection,
-                                  loader.source_.source_status(), result,
+                                  loader.source_.source_status(), loader.source_.response(), result,
                                   result != Result::Ready && loader.cancelled_.load()};
       xQueueSend(loader.completed_, &completion, portMAX_DELAY);
     }
@@ -403,6 +406,7 @@ void run(void *) {
   PixelPosition last_submitted = -1;
   PixelPosition last_inside = -1;
   bool backlight_ready = false;
+  bool showed_photo = false;
   bool user_motion = false;
   // Slide zero is the startup scene, so only negative indices mean no job.
   SlideIndex preparing = -1;
@@ -439,8 +443,16 @@ void run(void *) {
           input.sleep(swipe);
         applied_brightness = input.awake() ? brightness : 0;
         display.init_backlight(applied_brightness);
+        if constexpr (!esphome_trial)
+          frame_status.set_screen(applied_brightness != 0);
         backlight_ready = true;
         ESP_LOGI(tag, "Player ready (background %s preparation)", live && !trial_fixtures ? "Immich" : "fixture");
+      }
+      if constexpr (!esphome_trial) {
+        if (live && !showed_photo && display.presented_position() >= slide_width) {
+          frame_status.presented_photo();
+          showed_photo = true;
+        }
       }
       if (submitted_motion_us != 0) {
         const auto motion_us = *scanout - submitted_motion_us;
@@ -486,6 +498,10 @@ void run(void *) {
       first_photo = completion.first_photo;
       next_photo = completion.next_photo;
       source_status = completion.source_status;
+      if constexpr (!esphome_trial) {
+        if (live && slide > 0 && !completion.cancelled)
+          frame_status.finish_preparation(ready ? PhotoSourceStatus::None : source_status, completion.response);
+      }
       preparing = -1;
     }
     const auto center = swipe.settled();
@@ -567,6 +583,10 @@ void run(void *) {
       const uint8_t target = awake ? brightness : 0;
       if (target != applied_brightness) {
         display.set_backlight(target);
+        if constexpr (!esphome_trial) {
+          if ((target == 0) != (applied_brightness == 0))
+            frame_status.set_screen(target != 0);
+        }
         applied_brightness = target;
       }
     }

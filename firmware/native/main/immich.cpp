@@ -76,14 +76,20 @@ bool ImmichSource::allocate_download_() {
 }
 
 int ImmichSource::fetch_(std::string_view path, std::string_view body, size_t limit, size_t &received,
-                         int64_t deadline_us) {
+                         int64_t deadline_us, bool report_response) {
   if (!online_()) {
     received = 0;
     return 0;
   }
   std::string url = this->settings_.immich_url;
   url += path;
-  return this->http_.read(url, this->settings_.immich_key.c_str(), body, {this->encoded_, limit}, received, deadline_us);
+  const int status = this->http_.read(url, this->settings_.immich_key.c_str(), body, {this->encoded_, limit},
+                                      received, deadline_us);
+  if constexpr (!SWIPE_ESPHOME_TRIAL) {
+    if (report_response && !cancelled_)
+      this->response_ = immich_response(status);
+  }
+  return status;
 }
 
 bool ImmichSource::select_search_api_(PhotoSourceMode mode) {
@@ -147,7 +153,8 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
   if (request.path.empty())
     return {};
   size_t length;
-  int status = this->fetch_(request.path, request.body, search_capacity, length, deadline_us);
+  int status = this->fetch_(request.path, request.body, search_capacity, length, deadline_us,
+                            !pairing || this->settings_.requires_portrait_pair());
   if (!pairing && status == 413 && count > 4) {
     count = 4;
     if (album_page) {
@@ -181,9 +188,13 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
     record_live_trial_search(pairing, status, response.photos.size());
   if (album_page && response.valid)
     album_page->page = response.next_page > page ? response.next_page : 1;
-  if (!pairing && response.photos.empty() && (custom || (this->settings_.photo_orientation != PhotoOrientation::Any &&
-                                                        this->settings_.photo_source.mode != PhotoSourceMode::Memories)))
-    this->source_status_ = PhotoSourceStatus::FiltersUnavailable;
+  if constexpr (!SWIPE_ESPHOME_TRIAL) {
+    if (!pairing && !response.valid && !cancelled_)
+      this->response_ = ImmichResponse::RequestFailed;
+  }
+  if (!pairing && response.valid && response.photos.empty() && this->settings_.photo_source.mode != PhotoSourceMode::Memories)
+    this->source_status_ = custom || this->settings_.photo_orientation != PhotoOrientation::Any
+                              ? PhotoSourceStatus::FiltersUnavailable : PhotoSourceStatus::NoPhotos;
   return std::move(response.photos);
 }
 
@@ -287,8 +298,11 @@ bool ImmichSource::next_asset_(ImmichPhoto &asset) {
     return false;
   if (this->pending_.empty()) {
     this->pending_ = memory_mode ? this->memories_() : this->search_(source);
-    if (this->settings_.requires_portrait_pair())
-      std::erase_if(this->pending_, [](const ImmichPhoto &photo) { return !can_start_portrait_pair(photo); });
+    if (this->settings_.requires_portrait_pair()) {
+      const auto removed = std::erase_if(this->pending_, [](const ImmichPhoto &photo) { return !can_start_portrait_pair(photo); });
+      if (removed != 0 && this->pending_.empty())
+        this->source_status_ = PhotoSourceStatus::WaitingForPair;
+    }
     if (this->pending_.empty())
       return false;
     if (this->pending_is_paged_) {
@@ -387,7 +401,7 @@ bool ImmichSource::wait_for_pixel_work_() const {
 }
 
 ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, DecodedPreview &preview,
-                                                        bool for_pair, int64_t deadline_us) {
+                                                        bool for_pair, int64_t deadline_us, bool report_response) {
   if (this->cancelled_)
     return PreviewStatus::Retry;
   const bool optional = deadline_us != 0;
@@ -436,7 +450,7 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
   const auto request_us = esp_timer_get_time();
   size_t length = 0;
   const auto path = std::string("/assets/") + id.data() + "/thumbnail?size=preview";
-  const int status = this->fetch_(path, {}, photo_capacity, length, deadline_us);
+  const int status = this->fetch_(path, {}, photo_capacity, length, deadline_us, report_response);
   const auto decode_us = esp_timer_get_time();
   if constexpr (SWIPE_TRIAL_IMMICH) {
     record_live_trial_preview(status);
@@ -525,6 +539,8 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
 
 ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
   const TrialStageTimer attempt{TrialPreparationStage::Attempt};
+  if constexpr (!SWIPE_ESPHOME_TRIAL)
+    this->response_ = ImmichResponse::Pending;
   if (this->cancelled_)
     return PrepareResult::Retry;
   const bool new_position = slide == this->history_.next();
@@ -541,8 +557,11 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     const TrialStageTimer selection{TrialPreparationStage::Selection};
     if (!this->next_asset_(seed))
       return PrepareResult::Retry;
-    if (pairs_only && !this->select_pair_(seed, frame.companion))
+    if (pairs_only && !this->select_pair_(seed, frame.companion)) {
+      if (!cancelled_)
+        this->source_status_ = PhotoSourceStatus::WaitingForPair;
       return PrepareResult::Retry;
+    }
     frame.primary = seed.id;
     frame.metadata = seed.metadata;
   }
@@ -580,7 +599,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   std::optional<TrialStageTimer> composition;
   if (!prepared) {
     DecodedPreview primary;
-    const auto status = this->load_preview_(frame.primary, primary, pairs_only);
+    const auto status = this->load_preview_(frame.primary, primary, pairs_only, 0, true);
     if (this->cancelled_ || status == PreviewStatus::Retry)
       return retry_frame();
     if (status == PreviewStatus::Missing || (pairs_only && !primary.portrait()))
@@ -595,7 +614,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
 
     DecodedPreview companion;
     if (frame.companion[0] != '\0' && primary.portrait()) {
-      const auto right = this->load_preview_(frame.companion, companion, true, pair_deadline_us);
+      const auto right = this->load_preview_(frame.companion, companion, true, pair_deadline_us, pairs_only);
       if (right == PreviewStatus::Retry && (remembered || pairs_only))
         return retry_frame();
       if (pairs_only && (right == PreviewStatus::Missing || !companion.portrait()))

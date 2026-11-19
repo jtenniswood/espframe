@@ -46,7 +46,8 @@ int main(int argc, char **argv) {
 
   for (auto status : {PhotoSourceStatus::WaitingForTime, PhotoSourceStatus::MemoriesEmpty,
                       PhotoSourceStatus::MemoriesUnavailable, PhotoSourceStatus::IncompleteFilters,
-                      PhotoSourceStatus::UnsupportedFilters, PhotoSourceStatus::FiltersUnavailable}) {
+                      PhotoSourceStatus::UnsupportedFilters, PhotoSourceStatus::FiltersUnavailable,
+                      PhotoSourceStatus::NoPhotos, PhotoSourceStatus::WaitingForPair}) {
     std::fill(normal.begin(), normal.end(), photo);
     std::fill(inverted.begin(), inverted.end(), photo);
     draw_source_status(normal.data(), atlas.data(), status, ScreenRotation::Normal);

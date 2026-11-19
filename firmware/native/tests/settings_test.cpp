@@ -1,4 +1,5 @@
 #include "cJSON.h"
+#include "frame_status.h"
 #include "native_configuration.h"
 #include "nvs.h"
 #include "nvs_flash.h"
@@ -523,4 +524,43 @@ int main() {
       std::string_view("Portrait Only"));
   assert(!reset_configuration(ResetMode::Customization).error);
   assert(current.read() && current.photo_orientation == PhotoOrientation::Any);
+
+  using espframe::native::frame_status_snapshot;
+  using espframe::native::FrameStatusStore;
+  using espframe::native::ImmichResponse;
+  using espframe::native::immich_response;
+  using espframe::native::PhotoSourceStatus;
+  FrameStatusStore status;
+  assert(std::string_view(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(capabilities.get(), "status_path"))) ==
+         "/espframe/api/v1/status");
+  const auto expect_status = [&](bool online, bool restarting, const char *screen, const char *playback,
+                                 const char *source, const char *immich, const char *notice) {
+    const Json output(frame_status_snapshot(status.read(), online, restarting), cJSON_Delete);
+    assert(cJSON_GetArraySize(output.get()) == 7);
+    const auto field = [&](const char *name) {
+      const auto *value = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(output.get(), name));
+      assert(value);
+      return std::string_view(value);
+    };
+    assert(field("screen") == screen && field("playback") == playback && field("source") == source);
+    assert(field("immich") == immich && field("notice") == notice);
+    assert(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(output.get(), "restarting")) == restarting);
+  };
+  expect_status(false, false, "starting", "setup", "none", "not_configured", "none");
+  status.configure(true, PhotoSourceMode::Memories);
+  expect_status(false, false, "starting", "loading", "memories", "waiting_for_network", "none");
+  status.set_screen(true);
+  expect_status(true, false, "awake", "loading", "memories", "connecting", "none");
+  status.finish_preparation(PhotoSourceStatus::MemoriesUnavailable, immich_response(401));
+  expect_status(true, false, "awake", "loading", "memories", "rejected", "memories_unavailable");
+  assert(immich_response(403) == ImmichResponse::Rejected && immich_response(503) == ImmichResponse::RequestFailed);
+  status.finish_preparation(PhotoSourceStatus::None, immich_response(0));
+  expect_status(true, false, "awake", "loading", "memories", "unreachable", "none");
+  status.finish_preparation(PhotoSourceStatus::None, immich_response(200));
+  expect_status(true, false, "awake", "loading", "memories", "responding", "none");
+  status.presented_photo();
+  status.finish_preparation(PhotoSourceStatus::WaitingForPair, ImmichResponse::Pending);
+  expect_status(true, false, "awake", "showing", "memories", "responding", "waiting_for_pair");
+  status.set_screen(false);
+  expect_status(true, true, "asleep", "paused", "memories", "responding", "waiting_for_pair");
 }

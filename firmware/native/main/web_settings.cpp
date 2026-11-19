@@ -1,6 +1,7 @@
 #include "web_settings.h"
 #include "configuration_contract_generated.h"
 #include "firmware_update.h"
+#include "frame_status.h"
 #include "native_configuration.h"
 #include "native_network.h"
 
@@ -18,6 +19,7 @@
 #include <array>
 #include <cstdio>
 #include <cstring>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -305,6 +307,15 @@ esp_err_t configuration(httpd_req_t *request) {
   return send_configuration(request, document.get());
 }
 
+esp_err_t status(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(
+      frame_status_snapshot(frame_status.read(), network(request).photo_connection() != 0,
+                            esp_timer_is_active(restart_timer)), cJSON_Delete);
+  return send_configuration(request, document.get());
+}
+
 esp_err_t configuration_reply(httpd_req_t *request, const ConfigurationUpdate &result) {
   const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> body(cJSON_CreateObject(), cJSON_Delete);
   if (!body ||
@@ -455,12 +466,7 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
   config.lru_purge_enable = true;
   config.stack_size = 6144;
   config.max_open_sockets = 4;
-  config.max_uri_handlers = 20;
   config.recv_wait_timeout = 3;
-  if (httpd_start(&server, &config) != ESP_OK) {
-    esp_timer_delete(restart_timer);
-    return false;
-  }
 
   const httpd_uri_t routes[]{
       {.uri = "/", .method = HTTP_GET, .handler = page, .user_ctx = &network},
@@ -475,6 +481,7 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       {.uri = "/api/playback", .method = HTTP_GET, .handler = current, .user_ctx = &network},
       {.uri = "/api/playback", .method = HTTP_POST, .handler = update, .user_ctx = &network},
       {.uri = contract::CAPABILITIES_PATH, .method = HTTP_GET, .handler = capabilities, .user_ctx = &network},
+      {.uri = frame_status_path, .method = HTTP_GET, .handler = status, .user_ctx = &network},
       {.uri = contract::CONFIGURATION_PATH, .method = HTTP_GET, .handler = configuration, .user_ctx = &network},
       {.uri = contract::CONFIGURATION_PATH, .method = HTTP_POST, .handler = save_configuration, .user_ctx = &network},
       {.uri = contract::RESET_PATH, .method = HTTP_GET, .handler = reset_status, .user_ctx = &network},
@@ -484,6 +491,11 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       {.uri = "/api/recovery", .method = HTTP_GET, .handler = recovery_status, .user_ctx = &network},
       {.uri = "/api/recovery", .method = HTTP_POST, .handler = recover_wifi, .user_ctx = &network},
   };
+  config.max_uri_handlers = std::size(routes);
+  if (httpd_start(&server, &config) != ESP_OK) {
+    esp_timer_delete(restart_timer);
+    return false;
+  }
   for (const auto &route : routes) {
     if (httpd_register_uri_handler(server, &route) != ESP_OK) {
       httpd_stop(server);

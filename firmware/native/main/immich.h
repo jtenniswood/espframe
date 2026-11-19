@@ -1,6 +1,7 @@
 #pragma once
 
 #include "daylight.h"
+#include "frame_status.h"
 #include "immich_http.h"
 #include "immich_selection.h"
 #include "p4_jpeg_decoder.h"
@@ -35,6 +36,7 @@ class ImmichSource {
   SlideIndex first_slide() const { return this->history_.first(); }
   SlideIndex next_slide() const { return this->history_.next(); }
   PhotoSourceStatus source_status() const { return this->source_status_; }
+  ImmichResponse response() const { return this->response_; }
 
  private:
   enum class PreviewStatus { Ready, Missing, Retry };
@@ -46,7 +48,8 @@ class ImmichSource {
   bool online_();
   bool allocate_download_();
   bool select_search_api_(PhotoSourceMode mode);
-  int fetch_(std::string_view path, std::string_view body, size_t limit, size_t &received, int64_t deadline_us = 0);
+  int fetch_(std::string_view path, std::string_view body, size_t limit, size_t &received, int64_t deadline_us = 0,
+             bool report_response = true);
   std::vector<ImmichPhoto> search_(const PhotoSource &source, std::optional<std::chrono::sys_days> local_day = {},
                                   int64_t deadline_us = 0);
   bool update_capture_dates_();
@@ -58,7 +61,8 @@ class ImmichSource {
   AssetId companion_for_(const ImmichPhoto &primary, int64_t deadline_us);
   void discard_candidate_(const AssetId &id);
   bool wait_for_pixel_work_() const;
-  PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, bool for_pair, int64_t deadline_us = 0);
+  PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, bool for_pair, int64_t deadline_us,
+                              bool report_response);
   bool render_cached_prepared_(SlideIndex slide, uint16_t *panel);
   PreparedPreview render_prepared_(const PhotoSlide &frame, uint16_t *panel);
 
@@ -97,6 +101,7 @@ class ImmichSource {
   bool using_memory_fallback_{};
   bool memory_response_too_large_{};
   PhotoSourceStatus source_status_{PhotoSourceStatus::None};
+  ImmichResponse response_{ImmichResponse::Pending};
 };
 
 }  // namespace espframe::native

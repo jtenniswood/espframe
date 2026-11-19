@@ -1,6 +1,7 @@
 #include "native_configuration.h"
 
 #include "configuration_contract_generated.h"
+#include "frame_status.h"
 #include "settings.h"
 
 #include "cJSON.h"
@@ -83,6 +84,45 @@ bool bounded_configuration(std::string_view json) {
   return true;
 }
 
+const char *screen_state_name(ScreenState state) {
+  switch (state) {
+    case ScreenState::Awake: return "awake";
+    case ScreenState::Asleep: return "asleep";
+    case ScreenState::Starting: return "starting";
+  }
+  return "starting";
+}
+
+const char *immich_state(const FrameStatus &status, bool network_ready) {
+  if (!status.configured)
+    return "not_configured";
+  if (!network_ready)
+    return "waiting_for_network";
+  switch (status.contact) {
+    case ImmichResponse::Pending: return "connecting";
+    case ImmichResponse::Responding: return "responding";
+    case ImmichResponse::Rejected: return "rejected";
+    case ImmichResponse::Unreachable: return "unreachable";
+    case ImmichResponse::RequestFailed: return "request_failed";
+  }
+  return "connecting";
+}
+
+const char *photo_notice_name(PhotoSourceStatus notice) {
+  switch (notice) {
+    case PhotoSourceStatus::None: return "none";
+    case PhotoSourceStatus::WaitingForTime: return "waiting_for_time";
+    case PhotoSourceStatus::MemoriesEmpty: return "memories_empty";
+    case PhotoSourceStatus::MemoriesUnavailable: return "memories_unavailable";
+    case PhotoSourceStatus::IncompleteFilters: return "incomplete_filters";
+    case PhotoSourceStatus::UnsupportedFilters: return "unsupported_filters";
+    case PhotoSourceStatus::FiltersUnavailable: return "filters_unavailable";
+    case PhotoSourceStatus::NoPhotos: return "no_photos";
+    case PhotoSourceStatus::WaitingForPair: return "waiting_for_pair";
+  }
+  return "none";
+}
+
 }  // namespace
 
 cJSON *configuration_capabilities() {
@@ -91,6 +131,7 @@ cJSON *configuration_capabilities() {
       !cJSON_AddNumberToObject(body.get(), "contract_version", contract::CONTRACT_VERSION) ||
       !cJSON_AddNumberToObject(body.get(), "api_version", contract::API_VERSION) ||
       !cJSON_AddStringToObject(body.get(), "configuration_path", contract::CONFIGURATION_PATH) ||
+      !cJSON_AddStringToObject(body.get(), "status_path", frame_status_path) ||
       !cJSON_AddStringToObject(body.get(), "reset_path", contract::RESET_PATH) ||
       !cJSON_AddStringToObject(body.get(), "update_mode", "atomic") ||
       !cJSON_AddBoolToObject(body.get(), "configuration_available", true) ||
@@ -107,6 +148,21 @@ cJSON *configuration_capabilities() {
       return nullptr;
     name.release();
   }
+  return body.release();
+}
+
+cJSON *frame_status_snapshot(const FrameStatus &status, bool network_ready, bool restarting) {
+  Json body(cJSON_CreateObject(), cJSON_Delete);
+  const char *playback = !status.configured ? "setup" : status.screen == ScreenState::Asleep ? "paused"
+                                           : status.showed_photo ? "showing" : "loading";
+  if (!body || !cJSON_AddNumberToObject(body.get(), "api_version", contract::API_VERSION) ||
+      !cJSON_AddStringToObject(body.get(), "screen", screen_state_name(status.screen)) ||
+      !cJSON_AddStringToObject(body.get(), "playback", playback) ||
+      !cJSON_AddStringToObject(body.get(), "source", status.configured ? photo_source_name(status.source) : "none") ||
+      !cJSON_AddStringToObject(body.get(), "immich", immich_state(status, network_ready)) ||
+      !cJSON_AddStringToObject(body.get(), "notice", photo_notice_name(status.notice)) ||
+      !cJSON_AddBoolToObject(body.get(), "restarting", restarting))
+    return nullptr;
   return body.release();
 }
 

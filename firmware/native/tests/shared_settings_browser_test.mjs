@@ -47,6 +47,7 @@ const testScript = `
     check(getComputedStyle(document.body).getPropertyValue('--bg').trim(), 'Shared styles did not load')
     check(getComputedStyle(save.parentElement).position === 'sticky', 'Save controls are not kept in view')
     check(save.getBoundingClientRect().bottom <= window.innerHeight, 'Save is initially off screen')
+    check(document.querySelector('#native-frame-status').hidden, 'Older firmware showed an unsupported status panel')
     check(document.querySelector('a[href="/settings"]'), 'Photo source and firmware tools are unreachable')
     const edit = (name, value) => {
       field(name).value = value
@@ -101,6 +102,7 @@ const testScript = `
 `
 
 const settingsPath = '/espframe/api/v1/configuration'
+const statusPath = '/espframe/api/v1/status'
 const capabilities = {
   contract_version: 2, api_version: 1, configuration_path: settingsPath, update_mode: 'atomic',
   configuration_available: true, configuration_read: true, configuration_write: true, legacy_entity_api: false,
@@ -122,9 +124,56 @@ const assets = {
   '/espframe/native.css': ['text/css', nativeStyle],
   '/verify.js': ['text/javascript', testScript],
 }
+const statusTest = `
+  const panel = document.querySelector('#native-frame-status')
+  const field = name => panel.querySelector('[data-status-field="' + name + '"]').textContent
+  const notice = () => panel.querySelector('[role=status]').textContent
+  let tabHidden = false
+  Object.defineProperty(document, 'hidden', {get: () => tabHidden})
+  function visibility(hidden) {
+    tabHidden = hidden
+    document.dispatchEvent(new Event('visibilitychange'))
+  }
+  function waitFor(check) {
+    return new Promise(resolve => {
+      const observer = new MutationObserver(() => {
+        if (!check()) return
+        observer.disconnect()
+        resolve()
+      })
+      observer.observe(panel, {attributes: true, subtree: true, childList: true})
+      if (check()) { observer.disconnect(); resolve() }
+    })
+  }
+  async function verify() {
+    await waitFor(() => !panel.hidden && field('playback') === 'Waiting for setup')
+    if (panel.scrollWidth > panel.clientWidth) throw new Error('The frame status overflows the mobile layout')
+    visibility(true)
+    await new Promise(resolve => setTimeout(resolve, 5500))
+    if (field('playback') !== 'Waiting for setup') throw new Error('The hidden tab kept polling')
+    visibility(false)
+    await waitFor(() => field('immich') === 'Access rejected')
+    if (!notice().includes('Check the Immich API key')) throw new Error('A key error was hidden by a filter notice')
+    await waitFor(() => notice().includes('Waiting to reconnect'))
+    if (!panel.querySelector('dl').hidden) throw new Error('A disconnected frame showed stale values')
+    await waitFor(() => field('screen') === 'Asleep')
+    if (field('playback') !== 'Paused' || field('source') !== 'On This Day' || notice())
+      throw new Error('The recovered frame status is wrong')
+    await waitFor(() => field('playback') === 'Showing photos')
+    if (field('screen') !== 'On' || field('immich') !== 'Responding') throw new Error('The frame did not recover')
+    visibility(true)
+    document.body.dataset.statusTest = 'passed'
+  }
+  verify().catch(error => { document.body.dataset.statusTest = error.message })
+`
+assets['/status-test'] = ['text/html', html.replace('</body>', '<script defer src="/verify-status.js"></script></body>')]
+assets['/verify-status.js'] = ['text/javascript', statusTest]
+
 const requests = []
 let reconnectFailures = 0
 let disconnected = false
+let withStatus = false
+let statusRequests = 0
 const server = createServer(async (request, response) => {
   const json = (status, value) => response.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(value))
   if (request.url in assets) {
@@ -134,7 +183,23 @@ const server = createServer(async (request, response) => {
       'Content-Security-Policy': "default-src 'self'; frame-ancestors 'none'; form-action 'none'",
     }).end(body)
   } else if (request.url === '/espframe/api/v1/capabilities') {
-    json(200, capabilities)
+    json(200, withStatus ? { ...capabilities, status_path: statusPath } : capabilities)
+  } else if (request.url === statusPath) {
+    assert.equal(request.method, 'GET')
+    assert.equal(request.headers['cache-control'], 'no-cache')
+    statusRequests++
+    const base = { api_version: 1, restarting: false, notice: 'none' }
+    if (statusRequests === 1) {
+      json(200, { ...base, screen: 'starting', playback: 'setup', source: 'none', immich: 'not_configured' })
+    } else if (statusRequests === 2) {
+      json(200, { ...base, screen: 'awake', playback: 'loading', source: 'custom', immich: 'rejected', notice: 'filters_unavailable' })
+    } else if (statusRequests === 3) {
+      json(503, { error: 'restarting' })
+    } else {
+      const asleep = statusRequests === 4
+      json(200, { ...base, screen: asleep ? 'asleep' : 'awake', playback: asleep ? 'paused' : 'showing',
+        source: 'memories', immich: 'responding' })
+    }
   } else if (request.url === settingsPath && request.method === 'POST') {
     assert.equal(request.headers.origin, `http://127.0.0.1:${server.address().port}`)
     assert.equal(request.headers['content-type'], 'application/x-www-form-urlencoded')
@@ -164,11 +229,10 @@ const server = createServer(async (request, response) => {
   }
 })
 
-await new Promise((resolve, reject) => server.listen(0, '127.0.0.1', resolve).once('error', reject))
-try {
+async function render(path, budget) {
   const chrome = spawn(process.env.CHROME_BIN || 'google-chrome', [
     '--headless', '--no-sandbox', '--disable-gpu', '--disable-background-networking', '--window-size=375,690', '--dump-dom',
-    '--virtual-time-budget=10000', `http://127.0.0.1:${server.address().port}/`,
+    `--virtual-time-budget=${budget}`, `http://127.0.0.1:${server.address().port}${path}`,
   ], { signal: AbortSignal.timeout(18_000) })
   let page = ''
   let errors = ''
@@ -178,6 +242,12 @@ try {
     chrome.once('error', reject)
     chrome.once('close', code => code === 0 ? resolve() : reject(new Error(errors)))
   })
+  return { page, errors }
+}
+
+await new Promise((resolve, reject) => server.listen(0, '127.0.0.1', resolve).once('error', reject))
+try {
+  const { page, errors } = await render('/', 10000)
   assert.match(page, /data-test-result="passed"/, page.match(/data-test-result="[^"]*"/)?.[0] || errors)
   assert.doesNotMatch(page, /replacement\+value/)
   assert.doesNotMatch(page, /service-token-for-browser-regression-test/)
@@ -194,7 +264,13 @@ try {
     },
   ])
   assert.equal(reconnectFailures, 1)
+  assert.equal(statusRequests, 0)
   console.log('Shared settings load on the native page, batch edits and recover after restart')
+  withStatus = true
+  const result = await render('/status-test', 32000)
+  assert.match(result.page, /data-status-test="passed"/, result.page.match(/data-status-test="[^"]*"/)?.[0] || result.errors)
+  assert.equal(statusRequests, 5)
+  console.log('Frame status reports setup, key rejection, sleep and recovery, and pauses while hidden')
 } finally {
   server.close()
 }

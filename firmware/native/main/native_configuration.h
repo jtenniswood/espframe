@@ -10,6 +10,7 @@ struct cJSON;
 namespace espframe::native {
 
 struct Settings;
+struct FrameStatus;
 enum class ResetMode;
 
 struct ConfigurationUpdate {
@@ -21,6 +22,7 @@ struct ConfigurationUpdate {
 
 cJSON *configuration_capabilities();
 cJSON *configuration_snapshot(const Settings &settings);
+cJSON *frame_status_snapshot(const FrameStatus &status, bool network_ready, bool restarting);
 std::optional<std::string> decode_configuration_form(std::string_view form);
 ConfigurationUpdate update_configuration(const char *json);
 std::optional<ResetMode> decode_reset_form(std::string_view form);

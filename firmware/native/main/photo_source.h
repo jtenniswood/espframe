@@ -9,7 +9,8 @@ namespace espframe::native {
 
 enum class PhotoSourceMode { Library, Favorites, Album, Memories, Custom };
 enum class PhotoSourceStatus : uint8_t {
-  None, WaitingForTime, MemoriesEmpty, MemoriesUnavailable, IncompleteFilters, UnsupportedFilters, FiltersUnavailable
+  None, WaitingForTime, MemoriesEmpty, MemoriesUnavailable, IncompleteFilters, UnsupportedFilters, FiltersUnavailable,
+  NoPhotos, WaitingForPair
 };
 
 inline constexpr std::array<std::string_view, 5> memory_windows{
