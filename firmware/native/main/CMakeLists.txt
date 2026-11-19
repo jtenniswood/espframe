@@ -45,7 +45,8 @@ else()
 endif()
 target_compile_definitions(${COMPONENT_LIB} PRIVATE NATIVE_BOARD="${SWIPE_BOARD}" SWIPE_TRACE=$<BOOL:${SWIPE_TRACE}>
                                                    SWIPE_ESPHOME_TRIAL=$<BOOL:${SWIPE_ESPHOME_TRIAL}>
-                                                   SWIPE_TRIAL_IMMICH=$<BOOL:${SWIPE_TRIAL_IMMICH}>)
+                                                   SWIPE_TRIAL_IMMICH=$<BOOL:${SWIPE_TRIAL_IMMICH}>
+                                                   SWIPE_TRIAL_BENCHMARK=$<BOOL:${SWIPE_TRIAL_BENCHMARK}>)
 
 idf_build_get_property(python PYTHON)
 add_custom_command(

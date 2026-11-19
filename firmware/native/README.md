@@ -338,6 +338,34 @@ codes, and candidate counts. `candidate_retries` counts times a preview was
 rejected and another candidate was already available, so the player could
 retry that slide after 100 ms. ESPHome returns automatically after five minutes.
 
+#### Measure swipe rendering over the local network
+
+The separate V1 benchmark runs 48 scripted drags in both directions through
+real Immich photos. It waits for the neighbouring slide to be in the cache
+before each drag and continues far enough for the preparation worker to fetch
+new photos. The usual touch reader runs, and the scripted reports take the
+place of physical reports for this five-minute trial.
+
+```sh
+idf.py -C firmware/native -B firmware/native/build/esphome-benchmark-v1 \
+  -D SWIPE_BOARD=v1 -D SWIPE_ESPHOME_TRIAL=ON -D SWIPE_TRIAL_IMMICH=ON \
+  -D SWIPE_TRIAL_BENCHMARK=ON build
+```
+
+Use the same ESPHome rollback readiness check before uploading the app-only
+`espframe_v1_swipe_benchmark.bin`. The CI artifact is named
+`native-v1-esphome-swipe-benchmark`. While the trial is active,
+`/api/trial/benchmark` reports landed destinations, cache hits, and the
+number and worst duration of first movements and drag gaps. It counts
+movement-to-LCD-handoff samples over 50 ms and drag gaps beyond one and a
+half nominal refresh periods. The busy counts cover first motion submitted
+while a preparation lease was active and drag gaps whose two ends overlapped
+preparation. Save the response before the automatic return to ESPHome.
+
+The measurements start at a scripted report and end at an LCD DMA handoff.
+Use the regular live trial with physical touch and high-frame-rate video to
+check sensor response, visible animation pacing, and tearing.
+
 #### Verify the rollback and gestures
 
 The demo checks the running partition map and the previous ESPHome app before

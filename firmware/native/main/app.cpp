@@ -46,6 +46,7 @@ constexpr int player_core = 1;
 constexpr int loader_core = 0;
 constexpr UBaseType_t player_priority = 4;
 constexpr bool trace_enabled = SWIPE_TRACE;
+constexpr bool capture_motion = SWIPE_TRACE || SWIPE_TRIAL_BENCHMARK;
 constexpr bool esphome_trial = SWIPE_ESPHOME_TRIAL;
 constexpr bool trial_immich = SWIPE_TRIAL_IMMICH;
 extern const uint8_t clock_atlas[] asm("_binary_clock_glyphs_bin_start");
@@ -382,7 +383,7 @@ void run(void *) {
     loader.start_network();
   const auto submit_frame = [&](PixelPosition position, bool moving = true) {
     display.submit(position);
-    if constexpr (trace_enabled)
+    if constexpr (capture_motion)
       submitted_stamp = moving ? motion_epoch.stamp(preparing.has_value()) : MotionStamp{};
   };
   SlideIndex first_photo = 1;
@@ -408,14 +409,21 @@ void run(void *) {
         ESP_LOGI(tag, "Player ready (background %s preparation)", live ? "Immich" : "fixture");
       }
       if (submitted_motion_us != 0) {
+        const auto motion_us = *scanout - submitted_motion_us;
         if constexpr (trial_immich)
-          record_live_trial_gesture(static_cast<uint32_t>(*scanout - submitted_motion_us));
+          record_live_trial_gesture(static_cast<uint32_t>(motion_us));
+#if SWIPE_TRIAL_BENCHMARK
+        record_live_trial_benchmark_gesture(static_cast<uint32_t>(motion_us), first_motion);
+#endif
         if constexpr (trace_enabled)
           trace.gesture(*scanout, first_motion);
         else
-          loader.report_gesture({*scanout - submitted_motion_us, motion_render_us});
+          loader.report_gesture({motion_us, motion_render_us});
         submitted_motion_us = 0;
       }
+#if SWIPE_TRIAL_BENCHMARK
+      record_live_trial_benchmark_frame(*scanout, submitted_stamp, Display::nominal_frame_period_us());
+#endif
       if constexpr (trace_enabled)
         trace.frame(*scanout, submitted_stamp);
     }
@@ -466,7 +474,23 @@ void run(void *) {
     swipe.set_ready_range(ready_first, ready_last);
 
     TouchReport report;
-    while (touch.poll(report)) {
+    const auto next_report = [&] {
+#if SWIPE_TRIAL_BENCHMARK
+      // Keep the touch reader running at its normal cadence during this test.
+      while (touch.poll(report)) {
+      }
+      const bool at_rest = backlight_ready && input.awake() && !input.engaged() && swipe.idle() &&
+                           !fade.running() && !fade.held() && display.presented_position() == center * slide_width;
+      if (const auto sample = poll_live_trial_benchmark(esp_timer_get_time(), center, {ready_first, ready_last}, at_rest)) {
+        report = *sample;
+        return true;
+      }
+      return false;
+#else
+      return touch.poll(report);
+#endif
+    };
+    while (next_report()) {
       if (!backlight_ready)
         continue;
       if (report.valid) {
@@ -475,13 +499,13 @@ void run(void *) {
         if (report.contacts != 0 && fade.running()) {
           if (fade.interrupt(snapshot != nullptr))
             pin_fade();
-          if constexpr (trace_enabled)
+          if constexpr (capture_motion)
             motion_epoch.update(MotionPhase::Still);
         }
       }
       const bool was_dragging = swipe.dragging();
       const auto effect = input.update(swipe, report, display.handoff_position());
-      if constexpr (trace_enabled) {
+      if constexpr (capture_motion) {
         if (was_dragging && !swipe.dragging())
           motion_epoch.update(MotionPhase::Still);
       }
@@ -524,7 +548,7 @@ void run(void *) {
         clock.restore_blend(output, cache.find(fade.target()), pending_opacity);
       clock.draw(output, true);
       clock_dirty = false;
-      if constexpr (trace_enabled)
+      if constexpr (capture_motion)
         motion_epoch.update(MotionPhase::Crossfade);
       submit_frame(fade.anchor() * slide_width);
       recovery_painted = false;
@@ -587,7 +611,7 @@ void run(void *) {
       }
     }
 
-    if constexpr (trace_enabled) {
+    if constexpr (capture_motion) {
       const bool final_settle = motion_epoch.phase() == MotionPhase::Settle &&
                                 !input.engaged() && position != last_submitted;
       MotionPhase phase = MotionPhase::Still;
@@ -688,7 +712,7 @@ void run(void *) {
         submit_frame(position, position != last_submitted);
         submitted_motion_us = motion;
         motion_render_us = motion != 0 ? esp_timer_get_time() - started_render : 0;
-        if constexpr (trace_enabled) {
+        if constexpr (capture_motion) {
           if (motion != 0)
             first_motion = {motion, input.contact_started_us(), motion_render_us,
                             ready_at_motion(position, {ready_first, ready_last}, available), preparing.has_value()};
