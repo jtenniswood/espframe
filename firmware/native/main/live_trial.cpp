@@ -54,7 +54,8 @@ struct PreparationTiming {
 };
 
 constexpr std::array preparation_stages{"attempt", "selection", "transfer", "hardware_jpeg", "software_jpeg",
-                                        "webp", "rejected_preview", "composition", "prepared_transfer", "prepared_decode"};
+                                        "webp", "rejected_preview", "composition", "prepared_transfer", "prepared_decode",
+                                        "companion_transfer", "companion_wait"};
 static_assert(preparation_stages.size() == static_cast<size_t>(TrialPreparationStage::Count));
 std::array<PreparationTiming, preparation_stages.size()> preparation_timings{};
 portMUX_TYPE preparation_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -215,7 +216,7 @@ esp_err_t preparation_status(httpd_req_t *request) {
   const auto timings = preparation_timings;
   portEXIT_CRITICAL(&preparation_lock);
 
-  char body[1024]{'{'};
+  char body[1280]{'{'};
   size_t used = 1;
   for (size_t i = 0; i < timings.size(); ++i) {
     const auto &timing = timings[i];

@@ -354,11 +354,13 @@ bool ImmichSource::wait_for_pixel_work_() const {
 }
 
 ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, DecodedPreview &preview,
-                                                        bool for_pair, int64_t deadline_us) {
+                                                        bool for_pair, int64_t deadline_us, const AssetId *next) {
   if (this->cancelled_)
     return PreviewStatus::Retry;
   const bool optional = deadline_us != 0;
   const auto decode = [&](const uint8_t *data, size_t length) {
+    if (next && (*next)[0] != '\0' && previews_.find(*next).empty())
+      companion_download_.start(*next, network_.photo_connection(), settings_.immich_url, settings_.immich_key);
     int64_t started_us = 0;
     if constexpr (SWIPE_TRIAL_IMMICH)
       started_us = esp_timer_get_time();
@@ -394,27 +396,34 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
   }
   if (!online_())
     return PreviewStatus::Retry;
-  if (!this->allocate_download_())
-    return PreviewStatus::Retry;
 
   const auto request_us = esp_timer_get_time();
-  size_t length = 0;
-  const auto path = std::string("/assets/") + id.data() + "/thumbnail?size=preview";
-  const int status = this->fetch_(path, {}, photo_capacity, length, deadline_us);
-  const auto decode_us = esp_timer_get_time();
-  if constexpr (SWIPE_TRIAL_IMMICH) {
-    record_live_trial_preview(status);
-    record_live_trial_preparation_time(TrialPreparationStage::Transfer,
-                                       static_cast<uint32_t>(decode_us - request_us), length);
+  // A primary may start the next transfer. Never give it a buffer that the
+  // same transfer could reuse while the image is being decoded.
+  auto received = next ? std::span<const uint8_t>{} : companion_download_.take(id, network_.photo_connection());
+  int status = 200;
+  if (received.empty()) {
+    if (this->cancelled_ || !this->allocate_download_())
+      return PreviewStatus::Retry;
+    size_t length = 0;
+    const auto path = std::string("/assets/") + id.data() + "/thumbnail?size=preview";
+    status = this->fetch_(path, {}, photo_capacity, length, deadline_us);
+    received = {this->encoded_, length};
+    if constexpr (SWIPE_TRIAL_IMMICH) {
+      record_live_trial_preview(status);
+      record_live_trial_preparation_time(TrialPreparationStage::Transfer,
+                                         static_cast<uint32_t>(esp_timer_get_time() - request_us), length);
+    }
   }
+  const auto decode_us = esp_timer_get_time();
   if (status == 200 && !this->cancelled_) {
-    const auto result = decode(this->encoded_, length);
+    const auto result = decode(received.data(), received.size());
     if (result == DecodedPreview::Result::Ready) {
       if (!this->checkpoint_())
         return PreviewStatus::Retry;
-      this->previews_.remember(id, {this->encoded_, length});
+      this->previews_.remember(id, received);
       ESP_LOGI(tag, "Preview prepared, bytes=%zu fetch_us=%" PRId64 " decode_us=%" PRId64 " hardware_jpeg=%d",
-               length, decode_us - request_us, esp_timer_get_time() - decode_us, preview.hardware_jpeg());
+               received.size(), decode_us - request_us, esp_timer_get_time() - decode_us, preview.hardware_jpeg());
       return PreviewStatus::Ready;
     }
     if (result == DecodedPreview::Result::NoMemory || result == DecodedPreview::Result::Interrupted)
@@ -514,7 +523,10 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   std::optional<TrialStageTimer> composition;
   if (!prepared) {
     DecodedPreview primary;
-    const auto status = this->load_preview_(frame.primary, primary, pairs_only);
+    const auto status = this->load_preview_(frame.primary, primary, pairs_only, 0,
+                                           pairs_only ? &frame.companion : nullptr);
+    if (status != PreviewStatus::Ready || this->cancelled_ || !primary.portrait())
+      companion_download_.cancel();
     if (this->cancelled_ || status == PreviewStatus::Retry)
       return retry_frame();
     if (status == PreviewStatus::Missing || (pairs_only && !primary.portrait()))

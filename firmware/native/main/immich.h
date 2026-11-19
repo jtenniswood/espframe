@@ -1,5 +1,6 @@
 #pragma once
 
+#include "companion_download.h"
 #include "daylight.h"
 #include "immich_http.h"
 #include "immich_selection.h"
@@ -53,7 +54,8 @@ class ImmichSource {
   AssetId companion_for_(const ImmichPhoto &primary, int64_t deadline_us);
   void discard_candidate_(const AssetId &id);
   bool wait_for_pixel_work_() const;
-  PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, bool for_pair, int64_t deadline_us = 0);
+  PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, bool for_pair, int64_t deadline_us = 0,
+                              const AssetId *next = nullptr);
   bool render_prepared_(const PhotoSlide &frame, uint16_t *panel);
 
   const std::atomic<bool> &cancelled_;
@@ -64,6 +66,7 @@ class ImmichSource {
   const Settings &settings_;
   const NativeNetwork &network_;
   ImmichHttp http_;
+  CompanionDownload companion_download_{cancelled_};
   ImmichHttp prepared_http_{cancelled_, "Authorization"};
   int64_t prepared_retry_us_{};
   P4JpegDecoder jpeg_;

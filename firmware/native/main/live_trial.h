@@ -25,6 +25,8 @@ enum class TrialPreparationStage : uint8_t {
   Composition,
   PreparedTransfer,
   PreparedDecode,
+  CompanionTransfer,
+  CompanionWait,
   Count,
 };
 
