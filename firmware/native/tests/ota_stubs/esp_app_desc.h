@@ -9,5 +9,7 @@ struct esp_app_desc_t {
   uint32_t magic_word;
   uint8_t preceding_fields[44];
   char project_name[32];
-  uint8_t following_fields[176];
+  uint8_t before_hash[64];
+  uint8_t app_elf_sha256[32];
+  uint8_t following_fields[80];
 };

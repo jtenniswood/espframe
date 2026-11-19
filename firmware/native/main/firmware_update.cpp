@@ -35,15 +35,28 @@ std::atomic<bool> checking_boot{};
 esp_timer_handle_t boot_timer{};
 std::mutex firmware_operation;
 
-bool matches_board(const uint8_t *bytes) {
+bool matches_board(const uint8_t *bytes, esp_app_desc_t &app) {
   esp_image_header_t image{};
-  esp_app_desc_t app{};
   std::memcpy(&image, bytes, sizeof(image));
   std::memcpy(&app, bytes + header_bytes, sizeof(app));
   constexpr std::string_view expected = "espframe_native_" NATIVE_BOARD;
   return image.magic == ESP_IMAGE_HEADER_MAGIC && image.chip_id == ESP_CHIP_ID_ESP32P4 && image.hash_appended == 1 &&
          app.magic_word == ESP_APP_DESC_MAGIC_WORD &&
          std::string_view(app.project_name, strnlen(app.project_name, sizeof(app.project_name))) == expected;
+}
+
+FirmwareImage identify_image(const esp_partition_t *partition, const esp_app_desc_t &app) {
+  FirmwareImage image{partition->address};
+  static_assert(sizeof(app.app_elf_sha256) == sizeof(image.elf_sha256));
+  std::copy_n(app.app_elf_sha256, image.elf_sha256.size(), image.elf_sha256.begin());
+  return image;
+}
+
+std::optional<FirmwareImage> identify_partition(const esp_partition_t *partition) {
+  esp_app_desc_t app{};
+  if (partition == nullptr || esp_ota_get_partition_description(partition, &app) != ESP_OK)
+    return {};
+  return identify_image(partition, app);
 }
 
 bool read_exact(FirmwareRead read, void *context, uint8_t *buffer, size_t length, int64_t deadline) {
@@ -104,7 +117,7 @@ void trial_timeout(void *) {
 
 bool can_update_firmware() { return esp_ota_get_next_update_partition(nullptr) != nullptr; }
 
-FirmwareUpdateResult stage_firmware(size_t length, FirmwareRead read, void *context) {
+FirmwareUpdateResult stage_firmware(size_t length, FirmwareRead read, void *context, FirmwareImage *staged) {
   using Result = FirmwareUpdateResult;
   const std::unique_lock operation(firmware_operation, std::try_to_lock);
   if (!operation.owns_lock())
@@ -125,7 +138,8 @@ FirmwareUpdateResult stage_firmware(size_t length, FirmwareRead read, void *cont
   const int64_t deadline = esp_timer_get_time() + upload_time_us;
   if (!read_exact(read, context, buffer.get(), prelude_bytes, deadline))
     return Result::Interrupted;
-  if (!matches_board(buffer.get()))
+  esp_app_desc_t app{};
+  if (!matches_board(buffer.get(), app))
     return Result::WrongBoard;
 
   OtaWrite image;
@@ -144,7 +158,24 @@ FirmwareUpdateResult stage_firmware(size_t length, FirmwareRead read, void *cont
 
   // The existing boot partition is selected until the entire image passes
   // validation. Interrupted uploads only touch the inactive OTA slot.
-  return esp_ota_set_boot_partition(target) == ESP_OK ? Result::Staged : Result::WriteFailed;
+  if (esp_ota_set_boot_partition(target) != ESP_OK)
+    return Result::WriteFailed;
+  if (staged)
+    *staged = identify_image(target, app);
+  return Result::Staged;
+}
+
+FirmwareBootStatus firmware_boot_status() {
+  const auto *running = esp_ota_get_running_partition();
+  const auto *rejected = esp_ota_get_last_invalid_partition();
+  esp_ota_img_states_t state{};
+  FirmwareBootStatus result;
+  result.running = identify_partition(running);
+  result.boot_verified = result.running && esp_ota_get_state_partition(running, &state) == ESP_OK && state == ESP_OTA_IMG_VALID;
+  if (rejected && esp_ota_get_state_partition(rejected, &state) == ESP_OK &&
+      (state == ESP_OTA_IMG_INVALID || state == ESP_OTA_IMG_ABORTED))
+    result.rejected = identify_partition(rejected);
+  return result;
 }
 
 std::string_view last_reset_reason() {

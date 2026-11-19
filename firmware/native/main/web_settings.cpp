@@ -19,6 +19,7 @@
 #include "mbedtls/base64.h"
 
 #include <array>
+#include <cinttypes>
 #include <cstdio>
 #include <cstring>
 #include <iterator>
@@ -491,6 +492,36 @@ int receive_firmware(void *context, uint8_t *buffer, size_t length) {
   return httpd_req_recv(static_cast<httpd_req_t *>(context), reinterpret_cast<char *>(buffer), length);
 }
 
+std::array<char, 2 * FirmwareImage{}.elf_sha256.size() + 1> firmware_hash(const FirmwareImage &image) {
+  constexpr char digits[] = "0123456789abcdef";
+  std::array<char, 2 * FirmwareImage{}.elf_sha256.size() + 1> hash{};
+  for (size_t index = 0; index < image.elf_sha256.size(); ++index) {
+    const auto byte = image.elf_sha256[index];
+    hash[2 * index] = digits[byte >> 4];
+    hash[2 * index + 1] = digits[byte & 15];
+  }
+  return hash;
+}
+
+bool add_firmware_image(cJSON *document, const char *key, const FirmwareImage &image) {
+  const auto hash = firmware_hash(image);
+  auto *object = cJSON_AddObjectToObject(document, key);
+  return object && cJSON_AddNumberToObject(object, "offset", image.offset) &&
+         cJSON_AddStringToObject(object, "elf_sha256", hash.data());
+}
+
+esp_err_t firmware_status(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  const auto status = firmware_boot_status();
+  const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(cJSON_CreateObject(), cJSON_Delete);
+  if (!document || !cJSON_AddBoolToObject(document.get(), "boot_verified", status.boot_verified) ||
+      (status.running && !add_firmware_image(document.get(), "running", *status.running)) ||
+      (status.rejected && !add_firmware_image(document.get(), "rejected", *status.rejected)))
+    return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to read firmware status.");
+  return send_configuration(request, document.get());
+}
+
 esp_err_t update_firmware(httpd_req_t *request) {
   if (!authorize(request))
     return ESP_OK;
@@ -503,12 +534,18 @@ esp_err_t update_firmware(httpd_req_t *request) {
     return httpd_resp_sendstr(request, "The frame is restarting.");
   }
   using Result = FirmwareUpdateResult;
-  switch (stage_firmware(request->content_len, receive_firmware, request)) {
-    case Result::Staged:
+  FirmwareImage staged;
+  switch (stage_firmware(request->content_len, receive_firmware, request, &staged)) {
+    case Result::Staged: {
       if (esp_timer_start_once(restart_timer, 800'000) != ESP_OK)
         return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "The update is ready. Restart the frame to boot it.");
+      const auto hash = firmware_hash(staged);
+      char body[128]{};
+      std::snprintf(body, sizeof(body), "{\"staged\":true,\"target\":{\"offset\":%" PRIu32
+                    ",\"elf_sha256\":\"%s\"}}", staged.offset, hash.data());
       httpd_resp_set_type(request, "application/json");
-      return httpd_resp_sendstr(request, "{\"staged\":true}");
+      return httpd_resp_sendstr(request, body);
+    }
     case Result::Unavailable:
       return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Install an update-capable factory image over USB first.");
     case Result::RestartPending:
@@ -577,6 +614,7 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       {.uri = contract::CONFIGURATION_PATH, .method = HTTP_POST, .handler = save_configuration, .user_ctx = &network},
       {.uri = contract::RESET_PATH, .method = HTTP_GET, .handler = reset_status, .user_ctx = &network},
       {.uri = contract::RESET_PATH, .method = HTTP_POST, .handler = reset_settings, .user_ctx = &network},
+      {.uri = "/api/firmware", .method = HTTP_GET, .handler = firmware_status, .user_ctx = &network},
       {.uri = "/api/firmware", .method = HTTP_POST, .handler = update_firmware, .user_ctx = &network},
       {.uri = "/recovery.js", .method = HTTP_GET, .handler = recovery_script, .user_ctx = &network},
       {.uri = "/api/recovery", .method = HTTP_GET, .handler = recovery_status, .user_ctx = &network},

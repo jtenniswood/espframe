@@ -171,8 +171,10 @@ unsigned firmware.
 
 The frame writes to an inactive slot and restarts after validating the image.
 The first boot must initialize the display, submit a frame and read the touch
-controller. A failed trial returns to the previously bootable image. Wi-Fi
-and Immich settings stay in the dedicated settings partition.
+controller. Keep the update page open to see whether startup passed or whether
+the frame returned to the previous firmware. If the upload is interrupted,
+the page lets you retry. Wi-Fi and Immich settings are stored in the dedicated
+settings partition.
 
 ### Recover Wi-Fi from the frame
 

@@ -138,6 +138,8 @@ const fixture = html.replace('</body>', `<script>
   }).observe(form, {attributes: true})
 </script></body>`)
 const firmwareImage = [0xe9, 0x01, 0x00, 0x00]
+const firmwareTarget = { offset: 0x420000, elf_sha256: 'a'.repeat(64) }
+const previousFirmware = { ...firmwareTarget, offset: 0x10000 }
 const firmwareFixture = html.replace('</body>', `<script>
   const section = document.querySelector('#firmware')
   const form = document.querySelector('#firmware-update')
@@ -232,6 +234,8 @@ const updates = []
 const uploads = []
 const resets = []
 let firmwareAvailable = false
+let firmwareOutcome = 'updated'
+let firmwarePolls = 0
 let resetAvailable = false
 let factoryAvailable = false
 let customFilters = false
@@ -270,11 +274,27 @@ const server = createServer(async (request, response) => {
     const chunks = []
     for await (const chunk of request) chunks.push(chunk)
     uploads.push({ type: request.headers['content-type'], bytes: [...Buffer.concat(chunks)] })
-    if (uploads.length === 1) {
+    if (firmwareOutcome === 'updated' && uploads.length === 1) {
       response.writeHead(408).end('The firmware transfer was interrupted.')
     } else {
       response.setHeader('Content-Type', 'application/json')
-      response.end('{"staged":true}')
+      response.end(JSON.stringify(firmwareOutcome === 'legacy'
+        ? { staged: true } : { staged: true, target: firmwareTarget }))
+    }
+  } else if (request.method === 'GET' && request.url === '/api/firmware') {
+    ++firmwarePolls
+    if (firmwareOutcome === 'updated' && firmwarePolls === 1) {
+      response.writeHead(503).end()
+      return
+    }
+    response.setHeader('Content-Type', 'application/json')
+    if (firmwareOutcome === 'rollback') {
+      const rejected = firmwarePolls === 1 ? { ...firmwareTarget, elf_sha256: 'b'.repeat(64) } : firmwareTarget
+      response.end(JSON.stringify({ running: previousFirmware, boot_verified: true, rejected }))
+    } else {
+      response.end(JSON.stringify({
+        running: firmwarePolls === 2 ? previousFirmware : firmwareTarget, boot_verified: firmwarePolls !== 3,
+      }))
     }
   } else if (pages.has(request.url)) {
     const [contentType, body] = pages.get(request.url)
@@ -285,9 +305,9 @@ const server = createServer(async (request, response) => {
   }
 })
 
-async function render(path) {
+async function render(path, virtualTime = 5000) {
   const chrome = spawn(browser, [
-    '--headless', '--no-sandbox', '--disable-gpu', '--dump-dom', '--virtual-time-budget=5000',
+    '--headless', '--no-sandbox', '--disable-gpu', '--dump-dom', `--virtual-time-budget=${virtualTime}`,
     `http://127.0.0.1:${server.address().port}${path}`,
   ], { signal: AbortSignal.timeout(15_000) })
   let page = ''
@@ -322,11 +342,24 @@ try {
   console.log('Native photo source settings accept Immich album links and reject share links')
 
   firmwareAvailable = true
-  const firmwarePage = await render('/firmware')
-  assert.match(firmwarePage, /Update ready\. The frame is restarting\./)
+  const firmwarePage = await render('/firmware', 8000)
+  assert.match(firmwarePage, /Firmware updated\. The frame passed its startup checks\./)
+  assert.match(firmwarePage, /<a id="firmware-reload" href="\/settings">Reload frame settings<\/a>/)
+  assert.equal(firmwarePolls, 4)
   const upload = { type: 'application/octet-stream', bytes: firmwareImage }
   assert.deepEqual(uploads, [upload, upload])
-  console.log('Native firmware settings retry an interrupted upload and report successful staging')
+  firmwareOutcome = 'rollback'
+  firmwarePolls = 0
+  const rolledBackPage = await render('/firmware')
+  assert.match(rolledBackPage, /The frame returned to its previous firmware during startup\./)
+  assert.equal(firmwarePolls, 2)
+  firmwareOutcome = 'legacy'
+  firmwarePolls = 0
+  const legacyFirmwarePage = await render('/firmware')
+  assert.match(legacyFirmwarePage, /Update ready\. Reload frame settings after the frame restarts\./)
+  assert.equal(firmwarePolls, 0)
+  assert.deepEqual(uploads, [upload, upload, upload, upload])
+  console.log('Native firmware settings retry an interrupted upload and report verified startup or rollback')
 
   firmwareAvailable = false
   resetAvailable = true

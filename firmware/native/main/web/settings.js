@@ -11,6 +11,8 @@ const firmware = document.querySelector('#firmware')
 const updateForm = document.querySelector('#firmware-update')
 const updateButton = updateForm.querySelector('button')
 const updateStatus = document.querySelector('#firmware-status')
+const reloadFirmwareSettings = document.querySelector('#firmware-reload')
+const firmwarePath = '/api/firmware'
 const resetSection = document.querySelector('#customization-reset')
 const resetButton = document.querySelector('#open-reset')
 const resetDialog = document.querySelector('#confirm-reset')
@@ -178,6 +180,30 @@ form.addEventListener('submit', async event => {
   }
 })
 
+function sameFirmwareImage(image, target) {
+  return image?.offset === target.offset && image.elf_sha256 === target.elf_sha256
+}
+
+async function waitForFirmwareBoot(target) {
+  const deadline = performance.now() + 60_000
+  while (performance.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 1200))
+    try {
+      const response = await fetch(firmwarePath, { cache: 'no-store', signal: AbortSignal.timeout(2000) })
+      if (!response.ok) continue
+      const result = await response.json()
+      if (sameFirmwareImage(result.running, target)) {
+        if (result.boot_verified === true) return 'Firmware updated. The frame passed its startup checks.'
+      } else if (result.running && sameFirmwareImage(result.rejected, target)) {
+        return 'The frame returned to its previous firmware during startup.'
+      }
+    } catch {
+      // The firmware and Wi-Fi can take a moment to return after restart.
+    }
+  }
+  return 'Startup could not be confirmed. Reload frame settings when the frame reconnects.'
+}
+
 updateForm.addEventListener('submit', async event => {
   event.preventDefault()
   if (firmware.hidden || updateButton.disabled || submit.disabled) return
@@ -187,7 +213,7 @@ updateForm.addEventListener('submit', async event => {
   submit.disabled = true
   updateStatus.textContent = 'Checking and installing firmware…'
   try {
-    const response = await fetch('/api/firmware', {
+    const response = await fetch(firmwarePath, {
       method: 'POST',
       headers: { 'Content-Type': 'application/octet-stream' },
       body: file,
@@ -195,7 +221,14 @@ updateForm.addEventListener('submit', async event => {
     if (!response.ok) throw new Error(await response.text())
     const result = await response.json()
     if (!result.staged) throw new Error('The frame did not confirm the update.')
-    updateStatus.textContent = 'Update ready. The frame is restarting.'
+    updateStatus.textContent = 'Update ready. Waiting for the frame to finish startup…'
+    const target = result.target
+    if (Number.isInteger(target?.offset) && /^[0-9a-f]{64}$/.test(target.elf_sha256)) {
+      updateStatus.textContent = await waitForFirmwareBoot(target)
+    } else {
+      updateStatus.textContent = 'Update ready. Reload frame settings after the frame restarts.'
+    }
+    reloadFirmwareSettings.hidden = false
   } catch (error) {
     updateButton.disabled = false
     submit.disabled = false

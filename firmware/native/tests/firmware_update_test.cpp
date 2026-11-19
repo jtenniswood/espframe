@@ -15,6 +15,8 @@
 #include <vector>
 
 using espframe::native::FirmwareUpdateResult;
+using espframe::native::FirmwareImage;
+using espframe::native::firmware_boot_status;
 using espframe::native::last_reset_reason;
 using espframe::native::request_frame_restart;
 using espframe::native::stage_firmware;
@@ -31,6 +33,7 @@ struct Fake {
   const esp_partition_t *running{&factory};
   const esp_partition_t *boot{&factory};
   const esp_partition_t *next{&slot};
+  const esp_partition_t *invalid{};
   std::vector<uint8_t> written;
   unsigned begins{};
   unsigned ends{};
@@ -40,10 +43,12 @@ struct Fake {
   unsigned rejected{};
   unsigned restarts{};
   bool pending{};
+  bool verified{};
   bool fail_write{};
   bool timer_armed{};
   esp_reset_reason_t last_reset{ESP_RST_POWERON};
   int64_t current_time{};
+  esp_ota_img_states_t invalid_state{ESP_OTA_IMG_INVALID};
   esp_timer_create_args_t timer{};
 } fake;
 
@@ -76,6 +81,7 @@ int receive(void *context, uint8_t *output, size_t length) {
 esp_err_t esp_ota_begin(const esp_partition_t *target, size_t mode, esp_ota_handle_t *handle) {
   assert(target == &slot && mode == OTA_WITH_SEQUENTIAL_WRITES);
   ++fake.begins;
+  fake.written.clear();
   *handle = 1;
   return ESP_OK;
 }
@@ -103,24 +109,37 @@ esp_err_t esp_ota_set_boot_partition(const esp_partition_t *target) {
   ++fake.boot_selections;
   return ESP_OK;
 }
-esp_err_t esp_ota_get_state_partition(const esp_partition_t *, esp_ota_img_states_t *state) {
-  *state = fake.pending ? ESP_OTA_IMG_PENDING_VERIFY : 0;
+esp_err_t esp_ota_get_state_partition(const esp_partition_t *partition, esp_ota_img_states_t *state) {
+  if (partition == &factory)
+    return -1;
+  *state = partition == fake.invalid ? fake.invalid_state
+      : fake.pending ? ESP_OTA_IMG_PENDING_VERIFY : fake.verified ? ESP_OTA_IMG_VALID : 0;
   return ESP_OK;
 }
 esp_err_t esp_ota_mark_app_valid_cancel_rollback() {
   ++fake.accepted;
   fake.pending = false;
+  fake.verified = true;
   return ESP_OK;
 }
 esp_err_t esp_ota_mark_app_invalid_rollback_and_reboot() {
   ++fake.rejected;
   fake.pending = false;
+  fake.verified = false;
+  fake.invalid = &slot;
   fake.boot = &factory;
   return ESP_OK;
 }
 const esp_partition_t *esp_ota_get_running_partition() { return fake.running; }
 const esp_partition_t *esp_ota_get_next_update_partition(const esp_partition_t *) { return fake.next; }
 const esp_partition_t *esp_ota_get_boot_partition() { return fake.boot; }
+const esp_partition_t *esp_ota_get_last_invalid_partition() { return fake.invalid; }
+
+esp_err_t esp_ota_get_partition_description(const esp_partition_t *partition, esp_app_desc_t *app) {
+  assert(partition == &factory || partition == &slot);
+  std::memcpy(app, expected.data() + sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t), sizeof(*app));
+  return ESP_OK;
+}
 esp_reset_reason_t esp_reset_reason() { return fake.last_reset; }
 void esp_restart() {
   ++fake.restarts;
@@ -157,7 +176,12 @@ int main(int argc, char **argv) {
   using Result = FirmwareUpdateResult;
   Stream stream{expected, expected.size()};
   stream.request_restart = true;
-  assert(stage_firmware(expected.size(), receive, &stream) == Result::Staged);
+  FirmwareImage staged;
+  assert(stage_firmware(expected.size(), receive, &stream, &staged) == Result::Staged);
+  const auto before_boot = firmware_boot_status();
+  // Reinstalling the same build still requires the target slot to start.
+  assert(staged.offset == slot.address && before_boot.running != staged && !before_boot.boot_verified);
+  assert(before_boot.running && before_boot.running->elf_sha256 == staged.elf_sha256);
   assert(!stream.request_restart);
   assert(fake.running == &factory && fake.boot == &slot);
   assert(fake.begins == 1 && fake.ends == 1 && fake.aborts == 0 && fake.boot_selections == 1);
@@ -166,6 +190,8 @@ int main(int argc, char **argv) {
   assert(fake.restarts == 0);
   fake.running = &slot;
   fake.pending = true;
+  const auto pending = firmware_boot_status();
+  assert(pending.running == staged && !pending.boot_verified && !pending.rejected);
   request_frame_restart();
   assert(fake.restarts == 0);
   fake.pending = false;
@@ -195,6 +221,9 @@ int main(int argc, char **argv) {
   Stream partial{expected, prelude_size + 9000};
   assert(stage_firmware(expected.size(), receive, &partial) == Result::Interrupted);
   assert(fake.aborts == 1 && fake.ends == 0 && fake.boot_selections == 0);
+  Stream retry{expected, expected.size()};
+  assert(stage_firmware(expected.size(), receive, &retry) == Result::Staged);
+  assert(fake.begins == 2 && fake.ends == 1 && fake.aborts == 1 && fake.boot == &slot);
 
   fake = {};
   Stream slow{expected, expected.size(), 0, true};
@@ -224,6 +253,7 @@ int main(int argc, char **argv) {
   espframe::native::confirm_firmware_boot();
   espframe::native::confirm_firmware_boot();
   assert(fake.accepted == 1 && !fake.timer_armed && fake.rejected == 0);
+  assert(firmware_boot_status().boot_verified && firmware_boot_status().running == staged);
 
   fake.pending = true;
   espframe::native::start_firmware_boot_check();
@@ -231,4 +261,10 @@ int main(int argc, char **argv) {
   fake.timer.callback(nullptr);
   espframe::native::confirm_firmware_boot();
   assert(fake.rejected == 1 && fake.restarts == 1 && fake.boot == &factory && fake.accepted == 1);
+  fake.running = &factory;
+  assert(firmware_boot_status().rejected == staged && firmware_boot_status().running == before_boot.running);
+  fake.invalid_state = ESP_OTA_IMG_ABORTED;
+  assert(firmware_boot_status().rejected == staged);
+  fake.invalid_state = ESP_OTA_IMG_VALID;
+  assert(!firmware_boot_status().rejected);
 }
