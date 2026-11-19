@@ -58,6 +58,7 @@ class Swipe {
     // touch takes over the last frame of an animation in the other direction.
     const auto nearest = (presented_position + this->width_ / 2) / this->width_;
     this->origin_slide_ = std::clamp(nearest, this->ready_first_, this->ready_last_);
+    this->grabbed_between_slides_ = presented_position % this->width_ != 0;
     this->origin_x_ = x;
     this->origin_y_ = y;
     this->last_x_ = x;
@@ -115,7 +116,9 @@ class Swipe {
                                ? std::clamp(this->velocity_, -3.0f, 3.0f)
                                : 0.0f;
     const float projected = this->offset_ + velocity * 170.0f;
-    const float threshold = this->width_ * 0.30f;
+    // Match the stock gesture distance from rest. When taking over between
+    // slides, keep enough margin to reverse the animation back by one photo.
+    const float threshold = this->grabbed_between_slides_ ? this->width_ * 0.30f : 120.0f;
     const auto center = this->slide_offset_(this->origin_slide_);
     const auto direction = [center, threshold](float offset) {
       return offset - center >= threshold ? 1 : offset - center <= -threshold ? -1 : 0;
@@ -239,6 +242,7 @@ class Swipe {
   int origin_x_{};
   int origin_y_{};
   int last_x_{};
+  bool grabbed_between_slides_{};
   float origin_offset_{};
   float velocity_{};
   int64_t last_motion_us_{};

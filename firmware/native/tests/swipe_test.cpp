@@ -25,6 +25,21 @@ int main() {
   slow.tick(start + 500'000);
   assert(slow.position() == 2 * width && slow.settled() == 2);
 
+  Swipe short_swipe{width, 5, 2};
+  short_swipe.press(900, 400, 2 * width, start);
+  short_swipe.move(780, 402, start + 180'000);
+  assert(short_swipe.position() == 2 * width + 120);
+  short_swipe.release(start + 200'000);
+  short_swipe.tick(start + 450'000);
+  assert(short_swipe.settled() == 3);
+
+  short_swipe.press(500, 400, 3 * width, start + 500'000);
+  short_swipe.move(620, 398, start + 680'000);
+  assert(short_swipe.position() == 3 * width - 120);
+  short_swipe.release(start + 700'000);
+  short_swipe.tick(start + 950'000);
+  assert(short_swipe.settled() == 2);
+
   Swipe flick{width, 5, 2};
   flick.press(900, 400, 2 * width, start - 25'000);
   flick.move(850, 400, start);

@@ -68,6 +68,29 @@ void an_upside_down_panel_keeps_the_same_viewer_swipe_direction() {
   assert(swipe.settled() == 2);
 }
 
+void a_held_photo_can_be_dragged_from_either_side() {
+  Swipe swipe{width, 5, 2};
+  SwipeInput input;
+  const auto drag = [&](uint32_t sequence, int64_t start, int x, int y, int delta) {
+    const auto send = [&](TouchReport touch) {
+      touch.y = y;
+      assert(input.update(swipe, touch, swipe.position()) == Effect::None);
+    };
+    send(report(sequence, start, x));
+    send(report(sequence + 1, start + 3'100'000, x));
+    const auto origin = swipe.position();
+    send(report(sequence + 2, start + 3'300'000, x + delta));
+    assert(swipe.dragging() && swipe.position() == origin - delta);
+    send(report(sequence + 3, start + 3'350'000, 0, 0));
+    swipe.tick(start + 3'600'000);
+    assert(input.awake() && swipe.idle());
+  };
+  drag(1, 5'000, 1250, 24, -120);
+  assert(swipe.settled() == 3);
+  drag(5, 4'000'000, 24, 775, 120);
+  assert(swipe.settled() == 2);
+}
+
 void a_gap_cancels_without_flinging_into_another_photo() {
   Swipe swipe{width, 5, 2};
   SwipeInput input;
@@ -289,6 +312,7 @@ void putting_the_screen_to_sleep_mid_swipe_waits_for_the_next_contact() {
 int main() {
   ordered_reports_keep_release_and_next_press();
   an_upside_down_panel_keeps_the_same_viewer_swipe_direction();
+  a_held_photo_can_be_dragged_from_either_side();
   a_gap_cancels_without_flinging_into_another_photo();
   a_transient_transfer_failure_preserves_the_drag();
   a_second_finger_blocks_until_release_even_at_sequence_rollover();
