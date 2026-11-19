@@ -805,7 +805,10 @@ void start_player() {
   } else {
     start_usb_setup(network);
   }
-  const auto result = xTaskCreatePinnedToCore(run, "photo-player", 4096, nullptr, player_priority, nullptr, player_core);
+  // Live trials read ESPHome NVS while a candidate Settings record is on this stack.
+  constexpr uint32_t player_stack_bytes = trial_immich ? 6144 : 4096;
+  const auto result = xTaskCreatePinnedToCore(run, "photo-player", player_stack_bytes, nullptr, player_priority, nullptr,
+                                            player_core);
   ESP_ERROR_CHECK(result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
 }
 
