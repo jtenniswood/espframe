@@ -56,7 +56,7 @@ NativeNetwork::Address NativeNetwork::address() const {
 }
 
 FrameIdentity NativeNetwork::identity_for(const std::string &name) const {
-  return make_frame_identity(name, frame_mac_, NATIVE_HOSTNAME, NATIVE_FRIENDLY_NAME);
+  return make_frame_identity(name, frame_mac_, NATIVE_HOSTNAME, NATIVE_FRIENDLY_NAME, trial_immich);
 }
 
 uint32_t NativeNetwork::photo_connection() const {

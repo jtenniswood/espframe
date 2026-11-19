@@ -1,3 +1,4 @@
+#include "frame_identity.h"
 #include "stock_frame_identity.h"
 #include "nvs.h"
 
@@ -52,12 +53,21 @@ void nvs_close(nvs_handle_t handle) {
 }
 
 int main(int argc, char **argv) {
+  using espframe::native::FrameMac;
+  using espframe::native::make_frame_identity;
   using espframe::native::read_stock_frame_name;
+  constexpr FrameMac mac{0x02, 0xab, 0xcd, 0xef, 0x12, 0x9a};
+  constexpr char hostname[] = "immich-frame-10inch";
+  constexpr char friendly_name[] = "Espframe 10inch";
 
   stock_record("  Salon été  ");
-  assert(read_stock_frame_name() == "Salon été" && !opened);
+  const auto saved_name = read_stock_frame_name();
+  assert(saved_name == "Salon été" && !opened);
+  assert(make_frame_identity(*saved_name, mac, hostname, friendly_name, true).hostname == "salon-t-129a");
   stock_record("");
-  assert(read_stock_frame_name() == "");
+  const auto cleared_name = read_stock_frame_name();
+  assert(cleared_name == "");
+  assert(make_frame_identity(*cleared_name, mac, hostname, friendly_name, true).hostname == "immich-frame-10inch-ef129a");
   stock_record(std::string(120, 'a'));
   assert(read_stock_frame_name() == std::string(120, 'a'));
   stored[124] = 'a';
