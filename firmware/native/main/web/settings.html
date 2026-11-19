@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Espframe settings</title>
+  <link rel="stylesheet" href="/settings.css">
+  <script type="module" src="/settings.js"></script>
+</head>
+<body>
+  <main>
+    <h1>Espframe settings</h1>
+    <section aria-labelledby="playback">
+      <h2 id="playback">Photo playback</h2>
+      <form id="settings" method="post" autocomplete="off" hidden>
+        <label>Immich base URL <input name="immich_url" type="url" maxlength="256" required></label>
+        <label>Replacement Immich API key <input name="immich_key" type="password" maxlength="256" aria-describedby="keep-key"></label>
+        <small id="keep-key">Leave blank to keep your current key.</small>
+        <label>Photo source
+          <select name="photo_source">
+            <option value="all">All photos</option>
+            <option value="favorites">Favourites</option>
+            <option value="album">Album</option>
+          </select>
+        </label>
+        <div id="album-choice" hidden>
+          <label>Immich album link or ID <input name="album_id" maxlength="512" aria-describedby="album-help"></label>
+          <small id="album-help">Copy the link from the album page in Immich. The API key needs album.read permission.</small>
+        </div>
+        <label>Display mode
+          <select name="display_mode">
+            <option value="Fill">Crop to fit</option>
+            <option value="Fit" selected>Show full image</option>
+          </select>
+        </label>
+        <label>Seconds per photo <input name="slide_seconds" type="number" min="2" max="86400" step="1" required></label>
+        <label><input name="portrait_pairing" type="checkbox" class="inline-option"> Pair portrait photos from the same day</label>
+        <label for="brightness_day">Screen brightness</label>
+        <input id="brightness_day" name="brightness_day" type="range" min="10" max="100" value="64">
+        <output for="brightness_day">64%</output>
+        <details>
+          <summary>Clock</summary>
+          <label><input name="show_clock" type="checkbox" class="inline-option"> Show clock</label>
+          <label>Time format
+            <select name="clock_format">
+              <option>24 Hour</option>
+              <option>12 Hour</option>
+            </select>
+          </label>
+          <label>Timezone
+            <select name="timezone" required></select>
+          </label>
+        </details>
+        <button type="submit">Save and restart</button>
+        <button type="button" id="download-backup">Download settings backup</button>
+      </form>
+      <p id="status" role="status" aria-live="polite">Loading frame settings…</p>
+    </section>
+    <section id="firmware" aria-labelledby="firmware-title" hidden>
+      <h2 id="firmware-title">Firmware update</h2>
+      <p id="firmware-help"></p>
+      <form id="firmware-update" method="post">
+        <label>Native update image <input name="image" type="file" accept=".bin,application/octet-stream" required aria-describedby="firmware-help"></label>
+        <button type="submit">Install update and restart</button>
+      </form>
+      <p id="firmware-status" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+</body>
+</html>
