@@ -91,9 +91,9 @@ npm ci
 npm run docs:dev
 
 # Compile firmware locally
-docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.10.2 compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
-docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.10.2 compile /config/builds/guition-esp32-p4-jc8012p4a1-v2.factory.yaml
-docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.10.2 compile /config/builds/guition-esp32-p4-jc8012p4a1-v3.factory.yaml
+docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.11.0 compile /config/builds/guition-esp32-p4-jc8012p4a1.factory.yaml
+docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.11.0 compile /config/builds/guition-esp32-p4-jc8012p4a1-v2.factory.yaml
+docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.11.0 compile /config/builds/guition-esp32-p4-jc8012p4a1-v3.factory.yaml
 ```
 
 When testing with ESPHome 2026.11 or later, pass `-s esp32_hosted_legacy_reset false`
