@@ -1,5 +1,6 @@
 #include "photo_caption.h"
 
+#include "clock_overlay.h"
 #include "date_utils.h"
 
 namespace espframe::native {
@@ -8,12 +9,13 @@ namespace {
 constexpr int glyph_extent = 64;
 constexpr size_t index_entry_size = 6;
 constexpr size_t bitmap_header_size = 5;
-constexpr int right = slide_width - 45;
+constexpr int side_margin = 45;
+constexpr int right = slide_width - side_margin;
 constexpr int bottom = slide_height - 50;
 constexpr int location_height = 49;
 constexpr int date_height = 38;
 constexpr int line_gap = 4;
-constexpr int line_width = slide_width - 90;
+constexpr int clock_gap = 24;
 
 uint16_t read_codepoint(std::string_view &text) {
   const auto first = static_cast<uint8_t>(text.front());
@@ -87,7 +89,7 @@ uint16_t paint(uint16_t old, unsigned opacity, unsigned light) {
 }
 
 void draw_line(uint16_t *frame, std::span<const uint8_t> atlas, std::string_view value, int top,
-               ScreenRotation rotation) {
+               int line_width, ScreenRotation rotation) {
   const int step = -axis_direction(rotation);
   const auto *ellipsis = find_glyph(atlas, 0x2026);
   const int tail = ellipsis ? ellipsis[0] : 0;
@@ -140,21 +142,22 @@ std::string photo_caption_date(const PhotoMetadata &metadata, const PhotoMetadat
   const auto year = static_cast<int>(day.year());
   const auto month = static_cast<unsigned>(day.month());
   const auto number = static_cast<unsigned>(day.day());
-  if (settings.relative)
-    return local ? format_photo_age(year, month, number, local->tm_year + 1900, local->tm_mon + 1, local->tm_mday)
-                 : std::string{};
+  if (settings.relative && local)
+    return format_photo_age(year, month, number, local->tm_year + 1900, local->tm_mon + 1, local->tm_mday);
   return settings.month_before_day ? format_photo_date_month_day_year(year, month, number)
                                     : format_photo_date_full(year, month, number);
 }
 
 void paint_photo_caption(uint16_t *frame, std::span<const uint8_t> locations, std::span<const uint8_t> dates,
                          const PhotoMetadata &metadata,
-                         const PhotoMetadataSettings &settings, ScreenRotation rotation,
+                         const PhotoMetadataSettings &settings, ScreenRotation rotation, bool show_clock,
                          const std::optional<std::tm> &local) {
+  const int left = show_clock ? ClockOverlay::first_row + ClockOverlay::rows + clock_gap : side_margin;
+  const int line_width = right - left;
   const auto date = photo_caption_date(metadata, settings, local);
   int location_top = bottom - location_height;
   if (!date.empty()) {
-    draw_line(frame, dates, date, bottom - date_height, rotation);
+    draw_line(frame, dates, date, bottom - date_height, line_width, rotation);
     location_top -= date_height + line_gap;
   }
   if (settings.show_location) {
@@ -164,9 +167,9 @@ void paint_photo_caption(uint16_t *frame, std::span<const uint8_t> locations, st
       std::string place{city};
       place += ", ";
       place += country;
-      draw_line(frame, locations, place, location_top, rotation);
+      draw_line(frame, locations, place, location_top, line_width, rotation);
     } else {
-      draw_line(frame, locations, city.empty() ? country : city, location_top, rotation);
+      draw_line(frame, locations, city.empty() ? country : city, location_top, line_width, rotation);
     }
   }
 }

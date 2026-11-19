@@ -289,6 +289,7 @@ landscape mounting choice.
 Under **Photo captions**, enable the capture date, location, or both. The
 frame uses the photo's local capture day and the city and country supplied by
 Immich. The right-aligned location and date use the stock Noto Sans sizes.
+Long locations shorten to leave room for the clock when it is enabled.
 The clock uses the stock 150-pixel Noto Sans face at the lower left.
 When two portraits are paired, the caption describes the primary
 photo. The caption is composed with the cached slide, so dragging and
