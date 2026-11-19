@@ -305,6 +305,13 @@ bool ImmichSource::next_asset_(ImmichPhoto &asset) {
       if (removed != 0 && this->pending_.empty())
         this->source_status_ = PhotoSourceStatus::WaitingForPair;
     }
+    // A prepared slide can still work when the direct preview is unavailable.
+    if (!this->settings_.has_prepared_slides()) {
+      const auto now = esp_timer_get_time();
+      std::erase_if(this->pending_, [&](const ImmichPhoto &photo) {
+        return this->unavailable_.contains(photo.id, now);
+      });
+    }
     if (this->pending_.empty())
       return false;
     if (this->pending_is_paged_) {
@@ -358,8 +365,11 @@ AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, int64_t deadlin
     AssetId best{};
     auto closest = std::chrono::days::max();
     bool best_seen = true;
+    const auto now = esp_timer_get_time();
     for (const auto &candidate : photos) {
       if (!is_portrait_companion(primary, candidate, this->settings_.portrait_pairing_days))
+        continue;
+      if (!this->settings_.has_prepared_slides() && this->unavailable_.contains(candidate.id, now))
         continue;
       const bool seen = this->history_.recently_seen(candidate.id, photo_search_batch);
       const auto distance = std::chrono::abs(*candidate.metadata.capture_day - *primary.metadata.capture_day);
@@ -447,6 +457,8 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
   }
   if (!online_())
     return PreviewStatus::Retry;
+  if (this->unavailable_.contains(id, esp_timer_get_time()))
+    return PreviewStatus::Missing;
   if (!this->allocate_download_())
     return PreviewStatus::Retry;
 
@@ -487,8 +499,8 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
     return PreviewStatus::Retry;
   if (!optional)
     ESP_LOGW(tag, "Photo preview was unavailable or could not be decoded (%d)", status);
-  return status == 404 || status == 410 || status == 413 || status == 200 ? PreviewStatus::Missing
-                                                                      : PreviewStatus::Retry;
+  return this->unavailable_.remember_failure(id, status, esp_timer_get_time()) ? PreviewStatus::Missing
+                                                                              : PreviewStatus::Retry;
 }
 
 ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &frame, uint16_t *panel) {
@@ -640,8 +652,11 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       const auto right = this->load_preview_(frame.companion, companion, true, pair_deadline_us, pairs_only);
       if (right == PreviewStatus::Retry && (remembered || pairs_only))
         return retry_frame();
-      if (pairs_only && (right == PreviewStatus::Missing || !companion.portrait()))
+      if (pairs_only && (right == PreviewStatus::Missing || !companion.portrait())) {
+        if (!remembered && !settings_.has_prepared_slides() && unavailable_.contains(frame.companion, esp_timer_get_time()))
+          this->pending_.push_back(seed);
         return reject_candidate(frame.companion);
+      }
       if (right != PreviewStatus::Ready || !companion.portrait())
         frame.companion = {};
     } else {

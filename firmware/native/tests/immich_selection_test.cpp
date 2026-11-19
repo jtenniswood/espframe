@@ -1,9 +1,43 @@
 #include "immich_selection.h"
+#include "unavailable_previews.h"
 
 #include <cassert>
 
 using namespace espframe::native;
 using namespace std::chrono;
+
+void test_unavailable_previews(const AssetId &first, const AssetId &second) {
+  UnavailablePreviews unavailable;
+  assert(!unavailable.contains(first, 0));
+  for (const int status : {0, 400, 401, 403, 408, 429, 500, 503})
+    assert(!unavailable.remember_failure(first, status, 1));
+  assert(!unavailable.contains(first, 1));
+  assert(unavailable.remember_failure(first, 404, 1));
+  assert(unavailable.contains(first, 30'000'000));
+  assert(!unavailable.contains(first, 30'000'001));
+  assert(!unavailable.contains(second, 1));
+  assert(unavailable.remember_failure(first, 410, 2));
+  assert(unavailable.remember_failure(second, 413, 3));
+  for (char suffix : std::string_view{"0123456789abcdefghijklmnopqrst"}) {
+    AssetId id = first;
+    id[35] = suffix;
+    id[0] = 'f';
+    assert(unavailable.remember_failure(id, 200, 4));
+  }
+  assert(unavailable.contains(first, 4));
+  assert(unavailable.contains(second, 4));
+
+  // A new failure evicts the oldest entry, and refreshing an existing
+  // failure extends its expiry without evicting another preview.
+  assert(unavailable.remember_failure(second, 404, 5));
+  assert(unavailable.contains(first, 5));
+  AssetId third = second;
+  third[0] = 'f';
+  assert(unavailable.remember_failure(third, 404, 6));
+  assert(!unavailable.contains(first, 6));
+  assert(unavailable.contains(second, 30'000'004));
+  assert(!unavailable.contains(second, 30'000'005));
+}
 
 int main() {
   constexpr std::string_view response = R"([
@@ -23,6 +57,7 @@ int main() {
   const auto photos = parse_photo_search(response, 16, false, false).photos;
   assert(photos.size() == 6);
   const auto &primary = photos[0];
+  test_unavailable_previews(primary.id, photos[1].id);
   assert(primary.portrait && primary.metadata.capture_day == sys_days{year(2024)/3/1});
   const auto landscape = parse_photo_search(R"([
     {"id":"c48e2980-18ac-4d7d-876a-a636759a1aec","width":80,"height":120},

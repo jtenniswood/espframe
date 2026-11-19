@@ -9,6 +9,7 @@
 #include "preparation_checkpoint.h"
 #include "recent_previews.h"
 #include "settings.h"
+#include "unavailable_previews.h"
 
 #include <array>
 #include <atomic>
@@ -90,6 +91,7 @@ class ImmichSource {
   uint8_t *encoded_{};
   PhotoHistory history_;
   RecentPreviews previews_;
+  UnavailablePreviews unavailable_;
   std::optional<Daylight> tone_daylight_;
   std::vector<ImmichPhoto> pending_;
   CaptureDateRange capture_date_range_;
