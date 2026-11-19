@@ -96,15 +96,14 @@ docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.11.0 compile /c
 docker run --rm -v "${PWD}:/config" ghcr.io/esphome/esphome:2026.11.0 compile /config/builds/guition-esp32-p4-jc8012p4a1-v3.factory.yaml
 ```
 
-When testing with ESPHome 2026.11 or later, pass `-s esp32_hosted_legacy_reset false`
-before `compile` to omit the deprecated Wi-Fi coprocessor reset setting. The
-ESPHome 2026.10 builds above still require that setting.
+For ESPHome 2026.11.0, you can pass `-s esp32_hosted_legacy_reset false` before
+`compile` to omit the deprecated Wi-Fi coprocessor reset setting. ESPHome
+2026.10 requires that setting.
 
-If your frame already reports `3.1.0` under **ESP32-C6: Current Firmware**,
-you can pair it with the same P4 host driver by adding
-`-s esp32_hosted_use_v3 true` to the ESPHome compile command. The option defaults
-to off and changes only the P4 host driver. It does not install firmware on the
-C6 coprocessor.
+ESPHome 2026.11.0 builds the P4 host with ESP-Hosted 3.1.0 by default. If you're
+building with ESPHome 2026.10 for a frame that already reports `3.1.0` under
+**ESP32-C6: Current Firmware**, add `-s esp32_hosted_use_v3 true` before `compile`
+to match the P4 host driver to the installed coprocessor firmware.
 
 ### In-Development Firmware Features
 
