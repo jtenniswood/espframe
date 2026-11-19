@@ -41,9 +41,9 @@ int main() {
   assert(swipe.settled() == 17 && first_movements == full.started);
 
   TrialSwipeBenchmark timing;
-  timing.gesture(12'000, 8'000, true, true);
-  timing.gesture(50'000, 6'000, false, true);
-  timing.gesture(50'001, 7'000, true, false);
+  timing.gesture(12'000, {0, 0, 8'000, {CacheRead::Hit}, true, 1'000});
+  timing.gesture(50'000, {0, 0, 6'000, {CacheRead::Hit}, false, 0});
+  timing.gesture(50'001, {0, 0, 7'000, {CacheRead::Miss}, true, 3'000});
   timing.blit(true);
   timing.blit(false);
   timing.blit(true);
@@ -56,6 +56,7 @@ int main() {
   timing.frame(160'000, {3, MotionPhase::Settle, false}, period);
   const auto stats = timing.results();
   assert(stats.dma_copies == 2 && stats.cpu_copies == 1 && stats.worst_composition_us == 8'000);
+  assert(stats.worst_before_submit_us == 7'000 && stats.worst_submit_us == 3'000);
   assert(stats.first_motion.count == 3 && stats.first_motion.worst_us == 50'001 && stats.first_motion.over_limit == 1);
   assert(stats.busy_first_motion.count == 2 && stats.busy_first_motion.over_limit == 1 && stats.cache_hits == 2);
   assert(stats.drag_gaps.count == 3 && stats.drag_gaps.worst_us == 32'000 && stats.drag_gaps.over_limit == 1);

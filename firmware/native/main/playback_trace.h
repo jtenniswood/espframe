@@ -49,6 +49,7 @@ struct FirstMotionTrace {
   int64_t composed_us{};
   CacheSample cache{CacheRead::Edge};
   bool preparing{};
+  int64_t submit_us{};
 };
 
 }  // namespace espframe::native

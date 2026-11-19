@@ -35,6 +35,8 @@ class TrialSwipeBenchmark {
     uint32_t dma_copies{};
     uint32_t cpu_copies{};
     uint32_t worst_composition_us{};
+    uint32_t worst_before_submit_us{};
+    uint32_t worst_submit_us{};
     Timing first_motion;
     Timing busy_first_motion;
     Timing drag_gaps;
@@ -78,11 +80,14 @@ class TrialSwipeBenchmark {
     return sample_(now, start_x_, true);
   }
 
-  void gesture(uint32_t latency_us, uint32_t composed_us, bool preparing, bool cache_hit) {
+  void gesture(uint32_t latency_us, const FirstMotionTrace &motion) {
     results_.first_motion.add(latency_us, 50'000);
-    results_.worst_composition_us = std::max(results_.worst_composition_us, composed_us);
-    results_.cache_hits += cache_hit;
-    if (preparing)
+    results_.worst_composition_us = std::max(results_.worst_composition_us, static_cast<uint32_t>(motion.composed_us));
+    results_.worst_before_submit_us =
+        std::max(results_.worst_before_submit_us, static_cast<uint32_t>(motion.composed_us - motion.submit_us));
+    results_.worst_submit_us = std::max(results_.worst_submit_us, static_cast<uint32_t>(motion.submit_us));
+    results_.cache_hits += motion.cache.result == CacheRead::Hit;
+    if (motion.preparing)
       results_.busy_first_motion.add(latency_us, 50'000);
   }
 

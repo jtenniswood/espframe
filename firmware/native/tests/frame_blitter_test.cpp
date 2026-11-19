@@ -17,7 +17,7 @@ int releases{};
 
 esp_err_t esp_async_color_convert_install_dma2d(const async_color_convert_config_t *config,
                                                 async_color_convert_handle_t *handle) {
-  assert(config->backlog == 1);
+  assert(config->backlog == 1 && config->dma_burst_size == espframe::native::FrameBlitter::burst_bytes);
   if (reject_install)
     return ESP_FAIL;
   *handle = &driver;

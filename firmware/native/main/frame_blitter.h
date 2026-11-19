@@ -10,6 +10,8 @@ namespace espframe::native {
 // each DMA2D copy finishes. Overlays are painted on the finished output.
 class FrameBlitter {
  public:
+  static constexpr unsigned burst_bytes = 128;
+
   void init();
   void slides(uint16_t *output, SlideSpan span);
   void edge(uint16_t *output, const uint16_t *photo, int pull);

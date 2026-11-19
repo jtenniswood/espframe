@@ -14,7 +14,8 @@ constexpr const char *tag = "frame-blitter";
 void FrameBlitter::init() {
   async_color_convert_config_t config{};
   config.backlog = 1;
-  config.dma_burst_size = 32;
+  // Match the ESP-IDF DPI framebuffer copy engine's burst size.
+  config.dma_burst_size = burst_bytes;
   if (const auto result = esp_async_color_convert_install_dma2d(&config, &dma_); result != ESP_OK) {
     dma_ = nullptr;
     ESP_LOGW(tag, "DMA2D unavailable, using CPU row copies: %s", esp_err_to_name(result));

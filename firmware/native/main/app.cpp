@@ -722,13 +722,15 @@ void run(void *) {
           draw_memories_status(output, recovery_atlas, memory_notice, rotation);
         recovery_painted = show_recovery;
         painted_memories_status = memory_notice;
+        const auto started_submit = SWIPE_TRIAL_BENCHMARK && motion != 0 ? esp_timer_get_time() : 0;
         submit_frame(position, position != last_submitted);
         submitted_motion_us = motion;
         motion_render_us = motion != 0 ? esp_timer_get_time() - started_render : 0;
         if constexpr (capture_motion) {
           if (motion != 0)
             first_motion = {motion, input.contact_started_us(), motion_render_us,
-                            ready_at_motion(position, {ready_first, ready_last}, available), preparing.has_value()};
+                            ready_at_motion(position, {ready_first, ready_last}, available), preparing.has_value(),
+                            started_submit != 0 ? started_render + motion_render_us - started_submit : 0};
         }
         last_submitted = position;
         last_inside = inside;
