@@ -1,0 +1,42 @@
+name: Native Swipe Prototype
+
+on:
+  pull_request:
+    paths:
+      - 'firmware/native/**'
+      - 'components/gsl3680/**'
+      - 'devices/guition-esp32-p4-jc8012p4a1*/device/device.yaml'
+      - 'components/mipi_dsi/models/guition.py'
+      - '.github/workflows/native-swipe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Test and build Guition ${{ matrix.board }} prototype
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [v1, v2, v3]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test swipe gestures and frame composition
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+            firmware/native/tests/swipe_test.cpp -o "$RUNNER_TEMP/swipe-test"
+          "$RUNNER_TEMP/swipe-test"
+      - name: Build native factory binary
+        run: |
+          docker pull espressif/idf:v6.1.1
+          docker run --rm --network none -v "$PWD:/workspace" -w /workspace \
+            espressif/idf:v6.1.1 idf.py -C firmware/native -B "firmware/native/build/${{ matrix.board }}" \
+            -D SWIPE_BOARD="${{ matrix.board }}" build merge-bin
+      - uses: actions/upload-artifact@v7
+        with:
+          name: firmware-test-native-swipe-${{ matrix.board }}
+          path: firmware/native/build/${{ matrix.board }}/merged-binary.bin
+          if-no-files-found: error
