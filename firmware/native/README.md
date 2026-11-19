@@ -50,8 +50,9 @@ using Improv Serial. The frame saves the credentials after it joins and
 gets an IPv4 address. Close the dialog, select **Use Wi-Fi already saved
 on the frame**, and enter your Immich settings. You can also enter Wi-Fi
 and Immich together in the page's USB form. Select the frame's USB port
-to save. After it restarts, **Find frame on Wi-Fi** shows its address and
-links to the settings page if you set a web settings password.
+to save. Keep the USB cable connected while the frame restarts. The installer
+shows the frame's address and an **Open frame settings** link if you set a web
+settings password. Use **Find frame on Wi-Fi** to retry the address check.
 
 When upgrading an existing frame, export an Espframe settings backup from
 its web page before installation. In the native installer, choose that

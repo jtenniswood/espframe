@@ -87,3 +87,18 @@ export function findFrame(port, { challenge = crypto.randomUUID(), timeout = 500
     return { address, web: ['disabled', 'starting', 'ready'][Number(web)] }
   })
 }
+
+export async function waitForFrame(port, { timeout = 30_000, interval = 750 } = {}) {
+  const deadline = performance.now() + timeout
+  let frame = null
+  while (deadline - performance.now() > interval) {
+    // SET acknowledges before reboot. Give the frame time to restart before
+    // asking for an address, and retry while USB or Wi-Fi is coming back.
+    await new Promise(resolve => setTimeout(resolve, interval))
+    const remaining = deadline - performance.now()
+    if (remaining <= 0) break
+    frame = await findFrame(port, { timeout: Math.min(1500, remaining) }).catch(() => null)
+    if (frame && frame.web !== 'starting') return frame
+  }
+  return frame
+}

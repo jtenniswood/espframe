@@ -39,22 +39,31 @@ const verify = `
   const encoder = new TextEncoder()
   let received
   let attempts = 0
+  let writes = 0
+  let addressChecks = 0
   Object.defineProperty(navigator, 'serial', { value: {
     async requestPort() {
-      attempts++
+      const selection = ++attempts
       let output
       return {
-        async open() {},
+        async open() {
+          this.readable = new ReadableStream({start(controller) { output = controller }})
+        },
         async close() {},
-        readable: new ReadableStream({start(controller) { output = controller }}),
         writable: new WritableStream({write(bytes) {
           const text = new TextDecoder().decode(bytes).trim()
           const match = /^ESPFRAME_SETUP 1 (HELLO|SET|STATUS) ([^ ]+)(?: (.*))?$/.exec(text)
           if (!match) throw new Error('Invalid USB message')
-          if (match[1] === 'SET') received = JSON.parse(match[3])
+          if (match[1] === 'SET') {
+            writes++
+            received = JSON.parse(match[3])
+          }
           if (match[1] === 'STATUS') {
             if (match[3]) throw new Error('Wi-Fi lookup sent unexpected data')
-            const response = attempts === 2 ? 'OFFLINE ' + match[2] : 'CONNECTED ' + match[2] + ' 192.168.50.10 2'
+            addressChecks++
+            const offline = selection === 2 || (selection === 1 && addressChecks === 1)
+            const state = selection === 1 && addressChecks === 2 ? 1 : 2
+            const response = offline ? 'OFFLINE ' + match[2] : 'CONNECTED ' + match[2] + ' 192.168.50.10 ' + state
             output.enqueue(encoder.encode('ESPFRAME_SETUP 1 ' + response + '\\n'))
           } else {
             output.enqueue(encoder.encode('ESPFRAME_SETUP 1 ' + (match[1] === 'HELLO' ? 'READY' : 'SAVED') + ' ' + match[2] + '\\n'))
@@ -128,8 +137,17 @@ const verify = `
     if (form.elements.portrait_pair_framing.value !== 'Fill' || !form.elements.portrait_pair_framing.disabled)
       throw new Error('Inactive pair framing was not retained')
     const saved = waitFor(document.querySelector('#status'), 'Settings saved.')
+    const find = document.querySelector('#find-frame')
+    const networkStatus = document.querySelector('#network-status')
+    const foundAfterSave = waitFor(networkStatus, 'Open frame settings')
     form.requestSubmit()
     await saved
+    if (!find.disabled || !document.querySelector('#revision').disabled)
+      throw new Error('A second USB action was available while waiting for the restart')
+    await foundAfterSave
+    if (attempts !== 1 || writes !== 1 || addressChecks !== 3 || find.disabled ||
+      networkStatus.querySelector('a')?.href !== 'http://192.168.50.10/')
+      throw new Error('Setup did not automatically find the same frame after it restarted')
     if (attempts !== 1 || received.immich_key !== 'entered-api-key' || received.ssid !== 'Test Wi-Fi'
       || received.photo_source !== 'memories' || received.album_id !== '${album}' || received.slide_seconds !== 86400
       || received.memories_window !== 'Within 7 Days' || received.memories_fallback !== false
@@ -155,8 +173,6 @@ const verify = `
       throw new Error('Photo and mounting orientation did not reach USB setup independently')
     if (!received.schedule_enabled || received.schedule_on_hour !== 21 || received.schedule_off_hour !== 6
       || received.schedule_wake_timeout !== 30) throw new Error('Screen schedule did not reach USB setup')
-    const find = document.querySelector('#find-frame')
-    const networkStatus = document.querySelector('#network-status')
     const waiting = waitFor(networkStatus, 'waiting for Wi-Fi')
     find.click()
     await waiting
@@ -171,7 +187,7 @@ const verify = `
     reuse.dispatchEvent(new Event('change'))
     form.elements.immich_url.value = 'https://photos.test'
     form.elements.immich_key.value = 'after-improv'
-    const reused = waitFor(document.querySelector('#status'), 'Settings saved.')
+    const reused = waitFor(networkStatus, 'Open frame settings')
     form.requestSubmit()
     await reused
     if (attempts !== 4 || received.immich_key !== 'after-improv'
@@ -184,7 +200,7 @@ const verify = `
     form.elements.immich_key.value = 'filtered-key'
     reuse.checked = true
     reuse.dispatchEvent(new Event('change'))
-    const filtered = waitFor(document.querySelector('#status'), 'Settings saved.')
+    const filtered = waitFor(networkStatus, 'Open frame settings')
     form.requestSubmit()
     await filtered
     if (attempts !== 5 || received.photo_source !== 'custom' || !received.albums_enabled || !received.people_enabled
@@ -209,7 +225,7 @@ const server = createServer((request, response) => {
 await new Promise((resolve, reject) => server.listen(0, '127.0.0.1', resolve).once('error', reject))
 try {
   const chrome = spawn(process.env.CHROME_BIN || 'google-chrome', [
-    '--headless', '--no-sandbox', '--disable-gpu', '--dump-dom', '--virtual-time-budget=5000',
+    '--headless', '--no-sandbox', '--disable-gpu', '--dump-dom', '--virtual-time-budget=10000',
     `http://127.0.0.1:${server.address().port}/`,
   ], { signal: AbortSignal.timeout(15_000) })
   let html = ''
@@ -221,7 +237,7 @@ try {
     chrome.once('close', code => code === 0 ? resolve() : reject(new Error(errors)))
   })
   assert.match(html, /data-backup-test="passed"/, errors)
-  console.log('Packaged native installer transfers supported backup fields over mocked USB')
+  console.log('Packaged native installer transfers supported backup fields and finds the frame after restart over mocked USB')
 } finally {
   server.close()
 }

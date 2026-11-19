@@ -1,10 +1,11 @@
 import 'esp-web-tools/dist/install-button.js'
 import { normalizeFrameName, readBackup } from './backup.mjs'
 import { addCaptureDates, addPhotoFilters, bindPhotoSource, bindPortraitPairing, photoFilterDefaults, validateAlbum } from './photo_source.mjs'
-import { configure, findFrame } from './serial.mjs'
+import { configure, findFrame, waitForFrame } from './serial.mjs'
 
 const revision = document.querySelector('#revision')
 const install = document.querySelector('esp-web-install-button')
+const installButton = install.querySelector('button')
 const form = document.querySelector('#settings')
 const submit = form.querySelector('button')
 const status = document.querySelector('#status')
@@ -93,6 +94,21 @@ revision.addEventListener('change', () => {
   install.manifest = `./${revision.value}.json`
 })
 
+function showFrameAddress(frame) {
+  if (!frame) {
+    networkStatus.textContent = 'The frame is waiting for Wi-Fi. Check the Wi-Fi name and password if it stays offline.'
+  } else if (frame.web === 'disabled') {
+    networkStatus.textContent = `Connected at ${frame.address}. Set a web settings password to open the frame’s settings.`
+  } else if (frame.web === 'starting') {
+    networkStatus.textContent = `Connected at ${frame.address}. The settings page is starting. Try again in a moment.`
+  } else {
+    const link = document.createElement('a')
+    link.href = `http://${frame.address}/`
+    link.textContent = 'Open frame settings'
+    networkStatus.replaceChildren(`Connected at ${frame.address}. `, link)
+  }
+}
+
 if ('serial' in navigator) {
   submit.disabled = false
   find.disabled = false
@@ -100,25 +116,15 @@ if ('serial' in navigator) {
     submit.disabled = busy
     find.disabled = busy
     backup.disabled = busy
+    revision.disabled = busy
+    installButton.disabled = busy
   }
   find.addEventListener('click', async () => {
     setSerialBusy(true)
     networkStatus.textContent = 'Checking the frame’s Wi-Fi connection…'
     try {
       const port = await navigator.serial.requestPort()
-      const frame = await findFrame(port)
-      if (!frame) {
-        networkStatus.textContent = 'The frame is waiting for Wi-Fi. Check the Wi-Fi name and password if it stays offline.'
-      } else if (frame.web === 'disabled') {
-        networkStatus.textContent = `Connected at ${frame.address}. Set a web settings password to open the frame’s settings.`
-      } else if (frame.web === 'starting') {
-        networkStatus.textContent = `Connected at ${frame.address}. The settings page is starting. Try again in a moment.`
-      } else {
-        const link = document.createElement('a')
-        link.href = `http://${frame.address}/`
-        link.textContent = 'Open frame settings'
-        networkStatus.replaceChildren(`Connected at ${frame.address}. `, link)
-      }
+      showFrameAddress(await findFrame(port))
     } catch (error) {
       networkStatus.textContent = error.name === 'NotFoundError' ? 'Choose the frame’s USB port to continue.' : error.message
     } finally {
@@ -165,7 +171,11 @@ if ('serial' in navigator) {
       showPercentages()
       refreshWifi()
       backupStatus.textContent = ''
-      status.textContent = 'Settings saved. After the frame restarts, choose Find frame on Wi-Fi to open its settings.'
+      status.textContent = 'Settings saved.'
+      networkStatus.textContent = 'Waiting for the frame to restart and reconnect to Wi-Fi…'
+      const frame = await waitForFrame(port)
+      if (frame) showFrameAddress(frame)
+      else networkStatus.textContent = 'The frame hasn’t reconnected yet. Keep it plugged in and choose Find frame on Wi-Fi to check again.'
     } catch (error) {
       status.textContent = error.name === 'NotFoundError' ? 'Choose the frame’s USB port to continue.' : error.message
     } finally {
