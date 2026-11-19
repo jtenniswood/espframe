@@ -15,6 +15,8 @@
 #include <optional>
 #include <string>
 
+struct cJSON;
+
 namespace espframe::native {
 
 inline constexpr const char *screen_rotation_name(ScreenRotation rotation) {
@@ -22,6 +24,8 @@ inline constexpr const char *screen_rotation_name(ScreenRotation rotation) {
 }
 
 struct Settings {
+  enum class UpdateResult { Saved, Invalid, Failed };
+
   std::string ssid;
   std::string password;
   std::string immich_url;
@@ -50,6 +54,8 @@ struct Settings {
   static bool save(const char *json);
   static bool save_wifi(const WifiCredentials &wifi);
   static bool save_playback(const char *json);
+  static UpdateResult update_playback(const cJSON *update);
+  bool add_playback_fields(cJSON *object) const;
 };
 
 }  // namespace espframe::native

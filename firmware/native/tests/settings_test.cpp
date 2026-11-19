@@ -1,3 +1,5 @@
+#include "cJSON.h"
+#include "native_configuration.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "settings.h"
@@ -5,6 +7,7 @@
 #include <cassert>
 #include <cstring>
 #include <map>
+#include <memory>
 #include <string>
 
 namespace {
@@ -233,4 +236,62 @@ int main() {
   assert(Settings::save_playback(playback.c_str()));
   assert(stored.at("settings_v1").size() > 1536 && current.read());
   assert(current.web_password == std::string(64, '"') && current.photo_source.memory_window == 4);
+
+  using espframe::native::configuration_capabilities;
+  using espframe::native::configuration_snapshot;
+  using espframe::native::decode_configuration_form;
+  using espframe::native::update_configuration;
+  using Json = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>;
+  const Json capabilities(configuration_capabilities(), cJSON_Delete);
+  assert(capabilities && cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(capabilities.get(), "configuration_write")));
+  assert(cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(capabilities.get(), "legacy_entity_api")));
+
+  const Json snapshot(configuration_snapshot(current), cJSON_Delete);
+  assert(snapshot && cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(snapshot.get(), "api_key_configured")));
+  assert(cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(snapshot.get(), "reset_epoch")) == 0);
+  const auto *values = cJSON_GetObjectItemCaseSensitive(snapshot.get(), "values");
+  assert(cJSON_IsObject(values));
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(values, "interval")) == std::string("24 hours"));
+  assert(!cJSON_HasObjectItem(values, "api_key") && !cJSON_HasObjectItem(values, "immich_key") &&
+         !cJSON_HasObjectItem(values, "web_password") && !cJSON_HasObjectItem(values, "password") &&
+         !cJSON_HasObjectItem(values, "photo_source"));
+  bool source_unavailable = false;
+  const cJSON *key;
+  cJSON_ArrayForEach(key, cJSON_GetObjectItemCaseSensitive(snapshot.get(), "unavailable")) {
+    source_unavailable |= cJSON_GetStringValue(key) == std::string("photo_source");
+  }
+  assert(source_unavailable);
+
+  const auto form = decode_configuration_form(
+      "configuration=%7B%22values%22%3A%7B%22interval%22%3A%2230+seconds%22%2C%22api_key%22%3A%22new%2B%26key%22%7D%7D");
+  assert(form && *form == R"({"values":{"interval":"30 seconds","api_key":"new+&key"}})");
+  assert(!decode_configuration_form("configuration=%00"));
+  assert(!decode_configuration_form("configuration=%0Q"));
+  assert(!decode_configuration_form("configuration=%"));
+  assert(!decode_configuration_form("configuration=%7B&configuration=%7D"));
+  assert(!decode_configuration_form("configuration=" + std::string(Settings::max_json_size + 1, 'x')));
+  const auto response = update_configuration(form->c_str());
+  assert(!response.error && response.updated == 2);
+  assert(current.read() && current.slide_seconds == 30 && current.immich_key == "new+&key");
+  assert(current.photo_source.mode == PhotoSourceMode::Memories && current.immich_url == endpoint + "/api");
+  assert(current.web_password == std::string(64, '"') && current.password == std::string(64, '"'));
+
+  const auto saved = stored;
+  for (const auto *invalid : {
+           R"({"api_version":2,"values":{"brightness_day":50}})",
+           R"({"reset_epoch":1,"values":{"brightness_day":50}})",
+           R"({"values":{"brightness_day":50,"photo_source":"Custom"}})",
+           R"({"values":{"brightness_day":50,"screen_rotation":"90"}})",
+           R"({"values":{"brightness_day":50,"api_key":""}})",
+           R"({"values":{"brightness_day":50,"brightness_day":80}})",
+           R"({"values":{"brightness_day":50,"unsupported":true}})",
+           R"({"values":{"brightness_day":50,"api_key":"partial\u0000key"}})",
+           R"({"values":{"brightness_day":50,"api_key":[[[["key"]]]]}})",
+       }) {
+    assert(update_configuration(invalid).error && stored == saved);
+  }
+  assert(!update_configuration(R"({"values":{}})").error && stored == saved);
+  assert(!Settings::save_playback(R"({"brightness_day":60})"));
+  assert(Settings::save_playback(R"({"immich_url":"https://photos.test","brightness_day":60})"));
+  assert(current.read() && current.brightness_day == 60 && current.immich_key == "new+&key");
 }

@@ -22,7 +22,8 @@ endif()
 
 idf_component_register(
     SRCS app.cpp clock_overlay.cpp clock_settings.cpp daylight.cpp display.cpp frame_blend.cpp frame_blitter.cpp immich.cpp immich_http.cpp
-         immich_memories.cpp immich_selection.cpp improv_serial.cpp native_network.cpp p4_jpeg_decoder.cpp playback_trace.cpp preview_decoder.cpp
+         immich_memories.cpp immich_selection.cpp improv_serial.cpp native_configuration.cpp native_network.cpp p4_jpeg_decoder.cpp
+         playback_trace.cpp preview_decoder.cpp
          photo_caption.cpp recovery_card.cpp screen_tone.cpp settings.cpp touch.cpp
          firmware_update.cpp usb_setup.cpp web_settings.cpp
          ${trial_source}

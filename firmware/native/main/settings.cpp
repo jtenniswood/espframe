@@ -364,57 +364,70 @@ bool Settings::save_wifi(const WifiCredentials &wifi) {
          parse_all(document.get(), candidate) && write_document(document.get());
 }
 
+bool Settings::add_playback_fields(cJSON *object) const {
+  return cJSON_AddStringToObject(object, "immich_url", immich_url.c_str()) &&
+         cJSON_AddNumberToObject(object, "slide_seconds", slide_seconds) &&
+         cJSON_AddNumberToObject(object, "brightness_day", brightness_day) &&
+         cJSON_AddNumberToObject(object, "brightness_night", night_brightness()) &&
+         cJSON_AddBoolToObject(object, "schedule_enabled", schedule.enabled) &&
+         cJSON_AddNumberToObject(object, "schedule_on_hour", schedule.on_hour) &&
+         cJSON_AddNumberToObject(object, "schedule_off_hour", schedule.off_hour) &&
+         cJSON_AddNumberToObject(object, "schedule_wake_timeout", schedule.wake_seconds) &&
+         cJSON_AddBoolToObject(object, "base_tone_enabled", tone.base_enabled) &&
+         cJSON_AddNumberToObject(object, "base_tone", tone.base_amount) &&
+         cJSON_AddBoolToObject(object, "warm_tones_enabled", tone.night_enabled) &&
+         cJSON_AddNumberToObject(object, "warm_tone_intensity", tone.night_amount) &&
+         cJSON_AddBoolToObject(object, "portrait_pairing", portrait_pairing) &&
+         cJSON_AddStringToObject(object, "display_mode", display_mode_name(display_mode)) &&
+         cJSON_AddStringToObject(object, "screen_rotation", screen_rotation_name(screen_rotation)) &&
+         cJSON_AddStringToObject(object, "photo_source", photo_source_name(photo_source.mode)) &&
+         cJSON_AddStringToObject(object, "album_id", photo_source.album_id.c_str()) &&
+         cJSON_AddStringToObject(object, "memories_window", memory_windows[photo_source.memory_window].data()) &&
+         cJSON_AddBoolToObject(object, "memories_fallback", photo_source.memory_fallback) &&
+         cJSON_AddBoolToObject(object, "date_filter_enabled", capture_dates.enabled) &&
+         cJSON_AddStringToObject(object, "date_filter_mode", capture_dates.mode_name()) &&
+         cJSON_AddStringToObject(object, "date_from", capture_dates.from.c_str()) &&
+         cJSON_AddStringToObject(object, "date_to", capture_dates.through.c_str()) &&
+         cJSON_AddNumberToObject(object, "relative_amount", capture_dates.amount) &&
+         cJSON_AddStringToObject(object, "relative_unit", capture_dates.unit_name()) &&
+         cJSON_AddBoolToObject(object, "photo_metadata_date_enabled", metadata.show_date) &&
+         cJSON_AddBoolToObject(object, "photo_metadata_location_enabled", metadata.show_location) &&
+         cJSON_AddStringToObject(object, "photo_metadata_date_format", metadata.date_format()) &&
+         cJSON_AddStringToObject(object, "photo_metadata_date_taken_format", metadata.taken_format()) &&
+         cJSON_AddBoolToObject(object, "show_clock", clock.show) &&
+         cJSON_AddStringToObject(object, "clock_format", clock.format.c_str()) &&
+         cJSON_AddStringToObject(object, "timezone", clock.timezone.c_str());
+}
+
 bool Settings::save_playback(const char *json) {
   const auto update = parse(json);
+  return cJSON_HasObjectItem(update.get(), "immich_url") &&
+         update_playback(update.get()) == UpdateResult::Saved;
+}
+
+Settings::UpdateResult Settings::update_playback(const cJSON *update) {
   std::string replacement_key;
   const std::lock_guard lock(storage_mutex);
   Settings settings;
-  if (!cJSON_IsObject(update.get()) || !load(settings) || !settings.has_immich() || settings.web_password.empty() ||
-      !read_field(update.get(), "immich_url", settings.immich_url) ||
-      !read_field(update.get(), "immich_key", replacement_key, true) ||
-      !read_playback(update.get(), settings))
-    return false;
+  if (!cJSON_IsObject(update) || !load(settings) || !settings.has_immich() || settings.web_password.empty())
+    return UpdateResult::Failed;
+  if (!read_field(update, "immich_url", settings.immich_url, true) ||
+      !read_field(update, "immich_key", replacement_key, true) || !read_playback(update, settings))
+    return UpdateResult::Invalid;
   if (!replacement_key.empty())
     settings.immich_key = replacement_key;
   const Json updated(cJSON_CreateObject(), cJSON_Delete);
   if (!updated || !cJSON_AddStringToObject(updated.get(), "ssid", settings.ssid.c_str()) ||
       !cJSON_AddStringToObject(updated.get(), "password", settings.password.c_str()) ||
-      !cJSON_AddStringToObject(updated.get(), "immich_url", settings.immich_url.c_str()) ||
       !cJSON_AddStringToObject(updated.get(), "immich_key", settings.immich_key.c_str()) ||
       !cJSON_AddStringToObject(updated.get(), "web_password", settings.web_password.c_str()) ||
-      !cJSON_AddNumberToObject(updated.get(), "slide_seconds", settings.slide_seconds) ||
-      !cJSON_AddNumberToObject(updated.get(), "brightness_day", settings.brightness_day) ||
-      (settings.brightness_night && !cJSON_AddNumberToObject(updated.get(), "brightness_night", *settings.brightness_night)) ||
-      !cJSON_AddBoolToObject(updated.get(), "schedule_enabled", settings.schedule.enabled) ||
-      !cJSON_AddNumberToObject(updated.get(), "schedule_on_hour", settings.schedule.on_hour) ||
-      !cJSON_AddNumberToObject(updated.get(), "schedule_off_hour", settings.schedule.off_hour) ||
-      !cJSON_AddNumberToObject(updated.get(), "schedule_wake_timeout", settings.schedule.wake_seconds) ||
-      !cJSON_AddBoolToObject(updated.get(), "base_tone_enabled", settings.tone.base_enabled) ||
-      !cJSON_AddNumberToObject(updated.get(), "base_tone", settings.tone.base_amount) ||
-      !cJSON_AddBoolToObject(updated.get(), "warm_tones_enabled", settings.tone.night_enabled) ||
-      !cJSON_AddNumberToObject(updated.get(), "warm_tone_intensity", settings.tone.night_amount) ||
-      !cJSON_AddBoolToObject(updated.get(), "portrait_pairing", settings.portrait_pairing) ||
-      !cJSON_AddStringToObject(updated.get(), "display_mode", display_mode_name(settings.display_mode)) ||
-      !cJSON_AddStringToObject(updated.get(), "screen_rotation", screen_rotation_name(settings.screen_rotation)) ||
-      !cJSON_AddStringToObject(updated.get(), "photo_source", photo_source_name(settings.photo_source.mode)) ||
-      !cJSON_AddStringToObject(updated.get(), "album_id", settings.photo_source.album_id.c_str()) ||
-      !cJSON_AddStringToObject(updated.get(), "memories_window", memory_windows[settings.photo_source.memory_window].data()) ||
-      !cJSON_AddBoolToObject(updated.get(), "memories_fallback", settings.photo_source.memory_fallback) ||
-      !cJSON_AddBoolToObject(updated.get(), "date_filter_enabled", settings.capture_dates.enabled) ||
-      !cJSON_AddStringToObject(updated.get(), "date_filter_mode", settings.capture_dates.mode_name()) ||
-      !cJSON_AddStringToObject(updated.get(), "date_from", settings.capture_dates.from.c_str()) ||
-      !cJSON_AddStringToObject(updated.get(), "date_to", settings.capture_dates.through.c_str()) ||
-      !cJSON_AddNumberToObject(updated.get(), "relative_amount", settings.capture_dates.amount) ||
-      !cJSON_AddStringToObject(updated.get(), "relative_unit", settings.capture_dates.unit_name()) ||
-      !cJSON_AddBoolToObject(updated.get(), "photo_metadata_date_enabled", settings.metadata.show_date) ||
-      !cJSON_AddBoolToObject(updated.get(), "photo_metadata_location_enabled", settings.metadata.show_location) ||
-      !cJSON_AddStringToObject(updated.get(), "photo_metadata_date_format", settings.metadata.date_format()) ||
-      !cJSON_AddStringToObject(updated.get(), "photo_metadata_date_taken_format", settings.metadata.taken_format()) ||
-      !cJSON_AddBoolToObject(updated.get(), "show_clock", settings.clock.show) ||
-      !cJSON_AddStringToObject(updated.get(), "clock_format", settings.clock.format.c_str()) ||
-      !cJSON_AddStringToObject(updated.get(), "timezone", settings.clock.timezone.c_str()))
-    return false;
-  return parse_all(updated.get(), settings) && write_document(updated.get());
+      !settings.add_playback_fields(updated.get()))
+    return UpdateResult::Failed;
+  if (!settings.brightness_night)
+    cJSON_DeleteItemFromObjectCaseSensitive(updated.get(), "brightness_night");
+  if (!parse_all(updated.get(), settings))
+    return UpdateResult::Invalid;
+  return write_document(updated.get()) ? UpdateResult::Saved : UpdateResult::Failed;
 }
 
 }  // namespace espframe::native

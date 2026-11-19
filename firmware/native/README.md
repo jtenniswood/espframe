@@ -89,6 +89,14 @@ Use **Download settings backup** to save the active playback and screen
 settings for a future install.
 The page uses HTTP on the local network. Keep it on a trusted network.
 
+The native player also answers the shared configuration API at
+`/espframe/api/v1/capabilities` and `/espframe/api/v1/configuration`.
+Authenticated reads report common settings and list unavailable fields.
+Same-origin writes accept the existing form-encoded configuration payload.
+The player saves the supported fields together and restarts to apply them.
+The API key is write-only. Photo-source filters, reset, and the shared
+TypeScript settings page still need integration.
+
 ### Update the native firmware from the web settings
 
 Download the installer artifact for the build you want to use. In the frame's

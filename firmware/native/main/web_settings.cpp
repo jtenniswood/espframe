@@ -1,5 +1,7 @@
 #include "web_settings.h"
+#include "configuration_contract_generated.h"
 #include "firmware_update.h"
+#include "native_configuration.h"
 #include "native_network.h"
 
 #include "cJSON.h"
@@ -24,6 +26,7 @@ namespace {
 
 constexpr const char *tag = "web-settings";
 constexpr size_t auth_capacity = 120;
+namespace contract = esphome::espframe::contract;
 httpd_handle_t server{};
 esp_timer_handle_t restart_timer{};
 std::string authorization;
@@ -66,8 +69,14 @@ bool hotspot_socket(httpd_req_t *request) {
 }
 
 bool header_is(httpd_req_t *request, const char *name, std::string_view value) {
-  char header[64]{};
+  char header[256]{};
   return httpd_req_get_hdr_value_str(request, name, header, sizeof(header)) == ESP_OK && value == header;
+}
+
+bool same_origin(httpd_req_t *request) {
+  char host[248]{};
+  return httpd_req_get_hdr_value_str(request, "Host", host, sizeof(host)) == ESP_OK && host[0] != '\0' &&
+         header_is(request, "Origin", std::string("http://") + host);
 }
 
 bool from_hotspot_client(httpd_req_t *request) {
@@ -200,38 +209,7 @@ esp_err_t current(httpd_req_t *request) {
   Settings settings;
   std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(cJSON_CreateObject(), cJSON_Delete);
   if (!settings.read() || !document ||
-      !cJSON_AddStringToObject(document.get(), "immich_url", settings.immich_url.c_str()) ||
-      !cJSON_AddNumberToObject(document.get(), "slide_seconds", settings.slide_seconds) ||
-      !cJSON_AddNumberToObject(document.get(), "brightness_day", settings.brightness_day) ||
-      !cJSON_AddNumberToObject(document.get(), "brightness_night", settings.night_brightness()) ||
-      !cJSON_AddBoolToObject(document.get(), "schedule_enabled", settings.schedule.enabled) ||
-      !cJSON_AddNumberToObject(document.get(), "schedule_on_hour", settings.schedule.on_hour) ||
-      !cJSON_AddNumberToObject(document.get(), "schedule_off_hour", settings.schedule.off_hour) ||
-      !cJSON_AddNumberToObject(document.get(), "schedule_wake_timeout", settings.schedule.wake_seconds) ||
-      !cJSON_AddBoolToObject(document.get(), "base_tone_enabled", settings.tone.base_enabled) ||
-      !cJSON_AddNumberToObject(document.get(), "base_tone", settings.tone.base_amount) ||
-      !cJSON_AddBoolToObject(document.get(), "warm_tones_enabled", settings.tone.night_enabled) ||
-      !cJSON_AddNumberToObject(document.get(), "warm_tone_intensity", settings.tone.night_amount) ||
-      !cJSON_AddBoolToObject(document.get(), "portrait_pairing", settings.portrait_pairing) ||
-      !cJSON_AddStringToObject(document.get(), "display_mode", display_mode_name(settings.display_mode)) ||
-      !cJSON_AddStringToObject(document.get(), "screen_rotation", screen_rotation_name(settings.screen_rotation)) ||
-      !cJSON_AddStringToObject(document.get(), "photo_source", photo_source_name(settings.photo_source.mode)) ||
-      !cJSON_AddStringToObject(document.get(), "album_id", settings.photo_source.album_id.c_str()) ||
-      !cJSON_AddStringToObject(document.get(), "memories_window", memory_windows[settings.photo_source.memory_window].data()) ||
-      !cJSON_AddBoolToObject(document.get(), "memories_fallback", settings.photo_source.memory_fallback) ||
-      !cJSON_AddBoolToObject(document.get(), "date_filter_enabled", settings.capture_dates.enabled) ||
-      !cJSON_AddStringToObject(document.get(), "date_filter_mode", settings.capture_dates.mode_name()) ||
-      !cJSON_AddStringToObject(document.get(), "date_from", settings.capture_dates.from.c_str()) ||
-      !cJSON_AddStringToObject(document.get(), "date_to", settings.capture_dates.through.c_str()) ||
-      !cJSON_AddNumberToObject(document.get(), "relative_amount", settings.capture_dates.amount) ||
-      !cJSON_AddStringToObject(document.get(), "relative_unit", settings.capture_dates.unit_name()) ||
-      !cJSON_AddBoolToObject(document.get(), "photo_metadata_date_enabled", settings.metadata.show_date) ||
-      !cJSON_AddBoolToObject(document.get(), "photo_metadata_location_enabled", settings.metadata.show_location) ||
-      !cJSON_AddStringToObject(document.get(), "photo_metadata_date_format", settings.metadata.date_format()) ||
-      !cJSON_AddStringToObject(document.get(), "photo_metadata_date_taken_format", settings.metadata.taken_format()) ||
-      !cJSON_AddBoolToObject(document.get(), "show_clock", settings.clock.show) ||
-      !cJSON_AddStringToObject(document.get(), "clock_format", settings.clock.format.c_str()) ||
-      !cJSON_AddStringToObject(document.get(), "timezone", settings.clock.timezone.c_str()) ||
+      !settings.add_playback_fields(document.get()) ||
       !cJSON_AddBoolToObject(document.get(), "firmware_update", can_update_firmware()) ||
       !cJSON_AddStringToObject(document.get(), "board_revision", NATIVE_BOARD))
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to load settings.");
@@ -277,6 +255,71 @@ esp_err_t update(httpd_req_t *request) {
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Saved. Restart the frame to apply settings.");
   httpd_resp_set_type(request, "application/json");
   return httpd_resp_sendstr(request, "{\"saved\":true}");
+}
+
+esp_err_t send_configuration(httpd_req_t *request, const cJSON *document, const char *status = "200 OK") {
+  const std::unique_ptr<char, decltype(&cJSON_free)> body(document ? cJSON_PrintUnformatted(document) : nullptr, cJSON_free);
+  if (!body)
+    return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to load configuration.");
+  httpd_resp_set_status(request, status);
+  httpd_resp_set_type(request, "application/json");
+  return httpd_resp_sendstr(request, body.get());
+}
+
+esp_err_t capabilities(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(configuration_capabilities(), cJSON_Delete);
+  return send_configuration(request, document.get());
+}
+
+esp_err_t configuration(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  Settings settings;
+  const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(
+      settings.read() ? configuration_snapshot(settings) : nullptr, cJSON_Delete);
+  return send_configuration(request, document.get());
+}
+
+esp_err_t configuration_reply(httpd_req_t *request, const ConfigurationUpdate &result) {
+  const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> body(cJSON_CreateObject(), cJSON_Delete);
+  if (!body ||
+      (result.error && (!cJSON_AddStringToObject(body.get(), "error", result.error) ||
+                        (!result.field.empty() && !cJSON_AddStringToObject(body.get(), "field", result.field.c_str())))) ||
+      (!result.error && (!cJSON_AddNumberToObject(body.get(), "api_version", contract::API_VERSION) ||
+                         !cJSON_AddStringToObject(body.get(), "status", "accepted") ||
+                         !cJSON_AddNumberToObject(body.get(), "updated", result.updated))))
+    return send_configuration(request, nullptr);
+  return send_configuration(request, body.get(), result.status);
+}
+
+esp_err_t save_configuration(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  if (!same_origin(request))
+    return configuration_reply(request, {"403 Forbidden", "invalid_origin", {}});
+  if (esp_timer_is_active(restart_timer))
+    return configuration_reply(request, {"409 Conflict", "update_in_progress", {}});
+  if (!header_is(request, "Content-Type", "application/x-www-form-urlencoded") ||
+      request->content_len == 0 || request->content_len > 3 * Settings::max_json_size + sizeof("configuration=") - 1)
+    return configuration_reply(request, {"400 Bad Request", "missing_configuration", {}});
+
+  std::string form(request->content_len, '\0');
+  size_t received = 0;
+  while (received < form.size()) {
+    const int bytes = httpd_req_recv(request, form.data() + received, form.size() - received);
+    if (bytes <= 0)
+      return ESP_FAIL;
+    received += bytes;
+  }
+  const auto json = decode_configuration_form(form);
+  if (!json)
+    return configuration_reply(request, {"400 Bad Request", "invalid_configuration", {}});
+  const auto result = update_configuration(json->c_str());
+  if (!result.error && result.updated != 0 && esp_timer_start_once(restart_timer, 800'000) != ESP_OK)
+    return configuration_reply(request, {"500 Internal Server Error", "restart_required", {}});
+  return configuration_reply(request, result);
 }
 
 int receive_firmware(void *context, uint8_t *buffer, size_t length) {
@@ -346,7 +389,7 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
   config.lru_purge_enable = true;
   config.stack_size = 6144;
   config.max_open_sockets = 4;
-  config.max_uri_handlers = 11;
+  config.max_uri_handlers = 14;
   config.recv_wait_timeout = 3;
   if (httpd_start(&server, &config) != ESP_OK) {
     esp_timer_delete(restart_timer);
@@ -361,6 +404,9 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       {.uri = "/settings.css", .method = HTTP_GET, .handler = style, .user_ctx = &network},
       {.uri = "/api/playback", .method = HTTP_GET, .handler = current, .user_ctx = &network},
       {.uri = "/api/playback", .method = HTTP_POST, .handler = update, .user_ctx = &network},
+      {.uri = contract::CAPABILITIES_PATH, .method = HTTP_GET, .handler = capabilities, .user_ctx = &network},
+      {.uri = contract::CONFIGURATION_PATH, .method = HTTP_GET, .handler = configuration, .user_ctx = &network},
+      {.uri = contract::CONFIGURATION_PATH, .method = HTTP_POST, .handler = save_configuration, .user_ctx = &network},
       {.uri = "/api/firmware", .method = HTTP_POST, .handler = update_firmware, .user_ctx = &network},
       {.uri = "/recovery.js", .method = HTTP_GET, .handler = recovery_script, .user_ctx = &network},
       {.uri = "/api/recovery", .method = HTTP_GET, .handler = recovery_status, .user_ctx = &network},
