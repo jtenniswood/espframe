@@ -291,9 +291,9 @@ class SlideLoader {
     return true;
   }
 
-  void submit(const SlideCache::Lease &lease, uint32_t source_revision) {
+  void submit(const SlideCache::Lease &lease, uint32_t source_revision, bool replace_source) {
     this->cancelled_ = false;
-    const Request request{lease, source_revision};
+    const Request request{lease, source_revision, replace_source};
     ESP_ERROR_CHECK(xQueueSend(this->requests_, &request, 0) == pdPASS ? ESP_OK : ESP_ERR_INVALID_STATE);
     xTaskNotifyGive(this->task_);
   }
@@ -303,6 +303,7 @@ class SlideLoader {
   }
 
   void yield_to_swipe() { this->cancelled_ = true; }
+  bool yield_requested() const { return this->cancelled_.load(); }
   void defer_pixel_work(bool defer) { this->pixel_work_deferred_.store(defer, std::memory_order_relaxed); }
 
   void report_gesture(const GestureTiming &timing) {
@@ -316,6 +317,7 @@ class SlideLoader {
   struct Request {
     SlideCache::Lease lease;
     uint32_t source_revision;
+    bool replace_source;
   };
 
   bool apply_photo_settings_(const Request &request) {
@@ -323,8 +325,8 @@ class SlideLoader {
     if (!feed)
       return false;
     frame_status.configure(true, feed->photo_source.mode);
-    this->source_.apply_photo_settings(std::move(*feed), request.lease.replacement ? std::nullopt
-                                                                                 : std::optional{request.lease.slide});
+    this->source_.apply_photo_settings(std::move(*feed), request.replace_source ? std::optional{request.lease.slide}
+                                                                                : std::nullopt);
     return true;
   }
 
@@ -511,7 +513,7 @@ void run(void *) {
   uint32_t source_revision{};
   uint32_t selection_revision{};
   SlideIndex source_anchor = -1;
-  bool reframe_pending = false;
+  bool preparing_refresh = false;
   unsigned reported_ahead = 0;
   std::array<SlideRetry, SlideCache::capacity> retries{};
 
@@ -570,19 +572,18 @@ void run(void *) {
     const auto requested_revision = esphome_trial ? 0 : photo_source_revision.load(std::memory_order_acquire);
     const bool at_source_handoff = swipe.idle() && !input.engaged() && !fade.running() && !fade.held() &&
                                    !blend.pending() && display.presented_position() == center * slide_width;
-    const bool replacing = reframe_pending && preparing >= 0;
-    const bool discard_refresh = replacing && (preparing != center || requested_revision != source_revision);
+    const bool discard_refresh = preparing_refresh && (loader.yield_requested() || requested_revision != source_revision);
     SlideLoader::Completion completion{};
     // Leave a completed replacement in the queue while a gesture can still
     // see the old crop. A superseded replacement can be released immediately.
-    if ((!replacing || at_source_handoff || discard_refresh) && loader.poll(completion)) {
+    if ((!preparing_refresh || at_source_handoff || discard_refresh) && loader.poll(completion)) {
       const bool ready = completion.result == SlideLoader::Result::Ready && !discard_refresh;
       const bool next_candidate = completion.result == SlideLoader::Result::NextCandidate;
       ESP_ERROR_CHECK(cache.complete(completion.lease, ready) ? ESP_OK : ESP_ERR_INVALID_STATE);
       const auto slide = completion.lease.slide;
       if constexpr (trace_enabled) {
         const auto outcome = ready ? RefillOutcome::Ready
-                             : completion.cancelled ? RefillOutcome::Cancelled : RefillOutcome::Retry;
+                             : completion.cancelled || discard_refresh ? RefillOutcome::Cancelled : RefillOutcome::Retry;
         trace.refill(esp_timer_get_time(), refill_started_us, slide, outcome);
       }
       retries[slide % retries.size()] = ready || completion.cancelled || discard_refresh
@@ -607,17 +608,17 @@ void run(void *) {
       if constexpr (!esphome_trial) {
         if (live && slide > 0 && completion.source_ready && !completion.cancelled && !discard_refresh)
           frame_status.finish_preparation(ready ? PhotoSourceStatus::None : source_status, completion.response);
-        if (completion.lease.replacement && !discard_refresh && (ready || next_candidate)) {
-          reframe_pending = false;
-          // History still contains the same photo IDs. Rebuild the neighbors
-          // from those IDs with the new presentation settings.
-          cache.discard_other_ready_slides(center);
-          if (ready)
+        if (completion.lease.replacement && !discard_refresh) {
+          if (next_candidate)
+            cache.stop_refresh(slide);
+          if (ready && slide == center) {
             last_submitted = -1;
-          dwell.reset();
+            dwell.reset();
+          }
         }
       }
       preparing = -1;
+      preparing_refresh = false;
     }
     if constexpr (!esphome_trial) {
       if (source_anchor >= 0 && center != source_anchor && display.presented_position() == center * slide_width)
@@ -627,10 +628,12 @@ void run(void *) {
           loader.yield_to_swipe();
         } else {
           const auto requested_selection = photo_selection_revision.load(std::memory_order_relaxed);
-          reframe_pending = center > 0 && source_anchor < 0 && requested_selection == selection_revision;
+          const bool same_selection = center > 0 && source_anchor < 0 && requested_selection == selection_revision;
           source_revision = requested_revision;
           selection_revision = requested_selection;
-          if (!reframe_pending) {
+          if (same_selection) {
+            cache.mark_ready_for_refresh();
+          } else {
             // Keep the displayed slide alive as a bridge to the new feed.
             // Its neighbours belong to the old source and can be released now.
             cache.discard_other_ready_slides(center);
@@ -785,21 +788,9 @@ void run(void *) {
                   (user_motion && (!swipe.idle() || swipe.position() != display.presented_position())));
     if (live && !trial_fixtures)
       loader.defer_pixel_work(user_motion && prefetch.can_defer_pixel_work({ready_first, ready_last}, contact_engaged));
-    if (reframe_pending) {
-      if (preparing >= 0 && preparing != center) {
-        loader.yield_to_swipe();
-      } else if (preparing < 0 && at_source_handoff && !contact_engaged && input.awake() && eligible(center)) {
-        // The current slide and its immediate neighbors stay available to
-        // touch. The replacement can reuse a more distant cache slot.
-        if (const auto lease = cache.reserve(center, center - 1, center + 1, true)) {
-          if constexpr (trace_enabled)
-            refill_started_us = esp_timer_get_time();
-          loader.submit(*lease, source_revision);
-          preparing = center;
-        }
-      }
-    } else if (preparing >= 0) {
-      if (const auto wanted = prefetch.requested(); wanted && eligible(*wanted) && prefetch.can_yield(preparing, *wanted))
+    if (preparing >= 0) {
+      if (const auto wanted = prefetch.requested();
+          wanted && eligible(*wanted) && prefetch.can_yield(preparing, *wanted, preparing_refresh))
         loader.yield_to_swipe();
     } else if (!blend.pending() && (esphome_trial || !backlight_ready || input.awake())) {
       // Until PPA finishes, its input slides must stay readable even if a
@@ -807,11 +798,18 @@ void run(void *) {
       for (const auto candidate : prefetch.candidates(keep)) {
         if (!eligible(candidate))
           continue;
-        if (const auto lease = cache.reserve(candidate, keep.first, keep.last)) {
+        const bool refresh = !esphome_trial && cache.needs_refresh(candidate);
+        if (refresh && (!at_source_handoff || contact_engaged))
+          continue;
+        // Keep both immediate neighbors readable while the worker prepares
+        // a new crop. If the cache is full, borrow a more distant slot.
+        const auto retained = refresh ? SlideRange{center - 1, center + 1} : keep;
+        if (const auto lease = cache.reserve(candidate, retained.first, retained.last, refresh)) {
           if constexpr (trace_enabled)
             refill_started_us = esp_timer_get_time();
-          loader.submit(*lease, source_revision);
+          loader.submit(*lease, source_revision, source_anchor >= 0);
           preparing = candidate;
+          preparing_refresh = refresh;
           break;
         }
       }

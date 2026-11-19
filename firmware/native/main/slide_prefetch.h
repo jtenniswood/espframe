@@ -73,7 +73,9 @@ class SlidePrefetch {
       requested_.reset();
   }
 
-  bool can_yield(SlideIndex active, SlideIndex wanted) const { return active != center_ && active != wanted; }
+  bool can_yield(SlideIndex active, SlideIndex wanted, bool refreshing = false) const {
+    return active != wanted && (refreshing || active != center_);
+  }
 
   bool can_defer_pixel_work(SlideRange ready, bool contact_engaged) const {
     const auto prepared = direction_ < 0 ? center_ - ready.first : ready.last - center_;

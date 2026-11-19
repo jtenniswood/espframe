@@ -56,24 +56,37 @@ int main() {
 
   // Reframing gets a different pixel buffer at the same index. Both
   // neighbors and the old crop remain available while the worker owns it.
+  cache.mark_ready_for_refresh();
   const auto *old_crop = cache.find(4);
+  const auto *previous_photo = cache.find(3);
+  const auto *next_photo = cache.find(5);
+  assert(cache.needs_refresh(3) && cache.needs_refresh(4) && cache.needs_refresh(5));
   auto redraw = cache.reserve(4, 3, 5, true);
   assert(redraw && redraw->replacement && redraw->pixels != old_crop);
   assert(cache.find(4) == old_crop && cache.find(3) && cache.find(5));
   assert(!cache.reserve(4, 3, 5, true));
   assert(cache.complete(*redraw, false) && cache.find(4) == old_crop);
+  assert(cache.needs_refresh(4));
   auto new_crop = cache.reserve(4, 3, 5, true);
   assert(new_crop && !cache.complete(*redraw, true));
   *new_crop->pixels = 97;
   assert(cache.complete(*new_crop, true));
   assert(cache.find(4) == new_crop->pixels && *cache.find(4) == 97);
-  assert(cache.find(3) && cache.find(5));
+  assert(!cache.needs_refresh(4) && cache.needs_refresh(3) && cache.needs_refresh(5));
+  assert(cache.find(3) == previous_photo && cache.find(5) == next_photo);
+  const auto next_crop = cache.reserve(5, 3, 5, true);
+  assert(next_crop && cache.complete(*next_crop, true));
+  assert(cache.find(5) == next_crop->pixels && !cache.needs_refresh(5));
+  cache.stop_refresh(3);
+  assert(cache.find(3) == previous_photo && !cache.needs_refresh(3));
 
   // After retiring a feed, the current photo remains readable while its new
   // neighbor can reuse any released slot at the same logical index.
   const auto *anchor = cache.find(4);
+  cache.mark_ready_for_refresh();
   cache.discard_other_ready_slides(4);
   assert(cache.find(4) == anchor && !cache.find(3) && !cache.find(5));
+  assert(!cache.needs_refresh(4) && !cache.needs_refresh(5));
   const auto replacement = cache.reserve(5, 4, 9);
   assert(replacement && cache.complete(*replacement, true));
   assert(cache.find(4) == anchor && cache.find(5) == replacement->pixels);
@@ -88,5 +101,11 @@ int main() {
     assert(lease && roomy.complete(*lease, true));
   }
   assert(!roomy.reserve(9, 0, 8));
+  roomy.mark_ready_for_refresh();
+  const auto near_redraw = roomy.reserve(2, 1, 3, true);
+  assert(near_redraw && !roomy.find(8) && roomy.find(0) && roomy.find(1) && roomy.find(2) && roomy.find(3));
+  assert(roomy.complete(*near_redraw, true));
+  const auto restore_distant = roomy.reserve(8, 0, 8);
+  assert(restore_distant && roomy.complete(*restore_distant, true));
   assert(roomy.reserve(9, 1, 9) && !roomy.find(0) && roomy.find(8));
 }

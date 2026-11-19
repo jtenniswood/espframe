@@ -86,8 +86,10 @@ running native firmware.
 Edit the Immich connection, display mode, time per photo, and other
 playback and screen settings, then choose **Save settings**. Changes limited
 to framing or captions redraw the current photo or portrait pair and keep
-its place in the slideshow. Changing photo selection or pairing rules keeps
-the current photo visible until the first slide from the new feed is ready.
+its place in the slideshow. Cached neighbors stay swipeable while their
+framing and captions refresh in the background. Changing photo selection or
+pairing rules keeps the current photo visible until the first slide from
+the new feed is ready.
 Saves that also change connection or device settings apply after a restart.
 If you change **Frame name**, it also shows the new `.local` address.
 The frame adds its own four-character MAC suffix to the hostname.

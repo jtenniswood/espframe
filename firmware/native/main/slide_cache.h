@@ -43,10 +43,34 @@ class SlideCache {
     return nullptr;
   }
 
+  bool needs_refresh(SlideIndex slide) const {
+    for (const auto &entry : this->entries_) {
+      if (entry.state == State::Ready && entry.slide == slide)
+        return entry.needs_refresh;
+    }
+    return false;
+  }
+
+  void mark_ready_for_refresh() {
+    for (auto &entry : this->entries_) {
+      if (entry.state == State::Ready)
+        entry.needs_refresh = true;
+    }
+  }
+
+  void stop_refresh(SlideIndex slide) {
+    for (auto &entry : this->entries_) {
+      if (entry.state == State::Ready && entry.slide == slide)
+        entry.needs_refresh = false;
+    }
+  }
+
   std::optional<Lease> reserve(SlideIndex slide, SlideIndex keep_first, SlideIndex keep_last, bool replacement = false) {
     if (replacement && !find(slide))
       return std::nullopt;
-    size_t available = capacity;
+    size_t empty = capacity;
+    size_t evict = capacity;
+    SlideIndex evict_distance{};
     for (size_t index = 0; index < capacity; ++index) {
       if (!this->buffers_[index])
         continue;
@@ -54,11 +78,18 @@ class SlideCache {
       const bool replaces_ready = replacement && entry.state == State::Ready && entry.slide == slide;
       if (entry.state != State::Empty && entry.slide == slide && !replaces_ready)
         return std::nullopt;
-      if (entry.state == State::Empty ||
-          (available == capacity && entry.state == State::Ready && !replaces_ready &&
-           (entry.slide < keep_first || entry.slide > keep_last)))
-        available = index;
+      if (entry.state == State::Empty) {
+        empty = index;
+      } else if (entry.state == State::Ready && !replaces_ready &&
+                 (entry.slide < keep_first || entry.slide > keep_last)) {
+        const auto distance = entry.slide < keep_first ? keep_first - entry.slide : entry.slide - keep_last;
+        if (evict == capacity || (replacement && distance > evict_distance)) {
+          evict = index;
+          evict_distance = distance;
+        }
+      }
     }
+    const auto available = empty != capacity ? empty : evict;
     if (available == capacity)
       return std::nullopt;
 
@@ -85,8 +116,11 @@ class SlideCache {
 
   void discard_other_ready_slides(SlideIndex keep) {
     for (auto &entry : this->entries_) {
-      if (entry.state == State::Ready && entry.slide != keep)
-        entry.state = State::Empty;
+      if (entry.state == State::Ready) {
+        if (entry.slide != keep)
+          entry.state = State::Empty;
+        entry.needs_refresh = false;
+      }
     }
   }
 
@@ -96,6 +130,7 @@ class SlideCache {
     State state{State::Empty};
     SlideIndex slide{};
     uint32_t ticket{};
+    bool needs_refresh{};
   };
 
   Buffers buffers_;

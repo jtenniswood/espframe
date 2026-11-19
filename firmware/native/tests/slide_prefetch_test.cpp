@@ -91,6 +91,7 @@ int main() {
   assert(prefetch.requested() == 7 && prefetch.candidates(prefetch.window(available))[1] == 7);
   assert(prefetch.can_yield(13, 7));
   assert(!prefetch.can_yield(10, 7) && !prefetch.can_yield(7, 7));
+  assert(prefetch.can_yield(10, 7, true) && !prefetch.can_yield(7, 7, true));
   window = prefetch.window(available);
   assert(window.first == 7 && window.last == 12);
   assert(!cache.reserve(7, window.first, window.last));
