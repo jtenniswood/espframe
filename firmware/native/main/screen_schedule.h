@@ -28,6 +28,14 @@ class ScreenSchedule {
     wake_until_ = now_us + settings_.wake_seconds * 1'000'000LL;
   }
 
+  bool wake_for_backlight(std::optional<int> hour, int64_t now_us) {
+    if (settings_.enabled && hour && !in_window_(*hour) && now_us >= wake_until_)
+      return false;
+    manually_asleep_ = false;
+    awake_ = true;
+    return true;
+  }
+
   bool update(std::optional<int> hour, int64_t now_us, bool interacting) {
     if (manually_asleep_)
       return false;

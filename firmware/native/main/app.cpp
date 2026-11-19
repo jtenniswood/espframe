@@ -394,6 +394,7 @@ void run(void *) {
                                      configure_local_time(loader.clock().timezone);
   Daylight daylight{solar_brightness ? find_clock_zone(loader.clock().timezone) : nullptr};
   uint8_t brightness = day_level;
+  std::optional<uint8_t> manual_brightness;
   uint8_t applied_brightness = 0;
   const bool can_layer_fade = clock.init(loader.clock(), clock_atlas, can_fade && display.can_pin_frame(), rotation);
   if (can_fade && (!display.can_pin_frame() || !can_layer_fade)) {
@@ -488,7 +489,10 @@ void run(void *) {
       const auto local = local_clock_time(std::time(nullptr));
       clock_dirty |= clock.update(local);
       local_hour = local ? std::optional<int>{local->tm_hour} : std::nullopt;
-      brightness = daylight.is_day(local) ? day_level : night_level;
+      const uint8_t scheduled_brightness = daylight.is_day(local) ? day_level : night_level;
+      if (scheduled_brightness != brightness)
+        manual_brightness.reset();
+      brightness = scheduled_brightness;
       next_clock_poll = now + 250'000;
     }
     if (const auto scanout = display.poll_presented()) {
@@ -497,8 +501,10 @@ void run(void *) {
           input.sleep(swipe);
         applied_brightness = input.awake() ? brightness : 0;
         display.init_backlight(applied_brightness);
-        if constexpr (!esphome_trial)
+        if constexpr (!esphome_trial) {
+          screen_control.publish_backlight(applied_brightness);
           frame_status.set_screen(applied_brightness != 0);
+        }
         backlight_ready = true;
         ESP_LOGI(tag, "Player ready (background %s preparation)", live && !trial_fixtures ? "Immich" : "fixture");
       }
@@ -636,9 +642,11 @@ void run(void *) {
           motion_epoch.update(MotionPhase::Still);
       }
       if (effect == SwipeInput::Effect::Sleep) {
+        manual_brightness.reset();
         schedule.sleep();
         suspend_fade();
       } else if (effect == SwipeInput::Effect::Wake) {
+        manual_brightness.reset();
         schedule.wake(report.sampled_us);
       }
       if (swipe.dragging()) {
@@ -650,20 +658,22 @@ void run(void *) {
 
     now = esp_timer_get_time();
     if (backlight_ready) {
-      const bool commanded = !esphome_trial && screen_control.apply_pending(schedule, now);
+      const bool commanded = !esphome_trial && screen_control.apply_pending(schedule, now, local_hour, manual_brightness);
       const bool awake = schedule.update(local_hour, now, input.engaged() || !swipe.idle());
       if (awake != input.awake()) {
         if (awake) {
           input.wake();
         } else {
+          manual_brightness.reset();
           input.sleep(swipe);
           suspend_fade();
         }
       }
-      const uint8_t target = awake ? brightness : 0;
+      const uint8_t target = awake ? manual_brightness.value_or(brightness) : 0;
       if (target != applied_brightness) {
         display.set_backlight(target);
         if constexpr (!esphome_trial) {
+          screen_control.publish_backlight(target);
           if ((target == 0) != (applied_brightness == 0))
             frame_status.set_screen(target != 0);
         }

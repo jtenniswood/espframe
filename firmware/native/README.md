@@ -116,10 +116,14 @@ Devices & services** and configure the discovered ESPHome device with the same
 key. You can also add it manually by IP on port 6053. Use a 32-byte Base64 key as
 described in the [ESPHome native API documentation](https://esphome.io/components/api/).
 
-The native player uses the stock entity IDs for **Screen: Sleep**,
-**Screen: Wake**, and **Photos: Slideshow Interval**. Interval changes take effect
-without restarting the player. Home Assistant shows the stock interval
-choices and any custom interval already selected in native settings.
+The native player uses the stock entity IDs for **Screen: Backlight**,
+**Screen: Sleep**, **Screen: Wake**, and **Photos: Slideshow Interval**.
+The backlight light entity shows the current screen state and brightness.
+Turning it off puts the frame to sleep. Turning it on respects scheduled off-hours.
+Use **Screen: Wake** for a temporary wake during off-hours. A brightness
+change lasts until the next sleep, explicit wake, or scheduled brightness change.
+Interval changes take effect without restarting the player. Home Assistant
+shows the stock interval choices and any custom interval already selected in native settings.
 A frame without a custom name advertises its stock
 MAC-suffixed hostname when Home Assistant is enabled. The key stays on the
 frame across native OTA updates and customization resets. Use **Remove saved

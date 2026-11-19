@@ -4,6 +4,7 @@
 #include "slideshow_interval.h"
 
 #include <arpa/inet.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -47,6 +48,7 @@ int main() {
   if (!fixture_key)
     return 1;
   active_slideshow_interval.store(17);
+  screen_control.publish_backlight(64);
   const EspHomeControls controls{
       screen_control, nullptr,
       [](const void *) { return active_slideshow_interval.load(); },
@@ -59,12 +61,20 @@ int main() {
   };
   std::jthread player([](std::stop_token stop) {
     ScreenSchedule schedule{{true, 6, 22, 60}};
+    std::optional<uint8_t> manual_brightness;
+    int hour = 8;
     while (!stop.stop_requested()) {
-      if (screen_control.apply_pending(schedule, 1'000)) {
-        const bool awake = schedule.update(8, 1'000, false);
+      pollfd input{STDIN_FILENO, POLLIN, 0};
+      char hour_change{};
+      if (poll(&input, 1, 0) > 0 && (input.revents & POLLIN) != 0 && read(STDIN_FILENO, &hour_change, 1) == 1)
+        hour = hour_change == 'n' ? 23 : 8;
+      const bool commanded = screen_control.apply_pending(schedule, 1'000, hour, manual_brightness);
+      const bool awake = schedule.update(hour, 1'000, false);
+      if (!awake)
+        manual_brightness.reset();
+      screen_control.publish_backlight(awake ? manual_brightness.value_or(64) : 0);
+      if (commanded)
         screen_control.completed();
-        std::cout << (awake ? "awake" : "asleep") << std::endl;
-      }
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
   });

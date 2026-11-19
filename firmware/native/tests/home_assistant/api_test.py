@@ -6,7 +6,10 @@ import json
 from pathlib import Path
 import sys
 
-from aioesphomeapi import APIClient, ButtonInfo, InvalidEncryptionKeyAPIError, SelectInfo, SelectState, build_device_unique_id
+from aioesphomeapi import (
+    APIClient, ButtonInfo, ColorMode, InvalidEncryptionKeyAPIError, LightInfo, LightState,
+    SelectInfo, SelectState, build_device_unique_id,
+)
 from aioesphomeapi.api_pb2 import PingRequest, PingResponse
 from aioesphomeapi.noise import NoiseHandshake
 
@@ -16,6 +19,7 @@ NAME = "espframe-ha-test"
 MAC = "02aabbccddee"
 KEY = b64encode(bytes(range(1, 33))).decode()
 INTERVAL_KEY = 3029912432
+BACKLIGHT_KEY = 2211332998
 CONTRACT = Path(__file__).resolve().parents[4] / "product/contract/settings.json"
 STOCK_INTERVALS = next(field["options"] for field in json.loads(CONTRACT.read_text()) if field["key"] == "interval")
 
@@ -68,7 +72,7 @@ async def assert_invalid_record(port, oversized):
         await writer.wait_closed()
 
 
-async def verify(port, output):
+async def verify(port, clock_input):
     reader, writer = await asyncio.open_connection(HOST, port)
     try:
         async with asyncio.timeout(6):
@@ -100,7 +104,7 @@ async def verify(port, output):
         assert info.mac_address.lower().replace(":", "") == MAC
         assert info.api_encryption_supported and not info.api_encryption_provisionable
         assert info.project_name == "jtenniswood.immich-frame"
-        assert not services and len(entities) == 3
+        assert not services and len(entities) == 4
         buttons = [entity for entity in entities if isinstance(entity, ButtonInfo)]
         for button, name, key, object_id in zip(
             buttons, ("Screen: Sleep", "Screen: Wake"), (2655868716, 1917547667),
@@ -115,11 +119,24 @@ async def verify(port, output):
         assert interval.options == [*STOCK_INTERVALS, "17 seconds"]
         assert build_device_unique_id(MAC, interval) == f"{MAC}/0/select/Photos: Slideshow Interval"
         assert build_device_unique_id(MAC, interval, version=1) == f"{MAC}-select-photos_slideshow_interval"
+        backlight = next(entity for entity in entities if isinstance(entity, LightInfo))
+        assert backlight.name == "Screen: Backlight" and backlight.key == BACKLIGHT_KEY
+        assert backlight.supported_color_modes == [ColorMode.BRIGHTNESS]
+        assert build_device_unique_id(MAC, backlight) == f"{MAC}/0/light/Screen: Backlight"
+        assert build_device_unique_id(MAC, backlight, version=1) == f"{MAC}-light-screen_backlight"
         await api.device_capabilities()
         states = asyncio.Queue()
         api.subscribe_states(states.put_nowait)
         first = await states.get()
         assert isinstance(first, SelectState) and first.key == INTERVAL_KEY and first.state == "17 seconds"
+
+        async def expect_backlight(level):
+            current = await states.get()
+            assert isinstance(current, LightState) and current.key == BACKLIGHT_KEY
+            assert current.color_mode == ColorMode.BRIGHTNESS and current.state == (level > 0)
+            assert round(current.brightness * 100) == level
+
+        await expect_backlight(64)
         connection = api._get_connection()
         assert isinstance(await connection.send_message_await_response(PingRequest(), PingResponse), PingResponse)
         api.select_command(1234, "45 seconds")
@@ -140,9 +157,38 @@ async def verify(port, output):
         api.button_command(1234)
         api.button_command(buttons[1].key, device_id=1)
         api.button_command(buttons[0].key)
-        assert await output.readline() == b"asleep\n"
+        await expect_backlight(0)
         api.button_command(buttons[1].key)
-        assert await output.readline() == b"awake\n"
+        await expect_backlight(64)
+        api.light_command(BACKLIGHT_KEY, brightness=0.37, color_mode=ColorMode.BRIGHTNESS)
+        await expect_backlight(37)
+        api.light_command(BACKLIGHT_KEY, brightness=1 / 255)
+        await expect_backlight(1)
+        api.light_command(BACKLIGHT_KEY, state=False)
+        await expect_backlight(0)
+        api.light_command(BACKLIGHT_KEY, state=True)
+        await expect_backlight(64)
+        api.light_command(BACKLIGHT_KEY, state=False)
+        await expect_backlight(0)
+        api.light_command(BACKLIGHT_KEY, state=True, brightness=0.28)
+        await expect_backlight(28)
+        api.light_command(BACKLIGHT_KEY, brightness=1.25)
+        api.light_command(BACKLIGHT_KEY, brightness=float("nan"))
+        api.light_command(BACKLIGHT_KEY, state=False, device_id=1)
+        api.light_command(1234, state=False)
+        await asyncio.sleep(0.25)
+        assert states.empty()
+
+        clock_input.write(b"n")  # The player enters scheduled off-hours while the API session is idle.
+        await clock_input.drain()
+        await expect_backlight(0)
+        api.light_command(BACKLIGHT_KEY, state=True, brightness=0.20)
+        await asyncio.sleep(0.25)
+        assert states.empty()
+        api.button_command(buttons[1].key)
+        await expect_backlight(64)
+        api.light_command(BACKLIGHT_KEY, brightness=0.20)
+        await expect_backlight(20)
     finally:
         await api.disconnect()
 
@@ -155,21 +201,25 @@ async def verify(port, output):
         states = asyncio.Queue()
         api.subscribe_states(states.put_nowait)
         assert (await states.get()).state == "2 hours"
+        restored = await states.get()
+        assert isinstance(restored, LightState) and restored.state and round(restored.brightness * 100) == 20
     finally:
         await api.disconnect()
 
 
 async def main(executable):
-    process = await asyncio.create_subprocess_exec(executable, stdout=asyncio.subprocess.PIPE)
+    process = await asyncio.create_subprocess_exec(
+        executable, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+    )
     try:
         async with asyncio.timeout(15):
             port = int(await process.stdout.readline())
-            await verify(port, process.stdout)
+            await verify(port, process.stdin)
     finally:
         if process.returncode is None:
             process.terminate()
         await process.wait()
-    print("ESPHome client authenticated and controlled sleep, wake and the slideshow interval with stock entity IDs.")
+    print("ESPHome client authenticated and controlled the backlight, sleep, wake and slideshow interval with stock entity IDs.")
     print("Silent clients, wrong keys, plaintext, oversized frames and inconsistent lengths were rejected. The client reconnected.")
 
 

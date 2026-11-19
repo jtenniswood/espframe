@@ -284,30 +284,47 @@ void web_commands_are_applied_through_the_same_schedule() {
   static_assert(screen_action("action=toggle") == ScreenAction::Idle);
   ScreenSchedule schedule{{true, 6, 22, 10}};
   ScreenControl control;
+  std::optional<uint8_t> brightness;
   assert(schedule.update(8, 0, false));
-  assert(!control.apply_pending(schedule, 0));
+  assert(!control.apply_pending(schedule, 0, 8, brightness));
   assert(!control.submit(ScreenAction::Idle));
   assert(control.submit(ScreenAction::Sleep));
   assert(!control.submit(ScreenAction::Wake));
-  assert(control.apply_pending(schedule, 500));
+  assert(control.apply_pending(schedule, 500, 8, brightness));
   assert(!schedule.update(8, 500, false));
   assert(control.pending() && !control.submit(ScreenAction::Wake));
   control.completed();
   assert(!control.pending());
   assert(!schedule.update(9, 1'000, false));
   assert(control.submit(ScreenAction::Wake));
-  assert(control.apply_pending(schedule, 1'500));
+  assert(control.apply_pending(schedule, 1'500, 9, brightness));
   assert(schedule.update(9, 1'500, false));
   control.completed();
   assert(schedule.update(9, 15'000'000, false));
 
   assert(!schedule.update(22, 16'000'000, false));
   assert(control.submit(ScreenAction::Wake));
-  assert(control.apply_pending(schedule, 17'000'000));
+  assert(control.apply_pending(schedule, 17'000'000, 22, brightness));
   assert(schedule.update(22, 17'000'000, false));
+  control.completed();
+  assert(control.submit_backlight(37));
+  assert(control.apply_pending(schedule, 22'000'000, 22, brightness) && brightness == 37);
   control.completed();
   assert(schedule.update(22, 26'999'999, false));
   assert(!schedule.update(22, 27'000'000, false));
+  brightness.reset();
+  assert(control.submit_backlight(56));
+  assert(control.apply_pending(schedule, 28'000'000, 22, brightness));
+  assert(!schedule.update(22, 28'000'000, false) && !brightness);
+  control.completed();
+  assert(control.submit_backlight(56));
+  assert(control.apply_pending(schedule, 29'000'000, 6, brightness) && brightness == 56);
+  assert(schedule.update(6, 29'000'000, false));
+  control.completed();
+  assert(!control.submit_backlight(101));
+  assert(control.submit_backlight(0));
+  assert(control.apply_pending(schedule, 30'000'000, 6, brightness));
+  assert(!schedule.update(6, 30'000'000, false) && !brightness);
 }
 
 void putting_the_screen_to_sleep_mid_swipe_waits_for_the_next_contact() {

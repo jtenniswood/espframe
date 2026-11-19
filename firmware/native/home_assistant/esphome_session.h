@@ -25,12 +25,15 @@ struct EspHomeControls {
   bool (*set_interval)(const void *, uint32_t);
 };
 
+enum class EspHomeReadiness { Ready, Idle, Closed };
+
 struct EspHomeStream {
   void *context;
   // Transfer the entire span or fail. The caller owns socket deadlines.
   bool (*read)(void *, std::span<uint8_t>);
   bool (*write)(void *, std::span<const uint8_t>);
   void (*authenticated)(void *){};
+  EspHomeReadiness (*poll)(void *){};
 };
 
 std::array<char, 17> esphome_mac_text(const std::array<uint8_t, 6> &mac, bool pretty = false);
