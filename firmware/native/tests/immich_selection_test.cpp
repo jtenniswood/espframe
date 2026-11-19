@@ -66,6 +66,13 @@ int main() {
   assert(landscape.valid && landscape.photos.size() == 1 && landscape.photos.front().id == photos[3].id);
   assert(std::string_view(primary.metadata.city.data()) == "São Paulo");
   assert(std::string_view(primary.metadata.country.data()) == "Brazil");
+  assert(primary.metadata.location_known && !photos[1].metadata.location_known);
+  const auto details = parse_photo_asset(R"({
+    "id":"eb492926-9046-408b-be47-a959620753bb","type":"IMAGE",
+    "exifInfo":{"city":"Amsterdam","country":"Netherlands"}
+  })");
+  assert(details && details->id == photos[1].id && details->metadata.location_known);
+  assert(std::string_view(details->metadata.city.data()) == "Amsterdam");
   assert(!is_portrait_companion(primary, primary));
   assert(is_portrait_companion(primary, photos[1]));
   assert(is_portrait_companion(primary, photos[2]));

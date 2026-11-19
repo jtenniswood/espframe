@@ -54,6 +54,21 @@ int main() {
   assert(cache.find(3) && cache.find(4) && cache.find(5));
   assert(cache.complete(*reversed, true));
 
+  // Reframing gets a different pixel buffer at the same index. Both
+  // neighbors and the old crop remain available while the worker owns it.
+  const auto *old_crop = cache.find(4);
+  auto redraw = cache.reserve(4, 3, 5, true);
+  assert(redraw && redraw->replacement && redraw->pixels != old_crop);
+  assert(cache.find(4) == old_crop && cache.find(3) && cache.find(5));
+  assert(!cache.reserve(4, 3, 5, true));
+  assert(cache.complete(*redraw, false) && cache.find(4) == old_crop);
+  auto new_crop = cache.reserve(4, 3, 5, true);
+  assert(new_crop && !cache.complete(*redraw, true));
+  *new_crop->pixels = 97;
+  assert(cache.complete(*new_crop, true));
+  assert(cache.find(4) == new_crop->pixels && *cache.find(4) == 97);
+  assert(cache.find(3) && cache.find(5));
+
   // After retiring a feed, the current photo remains readable while its new
   // neighbor can reuse any released slot at the same logical index.
   const auto *anchor = cache.find(4);

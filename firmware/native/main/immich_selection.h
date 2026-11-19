@@ -61,7 +61,7 @@ PhotoSearchRequest make_filtered_photo_search(size_t count, const PhotoFilters &
 PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool paged, bool favorites_only,
                                      CaptureDateRange dates = {}, bool exclude_favorites = false,
                                      PhotoOrientation orientation = PhotoOrientation::Any);
-std::optional<ImmichPhoto> parse_memory_asset(std::string_view json);
+std::optional<ImmichPhoto> parse_photo_asset(std::string_view json);
 std::string memory_request_path(std::chrono::sys_days date, unsigned index);
 bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candidate, unsigned pairing_days = 0);
 bool can_start_portrait_pair(const ImmichPhoto &photo);

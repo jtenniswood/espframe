@@ -15,6 +15,7 @@ inline constexpr std::array<std::string_view, 7> photo_presets{
     "All Photos", "Favorites", "Album", "Person", "Tag", "Memories", "Custom"};
 inline std::atomic<PhotoPreset> active_photo_preset{PhotoPreset::All};
 inline std::atomic<uint32_t> photo_source_revision{};
+inline std::atomic<uint32_t> photo_selection_revision{};
 
 inline const char *photo_preset_name(PhotoPreset preset) {
   return photo_presets[static_cast<size_t>(preset)].data();

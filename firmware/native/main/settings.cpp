@@ -570,19 +570,30 @@ bool changes_photo_source(std::string_view key) {
          std::ranges::any_of(filter_places, matches) || std::ranges::find(options, key) != std::end(options);
 }
 
-bool applies_to_photo_feed(std::string_view key) {
+bool changes_photo_selection(std::string_view key) {
   constexpr std::string_view options[]{
       "memories_window", "memories_fallback", "date_filter_enabled", "date_filter_mode", "date_from", "date_to",
-      "relative_amount", "relative_unit", "photo_orientation", "display_mode", "portrait_pairing", "portrait_pairs_only",
-      "portrait_pairing_range", "portrait_pair_framing", "photo_metadata_date_enabled", "photo_metadata_location_enabled",
-      "photo_metadata_date_format", "photo_metadata_date_taken_format"};
+      "relative_amount", "relative_unit", "photo_orientation", "portrait_pairing", "portrait_pairs_only",
+      "portrait_pairing_range"};
   return changes_photo_source(key) || std::ranges::find(options, key) != std::end(options);
 }
 
-void publish_photo_feed(Settings &settings) {
+bool changes_photo_presentation(std::string_view key) {
+  constexpr std::string_view options[]{
+      "display_mode", "portrait_pair_framing", "photo_metadata_date_enabled", "photo_metadata_location_enabled",
+      "photo_metadata_date_format", "photo_metadata_date_taken_format"};
+  return std::ranges::find(options, key) != std::end(options);
+}
+
+void publish_photo_feed(Settings &settings, bool selection_changed) {
   active_photo_preset.store(settings.photo_source.preset(), std::memory_order_relaxed);
   published_feed = std::move(static_cast<PhotoFeedSettings &>(settings));
-  photo_source_revision.fetch_add(1, std::memory_order_release);
+  const auto revision = photo_source_revision.load(std::memory_order_relaxed) + 1;
+  // The last selection revision survives if another save publishes a
+  // framing change before the player has picked up the new selection.
+  if (selection_changed)
+    photo_selection_revision.store(revision, std::memory_order_relaxed);
+  photo_source_revision.store(revision, std::memory_order_release);
 }
 
 Settings::UpdateResult store_settings(Settings &settings, bool clear_legacy = false) {
@@ -781,7 +792,7 @@ bool Settings::save_photo_preset(PhotoPreset preset, std::string_view paired_key
   }
   if (store_settings(settings) != UpdateResult::Saved)
     return false;
-  publish_photo_feed(settings);
+  publish_photo_feed(settings, true);
   return true;
 }
 
@@ -904,6 +915,7 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   // after validation, including an explicitly pinned night brightness.
   bool changed = connection_secret_changed || fixed_night_brightness;
   bool restart = changed || !was_configured;
+  bool selection_changed = false;
   const cJSON *field;
   cJSON_ArrayForEach(field, next.get()) {
     const std::string_view key(field->string);
@@ -913,7 +925,9 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
     changed = true;
     if (changes_photo_source(key))
       settings.photo_source.legacy_preset.reset();
-    restart |= !applies_to_photo_feed(key);
+    const bool selects_photos = changes_photo_selection(key);
+    selection_changed |= selects_photos;
+    restart |= !selects_photos && !changes_photo_presentation(key);
   }
   if (!changed)
     return UpdateResult::Unchanged;
@@ -921,7 +935,7 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   next.reset();
   const auto result = store_settings(settings);
   if (result == UpdateResult::Saved && !restart) {
-    publish_photo_feed(settings);
+    publish_photo_feed(settings, selection_changed);
     return UpdateResult::SavedLive;
   }
   return result;

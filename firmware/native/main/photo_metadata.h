@@ -11,6 +11,7 @@ struct PhotoMetadata {
   std::optional<std::chrono::sys_days> capture_day;
   std::array<char, 65> city{};
   std::array<char, 65> country{};
+  bool location_known{};
 };
 
 struct PhotoMetadataSettings {

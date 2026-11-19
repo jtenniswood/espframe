@@ -75,6 +75,7 @@ std::optional<ImmichPhoto> read_asset(const cJSON *record) {
   ImmichPhoto photo;
   std::memcpy(photo.id.data(), id, photo.id.size());
   const auto *exif = cJSON_GetObjectItemCaseSensitive(record, "exifInfo");
+  photo.metadata.location_known = cJSON_IsObject(exif);
   photo.metadata.capture_day = read_day(get_text(record, "localDateTime"));
   if (!photo.metadata.capture_day)
     photo.metadata.capture_day = read_day(get_text(exif, "dateTimeOriginal"));
@@ -255,7 +256,7 @@ PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool p
   return result;
 }
 
-std::optional<ImmichPhoto> parse_memory_asset(std::string_view json) {
+std::optional<ImmichPhoto> parse_photo_asset(std::string_view json) {
   const auto record = parse_json(json);
   const auto *type = get_text(record.get(), "type");
   if (!type || std::string_view(type) != "IMAGE")

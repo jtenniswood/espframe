@@ -60,11 +60,13 @@ std::optional<std::chrono::sys_days> local_today() {
 
 }  // namespace
 
-void ImmichSource::change_source(PhotoFeedSettings feed, SlideIndex first_slide) {
+void ImmichSource::apply_photo_settings(PhotoFeedSettings feed, std::optional<SlideIndex> first_slide) {
   if (this->feed_().photo_orientation != feed.photo_orientation)
     this->prepared_retry_us_ = 0;
   this->selection_ = std::move(feed);
-  this->history_.start_at(first_slide);
+  if (!first_slide)
+    return;
+  this->history_.start_at(*first_slide);
   this->pending_.clear();
   this->pending_is_paged_ = this->pending_has_next_page_ = false;
   this->album_pages_.clear();
@@ -425,6 +427,25 @@ void ImmichSource::discard_candidate_(const AssetId &id) {
   std::erase_if(this->memory_pool_, matches);
 }
 
+void ImmichSource::complete_location_(PhotoSlide &frame) {
+  if (!this->feed_().metadata.show_location || frame.metadata.location_known || !online_() || !allocate_download_())
+    return;
+  // The original search may have skipped EXIF when captions were disabled.
+  // A slow metadata response must not stop the photo from being reframed.
+  size_t length = 0;
+  const auto path = std::string("/assets/") + frame.primary.data();
+  if (this->fetch_(path, {}, search_capacity, length, esp_timer_get_time() + 350'000, false) != 200)
+    return;
+  const auto photo = parse_photo_asset({reinterpret_cast<const char *>(this->encoded_), length});
+  if (!photo || photo->id != frame.primary)
+    return;
+  frame.metadata.city = photo->metadata.city;
+  frame.metadata.country = photo->metadata.country;
+  frame.metadata.location_known = true;
+  if (!frame.metadata.capture_day)
+    frame.metadata.capture_day = photo->metadata.capture_day;
+}
+
 bool ImmichSource::wait_for_pixel_work_() const {
   if (!this->pixel_work_deferred_.load(std::memory_order_relaxed) || this->cancelled_)
     return !this->cancelled_;
@@ -596,7 +617,7 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
   return {};
 }
 
-ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
+ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *panel, bool replacement) {
   const TrialStageTimer attempt{TrialPreparationStage::Attempt};
   if constexpr (!SWIPE_ESPHOME_TRIAL)
     this->response_ = ImmichResponse::Pending;
@@ -604,9 +625,12 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     return PrepareResult::Retry;
   const bool new_position = slide == this->history_.next();
   auto *existing = this->history_.find(slide);
+  const bool remembered = existing != nullptr && existing->primary[0] != '\0';
+  if (replacement && !remembered)
+    return PrepareResult::NextCandidate;
   if (!new_position && existing == nullptr)
     return PrepareResult::Retry;
-  const bool remembered = existing != nullptr && existing->primary[0] != '\0';
+  const bool retain_pair = replacement && existing->companion[0] != '\0';
   const bool pairs_only = this->feed_().requires_portrait_pair();
   ImmichPhoto seed;
   PhotoSlide frame;
@@ -626,6 +650,8 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   }
 
   const auto reject_candidate = [&](const AssetId &id) {
+    if (replacement)
+      return PrepareResult::NextCandidate;
     this->discard_candidate_(id);
     if (remembered)
       *existing = {};
@@ -658,14 +684,15 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   std::optional<TrialStageTimer> composition;
   if (!prepared) {
     DecodedPreview primary;
-    const auto status = this->load_preview_(frame.primary, primary, pairs_only, 0, true);
+    const bool paired_primary = pairs_only || retain_pair;
+    const auto status = this->load_preview_(frame.primary, primary, paired_primary, 0, true);
     if (this->cancelled_ || status == PreviewStatus::Retry)
       return retry_frame();
-    if (status == PreviewStatus::Missing || (pairs_only && !primary.portrait()))
+    if (status == PreviewStatus::Missing || (paired_primary && !primary.portrait()))
       return reject_candidate(frame.primary);
 
     // Optional pairing leaves the first preview on the fast path.
-    const auto pair_deadline_us = pairs_only ? 0 : esp_timer_get_time() + (remembered ? 2 : 1) * pairing_time_us;
+    const auto pair_deadline_us = paired_primary ? 0 : esp_timer_get_time() + (remembered ? 2 : 1) * pairing_time_us;
     if (optional_pair && !selected_companion && primary.portrait()) {
       const TrialStageTimer selection{TrialPreparationStage::Selection};
       frame.companion = this->companion_for_(seed, pair_deadline_us);
@@ -673,10 +700,10 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
 
     DecodedPreview companion;
     if (frame.companion[0] != '\0' && primary.portrait()) {
-      const auto right = this->load_preview_(frame.companion, companion, true, pair_deadline_us, pairs_only);
+      const auto right = this->load_preview_(frame.companion, companion, true, pair_deadline_us, paired_primary);
       if (right == PreviewStatus::Retry && (remembered || pairs_only))
         return retry_frame();
-      if (pairs_only && (right == PreviewStatus::Missing || !companion.portrait())) {
+      if (paired_primary && (right == PreviewStatus::Missing || !companion.portrait())) {
         if (!remembered && !settings_.has_prepared_slides() && unavailable_.contains(frame.companion, esp_timer_get_time()))
           this->pending_.push_back(seed);
         return reject_candidate(frame.companion);
@@ -694,6 +721,8 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   } else {
     composition.emplace(TrialPreparationStage::Composition);
   }
+  if (replacement)
+    this->complete_location_(frame);
   const auto &captions = this->feed_().metadata;
   const auto &tone = this->settings_.tone;
   const auto local = captions.needs_time() || tone.night_enabled ? local_clock_time(std::time(nullptr)) : std::nullopt;

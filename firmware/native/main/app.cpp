@@ -220,6 +220,7 @@ class SlideLoader {
     ImmichResponse response;
     Result result;
     bool cancelled;
+    bool source_ready;
   };
 
   bool live() const { return this->live_; }
@@ -317,12 +318,13 @@ class SlideLoader {
     uint32_t source_revision;
   };
 
-  bool reload_photo_source_(SlideIndex first, uint32_t revision) {
-    auto feed = Settings::take_live_photo_feed(revision);
+  bool apply_photo_settings_(const Request &request) {
+    auto feed = Settings::take_live_photo_feed(request.source_revision);
     if (!feed)
       return false;
     frame_status.configure(true, feed->photo_source.mode);
-    this->source_.change_source(std::move(*feed), first);
+    this->source_.apply_photo_settings(std::move(*feed), request.lease.replacement ? std::nullopt
+                                                                                 : std::optional{request.lease.slide});
     return true;
   }
 
@@ -350,12 +352,12 @@ class SlideLoader {
           record_live_trial_prepare();
         if constexpr (!esphome_trial) {
           if (request.source_revision != source_revision) {
-            source_ready = loader.reload_photo_source_(lease.slide, request.source_revision);
+            source_ready = loader.apply_photo_settings_(request);
             if (source_ready)
               source_revision = request.source_revision;
           }
         }
-        result = source_ready ? loader.source_.prepare(lease.slide, lease.pixels) : Result::Retry;
+        result = source_ready ? loader.source_.prepare(lease.slide, lease.pixels, lease.replacement) : Result::Retry;
       } else {
         const int fixture = lease.slide % fixture_count;
         const auto &photo = photos[fixture];
@@ -373,11 +375,9 @@ class SlideLoader {
         else if (loader.rotation() == ScreenRotation::UpsideDown)
           std::reverse(lease.pixels, lease.pixels + pixel_count);
       }
-      const Completion completion{lease, source_ready ? loader.source_.first_slide() : lease.slide,
-                                  source_ready ? loader.source_.next_slide() : lease.slide, connection,
-                                  source_ready ? loader.source_.source_status() : PhotoSourceStatus::None,
-                                  source_ready ? loader.source_.response() : ImmichResponse::Pending, result,
-                                  result != Result::Ready && loader.cancelled_.load()};
+      const Completion completion{lease, loader.source_.first_slide(), loader.source_.next_slide(), connection,
+                                  loader.source_.source_status(), loader.source_.response(), result,
+                                  result != Result::Ready && loader.cancelled_.load(), source_ready};
       xQueueSend(loader.completed_, &completion, portMAX_DELAY);
     }
   }
@@ -509,7 +509,9 @@ void run(void *) {
   SlideIndex first_photo = 1;
   SlideIndex next_photo = 1;
   uint32_t source_revision{};
+  uint32_t selection_revision{};
   SlideIndex source_anchor = -1;
+  bool reframe_pending = false;
   unsigned reported_ahead = 0;
   std::array<SlideRetry, SlideCache::capacity> retries{};
 
@@ -564,9 +566,17 @@ void run(void *) {
         trace.frame(*scanout, submitted_stamp);
     }
 
+    const auto center = swipe.settled();
+    const auto requested_revision = esphome_trial ? 0 : photo_source_revision.load(std::memory_order_acquire);
+    const bool at_source_handoff = swipe.idle() && !input.engaged() && !fade.running() && !fade.held() &&
+                                   !blend.pending() && display.presented_position() == center * slide_width;
+    const bool replacing = reframe_pending && preparing >= 0;
+    const bool discard_refresh = replacing && (preparing != center || requested_revision != source_revision);
     SlideLoader::Completion completion{};
-    if (loader.poll(completion)) {
-      const bool ready = completion.result == SlideLoader::Result::Ready;
+    // Leave a completed replacement in the queue while a gesture can still
+    // see the old crop. A superseded replacement can be released immediately.
+    if ((!replacing || at_source_handoff || discard_refresh) && loader.poll(completion)) {
+      const bool ready = completion.result == SlideLoader::Result::Ready && !discard_refresh;
       const bool next_candidate = completion.result == SlideLoader::Result::NextCandidate;
       ESP_ERROR_CHECK(cache.complete(completion.lease, ready) ? ESP_OK : ESP_ERR_INVALID_STATE);
       const auto slide = completion.lease.slide;
@@ -575,7 +585,7 @@ void run(void *) {
                              : completion.cancelled ? RefillOutcome::Cancelled : RefillOutcome::Retry;
         trace.refill(esp_timer_get_time(), refill_started_us, slide, outcome);
       }
-      retries[slide % retries.size()] = ready || completion.cancelled
+      retries[slide % retries.size()] = ready || completion.cancelled || discard_refresh
                                            ? SlideRetry{}
                                            : SlideRetry::after(slide, now, completion.connection, next_candidate);
       if constexpr (trial_immich) {
@@ -589,34 +599,46 @@ void run(void *) {
             record_live_trial_photo(static_cast<uint32_t>(esp_timer_get_time() / 1000));
         }
       }
-      first_photo = completion.first_photo;
-      next_photo = completion.next_photo;
-      source_status = completion.source_status;
+      if (completion.source_ready && !discard_refresh) {
+        first_photo = completion.first_photo;
+        next_photo = completion.next_photo;
+        source_status = completion.source_status;
+      }
       if constexpr (!esphome_trial) {
-        if (live && slide > 0 && !completion.cancelled)
+        if (live && slide > 0 && completion.source_ready && !completion.cancelled && !discard_refresh)
           frame_status.finish_preparation(ready ? PhotoSourceStatus::None : source_status, completion.response);
+        if (completion.lease.replacement && !discard_refresh && (ready || next_candidate)) {
+          reframe_pending = false;
+          // History still contains the same photo IDs. Rebuild the neighbors
+          // from those IDs with the new presentation settings.
+          cache.discard_other_ready_slides(center);
+          if (ready)
+            last_submitted = -1;
+          dwell.reset();
+        }
       }
       preparing = -1;
     }
-    const auto center = swipe.settled();
     if constexpr (!esphome_trial) {
       if (source_anchor >= 0 && center != source_anchor && display.presented_position() == center * slide_width)
         source_anchor = -1;
-      const auto requested_revision = photo_source_revision.load(std::memory_order_acquire);
-      if (live && requested_revision != source_revision && swipe.idle() && !input.engaged() &&
-          !fade.running() && !fade.held() && !blend.pending() && display.presented_position() == center * slide_width &&
-          cache.find(center)) {
+      if (live && requested_revision != source_revision && at_source_handoff && cache.find(center)) {
         if (preparing >= 0) {
           loader.yield_to_swipe();
         } else {
-          // Keep the displayed slide alive as a bridge to the new feed.
-          // Its neighbours belong to the old source and can be released now.
-          cache.discard_other_ready_slides(center);
+          const auto requested_selection = photo_selection_revision.load(std::memory_order_relaxed);
+          reframe_pending = center > 0 && source_anchor < 0 && requested_selection == selection_revision;
           source_revision = requested_revision;
-          source_anchor = center;
-          first_photo = next_photo = center + 1;
+          selection_revision = requested_selection;
+          if (!reframe_pending) {
+            // Keep the displayed slide alive as a bridge to the new feed.
+            // Its neighbours belong to the old source and can be released now.
+            cache.discard_other_ready_slides(center);
+            source_anchor = center;
+            first_photo = next_photo = center + 1;
+            prefetch = SlidePrefetch(center, cache_slots);
+          }
           source_status = PhotoSourceStatus::None;
-          prefetch = SlidePrefetch(center, cache_slots);
           retries.fill({});
           dwell.reset();
         }
@@ -763,7 +785,20 @@ void run(void *) {
                   (user_motion && (!swipe.idle() || swipe.position() != display.presented_position())));
     if (live && !trial_fixtures)
       loader.defer_pixel_work(user_motion && prefetch.can_defer_pixel_work({ready_first, ready_last}, contact_engaged));
-    if (preparing >= 0) {
+    if (reframe_pending) {
+      if (preparing >= 0 && preparing != center) {
+        loader.yield_to_swipe();
+      } else if (preparing < 0 && at_source_handoff && !contact_engaged && input.awake() && eligible(center)) {
+        // The current slide and its immediate neighbors stay available to
+        // touch. The replacement can reuse a more distant cache slot.
+        if (const auto lease = cache.reserve(center, center - 1, center + 1, true)) {
+          if constexpr (trace_enabled)
+            refill_started_us = esp_timer_get_time();
+          loader.submit(*lease, source_revision);
+          preparing = center;
+        }
+      }
+    } else if (preparing >= 0) {
       if (const auto wanted = prefetch.requested(); wanted && eligible(*wanted) && prefetch.can_yield(preparing, *wanted))
         loader.yield_to_swipe();
     } else if (!blend.pending() && (esphome_trial || !backlight_ready || input.awake())) {

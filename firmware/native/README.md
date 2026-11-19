@@ -85,9 +85,10 @@ controls and configuration client. It shows the settings supported by the
 running native firmware.
 Edit the Immich connection, display mode, time per photo, and other
 playback and screen settings, then choose **Save settings**. Changes limited
-to photo selection, framing, portrait pairing, or captions keep the current
-photo on screen while the frame prepares the replacement feed. Saves that
-also change connection or device settings apply together after a restart.
+to framing or captions redraw the current photo or portrait pair and keep
+its place in the slideshow. Changing photo selection or pairing rules keeps
+the current photo visible until the first slide from the new feed is ready.
+Saves that also change connection or device settings apply after a restart.
 If you change **Frame name**, it also shows the new `.local` address.
 The frame adds its own four-character MAC suffix to the hostname.
 Under **Clock**, choose whether to show the local time and select the timezone

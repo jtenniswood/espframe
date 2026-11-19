@@ -792,6 +792,7 @@ int main() {
 
   using espframe::native::PhotoPreset;
   using espframe::native::active_photo_preset;
+  using espframe::native::photo_selection_revision;
   using espframe::native::photo_source_revision;
   assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","person_ids":"22222222-2222-4222-8222-222222222222",
       "tags_enabled":true,"tag_ids":"33333333-3333-4333-8333-333333333333","excluded_tag_ids":"44444444-4444-4444-8444-444444444444"})"));
@@ -799,6 +800,7 @@ int main() {
   const auto original_revision = photo_source_revision.load();
   assert(Settings::save_photo_preset(PhotoPreset::Person, ha_key));
   assert(photo_source_revision.load() == original_revision + 1 && active_photo_preset.load() == PhotoPreset::Person);
+  assert(photo_selection_revision.load() == original_revision + 1);
   assert(current.read() && current.photo_source.mode == PhotoSourceMode::Custom &&
          current.photo_source.preset() == PhotoPreset::Person && current.photo_filters.criteria.people_enabled);
   assert(!current.photo_filters.criteria.tags_enabled && current.photo_filters.criteria.excluded_tag_ids.empty());
@@ -820,6 +822,7 @@ int main() {
   const auto live = update_configuration(R"({"values":{"portrait_pair_framing":"Fill","photo_orientation":"Portrait Only",
       "photo_metadata_location_enabled":false,"date_filter_enabled":true,"date_from":"2024-03-01"}})");
   assert(!live.error && !live.restart_required && photo_source_revision.load() == before_live + 1);
+  assert(photo_selection_revision.load() == before_live + 1);
   assert(!Settings::take_live_photo_feed(before_live));
   fail_commit = true;
   assert(update_configuration(R"({"values":{"portrait_pair_framing":"Fit"}})").error);
@@ -836,12 +839,23 @@ int main() {
   assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","frame_name":"Other name","display_mode":"Fill"})",
                                  &restart_required));
   assert(!restart_required && photo_source_revision.load() == before_live + 2);
+  assert(photo_selection_revision.load() == before_live + 1);
   assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","frame_name":"Other name","display_mode":"Fill"})",
                                  &restart_required));
   assert(!restart_required && photo_source_revision.load() == before_live + 2);
   assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","immich_key":"replacement-key","display_mode":"Fit"})",
                                  &restart_required));
   assert(restart_required && photo_source_revision.load() == before_live + 2);
+
+  const auto before_queued_saves = photo_source_revision.load();
+  assert(!update_configuration(R"({"values":{"photo_orientation":"Any"}})").restart_required);
+  assert(!update_configuration(R"({"values":{"portrait_pair_framing":"Fit"}})").restart_required);
+  assert(photo_source_revision.load() == before_queued_saves + 2);
+  assert(photo_selection_revision.load() == before_queued_saves + 1);
+  assert(!Settings::take_live_photo_feed(before_queued_saves + 1));
+  const auto coalesced = Settings::take_live_photo_feed(before_queued_saves + 2);
+  assert(coalesced && coalesced->photo_orientation == PhotoOrientation::Any &&
+         coalesced->pair_display_mode() == DisplayMode::Fit);
 
   assert(Settings::save_wifi(*new_wifi, current.reset_epoch));
   assert(Settings::save(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","web_password":"new-settings"})"));

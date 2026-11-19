@@ -33,8 +33,8 @@ class ImmichSource {
                const std::atomic<bool> &pixel_work_deferred)
       : cancelled_(cancelled), pixel_work_deferred_(pixel_work_deferred), settings_(settings), network_(network),
         http_(cancelled) {}
-  PrepareResult prepare(SlideIndex slide, uint16_t *panel);
-  void change_source(PhotoFeedSettings feed, SlideIndex first_slide);
+  PrepareResult prepare(SlideIndex slide, uint16_t *panel, bool replacement = false);
+  void apply_photo_settings(PhotoFeedSettings feed, std::optional<SlideIndex> first_slide);
   SlideIndex first_slide() const { return this->history_.first(); }
   SlideIndex next_slide() const { return this->history_.next(); }
   PhotoSourceStatus source_status() const { return this->source_status_; }
@@ -62,6 +62,7 @@ class ImmichSource {
   bool select_pair_(ImmichPhoto &seed, AssetId &companion);
   AssetId companion_for_(const ImmichPhoto &primary, int64_t deadline_us);
   void discard_candidate_(const AssetId &id);
+  void complete_location_(PhotoSlide &frame);
   bool wait_for_pixel_work_() const;
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, bool for_pair, int64_t deadline_us,
                               bool report_response);

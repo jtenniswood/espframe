@@ -112,7 +112,7 @@ bool visit_memory(std::string_view group, std::vector<ImmichPhoto> &photos, size
   return visit_array(assets, [&](std::string_view asset) {
     constexpr size_t max_asset_bytes = 16 * 1024;
     if (photos.size() < limit && asset.size() <= max_asset_bytes) {
-      const auto photo = parse_memory_asset(asset);
+      const auto photo = parse_photo_asset(asset);
       if (photo && photo->may_match_orientation(orientation) &&
           std::none_of(photos.begin(), photos.end(), [&](const ImmichPhoto &other) { return other.id == photo->id; }))
         photos.push_back(*photo);

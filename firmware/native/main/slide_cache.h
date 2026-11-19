@@ -22,6 +22,7 @@ class SlideCache {
     SlideIndex slide;
     size_t slot;
     uint32_t ticket;
+    bool replacement{};
   };
 
   explicit SlideCache(const Buffers &buffers) : buffers_(buffers) {}
@@ -42,16 +43,19 @@ class SlideCache {
     return nullptr;
   }
 
-  std::optional<Lease> reserve(SlideIndex slide, SlideIndex keep_first, SlideIndex keep_last) {
+  std::optional<Lease> reserve(SlideIndex slide, SlideIndex keep_first, SlideIndex keep_last, bool replacement = false) {
+    if (replacement && !find(slide))
+      return std::nullopt;
     size_t available = capacity;
     for (size_t index = 0; index < capacity; ++index) {
       if (!this->buffers_[index])
         continue;
       const auto &entry = this->entries_[index];
-      if (entry.state != State::Empty && entry.slide == slide)
+      const bool replaces_ready = replacement && entry.state == State::Ready && entry.slide == slide;
+      if (entry.state != State::Empty && entry.slide == slide && !replaces_ready)
         return std::nullopt;
       if (entry.state == State::Empty ||
-          (available == capacity && entry.state == State::Ready &&
+          (available == capacity && entry.state == State::Ready && !replaces_ready &&
            (entry.slide < keep_first || entry.slide > keep_last)))
         available = index;
     }
@@ -60,7 +64,7 @@ class SlideCache {
 
     const auto ticket = ++this->ticket_;
     this->entries_[available] = {State::Preparing, slide, ticket};
-    return Lease{this->buffers_[available], slide, available, ticket};
+    return Lease{this->buffers_[available], slide, available, ticket, replacement};
   }
 
   bool complete(const Lease &lease, bool ready) {
@@ -69,6 +73,12 @@ class SlideCache {
     auto &entry = this->entries_[lease.slot];
     if (entry.state != State::Preparing || entry.ticket != lease.ticket || entry.slide != lease.slide)
       return false;
+    if (ready && lease.replacement) {
+      for (auto &previous : this->entries_) {
+        if (previous.state == State::Ready && previous.slide == lease.slide)
+          previous.state = State::Empty;
+      }
+    }
     entry.state = ready ? State::Ready : State::Empty;
     return true;
   }
