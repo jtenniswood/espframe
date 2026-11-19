@@ -1,0 +1,166 @@
+#include "display.h"
+
+#include "driver/gpio.h"
+#include "driver/ledc.h"
+#include "esp_lcd_panel_io.h"
+#include "esp_lcd_panel_ops.h"
+#include "esp_ldo_regulator.h"
+#include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "sdkconfig.h"
+
+#if defined(CONFIG_ESP32P4_SELECTS_REV_LESS_V3) != SWIPE_EARLY_P4
+#error "Use a fresh build directory for each SWIPE_BOARD silicon profile"
+#endif
+
+namespace espframe::native {
+namespace {
+
+constexpr gpio_num_t panel_reset = GPIO_NUM_27;
+constexpr int backlight_pin = 23;
+
+struct PanelCommand {
+  uint8_t command;
+  uint8_t parameter;
+  uint16_t delay_ms;
+  bool has_parameter;
+};
+
+#include "panel_init.inc"
+
+void reset_panel() {
+  ESP_ERROR_CHECK(gpio_reset_pin(panel_reset));
+  ESP_ERROR_CHECK(gpio_set_direction(panel_reset, GPIO_MODE_OUTPUT));
+  ESP_ERROR_CHECK(gpio_set_level(panel_reset, 1));
+  vTaskDelay(pdMS_TO_TICKS(5));
+  ESP_ERROR_CHECK(gpio_set_level(panel_reset, 0));
+  vTaskDelay(pdMS_TO_TICKS(5));
+  ESP_ERROR_CHECK(gpio_set_level(panel_reset, 1));
+}
+
+}  // namespace
+
+void Display::init() {
+  esp_ldo_channel_config_t ldo_config{};
+  ldo_config.chan_id = 3;
+  ldo_config.voltage_mv = 2500;
+  esp_ldo_channel_handle_t ldo{};
+  ESP_ERROR_CHECK(esp_ldo_acquire_channel(&ldo_config, &ldo));
+
+  esp_lcd_dsi_bus_config_t bus_config{};
+  bus_config.bus_id = 0;
+  bus_config.num_data_lanes = 2;
+  bus_config.lane_bit_rate_mbps = lane_rate_mbps;
+  esp_lcd_dsi_bus_handle_t bus{};
+  ESP_ERROR_CHECK(esp_lcd_new_dsi_bus(&bus_config, &bus));
+
+  esp_lcd_dbi_io_config_t io_config{};
+  io_config.lcd_cmd_bits = 8;
+  io_config.lcd_param_bits = 8;
+  esp_lcd_panel_io_handle_t io{};
+  ESP_ERROR_CHECK(esp_lcd_new_panel_io_dbi(bus, &io_config, &io));
+
+  esp_lcd_dpi_panel_config_t panel_config{};
+  panel_config.dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT;
+  panel_config.dpi_clock_freq_mhz = pixel_clock_mhz;
+  panel_config.in_color_format = LCD_COLOR_FMT_RGB565;
+  panel_config.num_fbs = 2;
+  panel_config.video_timing.h_size = panel_width;
+  panel_config.video_timing.v_size = panel_height;
+  panel_config.video_timing.hsync_pulse_width = hsync_pulse;
+  panel_config.video_timing.hsync_back_porch = hsync_back;
+  panel_config.video_timing.hsync_front_porch = hsync_front;
+  panel_config.video_timing.vsync_pulse_width = vsync_pulse;
+  panel_config.video_timing.vsync_back_porch = vsync_back;
+  panel_config.video_timing.vsync_front_porch = vsync_front;
+  ESP_ERROR_CHECK(esp_lcd_new_panel_dpi(bus, &panel_config, &this->panel_));
+
+  reset_panel();
+  const int64_t sleep_out_ready = esp_timer_get_time() + 120'000;
+  ESP_ERROR_CHECK(esp_lcd_panel_init(this->panel_));
+  for (const auto &entry : panel_init) {
+    if (entry.delay_ms != 0) {
+      vTaskDelay(pdMS_TO_TICKS(entry.delay_ms));
+      continue;
+    }
+    if (entry.command == 0x11) {
+      const int64_t remaining = sleep_out_ready - esp_timer_get_time();
+      if (remaining > 0)
+        vTaskDelay(pdMS_TO_TICKS((remaining + 999) / 1000));
+    }
+    const auto *parameters = entry.has_parameter ? &entry.parameter : nullptr;
+    ESP_ERROR_CHECK(esp_lcd_panel_io_tx_param(io, entry.command, parameters, entry.has_parameter ? 1 : 0));
+    if (entry.command == 0x11)
+      vTaskDelay(pdMS_TO_TICKS(10));
+  }
+
+  void *first{};
+  void *second{};
+  ESP_ERROR_CHECK(esp_lcd_dpi_panel_get_frame_buffer(this->panel_, 2, &first, &second));
+  this->buffers_[0] = static_cast<uint16_t *>(first);
+  this->buffers_[1] = static_cast<uint16_t *>(second);
+  esp_lcd_dpi_panel_event_callbacks_t callbacks{};
+  callbacks.on_frame_buf_complete = frame_done_;
+  ESP_ERROR_CHECK(esp_lcd_dpi_panel_register_event_callbacks(this->panel_, &callbacks, this));
+}
+
+void Display::enable_backlight() const {
+  ledc_timer_config_t timer{};
+  timer.speed_mode = LEDC_LOW_SPEED_MODE;
+  timer.duty_resolution = LEDC_TIMER_10_BIT;
+  timer.timer_num = LEDC_TIMER_0;
+  timer.freq_hz = 1000;
+  timer.clk_cfg = LEDC_AUTO_CLK;
+  ESP_ERROR_CHECK(ledc_timer_config(&timer));
+  ledc_channel_config_t channel{};
+  channel.gpio_num = backlight_pin;
+  channel.speed_mode = LEDC_LOW_SPEED_MODE;
+  channel.channel = LEDC_CHANNEL_0;
+  channel.timer_sel = LEDC_TIMER_0;
+  channel.duty = 650;
+  ESP_ERROR_CHECK(ledc_channel_config(&channel));
+}
+
+bool Display::frame_done_(esp_lcd_panel_handle_t, esp_lcd_dpi_panel_event_data_t *, void *context) {
+  auto &display = *static_cast<Display *>(context);
+  portENTER_CRITICAL_ISR(&display.boundary_lock_);
+  if (display.awaiting_latch_) {
+    display.latched_us_ = esp_timer_get_time();
+    display.awaiting_latch_ = false;
+  }
+  portEXIT_CRITICAL_ISR(&display.boundary_lock_);
+  return false;
+}
+
+std::optional<int64_t> Display::poll_presented() {
+  if (!this->pending_)
+    return {};
+  portENTER_CRITICAL(&this->boundary_lock_);
+  const auto latched_us = this->latched_us_;
+  portEXIT_CRITICAL(&this->boundary_lock_);
+  if (latched_us == 0)
+    return {};
+  this->front_ ^= 1;
+  this->position_ = this->pending_position_;
+  this->pending_ = false;
+  return latched_us;
+}
+
+uint16_t *Display::writable_buffer() {
+  return this->pending_ ? nullptr : this->buffers_[this->front_ ^ 1];
+}
+
+void Display::submit(PixelPosition position) {
+  ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(this->panel_, 0, 0, panel_width, panel_height, this->writable_buffer()));
+  // Observe a boundary after the submission so the old front buffer cannot
+  // be reused while the panel could still be scanning it.
+  portENTER_CRITICAL(&this->boundary_lock_);
+  this->latched_us_ = 0;
+  this->awaiting_latch_ = true;
+  portEXIT_CRITICAL(&this->boundary_lock_);
+  this->pending_position_ = position;
+  this->pending_ = true;
+}
+
+}  // namespace espframe::native
