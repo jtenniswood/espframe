@@ -20,6 +20,7 @@ invalidOrientationBackup.photos.orientation = '90'
 const album = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
 const backup = {
   version: 3,
+  identity: { name: '  Salon été & famille  ', hostname: 'old-frame-9876' },
   connection: { immich_url: 'https://photos.test', api_key: 'old-api-key' },
   photos: { source: 'Memories', album_ids: album, portrait_pairing: false, portrait_pairs_only: true,
     portrait_pairing_range: 'Within 1 Day', display_mode: 'Fit', orientation: 'Landscape Only',
@@ -106,6 +107,7 @@ const verify = `
     if (form.elements.photo_source.value !== 'album' || form.elements.photo_orientation.value || form.checkValidity())
       throw new Error('Invalid photo orientation was not isolated from the source')
     await loadBackup(${JSON.stringify(JSON.stringify(backup))}, 'Backup loaded.')
+    if (form.elements.frame_name.value !== 'Salon été & famille') throw new Error('The backup name was not prefilled')
     if (form.elements.immich_url.value !== 'https://photos.test') throw new Error('Immich URL was not prefilled')
     if (form.elements.immich_key.value !== 'entered-api-key') throw new Error('A backup replaced the entered key')
     if (document.querySelector('#memories-choice').hidden || form.elements.memories_window.value !== 'Within 7 Days'
@@ -132,6 +134,8 @@ const verify = `
       || received.portrait_pairing !== false || received.portrait_pairs_only !== true
       || received.portrait_pairing_range !== 'Within 1 Day' || received.display_mode !== 'Fit' || Object.hasOwn(received, 'backup'))
       throw new Error('Unexpected migrated USB settings')
+    if (received.frame_name !== 'Salon été & famille' || Object.hasOwn(received, 'hostname'))
+      throw new Error('The frame name was not sent independently of the old hostname')
     if (received.show_clock !== false || received.clock_format !== '12 Hour' || received.timezone !== 'America/New_York (GMT-5)')
       throw new Error('The clock settings did not reach USB setup')
     if (!received.date_filter_enabled || received.date_filter_mode !== 'Fixed Range' || received.date_from !== '2024-02-29'
@@ -168,7 +172,7 @@ const verify = `
     form.requestSubmit()
     await reused
     if (attempts !== 4 || received.immich_key !== 'after-improv'
-      || Object.hasOwn(received, 'ssid') || Object.hasOwn(received, 'password'))
+      || Object.hasOwn(received, 'ssid') || Object.hasOwn(received, 'password') || Object.hasOwn(received, 'frame_name'))
       throw new Error('Immich setup asked for Wi-Fi credentials a second time')
     await loadBackup(${JSON.stringify(filteredBackup)}, 'Backup loaded.')
     if (form.elements.photo_source.value !== 'custom' || document.querySelector('#filter-controls').hidden

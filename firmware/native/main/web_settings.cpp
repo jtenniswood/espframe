@@ -1,6 +1,7 @@
 #include "web_settings.h"
 #include "configuration_contract_generated.h"
 #include "firmware_update.h"
+#include "frame_identity.h"
 #include "frame_status.h"
 #include "native_configuration.h"
 #include "native_network.h"
@@ -328,7 +329,57 @@ esp_err_t configuration_reply(httpd_req_t *request, const ConfigurationUpdate &r
                          !cJSON_AddStringToObject(body.get(), "status", "accepted") ||
                          !cJSON_AddNumberToObject(body.get(), "updated", result.updated))))
     return send_configuration(request, nullptr);
+  if (result.frame_name && !cJSON_AddStringToObject(body.get(), "frame_hostname",
+                                                   network(request).identity_for(*result.frame_name).hostname.c_str()))
+    return send_configuration(request, nullptr);
   return send_configuration(request, body.get(), result.status);
+}
+
+esp_err_t identity(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  if (request->method == HTTP_POST) {
+    if (!same_origin(request))
+      return configuration_reply(request, {"403 Forbidden", "invalid_origin", {}});
+    if (esp_timer_is_active(restart_timer))
+      return configuration_reply(request, {"409 Conflict", "operation_in_progress", {}});
+    std::array<char, 3 * 256 + sizeof("name=") - 1> form{};
+    if (!header_is(request, "Content-Type", "application/x-www-form-urlencoded") ||
+        request->content_len == 0 || request->content_len > form.size())
+      return configuration_reply(request, {"400 Bad Request", "invalid_name", {}});
+    size_t received = 0;
+    while (received < request->content_len) {
+      const int bytes = httpd_req_recv(request, form.data() + received, request->content_len - received);
+      if (bytes <= 0)
+        return ESP_FAIL;
+      received += bytes;
+    }
+    const auto name = decode_identity_form({form.data(), received});
+    if (!name)
+      return configuration_reply(request, {"400 Bad Request", "invalid_name", {}});
+    const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> update(cJSON_CreateObject(), cJSON_Delete);
+    if (!update || !cJSON_AddStringToObject(update.get(), "frame_name", name->c_str()) ||
+        Settings::update_playback(update.get()) != Settings::UpdateResult::Saved)
+      return configuration_reply(request, {"500 Internal Server Error", "settings_unavailable", {}});
+  }
+  Settings settings;
+  if (!settings.read())
+    return send_configuration(request, nullptr);
+  auto &wifi = network(request);
+  const auto saved = wifi.identity_for(settings.frame_name);
+  const esp_ip4_addr_t ip{wifi.address().ipv4};
+  char address[16]{};
+  if (ip.addr)
+    std::snprintf(address, sizeof(address), IPSTR, IP2STR(&ip));
+  const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> body(cJSON_CreateObject(), cJSON_Delete);
+  if (!body || !cJSON_AddStringToObject(body.get(), "name", saved.name.c_str()) ||
+      !cJSON_AddStringToObject(body.get(), "friendly_name", saved.friendly_name.c_str()) ||
+      !cJSON_AddStringToObject(body.get(), "hostname", saved.hostname.c_str()) ||
+      (!saved.mac_suffix.empty() && !cJSON_AddStringToObject(body.get(), "mac_suffix", saved.mac_suffix.c_str())) ||
+      !cJSON_AddStringToObject(body.get(), "ip_address", address) ||
+      !cJSON_AddBoolToObject(body.get(), "restart_required", saved.name != wifi.running_identity().name))
+    return send_configuration(request, nullptr);
+  return send_configuration(request, body.get());
 }
 
 esp_err_t change_screen(httpd_req_t *request) {
@@ -513,6 +564,8 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       {.uri = "/api/playback", .method = HTTP_POST, .handler = update, .user_ctx = &network},
       {.uri = contract::CAPABILITIES_PATH, .method = HTTP_GET, .handler = capabilities, .user_ctx = &network},
       {.uri = frame_status_path, .method = HTTP_GET, .handler = status, .user_ctx = &network},
+      {.uri = frame_identity_path, .method = HTTP_GET, .handler = identity, .user_ctx = &network},
+      {.uri = frame_identity_path, .method = HTTP_POST, .handler = identity, .user_ctx = &network},
       {.uri = screen_control_path, .method = HTTP_POST, .handler = change_screen, .user_ctx = &network},
       {.uri = contract::CONFIGURATION_PATH, .method = HTTP_GET, .handler = configuration, .user_ctx = &network},
       {.uri = contract::CONFIGURATION_PATH, .method = HTTP_POST, .handler = save_configuration, .user_ctx = &network},

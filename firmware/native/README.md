@@ -55,7 +55,7 @@ links to the settings page if you set a web settings password.
 
 When upgrading an existing frame, export an Espframe settings backup from
 its web page before installation. In the native installer, choose that
-backup to prefill the Immich URL, supported photo source, slideshow interval,
+backup to prefill the frame name, Immich URL, supported photo source, slideshow interval,
 display mode, portrait pairing, mounting orientation, clock, brightness, and
 screen schedule.
 Backups that use filters the
@@ -74,15 +74,17 @@ node firmware/native/tools/package_installer.mjs firmware/native/build firmware/
 ### Open the frame's web settings
 
 Set a web settings password when saving over USB to enable the frame's
-settings page. Use **Find frame on Wi-Fi** in the browser installer, the IP
-address shown in the USB logs, or find
-`espframe-native` in your router's device list. Sign in as `espframe`
+settings page. Use **Find frame on Wi-Fi** in the browser installer or open
+the IP address shown in the USB logs. The frame uses its stock board hostname
+when its name is blank. Sign in as `espframe`
 with the password you chose. The settings page uses Espframe's shared web
 controls and configuration client. It shows the settings supported by the
 running native firmware.
 Edit the Immich connection, display mode, time per photo, and other
 playback and screen settings, then choose **Save and restart** to apply
 the edits together. The page reloads the settings once the frame returns.
+If you change **Frame name**, it also shows the new `.local` address.
+The frame adds its own four-character MAC suffix to the hostname.
 Under **Clock**, choose whether to show the local time and select the timezone
 and 12- or 24-hour format. After time synchronization, the clock stays fixed
 while photos move beneath it. New browser installs enable the clock by

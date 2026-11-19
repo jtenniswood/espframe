@@ -1,5 +1,6 @@
 #pragma once
 
+#include "frame_identity.h"
 #include "wifi_credentials.h"
 #include "wifi_recovery.h"
 
@@ -47,6 +48,8 @@ class NativeNetwork {
   RecoveryStatus recovery_status() const { return recovery_status_.load(std::memory_order_acquire); }
   const RecoveryNetwork &recovery_network() const { return recovery_network_; }
   bool submit_recovery(const WifiCredentials &wifi);
+  FrameIdentity identity_for(const std::string &name) const;
+  const FrameIdentity &running_identity() const { return identity_; }
 
  private:
   struct Command {
@@ -67,6 +70,8 @@ class NativeNetwork {
   static void station_event_(void *argument, esp_event_base_t base, int32_t event, void *data);
 
   const Settings *settings_{};
+  FrameMac frame_mac_{};
+  FrameIdentity identity_;
   esp_netif_t *station_{};
   esp_netif_t *hotspot_{};
   TaskHandle_t task_{};

@@ -1,5 +1,5 @@
 import 'esp-web-tools/dist/install-button.js'
-import { readBackup } from './backup.mjs'
+import { normalizeFrameName, readBackup } from './backup.mjs'
 import { addCaptureDates, addPhotoFilters, bindPhotoSource, bindPortraitPairing, photoFilterDefaults, validateAlbum } from './photo_source.mjs'
 import { configure, findFrame } from './serial.mjs'
 
@@ -16,6 +16,7 @@ const backup = document.querySelector('#backup')
 const backupStatus = document.querySelector('#backup-status')
 const playback = document.querySelector('#playback')
 const schedule = document.querySelector('#screen-schedule')
+const frameName = form.elements.frame_name
 const refreshSource = bindPhotoSource(form)
 const refreshPairing = bindPortraitPairing(form)
 const percentageFields = ['brightness_day', 'brightness_night', 'base_tone', 'warm_tone_intensity']
@@ -34,6 +35,12 @@ const showPercentages = () => {
 for (const name of percentageFields) form.elements[name].addEventListener('input', showPercentages)
 let importSequence = 0
 let importing = false
+let frameNameSpecified = false
+frameName.addEventListener('input', () => {
+  frameNameSpecified = true
+  frameName.setCustomValidity(normalizeFrameName(frameName.value) === undefined ?
+    'Use up to 120 UTF-8 bytes without control characters.' : '')
+})
 
 backup.addEventListener('change', async () => {
   const file = backup.files[0]
@@ -49,6 +56,10 @@ backup.addEventListener('change', async () => {
   try {
     const { settings, notices, chooseSource } = readBackup(JSON.parse(await file.text()))
     if (sequence !== importSequence) return
+    if (Object.hasOwn(settings, 'frame_name')) {
+      frameNameSpecified = true
+      frameName.setCustomValidity('')
+    }
     if (chooseSource) form.elements.photo_source.value = ''
     if (settings.photo_source && settings.photo_source !== 'album') form.elements.album_id.value = ''
     form.elements.photo_orientation.value = 'Any'
@@ -122,6 +133,8 @@ if ('serial' in navigator) {
       return
     }
     const data = Object.fromEntries(new FormData(form))
+    if (frameNameSpecified) data.frame_name = normalizeFrameName(frameName.value)
+    else delete data.frame_name
     if (!validateAlbum(form, data) || !addCaptureDates(form, data) || !addPhotoFilters(form, data)) return
     data.slide_seconds = Number(data.slide_seconds)
     for (const name of percentageFields) data[name] = form.elements[name].valueAsNumber
@@ -145,6 +158,7 @@ if ('serial' in navigator) {
       status.textContent = 'Saving settings on the frame…'
       await configure(port, data)
       form.reset()
+      frameNameSpecified = false
       refreshSource()
       refreshPairing()
       showPercentages()

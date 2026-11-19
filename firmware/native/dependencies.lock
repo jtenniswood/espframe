@@ -105,6 +105,16 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 1.6.5
+  espressif/mdns:
+    component_hash: 2fa43caa78cc170842255bc7bf71f306bc815cae12e9496bfb12372423019ac7
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.15.1
   espressif/wifi_remote_over_eppp:
     component_hash: 1fd6968af20f0b19e421f6b519b0a8caf81d689afc3783b564c28559e45f66ef
     dependencies:
@@ -127,6 +137,7 @@ direct_dependencies:
 - espressif/cjson
 - espressif/esp_hosted
 - espressif/esp_wifi_remote
-manifest_hash: 10f12d4af7fe559db3da73bb941a703d3db3f0b256415937637e19d815090cca
+- espressif/mdns
+manifest_hash: 7b051c688e5c1274ef6fc422530feebd2c19cc4ce15a619efc4cf7df22a5fb04
 target: esp32p4
 version: 3.0.0

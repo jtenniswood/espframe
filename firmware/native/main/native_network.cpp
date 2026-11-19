@@ -6,11 +6,13 @@
 #include "web_settings.h"
 
 #include "esp_log.h"
+#include "esp_mac.h"
 #include "esp_netif.h"
 #include "esp_netif_sntp.h"
 #include "esp_random.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
+#include "mdns.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -29,6 +31,15 @@ constexpr uint32_t command_ready = BIT4;
 constexpr int network_core = 0;
 constexpr bool trial_immich = SWIPE_TRIAL_IMMICH;
 
+FrameMac read_frame_mac() {
+  FrameMac mac{};
+  if (esp_read_mac(mac.data(), ESP_MAC_EFUSE_CUSTOM) == ESP_OK && valid_frame_mac(mac))
+    return mac;
+  if (esp_read_mac(mac.data(), ESP_MAC_EFUSE_FACTORY) == ESP_OK && valid_frame_mac(mac))
+    return mac;
+  return {};
+}
+
 }  // namespace
 
 void NativeNetwork::start(const Settings &settings) {
@@ -41,6 +52,10 @@ void NativeNetwork::start(const Settings &settings) {
 
 NativeNetwork::Address NativeNetwork::address() const {
   return {ipv4_.load(std::memory_order_acquire), web_status_.load(std::memory_order_acquire)};
+}
+
+FrameIdentity NativeNetwork::identity_for(const std::string &name) const {
+  return make_frame_identity(name, frame_mac_, NATIVE_HOSTNAME, NATIVE_FRIENDLY_NAME);
 }
 
 uint32_t NativeNetwork::photo_connection() const {
@@ -111,7 +126,14 @@ bool NativeNetwork::init_station_(const WifiCredentials &wifi) {
   station_ = esp_netif_create_default_wifi_sta();
   if (station_ == nullptr)
     return false;
-  esp_netif_set_hostname(station_, "espframe-native");
+  if constexpr (trial_immich) {
+    esp_netif_set_hostname(station_, "espframe-native");
+  } else {
+    frame_mac_ = read_frame_mac();
+    identity_ = identity_for(settings_->frame_name);
+    if (esp_netif_set_hostname(station_, identity_.hostname.c_str()) != ESP_OK)
+      ESP_LOGW(tag, "Could not set the frame's DHCP hostname");
+  }
 
   wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
   init.nvs_enable = 0;
@@ -127,6 +149,14 @@ bool NativeNetwork::init_station_(const WifiCredentials &wifi) {
   }
   if (esp_wifi_set_mode(WIFI_MODE_STA) != ESP_OK)
     return false;
+  if constexpr (!trial_immich) {
+    if (mdns_init() != ESP_OK) {
+      ESP_LOGW(tag, "Could not start local name discovery");
+    } else if (mdns_hostname_set(identity_.hostname.c_str()) != ESP_OK) {
+      ESP_LOGW(tag, "Could not register the frame's local name");
+      mdns_free();
+    }
+  }
   station_config_valid_ = start_station_(wifi);
   return station_config_valid_ || (wifi.configured() && start_station_({}));
 }

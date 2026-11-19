@@ -204,6 +204,7 @@ function delayMs(ms: number): Promise<void> {
 }
 
 const nativeSettingGroups: [string, [string, string][]][] = [
+  ["Frame", [["frame_name", "Frame name"]]],
   ["Immich connection", [["immich_url", "Immich server URL"], ["api_key", "Replacement Immich API key"]]],
   ["Photo preparation service", [["prepared_slide_url", "Service URL"], ["prepared_slide_token", "Service access token"]]],
   ["Playback", [
@@ -269,6 +270,10 @@ function nativeSettingControl(key: string, value: ConfigurationValue): HTMLInput
       key === "date_from" || key === "date_to" ? "date" : "text";
     control.value = value;
     if (url || nativeSecret(key)) control.maxLength = 256;
+    if (key === "frame_name") {
+      control.maxLength = 120;
+      control.placeholder = "Use device default";
+    }
     if (key === "immich_url") control.required = true;
     if (nativeSecret(key)) control.autocomplete = "new-password";
     if (key === "prepared_slide_token") control.minLength = 32;
@@ -277,6 +282,8 @@ function nativeSettingControl(key: string, value: ConfigurationValue): HTMLInput
 }
 
 function nativeSettingsForm(snapshot: ConfigurationSnapshot): HTMLFormElement {
+  const frameName = typeof snapshot.values.frame_name === "string" ? snapshot.values.frame_name : "";
+  document.title = frameName ? `${frameName} · Espframe` : "Espframe settings";
   const form = el("form");
   form.id = "native-settings";
   const fields = el("div");
@@ -295,11 +302,12 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot): HTMLFormElement {
       const row = field(key === "api_key" && !snapshot.api_key_configured ? "Immich API key" : label);
       if (typeof value === "boolean") {
         row.querySelector("label").prepend(control, " ");
-      } else if (nativeSecret(key) || key === "prepared_slide_url") {
+      } else if (nativeSecret(key) || key === "prepared_slide_url" || key === "frame_name") {
         const hint = el("small");
         hint.id = `native-${key}-hint`;
         if (key === "api_key") hint.textContent = snapshot.api_key_configured ? "Leave blank to keep the current key." :
           "Enter your API key to connect Immich.";
+        if (key === "frame_name") hint.textContent = "Leave blank to use the device default.";
         if (key === "prepared_slide_url") hint.textContent = "Optional. Clear the URL to use direct Immich previews exclusively.";
         if (key === "prepared_slide_token") hint.textContent = snapshot.values.prepared_slide_token_configured ?
           "Leave blank to keep the current token. Enter a new token if you change the service URL." :
@@ -330,7 +338,8 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot): HTMLFormElement {
     const changed: ConfigurationValues = {};
     controls.forEach(({ element, value }, key) => {
       const current = element instanceof HTMLInputElement && element.type === "checkbox" ? element.checked :
-        element instanceof HTMLInputElement && element.type === "number" ? element.valueAsNumber : element.value.trim();
+        element instanceof HTMLInputElement && element.type === "number" ? element.valueAsNumber :
+        key === "frame_name" ? element.value.replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/g, "") : element.value.trim();
       if (current !== value) changed[key] = current;
     });
     return changed;
@@ -339,6 +348,7 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot): HTMLFormElement {
   const pairingOptions = [controls.get("portrait_pairs_only")?.element, controls.get("portrait_pairing_range")?.element];
   const preparedUrl = controls.get("prepared_slide_url");
   const preparedToken = controls.get("prepared_slide_token")?.element;
+  const nameInput = controls.get("frame_name")?.element;
   const noteChange = () => {
     if (pairing instanceof HTMLInputElement) {
       for (const option of pairingOptions) {
@@ -348,6 +358,11 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot): HTMLFormElement {
     if (preparedToken instanceof HTMLInputElement && preparedUrl) {
       const url = preparedUrl.element.value.trim().replace(/\/+$/, "");
       preparedToken.required = url !== "" && (!snapshot.values.prepared_slide_token_configured || url !== preparedUrl.value);
+    }
+    if (nameInput instanceof HTMLInputElement) {
+      const name = nameInput.value.replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/g, "");
+      nameInput.setCustomValidity(new TextEncoder().encode(name).length > 120 || /[\u0000-\u001f\u007f-\u009f]/.test(name) ?
+        "Use up to 120 UTF-8 bytes without control characters." : "");
     }
     save.disabled = saving || Object.keys(changes()).length === 0;
   };
@@ -367,9 +382,12 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot): HTMLFormElement {
 
     setSaving(true);
     setStatus(status, "Saving settings…");
+    let hostname = "";
     try {
       const response = await apiClient.updateSettings(values, []);
       if (!response || response.status !== "accepted") throw new Error("save_failed");
+      if (typeof response.frame_hostname === "string" && /^[a-z0-9-]{1,63}$/.test(response.frame_hostname))
+        hostname = response.frame_hostname + ".local";
     } catch (error) {
       const label = error instanceof EspframeApiError && error.field ?
         form.querySelector<HTMLLabelElement>(`label[for="${controls.get(error.field)?.element.id || ""}"]`)?.textContent : "";
@@ -383,6 +401,14 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot): HTMLFormElement {
 
     controls.forEach(({ element }, key) => { if (nativeSecret(key)) element.value = ""; });
     setStatus(status, "Settings saved. The frame is restarting…");
+    if (hostname && hostname !== window.location.hostname) {
+      const link = el("a");
+      const address = new URL("/", window.location.href);
+      address.hostname = hostname;
+      link.href = address.href;
+      link.textContent = `Open ${hostname}`;
+      actions.appendChild(link);
+    }
     await delayMs(2500);
     for (let attempt = 0; attempt < 5; attempt++) {
       try {

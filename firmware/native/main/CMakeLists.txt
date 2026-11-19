@@ -41,12 +41,21 @@ idf_component_register(
     EMBED_FILES "../assets/clock_glyphs.bin" "../assets/recovery_glyphs.bin" "../assets/caption_glyphs.bin"
 )
 
+set(device_catalog "${repo_root}/product/contract/devices.json")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${device_catalog}")
+file(READ "${device_catalog}" profiles)
+string(SUBSTRING "${SWIPE_BOARD}" 1 1 revision)
+math(EXPR device_index "${revision} - 1")
+string(JSON default_hostname GET "${profiles}" "${device_index}" esphome_name)
+string(JSON default_friendly_name GET "${profiles}" "${device_index}" friendly_name)
+
 if(SWIPE_BOARD STREQUAL "v3")
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SWIPE_EARLY_P4=0)
 else()
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SWIPE_EARLY_P4=1)
 endif()
 target_compile_definitions(${COMPONENT_LIB} PRIVATE NATIVE_BOARD="${SWIPE_BOARD}" SWIPE_TRACE=$<BOOL:${SWIPE_TRACE}>
+                                                   NATIVE_HOSTNAME="${default_hostname}" NATIVE_FRIENDLY_NAME="${default_friendly_name}"
                                                    SWIPE_ESPHOME_TRIAL=$<BOOL:${SWIPE_ESPHOME_TRIAL}>
                                                    SWIPE_TRIAL_IMMICH=$<BOOL:${SWIPE_TRIAL_IMMICH}>
                                                    SWIPE_TRIAL_BENCHMARK=$<BOOL:${SWIPE_TRIAL_BENCHMARK}>

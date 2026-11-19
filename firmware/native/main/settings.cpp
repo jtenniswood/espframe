@@ -1,4 +1,5 @@
 #include "settings.h"
+#include "frame_identity_model.h"
 #include "live_trial.h"
 
 #include "cJSON.h"
@@ -47,6 +48,10 @@ bool normalize_http_base(std::string &url) {
 }
 
 bool normalize(Settings &settings) {
+  std::string name;
+  if (!esphome::espframe::normalize_frame_name(settings.frame_name, name))
+    return false;
+  settings.frame_name = std::move(name);
   if (settings.ssid.empty())
     return settings.reset_epoch != 0 && settings.password.empty() && settings.web_password.empty() &&
            settings.immich_url.empty() && settings.immich_key.empty() && settings.prepared_slide_url.empty() &&
@@ -82,6 +87,12 @@ using Json = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>;
 Json parse(const char *json) {
   if (json == nullptr || std::strlen(json) > Settings::max_json_size)
     return {nullptr, cJSON_Delete};
+  // cJSON strings cannot distinguish an escaped NUL from the end of a field.
+  std::string_view input(json);
+  for (size_t pos = input.find('\\'); pos != input.npos; pos = input.find('\\', pos + 2)) {
+    if (input.substr(pos + 1, 5) == "u0000")
+      return {nullptr, cJSON_Delete};
+  }
   return {cJSON_ParseWithOpts(json, nullptr, true), cJSON_Delete};
 }
 
@@ -403,6 +414,7 @@ bool parse_all(const cJSON *root, Settings &settings) {
          read_field(root, "prepared_slide_url", settings.prepared_slide_url, true) &&
          read_field(root, "prepared_slide_token", settings.prepared_slide_token, true) &&
          read_field(root, "web_password", settings.web_password, true) &&
+         read_field(root, "frame_name", settings.frame_name, true) &&
          read_integer(root, "reset_epoch", 0, std::numeric_limits<uint32_t>::max(), settings.reset_epoch) &&
          read_playback(root, settings) && normalize(settings);
 }
@@ -555,6 +567,9 @@ bool Settings::save(const char *json, std::optional<uint32_t> expected_epoch) {
     if (!configured || !put_wifi(document.get(), saved.ssid.c_str(), saved.password.c_str()))
       return false;
   }
+  if (!cJSON_HasObjectItem(document.get(), "frame_name") && !saved.frame_name.empty() &&
+      !cJSON_AddStringToObject(document.get(), "frame_name", saved.frame_name.c_str()))
+    return false;
   Settings candidate;
   return put_epoch(document.get(), epoch) &&
          parse_all(document.get(), candidate) && candidate.has_immich() && write_document(document.get());
@@ -582,6 +597,7 @@ bool Settings::save_wifi(const WifiCredentials &wifi, uint32_t expected_epoch) {
 
 bool Settings::add_playback_fields(cJSON *object) const {
   return add_photo_filter_fields(object, photo_filters) &&
+         cJSON_AddStringToObject(object, "frame_name", frame_name.c_str()) &&
          cJSON_AddStringToObject(object, "immich_url", immich_url.c_str()) &&
          cJSON_AddStringToObject(object, "prepared_slide_url", prepared_slide_url.c_str()) &&
          cJSON_AddNumberToObject(object, "slide_seconds", slide_seconds) &&
@@ -648,6 +664,7 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   const auto previous_prepared_url = settings.prepared_slide_url;
   if (!read_field(update, "immich_url", settings.immich_url, true) ||
       !read_field(update, "immich_key", replacement_key, true) ||
+      !read_field(update, "frame_name", settings.frame_name, true) ||
       !read_field(update, "prepared_slide_url", settings.prepared_slide_url, true) ||
       !read_field(update, "prepared_slide_token", replacement_token, true) || !read_playback(update, settings))
     return UpdateResult::Invalid;

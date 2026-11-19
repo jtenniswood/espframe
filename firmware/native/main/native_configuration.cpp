@@ -1,15 +1,18 @@
 #include "native_configuration.h"
 
 #include "configuration_contract_generated.h"
+#include "frame_identity_model.h"
 #include "frame_status.h"
 #include "screen_control.h"
 #include "settings.h"
 
 #include "cJSON.h"
 
+#include <algorithm>
 #include <charconv>
 #include <limits>
 #include <memory>
+#include <utility>
 
 namespace espframe::native {
 namespace {
@@ -181,6 +184,7 @@ cJSON *configuration_snapshot(const Settings &settings) {
   auto *unavailable = cJSON_AddArrayToObject(body.get(), "unavailable");
   if (!values || !unavailable ||
       !cJSON_AddStringToObject(values, "interval", interval_label(settings.slide_seconds).c_str()) ||
+      !cJSON_AddStringToObject(values, "frame_name", settings.frame_name.c_str()) ||
       !cJSON_AddStringToObject(values, "prepared_slide_url", settings.prepared_slide_url.c_str()) ||
       !cJSON_AddBoolToObject(values, "prepared_slide_token_configured", settings.has_prepared_slides()))
     return nullptr;
@@ -200,13 +204,14 @@ cJSON *configuration_snapshot(const Settings &settings) {
   return body.release();
 }
 
-std::optional<std::string> decode_configuration_form(std::string_view form) {
-  constexpr std::string_view prefix = "configuration=";
+namespace {
+
+std::optional<std::string> decode_form(std::string_view form, std::string_view prefix, size_t max_size) {
   if (!form.starts_with(prefix) || form.find('&') != std::string_view::npos)
     return std::nullopt;
   form.remove_prefix(prefix.size());
-  std::string json;
-  json.reserve(form.size());
+  std::string decoded;
+  decoded.reserve(std::min(form.size(), max_size));
   while (!form.empty()) {
     char byte = form.front();
     form.remove_prefix(1);
@@ -222,11 +227,25 @@ std::optional<std::string> decode_configuration_form(std::string_view form) {
     } else if (byte == '+') {
       byte = ' ';
     }
-    if (byte == '\0' || json.size() >= Settings::max_json_size)
+    if (byte == '\0' || decoded.size() >= max_size)
       return std::nullopt;
-    json += byte;
+    decoded += byte;
   }
-  return json;
+  return decoded;
+}
+
+}  // namespace
+
+std::optional<std::string> decode_configuration_form(std::string_view form) {
+  return decode_form(form, "configuration=", Settings::max_json_size);
+}
+
+std::optional<std::string> decode_identity_form(std::string_view form) {
+  const auto value = decode_form(form, "name=", 256);
+  std::string normalized;
+  if (!value || !esphome::espframe::normalize_frame_name(*value, normalized))
+    return std::nullopt;
+  return normalized;
 }
 
 ConfigurationUpdate update_configuration(const char *json) {
@@ -259,9 +278,21 @@ ConfigurationUpdate update_configuration(const char *json) {
     return {"500 Internal Server Error", "settings_unavailable", {}};
 
   size_t count = 0;
+  std::optional<std::string> frame_name;
   const cJSON *value;
   cJSON_ArrayForEach(value, values) {
     const std::string_view requested_key(value->string);
+    if (requested_key == "frame_name") {
+      const auto *input = cJSON_GetStringValue(value);
+      std::string name;
+      if (frame_name || !input || !esphome::espframe::normalize_frame_name(input, name))
+        return {"422 Unprocessable Entity", "invalid_value", value->string};
+      if (!cJSON_AddStringToObject(update.get(), "frame_name", name.c_str()))
+        return {"500 Internal Server Error", "settings_unavailable", {}};
+      frame_name = std::move(name);
+      ++count;
+      continue;
+    }
     if (requested_key == "prepared_slide_url" || requested_key == "prepared_slide_token") {
       if (!cJSON_IsString(value) || cJSON_HasObjectItem(update.get(), value->string))
         return {"422 Unprocessable Entity", "invalid_value", value->string};
@@ -307,7 +338,7 @@ ConfigurationUpdate update_configuration(const char *json) {
     return {"409 Conflict", "reset_epoch_mismatch", {}};
   if (result == Settings::UpdateResult::Failed)
     return {"500 Internal Server Error", "settings_unavailable", {}};
-  return {"200 OK", nullptr, {}, count};
+  return {"200 OK", nullptr, {}, count, std::move(frame_name)};
 }
 
 std::optional<ResetMode> decode_reset_form(std::string_view form) {

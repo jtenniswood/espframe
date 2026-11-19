@@ -13,6 +13,7 @@ export interface ConfigurationUpdateResponse {
   api_version: number;
   status: "accepted" | "rejected";
   updated?: number;
+  frame_hostname?: string;
   error?: string;
   field?: string;
 }

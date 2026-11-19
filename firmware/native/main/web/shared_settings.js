@@ -523,6 +523,7 @@
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
   var nativeSettingGroups = [
+    ["Frame", [["frame_name", "Frame name"]]],
     ["Immich connection", [["immich_url", "Immich server URL"], ["api_key", "Replacement Immich API key"]]],
     ["Photo preparation service", [["prepared_slide_url", "Service URL"], ["prepared_slide_token", "Service access token"]]],
     ["Playback", [
@@ -599,6 +600,10 @@
       control.type = url ? "url" : nativeSecret(key) ? "password" : key === "date_from" || key === "date_to" ? "date" : "text";
       control.value = value;
       if (url || nativeSecret(key)) control.maxLength = 256;
+      if (key === "frame_name") {
+        control.maxLength = 120;
+        control.placeholder = "Use device default";
+      }
       if (key === "immich_url") control.required = true;
       if (nativeSecret(key)) control.autocomplete = "new-password";
       if (key === "prepared_slide_token") control.minLength = 32;
@@ -606,7 +611,9 @@
     return control;
   }
   function nativeSettingsForm(snapshot) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
+    const frameName = typeof snapshot.values.frame_name === "string" ? snapshot.values.frame_name : "";
+    document.title = frameName ? `${frameName} \xB7 Espframe` : "Espframe settings";
     const form = el("form");
     form.id = "native-settings";
     const fields = el("div");
@@ -625,10 +632,11 @@
         const row = field(key === "api_key" && !snapshot.api_key_configured ? "Immich API key" : label);
         if (typeof value === "boolean") {
           row.querySelector("label").prepend(control, " ");
-        } else if (nativeSecret(key) || key === "prepared_slide_url") {
+        } else if (nativeSecret(key) || key === "prepared_slide_url" || key === "frame_name") {
           const hint = el("small");
           hint.id = `native-${key}-hint`;
           if (key === "api_key") hint.textContent = snapshot.api_key_configured ? "Leave blank to keep the current key." : "Enter your API key to connect Immich.";
+          if (key === "frame_name") hint.textContent = "Leave blank to use the device default.";
           if (key === "prepared_slide_url") hint.textContent = "Optional. Clear the URL to use direct Immich previews exclusively.";
           if (key === "prepared_slide_token") hint.textContent = snapshot.values.prepared_slide_token_configured ? "Leave blank to keep the current token. Enter a new token if you change the service URL." : "Enter the token from your preparation service.";
           control.setAttribute("aria-describedby", hint.id);
@@ -654,7 +662,7 @@
     function changes() {
       const changed = {};
       controls.forEach(({ element, value }, key) => {
-        const current = element instanceof HTMLInputElement && element.type === "checkbox" ? element.checked : element instanceof HTMLInputElement && element.type === "number" ? element.valueAsNumber : element.value.trim();
+        const current = element instanceof HTMLInputElement && element.type === "checkbox" ? element.checked : element instanceof HTMLInputElement && element.type === "number" ? element.valueAsNumber : key === "frame_name" ? element.value.replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/g, "") : element.value.trim();
         if (current !== value) changed[key] = current;
       });
       return changed;
@@ -663,6 +671,7 @@
     const pairingOptions = [(_b = controls.get("portrait_pairs_only")) == null ? void 0 : _b.element, (_c = controls.get("portrait_pairing_range")) == null ? void 0 : _c.element];
     const preparedUrl = controls.get("prepared_slide_url");
     const preparedToken = (_d = controls.get("prepared_slide_token")) == null ? void 0 : _d.element;
+    const nameInput = (_e = controls.get("frame_name")) == null ? void 0 : _e.element;
     const noteChange = () => {
       if (pairing instanceof HTMLInputElement) {
         for (const option of pairingOptions) {
@@ -672,6 +681,10 @@
       if (preparedToken instanceof HTMLInputElement && preparedUrl) {
         const url = preparedUrl.element.value.trim().replace(/\/+$/, "");
         preparedToken.required = url !== "" && (!snapshot.values.prepared_slide_token_configured || url !== preparedUrl.value);
+      }
+      if (nameInput instanceof HTMLInputElement) {
+        const name = nameInput.value.replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/g, "");
+        nameInput.setCustomValidity(new TextEncoder().encode(name).length > 120 || /[\u0000-\u001f\u007f-\u009f]/.test(name) ? "Use up to 120 UTF-8 bytes without control characters." : "");
       }
       save.disabled = saving || Object.keys(changes()).length === 0;
     };
@@ -693,9 +706,12 @@
       if (!Object.keys(values).length) return;
       setSaving(true);
       setStatus(status, "Saving settings\u2026");
+      let hostname = "";
       try {
         const response = await apiClient.updateSettings(values, []);
         if (!response || response.status !== "accepted") throw new Error("save_failed");
+        if (typeof response.frame_hostname === "string" && /^[a-z0-9-]{1,63}$/.test(response.frame_hostname))
+          hostname = response.frame_hostname + ".local";
       } catch (error) {
         const label = error instanceof EspframeApiError && error.field ? (_b2 = form.querySelector(`label[for="${((_a2 = controls.get(error.field)) == null ? void 0 : _a2.element.id) || ""}"]`)) == null ? void 0 : _b2.textContent : "";
         const message = label ? `Check the value for ${label}.` : error instanceof EspframeApiError && error.kind === "validation" ? "Check your settings and try again." : "Settings could not be confirmed. Check the frame connection and try again.";
@@ -707,6 +723,14 @@
         if (nativeSecret(key)) element.value = "";
       });
       setStatus(status, "Settings saved. The frame is restarting\u2026");
+      if (hostname && hostname !== window.location.hostname) {
+        const link = el("a");
+        const address = new URL("/", window.location.href);
+        address.hostname = hostname;
+        link.href = address.href;
+        link.textContent = `Open ${hostname}`;
+        actions.appendChild(link);
+      }
       await delayMs(2500);
       for (let attempt = 0; attempt < 5; attempt++) {
         try {

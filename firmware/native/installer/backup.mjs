@@ -141,6 +141,14 @@ function importSource(photos, version) {
   return { ...saved, photo_source: custom ? 'custom' : 'all' }
 }
 
+export function normalizeFrameName(value) {
+  if (typeof value !== 'string') return undefined
+  const name = value.replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/g, '')
+  try { encodeURIComponent(name) } catch (_) { return undefined }
+  if (new TextEncoder().encode(name).length > 120 || /[\u0000-\u001f\u007f-\u009f]/.test(name)) return undefined
+  return name
+}
+
 export function readBackup(data) {
   if (!object(data) || ![1, 2, 3].includes(data.version) ||
       groups.some(key => own(data, key) && !object(data[key])))
@@ -154,6 +162,11 @@ export function readBackup(data) {
   const clock = data.clock ?? {}
   const screen = data.screen ?? {}
   const metadata = data.metadata ?? {}
+  if (data.identity) {
+    const name = normalizeFrameName(data.identity.name)
+    if (name === undefined) notices.push('Review the frame name in the original backup.')
+    else settings.frame_name = name
+  }
   if (memoriesWindows.includes(photos.memories_window)) settings.memories_window = photos.memories_window
   if (typeof photos.memories_fallback === 'boolean') settings.memories_fallback = photos.memories_fallback
   Object.assign(settings, captureDateFieldsFrom(photos, notices))
@@ -212,7 +225,6 @@ export function readBackup(data) {
   if (Object.keys(screen).some(key => !own(screenFields, key))) skipped.push('screen settings')
   if (own(clock, 'ntp_servers')) skipped.push('custom time servers')
   if (own(data, 'firmware_updates')) skipped.push('firmware update settings')
-  if (own(data, 'identity')) skipped.push('the frame name')
   if (['transition', 'transition_speed'].some(key => own(photos, key)) ||
       own(frequency, 'conn_timeout'))
     skipped.push('advanced playback settings')
@@ -230,6 +242,7 @@ function formatInterval(seconds) {
 // Export the supported settings using the same groups as the Espframe web app.
 export function createBackup(settings, date = new Date()) {
   const { photo_source: source } = settings
+  const name = normalizeFrameName(settings.frame_name)
   const filters = {}
   for (const [key, fallback] of Object.entries(photoFilterDefaults)) {
     const value = normalizePhotoFilter(key, settings[key])
@@ -276,6 +289,7 @@ export function createBackup(settings, date = new Date()) {
       ...(photoOrientations.includes(settings.photo_orientation) ? { orientation: settings.photo_orientation } : {}),
     },
     frequency: { interval: formatInterval(settings.slide_seconds) },
+    ...(name !== undefined ? { identity: { name } } : {}),
     ...(Object.keys(clock).length ? { clock } : {}),
     ...(Object.keys(screen).length ? { screen } : {}),
     ...(Object.keys(metadata).length ? { metadata } : {}),

@@ -37,6 +37,7 @@ struct Settings {
   std::string prepared_slide_url;
   std::string prepared_slide_token;
   std::string web_password;
+  std::string frame_name;
   uint32_t reset_epoch{};
   uint32_t slide_seconds{15};
   uint8_t brightness_day{64};

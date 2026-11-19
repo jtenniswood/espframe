@@ -30,8 +30,9 @@
       <p>Connect Wi-Fi in the installer dialog, then close it to send your Immich settings over USB. After a factory reset, use this form to reconnect Wi-Fi and Immich.</p>
       <form id="settings" method="post" autocomplete="off">
         <label>Espframe settings backup <input id="backup" type="file" accept=".json,application/json" aria-describedby="backup-help"></label>
-        <small id="backup-help">Optional. Load your Immich URL and playback settings. Enter credentials below.</small>
+        <small id="backup-help">Optional. Load your frame name, Immich URL and playback settings. Enter credentials below.</small>
         <div id="backup-status" role="status" aria-live="polite"></div>
+        <label>Frame name <input name="frame_name" maxlength="120" placeholder="Use device default"></label>
         <label><input id="reuse-wifi" type="checkbox" class="inline-option"> Use Wi-Fi already saved on the frame</label>
         <div id="wifi-fields">
           <label>Wi-Fi name <input name="ssid" maxlength="32" required></label>

@@ -1,4 +1,5 @@
 #include "cJSON.h"
+#include "frame_identity.h"
 #include "frame_status.h"
 #include "native_configuration.h"
 #include "nvs.h"
@@ -524,6 +525,47 @@ int main() {
       std::string_view("Portrait Only"));
   assert(!reset_configuration(ResetMode::Customization).error);
   assert(current.read() && current.photo_orientation == PhotoOrientation::Any);
+
+  using espframe::native::decode_identity_form;
+  using espframe::native::make_frame_identity;
+  assert(decode_identity_form("name=++Salon+%C3%A9t%C3%A9%26co+").value() == "Salon été&co");
+  assert(decode_identity_form("name=").value().empty());
+  assert(!decode_identity_form("name=duplicate&name=other"));
+  assert(!decode_identity_form("name=bad%00name"));
+  assert(!decode_identity_form("name=bad%C0%AF"));
+  assert(!decode_identity_form("name=bad%"));
+  assert(!decode_identity_form("name=" + std::string(121, 'a')));
+  const espframe::native::FrameMac mac{0x02, 0xab, 0xcd, 0xef, 0x12, 0x9a};
+  const auto named = make_frame_identity("Salon été&co", mac, "immich-frame-10inch", "Espframe 10inch");
+  assert(named.friendly_name == "Salon été&co" && named.hostname == "salon-t-co-129a" && named.mac_suffix == "129a");
+  const auto unnamed = make_frame_identity({}, mac, "immich-frame-10inch", "Espframe 10inch");
+  assert(unnamed.friendly_name == "Espframe 10inch" && unnamed.hostname == "immich-frame-10inch");
+  assert(make_frame_identity("✨", mac, "immich-frame-10inch", "Espframe 10inch").hostname == "frame-129a");
+  assert(make_frame_identity("Living Room", {}, "immich-frame-10inch", "Espframe 10inch").mac_suffix.empty());
+
+  const auto renamed = update_configuration(R"({"values":{"frame_name":"  Salon été&co  "}})");
+  assert(!renamed.error && renamed.frame_name == "Salon été&co");
+  assert(current.read() && current.frame_name == named.name);
+  assert(Settings::save(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","web_password":"new-settings"})"));
+  assert(current.read() && current.frame_name == named.name);  // Older USB setup omits the name.
+  const Json named_snapshot(configuration_snapshot(current), cJSON_Delete);
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(
+      cJSON_GetObjectItemCaseSensitive(named_snapshot.get(), "values"), "frame_name")) == std::string_view(named.name));
+  const auto before_bad_name = stored;
+  assert(update_configuration(R"({"values":{"frame_name":"bad\u0000name","brightness_day":55}})").error);
+  assert(!Settings::save(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","frame_name":"bad\u0000name"})"));
+  assert(stored == before_bad_name);
+  assert(Settings::save(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","web_password":"new-settings",
+      "frame_name":"literal\\u0000"})"));
+  assert(current.read() && current.frame_name == R"(literal\u0000)");
+  assert(!update_configuration(R"({"values":{"frame_name":""}})").error);
+  assert(current.read() && current.frame_name.empty());
+  assert(!update_configuration(R"({"values":{"frame_name":"Restored frame"}})").error);
+  assert(!reset_configuration(ResetMode::Customization).error);
+  assert(current.read() && current.frame_name.empty());
+  assert(!update_configuration(R"({"values":{"frame_name":"Before factory reset"}})").error);
+  assert(!reset_configuration(ResetMode::Factory).error);
+  assert(current.read() && current.frame_name.empty());
 
   using espframe::native::frame_status_snapshot;
   using espframe::native::FrameStatusStore;

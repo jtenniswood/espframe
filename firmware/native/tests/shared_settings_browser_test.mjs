@@ -35,6 +35,7 @@ const testScript = `
     check(field('interval').value === '25 seconds', 'Custom interval was replaced')
     check(field('brightness_day').value === '74', 'Daytime brightness was replaced')
     check(field('photo_orientation').value === 'Portrait Only', 'Saved photo orientation was lost')
+    check(field('frame_name').value === 'Old frame' && document.title.includes('Old frame'), 'Saved frame name was lost')
     check(!field('brightness_night') && !field('albums_enabled'), 'Unsupported settings were shown')
     check(field('api_key').type === 'password' && !field('api_key').value, 'The key was shown')
     check(field('prepared_slide_url').value === 'https://prepare.test', 'The service URL was lost')
@@ -64,6 +65,9 @@ const testScript = `
     check(!save.disabled, 'The rejected save cannot be retried')
     check(field('interval').value === '30 seconds', 'A rejected save lost pending edits')
     edit('brightness_day', '60')
+    edit('frame_name', 'é'.repeat(61))
+    check(!field('frame_name').validity.valid, 'A name over the byte limit was accepted')
+    edit('frame_name', '  Salon été  ')
     edit('api_key', 'replacement+value&1')
     edit('prepared_slide_url', 'https://new-prepare.test')
     check(field('prepared_slide_token').required, 'Changing the service URL did not require a new token')
@@ -78,11 +82,15 @@ const testScript = `
       'Turning off pairing lost the saved paired-portrait setting')
     check(field('portrait_pairing_range').disabled, 'Pairing range is editable while pairing is off')
     form.requestSubmit()
+    const reconnect = await waitFor(() => form.querySelector('a[href*="salon-t-129a.local"]'))
+    check(new URL(reconnect.href).hostname === 'salon-t-129a.local', 'Wrong reconnect hostname')
     const reloaded = await waitFor(() => {
       const next = document.querySelector('#native-settings')
       return next !== form && next
     })
     check(reloaded.elements.namedItem('brightness_day').value === '60', 'New brightness was not read back')
+    check(reloaded.elements.namedItem('frame_name').value === 'Salon été' && document.title.includes('Salon été'),
+      'New frame name was not read back after restart')
     check(reloaded.elements.namedItem('interval').value === '30 seconds', 'New interval was not read back')
     check(reloaded.elements.namedItem('photo_orientation').value === 'Landscape Only', 'Photo orientation was not read back')
     check(!reloaded.elements.namedItem('api_key').value, 'The replacement key remained in the form')
@@ -114,6 +122,7 @@ const snapshot = {
     brightness_night: 48, screen_rotation: '180', show_clock: false, timezone: 'Europe/London (GMT+0)',
     portrait_pairing: true, portrait_pairs_only: false, portrait_pairing_range: 'Within 2 Days',
     photo_orientation: 'Portrait Only',
+    frame_name: 'Old frame',
     prepared_slide_url: 'https://prepare.test', prepared_slide_token_configured: true,
   },
 }
@@ -281,7 +290,7 @@ const server = createServer(async (request, response) => {
       const { api_key, prepared_slide_token, ...settings } = post.values
       Object.assign(snapshot.values, settings)
       disconnected = true
-      json(200, { api_version: 1, status: 'accepted', updated: Object.keys(post.values).length })
+      json(200, { api_version: 1, status: 'accepted', updated: Object.keys(post.values).length, frame_hostname: 'salon-t-129a' })
     }
   } else if (request.url === settingsPath) {
     if (disconnected) {
@@ -325,6 +334,7 @@ try {
       api_version: 1, reset_epoch: 0,
       values: {
         api_key: 'replacement+value&1', interval: '30 seconds', brightness_day: 60,
+        frame_name: 'Salon été',
         photo_orientation: 'Landscape Only',
         portrait_pairing: false, portrait_pairs_only: true, portrait_pairing_range: 'Within 1 Day',
         prepared_slide_url: 'https://new-prepare.test', prepared_slide_token: 'service-token-for-browser-regression-test',

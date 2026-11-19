@@ -5,6 +5,19 @@ import { createBackup, readBackup } from '../installer/backup.mjs'
 const fixture = async name => JSON.parse(await readFile(
   new URL(`../../../tests/fixtures/backup/espframe-config-${name}.json`, import.meta.url), 'utf8'))
 
+for (const version of [1, 2, 3]) {
+  const result = readBackup({ version, identity: { name: '  Salon été & famille  ', hostname: 'other-frame' } })
+  assert.deepEqual(result.settings, { frame_name: 'Salon été & famille' })
+  assert.deepEqual(result.notices, [])
+}
+assert.deepEqual(readBackup({ version: 3, identity: { name: '' } }).settings, { frame_name: '' })
+for (const name of ['é'.repeat(61), 'bad\x00name', 'bad\ud800', null]) {
+  const result = readBackup({ version: 3, identity: { name } })
+  assert.deepEqual(result.settings, {})
+  assert.ok(result.notices.some(message => message.includes('frame name')))
+}
+assert.deepEqual(createBackup({ frame_name: 'Salon été', slide_seconds: 20 }).identity, { name: 'Salon été' })
+
 const partial = readBackup(await fixture('v1-partial'))
 assert.deepEqual(partial.settings, {
   immich_url: 'http://192.168.1.30:2283',

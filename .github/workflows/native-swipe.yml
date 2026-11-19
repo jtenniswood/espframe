@@ -134,9 +134,9 @@ jobs:
           docker run --rm -v "$PWD:/workspace" -w /workspace \
             espressif/idf:v6.1.1 idf.py -C firmware/native -B "firmware/native/build/${{ matrix.board }}" \
             -D SWIPE_BOARD="${{ matrix.board }}" -D SWIPE_TRACE=ON build merge-bin
-      - name: Check the effective Guition Wi-Fi configuration
+      - name: Check the effective Guition network configuration
         run: |
-          settings='^(CONFIG_|# CONFIG_)(SLAVE_IDF_TARGET|ESP_WIFI_REMOTE|ESP_HOSTED|EH_HOST_PORT)'
+          settings='^(CONFIG_|# CONFIG_)(SLAVE_IDF_TARGET|ESP_WIFI_REMOTE|ESP_HOSTED|EH_HOST_PORT|MDNS_PREDEF_NETIF)'
           while IFS= read -r setting; do
             if ! grep -Fxq "$setting" "firmware/native/build/${{ matrix.board }}/sdkconfig"; then
               printf 'Missing effective Wi-Fi setting: %s\n' "$setting" >&2
