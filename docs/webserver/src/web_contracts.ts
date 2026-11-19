@@ -13,6 +13,8 @@ export interface ConfigurationUpdateResponse {
   api_version: number;
   status: "accepted" | "rejected";
   updated?: number;
+  frame_hostname?: string;
+  restart_required?: boolean;
   error?: string;
   field?: string;
 }
@@ -23,6 +25,8 @@ export interface ConfigurationCapabilities {
   base_path: string;
   capabilities_path: string;
   configuration_path: string;
+  status_path?: string;
+  screen_control_path?: string;
   reset_path?: string;
   reset_modes?: string[];
   update_mode: "atomic";
