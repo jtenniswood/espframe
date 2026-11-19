@@ -6,7 +6,9 @@
 #include "nvs_flash.h"
 
 #include <algorithm>
+#include <array>
 #include <cstring>
+#include <initializer_list>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -19,6 +21,7 @@ namespace {
 constexpr const char *partition = "native_config";
 constexpr const char *store_namespace = "player";
 constexpr const char *settings_key = "settings_v1";
+constexpr size_t legacy_max_json_size = 3072;
 std::mutex storage_mutex;
 
 bool load_string(nvs_handle_t storage, const char *key, std::string &value, size_t maximum) {
@@ -223,9 +226,116 @@ bool read_source(const cJSON *root, PhotoSource &source) {
     source.mode = PhotoSourceMode::Album;
   else if (mode == "memories")
     source.mode = PhotoSourceMode::Memories;
+  else if (mode == "custom")
+    source.mode = PhotoSourceMode::Custom;
   else
     return false;
   return true;
+}
+
+constexpr std::pair<const char *, bool ImmichFilterConfig::*> filter_flags[]{
+    {"albums_enabled", &ImmichFilterConfig::albums_enabled}, {"people_enabled", &ImmichFilterConfig::people_enabled},
+    {"tags_enabled", &ImmichFilterConfig::tags_enabled}, {"favorites_enabled", &ImmichFilterConfig::favorites_enabled},
+    {"rating_enabled", &ImmichFilterConfig::rating_enabled}, {"location_enabled", &ImmichFilterConfig::location_enabled}};
+
+constexpr std::pair<const char *, std::string ImmichFilterConfig::*> filter_lists[]{
+    {"album_ids", &ImmichFilterConfig::album_ids}, {"person_ids", &ImmichFilterConfig::person_ids},
+    {"tag_ids", &ImmichFilterConfig::tag_ids}, {"excluded_album_ids", &ImmichFilterConfig::excluded_album_ids},
+    {"excluded_person_ids", &ImmichFilterConfig::excluded_person_ids}, {"excluded_tag_ids", &ImmichFilterConfig::excluded_tag_ids}};
+
+constexpr std::pair<const char *, std::string ImmichFilterConfig::*> filter_places[]{
+    {"filter_country", &ImmichFilterConfig::country}, {"filter_state", &ImmichFilterConfig::state},
+    {"filter_city", &ImmichFilterConfig::city}};
+
+constexpr std::array ratings{"Any", "1+", "2+", "3+", "4+", "5+"};
+
+bool read_choice(const cJSON *root, const char *key, std::string &value,
+                 std::initializer_list<std::string_view> choices) {
+  return read_field(root, key, value, true) && std::find(choices.begin(), choices.end(), value) != choices.end();
+}
+
+bool normalize_filter_ids(std::string &ids) {
+  if (ids.size() > 255)
+    return false;
+  std::string normalized;
+  std::string_view remaining(ids);
+  while (!remaining.empty()) {
+    const auto separator = remaining.find(',');
+    auto id = remaining.substr(0, separator);
+    const auto first = id.find_first_not_of(" \t\r\n");
+    if (first == std::string_view::npos)
+      return false;
+    id = id.substr(first, id.find_last_not_of(" \t\r\n") - first + 1);
+    if (!normalized.empty())
+      normalized += ',';
+    const auto start = normalized.size();
+    for (const char c : id)
+      normalized += c >= 'A' && c <= 'F' ? static_cast<char>(c + ('a' - 'A')) : c;
+    if (!is_immich_id(std::string_view(normalized).substr(start)))
+      return false;
+    if (separator == std::string_view::npos)
+      break;
+    remaining.remove_prefix(separator + 1);
+    if (remaining.empty())
+      return false;
+  }
+  ids = std::move(normalized);
+  return true;
+}
+
+bool read_photo_filters(const cJSON *root, PhotoFilters &filters) {
+  auto &criteria = filters.criteria;
+  for (const auto &[key, member] : filter_flags) {
+    if (!read_flag(root, key, criteria.*member))
+      return false;
+  }
+  for (const auto &[key, member] : filter_lists) {
+    if (!read_field(root, key, criteria.*member, true) || !normalize_filter_ids(criteria.*member))
+      return false;
+  }
+  for (const auto &[key, member] : filter_places) {
+    auto &value = criteria.*member;
+    if (!read_field(root, key, value, true) || value.size() > 96 ||
+        std::any_of(value.begin(), value.end(), [](unsigned char c) { return c < 32 || c == 127; }))
+      return false;
+  }
+  std::string rating = ratings[criteria.minimum_rating];
+  if (!read_field(root, "minimum_rating", rating, true))
+    return false;
+  const auto selected = std::find(ratings.begin(), ratings.end(), rating);
+  if (selected == ratings.end())
+    return false;
+  criteria.minimum_rating = std::distance(ratings.begin(), selected);
+  return read_choice(root, "album_order", filters.album_order, {"Random albums", "Album list order"}) &&
+         read_choice(root, "album_matching", criteria.album_matching, {"Any selected album", "All selected albums"}) &&
+         read_choice(root, "person_matching", criteria.person_matching, {"Any selected person", "All selected people"}) &&
+         read_choice(root, "tag_matching", criteria.tag_matching, {"Any selected tag", "All selected tags"}) &&
+         read_choice(root, "inclusion_matching", criteria.inclusion_matching,
+                     {"Match all enabled groups", "Match any enabled group"}) &&
+         read_choice(root, "favorite_mode", criteria.favorite_mode, {"Any", "Favorites only", "Exclude favorites"});
+}
+
+bool add_photo_filter_fields(cJSON *object, const PhotoFilters &filters) {
+  const auto &criteria = filters.criteria;
+  for (const auto &[key, member] : filter_flags) {
+    if (!cJSON_AddBoolToObject(object, key, criteria.*member))
+      return false;
+  }
+  for (const auto &[key, member] : filter_lists) {
+    if (!cJSON_AddStringToObject(object, key, (criteria.*member).c_str()))
+      return false;
+  }
+  for (const auto &[key, member] : filter_places) {
+    if (!cJSON_AddStringToObject(object, key, (criteria.*member).c_str()))
+      return false;
+  }
+  return cJSON_AddStringToObject(object, "album_order", filters.album_order.c_str()) &&
+         cJSON_AddStringToObject(object, "album_matching", criteria.album_matching.c_str()) &&
+         cJSON_AddStringToObject(object, "person_matching", criteria.person_matching.c_str()) &&
+         cJSON_AddStringToObject(object, "tag_matching", criteria.tag_matching.c_str()) &&
+         cJSON_AddStringToObject(object, "inclusion_matching", criteria.inclusion_matching.c_str()) &&
+         cJSON_AddStringToObject(object, "favorite_mode", criteria.favorite_mode.c_str()) &&
+         cJSON_AddStringToObject(object, "minimum_rating", ratings[criteria.minimum_rating]);
 }
 
 bool read_capture_dates(const cJSON *root, CaptureDateSettings &dates) {
@@ -262,7 +372,8 @@ bool read_pairing(const cJSON *root, Settings &settings) {
 bool read_playback(const cJSON *root, Settings &settings) {
   return read_integer(root, "slide_seconds", 2, 86'400, settings.slide_seconds) && read_pairing(root, settings) &&
          read_display_mode(root, settings.display_mode) && read_rotation(root, settings.screen_rotation) &&
-         read_source(root, settings.photo_source) && read_capture_dates(root, settings.capture_dates) &&
+         read_source(root, settings.photo_source) && read_photo_filters(root, settings.photo_filters) &&
+         read_capture_dates(root, settings.capture_dates) &&
          read_clock(root, settings.clock) && read_brightness(root, settings) &&
          read_schedule(root, settings.schedule) && read_metadata(root, settings.metadata) && read_tone(root, settings.tone);
 }
@@ -293,9 +404,18 @@ Json load_document(bool *may_create = nullptr) {
   }
   std::string json;
   Json document(nullptr, cJSON_Delete);
-  if (load_string(storage, settings_key, json, Settings::max_json_size)) {
+  size_t size = 0;
+  const auto blob_result = nvs_get_blob(storage, settings_key, nullptr, &size);
+  if (blob_result == ESP_OK) {
+    if (size > 0 && size <= Settings::max_json_size) {
+      json.resize(size);
+      if (nvs_get_blob(storage, settings_key, json.data(), &size) == ESP_OK && json.find('\0') == std::string::npos)
+        document = parse(json.c_str());
+    }
+  } else if (load_string(storage, settings_key, json, Settings::max_json_size)) {
     document = parse(json.c_str());
-  } else {
+  } else if (blob_result == ESP_ERR_NVS_NOT_FOUND &&
+             nvs_get_str(storage, settings_key, nullptr, &size) == ESP_ERR_NVS_NOT_FOUND) {
     Settings legacy;
     if (load_string(storage, "ssid", legacy.ssid, 32) &&
         load_string(storage, "password", legacy.password, 64) &&
@@ -308,9 +428,7 @@ Json load_document(bool *may_create = nullptr) {
           !cJSON_AddStringToObject(document.get(), "immich_key", legacy.immich_key.c_str()))
         document.reset();
     } else if (may_create) {
-      size_t size = 0;
-      *may_create = nvs_get_str(storage, settings_key, nullptr, &size) == ESP_ERR_NVS_NOT_FOUND &&
-                    nvs_get_str(storage, "ssid", nullptr, &size) == ESP_ERR_NVS_NOT_FOUND;
+      *may_create = nvs_get_str(storage, "ssid", nullptr, &size) == ESP_ERR_NVS_NOT_FOUND;
     }
   }
   nvs_close(storage);
@@ -323,7 +441,8 @@ bool load(Settings &settings) {
 }
 
 bool write(const char *json, bool clear_legacy) {
-  if (std::strlen(json) > Settings::max_json_size || nvs_flash_init_partition(partition) != ESP_OK)
+  const size_t length = std::strlen(json);
+  if (length > Settings::max_json_size || nvs_flash_init_partition(partition) != ESP_OK)
     return false;
   nvs_handle_t storage;
   if (nvs_open_from_partition(partition, store_namespace, NVS_READWRITE, &storage) != ESP_OK)
@@ -339,7 +458,13 @@ bool write(const char *json, bool clear_legacy) {
       }
     }
   }
-  ok = ok && nvs_set_str(storage, settings_key, json) == ESP_OK && nvs_commit(storage) == ESP_OK;
+  if (ok) {
+    // Keep compact records readable by earlier native firmware. Larger records
+    // share the same key and can span multiple NVS pages.
+    const auto result = length <= legacy_max_json_size ? nvs_set_str(storage, settings_key, json)
+                                                       : nvs_set_blob(storage, settings_key, json, length);
+    ok = result == ESP_OK && nvs_commit(storage) == ESP_OK;
+  }
   nvs_close(storage);
   return ok;
 }
@@ -439,7 +564,8 @@ bool Settings::save_wifi(const WifiCredentials &wifi, uint32_t expected_epoch) {
 }
 
 bool Settings::add_playback_fields(cJSON *object) const {
-  return cJSON_AddStringToObject(object, "immich_url", immich_url.c_str()) &&
+  return add_photo_filter_fields(object, photo_filters) &&
+         cJSON_AddStringToObject(object, "immich_url", immich_url.c_str()) &&
          cJSON_AddStringToObject(object, "prepared_slide_url", prepared_slide_url.c_str()) &&
          cJSON_AddNumberToObject(object, "slide_seconds", slide_seconds) &&
          cJSON_AddNumberToObject(object, "brightness_day", brightness_day) &&

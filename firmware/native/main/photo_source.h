@@ -7,8 +7,10 @@
 
 namespace espframe::native {
 
-enum class PhotoSourceMode { Library, Favorites, Album, Memories };
-enum class MemoriesStatus : uint8_t { None, WaitingForTime, Empty, Unavailable };
+enum class PhotoSourceMode { Library, Favorites, Album, Memories, Custom };
+enum class PhotoSourceStatus : uint8_t {
+  None, WaitingForTime, MemoriesEmpty, MemoriesUnavailable, IncompleteFilters, UnsupportedFilters, FiltersUnavailable
+};
 
 inline constexpr std::array<std::string_view, 5> memory_windows{
     "Same Day", "Within 1 Day", "Within 2 Days", "Within 3 Days", "Within 7 Days"};
@@ -33,6 +35,8 @@ inline const char *photo_source_name(PhotoSourceMode mode) {
       return "album";
     case PhotoSourceMode::Memories:
       return "memories";
+    case PhotoSourceMode::Custom:
+      return "custom";
   }
   return "all";
 }

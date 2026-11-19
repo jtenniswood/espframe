@@ -65,13 +65,16 @@ void draw_recovery_card(uint16_t *frame, const uint8_t *atlas, const RecoveryNet
   text(frame, atlas, rotation, value, top + 128, recovery_url, white);
 }
 
-void draw_memories_status(uint16_t *frame, const uint8_t *atlas, MemoriesStatus status, ScreenRotation rotation) {
+void draw_source_status(uint16_t *frame, const uint8_t *atlas, PhotoSourceStatus status, ScreenRotation rotation) {
   std::string_view message;
   switch (status) {
-    case MemoriesStatus::WaitingForTime: message = "Waiting for the date"; break;
-    case MemoriesStatus::Empty: message = "No On This Day photos"; break;
-    case MemoriesStatus::Unavailable: message = "Couldn't load On This Day"; break;
-    case MemoriesStatus::None: return;
+    case PhotoSourceStatus::WaitingForTime: message = "Waiting for the date"; break;
+    case PhotoSourceStatus::MemoriesEmpty: message = "No On This Day photos"; break;
+    case PhotoSourceStatus::MemoriesUnavailable: message = "Couldn't load On This Day"; break;
+    case PhotoSourceStatus::IncompleteFilters: message = "Choose filter values"; break;
+    case PhotoSourceStatus::UnsupportedFilters: message = "Filters need Immich 3.2"; break;
+    case PhotoSourceStatus::FiltersUnavailable: message = "Check photo filters"; break;
+    case PhotoSourceStatus::None: return;
   }
   card(frame, rotation, 48, 612, 396, 60);
   text(frame, atlas, rotation, 68, 622, message, white);

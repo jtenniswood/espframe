@@ -1,4 +1,5 @@
 #include "immich_selection.h"
+#include "immich_helpers.h"
 
 #include "cJSON.h"
 
@@ -98,6 +99,24 @@ std::optional<ImmichPhoto> read_asset(const cJSON *record) {
   return photo;
 }
 
+bool restrict_pairing_dates(CaptureDateRange &dates, std::optional<std::chrono::sys_days> local_day,
+                            unsigned pairing_days) {
+  if (!local_day)
+    return true;
+  if (!dates.includes(local_day))
+    return false;
+  using namespace std::chrono;
+  const auto window = days{pairing_days};
+  const auto earliest = std::max(*local_day - window, sys_days{year{2} / January / 1});
+  const auto latest = std::min(*local_day + window, sys_days{year{9998} / December / 31});
+  dates = {std::max(earliest, dates.from.value_or(earliest)), std::min(latest, dates.through.value_or(latest))};
+  return true;
+}
+
+ImmichApiGeneration filter_generation(ImmichSearchApi api) {
+  return api == ImmichSearchApi::Structured ? ImmichApiGeneration::V32_STRUCTURED : ImmichApiGeneration::V31_FLAT;
+}
+
 }  // namespace
 
 ImmichSearchApi parse_search_api(std::string_view json) {
@@ -112,7 +131,7 @@ ImmichSearchApi parse_search_api(std::string_view json) {
 PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, ImmichSearchApi api,
                                      std::optional<std::chrono::sys_days> local_day, uint32_t page,
                                      bool with_location, CaptureDateRange dates, unsigned pairing_days) {
-  if (source.mode == PhotoSourceMode::Memories)
+  if (source.mode == PhotoSourceMode::Memories || source.mode == PhotoSourceMode::Custom)
     return {};
   const bool album = source.mode == PhotoSourceMode::Album;
   const bool favorites = source.mode == PhotoSourceMode::Favorites;
@@ -120,15 +139,8 @@ PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, Im
     return {};
   if (album && !is_immich_id(source.album_id))
     return {};
-  if (local_day) {
-    if (!dates.includes(local_day))
-      return {};
-    using namespace std::chrono;
-    const auto window = days{pairing_days};
-    const auto earliest = std::max(*local_day - window, sys_days{year{2} / January / 1});
-    const auto latest = std::min(*local_day + window, sys_days{year{9998} / December / 31});
-    dates = {std::max(earliest, dates.from.value_or(earliest)), std::min(latest, dates.through.value_or(latest))};
-  }
+  if (!restrict_pairing_dates(dates, local_day, pairing_days))
+    return {};
 
   const bool structured = api == ImmichSearchApi::Structured;
   const bool paged = album && !structured;
@@ -175,8 +187,45 @@ PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, Im
   return request;
 }
 
+PhotoFilterStatus photo_filter_status(const PhotoFilters &filters, ImmichSearchApi api) {
+  if (!immich_filter_has_required_ids(filters.criteria))
+    return PhotoFilterStatus::Incomplete;
+  if (api == ImmichSearchApi::Unknown ||
+      (api == ImmichSearchApi::Legacy && immich_filter_requires_v32(filters.criteria)))
+    return PhotoFilterStatus::Unsupported;
+  return PhotoFilterStatus::Ready;
+}
+
+ImmichFilterBranch next_photo_filter_branch(const PhotoFilters &filters, ImmichSearchApi api,
+                                           uint8_t &next_group, int &next_album) {
+  return select_immich_filter_branch(filters.criteria, next_group, next_album, filters.album_order, filter_generation(api));
+}
+
+bool photo_filter_uses_metadata(const ImmichFilterBranch &branch, ImmichSearchApi api) {
+  return immich_filter_branch_uses_metadata_search(branch, filter_generation(api));
+}
+
+PhotoSearchRequest make_filtered_photo_search(size_t count, const PhotoFilters &filters, const ImmichFilterBranch &branch,
+                                              ImmichSearchApi api, std::optional<std::chrono::sys_days> local_day,
+                                              uint32_t page, bool with_location, CaptureDateRange dates,
+                                              unsigned pairing_days) {
+  if (photo_filter_status(filters, api) != PhotoFilterStatus::Ready || !restrict_pairing_dates(dates, local_day, pairing_days))
+    return {};
+  auto criteria = filters.criteria;
+  // Keep local capture-day matching exact after searching a wider UTC range.
+  if (dates.from)
+    criteria.taken_after = iso_day(*dates.from - std::chrono::days(1)) + "T00:00:00.000Z";
+  if (dates.through)
+    criteria.taken_before = iso_day(*dates.through + std::chrono::days(1)) + "T23:59:59.999Z";
+  const bool paged = photo_filter_uses_metadata(branch, api);
+  return {paged ? "/search/metadata" : "/search/random",
+          build_immich_filter_search_body(criteria, branch, filter_generation(api), count, false, paged, page, {},
+                                          local_day.has_value() || with_location),
+          paged, dates};
+}
+
 PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool paged, bool favorites_only,
-                                     CaptureDateRange dates) {
+                                     CaptureDateRange dates, bool exclude_favorites) {
   PhotoSearchResult result;
   const auto document = parse_json(json);
   const auto *assets = paged ? cJSON_GetObjectItemCaseSensitive(document.get(), "assets") : nullptr;
@@ -193,6 +242,8 @@ PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool p
     if (photos.size() == limit)
       break;
     if (favorites_only && !cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(record, "isFavorite")))
+      continue;
+    if (exclude_favorites && !cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(record, "isFavorite")))
       continue;
     if (const auto *visibility = get_text(record, "visibility"); visibility && std::string_view(visibility) != "timeline")
       continue;

@@ -104,60 +104,92 @@ bool ImmichSource::select_search_api_(PhotoSourceMode mode) {
 std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
                                               std::optional<std::chrono::sys_days> local_day, int64_t deadline_us) {
   const bool pairing = local_day.has_value();
+  const bool custom = source.mode == PhotoSourceMode::Custom;
+  const auto &filters = this->settings_.photo_filters;
   if (!online_())
     return {};
   if (!this->allocate_download_())
     return {};
-  if (!pairing && !this->select_search_api_(source.mode))
+  if (!pairing && !this->select_search_api_(source.mode)) {
+    if (custom)
+      this->source_status_ = PhotoSourceStatus::FiltersUnavailable;
     return {};
+  }
 
-  const bool legacy_album = source.mode == PhotoSourceMode::Album && this->search_api_ == ImmichSearchApi::Legacy;
-  uint32_t page = !pairing && legacy_album ? this->album_page_ : 1;
-  size_t count = !pairing && legacy_album ? this->album_page_size_ : photo_search_batch;
+  if (custom && !pairing) {
+    const auto availability = photo_filter_status(filters, this->search_api_);
+    if (availability != PhotoFilterStatus::Ready) {
+      this->source_status_ = availability == PhotoFilterStatus::Incomplete ? PhotoSourceStatus::IncompleteFilters
+                                                                           : PhotoSourceStatus::UnsupportedFilters;
+      return {};
+    }
+    this->filter_branch_ = next_photo_filter_branch(filters, this->search_api_, next_filter_group_, next_filter_album_);
+  }
+
+  const bool paged = custom ? photo_filter_uses_metadata(this->filter_branch_, this->search_api_)
+                            : source.mode == PhotoSourceMode::Album && this->search_api_ == ImmichSearchApi::Legacy;
+  auto *album_page = !pairing && paged ? &this->album_pages_[custom ? this->filter_branch_.album_ids : source.album_id]
+                                       : nullptr;
+  if (!pairing)
+    this->pending_is_paged_ = paged;
+  uint32_t page = album_page ? album_page->page : 1;
+  size_t count = album_page ? album_page->count : photo_search_batch;
   const bool with_exif = this->settings_.metadata.show_location || this->settings_.requires_portrait_pair();
   const auto dates = this->settings_.photo_source.mode == PhotoSourceMode::Memories
                          ? CaptureDateRange{} : this->capture_date_range_;
-  auto request = make_photo_search(count, source, this->search_api_, local_day, page, with_exif, dates,
-                                   this->settings_.portrait_pairing_days);
+  const auto make_request = [&](bool exif) {
+    const auto pairing_days = this->settings_.portrait_pairing_days;
+    return custom ? make_filtered_photo_search(count, filters, this->filter_branch_, this->search_api_, local_day,
+                                               page, exif, dates, pairing_days)
+                  : make_photo_search(count, source, this->search_api_, local_day, page, exif, dates, pairing_days);
+  };
+  auto request = make_request(with_exif);
   if (request.path.empty())
     return {};
   size_t length;
   int status = this->fetch_(request.path, request.body, search_capacity, length, deadline_us);
   if (!pairing && status == 413 && count > 4) {
     count = 4;
-    if (legacy_album) {
+    if (album_page) {
       // A smaller page size changes the offsets. Restart the same album.
-      this->album_page_size_ = count;
-      this->album_page_ = 1;
+      *album_page = {1, count};
       page = 1;
     }
-    request = make_photo_search(count, source, this->search_api_, local_day, page, with_exif, dates);
+    request = make_request(with_exif);
     status = this->fetch_(request.path, request.body, search_capacity, length);
   }
   if (!pairing && with_exif && (status == 400 || status == 413)) {
-    request = make_photo_search(count, source, this->search_api_, local_day, page, false, dates);
+    request = make_request(false);
     status = this->fetch_(request.path, request.body, search_capacity, length);
   }
   if (status != 200) {
     if constexpr (SWIPE_TRIAL_IMMICH)
       record_live_trial_search(pairing, status, 0);
-    if (!pairing)
+    if (!pairing) {
       ESP_LOGW(tag, "Photo search failed (%d)", status);
+      if (custom)
+        this->source_status_ = PhotoSourceStatus::FiltersUnavailable;
+    }
     return {};
   }
+  const std::string_view favorite_mode = custom && filters.criteria.favorites_enabled
+                                            ? std::string_view(filters.criteria.favorite_mode) : "Any";
   auto response = parse_photo_search({reinterpret_cast<const char *>(this->encoded_), length}, count, request.paged,
-                                     source.mode == PhotoSourceMode::Favorites, request.dates);
+                                     source.mode == PhotoSourceMode::Favorites || favorite_mode == "Favorites only",
+                                     request.dates, favorite_mode == "Exclude favorites");
   if constexpr (SWIPE_TRIAL_IMMICH)
     record_live_trial_search(pairing, status, response.photos.size());
-  if (!pairing && request.paged && response.valid)
-    this->album_page_ = response.next_page > page ? response.next_page : 1;
+  if (album_page && response.valid)
+    album_page->page = response.next_page > page ? response.next_page : 1;
+  if (custom && !pairing && response.photos.empty())
+    this->source_status_ = PhotoSourceStatus::FiltersUnavailable;
   return std::move(response.photos);
 }
 
 bool ImmichSource::update_memory_day_() {
   const auto today = local_today();
   if (!today) {
-    this->memories_status_ = MemoriesStatus::WaitingForTime;
+    this->source_status_ = PhotoSourceStatus::WaitingForTime;
     return false;
   }
   if (this->memory_day_ != today) {
@@ -168,7 +200,7 @@ bool ImmichSource::update_memory_day_() {
     this->memory_retry_at_ = 0;
     this->using_memory_fallback_ = false;
     this->memory_response_too_large_ = false;
-    this->memories_status_ = MemoriesStatus::None;
+    this->source_status_ = PhotoSourceStatus::None;
   } else if (this->using_memory_fallback_ && esp_timer_get_time() >= this->memory_retry_at_) {
     this->pending_.clear();
     this->using_memory_fallback_ = false;
@@ -180,14 +212,15 @@ bool ImmichSource::update_capture_dates_() {
   const auto &settings = this->settings_.capture_dates;
   const auto range = settings.resolve(settings.needs_time() ? local_today() : std::nullopt);
   if (!range) {
-    this->memories_status_ = MemoriesStatus::WaitingForTime;
+    this->source_status_ = PhotoSourceStatus::WaitingForTime;
     return false;
   }
-  this->memories_status_ = MemoriesStatus::None;
+  this->source_status_ = PhotoSourceStatus::None;
   if (this->capture_date_range_ != *range) {
     this->capture_date_range_ = *range;
     this->pending_.clear();
-    this->album_page_ = 1;
+    for (auto &[album, pagination] : this->album_pages_)
+      pagination.page = 1;
   }
   return true;
 }
@@ -211,14 +244,14 @@ std::vector<ImmichPhoto> ImmichSource::memories_() {
       if (!results && status != 413) {
         ESP_LOGW(tag, "On This Day request failed (%d). Check the Immich connection and memory.read permission.", status);
         this->memory_retry_at_ = esp_timer_get_time() + memory_retry_us;
-        this->memories_status_ = MemoriesStatus::Unavailable;
+        this->source_status_ = PhotoSourceStatus::MemoriesUnavailable;
         break;
       }
       this->memory_response_too_large_ |= status == 413;
       ++this->next_memory_date_;
       if (!results || results->empty())
         continue;
-      this->memories_status_ = MemoriesStatus::None;
+      this->source_status_ = PhotoSourceStatus::None;
       for (const auto &photo : *results) {
         if (this->memory_pool_.size() == memory_pool_capacity)
           break;
@@ -234,7 +267,7 @@ std::vector<ImmichPhoto> ImmichSource::memories_() {
       ESP_LOGI(tag, "No On This Day photos in the configured window");
     this->next_memory_date_ = 0;
     this->memory_retry_at_ = esp_timer_get_time() + memory_retry_us;
-    this->memories_status_ = this->memory_response_too_large_ ? MemoriesStatus::Unavailable : MemoriesStatus::Empty;
+    this->source_status_ = this->memory_response_too_large_ ? PhotoSourceStatus::MemoriesUnavailable : PhotoSourceStatus::MemoriesEmpty;
     this->memory_response_too_large_ = false;
   }
   if (!this->memory_pool_.empty())
@@ -242,7 +275,7 @@ std::vector<ImmichPhoto> ImmichSource::memories_() {
   this->using_memory_fallback_ = source.memory_fallback && esp_timer_get_time() < this->memory_retry_at_;
   auto fallback = this->using_memory_fallback_ ? this->search_(PhotoSource{}) : std::vector<ImmichPhoto>{};
   if (!fallback.empty())
-    this->memories_status_ = MemoriesStatus::None;
+    this->source_status_ = PhotoSourceStatus::None;
   return fallback;
 }
 
@@ -257,7 +290,7 @@ bool ImmichSource::next_asset_(ImmichPhoto &asset) {
       std::erase_if(this->pending_, [](const ImmichPhoto &photo) { return !can_start_portrait_pair(photo); });
     if (this->pending_.empty())
       return false;
-    if (source.mode == PhotoSourceMode::Album && this->search_api_ == ImmichSearchApi::Legacy) {
+    if (this->pending_is_paged_) {
       // Consume the paged album from newest to oldest across batches.
       std::reverse(this->pending_.begin(), this->pending_.end());
     } else {
@@ -273,8 +306,7 @@ bool ImmichSource::next_asset_(ImmichPhoto &asset) {
 bool ImmichSource::take_pending_(ImmichPhoto &asset) {
   if (this->pending_.empty())
     return false;
-  if (this->settings_.requires_portrait_pair() &&
-      (this->settings_.photo_source.mode != PhotoSourceMode::Album || this->search_api_ != ImmichSearchApi::Legacy)) {
+  if (this->settings_.requires_portrait_pair() && !this->pending_is_paged_) {
     if (const auto match = find_pair_seed(this->pending_, this->settings_.portrait_pairing_days)) {
       const auto seed = this->pending_.begin() + *match;
       asset = *seed;

@@ -13,6 +13,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -33,7 +34,7 @@ class ImmichSource {
   PrepareResult prepare(SlideIndex slide, uint16_t *panel);
   SlideIndex first_slide() const { return this->history_.first(); }
   SlideIndex next_slide() const { return this->history_.next(); }
-  MemoriesStatus memories_status() const { return this->memories_status_; }
+  PhotoSourceStatus source_status() const { return this->source_status_; }
 
  private:
   enum class PreviewStatus { Ready, Missing, Retry };
@@ -70,8 +71,15 @@ class ImmichSource {
   P4JpegDecoder jpeg_;
   uint32_t http_connection_{};
   ImmichSearchApi search_api_{ImmichSearchApi::Unknown};
-  uint32_t album_page_{1};
-  size_t album_page_size_{photo_search_batch};
+  struct AlbumPage {
+    uint32_t page{1};
+    size_t count{photo_search_batch};
+  };
+  std::map<std::string, AlbumPage> album_pages_;
+  ImmichFilterBranch filter_branch_;
+  uint8_t next_filter_group_{};
+  int next_filter_album_{};
+  bool pending_is_paged_{};
   uint8_t *encoded_{};
   PhotoHistory history_;
   RecentPreviews previews_;
@@ -84,7 +92,7 @@ class ImmichSource {
   unsigned next_memory_date_{};
   bool using_memory_fallback_{};
   bool memory_response_too_large_{};
-  MemoriesStatus memories_status_{MemoriesStatus::None};
+  PhotoSourceStatus source_status_{PhotoSourceStatus::None};
 };
 
 }  // namespace espframe::native

@@ -1,6 +1,8 @@
-import { normalizeAlbum, validCaptureDay } from './photo_source.mjs'
+import { normalizeAlbum, normalizePhotoFilter, photoFilterDefaults, validCaptureDay } from './photo_source.mjs'
 
-const legacySources = ['All Photos', 'Album', 'Favorites', 'Custom']
+const legacySources = ['All Photos', 'Album', 'Favorites', 'Person', 'Tag', 'Memories', 'Custom']
+const groupFlags = { album: 'albums_enabled', person: 'people_enabled', tag: 'tags_enabled' }
+const placeFields = { filter_country: 'country', filter_state: 'state', filter_city: 'city' }
 const displayModes = ['Fill', 'Fit']
 const clockFormats = ['24 Hour', '12 Hour']
 const pairingRanges = ['Same Day', 'Within 1 Day', 'Within 2 Days']
@@ -79,54 +81,64 @@ function intervalSeconds(value) {
 }
 
 function importSource(photos, version) {
-  const flag = (key, fallback = false) => own(photos, key) ? photos[key] !== false : fallback
   const legacy = photos.source
-  if (legacy === 'Memories') {
-    const savedAlbum = normalizeAlbum(photos.album_ids)
-    return { photo_source: 'memories', ...(savedAlbum ? { album_id: savedAlbum } : {}) }
-  }
-  const flags = ['albums_enabled', 'people_enabled', 'tags_enabled', 'favorites_enabled', 'rating_enabled',
-    'location_enabled']
-  const exclusions = ['album', 'person', 'tag'].filter(group => {
-    const ids = photos[`excluded_${group}_ids`]
-    return ids != null && String(ids).trim() !== ''
-  })
-  const olderFilterHints = version === 2 &&
-    ['favorite_mode', 'minimum_rating', 'country', 'state', 'city'].some(key => own(photos, key))
+  const supplied = Object.keys(photoFilterDefaults).some(key => own(photos, placeFields[key] ?? key))
   const pairedPortraits = photos.portrait_pairs_only === true && photos.portrait_pairing !== false
-  const hasFilter = legacy !== undefined || flags.some(key => own(photos, key))
-    || own(photos, 'date_filter_enabled') || pairedPortraits
-    || own(photos, 'orientation') || olderFilterHints || (version === 2 && exclusions.length > 0)
-  if (!hasFilter) return {}
+  const dateFilter = own(photos, 'date_filter_enabled')
+  if (legacy === undefined && !supplied && !dateFilter && !pairedPortraits && !own(photos, 'orientation')) return {}
 
-  const supported = legacy === undefined || legacySources.includes(legacy)
-  const albums = flag('albums_enabled', legacy === 'Album')
-  const favorites = flag('favorites_enabled',
-    legacy === 'Favorites' || (version === 2 && !!photos.favorite_mode && photos.favorite_mode !== 'Any'))
-  const excludesPhotos = exclusions.some(group =>
-    version === 2 || flag({ album: 'albums_enabled', person: 'people_enabled', tag: 'tags_enabled' }[group]))
-  const hasOtherFilter = flags.some(key => own(photos, key) && typeof photos[key] !== 'boolean')
-    || !supported || flag('people_enabled') || flag('tags_enabled')
-    || (photos.orientation !== undefined && photos.orientation !== 'Any')
-    || flag('rating_enabled', version === 2 && !!photos.minimum_rating && photos.minimum_rating !== 'Any')
-    || flag('location_enabled', version === 2 && !!(photos.country || photos.state || photos.city))
-    || excludesPhotos
-  if (hasOtherFilter || (albums && favorites)) return { chooseSource: true }
+  const filters = {}
+  let invalid = legacy !== undefined && !legacySources.includes(legacy)
+  for (const key of Object.keys(photoFilterDefaults)) {
+    const backupKey = placeFields[key] ?? key
+    if (!own(photos, backupKey)) continue
+    const value = normalizePhotoFilter(key, photos[backupKey])
+    if (value === undefined) invalid = true
+    else filters[key] = value
+  }
+  if (legacy === 'Album') filters.albums_enabled ??= true
+  if (legacy === 'Person') filters.people_enabled ??= true
+  if (legacy === 'Tag') filters.tags_enabled ??= true
+  if (legacy === 'Favorites') {
+    filters.favorites_enabled ??= true
+    filters.favorite_mode ??= 'Favorites only'
+  }
+  if (version === 2) {
+    for (const [kind, flag] of Object.entries(groupFlags)) {
+      if (filters[`excluded_${kind}_ids`]) filters[flag] = true
+    }
+    filters.favorites_enabled ??= (filters.favorite_mode ?? 'Any') !== 'Any'
+    filters.rating_enabled ??= (filters.minimum_rating ?? 'Any') !== 'Any'
+    filters.location_enabled ??= Object.keys(placeFields).some(key => !!filters[key])
+  }
 
-  if (albums) {
-    const ids = typeof photos.album_ids === 'string' ? photos.album_ids.split(',').filter(id => id.trim()) : []
-    const album = ids.length === 1 ? normalizeAlbum(ids[0]) : ''
-    return album ? { photo_source: 'album', album_id: album } : { chooseSource: true }
+  const saved = Object.fromEntries(Object.entries(filters).filter(([key, value]) => value !== photoFilterDefaults[key]))
+  if (photos.orientation !== undefined && photos.orientation !== 'Any') invalid = true
+  if (legacy === 'Memories') {
+    const album = normalizeAlbum(photos.album_ids)
+    return { ...saved, ...(album ? { album_id: album } : {}), ...(
+      invalid ? { chooseSource: true } : { photo_source: 'memories' }) }
   }
-  if (favorites) {
-    const mode = photos.favorite_mode ?? (legacy === 'Favorites' ? 'Favorites only' : undefined)
-    if (mode === 'Favorites only') return { photo_source: 'favorites' }
-    if (mode !== 'Any') return { chooseSource: true }
+  const incomplete = Object.entries(groupFlags).some(([kind, flag]) =>
+    filters[flag] && !filters[`${kind}_ids`] && !filters[`excluded_${kind}_ids`])
+  if (invalid || incomplete || (legacy === 'Custom' && !supplied && !dateFilter && !pairedPortraits)) {
+    return { ...saved, chooseSource: true }
   }
-  if (legacy === 'Custom' && !flags.some(key => own(photos, key))
-    && !own(photos, 'date_filter_enabled') && !pairedPortraits)
-    return { chooseSource: true }
-  return { photo_source: 'all' }
+
+  const other = filters.people_enabled || filters.tags_enabled || filters.rating_enabled || filters.location_enabled
+  const album = normalizeAlbum(filters.album_ids)
+  if (filters.albums_enabled && !other && !filters.favorites_enabled && album && !filters.excluded_album_ids) {
+    delete saved.albums_enabled
+    delete saved.album_ids
+    return { ...saved, photo_source: 'album', album_id: album }
+  }
+  if (filters.favorites_enabled && !other && !filters.albums_enabled && filters.favorite_mode === 'Favorites only') {
+    delete saved.favorites_enabled
+    delete saved.favorite_mode
+    return { ...saved, photo_source: 'favorites' }
+  }
+  const custom = other || filters.albums_enabled || filters.favorites_enabled || (legacy === 'Custom' && supplied)
+  return { ...saved, photo_source: custom ? 'custom' : 'all' }
 }
 
 export function readBackup(data) {
@@ -188,7 +200,7 @@ export function readBackup(data) {
   const { chooseSource = false, ...sourceSettings } = importSource(photos, data.version)
   Object.assign(settings, sourceSettings)
   if (chooseSource)
-    notices.push('This backup uses photo filters the native player cannot apply. Choose a photo source before saving.')
+    notices.push('Review the photo filters in this backup. Choose a photo source before saving.')
   const skipped = []
   if (Object.keys(screen).some(key => !own(screenFields, key))) skipped.push('screen settings')
   if (own(clock, 'ntp_servers')) skipped.push('custom time servers')
@@ -210,8 +222,21 @@ function formatInterval(seconds) {
 
 // Export the supported settings using the same groups as the Espframe web app.
 export function createBackup(settings, date = new Date()) {
-  const favorites = settings.photo_source === 'favorites'
-  const album = settings.photo_source === 'album'
+  const { photo_source: source } = settings
+  const filters = {}
+  for (const [key, fallback] of Object.entries(photoFilterDefaults)) {
+    const value = normalizePhotoFilter(key, settings[key])
+    if (value === undefined || value === fallback) continue
+    if (typeof value === 'boolean' && !['custom', 'memories'].includes(source)) continue
+    filters[placeFields[key] ?? key] = value
+  }
+  if (source === 'favorites') {
+    filters.favorites_enabled = true
+    filters.favorite_mode = 'Favorites only'
+  }
+  if (source === 'album') filters.albums_enabled = true
+  if ((source === 'album' || (source === 'memories' && !filters.album_ids)) && normalizeAlbum(settings.album_id))
+    filters.album_ids = settings.album_id
   const clock = {
     ...(typeof settings.show_clock === 'boolean' ? { show: settings.show_clock } : {}),
     ...(clockFormats.includes(settings.clock_format) ? { format: settings.clock_format } : {}),
@@ -230,11 +255,10 @@ export function createBackup(settings, date = new Date()) {
     exported_at: date.toISOString(),
     connection: { immich_url: settings.immich_url },
     photos: {
-      source: settings.photo_source === 'memories' ? 'Memories' : 'All Photos',
-      favorites_enabled: favorites,
-      favorite_mode: favorites ? 'Favorites only' : 'Any',
-      albums_enabled: album,
-      ...((album || settings.photo_source === 'memories') && normalizeAlbum(settings.album_id) ? { album_ids: settings.album_id } : {}),
+      source: source === 'memories' ? 'Memories' : source === 'custom' ? 'Custom' : 'All Photos',
+      favorites_enabled: false,
+      albums_enabled: false,
+      ...filters,
       ...(memoriesWindows.includes(settings.memories_window) ? { memories_window: settings.memories_window } : {}),
       ...(typeof settings.memories_fallback === 'boolean' ? { memories_fallback: settings.memories_fallback } : {}),
       ...captureDateFieldsFrom(settings),

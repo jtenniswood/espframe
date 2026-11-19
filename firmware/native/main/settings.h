@@ -4,6 +4,7 @@
 
 #include "clock_settings.h"
 #include "photo_framing.h"
+#include "photo_filters.h"
 #include "photo_metadata.h"
 #include "photo_source.h"
 #include "screen_schedule.h"
@@ -45,6 +46,7 @@ struct Settings {
   DisplayMode display_mode{DisplayMode::Fit};
   ScreenRotation screen_rotation{ScreenRotation::Normal};
   PhotoSource photo_source;
+  PhotoFilters photo_filters;
   CaptureDateSettings capture_dates;
   PhotoMetadataSettings metadata;
   ClockSettings clock;
@@ -56,7 +58,7 @@ struct Settings {
   bool has_prepared_slides() const { return !prepared_slide_url.empty() && !prepared_slide_token.empty(); }
   bool requires_portrait_pair() const { return portrait_pairing && portrait_pairs_only; }
 
-  static constexpr size_t max_json_size = 3072;
+  static constexpr size_t max_json_size = 6144;
   bool read();
   bool read_esphome_trial();
   static bool save(const char *json, std::optional<uint32_t> expected_epoch = {});

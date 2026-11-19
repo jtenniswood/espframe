@@ -24,6 +24,7 @@
             <option value="favorites">Favourites</option>
             <option value="album">Album</option>
             <option value="memories">On This Day</option>
+              <option value="custom">Custom filters</option>
           </select>
         </label>
         <div id="album-choice" hidden>
@@ -43,6 +44,10 @@
           <label><input name="memories_fallback" type="checkbox" class="inline-option" checked> Fall back to all photos</label>
           <small>The Immich key needs memory.read permission.</small>
         </div>
+          <details id="filter-controls" open hidden>
+            <summary>Custom photo filters</summary>
+            <p>Separate Immich IDs with commas. Exclusions and ratings require Immich 3.2 or newer.</p>
+          </details>
         <details id="capture-dates">
           <summary>Capture date filter</summary>
           <label><input name="date_filter_enabled" type="checkbox" class="inline-option"> Limit photos by capture date</label>

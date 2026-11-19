@@ -202,7 +202,7 @@ class SlideLoader {
     SlideIndex first_photo;
     SlideIndex next_photo;
     uint32_t connection;
-    MemoriesStatus memories_status;
+    PhotoSourceStatus source_status;
     Result result;
     bool cancelled;
   };
@@ -316,7 +316,7 @@ class SlideLoader {
           std::reverse(lease.pixels, lease.pixels + pixel_count);
       }
       const Completion completion{lease, loader.source_.first_slide(), loader.source_.next_slide(), connection,
-                                  loader.source_.memories_status(), result,
+                                  loader.source_.source_status(), result,
                                   result != Result::Ready && loader.cancelled_.load()};
       xQueueSend(loader.completed_, &completion, portMAX_DELAY);
     }
@@ -393,8 +393,8 @@ void run(void *) {
   bool clock_dirty = false;
   bool recovery_painted = false;
   int painted_loading_direction = 0;
-  MemoriesStatus memories_status = MemoriesStatus::None;
-  MemoriesStatus painted_memories_status = MemoriesStatus::None;
+  PhotoSourceStatus source_status = PhotoSourceStatus::None;
+  PhotoSourceStatus painted_source_status = PhotoSourceStatus::None;
   std::optional<int> local_hour;
 
   int64_t submitted_motion_us = 0;
@@ -484,7 +484,7 @@ void run(void *) {
       }
       first_photo = completion.first_photo;
       next_photo = completion.next_photo;
-      memories_status = completion.memories_status;
+      source_status = completion.source_status;
       preparing = -1;
     }
     const auto center = swipe.settled();
@@ -582,7 +582,7 @@ void run(void *) {
         motion_epoch.update(MotionPhase::Crossfade);
       submit_frame(fade.anchor() * slide_width);
       recovery_painted = false;
-      painted_memories_status = MemoriesStatus::None;
+      painted_source_status = PhotoSourceStatus::None;
       fade.submitted(pending_opacity);
     }
 
@@ -682,7 +682,7 @@ void run(void *) {
             last_submitted = last_inside = swipe.position();
             submit_frame(last_submitted);
             recovery_painted = false;
-            painted_memories_status = MemoriesStatus::None;
+            painted_source_status = PhotoSourceStatus::None;
             fade.finish();
             display.unpin();
             snapshot = nullptr;
@@ -709,11 +709,11 @@ void run(void *) {
     const bool show_clock = live && swipe.settled() != 0;
     const bool show_notice = backlight_ready && input.awake() && !input.engaged() && swipe.idle() && !fade.held();
     const bool show_recovery = show_notice && network.recovery_status() != NativeNetwork::RecoveryStatus::Off;
-    const auto memory_notice = show_notice && !show_recovery && ready_last == center ? memories_status : MemoriesStatus::None;
+    const auto source_notice = show_notice && !show_recovery && ready_last == center ? source_status : PhotoSourceStatus::None;
     const int loading_direction = input.awake() ? swipe.loading_direction(now) : 0;
     if (auto *output = display.writable_buffer(); output != nullptr &&
         (position != last_submitted || inside != last_inside || show_recovery != recovery_painted ||
-         loading_direction != painted_loading_direction || memory_notice != painted_memories_status ||
+         loading_direction != painted_loading_direction || source_notice != painted_source_status ||
          (show_clock && clock_dirty))) {
       const auto index = inside / slide_width;
       const int offset = inside % slide_width;
@@ -748,11 +748,11 @@ void run(void *) {
           draw_recovery_card(output, recovery_atlas, network.recovery_network(), rotation);
         else if (loading_direction)
           draw_loading_status(output, recovery_atlas, loading_direction, rotation);
-        else if (memory_notice != MemoriesStatus::None)
-          draw_memories_status(output, recovery_atlas, memory_notice, rotation);
+        else if (source_notice != PhotoSourceStatus::None)
+          draw_source_status(output, recovery_atlas, source_notice, rotation);
         recovery_painted = show_recovery;
         painted_loading_direction = loading_direction;
-        painted_memories_status = memory_notice;
+        painted_source_status = source_notice;
         const auto started_submit = trial_immich && motion != 0 ? esp_timer_get_time() : 0;
         submit_frame(position, position != last_submitted);
         submitted_motion_us = motion;

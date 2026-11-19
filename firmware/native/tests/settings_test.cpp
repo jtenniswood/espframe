@@ -9,12 +9,15 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 
 namespace {
 
 std::map<std::string, std::string> stored;
 std::map<std::string, std::optional<std::string>> staged;
+std::set<std::string> stored_blobs;
+std::set<std::string> staged_blobs;
 bool fail_commit{};
 bool fail_erase{};
 
@@ -35,6 +38,8 @@ esp_err_t nvs_get_str(nvs_handle_t, const char *key, char *out, size_t *size) {
   auto value = stored.find(key);
   if (value == stored.end())
     return ESP_ERR_NVS_NOT_FOUND;
+  if (stored_blobs.contains(key))
+    return ESP_ERR_NVS_TYPE_MISMATCH;
   if (out != nullptr) {
     assert(*size >= value->second.size() + 1);
     std::memcpy(out, value->second.c_str(), value->second.size() + 1);
@@ -46,6 +51,28 @@ esp_err_t nvs_get_str(nvs_handle_t, const char *key, char *out, size_t *size) {
 esp_err_t nvs_set_str(nvs_handle_t handle, const char *key, const char *value) {
   assert(handle == NVS_READWRITE);
   staged[key] = value;
+  staged_blobs.erase(key);
+  return ESP_OK;
+}
+
+esp_err_t nvs_get_blob(nvs_handle_t, const char *key, void *out, size_t *size) {
+  const auto value = stored.find(key);
+  if (value == stored.end())
+    return ESP_ERR_NVS_NOT_FOUND;
+  if (!stored_blobs.contains(key))
+    return ESP_ERR_NVS_TYPE_MISMATCH;
+  if (out != nullptr) {
+    assert(*size >= value->second.size());
+    std::memcpy(out, value->second.data(), value->second.size());
+  }
+  *size = value->second.size();
+  return ESP_OK;
+}
+
+esp_err_t nvs_set_blob(nvs_handle_t handle, const char *key, const void *value, size_t size) {
+  assert(handle == NVS_READWRITE);
+  staged[key] = std::string(static_cast<const char *>(value), size);
+  staged_blobs.insert(key);
   return ESP_OK;
 }
 
@@ -64,15 +91,21 @@ esp_err_t nvs_commit(nvs_handle_t handle) {
   if (fail_commit)
     return -1;
   for (const auto &[key, value] : staged) {
+    stored_blobs.erase(key);
     if (value)
       stored[key] = *value;
     else
       stored.erase(key);
+    if (staged_blobs.contains(key))
+      stored_blobs.insert(key);
   }
   return ESP_OK;
 }
 
-void nvs_close(nvs_handle_t) { staged.clear(); }
+void nvs_close(nvs_handle_t) {
+  staged.clear();
+  staged_blobs.clear();
+}
 
 int main() {
   using espframe::native::Settings;
@@ -434,4 +467,41 @@ int main() {
   assert(Settings::save(R"({"ssid":"Brand new","password":"","immich_url":"http://fresh.test",
       "immich_key":"fresh-key","web_password":"new-settings"})", 3));
   assert(current.read() && current.ssid == "Brand new" && current.has_immich() && current.reset_epoch == 3);
+
+  const auto reference = stored;
+  assert(!Settings::save_playback(R"({"immich_url":"http://fresh.test","photo_source":"custom","person_ids":"missing"})"));
+  assert(stored == reference);
+  assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","photo_source":"custom","albums_enabled":true,
+      "album_ids":"C48E2980-18AC-4D7D-876A-A636759A1AEC, 0406C468-DABF-4777-BB93-AC6FDAC62857",
+      "location_enabled":true,"filter_city":"São Paulo","rating_enabled":true,"minimum_rating":"4+"})"));
+  assert(current.read() && current.photo_source.mode == PhotoSourceMode::Custom && current.reset_epoch == 3);
+  assert(current.photo_filters.criteria.album_ids == "c48e2980-18ac-4d7d-876a-a636759a1aec,0406c468-dabf-4777-bb93-ac6fdac62857");
+  assert(current.photo_filters.criteria.city == "São Paulo" && current.photo_filters.criteria.minimum_rating == 4);
+  assert(!update_configuration(R"({"values":{"people_enabled":true,"person_ids":"22222222-2222-4222-8222-222222222222"}})").error);
+  assert(current.read() && current.photo_filters.criteria.people_enabled);
+  assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","photo_source":"memories"})"));
+  assert(current.read() && current.photo_source.mode == PhotoSourceMode::Memories && current.photo_filters.criteria.people_enabled);
+
+  const Json large_update(cJSON_CreateObject(), cJSON_Delete);
+  auto *large_values = cJSON_AddObjectToObject(large_update.get(), "values");
+  std::string ids;
+  for (char last : std::string_view("012345")) {
+    if (!ids.empty())
+      ids += ',';
+    ids += "0406c468-dabf-4777-bb93-ac6fdac6285";
+    ids += last;
+  }
+  for (auto key_name : {"album_ids", "person_ids", "tag_ids", "excluded_album_ids", "excluded_person_ids", "excluded_tag_ids"})
+    assert(cJSON_AddStringToObject(large_values, key_name, ids.c_str()));
+  for (auto key_name : {"filter_country", "filter_state", "filter_city"})
+    assert(cJSON_AddStringToObject(large_values, key_name, std::string(96, '"').c_str()));
+  assert(cJSON_AddStringToObject(large_values, "immich_url", endpoint.c_str()));
+  assert(cJSON_AddStringToObject(large_values, "api_key", std::string(256, 'k').c_str()));
+  const std::unique_ptr<char, decltype(&cJSON_free)> serialized(cJSON_PrintUnformatted(large_update.get()), cJSON_free);
+  assert(serialized && !update_configuration(serialized.get()).error);
+  assert(stored_blobs.contains("settings_v1") && current.read() && current.photo_filters.criteria.excluded_tag_ids == ids);
+  assert(current.photo_filters.criteria.city == std::string(96, '"'));
+  assert(!reset_configuration(ResetMode::Customization).error);
+  assert(!stored_blobs.contains("settings_v1") && current.read());
+  assert(current.ssid == "Brand new" && current.photo_filters.criteria.excluded_tag_ids.empty() && current.reset_epoch == 4);
 }

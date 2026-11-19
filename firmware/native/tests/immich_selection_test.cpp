@@ -145,4 +145,58 @@ int main() {
     {"id":"0406c468-dabf-4777-bb93-ac6fdac62857"}])", 16, false, true);
   assert(favorite_results.valid && favorite_results.photos.size() == 1);
   assert(std::string_view(favorite_results.photos[0].id.data()) == "eb492926-9046-408b-be47-a959620753bb");
+  const auto not_favorites = parse_photo_search(R"([
+    {"id":"c48e2980-18ac-4d7d-876a-a636759a1aec","isFavorite":false},
+    {"id":"eb492926-9046-408b-be47-a959620753bb","isFavorite":true},
+    {"id":"0406c468-dabf-4777-bb93-ac6fdac62857"}])", 16, false, false, {}, true);
+  assert(not_favorites.valid && not_favorites.photos.size() == 1 && not_favorites.photos[0].id == photos[0].id);
+
+  PhotoFilters filters;
+  auto &criteria = filters.criteria;
+  criteria.albums_enabled = true;
+  assert(photo_filter_status(filters, Api::Structured) == PhotoFilterStatus::Incomplete);
+  criteria.album_ids = album.album_id + ",0406c468-dabf-4777-bb93-ac6fdac62857";
+  criteria.people_enabled = true;
+  criteria.person_ids = "eb492926-9046-408b-be47-a959620753bb";
+  criteria.tags_enabled = true;
+  criteria.excluded_tag_ids = "4aa2c696-c8d4-46c2-8dc2-3eda9087fb32";
+  criteria.favorites_enabled = true;
+  criteria.favorite_mode = "Exclude favorites";
+  criteria.rating_enabled = true;
+  criteria.minimum_rating = 4;
+  criteria.location_enabled = true;
+  criteria.city = "Ville \"Nouvelle\"";
+  filters.album_order = "Album list order";
+  assert(photo_filter_status(filters, Api::Legacy) == PhotoFilterStatus::Unsupported);
+  assert(photo_filter_status(filters, Api::Unknown) == PhotoFilterStatus::Unsupported);
+  assert(make_filtered_photo_search(16, filters, {}, Api::Legacy, {}, 1, false, {}, 0).path.empty());
+  uint8_t group_index = 0;
+  int album_index = 0;
+  const auto first = next_photo_filter_branch(filters, Api::Structured, group_index, album_index);
+  const auto second = next_photo_filter_branch(filters, Api::Structured, group_index, album_index);
+  assert(first.album_ids == album.album_id && second.album_ids == "0406c468-dabf-4777-bb93-ac6fdac62857");
+  const auto filtered = make_filtered_photo_search(16, filters, first, Api::Structured, {}, 1, false, march, 0);
+  assert(filtered.path == "/search/random" && !filtered.paged && filtered.dates == march);
+  for (const auto value : {
+           R"("albumIds":{"any":["c48e2980-18ac-4d7d-876a-a636759a1aec"]})",
+           R"("personIds":{"any":["eb492926-9046-408b-be47-a959620753bb"]})",
+           R"("tagIds":{"none":["4aa2c696-c8d4-46c2-8dc2-3eda9087fb32"]})",
+           R"("isFavorite":{"eq":false})", R"("rating":{"gte":4})", R"("city":{"eq":"Ville \"Nouvelle\""})",
+       }) {
+    assert(filtered.body.find(value) != std::string::npos);
+    const auto companion = make_filtered_photo_search(16, filters, first, Api::Structured, march_first, 1, true, march, 2);
+    assert(companion.dates == march && companion.body.find(value) != std::string::npos);
+    assert(companion.body.find(R"("withExif":true)") != std::string::npos);
+  }
+  assert(filtered.body.find("withExif") == std::string::npos);
+  criteria.rating_enabled = criteria.tags_enabled = false;
+  criteria.inclusion_matching = "Match any enabled group";
+  const auto album_branch = next_photo_filter_branch(filters, Api::Legacy, group_index, album_index);
+  const auto person_branch = next_photo_filter_branch(filters, Api::Legacy, group_index, album_index);
+  assert(album_branch.group == "Album" && album_branch.person_ids.empty());
+  assert(person_branch.group == "Person" && person_branch.album_ids.empty());
+  const auto flat = make_filtered_photo_search(8, filters, album_branch, Api::Legacy, {}, 7, false, {}, 0);
+  assert(flat.path == "/search/metadata" && flat.paged && flat.body.find(R"("page":7)") != std::string::npos);
+  assert(flat.body.find(R"("isFavorite":false)") != std::string::npos);
+  assert(flat.body.find("tagIds") == std::string::npos && flat.body.find("rating") == std::string::npos);
 }

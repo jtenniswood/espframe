@@ -1,4 +1,93 @@
 const immichId = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i
+const filterGroups = [
+  { label: 'Albums', flag: 'albums_enabled', kind: 'album', match: ['Any selected album', 'All selected albums'] },
+  { label: 'People', flag: 'people_enabled', kind: 'person', match: ['Any selected person', 'All selected people'] },
+  { label: 'Tags', flag: 'tags_enabled', kind: 'tag', match: ['Any selected tag', 'All selected tags'] },
+]
+const filterControls = [
+  ...filterGroups.flatMap(({ label, flag, kind, match }) => [
+    [flag, `Filter by ${label.toLowerCase()}`, false],
+    [`${kind}_ids`, `Include ${label.toLowerCase()}`, 255],
+    [`excluded_${kind}_ids`, `Exclude ${label.toLowerCase()}`, 255],
+    [`${kind}_matching`, `${label} to match`, match],
+  ]),
+  ['album_order', 'Album order', ['Random albums', 'Album list order']],
+  ['inclusion_matching', 'Combine albums, people and tags', ['Match all enabled groups', 'Match any enabled group']],
+  ['favorites_enabled', 'Filter by favourites', false],
+  ['favorite_mode', 'Favourites', ['Any', 'Favorites only', 'Exclude favorites']],
+  ['rating_enabled', 'Filter by rating', false],
+  ['minimum_rating', 'Minimum rating', ['Any', '1+', '2+', '3+', '4+', '5+']],
+  ['location_enabled', 'Filter by location', false],
+  ['filter_country', 'Country', 96],
+  ['filter_state', 'State or province', 96],
+  ['filter_city', 'City', 96],
+]
+
+export const photoFilterDefaults = Object.fromEntries(filterControls.map(([key, , spec]) =>
+  [key, Array.isArray(spec) ? spec[0] : spec === false ? false : '']))
+
+export function normalizePhotoFilter(key, value) {
+  const definition = filterControls.find(([name]) => name === key)
+  const spec = definition?.[2]
+  if (spec === false) return typeof value === 'boolean' ? value : undefined
+  if (Array.isArray(spec)) return spec.includes(value) ? value : undefined
+  if (typeof spec !== 'number' || typeof value !== 'string' || new TextEncoder().encode(value).length > spec) return
+  if (spec === 255) {
+    if (!value.trim()) return ''
+    const ids = value.split(',').map(id => id.trim())
+    return ids.every(id => immichId.test(id)) ? ids.join(',').toLowerCase() : undefined
+  }
+  return /[\x00-\x1f\x7f]/.test(value) ? undefined : value
+}
+
+export function addPhotoFilters(form, values) {
+  const editor = form.querySelector('#filter-controls')
+  for (const [key, fallback] of Object.entries(photoFilterDefaults)) {
+    const field = form.elements[key]
+    const value = normalizePhotoFilter(key, typeof fallback === 'boolean' ? field.checked : field.value)
+    if (value === undefined) return showFilterError(editor, field, 'Enter valid filter values. Separate Immich IDs with commas.')
+    values[key] = value
+  }
+  if (values.photo_source === 'custom') {
+    for (const { flag, kind, label } of filterGroups) {
+      if (values[flag] && !values[`${kind}_ids`] && !values[`excluded_${kind}_ids`])
+        return showFilterError(editor, form.elements[`${kind}_ids`], `Choose ${label.toLowerCase()} to include or exclude.`)
+    }
+  }
+  return true
+}
+
+function showFilterError(editor, field, message) {
+  editor.hidden = false
+  editor.open = true
+  field.setCustomValidity(message)
+  field.reportValidity()
+  field.setCustomValidity('')
+  return false
+}
+
+function buildFilterControls(editor) {
+  for (const [key, label, spec] of filterControls) {
+    const row = document.createElement('label')
+    const input = document.createElement(Array.isArray(spec) ? 'select' : 'input')
+    input.name = key
+    if (spec === false) {
+      input.type = 'checkbox'
+      input.className = 'inline-option'
+      row.append(input, ` ${label}`)
+    } else {
+      if (Array.isArray(spec)) {
+        for (const option of spec) input.add(new Option(option))
+      } else {
+        input.maxLength = spec
+        input.autocapitalize = 'off'
+        input.spellcheck = false
+      }
+      row.append(`${label} `, input)
+    }
+    editor.append(row)
+  }
+}
 
 export function validCaptureDay(value) {
   if (value === '') return true
@@ -29,6 +118,8 @@ export function bindPhotoSource(form) {
   const album = form.elements.album_id
   const albumChoice = form.querySelector('#album-choice')
   const memoriesChoice = form.querySelector('#memories-choice')
+  const customChoice = form.querySelector('#filter-controls')
+  buildFilterControls(customChoice)
   const dateChoices = form.querySelector('#capture-dates')
   const fixedDates = form.querySelector('#fixed-dates')
   const relativeDates = form.querySelector('#relative-dates')
@@ -44,6 +135,7 @@ export function bindPhotoSource(form) {
     const selected = source.value === 'album'
     albumChoice.hidden = !selected
     memoriesChoice.hidden = source.value !== 'memories'
+    customChoice.hidden = source.value !== 'custom'
     album.disabled = !selected
     album.required = selected
     album.setCustomValidity('')

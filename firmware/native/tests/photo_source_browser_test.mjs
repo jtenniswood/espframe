@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
+import { photoFilterDefaults } from '../installer/photo_source.mjs'
 
 const browser = process.env.CHROME_BIN || 'google-chrome'
 const read = path => readFile(new URL(path, import.meta.url), 'utf8')
@@ -198,11 +199,27 @@ const factoryFixture = html.replace('</body>', `<script>
     document.querySelector('#apply-factory-reset').click()
   }).observe(form, {attributes: true})
 </script></body>`)
+const filterFixture = html.replace('</body>', `<script>
+  const form = document.querySelector('#settings')
+  new MutationObserver((_, observer) => {
+    if (form.hidden) return
+    observer.disconnect()
+    if (document.querySelector('#filter-controls').hidden || form.elements.photo_source.value !== 'custom')
+      throw new Error('The saved custom settings were not shown')
+    if (!form.elements.people_enabled.checked || form.elements.person_ids.value !== '${albumId}')
+      throw new Error('The saved people selection was not preserved')
+    form.elements.excluded_person_ids.value = '0406C468-DABF-4777-BB93-AC6FDAC62857'
+    form.elements.minimum_rating.value = '4+'
+    form.elements.rating_enabled.checked = true
+    form.requestSubmit()
+  }).observe(form, {attributes: true})
+</script></body>`)
 const pages = new Map([
   ['/', ['text/html', fixture]],
   ['/firmware', ['text/html', firmwareFixture]],
   ['/reset-test', ['text/html', resetFixture]],
   ['/factory-reset-test', ['text/html', factoryFixture]],
+  ['/filter-test', ['text/html', filterFixture]],
   ['/settings.js', ['text/javascript', script]],
   ['/photo_source.mjs', ['text/javascript', sourceScript]],
   ['/backup.mjs', ['text/javascript', backupScript]],
@@ -214,6 +231,7 @@ const resets = []
 let firmwareAvailable = false
 let resetAvailable = false
 let factoryAvailable = false
+let customFilters = false
 let resetPolls = 0
 const server = createServer(async (request, response) => {
   if (request.method === 'POST' && request.url === '/api/playback') {
@@ -225,6 +243,7 @@ const server = createServer(async (request, response) => {
   } else if (request.method === 'GET' && request.url === '/api/playback') {
     response.setHeader('Content-Type', 'application/json')
     const playback = { ...setup, clock_timezones: clockTimezones }
+    if (customFilters) Object.assign(playback, { photo_source: 'custom', people_enabled: true, person_ids: albumId })
     if (resetAvailable) {
       playback.reset_path = resetPath
       playback.factory_reset = factoryAvailable
@@ -283,6 +302,7 @@ try {
   assert.match(page, /Settings saved\. The frame is restarting\./)
   assert.match(page, /<section id="firmware"[^>]* hidden="">/)
   assert.deepEqual(updates, [{
+    ...photoFilterDefaults,
     ...setup, photo_source: 'album', album_id: albumId, display_mode: 'Fit', brightness_day: 45, immich_key: '',
     portrait_pairing: false,
     memories_window: 'Within 7 Days', memories_fallback: false,
@@ -322,6 +342,18 @@ try {
   assert.equal(resetPolls, 1, 'Factory reset must not poll the old Wi-Fi address')
   assert.equal(updates.length, 2, 'Factory reset must not submit playback settings')
   console.log('Native device tools confirm factory reset and hand off to browser setup')
+
+  resetAvailable = false
+  customFilters = true
+  const filterPage = await render('/filter-test')
+  assert.match(filterPage, /Settings saved\. The frame is restarting\./)
+  assert.equal(updates.length, 3)
+  assert.equal(updates[2].photo_source, 'custom')
+  assert.equal(updates[2].person_ids, albumId)
+  assert.equal(updates[2].excluded_person_ids, '0406c468-dabf-4777-bb93-ac6fdac62857')
+  assert.equal(updates[2].rating_enabled, true)
+  assert.equal(updates[2].minimum_rating, '4+')
+  console.log('Native device tools preserve and edit compound filters')
 } finally {
   server.close()
 }

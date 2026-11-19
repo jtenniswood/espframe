@@ -6,13 +6,15 @@ import { join } from 'node:path'
 
 const installer = process.argv[2]
 assert.ok(installer, 'Pass the directory of the packaged native installer')
-const [html, bundle, css, oldBackup, unsupportedBackup] = await Promise.all([
+const [html, bundle, css, oldBackup, filteredBackup] = await Promise.all([
   readFile(join(installer, 'index.html'), 'utf8'),
   readFile(join(installer, 'setup.js'), 'utf8'),
   readFile(join(installer, 'setup.css'), 'utf8'),
   readFile(new URL('../../../tests/fixtures/backup/espframe-config-v1-full.json', import.meta.url), 'utf8'),
   readFile(new URL('../../../tests/fixtures/backup/espframe-config-v2-full.json', import.meta.url), 'utf8'),
 ])
+const malformedBackup = JSON.parse(filteredBackup)
+malformedBackup.photos.excluded_tag_ids = 'invalid-id'
 const album = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
 const backup = {
   version: 3,
@@ -94,7 +96,7 @@ const verify = `
       throw new Error('Active paired-portrait preference was not imported')
     if (form.elements.portrait_pairing_range.value !== 'Within 2 Days' || form.elements.portrait_pairing_range.disabled)
       throw new Error('Existing pairing range was not imported')
-    await loadBackup(${JSON.stringify(unsupportedBackup)}, 'Choose a photo source before saving.')
+    await loadBackup(${JSON.stringify(JSON.stringify(malformedBackup))}, 'Choose a photo source before saving.')
     if (form.elements.photo_source.value || form.checkValidity()) throw new Error('Unrepresentable filters allowed a save')
     form.requestSubmit()
     if (attempts) throw new Error('USB opened with unresolved photo filters')
@@ -161,6 +163,21 @@ const verify = `
     if (attempts !== 4 || received.immich_key !== 'after-improv'
       || Object.hasOwn(received, 'ssid') || Object.hasOwn(received, 'password'))
       throw new Error('Immich setup asked for Wi-Fi credentials a second time')
+    await loadBackup(${JSON.stringify(filteredBackup)}, 'Backup loaded.')
+    if (form.elements.photo_source.value !== 'custom' || document.querySelector('#filter-controls').hidden
+      || !form.elements.people_enabled.checked || form.elements.minimum_rating.value !== '4+')
+      throw new Error('Compound photo filters did not appear in the source editor')
+    form.elements.immich_key.value = 'filtered-key'
+    reuse.checked = true
+    reuse.dispatchEvent(new Event('change'))
+    const filtered = waitFor(document.querySelector('#status'), 'Settings saved.')
+    form.requestSubmit()
+    await filtered
+    if (attempts !== 5 || received.photo_source !== 'custom' || !received.albums_enabled || !received.people_enabled
+      || !received.tags_enabled || received.album_order !== 'Album list order' || received.filter_country !== 'New Zealand'
+      || received.excluded_tag_ids !== '66666666-6666-4666-8666-666666666666' || received.minimum_rating !== '4+'
+      || received.favorite_mode !== 'Exclude favorites' || received.immich_key !== 'filtered-key')
+      throw new Error('Compound photo filters did not reach USB setup')
     document.body.dataset.backupTest = 'passed'
   })
 `

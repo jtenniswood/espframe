@@ -1,6 +1,6 @@
 import 'esp-web-tools/dist/install-button.js'
 import { readBackup } from './backup.mjs'
-import { addCaptureDates, bindPhotoSource, bindPortraitPairing, validateAlbum } from './photo_source.mjs'
+import { addCaptureDates, addPhotoFilters, bindPhotoSource, bindPortraitPairing, photoFilterDefaults, validateAlbum } from './photo_source.mjs'
 import { configure, findFrame } from './serial.mjs'
 
 const revision = document.querySelector('#revision')
@@ -51,7 +51,7 @@ backup.addEventListener('change', async () => {
     if (sequence !== importSequence) return
     if (chooseSource) form.elements.photo_source.value = ''
     if (settings.photo_source && settings.photo_source !== 'album') form.elements.album_id.value = ''
-    for (const [name, value] of Object.entries(settings)) {
+    for (const [name, value] of Object.entries({ ...photoFilterDefaults, ...settings })) {
       if (typeof value === 'boolean') form.elements[name].checked = value
       else form.elements[name].value = value
     }
@@ -121,7 +121,7 @@ if ('serial' in navigator) {
       return
     }
     const data = Object.fromEntries(new FormData(form))
-    if (!validateAlbum(form, data) || !addCaptureDates(form, data)) return
+    if (!validateAlbum(form, data) || !addCaptureDates(form, data) || !addPhotoFilters(form, data)) return
     data.slide_seconds = Number(data.slide_seconds)
     for (const name of percentageFields) data[name] = form.elements[name].valueAsNumber
     data.base_tone_enabled = form.elements.base_tone_enabled.checked

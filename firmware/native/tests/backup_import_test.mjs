@@ -26,11 +26,21 @@ for (const name of ['v1-full', 'v2-full']) {
     show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
     date_filter_enabled: true, date_filter_mode: 'Relative Range', date_from: '2024-01-01',
     date_to: name === 'v2-full' ? '2026-08-30' : '2026-06-07', relative_amount: 2, relative_unit: 'Years',
-    ...(name === 'v2-full' ? { memories_window: 'Within 2 Days', memories_fallback: true }
-      : { photo_source: 'album', album_id: '11111111-1111-4111-8111-111111111111' }),
+    ...(name === 'v2-full' ? {
+      memories_window: 'Within 2 Days', memories_fallback: true, photo_source: 'custom',
+      albums_enabled: true, people_enabled: true, tags_enabled: true,
+      favorites_enabled: true, rating_enabled: true, location_enabled: true,
+      person_matching: 'All selected people', favorite_mode: 'Exclude favorites', minimum_rating: '4+',
+      filter_country: 'New Zealand', filter_state: 'Wellington', filter_city: 'Wellington', album_order: 'Album list order',
+      album_ids: '11111111-1111-4111-8111-111111111111', person_ids: '22222222-2222-4222-8222-222222222222',
+      tag_ids: '33333333-3333-4333-8333-333333333333', excluded_album_ids: '44444444-4444-4444-8444-444444444444',
+      excluded_person_ids: '55555555-5555-4555-8555-555555555555', excluded_tag_ids: '66666666-6666-4666-8666-666666666666',
+    }
+      : { photo_source: 'album', album_id: '11111111-1111-4111-8111-111111111111',
+        person_ids: '22222222-2222-4222-8222-222222222222', tag_ids: '33333333-3333-4333-8333-333333333333' }),
   })
-  assert.equal(result.chooseSource, name === 'v2-full')
-  assert.equal(result.notices.some(text => text.includes('Choose a photo source')), name === 'v2-full')
+  assert.equal(result.chooseSource, false)
+  assert.equal(result.notices.some(text => text.includes('Choose a photo source')), false)
   assert.ok(result.notices.some(text => text.includes('original backup')))
   assert.doesNotMatch(JSON.stringify(result), /fixture-read-only-api-key/)
 }
@@ -77,18 +87,24 @@ assert.match(invalidDates.notices[0], /capture date filter/)
 
 assert.deepEqual(readBackup({ version: 2, photos: { favorite_mode: 'Favorites only' } }).settings,
   { photo_source: 'favorites' })
-assert.equal(readBackup({ version: 2, photos: { excluded_album_ids: album } }).chooseSource, true)
-assert.equal(readBackup({ version: 2, photos: { minimum_rating: '4+' } }).chooseSource, true)
+assert.deepEqual(readBackup({ version: 2, photos: { excluded_album_ids: album } }).settings,
+  { photo_source: 'custom', albums_enabled: true, excluded_album_ids: album })
+assert.deepEqual(readBackup({ version: 2, photos: { minimum_rating: '4+' } }).settings,
+  { photo_source: 'custom', rating_enabled: true, minimum_rating: '4+' })
 assert.deepEqual(readBackup({ version: 3, photos: { source: 'Memories', albums_enabled: true, album_ids: album,
   memories_window: 'Within 7 Days', memories_fallback: false } }).settings, {
-  photo_source: 'memories', album_id: album, memories_window: 'Within 7 Days', memories_fallback: false,
+  photo_source: 'memories', album_id: album, albums_enabled: true, album_ids: album,
+  memories_window: 'Within 7 Days', memories_fallback: false,
 })
 assert.equal(readBackup({ version: 3, photos: { source: 'Favorites', people_enabled: true } }).chooseSource, true)
 assert.equal(readBackup({ version: 3, photos: { source: 'All Photos', orientation: 'Portrait Only' } }).chooseSource, true)
-assert.equal(readBackup({
+assert.deepEqual(readBackup({
   version: 3,
   photos: { source: 'Album', album_ids: album + ',0406c468-dabf-4777-bb93-ac6fdac62857' },
-}).chooseSource, true)
+}).settings, { photo_source: 'custom', albums_enabled: true, album_ids: album + ',0406c468-dabf-4777-bb93-ac6fdac62857' })
+assert.deepEqual(readBackup({ version: 1, photos: { source: 'Person', person_ids: album.toUpperCase() } }).settings,
+  { photo_source: 'custom', people_enabled: true, person_ids: album })
+assert.equal(readBackup({ version: 3, photos: { source: 'Custom', excluded_person_ids: `${album},broken`, people_enabled: true } }).chooseSource, true)
 assert.deepEqual(readBackup({ version: 3, frequency: { interval: '1 hour' } }).settings, { slide_seconds: 3600 })
 const invalid = readBackup({
   version: 3, connection: { immich_url: 'https://photos.test/?key=secret' }, frequency: { interval: '25 hours' },
@@ -140,7 +156,11 @@ for (const source of ['all', 'favorites', 'album', 'memories']) {
       { ...settings, ssid: 'secret', password: 'secret', immich_key: 'secret', web_password: 'secret' },
       new Date('2026-11-18T00:00:00Z'))
     assert.doesNotMatch(JSON.stringify(exported), /secret/)
-    assert.deepEqual(readBackup(exported), { settings, notices: [], chooseSource: false })
+    const expected = source === 'memories' ? { ...settings, album_ids: album } : settings
+    assert.deepEqual(readBackup(exported), { settings: expected, notices: [], chooseSource: false })
   }
 }
-console.log('Native installer imports supported Espframe backup fields and requires review of unsupported filters')
+const migrated = readBackup(await fixture('v2-full')).settings
+const exported = createBackup(migrated, new Date('2026-11-18T00:00:00Z'))
+assert.deepEqual(readBackup(exported), { settings: migrated, notices: [], chooseSource: false })
+console.log('Native installer round-trips compound filters and requires review of malformed filters')

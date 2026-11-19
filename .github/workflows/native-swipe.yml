@@ -12,6 +12,8 @@ on:
       - 'components/remote_image/webp_rgb565.h'
       - 'components/espframe/timezones.py'
       - 'components/espframe/configuration_contract_generated.h'
+      - 'components/espframe/immich_filter_config.h'
+      - 'components/espframe/immich_helpers.h'
       - 'docs/public/webserver/**'
       - 'components/espframe/solar_times.h'
       - 'components/espframe/warm_tone_luts.h'
@@ -140,11 +142,11 @@ jobs:
             firmware/native/main/clock_settings.cpp firmware/native/main/daylight.cpp \
             firmware/native/tests/daylight_test.cpp -o "$RUNNER_TEMP/daylight-test"
           "$RUNNER_TEMP/daylight-test"
-          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -I"$cjson" \
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Icomponents/espframe -Itests/stubs -I"$cjson" \
             firmware/native/main/immich_selection.cpp firmware/native/tests/immich_selection_test.cpp "$RUNNER_TEMP/cjson.o" \
             -o "$RUNNER_TEMP/immich-selection-test"
           "$RUNNER_TEMP/immich-selection-test"
-          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -I"$cjson" \
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Icomponents/espframe -Itests/stubs -I"$cjson" \
             firmware/native/main/immich_memories.cpp firmware/native/main/immich_selection.cpp \
             firmware/native/tests/immich_memories_test.cpp "$RUNNER_TEMP/cjson.o" -o "$RUNNER_TEMP/immich-memories-test"
           "$RUNNER_TEMP/immich-memories-test"

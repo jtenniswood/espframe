@@ -1,4 +1,4 @@
-import { addCaptureDates, bindPhotoSource, bindPortraitPairing, validateAlbum } from './photo_source.mjs'
+import { addCaptureDates, addPhotoFilters, bindPhotoSource, bindPortraitPairing, photoFilterDefaults, validateAlbum } from './photo_source.mjs'
 import { createBackup } from './backup.mjs'
 
 const form = document.querySelector('#settings')
@@ -72,6 +72,11 @@ try {
   form.elements.display_mode.value = settings.display_mode ?? 'Fit'
   form.elements.screen_rotation.value = settings.screen_rotation ?? '0'
   form.elements.photo_source.value = settings.photo_source ?? 'all'
+  for (const [key, fallback] of Object.entries(photoFilterDefaults)) {
+    const value = settings[key] ?? fallback
+    if (typeof fallback === 'boolean') form.elements[key].checked = value
+    else form.elements[key].value = value
+  }
   form.elements.album_id.value = settings.album_id ?? ''
   form.elements.memories_window.value = settings.memories_window ?? 'Within 2 Days'
   form.elements.memories_fallback.checked = settings.memories_fallback !== false
@@ -119,7 +124,7 @@ form.addEventListener('submit', async event => {
   event.preventDefault()
   if (submit.disabled) return
   const data = Object.fromEntries(new FormData(form))
-  if (!validateAlbum(form, data) || !addCaptureDates(form, data)) return
+  if (!validateAlbum(form, data) || !addCaptureDates(form, data) || !addPhotoFilters(form, data)) return
   if (Number.isInteger(resetEpoch)) data.reset_epoch = resetEpoch
   submit.disabled = true
   data.slide_seconds = Number(data.slide_seconds)
