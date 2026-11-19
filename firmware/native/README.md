@@ -77,16 +77,19 @@ Set a web settings password when saving over USB to enable the frame's
 settings page. Use **Find frame on Wi-Fi** in the browser installer, the IP
 address shown in the USB logs, or find
 `espframe-native` in your router's device list. Sign in as `espframe`
-with the password you chose. The settings page can change the Immich
-URL, API key, photo source, display mode, time per photo and portrait pairing.
-Saving applies the changes on restart.
+with the password you chose. The settings page uses Espframe's shared web
+controls and configuration client. It shows the settings supported by the
+running native firmware.
+Edit the Immich connection, display mode, time per photo, and other
+playback and screen settings, then choose **Save and restart** to apply
+the edits together. The page reloads the settings once the frame returns.
 Under **Clock**, choose whether to show the local time and select the timezone
 and 12- or 24-hour format. After time synchronization, the clock stays fixed
 while photos move beneath it. New browser installs enable the clock by
 default. Older native settings keep it hidden until enabled. Backups carry
 the three clock settings. Time synchronization uses `pool.ntp.org`.
-Use **Download settings backup** to save the active playback and screen
-settings for a future install.
+Open **Photo sources & device tools** to change the Immich photo source,
+download a settings backup, or install a native firmware update.
 The page uses HTTP on the local network. Keep it on a trusted network.
 
 The native player also answers the shared configuration API at
@@ -94,13 +97,13 @@ The native player also answers the shared configuration API at
 Authenticated reads report common settings and list unavailable fields.
 Same-origin writes accept the existing form-encoded configuration payload.
 The player saves the supported fields together and restarts to apply them.
-The API key is write-only. Photo-source filters, reset, and the shared
-TypeScript settings page still need integration.
+The API key is write-only. Independent photo-source filters and reset
+still need integration.
 
 ### Update the native firmware from the web settings
 
-Download the installer artifact for the build you want to use. In the frame's
-web settings, under **Firmware update**, select `v1-ota.bin`, `v2-ota.bin` or
+Download the installer artifact for the build you want to use. Open
+**Photo sources & device tools** and, under **Firmware update**, select `v1-ota.bin`, `v2-ota.bin` or
 `v3-ota.bin` for the revision shown, then select **Install update and restart**. Use
 images from builds you trust. The package includes SHA-256 checksums for those
 files. The prototype checks image integrity and board identity and accepts

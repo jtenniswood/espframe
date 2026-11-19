@@ -72,6 +72,11 @@
       "generator": "scripts/generate_assets.py"
     },
     {
+      "path": "firmware/native/main/web/shared_settings.js",
+      "sources": ["docs/webserver/src", "product/contract"],
+      "generator": "scripts/generate_assets.py"
+    },
+    {
       "path": "components/espframe/i18n_generated.h",
       "sources": [
         "product/translations",

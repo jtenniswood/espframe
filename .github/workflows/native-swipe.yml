@@ -12,6 +12,7 @@ on:
       - 'components/remote_image/webp_rgb565.h'
       - 'components/espframe/timezones.py'
       - 'components/espframe/configuration_contract_generated.h'
+      - 'docs/public/webserver/**'
       - 'components/espframe/solar_times.h'
       - 'components/espframe/warm_tone_luts.h'
       - 'devices/guition-esp32-p4-jc8012p4a1*/device/device.yaml'
@@ -200,6 +201,7 @@ jobs:
           node firmware/native/tests/backup_import_test.mjs
           node firmware/native/tests/wifi_recovery_browser_test.mjs
           node firmware/native/tests/photo_source_browser_test.mjs
+          node firmware/native/tests/shared_settings_browser_test.mjs
           for board in v1 v2 v3; do
             mv "firmware/native/build/firmware-test-native-swipe-$board" "firmware/native/build/$board"
           done

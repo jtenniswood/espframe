@@ -33,6 +33,14 @@ std::string authorization;
 
 extern const char page_start[] asm("_binary_settings_html_start");
 extern const char page_end[] asm("_binary_settings_html_end");
+extern const char shared_page_start[] asm("_binary_native_settings_html_start");
+extern const char shared_page_end[] asm("_binary_native_settings_html_end");
+extern const char shared_app_start[] asm("_binary_shared_settings_js_start");
+extern const char shared_app_end[] asm("_binary_shared_settings_js_end");
+extern const char shared_style_start[] asm("_binary_style_css_start");
+extern const char shared_style_end[] asm("_binary_style_css_end");
+extern const char native_style_start[] asm("_binary_native_settings_css_start");
+extern const char native_style_end[] asm("_binary_native_settings_css_end");
 extern const char script_start[] asm("_binary_settings_js_start");
 extern const char script_end[] asm("_binary_settings_js_end");
 extern const char source_start[] asm("_binary_photo_source_mjs_start");
@@ -138,8 +146,14 @@ esp_err_t recovery_asset(httpd_req_t *request, const char *type, const char *sta
 esp_err_t page(httpd_req_t *request) {
   if (hotspot_socket(request))
     return recovery_asset(request, "text/html; charset=utf-8", recovery_start, recovery_end);
+  return serve(request, "text/html; charset=utf-8", shared_page_start, shared_page_end);
+}
+esp_err_t device_tools(httpd_req_t *request) {
   return serve(request, "text/html; charset=utf-8", page_start, page_end);
 }
+esp_err_t shared_app(httpd_req_t *request) { return serve(request, "text/javascript", shared_app_start, shared_app_end); }
+esp_err_t shared_style(httpd_req_t *request) { return serve(request, "text/css", shared_style_start, shared_style_end); }
+esp_err_t native_style(httpd_req_t *request) { return serve(request, "text/css", native_style_start, native_style_end); }
 esp_err_t script(httpd_req_t *request) { return serve(request, "text/javascript", script_start, script_end); }
 esp_err_t source_script(httpd_req_t *request) { return serve(request, "text/javascript", source_start, source_end); }
 esp_err_t backup_script(httpd_req_t *request) { return serve(request, "text/javascript", backup_start, backup_end); }
@@ -389,7 +403,7 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
   config.lru_purge_enable = true;
   config.stack_size = 6144;
   config.max_open_sockets = 4;
-  config.max_uri_handlers = 14;
+  config.max_uri_handlers = 18;
   config.recv_wait_timeout = 3;
   if (httpd_start(&server, &config) != ESP_OK) {
     esp_timer_delete(restart_timer);
@@ -398,6 +412,10 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
 
   const httpd_uri_t routes[]{
       {.uri = "/", .method = HTTP_GET, .handler = page, .user_ctx = &network},
+      {.uri = "/settings", .method = HTTP_GET, .handler = device_tools, .user_ctx = &network},
+      {.uri = "/espframe/app.js", .method = HTTP_GET, .handler = shared_app, .user_ctx = &network},
+      {.uri = "/espframe/style.css", .method = HTTP_GET, .handler = shared_style, .user_ctx = &network},
+      {.uri = "/espframe/native.css", .method = HTTP_GET, .handler = native_style, .user_ctx = &network},
       {.uri = "/settings.js", .method = HTTP_GET, .handler = script, .user_ctx = &network},
       {.uri = "/photo_source.mjs", .method = HTTP_GET, .handler = source_script, .user_ctx = &network},
       {.uri = "/backup.mjs", .method = HTTP_GET, .handler = backup_script, .user_ctx = &network},
