@@ -398,6 +398,17 @@ half nominal refresh periods. The busy counts cover first motion submitted
 while a preparation lease was active and drag gaps whose two ends overlapped
 preparation. Save the response before the automatic return to ESPHome.
 
+To test faster browsing, build the same live trial in a separate directory
+with `-D SWIPE_TRIAL_BENCHMARK_RAPID=ON` and upload
+`espframe_v1_rapid_benchmark.bin` with the same rollback readiness check.
+It starts the next gesture 50 ms after the landed frame and lets forward
+swipes reach an uncached neighbour. It also reverses toward cached photos.
+The report adds the number of cold starts, releases before the neighbour
+was ready, and cold gestures that settled back. It tracks first motion on
+cache misses and measures the time from the first press toward each missing
+neighbour until that slide becomes ready in the swipe range. Repeated
+presses toward the same missing photo keep the original start time.
+
 Set `-D SWIPE_TRIAL_BENCHMARK_FIXTURES=ON` in a separate build directory for
 a local-fixture control. Upload `espframe_v1_fixture_benchmark.bin` with the
 same readiness check. It connects to Wi-Fi for the report and uses the same

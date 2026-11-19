@@ -253,15 +253,23 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/workspace" -w /workspace espressif/idf:v6.1.1 bash -ec '
             live=firmware/native/build/esphome-live-trial-v1
+            check_benchmark() {
+              cmp "$live/partition_table/partition-table.bin" "$1/partition_table/partition-table.bin"
+              riscv32-esp32-elf-nm --defined-only -C "$1/$2.elf" > /tmp/bench-symbols
+              grep -Fq "espframe::native::poll_live_trial_benchmark(" /tmp/bench-symbols
+              if grep -E "espframe::native::(Settings::save|start_usb_setup|stage_firmware)|[[:space:]](esp_ota_mark_app_valid_cancel_rollback|nvs_erase_all|nvs_flash_erase|nvs_set_str)$" /tmp/bench-symbols; then
+                exit 1
+              fi
+            }
             bench=firmware/native/build/esphome-benchmark-v1
             idf.py -C firmware/native -B "$bench" -D SWIPE_BOARD=v1 \
               -D SWIPE_ESPHOME_TRIAL=ON -D SWIPE_TRIAL_IMMICH=ON -D SWIPE_TRIAL_BENCHMARK=ON build
-            cmp "$live/partition_table/partition-table.bin" "$bench/partition_table/partition-table.bin"
-            riscv32-esp-elf-nm --defined-only -C "$bench/espframe_v1_swipe_benchmark.elf" > /tmp/bench-symbols
-            grep -Fq "espframe::native::poll_live_trial_benchmark(" /tmp/bench-symbols
-            if grep -E "espframe::native::(Settings::save|start_usb_setup|stage_firmware)|[[:space:]](esp_ota_mark_app_valid_cancel_rollback|nvs_erase_all|nvs_flash_erase|nvs_set_str)$" /tmp/bench-symbols; then
-              exit 1
-            fi
+            check_benchmark "$bench" espframe_v1_swipe_benchmark
+            rapid=firmware/native/build/esphome-benchmark-rapid-v1
+            idf.py -C firmware/native -B "$rapid" -D SWIPE_BOARD=v1 \
+              -D SWIPE_ESPHOME_TRIAL=ON -D SWIPE_TRIAL_IMMICH=ON -D SWIPE_TRIAL_BENCHMARK=ON \
+              -D SWIPE_TRIAL_BENCHMARK_RAPID=ON build
+            check_benchmark "$rapid" espframe_v1_rapid_benchmark
             fixtures=firmware/native/build/esphome-benchmark-fixtures-v1
             idf.py -C firmware/native -B "$fixtures" -D SWIPE_BOARD=v1 -D SWIPE_ESPHOME_TRIAL=ON \
               -D SWIPE_TRIAL_IMMICH=ON -D SWIPE_TRIAL_BENCHMARK=ON -D SWIPE_TRIAL_BENCHMARK_FIXTURES=ON build
@@ -272,5 +280,6 @@ jobs:
           name: native-v1-esphome-swipe-benchmark
           path: |
             firmware/native/build/esphome-benchmark-v1/espframe_v1_swipe_benchmark.bin
+            firmware/native/build/esphome-benchmark-rapid-v1/espframe_v1_rapid_benchmark.bin
             firmware/native/build/esphome-benchmark-fixtures-v1/espframe_v1_fixture_benchmark.bin
           if-no-files-found: error

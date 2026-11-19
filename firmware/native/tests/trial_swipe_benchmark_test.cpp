@@ -40,6 +40,41 @@ int main() {
   assert(full.started == 48 && full.settled == 48 && full.wrong_slide == 0);
   assert(swipe.settled() == 17 && first_movements == full.started);
 
+  const auto run_cold = [&](int64_t ready_after, SlideIndex expected) {
+    TrialSwipeBenchmark rapid{true};
+    Swipe player{slide_width, 64, 1};
+    SwipeInput touch;
+    for (auto now = start; now < start + 700'000 && rapid.results().settled == 0; now += 1'000) {
+      const SlideRange available{1, now - start >= ready_after ? 2 : 1};
+      player.set_ready_range(available.first, available.last);
+      if (const auto report = rapid.poll(now, player.settled(), available, player.idle()))
+        touch.update(player, *report, player.position());
+      player.tick(now);
+    }
+    assert(player.settled() == expected);
+    assert(rapid.results().started == 1 && rapid.results().settled == 1);
+    assert(rapid.results().cold_starts == 1 && rapid.results().wrong_slide == 0);
+    assert(rapid.results().refill.count == 1 && rapid.results().refill.worst_us == ready_after);
+    return rapid.results();
+  };
+  // A refill during settling must not commit a drag that released cold.
+  const auto late = run_cold(280'000, 1);
+  assert(late.cold_releases_unready == 1 && late.cold_returns == 1);
+  // A refill early in the drag leaves enough travel to advance.
+  const auto early = run_cold(48'000, 2);
+  assert(early.cold_releases_unready == 0 && early.cold_returns == 0);
+
+  TrialSwipeBenchmark repeated{true};
+  assert(repeated.poll(start, 1, {1, 1}, true));
+  const auto released_at = start + TrialSwipeBenchmark::drag_us;
+  assert(repeated.poll(released_at, 1, {1, 1}, false)->contacts == 0);
+  const auto settled_at = released_at + 130'000;
+  assert(!repeated.poll(settled_at, 1, {1, 1}, true));
+  assert(repeated.poll(settled_at + TrialSwipeBenchmark::rapid_rest_us, 1, {1, 1}, true));
+  repeated.poll(start + 600'000, 1, {1, 2}, false);
+  assert(repeated.results().cold_starts == 2 && repeated.results().refill.count == 1);
+  assert(repeated.results().refill.worst_us == 600'000 && repeated.results().refill.over_limit == 1);
+
   TrialSwipeMetrics timing;
   timing.gesture(12'000, {0, 0, 8'000, {CacheRead::Hit}, true, 1'000});
   timing.gesture(50'000, {0, 0, 6'000, {CacheRead::Hit}, false, 0});
@@ -58,6 +93,7 @@ int main() {
   assert(stats.dma_copies == 2 && stats.cpu_copies == 1 && stats.worst_composition_us == 8'000);
   assert(stats.worst_before_submit_us == 7'000 && stats.worst_submit_us == 3'000);
   assert(stats.first_motion.count == 3 && stats.first_motion.worst_us == 50'001 && stats.first_motion.over_limit == 1);
+  assert(stats.cache_miss_motion.count == 1 && stats.cache_miss_motion.worst_us == 50'001);
   assert(stats.busy_first_motion.count == 2 && stats.busy_first_motion.over_limit == 1 && stats.cache_hits == 2);
   assert(stats.drag_gaps.count == 3 && stats.drag_gaps.worst_us == 32'000 && stats.drag_gaps.over_limit == 1);
   assert(stats.busy_drag_gaps.count == 2 && stats.busy_drag_gaps.worst_us == 24'000 && stats.busy_drag_gaps.over_limit == 0);

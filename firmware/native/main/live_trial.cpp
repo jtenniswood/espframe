@@ -15,6 +15,7 @@
 #include <atomic>
 #include <cinttypes>
 #include <cstdio>
+#include <cstring>
 #include <ctime>
 
 namespace espframe::native {
@@ -45,7 +46,7 @@ std::atomic<int> wifi_rssi_dbm{-128};
 std::atomic<unsigned> wifi_primary_channel{};
 
 #if SWIPE_TRIAL_BENCHMARK
-TrialSwipeBenchmark benchmark;
+TrialSwipeBenchmark benchmark{SWIPE_TRIAL_BENCHMARK_RAPID};
 #endif
 TrialSwipeMetrics metrics;
 portMUX_TYPE swipe_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -58,19 +59,29 @@ esp_err_t benchmark_status(httpd_req_t *request) {
 #endif
   portEXIT_CRITICAL(&swipe_lock);
 
-  char scripted_counts[112]{};
+  char scripted_counts[352]{};
 #if SWIPE_TRIAL_BENCHMARK
   std::snprintf(scripted_counts, sizeof(scripted_counts),
                 ",\"target\":%u,\"started\":%" PRIu32 ",\"settled\":%" PRIu32 ",\"wrong_slide\":%" PRIu32,
                 TrialSwipeBenchmark::swipe_limit, script.started, script.settled, script.wrong_slide);
 #endif
+#if SWIPE_TRIAL_BENCHMARK_RAPID
+  const auto used = std::strlen(scripted_counts);
+  std::snprintf(scripted_counts + used, sizeof(scripted_counts) - used,
+                ",\"scenario\":\"rapid\",\"cold_starts\":%" PRIu32 ",\"cold_releases_unready\":%" PRIu32
+                ",\"cold_returns\":%" PRIu32 ",\"refill_limit_us\":%u"
+                ",\"refill\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}",
+                script.cold_starts, script.cold_releases_unready, script.cold_returns, TrialSwipeBenchmark::refill_limit_us,
+                script.refill.count, script.refill.worst_us, script.refill.over_limit);
+#endif
   const auto period = Display::nominal_frame_period_us();
-  char body[1024]{};
+  char body[1336]{};
   const auto length = std::snprintf(body, sizeof(body),
                 "{\"scripted\":%s,\"source\":\"%s\"%s,\"cache_hits\":%" PRIu32
                 ",\"dma_burst_bytes\":%u,\"dma_copies\":%" PRIu32 ",\"cpu_copies\":%" PRIu32
                 ",\"frame_period_us\":%u,\"drag_gap_limit_us\":%u"
                 ",\"first_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
+                ",\"cache_miss_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
                 ",\"compose_and_submit_worst_us\":%" PRIu32
                 ",\"before_submit_worst_us\":%" PRIu32 ",\"submit_worst_us\":%" PRIu32
                 ",\"busy_first_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
@@ -81,6 +92,7 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 FrameBlitter::burst_bytes, result.dma_copies, result.cpu_copies,
                 period, period + period / 2,
                 result.first_motion.count, result.first_motion.worst_us, result.first_motion.over_limit,
+                result.cache_miss_motion.count, result.cache_miss_motion.worst_us, result.cache_miss_motion.over_limit,
                 result.worst_composition_us, result.worst_before_submit_us, result.worst_submit_us,
                 result.busy_first_motion.count, result.busy_first_motion.worst_us, result.busy_first_motion.over_limit,
                 result.drag_gaps.count, result.drag_gaps.worst_us, result.drag_gaps.over_limit,

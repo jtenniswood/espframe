@@ -30,6 +30,7 @@ class TrialSwipeMetrics {
     uint32_t worst_before_submit_us{};
     uint32_t worst_submit_us{};
     Timing first_motion;
+    Timing cache_miss_motion;
     Timing busy_first_motion;
     Timing drag_gaps;
     Timing busy_drag_gaps;
@@ -44,6 +45,8 @@ class TrialSwipeMetrics {
         std::max(results_.worst_before_submit_us, static_cast<uint32_t>(motion.composed_us - motion.submit_us));
     results_.worst_submit_us = std::max(results_.worst_submit_us, static_cast<uint32_t>(motion.submit_us));
     results_.cache_hits += motion.cache.result == CacheRead::Hit;
+    if (motion.cache.result == CacheRead::Miss)
+      results_.cache_miss_motion.add(latency_us, 50'000);
     if (motion.preparing)
       results_.busy_first_motion.add(latency_us, 50'000);
   }
@@ -75,22 +78,38 @@ class TrialSwipeBenchmark {
   static constexpr int64_t report_period_us = 8'000;
   static constexpr int64_t drag_us = 192'000;
   static constexpr int64_t rest_us = 420'000;
+  static constexpr int64_t rapid_rest_us = 50'000;
+  static constexpr uint32_t refill_limit_us = 500'000;
 
   struct Results {
     uint32_t started{};
     uint32_t settled{};
     uint32_t wrong_slide{};
+    uint32_t cold_starts{};
+    uint32_t cold_releases_unready{};
+    uint32_t cold_returns{};
+    TrialSwipeMetrics::Timing refill;
   };
+
+  explicit TrialSwipeBenchmark(bool rapid = false) : rapid_(rapid) {}
 
   const Results &results() const { return results_; }
 
   std::optional<TouchReport> poll(int64_t now, SlideIndex center, SlideRange ready, bool at_rest) {
+    if (missing_slide_ && ready.contains(*missing_slide_)) {
+      results_.refill.add(static_cast<uint32_t>(now - missing_since_), refill_limit_us);
+      missing_slide_.reset();
+    }
     if (dragging_) {
       if (now - last_sample_ < report_period_us)
         return {};
       const bool down = now - dragged_since_ < drag_us;
       dragging_ = down;
       waiting_for_settle_ = !down;
+      if (!down && cold_start_ && !ready.contains(destination_)) {
+        ++results_.cold_releases_unready;
+        destination_ = origin_;
+      }
       const int64_t elapsed = std::min(now - dragged_since_, drag_us);
       return sample_(now, start_x_ - direction_ * static_cast<int>(elapsed * distance / drag_us), down);
     }
@@ -98,20 +117,37 @@ class TrialSwipeBenchmark {
       if (!at_rest)
         return {};
       ++results_.settled;
-      results_.wrong_slide += center != destination_;
+      const bool returned = cold_start_ && center == origin_;
+      results_.cold_returns += returned;
+      // If a neighbor arrived during the drag, the movement remaining
+      // after re-anchoring determines whether it advances or settles back.
+      results_.wrong_slide += center != destination_ && !returned;
       waiting_for_settle_ = false;
-      next_swipe_at_ = now + rest_us;
+      next_swipe_at_ = now + (rapid_ ? rapid_rest_us : rest_us);
     }
     if (!at_rest || center < 1 || results_.started == swipe_limit || now < next_swipe_at_)
       return {};
 
-    // Two forward swipes for every backward swipe. Travel beyond the first
-    // ready window so the worker also prepares photos during the test.
-    const int direction = results_.started % 3 == 1 ? -1 : 1;
-    if (!ready.contains(center + direction))
+    // The normal run waits for two forward moves and one backward move.
+    // Rapid browsing mostly advances and reverses only toward a cached photo.
+    const bool back = rapid_ ? results_.started % 5 == 4 && ready.contains(center - 1)
+                             : results_.started % 3 == 1;
+    const int direction = back ? -1 : 1;
+    const auto destination = center + direction;
+    const bool cold_start = !ready.contains(destination);
+    if (!rapid_ && cold_start)
       return {};
+    origin_ = center;
     direction_ = direction;
-    destination_ = center + direction;
+    destination_ = destination;
+    cold_start_ = cold_start;
+    if (cold_start) {
+      ++results_.cold_starts;
+      if (missing_slide_ != destination) {
+        missing_slide_ = destination;
+        missing_since_ = now;
+      }
+    }
     start_x_ = direction > 0 ? 960 : 320;
     dragged_since_ = now;
     dragging_ = true;
@@ -128,6 +164,9 @@ class TrialSwipeBenchmark {
   }
 
   Results results_;
+  std::optional<SlideIndex> missing_slide_;
+  int64_t missing_since_{};
+  SlideIndex origin_{};
   SlideIndex destination_{};
   int64_t dragged_since_{};
   int64_t last_sample_{};
@@ -137,6 +176,8 @@ class TrialSwipeBenchmark {
   int direction_{};
   bool dragging_{};
   bool waiting_for_settle_{};
+  bool cold_start_{};
+  bool rapid_;
 };
 
 }  // namespace espframe::native
