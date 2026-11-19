@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstring>
 #include <numeric>
+#include <utility>
 #include <vector>
 
 struct async_color_convert_context_t {};
@@ -35,12 +36,17 @@ esp_err_t esp_color_convert_blocking(async_color_convert_handle_t handle, const 
   using espframe::native::panel_width;
   assert(handle == &driver && timeout == -1);
   assert(request->src_color_format == ESP_COLOR_FOURCC_RGB16 && request->dst_color_format == ESP_COLOR_FOURCC_RGB16);
-  assert(request->src_stride == panel_width && request->dst_stride == panel_width && request->copy_width == panel_width);
+  assert(request->src_stride == panel_width && request->dst_stride == panel_width);
+  assert(request->src_x + request->copy_width <= panel_width && request->dst_x + request->copy_width <= panel_width);
   assert(request->copy_height == request->src_height && request->copy_height == request->dst_height);
-  assert(request->src_x == 0 && request->src_y == 0 && request->dst_x == 0 && request->dst_y == 0);
+  assert(request->src_y == 0 && request->dst_y == 0);
   if (++requests == reject_request)
     return ESP_FAIL;
-  std::memcpy(request->dst_buffer, request->src_buffer, request->copy_height * panel_width * sizeof(uint16_t));
+  for (size_t row = 0; row < request->copy_height; ++row) {
+    std::memcpy(static_cast<uint16_t *>(request->dst_buffer) + row * panel_width + request->dst_x,
+                static_cast<const uint16_t *>(request->src_buffer) + row * panel_width + request->src_x,
+                request->copy_width * sizeof(uint16_t));
+  }
   return ESP_OK;
 }
 
@@ -62,6 +68,33 @@ int main() {
   dma.edge(output.data(), left.data(), edge_offset);
   blit_slide_edge(expected.data(), left.data(), panel_width, panel_height, edge_offset);
   assert(output == expected && requests == 3);
+
+  for (auto rotation : {ScreenRotation::Normal, ScreenRotation::UpsideDown}) {
+    for (const auto &direction : {std::pair{-1, 0}, std::pair{1, 0}, std::pair{0, -1}, std::pair{0, 1}}) {
+      const auto [dx, dy] = direction;
+      const int extent = dx ? slide_width : slide_height;
+      constexpr uint8_t progress = 51;  // One fifth of the screen.
+      const int distance = extent / 5;
+      const auto panel = [rotation](int x, int y) { return panel_offset(x, slide_height - 1 - y, rotation); };
+      for (int y = 0; y < slide_height; ++y) {
+        for (int x = 0; x < slide_width; ++x) {
+          int source_x = x - dx * distance;
+          int source_y = y - dy * distance;
+          const bool incoming = source_x < 0 || source_x >= slide_width || source_y < 0 || source_y >= slide_height;
+          if (incoming) {
+            source_x += dx * slide_width;
+            source_y += dy * slide_height;
+          }
+          expected[panel(x, y)] = (incoming ? right : left)[panel(source_x, source_y)];
+        }
+      }
+      const int before = requests;
+      if (dy)
+        reject_request = before + 2;
+      dma.push(output.data(), left.data(), right.data(), dx, dy, progress, rotation);
+      assert(output == expected && requests == before + 2 && releases == 0);
+    }
+  }
 
   reject_request = requests + 2;
   blit_slides(expected.data(), left.data(), right.data(), panel_width, panel_height, offset);

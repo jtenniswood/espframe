@@ -33,6 +33,8 @@ const testScript = `
     const field = name => form.elements.namedItem(name)
     const save = form.querySelector('button[type="submit"]')
     check(field('interval').value === '25 seconds', 'Custom interval was replaced')
+    check(field('transition').value === 'Cross Fade' && field('transition_speed').value === 'Fast',
+      'Saved slideshow transition was lost')
     check(field('brightness_day').value === '74', 'Daytime brightness was replaced')
     check(field('photo_orientation').value === 'Portrait Only', 'Saved photo orientation was lost')
     check(field('frame_name').value === 'Old frame' && document.title.includes('Old frame'), 'Saved frame name was lost')
@@ -77,6 +79,8 @@ const testScript = `
     edit('portrait_pairing_range', 'Within 1 Day')
     edit('portrait_pair_framing', 'Fill')
     edit('photo_orientation', 'Landscape Only')
+    edit('transition', 'Fade to Black')
+    edit('transition_speed', 'Slow')
     field('portrait_pairs_only').checked = true
     field('portrait_pairs_only').dispatchEvent(new Event('change', {bubbles: true}))
     field('portrait_pairing').checked = false
@@ -96,6 +100,8 @@ const testScript = `
     check(reloaded.elements.namedItem('frame_name').value === 'Salon été' && document.title.includes('Salon été'),
       'New frame name was not read back after restart')
     check(reloaded.elements.namedItem('interval').value === '30 seconds', 'New interval was not read back')
+    check(reloaded.elements.namedItem('transition').value === 'Fade to Black' &&
+      reloaded.elements.namedItem('transition_speed').value === 'Slow', 'New slideshow transition was not read back')
     check(reloaded.elements.namedItem('photo_orientation').value === 'Landscape Only', 'Photo orientation was not read back')
     check(!reloaded.elements.namedItem('api_key').value, 'The replacement key remained in the form')
     check(reloaded.elements.namedItem('prepared_slide_url').value === 'https://new-prepare.test', 'The new service URL was not read back')
@@ -129,6 +135,7 @@ const snapshot = {
     portrait_pairing: true, portrait_pairs_only: false, portrait_pairing_range: 'Within 2 Days',
     portrait_pair_framing: 'Follow photo framing',
     photo_orientation: 'Portrait Only',
+    transition: 'Cross Fade', transition_speed: 'Fast',
     frame_name: 'Old frame',
     prepared_slide_url: 'https://prepare.test', prepared_slide_token_configured: true,
   },
@@ -343,6 +350,7 @@ try {
         api_key: 'replacement+value&1', interval: '30 seconds', brightness_day: 60,
         frame_name: 'Salon été',
         photo_orientation: 'Landscape Only',
+        transition: 'Fade to Black', transition_speed: 'Slow',
         portrait_pairing: false, portrait_pairs_only: true, portrait_pairing_range: 'Within 1 Day',
         portrait_pair_framing: 'Fill',
         prepared_slide_url: 'https://new-prepare.test', prepared_slide_token: 'service-token-for-browser-regression-test',

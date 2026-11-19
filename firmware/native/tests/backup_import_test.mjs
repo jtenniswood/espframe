@@ -33,6 +33,8 @@ for (const name of ['v1-full', 'v2-full']) {
     immich_url: 'https://photos.example.com', slide_seconds: 15, portrait_pairing: true, portrait_pairs_only: true,
     portrait_pairing_range: 'Within 2 Days',
     display_mode: 'Fill',
+    transition: name === 'v2-full' ? 'Cross Fade' : 'Random',
+    transition_speed: name === 'v2-full' ? 'Fast' : 'Slow',
     brightness_day: 100, brightness_night: 75, screen_rotation: '0',
     base_tone_enabled: false, base_tone: 0, warm_tones_enabled: false, warm_tone_intensity: 50,
     schedule_enabled: false, schedule_on_hour: 6, schedule_off_hour: 23, schedule_wake_timeout: 60,
@@ -155,6 +157,9 @@ assert.deepEqual(invalidSchedule.settings, { schedule_enabled: false, schedule_o
 assert.match(invalidSchedule.notices[0], /on hour/)
 assert.throws(() => readBackup({ version: 4 }), /Espframe settings backup/)
 assert.throws(() => readBackup({ version: 3, connection: 'invalid' }), /Espframe settings backup/)
+const invalidTransition = readBackup({ version: 3, photos: { transition: 'Dissolve', transition_speed: 500 } })
+assert.deepEqual(invalidTransition.settings, {})
+assert.equal(invalidTransition.notices.filter(message => message.includes('transition')).length, 2)
 for (const source of ['all', 'favorites', 'album', 'memories']) {
   for (const duration of [2, 15, 60, 120, 3600, 86400]) {
     const settings = {
@@ -163,6 +168,7 @@ for (const source of ['all', 'favorites', 'album', 'memories']) {
       portrait_pairing_range: duration % 60 ? 'Within 1 Day' : 'Within 2 Days',
       portrait_pair_framing: duration % 60 ? 'Fill' : 'Follow photo framing',
       slide_seconds: duration, display_mode: duration % 60 ? 'Fit' : 'Fill',
+      transition: duration % 60 ? 'Slide Up' : 'None', transition_speed: 'Normal',
       brightness_day: duration % 60 ? 10 : 100,
       brightness_night: 36,
       base_tone_enabled: false, base_tone: 24, warm_tones_enabled: true, warm_tone_intensity: 65,

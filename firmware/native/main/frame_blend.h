@@ -4,6 +4,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <optional>
 
 namespace espframe::native {
 
@@ -13,7 +14,8 @@ class FrameBlend {
  public:
   bool init();
   void release();
-  bool start(const uint16_t *background, const uint16_t *foreground, uint16_t *output, uint8_t opacity);
+  bool start(const uint16_t *background, const uint16_t *foreground, uint16_t *output, uint8_t opacity,
+             std::optional<uint32_t> solid_foreground = {});
   bool pending() const { return pending_; }
   bool poll_complete();
 

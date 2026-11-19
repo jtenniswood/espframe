@@ -4,6 +4,9 @@ const legacySources = ['All Photos', 'Album', 'Favorites', 'Person', 'Tag', 'Mem
 const groupFlags = { album: 'albums_enabled', person: 'people_enabled', tag: 'tags_enabled' }
 const placeFields = { filter_country: 'country', filter_state: 'state', filter_city: 'city' }
 const displayModes = ['Fill', 'Fit']
+const transitions = ['None', 'Cross Fade', 'Fade to Black', 'Fade to White',
+  'Slide Left', 'Slide Right', 'Slide Up', 'Slide Down', 'Random']
+const transitionSpeeds = ['Fast', 'Normal', 'Slow']
 const pairFramings = ['Follow photo framing', ...displayModes]
 const photoOrientations = ['Any', 'Portrait Only', 'Landscape Only']
 const clockFormats = ['24 Hour', '12 Hour']
@@ -184,6 +187,11 @@ export function readBackup(data) {
     if (seconds) settings.slide_seconds = seconds
     else notices.push('Choose a slideshow interval.')
   }
+  for (const [key, options] of [['transition', transitions], ['transition_speed', transitionSpeeds]]) {
+    if (!own(photos, key)) continue
+    if (options.includes(photos[key])) settings[key] = photos[key]
+    else notices.push(`Review the ${key.replace('_', ' ')} in the original backup.`)
+  }
   if (typeof photos.portrait_pairing === 'boolean') settings.portrait_pairing = photos.portrait_pairing
   if (own(photos, 'portrait_pairs_only')) {
     if (typeof photos.portrait_pairs_only === 'boolean') settings.portrait_pairs_only = photos.portrait_pairs_only
@@ -230,8 +238,7 @@ export function readBackup(data) {
   if (Object.keys(screen).some(key => !own(screenFields, key))) skipped.push('screen settings')
   if (own(clock, 'ntp_servers')) skipped.push('custom time servers')
   if (own(data, 'firmware_updates')) skipped.push('firmware update settings')
-  if (['transition', 'transition_speed'].some(key => own(photos, key)) ||
-      own(frequency, 'conn_timeout'))
+  if (own(frequency, 'conn_timeout'))
     skipped.push('advanced playback settings')
   if (skipped.length) notices.push(`Keep the original backup for ${skipped.join(', ')}.`)
   return { settings, notices, chooseSource }
@@ -291,6 +298,8 @@ export function createBackup(settings, date = new Date()) {
       ...(typeof settings.portrait_pairs_only === 'boolean' ? { portrait_pairs_only: settings.portrait_pairs_only } : {}),
       ...(pairingRanges.includes(settings.portrait_pairing_range) ? { portrait_pairing_range: settings.portrait_pairing_range } : {}),
       ...(displayModes.includes(settings.display_mode) ? { display_mode: settings.display_mode } : {}),
+      ...(transitions.includes(settings.transition) ? { transition: settings.transition } : {}),
+      ...(transitionSpeeds.includes(settings.transition_speed) ? { transition_speed: settings.transition_speed } : {}),
       ...(pairFramings.includes(settings.portrait_pair_framing) ? { portrait_pair_framing: settings.portrait_pair_framing } : {}),
       ...(photoOrientations.includes(settings.photo_orientation) ? { orientation: settings.photo_orientation } : {}),
     },

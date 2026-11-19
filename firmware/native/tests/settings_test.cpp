@@ -221,6 +221,7 @@ int main() {
   const auto legacy_store = stored;
   assert(legacy.read());
   assert(legacy.immich_url == "http://legacy.local/api" && legacy.slide_seconds == 15);
+  assert(legacy.transition == "Cross Fade" && legacy.transition_speed == "Fast");
   assert(legacy.portrait_pairing);
   assert(!legacy.portrait_pairs_only && !legacy.requires_portrait_pair() && legacy.portrait_pairing_days == 0);
   assert(legacy.brightness_day == 64);
@@ -417,6 +418,8 @@ int main() {
   const auto *values = cJSON_GetObjectItemCaseSensitive(snapshot.get(), "values");
   assert(cJSON_IsObject(values));
   assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(values, "interval")) == std::string("24 hours"));
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(values, "transition")) == std::string("Cross Fade"));
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(values, "transition_speed")) == std::string("Fast"));
   assert(!cJSON_HasObjectItem(values, "api_key") && !cJSON_HasObjectItem(values, "immich_key") &&
          !cJSON_HasObjectItem(values, "web_password") && !cJSON_HasObjectItem(values, "password") &&
          !cJSON_HasObjectItem(values, "photo_source"));
@@ -448,6 +451,8 @@ int main() {
            R"({"values":{"brightness_day":50,"photo_source":"Custom"}})",
            R"({"values":{"brightness_day":50,"screen_rotation":"90"}})",
            R"({"values":{"brightness_day":50,"portrait_pairs_only":"true"}})",
+           R"({"values":{"brightness_day":50,"transition":"Dissolve"}})",
+           R"({"values":{"brightness_day":50,"transition_speed":500}})",
            R"({"values":{"brightness_day":50,"portrait_pairing_range":"Within 3 Days"}})",
            R"({"values":{"brightness_day":50,"api_key":""}})",
            R"({"values":{"brightness_day":50,"brightness_day":80}})",
@@ -461,6 +466,9 @@ int main() {
   assert(!Settings::save_playback(R"({"brightness_day":60})"));
   assert(Settings::save_playback(R"({"immich_url":"https://photos.test","brightness_day":60})"));
   assert(current.read() && current.brightness_day == 60 && current.immich_key == "new+&key");
+  const auto transition_update = update_configuration(R"({"values":{"transition":"Slide Down","transition_speed":"Slow"}})");
+  assert(!transition_update.error && transition_update.updated == 2);
+  assert(current.read() && current.transition == "Slide Down" && current.transition_speed == "Slow");
 
   assert(!update_configuration(
       R"({"values":{"portrait_pairing":false,"portrait_pairs_only":true,"portrait_pairing_range":"Within 2 Days"}})").error);
@@ -521,6 +529,7 @@ int main() {
   assert(current.slide_seconds == 15 && current.brightness_day == 64 && !current.brightness_night &&
          current.screen_rotation == ScreenRotation::Normal && !current.capture_dates.enabled &&
          current.photo_source.mode == PhotoSourceMode::Library);
+  assert(current.transition == "Cross Fade" && current.transition_speed == "Fast");
   const Json reset_snapshot(configuration_snapshot(current), cJSON_Delete);
   assert(cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(reset_snapshot.get(), "reset_epoch")) == 1);
   assert(cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(reset_snapshot.get(), "api_key_configured")));

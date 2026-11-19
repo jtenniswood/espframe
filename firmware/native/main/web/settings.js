@@ -58,6 +58,8 @@ try {
     factorySection.hidden = settings.factory_reset !== true
   }
   form.elements.slide_seconds.value = settings.slide_seconds
+  form.elements.transition.value = settings.transition ?? 'Cross Fade'
+  form.elements.transition_speed.value = settings.transition_speed ?? 'Fast'
   form.elements.brightness_day.value = settings.brightness_day ?? 64
   form.elements.brightness_night.value = settings.brightness_night ?? form.elements.brightness_day.value
   form.elements.base_tone_enabled.checked = settings.base_tone_enabled === true

@@ -15,9 +15,13 @@ class FrameBlitter {
   void init();
   void slides(uint16_t *output, SlideSpan span);
   void edge(uint16_t *output, const uint16_t *photo, int pull);
+  void push(uint16_t *output, const uint16_t *from, const uint16_t *to, int dx, int dy, uint8_t progress,
+            ScreenRotation rotation);
 
  private:
   void copy_rows_(uint16_t *destination, const uint16_t *source, int width, int rows);
+  void copy_block_(uint16_t *destination, const uint16_t *source, int stride, int rows,
+                   int dest_x, int source_x, int width);
 
   async_color_convert_handle_t dma_{};
 };

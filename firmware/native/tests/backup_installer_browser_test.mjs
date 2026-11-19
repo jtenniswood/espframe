@@ -25,6 +25,7 @@ const backup = {
   connection: { immich_url: 'https://photos.test', api_key: 'old-api-key', home_assistant_key: 'backup-key' },
   photos: { source: 'Memories', album_ids: album, portrait_pairing: false, portrait_pairs_only: true,
     portrait_pairing_range: 'Within 1 Day', portrait_pair_framing: 'Fill', display_mode: 'Fit', orientation: 'Landscape Only',
+    transition: 'Slide Down', transition_speed: 'Slow',
     memories_window: 'Within 7 Days', memories_fallback: false, date_filter_enabled: true,
     date_filter_mode: 'Fixed Range', date_from: '2024-02-29', date_to: '', relative_amount: 2, relative_unit: 'Months' },
   clock: { show: false, format: '12 Hour', timezone: 'America/New_York (GMT-5)' },
@@ -123,6 +124,8 @@ const verify = `
     if (form.elements.frame_name.value !== 'Salon été & famille') throw new Error('The backup name was not prefilled')
     if (form.elements.immich_url.value !== 'https://photos.test') throw new Error('Immich URL was not prefilled')
     if (form.elements.immich_key.value !== 'entered-api-key') throw new Error('A backup replaced the entered key')
+    if (form.elements.transition.value !== 'Slide Down' || form.elements.transition_speed.value !== 'Slow')
+      throw new Error('Slideshow transition controls were not prefilled')
     const homeAssistantKey = form.elements.home_assistant_key
     if (homeAssistantKey.value) throw new Error('A backup prefilled the Home Assistant key')
     if (document.querySelector('#memories-choice').hidden || form.elements.memories_window.value !== 'Within 7 Days'
@@ -166,6 +169,7 @@ const verify = `
       || received.memories_window !== 'Within 7 Days' || received.memories_fallback !== false
       || received.portrait_pairing !== false || received.portrait_pairs_only !== true
       || received.portrait_pairing_range !== 'Within 1 Day' || received.portrait_pair_framing !== 'Fill'
+      || received.transition !== 'Slide Down' || received.transition_speed !== 'Slow'
       || received.display_mode !== 'Fit' || received.home_assistant_key !== haKey || Object.hasOwn(received, 'backup'))
       throw new Error('Unexpected migrated USB settings')
     if (received.frame_name !== 'Salon été & famille' || Object.hasOwn(received, 'hostname'))

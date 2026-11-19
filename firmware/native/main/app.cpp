@@ -15,6 +15,7 @@
 #include "slide_dwell.h"
 #include "slide_prefetch.h"
 #include "slideshow_interval.h"
+#include "slideshow_transition.h"
 #include "swipe.h"
 #include "swipe_input.h"
 #include "touch.h"
@@ -26,6 +27,7 @@
 #include "driver/jpeg_decode.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_random.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -41,6 +43,10 @@
 
 namespace espframe::native {
 namespace {
+
+using esphome::espframe::SlideTransition;
+using esphome::espframe::TransitionBlend;
+using esphome::espframe::slide_transition_plan;
 
 constexpr const char *tag = "swipe-probe";
 constexpr int fixture_count = 5;
@@ -222,6 +228,14 @@ class SlideLoader {
                                       : active_slideshow_interval.load(std::memory_order_relaxed);
     return seconds * 1'000'000LL;
   }
+  SlideTransition next_transition(SlideTransition previous) const {
+    const auto &option = this->settings_.transition;
+    const auto random = esphome::espframe::slide_transition_is_random(option) ? esp_random() : 0;
+    return esphome::espframe::resolve_slide_transition(option, random, previous);
+  }
+  int64_t transition_duration_us() const {
+    return esphome::espframe::slide_transition_duration_ms(this->settings_.transition_speed) * 1000LL;
+  }
   uint8_t brightness() const { return this->settings_.brightness_day; }
   uint8_t night_brightness() const { return this->settings_.night_brightness(); }
   const ClockSettings &clock() const { return this->settings_.clock; }
@@ -387,7 +401,7 @@ void run(void *) {
     can_fade = false;
   }
   if (live && !can_fade)
-    ESP_LOGI(tag, "Crossfade unavailable; using the slideshow glide");
+    ESP_LOGI(tag, "Slideshow compositor unavailable; using the glide for animated transitions");
   if (live && !trial_fixtures)
     allocate_slide_buffers(buffers, SlideCache::minimum_capacity, buffers.size());
   SlideCache cache{buffers};
@@ -403,6 +417,8 @@ void run(void *) {
   SlideDwell dwell;
   SlidePrefetch prefetch{swipe.settled(), cache_slots};
   AutoplayFade fade;
+  auto previous_transition = SlideTransition::NONE;
+  auto effect = slide_transition_plan(SlideTransition::CROSS_FADE);
   const uint16_t *snapshot = nullptr;
   const auto pin_fade = [&] {
     snapshot = display.pin_handoff();
@@ -450,6 +466,16 @@ void run(void *) {
     display.submit(position);
     if constexpr (capture_motion)
       submitted_stamp = moving ? motion_epoch.stamp(preparing >= 0) : MotionStamp{};
+  };
+  const auto submit_autoplay_frame = [&](uint16_t *output, uint8_t progress) {
+    clock.draw(output, true);
+    clock_dirty = false;
+    if constexpr (capture_motion)
+      motion_epoch.update(MotionPhase::Crossfade);
+    submit_frame(fade.anchor() * slide_width);
+    recovery_painted = false;
+    painted_source_status = PhotoSourceStatus::None;
+    fade.submitted(progress);
   };
   SlideIndex first_photo = 1;
   SlideIndex next_photo = 1;
@@ -653,14 +679,7 @@ void run(void *) {
       auto *output = display.writable_buffer();
       if (snapshot != nullptr)
         clock.restore_blend(output, cache.find(fade.target()), pending_opacity);
-      clock.draw(output, true);
-      clock_dirty = false;
-      if constexpr (capture_motion)
-        motion_epoch.update(MotionPhase::Crossfade);
-      submit_frame(fade.anchor() * slide_width);
-      recovery_painted = false;
-      painted_source_status = PhotoSourceStatus::None;
-      fade.submitted(pending_opacity);
+      submit_autoplay_frame(output, pending_opacity);
     }
 
     const auto keep = prefetch.window(available);
@@ -699,7 +718,7 @@ void run(void *) {
     }
     const bool was_settling = swipe.settling();
     swipe.tick(now);
-    const auto position = swipe.position();
+    auto position = swipe.position();
     const bool visible_and_idle = backlight_ready && input.awake() && !input.engaged() && swipe.idle() &&
                                   position == display.presented_position();
     if constexpr (track_physical_drags) {
@@ -711,6 +730,9 @@ void run(void *) {
     if (fade.held() && !blend.pending() && visible_and_idle) {
       if (can_fade && swipe.settled() == fade.anchor()) {
         fade.resume(now);
+        // The handoff is already a composite. Blend from its exact pixels
+        // so taking a finger off never restarts the original animation.
+        effect = slide_transition_plan(SlideTransition::CROSS_FADE);
       } else {
         if (swipe.settled() == fade.anchor())
           last_submitted = -1;  // Restore the clean anchor if the PPA failed.
@@ -726,10 +748,24 @@ void run(void *) {
       // after the startup scene. A missing history slide must stop the run.
       if ((!SWIPE_TRIAL_REPLAY_HISTORY || first_photo) &&
           dwell.elapsed(now, dwelling, first_photo ? 0 : loader.slide_interval_us())) {
-        if (can_fade && !first_photo && swipe.settled() < ready_last)
-          fade.start(swipe.settled(), swipe.settled() + 1, now);
-        else
-          swipe.advance(now, first_photo ? Swipe::Transition::Quick : Swipe::Transition::Glide);
+        const auto anchor = swipe.settled();
+        if (first_photo) {
+          swipe.advance(now, Swipe::Transition::Quick);
+        } else if (anchor < ready_last) {
+          previous_transition = loader.next_transition(previous_transition);
+          effect = slide_transition_plan(previous_transition);
+          if (effect.blend == TransitionBlend::NONE) {
+            if (display.writable_buffer() != nullptr) {
+              swipe.show(anchor + 1);
+              position = swipe.position();
+              dwell.reset();
+            }
+          } else if (can_fade) {
+            fade.start(anchor, anchor + 1, now, loader.transition_duration_us());
+          } else {
+            swipe.advance(now, Swipe::Transition::Glide);
+          }
+        }
       }
     }
 
@@ -769,17 +805,31 @@ void run(void *) {
             fade.finish();
             display.unpin();
             snapshot = nullptr;
-          } else if (blend.start(from, target, output, opacity)) {
-            pending_opacity = opacity;
+          } else if (effect.blend == TransitionBlend::MOVE) {
+            blitter.push(output, from, target, effect.dx, effect.dy, opacity, rotation);
+            submit_autoplay_frame(output, opacity);
           } else {
-            ESP_LOGW(tag, "Could not start the frame blend; using the slideshow glide");
-            const bool advance = fade.target() != fade.anchor();
-            if (fade.interrupt(snapshot != nullptr))
-              pin_fade();
-            blend.release();
-            can_fade = false;
-            if (advance)
-              swipe.advance(now, Swipe::Transition::Glide);
+            bool started;
+            if (effect.blend == TransitionBlend::FADE_THROUGH) {
+              const int phase = 2 * opacity;
+              const bool incoming = phase >= AutoplayFade::opaque;
+              started = blend.start(incoming ? target : from, incoming ? from : target, output,
+                                    incoming ? 2 * AutoplayFade::opaque - phase : phase, effect.color_rgb888);
+            } else {
+              started = blend.start(from, target, output, opacity);
+            }
+            if (started) {
+              pending_opacity = opacity;
+            } else {
+              ESP_LOGW(tag, "Could not start the frame blend; using the slideshow glide");
+              const bool advance = fade.target() != fade.anchor();
+              if (fade.interrupt(snapshot != nullptr))
+                pin_fade();
+              blend.release();
+              can_fade = false;
+              if (advance)
+                swipe.advance(now, Swipe::Transition::Glide);
+            }
           }
         }
       }

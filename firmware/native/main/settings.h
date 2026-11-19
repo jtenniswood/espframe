@@ -45,6 +45,8 @@ struct Settings {
   bool home_assistant_key_set{};
   uint32_t reset_epoch{};
   uint32_t slide_seconds{15};
+  std::string transition{"Cross Fade"};
+  std::string transition_speed{"Fast"};
   uint8_t brightness_day{64};
   std::optional<uint8_t> brightness_night;
   bool portrait_pairing{true};

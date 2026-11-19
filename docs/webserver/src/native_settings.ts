@@ -209,6 +209,7 @@ const nativeSettingGroups: [string, [string, string][]][] = [
   ["Photo preparation service", [["prepared_slide_url", "Service URL"], ["prepared_slide_token", "Service access token"]]],
   ["Playback", [
     ["interval", "Time per photo"], ["photo_orientation", "Display photos"], ["display_mode", "Photo framing"],
+    ["transition", "Slideshow transition"], ["transition_speed", "Transition speed"],
     ["portrait_pairing", "Pair portrait photos"],
     ["portrait_pair_framing", "Portrait pair framing"],
     ["portrait_pairs_only", "Show paired portraits only"],

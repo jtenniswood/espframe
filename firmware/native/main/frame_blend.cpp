@@ -36,7 +36,8 @@ bool FrameBlend::completed_(ppa_client_handle_t, ppa_event_data_t *, void *conte
   return false;
 }
 
-bool FrameBlend::start(const uint16_t *background, const uint16_t *foreground, uint16_t *output, uint8_t opacity) {
+bool FrameBlend::start(const uint16_t *background, const uint16_t *foreground, uint16_t *output, uint8_t opacity,
+                       std::optional<uint32_t> solid_foreground) {
   if (!client_ || pending_)
     return false;
   ppa_blend_oper_config_t config{};
@@ -55,6 +56,14 @@ bool FrameBlend::start(const uint16_t *background, const uint16_t *foreground, u
   config.bg_alpha_update_mode = PPA_ALPHA_NO_CHANGE;
   config.fg_alpha_update_mode = PPA_ALPHA_FIX_VALUE;
   config.fg_alpha_fix_val = opacity;
+  if (solid_foreground) {
+    // A4 with fixed alpha and color ignores the foreground pixels, so the
+    // other cached slide can back the read without allocating a solid frame.
+    config.in_fg.blend_cm = PPA_BLEND_COLOR_MODE_A4;
+    config.fg_fix_rgb_val.r = (*solid_foreground >> 16) & 0xFF;
+    config.fg_fix_rgb_val.g = (*solid_foreground >> 8) & 0xFF;
+    config.fg_fix_rgb_val.b = *solid_foreground & 0xFF;
+  }
   config.mode = PPA_TRANS_MODE_NON_BLOCKING;
   config.user_data = this;
   complete_.store(false, std::memory_order_relaxed);

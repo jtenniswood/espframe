@@ -3,6 +3,7 @@
 #include "home_assistant_key.h"
 #include "live_trial.h"
 #include "slideshow_interval.h"
+#include "slideshow_transition.h"
 
 #include "cJSON.h"
 #include "nvs.h"
@@ -408,8 +409,19 @@ bool read_pairing(const cJSON *root, Settings &settings) {
   return false;
 }
 
+bool read_transition(const cJSON *root, Settings &settings) {
+  using namespace esphome::espframe;
+  return read_field(root, "transition", settings.transition, true) &&
+         read_field(root, "transition_speed", settings.transition_speed, true) &&
+         (settings.transition == "None" || slide_transition_is_random(settings.transition) ||
+          parse_slide_transition(settings.transition) != SlideTransition::NONE) &&
+         (settings.transition_speed == "Fast" || settings.transition_speed == "Normal" ||
+          settings.transition_speed == "Slow");
+}
+
 bool read_playback(const cJSON *root, Settings &settings) {
   return read_integer(root, "slide_seconds", 2, 86'400, settings.slide_seconds) && read_pairing(root, settings) &&
+         read_transition(root, settings) &&
          read_display_mode(root, settings.display_mode) && read_orientation(root, settings.photo_orientation) &&
          read_rotation(root, settings.screen_rotation) &&
          read_source(root, settings.photo_source) && read_photo_filters(root, settings.photo_filters) &&
@@ -665,6 +677,8 @@ bool Settings::add_playback_fields(cJSON *object) const {
          cJSON_AddStringToObject(object, "immich_url", immich_url.c_str()) &&
          cJSON_AddStringToObject(object, "prepared_slide_url", prepared_slide_url.c_str()) &&
          cJSON_AddNumberToObject(object, "slide_seconds", slide_seconds) &&
+         cJSON_AddStringToObject(object, "transition", transition.c_str()) &&
+         cJSON_AddStringToObject(object, "transition_speed", transition_speed.c_str()) &&
          cJSON_AddNumberToObject(object, "brightness_day", brightness_day) &&
          cJSON_AddNumberToObject(object, "brightness_night", night_brightness()) &&
          cJSON_AddBoolToObject(object, "schedule_enabled", schedule.enabled) &&

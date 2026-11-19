@@ -86,6 +86,15 @@
           </select>
         </label>
         <label>Seconds per photo <input name="slide_seconds" type="number" min="2" max="86400" step="1" required></label>
+        <label>Slideshow transition
+          <select name="transition">
+            <option>None</option><option selected>Cross Fade</option><option>Fade to Black</option><option>Fade to White</option>
+            <option>Slide Left</option><option>Slide Right</option><option>Slide Up</option><option>Slide Down</option><option>Random</option>
+          </select>
+        </label>
+        <label>Transition speed
+          <select name="transition_speed"><option>Fast</option><option>Normal</option><option>Slow</option></select>
+        </label>
         <label><input name="portrait_pairing" type="checkbox" class="inline-option"> Pair portrait photos</label>
         <label>Portrait pair framing
           <select name="portrait_pair_framing">

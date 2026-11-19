@@ -10,13 +10,15 @@ class SlideDwell {
  public:
   bool elapsed(int64_t now_us, bool visible_and_idle, int64_t duration_us) {
     if (!visible_and_idle) {
-      this->visible_since_us_ = -1;
+      reset();
       return false;
     }
     if (this->visible_since_us_ < 0)
       this->visible_since_us_ = now_us;
     return now_us - this->visible_since_us_ >= duration_us;
   }
+
+  void reset() { this->visible_since_us_ = -1; }
 
  private:
   int64_t visible_since_us_{-1};
