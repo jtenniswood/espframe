@@ -1,0 +1,257 @@
+#pragma once
+
+#include "slide_geometry.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+
+namespace espframe::native {
+
+class Swipe {
+ public:
+  enum class Transition { Quick, Glide };
+  static constexpr int64_t max_loading_wait_us = 750'000;
+
+  Swipe(int width, SlideIndex slide_count, SlideIndex initial_slide)
+      : width_(width), ready_last_(slide_count - 1), available_last_(slide_count - 1),
+        settled_(initial_slide), target_(initial_slide) {}
+
+  PixelPosition position() const {
+    return this->settled_ * this->width_ + static_cast<PixelPosition>(std::floor(this->offset_ + 0.5f));
+  }
+  SlideIndex settled() const { return this->settled_; }
+  SlideIndex origin_slide() const { return this->origin_slide_; }
+  bool idle() const { return this->phase_ == Phase::Idle; }
+  bool dragging() const { return this->phase_ == Phase::Dragging; }
+  bool settling() const { return this->phase_ == Phase::Settling; }
+  int loading_direction(int64_t now_us) const {
+    constexpr int64_t feedback_delay_us = 160'000;
+    if (this->phase_ != Phase::WaitingForSlide || now_us - this->released_us_ < feedback_delay_us)
+      return 0;
+    return this->loading_slide_ > this->target_ ? 1 : -1;
+  }
+
+  void set_available_range(SlideIndex first, SlideIndex last) {
+    this->available_first_ = first;
+    this->available_last_ = last;
+  }
+
+  void set_ready_range(SlideIndex first, SlideIndex last) {
+    if (this->phase_ == Phase::Dragging &&
+        ((first < this->ready_first_ && this->offset_ < this->slide_offset_(this->ready_first_)) ||
+         (last > this->ready_last_ && this->offset_ > this->slide_offset_(this->ready_last_)))) {
+      // A neighbor can finish downloading while the finger is at a resisted
+      // edge. Continue from what's visible, without jumping to the raw drag.
+      this->origin_offset_ = this->offset_;
+      this->origin_x_ = this->last_x_;
+    }
+    this->ready_first_ = first;
+    this->ready_last_ = last;
+  }
+
+  void press(int x, int y, PixelPosition presented_position, int64_t now_us) {
+    this->resume_ = this->target_;
+    this->resume_transition_ = this->transition_;
+    this->offset_ = static_cast<float>(presented_position - this->settled_ * this->width_);
+    this->origin_offset_ = this->offset_;
+    // Use the original rounding rule at a slide boundary, including when a
+    // touch takes over the last frame of an animation in the other direction.
+    const auto nearest = (presented_position + this->width_ / 2) / this->width_;
+    this->origin_slide_ = std::clamp(nearest, this->ready_first_, this->ready_last_);
+    this->grabbed_between_slides_ = presented_position % this->width_ != 0;
+    this->origin_x_ = x;
+    this->origin_y_ = y;
+    this->last_x_ = x;
+    this->last_motion_us_ = now_us;
+    this->velocity_ = 0;
+    this->phase_ = Phase::Tracking;
+  }
+
+  void move(int x, int y, int64_t now_us) {
+    if (this->phase_ == Phase::Tracking) {
+      const int dx = std::abs(x - this->origin_x_);
+      const int dy = std::abs(y - this->origin_y_);
+      if (dy >= 16 && dy > dx) {
+        this->phase_ = Phase::Ignored;
+        return;
+      }
+      if (dx < 16 || dx * 2 < dy * 3)
+        return;
+      this->phase_ = Phase::Dragging;
+    }
+    if (this->phase_ != Phase::Dragging)
+      return;
+
+    if (this->last_x_ != x) {
+      const int64_t elapsed = now_us - this->last_motion_us_;
+      const float velocity = static_cast<float>(this->last_x_ - x) * 1000.0f /
+                             std::max<int64_t>(elapsed, 1'000);
+      this->velocity_ = elapsed < 85'000 ? 0.5f * (this->velocity_ + velocity) : 0.0f;
+      this->last_motion_us_ = now_us;
+      this->last_x_ = x;
+    }
+    const auto first = this->minimum_slide_();
+    const auto last = this->maximum_slide_();
+    const float lower = this->slide_offset_(first);
+    const float upper = this->slide_offset_(last);
+    const float drawn = this->origin_offset_ + this->origin_x_ - x;
+    if (drawn < lower && first == this->ready_first_) {
+      this->offset_ = lower + this->resist_(drawn - lower);
+    } else if (drawn > upper && last == this->ready_last_) {
+      this->offset_ = upper + this->resist_(drawn - upper);
+    } else {
+      this->offset_ = std::clamp(drawn, lower, upper);
+    }
+  }
+
+  void release(int64_t now_us) {
+    if (this->phase_ == Phase::Tracking || this->phase_ == Phase::Ignored) {
+      this->settle_to_(this->resume_, now_us, this->resume_transition_);
+      return;
+    }
+    if (this->phase_ != Phase::Dragging)
+      return;
+
+    const float velocity = now_us - this->last_motion_us_ < 85'000
+                               ? std::clamp(this->velocity_, -3.0f, 3.0f)
+                               : 0.0f;
+    const float projected = this->offset_ + velocity * 170.0f;
+    // Match the stock gesture distance from rest. When taking over between
+    // slides, keep enough margin to reverse the animation back by one photo.
+    const float threshold = this->grabbed_between_slides_ ? this->width_ * 0.30f : 120.0f;
+    const auto center = this->slide_offset_(this->origin_slide_);
+    const auto direction = [center, threshold](float offset) {
+      return offset - center >= threshold ? 1 : offset - center <= -threshold ? -1 : 0;
+    };
+    const auto destination =
+        std::clamp(this->origin_slide_ + direction(projected), this->minimum_slide_(), this->maximum_slide_());
+    // The resisted pixels stay beside the ready photo. Use the actual drag
+    // and its velocity to decide whether the finger committed to a cold edge.
+    const float drawn = this->origin_offset_ + this->origin_x_ - this->last_x_;
+    const auto intended = this->origin_slide_ + direction(drawn + velocity * 170.0f);
+    if (this->available_(intended) &&
+        ((intended < this->ready_first_ && drawn < this->slide_offset_(this->ready_first_)) ||
+         (intended > this->ready_last_ && drawn > this->slide_offset_(this->ready_last_)))) {
+      this->released_us_ = now_us;
+      this->loading_slide_ = intended;
+      this->target_ = this->origin_slide_;
+      this->transition_ = Transition::Quick;
+      this->phase_ = Phase::WaitingForSlide;
+      return;
+    }
+    this->settle_to_(destination, now_us, Transition::Quick);
+  }
+
+  void cancel(int64_t now_us) {
+    if (this->phase_ == Phase::Dragging || this->phase_ == Phase::Tracking ||
+        this->phase_ == Phase::Ignored)
+      this->settle_to_(this->resume_, now_us, this->resume_transition_);
+  }
+
+  bool advance(int64_t now_us, Transition transition) {
+    if (this->phase_ != Phase::Idle || this->settled_ >= this->ready_last_)
+      return false;
+    this->settle_to_(this->settled_ + 1, now_us, transition);
+    return true;
+  }
+
+  void show(SlideIndex slide) {
+    this->target_ = slide;
+    this->finish_settle_();
+  }
+
+  void tick(int64_t now_us) {
+    if (this->phase_ == Phase::WaitingForSlide) {
+      const bool expired = now_us - this->released_us_ >= max_loading_wait_us;
+      if (expired || !this->available_(this->loading_slide_)) {
+        this->settle_to_(this->target_, now_us, Transition::Quick);
+      } else if (this->loading_slide_ >= this->ready_first_ && this->loading_slide_ <= this->ready_last_) {
+        this->settle_to_(this->loading_slide_, now_us, Transition::Quick);
+      }
+      return;
+    }
+    if (this->phase_ != Phase::Settling)
+      return;
+
+    const float t = std::clamp(static_cast<float>(now_us - this->settle_us_) / this->duration_us_,
+                               0.0f, 1.0f);
+    const float end = this->slide_offset_(this->target_);
+    if (this->transition_ == Transition::Glide) {
+      // Symmetric easing makes idle playback start and end at rest.
+      const float progress = t * t * (3.0f - 2.0f * t);
+      this->offset_ = this->settle_from_ + (end - this->settle_from_) * progress;
+    } else {
+      const float inverse = 1.0f - t;
+      this->offset_ = end + (this->settle_from_ - end) * inverse * inverse * inverse;
+    }
+    if (t == 1.0f)
+      this->finish_settle_();
+  }
+
+ private:
+  enum class Phase { Idle, Tracking, Ignored, Dragging, WaitingForSlide, Settling };
+
+  // Animation arithmetic stays near zero even after millions of photos.
+  float slide_offset_(SlideIndex slide) const { return static_cast<float>((slide - this->settled_) * this->width_); }
+
+  float resist_(float overshoot) const {
+    const float limit = this->width_ * 0.0375f;
+    return overshoot * limit / (std::abs(overshoot) + limit * 3.0f);
+  }
+
+  SlideIndex minimum_slide_() const { return std::max(this->ready_first_, this->origin_slide_ - 1); }
+  SlideIndex maximum_slide_() const { return std::min(this->ready_last_, this->origin_slide_ + 1); }
+  bool available_(SlideIndex slide) const { return slide >= this->available_first_ && slide <= this->available_last_; }
+
+  void finish_settle_() {
+    this->settled_ = this->target_;
+    this->offset_ = 0;
+    this->transition_ = Transition::Quick;
+    this->phase_ = Phase::Idle;
+  }
+
+  void settle_to_(SlideIndex slide, int64_t now_us, Transition transition) {
+    this->target_ = slide;
+    this->settle_from_ = this->offset_;
+    this->settle_us_ = now_us;
+    const float distance = std::abs(this->offset_ - this->slide_offset_(slide));
+    if (distance < 0.5f) {
+      this->finish_settle_();
+      return;
+    }
+    const float fraction = std::min(distance / this->width_, 1.0f);
+    this->transition_ = transition;
+    this->duration_us_ = transition == Transition::Glide ? std::max(180'000.0f, 640'000.0f * fraction)
+                                                       : 120'000.0f + 100'000.0f * fraction;
+    this->phase_ = Phase::Settling;
+  }
+
+  int width_;
+  SlideIndex ready_first_{};
+  SlideIndex ready_last_;
+  SlideIndex available_first_{};
+  SlideIndex available_last_;
+  float offset_{};
+  SlideIndex settled_;
+  SlideIndex target_;
+  Phase phase_{Phase::Idle};
+  Transition transition_{Transition::Quick};
+  Transition resume_transition_{Transition::Quick};
+  SlideIndex resume_{};
+  SlideIndex origin_slide_{};
+  int origin_x_{};
+  int origin_y_{};
+  int last_x_{};
+  bool grabbed_between_slides_{};
+  float origin_offset_{};
+  float velocity_{};
+  int64_t last_motion_us_{};
+  float settle_from_{};
+  float duration_us_{};
+  int64_t settle_us_{};
+  SlideIndex loading_slide_{};
+  int64_t released_us_{};
+};
+
+}  // namespace espframe::native
