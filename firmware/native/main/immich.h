@@ -7,6 +7,7 @@
 #include "p4_jpeg_decoder.h"
 #include "photo_history.h"
 #include "preparation_checkpoint.h"
+#include "preview_prefetch.h"
 #include "recent_previews.h"
 #include "settings.h"
 #include "unavailable_previews.h"
@@ -59,13 +60,15 @@ class ImmichSource {
   std::vector<ImmichPhoto> memories_();
   bool next_asset_(ImmichPhoto &asset);
   bool take_pending_(ImmichPhoto &asset);
+  std::optional<size_t> pending_index_(const AssetId &exclude = {}) const;
+  void prefetch_next_(const AssetId &id);
   bool select_pair_(ImmichPhoto &seed, AssetId &companion);
   AssetId companion_for_(const ImmichPhoto &primary, int64_t deadline_us);
   void discard_candidate_(const AssetId &id);
   void complete_location_(PhotoSlide &frame);
   bool wait_for_pixel_work_() const;
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, bool for_pair, int64_t deadline_us,
-                              bool report_response);
+                              bool report_response, const AssetId &lookahead = {});
   PreparedPreview render_prepared_(const PhotoSlide &frame, uint16_t *panel);
 
   const std::atomic<bool> &cancelled_;
@@ -79,6 +82,7 @@ class ImmichSource {
   const NativeNetwork &network_;
   ImmichHttp http_;
   ImmichHttp prepared_http_{cancelled_, "Authorization"};
+  PreviewPrefetch prefetch_{cancelled_};
   int64_t prepared_retry_us_{};
   P4JpegDecoder jpeg_;
   uint32_t http_connection_{};

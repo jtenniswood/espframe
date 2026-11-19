@@ -65,6 +65,7 @@ std::optional<ImmichPhoto> parse_photo_asset(std::string_view json);
 std::string memory_request_path(std::chrono::sys_days date, unsigned index);
 bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candidate, unsigned pairing_days = 0);
 bool can_start_portrait_pair(const ImmichPhoto &photo);
-std::optional<size_t> find_pair_seed(std::span<const ImmichPhoto> photos, unsigned pairing_days = 0);
+std::optional<size_t> find_pair_seed(std::span<const ImmichPhoto> photos, unsigned pairing_days = 0,
+                                    const AssetId &exclude = {});
 
 }  // namespace espframe::native

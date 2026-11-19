@@ -59,7 +59,7 @@ struct PreparationTiming {
 
 constexpr std::array preparation_stages{"attempt", "selection", "transfer", "hardware_jpeg", "software_jpeg",
                                         "webp", "rejected_preview", "composition", "prepared_transfer", "prepared_decode",
-                                        "prepared_cache_decode"};
+                                        "prepared_cache_decode", "prefetch_transfer", "prefetch_wait"};
 static_assert(preparation_stages.size() == static_cast<size_t>(TrialPreparationStage::Count));
 std::array<PreparationTiming, preparation_stages.size()> preparation_timings{};
 portMUX_TYPE preparation_lock = portMUX_INITIALIZER_UNLOCKED;

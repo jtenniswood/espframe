@@ -90,6 +90,9 @@ int main() {
   assert(!can_start_portrait_pair(photos[3]));
   assert(!can_start_portrait_pair(photos[5]));
   assert(find_pair_seed(photos) == 2);
+  assert(find_pair_seed(photos, 0, photos[2].id) == 1);
+  assert(!find_pair_seed(wider_pair, 2, primary.id));
+  assert(!find_pair_seed(wider_pair, 2, two_days_away.id));
   assert(!find_pair_seed(std::span(photos).last(3)));
   const auto uncertain = parse_photo_search(R"([
     {"id":"ef492926-9046-408b-be47-a959620753bb","localDateTime":"2024-03-01T19:00:00Z","width":null,"height":null},

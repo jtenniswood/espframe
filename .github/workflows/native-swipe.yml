@@ -198,6 +198,11 @@ jobs:
             firmware/native/main/immich_http.cpp firmware/native/tests/immich_http_test.cpp \
             -o "$RUNNER_TEMP/immich-http-test"
           "$RUNNER_TEMP/immich-http-test"
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/http_stubs \
+            -Ifirmware/native/tests/prefetch_stubs -Ifirmware/native/tests/stubs \
+            firmware/native/main/preview_prefetch.cpp firmware/native/tests/preview_prefetch_test.cpp \
+            -o "$RUNNER_TEMP/native-preview-prefetch-test"
+          "$RUNNER_TEMP/native-preview-prefetch-test"
       - uses: actions/upload-artifact@v7
         with:
           name: firmware-test-native-swipe-${{ matrix.board }}

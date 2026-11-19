@@ -27,6 +27,8 @@ enum class TrialPreparationStage : uint8_t {
   PreparedTransfer,
   PreparedDecode,
   PreparedCacheDecode,
+  PrefetchTransfer,
+  PrefetchWait,
   Count,
 };
 
