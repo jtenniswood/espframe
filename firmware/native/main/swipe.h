@@ -25,6 +25,7 @@ class Swipe {
   bool idle() const { return this->phase_ == Phase::Idle; }
   bool dragging() const { return this->phase_ == Phase::Dragging; }
   bool settling() const { return this->phase_ == Phase::Settling; }
+  SlideIndex settle_destination() const { return this->settling() ? this->target_ : this->settled_; }
   int loading_direction(int64_t now_us) const {
     constexpr int64_t feedback_delay_us = 160'000;
     if (this->phase_ != Phase::WaitingForSlide || now_us - this->released_us_ < feedback_delay_us)

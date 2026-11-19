@@ -77,11 +77,12 @@ class SlidePrefetch {
     return active != wanted && (refreshing || active != center_);
   }
 
-  bool can_defer_pixel_work(SlideRange ready, bool contact_engaged) const {
-    const auto prepared = direction_ < 0 ? center_ - ready.first : ready.last - center_;
-    // Keep the drag under the finger responsive. When only the landing
-    // slide is ready, refill during the settle so the next swipe has a chance
-    // to find another photo without exhausting the cache.
+  bool can_defer_pixel_work(SlideRange ready, bool contact_engaged, SlideIndex destination) const {
+    const auto anchor = contact_engaged ? center_ : destination;
+    const bool backward = anchor == center_ ? direction_ < 0 : anchor < center_;
+    const auto prepared = backward ? anchor - ready.first : ready.last - anchor;
+    // Protect the motion under the finger. During settle, count the photos
+    // still available beyond the landing in the direction of the swipe.
     return center_ > 0 && !requested_ && prepared >= (contact_engaged ? 1 : desired_ready_in_direction);
   }
 

@@ -30,10 +30,10 @@ int main() {
   SlidePrefetch prefetch{10};
   auto window = prefetch.window(available);
   assert(window.first == 8 && window.last == 13);
-  assert(!SlidePrefetch{0}.can_defer_pixel_work({0, 1}, true));
-  assert(!prefetch.can_defer_pixel_work({10, 10}, true));
-  assert(!prefetch.can_defer_pixel_work({9, 10}, true) && prefetch.can_defer_pixel_work({10, 11}, true));
-  assert(!prefetch.can_defer_pixel_work({10, 11}, false) && prefetch.can_defer_pixel_work({10, 12}, false));
+  assert(!SlidePrefetch{0}.can_defer_pixel_work({0, 1}, true, 0));
+  assert(!prefetch.can_defer_pixel_work({10, 10}, true, 10));
+  assert(!prefetch.can_defer_pixel_work({9, 10}, true, 10) && prefetch.can_defer_pixel_work({10, 11}, true, 10));
+  assert(!prefetch.can_defer_pixel_work({10, 11}, false, 10) && prefetch.can_defer_pixel_work({10, 12}, false, 10));
   const auto forward = prefetch.candidates(window);
   // A missing slide 9 must not delay preparing 12 for the next forward swipe.
   assert(forward[2] == 11 && forward[3] == 12 && forward[4] == 9);
@@ -45,11 +45,31 @@ int main() {
   assert(deeper.window(available).first == 3 && deeper.window(available).last == 11);
   const auto backward = deeper.candidates(deeper.window(available));
   assert(backward[2] == 8 && backward[3] == 7 && backward[4] == 10);
-  assert(deeper.can_defer_pixel_work({8, 11}, true) && !deeper.can_defer_pixel_work({8, 11}, false));
-  assert(deeper.can_defer_pixel_work({7, 11}, false));
+  assert(deeper.can_defer_pixel_work({8, 11}, true, 9) && !deeper.can_defer_pixel_work({8, 11}, false, 9));
+  assert(deeper.can_defer_pixel_work({7, 11}, false, 9));
   deeper.moved_to(1);
   assert(deeper.window(available).first == 1 && deeper.window(available).last == 9);
   assert(deeper.candidates(deeper.window(available))[9] == 9);
+
+  Swipe landing{slide_width, 101, 10};
+  landing.set_ready_range(8, 12);
+  landing.press(850, 200, 10 * slide_width, 10'000);
+  landing.move(250, 200, 30'000);
+  assert(landing.dragging() && landing.settle_destination() == 10);
+  assert(prefetch.can_defer_pixel_work({8, 12}, true, landing.settle_destination()));
+  landing.release(35'000);
+  assert(landing.settling() && landing.settle_destination() == 11);
+  assert(!prefetch.can_defer_pixel_work({8, 12}, false, landing.settle_destination()));
+  assert(prefetch.can_defer_pixel_work({8, 13}, false, landing.settle_destination()));
+
+  // A reversal counts the ready photos behind the backward landing.
+  landing.show(10);
+  landing.press(250, 200, 10 * slide_width, 40'000);
+  landing.move(850, 200, 60'000);
+  landing.release(65'000);
+  assert(landing.settling() && landing.settle_destination() == 9);
+  assert(!prefetch.can_defer_pixel_work({8, 13}, false, landing.settle_destination()));
+  assert(prefetch.can_defer_pixel_work({7, 13}, false, landing.settle_destination()));
 
   uint16_t pixels[SlideCache::minimum_capacity]{};
   SlideCache::Buffers buffers{};
@@ -82,11 +102,11 @@ int main() {
   swipe.move(900, 200, 310'000);
   prefetch.request_at_edge(swipe.position(), {10, 12}, available);
   assert(prefetch.requested() == 9 && prefetch.candidates(prefetch.window(available))[1] == 9);
-  assert(!prefetch.can_defer_pixel_work({10, 12}, true));
-  assert(!prefetch.can_defer_pixel_work({10, 12}, false));
+  assert(!prefetch.can_defer_pixel_work({10, 12}, true, 10));
+  assert(!prefetch.can_defer_pixel_work({10, 12}, false, 10));
 
   prefetch.prepared(9);
-  assert(prefetch.can_defer_pixel_work({9, 12}, true));
+  assert(prefetch.can_defer_pixel_work({9, 12}, true, 10));
   prefetch.request_at_edge(8 * slide_width - 20, {8, 12}, available);
   assert(prefetch.requested() == 7 && prefetch.candidates(prefetch.window(available))[1] == 7);
   assert(prefetch.can_yield(13, 7));

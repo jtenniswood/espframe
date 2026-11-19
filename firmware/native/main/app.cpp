@@ -787,7 +787,8 @@ void run(void *) {
     user_motion = input.awake() && (contact_engaged ||
                   (user_motion && (!swipe.idle() || swipe.position() != display.presented_position())));
     if (live && !trial_fixtures)
-      loader.defer_pixel_work(user_motion && prefetch.can_defer_pixel_work({ready_first, ready_last}, contact_engaged));
+      loader.defer_pixel_work(user_motion && prefetch.can_defer_pixel_work({ready_first, ready_last}, contact_engaged,
+                                                                         swipe.settle_destination()));
     if (preparing >= 0) {
       if (const auto wanted = prefetch.requested();
           wanted && eligible(*wanted) && prefetch.can_yield(preparing, *wanted, preparing_refresh))
