@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict'
-import { execFile } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { promisify } from 'node:util'
 
 const installer = process.argv[2]
 assert.ok(installer, 'Pass the directory of the packaged native installer')
@@ -71,9 +70,7 @@ const verify = `
     } catch (error) {
       result = error.message
     } finally {
-      document.body.dataset.testResult = result
-      // Keep headless Chromium's DOM output small after running the page.
-      document.querySelectorAll('script, style').forEach(element => element.remove())
+      console.info('ESPFRAME_STANDALONE_RESULT ' + encodeURIComponent(result))
     }
   })
 `
@@ -82,13 +79,29 @@ const temp = await mkdtemp(join(tmpdir(), 'espframe-standalone-installer-'))
 try {
   const page = join(temp, 'Espframe Native Installer.html')
   await writeFile(page, html.replace('</head>', () => `<script>${verify}</script></head>`))
-  const { stdout } = await promisify(execFile)(process.env.CHROME_BIN || 'google-chrome', [
+  const chrome = spawn(process.env.CHROME_BIN || 'google-chrome', [
     '--headless', '--no-sandbox', '--disable-gpu', '--disable-background-networking', '--host-resolver-rules=MAP * ~NOTFOUND',
-    '--virtual-time-budget=8000', '--dump-dom', `--user-data-dir=${join(temp, 'profile')}`, pathToFileURL(page).href,
-  ], { timeout: 20_000, maxBuffer: Buffer.byteLength(html) + 512 * 1024 })
-  assert.match(stdout, /data-test-result="passed"/, stdout.match(/data-test-result="[^"]*"/)?.[0] ||
-    'The local installer did not report a result')
-  console.log('The standalone installer opened from disk and loaded each factory image through its ESP Web Tools manifest')
+    '--enable-logging=stderr', `--user-data-dir=${join(temp, 'profile')}`, pathToFileURL(page).href,
+  ], { signal: AbortSignal.timeout(20_000), stdio: ['ignore', 'ignore', 'pipe'] })
+  const stopped = new Promise(resolve => chrome.once('close', resolve))
+  try {
+    const result = await new Promise((resolve, reject) => {
+      let log = ''
+      chrome.stderr.setEncoding('utf8')
+      chrome.stderr.on('data', text => {
+        log += text
+        const encoded = /ESPFRAME_STANDALONE_RESULT ([^"\s]+)"/.exec(log)?.[1]
+        if (encoded) resolve(decodeURIComponent(encoded))
+      })
+      chrome.once('error', reject)
+      chrome.once('close', code => reject(new Error(`Chromium stopped before the installer reported a result (${code}).\n${log}`)))
+    })
+    assert.equal(result, 'passed')
+    console.log('The standalone installer opened from disk and loaded each factory image through its ESP Web Tools manifest')
+  } finally {
+    chrome.kill()
+    await stopped
+  }
 } finally {
   await rm(temp, { recursive: true, force: true })
 }
