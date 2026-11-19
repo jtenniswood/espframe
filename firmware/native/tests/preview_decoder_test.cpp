@@ -240,7 +240,7 @@ void verify_interruption(const char *jpeg_path, const char *webp_path) {
 }
 
 int main(int argc, char **argv) {
-  assert(argc == 6);
+  assert(argc == 7);
   const auto wide = frame_photo(1600, 900, slide_width, slide_height, DisplayMode::Fill);
   assert(wide.source.x == 80 && wide.source.y == 0 && wide.source.width == 1440 && wide.source.height == 900);
   const auto narrow = frame_photo(600, 500, slide_width, slide_height, DisplayMode::Fill);
@@ -248,6 +248,8 @@ int main(int argc, char **argv) {
   for (int i = 1; i < 4; ++i)
     verify(argv[i]);
   verify_pair(argv[4], argv[5]);
+  // A 1920 × 1440 progressive JPEG uses 5/8 for Fit and 6/8 for Fill.
+  verify(argv[6]);
   verify_hardware(argv[1], argv[2], argv[3]);
   verify_interruption(argv[1], argv[3]);
   const uint8_t unsupported[]{0, 1, 2, 3};

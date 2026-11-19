@@ -76,24 +76,26 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegError &error, const uint8_
   }
   if (!checkpoint())
     return Decode::Interrupted;
-  // Let the DCT do the first downsampling step when both axes can afford it.
-  for (unsigned divisor : {2, 4, 8}) {
-    if (static_cast<unsigned>(size.source.width) / divisor < static_cast<unsigned>(size.width) ||
-        static_cast<unsigned>(size.source.height) / divisor < static_cast<unsigned>(size.height))
-      break;
-    decoder.scale_denom = divisor;
-  }
+  // Decode the smallest full-image scale that leaves enough pixels in the crop.
+  // libjpeg-turbo supports every eighth, including 5/8 for common portrait previews.
+  const auto &crop = size.source;
+  const auto eighths = [](int target, int source) { return (target * DCTSIZE + source - 1) / source; };
+  decoder.scale_num = std::min(DCTSIZE, std::max(eighths(size.width, crop.width), eighths(size.height, crop.height)));
+  decoder.scale_denom = DCTSIZE;
   decoder.out_color_space = JCS_RGB;
   decoder.do_fancy_upsampling = FALSE;
   if (!jpeg_start_decompress(&decoder) || decoder.output_components != 3)
     return Decode::Invalid;
   auto rows = decoder.mem->alloc_sarray(reinterpret_cast<j_common_ptr>(&decoder), JPOOL_IMAGE,
                                         decoder.output_width * 3, 1);
-  const auto &crop = size.source;
   const auto left = crop.x * decoder.output_width / decoder.image_width;
   const auto top = crop.y * decoder.output_height / decoder.image_height;
   const auto crop_width = std::max(1u, (crop.x + crop.width) * decoder.output_width / decoder.image_width - left);
   const auto crop_height = std::max(1u, (crop.y + crop.height) * decoder.output_height / decoder.image_height - top);
+  auto *column_bytes = static_cast<uint16_t *>(decoder.mem->alloc_small(
+      reinterpret_cast<j_common_ptr>(&decoder), JPOOL_IMAGE, size.width * sizeof(uint16_t)));
+  for (int x = 0; x < size.width; ++x)
+    column_bytes[x] = static_cast<uint16_t>((left + x * crop_width / size.width) * 3);
   unsigned target_y = 0;
   while (decoder.output_scanline < decoder.output_height) {
     const unsigned source_y = decoder.output_scanline;
@@ -105,7 +107,7 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegError &error, const uint8_
            top + target_y * crop_height / size.height == source_y) {
       auto *line = pixels + target_y * size.width;
       for (int x = 0; x < size.width; ++x) {
-        const auto *rgb = rows[0] + (left + x * crop_width / size.width) * 3;
+        const auto *rgb = rows[0] + column_bytes[x];
         line[x] = static_cast<uint16_t>(((rgb[0] & 0xf8) << 8) | ((rgb[1] & 0xfc) << 3) | (rgb[2] >> 3));
       }
       ++target_y;
