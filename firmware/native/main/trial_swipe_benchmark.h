@@ -87,6 +87,7 @@ class TrialSwipeBenchmark {
   struct Results {
     uint32_t started{};
     uint32_t settled{};
+    SlideIndex settled_slide{};
     uint32_t wrong_slide{};
     uint32_t cold_starts{};
     uint32_t cold_releases_unready{};
@@ -121,6 +122,7 @@ class TrialSwipeBenchmark {
       if (!at_rest)
         return {};
       ++results_.settled;
+      results_.settled_slide = center;
       const bool returned = cold_start_ && center == origin_;
       results_.cold_returns += returned;
       // If a neighbor arrived during the drag, the movement remaining

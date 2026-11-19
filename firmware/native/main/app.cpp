@@ -637,7 +637,10 @@ void run(void *) {
     if (live) {
       const bool first_photo = swipe.settled() == 0;
       const bool dwelling = visible_and_idle && !fade.running() && !fade.held();
-      if (dwell.elapsed(now, dwelling, first_photo ? 0 : loader.slide_interval_us())) {
+      // In the outage replay, only scripted swipes may change the photo
+      // after the startup scene. A missing history slide must stop the run.
+      if ((!SWIPE_TRIAL_REPLAY_HISTORY || first_photo) &&
+          dwell.elapsed(now, dwelling, first_photo ? 0 : loader.slide_interval_us())) {
         if (can_fade && !first_photo && swipe.settled() < ready_last)
           fade.start(swipe.settled(), swipe.settled() + 1, now);
         else

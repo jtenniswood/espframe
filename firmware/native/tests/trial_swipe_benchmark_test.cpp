@@ -52,7 +52,8 @@ int main() {
     furthest = std::max(furthest, rewind.settled());
   }
   assert(furthest == 10 && rewind.settled() == 1);
-  assert(history.results().settled == history.target() && history.results().wrong_slide == 0);
+  assert(history.results().settled == history.target() && history.results().settled_slide == 1 &&
+         history.results().wrong_slide == 0);
 
   const auto run_cold = [&](int64_t ready_after, SlideIndex expected) {
     TrialSwipeBenchmark rapid{TrialSwipeBenchmark::Scenario::Rapid};

@@ -21,6 +21,7 @@ class RecentPreviews {
   using Key = std::variant<AssetId, SlideIndex>;
   static constexpr size_t capacity = 16;
   static constexpr size_t byte_budget = 2 * 1024 * 1024;
+  static constexpr size_t prepared_byte_budget = 4 * 1024 * 1024;
 
   std::span<const uint8_t> find(const Key &key) {
     for (auto &entry : this->entries_) {
@@ -33,10 +34,10 @@ class RecentPreviews {
   }
 
   void remember(const Key &key, std::span<const uint8_t> data) {
-    if (data.empty() || data.size() > byte_budget || !this->find(key).empty())
+    if (data.empty() || data.size() > this->byte_limit_ || !this->find(key).empty())
       return;
     constexpr size_t free_for_decode = 8 * 1024 * 1024;
-    while (this->used_ + data.size() > byte_budget ||
+    while (this->used_ + data.size() > this->byte_limit_ ||
            heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < free_for_decode + data.size()) {
       if (this->used_ == 0)
         return;
@@ -53,6 +54,13 @@ class RecentPreviews {
     std::memcpy(copy.get(), data.data(), data.size());
     this->used_ += data.size();
     entry = {key, std::move(copy), data.size(), ++this->clock_};
+  }
+
+  void remember_prepared(SlideIndex slide, std::span<const uint8_t> data) {
+    // A prepared pair replaces two upstream files. Give opted-in sessions
+    // more room for history while the same decoder reserve still applies.
+    this->byte_limit_ = prepared_byte_budget;
+    this->remember(slide, data);
   }
 
   void discard(const Key &key) {
@@ -91,6 +99,7 @@ class RecentPreviews {
   }
 
   std::array<Entry, capacity> entries_{};
+  size_t byte_limit_{byte_budget};
   size_t used_{};
   uint64_t clock_{};
 };

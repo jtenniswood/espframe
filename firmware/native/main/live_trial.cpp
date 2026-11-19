@@ -80,8 +80,9 @@ esp_err_t benchmark_status(httpd_req_t *request) {
   char scripted_counts[352]{};
 #if SWIPE_TRIAL_BENCHMARK
   std::snprintf(scripted_counts, sizeof(scripted_counts),
-                ",\"target\":%u,\"started\":%" PRIu32 ",\"settled\":%" PRIu32 ",\"wrong_slide\":%" PRIu32,
-                benchmark.target(), script.started, script.settled, script.wrong_slide);
+                ",\"target\":%u,\"started\":%" PRIu32 ",\"settled\":%" PRIu32
+                ",\"settled_slide\":%" PRId64 ",\"wrong_slide\":%" PRIu32,
+                benchmark.target(), script.started, script.settled, script.settled_slide, script.wrong_slide);
 #endif
 #if SWIPE_TRIAL_BENCHMARK_RAPID
   const auto used = std::strlen(scripted_counts);

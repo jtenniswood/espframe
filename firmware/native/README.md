@@ -188,9 +188,10 @@ accelerator or third display buffer is unavailable. It keeps the current
 photo visible during a network failure. The random feed continues as new
 previews become available. It
 remembers the last 128 photo positions per session. It can decode up to
-16 recent previews or prepared slide JPEGs from a shared 2 MiB memory cache
-while offline, depending on their sizes and available PSRAM. Prepared pairs
-occupy one entry. Older photos need Wi-Fi.
+16 recent previews or prepared slide JPEGs from a shared memory cache while
+offline, depending on file sizes and available PSRAM. The cache can use up to
+2 MiB for direct Immich, or 4 MiB once a prepared slide has loaded. A prepared
+pair occupies one entry. Older photos may need another download.
 The frame reuses the Immich connection when the server allows it, and
 reconnects if an idle connection has closed before the next response.
 Wi-Fi association and time synchronization run independently of photo

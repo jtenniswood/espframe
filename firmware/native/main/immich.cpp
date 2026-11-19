@@ -586,7 +586,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   // Keep the clean JPEG, before captions and tone, only after the photo
   // identity for this history position has been committed.
   if (prepared_bytes)
-    previews_.remember(slide, {encoded_, prepared_bytes});
+    previews_.remember_prepared(slide, {encoded_, prepared_bytes});
   return PrepareResult::Ready;
 }
 

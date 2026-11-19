@@ -45,7 +45,7 @@ int main() {
   RecentPreviews mixed;
   constexpr SlideIndex slide = 1;
   mixed.remember(id(1), encoded);
-  mixed.remember(slide, tiny);
+  mixed.remember_prepared(slide, tiny);
   assert(mixed.find(id(1)).size() == encoded.size());
   assert(mixed.find(slide).size() == tiny.size());
   mixed.discard(id(1));
@@ -53,6 +53,14 @@ int main() {
   mixed.remember(id(1), encoded);
   mixed.discard(slide);
   assert(mixed.find(slide).empty() && mixed.find(id(1)).front() == 9);
+
+  RecentPreviews prepared;
+  std::vector<uint8_t> pair(RecentPreviews::prepared_byte_budget / 4 + 1, 12);
+  for (SlideIndex position = 1; position <= 4; ++position)
+    prepared.remember_prepared(position, pair);
+  assert(prepared.find(SlideIndex{1}).empty());
+  for (SlideIndex position = 2; position <= 4; ++position)
+    assert(prepared.find(position).size() == pair.size());
 
   free_spiram = 2 * 1024 * 1024;
   small.remember(id(19), tiny);
