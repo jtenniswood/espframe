@@ -255,7 +255,7 @@ jobs:
             live=firmware/native/build/esphome-live-trial-v1
             check_benchmark() {
               cmp "$live/partition_table/partition-table.bin" "$1/partition_table/partition-table.bin"
-              riscv32-esp32-elf-nm --defined-only -C "$1/$2.elf" > /tmp/bench-symbols
+              riscv32-esp-elf-nm --defined-only -C "$1/$2.elf" > /tmp/bench-symbols
               grep -Fq "espframe::native::poll_live_trial_benchmark(" /tmp/bench-symbols
               if grep -E "espframe::native::(Settings::save|start_usb_setup|stage_firmware)|[[:space:]](esp_ota_mark_app_valid_cancel_rollback|nvs_erase_all|nvs_flash_erase|nvs_set_str)$" /tmp/bench-symbols; then
                 exit 1
