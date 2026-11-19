@@ -380,6 +380,8 @@ std::optional<size_t> ImmichSource::pending_index_(const AssetId &exclude) const
 }
 
 void ImmichSource::prefetch_next_(const AssetId &id) {
+  if constexpr (SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD)
+    return;
   if (id[0] == '\0' || !this->online_() || this->unavailable_.contains(id, esp_timer_get_time()) ||
       !this->previews_.find(id).empty())
     return;
@@ -721,7 +723,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   std::optional<TrialStageTimer> composition;
   if (!prepared) {
     const auto upcoming = [&](const AssetId &exclude) {
-      if (!remembered && !settings_.has_prepared_slides()) {
+      if (!SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD && !remembered && !settings_.has_prepared_slides()) {
         if (const auto index = this->pending_index_(exclude))
           return this->pending_[*index].id;
       }

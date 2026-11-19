@@ -101,8 +101,11 @@ class TrialSwipeBenchmark {
 
   const Results &results() const { return results_; }
   unsigned target() const { return scenario_ == Scenario::History ? 2 * history_forward_moves : swipe_limit; }
+  bool finished() const { return results_.settled == target(); }
 
   std::optional<TouchReport> poll(int64_t now, SlideIndex center, SlideRange ready, bool at_rest) {
+    if (finished())
+      return {};
     if (missing_slide_ && ready.contains(*missing_slide_)) {
       results_.refill.add(static_cast<uint32_t>(now - missing_since_), refill_limit_us);
       missing_slide_.reset();

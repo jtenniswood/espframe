@@ -7,6 +7,7 @@
 #include "settings.h"
 #include "trial_swipe_benchmark.h"
 #include "trial_swipe_landing.h"
+#include "trial_replay.h"
 
 #include "esp_http_server.h"
 #include "esp_timer.h"
@@ -63,12 +64,14 @@ constexpr std::array preparation_stages{"attempt", "selection", "transfer", "har
 static_assert(preparation_stages.size() == static_cast<size_t>(TrialPreparationStage::Count));
 std::array<PreparationTiming, preparation_stages.size()> preparation_timings{};
 portMUX_TYPE preparation_lock = portMUX_INITIALIZER_UNLOCKED;
+bool preparation_finished{};
 
 #if SWIPE_TRIAL_BENCHMARK
 constexpr auto benchmark_scenario = SWIPE_TRIAL_REPLAY_HISTORY ? TrialSwipeBenchmark::Scenario::History
                                   : SWIPE_TRIAL_BENCHMARK_RAPID ? TrialSwipeBenchmark::Scenario::Rapid
                                                                : TrialSwipeBenchmark::Scenario::Normal;
 TrialSwipeBenchmark benchmark{benchmark_scenario};
+std::optional<TrialSwipeMetrics::Results> completed_replay_metrics;
 #endif
 TrialSwipeMetrics metrics;
 portMUX_TYPE swipe_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -86,10 +89,11 @@ PhysicalDragCounts physical_drags;
 
 esp_err_t benchmark_status(httpd_req_t *request) {
   portENTER_CRITICAL(&swipe_lock);
-  const auto result = metrics.results();
 #if SWIPE_TRIAL_BENCHMARK
+  const auto result = completed_replay_metrics.value_or(metrics.results());
   const auto script = benchmark.results();
 #else
+  const auto result = metrics.results();
   const auto drags = physical_drags;
 #endif
   portEXIT_CRITICAL(&swipe_lock);
@@ -119,9 +123,14 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 script.refill.count, script.refill.worst_us, script.refill.over_limit);
 #endif
   const auto period = Display::nominal_frame_period_us();
-  char body[1488]{};
+  char replay[96]{};
+  if constexpr (direct_trial_replay) {
+    std::snprintf(replay, sizeof(replay), ",\"direct_replay_lookahead\":%s,\"replay_origin\":\"%s\"",
+                  SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD ? "false" : "true", trial_replay_origin.data());
+  }
+  char body[1600]{};
   const auto length = std::snprintf(body, sizeof(body),
-                "{\"scripted\":%s,\"source\":\"%s\"%s,\"cache_hits\":%" PRIu32
+                "{\"scripted\":%s,\"source\":\"%s\"%s%s,\"cache_hits\":%" PRIu32
                 ",\"dma_burst_bytes\":%u,\"dma_copies\":%" PRIu32 ",\"cpu_copies\":%" PRIu32
                 ",\"frame_period_us\":%u,\"drag_gap_limit_us\":%u"
                 ",\"first_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
@@ -132,7 +141,7 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 ",\"drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"busy_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}}",
                 SWIPE_TRIAL_BENCHMARK ? "true" : "false", SWIPE_TRIAL_BENCHMARK_FIXTURES ? "fixtures" : "immich",
-                gesture_counts, result.cache_hits,
+                gesture_counts, replay, result.cache_hits,
                 FrameBlitter::burst_bytes, result.dma_copies, result.cpu_copies,
                 period, period + period / 2,
                 result.first_motion.count, result.first_motion.worst_us, result.first_motion.over_limit,
@@ -393,11 +402,13 @@ void record_live_trial_preview(int http_status) {
 
 void record_live_trial_preparation_time(TrialPreparationStage stage, uint32_t elapsed_us, size_t bytes) {
   portENTER_CRITICAL(&preparation_lock);
-  auto &timing = preparation_timings[static_cast<size_t>(stage)];
-  ++timing.count;
-  timing.total_us += elapsed_us;
-  timing.worst_us = std::max(timing.worst_us, elapsed_us);
-  timing.bytes += bytes;
+  if (!direct_trial_replay || !preparation_finished) {
+    auto &timing = preparation_timings[static_cast<size_t>(stage)];
+    ++timing.count;
+    timing.total_us += elapsed_us;
+    timing.worst_us = std::max(timing.worst_us, elapsed_us);
+    timing.bytes += bytes;
+  }
   portEXIT_CRITICAL(&preparation_lock);
 }
 
@@ -452,6 +463,16 @@ void record_live_trial_blit(bool dma) {
 std::optional<TouchReport> poll_live_trial_benchmark(int64_t now, SlideIndex center, SlideRange ready, bool at_rest) {
   portENTER_CRITICAL(&swipe_lock);
   const auto report = benchmark.poll(now, center, ready, at_rest);
+  if constexpr (direct_trial_replay) {
+    if (benchmark.finished() && !completed_replay_metrics) {
+      completed_replay_metrics = metrics.results();
+      // Freeze both reports before publishing the final settle. A download
+      // finishing after the script must not change a captured comparison.
+      portENTER_CRITICAL(&preparation_lock);
+      preparation_finished = true;
+      portEXIT_CRITICAL(&preparation_lock);
+    }
+  }
   portEXIT_CRITICAL(&swipe_lock);
   return report;
 }

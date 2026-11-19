@@ -70,6 +70,7 @@ target_compile_definitions(${COMPONENT_LIB} PRIVATE NATIVE_BOARD="${SWIPE_BOARD}
                                                    SWIPE_TRIAL_REPLAY_ORIGIN="${SWIPE_TRIAL_REPLAY_ORIGIN}"
                                                    SWIPE_TRIAL_REPLAY_PREPARED=$<BOOL:${SWIPE_TRIAL_REPLAY_PREPARED}>
                                                    SWIPE_TRIAL_REPLAY_HISTORY=$<BOOL:${SWIPE_TRIAL_REPLAY_HISTORY}>
+                                                   SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD=$<BOOL:${SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD}>
                                                    SWIPE_TRIAL_BENCHMARK_FIXTURES=$<BOOL:${SWIPE_TRIAL_BENCHMARK_FIXTURES}>)
 
 idf_build_get_property(python PYTHON)

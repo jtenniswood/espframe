@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from 'node:crypto'
 import { once } from 'node:events'
 import { createServer } from 'node:http'
 import { isIPv4 } from 'node:net'
@@ -28,6 +29,7 @@ const origin = `http://${host}:${port}`
 const service = createSlideService({ immichUrl: origin, immichKey, token, maxAgeMs: 600_000 })
 const images = new Map<string, Buffer>()
 const library: { id: string; width: number; height: number; localDateTime: string }[] = []
+const fingerprint = createHash('sha256')
 
 for (let index = 0; index < 72; index++) {
   const width = 960
@@ -61,15 +63,23 @@ for (let index = 0; index < 72; index++) {
   const bytes = await preview.toBuffer()
   images.set(id, bytes)
   const date = new Date(Date.UTC(2024, 0, Math.floor(index / 2) * 7 + 1, 12))
-  library.push({ id, width, height, localDateTime: date.toISOString() })
+  const asset = { id, width, height, localDateTime: date.toISOString() }
+  library.push(asset)
+  fingerprint.update(JSON.stringify(asset)).update(String(bytes.length) + '\n').update(bytes)
 }
 
+const replayProfile = JSON.stringify({
+  run: randomUUID(), sha256: fingerprint.digest('hex'), previewSize, baselineQuality,
+})
 let offset = 0
 const history = new Set<string>()
 let offline = false
 let recordHistory = false
 const server = createServer(async (request, response) => {
   const path = request.url ?? ''
+  if (request.method === 'GET' && path === '/replay-profile') {
+    return response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(replayProfile)
+  }
   if (offline) {
     console.log(JSON.stringify({ offline: path }))
     return response.writeHead(503).end()

@@ -146,6 +146,18 @@ int main() {
   repeated.poll(start + 600'000, 1, {1, 2}, false);
   assert(repeated.results().cold_starts == 2 && repeated.results().refill.count == 1);
   assert(repeated.results().refill.worst_us == 600'000 && repeated.results().refill.over_limit == 1);
+  TrialSwipeBenchmark last_cold{TrialSwipeBenchmark::Scenario::Rapid};
+  auto now = start;
+  for (unsigned i = 0; i < last_cold.target(); ++i) {
+    assert(last_cold.poll(now, 1, {1, 1}, true));
+    now += TrialSwipeBenchmark::drag_us;
+    assert(last_cold.poll(now, 1, {1, 1}, false)->contacts == 0);
+    assert(!last_cold.poll(++now, 1, {1, 1}, true));
+    now += TrialSwipeBenchmark::rapid_rest_us;
+  }
+  assert(last_cold.finished() && last_cold.results().cold_returns == 48);
+  assert(!last_cold.poll(now, 1, {1, 2}, true));
+  assert(last_cold.results().refill.count == 0);  // A later download is outside the run.
 
   TrialSwipeMetrics timing;
   timing.gesture(12'000, {0, 0, 8'000, {CacheRead::Hit}, true, 1'000});

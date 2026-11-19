@@ -49,3 +49,20 @@ The replay server generates a fixed sequence of portrait pairs from synthetic JP
 To test browsing previously seen slides during an outage, start a fresh server with `REPLAY_OFFLINE_HISTORY=1` and build the prepared replay app with `-D SWIPE_TRIAL_REPLAY_HISTORY=ON`. Set `REPLAY_WARM_ROTATION` to match the frame if you want to isolate the history cache from cold server preparation. The server returns HTTP 503 on both photo endpoints after serving ten distinct prepared slides to the frame. This replay holds autoplay after the first photo. The timed app should reach slide ten and rewind to slide one, with 18 settled gestures and `settled_slide` equal to `1`. `prepared_cache_decode` reports local JPEG decodes when an older slide leaves the ready-to-draw window. Its byte count measures JPEG input from the frame’s memory.
 
 To measure direct Immich with smaller previews, use the same direct V1 trial image and restart the replay server with `REPLAY_PREVIEW_SIZE=720`. The synthetic 960 × 1440 portraits become 720 × 1080 while retaining the same JPEG, progressive JPEG and WebP mix. Also set `REPLAY_BASELINE_JPEG_QUALITY=80` to test baseline JPEG at Immich’s default quality, using the current encoder’s chroma sampling rule. The replay retains the same originals, order, pairing and mounting orientation. Both options apply to synthetic previews. Immich’s actual preview settings apply across the instance. [Immich image settings](https://docs.immich.app/administration/system-settings/#image-settings-thumbnails-and-previews) · [Immich encoder](https://raw.githubusercontent.com/immich-app/immich/main/server/src/repositories/media.repository.ts)
+
+### Measure direct preview lookahead
+
+Build the direct replay twice from the same revision, using the same replay origin and separate build directories. Set `-D SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD=ON` for the control and set it to `OFF` for lookahead. For each run, restart the synthetic server with the same settings, then follow the [V1 rollback readiness and app-only trial instructions](../README.md#verify-the-rollback-and-gestures).
+
+From the repository root, capture each run as soon as the trial boots. The frame freezes timing counters after the final swipe.
+
+```sh
+python3 firmware/native/tools/compare_preview_replays.py capture \
+  --frame "http://$FRAME_IP" --replay "http://$REPLAY_IP:9116" control.json
+# Repeat after the lookahead trial boots.
+python3 firmware/native/tools/compare_preview_replays.py capture \
+  --frame "http://$FRAME_IP" --replay "http://$REPLAY_IP:9116" lookahead.json
+python3 firmware/native/tools/compare_preview_replays.py compare control.json lookahead.json
+```
+
+The comparison checks that both runs completed all 48 swipes with matching replay inputs, cache slots, and timing thresholds. It reports photos ready at the start of a swipe, cold returns, slow first motions, drag gaps and refill times. The lookahead columns also show how many staged previews the frame used and how long it waited for them.
