@@ -1,0 +1,3 @@
+#pragma once
+
+#define CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE 1
