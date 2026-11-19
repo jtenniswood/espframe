@@ -28,6 +28,26 @@ permissions:
   contents: read
 
 jobs:
+  home-assistant:
+    name: Test encrypted native Home Assistant session
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Link for ESP32-P4 and test the ESPHome client on loopback
+        run: |
+          docker run --rm -v "$PWD:/workspace" -w /workspace espressif/idf:v6.1.1 bash -ec '
+            source=firmware/native/tests/home_assistant
+            host=firmware/native/build/ha-host-ci
+            idf.py -C "$source" -B /workspace/firmware/native/build/ha-link-ci build
+            cmake -S "$source" -B "$host" -DESPFRAME_HA_HOST=ON \
+              -DESPHOME_MANAGED_COMPONENTS="/workspace/$source/managed_components"
+            cmake --build "$host" --parallel 4
+            python -m venv /tmp/espframe-ha-client
+            /tmp/espframe-ha-client/bin/pip install "aioesphomeapi==46.25.0"
+            /tmp/espframe-ha-client/bin/python "$source/api_test.py" "$host/espframe_ha_host_test"
+          '
+
   prepared-slides:
     name: Test prepared Immich slides
     runs-on: ubuntu-latest
