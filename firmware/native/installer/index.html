@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Native Espframe setup</title>
+  <link rel="stylesheet" href="setup.css">
+  <script type="module" src="setup.js"></script>
+</head>
+<body>
+  <main>
+    <h1>Set up Espframe</h1>
+    <p>Connect a Guition JC8012P4A1 test frame by USB. Installing replaces the firmware on the frame.</p>
+    <section aria-labelledby="install">
+      <h2 id="install">Install firmware</h2>
+      <label for="revision">Guition hardware revision</label>
+      <select id="revision">
+        <option value="">Select a revision</option>
+        <option value="v1">V1 · Original panel, case number 2627 or lower</option>
+        <option value="v2">V2 · New panel, case number 2628 or higher</option>
+        <option value="v3">V3 · ESP32-P4 v3.x chip, any case number</option>
+      </select>
+      <esp-web-install-button hidden>
+        <button type="button" slot="activate">Install native firmware</button>
+      </esp-web-install-button>
+    </section>
+    <section aria-labelledby="connection">
+      <h2 id="connection">Connect Wi-Fi and Immich</h2>
+      <p>Connect Wi-Fi in the installer dialog, then close it to send your Immich settings over USB.</p>
+      <form id="settings" method="post" autocomplete="off">
+        <label>Espframe settings backup <input id="backup" type="file" accept=".json,application/json" aria-describedby="backup-help"></label>
+        <small id="backup-help">Optional. Load your Immich URL and playback settings. Enter credentials below.</small>
+        <div id="backup-status" role="status" aria-live="polite"></div>
+        <label><input id="reuse-wifi" type="checkbox" class="inline-option"> Use Wi-Fi already saved on the frame</label>
+        <div id="wifi-fields">
+          <label>Wi-Fi name <input name="ssid" maxlength="32" required></label>
+          <label>Wi-Fi password <input name="password" type="password" maxlength="64"></label>
+        </div>
+        <label>Immich base URL <input name="immich_url" type="url" maxlength="256" placeholder="https://photos.example.com" required></label>
+        <label>Immich API key <input name="immich_key" type="password" maxlength="256" aria-describedby="permissions" required></label>
+        <small id="permissions">Use a key with asset.read and asset.view permissions.</small>
+        <label>Web settings password <input name="web_password" type="password" minlength="8" maxlength="64" aria-describedby="web-password"></label>
+        <small id="web-password">Optional. Set a password to enable settings on your local network.</small>
+        <details id="playback">
+          <summary>Playback settings</summary>
+          <label>Photo source
+            <select name="photo_source" required>
+              <option value="" disabled>Choose a photo source</option>
+              <option value="all" selected>All photos</option>
+              <option value="favorites">Favourites</option>
+              <option value="album">Album</option>
+            </select>
+          </label>
+          <div id="album-choice" hidden>
+            <label>Immich album link or ID <input name="album_id" maxlength="512" disabled aria-describedby="album-help"></label>
+            <small id="album-help">Use a key with album.read permission.</small>
+          </div>
+          <label>Display mode
+            <select name="display_mode">
+              <option value="Fill">Crop to fit</option>
+              <option value="Fit" selected>Show full image</option>
+            </select>
+          </label>
+          <label>Seconds per photo <input name="slide_seconds" type="number" min="2" max="86400" value="15" step="1" required></label>
+          <label><input name="portrait_pairing" type="checkbox" class="inline-option" checked> Pair portrait photos from the same day</label>
+          <label>Mounting orientation
+            <select name="screen_rotation">
+              <option value="0">Normal</option>
+              <option value="180">Upside down (180°)</option>
+            </select>
+          </label>
+          <label for="brightness_day">Daytime brightness</label>
+          <input id="brightness_day" name="brightness_day" type="range" min="10" max="100" value="64">
+          <output for="brightness_day">64%</output>
+          <label for="brightness_night">Nighttime brightness</label>
+          <input id="brightness_night" name="brightness_night" type="range" min="10" max="100" value="40">
+          <output for="brightness_night">40%</output>
+          <small>Switches at estimated sunrise and sunset for your timezone.</small>
+          <label><input name="show_clock" type="checkbox" class="inline-option" checked> Show clock</label>
+          <label>Time format
+            <select name="clock_format">
+              <option>24 Hour</option>
+              <option>12 Hour</option>
+            </select>
+          </label>
+          <label>Timezone
+            <select name="timezone" required>
+              <!-- CLOCK_TIMEZONES -->
+            </select>
+          </label>
+          <details>
+            <summary>Photo captions</summary>
+            <label><input name="photo_metadata_location_enabled" type="checkbox" class="inline-option" checked> Show location</label>
+            <label><input name="photo_metadata_date_enabled" type="checkbox" class="inline-option" checked> Show date</label>
+            <label>Date format
+              <select name="photo_metadata_date_format">
+                <option>Date Taken</option>
+                <option>Relative Date</option>
+              </select>
+            </label>
+            <label>Date taken format
+              <select name="photo_metadata_date_taken_format">
+                <option>1 January, 2026</option>
+                <option>January 1, 2026</option>
+              </select>
+            </label>
+          </details>
+          <details id="screen-schedule">
+            <summary>Screen schedule</summary>
+            <label><input name="schedule_enabled" type="checkbox" class="inline-option"> Turn off screen outside these hours</label>
+            <label>On hour <input name="schedule_on_hour" type="number" min="0" max="23" value="6" required></label>
+            <label>Off hour <input name="schedule_off_hour" type="number" min="0" max="23" value="23" required></label>
+            <small>Uses the frame’s timezone and a 24-hour clock. Matching hours keep the screen on all day.</small>
+            <label>Wake duration in seconds <input name="schedule_wake_timeout" type="number" min="10" max="3600" value="60" required></label>
+            <small>How long the screen stays on when tapped outside the scheduled hours.</small>
+          </details>
+        </details>
+        <button type="submit" disabled>Save settings over USB</button>
+      </form>
+      <button type="button" id="find-frame" disabled>Find frame on Wi-Fi</button>
+      <p id="network-status" role="status" aria-live="polite"></p>
+    </section>
+    <p id="status" role="status" aria-live="polite"></p>
+  </main>
+</body>
+</html>

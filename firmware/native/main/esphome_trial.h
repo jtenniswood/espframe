@@ -1,0 +1,8 @@
+#pragma once
+
+namespace espframe::native {
+
+// Start a one-boot swipe demo while the ESPHome app is still the rollback target.
+bool start_esphome_trial();
+
+}  // namespace espframe::native

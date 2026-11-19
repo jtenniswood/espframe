@@ -82,6 +82,15 @@
   ],
   "vendored": [
     {
+      "path": "firmware/native/assets",
+      "name": "Noto Sans native glyph atlases",
+      "upstream": "https://github.com/notofonts/latin-greek-cyrillic/releases/tag/NotoSans-v2.015",
+      "revision": "Noto Sans Regular 2.015, source SHA-256 f5f552c8c5edb61fe6efb824baf4d4de47b1a8689ab4925ff43f7bd6a4ebece5",
+      "license": "OFL-1.1",
+      "license_file": "firmware/native/assets/OFL-Noto-Sans.txt",
+      "local_changes": "Rasterized clock digits at 55 pixels, Wi-Fi recovery text at 26 pixels, and photo captions at 23 pixels with firmware/native/tools/rasterize_clock.py. The firmware embeds 4-bit masks and has no font runtime dependency."
+    },
+    {
       "path": "components/captive_portal",
       "name": "ESPHome captive portal and setup page",
       "upstream": "https://github.com/esphome/esphome/tree/2026.9.1/esphome/components/captive_portal",
@@ -147,6 +156,20 @@
   ],
   "external_build_assets": [
     {
+      "usage": "Native Guition Wi-Fi over the board's ESP32-C6 coprocessor",
+      "declarations": ["firmware/native/main/idf_component.yml", "firmware/native/dependencies.lock"],
+      "upstream": "https://github.com/espressif/esp-hosted-mcu",
+      "revision": "esp_hosted 2.12.13 and esp_wifi_remote 1.6.5 with exact transitive dependencies in dependencies.lock",
+      "license": "Apache-2.0"
+    },
+    {
+      "usage": "Native Immich response parsing",
+      "declarations": ["firmware/native/main/idf_component.yml", "firmware/native/dependencies.lock"],
+      "upstream": "https://github.com/DaveGamble/cJSON",
+      "revision": "Espressif Component Registry package 1.7.19~2",
+      "license": "MIT"
+    },
+    {
       "usage": "Device text fonts",
       "declarations": ["devices/guition-esp32-p4-jc8012p4a1/assets/fonts.yaml"],
       "upstream": "https://fonts.google.com/noto",
@@ -170,11 +193,12 @@
       "license": "MIT"
     },
     {
-      "usage": "Documentation USB firmware installer",
+      "usage": "Browser USB firmware installers",
       "declarations": [
         "package.json",
         "package-lock.json",
-        "docs/.vitepress/theme/usb-installer.ts"
+        "docs/.vitepress/theme/usb-installer.ts",
+        "firmware/native/tools/package_installer.mjs"
       ],
       "upstream": "https://github.com/esphome/esp-web-tools",
       "revision": "esp-web-tools 10.5.2 with esptool-js 0.7.1 (https://github.com/espressif/esptool-js) and Material Web 2.5.0; exact dependencies and integrity hashes are recorded in package-lock.json",
