@@ -48,6 +48,7 @@ int main() {
 
   // Take over a backward move near the outer ready slide and drag beyond it.
   Swipe swipe{slide_width, 101, 10};
+  swipe.set_available_range(available.first, available.last);
   swipe.set_ready_range(8, 12);
   swipe.press(150, 200, 9 * slide_width, 5'000);
   swipe.move(151, 200, 10'000);
@@ -82,12 +83,17 @@ int main() {
   prefetch.prepared(7);
   assert(!prefetch.requested() && prefetch.window(available).first == 7);
 
-  // Releasing a resisted swipe cannot become an automatic move when its
-  // neighbor finishes. The next gesture or autoplay can make that move.
+  // The previous photo can finish prefetching after an intentional release.
+  const auto held_edge = swipe.position();
   swipe.release(320'000);
+  swipe.tick(500'000);
+  assert(swipe.loading_direction(500'000) == -1 && swipe.position() == held_edge);
   swipe.set_ready_range(7, 12);
   swipe.tick(600'000);
-  assert(swipe.idle() && swipe.settled() == 10);
+  assert(swipe.settling() && swipe.position() == held_edge);
+  swipe.tick(900'000);
+  assert(swipe.idle() && swipe.settled() == 9);
+  prefetch.moved_to(swipe.settled());
 
   prefetch.request_at_edge(12 * slide_width + 20, {7, 12}, available);
   assert(prefetch.requested() == 13);
