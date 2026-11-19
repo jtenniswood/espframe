@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
@@ -41,6 +41,7 @@ const images = await Promise.all(boards.map(async board => {
 }))
 await mkdir(output)
 const hashes = []
+const embedded = {}
 for (const { board, factory, ota } of images) {
   await writeFile(join(output, `${board}.bin`), factory)
   await writeFile(join(output, `${board}-ota.bin`), ota)
@@ -52,21 +53,36 @@ for (const { board, factory, ota } of images) {
     builds: [{ chipFamily: 'ESP32-P4', parts: [{ path: `${board}.bin`, offset: 0 }] }],
   }
   await writeFile(join(output, `${board}.json`), JSON.stringify(manifest, null, 2) + '\n')
+  embedded[board] = { manifest, image: factory.toString('base64') }
 }
 await writeFile(join(output, 'SHA256SUMS'), hashes.join('\n') + '\n')
 
-await build({
+const { outputFiles: [script] } = await build({
   entryPoints: [join(source, 'setup.js')],
   outfile: join(output, 'setup.js'),
   format: 'esm',
   target: 'chrome112',
   bundle: true,
   minify: true,
+  write: false,
 })
 const clockGenerator = fileURLToPath(new URL('./generate_clock_zones.py', import.meta.url))
 const clockOptions = execFileSync('python3', [clockGenerator, '--options'], { encoding: 'utf8' })
-const html = await readFile(join(source, 'index.html'), 'utf8')
+const [template, css] = await Promise.all([
+  readFile(join(source, 'index.html'), 'utf8'),
+  readFile(join(source, 'setup.css'), 'utf8'),
+])
+const html = template.replace('<!-- CLOCK_TIMEZONES -->', () => clockOptions.trim())
+// Keep the hosted bundle and provide a self-contained copy for file://, where
+// Chromium's module loader and fetch cannot read neighboring local assets.
+const standalone = html
+  .replace('<link rel="stylesheet" href="setup.css">', () => `<style>${css}</style>`)
+  .replace('<script type="module" src="setup.js"></script>', () =>
+    `<script id="embedded-firmware" type="application/json">${JSON.stringify(embedded)}</script>\n` +
+    `  <script type="module">${script.text}</script>`)
 await Promise.all([
-  writeFile(join(output, 'index.html'), html.replace('<!-- CLOCK_TIMEZONES -->', clockOptions.trim())),
-  copyFile(join(source, 'setup.css'), join(output, 'setup.css')),
+  writeFile(join(output, 'index.html'), html),
+  writeFile(join(output, 'setup.css'), css),
+  writeFile(join(output, 'setup.js'), script.contents),
+  writeFile(join(output, 'Espframe Native Installer.html'), standalone),
 ])

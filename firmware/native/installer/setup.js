@@ -106,9 +106,29 @@ form.addEventListener('invalid', event => {
   if (schedule.contains(event.target)) schedule.open = true
 }, true)
 
+const embeddedFirmware = document.querySelector('#embedded-firmware')
+const embeddedManifests = new Map()
+let embeddedImages
+
+function manifestFor(board) {
+  if (!embeddedFirmware) return `./${board}.json`
+  if (!embeddedManifests.has(board)) {
+    embeddedImages ??= JSON.parse(embeddedFirmware.textContent)
+    const { image, manifest } = embeddedImages[board]
+    const decoded = atob(image)
+    const bytes = new Uint8Array(decoded.length)
+    for (let i = 0; i < decoded.length; ++i) bytes[i] = decoded.charCodeAt(i)
+    // ESP Web Tools accepts a blob manifest with an absolute firmware URL.
+    manifest.builds[0].parts[0].path = URL.createObjectURL(new Blob([bytes]))
+    const url = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/json' }))
+    embeddedManifests.set(board, url)
+  }
+  return embeddedManifests.get(board)
+}
+
 revision.addEventListener('change', () => {
   install.hidden = !revision.value
-  install.manifest = `./${revision.value}.json`
+  if (revision.value) install.manifest = manifestFor(revision.value)
 })
 
 function showFrameAddress(frame) {
@@ -214,5 +234,5 @@ if ('serial' in navigator) {
 } else {
   revision.disabled = true
   submit.disabled = true
-  status.textContent = 'Open this page in desktop Chrome or Edge over localhost or HTTPS.'
+  status.textContent = 'Open the installer in desktop Chrome or Edge. A hosted copy needs HTTPS or localhost.'
 }

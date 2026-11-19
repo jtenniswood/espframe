@@ -38,19 +38,13 @@ configured the project with ESP-Hosted 2.x.
 ### Install and connect in a browser
 
 Download and extract the `native-browser-installer` artifact from the Native
-Swipe Prototype workflow. From the extracted directory run:
-
-```sh
-python3 -m http.server 8080 --bind 127.0.0.1
-```
-
-Open <http://localhost:8080> in desktop Chrome or Edge. Select the frame
-revision and install the firmware. In the installer dialog, connect Wi-Fi
-using Improv Serial. The frame saves the credentials after it joins and
-gets an IPv4 address. Close the dialog, select **Use Wi-Fi already saved
-on the frame**, and enter your Immich settings. You can also enter Wi-Fi
-and Immich together in the page's USB form. Select the frame's USB port
-to save. Keep the USB cable connected while the frame restarts. The installer
+Swipe Prototype workflow. Open **Espframe Native Installer.html** in desktop
+Chrome or Edge. The file contains the installer and all three factory images.
+Select your frame revision and install the firmware. Close the installer dialog
+and fill in Wi-Fi and Immich together. If you used Improv Serial to connect
+Wi-Fi in the dialog, select **Use Wi-Fi already saved on the frame** and fill
+in only the remaining settings. Select the frame's USB port to save.
+Keep the USB cable connected while the frame restarts. The installer
 shows the frame's address and an **Open frame settings** link if you set a web
 settings password. Use **Find frame on Wi-Fi** to retry the address check.
 
@@ -71,6 +65,9 @@ and place each
 ```sh
 node firmware/native/tools/package_installer.mjs firmware/native/build firmware/native/build/browser-installer
 ```
+
+The package also includes `index.html` and its assets for serving the same
+installer over HTTPS or localhost.
 
 ### Open the frame's web settings
 

@@ -265,6 +265,7 @@ jobs:
           done
           node firmware/native/tools/package_installer.mjs firmware/native/build firmware/native/build/browser-installer
           node firmware/native/tests/backup_installer_browser_test.mjs firmware/native/build/browser-installer
+          node firmware/native/tests/standalone_installer_browser_test.mjs firmware/native/build/browser-installer
           cd firmware/native/build/browser-installer
           sha256sum -c SHA256SUMS
       - uses: actions/upload-artifact@v7
