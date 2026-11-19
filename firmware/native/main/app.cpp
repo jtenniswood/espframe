@@ -702,12 +702,13 @@ void run(void *) {
     };
     if (const auto wanted = prefetch.requested(); wanted && cache.find(*wanted))
       prefetch.prepared(*wanted);
-    // Keep deferring through the final settling frame. A cache-edge request
-    // takes precedence so the worker can produce the missing neighbour.
-    user_motion = input.awake() && (input.engaged() ||
+    // Protect the finger-driven frames. A short ready range can refill during
+    // settle, and an explicit cache-edge request can refill immediately.
+    const bool contact_engaged = input.engaged();
+    user_motion = input.awake() && (contact_engaged ||
                   (user_motion && (!swipe.idle() || swipe.position() != display.presented_position())));
     if (live && !trial_fixtures)
-      loader.defer_pixel_work(user_motion && prefetch.can_defer_pixel_work({ready_first, ready_last}));
+      loader.defer_pixel_work(user_motion && prefetch.can_defer_pixel_work({ready_first, ready_last}, contact_engaged));
     if (preparing >= 0) {
       if (const auto wanted = prefetch.requested(); wanted && eligible(*wanted) && prefetch.can_yield(preparing, *wanted))
         loader.yield_to_swipe();

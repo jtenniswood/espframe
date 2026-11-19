@@ -75,8 +75,12 @@ class SlidePrefetch {
 
   bool can_yield(SlideIndex active, SlideIndex wanted) const { return active != center_ && active != wanted; }
 
-  bool can_defer_pixel_work(SlideRange ready) const {
-    return center_ > 0 && !requested_ && (direction_ < 0 ? ready.first < center_ : ready.last > center_);
+  bool can_defer_pixel_work(SlideRange ready, bool contact_engaged) const {
+    const auto prepared = direction_ < 0 ? center_ - ready.first : ready.last - center_;
+    // Keep the drag under the finger responsive. When only the landing
+    // slide is ready, refill during the settle so the next swipe has a chance
+    // to find another photo without exhausting the cache.
+    return center_ > 0 && !requested_ && prepared >= (contact_engaged ? 1 : desired_ready_in_direction);
   }
 
   std::array<SlideIndex, SlideCache::capacity + 2> candidates(SlideRange keep) const {
@@ -85,16 +89,23 @@ class SlidePrefetch {
     result[0] = center_;
     result[1] = requested_.value_or(-1);
     size_t index = 2;
+    const auto add = [&](SlideIndex slide) {
+      if (keep.contains(slide))
+        result[index++] = slide;
+    };
+    for (SlideIndex distance = 1; distance <= desired_ready_in_direction; ++distance)
+      add(center_ + distance * direction_);
     for (SlideIndex distance = 1; distance < slots_; ++distance) {
-      for (const auto slide : {center_ + distance * direction_, center_ - distance * direction_}) {
-        if (keep.contains(slide))
-          result[index++] = slide;
-      }
+      if (distance > desired_ready_in_direction)
+        add(center_ + distance * direction_);
+      add(center_ - distance * direction_);
     }
     return result;
   }
 
  private:
+  static constexpr SlideIndex desired_ready_in_direction = 2;
+
   SlideIndex center_;
   SlideIndex slots_;
   int direction_{1};
