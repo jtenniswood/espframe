@@ -138,7 +138,7 @@
       "revision": "v1.6.0",
       "license": "BSD-3-Clause",
       "license_file": "components/libwebp-esp32/LICENSE",
-      "local_changes": "Decode-only source subset with ESP32 PSRAM, watchdog, scaling, and error-handling adaptations."
+      "local_changes": "Decode-only source subset with ESP32 PSRAM, watchdog, scaling, error-handling, and cooperative decoding adaptations."
     },
     {
       "path": "components/remote_image",

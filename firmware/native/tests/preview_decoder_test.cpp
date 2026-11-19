@@ -241,7 +241,7 @@ void verify_interruption(const char *jpeg_path, const char *progressive_path, co
   const auto jpeg = load(jpeg_path);
   const auto progressive = load(progressive_path);
   const auto webp = load(webp_path);
-  int remaining{};
+  int remaining = 2;
   const PreparationCheckpoint checkpoint{&remaining, [](void *context) {
     return --*static_cast<int *>(context) >= 0;
   }};
@@ -291,6 +291,19 @@ void verify_interruption(const char *jpeg_path, const char *progressive_path, co
   assert(decoded.render(panel.data()));
 }
 
+void verify_lossy_webp_interruption(const char *path) {
+  const auto photo = load(path);
+  int checkpoints = 0;
+  const PreparationCheckpoint interrupt{&checkpoints, [](void *context) {
+    return ++*static_cast<int *>(context) < 2;
+  }};
+  DecodedPreview decoded;
+  assert(decoded.decode(photo.data(), photo.size(), false, nullptr, DisplayMode::Fill, interrupt) == Decode::Interrupted);
+  assert(checkpoints == 2);
+  assert(decoded.decode(photo.data(), photo.size() - 2, false, nullptr, DisplayMode::Fill) == Decode::Invalid);
+  assert(decoded.decode(photo.data(), photo.size(), false, nullptr, DisplayMode::Fill) == Decode::Ready);
+}
+
 void verify_orientation(const char *square_jpeg, const char *square_webp, const char *portrait) {
   DecodedPreview decoded;
   const auto portrait_bytes = load(portrait);
@@ -311,7 +324,7 @@ void verify_orientation(const char *square_jpeg, const char *square_webp, const 
 }
 
 int main(int argc, char **argv) {
-  assert(argc == 7);
+  assert(argc == 8);
   const auto wide = frame_photo(1600, 900, slide_width, slide_height, DisplayMode::Fill);
   assert(wide.source.x == 80 && wide.source.y == 0 && wide.source.width == 1440 && wide.source.height == 900);
   const auto narrow = frame_photo(600, 500, slide_width, slide_height, DisplayMode::Fill);
@@ -322,6 +335,7 @@ int main(int argc, char **argv) {
   verify_odd_jpeg_rows(argv[6]);
   verify_hardware(argv[1], argv[2], argv[3]);
   verify_interruption(argv[1], argv[2], argv[3]);
+  verify_lossy_webp_interruption(argv[7]);
   verify_orientation(argv[1], argv[3], argv[4]);
   const uint8_t unsupported[]{0, 1, 2, 3};
   DecodedPreview decoded;

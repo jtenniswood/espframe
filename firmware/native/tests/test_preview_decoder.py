@@ -31,8 +31,9 @@ with TemporaryDirectory(prefix="espframe-native-decode-") as work:
     def compile_source(entry):
         library, source = entry
         obj = build / (source.stem + ".o")
+        byte_order = ["-DWEBP_SWAP_16BIT_CSP=1"] if library == LIBRARIES[1] else []
         run("cc", "-O1", "-DNDEBUG", "-DHAVE_CONFIG_H", "-ffunction-sections", "-fdata-sections",
-            "-I", build, "-I", library, "-I", library / "src", "-c", source, "-o", obj)
+            *byte_order, "-I", build, "-I", library, "-I", library / "src", "-c", source, "-o", obj)
         return obj
 
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -49,5 +50,5 @@ with TemporaryDirectory(prefix="espframe-native-decode-") as work:
     fixtures = NATIVE / "tests/fixtures"
     run(binary, fixtures / "quadrants.jpg", fixtures / "quadrants-progressive.jpg", fixtures / "quadrants.webp",
         fixtures / "portrait-primary.jpg", fixtures / "portrait-companion.webp",
-        fixtures / "quadrants-odd-progressive.jpg")
+        fixtures / "quadrants-odd-progressive.jpg", ROOT / "tests/fixtures/webp/landscape-lossy.webp")
     print("Native JPEG and WebP preview tests passed")

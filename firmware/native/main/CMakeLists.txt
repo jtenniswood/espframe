@@ -44,6 +44,10 @@ idf_component_register(
                 "../assets/date_glyphs.bin"
 )
 
+# Emit native RGB565 words directly, avoiding a second pass through PSRAM.
+idf_component_get_property(webp_lib libwebp-esp32 COMPONENT_LIB)
+target_compile_definitions(${webp_lib} PRIVATE WEBP_SWAP_16BIT_CSP=1)
+
 set(device_catalog "${repo_root}/product/contract/devices.json")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${device_catalog}")
 file(READ "${device_catalog}" profiles)

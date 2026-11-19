@@ -3,7 +3,6 @@
 #include "esp_heap_caps.h"
 #include "p4_jpeg_decoder.h"
 #include "slide_geometry.h"
-#include "webp_rgb565.h"
 
 #include <algorithm>
 #include <bit>
@@ -12,6 +11,7 @@
 #include <cstring>
 #include <jerror.h>
 #include <jpeglib.h>
+#include <webp/decode.h>
 
 namespace espframe::native {
 namespace {
@@ -185,7 +185,7 @@ Decode decode_jpeg(const uint8_t *encoded, size_t length, uint16_t *&pixels, Pho
 }
 
 Decode decode_webp(const uint8_t *encoded, size_t length, uint16_t *&pixels, PhotoFraming &size, bool companion,
-                   DisplayMode mode, PhotoOrientation orientation) {
+                   DisplayMode mode, PreparationCheckpoint checkpoint, PhotoOrientation orientation) {
   WebPDecoderConfig decoder;
   if (!WebPInitDecoderConfig(&decoder) || WebPGetFeatures(encoded, length, &decoder.input) != VP8_STATUS_OK ||
       decoder.input.has_animation || !supported(decoder.input.width, decoder.input.height))
@@ -207,11 +207,26 @@ Decode decode_webp(const uint8_t *encoded, size_t length, uint16_t *&pixels, Pho
   decoder.options.scaled_width = size.width;
   decoder.options.scaled_height = size.height;
   decoder.options.no_fancy_upsampling = 1;
-  const auto status = esphome::remote_image::decode_webp_rgb565(
-      encoded, length, decoder, reinterpret_cast<uint8_t *>(pixels), size.width * size.height * sizeof(*pixels),
-      size.width, size.height, false);
+  decoder.output.colorspace = MODE_RGB_565;
+  decoder.output.u.RGBA.rgba = reinterpret_cast<uint8_t *>(pixels);
+  decoder.output.u.RGBA.stride = size.width * sizeof(*pixels);
+  decoder.output.u.RGBA.size = decoder.output.u.RGBA.stride * size.height;
+  decoder.output.is_external_memory = 1;
+  struct Progress {
+    PreparationCheckpoint checkpoint;
+    bool interrupted{};
+  } progress{checkpoint};
+  const auto status = WebPDecodeWithCheckpoint(
+      encoded, length, &decoder, [](void *context) {
+        auto &progress = *static_cast<Progress *>(context);
+        progress.interrupted = !progress.checkpoint();
+        return progress.interrupted ? 0 : 1;
+      }, &progress);
+  WebPFreeDecBuffer(&decoder.output);
   if (status == VP8_STATUS_OK)
     return Decode::Ready;
+  if (status == VP8_STATUS_USER_ABORT && progress.interrupted)
+    return Decode::Interrupted;
   return status == VP8_STATUS_OUT_OF_MEMORY ? Decode::NoMemory : Decode::Invalid;
 }
 
@@ -274,7 +289,7 @@ DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t len
   PhotoFraming size{};
   const auto result = jpeg ? decode_jpeg(encoded, length, this->pixels_, size, companion, mode, hardware,
                                         this->hardware_jpeg_, checkpoint, orientation)
-                           : decode_webp(encoded, length, this->pixels_, size, companion, mode, orientation);
+                           : decode_webp(encoded, length, this->pixels_, size, companion, mode, checkpoint, orientation);
   if (result == Result::Ready) {
     this->width_ = size.width;
     this->height_ = size.height;
