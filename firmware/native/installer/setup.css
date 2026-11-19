@@ -78,6 +78,21 @@ button:disabled {
   cursor: default;
 }
 
+#confirm-reset {
+  width: min(100% - 4rem, 27rem);
+  padding: 1.25rem 1.5rem;
+  border: 1px solid color-mix(in srgb, CanvasText 18%, Canvas);
+  border-radius: 1rem;
+}
+
+#confirm-reset h2 {
+  margin: 0;
+}
+
+#confirm-reset button + button {
+  margin-inline-start: .5rem;
+}
+
 esp-web-install-button[hidden] {
   display: none;
 }

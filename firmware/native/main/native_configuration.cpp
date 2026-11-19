@@ -6,6 +6,7 @@
 #include "cJSON.h"
 
 #include <charconv>
+#include <limits>
 #include <memory>
 
 namespace espframe::native {
@@ -90,12 +91,18 @@ cJSON *configuration_capabilities() {
       !cJSON_AddNumberToObject(body.get(), "contract_version", contract::CONTRACT_VERSION) ||
       !cJSON_AddNumberToObject(body.get(), "api_version", contract::API_VERSION) ||
       !cJSON_AddStringToObject(body.get(), "configuration_path", contract::CONFIGURATION_PATH) ||
+      !cJSON_AddStringToObject(body.get(), "reset_path", contract::RESET_PATH) ||
       !cJSON_AddStringToObject(body.get(), "update_mode", "atomic") ||
       !cJSON_AddBoolToObject(body.get(), "configuration_available", true) ||
       !cJSON_AddBoolToObject(body.get(), "configuration_read", true) ||
       !cJSON_AddBoolToObject(body.get(), "configuration_write", true) ||
       !cJSON_AddBoolToObject(body.get(), "legacy_entity_api", false))
     return nullptr;
+  auto *modes = cJSON_AddArrayToObject(body.get(), "reset_modes");
+  Json mode(cJSON_CreateString("customization"), cJSON_Delete);
+  if (!modes || !mode || !cJSON_AddItemToArray(modes, mode.get()))
+    return nullptr;
+  mode.release();
   return body.release();
 }
 
@@ -104,7 +111,7 @@ cJSON *configuration_snapshot(const Settings &settings) {
   Json playback(cJSON_CreateObject(), cJSON_Delete);
   if (!body || !playback || !settings.add_playback_fields(playback.get()) ||
       !cJSON_AddNumberToObject(body.get(), "api_version", contract::API_VERSION) ||
-      !cJSON_AddNumberToObject(body.get(), "reset_epoch", 0) ||
+      !cJSON_AddNumberToObject(body.get(), "reset_epoch", settings.reset_epoch) ||
       !cJSON_AddBoolToObject(body.get(), "api_key_configured", settings.has_immich()))
     return nullptr;
   auto *values = cJSON_AddObjectToObject(body.get(), "values");
@@ -169,8 +176,16 @@ ConfigurationUpdate update_configuration(const char *json) {
   if (version && (!cJSON_IsNumber(version) || version->valuedouble != contract::API_VERSION))
     return {"409 Conflict", "unsupported_api_version", {}};
   const auto *epoch = cJSON_GetObjectItemCaseSensitive(request.get(), "reset_epoch");
-  if (epoch && (!cJSON_IsNumber(epoch) || epoch->valuedouble != 0))
-    return {"409 Conflict", "reset_epoch_mismatch", {}};
+  std::optional<uint32_t> expected_epoch;
+  if (epoch) {
+    if (!cJSON_IsNumber(epoch) || !(epoch->valuedouble >= 0 &&
+                                   epoch->valuedouble <= std::numeric_limits<uint32_t>::max()))
+      return {"409 Conflict", "reset_epoch_mismatch", {}};
+    const auto value = static_cast<uint32_t>(epoch->valuedouble);
+    if (value != epoch->valuedouble)
+      return {"409 Conflict", "reset_epoch_mismatch", {}};
+    expected_epoch = value;
+  }
   const auto *values = cJSON_GetObjectItemCaseSensitive(request.get(), "values");
   if (!cJSON_IsObject(values))
     return {"400 Bad Request", "missing_values", {}};
@@ -221,12 +236,23 @@ ConfigurationUpdate update_configuration(const char *json) {
     ++count;
   }
 
-  const auto result = count == 0 ? Settings::UpdateResult::Saved : Settings::update_playback(update.get());
+  const auto result = count == 0 && !expected_epoch ? Settings::UpdateResult::Saved
+                                                    : Settings::update_playback(update.get(), expected_epoch);
   if (result == Settings::UpdateResult::Invalid)
     return {"422 Unprocessable Entity", "invalid_value", {}};
+  if (result == Settings::UpdateResult::Stale)
+    return {"409 Conflict", "reset_epoch_mismatch", {}};
   if (result == Settings::UpdateResult::Failed)
     return {"500 Internal Server Error", "settings_unavailable", {}};
   return {"200 OK", nullptr, {}, count};
+}
+
+ConfigurationUpdate reset_configuration(std::string_view form) {
+  if (form != "mode=customization")
+    return {"400 Bad Request", "invalid_mode", {}};
+  if (!Settings::reset_customization())
+    return {"500 Internal Server Error", "settings_unavailable", {}};
+  return {"200 OK", nullptr, {}};
 }
 
 }  // namespace espframe::native

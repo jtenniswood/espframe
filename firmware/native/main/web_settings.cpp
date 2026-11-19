@@ -29,6 +29,7 @@ constexpr size_t auth_capacity = 120;
 namespace contract = esphome::espframe::contract;
 httpd_handle_t server{};
 esp_timer_handle_t restart_timer{};
+bool resetting_customization{};
 std::string authorization;
 
 extern const char page_start[] asm("_binary_settings_html_start");
@@ -224,6 +225,9 @@ esp_err_t current(httpd_req_t *request) {
   std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(cJSON_CreateObject(), cJSON_Delete);
   if (!settings.read() || !document ||
       !settings.add_playback_fields(document.get()) ||
+      !cJSON_AddBoolToObject(document.get(), "api_key_configured", settings.has_immich()) ||
+      !cJSON_AddNumberToObject(document.get(), "reset_epoch", settings.reset_epoch) ||
+      !cJSON_AddStringToObject(document.get(), "reset_path", contract::RESET_PATH) ||
       !cJSON_AddBoolToObject(document.get(), "firmware_update", can_update_firmware()) ||
       !cJSON_AddStringToObject(document.get(), "board_revision", NATIVE_BOARD))
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to load settings.");
@@ -336,6 +340,46 @@ esp_err_t save_configuration(httpd_req_t *request) {
   return configuration_reply(request, result);
 }
 
+esp_err_t reset_status(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  Settings settings;
+  const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> body(cJSON_CreateObject(), cJSON_Delete);
+  if (!settings.read() || !body || !cJSON_AddNumberToObject(body.get(), "epoch", settings.reset_epoch) ||
+      !cJSON_AddStringToObject(body.get(), "status", resetting_customization ? "pending" : "ready") ||
+      !cJSON_AddStringToObject(body.get(), "mode", resetting_customization ? "customization" : "none"))
+    return send_configuration(request, nullptr);
+  return send_configuration(request, body.get());
+}
+
+esp_err_t reset_settings(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  if (!same_origin(request))
+    return configuration_reply(request, {"403 Forbidden", "invalid_origin", {}});
+  if (esp_timer_is_active(restart_timer))
+    return configuration_reply(request, {"409 Conflict", "operation_in_progress", {}});
+
+  std::array<char, sizeof("mode=customization") - 1> form{};
+  if (!header_is(request, "Content-Type", "application/x-www-form-urlencoded") ||
+      request->content_len == 0 || request->content_len > form.size())
+    return configuration_reply(request, {"400 Bad Request", "invalid_mode", {}});
+  size_t received = 0;
+  while (received < request->content_len) {
+    const int bytes = httpd_req_recv(request, form.data() + received, request->content_len - received);
+    if (bytes <= 0)
+      return ESP_FAIL;
+    received += bytes;
+  }
+  const auto result = reset_configuration({form.data(), received});
+  if (!result.error) {
+    if (esp_timer_start_once(restart_timer, 800'000) != ESP_OK)
+      return configuration_reply(request, {"500 Internal Server Error", "restart_required", {}});
+    resetting_customization = true;
+  }
+  return configuration_reply(request, result);
+}
+
 int receive_firmware(void *context, uint8_t *buffer, size_t length) {
   return httpd_req_recv(static_cast<httpd_req_t *>(context), reinterpret_cast<char *>(buffer), length);
 }
@@ -403,7 +447,7 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
   config.lru_purge_enable = true;
   config.stack_size = 6144;
   config.max_open_sockets = 4;
-  config.max_uri_handlers = 18;
+  config.max_uri_handlers = 20;
   config.recv_wait_timeout = 3;
   if (httpd_start(&server, &config) != ESP_OK) {
     esp_timer_delete(restart_timer);
@@ -425,6 +469,8 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       {.uri = contract::CAPABILITIES_PATH, .method = HTTP_GET, .handler = capabilities, .user_ctx = &network},
       {.uri = contract::CONFIGURATION_PATH, .method = HTTP_GET, .handler = configuration, .user_ctx = &network},
       {.uri = contract::CONFIGURATION_PATH, .method = HTTP_POST, .handler = save_configuration, .user_ctx = &network},
+      {.uri = contract::RESET_PATH, .method = HTTP_GET, .handler = reset_status, .user_ctx = &network},
+      {.uri = contract::RESET_PATH, .method = HTTP_POST, .handler = reset_settings, .user_ctx = &network},
       {.uri = "/api/firmware", .method = HTTP_POST, .handler = update_firmware, .user_ctx = &network},
       {.uri = "/recovery.js", .method = HTTP_GET, .handler = recovery_script, .user_ctx = &network},
       {.uri = "/api/recovery", .method = HTTP_GET, .handler = recovery_status, .user_ctx = &network},

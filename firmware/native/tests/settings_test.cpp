@@ -14,6 +14,7 @@ namespace {
 
 std::map<std::string, std::string> stored;
 std::map<std::string, std::string> staged;
+bool fail_commit{};
 
 }  // namespace
 
@@ -48,6 +49,8 @@ esp_err_t nvs_set_str(nvs_handle_t handle, const char *key, const char *value) {
 
 esp_err_t nvs_commit(nvs_handle_t handle) {
   assert(handle == NVS_READWRITE);
+  if (fail_commit)
+    return -1;
   for (const auto &[key, value] : staged)
     stored[key] = value;
   return ESP_OK;
@@ -241,11 +244,17 @@ int main() {
   using espframe::native::configuration_capabilities;
   using espframe::native::configuration_snapshot;
   using espframe::native::decode_configuration_form;
+  using espframe::native::reset_configuration;
   using espframe::native::update_configuration;
   using Json = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>;
   const Json capabilities(configuration_capabilities(), cJSON_Delete);
   assert(capabilities && cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(capabilities.get(), "configuration_write")));
   assert(cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(capabilities.get(), "legacy_entity_api")));
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(capabilities.get(), "reset_path")) ==
+         std::string_view("/espframe/api/v1/reset"));
+  const auto *reset_modes = cJSON_GetObjectItemCaseSensitive(capabilities.get(), "reset_modes");
+  assert(cJSON_GetArraySize(reset_modes) == 1);
+  assert(cJSON_GetStringValue(cJSON_GetArrayItem(reset_modes, 0)) == std::string_view("customization"));
 
   const Json snapshot(configuration_snapshot(current), cJSON_Delete);
   assert(snapshot && cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(snapshot.get(), "api_key_configured")));
@@ -338,4 +347,35 @@ int main() {
   assert(current.read() && current.has_prepared_slides() && current.brightness_day == 58);
   assert(!update_configuration(R"({"values":{"prepared_slide_url":""}})").error);
   assert(current.read() && !current.has_prepared_slides() && current.prepared_slide_token.empty());
+
+  assert(!update_configuration(R"({"values":{"screen_rotation":"180","date_filter_enabled":true,
+      "prepared_slide_url":"https://prepare.test","prepared_slide_token":"0123456789abcdef0123456789abcdef"}})").error);
+  const auto before_reset = stored;
+  assert(reset_configuration("mode=factory").error && stored == before_reset);
+  assert(reset_configuration("mode=customization&mode=factory").error && stored == before_reset);
+  fail_commit = true;
+  assert(reset_configuration("mode=customization").error && stored == before_reset);
+  fail_commit = false;
+  assert(!reset_configuration("mode=customization").error);
+  assert(current.read() && current.reset_epoch == 1 && current.ssid == std::string(32, 's'));
+  assert(current.password == std::string(64, '"') && current.web_password == std::string(64, '"'));
+  assert(current.immich_url.empty() && current.immich_key.empty() && current.prepared_slide_url.empty() &&
+         current.prepared_slide_token.empty());
+  assert(current.slide_seconds == 15 && current.brightness_day == 64 && !current.brightness_night &&
+         current.screen_rotation == ScreenRotation::Normal && !current.capture_dates.enabled &&
+         current.photo_source.mode == PhotoSourceMode::Library);
+  const Json reset_snapshot(configuration_snapshot(current), cJSON_Delete);
+  assert(cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(reset_snapshot.get(), "reset_epoch")) == 1);
+  assert(cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(reset_snapshot.get(), "api_key_configured")));
+  const auto after_reset = stored;
+  const auto stale = update_configuration(R"({"reset_epoch":0,"values":{"brightness_day":83}})");
+  assert(std::string_view(stale.status) == "409 Conflict" && stored == after_reset);
+  assert(!Settings::save_playback(R"({"reset_epoch":0,"immich_url":"http://stale.test","immich_key":"stale-key"})"));
+  assert(update_configuration(R"({"reset_epoch":1,"values":{"immich_url":"http://photos.test"}})").error);
+  assert(stored == after_reset);
+  assert(!update_configuration(R"({"reset_epoch":1,"values":{"immich_url":"http://photos.test","api_key":"fresh-key"}})").error);
+  assert(current.read() && current.immich_key == "fresh-key" && current.reset_epoch == 1);
+  assert(Settings::save_wifi(*new_wifi));
+  assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"reprovisioned","reset_epoch":0,"reset_epoch":2})"));
+  assert(current.read() && current.immich_key == "reprovisioned" && current.reset_epoch == 1);
 }

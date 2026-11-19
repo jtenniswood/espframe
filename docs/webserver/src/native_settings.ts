@@ -97,14 +97,16 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot): HTMLFormElement {
       if (unavailable.has(key) || (key !== "api_key" && !Object.prototype.hasOwnProperty.call(snapshot.values, snapshotKey))) continue;
       const value = nativeSecret(key) ? "" : snapshot.values[key];
       const control = nativeSettingControl(key, value);
+      if (key === "api_key" && control instanceof HTMLInputElement) control.required = !snapshot.api_key_configured;
       control.name = key;
-      const row = field(label);
+      const row = field(key === "api_key" && !snapshot.api_key_configured ? "Immich API key" : label);
       if (typeof value === "boolean") {
         row.querySelector("label").prepend(control, " ");
       } else if (nativeSecret(key) || key === "prepared_slide_url") {
         const hint = el("small");
         hint.id = `native-${key}-hint`;
-        if (key === "api_key") hint.textContent = snapshot.api_key_configured ? "Leave blank to keep the current key." : "";
+        if (key === "api_key") hint.textContent = snapshot.api_key_configured ? "Leave blank to keep the current key." :
+          "Enter your API key to connect Immich.";
         if (key === "prepared_slide_url") hint.textContent = "Optional. Clear the URL to use direct Immich previews exclusively.";
         if (key === "prepared_slide_token") hint.textContent = snapshot.values.prepared_slide_token_configured ?
           "Leave blank to keep the current token. Enter a new token if you change the service URL." :
@@ -117,7 +119,8 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot): HTMLFormElement {
       controls.set(key, { element: control, value });
       body.appendChild(row);
     }
-    if (body.childElementCount) fields.appendChild(makeCollapsibleCard(title, body, title !== "Playback"));
+    const openConnection = title === "Immich connection" && !snapshot.api_key_configured;
+    if (body.childElementCount) fields.appendChild(makeCollapsibleCard(title, body, title !== "Playback" && !openConnection));
   }
 
   const actions = el("div", "native-settings-actions");

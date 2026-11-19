@@ -157,9 +157,36 @@ const firmwareFixture = html.replace('</body>', `<script>
     form.requestSubmit()
   }).observe(section, {attributes: true})
 </script></body>`)
+const resetPath = '/espframe/api/v1/reset'
+const resetFixture = html.replace('</body>', `<script>
+  const form = document.querySelector('#settings')
+  const resetSection = document.querySelector('#customization-reset')
+  const reset = document.querySelector('#open-reset')
+  const confirmation = document.querySelector('#confirm-reset')
+  new MutationObserver((_, observer) => {
+    if (form.hidden || resetSection.hidden) return
+    observer.disconnect()
+    const key = form.elements.immich_key
+    if (key.required) {
+      if (key.value || form.elements.immich_url.value) throw new Error('The old Immich connection survived reset')
+      if (form.checkValidity()) throw new Error('The cleared form was already valid')
+      form.elements.immich_url.value = 'https://reconnected.test'
+      key.value = 'fresh-key'
+      form.requestSubmit()
+      return
+    }
+    reset.click()
+    if (!confirmation.open) throw new Error('The reset was not confirmed')
+    document.querySelector('#cancel-reset').click()
+    if (confirmation.open || reset.disabled) throw new Error('Cancel did not dismiss the confirmation')
+    reset.click()
+    document.querySelector('#apply-reset').click()
+  }).observe(form, {attributes: true})
+</script></body>`)
 const pages = new Map([
   ['/', ['text/html', fixture]],
   ['/firmware', ['text/html', firmwareFixture]],
+  ['/reset-test', ['text/html', resetFixture]],
   ['/settings.js', ['text/javascript', script]],
   ['/photo_source.mjs', ['text/javascript', sourceScript]],
   ['/backup.mjs', ['text/javascript', backupScript]],
@@ -167,7 +194,10 @@ const pages = new Map([
 ])
 const updates = []
 const uploads = []
+const resets = []
 let firmwareAvailable = false
+let resetAvailable = false
+let resetPolls = 0
 const server = createServer(async (request, response) => {
   if (request.method === 'POST' && request.url === '/api/playback') {
     let body = ''
@@ -178,7 +208,21 @@ const server = createServer(async (request, response) => {
   } else if (request.method === 'GET' && request.url === '/api/playback') {
     response.setHeader('Content-Type', 'application/json')
     const playback = { ...setup, clock_timezones: clockTimezones }
+    if (resetAvailable) {
+      playback.reset_path = resetPath
+      playback.api_key_configured = resets.length === 0
+      playback.reset_epoch = resets.length
+      if (resets.length) playback.immich_url = ''
+    }
     response.end(JSON.stringify(firmwareAvailable ? { ...playback, firmware_update: true, board_revision: 'v3' } : playback))
+  } else if (request.method === 'POST' && request.url === resetPath) {
+    let body = ''
+    for await (const chunk of request) body += chunk
+    resets.push({ body, type: request.headers['content-type'], origin: request.headers.origin })
+    response.writeHead(200, { 'Content-Type': 'application/json' }).end('{"status":"accepted"}')
+  } else if (request.method === 'GET' && request.url === resetPath) {
+    resetPolls++
+    response.writeHead(200, { 'Content-Type': 'application/json' }).end('{"status":"ready","epoch":1,"mode":"none"}')
   } else if (request.method === 'POST' && request.url === '/api/firmware') {
     const chunks = []
     for await (const chunk of request) chunks.push(chunk)
@@ -238,6 +282,20 @@ try {
   const upload = { type: 'application/octet-stream', bytes: firmwareImage }
   assert.deepEqual(uploads, [upload, upload])
   console.log('Native firmware settings retry an interrupted upload and report successful staging')
+
+  firmwareAvailable = false
+  resetAvailable = true
+  const resetPage = await render('/reset-test')
+  assert.match(resetPage, /Settings saved\. The frame is restarting\./)
+  assert.match(resetPage, /Enter your API key to connect Immich\./)
+  assert.deepEqual(resets, [{ body: 'mode=customization', type: 'application/x-www-form-urlencoded',
+    origin: `http://127.0.0.1:${server.address().port}` }])
+  assert.equal(resetPolls, 1)
+  assert.equal(updates.length, 2)
+  assert.equal(updates[1].immich_url, 'https://reconnected.test')
+  assert.equal(updates[1].immich_key, 'fresh-key')
+  assert.equal(updates[1].reset_epoch, 1)
+  console.log('Native device tools confirm a customization reset and reconnect Immich after restart')
 } finally {
   server.close()
 }

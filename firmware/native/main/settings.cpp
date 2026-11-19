@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <string_view>
@@ -61,7 +62,7 @@ bool normalize(Settings &settings) {
   }
   auto &url = settings.immich_url;
   if (url.empty() && settings.immich_key.empty())
-    return settings.web_password.empty() && !settings.has_prepared_slides();
+    return !settings.has_prepared_slides();
   if (!settings.has_immich() || !normalize_http_base(url))
     return false;
   if (!url.ends_with("/api"))
@@ -89,14 +90,16 @@ bool read_field(const cJSON *root, const char *name, std::string &value, bool op
 }
 
 template <typename Integer>
-bool read_integer(const cJSON *root, const char *name, int minimum, int maximum, Integer &value) {
+bool read_integer(const cJSON *root, const char *name, double minimum, double maximum, Integer &value) {
   const auto *field = cJSON_GetObjectItemCaseSensitive(root, name);
   if (!field)
     return true;
-  if (!cJSON_IsNumber(field) || field->valueint < minimum || field->valueint > maximum ||
-      field->valueint != field->valuedouble)
+  if (!cJSON_IsNumber(field) || !(field->valuedouble >= minimum && field->valuedouble <= maximum))
     return false;
-  value = field->valueint;
+  const auto integer = static_cast<Integer>(field->valuedouble);
+  if (integer != field->valuedouble)
+    return false;
+  value = integer;
   return true;
 }
 
@@ -268,6 +271,7 @@ bool parse_all(const cJSON *root, Settings &settings) {
          read_field(root, "prepared_slide_url", settings.prepared_slide_url, true) &&
          read_field(root, "prepared_slide_token", settings.prepared_slide_token, true) &&
          read_field(root, "web_password", settings.web_password, true) &&
+         read_integer(root, "reset_epoch", 0, std::numeric_limits<uint32_t>::max(), settings.reset_epoch) &&
          read_playback(root, settings) && normalize(settings);
 }
 
@@ -336,6 +340,29 @@ bool put_wifi(cJSON *document, const char *ssid, const char *password) {
   return cJSON_AddStringToObject(document, "ssid", ssid) && cJSON_AddStringToObject(document, "password", password);
 }
 
+bool put_epoch(cJSON *document, uint32_t epoch) {
+  while (cJSON_GetObjectItemCaseSensitive(document, "reset_epoch"))
+    cJSON_DeleteItemFromObjectCaseSensitive(document, "reset_epoch");
+  return epoch == 0 || cJSON_AddNumberToObject(document, "reset_epoch", epoch) != nullptr;
+}
+
+Settings::UpdateResult store_settings(Settings &settings) {
+  using Result = Settings::UpdateResult;
+  const Json updated(cJSON_CreateObject(), cJSON_Delete);
+  if (!updated || !cJSON_AddStringToObject(updated.get(), "ssid", settings.ssid.c_str()) ||
+      !cJSON_AddStringToObject(updated.get(), "password", settings.password.c_str()) ||
+      !cJSON_AddStringToObject(updated.get(), "immich_key", settings.immich_key.c_str()) ||
+      !cJSON_AddStringToObject(updated.get(), "prepared_slide_token", settings.prepared_slide_token.c_str()) ||
+      !cJSON_AddStringToObject(updated.get(), "web_password", settings.web_password.c_str()) ||
+      !put_epoch(updated.get(), settings.reset_epoch) || !settings.add_playback_fields(updated.get()))
+    return Result::Failed;
+  if (!settings.brightness_night)
+    cJSON_DeleteItemFromObjectCaseSensitive(updated.get(), "brightness_night");
+  if (!parse_all(updated.get(), settings))
+    return Result::Invalid;
+  return write_document(updated.get()) ? Result::Saved : Result::Failed;
+}
+
 }  // namespace
 
 #if SWIPE_TRIAL_IMMICH
@@ -362,13 +389,15 @@ bool Settings::save(const char *json) {
   if (!cJSON_IsObject(document.get()))
     return false;
   const std::lock_guard lock(storage_mutex);
+  Settings saved;
+  const bool configured = load(saved);
   if (!cJSON_HasObjectItem(document.get(), "ssid") && !cJSON_HasObjectItem(document.get(), "password")) {
-    Settings saved;
-    if (!load(saved) || !put_wifi(document.get(), saved.ssid.c_str(), saved.password.c_str()))
+    if (!configured || !put_wifi(document.get(), saved.ssid.c_str(), saved.password.c_str()))
       return false;
   }
   Settings candidate;
-  return parse_all(document.get(), candidate) && candidate.has_immich() && write_document(document.get());
+  return put_epoch(document.get(), configured ? saved.reset_epoch : 0) &&
+         parse_all(document.get(), candidate) && candidate.has_immich() && write_document(document.get());
 }
 
 bool Settings::save_wifi(const WifiCredentials &wifi) {
@@ -431,17 +460,29 @@ bool Settings::add_playback_fields(cJSON *object) const {
 
 bool Settings::save_playback(const char *json) {
   const auto update = parse(json);
-  return cJSON_HasObjectItem(update.get(), "immich_url") &&
-         update_playback(update.get()) == UpdateResult::Saved;
+  if (!cJSON_HasObjectItem(update.get(), "immich_url"))
+    return false;
+  std::optional<uint32_t> expected_epoch;
+  if (cJSON_HasObjectItem(update.get(), "reset_epoch")) {
+    uint32_t epoch{};
+    if (!read_integer(update.get(), "reset_epoch", 0, std::numeric_limits<uint32_t>::max(), epoch))
+      return false;
+    expected_epoch = epoch;
+  }
+  return update_playback(update.get(), expected_epoch) == UpdateResult::Saved;
 }
 
-Settings::UpdateResult Settings::update_playback(const cJSON *update) {
+Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optional<uint32_t> expected_epoch) {
   std::string replacement_key;
   std::string replacement_token;
   const std::lock_guard lock(storage_mutex);
   Settings settings;
-  if (!cJSON_IsObject(update) || !load(settings) || !settings.has_immich() || settings.web_password.empty())
+  if (!cJSON_IsObject(update) || !load(settings) || settings.web_password.empty())
     return UpdateResult::Failed;
+  if (expected_epoch && *expected_epoch != settings.reset_epoch)
+    return UpdateResult::Stale;
+  if (!update->child)
+    return UpdateResult::Saved;
   const auto previous_prepared_url = settings.prepared_slide_url;
   if (!read_field(update, "immich_url", settings.immich_url, true) ||
       !read_field(update, "immich_key", replacement_key, true) ||
@@ -461,19 +502,20 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update) {
     if (!replacement_token.empty())
       settings.prepared_slide_token = std::move(replacement_token);
   }
-  const Json updated(cJSON_CreateObject(), cJSON_Delete);
-  if (!updated || !cJSON_AddStringToObject(updated.get(), "ssid", settings.ssid.c_str()) ||
-      !cJSON_AddStringToObject(updated.get(), "password", settings.password.c_str()) ||
-      !cJSON_AddStringToObject(updated.get(), "immich_key", settings.immich_key.c_str()) ||
-      !cJSON_AddStringToObject(updated.get(), "prepared_slide_token", settings.prepared_slide_token.c_str()) ||
-      !cJSON_AddStringToObject(updated.get(), "web_password", settings.web_password.c_str()) ||
-      !settings.add_playback_fields(updated.get()))
-    return UpdateResult::Failed;
-  if (!settings.brightness_night)
-    cJSON_DeleteItemFromObjectCaseSensitive(updated.get(), "brightness_night");
-  if (!parse_all(updated.get(), settings))
-    return UpdateResult::Invalid;
-  return write_document(updated.get()) ? UpdateResult::Saved : UpdateResult::Failed;
+  return store_settings(settings);
+}
+
+bool Settings::reset_customization() {
+  const std::lock_guard lock(storage_mutex);
+  Settings saved;
+  if (!load(saved) || saved.web_password.empty())
+    return false;
+  Settings reset;
+  reset.ssid = std::move(saved.ssid);
+  reset.password = std::move(saved.password);
+  reset.web_password = std::move(saved.web_password);
+  reset.reset_epoch = saved.reset_epoch == std::numeric_limits<uint32_t>::max() ? 1 : saved.reset_epoch + 1;
+  return store_settings(reset) == UpdateResult::Saved;
 }
 
 }  // namespace espframe::native

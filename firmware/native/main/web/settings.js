@@ -11,6 +11,12 @@ const firmware = document.querySelector('#firmware')
 const updateForm = document.querySelector('#firmware-update')
 const updateButton = updateForm.querySelector('button')
 const updateStatus = document.querySelector('#firmware-status')
+const resetSection = document.querySelector('#customization-reset')
+const resetButton = document.querySelector('#open-reset')
+const resetDialog = document.querySelector('#confirm-reset')
+const resetStatus = document.querySelector('#reset-status')
+let resetPath = ''
+let resetEpoch
 const percentageFields = ['brightness_day', 'brightness_night', 'base_tone', 'warm_tone_intensity']
 const schedule = document.querySelector('#screen-schedule')
 const showPercentages = () => {
@@ -31,12 +37,22 @@ async function request(options) {
 
 try {
   const settings = await request()
+  resetEpoch = settings.reset_epoch
   if (settings.firmware_update && /^v[123]$/.test(settings.board_revision)) {
     document.querySelector('#firmware-help').textContent =
       `Choose ${settings.board_revision}-ota.bin from the native installer package.`
     firmware.hidden = false
   }
   form.elements.immich_url.value = settings.immich_url
+  if (settings.api_key_configured === false) {
+    document.querySelector('#immich-key-label').textContent = 'Immich API key'
+    document.querySelector('#keep-key').textContent = 'Enter your API key to connect Immich.'
+    form.elements.immich_key.required = true
+  }
+  if (settings.reset_path === '/espframe/api/v1/reset') {
+    resetPath = settings.reset_path
+    resetSection.hidden = false
+  }
   form.elements.slide_seconds.value = settings.slide_seconds
   form.elements.brightness_day.value = settings.brightness_day ?? 64
   form.elements.brightness_night.value = settings.brightness_night ?? form.elements.brightness_day.value
@@ -97,8 +113,10 @@ try {
 
 form.addEventListener('submit', async event => {
   event.preventDefault()
+  if (submit.disabled) return
   const data = Object.fromEntries(new FormData(form))
   if (!validateAlbum(form, data) || !addCaptureDates(form, data)) return
+  if (Number.isInteger(resetEpoch)) data.reset_epoch = resetEpoch
   submit.disabled = true
   data.slide_seconds = Number(data.slide_seconds)
   for (const name of percentageFields) data[name] = form.elements[name].valueAsNumber
@@ -154,4 +172,43 @@ updateForm.addEventListener('submit', async event => {
     submit.disabled = false
     updateStatus.textContent = error.message
   }
+})
+
+resetButton.addEventListener('click', () => {
+  if (!resetPath || submit.disabled) return
+  resetDialog.showModal()
+})
+document.querySelector('#cancel-reset').addEventListener('click', () => resetDialog.close())
+document.querySelector('#apply-reset').addEventListener('click', async () => {
+  resetDialog.close()
+  if (!resetPath || submit.disabled) return
+  for (const button of [resetButton, submit, download, updateButton]) button.disabled = true
+  resetStatus.textContent = 'Resetting settings…'
+  try {
+    const response = await fetch(resetPath, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ mode: 'customization' }),
+    })
+    const payload = await response.json()
+    if (!response.ok || payload.status !== 'accepted') throw new Error('reset_failed')
+  } catch {
+    for (const button of [resetButton, submit, download, updateButton]) button.disabled = false
+    resetStatus.textContent = 'Could not confirm the reset. Reload the settings to check the frame.'
+    return
+  }
+  resetStatus.textContent = 'Settings reset. The frame is restarting.'
+  for (let attempt = 0; attempt < 5; ++attempt) {
+    await new Promise(resolve => setTimeout(resolve, attempt === 0 ? 2500 : 1500))
+    try {
+      const response = await fetch(resetPath, { cache: 'no-store', signal: AbortSignal.timeout(2000) })
+      if (response.ok && (await response.json()).status === 'ready') {
+        window.location.reload()
+        return
+      }
+    } catch {
+      // The frame may be joining Wi-Fi again.
+    }
+  }
+  resetStatus.textContent = 'Reload this page when the frame reconnects to set up Immich.'
 })

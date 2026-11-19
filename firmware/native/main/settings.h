@@ -24,7 +24,7 @@ inline constexpr const char *screen_rotation_name(ScreenRotation rotation) {
 }
 
 struct Settings {
-  enum class UpdateResult { Saved, Invalid, Failed };
+  enum class UpdateResult { Saved, Invalid, Stale, Failed };
 
   std::string ssid;
   std::string password;
@@ -33,6 +33,7 @@ struct Settings {
   std::string prepared_slide_url;
   std::string prepared_slide_token;
   std::string web_password;
+  uint32_t reset_epoch{};
   uint32_t slide_seconds{15};
   uint8_t brightness_day{64};
   std::optional<uint8_t> brightness_night;
@@ -59,7 +60,8 @@ struct Settings {
   static bool save(const char *json);
   static bool save_wifi(const WifiCredentials &wifi);
   static bool save_playback(const char *json);
-  static UpdateResult update_playback(const cJSON *update);
+  static UpdateResult update_playback(const cJSON *update, std::optional<uint32_t> expected_epoch = {});
+  static bool reset_customization();
   bool add_playback_fields(cJSON *object) const;
 };
 

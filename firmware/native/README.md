@@ -97,7 +97,12 @@ The native player also answers the shared configuration API at
 Authenticated reads report common settings and list unavailable fields.
 Same-origin writes accept the existing form-encoded configuration payload.
 The player saves the supported fields together and restarts to apply them.
-The API key is write-only. Independent photo-source filters and reset
+The API key is write-only. Under **Photo sources & device tools**, use
+**Reset customization** to clear both photo connections and restore playback
+and display defaults. The frame retains Wi-Fi and the web settings password,
+so you can reconnect Immich from the same page after it restarts. The shared
+configuration API reports the new reset epoch and rejects stale writes that
+carry an earlier epoch. Independent photo-source filters and a complete reset
 still need integration.
 
 ### Update the native firmware from the web settings

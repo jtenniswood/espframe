@@ -16,7 +16,7 @@
       <h2 id="playback">Photo playback</h2>
       <form id="settings" method="post" autocomplete="off" hidden>
         <label>Immich base URL <input name="immich_url" type="url" maxlength="256" required></label>
-        <label>Replacement Immich API key <input name="immich_key" type="password" maxlength="256" aria-describedby="keep-key"></label>
+        <label><span id="immich-key-label">Replacement Immich API key</span> <input name="immich_key" type="password" maxlength="256" aria-describedby="keep-key"></label>
         <small id="keep-key">Leave blank to keep your current key.</small>
         <label>Photo source
           <select name="photo_source">
@@ -160,6 +160,18 @@
         <button type="submit">Install update and restart</button>
       </form>
       <p id="firmware-status" role="status" aria-live="polite"></p>
+    </section>
+    <section id="customization-reset" aria-labelledby="reset-title" hidden>
+      <h2 id="reset-title">Reset settings</h2>
+      <p>Clear photo connections and restore playback and display defaults. Keep Wi-Fi and the web settings password.</p>
+      <button id="open-reset" type="button">Reset customization</button>
+      <p id="reset-status" role="status"></p>
+      <dialog id="confirm-reset" aria-labelledby="reset-dialog-title">
+        <h2 id="reset-dialog-title">Reset customization?</h2>
+        <p>Download a settings backup first if you want a copy. After restart, enter your Immich URL and API key on this page.</p>
+        <button id="cancel-reset" type="button" autofocus>Cancel</button>
+        <button id="apply-reset" type="button">Reset and restart</button>
+      </dialog>
     </section>
   </main>
 </body>
