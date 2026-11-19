@@ -3,6 +3,7 @@
 #include "capture_date.h"
 
 #include "clock_settings.h"
+#include "home_assistant_key.h"
 #include "photo_framing.h"
 #include "photo_filters.h"
 #include "photo_metadata.h"
@@ -30,6 +31,7 @@ enum class ResetMode { Customization, Factory };
 
 struct Settings {
   enum class UpdateResult { Saved, Invalid, Stale, Failed };
+  enum class UsbSaveResult { Saved, Rejected, PairingUnavailable };
 
   std::string ssid;
   std::string password;
@@ -40,6 +42,7 @@ struct Settings {
   std::string web_password;
   std::string home_assistant_key;
   std::string frame_name;
+  bool home_assistant_key_set{};
   uint32_t reset_epoch{};
   uint32_t slide_seconds{15};
   uint8_t brightness_day{64};
@@ -77,6 +80,8 @@ struct Settings {
   bool read();
   bool read_esphome_trial();
   static bool save(const char *json, std::optional<uint32_t> expected_epoch = {});
+  static UsbSaveResult save_usb(const char *json, std::optional<uint32_t> expected_epoch,
+                                std::optional<HomeAssistantKey> (*read_stock_pairing)() = nullptr);
   static bool save_wifi(const WifiCredentials &wifi, uint32_t expected_epoch);
   static bool save_slide_interval(uint32_t seconds, std::string_view paired_key);
   static bool save_playback(const char *json);

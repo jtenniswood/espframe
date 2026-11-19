@@ -125,8 +125,16 @@ MAC-suffixed hostname when Home Assistant is enabled. The key stays on the
 frame across native OTA updates and customization resets. Use **Remove saved
 Home Assistant key** in browser setup or factory reset to clear it. Settings
 exports and responses exclude the key.
-Enter an existing key over USB to reuse it during migration. Automatic
-transfer from the stock firmware still needs validation.
+To keep a stock ESPHome pairing during USB migration, export your settings
+backup and leave **Erase device** unchecked when installing native firmware.
+Then choose **Keep the existing ESPHome pairing** in browser setup and save
+over USB. The frame copies the retained key into native settings locally.
+If the stored pairing is unavailable, setup reports that before saving.
+You can also enter an existing key manually. Keep the matching stock
+installer available if you need to return to ESPHome.
+Removing the native key or running a native factory reset blocks reimport.
+The retained stock copy remains available for ESPHome recovery until a full
+flash erase.
 
 ### Update the native firmware from the web settings
 

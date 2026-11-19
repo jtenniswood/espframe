@@ -3,6 +3,7 @@
 #include "improv_serial.h"
 #include "native_network.h"
 #include "settings.h"
+#include "stock_home_assistant_key.h"
 
 #include "driver/uart.h"
 #include "driver/uart_vfs.h"
@@ -109,14 +110,20 @@ void listen(void *context) {
         reply("READY", challenge);
         continue;
       }
-      if (!command.starts_with("SET ") || challenge.empty() || esp_timer_get_time() >= expires_us)
+      const bool migrate = command.starts_with("MIGRATE ");
+      if ((!migrate && !command.starts_with("SET ")) || challenge.empty() || esp_timer_get_time() >= expires_us)
         continue;
-      command.remove_prefix(4);
+      command.remove_prefix(migrate ? 8 : 4);
       if (!command.starts_with(challenge) || command.size() <= challenge.size() || command[challenge.size()] != ' ')
         continue;
       command.remove_prefix(challenge.size() + 1);
-      if (improv.busy() || network.busy() || !Settings::save(command.data(), reset_epoch)) {
-        reply("REJECTED", challenge);
+      using Result = Settings::UsbSaveResult;
+      const auto result = improv.busy() || network.busy()
+                              ? Result::Rejected
+                              : Settings::save_usb(command.data(), reset_epoch,
+                                                   migrate ? read_stock_home_assistant_key : nullptr);
+      if (result != Result::Saved) {
+        reply(result == Result::PairingUnavailable ? "PAIRING_UNAVAILABLE" : "REJECTED", challenge);
         challenge.clear();
         continue;
       }

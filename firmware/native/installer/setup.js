@@ -19,6 +19,7 @@ const playback = document.querySelector('#playback')
 const schedule = document.querySelector('#screen-schedule')
 const homeAssistant = document.querySelector('#home-assistant')
 const homeAssistantKey = form.elements.home_assistant_key
+const keepStockPairing = document.querySelector('#keep-stock-pairing')
 const removeHomeAssistantKey = document.querySelector('#remove-home-assistant-key')
 const frameName = form.elements.frame_name
 const refreshSource = bindPhotoSource(form)
@@ -32,10 +33,17 @@ const refreshWifi = () => {
 reuseWifi.addEventListener('change', refreshWifi)
 refreshWifi()
 const refreshHomeAssistant = () => {
-  homeAssistantKey.disabled = removeHomeAssistantKey.checked
+  homeAssistantKey.disabled = removeHomeAssistantKey.checked || keepStockPairing.checked
   homeAssistantKey.setCustomValidity('')
 }
-removeHomeAssistantKey.addEventListener('change', refreshHomeAssistant)
+keepStockPairing.addEventListener('change', () => {
+  if (keepStockPairing.checked) removeHomeAssistantKey.checked = false
+  refreshHomeAssistant()
+})
+removeHomeAssistantKey.addEventListener('change', () => {
+  if (removeHomeAssistantKey.checked) keepStockPairing.checked = false
+  refreshHomeAssistant()
+})
 homeAssistantKey.addEventListener('input', () => homeAssistantKey.setCustomValidity(''))
 const showPercentages = () => {
   for (const name of percentageFields) {
@@ -148,9 +156,11 @@ if ('serial' in navigator) {
       return
     }
     const data = Object.fromEntries(new FormData(form))
+    const keepPairing = keepStockPairing.checked
     if (frameNameSpecified) data.frame_name = normalizeFrameName(frameName.value)
     else delete data.frame_name
-    if (removeHomeAssistantKey.checked) data.home_assistant_key = ''
+    if (keepPairing) delete data.home_assistant_key
+    else if (removeHomeAssistantKey.checked) data.home_assistant_key = ''
     else if (!homeAssistantKey.value) delete data.home_assistant_key
     else if (!/^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$/.test(homeAssistantKey.value) ||
              homeAssistantKey.value === 'A'.repeat(43) + '=') {
@@ -181,7 +191,7 @@ if ('serial' in navigator) {
     try {
       const port = await navigator.serial.requestPort()
       status.textContent = 'Saving settings on the frame…'
-      await configure(port, data)
+      await configure(port, data, { keepPairing })
       form.reset()
       frameNameSpecified = false
       refreshSource()
@@ -190,7 +200,7 @@ if ('serial' in navigator) {
       refreshWifi()
       refreshHomeAssistant()
       backupStatus.textContent = ''
-      status.textContent = 'Settings saved.'
+      status.textContent = keepPairing ? 'Settings saved. Home Assistant pairing kept.' : 'Settings saved.'
       networkStatus.textContent = 'Waiting for the frame to restart and reconnect to Wi-Fi…'
       const frame = await waitForFrame(port)
       if (frame) showFrameAddress(frame)

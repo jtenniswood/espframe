@@ -62,12 +62,15 @@ async function withPort(port, action) {
   }
 }
 
-export function configure(port, settings, { challenge = crypto.randomUUID(), timeout = 5000 } = {}) {
+export function configure(port, settings, { challenge = crypto.randomUUID(), timeout = 5000, keepPairing = false } = {}) {
   return withPort(port, async (reader, writer) => {
     await writer.write(encoder.encode(`\n${prefix}HELLO ${challenge}\n`))
     await waitForReply(reader, challenge, ['READY'], timeout)
-    await writer.write(encoder.encode(`${prefix}SET ${challenge} ${JSON.stringify(settings)}\n`))
-    const { status } = await waitForReply(reader, challenge, ['SAVED', 'REJECTED'], timeout)
+    const command = keepPairing ? 'MIGRATE' : 'SET'
+    await writer.write(encoder.encode(`${prefix}${command} ${challenge} ${JSON.stringify(settings)}\n`))
+    const { status } = await waitForReply(reader, challenge, ['SAVED', 'REJECTED', 'PAIRING_UNAVAILABLE'], timeout)
+    if (status === 'PAIRING_UNAVAILABLE')
+      throw new Error('The frame could not keep the ESPHome pairing. Clear the checkbox to continue setup, or enter an existing key.')
     if (status !== 'SAVED') throw new Error('The frame rejected the settings. Check each field and try again.')
   })
 }

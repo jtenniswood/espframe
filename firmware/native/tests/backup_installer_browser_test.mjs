@@ -39,6 +39,7 @@ const backup = {
 const verify = `
   const encoder = new TextEncoder()
   let received
+  let lastWrite
   let attempts = 0
   let writes = 0
   let addressChecks = 0
@@ -53,10 +54,11 @@ const verify = `
         async close() {},
         writable: new WritableStream({write(bytes) {
           const text = new TextDecoder().decode(bytes).trim()
-          const match = /^ESPFRAME_SETUP 1 (HELLO|SET|STATUS) ([^ ]+)(?: (.*))?$/.exec(text)
+          const match = /^ESPFRAME_SETUP 1 (HELLO|SET|MIGRATE|STATUS) ([^ ]+)(?: (.*))?$/.exec(text)
           if (!match) throw new Error('Invalid USB message')
-          if (match[1] === 'SET') {
+          if (match[1] === 'SET' || match[1] === 'MIGRATE') {
             writes++
+            lastWrite = match[1]
             received = JSON.parse(match[3])
           }
           if (match[1] === 'STATUS') {
@@ -67,7 +69,8 @@ const verify = `
             const response = offline ? 'OFFLINE ' + match[2] : 'CONNECTED ' + match[2] + ' 192.168.50.10 ' + state
             output.enqueue(encoder.encode('ESPFRAME_SETUP 1 ' + response + '\\n'))
           } else {
-            output.enqueue(encoder.encode('ESPFRAME_SETUP 1 ' + (match[1] === 'HELLO' ? 'READY' : 'SAVED') + ' ' + match[2] + '\\n'))
+            const reply = match[1] === 'HELLO' ? 'READY' : match[1] === 'MIGRATE' && selection === 6 ? 'PAIRING_UNAVAILABLE' : 'SAVED'
+            output.enqueue(encoder.encode('ESPFRAME_SETUP 1 ' + reply + ' ' + match[2] + '\\n'))
           }
         }}),
       }
@@ -224,6 +227,31 @@ const verify = `
       || received.favorite_mode !== 'Exclude favorites' || received.immich_key !== 'filtered-key'
       || received.home_assistant_key !== '')
       throw new Error('Compound photo filters did not reach USB setup')
+
+    reuse.checked = true
+    reuse.dispatchEvent(new Event('change'))
+    form.elements.immich_url.value = 'https://photos.test'
+    form.elements.immich_key.value = 'migration-key'
+    homeAssistantKey.value = 'unsent manually entered value'
+    const keepPairing = document.querySelector('#keep-stock-pairing')
+    keepPairing.checked = true
+    keepPairing.dispatchEvent(new Event('change'))
+    if (!homeAssistantKey.disabled || removeKey.checked)
+      throw new Error('The stock pairing option allowed conflicting key changes')
+    const saveStatus = document.querySelector('#status')
+    const unavailable = waitFor(saveStatus, 'could not keep the ESPHome pairing')
+    form.requestSubmit()
+    await unavailable
+    if (attempts !== 6 || lastWrite !== 'MIGRATE' || Object.hasOwn(received, 'home_assistant_key') ||
+      form.elements.immich_key.value !== 'migration-key')
+      throw new Error('A missing stock pairing lost the installer settings or transmitted a key')
+    const migrated = waitFor(saveStatus, 'Home Assistant pairing kept')
+    const online = waitFor(networkStatus, 'Open frame settings')
+    form.requestSubmit()
+    await migrated
+    await online
+    if (attempts !== 7 || lastWrite !== 'MIGRATE' || Object.hasOwn(received, 'home_assistant_key'))
+      throw new Error('The installer did not migrate the existing pairing on the frame')
   }
   window.addEventListener('DOMContentLoaded', () => {
     function report(result) {

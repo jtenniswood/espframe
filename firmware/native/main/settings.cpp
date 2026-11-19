@@ -418,6 +418,11 @@ bool read_playback(const cJSON *root, Settings &settings) {
          read_schedule(root, settings.schedule) && read_metadata(root, settings.metadata) && read_tone(root, settings.tone);
 }
 
+bool read_home_assistant_key(const cJSON *root, Settings &settings) {
+  settings.home_assistant_key_set = cJSON_HasObjectItem(root, "home_assistant_key");
+  return read_field(root, "home_assistant_key", settings.home_assistant_key, true);
+}
+
 bool parse_all(const cJSON *root, Settings &settings) {
   return cJSON_IsObject(root) && read_field(root, "ssid", settings.ssid) &&
          read_field(root, "password", settings.password) &&
@@ -426,7 +431,7 @@ bool parse_all(const cJSON *root, Settings &settings) {
          read_field(root, "prepared_slide_url", settings.prepared_slide_url, true) &&
          read_field(root, "prepared_slide_token", settings.prepared_slide_token, true) &&
          read_field(root, "web_password", settings.web_password, true) &&
-         read_field(root, "home_assistant_key", settings.home_assistant_key, true) &&
+         read_home_assistant_key(root, settings) &&
          read_field(root, "frame_name", settings.frame_name, true) &&
          read_integer(root, "reset_epoch", 0, std::numeric_limits<uint32_t>::max(), settings.reset_epoch) &&
          read_playback(root, settings) && normalize(settings);
@@ -477,8 +482,8 @@ Json load_document(bool *may_create = nullptr) {
   return document;
 }
 
-bool load(Settings &settings) {
-  const auto document = load_document();
+bool load(Settings &settings, bool *may_create = nullptr) {
+  const auto document = load_document(may_create);
   return parse_all(document.get(), settings);
 }
 
@@ -536,7 +541,7 @@ Settings::UpdateResult store_settings(Settings &settings, bool clear_legacy = fa
       !cJSON_AddStringToObject(updated.get(), "immich_key", settings.immich_key.c_str()) ||
       !cJSON_AddStringToObject(updated.get(), "prepared_slide_token", settings.prepared_slide_token.c_str()) ||
       !cJSON_AddStringToObject(updated.get(), "web_password", settings.web_password.c_str()) ||
-      (!settings.home_assistant_key.empty() &&
+      (settings.home_assistant_key_set &&
        !cJSON_AddStringToObject(updated.get(), "home_assistant_key", settings.home_assistant_key.c_str())) ||
       !put_epoch(updated.get(), settings.reset_epoch) || !settings.add_playback_fields(updated.get()))
     return Result::Failed;
@@ -569,31 +574,53 @@ bool Settings::read() {
 }
 
 bool Settings::save(const char *json, std::optional<uint32_t> expected_epoch) {
+  return save_usb(json, expected_epoch) == UsbSaveResult::Saved;
+}
+
+Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint32_t> expected_epoch,
+                                          std::optional<HomeAssistantKey> (*read_stock_pairing)()) {
+  using Result = UsbSaveResult;
   const auto document = parse(json);
   if (!cJSON_IsObject(document.get()))
-    return false;
+    return Result::Rejected;
+  const bool new_key = cJSON_HasObjectItem(document.get(), "home_assistant_key");
+  if (read_stock_pairing && new_key)
+    return Result::Rejected;
   const std::lock_guard lock(storage_mutex);
   Settings saved;
-  const bool configured = load(saved);
+  bool may_create = false;
+  const bool configured = load(saved, read_stock_pairing ? &may_create : nullptr);
   const auto epoch = configured ? saved.reset_epoch : 0;
   if (expected_epoch && *expected_epoch != epoch)
-    return false;
+    return Result::Rejected;
+  // An explicit native key choice (including an empty key) blocks a later
+  // import. A factory-reset epoch also blocks reusing old stock credentials.
+  if (read_stock_pairing && ((!configured && !may_create) || epoch != 0 || saved.home_assistant_key_set))
+    return Result::PairingUnavailable;
   if (!cJSON_HasObjectItem(document.get(), "ssid") && !cJSON_HasObjectItem(document.get(), "password")) {
     if (!configured || !put_wifi(document.get(), saved.ssid.c_str(), saved.password.c_str()))
-      return false;
+      return Result::Rejected;
   }
   if (!cJSON_HasObjectItem(document.get(), "frame_name") && !saved.frame_name.empty() &&
       !cJSON_AddStringToObject(document.get(), "frame_name", saved.frame_name.c_str()))
-    return false;
-  if (!cJSON_HasObjectItem(document.get(), "home_assistant_key") && !saved.home_assistant_key.empty() &&
+    return Result::Rejected;
+  if (!new_key && saved.home_assistant_key_set &&
       !cJSON_AddStringToObject(document.get(), "home_assistant_key", saved.home_assistant_key.c_str()))
-    return false;
+    return Result::Rejected;
   if (!cJSON_HasObjectItem(document.get(), "portrait_pair_framing") && saved.pair_framing != PairFraming::FollowPhotos &&
       !cJSON_AddStringToObject(document.get(), "portrait_pair_framing", pair_framing_name(saved.pair_framing)))
-    return false;
+    return Result::Rejected;
   Settings candidate;
-  return put_epoch(document.get(), epoch) &&
-         parse_all(document.get(), candidate) && candidate.has_immich() && write_document(document.get());
+  if (!put_epoch(document.get(), epoch) || !parse_all(document.get(), candidate) || !candidate.has_immich())
+    return Result::Rejected;
+  if (read_stock_pairing) {
+    const auto key = read_stock_pairing();
+    if (!key || !valid_home_assistant_key(*key))
+      return Result::PairingUnavailable;
+    if (!cJSON_AddStringToObject(document.get(), "home_assistant_key", encode_home_assistant_key(*key).c_str()))
+      return Result::Rejected;
+  }
+  return write_document(document.get()) ? Result::Saved : Result::Rejected;
 }
 
 bool Settings::save_wifi(const WifiCredentials &wifi, uint32_t expected_epoch) {
@@ -733,6 +760,7 @@ bool Settings::reset(ResetMode mode) {
     reset.password = std::move(saved.password);
     reset.web_password = std::move(saved.web_password);
     reset.home_assistant_key = std::move(saved.home_assistant_key);
+    reset.home_assistant_key_set = saved.home_assistant_key_set;
   }
   reset.reset_epoch = saved.reset_epoch == std::numeric_limits<uint32_t>::max() ? 1 : saved.reset_epoch + 1;
   return store_settings(reset, mode == ResetMode::Factory) == UpdateResult::Saved;

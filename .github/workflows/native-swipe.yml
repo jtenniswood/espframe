@@ -143,6 +143,18 @@ jobs:
               exit 1
             fi
           done < <(grep -hE "$settings" firmware/native/sdkconfig.defaults firmware/native/sdkconfig.native)
+      - name: Check the read-only stock settings region
+        run: |
+          python3 - "firmware/native/build/${{ matrix.board }}/partition_table/partition-table.bin" <<'PY'
+          from pathlib import Path
+          import struct
+          import sys
+
+          table = Path(sys.argv[1]).read_bytes()
+          record = struct.pack("<HBBII16sI", 0x50AA, 1, 2, 0xF90000, 0x70000, b"stock_prefs", 2)
+          if record not in (table[offset:offset + 32] for offset in range(0, len(table), 32)):
+              raise SystemExit("Expected the stock preferences range marked read-only")
+          PY
       - name: Test settings persistence
         if: matrix.board == 'v3'
         run: |
@@ -151,6 +163,7 @@ jobs:
           cc -c "$cjson/cJSON.c" -o "$RUNNER_TEMP/cjson.o"
           c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/stubs -Icomponents/espframe -I"$cjson" -I"$zones" \
             firmware/native/main/settings.cpp firmware/native/main/clock_settings.cpp firmware/native/main/native_configuration.cpp \
+            firmware/native/main/stock_home_assistant_key.cpp \
             firmware/native/tests/settings_test.cpp "$RUNNER_TEMP/cjson.o" \
             -o "$RUNNER_TEMP/settings-test"
           "$RUNNER_TEMP/settings-test"

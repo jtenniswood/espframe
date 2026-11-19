@@ -7,6 +7,7 @@
 #include "nvs_flash.h"
 #include "settings.h"
 #include "slideshow_interval.h"
+#include "stock_home_assistant_key.h"
 
 #include <cassert>
 #include <cstring>
@@ -24,15 +25,40 @@ std::set<std::string> stored_blobs;
 std::set<std::string> staged_blobs;
 bool fail_commit{};
 bool fail_erase{};
+constexpr nvs_handle_t stock_handle = 2;
+bool stock_partition_available{true};
+bool stock_initialized{};
+bool stock_opened{};
+std::optional<std::string> stock_pairing;
+unsigned stock_reads{};
 
 }  // namespace
 
 esp_err_t nvs_flash_init_partition(const char *partition) {
+  if (std::string_view(partition) == "stock_prefs") {
+    assert(!stock_initialized);
+    if (!stock_partition_available)
+      return ESP_ERR_NVS_NOT_FOUND;
+    stock_initialized = true;
+    return ESP_OK;
+  }
   assert(std::string(partition) == "native_config");
   return ESP_OK;
 }
 
+esp_err_t nvs_flash_deinit_partition(const char *partition) {
+  assert(std::string_view(partition) == "stock_prefs" && stock_initialized && !stock_opened);
+  stock_initialized = false;
+  return ESP_OK;
+}
+
 esp_err_t nvs_open_from_partition(const char *partition, const char *name, int mode, nvs_handle_t *handle) {
+  if (std::string_view(partition) == "stock_prefs") {
+    assert(std::string_view(name) == "esphome" && mode == NVS_READONLY && stock_initialized && !stock_opened);
+    stock_opened = true;
+    *handle = stock_handle;
+    return ESP_OK;
+  }
   assert(std::string(partition) == "native_config" && std::string(name) == "player");
   *handle = mode;
   return ESP_OK;
@@ -59,7 +85,18 @@ esp_err_t nvs_set_str(nvs_handle_t handle, const char *key, const char *value) {
   return ESP_OK;
 }
 
-esp_err_t nvs_get_blob(nvs_handle_t, const char *key, void *out, size_t *size) {
+esp_err_t nvs_get_blob(nvs_handle_t handle, const char *key, void *out, size_t *size) {
+  if (handle == stock_handle) {
+    assert(stock_opened && std::string_view(key) == "88491486" && out);
+    ++stock_reads;
+    if (!stock_pairing)
+      return ESP_ERR_NVS_NOT_FOUND;
+    if (*size < stock_pairing->size())
+      return ESP_ERR_NVS_TYPE_MISMATCH;
+    *size = stock_pairing->size();
+    std::memcpy(out, stock_pairing->data(), *size);
+    return ESP_OK;
+  }
   const auto value = stored.find(key);
   if (value == stored.end())
     return ESP_ERR_NVS_NOT_FOUND;
@@ -106,9 +143,69 @@ esp_err_t nvs_commit(nvs_handle_t handle) {
   return ESP_OK;
 }
 
-void nvs_close(nvs_handle_t) {
+void nvs_close(nvs_handle_t handle) {
+  if (handle == stock_handle) {
+    assert(stock_opened);
+    stock_opened = false;
+    return;
+  }
   staged.clear();
   staged_blobs.clear();
+}
+
+void verify_stock_pairing_migration() {
+  using namespace espframe::native;
+  using Result = Settings::UsbSaveResult;
+  constexpr char setup[] = R"({"immich_url":"http://photos.test","immich_key":"fresh-key","web_password":"new-settings"})";
+  constexpr char manual[] = R"({"immich_url":"http://photos.test","immich_key":"fresh-key","web_password":"new-settings",
+      "home_assistant_key":""})";
+  constexpr char expected_key[] = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=";
+  const auto key = decode_home_assistant_key(expected_key);
+  assert(key && encode_home_assistant_key(*key) == expected_key);
+
+  stored.clear();
+  stored_blobs.clear();
+  const auto wifi = WifiCredentials::from("Photo Lab", "test-password");
+  assert(wifi && Settings::save_wifi(*wifi, 0));
+  const auto before = stored;
+  const auto migrate = [&] { return Settings::save_usb(setup, 0, read_stock_home_assistant_key); };
+  stock_partition_available = false;
+  assert(migrate() == Result::PairingUnavailable && stored == before);
+  stock_partition_available = true;
+  assert(migrate() == Result::PairingUnavailable && stored == before);
+  for (size_t bytes : {31, 32, 33}) {
+    stock_pairing = std::string(bytes, '\0');
+    assert(migrate() == Result::PairingUnavailable && stored == before);
+    assert(!stock_initialized && !stock_opened);
+  }
+
+  stock_pairing = std::string(reinterpret_cast<const char *>(key->data()), key->size());
+  const auto original = stock_pairing;
+  const auto initial_reads = stock_reads;
+  assert(Settings::save_usb(manual, 0, read_stock_home_assistant_key) == Result::Rejected);
+  assert(Settings::save_usb(setup, 1, read_stock_home_assistant_key) == Result::Rejected);
+  assert(stock_reads == initial_reads && stored == before);
+
+  fail_commit = true;
+  assert(migrate() == Result::Rejected && stored == before);
+  fail_commit = false;
+  assert(migrate() == Result::Saved);
+  Settings loaded;
+  assert(loaded.read() && loaded.home_assistant_key == expected_key && loaded.ssid == "Photo Lab");
+  const auto imported_reads = stock_reads;
+  assert(migrate() == Result::PairingUnavailable && stock_reads == imported_reads);
+  assert(Settings::save(setup, 0) && loaded.read() && loaded.home_assistant_key == expected_key);
+  assert(Settings::save(manual, 0) && loaded.read() && loaded.home_assistant_key.empty());
+  assert(!Settings::save_slide_interval(45, expected_key));
+  assert(Settings::save_playback(R"({"immich_url":"http://photos.test","slide_seconds":45})"));
+  assert(migrate() == Result::PairingUnavailable && stock_reads == imported_reads);
+  assert(Settings::reset(ResetMode::Factory));
+  assert(Settings::save_wifi(*wifi, 1));
+  assert(Settings::save_usb(setup, 1, read_stock_home_assistant_key) == Result::PairingUnavailable);
+  assert(loaded.read() && loaded.home_assistant_key.empty() && stock_pairing == original);
+  assert(stock_reads == imported_reads && !stock_initialized && !stock_opened);
+  stored["settings_v1"] = "{corrupt";
+  assert(migrate() == Result::PairingUnavailable && stock_reads == imported_reads);
 }
 
 int main() {
@@ -665,4 +762,5 @@ int main() {
   expect_status(true, false, "awake", "showing", "memories", "responding", "waiting_for_pair", true);
   status.set_screen(false);
   expect_status(true, true, "asleep", "paused", "memories", "responding", "waiting_for_pair");
+  verify_stock_pairing_migration();
 }

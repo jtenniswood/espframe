@@ -14,6 +14,7 @@
     <p>Connect a Guition JC8012P4A1 test frame by USB. Installing replaces the firmware on the frame.</p>
     <section aria-labelledby="install">
       <h2 id="install">Install firmware</h2>
+      <p>To keep an existing Home Assistant pairing, leave <strong>Erase device</strong> unchecked during installation.</p>
       <label for="revision">Guition hardware revision</label>
       <select id="revision">
         <option value="">Select a revision</option>
@@ -47,6 +48,7 @@
           <summary>Home Assistant</summary>
           <label>ESPHome encryption key <input name="home_assistant_key" type="password" maxlength="44" aria-describedby="home-assistant-key"></label>
           <small id="home-assistant-key">Use a unique 32-byte Base64 key. Enter the same key in Home Assistant. Leave blank to keep any saved key.</small>
+          <label><input id="keep-stock-pairing" type="checkbox" class="inline-option"> Keep the existing ESPHome pairing</label>
           <label><input id="remove-home-assistant-key" type="checkbox" class="inline-option"> Remove saved Home Assistant key</label>
         </details>
         <details id="playback">

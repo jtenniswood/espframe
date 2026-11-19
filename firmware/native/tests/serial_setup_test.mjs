@@ -11,7 +11,8 @@ const credentials = {
   immich_key: 'test-key',
 }
 
-function mockPort({ correct = true, status = 'SAVED', network = '192.168.1.42 2', addresses, booting = false } = {}) {
+function mockPort({ correct = true, status = 'SAVED', network = '192.168.1.42 2',
+  addresses, booting = false, supportsMigration = true } = {}) {
   let receive
   let portOpen = false
   let readable
@@ -24,7 +25,7 @@ function mockPort({ correct = true, status = 'SAVED', network = '192.168.1.42 2'
       if (line.startsWith(`${prefix}HELLO`)) {
         receive.enqueue(encoder.encode(`\r\nI console line\r\n${prefix}READY ${correct ? nonce.slice(0, 16) : 'another-id'}`))
         receive.enqueue(encoder.encode(`${correct ? nonce.slice(16) : ''}\r\n`))
-      } else if (line.startsWith(`${prefix}SET`)) {
+      } else if (line.startsWith(`${prefix}SET `) || (supportsMigration && line.startsWith(`${prefix}MIGRATE `))) {
         receive.enqueue(encoder.encode(`\r\n${prefix}${status} ${nonce}\r\n`))
       } else if (line.startsWith(`${prefix}STATUS`)) {
         const id = correct ? nonce : 'another-id'
@@ -66,6 +67,17 @@ assert.equal(wrong.openState, false)
 const rejected = mockPort({ status: 'REJECTED' })
 await assert.rejects(configure(rejected, credentials, { challenge }), /rejected the settings/)
 assert.equal(rejected.openState, false)
+
+const migrated = mockPort()
+await configure(migrated, credentials, { challenge, keepPairing: true })
+assert.deepEqual(migrated.writes, [`${prefix}HELLO ${challenge}`, `${prefix}MIGRATE ${challenge} ${JSON.stringify(credentials)}`])
+assert.equal(migrated.openState, false)
+const unavailable = mockPort({ status: 'PAIRING_UNAVAILABLE' })
+await assert.rejects(configure(unavailable, credentials, { challenge, keepPairing: true }), /could not keep the ESPHome pairing/)
+const oldFirmware = mockPort({ supportsMigration: false })
+await assert.rejects(configure(oldFirmware, credentials, { challenge, keepPairing: true, timeout: 30 }), /did not answer/)
+assert.deepEqual(oldFirmware.writes, migrated.writes)
+assert.equal(oldFirmware.openState, false)
 
 const connected = mockPort()
 assert.deepEqual(await findFrame(connected, { challenge }), { address: '192.168.1.42', web: 'ready' })
