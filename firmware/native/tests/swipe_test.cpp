@@ -129,6 +129,57 @@ int main() {
   previous_waiting.tick(start + 600'000);
   assert(previous_waiting.settled() == 1);
 
+  // A refill must not undo a committed drag even if the finger holds still
+  // until its velocity expires. Exercise either edge and a short drag.
+  for (const int direction : {-1, 1}) {
+    for (const int distance : {65, 120, 300}) {
+      Swipe refilled{width, 5, 2};
+      refilled.set_ready_range(2, 2);
+      refilled.press(650, 300, 2 * width, start);
+      refilled.move(650 - distance * direction, 300, start + 110'000);
+      const auto held = refilled.position();
+      refilled.set_ready_range(1, 3);
+      refilled.move(650 - distance * direction, 300, start + 250'000);
+      assert(refilled.position() == held);
+      refilled.release(start + 260'000);
+      refilled.tick(start + 500'000);
+      assert(refilled.idle() && refilled.settled() == (distance < 120 ? 2 : 2 + direction));
+    }
+  }
+
+  Swipe reversed_refill{width, 5, 2};
+  reversed_refill.set_ready_range(1, 2);
+  reversed_refill.press(900, 300, 2 * width, start);
+  reversed_refill.move(400, 300, start + 110'000);
+  const auto held_before_reverse = reversed_refill.position();
+  reversed_refill.set_ready_range(1, 3);
+  reversed_refill.move(400 + static_cast<int>(held_before_reverse - 2 * width) + 1, 300, start + 220'000);
+  assert(reversed_refill.position() < 2 * width);
+  reversed_refill.move(400, 300, start + 330'000);
+  assert(reversed_refill.position() == held_before_reverse);
+  reversed_refill.release(start + 440'000);
+  reversed_refill.tick(start + 690'000);
+  assert(reversed_refill.idle() && reversed_refill.settled() == 2);
+
+  Swipe reversed_to_neighbor{width, 5, 2};
+  reversed_to_neighbor.set_ready_range(1, 2);
+  reversed_to_neighbor.press(900, 300, 2 * width, start);
+  reversed_to_neighbor.move(400, 300, start + 110'000);
+  reversed_to_neighbor.set_ready_range(1, 3);
+  reversed_to_neighbor.move(650, 300, start + 220'000);
+  reversed_to_neighbor.release(start + 330'000);
+  reversed_to_neighbor.tick(start + 580'000);
+  assert(reversed_to_neighbor.idle() && reversed_to_neighbor.settled() == 1);
+
+  Swipe cancelled_refill{width, 5, 2};
+  cancelled_refill.set_ready_range(1, 2);
+  cancelled_refill.press(900, 300, 2 * width, start);
+  cancelled_refill.move(400, 300, start + 110'000);
+  cancelled_refill.set_ready_range(1, 3);
+  cancelled_refill.cancel(start + 140'000);
+  cancelled_refill.tick(start + 390'000);
+  assert(cancelled_refill.idle() && cancelled_refill.settled() == 2);
+
   // Hold the visible edge until the missed photo can join the transition.
   Swipe waiting{width, 5, 2};
   waiting.set_ready_range(1, 2);

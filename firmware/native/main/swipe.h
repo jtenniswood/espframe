@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <optional>
 
 namespace espframe::native {
 
@@ -44,6 +45,8 @@ class Swipe {
          (last > this->ready_last_ && this->offset_ > this->slide_offset_(this->ready_last_)))) {
       // A neighbor can finish downloading while the finger is at a resisted
       // edge. Continue from what's visible, without jumping to the raw drag.
+      if (!this->release_offset_)
+        this->release_offset_ = this->unresisted_offset_();
       this->origin_offset_ = this->offset_;
       this->origin_x_ = this->last_x_;
     }
@@ -66,6 +69,7 @@ class Swipe {
     this->last_x_ = x;
     this->last_motion_us_ = now_us;
     this->velocity_ = 0;
+    this->release_offset_.reset();
     this->phase_ = Phase::Tracking;
   }
 
@@ -86,23 +90,31 @@ class Swipe {
 
     if (this->last_x_ != x) {
       const int64_t elapsed = now_us - this->last_motion_us_;
-      const float velocity = static_cast<float>(this->last_x_ - x) * 1000.0f /
-                             std::max<int64_t>(elapsed, 1'000);
+      const int delta = this->last_x_ - x;
+      const float velocity = static_cast<float>(delta) * 1000.0f / std::max<int64_t>(elapsed, 1'000);
       this->velocity_ = elapsed < 85'000 ? 0.5f * (this->velocity_ + velocity) : 0.0f;
       this->last_motion_us_ = now_us;
       this->last_x_ = x;
+      if (this->release_offset_)
+        *this->release_offset_ += delta;
     }
     const auto first = this->minimum_slide_();
     const auto last = this->maximum_slide_();
     const float lower = this->slide_offset_(first);
     const float upper = this->slide_offset_(last);
-    const float drawn = this->origin_offset_ + this->origin_x_ - x;
+    const float drawn = this->unresisted_offset_();
     if (drawn < lower && first == this->ready_first_) {
       this->offset_ = lower + this->resist_(drawn - lower);
     } else if (drawn > upper && last == this->ready_last_) {
       this->offset_ = upper + this->resist_(drawn - upper);
     } else {
       this->offset_ = std::clamp(drawn, lower, upper);
+    }
+    // Returning through the starting photo cancels the earlier edge pull.
+    if (this->release_offset_) {
+      const auto center = this->slide_offset_(this->origin_slide_);
+      if ((this->offset_ - center) * (*this->release_offset_ - center) <= 0.0f)
+        this->release_offset_.reset();
     }
   }
 
@@ -117,7 +129,8 @@ class Swipe {
     const float velocity = now_us - this->last_motion_us_ < 85'000
                                ? std::clamp(this->velocity_, -3.0f, 3.0f)
                                : 0.0f;
-    const float projected = this->offset_ + velocity * 170.0f;
+    const float momentum = velocity * 170.0f;
+    const float projected = this->offset_ + momentum;
     // Match the stock gesture distance from rest. When taking over between
     // slides, keep enough margin to reverse the animation back by one photo.
     const float threshold = this->grabbed_between_slides_ ? this->width_ * 0.30f : 120.0f;
@@ -125,12 +138,16 @@ class Swipe {
     const auto direction = [center, threshold](float offset) {
       return offset - center >= threshold ? 1 : offset - center <= -threshold ? -1 : 0;
     };
-    const auto destination =
-        std::clamp(this->origin_slide_ + direction(projected), this->minimum_slide_(), this->maximum_slide_());
+    // Keep the original drag distance when a ready neighbor rebased the
+    // visible drag and the release still points toward the same edge.
+    const float drawn = this->unresisted_offset_();
+    const float raw_projection = this->release_offset_.value_or(drawn) + momentum;
+    const bool track_original = this->release_offset_ && (projected - center) * (raw_projection - center) > 0.0f;
+    const auto destination = std::clamp(this->origin_slide_ + direction(track_original ? raw_projection : projected),
+                                        this->minimum_slide_(), this->maximum_slide_());
     // The resisted pixels stay beside the ready photo. Use the actual drag
     // and its velocity to decide whether the finger committed to a cold edge.
-    const float drawn = this->origin_offset_ + this->origin_x_ - this->last_x_;
-    const auto intended = this->origin_slide_ + direction(drawn + velocity * 170.0f);
+    const auto intended = this->origin_slide_ + direction(track_original ? raw_projection : drawn + momentum);
     if (this->available_(intended) &&
         ((intended < this->ready_first_ && drawn < this->slide_offset_(this->ready_first_)) ||
          (intended > this->ready_last_ && drawn > this->slide_offset_(this->ready_last_)))) {
@@ -195,6 +212,7 @@ class Swipe {
 
   // Animation arithmetic stays near zero even after millions of photos.
   float slide_offset_(SlideIndex slide) const { return static_cast<float>((slide - this->settled_) * this->width_); }
+  float unresisted_offset_() const { return this->origin_offset_ + (this->origin_x_ - this->last_x_); }
 
   float resist_(float overshoot) const {
     const float limit = this->width_ * 0.0375f;
@@ -246,6 +264,7 @@ class Swipe {
   int last_x_{};
   bool grabbed_between_slides_{};
   float origin_offset_{};
+  std::optional<float> release_offset_;
   float velocity_{};
   int64_t last_motion_us_{};
   float settle_from_{};
