@@ -339,8 +339,10 @@ rejected and another candidate was already available, so the player could
 retry that slide after 100 ms. `pixel_pauses` and `pixel_pause_ms` report how
 often and how long photo preparation waited while the user moved between
 ready slides. Transfers can continue during a swipe, and a missing swipe
-neighbour lets preparation resume immediately. ESPHome returns automatically
-after five minutes.
+neighbour lets preparation resume. HTTP diagnostic counts distinguish
+connection-open failures from retryable header and body timeouts. An HTTP
+read timeout can resume within the current request's total time budget.
+ESPHome returns automatically after five minutes.
 
 #### Measure swipe rendering over the local network
 

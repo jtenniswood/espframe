@@ -1,5 +1,7 @@
 #include "immich_http.h"
 
+#include "live_trial.h"
+
 #include "esp_crt_bundle.h"
 #include "esp_timer.h"
 
@@ -83,15 +85,26 @@ ImmichHttp::Reply ImmichHttp::read_once_(std::string_view query, std::span<uint8
     return !cancelled_ && remaining > 0 &&
            esp_http_client_set_timeout_ms(client_, std::min<int64_t>(timeout_ms, (remaining + 999) / 1000)) == ESP_OK;
   };
-  if (!set_timeout() || esp_http_client_open(client_, query.size()) != ESP_OK)
+  if (!set_timeout())
     return {};
+  if (const auto error = esp_http_client_open(client_, query.size()); error != ESP_OK) {
+#if SWIPE_TRIAL_IMMICH
+    record_live_trial_http_open_error(error);
+#endif
+    return {};
+  }
   if (!query.empty() && (!set_timeout() ||
                         esp_http_client_write(client_, query.data(), query.size()) != static_cast<int>(query.size())))
     return {};
-  if (!set_timeout())
-    return {};
-
-  const int64_t content_length = esp_http_client_fetch_headers(client_);
+  int64_t content_length = ESP_FAIL;
+  while (set_timeout()) {
+    content_length = esp_http_client_fetch_headers(client_);
+    if (content_length != -ESP_ERR_HTTP_EAGAIN)
+      break;
+#if SWIPE_TRIAL_IMMICH
+    record_live_trial_http_read_timeout(true);
+#endif
+  }
   if (content_length < 0)
     return {};
   const int status = esp_http_client_get_status_code(client_);
@@ -108,6 +121,12 @@ ImmichHttp::Reply ImmichHttp::read_once_(std::string_view query, std::span<uint8
     const bool full = length == output.size();
     char *target = full ? &overflow : reinterpret_cast<char *>(output.data() + length);
     const int count = esp_http_client_read(client_, target, full ? 1 : std::min<size_t>(output.size() - length, buffer_size));
+    if (count == -ESP_ERR_HTTP_EAGAIN) {
+#if SWIPE_TRIAL_IMMICH
+      record_live_trial_http_read_timeout(false);
+#endif
+      continue;
+    }
     if (count < 0)
       break;
     if (count == 0) {

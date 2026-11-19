@@ -30,6 +30,10 @@ std::atomic<uint32_t> prepare_attempts{};
 std::atomic<uint32_t> candidate_retries{};
 std::atomic<uint32_t> pixel_pauses{};
 std::atomic<uint32_t> pixel_pause_ms{};
+std::atomic<uint32_t> http_open_errors{};
+std::atomic<int> http_last_open_error{};
+std::atomic<uint32_t> http_header_timeouts{};
+std::atomic<uint32_t> http_body_timeouts{};
 std::atomic<uint32_t> photo_candidates{};
 std::atomic<uint32_t> pair_candidates{};
 std::atomic<uint32_t> preview_requests{};
@@ -124,7 +128,7 @@ esp_err_t status(httpd_req_t *request) {
   const auto &network = *static_cast<const NativeNetwork *>(request->user_ctx);
   const auto prepared = prepared_slides.load(std::memory_order_acquire);
   const auto gestures = swipes.load(std::memory_order_acquire);
-  char body[640]{};
+  char body[768]{};
   std::snprintf(body, sizeof(body),
                 "{\"trial\":\"v1-live\",\"uptime_ms\":%" PRIu32 ",\"prepared_slides\":%" PRIu32
                 ",\"first_photo_ms\":%" PRIu32 ",\"first_photo_preview_requests\":%" PRIu32
@@ -132,6 +136,8 @@ esp_err_t status(httpd_req_t *request) {
                 ",\"clock_ready\":%s,\"photo_connection\":%s,\"prepare_attempts\":%" PRIu32
                 ",\"candidate_retries\":%" PRIu32 ",\"scripted_gestures\":%s"
                 ",\"pixel_pauses\":%" PRIu32 ",\"pixel_pause_ms\":%" PRIu32
+                ",\"http_open_errors\":%" PRIu32 ",\"http_last_open_error\":%d"
+                ",\"http_header_timeouts\":%" PRIu32 ",\"http_body_timeouts\":%" PRIu32
                 ",\"search_http\":%d,\"photo_candidates\":%" PRIu32 ",\"pairing_http\":%d,\"pair_candidates\":%" PRIu32
                 ",\"preview_http\":%d,\"preview_requests\":%" PRIu32 "}",
                 static_cast<uint32_t>(esp_timer_get_time() / 1000), prepared,
@@ -142,6 +148,8 @@ esp_err_t status(httpd_req_t *request) {
                 network.photo_connection() ? "true" : "false", prepare_attempts.load(std::memory_order_relaxed),
                 candidate_retries.load(std::memory_order_relaxed), SWIPE_TRIAL_BENCHMARK ? "true" : "false",
                 pixel_pauses.load(std::memory_order_relaxed), pixel_pause_ms.load(std::memory_order_relaxed),
+                http_open_errors.load(std::memory_order_relaxed), http_last_open_error.load(std::memory_order_relaxed),
+                http_header_timeouts.load(std::memory_order_relaxed), http_body_timeouts.load(std::memory_order_relaxed),
                 search_http.load(std::memory_order_relaxed), photo_candidates.load(std::memory_order_relaxed),
                 pairing_http.load(std::memory_order_relaxed), pair_candidates.load(std::memory_order_relaxed),
                 preview_http.load(std::memory_order_relaxed), preview_requests.load(std::memory_order_relaxed));
@@ -213,6 +221,15 @@ void record_live_trial_candidate_retry() { candidate_retries.fetch_add(1, std::m
 void record_live_trial_pixel_pause(uint32_t pause_ms) {
   pixel_pause_ms.fetch_add(pause_ms, std::memory_order_relaxed);
   pixel_pauses.fetch_add(1, std::memory_order_relaxed);
+}
+
+void record_live_trial_http_open_error(int error) {
+  http_last_open_error.store(error, std::memory_order_relaxed);
+  http_open_errors.fetch_add(1, std::memory_order_relaxed);
+}
+
+void record_live_trial_http_read_timeout(bool headers) {
+  (headers ? http_header_timeouts : http_body_timeouts).fetch_add(1, std::memory_order_relaxed);
 }
 
 void record_live_trial_search(bool pairing, int http_status, size_t candidates) {
