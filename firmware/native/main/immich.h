@@ -41,7 +41,7 @@ class ImmichSource {
  private:
   enum class PreviewStatus { Ready, Missing, Retry };
   struct PreparedPreview {
-    size_t bytes{};
+    bool ready{};
     bool orientation_mismatch{};
   };
 
@@ -63,7 +63,6 @@ class ImmichSource {
   bool wait_for_pixel_work_() const;
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, bool for_pair, int64_t deadline_us,
                               bool report_response);
-  bool render_cached_prepared_(SlideIndex slide, uint16_t *panel);
   PreparedPreview render_prepared_(const PhotoSlide &frame, uint16_t *panel);
 
   const std::atomic<bool> &cancelled_;

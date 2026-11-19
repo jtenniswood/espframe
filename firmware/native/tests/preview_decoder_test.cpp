@@ -1,5 +1,6 @@
 #include "preview_decoder.h"
 #include "p4_jpeg_decoder.h"
+#include "recent_previews.h"
 #include "slide_geometry.h"
 #include "esp_heap_caps.h"
 #include "jpeg_accelerator_helpers.h"
@@ -223,6 +224,12 @@ void verify_interruption(const char *jpeg_path, const char *progressive_path, co
   }};
   DecodedPreview decoded;
   assert(decoded.decode(webp.data(), webp.size(), false, nullptr, DisplayMode::Fit, checkpoint) == Decode::Interrupted);
+  RecentPreviews downloads;
+  AssetId webp_id{};
+  webp_id.front() = 'w';
+  downloads.remember_interrupted(webp_id, webp);
+  const auto saved_webp = downloads.find(webp_id);
+  assert(!saved_webp.empty() && decoded.decode(saved_webp.data(), saved_webp.size()) == Decode::Ready);
   remaining = 3;
   assert(decoded.decode(jpeg.data(), jpeg.size(), false, nullptr, DisplayMode::Fit, checkpoint) == Decode::Interrupted);
 
@@ -237,7 +244,15 @@ void verify_interruption(const char *jpeg_path, const char *progressive_path, co
   remaining = 4;
   assert(decoded.decode(malformed.data(), malformed.size(), false, nullptr, DisplayMode::Fit, checkpoint) ==
          Decode::Interrupted);
-  assert(decoded.decode(progressive.data(), progressive.size()) == Decode::Ready);
+  remaining = 4;
+  assert(decoded.decode(progressive.data(), progressive.size(), false, nullptr, DisplayMode::Fit, checkpoint) ==
+         Decode::Interrupted);
+  AssetId progressive_id{};
+  progressive_id.front() = 'j';
+  downloads.remember_interrupted(progressive_id, progressive);
+  const auto saved_progressive = downloads.find(progressive_id);
+  assert(!saved_progressive.empty() &&
+         decoded.decode(saved_progressive.data(), saved_progressive.size()) == Decode::Ready);
 
   P4JpegDecoder hardware;
   const auto before = hardware_calls;

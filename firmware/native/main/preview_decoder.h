@@ -11,6 +11,9 @@
 namespace espframe::native {
 
 class P4JpegDecoder;
+inline bool is_jpeg_preview(const uint8_t *encoded, size_t length) {
+  return length >= 2 && encoded[0] == 0xff && encoded[1] == 0xd8;
+}
 bool is_webp_preview(const uint8_t *encoded, size_t length);
 
 // Worker-owned packed RGB565 preview. Retain the primary until the optional

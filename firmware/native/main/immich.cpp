@@ -434,6 +434,7 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
     const auto start = esp_timer_get_time();
     const auto result = decode(cached.data(), cached.size());
     if (result == DecodedPreview::Result::Ready) {
+      this->previews_.remember(id, cached);
       ESP_LOGI(tag, "Preview prepared from memory, bytes=%zu decode_us=%" PRId64 " hardware_jpeg=%d",
                cached.size(), esp_timer_get_time() - start, preview.hardware_jpeg());
       return PreviewStatus::Ready;
@@ -459,17 +460,25 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
     record_live_trial_preparation_time(TrialPreparationStage::Transfer,
                                        static_cast<uint32_t>(decode_us - request_us), length);
   }
-  if (status == 200 && !this->cancelled_) {
+  if (status == 200) {
+    const std::span<const uint8_t> bytes{this->encoded_, length};
     const auto result = decode(this->encoded_, length);
     if (result == DecodedPreview::Result::Ready) {
-      if (!this->checkpoint_())
+      if (!this->checkpoint_()) {
+        this->previews_.remember_interrupted(id, bytes);
         return PreviewStatus::Retry;
-      this->previews_.remember(id, {this->encoded_, length});
+      }
+      this->previews_.remember(id, bytes);
       ESP_LOGI(tag, "Preview prepared, bytes=%zu fetch_us=%" PRId64 " decode_us=%" PRId64 " hardware_jpeg=%d",
                length, decode_us - request_us, esp_timer_get_time() - decode_us, preview.hardware_jpeg());
       return PreviewStatus::Ready;
     }
-    if (result == DecodedPreview::Result::NoMemory || result == DecodedPreview::Result::Interrupted)
+    if (result == DecodedPreview::Result::Interrupted) {
+      if (is_jpeg_preview(bytes.data(), bytes.size()) || is_webp_preview(bytes.data(), bytes.size()))
+        this->previews_.remember_interrupted(id, bytes);
+      return PreviewStatus::Retry;
+    }
+    if (result == DecodedPreview::Result::NoMemory)
       return PreviewStatus::Retry;
     if (result == DecodedPreview::Result::OrientationMismatch)
       return PreviewStatus::Missing;
@@ -482,23 +491,25 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
                                                                       : PreviewStatus::Retry;
 }
 
-bool ImmichSource::render_cached_prepared_(SlideIndex slide, uint16_t *panel) {
-  const auto cached = previews_.find(slide);
-  if (cached.empty())
-    return false;
-  const auto started = esp_timer_get_time();
-  if (!jpeg_.decode_panel(cached.data(), cached.size(), panel, checkpoint_)) {
-    if (!cancelled_)
-      previews_.discard(slide);
-    return false;
-  }
-  if constexpr (SWIPE_TRIAL_IMMICH)
-    record_live_trial_preparation_time(TrialPreparationStage::PreparedCacheDecode,
-                                       static_cast<uint32_t>(esp_timer_get_time() - started), cached.size());
-  return true;
-}
-
 ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &frame, uint16_t *panel) {
+  // The source's settings stay fixed while it owns the cache. The ordered
+  // photo IDs identify the clean JPEG, including when a lease is cancelled
+  // before its photos have been assigned a history position.
+  const RecentPreviews::PreparedKey key{frame.primary, frame.companion};
+  const auto cached = previews_.find(key);
+  if (!cached.empty()) {
+    const auto started = esp_timer_get_time();
+    if (jpeg_.decode_panel(cached.data(), cached.size(), panel, checkpoint_)) {
+      if constexpr (SWIPE_TRIAL_IMMICH)
+        record_live_trial_preparation_time(TrialPreparationStage::PreparedCacheDecode,
+                                           static_cast<uint32_t>(esp_timer_get_time() - started), cached.size());
+      previews_.remember_prepared(key, cached);
+      return {true, false};
+    }
+    if (cancelled_)
+      return {};
+    previews_.discard(key);
+  }
   if (!online_() || esp_timer_get_time() < prepared_retry_us_ || !allocate_download_())
     return {};
   std::string url(settings_.prepared_slide_url);
@@ -532,13 +543,22 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
                       (status == 400 && orientation != PhotoOrientation::Any)))
     prepared_retry_us_ = decode_start + 30'000'000;
   if (!cancelled_ && status == 409 && orientation != PhotoOrientation::Any)
-    return {0, true};
-  if (status != 200 || cancelled_ || !jpeg_.decode_panel(encoded_, length, panel, checkpoint_))
+    return {false, true};
+  if (status != 200)
     return {};
-  if constexpr (SWIPE_TRIAL_IMMICH)
-    record_live_trial_preparation_time(TrialPreparationStage::PreparedDecode,
-                                       static_cast<uint32_t>(esp_timer_get_time() - decode_start));
-  return {length, false};
+  const std::span<const uint8_t> bytes{encoded_, length};
+  if (!cancelled_ && jpeg_.decode_panel(bytes.data(), bytes.size(), panel, checkpoint_)) {
+    if constexpr (SWIPE_TRIAL_IMMICH)
+      record_live_trial_preparation_time(TrialPreparationStage::PreparedDecode,
+                                         static_cast<uint32_t>(esp_timer_get_time() - decode_start));
+    if (checkpoint_()) {
+      previews_.remember_prepared(key, bytes);
+      return {true, false};
+    }
+  }
+  if (cancelled_ && is_jpeg_preview(bytes.data(), bytes.size()))
+    previews_.remember_interrupted(key, bytes);
+  return {};
 }
 
 ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
@@ -581,13 +601,13 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       this->pending_.push_back(seed);
     return PrepareResult::Retry;
   };
-  bool prepared = remembered && this->render_cached_prepared_(slide, panel);
-  size_t prepared_bytes = 0;
+  bool prepared = false;
   const bool optional_pair = !remembered && !pairs_only && slide > 1 && settings_.pairs_portraits();
   bool selected_companion = false;
-  if (!prepared && settings_.has_prepared_slides() && (!optional_pair || seed.orientation_known) &&
-      esp_timer_get_time() >= prepared_retry_us_) {
-    if (optional_pair && seed.portrait) {
+  const bool pair_needs_selection = optional_pair && seed.portrait;
+  if (settings_.has_prepared_slides() && (!optional_pair || seed.orientation_known) &&
+      (!pair_needs_selection || esp_timer_get_time() >= prepared_retry_us_)) {
+    if (pair_needs_selection) {
       const TrialStageTimer selection{TrialPreparationStage::Selection};
       frame.companion = companion_for_(seed, esp_timer_get_time() + pairing_time_us);
       selected_companion = true;
@@ -595,8 +615,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     const auto preview = this->render_prepared_(frame, panel);
     if (preview.orientation_mismatch)
       return reject_candidate(frame.primary);
-    prepared_bytes = preview.bytes;
-    prepared = prepared_bytes != 0;
+    prepared = preview.ready;
   }
   if (this->cancelled_)
     return retry_frame();
@@ -655,10 +674,6 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     this->history_.append(frame);
   else
     *existing = frame;
-  // Keep the clean JPEG, before captions and tone, only after the photo
-  // identity for this history position has been committed.
-  if (prepared_bytes)
-    previews_.remember_prepared(slide, {encoded_, prepared_bytes});
   return PrepareResult::Ready;
 }
 

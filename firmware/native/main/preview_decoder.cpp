@@ -242,7 +242,7 @@ DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t len
   this->hardware_jpeg_ = false;
   if (!checkpoint())
     return Result::Interrupted;
-  const bool jpeg = length >= 2 && encoded[0] == 0xff && encoded[1] == 0xd8;
+  const bool jpeg = is_jpeg_preview(encoded, length);
   const bool webp = is_webp_preview(encoded, length);
   if (!jpeg && !webp)
     return Result::Invalid;
