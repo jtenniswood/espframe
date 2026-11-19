@@ -27,6 +27,7 @@ constexpr size_t partition_size = 4 * 1024 * 1024;
 constexpr size_t prelude_size = sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_app_desc_t);
 const esp_partition_t factory{0x10000, partition_size};
 const esp_partition_t slot{0x420000, partition_size};
+const esp_partition_t alternate_slot{0x820000, partition_size};
 std::vector<uint8_t> expected;
 
 struct Fake {
@@ -133,10 +134,9 @@ esp_err_t esp_ota_mark_app_invalid_rollback_and_reboot() {
 const esp_partition_t *esp_ota_get_running_partition() { return fake.running; }
 const esp_partition_t *esp_ota_get_next_update_partition(const esp_partition_t *) { return fake.next; }
 const esp_partition_t *esp_ota_get_boot_partition() { return fake.boot; }
-const esp_partition_t *esp_ota_get_last_invalid_partition() { return fake.invalid; }
 
 esp_err_t esp_ota_get_partition_description(const esp_partition_t *partition, esp_app_desc_t *app) {
-  assert(partition == &factory || partition == &slot);
+  assert(partition == &factory || partition == &slot || partition == &alternate_slot);
   std::memcpy(app, expected.data() + sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t), sizeof(*app));
   return ESP_OK;
 }
@@ -265,6 +265,11 @@ int main(int argc, char **argv) {
   assert(firmware_boot_status().rejected == staged && firmware_boot_status().running == before_boot.running);
   fake.invalid_state = ESP_OTA_IMG_ABORTED;
   assert(firmware_boot_status().rejected == staged);
+  fake.running = &alternate_slot;
+  fake.verified = true;
+  const auto returned_to_ota = firmware_boot_status();
+  assert(returned_to_ota.running && returned_to_ota.running->offset == alternate_slot.address &&
+         returned_to_ota.boot_verified && returned_to_ota.rejected == staged);
   fake.invalid_state = ESP_OTA_IMG_VALID;
   assert(!firmware_boot_status().rejected);
 }

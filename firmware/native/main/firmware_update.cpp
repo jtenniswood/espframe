@@ -167,14 +167,17 @@ FirmwareUpdateResult stage_firmware(size_t length, FirmwareRead read, void *cont
 
 FirmwareBootStatus firmware_boot_status() {
   const auto *running = esp_ota_get_running_partition();
-  const auto *rejected = esp_ota_get_last_invalid_partition();
+  const auto *inactive = esp_ota_get_next_update_partition(running);
   esp_ota_img_states_t state{};
   FirmwareBootStatus result;
   result.running = identify_partition(running);
   result.boot_verified = result.running && esp_ota_get_state_partition(running, &state) == ESP_OK && state == ESP_OTA_IMG_VALID;
-  if (rejected && esp_ota_get_state_partition(rejected, &state) == ESP_OK &&
+  // With two native OTA slots, the alternate slot holds the rejected image
+  // after a rollback. Reading its state and descriptor keeps polling light.
+  if (running && inactive && inactive->address != running->address &&
+      esp_ota_get_state_partition(inactive, &state) == ESP_OK &&
       (state == ESP_OTA_IMG_INVALID || state == ESP_OTA_IMG_ABORTED))
-    result.rejected = identify_partition(rejected);
+    result.rejected = identify_partition(inactive);
   return result;
 }
 

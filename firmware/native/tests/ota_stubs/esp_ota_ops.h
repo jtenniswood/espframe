@@ -43,7 +43,6 @@ esp_err_t esp_ota_mark_app_invalid_rollback_and_reboot();
 const esp_partition_t *esp_ota_get_running_partition();
 const esp_partition_t *esp_ota_get_next_update_partition(const esp_partition_t *);
 const esp_partition_t *esp_ota_get_boot_partition();
-const esp_partition_t *esp_ota_get_last_invalid_partition();
 const esp_partition_t *esp_partition_find_first(esp_partition_type_t, esp_partition_subtype_t, const char *);
 esp_err_t esp_ota_get_partition_description(const esp_partition_t *, esp_app_desc_t *);
 bool esp_ota_check_rollback_is_possible();
