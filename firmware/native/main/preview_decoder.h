@@ -10,6 +10,7 @@
 namespace espframe::native {
 
 class P4JpegDecoder;
+bool is_webp_preview(const uint8_t *encoded, size_t length);
 
 // Worker-owned packed RGB565 preview. Retain the primary until the optional
 // companion is ready so a single photo can still fill the slide on failure.

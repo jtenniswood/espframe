@@ -11,6 +11,7 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cinttypes>
@@ -44,6 +45,19 @@ std::atomic<int> preview_http{};
 std::atomic<int> wifi_power_save{-1};
 std::atomic<int> wifi_rssi_dbm{-128};
 std::atomic<unsigned> wifi_primary_channel{};
+
+struct PreparationTiming {
+  uint32_t count{};
+  uint32_t total_us{};
+  uint32_t worst_us{};
+  size_t bytes{};
+};
+
+constexpr std::array preparation_stages{"attempt", "selection", "transfer", "hardware_jpeg", "software_jpeg",
+                                        "webp", "rejected_preview", "composition"};
+static_assert(preparation_stages.size() == static_cast<size_t>(TrialPreparationStage::Count));
+std::array<PreparationTiming, preparation_stages.size()> preparation_timings{};
+portMUX_TYPE preparation_lock = portMUX_INITIALIZER_UNLOCKED;
 
 #if SWIPE_TRIAL_BENCHMARK
 TrialSwipeBenchmark benchmark{SWIPE_TRIAL_BENCHMARK_RAPID};
@@ -196,6 +210,31 @@ esp_err_t status(httpd_req_t *request) {
   return httpd_resp_sendstr(request, body);
 }
 
+esp_err_t preparation_status(httpd_req_t *request) {
+  portENTER_CRITICAL(&preparation_lock);
+  const auto timings = preparation_timings;
+  portEXIT_CRITICAL(&preparation_lock);
+
+  char body[1024]{'{'};
+  size_t used = 1;
+  for (size_t i = 0; i < timings.size(); ++i) {
+    const auto &timing = timings[i];
+    const auto remaining = sizeof(body) - used;
+    const auto written = std::snprintf(body + used, remaining,
+                                      "%s\"%s\":{\"count\":%" PRIu32 ",\"total_us\":%" PRIu32
+                                      ",\"worst_us\":%" PRIu32 ",\"bytes\":%zu}",
+                                      i == 0 ? "" : ",", preparation_stages[i], timing.count, timing.total_us,
+                                      timing.worst_us, timing.bytes);
+    if (written < 0 || static_cast<size_t>(written) >= remaining - 1)
+      return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Preparation report too large");
+    used += written;
+  }
+  body[used++] = '}';
+  httpd_resp_set_type(request, "application/json");
+  httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+  return httpd_resp_send(request, body, used);
+}
+
 }  // namespace
 
 bool read_live_trial_credentials(Settings &settings) {
@@ -228,7 +267,7 @@ bool read_live_trial_credentials(Settings &settings) {
 bool start_live_trial_status(NativeNetwork &network) {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.core_id = 0;
-  config.max_uri_handlers = 2;
+  config.max_uri_handlers = 3;
   httpd_handle_t server{};
   if (httpd_start(&server, &config) != ESP_OK)
     return false;
@@ -242,6 +281,11 @@ bool start_live_trial_status(NativeNetwork &network) {
     route.uri = "/api/trial/benchmark";
     route.handler = benchmark_status;
     route.user_ctx = nullptr;
+    result = httpd_register_uri_handler(server, &route);
+  }
+  if (result == ESP_OK) {
+    route.uri = "/api/trial/prepare";
+    route.handler = preparation_status;
     result = httpd_register_uri_handler(server, &route);
   }
   if (result == ESP_OK)
@@ -282,6 +326,16 @@ void record_live_trial_search(bool pairing, int http_status, size_t candidates) 
 void record_live_trial_preview(int http_status) {
   preview_http.store(http_status, std::memory_order_relaxed);
   preview_requests.fetch_add(1, std::memory_order_relaxed);
+}
+
+void record_live_trial_preparation_time(TrialPreparationStage stage, uint32_t elapsed_us, size_t bytes) {
+  portENTER_CRITICAL(&preparation_lock);
+  auto &timing = preparation_timings[static_cast<size_t>(stage)];
+  ++timing.count;
+  timing.total_us += elapsed_us;
+  timing.worst_us = std::max(timing.worst_us, elapsed_us);
+  timing.bytes += bytes;
+  portEXIT_CRITICAL(&preparation_lock);
 }
 
 void record_live_trial_photo(uint32_t elapsed_ms) {

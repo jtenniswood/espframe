@@ -368,6 +368,12 @@ mode, signal level and primary channel sampled when the frame gets an address.
 HTTP diagnostic counts distinguish
 connection-open failures from retryable header and body timeouts. An HTTP
 read timeout can resume within the current request's total time budget.
+`/api/trial/prepare` gives the count, total, and worst elapsed time for
+whole preparation attempts, photo and pair selection, preview transfers,
+decode by format, and panel composition. Transfer entries include received
+bytes. Attempt time includes failed attempts and overlaps the other stages.
+Decode and composition timings include time waiting for a pixel checkpoint,
+which `/api/trial` reports separately as `pixel_pause_ms`.
 ESPHome returns automatically after five minutes.
 
 #### Measure swipe rendering over the local network

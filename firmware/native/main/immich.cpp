@@ -31,6 +31,23 @@ constexpr unsigned pairing_searches_per_prepare = 4;
 extern const uint8_t caption_atlas[] asm("_binary_caption_glyphs_bin_start");
 extern const uint8_t caption_atlas_end[] asm("_binary_caption_glyphs_bin_end");
 
+class TrialStageTimer {
+ public:
+  explicit TrialStageTimer(TrialPreparationStage stage) : stage_(stage) {
+    if constexpr (SWIPE_TRIAL_IMMICH)
+      started_us_ = esp_timer_get_time();
+  }
+
+  ~TrialStageTimer() {
+    if constexpr (SWIPE_TRIAL_IMMICH)
+      record_live_trial_preparation_time(stage_, static_cast<uint32_t>(esp_timer_get_time() - started_us_));
+  }
+
+ private:
+  TrialPreparationStage stage_;
+  int64_t started_us_{};
+};
+
 std::optional<std::chrono::sys_days> local_today() {
   const auto local = local_clock_time(std::time(nullptr));
   if (!local)
@@ -340,7 +357,25 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
     return PreviewStatus::Retry;
   const bool optional = deadline_us != 0;
   const auto decode = [&](const uint8_t *data, size_t length) {
-    return preview.decode(data, length, for_pair, &this->jpeg_, this->settings_.display_mode, this->checkpoint_);
+    int64_t started_us = 0;
+    if constexpr (SWIPE_TRIAL_IMMICH)
+      started_us = esp_timer_get_time();
+    const auto result = preview.decode(data, length, for_pair, &this->jpeg_, this->settings_.display_mode,
+                                       this->checkpoint_);
+    if constexpr (SWIPE_TRIAL_IMMICH) {
+      const auto elapsed = static_cast<uint32_t>(esp_timer_get_time() - started_us);
+      auto stage = TrialPreparationStage::RejectedPreview;
+      if (result == DecodedPreview::Result::Ready) {
+        if (preview.hardware_jpeg())
+          stage = TrialPreparationStage::HardwareJpeg;
+        else if (is_webp_preview(data, length))
+          stage = TrialPreparationStage::Webp;
+        else
+          stage = TrialPreparationStage::SoftwareJpeg;
+      }
+      record_live_trial_preparation_time(stage, elapsed);
+    }
+    return result;
   };
   const auto cached = this->previews_.find(id);
   if (!cached.empty()) {
@@ -361,12 +396,15 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
     return PreviewStatus::Retry;
 
   const auto request_us = esp_timer_get_time();
-  size_t length;
+  size_t length = 0;
   const auto path = std::string("/assets/") + id.data() + "/thumbnail?size=preview";
   const int status = this->fetch_(path, {}, photo_capacity, length, deadline_us);
-  if constexpr (SWIPE_TRIAL_IMMICH)
-    record_live_trial_preview(status);
   const auto decode_us = esp_timer_get_time();
+  if constexpr (SWIPE_TRIAL_IMMICH) {
+    record_live_trial_preview(status);
+    record_live_trial_preparation_time(TrialPreparationStage::Transfer,
+                                       static_cast<uint32_t>(decode_us - request_us), length);
+  }
   if (status == 200 && !this->cancelled_) {
     const auto result = decode(this->encoded_, length);
     if (result == DecodedPreview::Result::Ready) {
@@ -389,6 +427,7 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
 }
 
 ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
+  const TrialStageTimer attempt{TrialPreparationStage::Attempt};
   if (this->cancelled_)
     return PrepareResult::Retry;
   const bool new_position = slide == this->history_.next();
@@ -402,6 +441,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   if (remembered) {
     frame = *existing;
   } else {
+    const TrialStageTimer selection{TrialPreparationStage::Selection};
     if (!this->next_asset_(seed))
       return PrepareResult::Retry;
     if (pairs_only && !this->select_pair_(seed, frame.companion))
@@ -430,8 +470,10 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
 
   // Optional pairing leaves the first preview on the fast path.
   const auto pair_deadline_us = pairs_only ? 0 : esp_timer_get_time() + (remembered ? 2 : 1) * pairing_time_us;
-  if (!remembered && !pairs_only && slide > 1 && this->settings_.portrait_pairing && primary.portrait())
+  if (!remembered && !pairs_only && slide > 1 && this->settings_.portrait_pairing && primary.portrait()) {
+    const TrialStageTimer selection{TrialPreparationStage::Selection};
     frame.companion = this->companion_for_(seed, pair_deadline_us);
+  }
 
   DecodedPreview companion;
   if (frame.companion[0] != '\0' && primary.portrait()) {
@@ -446,6 +488,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     frame.companion = {};
   }
 
+  const TrialStageTimer composition{TrialPreparationStage::Composition};
   if (!primary.render(panel, frame.companion[0] == '\0' ? nullptr : &companion, this->settings_.display_mode,
                       this->settings_.screen_rotation, this->checkpoint_))
     return retry_frame();

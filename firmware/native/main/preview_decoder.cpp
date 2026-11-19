@@ -193,6 +193,10 @@ bool DecodedPreview::paint_(uint16_t *panel, int left, int max_width, DisplayMod
   return true;
 }
 
+bool is_webp_preview(const uint8_t *encoded, size_t length) {
+  return length >= 12 && std::memcmp(encoded, "RIFF", 4) == 0 && std::memcmp(encoded + 8, "WEBP", 4) == 0;
+}
+
 DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t length, bool companion,
                                               P4JpegDecoder *hardware, DisplayMode mode,
                                               PreparationCheckpoint checkpoint) {
@@ -205,8 +209,7 @@ DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t len
   if (!checkpoint())
     return Result::Interrupted;
   const bool jpeg = length >= 2 && encoded[0] == 0xff && encoded[1] == 0xd8;
-  const bool webp = length >= 12 && std::memcmp(encoded, "RIFF", 4) == 0 &&
-                    std::memcmp(encoded + 8, "WEBP", 4) == 0;
+  const bool webp = is_webp_preview(encoded, length);
   if (!jpeg && !webp)
     return Result::Invalid;
   PhotoFraming size{};
