@@ -70,6 +70,7 @@ try {
   form.elements.portrait_pairing_range.value = settings.portrait_pairing_range ?? 'Same Day'
   updatePairing()
   form.elements.display_mode.value = settings.display_mode ?? 'Fit'
+  form.elements.photo_orientation.value = settings.photo_orientation ?? 'Any'
   form.elements.screen_rotation.value = settings.screen_rotation ?? '0'
   form.elements.photo_source.value = settings.photo_source ?? 'all'
   for (const [key, fallback] of Object.entries(photoFilterDefaults)) {

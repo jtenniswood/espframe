@@ -6,6 +6,7 @@
 #include "photo_framing.h"
 #include "photo_filters.h"
 #include "photo_metadata.h"
+#include "photo_orientation.h"
 #include "photo_source.h"
 #include "screen_schedule.h"
 #include "screen_tone.h"
@@ -44,6 +45,7 @@ struct Settings {
   bool portrait_pairs_only{};
   uint8_t portrait_pairing_days{};
   DisplayMode display_mode{DisplayMode::Fit};
+  PhotoOrientation photo_orientation{PhotoOrientation::Any};
   ScreenRotation screen_rotation{ScreenRotation::Normal};
   PhotoSource photo_source;
   PhotoFilters photo_filters;
@@ -56,7 +58,8 @@ struct Settings {
   uint8_t night_brightness() const { return brightness_night.value_or(brightness_day); }
   bool has_immich() const { return !immich_url.empty() && !immich_key.empty(); }
   bool has_prepared_slides() const { return !prepared_slide_url.empty() && !prepared_slide_token.empty(); }
-  bool requires_portrait_pair() const { return portrait_pairing && portrait_pairs_only; }
+  bool pairs_portraits() const { return portrait_pairing && photo_orientation != PhotoOrientation::Landscape; }
+  bool requires_portrait_pair() const { return pairs_portraits() && portrait_pairs_only; }
 
   static constexpr size_t max_json_size = 6144;
   bool read();

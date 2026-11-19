@@ -18,6 +18,7 @@ const setup = {
   immich_url: 'https://photos.test/api', slide_seconds: 15, portrait_pairing: true, portrait_pairs_only: true,
   portrait_pairing_range: 'Within 2 Days',
   photo_source: 'favorites', album_id: '', display_mode: 'Fill', brightness_day: 74,
+  photo_orientation: 'Portrait Only',
   memories_window: 'Within 2 Days', memories_fallback: true,
   date_filter_enabled: true, date_filter_mode: 'Fixed Range', date_from: '2024-02-29',
   date_to: '2024-03-01', relative_amount: 1, relative_unit: 'Years',
@@ -48,8 +49,8 @@ const fixture = html.replace('</body>', `<script>
     const mode = form.elements.display_mode
     if (mode.value !== 'Fill' || mode.selectedOptions[0].text !== 'Crop to fit')
       throw new Error('Incorrect initial framing')
-    if (form.elements.screen_rotation.value !== '180')
-      throw new Error('Incorrect initial mounting orientation')
+    if (form.elements.screen_rotation.value !== '180' || form.elements.photo_orientation.value !== 'Portrait Only')
+      throw new Error('Photo and mounting orientation were not read independently')
     if (!form.elements.portrait_pairs_only.checked || form.elements.portrait_pairs_only.disabled)
       throw new Error('Existing paired-portrait setting was not loaded')
     if (form.elements.portrait_pairing_range.value !== 'Within 2 Days' || form.elements.portrait_pairing_range.disabled)
@@ -73,7 +74,7 @@ const fixture = html.replace('</body>', `<script>
       || backup.frequency.interval !== '15 seconds' || Object.keys(backup.connection).join() !== 'immich_url'
       || backup.photos.display_mode !== 'Fill' || backup.clock?.show !== true || backup.clock.timezone !== '${setup.timezone}'
       || backup.screen?.brightness_day !== 74 || backup.screen.brightness_night !== 44
-      || backup.screen.rotation !== '180'
+      || backup.screen.rotation !== '180' || backup.photos.orientation !== 'Portrait Only'
       || backup.screen.schedule_enabled !== true
       || backup.screen.schedule_on_hour !== 6 || backup.screen.schedule_off_hour !== 22
       || backup.screen.schedule_wake_timeout !== 60)
@@ -106,6 +107,7 @@ const fixture = html.replace('</body>', `<script>
     if (!form.elements.portrait_pairing_range.disabled || form.elements.portrait_pairing_range.value !== 'Within 2 Days')
       throw new Error('Pausing pairing should retain the pairing range')
     form.elements.screen_rotation.value = '0'
+    form.elements.photo_orientation.value = 'Landscape Only'
     brightness.value = '45'
     brightness.dispatchEvent(new Event('input'))
     nightBrightness.value = '30'
@@ -308,7 +310,7 @@ try {
     memories_window: 'Within 7 Days', memories_fallback: false,
     date_filter_mode: 'Relative Range', relative_amount: 3, relative_unit: 'Months',
     brightness_night: 30,
-    screen_rotation: '0',
+    screen_rotation: '0', photo_orientation: 'Landscape Only',
     schedule_enabled: false, schedule_off_hour: 0, schedule_wake_timeout: 90,
     clock_format: '12 Hour', timezone: 'America/New_York (GMT-5)',
   }])

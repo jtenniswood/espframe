@@ -24,6 +24,11 @@ int main() {
   assert(photos.size() == 6);
   const auto &primary = photos[0];
   assert(primary.portrait && primary.metadata.capture_day == sys_days{year(2024)/3/1});
+  const auto landscape = parse_photo_search(R"([
+    {"id":"c48e2980-18ac-4d7d-876a-a636759a1aec","width":80,"height":120},
+    {"id":"0406c468-dabf-4777-bb93-ac6fdac62857","width":80,"height":80}])",
+    1, false, false, {}, false, PhotoOrientation::Landscape);
+  assert(landscape.valid && landscape.photos.size() == 1 && landscape.photos.front().id == photos[3].id);
   assert(std::string_view(primary.metadata.city.data()) == "São Paulo");
   assert(std::string_view(primary.metadata.country.data()) == "Brazil");
   assert(!is_portrait_companion(primary, primary));
@@ -51,7 +56,8 @@ int main() {
   ])", 3, false, false).photos;
   assert(uncertain.size() == 3);
   for (const auto &photo : uncertain)
-    assert(!photo.orientation_known && can_start_portrait_pair(photo));
+    assert(!photo.orientation_known && can_start_portrait_pair(photo) &&
+           photo.may_match_orientation(PhotoOrientation::Portrait) && photo.may_match_orientation(PhotoOrientation::Landscape));
   assert(!find_pair_seed(uncertain));
   assert(parse_photo_search(response, 2, false, false).photos.size() == 2);
   const auto visible = parse_photo_search(R"([

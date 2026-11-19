@@ -60,6 +60,12 @@ int main() {
   assert(!scope.apply(settings));
   scope.source = 6;
   scope.orientation = 1;
+  assert(scope.apply(settings) && settings.photo_orientation == PhotoOrientation::Portrait);
+  scope.pairing_enabled = 1;
+  scope.orientation = 2;
+  assert(scope.apply(settings) && settings.photo_orientation == PhotoOrientation::Landscape);
+  assert(!settings.requires_portrait_pair() && settings.portrait_pairing && settings.portrait_pairs_only);
+  scope.orientation = 3;
   assert(!scope.apply(settings));
   scope.orientation = 0;
   scope.date_from = "2024-03-01";

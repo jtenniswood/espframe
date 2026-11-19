@@ -3,6 +3,7 @@
 #include "capture_date.h"
 #include "photo_filters.h"
 #include "photo_history.h"
+#include "photo_orientation.h"
 #include "photo_source.h"
 
 #include <chrono>
@@ -19,6 +20,10 @@ struct ImmichPhoto {
   PhotoMetadata metadata{};
   bool portrait{};
   bool orientation_known{};
+
+  bool may_match_orientation(PhotoOrientation orientation) const {
+    return !orientation_known || matches_photo_orientation(orientation, portrait);
+  }
 };
 
 inline constexpr size_t photo_search_batch = 16;
@@ -52,7 +57,8 @@ PhotoSearchRequest make_filtered_photo_search(size_t count, const PhotoFilters &
                                               uint32_t page, bool with_location, CaptureDateRange dates,
                                               unsigned pairing_days);
 PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool paged, bool favorites_only,
-                                     CaptureDateRange dates = {}, bool exclude_favorites = false);
+                                     CaptureDateRange dates = {}, bool exclude_favorites = false,
+                                     PhotoOrientation orientation = PhotoOrientation::Any);
 std::optional<ImmichPhoto> parse_memory_asset(std::string_view json);
 std::string memory_request_path(std::chrono::sys_days date, unsigned index);
 bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candidate, unsigned pairing_days = 0);

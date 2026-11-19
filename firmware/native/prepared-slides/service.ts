@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { createServer, type ServerResponse } from 'node:http'
-import { prepareSlide, type SlideLayout } from './prepare.ts'
+import { OrientationMismatch, prepareSlide, type SlideLayout } from './prepare.ts'
 
 type Options = { immichUrl: string; immichKey: string; token: string; maxAgeMs?: number }
 type CachedSlide = { revision: string; jpeg: Buffer; expires: number }
@@ -67,19 +67,21 @@ function requestLayout(target: string) {
   const { pathname, searchParams: query } = new URL(target, 'http://localhost')
   const id = /^\/v1\/slides\/([^/]+)$/.exec(pathname)?.[1]
   if (!id) throw new ReplyError(404, 'Unknown route')
-  if (Array.from(query).some(([key]) => !['companion', 'mode', 'rotation'].includes(key) || query.getAll(key).length > 1)) {
+  if (Array.from(query).some(([key]) => !['companion', 'mode', 'rotation', 'orientation'].includes(key) || query.getAll(key).length > 1)) {
     throw new ReplyError(400, 'Invalid slide options')
   }
   const primary = id.toLowerCase()
   const companion = query.get('companion')?.toLowerCase()
   const mode = query.get('mode') ?? 'fit'
   const rotation = query.get('rotation') ?? '0'
+  const orientation = query.get('orientation') ?? undefined
   if (!assetId.test(primary) || (companion !== undefined && (!assetId.test(companion) || companion === primary)) ||
-      (mode !== 'fit' && mode !== 'fill') || (rotation !== '0' && rotation !== '180')) {
+      (mode !== 'fit' && mode !== 'fill') || (rotation !== '0' && rotation !== '180') ||
+      (orientation !== undefined && orientation !== 'portrait' && orientation !== 'landscape')) {
     throw new ReplyError(400, 'Invalid slide options')
   }
-  const layout: SlideLayout = { mode, rotation: rotation === '180' ? 180 : 0 }
-  return { primary, companion, layout, key: `${primary}/${companion ?? ''}/${mode}/${rotation}` }
+  const layout: SlideLayout = { mode, rotation: rotation === '180' ? 180 : 0, orientation }
+  return { primary, companion, layout, key: `${primary}/${companion ?? ''}/${mode}/${rotation}/${orientation ?? ''}` }
 }
 
 const digest = (data: string | Buffer) => createHash('sha256').update(data).digest()
@@ -115,7 +117,8 @@ export function createSlideService({ immichUrl, immichKey, token, maxAgeMs = 60_
     if (!jpeg) {
       try {
         jpeg = await prepareSlide(left, right, slide.layout)
-      } catch {
+      } catch (error) {
+        if (error instanceof OrientationMismatch) throw new ReplyError(409, error.message)
         throw new ReplyError(422, 'Preview cannot be prepared with this layout')
       }
     }

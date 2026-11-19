@@ -97,7 +97,17 @@ assert.deepEqual(readBackup({ version: 3, photos: { source: 'Memories', albums_e
   memories_window: 'Within 7 Days', memories_fallback: false,
 })
 assert.equal(readBackup({ version: 3, photos: { source: 'Favorites', people_enabled: true } }).chooseSource, true)
-assert.equal(readBackup({ version: 3, photos: { source: 'All Photos', orientation: 'Portrait Only' } }).chooseSource, true)
+for (const version of [1, 2, 3]) {
+  const result = readBackup({ version, photos: { source: 'Memories', orientation: 'Portrait Only' },
+    screen: { rotation: '180' } })
+  assert.deepEqual(result, { settings: { photo_source: 'memories', photo_orientation: 'Portrait Only',
+    screen_rotation: '180' }, chooseSource: false, notices: [] })
+}
+const invalidOrientation = readBackup({ version: 3, photos: { source: 'Album', album_ids: album, orientation: '90' } })
+assert.equal(invalidOrientation.chooseSource, false)
+assert.equal(invalidOrientation.settings.photo_source, 'album')
+assert.equal(invalidOrientation.settings.photo_orientation, '')
+assert.match(invalidOrientation.notices[0], /Choose which photo orientations/)
 assert.deepEqual(readBackup({
   version: 3,
   photos: { source: 'Album', album_ids: album + ',0406c468-dabf-4777-bb93-ac6fdac62857' },
@@ -148,6 +158,7 @@ for (const source of ['all', 'favorites', 'album', 'memories']) {
       photo_metadata_date_enabled: false, photo_metadata_location_enabled: true,
       photo_metadata_date_format: 'Relative Date', photo_metadata_date_taken_format: 'January 1, 2026',
       memories_window: 'Within 7 Days', memories_fallback: false,
+      photo_orientation: duration % 60 ? 'Portrait Only' : 'Landscape Only',
       date_filter_enabled: true, date_filter_mode: 'Relative Range', date_from: '', date_to: '2024-02-29',
       relative_amount: 2, relative_unit: 'Months',
       ...(['album', 'memories'].includes(source) ? { album_id: album } : {}),

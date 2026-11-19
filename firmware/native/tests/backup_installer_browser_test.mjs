@@ -15,12 +15,14 @@ const [html, bundle, css, oldBackup, filteredBackup] = await Promise.all([
 ])
 const malformedBackup = JSON.parse(filteredBackup)
 malformedBackup.photos.excluded_tag_ids = 'invalid-id'
+const invalidOrientationBackup = JSON.parse(oldBackup)
+invalidOrientationBackup.photos.orientation = '90'
 const album = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
 const backup = {
   version: 3,
   connection: { immich_url: 'https://photos.test', api_key: 'old-api-key' },
   photos: { source: 'Memories', album_ids: album, portrait_pairing: false, portrait_pairs_only: true,
-    portrait_pairing_range: 'Within 1 Day', display_mode: 'Fit',
+    portrait_pairing_range: 'Within 1 Day', display_mode: 'Fit', orientation: 'Landscape Only',
     memories_window: 'Within 7 Days', memories_fallback: false, date_filter_enabled: true,
     date_filter_mode: 'Fixed Range', date_from: '2024-02-29', date_to: '', relative_amount: 2, relative_unit: 'Months' },
   clock: { show: false, format: '12 Hour', timezone: 'America/New_York (GMT-5)' },
@@ -100,6 +102,9 @@ const verify = `
     if (form.elements.photo_source.value || form.checkValidity()) throw new Error('Unrepresentable filters allowed a save')
     form.requestSubmit()
     if (attempts) throw new Error('USB opened with unresolved photo filters')
+    await loadBackup(${JSON.stringify(JSON.stringify(invalidOrientationBackup))}, 'Choose which photo orientations')
+    if (form.elements.photo_source.value !== 'album' || form.elements.photo_orientation.value || form.checkValidity())
+      throw new Error('Invalid photo orientation was not isolated from the source')
     await loadBackup(${JSON.stringify(JSON.stringify(backup))}, 'Backup loaded.')
     if (form.elements.immich_url.value !== 'https://photos.test') throw new Error('Immich URL was not prefilled')
     if (form.elements.immich_key.value !== 'entered-api-key') throw new Error('A backup replaced the entered key')
@@ -112,7 +117,8 @@ const verify = `
       throw new Error('Imported brightness was not shown')
     if (!document.querySelector('#screen-schedule').open || !form.elements.schedule_enabled.checked)
       throw new Error('Imported screen schedule was not shown')
-    if (form.elements.screen_rotation.value !== '180') throw new Error('Upside-down mounting was not imported')
+    if (form.elements.screen_rotation.value !== '180' || form.elements.photo_orientation.value !== 'Landscape Only')
+      throw new Error('Photo and mounting orientation were not imported independently')
     if (!form.elements.portrait_pairs_only.checked || !form.elements.portrait_pairs_only.disabled)
       throw new Error('Inactive paired-portrait preference was not retained')
     if (form.elements.portrait_pairing_range.value !== 'Within 1 Day' || !form.elements.portrait_pairing_range.disabled)
@@ -138,7 +144,8 @@ const verify = `
       throw new Error('Brightness did not reach USB setup')
     if (!received.base_tone_enabled || received.base_tone !== 25 || !received.warm_tones_enabled || received.warm_tone_intensity !== 60)
       throw new Error('Screen tone did not reach USB setup')
-    if (received.screen_rotation !== '180') throw new Error('Mounting orientation did not reach USB setup')
+    if (received.screen_rotation !== '180' || received.photo_orientation !== 'Landscape Only')
+      throw new Error('Photo and mounting orientation did not reach USB setup independently')
     if (!received.schedule_enabled || received.schedule_on_hour !== 21 || received.schedule_off_hour !== 6
       || received.schedule_wake_timeout !== 30) throw new Error('Screen schedule did not reach USB setup')
     const find = document.querySelector('#find-frame')

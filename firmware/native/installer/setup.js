@@ -51,6 +51,7 @@ backup.addEventListener('change', async () => {
     if (sequence !== importSequence) return
     if (chooseSource) form.elements.photo_source.value = ''
     if (settings.photo_source && settings.photo_source !== 'album') form.elements.album_id.value = ''
+    form.elements.photo_orientation.value = 'Any'
     for (const [name, value] of Object.entries({ ...photoFilterDefaults, ...settings })) {
       if (typeof value === 'boolean') form.elements[name].checked = value
       else form.elements[name].value = value

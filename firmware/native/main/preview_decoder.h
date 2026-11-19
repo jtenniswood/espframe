@@ -1,6 +1,7 @@
 #pragma once
 
 #include "photo_framing.h"
+#include "photo_orientation.h"
 #include "preparation_checkpoint.h"
 #include "slide_geometry.h"
 
@@ -16,7 +17,7 @@ bool is_webp_preview(const uint8_t *encoded, size_t length);
 // companion is ready so a single photo can still fill the slide on failure.
 class DecodedPreview {
  public:
-  enum class Result { Ready, Invalid, NoMemory, Interrupted };
+  enum class Result { Ready, Invalid, NoMemory, Interrupted, OrientationMismatch };
 
   DecodedPreview() = default;
   ~DecodedPreview();
@@ -24,7 +25,8 @@ class DecodedPreview {
   DecodedPreview &operator=(const DecodedPreview &) = delete;
 
   Result decode(const uint8_t *encoded, size_t length, bool companion = false, P4JpegDecoder *hardware = nullptr,
-                DisplayMode mode = DisplayMode::Fit, PreparationCheckpoint checkpoint = {});
+                DisplayMode mode = DisplayMode::Fit, PreparationCheckpoint checkpoint = {},
+                PhotoOrientation orientation = PhotoOrientation::Any);
   bool portrait() const { return this->portrait_; }
   bool hardware_jpeg() const { return this->hardware_jpeg_; }
   bool render(uint16_t *panel, const DecodedPreview *companion = nullptr, DisplayMode mode = DisplayMode::Fit,

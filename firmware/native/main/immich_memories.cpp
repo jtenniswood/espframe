@@ -84,7 +84,7 @@ bool visit_array(std::string_view input, Visit visit) {
   return input.empty();
 }
 
-bool visit_memory(std::string_view group, std::vector<ImmichPhoto> &photos, size_t limit) {
+bool visit_memory(std::string_view group, std::vector<ImmichPhoto> &photos, size_t limit, PhotoOrientation orientation) {
   if (!take(group, '{'))
     return false;
   std::string_view assets;
@@ -113,7 +113,8 @@ bool visit_memory(std::string_view group, std::vector<ImmichPhoto> &photos, size
     constexpr size_t max_asset_bytes = 16 * 1024;
     if (photos.size() < limit && asset.size() <= max_asset_bytes) {
       const auto photo = parse_memory_asset(asset);
-      if (photo && std::none_of(photos.begin(), photos.end(), [&](const ImmichPhoto &other) { return other.id == photo->id; }))
+      if (photo && photo->may_match_orientation(orientation) &&
+          std::none_of(photos.begin(), photos.end(), [&](const ImmichPhoto &other) { return other.id == photo->id; }))
         photos.push_back(*photo);
     }
     return true;
@@ -122,10 +123,10 @@ bool visit_memory(std::string_view group, std::vector<ImmichPhoto> &photos, size
 
 }  // namespace
 
-std::optional<std::vector<ImmichPhoto>> parse_memories(std::string_view json, size_t limit) {
+std::optional<std::vector<ImmichPhoto>> parse_memories(std::string_view json, size_t limit, PhotoOrientation orientation) {
   std::vector<ImmichPhoto> photos;
   photos.reserve(limit);
-  if (!visit_array(json, [&](std::string_view group) { return visit_memory(group, photos, limit); }))
+  if (!visit_array(json, [&](std::string_view group) { return visit_memory(group, photos, limit, orientation); }))
     return {};
   return photos;
 }

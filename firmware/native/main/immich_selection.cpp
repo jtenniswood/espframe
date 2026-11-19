@@ -225,7 +225,7 @@ PhotoSearchRequest make_filtered_photo_search(size_t count, const PhotoFilters &
 }
 
 PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool paged, bool favorites_only,
-                                     CaptureDateRange dates, bool exclude_favorites) {
+                                     CaptureDateRange dates, bool exclude_favorites, PhotoOrientation orientation) {
   PhotoSearchResult result;
   const auto document = parse_json(json);
   const auto *assets = paged ? cJSON_GetObjectItemCaseSensitive(document.get(), "assets") : nullptr;
@@ -248,7 +248,7 @@ PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool p
     if (const auto *visibility = get_text(record, "visibility"); visibility && std::string_view(visibility) != "timeline")
       continue;
     const auto photo = read_asset(record);
-    if (photo && dates.includes(photo->metadata.capture_day) &&
+    if (photo && photo->may_match_orientation(orientation) && dates.includes(photo->metadata.capture_day) &&
         std::none_of(photos.begin(), photos.end(), [&](const ImmichPhoto &prev) { return prev.id == photo->id; }))
       photos.push_back(*photo);
   }

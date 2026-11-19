@@ -52,7 +52,7 @@ void jpeg_message(j_common_ptr info, int) {
 
 Decode read_jpeg(jpeg_decompress_struct &decoder, JpegError &error, const uint8_t *encoded,
                  size_t length, uint16_t *&pixels, PhotoFraming &size, bool companion, DisplayMode mode,
-                 P4JpegDecoder *hardware, bool &accelerated, PreparationCheckpoint checkpoint) {
+                 P4JpegDecoder *hardware, bool &accelerated, PreparationCheckpoint checkpoint, PhotoOrientation orientation) {
   if (setjmp(error.escape) != 0)
     return error.manager.msg_code == JERR_OUT_OF_MEMORY ? Decode::NoMemory : Decode::Invalid;
 
@@ -61,6 +61,8 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegError &error, const uint8_
   if (jpeg_read_header(&decoder, TRUE) != JPEG_HEADER_OK ||
       !supported(decoder.image_width, decoder.image_height))
     return Decode::Invalid;
+  if (!matches_photo_orientation(orientation, decoder.image_height > decoder.image_width))
+    return Decode::OrientationMismatch;
   size = framing(decoder.image_width, decoder.image_height, companion, mode);
   pixels = allocate(size);
   if (pixels == nullptr)
@@ -115,24 +117,27 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegError &error, const uint8_
 }
 
 Decode decode_jpeg(const uint8_t *encoded, size_t length, uint16_t *&pixels, PhotoFraming &size, bool companion,
-                   DisplayMode mode, P4JpegDecoder *hardware, bool &accelerated, PreparationCheckpoint checkpoint) {
+                   DisplayMode mode, P4JpegDecoder *hardware, bool &accelerated, PreparationCheckpoint checkpoint,
+                   PhotoOrientation orientation) {
   jpeg_decompress_struct decoder{};
   JpegError error{};
   decoder.err = jpeg_std_error(&error.manager);
   error.manager.error_exit = jpeg_failure;
   error.manager.emit_message = jpeg_message;
   const auto result = read_jpeg(decoder, error, encoded, length, pixels, size, companion, mode, hardware, accelerated,
-                                checkpoint);
+                                checkpoint, orientation);
   jpeg_destroy_decompress(&decoder);
   return result;
 }
 
 Decode decode_webp(const uint8_t *encoded, size_t length, uint16_t *&pixels, PhotoFraming &size, bool companion,
-                   DisplayMode mode) {
+                   DisplayMode mode, PhotoOrientation orientation) {
   WebPDecoderConfig decoder;
   if (!WebPInitDecoderConfig(&decoder) || WebPGetFeatures(encoded, length, &decoder.input) != VP8_STATUS_OK ||
       decoder.input.has_animation || !supported(decoder.input.width, decoder.input.height))
     return Decode::Invalid;
+  if (!matches_photo_orientation(orientation, decoder.input.height > decoder.input.width))
+    return Decode::OrientationMismatch;
   size = framing(decoder.input.width, decoder.input.height, companion, mode);
   pixels = allocate(size);
   if (pixels == nullptr)
@@ -199,7 +204,7 @@ bool is_webp_preview(const uint8_t *encoded, size_t length) {
 
 DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t length, bool companion,
                                               P4JpegDecoder *hardware, DisplayMode mode,
-                                              PreparationCheckpoint checkpoint) {
+                                           PreparationCheckpoint checkpoint, PhotoOrientation orientation) {
   heap_caps_free(this->pixels_);
   this->pixels_ = nullptr;
   this->width_ = 0;
@@ -214,8 +219,8 @@ DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t len
     return Result::Invalid;
   PhotoFraming size{};
   const auto result = jpeg ? decode_jpeg(encoded, length, this->pixels_, size, companion, mode, hardware,
-                                        this->hardware_jpeg_, checkpoint)
-                           : decode_webp(encoded, length, this->pixels_, size, companion, mode);
+                                        this->hardware_jpeg_, checkpoint, orientation)
+                           : decode_webp(encoded, length, this->pixels_, size, companion, mode, orientation);
   if (result == Result::Ready) {
     this->width_ = size.width;
     this->height_ = size.height;

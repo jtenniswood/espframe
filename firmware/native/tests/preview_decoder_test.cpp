@@ -239,6 +239,25 @@ void verify_interruption(const char *jpeg_path, const char *webp_path) {
   assert(decoded.render(panel.data()));
 }
 
+void verify_orientation(const char *square_jpeg, const char *square_webp, const char *portrait) {
+  DecodedPreview decoded;
+  const auto portrait_bytes = load(portrait);
+  for (const auto *path : {square_jpeg, square_webp}) {
+    const auto bytes = load(path);
+    fail_heap_allocations = true;
+    assert(decoded.decode(bytes.data(), bytes.size(), false, nullptr, DisplayMode::Fit, {}, PhotoOrientation::Portrait) ==
+           Decode::OrientationMismatch);
+    fail_heap_allocations = false;
+    assert(decoded.decode(bytes.data(), bytes.size(), false, nullptr, DisplayMode::Fill, {}, PhotoOrientation::Landscape) ==
+           Decode::Ready);
+    assert(!decoded.portrait());
+  }
+  assert(decoded.decode(portrait_bytes.data(), portrait_bytes.size(), false, nullptr, DisplayMode::Fit, {},
+                        PhotoOrientation::Landscape) == Decode::OrientationMismatch);
+  assert(decoded.decode(portrait_bytes.data(), portrait_bytes.size(), false, nullptr, DisplayMode::Fit, {},
+                        PhotoOrientation::Portrait) == Decode::Ready && decoded.portrait());
+}
+
 int main(int argc, char **argv) {
   assert(argc == 6);
   const auto wide = frame_photo(1600, 900, slide_width, slide_height, DisplayMode::Fill);
@@ -250,6 +269,7 @@ int main(int argc, char **argv) {
   verify_pair(argv[4], argv[5]);
   verify_hardware(argv[1], argv[2], argv[3]);
   verify_interruption(argv[1], argv[3]);
+  verify_orientation(argv[1], argv[3], argv[4]);
   const uint8_t unsupported[]{0, 1, 2, 3};
   DecodedPreview decoded;
   assert(decoded.decode(unsupported, sizeof(unsupported)) == Decode::Invalid);

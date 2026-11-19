@@ -1,6 +1,8 @@
 import sharp from 'sharp'
 
-export type SlideLayout = { mode: 'fit' | 'fill'; rotation: 0 | 180 }
+export type SlideLayout = { mode: 'fit' | 'fill'; rotation: 0 | 180; orientation?: 'portrait' | 'landscape' }
+
+export class OrientationMismatch extends Error {}
 
 const width = 1280
 const height = 800
@@ -44,17 +46,21 @@ async function tile(image: Awaited<ReturnType<typeof orient>>, left: number, max
 
 export async function prepareSlide(primary: Buffer, companion: Buffer | undefined, layout: SlideLayout) {
   const left = await orient(primary)
+  const portrait = left.info.height > left.info.width
+  if (layout.orientation && portrait !== (layout.orientation === 'portrait')) {
+    throw new OrientationMismatch('Preview does not match the requested orientation')
+  }
   const fill = layout.mode === 'fill'
   const layers = []
   if (companion) {
     const right = await orient(companion)
-    if (left.info.height <= left.info.width || right.info.height <= right.info.width) {
+    if (!portrait || right.info.height <= right.info.width) {
       throw new Error('A portrait pair requires two portrait previews')
     }
     const half = (width - gap) / 2
     layers.push(await tile(left, 0, half, fill), await tile(right, half + gap, half, fill))
   } else {
-    layers.push(await tile(left, 0, width, fill && left.info.width >= left.info.height))
+    layers.push(await tile(left, 0, width, fill && !portrait))
   }
   const logical = await sharp({ create: { width, height, channels: 3, background } })
     .composite(layers).raw().toBuffer({ resolveWithObject: true })

@@ -4,6 +4,7 @@ const legacySources = ['All Photos', 'Album', 'Favorites', 'Person', 'Tag', 'Mem
 const groupFlags = { album: 'albums_enabled', person: 'people_enabled', tag: 'tags_enabled' }
 const placeFields = { filter_country: 'country', filter_state: 'state', filter_city: 'city' }
 const displayModes = ['Fill', 'Fit']
+const photoOrientations = ['Any', 'Portrait Only', 'Landscape Only']
 const clockFormats = ['24 Hour', '12 Hour']
 const pairingRanges = ['Same Day', 'Within 1 Day', 'Within 2 Days']
 const memoriesWindows = ['Same Day', 'Within 1 Day', 'Within 2 Days', 'Within 3 Days', 'Within 7 Days']
@@ -85,7 +86,7 @@ function importSource(photos, version) {
   const supplied = Object.keys(photoFilterDefaults).some(key => own(photos, placeFields[key] ?? key))
   const pairedPortraits = photos.portrait_pairs_only === true && photos.portrait_pairing !== false
   const dateFilter = own(photos, 'date_filter_enabled')
-  if (legacy === undefined && !supplied && !dateFilter && !pairedPortraits && !own(photos, 'orientation')) return {}
+  if (legacy === undefined && !supplied && !dateFilter && !pairedPortraits) return {}
 
   const filters = {}
   let invalid = legacy !== undefined && !legacySources.includes(legacy)
@@ -113,7 +114,6 @@ function importSource(photos, version) {
   }
 
   const saved = Object.fromEntries(Object.entries(filters).filter(([key, value]) => value !== photoFilterDefaults[key]))
-  if (photos.orientation !== undefined && photos.orientation !== 'Any') invalid = true
   if (legacy === 'Memories') {
     const album = normalizeAlbum(photos.album_ids)
     return { ...saved, ...(album ? { album_id: album } : {}), ...(
@@ -182,6 +182,13 @@ export function readBackup(data) {
   if (own(photos, 'display_mode')) {
     if (displayModes.includes(photos.display_mode)) settings.display_mode = photos.display_mode
     else notices.push('Choose a display mode.')
+  }
+  if (own(photos, 'orientation') && photos.orientation !== 'Any') {
+    if (photoOrientations.includes(photos.orientation)) settings.photo_orientation = photos.orientation
+    else {
+      settings.photo_orientation = ''
+      notices.push('Choose which photo orientations to display before saving.')
+    }
   }
   if (typeof clock.show === 'boolean') settings.show_clock = clock.show
   if (clockFormats.includes(clock.format)) settings.clock_format = clock.format
@@ -266,6 +273,7 @@ export function createBackup(settings, date = new Date()) {
       ...(typeof settings.portrait_pairs_only === 'boolean' ? { portrait_pairs_only: settings.portrait_pairs_only } : {}),
       ...(pairingRanges.includes(settings.portrait_pairing_range) ? { portrait_pairing_range: settings.portrait_pairing_range } : {}),
       ...(displayModes.includes(settings.display_mode) ? { display_mode: settings.display_mode } : {}),
+      ...(photoOrientations.includes(settings.photo_orientation) ? { orientation: settings.photo_orientation } : {}),
     },
     frequency: { interval: formatInterval(settings.slide_seconds) },
     ...(Object.keys(clock).length ? { clock } : {}),

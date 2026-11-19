@@ -15,7 +15,8 @@ const nativeSettingGroups: [string, [string, string][]][] = [
   ["Immich connection", [["immich_url", "Immich server URL"], ["api_key", "Replacement Immich API key"]]],
   ["Photo preparation service", [["prepared_slide_url", "Service URL"], ["prepared_slide_token", "Service access token"]]],
   ["Playback", [
-    ["interval", "Time per photo"], ["display_mode", "Photo framing"], ["portrait_pairing", "Pair portrait photos"],
+    ["interval", "Time per photo"], ["photo_orientation", "Display photos"], ["display_mode", "Photo framing"],
+    ["portrait_pairing", "Pair portrait photos"],
     ["portrait_pairs_only", "Show paired portraits only"],
     ["portrait_pairing_range", "Pairing range"],
   ]],

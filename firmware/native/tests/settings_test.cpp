@@ -125,6 +125,7 @@ int main() {
   assert(!legacy.brightness_night && legacy.night_brightness() == 64);
   assert(legacy.photo_source.mode == PhotoSourceMode::Library);
   assert(legacy.display_mode == DisplayMode::Fit);
+  assert(legacy.photo_orientation == espframe::native::PhotoOrientation::Any);
   assert(legacy.screen_rotation == ScreenRotation::Normal);
   assert(!legacy.clock.show && legacy.clock.format == "24 Hour");
   assert(!legacy.schedule.enabled && legacy.schedule.on_hour == 6 && legacy.schedule.off_hour == 23 &&
@@ -504,4 +505,22 @@ int main() {
   assert(!reset_configuration(ResetMode::Customization).error);
   assert(!stored_blobs.contains("settings_v1") && current.read());
   assert(current.ssid == "Brand new" && current.photo_filters.criteria.excluded_tag_ids.empty() && current.reset_epoch == 4);
+
+  using espframe::native::PhotoOrientation;
+  assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","portrait_pairs_only":true,
+      "photo_orientation":"Landscape Only","screen_rotation":"180"})"));
+  assert(current.read() && current.photo_orientation == PhotoOrientation::Landscape);
+  assert(!current.requires_portrait_pair() && current.portrait_pairing && current.portrait_pairs_only);
+  assert(current.screen_rotation == ScreenRotation::UpsideDown);
+  const auto oriented = stored;
+  assert(update_configuration(R"({"values":{"photo_orientation":"90","brightness_day":35}})").error);
+  assert(stored == oriented);
+  assert(!update_configuration(R"({"values":{"photo_orientation":"Portrait Only"}})").error);
+  assert(current.read() && current.photo_orientation == PhotoOrientation::Portrait && current.requires_portrait_pair());
+  const Json orientation_snapshot(configuration_snapshot(current), cJSON_Delete);
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(
+      cJSON_GetObjectItemCaseSensitive(orientation_snapshot.get(), "values"), "photo_orientation")) ==
+      std::string_view("Portrait Only"));
+  assert(!reset_configuration(ResetMode::Customization).error);
+  assert(current.read() && current.photo_orientation == PhotoOrientation::Any);
 }

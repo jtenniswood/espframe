@@ -234,6 +234,7 @@ class SlideLoader {
         this->settings_.immich_url = std::string(trial_replay_origin) + "/api";
         this->settings_.immich_key = replay_immich_key;
         this->settings_.photo_source = {};
+        this->settings_.photo_orientation = PhotoOrientation::Any;
         this->settings_.capture_dates = {};
         this->settings_.portrait_pairing = this->settings_.portrait_pairs_only = true;
         this->settings_.portrait_pairing_days = 2;

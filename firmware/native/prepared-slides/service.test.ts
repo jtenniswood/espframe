@@ -3,7 +3,7 @@ import { once } from 'node:events'
 import { createServer, type Server } from 'node:http'
 import { test } from 'node:test'
 import sharp from 'sharp'
-import { prepareSlide } from './prepare.ts'
+import { OrientationMismatch, prepareSlide } from './prepare.ts'
 import { createSlideService } from './service.ts'
 
 const red = [220, 24, 35]
@@ -52,17 +52,18 @@ test('landscape fit and fill match the panel geometry', async () => {
 
 test('EXIF portrait stays intact and the WebP pair uses the native gutter', async () => {
   const portrait = await preview(120, 80, red, blue, false, 6)
-  const lone = await measure(await prepareSlide(portrait, undefined, { mode: 'fill', rotation: 0 }))
+  const lone = await measure(await prepareSlide(portrait, undefined, { mode: 'fill', rotation: 0, orientation: 'portrait' }))
   lone(10, 400, black)
   lone(600, 50, red)
   lone(600, 750, blue)
   const companion = await preview(80, 120, green, green, true)
-  const pair = await measure(await prepareSlide(portrait, companion, { mode: 'fill', rotation: 0 }))
+  const pair = await measure(await prepareSlide(portrait, companion, { mode: 'fill', rotation: 0, orientation: 'portrait' }))
   pair(100, 400 - 100, red)
   pair(100, 400 + 100, blue)
   pair(640, 400, black)
   pair(900, 400, green)
   await assert.rejects(prepareSlide(await preview(120, 80, red, blue), companion, { mode: 'fit', rotation: 0 }), /two portrait/)
+  await assert.rejects(prepareSlide(portrait, undefined, { mode: 'fit', rotation: 0, orientation: 'landscape' }), OrientationMismatch)
 })
 
 async function listen(server: Server) {
@@ -96,6 +97,8 @@ test('authorizes one library, bounds options and reuses unchanged prepared image
   assert.equal((await fetch(endpoint)).status, 401)
   assert.equal((await fetch(`${endpoint}?mode=fit&mode=fill`, { headers })).status, 400)
   assert.equal((await fetch(`${endpoint}?rotation=90`, { headers })).status, 400)
+  assert.equal((await fetch(`${endpoint}?orientation=wide`, { headers })).status, 400)
+  assert.equal((await fetch(`${endpoint}?orientation=portrait&orientation=landscape`, { headers })).status, 400)
   assert.equal(calls.length, 0)
   const results = await Promise.all([fetch(endpoint, { headers }), fetch(endpoint, { headers })])
   for (const response of results) {
@@ -124,4 +127,14 @@ test('authorizes one library, bounds options and reuses unchanged prepared image
   assert.equal(changed.headers.get('x-espframe-cache'), 'miss')
   const revised = await measure(Buffer.from(await changed.arrayBuffer()))
   revised(300, 100, green)
+
+  // An earlier unfiltered hit does not satisfy an orientation check.
+  assert.equal((await fetch(`${endpoint}?orientation=portrait`, { headers })).status, 409)
+  const landscape = await fetch(`${endpoint}?orientation=landscape`, { headers })
+  assert.equal(landscape.status, 200)
+  assert.equal(landscape.headers.get('x-espframe-cache'), 'miss')
+  await landscape.arrayBuffer()
+  assert.equal((await fetch(`${endpoint}?orientation=landscape`, { headers })).headers.get('x-espframe-cache'), 'hit')
+  original = await preview(100, 100, red, red)
+  assert.equal((await fetch(`${refreshUrl}?orientation=landscape`, { headers })).status, 200)
 })

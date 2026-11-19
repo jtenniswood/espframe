@@ -176,12 +176,13 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
                                             ? std::string_view(filters.criteria.favorite_mode) : "Any";
   auto response = parse_photo_search({reinterpret_cast<const char *>(this->encoded_), length}, count, request.paged,
                                      source.mode == PhotoSourceMode::Favorites || favorite_mode == "Favorites only",
-                                     request.dates, favorite_mode == "Exclude favorites");
+                                     request.dates, favorite_mode == "Exclude favorites", this->settings_.photo_orientation);
   if constexpr (SWIPE_TRIAL_IMMICH)
     record_live_trial_search(pairing, status, response.photos.size());
   if (album_page && response.valid)
     album_page->page = response.next_page > page ? response.next_page : 1;
-  if (custom && !pairing && response.photos.empty())
+  if (!pairing && response.photos.empty() && (custom || (this->settings_.photo_orientation != PhotoOrientation::Any &&
+                                                        this->settings_.photo_source.mode != PhotoSourceMode::Memories)))
     this->source_status_ = PhotoSourceStatus::FiltersUnavailable;
   return std::move(response.photos);
 }
@@ -238,7 +239,7 @@ std::vector<ImmichPhoto> ImmichSource::memories_() {
       if (this->cancelled_ || (status == 0 && esp_timer_get_time() >= deadline))
         return {};
       auto results = status == 200 ? parse_memories({reinterpret_cast<const char *>(this->encoded_), length},
-                                                   photo_search_batch) : std::nullopt;
+                                                   photo_search_batch, this->settings_.photo_orientation) : std::nullopt;
       // A single oversized date should not prevent the rest of the window
       // from producing memories. Other request failures use the retry delay.
       if (!results && status != 413) {
@@ -390,12 +391,13 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
   if (this->cancelled_)
     return PreviewStatus::Retry;
   const bool optional = deadline_us != 0;
+  const auto orientation = for_pair ? PhotoOrientation::Portrait : this->settings_.photo_orientation;
   const auto decode = [&](const uint8_t *data, size_t length) {
     int64_t started_us = 0;
     if constexpr (SWIPE_TRIAL_IMMICH)
       started_us = esp_timer_get_time();
     const auto result = preview.decode(data, length, for_pair, &this->jpeg_, this->settings_.display_mode,
-                                       this->checkpoint_);
+                                       this->checkpoint_, orientation);
     if constexpr (SWIPE_TRIAL_IMMICH) {
       const auto elapsed = static_cast<uint32_t>(esp_timer_get_time() - started_us);
       auto stage = TrialPreparationStage::RejectedPreview;
@@ -422,6 +424,8 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
     }
     if (result == DecodedPreview::Result::NoMemory || result == DecodedPreview::Result::Interrupted)
       return PreviewStatus::Retry;
+    if (result == DecodedPreview::Result::OrientationMismatch)
+      return PreviewStatus::Missing;
     this->previews_.discard(id);
   }
   if (!online_())
@@ -451,6 +455,8 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
     }
     if (result == DecodedPreview::Result::NoMemory || result == DecodedPreview::Result::Interrupted)
       return PreviewStatus::Retry;
+    if (result == DecodedPreview::Result::OrientationMismatch)
+      return PreviewStatus::Missing;
   }
   if (this->cancelled_)
     return PreviewStatus::Retry;
@@ -476,9 +482,9 @@ bool ImmichSource::render_cached_prepared_(SlideIndex slide, uint16_t *panel) {
   return true;
 }
 
-size_t ImmichSource::render_prepared_(const PhotoSlide &frame, uint16_t *panel) {
+ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &frame, uint16_t *panel) {
   if (!online_() || esp_timer_get_time() < prepared_retry_us_ || !allocate_download_())
-    return 0;
+    return {};
   std::string url(settings_.prepared_slide_url);
   url += "/v1/slides/";
   url += frame.primary.data();
@@ -489,6 +495,9 @@ size_t ImmichSource::render_prepared_(const PhotoSlide &frame, uint16_t *panel) 
   }
   url += "&rotation=";
   url += screen_rotation_name(settings_.screen_rotation);
+  const auto orientation = this->settings_.photo_orientation;
+  if (orientation != PhotoOrientation::Any)
+    url += orientation == PhotoOrientation::Portrait ? "&orientation=portrait" : "&orientation=landscape";
   const auto authorization = "Bearer " + settings_.prepared_slide_token;
   const auto start = esp_timer_get_time();
   size_t length = 0;
@@ -500,14 +509,18 @@ size_t ImmichSource::render_prepared_(const PhotoSlide &frame, uint16_t *panel) 
                                        static_cast<uint32_t>(decode_start - start), length);
   // Avoid paying the failed request on every slide. A missing asset or an
   // unsupported image affects only that slide, so its successor can still use the service.
-  if (!cancelled_ && (status == 0 || status == 401 || status == 403 || status == 429 || status >= 500))
+  // Older service versions reject the orientation option with HTTP 400.
+  if (!cancelled_ && (status == 0 || status == 401 || status == 403 || status == 429 || status >= 500 ||
+                      (status == 400 && orientation != PhotoOrientation::Any)))
     prepared_retry_us_ = decode_start + 30'000'000;
+  if (!cancelled_ && status == 409 && orientation != PhotoOrientation::Any)
+    return {0, true};
   if (status != 200 || cancelled_ || !jpeg_.decode_panel(encoded_, length, panel, checkpoint_))
-    return 0;
+    return {};
   if constexpr (SWIPE_TRIAL_IMMICH)
     record_live_trial_preparation_time(TrialPreparationStage::PreparedDecode,
                                        static_cast<uint32_t>(esp_timer_get_time() - decode_start));
-  return length;
+  return {length, false};
 }
 
 ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
@@ -547,7 +560,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   };
   bool prepared = remembered && this->render_cached_prepared_(slide, panel);
   size_t prepared_bytes = 0;
-  const bool optional_pair = !remembered && !pairs_only && slide > 1 && settings_.portrait_pairing;
+  const bool optional_pair = !remembered && !pairs_only && slide > 1 && settings_.pairs_portraits();
   bool selected_companion = false;
   if (!prepared && settings_.has_prepared_slides() && (!optional_pair || seed.orientation_known) &&
       esp_timer_get_time() >= prepared_retry_us_) {
@@ -556,7 +569,10 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       frame.companion = companion_for_(seed, esp_timer_get_time() + pairing_time_us);
       selected_companion = true;
     }
-    prepared_bytes = this->render_prepared_(frame, panel);
+    const auto preview = this->render_prepared_(frame, panel);
+    if (preview.orientation_mismatch)
+      return reject_candidate(frame.primary);
+    prepared_bytes = preview.bytes;
     prepared = prepared_bytes != 0;
   }
   if (this->cancelled_)

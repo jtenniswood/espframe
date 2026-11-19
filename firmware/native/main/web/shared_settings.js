@@ -343,6 +343,7 @@
     ["Photo preparation service", [["prepared_slide_url", "Service URL"], ["prepared_slide_token", "Service access token"]]],
     ["Playback", [
       ["interval", "Time per photo"],
+      ["photo_orientation", "Display photos"],
       ["display_mode", "Photo framing"],
       ["portrait_pairing", "Pair portrait photos"],
       ["portrait_pairs_only", "Show paired portraits only"],

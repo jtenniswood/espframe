@@ -34,6 +34,7 @@ const testScript = `
     const save = form.querySelector('button[type="submit"]')
     check(field('interval').value === '25 seconds', 'Custom interval was replaced')
     check(field('brightness_day').value === '74', 'Daytime brightness was replaced')
+    check(field('photo_orientation').value === 'Portrait Only', 'Saved photo orientation was lost')
     check(!field('brightness_night') && !field('albums_enabled'), 'Unsupported settings were shown')
     check(field('api_key').type === 'password' && !field('api_key').value, 'The key was shown')
     check(field('prepared_slide_url').value === 'https://prepare.test', 'The service URL was lost')
@@ -67,6 +68,7 @@ const testScript = `
     check(field('prepared_slide_token').required, 'Changing the service URL did not require a new token')
     edit('prepared_slide_token', 'service-token-for-browser-regression-test')
     edit('portrait_pairing_range', 'Within 1 Day')
+    edit('photo_orientation', 'Landscape Only')
     field('portrait_pairs_only').checked = true
     field('portrait_pairs_only').dispatchEvent(new Event('change', {bubbles: true}))
     field('portrait_pairing').checked = false
@@ -81,6 +83,7 @@ const testScript = `
     })
     check(reloaded.elements.namedItem('brightness_day').value === '60', 'New brightness was not read back')
     check(reloaded.elements.namedItem('interval').value === '30 seconds', 'New interval was not read back')
+    check(reloaded.elements.namedItem('photo_orientation').value === 'Landscape Only', 'Photo orientation was not read back')
     check(!reloaded.elements.namedItem('api_key').value, 'The replacement key remained in the form')
     check(reloaded.elements.namedItem('prepared_slide_url').value === 'https://new-prepare.test', 'The new service URL was not read back')
     check(!reloaded.elements.namedItem('prepared_slide_token').value, 'The service token remained in the form')
@@ -108,6 +111,7 @@ const snapshot = {
     immich_url: 'https://photos.test/api', interval: '25 seconds', display_mode: 'Fit', brightness_day: 74,
     brightness_night: 48, screen_rotation: '180', show_clock: false, timezone: 'Europe/London (GMT+0)',
     portrait_pairing: true, portrait_pairs_only: false, portrait_pairing_range: 'Within 2 Days',
+    photo_orientation: 'Portrait Only',
     prepared_slide_url: 'https://prepare.test', prepared_slide_token_configured: true,
   },
 }
@@ -183,6 +187,7 @@ try {
       api_version: 1, reset_epoch: 0,
       values: {
         api_key: 'replacement+value&1', interval: '30 seconds', brightness_day: 60,
+        photo_orientation: 'Landscape Only',
         portrait_pairing: false, portrait_pairs_only: true, portrait_pairing_range: 'Within 1 Day',
         prepared_slide_url: 'https://new-prepare.test', prepared_slide_token: 'service-token-for-browser-regression-test',
       },
