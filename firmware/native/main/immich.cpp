@@ -308,13 +308,19 @@ AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, int64_t deadlin
   return choose(this->search_(source, primary.metadata.capture_day, deadline_us));
 }
 
+void ImmichSource::discard_candidate_(const AssetId &id) {
+  const auto matches = [&](const ImmichPhoto &photo) { return photo.id == id; };
+  std::erase_if(this->pending_, matches);
+  std::erase_if(this->memory_pool_, matches);
+}
+
 ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, DecodedPreview &preview,
-                                                        bool companion, int64_t deadline_us) {
+                                                        bool for_pair, int64_t deadline_us) {
   if (this->cancelled_)
     return PreviewStatus::Retry;
   const bool optional = deadline_us != 0;
   const auto decode = [&](const uint8_t *data, size_t length) {
-    return preview.decode(data, length, companion, &this->jpeg_, this->settings_.display_mode);
+    return preview.decode(data, length, for_pair, &this->jpeg_, this->settings_.display_mode);
   };
   const auto cached = this->previews_.find(id);
   if (!cached.empty()) {
@@ -360,13 +366,13 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
                                                                       : PreviewStatus::Retry;
 }
 
-bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
+ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
   if (this->cancelled_)
-    return false;
+    return PrepareResult::Retry;
   const bool new_position = slide == this->history_.next();
   auto *existing = this->history_.find(slide);
   if (!new_position && existing == nullptr)
-    return false;
+    return PrepareResult::Retry;
   const bool remembered = existing != nullptr && existing->primary[0] != '\0';
   const bool pairs_only = this->settings_.portrait_pairs_only;
   ImmichPhoto seed;
@@ -375,35 +381,44 @@ bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
     frame = *existing;
   } else {
     if (!this->next_asset_(seed))
-      return false;
+      return PrepareResult::Retry;
     if (pairs_only && !this->select_pair_(seed, frame.companion))
-      return false;
+      return PrepareResult::Retry;
     frame.primary = seed.id;
     frame.metadata = seed.metadata;
   }
 
-  DecodedPreview primary;
-  const auto status = this->load_preview_(frame.primary, primary, false);
-  if (status != PreviewStatus::Ready || this->cancelled_) {
-    if (!remembered && (status == PreviewStatus::Retry || this->cancelled_))
-      this->pending_.push_back(seed);
-    if (remembered && status == PreviewStatus::Missing && !this->cancelled_)
+  const auto reject_candidate = [&](const AssetId &id) {
+    this->discard_candidate_(id);
+    if (remembered)
       *existing = {};
-    if (status == PreviewStatus::Missing)
-      std::erase_if(this->memory_pool_, [&](const ImmichPhoto &photo) { return photo.id == frame.primary; });
-    return false;
+    return this->pending_.empty() ? PrepareResult::Retry : PrepareResult::NextCandidate;
+  };
+  DecodedPreview primary;
+  const auto status = this->load_preview_(frame.primary, primary, pairs_only);
+  if (this->cancelled_ || status == PreviewStatus::Retry) {
+    if (!remembered)
+      this->pending_.push_back(seed);
+    return PrepareResult::Retry;
   }
+  if (status == PreviewStatus::Missing || (pairs_only && !primary.portrait()))
+    return reject_candidate(frame.primary);
 
   // Optional pairing leaves the first preview on the fast path.
-  const auto pair_deadline_us = esp_timer_get_time() + (remembered ? 2 : 1) * pairing_time_us;
+  const auto pair_deadline_us = pairs_only ? 0 : esp_timer_get_time() + (remembered ? 2 : 1) * pairing_time_us;
   if (!remembered && !pairs_only && slide > 1 && this->settings_.portrait_pairing && primary.portrait())
     frame.companion = this->companion_for_(seed, pair_deadline_us);
 
   DecodedPreview companion;
   if (frame.companion[0] != '\0' && primary.portrait()) {
     const auto right = this->load_preview_(frame.companion, companion, true, pair_deadline_us);
-    if (remembered && right == PreviewStatus::Retry)
-      return false;  // Keep the existing pair together while waiting for Wi-Fi.
+    if (right == PreviewStatus::Retry && (remembered || pairs_only)) {
+      if (!remembered)
+        this->pending_.push_back(seed);
+      return PrepareResult::Retry;
+    }
+    if (pairs_only && (right == PreviewStatus::Missing || !companion.portrait()))
+      return reject_candidate(frame.companion);
     if (right != PreviewStatus::Ready || !companion.portrait())
       frame.companion = {};
   } else {
@@ -413,12 +428,7 @@ bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
   if (this->cancelled_) {
     if (!remembered)
       this->pending_.push_back(seed);
-    return false;
-  }
-  if (pairs_only && frame.companion[0] == '\0') {
-    if (remembered)
-      *existing = {};
-    return false;
+    return PrepareResult::Retry;
   }
   if (!remembered && frame.companion[0] != '\0')
     std::erase_if(this->pending_, [&](const ImmichPhoto &photo) { return photo.id == frame.companion; });
@@ -437,7 +447,7 @@ bool ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
     this->history_.append(frame);
   else
     *existing = frame;
-  return true;
+  return PrepareResult::Ready;
 }
 
 }  // namespace espframe::native

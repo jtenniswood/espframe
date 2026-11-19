@@ -150,6 +150,14 @@ void verify_pair(const char *primary_path, const char *companion_path) {
   left.render(panel.data() + 1, &right);
   assert((at(panel, 640, 420) & 0xf800) >= 0xf000 && at(panel, 0, 420) == 0);
   fail_heap_allocations = false;
+
+  // In a required pair, both sides decode directly to their final pane.
+  assert(left.decode(primary.data(), primary.size(), true, nullptr, DisplayMode::Fill) == Decode::Ready);
+  assert(right.decode(companion.data(), companion.size(), true, nullptr, DisplayMode::Fill) == Decode::Ready);
+  left.render(panel.data() + 1, &right, DisplayMode::Fill);
+  assert((at(panel, 0, 420) & 0xf800) >= 0xf000 && (at(panel, 1279, 420) & 0x001f) >= 0x001e);
+  assert(at(panel, 639, 420) == 0 && at(panel, 640, 420) == 0);
+  expect_flipped(panel, left, &right, DisplayMode::Fill);
 }
 
 void verify_hardware(const char *baseline_path, const char *progressive_path, const char *webp_path) {

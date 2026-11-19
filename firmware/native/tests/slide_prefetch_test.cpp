@@ -12,6 +12,12 @@ using espframe::native::Swipe;
 using espframe::native::slide_width;
 
 int main() {
+  const auto next_candidate_retry = SlideRetry::after(10, 1'000, 1, true);
+  assert(!next_candidate_retry.due(10, 100'999, 1) && next_candidate_retry.due(10, 101'000, 1));
+  const auto transport_retry = SlideRetry::after(10, 1'000, 1, false);
+  assert(!transport_retry.due(10, 101'000, 1) && transport_retry.due(10, 2'001'000, 1));
+  assert(transport_retry.due(10, 1'001, 2));
+
   const SlideRetry offline_retry{10, 2'000'000, 0};
   assert(!offline_retry.due(10, 1, 0));
   assert(offline_retry.due(10, 1, 1));

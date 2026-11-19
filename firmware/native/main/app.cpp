@@ -192,12 +192,15 @@ SlideCache::Buffers allocate_slide_buffers() {
 
 class SlideLoader {
  public:
+  using Result = ImmichSource::PrepareResult;
+
   struct Completion {
     SlideCache::Lease lease;
     SlideIndex first_photo;
+    SlideIndex next_photo;
     uint32_t connection;
     MemoriesStatus memories_status;
-    bool ready;
+    Result result;
     bool cancelled;
   };
 
@@ -273,11 +276,11 @@ class SlideLoader {
       if (xQueueReceive(loader.requests_, &lease, 0) != pdPASS)
         continue;
       const auto connection = network.photo_connection();
-      bool ready = true;
+      auto result = Result::Ready;
       if ((!esphome_trial || trial_immich) && loader.live_ && lease.slide > 0) {
         if constexpr (trial_immich)
           record_live_trial_prepare();
-        ready = loader.source_.prepare(lease.slide, lease.pixels);
+        result = loader.source_.prepare(lease.slide, lease.pixels);
       } else {
         const int fixture = lease.slide % fixture_count;
         if (!decode_photo(photos[fixture], lease.pixels, decoder))
@@ -285,8 +288,9 @@ class SlideLoader {
         else if (loader.rotation() == ScreenRotation::UpsideDown)
           std::reverse(lease.pixels, lease.pixels + pixel_count);
       }
-      const Completion completion{lease, loader.source_.first_slide(), connection, loader.source_.memories_status(),
-                                  ready, !ready && loader.cancelled_.load()};
+      const Completion completion{lease, loader.source_.first_slide(), loader.source_.next_slide(), connection,
+                                  loader.source_.memories_status(), result,
+                                  result != Result::Ready && loader.cancelled_.load()};
       xQueueSend(loader.completed_, &completion, portMAX_DELAY);
     }
   }
@@ -382,6 +386,7 @@ void run(void *) {
       submitted_stamp = moving ? motion_epoch.stamp(preparing.has_value()) : MotionStamp{};
   };
   SlideIndex first_photo = 1;
+  SlideIndex next_photo = 1;
   std::array<SlideRetry, SlideCache::capacity> retries{};
 
   while (true) {
@@ -417,16 +422,23 @@ void run(void *) {
 
     SlideLoader::Completion completion{};
     if (loader.poll(completion)) {
-      ESP_ERROR_CHECK(cache.complete(completion.lease, completion.ready) ? ESP_OK : ESP_ERR_INVALID_STATE);
+      const bool ready = completion.result == SlideLoader::Result::Ready;
+      const bool next_candidate = completion.result == SlideLoader::Result::NextCandidate;
+      ESP_ERROR_CHECK(cache.complete(completion.lease, ready) ? ESP_OK : ESP_ERR_INVALID_STATE);
       const auto slide = completion.lease.slide;
       if constexpr (trace_enabled) {
-        const auto outcome = completion.ready ? RefillOutcome::Ready
+        const auto outcome = ready ? RefillOutcome::Ready
                              : completion.cancelled ? RefillOutcome::Cancelled : RefillOutcome::Retry;
         trace.refill(esp_timer_get_time(), refill_started_us, slide, outcome);
       }
-      retries[slide % retries.size()] = {slide, completion.ready || completion.cancelled ? 0 : now + 2'000'000,
-                                        completion.connection};
-      if (completion.ready) {
+      retries[slide % retries.size()] = ready || completion.cancelled
+                                           ? SlideRetry{}
+                                           : SlideRetry::after(slide, now, completion.connection, next_candidate);
+      if constexpr (trial_immich) {
+        if (next_candidate && !completion.cancelled)
+          record_live_trial_candidate_retry();
+      }
+      if (ready) {
         prefetch.prepared(slide);
         if constexpr (trial_immich) {
           if (slide > 0)
@@ -434,6 +446,7 @@ void run(void *) {
         }
       }
       first_photo = completion.first_photo;
+      next_photo = completion.next_photo;
       memories_status = completion.memories_status;
       preparing.reset();
     }
@@ -522,7 +535,10 @@ void run(void *) {
     const auto keep = prefetch.window(available);
     const auto active_connection = network.photo_connection();
     const auto eligible = [&](SlideIndex candidate) {
-      return keep.contains(candidate) && retries[candidate % retries.size()].due(candidate, now, active_connection);
+      // Live photos have to be assigned in order. Trying a later index would
+      // give it a retry delay even though no request for it has gone to Immich.
+      return keep.contains(candidate) && (!live || candidate <= next_photo) &&
+             retries[candidate % retries.size()].due(candidate, now, active_connection);
     };
     if (const auto wanted = prefetch.requested(); wanted && cache.find(*wanted))
       prefetch.prepared(*wanted);

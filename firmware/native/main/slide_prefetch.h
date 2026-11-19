@@ -20,6 +20,10 @@ struct SlideRetry {
   int64_t until{};
   uint32_t connection{};
 
+  static SlideRetry after(SlideIndex slide, int64_t now, uint32_t connection, bool has_next_candidate) {
+    return {slide, now + (has_next_candidate ? 100'000 : 2'000'000), connection};
+  }
+
   bool due(SlideIndex candidate, int64_t now, uint32_t active_connection) const {
     return slide != candidate || now >= until || (active_connection != 0 && active_connection != connection);
   }

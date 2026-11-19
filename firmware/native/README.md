@@ -334,7 +334,9 @@ photo, the preview requests needed for the first slide, and
 touch-report-to-LCD-handoff timing for the most recent swipe.
 Use the USB trace or high-frame-rate video to evaluate the full swipe test.
 The status route also reports clock and connection readiness, HTTP status
-codes, and candidate counts. ESPHome returns automatically after five minutes.
+codes, and candidate counts. `candidate_retries` counts times a preview was
+rejected and another candidate was already available, so the player could
+retry that slide after 100 ms. ESPHome returns automatically after five minutes.
 
 #### Verify the rollback and gestures
 

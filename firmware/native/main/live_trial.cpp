@@ -23,6 +23,7 @@ std::atomic<uint32_t> first_photo_preview_requests{};
 std::atomic<uint32_t> swipes{};
 std::atomic<uint32_t> last_motion_us{};
 std::atomic<uint32_t> prepare_attempts{};
+std::atomic<uint32_t> candidate_retries{};
 std::atomic<uint32_t> photo_candidates{};
 std::atomic<uint32_t> pair_candidates{};
 std::atomic<uint32_t> preview_requests{};
@@ -82,12 +83,13 @@ esp_err_t status(httpd_req_t *request) {
   const auto &network = *static_cast<const NativeNetwork *>(request->user_ctx);
   const auto prepared = prepared_slides.load(std::memory_order_acquire);
   const auto gestures = swipes.load(std::memory_order_acquire);
-  char body[480]{};
+  char body[512]{};
   std::snprintf(body, sizeof(body),
                 "{\"trial\":\"v1-live\",\"uptime_ms\":%" PRIu32 ",\"prepared_slides\":%" PRIu32
                 ",\"first_photo_ms\":%" PRIu32 ",\"first_photo_preview_requests\":%" PRIu32
                 ",\"swipes\":%" PRIu32 ",\"last_motion_us\":%" PRIu32
                 ",\"clock_ready\":%s,\"photo_connection\":%s,\"prepare_attempts\":%" PRIu32
+                ",\"candidate_retries\":%" PRIu32
                 ",\"search_http\":%d,\"photo_candidates\":%" PRIu32 ",\"pairing_http\":%d,\"pair_candidates\":%" PRIu32
                 ",\"preview_http\":%d,\"preview_requests\":%" PRIu32 "}",
                 static_cast<uint32_t>(esp_timer_get_time() / 1000), prepared,
@@ -96,6 +98,7 @@ esp_err_t status(httpd_req_t *request) {
                 gestures, last_motion_us.load(std::memory_order_relaxed),
                 clock_time_is_valid(std::time(nullptr)) ? "true" : "false",
                 network.photo_connection() ? "true" : "false", prepare_attempts.load(std::memory_order_relaxed),
+                candidate_retries.load(std::memory_order_relaxed),
                 search_http.load(std::memory_order_relaxed), photo_candidates.load(std::memory_order_relaxed),
                 pairing_http.load(std::memory_order_relaxed), pair_candidates.load(std::memory_order_relaxed),
                 preview_http.load(std::memory_order_relaxed), preview_requests.load(std::memory_order_relaxed));
@@ -152,6 +155,8 @@ bool start_live_trial_status(NativeNetwork &network) {
 }
 
 void record_live_trial_prepare() { prepare_attempts.fetch_add(1, std::memory_order_relaxed); }
+
+void record_live_trial_candidate_retry() { candidate_retries.fetch_add(1, std::memory_order_relaxed); }
 
 void record_live_trial_search(bool pairing, int http_status, size_t candidates) {
   (pairing ? pairing_http : search_http).store(http_status, std::memory_order_relaxed);
