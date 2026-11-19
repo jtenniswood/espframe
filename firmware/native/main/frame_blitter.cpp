@@ -32,8 +32,8 @@ void FrameBlitter::copy_rows_(uint16_t *destination, const uint16_t *source, int
     request.src_color_format = request.dst_color_format = ESP_COLOR_FOURCC_RGB16;
     const auto result = esp_color_convert_blocking(dma_, &request, -1);
     if (result == ESP_OK) {
-#if SWIPE_TRIAL_BENCHMARK
-      record_live_trial_benchmark_blit(true);
+#if SWIPE_TRIAL_IMMICH
+      record_live_trial_blit(true);
 #endif
       return;
     }
@@ -42,8 +42,8 @@ void FrameBlitter::copy_rows_(uint16_t *destination, const uint16_t *source, int
     dma_ = nullptr;
   }
   copy_slide_rows(destination, source, width, rows);
-#if SWIPE_TRIAL_BENCHMARK
-  record_live_trial_benchmark_blit(false);
+#if SWIPE_TRIAL_IMMICH
+  record_live_trial_blit(false);
 #endif
 }
 

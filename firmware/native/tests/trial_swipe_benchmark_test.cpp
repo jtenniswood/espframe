@@ -40,7 +40,7 @@ int main() {
   assert(full.started == 48 && full.settled == 48 && full.wrong_slide == 0);
   assert(swipe.settled() == 17 && first_movements == full.started);
 
-  TrialSwipeBenchmark timing;
+  TrialSwipeMetrics timing;
   timing.gesture(12'000, {0, 0, 8'000, {CacheRead::Hit}, true, 1'000});
   timing.gesture(50'000, {0, 0, 6'000, {CacheRead::Hit}, false, 0});
   timing.gesture(50'001, {0, 0, 7'000, {CacheRead::Miss}, true, 3'000});

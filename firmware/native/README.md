@@ -335,7 +335,13 @@ After the readiness diagnostic reports **Ready**, upload only
 reports the count of prepared Immich slides, time to prepare the first
 photo, the preview requests needed for the first slide, and
 touch-report-to-LCD-handoff timing for the most recent swipe.
-Use the USB trace or high-frame-rate video to evaluate the full swipe test.
+For a hands-on session, open `/api/trial/benchmark` from another device
+after dragging the photos and save its response before rollback. The response
+shows `"scripted":false` and summarizes the first motion, drag gaps and
+cache hits from physical gestures since boot. Drag continuously to assess
+pacing, since a pause mid-drag can also widen the gap between display updates.
+Use high-frame-rate video to measure from finger movement to visible motion
+and check the panel for tearing.
 The status route also reports clock and connection readiness, HTTP status
 codes, and candidate counts. `candidate_retries` counts times a preview was
 rejected and another candidate was already available, so the player could
@@ -383,7 +389,7 @@ same readiness check. It connects to Wi-Fi for the report and uses the same
 display buffer setup. Its report names `fixtures` as the photo source and
 ESPHome returns after two minutes.
 
-The measurements start at a scripted report and end at an LCD DMA handoff.
+The measurements start at a touch report and end at an LCD DMA handoff.
 Use the regular live trial with physical touch and high-frame-rate video to
 check sensor response, visible animation pacing, and tearing.
 

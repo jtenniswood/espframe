@@ -1,17 +1,15 @@
 #include "live_trial.h"
+#include "display.h"
+#include "frame_blitter.h"
 #include "live_trial_credentials.h"
 #include "native_network.h"
 #include "settings.h"
+#include "trial_swipe_benchmark.h"
 
 #include "esp_http_server.h"
 #include "esp_timer.h"
 #include "nvs.h"
 #include "nvs_flash.h"
-
-#if SWIPE_TRIAL_BENCHMARK
-#include "display.h"
-#include "frame_blitter.h"
-#endif
 
 #include <array>
 #include <atomic>
@@ -47,17 +45,28 @@ std::atomic<unsigned> wifi_primary_channel{};
 
 #if SWIPE_TRIAL_BENCHMARK
 TrialSwipeBenchmark benchmark;
-portMUX_TYPE benchmark_lock = portMUX_INITIALIZER_UNLOCKED;
+#endif
+TrialSwipeMetrics metrics;
+portMUX_TYPE swipe_lock = portMUX_INITIALIZER_UNLOCKED;
 
 esp_err_t benchmark_status(httpd_req_t *request) {
-  portENTER_CRITICAL(&benchmark_lock);
-  const auto result = benchmark.results();
-  portEXIT_CRITICAL(&benchmark_lock);
+  portENTER_CRITICAL(&swipe_lock);
+  const auto result = metrics.results();
+#if SWIPE_TRIAL_BENCHMARK
+  const auto script = benchmark.results();
+#endif
+  portEXIT_CRITICAL(&swipe_lock);
+
+  char scripted_counts[112]{};
+#if SWIPE_TRIAL_BENCHMARK
+  std::snprintf(scripted_counts, sizeof(scripted_counts),
+                ",\"target\":%u,\"started\":%" PRIu32 ",\"settled\":%" PRIu32 ",\"wrong_slide\":%" PRIu32,
+                TrialSwipeBenchmark::swipe_limit, script.started, script.settled, script.wrong_slide);
+#endif
   const auto period = Display::nominal_frame_period_us();
-  char body[800]{};
-  std::snprintf(body, sizeof(body),
-                "{\"scripted\":true,\"source\":\"%s\",\"target\":%u,\"started\":%" PRIu32 ",\"settled\":%" PRIu32
-                ",\"wrong_slide\":%" PRIu32 ",\"cache_hits\":%" PRIu32
+  char body[1024]{};
+  const auto length = std::snprintf(body, sizeof(body),
+                "{\"scripted\":%s,\"source\":\"%s\"%s,\"cache_hits\":%" PRIu32
                 ",\"dma_burst_bytes\":%u,\"dma_copies\":%" PRIu32 ",\"cpu_copies\":%" PRIu32
                 ",\"frame_period_us\":%u,\"drag_gap_limit_us\":%u"
                 ",\"first_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
@@ -66,8 +75,8 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 ",\"busy_first_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
                 ",\"drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"busy_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}}",
-                SWIPE_TRIAL_BENCHMARK_FIXTURES ? "fixtures" : "immich", TrialSwipeBenchmark::swipe_limit,
-                result.started, result.settled, result.wrong_slide, result.cache_hits,
+                SWIPE_TRIAL_BENCHMARK ? "true" : "false", SWIPE_TRIAL_BENCHMARK_FIXTURES ? "fixtures" : "immich",
+                scripted_counts, result.cache_hits,
                 FrameBlitter::burst_bytes, result.dma_copies, result.cpu_copies,
                 period, period + period / 2,
                 result.first_motion.count, result.first_motion.worst_us, result.first_motion.over_limit,
@@ -75,11 +84,12 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 result.busy_first_motion.count, result.busy_first_motion.worst_us, result.busy_first_motion.over_limit,
                 result.drag_gaps.count, result.drag_gaps.worst_us, result.drag_gaps.over_limit,
                 result.busy_drag_gaps.count, result.busy_drag_gaps.worst_us, result.busy_drag_gaps.over_limit);
+  if (length < 0 || static_cast<size_t>(length) >= sizeof(body))
+    return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not format swipe timings");
   httpd_resp_set_type(request, "application/json");
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
   return httpd_resp_sendstr(request, body);
 }
-#endif
 
 template <size_t Size>
 bool read_preference(nvs_handle_t storage, const char *key, std::array<uint8_t, Size> &payload) {
@@ -198,7 +208,7 @@ bool read_live_trial_credentials(Settings &settings) {
 bool start_live_trial_status(NativeNetwork &network) {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.core_id = 0;
-  config.max_uri_handlers = SWIPE_TRIAL_BENCHMARK ? 2 : 1;
+  config.max_uri_handlers = 2;
   httpd_handle_t server{};
   if (httpd_start(&server, &config) != ESP_OK)
     return false;
@@ -208,14 +218,12 @@ bool start_live_trial_status(NativeNetwork &network) {
   route.handler = status;
   route.user_ctx = &network;
   auto result = httpd_register_uri_handler(server, &route);
-#if SWIPE_TRIAL_BENCHMARK
   if (result == ESP_OK) {
     route.uri = "/api/trial/benchmark";
     route.handler = benchmark_status;
     route.user_ctx = nullptr;
     result = httpd_register_uri_handler(server, &route);
   }
-#endif
   if (result == ESP_OK)
     return true;
   httpd_stop(server);
@@ -264,35 +272,32 @@ void record_live_trial_photo(uint32_t elapsed_ms) {
   prepared_slides.fetch_add(1, std::memory_order_release);
 }
 
-void record_live_trial_gesture(uint32_t motion_us) {
+void record_live_trial_gesture(uint32_t motion_us, const FirstMotionTrace &motion) {
+  portENTER_CRITICAL(&swipe_lock);
+  metrics.gesture(motion_us, motion);
+  portEXIT_CRITICAL(&swipe_lock);
   last_motion_us.store(motion_us, std::memory_order_relaxed);
   swipes.fetch_add(1, std::memory_order_release);
 }
 
+void record_live_trial_frame(int64_t latched_us, MotionStamp stamp, uint32_t period_us) {
+  portENTER_CRITICAL(&swipe_lock);
+  metrics.frame(latched_us, stamp, period_us);
+  portEXIT_CRITICAL(&swipe_lock);
+}
+
+void record_live_trial_blit(bool dma) {
+  portENTER_CRITICAL(&swipe_lock);
+  metrics.blit(dma);
+  portEXIT_CRITICAL(&swipe_lock);
+}
+
 #if SWIPE_TRIAL_BENCHMARK
 std::optional<TouchReport> poll_live_trial_benchmark(int64_t now, SlideIndex center, SlideRange ready, bool at_rest) {
-  portENTER_CRITICAL(&benchmark_lock);
+  portENTER_CRITICAL(&swipe_lock);
   const auto report = benchmark.poll(now, center, ready, at_rest);
-  portEXIT_CRITICAL(&benchmark_lock);
+  portEXIT_CRITICAL(&swipe_lock);
   return report;
-}
-
-void record_live_trial_benchmark_gesture(uint32_t motion_us, const FirstMotionTrace &motion) {
-  portENTER_CRITICAL(&benchmark_lock);
-  benchmark.gesture(motion_us, motion);
-  portEXIT_CRITICAL(&benchmark_lock);
-}
-
-void record_live_trial_benchmark_frame(int64_t latched_us, MotionStamp stamp, uint32_t period_us) {
-  portENTER_CRITICAL(&benchmark_lock);
-  benchmark.frame(latched_us, stamp, period_us);
-  portEXIT_CRITICAL(&benchmark_lock);
-}
-
-void record_live_trial_benchmark_blit(bool dma) {
-  portENTER_CRITICAL(&benchmark_lock);
-  benchmark.blit(dma);
-  portEXIT_CRITICAL(&benchmark_lock);
 }
 #endif
 

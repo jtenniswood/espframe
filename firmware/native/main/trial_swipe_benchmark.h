@@ -8,13 +8,8 @@
 
 namespace espframe::native {
 
-class TrialSwipeBenchmark {
+class TrialSwipeMetrics {
  public:
-  static constexpr unsigned swipe_limit = 48;
-  static constexpr int64_t report_period_us = 8'000;
-  static constexpr int64_t drag_us = 192'000;
-  static constexpr int64_t rest_us = 420'000;
-
   struct Timing {
     uint32_t count{};
     uint32_t worst_us{};
@@ -28,9 +23,6 @@ class TrialSwipeBenchmark {
   };
 
   struct Results {
-    uint32_t started{};
-    uint32_t settled{};
-    uint32_t wrong_slide{};
     uint32_t cache_hits{};
     uint32_t dma_copies{};
     uint32_t cpu_copies{};
@@ -41,6 +33,53 @@ class TrialSwipeBenchmark {
     Timing busy_first_motion;
     Timing drag_gaps;
     Timing busy_drag_gaps;
+  };
+
+  const Results &results() const { return results_; }
+
+  void gesture(uint32_t latency_us, const FirstMotionTrace &motion) {
+    results_.first_motion.add(latency_us, 50'000);
+    results_.worst_composition_us = std::max(results_.worst_composition_us, static_cast<uint32_t>(motion.composed_us));
+    results_.worst_before_submit_us =
+        std::max(results_.worst_before_submit_us, static_cast<uint32_t>(motion.composed_us - motion.submit_us));
+    results_.worst_submit_us = std::max(results_.worst_submit_us, static_cast<uint32_t>(motion.submit_us));
+    results_.cache_hits += motion.cache.result == CacheRead::Hit;
+    if (motion.preparing)
+      results_.busy_first_motion.add(latency_us, 50'000);
+  }
+
+  void blit(bool dma) { ++(dma ? results_.dma_copies : results_.cpu_copies); }
+
+  void frame(int64_t now, MotionStamp stamp, uint32_t period_us) {
+    if (stamp.phase == MotionPhase::Drag && previous_stamp_.phase == MotionPhase::Drag &&
+        stamp.epoch == previous_stamp_.epoch) {
+      const auto elapsed = static_cast<uint32_t>(now - previous_frame_us_);
+      const auto gap_limit = period_us + period_us / 2;
+      results_.drag_gaps.add(elapsed, gap_limit);
+      if (stamp.preparing && previous_stamp_.preparing)
+        results_.busy_drag_gaps.add(elapsed, gap_limit);
+    }
+    previous_frame_us_ = now;
+    previous_stamp_ = stamp;
+  }
+
+ private:
+  Results results_;
+  int64_t previous_frame_us_{};
+  MotionStamp previous_stamp_;
+};
+
+class TrialSwipeBenchmark {
+ public:
+  static constexpr unsigned swipe_limit = 48;
+  static constexpr int64_t report_period_us = 8'000;
+  static constexpr int64_t drag_us = 192'000;
+  static constexpr int64_t rest_us = 420'000;
+
+  struct Results {
+    uint32_t started{};
+    uint32_t settled{};
+    uint32_t wrong_slide{};
   };
 
   const Results &results() const { return results_; }
@@ -80,32 +119,6 @@ class TrialSwipeBenchmark {
     return sample_(now, start_x_, true);
   }
 
-  void gesture(uint32_t latency_us, const FirstMotionTrace &motion) {
-    results_.first_motion.add(latency_us, 50'000);
-    results_.worst_composition_us = std::max(results_.worst_composition_us, static_cast<uint32_t>(motion.composed_us));
-    results_.worst_before_submit_us =
-        std::max(results_.worst_before_submit_us, static_cast<uint32_t>(motion.composed_us - motion.submit_us));
-    results_.worst_submit_us = std::max(results_.worst_submit_us, static_cast<uint32_t>(motion.submit_us));
-    results_.cache_hits += motion.cache.result == CacheRead::Hit;
-    if (motion.preparing)
-      results_.busy_first_motion.add(latency_us, 50'000);
-  }
-
-  void blit(bool dma) { ++(dma ? results_.dma_copies : results_.cpu_copies); }
-
-  void frame(int64_t now, MotionStamp stamp, uint32_t period_us) {
-    if (stamp.phase == MotionPhase::Drag && previous_stamp_.phase == MotionPhase::Drag &&
-        stamp.epoch == previous_stamp_.epoch) {
-      const auto elapsed = static_cast<uint32_t>(now - previous_frame_us_);
-      const auto gap_limit = period_us + period_us / 2;
-      results_.drag_gaps.add(elapsed, gap_limit);
-      if (stamp.preparing && previous_stamp_.preparing)
-        results_.busy_drag_gaps.add(elapsed, gap_limit);
-    }
-    previous_frame_us_ = now;
-    previous_stamp_ = stamp;
-  }
-
  private:
   static constexpr int distance = 640;
 
@@ -119,8 +132,6 @@ class TrialSwipeBenchmark {
   int64_t dragged_since_{};
   int64_t last_sample_{};
   int64_t next_swipe_at_{};
-  int64_t previous_frame_us_{};
-  MotionStamp previous_stamp_;
   uint32_t sequence_{};
   int start_x_{};
   int direction_{};

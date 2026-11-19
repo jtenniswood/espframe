@@ -46,9 +46,9 @@ constexpr int player_core = 1;
 constexpr int loader_core = 0;
 constexpr UBaseType_t player_priority = 4;
 constexpr bool trace_enabled = SWIPE_TRACE;
-constexpr bool capture_motion = SWIPE_TRACE || SWIPE_TRIAL_BENCHMARK;
 constexpr bool esphome_trial = SWIPE_ESPHOME_TRIAL;
 constexpr bool trial_immich = SWIPE_TRIAL_IMMICH;
+constexpr bool capture_motion = trace_enabled || trial_immich;
 constexpr bool trial_fixtures = SWIPE_TRIAL_BENCHMARK_FIXTURES;
 extern const uint8_t clock_atlas[] asm("_binary_clock_glyphs_bin_start");
 extern const uint8_t recovery_atlas[] asm("_binary_recovery_glyphs_bin_start");
@@ -418,19 +418,15 @@ void run(void *) {
       if (submitted_motion_us != 0) {
         const auto motion_us = *scanout - submitted_motion_us;
         if constexpr (trial_immich)
-          record_live_trial_gesture(static_cast<uint32_t>(motion_us));
-#if SWIPE_TRIAL_BENCHMARK
-        record_live_trial_benchmark_gesture(static_cast<uint32_t>(motion_us), first_motion);
-#endif
+          record_live_trial_gesture(static_cast<uint32_t>(motion_us), first_motion);
         if constexpr (trace_enabled)
           trace.gesture(*scanout, first_motion);
         else
           loader.report_gesture({motion_us, motion_render_us});
         submitted_motion_us = 0;
       }
-#if SWIPE_TRIAL_BENCHMARK
-      record_live_trial_benchmark_frame(*scanout, submitted_stamp, Display::nominal_frame_period_us());
-#endif
+      if constexpr (trial_immich)
+        record_live_trial_frame(*scanout, submitted_stamp, Display::nominal_frame_period_us());
       if constexpr (trace_enabled)
         trace.frame(*scanout, submitted_stamp);
     }
@@ -722,7 +718,7 @@ void run(void *) {
           draw_memories_status(output, recovery_atlas, memory_notice, rotation);
         recovery_painted = show_recovery;
         painted_memories_status = memory_notice;
-        const auto started_submit = SWIPE_TRIAL_BENCHMARK && motion != 0 ? esp_timer_get_time() : 0;
+        const auto started_submit = trial_immich && motion != 0 ? esp_timer_get_time() : 0;
         submit_frame(position, position != last_submitted);
         submitted_motion_us = motion;
         motion_render_us = motion != 0 ? esp_timer_get_time() - started_render : 0;
