@@ -84,6 +84,7 @@ struct Settings : PhotoFeedSettings {
   uint8_t night_brightness() const { return brightness_night.value_or(brightness_day); }
   bool has_immich() const { return !immich_url.empty() && !immich_key.empty(); }
   bool has_prepared_slides() const { return !prepared_slide_url.empty() && !prepared_slide_token.empty(); }
+  bool prepared_slides_need_time() const { return prepared_slide_url.starts_with("https://"); }
   static constexpr size_t max_json_size = 6144;
   bool read();
   bool read_esphome_trial();

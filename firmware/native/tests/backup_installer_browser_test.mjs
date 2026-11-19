@@ -157,6 +157,18 @@ const verify = `
     const haKey = 'AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA='
     homeAssistantKey.value = haKey
     homeAssistantKey.dispatchEvent(new Event('input'))
+    const preparedDetails = document.querySelector('#prepared-slides')
+    const preparedUrl = form.elements.prepared_slide_url
+    const preparedToken = form.elements.prepared_slide_token
+    const serviceToken = '0123456789abcdef0123456789abcdef'
+    if (preparedDetails.open || preparedUrl.value || preparedToken.value)
+      throw new Error('Photo preparation settings appeared by default')
+    preparedUrl.value = 'https://prepare.test/frame'
+    form.requestSubmit()
+    if (attempts || !preparedDetails.open || preparedToken.validity.valid)
+      throw new Error('USB setup accepted a photo preparation service without a token')
+    preparedToken.value = serviceToken
+    preparedToken.dispatchEvent(new Event('input'))
     const saved = waitFor(document.querySelector('#status'), 'Settings saved.')
     const find = document.querySelector('#find-frame')
     const networkStatus = document.querySelector('#network-status')
@@ -179,6 +191,9 @@ const verify = `
       throw new Error('Unexpected migrated USB settings')
     if (received.frame_name !== 'Salon été & famille' || Object.hasOwn(received, 'hostname'))
       throw new Error('The frame name was not sent independently of the old hostname')
+    if (received.prepared_slide_url !== 'https://prepare.test/frame' || received.prepared_slide_token !== serviceToken
+      || preparedUrl.value || preparedToken.value || document.querySelector('#status').textContent.includes(serviceToken))
+      throw new Error('The installer did not send or clear the photo preparation settings correctly')
     if (received.show_clock !== false || received.clock_format !== '12 Hour' || received.timezone !== 'America/New_York (GMT-5)')
       throw new Error('The clock settings did not reach USB setup')
     if (!received.date_filter_enabled || received.date_filter_mode !== 'Fixed Range' || received.date_from !== '2024-02-29'
@@ -214,8 +229,9 @@ const verify = `
     await reused
     if (attempts !== 4 || received.immich_key !== 'after-improv'
       || Object.hasOwn(received, 'ssid') || Object.hasOwn(received, 'password') || Object.hasOwn(received, 'frame_name')
-      || Object.hasOwn(received, 'home_assistant_key'))
-      throw new Error('Immich setup asked for Wi-Fi credentials a second time')
+      || Object.hasOwn(received, 'home_assistant_key') || Object.hasOwn(received, 'prepared_slide_url')
+      || Object.hasOwn(received, 'prepared_slide_token'))
+      throw new Error('Immich setup sent settings that were left blank')
     await loadBackup(${JSON.stringify(filteredBackup)}, 'Backup loaded.')
     if (form.elements.photo_source.value !== 'custom' || document.querySelector('#filter-controls').hidden
       || !form.elements.people_enabled.checked || form.elements.minimum_rating.value !== '4+')

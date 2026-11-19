@@ -628,6 +628,20 @@ int main() {
   assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"reprovisioned",
       "web_password":"set-again","prepared_slide_url":"https://prepare.test",
       "prepared_slide_token":"0123456789abcdef0123456789abcdef","screen_rotation":"180"})"));
+  assert(current.read() && current.prepared_slides_need_time() && current.immich_url == "http://photos.test/api");
+  const auto before_incomplete_service = stored;
+  assert(!Settings::save(R"({"immich_url":"http://photos.test","immich_key":"reprovisioned",
+      "prepared_slide_url":"https://new-prepare.test"})"));
+  assert(stored == before_incomplete_service);
+  assert(Settings::save(R"({"immich_url":"http://photos.test/api/","immich_key":"reprovisioned"})"));
+  assert(current.read() && current.prepared_slide_url == "https://prepare.test" &&
+         current.prepared_slide_token == "0123456789abcdef0123456789abcdef");
+  assert(Settings::save(R"({"immich_url":"http://other.test","immich_key":"reprovisioned"})"));
+  assert(current.read() && !current.has_prepared_slides());
+  assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"reprovisioned",
+      "web_password":"set-again","prepared_slide_url":"http://prepare.test",
+      "prepared_slide_token":"0123456789abcdef0123456789abcdef","screen_rotation":"180"})"));
+  assert(current.read() && current.has_prepared_slides() && !current.prepared_slides_need_time());
   const auto before_factory_reset = stored;
   fail_erase = true;
   assert(reset_configuration(ResetMode::Factory).error && stored == before_factory_reset);

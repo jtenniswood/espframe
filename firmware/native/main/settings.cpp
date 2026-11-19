@@ -702,6 +702,12 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
   Settings candidate;
   if (!put_epoch(document.get(), epoch) || !parse_all(document.get(), candidate) || !candidate.has_immich())
     return Result::Rejected;
+  // An installer that omits the service fields keeps the connection for the same library.
+  if (configured && !provided("prepared_slide_url") && !provided("prepared_slide_token") && saved.has_prepared_slides() &&
+      candidate.immich_url == saved.immich_url && candidate.immich_key == saved.immich_key &&
+      (!cJSON_AddStringToObject(document.get(), "prepared_slide_url", saved.prepared_slide_url.c_str()) ||
+       !cJSON_AddStringToObject(document.get(), "prepared_slide_token", saved.prepared_slide_token.c_str())))
+    return Result::Rejected;
   if (request.pairing) {
     if (!stock.pairing || !valid_home_assistant_key(*stock.pairing))
       return Result::PairingUnavailable;

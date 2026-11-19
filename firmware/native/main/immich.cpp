@@ -569,7 +569,8 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
       return {};
     previews_.discard(key);
   }
-  if (!online_() || esp_timer_get_time() < prepared_retry_us_ || !allocate_download_())
+  if (!online_() || esp_timer_get_time() < prepared_retry_us_ ||
+      (settings_.prepared_slides_need_time() && !clock_time_is_valid(std::time(nullptr))) || !allocate_download_())
     return {};
   std::string url(settings_.prepared_slide_url);
   url += "/v1/slides/";

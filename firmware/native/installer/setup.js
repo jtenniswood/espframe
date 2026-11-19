@@ -21,6 +21,9 @@ const backupStatus = document.querySelector('#backup-status')
 const playback = document.querySelector('#playback')
 const schedule = document.querySelector('#screen-schedule')
 const homeAssistant = document.querySelector('#home-assistant')
+const preparedSlides = document.querySelector('#prepared-slides')
+const preparedUrl = form.elements.prepared_slide_url
+const preparedToken = form.elements.prepared_slide_token
 const homeAssistantKey = form.elements.home_assistant_key
 const keepStockPairing = document.querySelector('#keep-stock-pairing')
 const removeHomeAssistantKey = document.querySelector('#remove-home-assistant-key')
@@ -63,6 +66,14 @@ removeHomeAssistantKey.addEventListener('change', () => {
   refreshHomeAssistant()
 })
 homeAssistantKey.addEventListener('input', () => homeAssistantKey.setCustomValidity(''))
+const clearPreparedErrors = () => {
+  preparedUrl.setCustomValidity('')
+  preparedToken.setCustomValidity('')
+}
+preparedUrl.addEventListener('input', clearPreparedErrors)
+preparedToken.addEventListener('input', clearPreparedErrors)
+form.elements.immich_key.addEventListener('input', clearPreparedErrors)
+keepStockImmich.addEventListener('change', clearPreparedErrors)
 const showPercentages = () => {
   for (const name of percentageFields) {
     form.querySelector(`output[for="${name}"]`).value = `${form.elements[name].value}%`
@@ -128,6 +139,7 @@ backup.addEventListener('change', async () => {
 form.addEventListener('invalid', event => {
   if (playback.contains(event.target)) playback.open = true
   if (schedule.contains(event.target)) schedule.open = true
+  if (preparedSlides.contains(event.target)) preparedSlides.open = true
 }, true)
 
 const embeddedFirmware = document.querySelector('#embedded-firmware')
@@ -168,6 +180,19 @@ function showFrameAddress(frame) {
     link.textContent = 'Open frame settings'
     networkStatus.replaceChildren(`Connected at ${frame.address}. `, link)
   }
+}
+
+function addPreparedSlides(data) {
+  if (!data.prepared_slide_url && !data.prepared_slide_token) {
+    delete data.prepared_slide_url
+    delete data.prepared_slide_token
+    return true
+  }
+  preparedUrl.setCustomValidity(!preparedUrl.value || /[?#@\\]/.test(preparedUrl.value) ?
+    'Enter the HTTP or HTTPS service URL without credentials, a query, or a fragment.' : '')
+  preparedToken.setCustomValidity(!/^[!-~]{32,256}$/.test(preparedToken.value) || preparedToken.value === data.immich_key ?
+    'Enter a separate service token of 32 to 256 characters without spaces.' : '')
+  return preparedUrl.reportValidity() && preparedToken.reportValidity()
 }
 
 if ('serial' in navigator) {
@@ -215,7 +240,7 @@ if ('serial' in navigator) {
       homeAssistantKey.reportValidity()
       return
     }
-    if (!validateAlbum(form, data) || !addCaptureDates(form, data) || !addPhotoFilters(form, data)) return
+    if (!addPreparedSlides(data) || !validateAlbum(form, data) || !addCaptureDates(form, data) || !addPhotoFilters(form, data)) return
     if (data.photo_source === 'custom' && importedPreset) data.legacy_photo_preset = importedPreset
     data.slide_seconds = Number(data.slide_seconds)
     for (const name of percentageFields) data[name] = form.elements[name].valueAsNumber
