@@ -23,7 +23,7 @@ const backup = {
   identity: { name: '  Salon été & famille  ', hostname: 'old-frame-9876' },
   connection: { immich_url: 'https://photos.test', api_key: 'old-api-key' },
   photos: { source: 'Memories', album_ids: album, portrait_pairing: false, portrait_pairs_only: true,
-    portrait_pairing_range: 'Within 1 Day', display_mode: 'Fit', orientation: 'Landscape Only',
+    portrait_pairing_range: 'Within 1 Day', portrait_pair_framing: 'Fill', display_mode: 'Fit', orientation: 'Landscape Only',
     memories_window: 'Within 7 Days', memories_fallback: false, date_filter_enabled: true,
     date_filter_mode: 'Fixed Range', date_from: '2024-02-29', date_to: '', relative_amount: 2, relative_unit: 'Months' },
   clock: { show: false, format: '12 Hour', timezone: 'America/New_York (GMT-5)' },
@@ -125,6 +125,8 @@ const verify = `
       throw new Error('Inactive paired-portrait preference was not retained')
     if (form.elements.portrait_pairing_range.value !== 'Within 1 Day' || !form.elements.portrait_pairing_range.disabled)
       throw new Error('Inactive pairing range was not retained')
+    if (form.elements.portrait_pair_framing.value !== 'Fill' || !form.elements.portrait_pair_framing.disabled)
+      throw new Error('Inactive pair framing was not retained')
     const saved = waitFor(document.querySelector('#status'), 'Settings saved.')
     form.requestSubmit()
     await saved
@@ -132,7 +134,8 @@ const verify = `
       || received.photo_source !== 'memories' || received.album_id !== '${album}' || received.slide_seconds !== 86400
       || received.memories_window !== 'Within 7 Days' || received.memories_fallback !== false
       || received.portrait_pairing !== false || received.portrait_pairs_only !== true
-      || received.portrait_pairing_range !== 'Within 1 Day' || received.display_mode !== 'Fit' || Object.hasOwn(received, 'backup'))
+      || received.portrait_pairing_range !== 'Within 1 Day' || received.portrait_pair_framing !== 'Fill'
+      || received.display_mode !== 'Fit' || Object.hasOwn(received, 'backup'))
       throw new Error('Unexpected migrated USB settings')
     if (received.frame_name !== 'Salon été & famille' || Object.hasOwn(received, 'hostname'))
       throw new Error('The frame name was not sent independently of the old hostname')

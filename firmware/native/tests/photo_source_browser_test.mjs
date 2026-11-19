@@ -307,6 +307,7 @@ try {
     ...photoFilterDefaults,
     ...setup, photo_source: 'album', album_id: albumId, display_mode: 'Fit', brightness_day: 45, immich_key: '',
     portrait_pairing: false,
+    portrait_pair_framing: 'Follow photo framing',
     memories_window: 'Within 7 Days', memories_fallback: false,
     date_filter_mode: 'Relative Range', relative_amount: 3, relative_unit: 'Months',
     brightness_night: 30,
