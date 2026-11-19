@@ -16,6 +16,7 @@ const [html, script, css, sourceScript, backupScript] = await Promise.all([
 const albumId = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
 const setup = {
   immich_url: 'https://photos.test/api', slide_seconds: 15, portrait_pairing: true, portrait_pairs_only: true,
+  transition: 'Fade to White', transition_speed: 'Normal',
   portrait_pairing_range: 'Within 2 Days',
   photo_source: 'favorites', album_id: '', display_mode: 'Fill', brightness_day: 74,
   photo_orientation: 'Portrait Only',
