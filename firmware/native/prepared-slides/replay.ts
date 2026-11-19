@@ -13,8 +13,8 @@ if (!isIPv4(host) || !Number.isInteger(port) || port < 1 || port > 65535 ||
     (warmRotation !== undefined && warmRotation !== '0' && warmRotation !== '180')) {
   throw new Error('Set an IPv4 REPLAY_HOST, TCP REPLAY_PORT, and optional REPLAY_WARM_ROTATION (0 or 180)')
 }
-if (outageHistory && (unavailable || warmRotation !== undefined)) {
-  throw new Error('REPLAY_OFFLINE_HISTORY starts with an available service and an empty cache')
+if (outageHistory && unavailable) {
+  throw new Error('REPLAY_OFFLINE_HISTORY starts with an available service')
 }
 const immichKey = 'espframe-synthetic-preview'
 const token = 'espframe-synthetic-slide-replay-only'
@@ -53,6 +53,7 @@ for (let index = 0; index < 72; index++) {
 let offset = 0
 const history = new Set<string>()
 let offline = false
+let recordHistory = false
 const server = createServer(async (request, response) => {
   const path = request.url ?? ''
   if (offline) {
@@ -63,7 +64,7 @@ const server = createServer(async (request, response) => {
     response.on('finish', () => {
       console.log(JSON.stringify({ prepared: path, status: response.statusCode,
         cache: response.getHeader('X-Espframe-Cache'), bytes: response.getHeader('Content-Length') }))
-      if (outageHistory && response.statusCode === 200 && !offline) {
+      if (recordHistory && response.statusCode === 200 && !offline) {
         history.add(path)
         if (history.size === 10) {
           offline = true
@@ -121,4 +122,5 @@ if (warmRotation !== undefined) {
     await response.arrayBuffer()
   }
 }
+recordHistory = outageHistory
 console.log(`Replay ready at ${origin} (${unavailable ? 'service unavailable' : warmRotation === undefined ? 'cold' : 'prewarmed service cache'})`)
