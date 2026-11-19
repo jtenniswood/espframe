@@ -183,6 +183,7 @@ The frame reuses the Immich connection when the server allows it, and
 reconnects if an idle connection has closed before the next response.
 Wi-Fi association and time synchronization run independently of photo
 preparation, so the worker can prepare cached previews during reconnect.
+The native frame disables Wi-Fi modem sleep to keep receive latency low.
 When connectivity returns, a new connection gets priority over a pending
 photo retry delay. If Wi-Fi disconnects or the frame gets a different IP,
 the next Immich request uses a fresh HTTP connection.
@@ -339,7 +340,9 @@ rejected and another candidate was already available, so the player could
 retry that slide after 100 ms. `pixel_pauses` and `pixel_pause_ms` report how
 often and how long photo preparation waited while the user moved between
 ready slides. Transfers can continue during a swipe, and a missing swipe
-neighbour lets preparation resume. HTTP diagnostic counts distinguish
+neighbour lets preparation resume. The status includes the Wi-Fi power-save
+mode, signal level and primary channel sampled when the frame gets an address.
+HTTP diagnostic counts distinguish
 connection-open failures from retryable header and body timeouts. An HTTP
 read timeout can resume within the current request's total time budget.
 ESPHome returns automatically after five minutes.

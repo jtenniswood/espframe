@@ -149,6 +149,12 @@ bool NativeNetwork::start_station_(const WifiCredentials &wifi) {
   }
   if (!station_running_)
     station_running_ = esp_wifi_start() == ESP_OK;
+  if (station_running_) {
+    // The frame is mains-powered. Match ESPHome's receive policy so
+    // photo packets do not wait for the access point's DTIM interval.
+    if (const auto error = esp_wifi_set_ps(WIFI_PS_NONE); error != ESP_OK)
+      ESP_LOGW(tag, "Could not disable Wi-Fi modem sleep: %s", esp_err_to_name(error));
+  }
   return station_running_;
 }
 
@@ -362,6 +368,13 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
         esp_netif_ip_info_t ip{};
         if (esp_netif_get_ip_info(station_, &ip) == ESP_OK)
           ESP_LOGI(tag, "Wi-Fi connected at " IPSTR, IP2STR(&ip.ip));
+        if constexpr (trial_immich) {
+          wifi_ps_type_t mode{};
+          const int power_save = esp_wifi_get_ps(&mode) == ESP_OK ? static_cast<int>(mode) : -1;
+          wifi_ap_record_t ap{};
+          const bool known_ap = esp_wifi_sta_get_ap_info(&ap) == ESP_OK;
+          record_live_trial_wifi_link(power_save, known_ap ? ap.rssi : -128, known_ap ? ap.primary : 0);
+        }
       }
       if (!web_started) {
         if constexpr (trial_immich) {

@@ -14,6 +14,7 @@ class NativeNetwork;
 
 bool read_live_trial_credentials(Settings &settings);
 bool start_live_trial_status(NativeNetwork &network);
+void record_live_trial_wifi_link(int power_save, int rssi, unsigned channel);
 void record_live_trial_prepare();
 void record_live_trial_candidate_retry();
 void record_live_trial_pixel_pause(uint32_t pause_ms);

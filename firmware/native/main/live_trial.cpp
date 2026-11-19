@@ -41,6 +41,9 @@ std::atomic<uint32_t> preview_requests{};
 std::atomic<int> search_http{};
 std::atomic<int> pairing_http{};
 std::atomic<int> preview_http{};
+std::atomic<int> wifi_power_save{-1};
+std::atomic<int> wifi_rssi_dbm{-128};
+std::atomic<unsigned> wifi_primary_channel{};
 
 #if SWIPE_TRIAL_BENCHMARK
 TrialSwipeBenchmark benchmark;
@@ -130,12 +133,13 @@ esp_err_t status(httpd_req_t *request) {
   const auto &network = *static_cast<const NativeNetwork *>(request->user_ctx);
   const auto prepared = prepared_slides.load(std::memory_order_acquire);
   const auto gestures = swipes.load(std::memory_order_acquire);
-  char body[768]{};
+  char body[864]{};
   std::snprintf(body, sizeof(body),
                 "{\"trial\":\"v1-live\",\"uptime_ms\":%" PRIu32 ",\"prepared_slides\":%" PRIu32
                 ",\"first_photo_ms\":%" PRIu32 ",\"first_photo_preview_requests\":%" PRIu32
                 ",\"swipes\":%" PRIu32 ",\"last_motion_us\":%" PRIu32
                 ",\"clock_ready\":%s,\"photo_connection\":%s,\"prepare_attempts\":%" PRIu32
+                ",\"wifi_power_save\":%d,\"wifi_rssi_dbm\":%d,\"wifi_primary_channel\":%u"
                 ",\"candidate_retries\":%" PRIu32 ",\"scripted_gestures\":%s"
                 ",\"pixel_pauses\":%" PRIu32 ",\"pixel_pause_ms\":%" PRIu32
                 ",\"http_open_errors\":%" PRIu32 ",\"http_last_open_error\":%d"
@@ -148,6 +152,8 @@ esp_err_t status(httpd_req_t *request) {
                 gestures, last_motion_us.load(std::memory_order_relaxed),
                 clock_time_is_valid(std::time(nullptr)) ? "true" : "false",
                 network.photo_connection() ? "true" : "false", prepare_attempts.load(std::memory_order_relaxed),
+                wifi_power_save.load(std::memory_order_relaxed), wifi_rssi_dbm.load(std::memory_order_relaxed),
+                wifi_primary_channel.load(std::memory_order_relaxed),
                 candidate_retries.load(std::memory_order_relaxed), SWIPE_TRIAL_BENCHMARK ? "true" : "false",
                 pixel_pauses.load(std::memory_order_relaxed), pixel_pause_ms.load(std::memory_order_relaxed),
                 http_open_errors.load(std::memory_order_relaxed), http_last_open_error.load(std::memory_order_relaxed),
@@ -214,6 +220,12 @@ bool start_live_trial_status(NativeNetwork &network) {
     return true;
   httpd_stop(server);
   return false;
+}
+
+void record_live_trial_wifi_link(int power_save, int rssi, unsigned channel) {
+  wifi_power_save.store(power_save, std::memory_order_relaxed);
+  wifi_rssi_dbm.store(rssi, std::memory_order_relaxed);
+  wifi_primary_channel.store(channel, std::memory_order_relaxed);
 }
 
 void record_live_trial_prepare() { prepare_attempts.fetch_add(1, std::memory_order_relaxed); }
