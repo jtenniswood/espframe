@@ -44,19 +44,23 @@ esp_err_t benchmark_status(httpd_req_t *request) {
   const auto result = benchmark.results();
   portEXIT_CRITICAL(&benchmark_lock);
   const auto period = Display::nominal_frame_period_us();
-  char body[600]{};
+  char body[720]{};
   std::snprintf(body, sizeof(body),
                 "{\"scripted\":true,\"source\":\"%s\",\"target\":%u,\"started\":%" PRIu32 ",\"settled\":%" PRIu32
                 ",\"wrong_slide\":%" PRIu32 ",\"cache_hits\":%" PRIu32
+                ",\"dma_copies\":%" PRIu32 ",\"cpu_copies\":%" PRIu32
                 ",\"frame_period_us\":%u,\"drag_gap_limit_us\":%u"
                 ",\"first_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
+                ",\"compose_and_submit_worst_us\":%" PRIu32
                 ",\"busy_first_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
                 ",\"drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"busy_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}}",
                 SWIPE_TRIAL_BENCHMARK_FIXTURES ? "fixtures" : "immich", TrialSwipeBenchmark::swipe_limit,
                 result.started, result.settled, result.wrong_slide, result.cache_hits,
+                result.dma_copies, result.cpu_copies,
                 period, period + period / 2,
                 result.first_motion.count, result.first_motion.worst_us, result.first_motion.over_limit,
+                result.worst_composition_us,
                 result.busy_first_motion.count, result.busy_first_motion.worst_us, result.busy_first_motion.over_limit,
                 result.drag_gaps.count, result.drag_gaps.worst_us, result.drag_gaps.over_limit,
                 result.busy_drag_gaps.count, result.busy_drag_gaps.worst_us, result.busy_drag_gaps.over_limit);
@@ -235,13 +239,20 @@ std::optional<TouchReport> poll_live_trial_benchmark(int64_t now, SlideIndex cen
 
 void record_live_trial_benchmark_gesture(uint32_t motion_us, const FirstMotionTrace &motion) {
   portENTER_CRITICAL(&benchmark_lock);
-  benchmark.gesture(motion_us, motion.preparing, motion.cache.result == CacheRead::Hit);
+  benchmark.gesture(motion_us, static_cast<uint32_t>(motion.composed_us), motion.preparing,
+                    motion.cache.result == CacheRead::Hit);
   portEXIT_CRITICAL(&benchmark_lock);
 }
 
 void record_live_trial_benchmark_frame(int64_t latched_us, MotionStamp stamp, uint32_t period_us) {
   portENTER_CRITICAL(&benchmark_lock);
   benchmark.frame(latched_us, stamp, period_us);
+  portEXIT_CRITICAL(&benchmark_lock);
+}
+
+void record_live_trial_benchmark_blit(bool dma) {
+  portENTER_CRITICAL(&benchmark_lock);
+  benchmark.blit(dma);
   portEXIT_CRITICAL(&benchmark_lock);
 }
 #endif

@@ -355,8 +355,11 @@ idf.py -C firmware/native -B firmware/native/build/esphome-benchmark-v1 \
 Use the same ESPHome rollback readiness check before uploading the app-only
 `espframe_v1_swipe_benchmark.bin`. The CI artifact is named
 `native-v1-esphome-swipe-benchmark`. While the trial is active,
-`/api/trial/benchmark` reports landed destinations, cache hits, and the
-number and worst duration of first movements and drag gaps. It counts
+`/api/trial/benchmark` reports landed destinations, cache hits, DMA2D and
+CPU bulk copy counts, and the number and worst duration of first movements
+and drag gaps. The first movement's composition and submission time includes
+copying the slide pixels, painting overlays, and the LCD driver's cache
+writeback. The route counts
 movement-to-LCD-handoff samples over 50 ms and drag gaps beyond one and a
 half nominal refresh periods. The busy counts cover first motion submitted
 while a preparation lease was active and drag gaps whose two ends overlapped

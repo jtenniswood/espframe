@@ -5,12 +5,12 @@
 #include "esphome_trial.h"
 #include "firmware_update.h"
 #include "frame_blend.h"
+#include "frame_blitter.h"
 #include "immich.h"
 #include "live_trial.h"
 #include "native_network.h"
 #include "recovery_card.h"
 #include "screen_schedule.h"
-#include "slide_blit.h"
 #include "slide_cache.h"
 #include "slide_dwell.h"
 #include "slide_prefetch.h"
@@ -324,6 +324,8 @@ void run(void *) {
   bool can_fade = live && blend.init();
   static Display display;
   display.init(can_fade);
+  FrameBlitter blitter;
+  blitter.init();
   ClockOverlay clock;
   const auto day_level = loader.brightness();
   const auto night_level = loader.night_brightness();
@@ -638,7 +640,7 @@ void run(void *) {
         const auto *from = snapshot != nullptr ? snapshot : cache.find(fade.anchor());
         if (target && from) {
           if (opacity == AutoplayFade::opaque) {
-            blit_slides(output, target, nullptr, panel_width, panel_height, 0);
+            blitter.slides(output, {target, nullptr, 0});
             clock.draw(output);
             clock_dirty = false;
             swipe.show(fade.target());
@@ -690,12 +692,12 @@ void run(void *) {
           constexpr auto limit = PixelPosition{slide_width - 1};
           const int logical_pull = static_cast<int>(std::clamp(position - inside, -limit, limit));
           const int pull = logical_pull * axis_direction(rotation);
-          blit_slide_edge(output, left, panel_width, panel_height, pull);
+          blitter.edge(output, left, pull);
           if (left == snapshot)
             clock.restore_rows(output, std::max(0, pull), std::max(0, -pull), panel_height - std::abs(pull));
         } else {
           const auto span = orient_slide_span(left, right, panel_height, offset, rotation);
-          blit_slides(output, span.first, span.second, panel_width, panel_height, span.offset);
+          blitter.slides(output, span);
           if (span.first == snapshot)
             clock.restore_rows(output, span.offset, 0, panel_height - span.offset);
           if (span.offset != 0 && span.second == snapshot)

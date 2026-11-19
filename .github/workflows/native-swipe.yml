@@ -39,6 +39,10 @@ jobs:
           c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
             firmware/native/tests/swipe_test.cpp -o "$RUNNER_TEMP/swipe-test"
           "$RUNNER_TEMP/swipe-test"
+          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/dma_stubs \
+            -Ifirmware/native/tests/ota_stubs firmware/native/main/frame_blitter.cpp \
+            firmware/native/tests/frame_blitter_test.cpp -o "$RUNNER_TEMP/frame-blitter-test"
+          "$RUNNER_TEMP/frame-blitter-test"
           c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
             firmware/native/tests/swipe_input_test.cpp -o "$RUNNER_TEMP/swipe-input-test"
           "$RUNNER_TEMP/swipe-input-test"

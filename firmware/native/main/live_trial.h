@@ -25,6 +25,7 @@ void record_live_trial_gesture(uint32_t motion_us);
 std::optional<TouchReport> poll_live_trial_benchmark(int64_t now, SlideIndex center, SlideRange ready, bool at_rest);
 void record_live_trial_benchmark_gesture(uint32_t motion_us, const FirstMotionTrace &motion);
 void record_live_trial_benchmark_frame(int64_t latched_us, MotionStamp stamp, uint32_t period_us);
+void record_live_trial_benchmark_blit(bool dma);
 #endif
 
 }  // namespace espframe::native

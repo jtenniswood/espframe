@@ -32,6 +32,9 @@ class TrialSwipeBenchmark {
     uint32_t settled{};
     uint32_t wrong_slide{};
     uint32_t cache_hits{};
+    uint32_t dma_copies{};
+    uint32_t cpu_copies{};
+    uint32_t worst_composition_us{};
     Timing first_motion;
     Timing busy_first_motion;
     Timing drag_gaps;
@@ -75,12 +78,15 @@ class TrialSwipeBenchmark {
     return sample_(now, start_x_, true);
   }
 
-  void gesture(uint32_t latency_us, bool preparing, bool cache_hit) {
+  void gesture(uint32_t latency_us, uint32_t composed_us, bool preparing, bool cache_hit) {
     results_.first_motion.add(latency_us, 50'000);
+    results_.worst_composition_us = std::max(results_.worst_composition_us, composed_us);
     results_.cache_hits += cache_hit;
     if (preparing)
       results_.busy_first_motion.add(latency_us, 50'000);
   }
+
+  void blit(bool dma) { ++(dma ? results_.dma_copies : results_.cpu_copies); }
 
   void frame(int64_t now, MotionStamp stamp, uint32_t period_us) {
     if (stamp.phase == MotionPhase::Drag && previous_stamp_.phase == MotionPhase::Drag &&
