@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { createServer } from 'node:http'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const installer = process.argv[2]
@@ -82,7 +83,7 @@ const verify = `
       }).observe(element, { childList: true, subtree: true })
     })
   }
-  window.addEventListener('DOMContentLoaded', async () => {
+  async function runSetup() {
     const form = document.querySelector('#settings')
     const file = document.querySelector('#backup')
     const status = document.querySelector('#backup-status')
@@ -223,7 +224,14 @@ const verify = `
       || received.favorite_mode !== 'Exclude favorites' || received.immich_key !== 'filtered-key'
       || received.home_assistant_key !== '')
       throw new Error('Compound photo filters did not reach USB setup')
-    document.body.dataset.backupTest = 'passed'
+  }
+  window.addEventListener('DOMContentLoaded', () => {
+    function report(result) {
+      return fetch('test-result', { method: 'POST', body: result })
+    }
+    runSetup().then(() => report('passed'), error =>
+      report([error.message, document.querySelector('#status').textContent,
+        document.querySelector('#network-status').textContent].join('\\n')))
   })
 `
 const pages = new Map([
@@ -232,27 +240,41 @@ const pages = new Map([
   ['/setup.css', ['text/css', css]],
   ['/verify.js', ['text/javascript', verify]],
 ])
-const server = createServer((request, response) => {
+let completeTest
+const testResult = new Promise(resolve => { completeTest = resolve })
+const server = createServer(async (request, response) => {
+  if (request.method === 'POST' && request.url === '/test-result') {
+    request.setEncoding('utf8')
+    let result = ''
+    for await (const chunk of request) result += chunk
+    response.writeHead(204).end()
+    completeTest(result)
+    return
+  }
   const page = pages.get(request.url)
   if (page) response.writeHead(200, { 'Content-Type': page[0] }).end(page[1])
   else response.writeHead(404).end()
 })
 await new Promise((resolve, reject) => server.listen(0, '127.0.0.1', resolve).once('error', reject))
+const profile = await mkdtemp(join(tmpdir(), 'espframe-installer-browser-'))
+const chrome = spawn(process.env.CHROME_BIN || 'google-chrome', [
+  '--headless', '--no-sandbox', '--disable-gpu', `--user-data-dir=${profile}`,
+  `http://127.0.0.1:${server.address().port}/`,
+], { signal: AbortSignal.timeout(20_000), stdio: ['ignore', 'ignore', 'pipe'] })
+let errors = ''
+chrome.stderr.on('data', chunk => { errors += chunk })
+const stopped = new Promise(resolve => chrome.once('close', resolve))
 try {
-  const chrome = spawn(process.env.CHROME_BIN || 'google-chrome', [
-    '--headless', '--no-sandbox', '--disable-gpu', '--dump-dom', '--virtual-time-budget=10000',
-    `http://127.0.0.1:${server.address().port}/`,
-  ], { signal: AbortSignal.timeout(15_000) })
-  let html = ''
-  let errors = ''
-  chrome.stdout.on('data', chunk => { html += chunk })
-  chrome.stderr.on('data', chunk => { errors += chunk })
-  await new Promise((resolve, reject) => {
+  const browserFailure = new Promise((_, reject) => {
     chrome.once('error', reject)
-    chrome.once('close', code => code === 0 ? resolve() : reject(new Error(errors)))
+    chrome.once('close', code => reject(new Error(`Installer test stopped before reporting a result (${code}).\\n${errors}`)))
   })
-  assert.match(html, /data-backup-test="passed"/, errors)
+  const result = await Promise.race([testResult, browserFailure])
+  assert.equal(result, 'passed')
   console.log('Packaged native installer transfers supported backup fields and finds the frame after restart over mocked USB')
 } finally {
+  chrome.kill()
+  await stopped
   server.close()
+  await rm(profile, { recursive: true, force: true })
 }
