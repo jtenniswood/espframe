@@ -44,28 +44,46 @@ void ordered_reports_keep_release_and_next_press() {
   assert(swipe.position() == first_handoff - 55 && input.take_first_motion() == 25'000);
 }
 
-void an_upside_down_panel_keeps_the_same_viewer_swipe_direction() {
+void sensor_axes_follow_the_picture_in_both_mounting_orientations() {
+  using espframe::native::map_gsl_touch;
   using espframe::native::ScreenRotation;
-  Swipe swipe{width, 5, 2};
-  SwipeInput input;
-  const auto send = [&](TouchReport touch) {
-    espframe::native::orient_touch(touch, ScreenRotation::UpsideDown);
-    assert(touch.y == 599);
-    input.update(swipe, touch, swipe.position());
-  };
-  send(report(1, 5'000, 300));
-  send(report(2, 15'000, 800));
-  assert(swipe.dragging() && swipe.position() == initial_position + 500);
-  send(report(3, 20'000, 0, 0));
-  swipe.tick(300'000);
-  assert(swipe.settled() == 3);
+  TouchReport corner;
+  map_gsl_touch(corner, 900, -12, ScreenRotation::Normal);
+  assert(corner.x == 0 && corner.y == 799);
+  map_gsl_touch(corner, 60, 1100, ScreenRotation::UpsideDown);
+  assert(corner.x == 179 && corner.y == 739);
 
-  send(report(4, 305'000, 850));
-  send(report(5, 315'000, 350));
-  assert(swipe.dragging() && swipe.position() == 3 * width - 500);
-  send(report(6, 320'000, 0, 0));
-  swipe.tick(600'000);
-  assert(swipe.settled() == 2);
+  for (const auto rotation : {ScreenRotation::Normal, ScreenRotation::UpsideDown}) {
+    Swipe swipe{width, 5, 2};
+    SwipeInput input;
+    uint32_t sequence{};
+    const auto send = [&](int64_t time, int sensor_x, int sensor_y, uint8_t contacts = 1) {
+      auto touch = report(++sequence, time, 0, contacts);
+      map_gsl_touch(touch, sensor_x, sensor_y, rotation);
+      input.update(swipe, touch, swipe.position());
+    };
+    send(5'000, 150, 600);
+    send(15'000, 650, 600);
+    assert(!swipe.dragging() && swipe.position() == initial_position);
+    send(20'000, 0, 0, 0);
+    assert(swipe.idle() && swipe.settled() == 2);
+
+    const int toward_right = rotation == ScreenRotation::Normal ? 800 : 300;
+    const int toward_left = rotation == ScreenRotation::Normal ? 300 : 800;
+    send(305'000, 375, toward_right);
+    send(315'000, 375, toward_left);
+    assert(swipe.dragging() && swipe.position() == initial_position + 500);
+    send(320'000, 0, 0, 0);
+    swipe.tick(600'000);
+    assert(swipe.settled() == 3);
+
+    send(605'000, 375, toward_left);
+    send(615'000, 375, toward_right);
+    assert(swipe.dragging() && swipe.position() == 3 * width - 500);
+    send(620'000, 0, 0, 0);
+    swipe.tick(900'000);
+    assert(swipe.settled() == 2);
+  }
 }
 
 void a_held_photo_can_be_dragged_from_either_side() {
@@ -311,7 +329,7 @@ void putting_the_screen_to_sleep_mid_swipe_waits_for_the_next_contact() {
 
 int main() {
   ordered_reports_keep_release_and_next_press();
-  an_upside_down_panel_keeps_the_same_viewer_swipe_direction();
+  sensor_axes_follow_the_picture_in_both_mounting_orientations();
   a_held_photo_can_be_dragged_from_either_side();
   a_gap_cancels_without_flinging_into_another_photo();
   a_transient_transfer_failure_preserves_the_drag();
