@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Native Espframe setup</title>
+  <link rel="stylesheet" href="setup.css">
+  <script type="module" src="setup.js"></script>
+</head>
+<body>
+  <main>
+    <h1>Set up Espframe</h1>
+    <p>Connect a Guition JC8012P4A1 test frame by USB. Installing replaces the firmware on the frame.</p>
+    <section aria-labelledby="install">
+      <h2 id="install">Install firmware</h2>
+      <label for="revision">Guition hardware revision</label>
+      <select id="revision">
+        <option value="">Select a revision</option>
+        <option value="v1">V1 · Original panel, case number 2627 or lower</option>
+        <option value="v2">V2 · New panel, case number 2628 or higher</option>
+        <option value="v3">V3 · ESP32-P4 v3.x chip, any case number</option>
+      </select>
+      <esp-web-install-button hidden>
+        <button type="button" slot="activate">Install native firmware</button>
+      </esp-web-install-button>
+    </section>
+    <section aria-labelledby="connection">
+      <h2 id="connection">Connect Wi-Fi and Immich</h2>
+      <p>After installation, close the installer dialog. Send your settings directly to the frame over USB.</p>
+      <form id="settings" method="post" autocomplete="off">
+        <label>Wi-Fi name <input name="ssid" maxlength="32" required></label>
+        <label>Wi-Fi password <input name="password" type="password" maxlength="64"></label>
+        <label>Immich base URL <input name="immich_url" type="url" maxlength="256" placeholder="https://photos.example.com" required></label>
+        <label>Immich API key <input name="immich_key" type="password" maxlength="256" aria-describedby="permissions" required></label>
+        <small id="permissions">Use a key with asset.read and asset.view permissions.</small>
+        <label>Web settings password <input name="web_password" type="password" minlength="8" maxlength="64" aria-describedby="web-password"></label>
+        <small id="web-password">Optional. Set a password to enable settings on your local network.</small>
+        <button type="submit" disabled>Save settings over USB</button>
+      </form>
+    </section>
+    <p id="status" role="status" aria-live="polite"></p>
+  </main>
+</body>
+</html>
