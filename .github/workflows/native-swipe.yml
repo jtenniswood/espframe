@@ -248,7 +248,7 @@ jobs:
       - uses: actions/checkout@v7
       - name: Test decoding of stock ESPHome connection preferences
         run: |
-          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main \
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Icomponents/espframe \
             firmware/native/tests/live_trial_credentials_test.cpp -o "$RUNNER_TEMP/live-trial-credentials"
           "$RUNNER_TEMP/live-trial-credentials"
       - name: Test scripted gestures and timing summaries
