@@ -183,7 +183,9 @@ The frame reuses the Immich connection when the server allows it, and
 reconnects if an idle connection has closed before the next response.
 Wi-Fi association and time synchronization run independently of photo
 preparation, so the worker can prepare cached previews during reconnect.
-The native frame disables Wi-Fi modem sleep to keep receive latency low.
+The native frame scans all channels at connection time and tries the
+strongest access point for the saved Wi-Fi network first. It disables
+Wi-Fi modem sleep to keep receive latency low.
 When connectivity returns, a new connection gets priority over a pending
 photo retry delay. If Wi-Fi disconnects or the frame gets a different IP,
 the next Immich request uses a fresh HTTP connection.

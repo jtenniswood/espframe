@@ -144,6 +144,9 @@ bool NativeNetwork::start_station_(const WifiCredentials &wifi) {
     std::memcpy(station.sta.ssid, wifi.ssid.data(), sizeof(station.sta.ssid));
     std::memcpy(station.sta.password, wifi.password.data(), sizeof(station.sta.password));
     station.sta.threshold.authmode = wifi.password.front() == '\0' ? WIFI_AUTH_OPEN : WIFI_AUTH_WPA2_PSK;
+    // A mesh can advertise the same network on several channels.
+    station.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
+    station.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
     if (esp_wifi_set_config(WIFI_IF_STA, &station) != ESP_OK)
       return false;
   }
