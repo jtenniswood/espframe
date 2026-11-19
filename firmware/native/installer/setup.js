@@ -83,10 +83,8 @@ for (const name of percentageFields) form.elements[name].addEventListener('input
 let importSequence = 0
 let importing = false
 let frameNameSpecified = false
-let pairFramingSpecified = false
 let importedPreset = null
 form.addEventListener('change', event => {
-  if (event.target.name === 'portrait_pair_framing') pairFramingSpecified = true
   if (event.target.name === 'photo_source' || Object.hasOwn(photoFilterDefaults, event.target.name))
     importedPreset = null
 })
@@ -115,7 +113,6 @@ backup.addEventListener('change', async () => {
       frameNameSpecified = true
       frameName.setCustomValidity('')
     }
-    if (Object.hasOwn(settings, 'portrait_pair_framing')) pairFramingSpecified = true
     if (chooseSource) form.elements.photo_source.value = ''
     if (settings.photo_source && settings.photo_source !== 'album') form.elements.album_id.value = ''
     form.elements.photo_orientation.value = 'Any'
@@ -252,7 +249,8 @@ if ('serial' in navigator) {
     data.portrait_pairing = form.elements.portrait_pairing.checked
     data.portrait_pairs_only = form.elements.portrait_pairs_only.checked
     data.portrait_pairing_range = form.elements.portrait_pairing_range.value
-    if (pairFramingSpecified) data.portrait_pair_framing = form.elements.portrait_pair_framing.value
+    const pairFraming = form.elements.portrait_pair_framing.value
+    if (pairFraming) data.portrait_pair_framing = pairFraming
     else delete data.portrait_pair_framing
     data.show_clock = form.elements.show_clock.checked
     data.memories_fallback = form.elements.memories_fallback.checked
@@ -270,7 +268,6 @@ if ('serial' in navigator) {
       await configure(port, data, { keepPairing, keepWifi, keepImmich })
       form.reset()
       frameNameSpecified = false
-      pairFramingSpecified = false
       importedPreset = null
       refreshSource()
       refreshPairing()

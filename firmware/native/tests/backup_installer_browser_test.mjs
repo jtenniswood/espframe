@@ -95,6 +95,8 @@ const verify = `
   }
   async function runSetup() {
     const form = document.querySelector('#settings')
+    if (form.elements.portrait_pair_framing.value !== '')
+      throw new Error('Opening the installer selected a replacement for saved portrait framing')
     const file = document.querySelector('#backup')
     const status = document.querySelector('#backup-status')
     function loadBackup(json, message) {
