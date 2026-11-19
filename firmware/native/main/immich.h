@@ -33,7 +33,7 @@ class ImmichSource {
                const std::atomic<bool> &pixel_work_deferred)
       : cancelled_(cancelled), pixel_work_deferred_(pixel_work_deferred), settings_(settings), network_(network),
         http_(cancelled) {}
-  PrepareResult prepare(SlideIndex slide, uint16_t *panel, bool replacement = false);
+  PrepareResult prepare(SlideIndex slide, uint16_t *panel, bool replacement, bool &caption_waiting_for_time);
   void apply_photo_settings(PhotoFeedSettings feed, std::optional<SlideIndex> first_slide);
   SlideIndex first_slide() const { return this->history_.first(); }
   SlideIndex next_slide() const { return this->history_.next(); }

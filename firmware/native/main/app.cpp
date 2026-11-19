@@ -222,6 +222,7 @@ class SlideLoader {
     Result result;
     bool cancelled;
     bool source_ready;
+    bool caption_waiting_for_time;
   };
 
   bool live() const { return this->live_; }
@@ -244,8 +245,7 @@ class SlideLoader {
     return active_clock_twelve_hour.load(std::memory_order_relaxed);
   }
   bool photos_need_time() const {
-    return this->settings_.metadata.needs_time() || this->settings_.tone.night_enabled ||
-           this->settings_.photo_source.mode == PhotoSourceMode::Memories || this->settings_.capture_dates.needs_time();
+    return this->settings_.needs_local_date() || this->settings_.tone.night_enabled;
   }
   const ScreenScheduleSettings &schedule() const { return this->settings_.schedule; }
   ScreenRotation rotation() const { return this->settings_.screen_rotation; }
@@ -328,6 +328,8 @@ class SlideLoader {
     auto feed = Settings::take_live_photo_feed(request.source_revision);
     if (!feed)
       return false;
+    if (feed->needs_local_date())
+      network.request_time_sync();
     frame_status.configure(true, feed->photo_source.mode);
     this->source_.apply_photo_settings(std::move(*feed), request.replace_source ? std::optional{request.lease.slide}
                                                                                 : std::nullopt);
@@ -353,6 +355,7 @@ class SlideLoader {
       const auto connection = network.photo_connection();
       auto result = Result::Ready;
       bool source_ready = true;
+      bool caption_waiting_for_time = false;
       if ((!esphome_trial || trial_immich) && !trial_fixtures && loader.live_ && lease.slide > 0) {
         if constexpr (trial_immich)
           record_live_trial_prepare();
@@ -363,7 +366,8 @@ class SlideLoader {
               source_revision = request.source_revision;
           }
         }
-        result = source_ready ? loader.source_.prepare(lease.slide, lease.pixels, lease.replacement) : Result::Retry;
+        result = source_ready ? loader.source_.prepare(lease.slide, lease.pixels, lease.replacement,
+                                                       caption_waiting_for_time) : Result::Retry;
       } else {
         const int fixture = lease.slide % fixture_count;
         const auto &photo = photos[fixture];
@@ -383,7 +387,8 @@ class SlideLoader {
       }
       const Completion completion{lease, loader.source_.first_slide(), loader.source_.next_slide(), connection,
                                   loader.source_.source_status(), loader.source_.response(), result,
-                                  result != Result::Ready && loader.cancelled_.load(), source_ready};
+                                  result != Result::Ready && loader.cancelled_.load(), source_ready,
+                                  caption_waiting_for_time};
       xQueueSend(loader.completed_, &completion, portMAX_DELAY);
     }
   }
@@ -468,6 +473,7 @@ void run(void *) {
   uint8_t pending_opacity = 0;
   int64_t next_clock_poll = 0;
   bool clock_dirty = false;
+  bool local_time_ready = false;
   bool recovery_painted = false;
   int painted_loading_direction = 0;
   PhotoSourceStatus source_status = PhotoSourceStatus::None;
@@ -523,15 +529,20 @@ void run(void *) {
 
   while (true) {
     auto now = esp_timer_get_time();
-    if (use_local_time && local_time_configured && now >= next_clock_poll) {
+    bool local_time_became_ready = false;
+    if ((use_local_time || !esphome_trial) && local_time_configured && now >= next_clock_poll) {
       const auto local = local_clock_time(std::time(nullptr));
-      clock.set_twelve_hour(loader.twelve_hour_clock());
-      clock_dirty |= clock.update(local);
-      local_hour = local ? std::optional<int>{local->tm_hour} : std::nullopt;
-      const uint8_t scheduled_brightness = daylight.is_day(local) ? day_level : night_level;
-      if (scheduled_brightness != brightness)
-        manual_brightness.reset();
-      brightness = scheduled_brightness;
+      local_time_became_ready = local && !local_time_ready;
+      local_time_ready = local.has_value();
+      if (use_local_time) {
+        clock.set_twelve_hour(loader.twelve_hour_clock());
+        clock_dirty |= clock.update(local);
+        local_hour = local ? std::optional<int>{local->tm_hour} : std::nullopt;
+        const uint8_t scheduled_brightness = daylight.is_day(local) ? day_level : night_level;
+        if (scheduled_brightness != brightness)
+          manual_brightness.reset();
+        brightness = scheduled_brightness;
+      }
       next_clock_poll = now + 250'000;
     }
     if (const auto scanout = display.poll_presented()) {
@@ -578,20 +589,24 @@ void run(void *) {
     const bool at_source_handoff = swipe.idle() && !input.engaged() && !fade.running() && !fade.held() &&
                                    !blend.pending() && display.presented_position() == center * slide_width;
     const bool discard_refresh = preparing_refresh && (loader.yield_requested() || requested_revision != source_revision);
+    bool refresh_waiting_captions = local_time_became_ready;
     SlideLoader::Completion completion{};
     // Leave a completed replacement in the queue while a gesture can still
     // see the old crop. A superseded replacement can be released immediately.
     if ((!preparing_refresh || at_source_handoff || discard_refresh) && loader.poll(completion)) {
       const bool ready = completion.result == SlideLoader::Result::Ready && !discard_refresh;
       const bool next_candidate = completion.result == SlideLoader::Result::NextCandidate;
-      ESP_ERROR_CHECK(cache.complete(completion.lease, ready) ? ESP_OK : ESP_ERR_INVALID_STATE);
+      const bool waiting_caption = ready && completion.caption_waiting_for_time;
+      ESP_ERROR_CHECK(cache.complete(completion.lease, ready, waiting_caption) ? ESP_OK : ESP_ERR_INVALID_STATE);
+      refresh_waiting_captions |= local_time_ready && waiting_caption;
       const auto slide = completion.lease.slide;
       if constexpr (trace_enabled) {
         const auto outcome = ready ? RefillOutcome::Ready
                              : completion.cancelled || discard_refresh ? RefillOutcome::Cancelled : RefillOutcome::Retry;
         trace.refill(esp_timer_get_time(), refill_started_us, slide, outcome);
       }
-      retries[slide % retries.size()] = ready || completion.cancelled || discard_refresh
+      const bool time_available = local_time_ready && completion.source_status == PhotoSourceStatus::WaitingForTime;
+      retries[slide % retries.size()] = ready || completion.cancelled || discard_refresh || time_available
                                            ? SlideRetry{}
                                            : SlideRetry::after(slide, now, completion.connection, next_candidate);
       if constexpr (trial_immich) {
@@ -626,6 +641,10 @@ void run(void *) {
       preparing_refresh = false;
     }
     if constexpr (!esphome_trial) {
+      if (refresh_waiting_captions)
+        cache.mark_waiting_captions_for_refresh();
+      if (local_time_became_ready && source_status == PhotoSourceStatus::WaitingForTime)
+        retries.fill({});
       if (source_anchor >= 0 && center != source_anchor && display.presented_position() == center * slide_width)
         source_anchor = -1;
       if (live && requested_revision != source_revision && at_source_handoff && cache.find(center)) {

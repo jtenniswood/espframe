@@ -42,6 +42,7 @@ class NativeNetwork {
   Address address() const;
   uint32_t station_lease() const;
   uint32_t photo_connection() const;
+  void request_time_sync();
   bool available() const { return available_.load(std::memory_order_acquire); }
   bool busy() const { return busy_.load(std::memory_order_acquire); }
   bool submit(Request request, const WifiCredentials &wifi = {});
@@ -85,6 +86,7 @@ class NativeNetwork {
   std::atomic<uint32_t> ipv4_{};
   std::atomic<WebStatus> web_status_{WebStatus::Disabled};
   std::atomic<bool> photo_time_ready_{};
+  std::atomic<bool> time_sync_requested_{};
   std::atomic<bool> available_{};
   std::atomic<bool> busy_{};
   std::atomic<bool> provisioning_{};

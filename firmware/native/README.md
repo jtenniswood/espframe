@@ -300,8 +300,10 @@ When two portraits are paired, the caption describes the primary
 photo. The caption is composed with the cached slide, so dragging and
 swiping need no extra image, text, or network work. The frame can show the
 date in either date-taken format or as a relative age in the configured
-timezone. Relative captions update as slides are prepared or prepared again.
-Before time sync the frame shows the capture date.
+timezone. Before time sync the frame shows the capture date. Once time is
+available, the player refreshes those cached captions in the background.
+Turning on relative captions, a relative capture-date filter, or Memories
+requests time sync even when the clock is hidden.
 
 The caption font covers Latin, Greek and Cyrillic text. When a name cannot
 be rendered, the frame can still show the other location field. These

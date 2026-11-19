@@ -41,6 +41,9 @@ struct PhotoFeedSettings {
   CaptureDateSettings capture_dates;
   PhotoMetadataSettings metadata;
 
+  bool needs_local_date() const {
+    return metadata.needs_time() || capture_dates.needs_time() || photo_source.mode == PhotoSourceMode::Memories;
+  }
   bool pairs_portraits() const { return portrait_pairing && photo_orientation != PhotoOrientation::Landscape; }
   bool requires_portrait_pair() const { return pairs_portraits() && portrait_pairs_only; }
   DisplayMode pair_display_mode() const {

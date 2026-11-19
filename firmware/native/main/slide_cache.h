@@ -58,6 +58,15 @@ class SlideCache {
     }
   }
 
+  void mark_waiting_captions_for_refresh() {
+    for (auto &entry : this->entries_) {
+      if (entry.state == State::Ready && entry.caption_waiting_for_time) {
+        entry.caption_waiting_for_time = false;
+        entry.needs_refresh = true;
+      }
+    }
+  }
+
   void stop_refresh(SlideIndex slide) {
     for (auto &entry : this->entries_) {
       if (entry.state == State::Ready && entry.slide == slide)
@@ -98,7 +107,7 @@ class SlideCache {
     return Lease{this->buffers_[available], slide, available, ticket, replacement};
   }
 
-  bool complete(const Lease &lease, bool ready) {
+  bool complete(const Lease &lease, bool ready, bool caption_waiting_for_time = false) {
     if (lease.slot >= capacity)
       return false;
     auto &entry = this->entries_[lease.slot];
@@ -111,6 +120,7 @@ class SlideCache {
       }
     }
     entry.state = ready ? State::Ready : State::Empty;
+    entry.caption_waiting_for_time = ready && caption_waiting_for_time;
     return true;
   }
 
@@ -120,6 +130,7 @@ class SlideCache {
         if (entry.slide != keep)
           entry.state = State::Empty;
         entry.needs_refresh = false;
+        entry.caption_waiting_for_time = false;
       }
     }
   }
@@ -131,6 +142,7 @@ class SlideCache {
     SlideIndex slide{};
     uint32_t ticket{};
     bool needs_refresh{};
+    bool caption_waiting_for_time{};
   };
 
   Buffers buffers_;

@@ -32,6 +32,7 @@ constexpr uint32_t disconnected = BIT1;
 constexpr uint32_t address_lost = BIT2;
 constexpr uint32_t station_stopped = BIT3;
 constexpr uint32_t command_ready = BIT4;
+constexpr uint32_t time_sync_requested = BIT5;
 constexpr int network_core = 0;
 constexpr bool trial_immich = SWIPE_TRIAL_IMMICH;
 constexpr bool trial_benchmark = SWIPE_TRIAL_BENCHMARK;
@@ -71,6 +72,12 @@ uint32_t NativeNetwork::station_lease() const {
 
 uint32_t NativeNetwork::photo_connection() const {
   return photo_time_ready_.load(std::memory_order_acquire) ? station_lease() : 0;
+}
+
+void NativeNetwork::request_time_sync() {
+  // Latch the request even if the Wi-Fi task is still starting.
+  if (!time_sync_requested_.exchange(true, std::memory_order_acq_rel) && available())
+    xTaskNotify(task_, time_sync_requested, eSetBits);
 }
 
 bool NativeNetwork::submit(Request request, const WifiCredentials &wifi) {
@@ -347,11 +354,10 @@ void NativeNetwork::handle_(const Command &command, WifiCredentials &saved) {
 
 void NativeNetwork::connect_loop_(WifiCredentials saved) {
   const bool https = settings_->immich_url.starts_with("https://");
-  const bool need_time = https || settings_->clock.show || settings_->schedule.enabled ||
-                         settings_->brightness_day != settings_->night_brightness() || settings_->metadata.needs_time() ||
-                         settings_->tone.night_enabled || settings_->photo_source.mode == PhotoSourceMode::Memories ||
-                         settings_->capture_dates.needs_time();
-  bool sntp_started = !need_time;
+  const bool need_time_at_boot = https || settings_->clock.show || settings_->schedule.enabled ||
+                                 settings_->brightness_day != settings_->night_brightness() ||
+                                 settings_->tone.night_enabled || settings_->needs_local_date();
+  bool sntp_started = false;
   bool web_started = false;
 #if !SWIPE_ESPHOME_TRIAL
   bool assistant_started = settings_->home_assistant_key.empty() || !valid_frame_mac(frame_mac_);
@@ -436,13 +442,15 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
             {identity_.hostname, identity_.friendly_name, "Guition JC8012P4A1", frame_mac_},
             settings_->home_assistant_key);
 #endif
-      if (!sntp_started) {
+      const bool need_time = need_time_at_boot || time_sync_requested_.load(std::memory_order_acquire);
+      if (need_time && !sntp_started) {
         esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
         sntp_started = esp_netif_sntp_init(&config) == ESP_OK;
       }
       const bool time_ready = !https || clock_time_is_valid(std::time(nullptr));
       photo_time_ready_.store(time_ready, std::memory_order_release);
-      wait = sntp_started && web_started ? (time_ready ? portMAX_DELAY : pdMS_TO_TICKS(250)) : pdMS_TO_TICKS(2000);
+      const bool services_ready = web_started && (!need_time || sntp_started);
+      wait = services_ready ? (time_ready ? portMAX_DELAY : pdMS_TO_TICKS(250)) : pdMS_TO_TICKS(2000);
 #if !SWIPE_ESPHOME_TRIAL
       if (!assistant_started)
         wait = std::min(wait, pdMS_TO_TICKS(2000));

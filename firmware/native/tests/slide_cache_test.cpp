@@ -108,4 +108,24 @@ int main() {
   const auto restore_distant = roomy.reserve(8, 0, 8);
   assert(restore_distant && roomy.complete(*restore_distant, true));
   assert(roomy.reserve(9, 1, 9) && !roomy.find(0) && roomy.find(8));
+
+  SlideCache captions{buffers};
+  const auto waiting = captions.reserve(10, 10, 12);
+  const auto dated = captions.reserve(11, 10, 12);
+  assert(waiting && dated && captions.complete(*dated, true));
+  // Time can sync while a preview with the fallback date is still in flight.
+  captions.mark_waiting_captions_for_refresh();
+  assert(!captions.needs_refresh(10) && !captions.needs_refresh(11));
+  assert(captions.complete(*waiting, true, true));
+  captions.mark_waiting_captions_for_refresh();
+  assert(captions.needs_refresh(10) && !captions.needs_refresh(11));
+  assert(captions.find(10) == waiting->pixels && captions.find(11) == dated->pixels);
+  captions.stop_refresh(10);
+  captions.mark_waiting_captions_for_refresh();
+  assert(!captions.needs_refresh(10));
+  const auto old_source = captions.reserve(12, 10, 12);
+  assert(old_source && captions.complete(*old_source, true, true));
+  captions.discard_other_ready_slides(12);
+  captions.mark_waiting_captions_for_refresh();
+  assert(captions.find(12) == old_source->pixels && !captions.needs_refresh(12));
 }

@@ -891,6 +891,21 @@ int main() {
   current.publish_live_presentation();
   assert(active_clock_twelve_hour.load() && active_playback_transition.load().random);
 
+  assert(!current.needs_local_date());
+  const auto live_time_settings = [&](const char *request, bool needs_time) {
+    const auto saved = update_configuration(request);
+    assert(!saved.error && !saved.restart_required);
+    const auto updated = Settings::take_live_photo_feed(photo_source_revision.load());
+    assert(updated && updated->needs_local_date() == needs_time);
+  };
+  live_time_settings(R"({"values":{"photo_metadata_date_format":"Relative Date"}})", true);
+  live_time_settings(R"({"values":{"photo_metadata_date_enabled":false}})", false);
+  live_time_settings(R"({"values":{"date_filter_enabled":true,"date_filter_mode":"Relative Range"}})", true);
+  live_time_settings(R"({"values":{"date_filter_enabled":false}})", false);
+  assert(Settings::save_photo_preset(PhotoPreset::Memories, ha_key));
+  const auto memories = Settings::take_live_photo_feed(photo_source_revision.load());
+  assert(memories && memories->photo_source.mode == PhotoSourceMode::Memories && memories->needs_local_date());
+
   assert(Settings::save_wifi(*new_wifi, current.reset_epoch));
   assert(Settings::save(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","web_password":"new-settings"})"));
   assert(current.read() && current.home_assistant_key == ha_key);

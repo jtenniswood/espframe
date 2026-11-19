@@ -617,7 +617,8 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
   return {};
 }
 
-ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *panel, bool replacement) {
+ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *panel, bool replacement,
+                                                  bool &caption_waiting_for_time) {
   const TrialStageTimer attempt{TrialPreparationStage::Attempt};
   if constexpr (!SWIPE_ESPHOME_TRIAL)
     this->response_ = ImmichResponse::Pending;
@@ -736,6 +737,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
                       this->settings_.screen_rotation, this->settings_.clock.show, local);
   if (this->cancelled_)
     return retry_frame();
+  caption_waiting_for_time = captions.needs_time() && !local && frame.metadata.capture_day.has_value();
   if (!remembered && frame.companion[0] != '\0')
     std::erase_if(this->pending_, [&](const ImmichPhoto &photo) { return photo.id == frame.companion; });
   if (new_position)
