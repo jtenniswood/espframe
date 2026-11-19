@@ -5,7 +5,6 @@
 #include "native_network.h"
 #include "photo_caption.h"
 #include "preview_decoder.h"
-#include "trial_replay.h"
 
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -63,9 +62,8 @@ bool ImmichSource::online_() {
   const auto connection = network_.photo_connection();
   if (connection != http_connection_) {
     http_.disconnect();
-#if SWIPE_TRIAL_REPLAY_PREPARED
     prepared_http_.disconnect();
-#endif
+    prepared_retry_us_ = 0;
     http_connection_ = connection;
   }
   return connection != 0 && !cancelled_;
@@ -430,31 +428,39 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
                                                                       : PreviewStatus::Retry;
 }
 
-#if SWIPE_TRIAL_REPLAY_PREPARED
 bool ImmichSource::render_prepared_(const PhotoSlide &frame, uint16_t *panel) {
-  if (!online_() || !allocate_download_())
+  if (!online_() || esp_timer_get_time() < prepared_retry_us_ || !allocate_download_())
     return false;
-  std::string url(trial_replay_origin);
+  std::string url(settings_.prepared_slide_url);
   url += "/v1/slides/";
   url += frame.primary.data();
-  url += "?companion=";
-  url += frame.companion.data();
+  url += settings_.display_mode == DisplayMode::Fill ? "?mode=fill" : "?mode=fit";
+  if (frame.companion[0] != '\0') {
+    url += "&companion=";
+    url += frame.companion.data();
+  }
   url += "&rotation=";
   url += screen_rotation_name(settings_.screen_rotation);
+  const auto authorization = "Bearer " + settings_.prepared_slide_token;
   const auto start = esp_timer_get_time();
   size_t length = 0;
-  const int status = prepared_http_.read(url, replay_authorization, {}, {encoded_, photo_capacity}, length,
-                                         start + 3'500'000);
+  const int status = prepared_http_.read(url, authorization.c_str(), {}, {encoded_, photo_capacity}, length,
+                                         start + 1'500'000);
   const auto decode_start = esp_timer_get_time();
-  record_live_trial_preparation_time(TrialPreparationStage::PreparedTransfer,
-                                     static_cast<uint32_t>(decode_start - start), length);
+  if constexpr (SWIPE_TRIAL_IMMICH)
+    record_live_trial_preparation_time(TrialPreparationStage::PreparedTransfer,
+                                       static_cast<uint32_t>(decode_start - start), length);
+  // Avoid paying the failed request on every slide. A missing asset or an
+  // unsupported image affects only that slide, so its successor can still use the service.
+  if (!cancelled_ && (status == 0 || status == 401 || status == 403 || status == 429 || status >= 500))
+    prepared_retry_us_ = decode_start + 30'000'000;
   if (status != 200 || cancelled_ || !jpeg_.decode_panel(encoded_, length, panel, checkpoint_))
     return false;
-  record_live_trial_preparation_time(TrialPreparationStage::PreparedDecode,
-                                     static_cast<uint32_t>(esp_timer_get_time() - decode_start));
+  if constexpr (SWIPE_TRIAL_IMMICH)
+    record_live_trial_preparation_time(TrialPreparationStage::PreparedDecode,
+                                       static_cast<uint32_t>(esp_timer_get_time() - decode_start));
   return true;
 }
-#endif
 
 ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
   const TrialStageTimer attempt{TrialPreparationStage::Attempt};
@@ -492,13 +498,19 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     return PrepareResult::Retry;
   };
   bool prepared = false;
-#if SWIPE_TRIAL_REPLAY_PREPARED
-  if (pairs_only && frame.companion[0] != '\0') {
+  const bool optional_pair = !remembered && !pairs_only && slide > 1 && settings_.portrait_pairing;
+  bool selected_companion = false;
+  if (settings_.has_prepared_slides() && (!optional_pair || seed.orientation_known) &&
+      esp_timer_get_time() >= prepared_retry_us_) {
+    if (optional_pair && seed.portrait) {
+      const TrialStageTimer selection{TrialPreparationStage::Selection};
+      frame.companion = companion_for_(seed, esp_timer_get_time() + pairing_time_us);
+      selected_companion = true;
+    }
     prepared = this->render_prepared_(frame, panel);
     if (this->cancelled_)
       return retry_frame();
   }
-#endif
   std::optional<TrialStageTimer> composition;
   if (!prepared) {
     DecodedPreview primary;
@@ -510,7 +522,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
 
     // Optional pairing leaves the first preview on the fast path.
     const auto pair_deadline_us = pairs_only ? 0 : esp_timer_get_time() + (remembered ? 2 : 1) * pairing_time_us;
-    if (!remembered && !pairs_only && slide > 1 && this->settings_.portrait_pairing && primary.portrait()) {
+    if (optional_pair && !selected_companion && primary.portrait()) {
       const TrialStageTimer selection{TrialPreparationStage::Selection};
       frame.companion = this->companion_for_(seed, pair_deadline_us);
     }

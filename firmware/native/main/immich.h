@@ -54,9 +54,7 @@ class ImmichSource {
   void discard_candidate_(const AssetId &id);
   bool wait_for_pixel_work_() const;
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, bool for_pair, int64_t deadline_us = 0);
-#if SWIPE_TRIAL_REPLAY_PREPARED
   bool render_prepared_(const PhotoSlide &frame, uint16_t *panel);
-#endif
 
   const std::atomic<bool> &cancelled_;
   const std::atomic<bool> &pixel_work_deferred_;
@@ -66,9 +64,8 @@ class ImmichSource {
   const Settings &settings_;
   const NativeNetwork &network_;
   ImmichHttp http_;
-#if SWIPE_TRIAL_REPLAY_PREPARED
   ImmichHttp prepared_http_{cancelled_, "Authorization"};
-#endif
+  int64_t prepared_retry_us_{};
   P4JpegDecoder jpeg_;
   uint32_t http_connection_{};
   ImmichSearchApi search_api_{ImmichSearchApi::Unknown};

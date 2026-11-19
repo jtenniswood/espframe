@@ -31,6 +31,17 @@ bool load_string(nvs_handle_t storage, const char *key, std::string &value, size
   return true;
 }
 
+bool normalize_http_base(std::string &url) {
+  const size_t host = url.starts_with("https://") ? 8 : url.starts_with("http://") ? 7 : 0;
+  if (host == 0 || host >= url.size() || url.size() > 256 || url[host] == '/' ||
+      url.find_first_of("@?#\\") != std::string::npos ||
+      std::any_of(url.begin(), url.end(), [](unsigned char c) { return c <= 32 || c >= 127; }))
+    return false;
+  while (url.back() == '/')
+    url.pop_back();
+  return true;
+}
+
 bool normalize(Settings &settings) {
   if (settings.ssid.empty() || settings.ssid.size() > 32 || settings.password.size() > 64 ||
       settings.web_password.size() > 64 || (!settings.web_password.empty() && settings.web_password.size() < 8) ||
@@ -39,18 +50,20 @@ bool normalize(Settings &settings) {
       std::any_of(settings.immich_key.begin(), settings.immich_key.end(),
                   [](unsigned char c) { return c <= 32 || c >= 127; }))
     return false;
+  if (!settings.prepared_slide_url.empty()) {
+    const auto &token = settings.prepared_slide_token;
+    if (!normalize_http_base(settings.prepared_slide_url) || token.size() < 32 || token.size() > 256 ||
+        token == settings.immich_key || std::any_of(token.begin(), token.end(),
+                                                  [](unsigned char c) { return c <= 32 || c >= 127; }))
+      return false;
+  } else if (!settings.prepared_slide_token.empty()) {
+    return false;
+  }
   auto &url = settings.immich_url;
   if (url.empty() && settings.immich_key.empty())
-    return settings.web_password.empty();
-  if (!settings.has_immich())
+    return settings.web_password.empty() && !settings.has_prepared_slides();
+  if (!settings.has_immich() || !normalize_http_base(url))
     return false;
-  const size_t host = url.starts_with("https://") ? 8 : url.starts_with("http://") ? 7 : 0;
-  if (host == 0 || host >= url.size() || url.size() > 256 || url[host] == '/' ||
-      url.find_first_of("@?#\\") != std::string::npos ||
-      std::any_of(url.begin(), url.end(), [](unsigned char c) { return c <= 32 || c >= 127; }))
-    return false;
-  while (url.back() == '/')
-    url.pop_back();
   if (!url.ends_with("/api"))
     url += "/api";
   return true;
@@ -252,6 +265,8 @@ bool parse_all(const cJSON *root, Settings &settings) {
          read_field(root, "password", settings.password) &&
          read_field(root, "immich_url", settings.immich_url) &&
          read_field(root, "immich_key", settings.immich_key) &&
+         read_field(root, "prepared_slide_url", settings.prepared_slide_url, true) &&
+         read_field(root, "prepared_slide_token", settings.prepared_slide_token, true) &&
          read_field(root, "web_password", settings.web_password, true) &&
          read_playback(root, settings) && normalize(settings);
 }
@@ -378,6 +393,7 @@ bool Settings::save_wifi(const WifiCredentials &wifi) {
 
 bool Settings::add_playback_fields(cJSON *object) const {
   return cJSON_AddStringToObject(object, "immich_url", immich_url.c_str()) &&
+         cJSON_AddStringToObject(object, "prepared_slide_url", prepared_slide_url.c_str()) &&
          cJSON_AddNumberToObject(object, "slide_seconds", slide_seconds) &&
          cJSON_AddNumberToObject(object, "brightness_day", brightness_day) &&
          cJSON_AddNumberToObject(object, "brightness_night", night_brightness()) &&
@@ -421,19 +437,35 @@ bool Settings::save_playback(const char *json) {
 
 Settings::UpdateResult Settings::update_playback(const cJSON *update) {
   std::string replacement_key;
+  std::string replacement_token;
   const std::lock_guard lock(storage_mutex);
   Settings settings;
   if (!cJSON_IsObject(update) || !load(settings) || !settings.has_immich() || settings.web_password.empty())
     return UpdateResult::Failed;
+  const auto previous_prepared_url = settings.prepared_slide_url;
   if (!read_field(update, "immich_url", settings.immich_url, true) ||
-      !read_field(update, "immich_key", replacement_key, true) || !read_playback(update, settings))
+      !read_field(update, "immich_key", replacement_key, true) ||
+      !read_field(update, "prepared_slide_url", settings.prepared_slide_url, true) ||
+      !read_field(update, "prepared_slide_token", replacement_token, true) || !read_playback(update, settings))
     return UpdateResult::Invalid;
   if (!replacement_key.empty())
     settings.immich_key = replacement_key;
+  if (settings.prepared_slide_url.empty()) {
+    if (!replacement_token.empty())
+      return UpdateResult::Invalid;
+    settings.prepared_slide_token.clear();
+  } else {
+    if (!normalize_http_base(settings.prepared_slide_url) ||
+        (settings.prepared_slide_url != previous_prepared_url && replacement_token.empty()))
+      return UpdateResult::Invalid;
+    if (!replacement_token.empty())
+      settings.prepared_slide_token = std::move(replacement_token);
+  }
   const Json updated(cJSON_CreateObject(), cJSON_Delete);
   if (!updated || !cJSON_AddStringToObject(updated.get(), "ssid", settings.ssid.c_str()) ||
       !cJSON_AddStringToObject(updated.get(), "password", settings.password.c_str()) ||
       !cJSON_AddStringToObject(updated.get(), "immich_key", settings.immich_key.c_str()) ||
+      !cJSON_AddStringToObject(updated.get(), "prepared_slide_token", settings.prepared_slide_token.c_str()) ||
       !cJSON_AddStringToObject(updated.get(), "web_password", settings.web_password.c_str()) ||
       !settings.add_playback_fields(updated.get()))
     return UpdateResult::Failed;

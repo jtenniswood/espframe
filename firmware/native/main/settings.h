@@ -30,6 +30,8 @@ struct Settings {
   std::string password;
   std::string immich_url;
   std::string immich_key;
+  std::string prepared_slide_url;
+  std::string prepared_slide_token;
   std::string web_password;
   uint32_t slide_seconds{15};
   uint8_t brightness_day{64};
@@ -48,6 +50,7 @@ struct Settings {
 
   uint8_t night_brightness() const { return brightness_night.value_or(brightness_day); }
   bool has_immich() const { return !immich_url.empty() && !immich_key.empty(); }
+  bool has_prepared_slides() const { return !prepared_slide_url.empty() && !prepared_slide_token.empty(); }
   bool requires_portrait_pair() const { return portrait_pairing && portrait_pairs_only; }
 
   static constexpr size_t max_json_size = 3072;

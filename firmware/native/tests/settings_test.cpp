@@ -313,4 +313,29 @@ int main() {
   assert(current.read() && current.requires_portrait_pair() && current.portrait_pairing_days == 2);
   assert(Settings::save_playback(R"({"immich_url":"https://photos.test","portrait_pairs_only":false})"));
   assert(current.read() && current.portrait_pairing && !current.requires_portrait_pair());
+
+  assert(!current.has_prepared_slides());
+  const auto before_service = stored;
+  assert(update_configuration(R"({"values":{"prepared_slide_url":"https://prepare.test"}})").error);
+  assert(update_configuration(R"({"values":{"prepared_slide_url":"https://prepare.test","prepared_slide_token":"short"}})").error);
+  assert(update_configuration(R"({"values":{"prepared_slide_url":"https://key@prepare.test","prepared_slide_token":"0123456789abcdef0123456789abcdef"}})").error);
+  assert(stored == before_service);
+  assert(!update_configuration(
+      R"({"values":{"prepared_slide_url":"https://prepare.test/frame/","prepared_slide_token":"0123456789abcdef0123456789abcdef"}})").error);
+  assert(current.read() && current.has_prepared_slides() && current.prepared_slide_url == "https://prepare.test/frame");
+  assert(current.prepared_slide_token == "0123456789abcdef0123456789abcdef");
+  const Json prepared(configuration_snapshot(current), cJSON_Delete);
+  const auto *prepared_values = cJSON_GetObjectItemCaseSensitive(prepared.get(), "values");
+  assert(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(prepared_values, "prepared_slide_token_configured")));
+  assert(!cJSON_HasObjectItem(prepared_values, "prepared_slide_token"));
+  assert(!cJSON_HasObjectItem(prepared.get(), "prepared_slide_token"));
+  const auto configured_service = stored;
+  assert(update_configuration(R"({"values":{"prepared_slide_url":"https://other.test"}})").error);
+  assert(update_configuration(R"({"values":{"prepared_slide_token_configured":false}})").error);
+  assert(update_configuration(R"({"values":{"prepared_slide_token":"new token 0123456789abcdef0123456789abcdef"}})").error);
+  assert(stored == configured_service);
+  assert(!update_configuration(R"({"values":{"prepared_slide_url":"https://prepare.test/frame/","brightness_day":58}})").error);
+  assert(current.read() && current.has_prepared_slides() && current.brightness_day == 58);
+  assert(!update_configuration(R"({"values":{"prepared_slide_url":""}})").error);
+  assert(current.read() && !current.has_prepared_slides() && current.prepared_slide_token.empty());
 }

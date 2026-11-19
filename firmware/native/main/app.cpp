@@ -238,6 +238,10 @@ class SlideLoader {
         this->settings_.portrait_pairing = this->settings_.portrait_pairs_only = true;
         this->settings_.portrait_pairing_days = 2;
         this->settings_.display_mode = DisplayMode::Fit;
+        if constexpr (SWIPE_TRIAL_REPLAY_PREPARED) {
+          this->settings_.prepared_slide_url = trial_replay_origin;
+          this->settings_.prepared_slide_token = replay_slide_token;
+        }
       }
       this->live_ = true;
     } else {
@@ -398,7 +402,8 @@ void run(void *) {
   PixelPosition last_inside = -1;
   bool backlight_ready = false;
   bool user_motion = false;
-  std::optional<SlideIndex> preparing;
+  // Slide zero is the startup scene, so only negative indices mean no job.
+  SlideIndex preparing = -1;
   static TraceLogger trace;
   MotionEpoch motion_epoch;
   MotionStamp submitted_stamp;
@@ -411,7 +416,7 @@ void run(void *) {
   const auto submit_frame = [&](PixelPosition position, bool moving = true) {
     display.submit(position);
     if constexpr (capture_motion)
-      submitted_stamp = moving ? motion_epoch.stamp(preparing.has_value()) : MotionStamp{};
+      submitted_stamp = moving ? motion_epoch.stamp(preparing >= 0) : MotionStamp{};
   };
   SlideIndex first_photo = 1;
   SlideIndex next_photo = 1;
@@ -479,7 +484,7 @@ void run(void *) {
       first_photo = completion.first_photo;
       next_photo = completion.next_photo;
       memories_status = completion.memories_status;
-      preparing.reset();
+      preparing = -1;
     }
     const auto center = swipe.settled();
     prefetch.moved_to(center);
@@ -595,8 +600,8 @@ void run(void *) {
                   (user_motion && (!swipe.idle() || swipe.position() != display.presented_position())));
     if (live && !trial_fixtures)
       loader.defer_pixel_work(user_motion && prefetch.can_defer_pixel_work({ready_first, ready_last}));
-    if (preparing) {
-      if (const auto wanted = prefetch.requested(); wanted && eligible(*wanted) && prefetch.can_yield(*preparing, *wanted))
+    if (preparing >= 0) {
+      if (const auto wanted = prefetch.requested(); wanted && eligible(*wanted) && prefetch.can_yield(preparing, *wanted))
         loader.yield_to_swipe();
     } else if (!blend.pending()) {
       // Until PPA finishes, its input slides must stay readable even if a
@@ -745,7 +750,7 @@ void run(void *) {
         if constexpr (capture_motion) {
           if (motion != 0)
             first_motion = {motion, input.contact_started_us(), motion_render_us,
-                            ready_at_motion(position, {ready_first, ready_last}, available), preparing.has_value(),
+                            ready_at_motion(position, {ready_first, ready_last}, available), preparing >= 0,
                             started_submit != 0 ? started_render + motion_render_us - started_submit : 0};
         }
         last_submitted = position;
@@ -760,7 +765,7 @@ void run(void *) {
 
 void start_player() {
   if constexpr (esphome_trial) {
-    constexpr unsigned trial_seconds = trial_fixtures ? 120 : trial_immich ? 300 : 180;
+    constexpr unsigned trial_seconds = trial_fixtures || !trial_replay_origin.empty() ? 120 : trial_immich ? 300 : 180;
     if (!start_esphome_trial(trial_seconds))
       return;
   } else {

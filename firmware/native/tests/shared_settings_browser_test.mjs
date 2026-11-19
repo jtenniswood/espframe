@@ -36,6 +36,8 @@ const testScript = `
     check(field('brightness_day').value === '74', 'Daytime brightness was replaced')
     check(!field('brightness_night') && !field('albums_enabled'), 'Unsupported settings were shown')
     check(field('api_key').type === 'password' && !field('api_key').value, 'The key was shown')
+    check(field('prepared_slide_url').value === 'https://prepare.test', 'The service URL was lost')
+    check(field('prepared_slide_token').type === 'password' && !field('prepared_slide_token').value, 'Service token was shown')
     check(field('portrait_pairing').checked && !field('portrait_pairs_only').disabled,
       'Paired-portrait setting is unavailable while pairing is on')
     check(field('portrait_pairing_range').value === 'Within 2 Days' && !field('portrait_pairing_range').disabled,
@@ -61,6 +63,9 @@ const testScript = `
     check(field('interval').value === '30 seconds', 'A rejected save lost pending edits')
     edit('brightness_day', '60')
     edit('api_key', 'replacement+value&1')
+    edit('prepared_slide_url', 'https://new-prepare.test')
+    check(field('prepared_slide_token').required, 'Changing the service URL did not require a new token')
+    edit('prepared_slide_token', 'service-token-for-browser-regression-test')
     edit('portrait_pairing_range', 'Within 1 Day')
     field('portrait_pairs_only').checked = true
     field('portrait_pairs_only').dispatchEvent(new Event('change', {bubbles: true}))
@@ -77,6 +82,8 @@ const testScript = `
     check(reloaded.elements.namedItem('brightness_day').value === '60', 'New brightness was not read back')
     check(reloaded.elements.namedItem('interval').value === '30 seconds', 'New interval was not read back')
     check(!reloaded.elements.namedItem('api_key').value, 'The replacement key remained in the form')
+    check(reloaded.elements.namedItem('prepared_slide_url').value === 'https://new-prepare.test', 'The new service URL was not read back')
+    check(!reloaded.elements.namedItem('prepared_slide_token').value, 'The service token remained in the form')
     const reloadedPairing = reloaded.elements.namedItem('portrait_pairing')
     const reloadedPairsOnly = reloaded.elements.namedItem('portrait_pairs_only')
     const reloadedRange = reloaded.elements.namedItem('portrait_pairing_range')
@@ -101,6 +108,7 @@ const snapshot = {
     immich_url: 'https://photos.test/api', interval: '25 seconds', display_mode: 'Fit', brightness_day: 74,
     brightness_night: 48, screen_rotation: '180', show_clock: false, timezone: 'Europe/London (GMT+0)',
     portrait_pairing: true, portrait_pairs_only: false, portrait_pairing_range: 'Within 2 Days',
+    prepared_slide_url: 'https://prepare.test', prepared_slide_token_configured: true,
   },
 }
 const assets = {
@@ -133,7 +141,7 @@ const server = createServer(async (request, response) => {
     if (requests.length === 1) {
       json(422, { error: 'invalid_value', field: 'brightness_day' })
     } else {
-      const { api_key, ...settings } = post.values
+      const { api_key, prepared_slide_token, ...settings } = post.values
       Object.assign(snapshot.values, settings)
       disconnected = true
       json(200, { api_version: 1, status: 'accepted', updated: Object.keys(post.values).length })
@@ -168,6 +176,7 @@ try {
   })
   assert.match(page, /data-test-result="passed"/, page.match(/data-test-result="[^"]*"/)?.[0] || errors)
   assert.doesNotMatch(page, /replacement\+value/)
+  assert.doesNotMatch(page, /service-token-for-browser-regression-test/)
   assert.deepEqual(requests, [
     { api_version: 1, reset_epoch: 0, values: { interval: '30 seconds', brightness_day: 45 } },
     {
@@ -175,6 +184,7 @@ try {
       values: {
         api_key: 'replacement+value&1', interval: '30 seconds', brightness_day: 60,
         portrait_pairing: false, portrait_pairs_only: true, portrait_pairing_range: 'Within 1 Day',
+        prepared_slide_url: 'https://new-prepare.test', prepared_slide_token: 'service-token-for-browser-regression-test',
       },
     },
   ])

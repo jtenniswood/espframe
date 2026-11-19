@@ -340,6 +340,7 @@
   }
   var nativeSettingGroups = [
     ["Immich connection", [["immich_url", "Immich server URL"], ["api_key", "Replacement Immich API key"]]],
+    ["Photo preparation service", [["prepared_slide_url", "Service URL"], ["prepared_slide_token", "Service access token"]]],
     ["Playback", [
       ["interval", "Time per photo"],
       ["display_mode", "Photo framing"],
@@ -379,6 +380,9 @@
       ["schedule_wake_timeout", "Wake duration (seconds)"]
     ]]
   ];
+  function nativeSecret(key) {
+    return key === "api_key" || key === "prepared_slide_token";
+  }
   function nativeSettingControl(key, value) {
     var _a, _b;
     const spec = PRODUCT_SETTINGS[key];
@@ -406,16 +410,18 @@
       control.required = true;
       control.value = String(value);
     } else {
-      control.type = key === "immich_url" ? "url" : key === "api_key" ? "password" : key === "date_from" || key === "date_to" ? "date" : "text";
+      const url = key === "immich_url" || key === "prepared_slide_url";
+      control.type = url ? "url" : nativeSecret(key) ? "password" : key === "date_from" || key === "date_to" ? "date" : "text";
       control.value = value;
-      if (key === "immich_url" || key === "api_key") control.maxLength = 256;
+      if (url || nativeSecret(key)) control.maxLength = 256;
       if (key === "immich_url") control.required = true;
-      if (key === "api_key") control.autocomplete = "new-password";
+      if (nativeSecret(key)) control.autocomplete = "new-password";
+      if (key === "prepared_slide_token") control.minLength = 32;
     }
     return control;
   }
   function nativeSettingsForm(snapshot) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     const form = el("form");
     form.id = "native-settings";
     const fields = el("div");
@@ -425,17 +431,20 @@
     for (const [title, definitions] of nativeSettingGroups) {
       const body = el("div");
       for (const [key, label] of definitions) {
-        if (unavailable.has(key) || key !== "api_key" && !Object.prototype.hasOwnProperty.call(snapshot.values, key)) continue;
-        const value = key === "api_key" ? "" : snapshot.values[key];
+        const snapshotKey = key === "prepared_slide_token" ? "prepared_slide_url" : key;
+        if (unavailable.has(key) || key !== "api_key" && !Object.prototype.hasOwnProperty.call(snapshot.values, snapshotKey)) continue;
+        const value = nativeSecret(key) ? "" : snapshot.values[key];
         const control = nativeSettingControl(key, value);
         control.name = key;
         const row = field(label);
         if (typeof value === "boolean") {
           row.querySelector("label").prepend(control, " ");
-        } else if (key === "api_key") {
+        } else if (nativeSecret(key) || key === "prepared_slide_url") {
           const hint = el("small");
-          hint.id = "native-key-hint";
-          hint.textContent = snapshot.api_key_configured ? "Leave blank to keep the current key." : "";
+          hint.id = `native-${key}-hint`;
+          if (key === "api_key") hint.textContent = snapshot.api_key_configured ? "Leave blank to keep the current key." : "";
+          if (key === "prepared_slide_url") hint.textContent = "Optional. Clear the URL to use direct Immich previews exclusively.";
+          if (key === "prepared_slide_token") hint.textContent = snapshot.values.prepared_slide_token_configured ? "Leave blank to keep the current token. Enter a new token if you change the service URL." : "Enter the token from your preparation service.";
           control.setAttribute("aria-describedby", hint.id);
           row.append(control, hint);
         } else {
@@ -465,11 +474,17 @@
     }
     const pairing = (_a = controls.get("portrait_pairing")) == null ? void 0 : _a.element;
     const pairingOptions = [(_b = controls.get("portrait_pairs_only")) == null ? void 0 : _b.element, (_c = controls.get("portrait_pairing_range")) == null ? void 0 : _c.element];
+    const preparedUrl = controls.get("prepared_slide_url");
+    const preparedToken = (_d = controls.get("prepared_slide_token")) == null ? void 0 : _d.element;
     const noteChange = () => {
       if (pairing instanceof HTMLInputElement) {
         for (const option of pairingOptions) {
           if (option) option.disabled = saving || !pairing.checked;
         }
+      }
+      if (preparedToken instanceof HTMLInputElement && preparedUrl) {
+        const url = preparedUrl.element.value.trim().replace(/\/+$/, "");
+        preparedToken.required = url !== "" && (!snapshot.values.prepared_slide_token_configured || url !== preparedUrl.value);
       }
       save.disabled = saving || Object.keys(changes()).length === 0;
     };
@@ -501,8 +516,9 @@
         setSaving(false);
         return;
       }
-      const secret = controls.get("api_key");
-      if (secret) secret.element.value = "";
+      controls.forEach(({ element }, key) => {
+        if (nativeSecret(key)) element.value = "";
+      });
       setStatus(status, "Settings saved. The frame is restarting\u2026");
       await delayMs(2500);
       for (let attempt = 0; attempt < 5; attempt++) {

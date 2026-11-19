@@ -110,7 +110,9 @@ cJSON *configuration_snapshot(const Settings &settings) {
   auto *values = cJSON_AddObjectToObject(body.get(), "values");
   auto *unavailable = cJSON_AddArrayToObject(body.get(), "unavailable");
   if (!values || !unavailable ||
-      !cJSON_AddStringToObject(values, "interval", interval_label(settings.slide_seconds).c_str()))
+      !cJSON_AddStringToObject(values, "interval", interval_label(settings.slide_seconds).c_str()) ||
+      !cJSON_AddStringToObject(values, "prepared_slide_url", settings.prepared_slide_url.c_str()) ||
+      !cJSON_AddBoolToObject(values, "prepared_slide_token_configured", settings.has_prepared_slides()))
     return nullptr;
   for (const auto &field : contract::CONFIGURATION_FIELDS) {
     if (field.secret || std::string_view(field.key) == "interval")
@@ -181,6 +183,15 @@ ConfigurationUpdate update_configuration(const char *json) {
   size_t count = 0;
   const cJSON *value;
   cJSON_ArrayForEach(value, values) {
+    const std::string_view requested_key(value->string);
+    if (requested_key == "prepared_slide_url" || requested_key == "prepared_slide_token") {
+      if (!cJSON_IsString(value) || cJSON_HasObjectItem(update.get(), value->string))
+        return {"422 Unprocessable Entity", "invalid_value", value->string};
+      if (!add_copy(update.get(), value->string, value))
+        return {"500 Internal Server Error", "settings_unavailable", {}};
+      ++count;
+      continue;
+    }
     const auto *field = find_field(value->string);
     if (!field)
       return {"422 Unprocessable Entity", "unknown_field", value->string};
