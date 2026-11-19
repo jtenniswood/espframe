@@ -71,9 +71,10 @@ void expect_glyph(const std::vector<uint16_t> &frame, const std::vector<uint8_t>
   bool found_opaque = false;
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
-      const auto value = atlas[(glyph * width * height + y * width + x) / 2];
-      if ((x % 2 != 0 ? value & 15 : value >> 4) == 15) {
-        const int row = ClockOverlay::first_row + place * width + x - (place > 2 ? width / 2 : 0);
+      const auto value = atlas[(glyph * width * height + x * height + y) / 2];
+      if ((y % 2 != 0 ? value & 15 : value >> 4) == 15) {
+        const int row = ClockOverlay::first_row + place * ClockOverlay::digit_advance + x -
+                        (place > 2 ? ClockOverlay::digit_advance - ClockOverlay::colon_advance : 0);
         const int column = ClockOverlay::first_column + ClockOverlay::columns - 1 - y;
         assert(frame[row * panel_width + column] == 0xffff);
         found_opaque = true;

@@ -75,14 +75,22 @@ void ClockOverlay::draw(uint16_t *frame, bool remember_underlay) {
         continue;
       const int digit = ch == ':' ? 10 : ch - '0';
       const auto *mask = atlas_ + digit * glyph_width * glyph_height / 2;
-      const int advance = ch == ':' ? glyph_width / 2 : glyph_width;
+      const int advance = ch == ':' ? colon_advance : digit_advance;
       for (int x = 0; x < advance; ++x) {
         auto *column = frame + panel_offset(left + x, first_column + columns - 1 - layer, rotation_);
-        for (int y = 0; y < glyph_height; ++y) {
-          const auto packed = mask[y * (glyph_width / 2) + x / 2];
-          const unsigned opacity = (x % 2 ? packed & 15 : packed >> 4) * (layer == 0 ? 17 : 11);
-          if (opacity)
-            column[y * column_step] = mix_rgb565(column[y * column_step], color, opacity);
+        const auto *ink = mask + x * (glyph_height / 2);
+        for (int pair = 0; pair < glyph_height / 2; ++pair) {
+          const auto packed = ink[pair];
+          if (packed == 0)
+            continue;
+          for (int half = 0; half < 2; ++half) {
+            const unsigned alpha = half == 0 ? packed >> 4 : packed & 15;
+            if (alpha == 0)
+              continue;
+            const unsigned opacity = layer == 0 ? alpha * 17 : (alpha * 17 + 2) / 5;
+            auto &pixel = column[(2 * pair + half) * column_step];
+            pixel = opacity == 255 ? color : mix_rgb565(pixel, color, opacity);
+          }
         }
       }
       left += advance;

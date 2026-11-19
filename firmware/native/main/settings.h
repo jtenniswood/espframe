@@ -46,6 +46,7 @@ struct Settings {
   bool portrait_pairs_only{};
   uint8_t portrait_pairing_days{};
   DisplayMode display_mode{DisplayMode::Fit};
+  PairFraming pair_framing{PairFraming::FollowPhotos};
   PhotoOrientation photo_orientation{PhotoOrientation::Any};
   ScreenRotation screen_rotation{ScreenRotation::Normal};
   PhotoSource photo_source;
@@ -61,6 +62,14 @@ struct Settings {
   bool has_prepared_slides() const { return !prepared_slide_url.empty() && !prepared_slide_token.empty(); }
   bool pairs_portraits() const { return portrait_pairing && photo_orientation != PhotoOrientation::Landscape; }
   bool requires_portrait_pair() const { return pairs_portraits() && portrait_pairs_only; }
+  DisplayMode pair_display_mode() const {
+    switch (pair_framing) {
+      case PairFraming::Fit: return DisplayMode::Fit;
+      case PairFraming::Fill: return DisplayMode::Fill;
+      case PairFraming::FollowPhotos: return display_mode;
+    }
+    return display_mode;
+  }
 
   static constexpr size_t max_json_size = 6144;
   bool read();

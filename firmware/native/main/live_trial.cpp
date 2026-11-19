@@ -201,6 +201,29 @@ bool read_trial_scope(nvs_handle_t storage, Settings &settings) {
   return true;
 }
 
+template <class T>
+T read_presentation_preference(nvs_handle_t storage, const char *key, T fallback) {
+  auto value = fallback;
+  return read_optional_preference(storage, key, value) ? value : fallback;
+}
+
+void read_trial_presentation(nvs_handle_t storage, Settings &settings) {
+  // Read the display entities from the ESPHome 2026.11 V1 build.
+  settings.clock.show = read_presentation_preference<uint8_t>(storage, "2773437584", 1) != 0;
+  settings.clock.format = read_presentation_preference<uint32_t>(storage, "350654562", 0) == 1 ? "12 Hour" : "24 Hour";
+  const auto timezone = read_presentation_preference<uint32_t>(storage, "3832611266", 43);
+  const auto zones = clock_zones();
+  if (timezone < zones.size())
+    settings.clock.timezone = zones[timezone].option;
+  settings.metadata.show_date = read_presentation_preference<uint8_t>(storage, "2745824589", 1) != 0;
+  settings.metadata.show_location = read_presentation_preference<uint8_t>(storage, "3081973308", 1) != 0;
+  settings.metadata.relative = read_presentation_preference<uint32_t>(storage, "3825872665", 1) == 0;
+  settings.metadata.month_before_day = read_presentation_preference<uint32_t>(storage, "1950842049", 0) == 1;
+  settings.display_mode = read_presentation_preference<uint32_t>(storage, "3596795592", 0) == 1 ? DisplayMode::Fit
+                                                                                                : DisplayMode::Fill;
+  settings.pair_framing = PairFraming::Fill;
+}
+
 esp_err_t status(httpd_req_t *request) {
   const auto &network = *static_cast<const NativeNetwork *>(request->user_ctx);
   const auto prepared = prepared_slides.load(std::memory_order_acquire);
@@ -285,6 +308,10 @@ bool read_live_trial_credentials(Settings &settings) {
                      read_preference(storage, esphome_immich_url_key, url) &&
                      read_preference(storage, esphome_immich_api_key, key) &&
                      read_trial_scope(storage, settings);
+  if constexpr (!SWIPE_TRIAL_BENCHMARK) {
+    if (found)
+      read_trial_presentation(storage, settings);
+  }
   nvs_close(storage);
   const auto wifi = read_trial_station(station);
   const auto immich_url = read_trial_preference(url);

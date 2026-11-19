@@ -39,6 +39,7 @@ idf_component_register(
                    "../installer/setup.css" "../installer/photo_source.mjs"
                    "../installer/backup.mjs"
     EMBED_FILES "../assets/clock_glyphs.bin" "../assets/recovery_glyphs.bin" "../assets/caption_glyphs.bin"
+                "../assets/date_glyphs.bin"
 )
 
 set(device_catalog "${repo_root}/product/contract/devices.json")

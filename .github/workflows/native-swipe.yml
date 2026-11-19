@@ -120,7 +120,7 @@ jobs:
           "$RUNNER_TEMP/photo-history-test"
           c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Icomponents/espframe \
             firmware/native/main/photo_caption.cpp firmware/native/tests/photo_caption_test.cpp -o "$RUNNER_TEMP/photo-caption-test"
-          "$RUNNER_TEMP/photo-caption-test" firmware/native/assets/caption_glyphs.bin
+          "$RUNNER_TEMP/photo-caption-test" firmware/native/assets/caption_glyphs.bin firmware/native/assets/date_glyphs.bin
           c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Icomponents/espframe \
             firmware/native/main/screen_tone.cpp firmware/native/tests/screen_tone_test.cpp -o "$RUNNER_TEMP/screen-tone-test"
           "$RUNNER_TEMP/screen-tone-test"

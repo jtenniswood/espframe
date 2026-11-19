@@ -11,7 +11,8 @@ namespace espframe::native {
 
 std::string photo_caption_date(const PhotoMetadata &metadata, const PhotoMetadataSettings &settings,
                                const std::optional<std::tm> &local);
-void paint_photo_caption(uint16_t *frame, std::span<const uint8_t> atlas, const PhotoMetadata &metadata,
+void paint_photo_caption(uint16_t *frame, std::span<const uint8_t> locations, std::span<const uint8_t> dates,
+                         const PhotoMetadata &metadata,
                          const PhotoMetadataSettings &settings, ScreenRotation rotation,
                          const std::optional<std::tm> &local = {});
 

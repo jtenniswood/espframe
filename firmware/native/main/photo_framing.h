@@ -5,8 +5,18 @@
 namespace espframe::native {
 
 enum class DisplayMode { Fit, Fill };
+enum class PairFraming { FollowPhotos, Fit, Fill };
 
 inline const char *display_mode_name(DisplayMode mode) { return mode == DisplayMode::Fill ? "Fill" : "Fit"; }
+
+inline const char *pair_framing_name(PairFraming choice) {
+  switch (choice) {
+    case PairFraming::Fit: return "Fit";
+    case PairFraming::Fill: return "Fill";
+    case PairFraming::FollowPhotos: return "Follow photo framing";
+  }
+  return "Follow photo framing";
+}
 
 struct PhotoRect {
   int x;

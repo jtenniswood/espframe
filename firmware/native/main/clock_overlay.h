@@ -17,12 +17,14 @@ class ClockOverlay {
   ClockOverlay(const ClockOverlay &) = delete;
   ClockOverlay &operator=(const ClockOverlay &) = delete;
 
-  static constexpr int glyph_width = 36;
-  static constexpr int glyph_height = 56;
+  static constexpr int glyph_width = 88;
+  static constexpr int glyph_height = 116;
+  static constexpr int digit_advance = 86;
+  static constexpr int colon_advance = 37;
   static constexpr size_t atlas_size = 11 * glyph_width * glyph_height / 2;
-  static constexpr int first_row = 44;
-  static constexpr int first_column = 20;
-  static constexpr int rows = 5 * glyph_width + 2;
+  static constexpr int first_row = 45;
+  static constexpr int first_column = 58;
+  static constexpr int rows = 4 * digit_advance + colon_advance + 4;
   static constexpr int columns = glyph_height + 2;
 
   bool init(const ClockSettings &settings, const uint8_t *atlas, bool snapshots,

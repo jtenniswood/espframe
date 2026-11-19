@@ -161,6 +161,7 @@ for (const source of ['all', 'favorites', 'album', 'memories']) {
       immich_url: 'https://photos.test', photo_source: source, portrait_pairing: duration % 60 !== 0,
       portrait_pairs_only: duration !== 2,
       portrait_pairing_range: duration % 60 ? 'Within 1 Day' : 'Within 2 Days',
+      portrait_pair_framing: duration % 60 ? 'Fill' : 'Follow photo framing',
       slide_seconds: duration, display_mode: duration % 60 ? 'Fit' : 'Fill',
       brightness_day: duration % 60 ? 10 : 100,
       brightness_night: 36,

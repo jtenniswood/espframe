@@ -385,15 +385,23 @@ bool read_capture_dates(const cJSON *root, CaptureDateSettings &dates) {
 
 bool read_pairing(const cJSON *root, Settings &settings) {
   std::string range{portrait_pairing_ranges[settings.portrait_pairing_days]};
+  std::string framing{pair_framing_name(settings.pair_framing)};
   if (!read_flag(root, "portrait_pairing", settings.portrait_pairing) ||
       !read_flag(root, "portrait_pairs_only", settings.portrait_pairs_only) ||
-      !read_field(root, "portrait_pairing_range", range, true))
+      !read_field(root, "portrait_pairing_range", range, true) ||
+      !read_field(root, "portrait_pair_framing", framing, true))
     return false;
   const auto match = std::find(portrait_pairing_ranges.begin(), portrait_pairing_ranges.end(), range);
   if (match == portrait_pairing_ranges.end())
     return false;
   settings.portrait_pairing_days = std::distance(portrait_pairing_ranges.begin(), match);
-  return true;
+  for (auto choice : {PairFraming::FollowPhotos, PairFraming::Fill, PairFraming::Fit}) {
+    if (framing == pair_framing_name(choice)) {
+      settings.pair_framing = choice;
+      return true;
+    }
+  }
+  return false;
 }
 
 bool read_playback(const cJSON *root, Settings &settings) {
@@ -570,6 +578,9 @@ bool Settings::save(const char *json, std::optional<uint32_t> expected_epoch) {
   if (!cJSON_HasObjectItem(document.get(), "frame_name") && !saved.frame_name.empty() &&
       !cJSON_AddStringToObject(document.get(), "frame_name", saved.frame_name.c_str()))
     return false;
+  if (!cJSON_HasObjectItem(document.get(), "portrait_pair_framing") && saved.pair_framing != PairFraming::FollowPhotos &&
+      !cJSON_AddStringToObject(document.get(), "portrait_pair_framing", pair_framing_name(saved.pair_framing)))
+    return false;
   Settings candidate;
   return put_epoch(document.get(), epoch) &&
          parse_all(document.get(), candidate) && candidate.has_immich() && write_document(document.get());
@@ -614,6 +625,7 @@ bool Settings::add_playback_fields(cJSON *object) const {
          cJSON_AddBoolToObject(object, "portrait_pairing", portrait_pairing) &&
          cJSON_AddBoolToObject(object, "portrait_pairs_only", portrait_pairs_only) &&
          cJSON_AddStringToObject(object, "portrait_pairing_range", portrait_pairing_ranges[portrait_pairing_days].data()) &&
+         cJSON_AddStringToObject(object, "portrait_pair_framing", pair_framing_name(pair_framing)) &&
          cJSON_AddStringToObject(object, "display_mode", display_mode_name(display_mode)) &&
          cJSON_AddStringToObject(object, "photo_orientation", photo_orientation_name(photo_orientation)) &&
          cJSON_AddStringToObject(object, "screen_rotation", screen_rotation_name(screen_rotation)) &&

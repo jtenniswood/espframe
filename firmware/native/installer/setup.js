@@ -143,6 +143,7 @@ if ('serial' in navigator) {
     data.portrait_pairing = form.elements.portrait_pairing.checked
     data.portrait_pairs_only = form.elements.portrait_pairs_only.checked
     data.portrait_pairing_range = form.elements.portrait_pairing_range.value
+    data.portrait_pair_framing = form.elements.portrait_pair_framing.value
     data.show_clock = form.elements.show_clock.checked
     data.memories_fallback = form.elements.memories_fallback.checked
     data.photo_metadata_date_enabled = form.elements.photo_metadata_date_enabled.checked

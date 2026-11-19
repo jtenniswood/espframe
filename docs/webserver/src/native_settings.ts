@@ -210,6 +210,7 @@ const nativeSettingGroups: [string, [string, string][]][] = [
   ["Playback", [
     ["interval", "Time per photo"], ["photo_orientation", "Display photos"], ["display_mode", "Photo framing"],
     ["portrait_pairing", "Pair portrait photos"],
+    ["portrait_pair_framing", "Portrait pair framing"],
     ["portrait_pairs_only", "Show paired portraits only"],
     ["portrait_pairing_range", "Pairing range"],
   ]],
@@ -241,13 +242,17 @@ function nativeSecret(key: string): boolean {
 
 function nativeSettingControl(key: string, value: ConfigurationValue): HTMLInputElement | HTMLSelectElement {
   const spec = PRODUCT_SETTINGS[key];
-  const options = key === "timezone" ? TIMEZONES.slice() : (spec?.options?.slice() ?? []);
+  const options = key === "timezone" ? TIMEZONES.slice() : key === "portrait_pair_framing"
+    ? ["Follow photo framing", "Fill", "Fit"] : (spec?.options?.slice() ?? []);
   if (options.length) {
     const current = String(value);
     if (!options.includes(current)) options.push(current);
     return selectFromOptions(options, current, function () {}, function (option) {
       if (key === "timezone") return (TIMEZONE_LABELS[option] || option).replace(/_/g, " ");
       if (key === "display_mode") return option === "Fit" ? "Show full image" : "Crop to fit";
+      if (key === "portrait_pair_framing" && option !== "Follow photo framing") {
+        return option === "Fill" ? "Fill each half" : "Fit both full photos";
+      }
       if (key === "screen_rotation") return option === "180" ? "Upside down (180°)" : "Normal";
       return option;
     });
@@ -345,7 +350,8 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot): HTMLFormElement {
     return changed;
   }
   const pairing = controls.get("portrait_pairing")?.element;
-  const pairingOptions = [controls.get("portrait_pairs_only")?.element, controls.get("portrait_pairing_range")?.element];
+  const pairingOptions = [controls.get("portrait_pairs_only")?.element, controls.get("portrait_pairing_range")?.element,
+    controls.get("portrait_pair_framing")?.element];
   const preparedUrl = controls.get("prepared_slide_url");
   const preparedToken = controls.get("prepared_slide_token")?.element;
   const nameInput = controls.get("frame_name")?.element;

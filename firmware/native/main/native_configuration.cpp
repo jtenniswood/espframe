@@ -185,6 +185,7 @@ cJSON *configuration_snapshot(const Settings &settings) {
   if (!values || !unavailable ||
       !cJSON_AddStringToObject(values, "interval", interval_label(settings.slide_seconds).c_str()) ||
       !cJSON_AddStringToObject(values, "frame_name", settings.frame_name.c_str()) ||
+      !cJSON_AddStringToObject(values, "portrait_pair_framing", pair_framing_name(settings.pair_framing)) ||
       !cJSON_AddStringToObject(values, "prepared_slide_url", settings.prepared_slide_url.c_str()) ||
       !cJSON_AddBoolToObject(values, "prepared_slide_token_configured", settings.has_prepared_slides()))
     return nullptr;
@@ -293,7 +294,8 @@ ConfigurationUpdate update_configuration(const char *json) {
       ++count;
       continue;
     }
-    if (requested_key == "prepared_slide_url" || requested_key == "prepared_slide_token") {
+    if (requested_key == "prepared_slide_url" || requested_key == "prepared_slide_token" ||
+        requested_key == "portrait_pair_framing") {
       if (!cJSON_IsString(value) || cJSON_HasObjectItem(update.get(), value->string))
         return {"422 Unprocessable Entity", "invalid_value", value->string};
       if (!add_copy(update.get(), value->string, value))

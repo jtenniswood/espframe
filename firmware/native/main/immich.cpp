@@ -30,6 +30,8 @@ constexpr int64_t pairing_time_us = 1'500'000;
 constexpr unsigned pairing_searches_per_prepare = 4;
 extern const uint8_t caption_atlas[] asm("_binary_caption_glyphs_bin_start");
 extern const uint8_t caption_atlas_end[] asm("_binary_caption_glyphs_bin_end");
+extern const uint8_t date_atlas[] asm("_binary_date_glyphs_bin_start");
+extern const uint8_t date_atlas_end[] asm("_binary_date_glyphs_bin_end");
 
 class TrialStageTimer {
  public:
@@ -406,12 +408,12 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
     return PreviewStatus::Retry;
   const bool optional = deadline_us != 0;
   const auto orientation = for_pair ? PhotoOrientation::Portrait : this->settings_.photo_orientation;
+  const auto framing = for_pair ? this->settings_.pair_display_mode() : this->settings_.display_mode;
   const auto decode = [&](const uint8_t *data, size_t length) {
     int64_t started_us = 0;
     if constexpr (SWIPE_TRIAL_IMMICH)
       started_us = esp_timer_get_time();
-    const auto result = preview.decode(data, length, for_pair, &this->jpeg_, this->settings_.display_mode,
-                                       this->checkpoint_, orientation);
+    const auto result = preview.decode(data, length, for_pair, &this->jpeg_, framing, this->checkpoint_, orientation);
     if constexpr (SWIPE_TRIAL_IMMICH) {
       const auto elapsed = static_cast<uint32_t>(esp_timer_get_time() - started_us);
       auto stage = TrialPreparationStage::RejectedPreview;
@@ -502,8 +504,10 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
   std::string url(settings_.prepared_slide_url);
   url += "/v1/slides/";
   url += frame.primary.data();
-  url += settings_.display_mode == DisplayMode::Fill ? "?mode=fill" : "?mode=fit";
-  if (frame.companion[0] != '\0') {
+  const bool paired = frame.companion[0] != '\0';
+  const auto framing = paired ? settings_.pair_display_mode() : settings_.display_mode;
+  url += framing == DisplayMode::Fill ? "?mode=fill" : "?mode=fit";
+  if (paired) {
     url += "&companion=";
     url += frame.companion.data();
   }
@@ -626,7 +630,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     }
 
     composition.emplace(TrialPreparationStage::Composition);
-    if (!primary.render(panel, frame.companion[0] == '\0' ? nullptr : &companion, this->settings_.display_mode,
+    if (!primary.render(panel, frame.companion[0] == '\0' ? nullptr : &companion, this->settings_.pair_display_mode(),
                         this->settings_.screen_rotation, this->checkpoint_))
       return retry_frame();
   } else {
@@ -641,7 +645,8 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   if (!tint_photo({panel, pixel_count}, tone.warmth(night_progress), this->checkpoint_) || !this->checkpoint_())
     return retry_frame();
   paint_photo_caption(panel, {caption_atlas, static_cast<size_t>(caption_atlas_end - caption_atlas)},
-                      frame.metadata, captions, this->settings_.screen_rotation, local);
+                      {date_atlas, static_cast<size_t>(date_atlas_end - date_atlas)}, frame.metadata, captions,
+                      this->settings_.screen_rotation, local);
   if (this->cancelled_)
     return retry_frame();
   if (!remembered && frame.companion[0] != '\0')

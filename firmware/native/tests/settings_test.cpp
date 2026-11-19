@@ -548,6 +548,16 @@ int main() {
   assert(current.read() && current.frame_name == named.name);
   assert(Settings::save(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","web_password":"new-settings"})"));
   assert(current.read() && current.frame_name == named.name);  // Older USB setup omits the name.
+  assert(current.pair_framing == espframe::native::PairFraming::FollowPhotos && current.pair_display_mode() == DisplayMode::Fit);
+  assert(!update_configuration(R"({"values":{"display_mode":"Fit","portrait_pair_framing":"Fill"}})").error);
+  assert(current.read() && current.display_mode == DisplayMode::Fit && current.pair_display_mode() == DisplayMode::Fill);
+  const auto prior_framing = stored;
+  assert(update_configuration(R"({"values":{"portrait_pair_framing":"Stretch"}})").error);
+  assert(stored == prior_framing);
+  assert(!update_configuration(R"({"values":{"display_mode":"Fill","portrait_pair_framing":"Fit"}})").error);
+  assert(current.read() && current.display_mode == DisplayMode::Fill && current.pair_display_mode() == DisplayMode::Fit);
+  assert(!update_configuration(R"({"values":{"portrait_pair_framing":"Follow photo framing"}})").error);
+  assert(current.read() && current.pair_display_mode() == DisplayMode::Fill);
   const Json named_snapshot(configuration_snapshot(current), cJSON_Delete);
   assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(
       cJSON_GetObjectItemCaseSensitive(named_snapshot.get(), "values"), "frame_name")) == std::string_view(named.name));

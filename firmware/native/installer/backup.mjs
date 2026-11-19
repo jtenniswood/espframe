@@ -4,6 +4,7 @@ const legacySources = ['All Photos', 'Album', 'Favorites', 'Person', 'Tag', 'Mem
 const groupFlags = { album: 'albums_enabled', person: 'people_enabled', tag: 'tags_enabled' }
 const placeFields = { filter_country: 'country', filter_state: 'state', filter_city: 'city' }
 const displayModes = ['Fill', 'Fit']
+const pairFramings = ['Follow photo framing', ...displayModes]
 const photoOrientations = ['Any', 'Portrait Only', 'Landscape Only']
 const clockFormats = ['24 Hour', '12 Hour']
 const pairingRanges = ['Same Day', 'Within 1 Day', 'Within 2 Days']
@@ -196,6 +197,10 @@ export function readBackup(data) {
     if (displayModes.includes(photos.display_mode)) settings.display_mode = photos.display_mode
     else notices.push('Choose a display mode.')
   }
+  if (own(photos, 'portrait_pair_framing')) {
+    if (pairFramings.includes(photos.portrait_pair_framing)) settings.portrait_pair_framing = photos.portrait_pair_framing
+    else notices.push('Choose how to frame portrait pairs.')
+  }
   if (own(photos, 'orientation') && photos.orientation !== 'Any') {
     if (photoOrientations.includes(photos.orientation)) settings.photo_orientation = photos.orientation
     else {
@@ -286,6 +291,7 @@ export function createBackup(settings, date = new Date()) {
       ...(typeof settings.portrait_pairs_only === 'boolean' ? { portrait_pairs_only: settings.portrait_pairs_only } : {}),
       ...(pairingRanges.includes(settings.portrait_pairing_range) ? { portrait_pairing_range: settings.portrait_pairing_range } : {}),
       ...(displayModes.includes(settings.display_mode) ? { display_mode: settings.display_mode } : {}),
+      ...(pairFramings.includes(settings.portrait_pair_framing) ? { portrait_pair_framing: settings.portrait_pair_framing } : {}),
       ...(photoOrientations.includes(settings.photo_orientation) ? { orientation: settings.photo_orientation } : {}),
     },
     frequency: { interval: formatInterval(settings.slide_seconds) },

@@ -531,6 +531,7 @@
       ["photo_orientation", "Display photos"],
       ["display_mode", "Photo framing"],
       ["portrait_pairing", "Pair portrait photos"],
+      ["portrait_pair_framing", "Portrait pair framing"],
       ["portrait_pairs_only", "Show paired portraits only"],
       ["portrait_pairing_range", "Pairing range"]
     ]],
@@ -572,7 +573,7 @@
   function nativeSettingControl(key, value) {
     var _a, _b;
     const spec = PRODUCT_SETTINGS[key];
-    const options = key === "timezone" ? TIMEZONES.slice() : (_b = (_a = spec == null ? void 0 : spec.options) == null ? void 0 : _a.slice()) != null ? _b : [];
+    const options = key === "timezone" ? TIMEZONES.slice() : key === "portrait_pair_framing" ? ["Follow photo framing", "Fill", "Fit"] : (_b = (_a = spec == null ? void 0 : spec.options) == null ? void 0 : _a.slice()) != null ? _b : [];
     if (options.length) {
       const current = String(value);
       if (!options.includes(current)) options.push(current);
@@ -580,6 +581,9 @@
       }, function(option) {
         if (key === "timezone") return (TIMEZONE_LABELS[option] || option).replace(/_/g, " ");
         if (key === "display_mode") return option === "Fit" ? "Show full image" : "Crop to fit";
+        if (key === "portrait_pair_framing" && option !== "Follow photo framing") {
+          return option === "Fill" ? "Fill each half" : "Fit both full photos";
+        }
         if (key === "screen_rotation") return option === "180" ? "Upside down (180\xB0)" : "Normal";
         return option;
       });
@@ -611,7 +615,7 @@
     return control;
   }
   function nativeSettingsForm(snapshot) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     const frameName = typeof snapshot.values.frame_name === "string" ? snapshot.values.frame_name : "";
     document.title = frameName ? `${frameName} \xB7 Espframe` : "Espframe settings";
     const form = el("form");
@@ -668,10 +672,14 @@
       return changed;
     }
     const pairing = (_a = controls.get("portrait_pairing")) == null ? void 0 : _a.element;
-    const pairingOptions = [(_b = controls.get("portrait_pairs_only")) == null ? void 0 : _b.element, (_c = controls.get("portrait_pairing_range")) == null ? void 0 : _c.element];
+    const pairingOptions = [
+      (_b = controls.get("portrait_pairs_only")) == null ? void 0 : _b.element,
+      (_c = controls.get("portrait_pairing_range")) == null ? void 0 : _c.element,
+      (_d = controls.get("portrait_pair_framing")) == null ? void 0 : _d.element
+    ];
     const preparedUrl = controls.get("prepared_slide_url");
-    const preparedToken = (_d = controls.get("prepared_slide_token")) == null ? void 0 : _d.element;
-    const nameInput = (_e = controls.get("frame_name")) == null ? void 0 : _e.element;
+    const preparedToken = (_e = controls.get("prepared_slide_token")) == null ? void 0 : _e.element;
+    const nameInput = (_f = controls.get("frame_name")) == null ? void 0 : _f.element;
     const noteChange = () => {
       if (pairing instanceof HTMLInputElement) {
         for (const option of pairingOptions) {

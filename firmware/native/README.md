@@ -231,6 +231,9 @@ both options.
 **Show full image** is the default for the native prototype. **Crop to fit**
 center-crops landscape photos to the screen and paired portraits to their
 respective halves. A single portrait stays fully visible on a landscape frame.
+Set **Portrait pair framing** to **Fill each half** to crop both portraits
+independently of single-photo framing. **Fit both full photos** keeps both
+portraits intact. **Follow photo framing** retains the previous behavior.
 Set **Mounting orientation** to **Upside down (180°)** when the frame is
 mounted the other way round. After restart, photos, portrait pairs, the clock,
 and touch follow the new orientation together. Espframe backups carry the
@@ -238,7 +241,9 @@ landscape mounting choice.
 
 Under **Photo captions**, enable the capture date, location, or both. The
 frame uses the photo's local capture day and the city and country supplied by
-Immich. When two portraits are paired, the caption describes the primary
+Immich. The right-aligned location and date use the stock Noto Sans sizes.
+The clock uses the stock 150-pixel Noto Sans face at the lower left.
+When two portraits are paired, the caption describes the primary
 photo. The caption is composed with the cached slide, so dragging and
 swiping need no extra image, text, or network work. The frame can show the
 date in either date-taken format or as a relative age in the configured

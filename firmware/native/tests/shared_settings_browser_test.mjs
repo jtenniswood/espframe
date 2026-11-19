@@ -44,6 +44,8 @@ const testScript = `
       'Paired-portrait setting is unavailable while pairing is on')
     check(field('portrait_pairing_range').value === 'Within 2 Days' && !field('portrait_pairing_range').disabled,
       'Pairing range was not shown')
+    check(field('portrait_pair_framing').value === 'Follow photo framing' && !field('portrait_pair_framing').disabled,
+      'Portrait pair framing was not shown')
     check(save.disabled, 'A clean form allows saving')
     check(getComputedStyle(document.body).getPropertyValue('--bg').trim(), 'Shared styles did not load')
     check(getComputedStyle(save.parentElement).position === 'sticky', 'Save controls are not kept in view')
@@ -73,6 +75,7 @@ const testScript = `
     check(field('prepared_slide_token').required, 'Changing the service URL did not require a new token')
     edit('prepared_slide_token', 'service-token-for-browser-regression-test')
     edit('portrait_pairing_range', 'Within 1 Day')
+    edit('portrait_pair_framing', 'Fill')
     edit('photo_orientation', 'Landscape Only')
     field('portrait_pairs_only').checked = true
     field('portrait_pairs_only').dispatchEvent(new Event('change', {bubbles: true}))
@@ -81,6 +84,7 @@ const testScript = `
     check(field('portrait_pairs_only').checked && field('portrait_pairs_only').disabled,
       'Turning off pairing lost the saved paired-portrait setting')
     check(field('portrait_pairing_range').disabled, 'Pairing range is editable while pairing is off')
+    check(field('portrait_pair_framing').disabled, 'Pair framing is editable while pairing is off')
     form.requestSubmit()
     const reconnect = await waitFor(() => form.querySelector('a[href*="salon-t-129a.local"]'))
     check(new URL(reconnect.href).hostname === 'salon-t-129a.local', 'Wrong reconnect hostname')
@@ -99,11 +103,13 @@ const testScript = `
     const reloadedPairing = reloaded.elements.namedItem('portrait_pairing')
     const reloadedPairsOnly = reloaded.elements.namedItem('portrait_pairs_only')
     const reloadedRange = reloaded.elements.namedItem('portrait_pairing_range')
+    const reloadedFraming = reloaded.elements.namedItem('portrait_pair_framing')
     check(!reloadedPairing.checked && reloadedPairsOnly.checked && reloadedPairsOnly.disabled,
       'Reconnection lost the inactive paired-portrait state')
     reloadedPairing.click()
     check(reloadedPairsOnly.checked && !reloadedPairsOnly.disabled, 'Turning pairing on did not restore the option')
     check(reloadedRange.value === 'Within 1 Day' && !reloadedRange.disabled, 'Turning pairing on did not restore its range')
+    check(reloadedFraming.value === 'Fill' && !reloadedFraming.disabled, 'The selected pair framing was lost')
     document.body.dataset.testResult = 'passed'
   }
   verify().catch(error => { document.body.dataset.testResult = error.message })
@@ -121,6 +127,7 @@ const snapshot = {
     immich_url: 'https://photos.test/api', interval: '25 seconds', display_mode: 'Fit', brightness_day: 74,
     brightness_night: 48, screen_rotation: '180', show_clock: false, timezone: 'Europe/London (GMT+0)',
     portrait_pairing: true, portrait_pairs_only: false, portrait_pairing_range: 'Within 2 Days',
+    portrait_pair_framing: 'Follow photo framing',
     photo_orientation: 'Portrait Only',
     frame_name: 'Old frame',
     prepared_slide_url: 'https://prepare.test', prepared_slide_token_configured: true,
@@ -337,6 +344,7 @@ try {
         frame_name: 'Salon été',
         photo_orientation: 'Landscape Only',
         portrait_pairing: false, portrait_pairs_only: true, portrait_pairing_range: 'Within 1 Day',
+        portrait_pair_framing: 'Fill',
         prepared_slide_url: 'https://new-prepare.test', prepared_slide_token: 'service-token-for-browser-regression-test',
       },
     },

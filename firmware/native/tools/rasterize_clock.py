@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create the native 4-bit glyph atlases from the matching Noto Sans Regular font."""
+"""Create native 4-bit glyph atlases from the Espframe Noto Sans faces."""
 
 import argparse
 from hashlib import sha256
@@ -40,14 +40,21 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--recovery", action="store_true", help="create the Wi-Fi recovery card atlas")
     mode.add_argument("--captions", action="store_true", help="create the photo caption atlas")
+    mode.add_argument("--dates", action="store_true", help="create the photo date atlas")
     args = parser.parse_args()
-    if sha256(args.font.read_bytes()).hexdigest() != "f5f552c8c5edb61fe6efb824baf4d4de47b1a8689ab4925ff43f7bd6a4ebece5":
-        parser.error("use the recorded Noto Sans Regular 2.015 font")
-    size, width, height, origin = (26, 32, 36, (0, 27)) if args.recovery else (55, 36, 56, (2, 48))
+    regular = "5be701a9511117e73603bdab95947feef4f18bd1851dbddc30659370b26c69f1"
+    light = "cfffc3ecf6aaa6a205b16c68070cceca472208a06581e6f131cdd0294913d900"
+    recovery = "f5f552c8c5edb61fe6efb824baf4d4de47b1a8689ab4925ff43f7bd6a4ebece5"
+    expected = recovery if args.recovery else regular if args.captions or args.dates else light
+    if sha256(args.font.read_bytes()).hexdigest() != expected:
+        parser.error("use the recorded Noto Sans face for the requested atlas")
+    size, width, height, origin = (26, 32, 36, (0, 27)) if args.recovery else (150, 88, 116, (0, 113))
     glyphs = (chr(code) for code in range(32, 127)) if args.recovery else "0123456789:"
-    if args.captions:
-        size, width, height, origin = 23, 32, 32, (1, 24)
-        ranges = ((32, 127), (0xa0, 0x250), (0x370, 0x530), (0x1e00, 0x1efa), (0x2010, 0x2027))
+    if args.captions or args.dates:
+        size, width, height, origin = (36, 64, 64, (1, 39)) if args.captions else (28, 48, 48, (1, 30))
+        ranges = [(32, 127), (0x2010, 0x2027)]
+        if args.captions:
+            ranges[1:1] = [(0xa0, 0x250), (0x370, 0x530), (0x1e00, 0x1efa)]
         glyphs = (chr(code) for start, end in ranges for code in range(start, end))
         font = ImageFont.truetype(str(args.font), size)
         args.output.write_bytes(caption_atlas(font, glyphs, width, height, origin))
@@ -59,6 +66,9 @@ def main():
         ImageDraw.Draw(image).text(origin, glyph, font=font, fill=255, anchor="ls")
         if args.recovery:
             result.append(ceil(font.getlength(glyph)))
+        else:
+            # Native panel columns are contiguous through the height of a glyph.
+            image = image.transpose(Image.Transpose.TRANSPOSE)
         pixels = image.tobytes()
         result.extend(((left + 8) // 17 << 4) | ((right + 8) // 17)
                       for left, right in zip(pixels[::2], pixels[1::2], strict=True))
