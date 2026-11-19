@@ -1,4 +1,22 @@
 dependencies:
+  esphome/libsodium:
+    component_hash: 39bee6f58d2d7fb8f2d30e04133afe60d0b642792196d36cde3a6dd07738fb08
+    dependencies: []
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.10021.12
+  esphome/noise-c:
+    component_hash: 12dcc72a8ca1ba82f703aaba07dcddeab6037135a7fa7e73e99af80efd6e565f
+    dependencies:
+    - name: esphome/libsodium
+      registry_url: https://components.espressif.com
+      require: private
+      version: 1.10021.12
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 0.1.31
   espressif/cjson:
     component_hash: e788323270d90738662d66fffa910bfe1fba019bba087f01557e70c40485b469
     dependencies:
@@ -134,10 +152,11 @@ dependencies:
       type: idf
     version: 6.1.1
 direct_dependencies:
+- esphome/noise-c
 - espressif/cjson
 - espressif/esp_hosted
 - espressif/esp_wifi_remote
 - espressif/mdns
-manifest_hash: 7b051c688e5c1274ef6fc422530feebd2c19cc4ce15a619efc4cf7df22a5fb04
+manifest_hash: 583103cd60b3c2bdba1565197785f6f23d531171193a0cabf62eaaec72679e61
 target: esp32p4
 version: 3.0.0

@@ -1,11 +1,11 @@
-#include "esphome_session.h"
+#include "esphome_socket.h"
+#include "home_assistant_key.h"
 #include "screen_control.h"
 
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include <cerrno>
 #include <chrono>
 #include <csignal>
 #include <cstdio>
@@ -19,36 +19,6 @@ extern "C" void noise_rand_bytes(void *output, size_t size) {
   if (size > 256 || getentropy(output, size) != 0)
     std::abort();
 }
-
-namespace {
-
-bool read_exact(void *context, std::span<uint8_t> bytes) {
-  const int fd = *static_cast<int *>(context);
-  while (!bytes.empty()) {
-    const auto count = recv(fd, bytes.data(), bytes.size(), 0);
-    if (count < 0 && errno == EINTR)
-      continue;
-    if (count <= 0)
-      return false;
-    bytes = bytes.subspan(count);
-  }
-  return true;
-}
-
-bool write_exact(void *context, std::span<const uint8_t> bytes) {
-  const int fd = *static_cast<int *>(context);
-  while (!bytes.empty()) {
-    const auto count = send(fd, bytes.data(), bytes.size(), 0);
-    if (count < 0 && errno == EINTR)
-      continue;
-    if (count <= 0)
-      return false;
-    bytes = bytes.subspan(count);
-  }
-  return true;
-}
-
-}  // namespace
 
 int main() {
   const int listener = socket(AF_INET, SOCK_STREAM, 0);
@@ -72,9 +42,9 @@ int main() {
   constexpr EspHomeIdentity identity{
       "espframe-ha-test", "Espframe Test", "Guition test board", {2, 0xaa, 0xbb, 0xcc, 0xdd, 0xee},
   };
-  std::array<uint8_t, 32> fixture_key{};
-  for (size_t index = 0; index < fixture_key.size(); ++index)
-    fixture_key[index] = index + 1;
+  const auto fixture_key = decode_home_assistant_key("AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=");
+  if (!fixture_key)
+    return 1;
   std::jthread player([](std::stop_token stop) {
     ScreenSchedule schedule{{true, 6, 22, 60}};
     while (!stop.stop_requested()) {
@@ -91,10 +61,7 @@ int main() {
     int connection = accept(listener, nullptr, nullptr);
     if (connection < 0)
       break;
-    const timeval timeout{3, 0};
-    setsockopt(connection, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-    setsockopt(connection, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
-    serve_esphome({&connection, read_exact, write_exact}, identity, fixture_key, screen_control);
+    serve_esphome_socket(connection, identity, *fixture_key, screen_control);
     close(connection);
   }
   close(listener);

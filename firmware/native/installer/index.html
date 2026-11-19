@@ -43,6 +43,12 @@
         <small id="permissions">Use a key with asset.read and asset.view permissions.</small>
         <label>Web settings password <input name="web_password" type="password" minlength="8" maxlength="64" aria-describedby="web-password"></label>
         <small id="web-password">Optional. Set a password to enable settings on your local network.</small>
+        <details id="home-assistant">
+          <summary>Home Assistant</summary>
+          <label>ESPHome encryption key <input name="home_assistant_key" type="password" maxlength="44" aria-describedby="home-assistant-key"></label>
+          <small id="home-assistant-key">Use a unique 32-byte Base64 key. Enter the same key in Home Assistant. Leave blank to keep any saved key.</small>
+          <label><input id="remove-home-assistant-key" type="checkbox" class="inline-option"> Remove saved Home Assistant key</label>
+        </details>
         <details id="playback">
           <summary>Playback settings</summary>
           <label>Photo source

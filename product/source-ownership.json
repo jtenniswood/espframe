@@ -183,7 +183,7 @@
     },
     {
       "usage": "Native ESPHome API Noise transport and Home Assistant interoperability test",
-      "declarations": ["firmware/native/home_assistant/idf_component.yml", "firmware/native/tests/home_assistant/dependencies.lock", ".github/workflows/native-swipe.yml"],
+      "declarations": ["firmware/native/home_assistant/idf_component.yml", "firmware/native/dependencies.lock", "firmware/native/tests/home_assistant/dependencies.lock", ".github/workflows/native-swipe.yml"],
       "upstream": "https://github.com/esphome-libs/noise-c",
       "revision": "Noise-C 0.1.31, esphome/libsodium 1.10021.12, and aioesphomeapi 46.25.0 for the host test",
       "license": "MIT (Noise-C, ESPHome libsodium port, and aioesphomeapi), ISC (upstream libsodium)"

@@ -17,6 +17,9 @@ const backup = document.querySelector('#backup')
 const backupStatus = document.querySelector('#backup-status')
 const playback = document.querySelector('#playback')
 const schedule = document.querySelector('#screen-schedule')
+const homeAssistant = document.querySelector('#home-assistant')
+const homeAssistantKey = form.elements.home_assistant_key
+const removeHomeAssistantKey = document.querySelector('#remove-home-assistant-key')
 const frameName = form.elements.frame_name
 const refreshSource = bindPhotoSource(form)
 const refreshPairing = bindPortraitPairing(form)
@@ -28,6 +31,12 @@ const refreshWifi = () => {
 }
 reuseWifi.addEventListener('change', refreshWifi)
 refreshWifi()
+const refreshHomeAssistant = () => {
+  homeAssistantKey.disabled = removeHomeAssistantKey.checked
+  homeAssistantKey.setCustomValidity('')
+}
+removeHomeAssistantKey.addEventListener('change', refreshHomeAssistant)
+homeAssistantKey.addEventListener('input', () => homeAssistantKey.setCustomValidity(''))
 const showPercentages = () => {
   for (const name of percentageFields) {
     form.querySelector(`output[for="${name}"]`).value = `${form.elements[name].value}%`
@@ -141,6 +150,15 @@ if ('serial' in navigator) {
     const data = Object.fromEntries(new FormData(form))
     if (frameNameSpecified) data.frame_name = normalizeFrameName(frameName.value)
     else delete data.frame_name
+    if (removeHomeAssistantKey.checked) data.home_assistant_key = ''
+    else if (!homeAssistantKey.value) delete data.home_assistant_key
+    else if (!/^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$/.test(homeAssistantKey.value) ||
+             homeAssistantKey.value === 'A'.repeat(43) + '=') {
+      homeAssistant.open = true
+      homeAssistantKey.setCustomValidity('Enter a valid 32-byte Base64 ESPHome encryption key.')
+      homeAssistantKey.reportValidity()
+      return
+    }
     if (!validateAlbum(form, data) || !addCaptureDates(form, data) || !addPhotoFilters(form, data)) return
     data.slide_seconds = Number(data.slide_seconds)
     for (const name of percentageFields) data[name] = form.elements[name].valueAsNumber
@@ -170,6 +188,7 @@ if ('serial' in navigator) {
       refreshPairing()
       showPercentages()
       refreshWifi()
+      refreshHomeAssistant()
       backupStatus.textContent = ''
       status.textContent = 'Settings saved.'
       networkStatus.textContent = 'Waiting for the frame to restart and reconnect to Wi-Fi…'

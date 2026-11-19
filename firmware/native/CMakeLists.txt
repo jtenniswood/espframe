@@ -3,7 +3,8 @@ set(IDF_TARGET esp32p4)
 set(COMPONENTS main)
 set(EXTRA_COMPONENT_DIRS
     "${CMAKE_CURRENT_LIST_DIR}/../../components/libjpeg-turbo-esp32"
-    "${CMAKE_CURRENT_LIST_DIR}/../../components/libwebp-esp32")
+    "${CMAKE_CURRENT_LIST_DIR}/../../components/libwebp-esp32"
+    "${CMAKE_CURRENT_LIST_DIR}/home_assistant")
 set(PROJECT_VER "swipe-prototype")
 set(SWIPE_BOARD "v3" CACHE STRING "Guition JC8012P4A1 prototype board: v1, v2, or v3")
 option(SWIPE_TRACE "Record native playback timings over USB" OFF)
@@ -68,6 +69,8 @@ if(SWIPE_ESPHOME_TRIAL)
         set(espframe_project "espframe_v1_legacy_swipe_trial")
     endif()
     set(espframe_partitions "partitions.esphome-v1.csv")
+else()
+    list(APPEND SDKCONFIG_DEFAULTS "${CMAKE_CURRENT_LIST_DIR}/sdkconfig.native")
 endif()
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(${espframe_project})

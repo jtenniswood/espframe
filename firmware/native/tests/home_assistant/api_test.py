@@ -64,6 +64,18 @@ async def assert_invalid_record(port, oversized):
 
 
 async def verify(port, output):
+    reader, writer = await asyncio.open_connection(HOST, port)
+    try:
+        async with asyncio.timeout(6):
+            await asyncio.sleep(2.3)
+            writer.write(b"\x01\x00\x00")
+            await writer.drain()
+            greeting = b"\x01" + NAME.encode() + b"\0" + MAC.encode() + b"\0"
+            assert await reader.readexactly(3 + len(greeting)) == b"\x01\x00" + bytes([len(greeting)]) + greeting
+            assert await reader.read(1) == b""  # Unfinished handshake.
+    finally:
+        writer.close()
+        await writer.wait_closed()
     await assert_rejected(port, b"\x00\x00\x00")  # Plaintext.
     await assert_rejected(port, b"\x01\x00\x41")  # Oversized handshake.
     await assert_invalid_record(port, oversized=True)
@@ -123,7 +135,7 @@ async def main(executable):
             process.terminate()
         await process.wait()
     print("ESPHome client authenticated, read identity and entities, and drove the native sleep/wake schedule")
-    print("Wrong key, plaintext, oversized frames and inconsistent lengths were rejected. The client reconnected.")
+    print("Silent clients, wrong keys, plaintext, oversized frames and inconsistent lengths were rejected. The client reconnected.")
 
 
 if __name__ == "__main__":

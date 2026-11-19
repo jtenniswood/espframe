@@ -1,5 +1,6 @@
 #include "settings.h"
 #include "frame_identity_model.h"
+#include "home_assistant_key.h"
 #include "live_trial.h"
 
 #include "cJSON.h"
@@ -52,10 +53,12 @@ bool normalize(Settings &settings) {
   if (!esphome::espframe::normalize_frame_name(settings.frame_name, name))
     return false;
   settings.frame_name = std::move(name);
+  if (!settings.home_assistant_key.empty() && !decode_home_assistant_key(settings.home_assistant_key))
+    return false;
   if (settings.ssid.empty())
     return settings.reset_epoch != 0 && settings.password.empty() && settings.web_password.empty() &&
            settings.immich_url.empty() && settings.immich_key.empty() && settings.prepared_slide_url.empty() &&
-           settings.prepared_slide_token.empty();
+           settings.prepared_slide_token.empty() && settings.home_assistant_key.empty();
   if (settings.ssid.size() > 32 || settings.password.size() > 64 ||
       settings.web_password.size() > 64 || (!settings.web_password.empty() && settings.web_password.size() < 8) ||
       settings.slide_seconds < 2 || settings.slide_seconds > 86'400 ||
@@ -422,6 +425,7 @@ bool parse_all(const cJSON *root, Settings &settings) {
          read_field(root, "prepared_slide_url", settings.prepared_slide_url, true) &&
          read_field(root, "prepared_slide_token", settings.prepared_slide_token, true) &&
          read_field(root, "web_password", settings.web_password, true) &&
+         read_field(root, "home_assistant_key", settings.home_assistant_key, true) &&
          read_field(root, "frame_name", settings.frame_name, true) &&
          read_integer(root, "reset_epoch", 0, std::numeric_limits<uint32_t>::max(), settings.reset_epoch) &&
          read_playback(root, settings) && normalize(settings);
@@ -531,6 +535,8 @@ Settings::UpdateResult store_settings(Settings &settings, bool clear_legacy = fa
       !cJSON_AddStringToObject(updated.get(), "immich_key", settings.immich_key.c_str()) ||
       !cJSON_AddStringToObject(updated.get(), "prepared_slide_token", settings.prepared_slide_token.c_str()) ||
       !cJSON_AddStringToObject(updated.get(), "web_password", settings.web_password.c_str()) ||
+      (!settings.home_assistant_key.empty() &&
+       !cJSON_AddStringToObject(updated.get(), "home_assistant_key", settings.home_assistant_key.c_str())) ||
       !put_epoch(updated.get(), settings.reset_epoch) || !settings.add_playback_fields(updated.get()))
     return Result::Failed;
   if (!settings.brightness_night)
@@ -577,6 +583,9 @@ bool Settings::save(const char *json, std::optional<uint32_t> expected_epoch) {
   }
   if (!cJSON_HasObjectItem(document.get(), "frame_name") && !saved.frame_name.empty() &&
       !cJSON_AddStringToObject(document.get(), "frame_name", saved.frame_name.c_str()))
+    return false;
+  if (!cJSON_HasObjectItem(document.get(), "home_assistant_key") && !saved.home_assistant_key.empty() &&
+      !cJSON_AddStringToObject(document.get(), "home_assistant_key", saved.home_assistant_key.c_str()))
     return false;
   if (!cJSON_HasObjectItem(document.get(), "portrait_pair_framing") && saved.pair_framing != PairFraming::FollowPhotos &&
       !cJSON_AddStringToObject(document.get(), "portrait_pair_framing", pair_framing_name(saved.pair_framing)))
@@ -706,6 +715,7 @@ bool Settings::reset(ResetMode mode) {
     reset.ssid = std::move(saved.ssid);
     reset.password = std::move(saved.password);
     reset.web_password = std::move(saved.web_password);
+    reset.home_assistant_key = std::move(saved.home_assistant_key);
   }
   reset.reset_epoch = saved.reset_epoch == std::numeric_limits<uint32_t>::max() ? 1 : saved.reset_epoch + 1;
   return store_settings(reset, mode == ResetMode::Factory) == UpdateResult::Saved;

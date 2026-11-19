@@ -69,7 +69,7 @@ class NoiseSession {
 
     NoiseHandshakeState *raw{};
     const auto created = noise_handshakestate_new_by_name(
-        &raw, "Noise_NNpsk0_25519_ChaChaPoly_SHA256", NOISE_ROLE_RESPONDER);
+        &raw, esphome_noise_protocol, NOISE_ROLE_RESPONDER);
     std::unique_ptr<NoiseHandshakeState, decltype(&noise_handshakestate_free)> state(raw, noise_handshakestate_free);
     if (created != NOISE_ERROR_NONE ||
         noise_handshakestate_set_pre_shared_key(raw, key.data(), key.size()) != NOISE_ERROR_NONE ||
@@ -211,7 +211,9 @@ constexpr ScreenButton buttons[] = {
     {1917547667U, "screen_wake", "Screen: Wake", "mdi:power", ScreenAction::Wake},
 };
 
-std::array<char, 17> mac_text(const std::array<uint8_t, 6> &mac, bool pretty) {
+}  // namespace
+
+std::array<char, 17> esphome_mac_text(const std::array<uint8_t, 6> &mac, bool pretty) {
   const char *digits = pretty ? "0123456789ABCDEF" : "0123456789abcdef";
   std::array<char, 17> result{};
   size_t position = 0;
@@ -224,6 +226,8 @@ std::array<char, 17> mac_text(const std::array<uint8_t, 6> &mac, bool pretty) {
   return result;
 }
 
+namespace {
+
 bool send_hello(NoiseSession &session, std::string_view name) {
   ProtoReply reply;
   reply.number(1, 1);  // API version 1.19.
@@ -235,7 +239,7 @@ bool send_hello(NoiseSession &session, std::string_view name) {
 
 bool send_device_info(NoiseSession &session, const EspHomeIdentity &identity) {
   ProtoReply reply;
-  const auto address = mac_text(identity.mac, true);
+  const auto address = esphome_mac_text(identity.mac, true);
   reply.text(2, identity.name);
   reply.text(3, {address.data(), address.size()});
   reply.text(6, identity.model);
@@ -288,12 +292,15 @@ void serve_esphome(EspHomeStream stream, const EspHomeIdentity &identity,
     return;
 
   NoiseSession session(stream);
-  const auto address = mac_text(identity.mac, false);
+  const auto address = esphome_mac_text(identity.mac);
   Message type{};
   std::span<const uint8_t> body;
   if (!session.handshake(key, identity.name, {address.data(), 12}) ||
       !session.receive(type, body) || type != Message::Hello || !send_hello(session, identity.name))
     return;
+
+  if (stream.authenticated)
+    stream.authenticated(stream.context);
 
   while (session.receive(type, body)) {
     bool sent = true;

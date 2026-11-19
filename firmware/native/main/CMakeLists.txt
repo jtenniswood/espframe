@@ -14,10 +14,12 @@ set(clock_catalog "${repo_root}/components/espframe/timezones.py")
 set(clock_generator "${CMAKE_CURRENT_LIST_DIR}/../tools/generate_clock_zones.py")
 set(clock_zones "${CMAKE_CURRENT_BINARY_DIR}/native_clock_zones.inc")
 if(SWIPE_ESPHOME_TRIAL)
-    set(trial_source esphome_trial.cpp)
+    set(platform_source esphome_trial.cpp)
+else()
+    set(platform_source home_assistant_server.cpp)
 endif()
 if(SWIPE_TRIAL_IMMICH)
-    list(APPEND trial_source live_trial.cpp stock_frame_identity.cpp)
+    list(APPEND platform_source live_trial.cpp stock_frame_identity.cpp)
 endif()
 
 idf_component_register(
@@ -26,13 +28,13 @@ idf_component_register(
          playback_trace.cpp preview_decoder.cpp
          photo_caption.cpp recovery_card.cpp screen_tone.cpp settings.cpp touch.cpp
          firmware_update.cpp usb_setup.cpp web_settings.cpp
-         ${trial_source}
+         ${platform_source}
          "${touch_source}/gsl_point_id.cpp"
     PRIV_INCLUDE_DIRS "${touch_source}" "${repo_root}/components/remote_image" "${repo_root}/components/espframe"
                       "${CMAKE_CURRENT_BINARY_DIR}"
     PRIV_REQUIRES esp_lcd esp_hw_support esp_driver_dma esp_driver_gpio esp_driver_i2c esp_driver_ledc esp_timer esp_mm esp_driver_jpeg esp_driver_ppa
                   esp_driver_uart esp_event esp_http_client esp_http_server esp_netif esp_wifi mbedtls nvs_flash
-                  app_update bootloader_support esp_app_format libjpeg-turbo-esp32 libwebp-esp32
+                  app_update bootloader_support esp_app_format libjpeg-turbo-esp32 libwebp-esp32 home_assistant lwip
     EMBED_TXTFILES web/native_settings.html web/native_settings.css web/shared_settings.js
                    web/settings.html web/settings.js web/recovery.html web/recovery.js
                    "${repo_root}/docs/public/webserver/style.css"

@@ -1,6 +1,7 @@
 #include "cJSON.h"
 #include "frame_identity.h"
 #include "frame_status.h"
+#include "home_assistant_key.h"
 #include "native_configuration.h"
 #include "nvs.h"
 #include "nvs_flash.h"
@@ -570,12 +571,37 @@ int main() {
   assert(current.read() && current.frame_name == R"(literal\u0000)");
   assert(!update_configuration(R"({"values":{"frame_name":""}})").error);
   assert(current.read() && current.frame_name.empty());
+
+  constexpr char ha_key[] = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=";
+  const auto decoded_key = espframe::native::decode_home_assistant_key(ha_key);
+  assert(decoded_key && decoded_key->front() == 1 && decoded_key->back() == 32);
+  assert(!espframe::native::decode_home_assistant_key("AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyB="));
+  assert(!espframe::native::decode_home_assistant_key("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="));
+  const auto before_bad_ha_key = stored;
+  assert(!Settings::save(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","home_assistant_key":"invalid"})"));
+  assert(stored == before_bad_ha_key);
+  const std::string usb_pairing = std::string(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key",
+      "web_password":"new-settings","home_assistant_key":")") + ha_key + R"("})";
+  assert(Settings::save(usb_pairing.c_str()));
+  assert(current.read() && current.home_assistant_key == ha_key);
+  const Json ha_snapshot(configuration_snapshot(current), cJSON_Delete);
+  const std::unique_ptr<char, decltype(&cJSON_free)> serialized_ha(cJSON_PrintUnformatted(ha_snapshot.get()), cJSON_free);
+  assert(serialized_ha && std::string_view(serialized_ha.get()).find(ha_key) == std::string_view::npos);
+  assert(update_configuration(R"({"values":{"home_assistant_key":""}})").error);
+  assert(Settings::save_wifi(*new_wifi, current.reset_epoch));
+  assert(Settings::save(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","web_password":"new-settings"})"));
+  assert(current.read() && current.home_assistant_key == ha_key);
+
   assert(!update_configuration(R"({"values":{"frame_name":"Restored frame"}})").error);
   assert(!reset_configuration(ResetMode::Customization).error);
-  assert(current.read() && current.frame_name.empty());
+  assert(current.read() && current.frame_name.empty() && current.home_assistant_key == ha_key);
+  assert(Settings::save(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","web_password":"new-settings",
+      "home_assistant_key":""})"));
+  assert(current.read() && current.home_assistant_key.empty());
+  assert(Settings::save(usb_pairing.c_str()));
   assert(!update_configuration(R"({"values":{"frame_name":"Before factory reset"}})").error);
   assert(!reset_configuration(ResetMode::Factory).error);
-  assert(current.read() && current.frame_name.empty());
+  assert(current.read() && current.frame_name.empty() && current.home_assistant_key.empty());
 
   using espframe::native::frame_status_snapshot;
   using espframe::native::FrameStatusStore;

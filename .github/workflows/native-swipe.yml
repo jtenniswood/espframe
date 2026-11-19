@@ -136,13 +136,13 @@ jobs:
             -D SWIPE_BOARD="${{ matrix.board }}" -D SWIPE_TRACE=ON build merge-bin
       - name: Check the effective Guition network configuration
         run: |
-          settings='^(CONFIG_|# CONFIG_)(SLAVE_IDF_TARGET|ESP_WIFI_REMOTE|ESP_HOSTED|EH_HOST_PORT|MDNS_PREDEF_NETIF)'
+          settings='^(CONFIG_|# CONFIG_)(SLAVE_IDF_TARGET|ESP_WIFI_REMOTE|ESP_HOSTED|EH_HOST_PORT|MDNS_PREDEF_NETIF|LWIP_MAX_SOCKETS)'
           while IFS= read -r setting; do
             if ! grep -Fxq "$setting" "firmware/native/build/${{ matrix.board }}/sdkconfig"; then
               printf 'Missing effective Wi-Fi setting: %s\n' "$setting" >&2
               exit 1
             fi
-          done < <(grep -E "$settings" firmware/native/sdkconfig.defaults)
+          done < <(grep -hE "$settings" firmware/native/sdkconfig.defaults firmware/native/sdkconfig.native)
       - name: Test settings persistence
         if: matrix.board == 'v3'
         run: |
@@ -291,7 +291,7 @@ jobs:
             grep -Fq "espframe::native::start_live_trial_status(" /tmp/trial-symbols
             grep -Fq "espframe::native::read_stock_frame_name" /tmp/trial-symbols
             grep -Fq "espframe::native::record_live_trial_drag_outcome(" /tmp/trial-symbols
-            if grep -E "espframe::native::(Settings::save|start_usb_setup|stage_firmware)|[[:space:]](esp_ota_mark_app_valid_cancel_rollback|nvs_erase_all|nvs_flash_erase|nvs_set_str)$" /tmp/trial-symbols; then
+            if grep -E "espframe::native::(Settings::save|start_usb_setup|stage_firmware|start_home_assistant)|[[:space:]](esp_ota_mark_app_valid_cancel_rollback|nvs_erase_all|nvs_flash_erase|nvs_set_str|noise_rand_bytes)$" /tmp/trial-symbols; then
               exit 1
             fi
           '
@@ -311,7 +311,7 @@ jobs:
               if grep -E "espframe::native::(read_stock_frame_name|record_live_trial_drag_outcome)" /tmp/bench-symbols; then
                 exit 1
               fi
-              if grep -E "espframe::native::(Settings::save|start_usb_setup|stage_firmware)|[[:space:]](esp_ota_mark_app_valid_cancel_rollback|nvs_erase_all|nvs_flash_erase|nvs_set_str)$" /tmp/bench-symbols; then
+              if grep -E "espframe::native::(Settings::save|start_usb_setup|stage_firmware|start_home_assistant)|[[:space:]](esp_ota_mark_app_valid_cancel_rollback|nvs_erase_all|nvs_flash_erase|nvs_set_str|noise_rand_bytes)$" /tmp/bench-symbols; then
                 exit 1
               fi
             }

@@ -5,6 +5,10 @@
 #include "station_retry.h"
 #include "web_settings.h"
 
+#if !SWIPE_ESPHOME_TRIAL
+#include "home_assistant_server.h"
+#endif
+
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_netif.h"
@@ -56,13 +60,17 @@ NativeNetwork::Address NativeNetwork::address() const {
 }
 
 FrameIdentity NativeNetwork::identity_for(const std::string &name) const {
-  return make_frame_identity(name, frame_mac_, NATIVE_HOSTNAME, NATIVE_FRIENDLY_NAME, trial_immich);
+  const bool stock_name = trial_immich || (settings_ && !settings_->home_assistant_key.empty());
+  return make_frame_identity(name, frame_mac_, NATIVE_HOSTNAME, NATIVE_FRIENDLY_NAME, stock_name);
+}
+
+uint32_t NativeNetwork::station_lease() const {
+  const uint32_t lease = lease_version_.load(std::memory_order_acquire);
+  return has_station_address(lease) && !provisioning_.load(std::memory_order_acquire) ? lease : 0;
 }
 
 uint32_t NativeNetwork::photo_connection() const {
-  const uint32_t lease = lease_version_.load(std::memory_order_acquire);
-  return has_station_address(lease) && photo_time_ready_.load(std::memory_order_acquire) &&
-         !provisioning_.load(std::memory_order_acquire) ? lease : 0;
+  return photo_time_ready_.load(std::memory_order_acquire) ? station_lease() : 0;
 }
 
 bool NativeNetwork::submit(Request request, const WifiCredentials &wifi) {
@@ -345,6 +353,9 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
                          settings_->capture_dates.needs_time();
   bool sntp_started = !need_time;
   bool web_started = false;
+#if !SWIPE_ESPHOME_TRIAL
+  bool assistant_started = settings_->home_assistant_key.empty() || !valid_frame_mac(frame_mac_);
+#endif
   uint32_t events = 0;
   uint32_t last_lease = 0;
   StationRetry retry;
@@ -419,6 +430,12 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
             web_status_.store(WebStatus::Ready, std::memory_order_release);
         }
       }
+#if !SWIPE_ESPHOME_TRIAL
+      if (!assistant_started)
+        assistant_started = start_home_assistant(*this,
+            {identity_.hostname, identity_.friendly_name, "Guition JC8012P4A1", frame_mac_},
+            settings_->home_assistant_key);
+#endif
       if (!sntp_started) {
         esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
         sntp_started = esp_netif_sntp_init(&config) == ESP_OK;
@@ -426,6 +443,10 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
       const bool time_ready = !https || clock_time_is_valid(std::time(nullptr));
       photo_time_ready_.store(time_ready, std::memory_order_release);
       wait = sntp_started && web_started ? (time_ready ? portMAX_DELAY : pdMS_TO_TICKS(250)) : pdMS_TO_TICKS(2000);
+#if !SWIPE_ESPHOME_TRIAL
+      if (!assistant_started)
+        wait = std::min(wait, pdMS_TO_TICKS(2000));
+#endif
     } else {
       if (has_station_address(last_lease))
         ESP_LOGI(tag, "Wi-Fi disconnected; reconnecting in the background");

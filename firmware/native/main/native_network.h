@@ -40,6 +40,7 @@ class NativeNetwork {
 
   void start(const Settings &settings);
   Address address() const;
+  uint32_t station_lease() const;
   uint32_t photo_connection() const;
   bool available() const { return available_.load(std::memory_order_acquire); }
   bool busy() const { return busy_.load(std::memory_order_acquire); }

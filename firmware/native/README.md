@@ -108,6 +108,23 @@ configuration API reports the new reset epoch and rejects stale writes that
 carry an earlier epoch. Independent photo-source filters and a complete reset
 still need integration.
 
+### Connect Home Assistant
+
+In browser setup, expand **Home Assistant** and enter a unique ESPHome
+encryption key when saving over USB. In Home Assistant, open **Settings →
+Devices & services** and configure the discovered ESPHome device with the same
+key. You can also add it manually by IP on port 6053. Use a 32-byte Base64 key as
+described in the [ESPHome native API documentation](https://esphome.io/components/api/).
+
+The native player supports **Screen: Sleep** and **Screen: Wake** with the
+stock entity IDs. A frame without a custom name advertises its stock
+MAC-suffixed hostname when Home Assistant is enabled. The key stays on the
+frame across native OTA updates and customization resets. Use **Remove saved
+Home Assistant key** in browser setup or factory reset to clear it. Settings
+exports and responses exclude the key.
+Enter an existing key over USB to reuse it during migration. Automatic
+transfer from the stock firmware still needs validation.
+
 ### Update the native firmware from the web settings
 
 Download the installer artifact for the build you want to use. Open

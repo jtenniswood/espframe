@@ -21,7 +21,7 @@ const album = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
 const backup = {
   version: 3,
   identity: { name: '  Salon été & famille  ', hostname: 'old-frame-9876' },
-  connection: { immich_url: 'https://photos.test', api_key: 'old-api-key' },
+  connection: { immich_url: 'https://photos.test', api_key: 'old-api-key', home_assistant_key: 'backup-key' },
   photos: { source: 'Memories', album_ids: album, portrait_pairing: false, portrait_pairs_only: true,
     portrait_pairing_range: 'Within 1 Day', portrait_pair_framing: 'Fill', display_mode: 'Fit', orientation: 'Landscape Only',
     memories_window: 'Within 7 Days', memories_fallback: false, date_filter_enabled: true,
@@ -119,6 +119,8 @@ const verify = `
     if (form.elements.frame_name.value !== 'Salon été & famille') throw new Error('The backup name was not prefilled')
     if (form.elements.immich_url.value !== 'https://photos.test') throw new Error('Immich URL was not prefilled')
     if (form.elements.immich_key.value !== 'entered-api-key') throw new Error('A backup replaced the entered key')
+    const homeAssistantKey = form.elements.home_assistant_key
+    if (homeAssistantKey.value) throw new Error('A backup prefilled the Home Assistant key')
     if (document.querySelector('#memories-choice').hidden || form.elements.memories_window.value !== 'Within 7 Days'
       || form.elements.memories_fallback.checked) throw new Error('On This Day settings were not prefilled')
     if (!document.querySelector('#capture-dates').hidden || form.elements.date_from.value !== '2024-02-29')
@@ -136,6 +138,13 @@ const verify = `
       throw new Error('Inactive pairing range was not retained')
     if (form.elements.portrait_pair_framing.value !== 'Fill' || !form.elements.portrait_pair_framing.disabled)
       throw new Error('Inactive pair framing was not retained')
+    homeAssistantKey.value = 'invalid'
+    form.requestSubmit()
+    if (attempts || !document.querySelector('#home-assistant').open || homeAssistantKey.validity.valid)
+      throw new Error('USB setup accepted an invalid Home Assistant key')
+    const haKey = 'AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA='
+    homeAssistantKey.value = haKey
+    homeAssistantKey.dispatchEvent(new Event('input'))
     const saved = waitFor(document.querySelector('#status'), 'Settings saved.')
     const find = document.querySelector('#find-frame')
     const networkStatus = document.querySelector('#network-status')
@@ -153,7 +162,7 @@ const verify = `
       || received.memories_window !== 'Within 7 Days' || received.memories_fallback !== false
       || received.portrait_pairing !== false || received.portrait_pairs_only !== true
       || received.portrait_pairing_range !== 'Within 1 Day' || received.portrait_pair_framing !== 'Fill'
-      || received.display_mode !== 'Fit' || Object.hasOwn(received, 'backup'))
+      || received.display_mode !== 'Fit' || received.home_assistant_key !== haKey || Object.hasOwn(received, 'backup'))
       throw new Error('Unexpected migrated USB settings')
     if (received.frame_name !== 'Salon été & famille' || Object.hasOwn(received, 'hostname'))
       throw new Error('The frame name was not sent independently of the old hostname')
@@ -191,7 +200,8 @@ const verify = `
     form.requestSubmit()
     await reused
     if (attempts !== 4 || received.immich_key !== 'after-improv'
-      || Object.hasOwn(received, 'ssid') || Object.hasOwn(received, 'password') || Object.hasOwn(received, 'frame_name'))
+      || Object.hasOwn(received, 'ssid') || Object.hasOwn(received, 'password') || Object.hasOwn(received, 'frame_name')
+      || Object.hasOwn(received, 'home_assistant_key'))
       throw new Error('Immich setup asked for Wi-Fi credentials a second time')
     await loadBackup(${JSON.stringify(filteredBackup)}, 'Backup loaded.')
     if (form.elements.photo_source.value !== 'custom' || document.querySelector('#filter-controls').hidden
@@ -200,13 +210,18 @@ const verify = `
     form.elements.immich_key.value = 'filtered-key'
     reuse.checked = true
     reuse.dispatchEvent(new Event('change'))
+    const removeKey = document.querySelector('#remove-home-assistant-key')
+    removeKey.checked = true
+    removeKey.dispatchEvent(new Event('change'))
+    if (!homeAssistantKey.disabled) throw new Error('The key field is enabled while removal is selected')
     const filtered = waitFor(networkStatus, 'Open frame settings')
     form.requestSubmit()
     await filtered
     if (attempts !== 5 || received.photo_source !== 'custom' || !received.albums_enabled || !received.people_enabled
       || !received.tags_enabled || received.album_order !== 'Album list order' || received.filter_country !== 'New Zealand'
       || received.excluded_tag_ids !== '66666666-6666-4666-8666-666666666666' || received.minimum_rating !== '4+'
-      || received.favorite_mode !== 'Exclude favorites' || received.immich_key !== 'filtered-key')
+      || received.favorite_mode !== 'Exclude favorites' || received.immich_key !== 'filtered-key'
+      || received.home_assistant_key !== '')
       throw new Error('Compound photo filters did not reach USB setup')
     document.body.dataset.backupTest = 'passed'
   })

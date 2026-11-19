@@ -21,7 +21,8 @@ else()
         add_link_options(-Wl,--gc-sections)
     endif()
 
-    add_executable(espframe_ha_host_test host_server.cpp ../../home_assistant/esphome_session.cpp)
+    add_executable(espframe_ha_host_test host_server.cpp ../../home_assistant/esphome_session.cpp
+                   ../../home_assistant/esphome_socket.cpp)
     target_compile_features(espframe_ha_host_test PRIVATE cxx_std_20)
     target_compile_options(espframe_ha_host_test PRIVATE -Wall -Wextra -Werror)
     target_include_directories(espframe_ha_host_test PRIVATE ../../main ../../home_assistant)
