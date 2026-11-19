@@ -25,6 +25,8 @@ namespace espframe::native {
 namespace {
 
 std::atomic<uint32_t> prepared_slides{};
+std::atomic<unsigned> cache_slots{};
+std::atomic<unsigned> ready_ahead{};
 std::atomic<uint32_t> first_photo_ms{};
 std::atomic<uint32_t> first_photo_preview_requests{};
 std::atomic<uint32_t> swipes{};
@@ -203,9 +205,10 @@ esp_err_t status(httpd_req_t *request) {
   const auto &network = *static_cast<const NativeNetwork *>(request->user_ctx);
   const auto prepared = prepared_slides.load(std::memory_order_acquire);
   const auto gestures = swipes.load(std::memory_order_acquire);
-  char body[864]{};
-  std::snprintf(body, sizeof(body),
+  char body[960]{};
+  const auto length = std::snprintf(body, sizeof(body),
                 "{\"trial\":\"v1-live\",\"uptime_ms\":%" PRIu32 ",\"prepared_slides\":%" PRIu32
+                ",\"cache_slots\":%u,\"ready_ahead\":%u"
                 ",\"first_photo_ms\":%" PRIu32 ",\"first_photo_preview_requests\":%" PRIu32
                 ",\"swipes\":%" PRIu32 ",\"last_motion_us\":%" PRIu32
                 ",\"clock_ready\":%s,\"photo_connection\":%s,\"prepare_attempts\":%" PRIu32
@@ -218,6 +221,7 @@ esp_err_t status(httpd_req_t *request) {
                 ",\"pairing_range_days\":%u"
                 ",\"preview_http\":%d,\"preview_requests\":%" PRIu32 "}",
                 static_cast<uint32_t>(esp_timer_get_time() / 1000), prepared,
+                cache_slots.load(std::memory_order_relaxed), ready_ahead.load(std::memory_order_relaxed),
                 first_photo_ms.load(std::memory_order_relaxed),
                 first_photo_preview_requests.load(std::memory_order_relaxed),
                 gestures, last_motion_us.load(std::memory_order_relaxed),
@@ -233,6 +237,8 @@ esp_err_t status(httpd_req_t *request) {
                 pairing_http.load(std::memory_order_relaxed), pair_candidates.load(std::memory_order_relaxed),
                 pairing_range_days.load(std::memory_order_relaxed),
                 preview_http.load(std::memory_order_relaxed), preview_requests.load(std::memory_order_relaxed));
+  if (length < 0 || static_cast<size_t>(length) >= sizeof(body))
+    return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not format trial status");
   httpd_resp_set_type(request, "application/json");
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
   return httpd_resp_sendstr(request, body);
@@ -374,6 +380,11 @@ void record_live_trial_photo(uint32_t elapsed_ms) {
     first_photo_preview_requests.store(preview_requests.load(std::memory_order_relaxed), std::memory_order_relaxed);
   }
   prepared_slides.fetch_add(1, std::memory_order_release);
+}
+
+void record_live_trial_cache(unsigned slots, unsigned ahead) {
+  cache_slots.store(slots, std::memory_order_relaxed);
+  ready_ahead.store(ahead, std::memory_order_relaxed);
 }
 
 void record_live_trial_gesture(uint32_t motion_us, const FirstMotionTrace &motion) {

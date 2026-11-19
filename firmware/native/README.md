@@ -194,7 +194,12 @@ and fades into the original photo. The player uses a glide when the pixel
 accelerator or third display buffer is unavailable. It keeps the current
 photo visible during a network failure. The random feed continues as new
 previews become available. It
-remembers the last 128 photo positions per session. It can decode up to
+remembers the last 128 photo positions per session. It reserves six decoded
+slide slots and can add up to three when PSRAM is available after display
+startup. Prefetch favors the last swipe direction and uses spare slots for
+upcoming photos when there is little history. The V1 trial reports the
+allocated slots and ready next photos as `cache_slots` and `ready_ahead`.
+It can decode up to
 16 recent previews or prepared slide JPEGs from a shared memory cache while
 offline, depending on file sizes and available PSRAM. The cache can use up to
 2 MiB for direct Immich, or 4 MiB once a prepared slide has loaded. A prepared

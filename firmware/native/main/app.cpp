@@ -185,14 +185,19 @@ bool decode_photo(const EncodedPhoto &photo, uint16_t *pixels, jpeg_decoder_hand
   return true;
 }
 
-SlideCache::Buffers allocate_slide_buffers() {
-  SlideCache::Buffers buffers{};
-  for (auto &pixels : buffers) {
-    constexpr size_t bytes = pixel_count * sizeof(uint16_t);
-    pixels = static_cast<uint16_t *>(heap_caps_aligned_alloc(128, bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    ESP_ERROR_CHECK(pixels != nullptr ? ESP_OK : ESP_ERR_NO_MEM);
+void allocate_slide_buffers(SlideCache::Buffers &buffers, size_t first, size_t last) {
+  constexpr size_t bytes = pixel_count * sizeof(uint16_t);
+  constexpr size_t decode_and_download_reserve = 10 * 1024 * 1024;
+  constexpr auto caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+  for (size_t slot = first; slot < last; ++slot) {
+    const bool extra = slot >= SlideCache::minimum_capacity;
+    if (extra && heap_caps_get_free_size(caps) < decode_and_download_reserve + bytes)
+      break;
+    buffers[slot] = static_cast<uint16_t *>(heap_caps_aligned_alloc(128, bytes, caps));
+    if (buffers[slot] == nullptr && extra)
+      break;
+    ESP_ERROR_CHECK(buffers[slot] != nullptr ? ESP_OK : ESP_ERR_NO_MEM);
   }
-  return buffers;
 }
 
 class SlideLoader {
@@ -347,7 +352,8 @@ void run(void *) {
     vTaskDelete(nullptr);
     return;
   }
-  SlideCache cache{allocate_slide_buffers()};
+  SlideCache::Buffers buffers{};
+  allocate_slide_buffers(buffers, 0, SlideCache::minimum_capacity);
   const bool live = loader.live();
   const auto rotation = loader.rotation();
   const SlideIndex slide_count = live && !trial_fixtures ? std::numeric_limits<PixelPosition>::max() / slide_width
@@ -375,13 +381,20 @@ void run(void *) {
   }
   if (live && !can_fade)
     ESP_LOGI(tag, "Crossfade unavailable; using the slideshow glide");
+  if (live && !trial_fixtures)
+    allocate_slide_buffers(buffers, SlideCache::minimum_capacity, buffers.size());
+  SlideCache cache{buffers};
+  const auto cache_slots = static_cast<unsigned>(cache.size());
+  ESP_LOGI(tag, "Decoded photo cache: %u slides", cache_slots);
+  if constexpr (trial_immich)
+    record_live_trial_cache(cache_slots, 0);
   TouchReader touch;
   touch.start(rotation);
   Swipe swipe{slide_width, slide_count, live ? 0 : 2};
   SwipeInput input;
   ScreenSchedule schedule{loader.schedule()};
   SlideDwell dwell;
-  SlidePrefetch prefetch{swipe.settled()};
+  SlidePrefetch prefetch{swipe.settled(), cache_slots};
   AutoplayFade fade;
   const uint16_t *snapshot = nullptr;
   const auto pin_fade = [&] {
@@ -433,6 +446,7 @@ void run(void *) {
   };
   SlideIndex first_photo = 1;
   SlideIndex next_photo = 1;
+  unsigned reported_ahead = 0;
   std::array<SlideRetry, SlideCache::capacity> retries{};
 
   while (true) {
@@ -529,6 +543,13 @@ void run(void *) {
       --ready_first;
     while (ready_last < window.last && cache.find(ready_last + 1) != nullptr)
       ++ready_last;
+    if constexpr (trial_immich) {
+      const auto ahead = static_cast<unsigned>(ready_last - center);
+      if (ahead != reported_ahead) {
+        record_live_trial_cache(cache_slots, ahead);
+        reported_ahead = ahead;
+      }
+    }
     swipe.set_ready_range(ready_first, ready_last);
 
     TouchReport report;
@@ -657,7 +678,7 @@ void run(void *) {
     } else if (!blend.pending() && (esphome_trial || !backlight_ready || input.awake())) {
       // Until PPA finishes, its input slides must stay readable even if a
       // touch has moved the cache window in the other direction.
-      for (const auto candidate : prefetch.candidates()) {
+      for (const auto candidate : prefetch.candidates(keep)) {
         if (!eligible(candidate))
           continue;
         if (const auto lease = cache.reserve(candidate, keep.first, keep.last)) {

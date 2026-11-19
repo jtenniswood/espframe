@@ -1,6 +1,7 @@
 #pragma once
 
 #include "slide_geometry.h"
+#include "slide_cache.h"
 
 #include <algorithm>
 #include <array>
@@ -39,7 +40,9 @@ inline std::optional<SlideIndex> missing_neighbor_at_edge(PixelPosition position
 
 class SlidePrefetch {
  public:
-  explicit SlidePrefetch(SlideIndex center) : center_(center) {}
+  explicit SlidePrefetch(SlideIndex center, size_t slots = SlideCache::minimum_capacity)
+      : center_(center), slots_(static_cast<SlideIndex>(std::clamp(slots, SlideCache::minimum_capacity,
+                                                                  SlideCache::capacity))) {}
 
   void moved_to(SlideIndex center) {
     if (center == center_)
@@ -57,8 +60,10 @@ class SlidePrefetch {
   }
 
   SlideRange window(SlideRange available) const {
-    return {std::max(available.first, center_ - (direction_ < 0 ? 3 : 2)),
-            std::min(available.last, center_ + (direction_ > 0 ? 3 : 2))};
+    const auto ideal_first = center_ - (direction_ < 0 ? slots_ - 3 : 2);
+    const auto rightmost_first = std::max(available.first, available.last - slots_ + 1);
+    const auto first = std::clamp(ideal_first, available.first, rightmost_first);
+    return {first, std::min(available.last, first + slots_ - 1)};
   }
 
   std::optional<SlideIndex> requested() const { return requested_; }
@@ -71,16 +76,27 @@ class SlidePrefetch {
   bool can_yield(SlideIndex active, SlideIndex wanted) const { return active != center_ && active != wanted; }
 
   bool can_defer_pixel_work(SlideRange ready) const {
-    return center_ > 0 && !requested_ && (ready.first < center_ || ready.last > center_);
+    return center_ > 0 && !requested_ && (direction_ < 0 ? ready.first < center_ : ready.last > center_);
   }
 
-  std::array<SlideIndex, 7> candidates() const {
-    return {center_, requested_.value_or(-1), center_ + direction_, center_ - direction_,
-            center_ + 2 * direction_, center_ - 2 * direction_, center_ + 3 * direction_};
+  std::array<SlideIndex, SlideCache::capacity + 2> candidates(SlideRange keep) const {
+    std::array<SlideIndex, SlideCache::capacity + 2> result;
+    result.fill(-1);
+    result[0] = center_;
+    result[1] = requested_.value_or(-1);
+    size_t index = 2;
+    for (SlideIndex distance = 1; distance < slots_; ++distance) {
+      for (const auto slide : {center_ + distance * direction_, center_ - distance * direction_}) {
+        if (keep.contains(slide))
+          result[index++] = slide;
+      }
+    }
+    return result;
   }
 
  private:
   SlideIndex center_;
+  SlideIndex slots_;
   int direction_{1};
   std::optional<SlideIndex> requested_;
 };

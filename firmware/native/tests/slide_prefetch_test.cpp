@@ -32,11 +32,20 @@ int main() {
   assert(window.first == 8 && window.last == 13);
   assert(!SlidePrefetch{0}.can_defer_pixel_work({0, 1}));
   assert(!prefetch.can_defer_pixel_work({10, 10}));
-  assert(prefetch.can_defer_pixel_work({9, 10}) && prefetch.can_defer_pixel_work({10, 11}));
+  assert(!prefetch.can_defer_pixel_work({9, 10}) && prefetch.can_defer_pixel_work({10, 11}));
 
-  uint16_t pixels[SlideCache::capacity]{};
+  SlidePrefetch deeper{10, SlideCache::capacity};
+  assert(deeper.window(available).first == 8 && deeper.window(available).last == 16);
+  assert(deeper.candidates(deeper.window(available))[9] == 16);
+  deeper.moved_to(9);
+  assert(deeper.window(available).first == 3 && deeper.window(available).last == 11);
+  deeper.moved_to(1);
+  assert(deeper.window(available).first == 1 && deeper.window(available).last == 9);
+  assert(deeper.candidates(deeper.window(available))[9] == 9);
+
+  uint16_t pixels[SlideCache::minimum_capacity]{};
   SlideCache::Buffers buffers{};
-  for (size_t i = 0; i < buffers.size(); ++i)
+  for (size_t i = 0; i < SlideCache::minimum_capacity; ++i)
     buffers[i] = &pixels[i];
   SlideCache cache{buffers};
   for (int slide = 8; slide <= 12; ++slide) {
@@ -64,13 +73,13 @@ int main() {
   swipe.press(300, 200, 10 * slide_width, 305'000);
   swipe.move(900, 200, 310'000);
   prefetch.request_at_edge(swipe.position(), {10, 12}, available);
-  assert(prefetch.requested() == 9 && prefetch.candidates()[1] == 9);
+  assert(prefetch.requested() == 9 && prefetch.candidates(prefetch.window(available))[1] == 9);
   assert(!prefetch.can_defer_pixel_work({10, 12}));
 
   prefetch.prepared(9);
   assert(prefetch.can_defer_pixel_work({9, 12}));
   prefetch.request_at_edge(8 * slide_width - 20, {8, 12}, available);
-  assert(prefetch.requested() == 7 && prefetch.candidates()[1] == 7);
+  assert(prefetch.requested() == 7 && prefetch.candidates(prefetch.window(available))[1] == 7);
   assert(prefetch.can_yield(13, 7));
   assert(!prefetch.can_yield(10, 7) && !prefetch.can_yield(7, 7));
   window = prefetch.window(available);
@@ -98,7 +107,7 @@ int main() {
   prefetch.request_at_edge(12 * slide_width + 20, {7, 12}, available);
   assert(prefetch.requested() == 13);
   prefetch.moved_to(11);
-  assert(!prefetch.requested() && prefetch.candidates()[2] == 12);
+  assert(!prefetch.requested() && prefetch.candidates(prefetch.window(available))[2] == 12);
   prefetch.request_at_edge(slide_width - 20, {1, 100}, available);
   prefetch.request_at_edge(100 * slide_width + 20, {1, 100}, available);
   assert(!prefetch.requested());

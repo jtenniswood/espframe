@@ -13,7 +13,8 @@ namespace espframe::native {
 // outstanding lease until it sends the completion back to the UI task.
 class SlideCache {
  public:
-  static constexpr size_t capacity = 6;
+  static constexpr size_t minimum_capacity = 6;
+  static constexpr size_t capacity = 9;
   using Buffers = std::array<uint16_t *, capacity>;
 
   struct Lease {
@@ -24,6 +25,13 @@ class SlideCache {
   };
 
   explicit SlideCache(const Buffers &buffers) : buffers_(buffers) {}
+
+  size_t size() const {
+    size_t allocated = 0;
+    for (const auto *buffer : buffers_)
+      allocated += buffer != nullptr;
+    return allocated;
+  }
 
   const uint16_t *find(SlideIndex slide) const {
     for (size_t index = 0; index < capacity; ++index) {
@@ -37,6 +45,8 @@ class SlideCache {
   std::optional<Lease> reserve(SlideIndex slide, SlideIndex keep_first, SlideIndex keep_last) {
     size_t available = capacity;
     for (size_t index = 0; index < capacity; ++index) {
+      if (!this->buffers_[index])
+        continue;
       const auto &entry = this->entries_[index];
       if (entry.state != State::Empty && entry.slide == slide)
         return std::nullopt;

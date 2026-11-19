@@ -5,11 +5,12 @@
 using espframe::native::SlideCache;
 
 int main() {
-  uint16_t pixels[SlideCache::capacity]{};
+  uint16_t pixels[SlideCache::minimum_capacity]{};
   SlideCache::Buffers buffers{};
-  for (size_t i = 0; i < buffers.size(); ++i)
+  for (size_t i = 0; i < SlideCache::minimum_capacity; ++i)
     buffers[i] = &pixels[i];
   SlideCache cache{buffers};
+  assert(cache.size() == 6);
 
   auto first = cache.reserve(2, 0, 5);
   assert(first && cache.find(2) == nullptr);
@@ -52,4 +53,16 @@ int main() {
   assert(reversed && cache.find(7) == nullptr);
   assert(cache.find(3) && cache.find(4) && cache.find(5));
   assert(cache.complete(*reversed, true));
+
+  uint16_t roomy_pixels[SlideCache::capacity]{};
+  for (size_t slot = 0; slot < buffers.size(); ++slot)
+    buffers[slot] = &roomy_pixels[slot];
+  SlideCache roomy{buffers};
+  assert(roomy.size() == 9);
+  for (int slide = 0; slide < 9; ++slide) {
+    const auto lease = roomy.reserve(slide, 0, 8);
+    assert(lease && roomy.complete(*lease, true));
+  }
+  assert(!roomy.reserve(9, 0, 8));
+  assert(roomy.reserve(9, 1, 9) && !roomy.find(0) && roomy.find(8));
 }
