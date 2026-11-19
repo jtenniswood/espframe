@@ -516,6 +516,7 @@ esp_err_t firmware_status(httpd_req_t *request) {
   const auto status = firmware_boot_status();
   const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(cJSON_CreateObject(), cJSON_Delete);
   if (!document || !cJSON_AddBoolToObject(document.get(), "boot_verified", status.boot_verified) ||
+      (is_firmware_test_build() && !cJSON_AddBoolToObject(document.get(), "ota_test_build", true)) ||
       (status.running && !add_firmware_image(document.get(), "running", *status.running)) ||
       (status.rejected && !add_firmware_image(document.get(), "rejected", *status.rejected)))
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to read firmware status.");

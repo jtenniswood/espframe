@@ -168,13 +168,24 @@ esp_err_t esp_timer_delete(esp_timer_handle_t timer) {
 }
 
 int main(int argc, char **argv) {
-  assert(argc == 2);
-  std::ifstream image(argv[1], std::ios::binary);
+#if SWIPE_NATIVE_OTA_TEST
+  assert(espframe::native::is_firmware_test_build());
+#else
+  assert(!espframe::native::is_firmware_test_build());
+#endif
+  const bool reject_only = argc == 3 && std::string_view(argv[1]) == "--reject";
+  assert(argc == 2 || reject_only);
+  std::ifstream image(argv[reject_only ? 2 : 1], std::ios::binary);
   expected.assign(std::istreambuf_iterator<char>(image), {});
   assert(expected.size() > prelude_size);
 
   using Result = FirmwareUpdateResult;
   Stream stream{expected, expected.size()};
+  if (reject_only) {
+    assert(stage_firmware(expected.size(), receive, &stream) == Result::WrongBoard);
+    assert(fake.begins == 0 && fake.boot_selections == 0 && fake.boot == &factory);
+    return 0;
+  }
   stream.request_restart = true;
   FirmwareImage staged;
   assert(stage_firmware(expected.size(), receive, &stream, &staged) == Result::Staged);
@@ -211,7 +222,7 @@ int main(int argc, char **argv) {
 
   auto wrong_board = expected;
   wrong_board[sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) +
-              offsetof(esp_app_desc_t, project_name) + sizeof("espframe_native_v") - 1] = '9';
+              offsetof(esp_app_desc_t, project_name)] = 'x';
   fake = {};
   Stream wrong{wrong_board, wrong_board.size()};
   assert(stage_firmware(wrong.available, receive, &wrong) == Result::WrongBoard);
@@ -252,6 +263,12 @@ int main(int argc, char **argv) {
   assert(fake.timer_armed);
   espframe::native::confirm_firmware_boot();
   espframe::native::confirm_firmware_boot();
+#if SWIPE_NATIVE_OTA_TEST_FAIL
+  assert(fake.accepted == 0 && fake.timer_armed && !firmware_boot_status().boot_verified);
+  fake.timer.callback(nullptr);
+  assert(fake.rejected == 1 && fake.restarts == 1 && fake.boot == &factory && fake.accepted == 0);
+  return 0;
+#endif
   assert(fake.accepted == 1 && !fake.timer_armed && fake.rejected == 0);
   assert(firmware_boot_status().boot_verified && firmware_boot_status().running == staged);
 

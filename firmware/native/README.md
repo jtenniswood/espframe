@@ -176,6 +176,40 @@ the frame returned to the previous firmware. If the upload is interrupted,
 the page lets you retry. Wi-Fi and Immich settings are stored in the dedicated
 settings partition.
 
+#### Test an interrupted upload and failed startup
+
+Use a dedicated Guition V1 with USB recovery available. Download the
+`native-v1-ota-recovery-test` artifact from Native Swipe Prototype and
+check its `SHA256SUMS`. This test uses a separate firmware project name so
+the recovery images are kept outside regular installer packages and updates.
+
+1. Install `native-ota-test-v1-factory.bin` to offset zero over USB. Use the
+   usual native USB settings form to connect the test frame and set its web
+   settings password. Export a settings backup for comparison.
+2. From a computer on the same network, run the following from the repository
+   root. Enter the frame's web settings password when prompted.
+
+   ```sh
+   python3 firmware/native/tools/interrupt_ota_test_upload.py "http://$FRAME_IP" native-ota-test-v1-baseline.bin
+   ```
+
+   The tool lets a partial transfer time out and verifies that the original
+   image is still serving settings.
+3. Upload `native-ota-test-v1-baseline.bin` in the frame's web settings.
+   Keep the page open and verify that it reports successful startup. This
+   places a verified image in the first OTA slot.
+4. Upload `native-ota-test-v1-fail.bin`. This image leaves its startup
+   check pending, then the normal timeout requests rollback. Verify that
+   the page reports return to the previous firmware, the slideshow and
+   touch work, and the exported settings match the earlier backup values.
+5. Restore the test frame with its regular native or ESPHome installer over USB.
+
+To build the pair locally, configure the native firmware with
+`-D SWIPE_NATIVE_OTA_TEST=BASELINE` and run `build merge-bin` for the factory
+and baseline app images. Configure a separate build directory with
+`-D SWIPE_NATIVE_OTA_TEST=FAIL` and run `build` for the failing app image.
+Both builds use `espframe_ota_test_vN.bin` for their app filenames.
+
 ### Recover Wi-Fi from the frame
 
 A fresh frame opens a protected setup hotspot when it has no saved Wi-Fi.

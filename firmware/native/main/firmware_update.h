@@ -27,6 +27,7 @@ struct FirmwareBootStatus {
 };
 
 bool can_update_firmware();
+bool is_firmware_test_build();
 FirmwareUpdateResult stage_firmware(size_t length, FirmwareRead read, void *context, FirmwareImage *staged = nullptr);
 FirmwareBootStatus firmware_boot_status();
 std::string_view last_reset_reason();

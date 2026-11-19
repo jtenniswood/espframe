@@ -31,6 +31,12 @@ constexpr int64_t upload_time_us = 90'000'000;
 constexpr int64_t trial_time_us = 15'000'000;
 static_assert(prelude_bytes <= buffer_size);
 
+#if SWIPE_NATIVE_OTA_TEST
+constexpr std::string_view expected_project = "espframe_ota_test_" NATIVE_BOARD;
+#else
+constexpr std::string_view expected_project = "espframe_native_" NATIVE_BOARD;
+#endif
+
 std::atomic<bool> checking_boot{};
 esp_timer_handle_t boot_timer{};
 std::mutex firmware_operation;
@@ -39,10 +45,9 @@ bool matches_board(const uint8_t *bytes, esp_app_desc_t &app) {
   esp_image_header_t image{};
   std::memcpy(&image, bytes, sizeof(image));
   std::memcpy(&app, bytes + header_bytes, sizeof(app));
-  constexpr std::string_view expected = "espframe_native_" NATIVE_BOARD;
   return image.magic == ESP_IMAGE_HEADER_MAGIC && image.chip_id == ESP_CHIP_ID_ESP32P4 && image.hash_appended == 1 &&
          app.magic_word == ESP_APP_DESC_MAGIC_WORD &&
-         std::string_view(app.project_name, strnlen(app.project_name, sizeof(app.project_name))) == expected;
+         std::string_view(app.project_name, strnlen(app.project_name, sizeof(app.project_name))) == expected_project;
 }
 
 FirmwareImage identify_image(const esp_partition_t *partition, const esp_app_desc_t &app) {
@@ -116,6 +121,8 @@ void trial_timeout(void *) {
 }  // namespace
 
 bool can_update_firmware() { return esp_ota_get_next_update_partition(nullptr) != nullptr; }
+
+bool is_firmware_test_build() { return expected_project.starts_with("espframe_ota_test_"); }
 
 FirmwareUpdateResult stage_firmware(size_t length, FirmwareRead read, void *context, FirmwareImage *staged) {
   using Result = FirmwareUpdateResult;
@@ -225,6 +232,7 @@ void start_firmware_boot_check() {
 }
 
 void confirm_firmware_boot() {
+#if !SWIPE_NATIVE_OTA_TEST_FAIL
   if (!checking_boot.load() || !checking_boot.exchange(false))
     return;
   esp_timer_stop(boot_timer);
@@ -234,6 +242,7 @@ void confirm_firmware_boot() {
     return;
   }
   ESP_LOGI(tag, "Firmware trial passed display and touch startup checks");
+#endif
 }
 
 }  // namespace espframe::native

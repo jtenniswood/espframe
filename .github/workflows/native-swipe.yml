@@ -212,6 +212,47 @@ jobs:
             firmware/native/build/${{ matrix.board }}/espframe_native_${{ matrix.board }}.bin
           if-no-files-found: error
 
+  native-ota-test:
+    name: Build native OTA recovery test images for Guition V1
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the baseline factory image and two OTA test images
+        run: |
+          docker run --rm -v "$PWD:/workspace" -w /workspace espressif/idf:v6.1.1 bash -ec '
+            build=firmware/native/build/ota-test-v1
+            artifacts=firmware/native/build/ota-test-artifacts
+            mkdir -p "$artifacts"
+            idf.py -C firmware/native -B "$build" -D SWIPE_BOARD=v1 -D SWIPE_NATIVE_OTA_TEST=BASELINE build merge-bin
+            cp "$build/merged-binary.bin" "$artifacts/native-ota-test-v1-factory.bin"
+            cp "$build/espframe_ota_test_v1.bin" "$artifacts/native-ota-test-v1-baseline.bin"
+            cp "$build/partition_table/partition-table.bin" /tmp/baseline-partitions.bin
+            idf.py -C firmware/native -B "$build" -D SWIPE_NATIVE_OTA_TEST=FAIL build
+            cmp /tmp/baseline-partitions.bin "$build/partition_table/partition-table.bin"
+            cp "$build/espframe_ota_test_v1.bin" "$artifacts/native-ota-test-v1-fail.bin"
+            cd "$artifacts"
+            sha256sum *.bin > SHA256SUMS
+          '
+      - name: Verify test identity, interrupted upload and failed startup
+        run: |
+          artifacts=firmware/native/build/ota-test-artifacts
+          args=(-std=c++20 -Wall -Wextra -Werror -pthread '-DNATIVE_BOARD="v1"'
+            -Ifirmware/native/main -Ifirmware/native/tests/ota_stubs
+            firmware/native/main/firmware_update.cpp firmware/native/tests/firmware_update_test.cpp)
+          c++ "${args[@]}" -o "$RUNNER_TEMP/normal-ota"
+          "$RUNNER_TEMP/normal-ota" --reject "$artifacts/native-ota-test-v1-fail.bin"
+          c++ "${args[@]}" -DSWIPE_NATIVE_OTA_TEST=1 -o "$RUNNER_TEMP/baseline-ota"
+          "$RUNNER_TEMP/baseline-ota" "$artifacts/native-ota-test-v1-baseline.bin"
+          c++ "${args[@]}" -DSWIPE_NATIVE_OTA_TEST=1 -DSWIPE_NATIVE_OTA_TEST_FAIL=1 -o "$RUNNER_TEMP/fail-ota"
+          "$RUNNER_TEMP/fail-ota" "$artifacts/native-ota-test-v1-fail.bin"
+          python3 firmware/native/tests/interrupt_ota_test_upload_test.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: native-v1-ota-recovery-test
+          path: firmware/native/build/ota-test-artifacts/
+          if-no-files-found: error
+
   esphome-v1-trial:
     name: Build the temporary V1 ESPHome swipe trial
     runs-on: ubuntu-latest
