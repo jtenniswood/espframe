@@ -2,6 +2,7 @@
 
 #include "configuration_contract_generated.h"
 #include "frame_status.h"
+#include "screen_control.h"
 #include "settings.h"
 
 #include "cJSON.h"
@@ -132,6 +133,7 @@ cJSON *configuration_capabilities() {
       !cJSON_AddNumberToObject(body.get(), "api_version", contract::API_VERSION) ||
       !cJSON_AddStringToObject(body.get(), "configuration_path", contract::CONFIGURATION_PATH) ||
       !cJSON_AddStringToObject(body.get(), "status_path", frame_status_path) ||
+      !cJSON_AddStringToObject(body.get(), "screen_control_path", screen_control_path) ||
       !cJSON_AddStringToObject(body.get(), "reset_path", contract::RESET_PATH) ||
       !cJSON_AddStringToObject(body.get(), "update_mode", "atomic") ||
       !cJSON_AddBoolToObject(body.get(), "configuration_available", true) ||
@@ -151,7 +153,7 @@ cJSON *configuration_capabilities() {
   return body.release();
 }
 
-cJSON *frame_status_snapshot(const FrameStatus &status, bool network_ready, bool restarting) {
+cJSON *frame_status_snapshot(const FrameStatus &status, bool network_ready, bool restarting, bool screen_pending) {
   Json body(cJSON_CreateObject(), cJSON_Delete);
   const char *playback = !status.configured ? "setup" : status.screen == ScreenState::Asleep ? "paused"
                                            : status.showed_photo ? "showing" : "loading";
@@ -161,6 +163,7 @@ cJSON *frame_status_snapshot(const FrameStatus &status, bool network_ready, bool
       !cJSON_AddStringToObject(body.get(), "source", status.configured ? photo_source_name(status.source) : "none") ||
       !cJSON_AddStringToObject(body.get(), "immich", immich_state(status, network_ready)) ||
       !cJSON_AddStringToObject(body.get(), "notice", photo_notice_name(status.notice)) ||
+      !cJSON_AddBoolToObject(body.get(), "screen_pending", screen_pending) ||
       !cJSON_AddBoolToObject(body.get(), "restarting", restarting))
     return nullptr;
   return body.release();

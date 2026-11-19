@@ -1,4 +1,4 @@
-#include "screen_schedule.h"
+#include "screen_control.h"
 #include "slide_dwell.h"
 #include "swipe_input.h"
 
@@ -9,6 +9,9 @@ using espframe::native::Swipe;
 using espframe::native::SwipeInput;
 using espframe::native::TouchReport;
 using espframe::native::ScreenSchedule;
+using espframe::native::ScreenAction;
+using espframe::native::ScreenControl;
+using espframe::native::screen_action;
 using Effect = SwipeInput::Effect;
 
 namespace {
@@ -233,6 +236,54 @@ void a_scheduled_wake_consumes_the_touch_and_expires_after_its_duration() {
   assert(swipe.dragging() && input.take_first_motion() == 10'030'000);
 }
 
+void web_commands_are_applied_through_the_same_schedule() {
+  static_assert(screen_action("action=sleep") == ScreenAction::Sleep);
+  static_assert(screen_action("action=wake") == ScreenAction::Wake);
+  static_assert(screen_action("action=wake&") == ScreenAction::Idle);
+  static_assert(screen_action("action=toggle") == ScreenAction::Idle);
+  ScreenSchedule schedule{{true, 6, 22, 10}};
+  ScreenControl control;
+  assert(schedule.update(8, 0, false));
+  assert(!control.apply_pending(schedule, 0));
+  assert(!control.submit(ScreenAction::Idle));
+  assert(control.submit(ScreenAction::Sleep));
+  assert(!control.submit(ScreenAction::Wake));
+  assert(control.apply_pending(schedule, 500));
+  assert(!schedule.update(8, 500, false));
+  assert(control.pending() && !control.submit(ScreenAction::Wake));
+  control.completed();
+  assert(!control.pending());
+  assert(!schedule.update(9, 1'000, false));
+  assert(control.submit(ScreenAction::Wake));
+  assert(control.apply_pending(schedule, 1'500));
+  assert(schedule.update(9, 1'500, false));
+  control.completed();
+  assert(schedule.update(9, 15'000'000, false));
+
+  assert(!schedule.update(22, 16'000'000, false));
+  assert(control.submit(ScreenAction::Wake));
+  assert(control.apply_pending(schedule, 17'000'000));
+  assert(schedule.update(22, 17'000'000, false));
+  control.completed();
+  assert(schedule.update(22, 26'999'999, false));
+  assert(!schedule.update(22, 27'000'000, false));
+}
+
+void putting_the_screen_to_sleep_mid_swipe_waits_for_the_next_contact() {
+  Swipe swipe{width, 5, 2};
+  SwipeInput input;
+  input.update(swipe, report(1, 5'000, 800), initial_position);
+  input.update(swipe, report(2, 10'000, 700), initial_position);
+  assert(swipe.dragging());
+  input.sleep(swipe);
+  assert(!input.awake() && swipe.idle() && swipe.position() == initial_position);
+  assert(input.update(swipe, report(3, 15'000, 620), initial_position) == Effect::None);
+  assert(input.update(swipe, report(4, 20'000, 0, 0), initial_position) == Effect::None);
+  assert(!input.awake() && !input.engaged());
+  assert(input.update(swipe, report(5, 25'000, 700), initial_position) == Effect::Wake);
+  assert(swipe.idle() && swipe.settled() == 2);
+}
+
 }  // namespace
 
 int main() {
@@ -246,4 +297,6 @@ int main() {
   scheduled_hours_preserve_manual_sleep_and_handle_midnight();
   entering_the_on_window_clears_a_temporary_wake();
   a_scheduled_wake_consumes_the_touch_and_expires_after_its_duration();
+  web_commands_are_applied_through_the_same_schedule();
+  putting_the_screen_to_sleep_mid_swipe_waits_for_the_next_contact();
 }

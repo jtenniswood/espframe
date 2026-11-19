@@ -4,6 +4,7 @@
 #include "frame_status.h"
 #include "native_configuration.h"
 #include "native_network.h"
+#include "screen_control.h"
 
 #include "cJSON.h"
 #include "esp_http_server.h"
@@ -310,9 +311,11 @@ esp_err_t configuration(httpd_req_t *request) {
 esp_err_t status(httpd_req_t *request) {
   if (!authorize(request))
     return ESP_OK;
+  // Observe completion before reading the state the player published for it.
+  const bool screen_pending = screen_control.pending();
   const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(
       frame_status_snapshot(frame_status.read(), network(request).photo_connection() != 0,
-                            esp_timer_is_active(restart_timer)), cJSON_Delete);
+                            esp_timer_is_active(restart_timer), screen_pending), cJSON_Delete);
   return send_configuration(request, document.get());
 }
 
@@ -326,6 +329,34 @@ esp_err_t configuration_reply(httpd_req_t *request, const ConfigurationUpdate &r
                          !cJSON_AddNumberToObject(body.get(), "updated", result.updated))))
     return send_configuration(request, nullptr);
   return send_configuration(request, body.get(), result.status);
+}
+
+esp_err_t change_screen(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  if (!same_origin(request))
+    return configuration_reply(request, {"403 Forbidden", "invalid_origin", {}});
+  std::array<char, sizeof("action=sleep") - 1> form{};
+  if (!header_is(request, "Content-Type", "application/x-www-form-urlencoded") ||
+      request->content_len == 0 || request->content_len > form.size())
+    return configuration_reply(request, {"400 Bad Request", "invalid_action", {}});
+
+  size_t received = 0;
+  while (received < request->content_len) {
+    const int bytes = httpd_req_recv(request, form.data() + received, request->content_len - received);
+    if (bytes <= 0)
+      return ESP_FAIL;
+    received += bytes;
+  }
+  const auto action = screen_action({form.data(), received});
+  if (action == ScreenAction::Idle)
+    return configuration_reply(request, {"400 Bad Request", "invalid_action", {}});
+  if (esp_timer_is_active(restart_timer) || frame_status.read().screen == ScreenState::Starting ||
+      !screen_control.submit(action))
+    return configuration_reply(request, {"409 Conflict", "operation_in_progress", {}});
+  httpd_resp_set_status(request, "202 Accepted");
+  httpd_resp_set_type(request, "application/json");
+  return httpd_resp_sendstr(request, "{\"status\":\"accepted\"}");
 }
 
 esp_err_t save_configuration(httpd_req_t *request) {
@@ -482,6 +513,7 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       {.uri = "/api/playback", .method = HTTP_POST, .handler = update, .user_ctx = &network},
       {.uri = contract::CAPABILITIES_PATH, .method = HTTP_GET, .handler = capabilities, .user_ctx = &network},
       {.uri = frame_status_path, .method = HTTP_GET, .handler = status, .user_ctx = &network},
+      {.uri = screen_control_path, .method = HTTP_POST, .handler = change_screen, .user_ctx = &network},
       {.uri = contract::CONFIGURATION_PATH, .method = HTTP_GET, .handler = configuration, .user_ctx = &network},
       {.uri = contract::CONFIGURATION_PATH, .method = HTTP_POST, .handler = save_configuration, .user_ctx = &network},
       {.uri = contract::RESET_PATH, .method = HTTP_GET, .handler = reset_status, .user_ctx = &network},

@@ -18,6 +18,9 @@ class SwipeInput {
 
   void sleep(Swipe &swipe) {
     swipe.show(swipe.settled());
+    wait_for_release_ |= down_;
+    down_ = false;
+    hold_candidate_ = false;
     first_motion_us_ = 0;
     sleeping_ = true;
   }

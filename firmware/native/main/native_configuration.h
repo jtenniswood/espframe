@@ -22,7 +22,7 @@ struct ConfigurationUpdate {
 
 cJSON *configuration_capabilities();
 cJSON *configuration_snapshot(const Settings &settings);
-cJSON *frame_status_snapshot(const FrameStatus &status, bool network_ready, bool restarting);
+cJSON *frame_status_snapshot(const FrameStatus &status, bool network_ready, bool restarting, bool screen_pending);
 std::optional<std::string> decode_configuration_form(std::string_view form);
 ConfigurationUpdate update_configuration(const char *json);
 std::optional<ResetMode> decode_reset_form(std::string_view form);

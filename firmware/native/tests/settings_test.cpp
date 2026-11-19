@@ -533,10 +533,12 @@ int main() {
   FrameStatusStore status;
   assert(std::string_view(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(capabilities.get(), "status_path"))) ==
          "/espframe/api/v1/status");
+  assert(std::string_view(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(capabilities.get(), "screen_control_path"))) ==
+         "/espframe/api/v1/screen");
   const auto expect_status = [&](bool online, bool restarting, const char *screen, const char *playback,
-                                 const char *source, const char *immich, const char *notice) {
-    const Json output(frame_status_snapshot(status.read(), online, restarting), cJSON_Delete);
-    assert(cJSON_GetArraySize(output.get()) == 7);
+                                 const char *source, const char *immich, const char *notice, bool pending = false) {
+    const Json output(frame_status_snapshot(status.read(), online, restarting, pending), cJSON_Delete);
+    assert(cJSON_GetArraySize(output.get()) == 8);
     const auto field = [&](const char *name) {
       const auto *value = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(output.get(), name));
       assert(value);
@@ -545,6 +547,8 @@ int main() {
     assert(field("screen") == screen && field("playback") == playback && field("source") == source);
     assert(field("immich") == immich && field("notice") == notice);
     assert(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(output.get(), "restarting")) == restarting);
+    const auto *command = cJSON_GetObjectItemCaseSensitive(output.get(), "screen_pending");
+    assert(cJSON_IsBool(command) && (cJSON_IsTrue(command) != 0) == pending);
   };
   expect_status(false, false, "starting", "setup", "none", "not_configured", "none");
   status.configure(true, PhotoSourceMode::Memories);
@@ -561,6 +565,7 @@ int main() {
   status.presented_photo();
   status.finish_preparation(PhotoSourceStatus::WaitingForPair, ImmichResponse::Pending);
   expect_status(true, false, "awake", "showing", "memories", "responding", "waiting_for_pair");
+  expect_status(true, false, "awake", "showing", "memories", "responding", "waiting_for_pair", true);
   status.set_screen(false);
   expect_status(true, true, "asleep", "paused", "memories", "responding", "waiting_for_pair");
 }

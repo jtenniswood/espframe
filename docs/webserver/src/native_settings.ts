@@ -6,6 +6,8 @@ const PRODUCT_SETTINGS: Record<string, { options?: string[]; min?: number; max?:
 const TIMEZONES: string[] = __ESPFRAME_NATIVE_TIMEZONES__;
 const TIMEZONE_LABELS: Record<string, string> = __ESPFRAME_NATIVE_TIMEZONE_LABELS__;
 const frameStatusPath = "/espframe/api/v1/status";
+const screenControlPath = "/espframe/api/v1/screen";
+type ScreenAction = "sleep" | "wake";
 
 interface NativeFrameStatus {
   screen: string;
@@ -14,6 +16,7 @@ interface NativeFrameStatus {
   immich: string;
   notice: string;
   restarting: boolean;
+  screenPending: boolean | null;
 }
 
 class NativeSettingsApi extends EspframeApiClient {
@@ -22,11 +25,24 @@ class NativeSettingsApi extends EspframeApiClient {
     if (capabilities?.status_path !== frameStatusPath) return null;
     const payload = await this.requestJson(frameStatusPath, { cache: "no-store" }, "frame_status_failed");
     if (!payload || typeof payload !== "object") throw new Error("invalid_frame_status");
-    const status = payload as Partial<NativeFrameStatus> & { api_version?: unknown };
+    const status = payload as Partial<NativeFrameStatus> & { api_version?: unknown; screen_pending?: unknown };
+    const controlsScreen = capabilities.screen_control_path === screenControlPath;
     if (status.api_version !== capabilities.api_version || typeof status.restarting !== "boolean" ||
         typeof status.screen !== "string" || typeof status.playback !== "string" || typeof status.source !== "string" ||
-        typeof status.immich !== "string" || typeof status.notice !== "string") throw new Error("invalid_frame_status");
-    return status as NativeFrameStatus;
+        typeof status.immich !== "string" || typeof status.notice !== "string" ||
+        (controlsScreen && typeof status.screen_pending !== "boolean")) throw new Error("invalid_frame_status");
+    return { ...status, screenPending: controlsScreen ? status.screen_pending : null } as NativeFrameStatus;
+  }
+
+  async changeScreen(action: ScreenAction): Promise<void> {
+    const payload = await this.requestJson(screenControlPath, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ action }),
+    }, "screen_control_failed");
+    if (!payload || typeof payload !== "object" || (payload as { status?: unknown }).status !== "accepted")
+      throw new Error("screen_control_failed");
   }
 }
 
@@ -72,47 +88,111 @@ function initNativeFrameStatus() {
   const notice = el("p", "native-frame-notice");
   notice.setAttribute("role", "status");
   notice.hidden = true;
-  panel.append(values, notice);
+  const screenButton = button("Sleep screen");
+  screenButton.id = "native-screen-action";
+  const actionStatus = el("span");
+  actionStatus.setAttribute("role", "status");
+  const controls = el("div", "native-screen-controls");
+  controls.hidden = true;
+  controls.append(screenButton, actionStatus);
+  panel.append(values, notice, controls);
 
   let timer: number | undefined;
   let busy = false;
   let supported = true;
+  let commanding = false;
+  let commandVersion = 0;
+  let latest: NativeFrameStatus | null = null;
   const setNotice = (message: string) => {
     if (notice.textContent !== message) notice.textContent = message;
     notice.hidden = !message;
+  };
+  const renderControl = () => {
+    controls.hidden = !latest || latest.restarting || latest.screenPending === null ||
+      (latest.screen !== "awake" && latest.screen !== "asleep");
+    screenButton.disabled = commanding || latest?.screenPending === true;
+    const label = latest?.screen === "asleep" ? "Wake screen" : "Sleep screen";
+    if (screenButton.textContent !== label) screenButton.textContent = label;
+  };
+  const render = (status: NativeFrameStatus) => {
+    latest = status;
+    for (const [key, value] of Object.entries(status)) {
+      const field = fields.get(key);
+      if (!field || typeof value !== "string") continue;
+      const label = frameStatusLabels[key][1][value];
+      const text = typeof label === "string" ? label : "Unknown";
+      if (field.textContent !== text) field.textContent = text;
+    }
+    const detail = frameNotices[status.notice];
+    setNotice(status.restarting ? "The frame is restarting." :
+      status.immich === "rejected" ? "Check the Immich API key and its permissions." : typeof detail === "string" ? detail : "");
+    values.hidden = status.restarting;
+    panel.hidden = false;
+    renderControl();
+  };
+  const scheduleRefresh = (delay = 5000) => {
+    window.clearTimeout(timer);
+    if (supported && !document.hidden && !commanding) timer = window.setTimeout(refresh, delay);
   };
   const visibilityChanged = () => {
     window.clearTimeout(timer);
     if (!document.hidden) void refresh();
   };
   const refresh = async () => {
-    if (document.hidden || busy || !supported) return;
+    if (document.hidden || busy || commanding || !supported) return;
     busy = true;
+    const version = commandVersion;
     try {
       const status = await apiClient.getFrameStatus();
+      if (version !== commandVersion) return;
       if (!status) {
         supported = false;
         panel.hidden = true;
         document.removeEventListener("visibilitychange", visibilityChanged);
         return;
       }
-      for (const [key, value] of Object.entries(status)) {
-        const field = fields.get(key);
-        if (!field || typeof value !== "string") continue;
-        const label = frameStatusLabels[key][1][value];
-        if (field.textContent !== label) field.textContent = typeof label === "string" ? label : "Unknown";
-      }
-      const detail = frameNotices[status.notice];
-      setNotice(status.restarting ? "The frame is restarting." :
-        status.immich === "rejected" ? "Check the Immich API key and its permissions." : typeof detail === "string" ? detail : "");
-      values.hidden = status.restarting;
-      panel.hidden = false;
+      render(status);
     } catch (_) {
+      if (version !== commandVersion) return;
+      latest = null;
       values.hidden = true;
       setNotice("The frame is unavailable. Waiting to reconnect.");
+      renderControl();
     } finally {
       busy = false;
-      if (supported && !document.hidden) timer = window.setTimeout(refresh, 5000);
+      scheduleRefresh();
+    }
+  };
+  screenButton.onclick = async () => {
+    if (commanding || screenButton.disabled || controls.hidden || !latest) return;
+    const action = latest.screen === "asleep" ? "wake" : "sleep";
+    const expected = action === "wake" ? "awake" : "asleep";
+    commanding = true;
+    commandVersion++;
+    window.clearTimeout(timer);
+    renderControl();
+    actionStatus.textContent = action === "wake" ? "Waking screen…" : "Putting screen to sleep…";
+    let confirmed = false;
+    try {
+      await apiClient.changeScreen(action);
+      for (let attempt = 0; attempt < 10; ++attempt) {
+        const status = await apiClient.getFrameStatus();
+        if (!status || status.restarting || status.screenPending === null) break;
+        render(status);
+        if (!status.screenPending) {
+          confirmed = status.screen === expected;
+          break;
+        }
+        await delayMs(125);
+      }
+      actionStatus.textContent = confirmed ? "" : "Couldn’t confirm the screen change.";
+    } catch (error) {
+      actionStatus.textContent = error instanceof EspframeApiError && error.kind === "conflict" ?
+        "The frame is busy. Try again when it’s ready." : "Couldn’t confirm the screen change.";
+    } finally {
+      commanding = false;
+      renderControl();
+      scheduleRefresh(confirmed ? 5000 : 0);
     }
   };
   document.addEventListener("visibilitychange", visibilityChanged);

@@ -10,7 +10,7 @@
 #include "live_trial.h"
 #include "native_network.h"
 #include "recovery_card.h"
-#include "screen_schedule.h"
+#include "screen_control.h"
 #include "slide_cache.h"
 #include "slide_dwell.h"
 #include "slide_prefetch.h"
@@ -571,6 +571,7 @@ void run(void *) {
 
     now = esp_timer_get_time();
     if (backlight_ready) {
+      const bool commanded = !esphome_trial && screen_control.apply_pending(schedule, now);
       const bool awake = schedule.update(local_hour, now, input.engaged() || !swipe.idle());
       if (awake != input.awake()) {
         if (awake) {
@@ -589,6 +590,8 @@ void run(void *) {
         }
         applied_brightness = target;
       }
+      if (commanded)
+        screen_control.completed();
     }
 
     if (blend.poll_complete() && fade.running()) {
@@ -626,7 +629,7 @@ void run(void *) {
     if (preparing >= 0) {
       if (const auto wanted = prefetch.requested(); wanted && eligible(*wanted) && prefetch.can_yield(preparing, *wanted))
         loader.yield_to_swipe();
-    } else if (!blend.pending()) {
+    } else if (!blend.pending() && (esphome_trial || !backlight_ready || input.awake())) {
       // Until PPA finishes, its input slides must stay readable even if a
       // touch has moved the cache window in the other direction.
       for (const auto candidate : prefetch.candidates()) {
