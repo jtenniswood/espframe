@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string_view>
 
@@ -23,6 +24,8 @@ struct EspHomeControls {
   const void *context;
   uint32_t (*interval)(const void *);
   bool (*set_interval)(const void *, uint32_t);
+  std::string_view station_address;
+  std::optional<int8_t> (*wifi_rssi)(const void *);
 };
 
 enum class EspHomeReadiness { Ready, Idle, Closed };

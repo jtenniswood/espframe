@@ -22,6 +22,8 @@ extern "C" void app_main() {
       screen_control, nullptr,
       [](const void *) -> uint32_t { return 15; },
       [](const void *, uint32_t) { return false; },
+      "127.0.0.1",
+      [](const void *) -> std::optional<int8_t> { return {}; },
   };
   serve_esphome(closed, {"espframe-link-test", {}, {}, {2, 0, 0, 0, 0, 1}}, no_key, controls);
 }

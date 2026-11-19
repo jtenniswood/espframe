@@ -10,6 +10,8 @@
 #include "bootloader_random.h"
 #include "esp_log.h"
 #include "esp_random.h"
+#include "esp_timer.h"
+#include "esp_wifi.h"
 #include "lwip/sockets.h"
 #include "mdns.h"
 
@@ -55,6 +57,18 @@ struct HomeAssistantServer {
   EspHomeIdentity identity{};
   HomeAssistantKey key{};
   std::string_view paired_key;
+  mutable std::optional<int8_t> last_rssi{};
+  mutable int64_t next_wifi_sample_us{};
+
+  std::optional<int8_t> wifi_rssi() const {
+    const auto now = esp_timer_get_time();
+    if (now >= next_wifi_sample_us) {
+      wifi_ap_record_t ap{};
+      last_rssi = esp_wifi_sta_get_ap_info(&ap) == ESP_OK ? std::optional<int8_t>{ap.rssi} : std::nullopt;
+      next_wifi_sample_us = now + 60'000'000;
+    }
+    return last_rssi;
+  }
 
   void listen_on_station(uint32_t lease) const {
     const Socket listener{socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)};
@@ -82,6 +96,9 @@ struct HomeAssistantServer {
     if (!advertised)
       ESP_LOGW(tag, "ESPHome API discovery is unavailable");
 
+    std::array<char, INET_ADDRSTRLEN> station_address{};
+    inet_ntop(AF_INET, &address.sin_addr, station_address.data(), station_address.size());
+    next_wifi_sample_us = 0;
     const EspHomeControls controls{
         screen_control, this,
         [](const void *) { return active_slideshow_interval.load(std::memory_order_relaxed); },
@@ -89,6 +106,8 @@ struct HomeAssistantServer {
           const auto &server = *static_cast<const HomeAssistantServer *>(context);
           return Settings::save_slide_interval(seconds, server.paired_key);
         },
+        station_address.data(),
+        [](const void *context) { return static_cast<const HomeAssistantServer *>(context)->wifi_rssi(); },
     };
     while (network->station_lease() == lease) {
       const Socket client{accept(listener.fd, nullptr, nullptr)};

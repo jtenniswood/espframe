@@ -7,8 +7,9 @@ from pathlib import Path
 import sys
 
 from aioesphomeapi import (
-    APIClient, ButtonInfo, ColorMode, InvalidEncryptionKeyAPIError, LightInfo, LightState,
-    SelectInfo, SelectState, build_device_unique_id,
+    APIClient, BinarySensorInfo, BinarySensorState, ButtonInfo, ColorMode, EntityCategory,
+    InvalidEncryptionKeyAPIError, LightInfo, LightState, SelectInfo, SelectState, SensorInfo,
+    SensorState, SensorStateClass, TextSensorInfo, TextSensorState, build_device_unique_id,
 )
 from aioesphomeapi.api_pb2 import PingRequest, PingResponse
 from aioesphomeapi.noise import NoiseHandshake
@@ -20,6 +21,9 @@ MAC = "02aabbccddee"
 KEY = b64encode(bytes(range(1, 33))).decode()
 INTERVAL_KEY = 3029912432
 BACKLIGHT_KEY = 2211332998
+ONLINE_KEY = 3727615758
+WIFI_STRENGTH_KEY = 3943756064
+IP_ADDRESS_KEY = 3394986237
 CONTRACT = Path(__file__).resolve().parents[4] / "product/contract/settings.json"
 STOCK_INTERVALS = next(field["options"] for field in json.loads(CONTRACT.read_text()) if field["key"] == "interval")
 
@@ -72,6 +76,41 @@ async def assert_invalid_record(port, oversized):
         await writer.wait_closed()
 
 
+def check_network_entities(entities):
+    by_key = {item.key: item for item in entities}
+    for key, entity_type, name, domain, object_id, icon in (
+        (ONLINE_KEY, BinarySensorInfo, "Network: Online", "binary_sensor", "network__online", "mdi:check-network"),
+        (WIFI_STRENGTH_KEY, SensorInfo, "Network: WiFi Strength", "sensor", "network__wifi_strength", "mdi:wifi"),
+        (IP_ADDRESS_KEY, TextSensorInfo, "Network: IP Address", "text_sensor", "network__ip_address", "mdi:ip-network"),
+    ):
+        entity = by_key[key]
+        assert isinstance(entity, entity_type)
+        assert entity.name == name and entity.icon == icon and entity.entity_category == EntityCategory.DIAGNOSTIC
+        assert build_device_unique_id(MAC, entity) == f"{MAC}/0/{domain}/{name}"
+        assert build_device_unique_id(MAC, entity, version=1) == f"{MAC}-{domain}-{object_id}"
+    online = by_key[ONLINE_KEY]
+    assert online.device_class == "connectivity" and online.is_status_binary_sensor
+    strength = by_key[WIFI_STRENGTH_KEY]
+    assert strength.unit_of_measurement == "%" and strength.device_class == "signal_strength"
+    assert strength.state_class == SensorStateClass.MEASUREMENT and strength.accuracy_decimals == 0
+
+
+async def expect_wifi_strength(states, expected):
+    strength = await states.get()
+    assert isinstance(strength, SensorState) and strength.key == WIFI_STRENGTH_KEY
+    assert strength.missing_state == (expected is None)
+    if expected is not None:
+        assert strength.state == expected
+
+
+async def expect_network_states(states, strength):
+    online = await states.get()
+    assert isinstance(online, BinarySensorState) and online.key == ONLINE_KEY and online.state
+    address = await states.get()
+    assert isinstance(address, TextSensorState) and address.key == IP_ADDRESS_KEY and address.state == HOST
+    await expect_wifi_strength(states, strength)
+
+
 async def verify(port, clock_input):
     reader, writer = await asyncio.open_connection(HOST, port)
     try:
@@ -104,7 +143,8 @@ async def verify(port, clock_input):
         assert info.mac_address.lower().replace(":", "") == MAC
         assert info.api_encryption_supported and not info.api_encryption_provisionable
         assert info.project_name == "jtenniswood.immich-frame"
-        assert not services and len(entities) == 4
+        assert not services and len(entities) == 7
+        check_network_entities(entities)
         buttons = [entity for entity in entities if isinstance(entity, ButtonInfo)]
         for button, name, key, object_id in zip(
             buttons, ("Screen: Sleep", "Screen: Wake"), (2655868716, 1917547667),
@@ -137,6 +177,12 @@ async def verify(port, clock_input):
             assert round(current.brightness * 100) == level
 
         await expect_backlight(64)
+        await expect_network_states(states, 70)
+        for command, strength in ((b"x", None), (b"w", 0), (b"s", 100)):
+            clock_input.write(command)
+            await clock_input.drain()
+            await expect_wifi_strength(states, strength)
+
         connection = api._get_connection()
         assert isinstance(await connection.send_message_await_response(PingRequest(), PingResponse), PingResponse)
         api.select_command(1234, "45 seconds")
@@ -203,6 +249,7 @@ async def verify(port, clock_input):
         assert (await states.get()).state == "2 hours"
         restored = await states.get()
         assert isinstance(restored, LightState) and restored.state and round(restored.brightness * 100) == 20
+        await expect_network_states(states, 100)
     finally:
         await api.disconnect()
 
@@ -220,6 +267,7 @@ async def main(executable):
             process.terminate()
         await process.wait()
     print("ESPHome client authenticated and controlled the backlight, sleep, wake and slideshow interval with stock entity IDs.")
+    print("Network status, IP address and Wi-Fi strength used the stock diagnostic identities and reported live state.")
     print("Silent clients, wrong keys, plaintext, oversized frames and inconsistent lengths were rejected. The client reconnected.")
 
 
