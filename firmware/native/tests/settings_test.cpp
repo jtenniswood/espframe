@@ -752,6 +752,9 @@ int main() {
   assert(current.pair_framing == espframe::native::PairFraming::FollowPhotos && current.pair_display_mode() == DisplayMode::Fit);
   assert(!update_configuration(R"({"values":{"display_mode":"Fit","portrait_pair_framing":"Fill"}})").error);
   assert(current.read() && current.display_mode == DisplayMode::Fit && current.pair_display_mode() == DisplayMode::Fill);
+  assert(Settings::save(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","web_password":"new-settings",
+      "display_mode":"Fit"})"));
+  assert(current.read() && current.display_mode == DisplayMode::Fit && current.pair_display_mode() == DisplayMode::Fill);
   const auto prior_framing = stored;
   assert(update_configuration(R"({"values":{"portrait_pair_framing":"Stretch"}})").error);
   assert(stored == prior_framing);

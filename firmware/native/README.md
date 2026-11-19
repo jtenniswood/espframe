@@ -52,7 +52,8 @@ When upgrading an existing frame, export an Espframe settings backup from
 its web page before installation. In the native installer, choose that
 backup to prefill the frame name, Immich URL, supported photo source, slideshow interval,
 display mode, portrait pairing, mounting orientation, clock, brightness, and
-screen schedule.
+screen schedule. Recognized ESPHome backups prefill **Fill each half** for
+portrait pairs, independently of the display mode for single photos.
 Backups that use filters the
 native player cannot apply require you to choose a photo source before saving.
 To keep saved connections, leave **Erase device** unchecked during firmware

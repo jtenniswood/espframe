@@ -22,6 +22,7 @@ const partial = readBackup(await fixture('v1-partial'))
 assert.deepEqual(partial.settings, {
   immich_url: 'http://192.168.1.30:2283',
   display_mode: 'Fit',
+  portrait_pair_framing: 'Fill',
   brightness_day: 80,
   screen_rotation: '180',
   photo_source: 'favorites',
@@ -31,7 +32,7 @@ for (const name of ['v1-full', 'v2-full']) {
   const result = readBackup(await fixture(name))
   assert.deepEqual(result.settings, {
     immich_url: 'https://photos.example.com', slide_seconds: 15, portrait_pairing: true, portrait_pairs_only: true,
-    portrait_pairing_range: 'Within 2 Days',
+    portrait_pairing_range: 'Within 2 Days', portrait_pair_framing: 'Fill',
     display_mode: 'Fill',
     transition: name === 'v2-full' ? 'Cross Fade' : 'Random',
     transition_speed: name === 'v2-full' ? 'Fast' : 'Slow',
@@ -77,6 +78,21 @@ assert.deepEqual(cleanAlbum.settings, {
 })
 assert.equal(cleanAlbum.chooseSource, false)
 assert.doesNotMatch(JSON.stringify(cleanAlbum), /ignore-this/)
+const legacyPhotos = { display_mode: 'Fit', portrait_pairing: false }
+const stock = { version: 3, firmware_updates: { update_frequency: 'Daily' }, photos: legacyPhotos }
+assert.deepEqual(readBackup(stock).settings, {
+  display_mode: 'Fit', portrait_pairing: false, portrait_pair_framing: 'Fill',
+})
+assert.deepEqual(readBackup({ version: 3, photos: legacyPhotos }).settings, {
+  display_mode: 'Fit', portrait_pairing: false,
+})
+for (const framing of ['Follow photo framing', 'Fit', 'Fill']) {
+  const result = readBackup({ ...stock, photos: { ...legacyPhotos, portrait_pair_framing: framing } })
+  assert.equal(result.settings.portrait_pair_framing, framing)
+}
+const invalidPairFraming = readBackup({ ...stock, photos: { ...legacyPhotos, portrait_pair_framing: 'Stretch' } })
+assert.equal(invalidPairFraming.settings.portrait_pair_framing, undefined)
+assert.match(invalidPairFraming.notices[0], /frame portrait pairs/)
 const dateOnly = readBackup({ version: 3, photos: { source: 'Custom', date_filter_enabled: true,
   date_filter_mode: 'Fixed Range', date_from: '2024-02-29', date_to: '' } })
 assert.equal(dateOnly.chooseSource, false)

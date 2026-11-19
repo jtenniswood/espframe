@@ -209,6 +209,11 @@ export function readBackup(data) {
   if (own(photos, 'portrait_pair_framing')) {
     if (pairFramings.includes(photos.portrait_pair_framing)) settings.portrait_pair_framing = photos.portrait_pair_framing
     else notices.push('Choose how to frame portrait pairs.')
+  } else if ((data.version < 3 || own(data, 'firmware_updates')) &&
+             (typeof photos.portrait_pairing === 'boolean' || displayModes.includes(photos.display_mode))) {
+    // ESPHome exports version 1/2 or includes firmware_updates. Its paired
+    // portraits always fill their halves, independently of display_mode.
+    settings.portrait_pair_framing = 'Fill'
   }
   if (own(photos, 'orientation') && photos.orientation !== 'Any') {
     if (photoOrientations.includes(photos.orientation)) settings.photo_orientation = photos.orientation

@@ -24,8 +24,9 @@ const backup = {
   version: 3,
   identity: { name: '  Salon été & famille  ', hostname: 'old-frame-9876' },
   connection: { immich_url: 'https://photos.test', api_key: 'old-api-key', home_assistant_key: 'backup-key' },
+  firmware_updates: JSON.parse(oldBackup).firmware_updates,
   photos: { source: 'Memories', album_ids: album, portrait_pairing: false, portrait_pairs_only: true,
-    portrait_pairing_range: 'Within 1 Day', portrait_pair_framing: 'Fill', display_mode: 'Fit', orientation: 'Landscape Only',
+    portrait_pairing_range: 'Within 1 Day', display_mode: 'Fit', orientation: 'Landscape Only',
     transition: 'Slide Down', transition_speed: 'Slow',
     memories_window: 'Within 7 Days', memories_fallback: false, date_filter_enabled: true,
     date_filter_mode: 'Fixed Range', date_from: '2024-02-29', date_to: '', relative_amount: 2, relative_unit: 'Months' },
@@ -111,6 +112,8 @@ const verify = `
         form.elements.album_id.value !== '11111111-1111-4111-8111-111111111111')
       throw new Error('The older album source was not preserved')
     if (form.elements.display_mode.value !== 'Fill') throw new Error('Existing crop mode was not imported')
+    if (form.elements.portrait_pair_framing.value !== 'Fill') throw new Error('ESPHome pair framing was not imported')
+    form.elements.portrait_pair_framing.value = 'Fit'
     if (form.elements.brightness_day.value !== '100') throw new Error('Existing brightness was not imported')
     if (form.elements.brightness_night.value !== '75') throw new Error('Existing nighttime brightness was not imported')
     if (form.elements.screen_rotation.value !== '0') throw new Error('Existing mounting orientation was not imported')
@@ -229,13 +232,16 @@ const verify = `
     await reused
     if (attempts !== 4 || received.immich_key !== 'after-improv'
       || Object.hasOwn(received, 'ssid') || Object.hasOwn(received, 'password') || Object.hasOwn(received, 'frame_name')
-      || Object.hasOwn(received, 'home_assistant_key') || Object.hasOwn(received, 'prepared_slide_url')
+      || Object.hasOwn(received, 'home_assistant_key') || Object.hasOwn(received, 'portrait_pair_framing')
+      || Object.hasOwn(received, 'prepared_slide_url')
       || Object.hasOwn(received, 'prepared_slide_token'))
       throw new Error('Immich setup sent settings that were left blank')
     await loadBackup(${JSON.stringify(filteredBackup)}, 'Backup loaded.')
     if (form.elements.photo_source.value !== 'custom' || document.querySelector('#filter-controls').hidden
       || !form.elements.people_enabled.checked || form.elements.minimum_rating.value !== '4+')
       throw new Error('Compound photo filters did not appear in the source editor')
+    form.elements.portrait_pair_framing.value = 'Follow photo framing'
+    form.elements.portrait_pair_framing.dispatchEvent(new Event('change', { bubbles: true }))
     form.elements.immich_key.value = 'filtered-key'
     reuse.checked = true
     reuse.dispatchEvent(new Event('change'))
@@ -250,7 +256,7 @@ const verify = `
       || !received.tags_enabled || received.album_order !== 'Album list order' || received.filter_country !== 'New Zealand'
       || received.excluded_tag_ids !== '66666666-6666-4666-8666-666666666666' || received.minimum_rating !== '4+'
       || received.favorite_mode !== 'Exclude favorites' || received.immich_key !== 'filtered-key'
-      || received.home_assistant_key !== '')
+      || received.home_assistant_key !== '' || received.portrait_pair_framing !== 'Follow photo framing')
       throw new Error('Compound photo filters did not reach USB setup')
 
     reuse.checked = true
