@@ -176,9 +176,16 @@ int main() {
 
   const auto page = parse_photo_search(R"({"assets":{"items":[{"id":"c48e2980-18ac-4d7d-876a-a636759a1aec"}],"nextPage":"8"}})",
                                        16, true, false);
-  assert(page.valid && page.photos.size() == 1 && page.next_page == 8);
+  assert(page.valid && page.photos.size() == 1 && page.next_page == 8 && page.has_next_page(7));
+  const auto filtered_page = parse_photo_search(
+      R"({"assets":{"items":[{"id":"c48e2980-18ac-4d7d-876a-a636759a1aec","width":900,"height":700}],"nextPage":"8"}})",
+      16, true, false, {}, false, PhotoOrientation::Portrait);
+  assert(filtered_page.valid && filtered_page.photos.empty() && filtered_page.has_next_page(7));
+  assert(!filtered_page.has_next_page(8) && !filtered_page.has_next_page(9));
   const auto last_page = parse_photo_search(R"({"assets":{"items":[],"nextPage":null}})", 16, true, false);
-  assert(last_page.valid && last_page.photos.empty() && last_page.next_page == 0);
+  assert(last_page.valid && last_page.photos.empty() && !last_page.has_next_page(8));
+  const auto invalid_page = parse_photo_search(R"({"assets":{"items":null,"nextPage":"9"}})", 16, true, false);
+  assert(!invalid_page.valid && !invalid_page.has_next_page(8));
   assert(!parse_photo_search(response, 16, true, false).valid);
   const auto favorite_results = parse_photo_search(R"([
     {"id":"c48e2980-18ac-4d7d-876a-a636759a1aec","isFavorite":false},

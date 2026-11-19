@@ -42,6 +42,8 @@ struct PhotoSearchResult {
   std::vector<ImmichPhoto> photos;
   uint32_t next_page{};
   bool valid{};
+
+  bool has_next_page(uint32_t current_page) const { return valid && next_page > current_page; }
 };
 
 ImmichSearchApi parse_search_api(std::string_view json);

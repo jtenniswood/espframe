@@ -88,6 +88,7 @@ class ImmichSource {
   uint8_t next_filter_group_{};
   int next_filter_album_{};
   bool pending_is_paged_{};
+  bool pending_has_next_page_{};
   uint8_t *encoded_{};
   PhotoHistory history_;
   RecentPreviews previews_;

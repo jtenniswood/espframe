@@ -114,6 +114,8 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
   const bool pairing = local_day.has_value();
   const bool custom = source.mode == PhotoSourceMode::Custom;
   const auto &filters = this->settings_.photo_filters;
+  if (!pairing)
+    this->pending_has_next_page_ = false;
   if (!online_())
     return {};
   if (!this->allocate_download_())
@@ -188,13 +190,17 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
                                      request.dates, favorite_mode == "Exclude favorites", this->settings_.photo_orientation);
   if constexpr (SWIPE_TRIAL_IMMICH)
     record_live_trial_search(pairing, status, response.photos.size());
-  if (album_page && response.valid)
-    album_page->page = response.next_page > page ? response.next_page : 1;
+  if (album_page && response.valid) {
+    // A locally filtered page can be empty even when the album continues.
+    this->pending_has_next_page_ = response.has_next_page(page);
+    album_page->page = this->pending_has_next_page_ ? response.next_page : 1;
+  }
   if constexpr (!SWIPE_ESPHOME_TRIAL) {
     if (!pairing && !response.valid && !cancelled_)
       this->response_ = ImmichResponse::RequestFailed;
   }
-  if (!pairing && response.valid && response.photos.empty() && this->settings_.photo_source.mode != PhotoSourceMode::Memories)
+  if (!pairing && response.valid && response.photos.empty() && !this->pending_has_next_page_ &&
+      this->settings_.photo_source.mode != PhotoSourceMode::Memories)
     this->source_status_ = custom || this->settings_.photo_orientation != PhotoOrientation::Any
                               ? PhotoSourceStatus::FiltersUnavailable : PhotoSourceStatus::NoPhotos;
   return std::move(response.photos);
@@ -296,13 +302,15 @@ std::vector<ImmichPhoto> ImmichSource::memories_() {
 bool ImmichSource::next_asset_(ImmichPhoto &asset) {
   const auto &source = this->settings_.photo_source;
   const bool memory_mode = source.mode == PhotoSourceMode::Memories;
-  if (!(memory_mode ? this->update_memory_day_() : this->update_capture_dates_()))
+  if (!(memory_mode ? this->update_memory_day_() : this->update_capture_dates_())) {
+    this->pending_has_next_page_ = false;
     return false;
+  }
   if (this->pending_.empty()) {
     this->pending_ = memory_mode ? this->memories_() : this->search_(source);
     if (this->settings_.requires_portrait_pair()) {
       const auto removed = std::erase_if(this->pending_, [](const ImmichPhoto &photo) { return !can_start_portrait_pair(photo); });
-      if (removed != 0 && this->pending_.empty())
+      if (removed != 0 && this->pending_.empty() && !this->pending_has_next_page_)
         this->source_status_ = PhotoSourceStatus::WaitingForPair;
     }
     // A prepared slide can still work when the direct preview is unavailable.
@@ -592,7 +600,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   } else {
     const TrialStageTimer selection{TrialPreparationStage::Selection};
     if (!this->next_asset_(seed))
-      return PrepareResult::Retry;
+      return !cancelled_ && this->pending_has_next_page_ ? PrepareResult::NextCandidate : PrepareResult::Retry;
     if (pairs_only && !this->select_pair_(seed, frame.companion)) {
       if (!cancelled_)
         this->source_status_ = PhotoSourceStatus::WaitingForPair;
@@ -606,7 +614,8 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     this->discard_candidate_(id);
     if (remembered)
       *existing = {};
-    return this->pending_.empty() ? PrepareResult::Retry : PrepareResult::NextCandidate;
+    const bool more_candidates = !this->pending_.empty() || this->pending_has_next_page_;
+    return !cancelled_ && more_candidates ? PrepareResult::NextCandidate : PrepareResult::Retry;
   };
   const auto retry_frame = [&] {
     if (!remembered)
