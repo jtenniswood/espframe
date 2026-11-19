@@ -60,6 +60,22 @@ std::optional<std::chrono::sys_days> local_today() {
 
 }  // namespace
 
+void ImmichSource::change_source(PhotoSource source, PhotoFilters filters, SlideIndex first_slide) {
+  this->selection_ = Selection{std::move(source), std::move(filters)};
+  this->history_.start_at(first_slide);
+  this->pending_.clear();
+  this->pending_is_paged_ = this->pending_has_next_page_ = false;
+  this->album_pages_.clear();
+  this->filter_branch_ = {};
+  this->next_filter_group_ = this->next_filter_album_ = 0;
+  this->memory_day_.reset();
+  this->memory_pool_.clear();
+  this->memory_retry_at_ = 0;
+  this->next_memory_date_ = 0;
+  this->using_memory_fallback_ = this->memory_response_too_large_ = false;
+  this->source_status_ = PhotoSourceStatus::None;
+}
+
 bool ImmichSource::online_() {
   const auto connection = network_.photo_connection();
   if (connection != http_connection_) {
@@ -113,7 +129,7 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
                                               std::optional<std::chrono::sys_days> local_day, int64_t deadline_us) {
   const bool pairing = local_day.has_value();
   const bool custom = source.mode == PhotoSourceMode::Custom;
-  const auto &filters = this->settings_.photo_filters;
+  const auto &filters = this->photo_filters_();
   if (!pairing)
     this->pending_has_next_page_ = false;
   if (!online_())
@@ -145,7 +161,7 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
   uint32_t page = album_page ? album_page->page : 1;
   size_t count = album_page ? album_page->count : photo_search_batch;
   const bool with_exif = this->settings_.metadata.show_location || this->settings_.requires_portrait_pair();
-  const auto dates = this->settings_.photo_source.mode == PhotoSourceMode::Memories
+  const auto dates = this->photo_source_().mode == PhotoSourceMode::Memories
                          ? CaptureDateRange{} : this->capture_date_range_;
   const auto make_request = [&](bool exif) {
     const auto pairing_days = this->settings_.portrait_pairing_days;
@@ -200,7 +216,7 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
       this->response_ = ImmichResponse::RequestFailed;
   }
   if (!pairing && response.valid && response.photos.empty() && !this->pending_has_next_page_ &&
-      this->settings_.photo_source.mode != PhotoSourceMode::Memories)
+      this->photo_source_().mode != PhotoSourceMode::Memories)
     this->source_status_ = custom || this->settings_.photo_orientation != PhotoOrientation::Any
                               ? PhotoSourceStatus::FiltersUnavailable : PhotoSourceStatus::NoPhotos;
   return std::move(response.photos);
@@ -246,7 +262,7 @@ bool ImmichSource::update_capture_dates_() {
 }
 
 std::vector<ImmichPhoto> ImmichSource::memories_() {
-  const auto &source = this->settings_.photo_source;
+  const auto &source = this->photo_source_();
   const unsigned date_count = 1 + 2 * memory_window_days[source.memory_window];
   const auto start = esp_timer_get_time();
   if (start >= this->memory_retry_at_ && this->next_memory_date_ < date_count && online_() && allocate_download_()) {
@@ -300,7 +316,7 @@ std::vector<ImmichPhoto> ImmichSource::memories_() {
 }
 
 bool ImmichSource::next_asset_(ImmichPhoto &asset) {
-  const auto &source = this->settings_.photo_source;
+  const auto &source = this->photo_source_();
   const bool memory_mode = source.mode == PhotoSourceMode::Memories;
   if (!(memory_mode ? this->update_memory_day_() : this->update_capture_dates_())) {
     this->pending_has_next_page_ = false;
@@ -392,7 +408,7 @@ AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, int64_t deadlin
   const auto known = choose(this->pending_);
   if (known[0] != '\0')
     return known;
-  const auto &source = this->settings_.photo_source;
+  const auto &source = this->photo_source_();
   if (source.mode == PhotoSourceMode::Memories) {
     if (!this->using_memory_fallback_)
       return choose(this->memory_pool_);

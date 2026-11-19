@@ -20,12 +20,15 @@ NAME = "espframe-ha-test"
 MAC = "02aabbccddee"
 KEY = b64encode(bytes(range(1, 33))).decode()
 INTERVAL_KEY = 3029912432
+PHOTO_SOURCE_KEY = 3905368779
 BACKLIGHT_KEY = 2211332998
 ONLINE_KEY = 3727615758
 WIFI_STRENGTH_KEY = 3943756064
 IP_ADDRESS_KEY = 3394986237
 CONTRACT = Path(__file__).resolve().parents[4] / "product/contract/settings.json"
-STOCK_INTERVALS = next(field["options"] for field in json.loads(CONTRACT.read_text()) if field["key"] == "interval")
+STOCK_FIELDS = {field["key"]: field for field in json.loads(CONTRACT.read_text())}
+STOCK_INTERVALS = STOCK_FIELDS["interval"]["options"]
+STOCK_SOURCES = STOCK_FIELDS["photo_source"]["options"]
 
 
 def client(port, key=KEY):
@@ -143,7 +146,7 @@ async def verify(port, clock_input):
         assert info.mac_address.lower().replace(":", "") == MAC
         assert info.api_encryption_supported and not info.api_encryption_provisionable
         assert info.project_name == "jtenniswood.immich-frame"
-        assert not services and len(entities) == 7
+        assert not services and len(entities) == 8
         check_network_entities(entities)
         buttons = [entity for entity in entities if isinstance(entity, ButtonInfo)]
         for button, name, key, object_id in zip(
@@ -159,6 +162,11 @@ async def verify(port, clock_input):
         assert interval.options == [*STOCK_INTERVALS, "17 seconds"]
         assert build_device_unique_id(MAC, interval) == f"{MAC}/0/select/Photos: Slideshow Interval"
         assert build_device_unique_id(MAC, interval, version=1) == f"{MAC}-select-photos_slideshow_interval"
+        source = next(entity for entity in entities if entity.key == PHOTO_SOURCE_KEY)
+        assert isinstance(source, SelectInfo) and source.name == "Photos: Source"
+        assert source.options == STOCK_SOURCES and source.icon == "mdi:image-filter-frames"
+        assert build_device_unique_id(MAC, source) == f"{MAC}/0/select/Photos: Source"
+        assert build_device_unique_id(MAC, source, version=1) == f"{MAC}-select-photos__source"
         backlight = next(entity for entity in entities if isinstance(entity, LightInfo))
         assert backlight.name == "Screen: Backlight" and backlight.key == BACKLIGHT_KEY
         assert backlight.supported_color_modes == [ColorMode.BRIGHTNESS]
@@ -177,6 +185,9 @@ async def verify(port, clock_input):
             assert round(current.brightness * 100) == level
 
         await expect_backlight(64)
+        initial_source = await states.get()
+        assert isinstance(initial_source, SelectState) and initial_source.key == PHOTO_SOURCE_KEY
+        assert initial_source.state == "All Photos"
         await expect_network_states(states, 70)
         for command, strength in ((b"x", None), (b"w", 0), (b"s", 100)):
             clock_input.write(command)
@@ -189,6 +200,8 @@ async def verify(port, clock_input):
         api.select_command(interval.key, "45 seconds", device_id=1)
         api.select_command(interval.key, "3 seconds")
         api.select_command(interval.key, "1 minutes")
+        api.select_command(source.key, "favorites")
+        api.select_command(source.key, "Person", device_id=1)
         assert isinstance(await connection.send_message_await_response(PingRequest(), PingResponse), PingResponse)
         assert states.empty()
         for requested, applied in (
@@ -200,6 +213,10 @@ async def verify(port, clock_input):
             api.select_command(interval.key, requested)
             accepted = await states.get()
             assert accepted.key == INTERVAL_KEY and accepted.state == applied
+        for requested, applied in (("Favorites", "Favorites"), ("Album", "Favorites"), ("Tag", "Tag"), ("Person", "Person")):
+            api.select_command(source.key, requested)
+            accepted = await states.get()
+            assert accepted.key == PHOTO_SOURCE_KEY and accepted.state == applied
         api.button_command(1234)
         api.button_command(buttons[1].key, device_id=1)
         api.button_command(buttons[0].key)
@@ -249,6 +266,8 @@ async def verify(port, clock_input):
         assert (await states.get()).state == "2 hours"
         restored = await states.get()
         assert isinstance(restored, LightState) and restored.state and round(restored.brightness * 100) == 20
+        source = await states.get()
+        assert isinstance(source, SelectState) and source.key == PHOTO_SOURCE_KEY and source.state == "Person"
         await expect_network_states(states, 100)
     finally:
         await api.disconnect()

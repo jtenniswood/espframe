@@ -436,6 +436,20 @@ bool read_home_assistant_key(const cJSON *root, Settings &settings) {
   return read_field(root, "home_assistant_key", settings.home_assistant_key, true);
 }
 
+bool read_saved_photo_preset(const cJSON *root, PhotoSource &source) {
+  source.legacy_preset.reset();
+  const auto *saved = cJSON_GetObjectItemCaseSensitive(root, "legacy_photo_preset");
+  if (!saved)
+    return true;
+  const auto *name = cJSON_GetStringValue(saved);
+  const auto preset = name ? parse_photo_preset(name) : std::nullopt;
+  if (!preset || (*preset != PhotoPreset::Person && *preset != PhotoPreset::Tag && *preset != PhotoPreset::Album) ||
+      source.mode != PhotoSourceMode::Custom)
+    return false;
+  source.legacy_preset = preset;
+  return true;
+}
+
 bool parse_all(const cJSON *root, Settings &settings) {
   return cJSON_IsObject(root) && read_field(root, "ssid", settings.ssid) &&
          read_field(root, "password", settings.password) &&
@@ -447,7 +461,7 @@ bool parse_all(const cJSON *root, Settings &settings) {
          read_home_assistant_key(root, settings) &&
          read_field(root, "frame_name", settings.frame_name, true) &&
          read_integer(root, "reset_epoch", 0, std::numeric_limits<uint32_t>::max(), settings.reset_epoch) &&
-         read_playback(root, settings) && normalize(settings);
+         read_playback(root, settings) && read_saved_photo_preset(root, settings.photo_source) && normalize(settings);
 }
 
 Json load_document(bool *may_create = nullptr) {
@@ -692,6 +706,61 @@ bool Settings::save_slide_interval(uint32_t seconds, std::string_view paired_key
   return true;
 }
 
+bool Settings::save_photo_preset(PhotoPreset preset, std::string_view paired_key) {
+  const std::lock_guard lock(storage_mutex);
+  Settings settings;
+  if (paired_key.empty() || !load(settings) || settings.home_assistant_key != paired_key || !settings.has_immich())
+    return false;
+  if (settings.photo_source.preset() == preset)
+    return true;
+
+  auto &source = settings.photo_source;
+  auto &criteria = settings.photo_filters.criteria;
+  source.legacy_preset.reset();
+  if (preset == PhotoPreset::Memories) {
+    source.mode = PhotoSourceMode::Memories;
+  } else if (preset == PhotoPreset::Custom) {
+    source.mode = PhotoSourceMode::Custom;
+  } else {
+    // Use the same preset behavior as the stock selector. Keep the saved
+    // inclusion lists so another preset can use them later.
+    criteria.albums_enabled = preset == PhotoPreset::Album;
+    criteria.people_enabled = preset == PhotoPreset::Person;
+    criteria.tags_enabled = preset == PhotoPreset::Tag;
+    criteria.favorites_enabled = preset == PhotoPreset::Favorites;
+    criteria.rating_enabled = criteria.location_enabled = false;
+    criteria.inclusion_matching = "Match all enabled groups";
+    criteria.album_matching = "Any selected album";
+    criteria.person_matching = "Any selected person";
+    criteria.tag_matching = "Any selected tag";
+    criteria.favorite_mode = criteria.favorites_enabled ? "Favorites only" : "Any";
+    criteria.minimum_rating = 0;
+    criteria.country.clear();
+    criteria.state.clear();
+    criteria.city.clear();
+    criteria.excluded_album_ids.clear();
+    criteria.excluded_person_ids.clear();
+    criteria.excluded_tag_ids.clear();
+    if (preset == PhotoPreset::All) {
+      source.mode = PhotoSourceMode::Library;
+    } else if (preset == PhotoPreset::Favorites) {
+      source.mode = PhotoSourceMode::Favorites;
+    } else if (preset == PhotoPreset::Album && !source.album_id.empty() &&
+               (criteria.album_ids.empty() || criteria.album_ids == source.album_id)) {
+      source.mode = PhotoSourceMode::Album;
+      criteria.album_ids = source.album_id;
+    } else {
+      source.mode = PhotoSourceMode::Custom;
+      source.legacy_preset = preset;
+    }
+  }
+  if (store_settings(settings) != UpdateResult::Saved)
+    return false;
+  active_photo_preset.store(preset, std::memory_order_relaxed);
+  photo_source_revision.fetch_add(1, std::memory_order_release);
+  return true;
+}
+
 bool Settings::add_playback_fields(cJSON *object) const {
   return add_photo_filter_fields(object, photo_filters) &&
          cJSON_AddStringToObject(object, "frame_name", frame_name.c_str()) &&
@@ -718,6 +787,8 @@ bool Settings::add_playback_fields(cJSON *object) const {
          cJSON_AddStringToObject(object, "photo_orientation", photo_orientation_name(photo_orientation)) &&
          cJSON_AddStringToObject(object, "screen_rotation", screen_rotation_name(screen_rotation)) &&
          cJSON_AddStringToObject(object, "photo_source", photo_source_name(photo_source.mode)) &&
+         (!photo_source.legacy_preset ||
+          cJSON_AddStringToObject(object, "legacy_photo_preset", photo_preset_name(photo_source.preset()))) &&
          cJSON_AddStringToObject(object, "album_id", photo_source.album_id.c_str()) &&
          cJSON_AddStringToObject(object, "memories_window", memory_windows[photo_source.memory_window].data()) &&
          cJSON_AddBoolToObject(object, "memories_fallback", photo_source.memory_fallback) &&
@@ -768,6 +839,15 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
       !read_field(update, "prepared_slide_url", settings.prepared_slide_url, true) ||
       !read_field(update, "prepared_slide_token", replacement_token, true) || !read_playback(update, settings))
     return UpdateResult::Invalid;
+  const auto changes_filter = [&](const auto &field) { return cJSON_HasObjectItem(update, field.first); };
+  if (cJSON_HasObjectItem(update, "photo_source") ||
+      std::ranges::any_of(filter_flags, changes_filter) || std::ranges::any_of(filter_lists, changes_filter) ||
+      std::ranges::any_of(filter_places, changes_filter) ||
+      cJSON_HasObjectItem(update, "album_order") || cJSON_HasObjectItem(update, "minimum_rating") ||
+      cJSON_HasObjectItem(update, "album_matching") || cJSON_HasObjectItem(update, "person_matching") ||
+      cJSON_HasObjectItem(update, "tag_matching") || cJSON_HasObjectItem(update, "inclusion_matching") ||
+      cJSON_HasObjectItem(update, "favorite_mode"))
+    settings.photo_source.legacy_preset.reset();
   if (!replacement_key.empty())
     settings.immich_key = replacement_key;
   if (settings.prepared_slide_url.empty()) {

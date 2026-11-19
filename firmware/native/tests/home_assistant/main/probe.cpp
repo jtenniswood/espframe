@@ -1,6 +1,7 @@
 #include "esphome_session.h"
 
 #include "esp_random.h"
+#include "../../../main/photo_source.h"
 #include "../../../main/screen_control.h"
 
 extern "C" void noise_rand_bytes(void *output, size_t size) {
@@ -22,6 +23,8 @@ extern "C" void app_main() {
       screen_control, nullptr,
       [](const void *) -> uint32_t { return 15; },
       [](const void *, uint32_t) { return false; },
+      [](const void *) { return PhotoPreset::All; },
+      [](const void *, PhotoPreset) { return false; },
       "127.0.0.1",
       [](const void *) -> std::optional<int8_t> { return {}; },
   };

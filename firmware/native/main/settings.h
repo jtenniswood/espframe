@@ -86,6 +86,7 @@ struct Settings {
                                 StockSettingsRequest request = {}, StockSettings (*read_stock)(StockSettingsRequest) = nullptr);
   static bool save_wifi(const WifiCredentials &wifi, uint32_t expected_epoch);
   static bool save_slide_interval(uint32_t seconds, std::string_view paired_key);
+  static bool save_photo_preset(PhotoPreset preset, std::string_view paired_key);
   static bool save_playback(const char *json);
   static UpdateResult update_playback(const cJSON *update, std::optional<uint32_t> expected_epoch = {});
   static bool reset(ResetMode mode);

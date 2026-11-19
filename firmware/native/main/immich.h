@@ -34,6 +34,7 @@ class ImmichSource {
       : cancelled_(cancelled), pixel_work_deferred_(pixel_work_deferred), settings_(settings), network_(network),
         http_(cancelled) {}
   PrepareResult prepare(SlideIndex slide, uint16_t *panel);
+  void change_source(PhotoSource source, PhotoFilters filters, SlideIndex first_slide);
   SlideIndex first_slide() const { return this->history_.first(); }
   SlideIndex next_slide() const { return this->history_.next(); }
   PhotoSourceStatus source_status() const { return this->source_status_; }
@@ -72,6 +73,13 @@ class ImmichSource {
     return static_cast<const ImmichSource *>(source)->wait_for_pixel_work_();
   }};
   const Settings &settings_;
+  struct Selection {
+    PhotoSource source;
+    PhotoFilters filters;
+  };
+  std::optional<Selection> selection_;
+  const PhotoSource &photo_source_() const { return selection_ ? selection_->source : settings_.photo_source; }
+  const PhotoFilters &photo_filters_() const { return selection_ ? selection_->filters : settings_.photo_filters; }
   const NativeNetwork &network_;
   ImmichHttp http_;
   ImmichHttp prepared_http_{cancelled_, "Authorization"};

@@ -19,6 +19,7 @@ malformedBackup.photos.excluded_tag_ids = 'invalid-id'
 const invalidOrientationBackup = JSON.parse(oldBackup)
 invalidOrientationBackup.photos.orientation = '90'
 const album = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
+const personBackup = { version: 1, photos: { source: 'Person', person_ids: album } }
 const backup = {
   version: 3,
   identity: { name: '  Salon été & famille  ', hostname: 'old-frame-9876' },
@@ -263,6 +264,7 @@ const verify = `
 
     const keepWifi = document.querySelector('#keep-stock-wifi')
     const keepImmich = document.querySelector('#keep-stock-immich')
+    await loadBackup(${JSON.stringify(JSON.stringify(personBackup))}, 'Backup loaded.')
     form.elements.immich_url.value = 'https://manual.test'
     form.elements.immich_key.value = 'manual-value'
     reuse.checked = true
@@ -288,6 +290,9 @@ const verify = `
     if (attempts !== 10 || lastWrite !== 'IMPORT' || lastFlags !== '7' ||
         privateFields.some(field => Object.hasOwn(received, field)))
       throw new Error('Stock connection migration included credentials in the browser request')
+    if (received.photo_source !== 'custom' || received.legacy_photo_preset !== 'Person' ||
+        !received.people_enabled || received.person_ids !== '${album}')
+      throw new Error('The Person preset and its saved selection did not reach USB setup')
   }
   window.addEventListener('DOMContentLoaded', () => {
     function report(result) {

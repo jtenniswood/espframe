@@ -38,4 +38,11 @@ int main() {
   assert(history.recently_seen(photo(2), 16));
   assert(history.recently_seen(photo(3), 16));
   assert(history.next() == 5'001 && history.find(5'000)->primary == photo(5'000));
+
+  history.start_at(4'000);
+  assert(history.first() == 4'000 && history.next() == 4'000);
+  assert(history.find(3'999) == nullptr && history.find(4'000) == nullptr);
+  assert(!history.recently_seen(photo(5'000), PhotoHistory::capacity));
+  history.append({photo(100), {}});
+  assert(history.next() == 4'001 && history.find(4'000)->primary == photo(100));
 }

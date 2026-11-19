@@ -1,13 +1,32 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 
 namespace espframe::native {
 
 enum class PhotoSourceMode { Library, Favorites, Album, Memories, Custom };
+enum class PhotoPreset : uint8_t { All, Favorites, Album, Person, Tag, Memories, Custom };
+inline constexpr std::array<std::string_view, 7> photo_presets{
+    "All Photos", "Favorites", "Album", "Person", "Tag", "Memories", "Custom"};
+inline std::atomic<PhotoPreset> active_photo_preset{PhotoPreset::All};
+inline std::atomic<uint32_t> photo_source_revision{};
+
+inline const char *photo_preset_name(PhotoPreset preset) {
+  return photo_presets[static_cast<size_t>(preset)].data();
+}
+
+inline std::optional<PhotoPreset> parse_photo_preset(std::string_view name) {
+  for (size_t index = 0; index < photo_presets.size(); ++index) {
+    if (photo_presets[index] == name)
+      return static_cast<PhotoPreset>(index);
+  }
+  return {};
+}
 enum class PhotoSourceStatus : uint8_t {
   None, WaitingForTime, MemoriesEmpty, MemoriesUnavailable, IncompleteFilters, UnsupportedFilters, FiltersUnavailable,
   NoPhotos, WaitingForPair
@@ -24,6 +43,18 @@ struct PhotoSource {
   std::string album_id;
   uint8_t memory_window{2};
   bool memory_fallback{true};
+  std::optional<PhotoPreset> legacy_preset{};
+
+  PhotoPreset preset() const {
+    switch (mode) {
+      case PhotoSourceMode::Library: return PhotoPreset::All;
+      case PhotoSourceMode::Favorites: return PhotoPreset::Favorites;
+      case PhotoSourceMode::Album: return PhotoPreset::Album;
+      case PhotoSourceMode::Memories: return PhotoPreset::Memories;
+      case PhotoSourceMode::Custom: return legacy_preset.value_or(PhotoPreset::Custom);
+    }
+    return PhotoPreset::All;
+  }
 };
 
 inline const char *photo_source_name(PhotoSourceMode mode) {

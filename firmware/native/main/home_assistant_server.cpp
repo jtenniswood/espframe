@@ -106,6 +106,11 @@ struct HomeAssistantServer {
           const auto &server = *static_cast<const HomeAssistantServer *>(context);
           return Settings::save_slide_interval(seconds, server.paired_key);
         },
+        [](const void *) { return active_photo_preset.load(std::memory_order_relaxed); },
+        [](const void *context, PhotoPreset preset) {
+          const auto &server = *static_cast<const HomeAssistantServer *>(context);
+          return Settings::save_photo_preset(preset, server.paired_key);
+        },
         station_address.data(),
         [](const void *context) { return static_cast<const HomeAssistantServer *>(context)->wifi_rssi(); },
     };

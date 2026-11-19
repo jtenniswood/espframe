@@ -9,6 +9,7 @@
 namespace espframe::native {
 
 class ScreenControl;
+enum class PhotoPreset : uint8_t;
 
 inline constexpr char esphome_noise_protocol[] = "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
 
@@ -24,6 +25,8 @@ struct EspHomeControls {
   const void *context;
   uint32_t (*interval)(const void *);
   bool (*set_interval)(const void *, uint32_t);
+  PhotoPreset (*photo_preset)(const void *);
+  bool (*set_photo_preset)(const void *, PhotoPreset);
   std::string_view station_address;
   std::optional<int8_t> (*wifi_rssi)(const void *);
 };

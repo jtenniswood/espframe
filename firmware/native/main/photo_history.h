@@ -25,6 +25,8 @@ class PhotoHistory {
   SlideIndex first() const { return this->first_; }
   SlideIndex next() const { return this->next_; }
 
+  void start_at(SlideIndex slide) { this->first_ = this->next_ = slide; }
+
   PhotoSlide *find(SlideIndex slide) {
     if (slide < this->first_ || slide >= this->next_)
       return nullptr;

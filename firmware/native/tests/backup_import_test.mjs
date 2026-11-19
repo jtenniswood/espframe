@@ -127,8 +127,12 @@ assert.deepEqual(readBackup({
   version: 3,
   photos: { source: 'Album', album_ids: album + ',0406c468-dabf-4777-bb93-ac6fdac62857' },
 }).settings, { photo_source: 'custom', albums_enabled: true, album_ids: album + ',0406c468-dabf-4777-bb93-ac6fdac62857' })
-assert.deepEqual(readBackup({ version: 1, photos: { source: 'Person', person_ids: album.toUpperCase() } }).settings,
-  { photo_source: 'custom', people_enabled: true, person_ids: album })
+const person = readBackup({ version: 1, photos: { source: 'Person', person_ids: album.toUpperCase() } })
+assert.deepEqual(person.settings, { photo_source: 'custom', people_enabled: true, person_ids: album })
+assert.equal(person.legacyPreset, 'Person')
+const personBackup = createBackup({ ...person.settings, legacy_photo_preset: person.legacyPreset, slide_seconds: 15 })
+assert.equal(personBackup.photos.source, 'Person')
+assert.equal(readBackup(personBackup).legacyPreset, 'Person')
 assert.equal(readBackup({ version: 3, photos: { source: 'Custom', excluded_person_ids: `${album},broken`, people_enabled: true } }).chooseSource, true)
 assert.deepEqual(readBackup({ version: 3, frequency: { interval: '1 hour' } }).settings, { slide_seconds: 3600 })
 const invalid = readBackup({

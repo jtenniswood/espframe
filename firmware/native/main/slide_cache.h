@@ -73,6 +73,13 @@ class SlideCache {
     return true;
   }
 
+  void discard_other_ready_slides(SlideIndex keep) {
+    for (auto &entry : this->entries_) {
+      if (entry.state == State::Ready && entry.slide != keep)
+        entry.state = State::Empty;
+    }
+  }
+
  private:
   enum class State { Empty, Preparing, Ready };
   struct Entry {

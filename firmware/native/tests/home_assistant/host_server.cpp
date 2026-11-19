@@ -1,5 +1,6 @@
 #include "esphome_socket.h"
 #include "home_assistant_key.h"
+#include "photo_source.h"
 #include "screen_control.h"
 #include "slideshow_interval.h"
 
@@ -58,6 +59,13 @@ int main() {
         if (seconds == 60)
           return false;  // Simulate a failed persistence operation.
         active_slideshow_interval.store(seconds);
+        return true;
+      },
+      [](const void *) { return active_photo_preset.load(); },
+      [](const void *, PhotoPreset preset) {
+        if (preset == PhotoPreset::Album)
+          return false;  // Simulate a failed persistence operation.
+        active_photo_preset.store(preset);
         return true;
       },
       "127.0.0.1",

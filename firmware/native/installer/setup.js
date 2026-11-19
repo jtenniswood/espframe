@@ -72,6 +72,11 @@ for (const name of percentageFields) form.elements[name].addEventListener('input
 let importSequence = 0
 let importing = false
 let frameNameSpecified = false
+let importedPreset = null
+form.addEventListener('change', event => {
+  if (event.target.name === 'photo_source' || Object.hasOwn(photoFilterDefaults, event.target.name))
+    importedPreset = null
+})
 frameName.addEventListener('input', () => {
   frameNameSpecified = true
   frameName.setCustomValidity(normalizeFrameName(frameName.value) === undefined ?
@@ -90,8 +95,9 @@ backup.addEventListener('change', async () => {
   }
   importing = true
   try {
-    const { settings, notices, chooseSource } = readBackup(JSON.parse(await file.text()))
+    const { settings, notices, chooseSource, legacyPreset } = readBackup(JSON.parse(await file.text()))
     if (sequence !== importSequence) return
+    importedPreset = legacyPreset ?? null
     if (Object.hasOwn(settings, 'frame_name')) {
       frameNameSpecified = true
       frameName.setCustomValidity('')
@@ -210,6 +216,7 @@ if ('serial' in navigator) {
       return
     }
     if (!validateAlbum(form, data) || !addCaptureDates(form, data) || !addPhotoFilters(form, data)) return
+    if (data.photo_source === 'custom' && importedPreset) data.legacy_photo_preset = importedPreset
     data.slide_seconds = Number(data.slide_seconds)
     for (const name of percentageFields) data[name] = form.elements[name].valueAsNumber
     data.base_tone_enabled = form.elements.base_tone_enabled.checked
@@ -234,6 +241,7 @@ if ('serial' in navigator) {
       await configure(port, data, { keepPairing, keepWifi, keepImmich })
       form.reset()
       frameNameSpecified = false
+      importedPreset = null
       refreshSource()
       refreshPairing()
       showPercentages()

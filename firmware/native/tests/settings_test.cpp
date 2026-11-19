@@ -789,6 +789,33 @@ int main() {
   const std::unique_ptr<char, decltype(&cJSON_free)> serialized_ha(cJSON_PrintUnformatted(ha_snapshot.get()), cJSON_free);
   assert(serialized_ha && std::string_view(serialized_ha.get()).find(ha_key) == std::string_view::npos);
   assert(update_configuration(R"({"values":{"home_assistant_key":""}})").error);
+
+  using espframe::native::PhotoPreset;
+  using espframe::native::active_photo_preset;
+  using espframe::native::photo_source_revision;
+  assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","person_ids":"22222222-2222-4222-8222-222222222222",
+      "tags_enabled":true,"tag_ids":"33333333-3333-4333-8333-333333333333","excluded_tag_ids":"44444444-4444-4444-8444-444444444444"})"));
+  assert(!Settings::save_photo_preset(PhotoPreset::Person, "previous-pairing"));
+  const auto original_revision = photo_source_revision.load();
+  assert(Settings::save_photo_preset(PhotoPreset::Person, ha_key));
+  assert(photo_source_revision.load() == original_revision + 1 && active_photo_preset.load() == PhotoPreset::Person);
+  assert(current.read() && current.photo_source.mode == PhotoSourceMode::Custom &&
+         current.photo_source.preset() == PhotoPreset::Person && current.photo_filters.criteria.people_enabled);
+  assert(!current.photo_filters.criteria.tags_enabled && current.photo_filters.criteria.excluded_tag_ids.empty());
+  assert(!current.photo_filters.criteria.tag_ids.empty());
+  fail_commit = true;
+  assert(Settings::save_photo_preset(PhotoPreset::Person, ha_key));
+  assert(!Settings::save_photo_preset(PhotoPreset::Memories, ha_key));
+  fail_commit = false;
+  assert(photo_source_revision.load() == original_revision + 1 && active_photo_preset.load() == PhotoPreset::Person);
+  assert(Settings::save_slide_interval(30, ha_key));
+  assert(current.read() && current.photo_source.preset() == PhotoPreset::Person);
+  assert(Settings::save_photo_preset(PhotoPreset::Tag, ha_key));
+  assert(current.read() && current.photo_source.preset() == PhotoPreset::Tag && current.photo_filters.criteria.tags_enabled);
+  assert(!current.photo_filters.criteria.people_enabled && !current.photo_filters.criteria.person_ids.empty());
+  assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","filter_city":"London"})"));
+  assert(current.read() && current.photo_source.preset() == PhotoPreset::Custom);
+
   assert(Settings::save_wifi(*new_wifi, current.reset_epoch));
   assert(Settings::save(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","web_password":"new-settings"})"));
   assert(current.read() && current.home_assistant_key == ha_key);

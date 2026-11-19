@@ -276,10 +276,11 @@ class SlideLoader {
       this->live_ = !esphome_trial && this->settings_.read() && this->settings_.has_immich();
       if constexpr (!esphome_trial) {
         active_slideshow_interval.store(this->settings_.slide_seconds, std::memory_order_relaxed);
+        active_photo_preset.store(this->settings_.photo_source.preset(), std::memory_order_relaxed);
         frame_status.configure(this->live_, this->settings_.photo_source.mode);
       }
     }
-    this->requests_ = xQueueCreate(1, sizeof(SlideCache::Lease));
+    this->requests_ = xQueueCreate(1, sizeof(Request));
     this->completed_ = xQueueCreate(1, sizeof(Completion));
     if constexpr (!trace_enabled)
       this->timings_ = xQueueCreate(32, sizeof(GestureTiming));
@@ -289,9 +290,10 @@ class SlideLoader {
     return true;
   }
 
-  void submit(const SlideCache::Lease &lease) {
+  void submit(const SlideCache::Lease &lease, uint32_t source_revision) {
     this->cancelled_ = false;
-    ESP_ERROR_CHECK(xQueueSend(this->requests_, &lease, 0) == pdPASS ? ESP_OK : ESP_ERR_INVALID_STATE);
+    const Request request{lease, source_revision};
+    ESP_ERROR_CHECK(xQueueSend(this->requests_, &request, 0) == pdPASS ? ESP_OK : ESP_ERR_INVALID_STATE);
     xTaskNotifyGive(this->task_);
   }
 
@@ -310,9 +312,24 @@ class SlideLoader {
   }
 
  private:
+  struct Request {
+    SlideCache::Lease lease;
+    uint32_t source_revision;
+  };
+
+  bool reload_photo_source_(SlideIndex first) {
+    Settings updated;
+    if (!updated.read() || !updated.has_immich())
+      return false;
+    frame_status.configure(true, updated.photo_source.mode);
+    this->source_.change_source(std::move(updated.photo_source), std::move(updated.photo_filters), first);
+    return true;
+  }
+
   static void run_(void *context) {
     auto &loader = *static_cast<SlideLoader *>(context);
     jpeg_decoder_handle_t decoder{};
+    uint32_t source_revision{};
     while (true) {
       ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
       if constexpr (!trace_enabled) {
@@ -321,15 +338,24 @@ class SlideLoader {
           ESP_LOGI(tag, "gesture_to_scanout_us=%" PRId64 " compose_and_submit_us=%" PRId64,
                    timing.gesture_to_scanout_us, timing.compose_and_submit_us);
       }
-      SlideCache::Lease lease{};
-      if (xQueueReceive(loader.requests_, &lease, 0) != pdPASS)
+      Request request{};
+      if (xQueueReceive(loader.requests_, &request, 0) != pdPASS)
         continue;
+      const auto &lease = request.lease;
       const auto connection = network.photo_connection();
       auto result = Result::Ready;
+      bool source_ready = true;
       if ((!esphome_trial || trial_immich) && !trial_fixtures && loader.live_ && lease.slide > 0) {
         if constexpr (trial_immich)
           record_live_trial_prepare();
-        result = loader.source_.prepare(lease.slide, lease.pixels);
+        if constexpr (!esphome_trial) {
+          if (request.source_revision != source_revision) {
+            source_ready = loader.reload_photo_source_(lease.slide);
+            if (source_ready)
+              source_revision = request.source_revision;
+          }
+        }
+        result = source_ready ? loader.source_.prepare(lease.slide, lease.pixels) : Result::Retry;
       } else {
         const int fixture = lease.slide % fixture_count;
         const auto &photo = photos[fixture];
@@ -347,8 +373,10 @@ class SlideLoader {
         else if (loader.rotation() == ScreenRotation::UpsideDown)
           std::reverse(lease.pixels, lease.pixels + pixel_count);
       }
-      const Completion completion{lease, loader.source_.first_slide(), loader.source_.next_slide(), connection,
-                                  loader.source_.source_status(), loader.source_.response(), result,
+      const Completion completion{lease, source_ready ? loader.source_.first_slide() : lease.slide,
+                                  source_ready ? loader.source_.next_slide() : lease.slide, connection,
+                                  source_ready ? loader.source_.source_status() : PhotoSourceStatus::None,
+                                  source_ready ? loader.source_.response() : ImmichResponse::Pending, result,
                                   result != Result::Ready && loader.cancelled_.load()};
       xQueueSend(loader.completed_, &completion, portMAX_DELAY);
     }
@@ -390,7 +418,7 @@ void run(void *) {
   const auto night_level = loader.night_brightness();
   const bool solar_brightness = day_level != night_level;
   const bool use_local_time = loader.clock().show || loader.schedule().enabled || solar_brightness;
-  const bool local_time_configured = (use_local_time || loader.photos_need_time()) &&
+  const bool local_time_configured = (use_local_time || loader.photos_need_time() || (!esphome_trial && live)) &&
                                      configure_local_time(loader.clock().timezone);
   Daylight daylight{solar_brightness ? find_clock_zone(loader.clock().timezone) : nullptr};
   uint8_t brightness = day_level;
@@ -480,6 +508,8 @@ void run(void *) {
   };
   SlideIndex first_photo = 1;
   SlideIndex next_photo = 1;
+  uint32_t source_revision{};
+  SlideIndex source_anchor = -1;
   unsigned reported_ahead = 0;
   std::array<SlideRetry, SlideCache::capacity> retries{};
 
@@ -569,10 +599,34 @@ void run(void *) {
       preparing = -1;
     }
     const auto center = swipe.settled();
+    if constexpr (!esphome_trial) {
+      if (source_anchor >= 0 && center != source_anchor && display.presented_position() == center * slide_width)
+        source_anchor = -1;
+      const auto requested_revision = photo_source_revision.load(std::memory_order_acquire);
+      if (live && requested_revision != source_revision && swipe.idle() && !input.engaged() &&
+          !fade.running() && !fade.held() && !blend.pending() && display.presented_position() == center * slide_width &&
+          cache.find(center)) {
+        if (preparing >= 0) {
+          loader.yield_to_swipe();
+        } else {
+          // Keep the displayed slide alive as a bridge to the new feed.
+          // Its neighbours belong to the old source and can be released now.
+          cache.discard_other_ready_slides(center);
+          source_revision = requested_revision;
+          source_anchor = center;
+          first_photo = next_photo = center + 1;
+          source_status = PhotoSourceStatus::None;
+          prefetch = SlidePrefetch(center, cache_slots);
+          retries.fill({});
+          dwell.reset();
+        }
+      }
+    }
     prefetch.moved_to(center);
     // The boot scene may still be visible while the first photo's final frame
     // is pending. Keep its pixels available if the user interrupts that swap.
-    const SlideIndex first = live && display.presented_position() >= slide_width ? first_photo : 0;
+    const SlideIndex first = source_anchor >= 0 ? source_anchor
+                            : live && display.presented_position() >= slide_width ? first_photo : 0;
     const SlideRange available{first, slide_count - 1};
     swipe.set_available_range(available.first, available.last);
     const auto window = prefetch.window(available);
@@ -721,7 +775,7 @@ void run(void *) {
         if (const auto lease = cache.reserve(candidate, keep.first, keep.last)) {
           if constexpr (trace_enabled)
             refill_started_us = esp_timer_get_time();
-          loader.submit(*lease);
+          loader.submit(*lease, source_revision);
           preparing = candidate;
           break;
         }
@@ -754,11 +808,12 @@ void run(void *) {
     }
     if (live) {
       const bool first_photo = swipe.settled() == 0;
+      const bool source_changed = source_anchor == swipe.settled();
       const bool dwelling = visible_and_idle && !fade.running() && !fade.held();
       // In the outage replay, only scripted swipes may change the photo
       // after the startup scene. A missing history slide must stop the run.
       if ((!SWIPE_TRIAL_REPLAY_HISTORY || first_photo) &&
-          dwell.elapsed(now, dwelling, first_photo ? 0 : loader.slide_interval_us())) {
+          dwell.elapsed(now, dwelling, first_photo || source_changed ? 0 : loader.slide_interval_us())) {
         const auto anchor = swipe.settled();
         if (first_photo) {
           swipe.advance(now, Swipe::Transition::Quick);

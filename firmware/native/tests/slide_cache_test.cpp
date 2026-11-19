@@ -54,6 +54,15 @@ int main() {
   assert(cache.find(3) && cache.find(4) && cache.find(5));
   assert(cache.complete(*reversed, true));
 
+  // After retiring a feed, the current photo remains readable while its new
+  // neighbor can reuse any released slot at the same logical index.
+  const auto *anchor = cache.find(4);
+  cache.discard_other_ready_slides(4);
+  assert(cache.find(4) == anchor && !cache.find(3) && !cache.find(5));
+  const auto replacement = cache.reserve(5, 4, 9);
+  assert(replacement && cache.complete(*replacement, true));
+  assert(cache.find(4) == anchor && cache.find(5) == replacement->pixels);
+
   uint16_t roomy_pixels[SlideCache::capacity]{};
   for (size_t slot = 0; slot < buffers.size(); ++slot)
     buffers[slot] = &roomy_pixels[slot];

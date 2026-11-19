@@ -1,6 +1,7 @@
 import { normalizeAlbum, normalizePhotoFilter, photoFilterDefaults, validCaptureDay } from './photo_source.mjs'
 
 const legacySources = ['All Photos', 'Album', 'Favorites', 'Person', 'Tag', 'Memories', 'Custom']
+const compoundPresets = ['Album', 'Person', 'Tag']
 const groupFlags = { album: 'albums_enabled', person: 'people_enabled', tag: 'tags_enabled' }
 const placeFields = { filter_country: 'country', filter_state: 'state', filter_city: 'city' }
 const displayModes = ['Fill', 'Fit']
@@ -241,7 +242,8 @@ export function readBackup(data) {
   if (own(frequency, 'conn_timeout'))
     skipped.push('advanced playback settings')
   if (skipped.length) notices.push(`Keep the original backup for ${skipped.join(', ')}.`)
-  return { settings, notices, chooseSource }
+  const legacyPreset = settings.photo_source === 'custom' && compoundPresets.includes(photos.source) ? photos.source : null
+  return { settings, notices, chooseSource, ...(legacyPreset ? { legacyPreset } : {}) }
 }
 
 function formatInterval(seconds) {
@@ -287,7 +289,9 @@ export function createBackup(settings, date = new Date()) {
     exported_at: date.toISOString(),
     connection: { immich_url: settings.immich_url },
     photos: {
-      source: source === 'memories' ? 'Memories' : source === 'custom' ? 'Custom' : 'All Photos',
+      source: source === 'memories' ? 'Memories'
+        : source === 'custom' ? (compoundPresets.includes(settings.legacy_photo_preset) ? settings.legacy_photo_preset : 'Custom')
+        : 'All Photos',
       favorites_enabled: false,
       albums_enabled: false,
       ...filters,
