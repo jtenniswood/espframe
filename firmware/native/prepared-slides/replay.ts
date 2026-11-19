@@ -9,12 +9,18 @@ const port = Number(process.env.REPLAY_PORT ?? 9116)
 const warmRotation = process.env.REPLAY_WARM_ROTATION
 const unavailable = process.env.REPLAY_PREPARED_UNAVAILABLE === '1'
 const outageHistory = process.env.REPLAY_OFFLINE_HISTORY === '1'
+const previewSize = Number(process.env.REPLAY_PREVIEW_SIZE ?? '0')
+const baselineQuality = Number(process.env.REPLAY_BASELINE_JPEG_QUALITY ?? '0')
 if (!isIPv4(host) || !Number.isInteger(port) || port < 1 || port > 65535 ||
     (warmRotation !== undefined && warmRotation !== '0' && warmRotation !== '180')) {
   throw new Error('Set an IPv4 REPLAY_HOST, TCP REPLAY_PORT, and optional REPLAY_WARM_ROTATION (0 or 180)')
 }
 if (outageHistory && unavailable) {
   throw new Error('REPLAY_OFFLINE_HISTORY starts with an available service')
+}
+if (![0, 720, 1080, 1440].includes(previewSize) || !Number.isInteger(baselineQuality) ||
+    baselineQuality < 0 || baselineQuality > 100) {
+  throw new Error('Set REPLAY_PREVIEW_SIZE to 720, 1080 or 1440 and REPLAY_BASELINE_JPEG_QUALITY to 1–100, or leave them unset')
 }
 const immichKey = 'espframe-synthetic-preview'
 const token = 'espframe-synthetic-slide-replay-only'
@@ -43,8 +49,16 @@ for (let index = 0; index < 72; index++) {
   }
   const id = `${(index + 1).toString(16).padStart(8, '0')}-1111-4222-8333-123456789abc`
   const image = sharp(pixels, { raw: { width, height, channels: 3 } })
-  const bytes = await (index % 3 === 2 ? image.webp({ quality: 84 })
-    : image.jpeg({ quality: 87, progressive: index % 3 === 1 })).toBuffer()
+  if (previewSize) {
+    // Immich resizes in linear light and fits the image outside the square,
+    // so the configured size describes the short edge for these portraits.
+    image.pipelineColourspace('scrgb').resize(previewSize, previewSize, { fit: 'outside', withoutEnlargement: true })
+      .toColourspace('srgb')
+  }
+  const preview = baselineQuality
+    ? image.jpeg({ quality: baselineQuality, chromaSubsampling: baselineQuality >= 80 ? '4:4:4' : '4:2:0' })
+    : index % 3 === 2 ? image.webp({ quality: 84 }) : image.jpeg({ quality: 87, progressive: index % 3 === 1 })
+  const bytes = await preview.toBuffer()
   images.set(id, bytes)
   const date = new Date(Date.UTC(2024, 0, Math.floor(index / 2) * 7 + 1, 12))
   library.push({ id, width, height, localDateTime: date.toISOString() })
@@ -123,4 +137,5 @@ if (warmRotation !== undefined) {
   }
 }
 recordHistory = outageHistory
+console.log(`Replay previews ${previewSize || 'source size'}, ${baselineQuality ? `baseline JPEG quality ${baselineQuality}` : 'mixed JPEG and WebP'}`)
 console.log(`Replay ready at ${origin} (${unavailable ? 'service unavailable' : warmRotation === undefined ? 'cold' : 'prewarmed service cache'})`)
