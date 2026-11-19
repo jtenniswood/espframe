@@ -428,9 +428,25 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
                                                                       : PreviewStatus::Retry;
 }
 
-bool ImmichSource::render_prepared_(const PhotoSlide &frame, uint16_t *panel) {
-  if (!online_() || esp_timer_get_time() < prepared_retry_us_ || !allocate_download_())
+bool ImmichSource::render_cached_prepared_(SlideIndex slide, uint16_t *panel) {
+  const auto cached = previews_.find(slide);
+  if (cached.empty())
     return false;
+  const auto started = esp_timer_get_time();
+  if (!jpeg_.decode_panel(cached.data(), cached.size(), panel, checkpoint_)) {
+    if (!cancelled_)
+      previews_.discard(slide);
+    return false;
+  }
+  if constexpr (SWIPE_TRIAL_IMMICH)
+    record_live_trial_preparation_time(TrialPreparationStage::PreparedCacheDecode,
+                                       static_cast<uint32_t>(esp_timer_get_time() - started), cached.size());
+  return true;
+}
+
+size_t ImmichSource::render_prepared_(const PhotoSlide &frame, uint16_t *panel) {
+  if (!online_() || esp_timer_get_time() < prepared_retry_us_ || !allocate_download_())
+    return 0;
   std::string url(settings_.prepared_slide_url);
   url += "/v1/slides/";
   url += frame.primary.data();
@@ -455,11 +471,11 @@ bool ImmichSource::render_prepared_(const PhotoSlide &frame, uint16_t *panel) {
   if (!cancelled_ && (status == 0 || status == 401 || status == 403 || status == 429 || status >= 500))
     prepared_retry_us_ = decode_start + 30'000'000;
   if (status != 200 || cancelled_ || !jpeg_.decode_panel(encoded_, length, panel, checkpoint_))
-    return false;
+    return 0;
   if constexpr (SWIPE_TRIAL_IMMICH)
     record_live_trial_preparation_time(TrialPreparationStage::PreparedDecode,
                                        static_cast<uint32_t>(esp_timer_get_time() - decode_start));
-  return true;
+  return length;
 }
 
 ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *panel) {
@@ -497,20 +513,22 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       this->pending_.push_back(seed);
     return PrepareResult::Retry;
   };
-  bool prepared = false;
+  bool prepared = remembered && this->render_cached_prepared_(slide, panel);
+  size_t prepared_bytes = 0;
   const bool optional_pair = !remembered && !pairs_only && slide > 1 && settings_.portrait_pairing;
   bool selected_companion = false;
-  if (settings_.has_prepared_slides() && (!optional_pair || seed.orientation_known) &&
+  if (!prepared && settings_.has_prepared_slides() && (!optional_pair || seed.orientation_known) &&
       esp_timer_get_time() >= prepared_retry_us_) {
     if (optional_pair && seed.portrait) {
       const TrialStageTimer selection{TrialPreparationStage::Selection};
       frame.companion = companion_for_(seed, esp_timer_get_time() + pairing_time_us);
       selected_companion = true;
     }
-    prepared = this->render_prepared_(frame, panel);
-    if (this->cancelled_)
-      return retry_frame();
+    prepared_bytes = this->render_prepared_(frame, panel);
+    prepared = prepared_bytes != 0;
   }
+  if (this->cancelled_)
+    return retry_frame();
   std::optional<TrialStageTimer> composition;
   if (!prepared) {
     DecodedPreview primary;
@@ -565,6 +583,10 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     this->history_.append(frame);
   else
     *existing = frame;
+  // Keep the clean JPEG, before captions and tone, only after the photo
+  // identity for this history position has been committed.
+  if (prepared_bytes)
+    previews_.remember(slide, {encoded_, prepared_bytes});
   return PrepareResult::Ready;
 }
 

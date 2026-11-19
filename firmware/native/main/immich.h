@@ -54,7 +54,8 @@ class ImmichSource {
   void discard_candidate_(const AssetId &id);
   bool wait_for_pixel_work_() const;
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, bool for_pair, int64_t deadline_us = 0);
-  bool render_prepared_(const PhotoSlide &frame, uint16_t *panel);
+  bool render_cached_prepared_(SlideIndex slide, uint16_t *panel);
+  size_t render_prepared_(const PhotoSlide &frame, uint16_t *panel);
 
   const std::atomic<bool> &cancelled_;
   const std::atomic<bool> &pixel_work_deferred_;

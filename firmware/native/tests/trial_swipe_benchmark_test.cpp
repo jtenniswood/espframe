@@ -40,8 +40,22 @@ int main() {
   assert(full.started == 48 && full.settled == 48 && full.wrong_slide == 0);
   assert(swipe.settled() == 17 && first_movements == full.started);
 
+  TrialSwipeBenchmark history{TrialSwipeBenchmark::Scenario::History};
+  Swipe rewind{slide_width, 64, 1};
+  SwipeInput rewind_touch;
+  rewind.set_ready_range(ready.first, ready.last);
+  SlideIndex furthest = 1;
+  for (auto now = start; now < start + 20'000'000; now += 1'000) {
+    if (const auto report = history.poll(now, rewind.settled(), ready, rewind.idle()))
+      rewind_touch.update(rewind, *report, rewind.position());
+    rewind.tick(now);
+    furthest = std::max(furthest, rewind.settled());
+  }
+  assert(furthest == 10 && rewind.settled() == 1);
+  assert(history.results().settled == history.target() && history.results().wrong_slide == 0);
+
   const auto run_cold = [&](int64_t ready_after, SlideIndex expected) {
-    TrialSwipeBenchmark rapid{true};
+    TrialSwipeBenchmark rapid{TrialSwipeBenchmark::Scenario::Rapid};
     Swipe player{slide_width, 64, 1};
     SwipeInput touch;
     for (auto now = start; now < start + 700'000 && rapid.results().settled == 0; now += 1'000) {
@@ -64,7 +78,7 @@ int main() {
   const auto early = run_cold(48'000, 2);
   assert(early.cold_releases_unready == 0 && early.cold_returns == 0);
 
-  TrialSwipeBenchmark repeated{true};
+  TrialSwipeBenchmark repeated{TrialSwipeBenchmark::Scenario::Rapid};
   assert(repeated.poll(start, 1, {1, 1}, true));
   const auto released_at = start + TrialSwipeBenchmark::drag_us;
   assert(repeated.poll(released_at, 1, {1, 1}, false)->contacts == 0);

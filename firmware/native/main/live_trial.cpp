@@ -54,13 +54,17 @@ struct PreparationTiming {
 };
 
 constexpr std::array preparation_stages{"attempt", "selection", "transfer", "hardware_jpeg", "software_jpeg",
-                                        "webp", "rejected_preview", "composition", "prepared_transfer", "prepared_decode"};
+                                        "webp", "rejected_preview", "composition", "prepared_transfer", "prepared_decode",
+                                        "prepared_cache_decode"};
 static_assert(preparation_stages.size() == static_cast<size_t>(TrialPreparationStage::Count));
 std::array<PreparationTiming, preparation_stages.size()> preparation_timings{};
 portMUX_TYPE preparation_lock = portMUX_INITIALIZER_UNLOCKED;
 
 #if SWIPE_TRIAL_BENCHMARK
-TrialSwipeBenchmark benchmark{SWIPE_TRIAL_BENCHMARK_RAPID};
+constexpr auto benchmark_scenario = SWIPE_TRIAL_REPLAY_HISTORY ? TrialSwipeBenchmark::Scenario::History
+                                  : SWIPE_TRIAL_BENCHMARK_RAPID ? TrialSwipeBenchmark::Scenario::Rapid
+                                                               : TrialSwipeBenchmark::Scenario::Normal;
+TrialSwipeBenchmark benchmark{benchmark_scenario};
 #endif
 TrialSwipeMetrics metrics;
 portMUX_TYPE swipe_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -77,14 +81,15 @@ esp_err_t benchmark_status(httpd_req_t *request) {
 #if SWIPE_TRIAL_BENCHMARK
   std::snprintf(scripted_counts, sizeof(scripted_counts),
                 ",\"target\":%u,\"started\":%" PRIu32 ",\"settled\":%" PRIu32 ",\"wrong_slide\":%" PRIu32,
-                TrialSwipeBenchmark::swipe_limit, script.started, script.settled, script.wrong_slide);
+                benchmark.target(), script.started, script.settled, script.wrong_slide);
 #endif
 #if SWIPE_TRIAL_BENCHMARK_RAPID
   const auto used = std::strlen(scripted_counts);
   std::snprintf(scripted_counts + used, sizeof(scripted_counts) - used,
-                ",\"scenario\":\"rapid\",\"cold_starts\":%" PRIu32 ",\"cold_releases_unready\":%" PRIu32
+                ",\"scenario\":\"%s\",\"cold_starts\":%" PRIu32 ",\"cold_releases_unready\":%" PRIu32
                 ",\"cold_returns\":%" PRIu32 ",\"refill_limit_us\":%" PRIu32
                 ",\"refill\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}",
+                SWIPE_TRIAL_REPLAY_HISTORY ? "history" : "rapid",
                 script.cold_starts, script.cold_releases_unready, script.cold_returns, TrialSwipeBenchmark::refill_limit_us,
                 script.refill.count, script.refill.worst_us, script.refill.over_limit);
 #endif
@@ -215,7 +220,7 @@ esp_err_t preparation_status(httpd_req_t *request) {
   const auto timings = preparation_timings;
   portEXIT_CRITICAL(&preparation_lock);
 
-  char body[1024]{'{'};
+  char body[1280]{'{'};
   size_t used = 1;
   for (size_t i = 0; i < timings.size(); ++i) {
     const auto &timing = timings[i];

@@ -10,19 +10,21 @@
 #include <memory>
 #include <span>
 #include <utility>
+#include <variant>
 
 namespace espframe::native {
 
-// Worker-owned cache of previews that have already decoded successfully.
+// Worker-owned cache of previews and prepared slides that decoded successfully.
 // Keeping them compressed extends the useful history without more panel buffers.
 class RecentPreviews {
  public:
+  using Key = std::variant<AssetId, SlideIndex>;
   static constexpr size_t capacity = 16;
   static constexpr size_t byte_budget = 2 * 1024 * 1024;
 
-  std::span<const uint8_t> find(const AssetId &id) {
+  std::span<const uint8_t> find(const Key &key) {
     for (auto &entry : this->entries_) {
-      if (entry.bytes && entry.id == id) {
+      if (entry.bytes && entry.key == key) {
         entry.touched = ++this->clock_;
         return {entry.bytes.get(), entry.length};
       }
@@ -30,8 +32,8 @@ class RecentPreviews {
     return {};
   }
 
-  void remember(const AssetId &id, std::span<const uint8_t> data) {
-    if (data.empty() || data.size() > byte_budget || !this->find(id).empty())
+  void remember(const Key &key, std::span<const uint8_t> data) {
+    if (data.empty() || data.size() > byte_budget || !this->find(key).empty())
       return;
     constexpr size_t free_for_decode = 8 * 1024 * 1024;
     while (this->used_ + data.size() > byte_budget ||
@@ -50,12 +52,12 @@ class RecentPreviews {
       return;
     std::memcpy(copy.get(), data.data(), data.size());
     this->used_ += data.size();
-    entry = {id, std::move(copy), data.size(), ++this->clock_};
+    entry = {key, std::move(copy), data.size(), ++this->clock_};
   }
 
-  void discard(const AssetId &id) {
+  void discard(const Key &key) {
     for (auto &entry : this->entries_) {
-      if (entry.bytes && entry.id == id) {
+      if (entry.bytes && entry.key == key) {
         this->remove_(entry);
         return;
       }
@@ -69,7 +71,7 @@ class RecentPreviews {
   using Buffer = std::unique_ptr<uint8_t, Release>;
 
   struct Entry {
-    AssetId id{};
+    Key key{};
     Buffer bytes{};
     size_t length{};
     uint64_t touched{};

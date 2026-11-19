@@ -42,6 +42,18 @@ int main() {
   small.remember(id(18), oversize);
   assert(small.find(id(18)).empty() && !small.find(id(1)).empty());
 
+  RecentPreviews mixed;
+  constexpr SlideIndex slide = 1;
+  mixed.remember(id(1), encoded);
+  mixed.remember(slide, tiny);
+  assert(mixed.find(id(1)).size() == encoded.size());
+  assert(mixed.find(slide).size() == tiny.size());
+  mixed.discard(id(1));
+  assert(mixed.find(id(1)).empty() && mixed.find(slide).front() == 8);
+  mixed.remember(id(1), encoded);
+  mixed.discard(slide);
+  assert(mixed.find(slide).empty() && mixed.find(id(1)).front() == 9);
+
   free_spiram = 2 * 1024 * 1024;
   small.remember(id(19), tiny);
   assert(small.find(id(19)).empty() && small.find(id(17)).empty());

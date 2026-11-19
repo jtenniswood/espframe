@@ -74,7 +74,10 @@ class TrialSwipeMetrics {
 
 class TrialSwipeBenchmark {
  public:
+  enum class Scenario { Normal, Rapid, History };
+
   static constexpr unsigned swipe_limit = 48;
+  static constexpr unsigned history_forward_moves = 9;
   static constexpr int64_t report_period_us = 8'000;
   static constexpr int64_t drag_us = 192'000;
   static constexpr int64_t rest_us = 420'000;
@@ -91,9 +94,10 @@ class TrialSwipeBenchmark {
     TrialSwipeMetrics::Timing refill;
   };
 
-  explicit TrialSwipeBenchmark(bool rapid = false) : rapid_(rapid) {}
+  explicit TrialSwipeBenchmark(Scenario scenario = Scenario::Normal) : scenario_(scenario) {}
 
   const Results &results() const { return results_; }
+  unsigned target() const { return scenario_ == Scenario::History ? 2 * history_forward_moves : swipe_limit; }
 
   std::optional<TouchReport> poll(int64_t now, SlideIndex center, SlideRange ready, bool at_rest) {
     if (missing_slide_ && ready.contains(*missing_slide_)) {
@@ -123,19 +127,21 @@ class TrialSwipeBenchmark {
       // after re-anchoring determines whether it advances or settles back.
       results_.wrong_slide += center != destination_ && !returned;
       waiting_for_settle_ = false;
-      next_swipe_at_ = now + (rapid_ ? rapid_rest_us : rest_us);
+      next_swipe_at_ = now + (scenario_ == Scenario::Rapid ? rapid_rest_us : rest_us);
     }
-    if (!at_rest || center < 1 || results_.started == swipe_limit || now < next_swipe_at_)
+    if (!at_rest || center < 1 || results_.started == target() || now < next_swipe_at_)
       return {};
 
     // The normal run waits for two forward moves and one backward move.
     // Rapid browsing mostly advances and reverses only toward a cached photo.
-    const bool back = rapid_ ? results_.started % 5 == 4 && ready.contains(center - 1)
-                             : results_.started % 3 == 1;
+    // The history run reaches slide ten, then returns to slide one.
+    const bool back = scenario_ == Scenario::History ? results_.started >= history_forward_moves
+                    : scenario_ == Scenario::Rapid ? results_.started % 5 == 4 && ready.contains(center - 1)
+                                                   : results_.started % 3 == 1;
     const int direction = back ? -1 : 1;
     const auto destination = center + direction;
     const bool cold_start = !ready.contains(destination);
-    if (!rapid_ && cold_start)
+    if (scenario_ != Scenario::Rapid && cold_start)
       return {};
     origin_ = center;
     direction_ = direction;
@@ -177,7 +183,7 @@ class TrialSwipeBenchmark {
   bool dragging_{};
   bool waiting_for_settle_{};
   bool cold_start_{};
-  bool rapid_;
+  Scenario scenario_;
 };
 
 }  // namespace espframe::native

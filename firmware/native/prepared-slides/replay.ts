@@ -8,9 +8,13 @@ const host = process.env.REPLAY_HOST ?? '127.0.0.1'
 const port = Number(process.env.REPLAY_PORT ?? 9116)
 const warmRotation = process.env.REPLAY_WARM_ROTATION
 const unavailable = process.env.REPLAY_PREPARED_UNAVAILABLE === '1'
+const outageHistory = process.env.REPLAY_OFFLINE_HISTORY === '1'
 if (!isIPv4(host) || !Number.isInteger(port) || port < 1 || port > 65535 ||
     (warmRotation !== undefined && warmRotation !== '0' && warmRotation !== '180')) {
   throw new Error('Set an IPv4 REPLAY_HOST, TCP REPLAY_PORT, and optional REPLAY_WARM_ROTATION (0 or 180)')
+}
+if (outageHistory && (unavailable || warmRotation !== undefined)) {
+  throw new Error('REPLAY_OFFLINE_HISTORY starts with an available service and an empty cache')
 }
 const immichKey = 'espframe-synthetic-preview'
 const token = 'espframe-synthetic-slide-replay-only'
@@ -47,11 +51,26 @@ for (let index = 0; index < 72; index++) {
 }
 
 let offset = 0
+const history = new Set<string>()
+let offline = false
 const server = createServer(async (request, response) => {
   const path = request.url ?? ''
+  if (offline) {
+    console.log(JSON.stringify({ offline: path }))
+    return response.writeHead(503).end()
+  }
   if (path.startsWith('/v1/slides/')) {
-    response.on('finish', () => console.log(JSON.stringify({ prepared: path, status: response.statusCode,
-      cache: response.getHeader('X-Espframe-Cache'), bytes: response.getHeader('Content-Length') })))
+    response.on('finish', () => {
+      console.log(JSON.stringify({ prepared: path, status: response.statusCode,
+        cache: response.getHeader('X-Espframe-Cache'), bytes: response.getHeader('Content-Length') }))
+      if (outageHistory && response.statusCode === 200 && !offline) {
+        history.add(path)
+        if (history.size === 10) {
+          offline = true
+          console.log('Replay photo endpoints unavailable after 10 prepared slides')
+        }
+      }
+    })
     if (unavailable) return response.writeHead(503).end()
     service.emit('request', request, response)
     return
