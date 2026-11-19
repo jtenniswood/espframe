@@ -427,8 +427,10 @@ ready slides. Transfers can continue during a swipe, and a missing swipe
 neighbour lets preparation resume. The status includes the Wi-Fi power-save
 mode, signal level and primary channel sampled when the frame gets an address.
 HTTP diagnostic counts distinguish
-connection-open failures from retryable header and body timeouts. An HTTP
-read timeout can resume within the current request's total time budget.
+connection-open failures from retryable header and body timeouts. The loader
+uses 250 ms receive timeouts to check for cancellation during stalled reads.
+These counts include waits within requests that later finish, and each request
+has a separate total time budget.
 `/api/trial/prepare` gives the count, total, and worst elapsed time for
 whole preparation attempts, photo and pair selection, preview transfers,
 decode by format, and panel composition. Transfer entries include received

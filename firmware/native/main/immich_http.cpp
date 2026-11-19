@@ -13,6 +13,7 @@ namespace {
 constexpr int buffer_size = 4096;
 constexpr int transport_timeout_ms = 3000;
 constexpr int optional_timeout_ms = 1000;
+constexpr int receive_wait_ms = 250;
 constexpr int64_t transfer_timeout_us = 12'000'000;
 
 }  // namespace
@@ -79,13 +80,13 @@ int ImmichHttp::read(const std::string &url, const char *api_key, std::string_vi
 }
 
 ImmichHttp::Reply ImmichHttp::read_once_(std::string_view query, std::span<uint8_t> output, size_t &received,
-                                        int64_t deadline_us, int timeout_ms) {
-  const auto set_timeout = [&]() {
+                                        int64_t deadline_us, int request_timeout_ms) {
+  const auto set_timeout = [&](int timeout_ms) {
     const auto remaining = deadline_us - esp_timer_get_time();
     return !cancelled_ && remaining > 0 &&
            esp_http_client_set_timeout_ms(client_, std::min<int64_t>(timeout_ms, (remaining + 999) / 1000)) == ESP_OK;
   };
-  if (!set_timeout())
+  if (!set_timeout(request_timeout_ms))
     return {};
   if (const auto error = esp_http_client_open(client_, query.size()); error != ESP_OK) {
 #if SWIPE_TRIAL_IMMICH
@@ -93,11 +94,13 @@ ImmichHttp::Reply ImmichHttp::read_once_(std::string_view query, std::span<uint8
 #endif
     return {};
   }
-  if (!query.empty() && (!set_timeout() ||
+  if (!query.empty() && (!set_timeout(request_timeout_ms) ||
                         esp_http_client_write(client_, query.data(), query.size()) != static_cast<int>(query.size())))
     return {};
   int64_t content_length = ESP_FAIL;
-  while (set_timeout()) {
+  // ESP-IDF preserves its parser across EAGAIN. Short receive waits let
+  // the worker check for a newer swipe without expiring a slow response.
+  while (set_timeout(receive_wait_ms)) {
     content_length = esp_http_client_fetch_headers(client_);
     if (content_length != -ESP_ERR_HTTP_EAGAIN)
       break;
@@ -113,10 +116,10 @@ ImmichHttp::Reply ImmichHttp::read_once_(std::string_view query, std::span<uint8
   if (content_length > static_cast<int64_t>(output.size()))
     return {413, true};
 
-  // The header parser can already report completion while it still has
-  // buffered body bytes. Drain those bytes before keeping the connection.
+  // A fixed-length body is ready after all declared bytes reach the caller.
+  // A chunked body still needs the final read to drain buffered data.
   size_t length = 0;
-  while (set_timeout()) {
+  while (set_timeout(receive_wait_ms)) {
     char overflow;
     const bool full = length == output.size();
     char *target = full ? &overflow : reinterpret_cast<char *>(output.data() + length);
@@ -129,17 +132,20 @@ ImmichHttp::Reply ImmichHttp::read_once_(std::string_view query, std::span<uint8
     }
     if (count < 0)
       break;
-    if (count == 0) {
-      const bool matches_length = content_length == 0 || length == static_cast<size_t>(content_length);
-      if (length != 0 && matches_length && esp_http_client_is_complete_data_received(client_)) {
-        received = length;
-        return {status, true};
-      }
-      break;
+    if (count > 0) {
+      if (full)
+        return {413, true};
+      length += count;
+      if (content_length == 0 || length != static_cast<size_t>(content_length))
+        continue;
     }
-    if (full)
-      return {413, true};
-    length += count;
+    const bool matches_length = content_length == 0 || length == static_cast<size_t>(content_length);
+    if (length != 0 && matches_length && esp_http_client_is_complete_data_received(client_)) {
+      received = length;
+      return {status, true};
+    }
+    if (count == 0)
+      break;
   }
   return {0, true};
 }

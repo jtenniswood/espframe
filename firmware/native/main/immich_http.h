@@ -32,7 +32,7 @@ class ImmichHttp {
 
   bool init_(const char *url, const char *api_key);
   Reply read_once_(std::string_view query, std::span<uint8_t> output, size_t &received,
-                   int64_t deadline_us, int timeout_ms);
+                   int64_t deadline_us, int request_timeout_ms);
 
   const std::atomic<bool> &cancelled_;
   const char *auth_header_;
