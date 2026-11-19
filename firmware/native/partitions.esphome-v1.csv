@@ -1,0 +1,7 @@
+# Keep the Guition V1 ESPHome 16 MiB map for this app-slot-only trial.
+# Name,     Type, SubType, Offset,   Size
+otadata,    data, ota,     0x9000,   0x2000
+phy_init,   data, phy,     0xb000,   0x1000
+app0,       app,  ota_0,   0x10000,  0x7c0000
+app1,       app,  ota_1,   0x7d0000, 0x7c0000
+nvs,        data, nvs,     0xf90000, 0x70000
