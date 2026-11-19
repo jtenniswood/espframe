@@ -20,6 +20,7 @@ from asset_generation.firmware_fields import (
 )
 from asset_generation.paths import (
     LEGACY_PRODUCT_PATH,
+    NATIVE_WEB_APP_PATH,
     ROOT,
     TIME_YAML_PATH,
     TZ_HEADER_PATH,
@@ -29,7 +30,7 @@ from asset_generation.paths import (
 )
 from asset_generation.product_manifest import legacy_product_manifest
 from asset_generation.timezones import replace_timezone_yaml, timezone_header, timezone_options
-from asset_generation.web_bundle import bootstrap_webserver_sources, web_app_bundle
+from asset_generation.web_bundle import bootstrap_webserver_sources, native_web_app_bundle, web_app_bundle
 from product_config import docs_settings_tables, load_product
 
 
@@ -74,6 +75,7 @@ def generate(check: bool) -> int:
     changed |= write_or_check(TIME_YAML_PATH, replace_timezone_yaml(TIME_YAML_PATH.read_text(), timezone_options()), check)
     changed |= write_or_check(WEB_PUBLIC_STYLE_PATH, GENERATED_CSS_HEADER + WEB_STYLE_PATH.read_text(), check)
     changed |= write_or_check(WEB_APP_PATH, GENERATED_JS_HEADER + web_app_bundle(), check)
+    changed |= write_or_check(NATIVE_WEB_APP_PATH, GENERATED_JS_HEADER + native_web_app_bundle(), check)
     for path, content in generated_device_package_files(product).items():
         changed |= write_or_check(path, content, check)
     for path in generated_firmware_field_files(all_settings, firmware_field_configs):
