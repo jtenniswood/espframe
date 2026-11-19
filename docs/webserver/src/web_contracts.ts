@@ -23,6 +23,8 @@ export interface ConfigurationCapabilities {
   base_path: string;
   capabilities_path: string;
   configuration_path: string;
+  status_path?: string;
+  screen_control_path?: string;
   reset_path?: string;
   reset_modes?: string[];
   update_mode: "atomic";
