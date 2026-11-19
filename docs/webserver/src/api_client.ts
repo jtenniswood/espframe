@@ -67,7 +67,7 @@ export class EspframeApiClient {
     return this.requestWith(url, init, async response => response);
   }
 
-  private requestJson(url: string, init: RequestInit, message: string): Promise<unknown> {
+  protected requestJson(url: string, init: RequestInit, message: string): Promise<unknown> {
     return this.requestWith(url, init, response => this.json(response, message));
   }
 
@@ -92,7 +92,7 @@ export class EspframeApiClient {
     return value as unknown as ConfigurationCapabilities;
   }
 
-  private negotiate(): Promise<ConfigurationCapabilities | null> {
+  protected negotiate(): Promise<ConfigurationCapabilities | null> {
     if (this.negotiated !== undefined) return Promise.resolve(this.negotiated);
     if (!this.capabilities) {
       this.capabilities = this.requestJson(this.capabilitiesPath, { cache: "no-store" }, "capabilities_unavailable")
