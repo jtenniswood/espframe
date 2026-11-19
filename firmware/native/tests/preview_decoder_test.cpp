@@ -162,6 +162,29 @@ void verify_pair(const char *primary_path, const char *companion_path) {
   expect_flipped(panel, left, &right, DisplayMode::Fill);
 }
 
+void verify_odd_jpeg_rows(const char *path) {
+  const auto photo = load(path);
+  constexpr uint16_t guard = 0x43cd;
+  std::vector<uint16_t> panel(pixel_count + 2, guard);
+  DecodedPreview decoded;
+  // Fit keeps the odd-width source at its original size. Both an aligned row
+  // and an unaligned row must land at the start of the intended scanline.
+  assert(decoded.decode(photo.data(), photo.size()) == Decode::Ready);
+  assert(decoded.render(panel.data() + 1));
+  for (const int y : {160, 161, 638, 639}) {
+    const bool top = y < 400;
+    assert(at(panel, 0, y) == (top ? 0xf800 : 0x001f));
+    assert(at(panel, 1278, y) == (top ? 0x07e0 : 0xffff));
+    assert(at(panel, 1279, y) == 0);
+  }
+  expect_flipped(panel, decoded);
+  assert(decoded.decode(photo.data(), photo.size(), false, nullptr, DisplayMode::Fill) == Decode::Ready);
+  assert(decoded.render(panel.data() + 1, nullptr, DisplayMode::Fill));
+  assert(at(panel, 1279, 160) == 0x07e0 && at(panel, 1279, 639) == 0xffff);
+  assert(panel.front() == guard && panel.back() == guard);
+  assert(decoded.decode(photo.data(), photo.size() / 2) == Decode::Invalid);
+}
+
 void verify_hardware(const char *baseline_path, const char *progressive_path, const char *webp_path) {
   auto baseline = load(baseline_path);
   const auto progressive = load(progressive_path);
@@ -288,7 +311,7 @@ void verify_orientation(const char *square_jpeg, const char *square_webp, const 
 }
 
 int main(int argc, char **argv) {
-  assert(argc == 6);
+  assert(argc == 7);
   const auto wide = frame_photo(1600, 900, slide_width, slide_height, DisplayMode::Fill);
   assert(wide.source.x == 80 && wide.source.y == 0 && wide.source.width == 1440 && wide.source.height == 900);
   const auto narrow = frame_photo(600, 500, slide_width, slide_height, DisplayMode::Fill);
@@ -296,6 +319,7 @@ int main(int argc, char **argv) {
   for (int i = 1; i < 4; ++i)
     verify(argv[i]);
   verify_pair(argv[4], argv[5]);
+  verify_odd_jpeg_rows(argv[6]);
   verify_hardware(argv[1], argv[2], argv[3]);
   verify_interruption(argv[1], argv[2], argv[3]);
   verify_orientation(argv[1], argv[3], argv[4]);

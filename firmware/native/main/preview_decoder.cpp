@@ -6,6 +6,7 @@
 #include "webp_rgb565.h"
 
 #include <algorithm>
+#include <bit>
 #include <csetjmp>
 #include <cstdio>
 #include <cstring>
@@ -98,7 +99,11 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegCallbacks &callbacks, cons
       break;
     decoder.scale_denom = divisor;
   }
-  decoder.out_color_space = JCS_RGB;
+  // The common YCbCr path can pack the final color in libjpeg's upsampler.
+  // Leave RGB JPEGs on the existing path, including lossless RGB input.
+  const bool packed = std::endian::native == std::endian::little && decoder.jpeg_color_space == JCS_YCbCr;
+  decoder.out_color_space = packed ? JCS_RGB565 : JCS_RGB;
+  decoder.dither_mode = JDITHER_NONE;
   decoder.do_fancy_upsampling = FALSE;
   // Libjpeg reads progressive scans inside jpeg_start_decompress. Its
   // progress hook lets a swipe pause or cancel between MCU rows.
@@ -111,33 +116,53 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegCallbacks &callbacks, cons
     return Decode::Invalid;
   decoder.progress = nullptr;
 
-  auto rows = decoder.mem->alloc_sarray(reinterpret_cast<j_common_ptr>(&decoder), JPOOL_IMAGE,
-                                        decoder.output_width * 3, 1);
   const auto &crop = size.source;
   const auto left = crop.x * decoder.output_width / decoder.image_width;
   const auto top = crop.y * decoder.output_height / decoder.image_height;
   const auto crop_width = std::max(1u, (crop.x + crop.width) * decoder.output_width / decoder.image_width - left);
   const auto crop_height = std::max(1u, (crop.y + crop.height) * decoder.output_height / decoder.image_height - top);
-  // Every row uses the same source columns. Compute their exact RGB byte
-  // offsets once, keeping the lookup off the worker's stack.
-  auto *column_offsets = static_cast<uint16_t *>(decoder.mem->alloc_small(
-      reinterpret_cast<j_common_ptr>(&decoder), JPOOL_IMAGE, size.width * sizeof(uint16_t)));
-  for (int x = 0; x < size.width; ++x)
-    column_offsets[x] = 3 * (left + x * crop_width / size.width);
+  // Some previews already have the right dimensions. Decode their rows
+  // straight into the framed preview without a scratch row or a pixel copy.
+  const bool direct = packed && left == 0 && top == 0 && crop_width == decoder.output_width &&
+                      crop_height == decoder.output_height && static_cast<unsigned>(size.width) == crop_width &&
+                      static_cast<unsigned>(size.height) == crop_height;
+  JSAMPARRAY rows = nullptr;
+  uint16_t *column_offsets = nullptr;
+  if (!direct) {
+    rows = decoder.mem->alloc_sarray(reinterpret_cast<j_common_ptr>(&decoder), JPOOL_IMAGE,
+                                     decoder.output_width * (packed ? 2 : 3), 1);
+    column_offsets = static_cast<uint16_t *>(decoder.mem->alloc_small(
+        reinterpret_cast<j_common_ptr>(&decoder), JPOOL_IMAGE, size.width * sizeof(uint16_t)));
+    // Packed rows use pixel offsets. RGB rows use byte offsets.
+    for (int x = 0; x < size.width; ++x)
+      column_offsets[x] = (packed ? 1 : 3) * (left + x * crop_width / size.width);
+  }
 
   unsigned target_y = 0;
   while (decoder.output_scanline < decoder.output_height) {
     const unsigned source_y = decoder.output_scanline;
     if (source_y % row_batch == 0 && !checkpoint())
       return Decode::Interrupted;
-    if (jpeg_read_scanlines(&decoder, rows, 1) != 1)
+    auto *scanline = direct ? reinterpret_cast<JSAMPROW>(pixels + source_y * size.width) : rows[0];
+    if (jpeg_read_scanlines(&decoder, &scanline, 1) != 1)
       return Decode::Invalid;
+    if (direct)
+      continue;
     while (target_y < static_cast<unsigned>(size.height) &&
            top + target_y * crop_height / size.height == source_y) {
       auto *line = pixels + target_y * size.width;
-      for (int x = 0; x < size.width; ++x) {
-        const auto *rgb = rows[0] + column_offsets[x];
-        line[x] = static_cast<uint16_t>(((rgb[0] & 0xf8) << 8) | ((rgb[1] & 0xfc) << 3) | (rgb[2] >> 3));
+      if (packed) {
+        const auto *rgb565 = reinterpret_cast<const uint16_t *>(scanline);
+        if (crop_width == static_cast<unsigned>(size.width))
+          std::copy_n(rgb565 + left, size.width, line);
+        else
+          for (int x = 0; x < size.width; ++x)
+            line[x] = rgb565[column_offsets[x]];
+      } else {
+        for (int x = 0; x < size.width; ++x) {
+          const auto *rgb = scanline + column_offsets[x];
+          line[x] = static_cast<uint16_t>(((rgb[0] & 0xf8) << 8) | ((rgb[1] & 0xfc) << 3) | (rgb[2] >> 3));
+        }
       }
       ++target_y;
     }
