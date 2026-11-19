@@ -9,6 +9,8 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include <algorithm>
 #include <cinttypes>
@@ -314,13 +316,26 @@ void ImmichSource::discard_candidate_(const AssetId &id) {
   std::erase_if(this->memory_pool_, matches);
 }
 
+bool ImmichSource::wait_for_pixel_work_() const {
+  if (!this->pixel_work_deferred_.load(std::memory_order_relaxed) || this->cancelled_)
+    return !this->cancelled_;
+
+  const auto started = esp_timer_get_time();
+  do {
+    vTaskDelay(pdMS_TO_TICKS(4));
+  } while (this->pixel_work_deferred_.load(std::memory_order_relaxed) && !this->cancelled_);
+  if constexpr (SWIPE_TRIAL_IMMICH)
+    record_live_trial_pixel_pause(static_cast<uint32_t>((esp_timer_get_time() - started) / 1000));
+  return !this->cancelled_;
+}
+
 ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, DecodedPreview &preview,
                                                         bool for_pair, int64_t deadline_us) {
   if (this->cancelled_)
     return PreviewStatus::Retry;
   const bool optional = deadline_us != 0;
   const auto decode = [&](const uint8_t *data, size_t length) {
-    return preview.decode(data, length, for_pair, &this->jpeg_, this->settings_.display_mode);
+    return preview.decode(data, length, for_pair, &this->jpeg_, this->settings_.display_mode, this->checkpoint_);
   };
   const auto cached = this->previews_.find(id);
   if (!cached.empty()) {
@@ -331,7 +346,7 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
                cached.size(), esp_timer_get_time() - start, preview.hardware_jpeg());
       return PreviewStatus::Ready;
     }
-    if (result == DecodedPreview::Result::NoMemory)
+    if (result == DecodedPreview::Result::NoMemory || result == DecodedPreview::Result::Interrupted)
       return PreviewStatus::Retry;
     this->previews_.discard(id);
   }
@@ -350,12 +365,14 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
   if (status == 200 && !this->cancelled_) {
     const auto result = decode(this->encoded_, length);
     if (result == DecodedPreview::Result::Ready) {
+      if (!this->checkpoint_())
+        return PreviewStatus::Retry;
       this->previews_.remember(id, {this->encoded_, length});
       ESP_LOGI(tag, "Preview prepared, bytes=%zu fetch_us=%" PRId64 " decode_us=%" PRId64 " hardware_jpeg=%d",
                length, decode_us - request_us, esp_timer_get_time() - decode_us, preview.hardware_jpeg());
       return PreviewStatus::Ready;
     }
-    if (result == DecodedPreview::Result::NoMemory)
+    if (result == DecodedPreview::Result::NoMemory || result == DecodedPreview::Result::Interrupted)
       return PreviewStatus::Retry;
   }
   if (this->cancelled_)
@@ -394,13 +411,15 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       *existing = {};
     return this->pending_.empty() ? PrepareResult::Retry : PrepareResult::NextCandidate;
   };
-  DecodedPreview primary;
-  const auto status = this->load_preview_(frame.primary, primary, pairs_only);
-  if (this->cancelled_ || status == PreviewStatus::Retry) {
+  const auto retry_frame = [&] {
     if (!remembered)
       this->pending_.push_back(seed);
     return PrepareResult::Retry;
-  }
+  };
+  DecodedPreview primary;
+  const auto status = this->load_preview_(frame.primary, primary, pairs_only);
+  if (this->cancelled_ || status == PreviewStatus::Retry)
+    return retry_frame();
   if (status == PreviewStatus::Missing || (pairs_only && !primary.portrait()))
     return reject_candidate(frame.primary);
 
@@ -412,11 +431,8 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   DecodedPreview companion;
   if (frame.companion[0] != '\0' && primary.portrait()) {
     const auto right = this->load_preview_(frame.companion, companion, true, pair_deadline_us);
-    if (right == PreviewStatus::Retry && (remembered || pairs_only)) {
-      if (!remembered)
-        this->pending_.push_back(seed);
-      return PrepareResult::Retry;
-    }
+    if (right == PreviewStatus::Retry && (remembered || pairs_only))
+      return retry_frame();
     if (pairs_only && (right == PreviewStatus::Missing || !companion.portrait()))
       return reject_candidate(frame.companion);
     if (right != PreviewStatus::Ready || !companion.portrait())
@@ -425,24 +441,23 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     frame.companion = {};
   }
 
-  if (this->cancelled_) {
-    if (!remembered)
-      this->pending_.push_back(seed);
-    return PrepareResult::Retry;
-  }
-  if (!remembered && frame.companion[0] != '\0')
-    std::erase_if(this->pending_, [&](const ImmichPhoto &photo) { return photo.id == frame.companion; });
-  primary.render(panel, frame.companion[0] == '\0' ? nullptr : &companion, this->settings_.display_mode,
-                 this->settings_.screen_rotation);
+  if (!primary.render(panel, frame.companion[0] == '\0' ? nullptr : &companion, this->settings_.display_mode,
+                      this->settings_.screen_rotation, this->checkpoint_))
+    return retry_frame();
   const auto &captions = this->settings_.metadata;
   const auto &tone = this->settings_.tone;
   const auto local = captions.needs_time() || tone.night_enabled ? local_clock_time(std::time(nullptr)) : std::nullopt;
   if (tone.night_enabled && !this->tone_daylight_)
     this->tone_daylight_.emplace(find_clock_zone(this->settings_.clock.timezone));
   const float night_progress = this->tone_daylight_ ? this->tone_daylight_->night_warmth(local) : 0.0f;
-  tint_photo({panel, pixel_count}, tone.warmth(night_progress));
+  if (!tint_photo({panel, pixel_count}, tone.warmth(night_progress), this->checkpoint_) || !this->checkpoint_())
+    return retry_frame();
   paint_photo_caption(panel, {caption_atlas, static_cast<size_t>(caption_atlas_end - caption_atlas)},
                       frame.metadata, captions, this->settings_.screen_rotation, local);
+  if (this->cancelled_)
+    return retry_frame();
+  if (!remembered && frame.companion[0] != '\0')
+    std::erase_if(this->pending_, [&](const ImmichPhoto &photo) { return photo.id == frame.companion; });
   if (new_position)
     this->history_.append(frame);
   else

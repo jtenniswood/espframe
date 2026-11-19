@@ -70,6 +70,10 @@ class SlidePrefetch {
 
   bool can_yield(SlideIndex active, SlideIndex wanted) const { return active != center_ && active != wanted; }
 
+  bool can_defer_pixel_work(SlideRange ready) const {
+    return center_ > 0 && !requested_ && (ready.first < center_ || ready.last > center_);
+  }
+
   std::array<SlideIndex, 7> candidates() const {
     return {center_, requested_.value_or(-1), center_ + direction_, center_ - direction_,
             center_ + 2 * direction_, center_ - 2 * direction_, center_ + 3 * direction_};

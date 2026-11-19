@@ -30,6 +30,9 @@ int main() {
   SlidePrefetch prefetch{10};
   auto window = prefetch.window(available);
   assert(window.first == 8 && window.last == 13);
+  assert(!SlidePrefetch{0}.can_defer_pixel_work({0, 1}));
+  assert(!prefetch.can_defer_pixel_work({10, 10}));
+  assert(prefetch.can_defer_pixel_work({9, 10}) && prefetch.can_defer_pixel_work({10, 11}));
 
   uint16_t pixels[SlideCache::capacity]{};
   SlideCache::Buffers buffers{};
@@ -61,8 +64,10 @@ int main() {
   swipe.move(900, 200, 310'000);
   prefetch.request_at_edge(swipe.position(), {10, 12}, available);
   assert(prefetch.requested() == 9 && prefetch.candidates()[1] == 9);
+  assert(!prefetch.can_defer_pixel_work({10, 12}));
 
   prefetch.prepared(9);
+  assert(prefetch.can_defer_pixel_work({9, 12}));
   prefetch.request_at_edge(8 * slide_width - 20, {8, 12}, available);
   assert(prefetch.requested() == 7 && prefetch.candidates()[1] == 7);
   assert(prefetch.can_yield(13, 7));

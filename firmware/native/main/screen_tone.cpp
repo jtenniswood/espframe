@@ -13,9 +13,9 @@ float ScreenToneSettings::warmth(float night_fraction) const {
   return (base + night) / 100.0f;
 }
 
-void tint_photo(std::span<uint16_t> pixels, float warmth) {
+bool tint_photo(std::span<uint16_t> pixels, float warmth, PreparationCheckpoint checkpoint) {
   if (warmth < 0.01f)
-    return;
+    return true;
   WarmToneLuts lut;
   build_warm_tone_luts(0.0f, warmth, lut);
   std::array<uint16_t, 32> red{};
@@ -24,8 +24,16 @@ void tint_photo(std::span<uint16_t> pixels, float warmth) {
     red[i] = static_cast<uint16_t>(lut.r[i] << 11);
   for (size_t i = 0; i < green.size(); ++i)
     green[i] = static_cast<uint16_t>(lut.g[i] << 5);
-  for (auto &pixel : pixels)
-    pixel = red[pixel >> 11] | green[(pixel >> 5) & 63] | lut.b[pixel & 31];
+  constexpr size_t batch = 8 * 1024;
+  while (!pixels.empty()) {
+    if (!checkpoint())
+      return false;
+    const auto chunk = pixels.first(std::min(batch, pixels.size()));
+    for (auto &pixel : chunk)
+      pixel = red[pixel >> 11] | green[(pixel >> 5) & 63] | lut.b[pixel & 31];
+    pixels = pixels.subspan(chunk.size());
+  }
+  return true;
 }
 
 }  // namespace espframe::native

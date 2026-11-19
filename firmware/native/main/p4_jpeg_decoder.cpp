@@ -18,10 +18,13 @@ DmaBuffer allocate(size_t bytes, jpeg_dec_buffer_alloc_direction_t direction, si
   return DmaBuffer(static_cast<uint8_t *>(jpeg_alloc_decoder_mem(bytes, &config, &capacity)), heap_caps_free);
 }
 
-void resize(const uint16_t *source, uint32_t stride, uint16_t *pixels, const PhotoFraming &framing) {
+bool resize(const uint16_t *source, uint32_t stride, uint16_t *pixels, const PhotoFraming &framing,
+            PreparationCheckpoint checkpoint) {
   const auto &crop = framing.source;
   const uint32_t step = (static_cast<uint32_t>(crop.width) << 16) / framing.width;
   for (int y = 0; y < framing.height; ++y) {
+    if (y % 16 == 0 && !checkpoint())
+      return false;
     const auto *row = source + (crop.y + y * crop.height / framing.height) * stride + crop.x;
     auto *target = pixels + y * framing.width;
     if (framing.width == crop.width) {
@@ -34,6 +37,7 @@ void resize(const uint16_t *source, uint32_t stride, uint16_t *pixels, const Pho
       source_x += step;
     }
   }
+  return true;
 }
 
 }  // namespace
@@ -43,7 +47,8 @@ P4JpegDecoder::~P4JpegDecoder() {
     jpeg_del_decoder_engine(engine_);
 }
 
-bool P4JpegDecoder::decode(const uint8_t *encoded, size_t length, uint16_t *pixels, const PhotoFraming &framing) {
+bool P4JpegDecoder::decode(const uint8_t *encoded, size_t length, uint16_t *pixels, const PhotoFraming &framing,
+                            PreparationCheckpoint checkpoint) {
   using esphome::remote_image::parse_p4_baseline_jpeg;
   using esphome::remote_image::p4_jpeg_fits_workspace;
   P4JpegInfo info;
@@ -73,7 +78,11 @@ bool P4JpegDecoder::decode(const uint8_t *encoded, size_t length, uint16_t *pixe
     }
   }
 
+  if (!checkpoint())
+    return false;
   std::memcpy(input.get(), encoded, length);
+  if (!checkpoint())
+    return false;
   jpeg_decode_cfg_t config{};
   config.output_format = JPEG_DECODE_OUT_FORMAT_RGB565;
   config.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_BGR;
@@ -87,8 +96,7 @@ bool P4JpegDecoder::decode(const uint8_t *encoded, size_t length, uint16_t *pixe
   }
   if (result != ESP_OK || written != info.decoded_bytes)
     return false;
-  resize(reinterpret_cast<const uint16_t *>(output.get()), info.padded_width, pixels, framing);
-  return true;
+  return resize(reinterpret_cast<const uint16_t *>(output.get()), info.padded_width, pixels, framing, checkpoint);
 }
 
 }  // namespace espframe::native

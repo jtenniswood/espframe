@@ -55,7 +55,8 @@ int jpeg_decoder_process(jpeg_decoder_handle_t engine, const jpeg_decode_cfg_t *
 
   esphome::remote_image::P4JpegInfo info;
   assert(esphome::remote_image::parse_p4_baseline_jpeg(encoded, length, &info));
-  assert(((info.width == 30 && info.height == 32) || (info.width == 32 && info.height == 30)) &&
+  assert(((info.width == 30 && info.height == 32) || (info.width == 32 && info.height == 30) ||
+          (info.width == 32 && info.height == 32)) &&
          info.padded_width == 32 && info.padded_height == 32);
   assert(capacity >= info.decoded_bytes);
   auto *pixels = reinterpret_cast<uint16_t *>(output);
@@ -212,6 +213,32 @@ void verify_hardware(const char *baseline_path, const char *progressive_path, co
   assert(!decoded.hardware_jpeg() && hardware_calls == 4 && engine_creates == 1);
 }
 
+void verify_interruption(const char *jpeg_path, const char *webp_path) {
+  const auto jpeg = load(jpeg_path);
+  const auto webp = load(webp_path);
+  int remaining{};
+  const PreparationCheckpoint checkpoint{&remaining, [](void *context) {
+    return --*static_cast<int *>(context) >= 0;
+  }};
+  DecodedPreview decoded;
+  assert(decoded.decode(webp.data(), webp.size(), false, nullptr, DisplayMode::Fit, checkpoint) == Decode::Interrupted);
+  remaining = 3;
+  assert(decoded.decode(jpeg.data(), jpeg.size(), false, nullptr, DisplayMode::Fit, checkpoint) == Decode::Interrupted);
+
+  P4JpegDecoder hardware;
+  const auto before = hardware_calls;
+  remaining = 4;
+  assert(decoded.decode(jpeg.data(), jpeg.size(), false, &hardware, DisplayMode::Fit, checkpoint) == Decode::Interrupted);
+  assert(hardware_calls == before + 1 && !decoded.hardware_jpeg());
+
+  assert(decoded.decode(jpeg.data(), jpeg.size()) == Decode::Ready);
+  std::vector<uint16_t> panel(pixel_count, 0xffff);
+  remaining = 1;
+  assert(!decoded.render(panel.data(), nullptr, DisplayMode::Fit, ScreenRotation::Normal, checkpoint));
+  assert(panel.front() == 0 && panel.back() == 0xffff);
+  assert(decoded.render(panel.data()));
+}
+
 int main(int argc, char **argv) {
   assert(argc == 6);
   const auto wide = frame_photo(1600, 900, slide_width, slide_height, DisplayMode::Fill);
@@ -222,6 +249,7 @@ int main(int argc, char **argv) {
     verify(argv[i]);
   verify_pair(argv[4], argv[5]);
   verify_hardware(argv[1], argv[2], argv[3]);
+  verify_interruption(argv[1], argv[3]);
   const uint8_t unsupported[]{0, 1, 2, 3};
   DecodedPreview decoded;
   assert(decoded.decode(unsupported, sizeof(unsupported)) == Decode::Invalid);

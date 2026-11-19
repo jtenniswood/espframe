@@ -1,6 +1,7 @@
 #pragma once
 
 #include "photo_framing.h"
+#include "preparation_checkpoint.h"
 #include "slide_geometry.h"
 
 #include <cstddef>
@@ -14,7 +15,7 @@ class P4JpegDecoder;
 // companion is ready so a single photo can still fill the slide on failure.
 class DecodedPreview {
  public:
-  enum class Result { Ready, Invalid, NoMemory };
+  enum class Result { Ready, Invalid, NoMemory, Interrupted };
 
   DecodedPreview() = default;
   ~DecodedPreview();
@@ -22,14 +23,15 @@ class DecodedPreview {
   DecodedPreview &operator=(const DecodedPreview &) = delete;
 
   Result decode(const uint8_t *encoded, size_t length, bool companion = false, P4JpegDecoder *hardware = nullptr,
-                DisplayMode mode = DisplayMode::Fit);
+                DisplayMode mode = DisplayMode::Fit, PreparationCheckpoint checkpoint = {});
   bool portrait() const { return this->portrait_; }
   bool hardware_jpeg() const { return this->hardware_jpeg_; }
-  void render(uint16_t *panel, const DecodedPreview *companion = nullptr, DisplayMode mode = DisplayMode::Fit,
-              ScreenRotation rotation = ScreenRotation::Normal) const;
+  bool render(uint16_t *panel, const DecodedPreview *companion = nullptr, DisplayMode mode = DisplayMode::Fit,
+              ScreenRotation rotation = ScreenRotation::Normal, PreparationCheckpoint checkpoint = {}) const;
 
  private:
-  void paint_(uint16_t *panel, int x, int width, DisplayMode mode, ScreenRotation rotation) const;
+  bool paint_(uint16_t *panel, int x, int width, DisplayMode mode, ScreenRotation rotation,
+              PreparationCheckpoint checkpoint) const;
 
   uint16_t *pixels_{};
   int width_{};

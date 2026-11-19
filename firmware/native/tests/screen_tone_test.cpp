@@ -38,4 +38,11 @@ int main() {
   for (size_t i = 0; i < pixels.size(); ++i) {
     assert(pixels[i] == ((legacy.r[i >> 11] << 11) | (legacy.g[(i >> 5) & 63] << 5) | legacy.b[i & 31]));
   }
+  auto interrupted = raw;
+  int chunks{};
+  assert(!tint_photo(interrupted, settings.warmth(1.0f), {&chunks, [](void *context) {
+    return ++*static_cast<int *>(context) == 1;
+  }}));
+  assert(interrupted[1023] == pixels[1023] && interrupted[1023] != raw[1023]);
+  assert(interrupted.back() == raw.back());
 }

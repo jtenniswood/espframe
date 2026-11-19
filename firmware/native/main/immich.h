@@ -5,6 +5,7 @@
 #include "immich_selection.h"
 #include "p4_jpeg_decoder.h"
 #include "photo_history.h"
+#include "preparation_checkpoint.h"
 #include "recent_previews.h"
 #include "settings.h"
 
@@ -25,8 +26,10 @@ class ImmichSource {
  public:
   enum class PrepareResult { Ready, Retry, NextCandidate };
 
-  ImmichSource(const Settings &settings, const NativeNetwork &network, const std::atomic<bool> &cancelled)
-      : cancelled_(cancelled), settings_(settings), network_(network), http_(cancelled) {}
+  ImmichSource(const Settings &settings, const NativeNetwork &network, const std::atomic<bool> &cancelled,
+               const std::atomic<bool> &pixel_work_deferred)
+      : cancelled_(cancelled), pixel_work_deferred_(pixel_work_deferred), settings_(settings), network_(network),
+        http_(cancelled) {}
   PrepareResult prepare(SlideIndex slide, uint16_t *panel);
   SlideIndex first_slide() const { return this->history_.first(); }
   SlideIndex next_slide() const { return this->history_.next(); }
@@ -49,9 +52,14 @@ class ImmichSource {
   bool select_pair_(ImmichPhoto &seed, AssetId &companion);
   AssetId companion_for_(const ImmichPhoto &primary, int64_t deadline_us);
   void discard_candidate_(const AssetId &id);
+  bool wait_for_pixel_work_() const;
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, bool for_pair, int64_t deadline_us = 0);
 
   const std::atomic<bool> &cancelled_;
+  const std::atomic<bool> &pixel_work_deferred_;
+  const PreparationCheckpoint checkpoint_{this, [](void *source) {
+    return static_cast<const ImmichSource *>(source)->wait_for_pixel_work_();
+  }};
   const Settings &settings_;
   const NativeNetwork &network_;
   ImmichHttp http_;

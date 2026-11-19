@@ -254,6 +254,7 @@ class SlideLoader {
   }
 
   void yield_to_swipe() { this->cancelled_ = true; }
+  void defer_pixel_work(bool defer) { this->pixel_work_deferred_.store(defer, std::memory_order_relaxed); }
 
   void report_gesture(const GestureTiming &timing) {
     // USB output can block. Leave it to the worker and drop a diagnostic
@@ -298,8 +299,9 @@ class SlideLoader {
   }
 
   std::atomic<bool> cancelled_{};
+  std::atomic<bool> pixel_work_deferred_{};
   Settings settings_;
-  ImmichSource source_{settings_, network, cancelled_};
+  ImmichSource source_{settings_, network, cancelled_, pixel_work_deferred_};
   QueueHandle_t requests_{};
   QueueHandle_t completed_{};
   QueueHandle_t timings_{};
@@ -375,6 +377,7 @@ void run(void *) {
   PixelPosition last_submitted = -1;
   PixelPosition last_inside = -1;
   bool backlight_ready = false;
+  bool user_motion = false;
   std::optional<SlideIndex> preparing;
   static TraceLogger trace;
   MotionEpoch motion_epoch;
@@ -570,6 +573,12 @@ void run(void *) {
     };
     if (const auto wanted = prefetch.requested(); wanted && cache.find(*wanted))
       prefetch.prepared(*wanted);
+    // Keep deferring through the final settling frame. A cache-edge request
+    // takes precedence so the worker can produce the missing neighbour.
+    user_motion = input.awake() && (input.engaged() ||
+                  (user_motion && (!swipe.idle() || swipe.position() != display.presented_position())));
+    if (live && !trial_fixtures)
+      loader.defer_pixel_work(user_motion && prefetch.can_defer_pixel_work({ready_first, ready_last}));
     if (preparing) {
       if (const auto wanted = prefetch.requested(); wanted && eligible(*wanted) && prefetch.can_yield(*preparing, *wanted))
         loader.yield_to_swipe();

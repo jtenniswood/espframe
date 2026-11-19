@@ -19,6 +19,7 @@ using Decode = DecodedPreview::Result;
 
 constexpr int pair_gap = 8;
 constexpr int pair_width = (slide_width - pair_gap) / 2;
+constexpr int row_batch = 16;
 
 bool supported(unsigned width, unsigned height) {
   return width > 0 && height > 0 && width <= 4096 && height <= 4096 && width * height <= 4'000'000;
@@ -51,7 +52,7 @@ void jpeg_message(j_common_ptr info, int) {
 
 Decode read_jpeg(jpeg_decompress_struct &decoder, JpegError &error, const uint8_t *encoded,
                  size_t length, uint16_t *&pixels, PhotoFraming &size, bool companion, DisplayMode mode,
-                 P4JpegDecoder *hardware, bool &accelerated) {
+                 P4JpegDecoder *hardware, bool &accelerated, PreparationCheckpoint checkpoint) {
   if (setjmp(error.escape) != 0)
     return error.manager.msg_code == JERR_OUT_OF_MEMORY ? Decode::NoMemory : Decode::Invalid;
 
@@ -69,10 +70,12 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegError &error, const uint8_
   // non-interleaved JPEGs out of the hardware YCbCr path.
   if (hardware && decoder.jpeg_color_space == JCS_YCbCr && !decoder.progressive_mode &&
       !decoder.arith_code && decoder.comps_in_scan == 3 &&
-      hardware->decode(encoded, length, pixels, size)) {
+      hardware->decode(encoded, length, pixels, size, checkpoint)) {
     accelerated = true;
     return Decode::Ready;
   }
+  if (!checkpoint())
+    return Decode::Interrupted;
   // Let the DCT do the first downsampling step when both axes can afford it.
   for (unsigned divisor : {2, 4, 8}) {
     if (static_cast<unsigned>(size.source.width) / divisor < static_cast<unsigned>(size.width) ||
@@ -94,6 +97,8 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegError &error, const uint8_
   unsigned target_y = 0;
   while (decoder.output_scanline < decoder.output_height) {
     const unsigned source_y = decoder.output_scanline;
+    if (source_y % row_batch == 0 && !checkpoint())
+      return Decode::Interrupted;
     if (jpeg_read_scanlines(&decoder, rows, 1) != 1)
       return Decode::Invalid;
     while (target_y < static_cast<unsigned>(size.height) &&
@@ -110,13 +115,14 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegError &error, const uint8_
 }
 
 Decode decode_jpeg(const uint8_t *encoded, size_t length, uint16_t *&pixels, PhotoFraming &size, bool companion,
-                   DisplayMode mode, P4JpegDecoder *hardware, bool &accelerated) {
+                   DisplayMode mode, P4JpegDecoder *hardware, bool &accelerated, PreparationCheckpoint checkpoint) {
   jpeg_decompress_struct decoder{};
   JpegError error{};
   decoder.err = jpeg_std_error(&error.manager);
   error.manager.error_exit = jpeg_failure;
   error.manager.emit_message = jpeg_message;
-  const auto result = read_jpeg(decoder, error, encoded, length, pixels, size, companion, mode, hardware, accelerated);
+  const auto result = read_jpeg(decoder, error, encoded, length, pixels, size, companion, mode, hardware, accelerated,
+                                checkpoint);
   jpeg_destroy_decompress(&decoder);
   return result;
 }
@@ -154,8 +160,8 @@ Decode decode_webp(const uint8_t *encoded, size_t length, uint16_t *&pixels, Pho
 
 DecodedPreview::~DecodedPreview() { heap_caps_free(this->pixels_); }
 
-void DecodedPreview::paint_(uint16_t *panel, int left, int max_width, DisplayMode mode,
-                            ScreenRotation rotation) const {
+bool DecodedPreview::paint_(uint16_t *panel, int left, int max_width, DisplayMode mode,
+                            ScreenRotation rotation, PreparationCheckpoint checkpoint) const {
   // An existing fit can be placed as-is. Avoid a second rounding step on
   // images already scaled to the destination before rotating the pixels.
   const auto size = mode == DisplayMode::Fit && this->width_ <= max_width
@@ -169,8 +175,10 @@ void DecodedPreview::paint_(uint16_t *panel, int left, int max_width, DisplayMod
   const uint32_t scale_x = (static_cast<uint32_t>(crop.width) << 16) / size.width;
   const uint32_t scale_y = (static_cast<uint32_t>(crop.height) << 16) / size.height;
   const int column_step = -axis_direction(rotation);
-  constexpr int tile = 16;
+  constexpr int tile = row_batch;
   for (int y0 = 0; y0 < size.height; y0 += tile) {
+    if (!checkpoint())
+      return false;
     for (int x0 = 0; x0 < size.width; x0 += tile) {
       for (int x = x0; x < std::min(x0 + tile, size.width); ++x) {
         auto *column = panel + panel_offset(x + left, panel_width - 1 - top, rotation);
@@ -182,16 +190,20 @@ void DecodedPreview::paint_(uint16_t *panel, int left, int max_width, DisplayMod
       }
     }
   }
+  return true;
 }
 
 DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t length, bool companion,
-                                              P4JpegDecoder *hardware, DisplayMode mode) {
+                                              P4JpegDecoder *hardware, DisplayMode mode,
+                                              PreparationCheckpoint checkpoint) {
   heap_caps_free(this->pixels_);
   this->pixels_ = nullptr;
   this->width_ = 0;
   this->height_ = 0;
   this->portrait_ = false;
   this->hardware_jpeg_ = false;
+  if (!checkpoint())
+    return Result::Interrupted;
   const bool jpeg = length >= 2 && encoded[0] == 0xff && encoded[1] == 0xd8;
   const bool webp = length >= 12 && std::memcmp(encoded, "RIFF", 4) == 0 &&
                     std::memcmp(encoded + 8, "WEBP", 4) == 0;
@@ -199,7 +211,7 @@ DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t len
     return Result::Invalid;
   PhotoFraming size{};
   const auto result = jpeg ? decode_jpeg(encoded, length, this->pixels_, size, companion, mode, hardware,
-                                        this->hardware_jpeg_)
+                                        this->hardware_jpeg_, checkpoint)
                            : decode_webp(encoded, length, this->pixels_, size, companion, mode);
   if (result == Result::Ready) {
     this->width_ = size.width;
@@ -212,16 +224,21 @@ DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t len
   return result;
 }
 
-void DecodedPreview::render(uint16_t *panel, const DecodedPreview *companion, DisplayMode mode,
-                            ScreenRotation rotation) const {
+bool DecodedPreview::render(uint16_t *panel, const DecodedPreview *companion, DisplayMode mode,
+                            ScreenRotation rotation, PreparationCheckpoint checkpoint) const {
   const bool pair = companion != nullptr && this->portrait() && companion->portrait();
-  if (pair || this->width_ != slide_width || this->height_ != slide_height)
-    std::fill_n(panel, pixel_count, 0);
+  if (pair || this->width_ != slide_width || this->height_ != slide_height) {
+    constexpr int batch = panel_width * row_batch;
+    for (int offset = 0; offset < pixel_count; offset += batch) {
+      if (!checkpoint())
+        return false;
+      std::fill_n(panel + offset, std::min(batch, pixel_count - offset), 0);
+    }
+  }
   if (this->width_ == 0)
-    return;
-  this->paint_(panel, 0, pair ? pair_width : slide_width, pair ? mode : DisplayMode::Fit, rotation);
-  if (pair)
-    companion->paint_(panel, pair_width + pair_gap, pair_width, mode, rotation);
+    return true;
+  return this->paint_(panel, 0, pair ? pair_width : slide_width, pair ? mode : DisplayMode::Fit, rotation, checkpoint) &&
+         (!pair || companion->paint_(panel, pair_width + pair_gap, pair_width, mode, rotation, checkpoint));
 }
 
 }  // namespace espframe::native

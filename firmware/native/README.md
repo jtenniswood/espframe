@@ -336,7 +336,11 @@ Use the USB trace or high-frame-rate video to evaluate the full swipe test.
 The status route also reports clock and connection readiness, HTTP status
 codes, and candidate counts. `candidate_retries` counts times a preview was
 rejected and another candidate was already available, so the player could
-retry that slide after 100 ms. ESPHome returns automatically after five minutes.
+retry that slide after 100 ms. `pixel_pauses` and `pixel_pause_ms` report how
+often and how long photo preparation waited while the user moved between
+ready slides. Transfers can continue during a swipe, and a missing swipe
+neighbour lets preparation resume immediately. ESPHome returns automatically
+after five minutes.
 
 #### Measure swipe rendering over the local network
 

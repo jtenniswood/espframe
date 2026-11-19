@@ -1,5 +1,7 @@
 #pragma once
 
+#include "preparation_checkpoint.h"
+
 #include <cstdint>
 #include <span>
 
@@ -14,6 +16,6 @@ struct ScreenToneSettings {
   float warmth(float night_fraction) const;
 };
 
-void tint_photo(std::span<uint16_t> pixels, float warmth);
+bool tint_photo(std::span<uint16_t> pixels, float warmth, PreparationCheckpoint checkpoint = {});
 
 }  // namespace espframe::native
