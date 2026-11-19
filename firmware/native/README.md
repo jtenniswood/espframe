@@ -90,6 +90,8 @@ its place in the slideshow. Cached neighbors stay swipeable while their
 framing and captions refresh in the background. Changing photo selection or
 pairing rules keeps the current photo visible until the first slide from
 the new feed is ready.
+Changing the clock format redraws the clock in place. The next automatic
+photo change uses the saved transition and speed.
 Saves that also change connection or device settings apply after a restart.
 If you change **Frame name**, it also shows the new `.local` address.
 The frame adds its own four-character MAC suffix to the hostname.

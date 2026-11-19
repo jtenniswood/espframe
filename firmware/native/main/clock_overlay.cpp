@@ -25,7 +25,7 @@ bool ClockOverlay::init(const ClockSettings &settings, const uint8_t *atlas, boo
   if (!settings.show)
     return true;
   atlas_ = atlas;
-  twelve_hour_ = settings.format == "12 Hour";
+  twelve_hour_ = settings.twelve_hour();
   rotation_ = rotation;
   const bool upside_down = rotation == ScreenRotation::UpsideDown;
   physical_row_ = upside_down ? panel_height - first_row - rows : first_row;

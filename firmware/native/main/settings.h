@@ -93,6 +93,7 @@ struct Settings : PhotoFeedSettings {
   static std::optional<PhotoFeedSettings> take_live_photo_feed(uint32_t revision);
   static bool save_playback(const char *json, bool *restart_required = nullptr);
   static UpdateResult update_playback(const cJSON *update, std::optional<uint32_t> expected_epoch = {});
+  void publish_live_presentation() const;
   static bool reset(ResetMode mode);
   bool add_playback_fields(cJSON *object) const;
 };

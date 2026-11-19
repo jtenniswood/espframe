@@ -9,6 +9,7 @@
 #include "immich.h"
 #include "live_trial.h"
 #include "native_network.h"
+#include "playback_transition.h"
 #include "recovery_card.h"
 #include "screen_control.h"
 #include "slide_cache.h"
@@ -229,17 +230,19 @@ class SlideLoader {
                                       : active_slideshow_interval.load(std::memory_order_relaxed);
     return seconds * 1'000'000LL;
   }
-  SlideTransition next_transition(SlideTransition previous) const {
-    const auto &option = this->settings_.transition;
-    const auto random = esphome::espframe::slide_transition_is_random(option) ? esp_random() : 0;
-    return esphome::espframe::resolve_slide_transition(option, random, previous);
-  }
-  int64_t transition_duration_us() const {
-    return esphome::espframe::slide_transition_duration_ms(this->settings_.transition_speed) * 1000LL;
+  PlaybackTransition playback_transition() const {
+    if constexpr (esphome_trial)
+      return PlaybackTransition::from_settings(this->settings_.transition, this->settings_.transition_speed);
+    return active_playback_transition.load(std::memory_order_relaxed);
   }
   uint8_t brightness() const { return this->settings_.brightness_day; }
   uint8_t night_brightness() const { return this->settings_.night_brightness(); }
   const ClockSettings &clock() const { return this->settings_.clock; }
+  bool twelve_hour_clock() const {
+    if constexpr (esphome_trial)
+      return this->settings_.clock.twelve_hour();
+    return active_clock_twelve_hour.load(std::memory_order_relaxed);
+  }
   bool photos_need_time() const {
     return this->settings_.metadata.needs_time() || this->settings_.tone.night_enabled ||
            this->settings_.photo_source.mode == PhotoSourceMode::Memories || this->settings_.capture_dates.needs_time();
@@ -277,6 +280,7 @@ class SlideLoader {
       this->live_ = !esphome_trial && this->settings_.read() && this->settings_.has_immich();
       if constexpr (!esphome_trial) {
         active_slideshow_interval.store(this->settings_.slide_seconds, std::memory_order_relaxed);
+        this->settings_.publish_live_presentation();
         active_photo_preset.store(this->settings_.photo_source.preset(), std::memory_order_relaxed);
         frame_status.configure(this->live_, this->settings_.photo_source.mode);
       }
@@ -521,6 +525,7 @@ void run(void *) {
     auto now = esp_timer_get_time();
     if (use_local_time && local_time_configured && now >= next_clock_poll) {
       const auto local = local_clock_time(std::time(nullptr));
+      clock.set_twelve_hour(loader.twelve_hour_clock());
       clock_dirty |= clock.update(local);
       local_hour = local ? std::optional<int>{local->tm_hour} : std::nullopt;
       const uint8_t scheduled_brightness = daylight.is_day(local) ? day_level : night_level;
@@ -852,7 +857,10 @@ void run(void *) {
         if (first_photo) {
           swipe.advance(now, Swipe::Transition::Quick);
         } else if (anchor < ready_last) {
-          previous_transition = loader.next_transition(previous_transition);
+          const auto transition = loader.playback_transition();
+          previous_transition = transition.random
+                                    ? esphome::espframe::pick_random_slide_transition(esp_random(), previous_transition)
+                                    : transition.effect;
           effect = slide_transition_plan(previous_transition);
           if (effect.blend == TransitionBlend::NONE) {
             if (display.writable_buffer() != nullptr) {
@@ -861,7 +869,7 @@ void run(void *) {
               dwell.reset();
             }
           } else if (can_fade) {
-            fade.start(anchor, anchor + 1, now, loader.transition_duration_us());
+            fade.start(anchor, anchor + 1, now, transition.duration_ms * 1000LL);
           } else {
             swipe.advance(now, Swipe::Transition::Glide);
           }

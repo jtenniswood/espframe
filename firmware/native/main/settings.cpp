@@ -2,6 +2,7 @@
 #include "frame_identity_model.h"
 #include "home_assistant_key.h"
 #include "live_trial.h"
+#include "playback_transition.h"
 #include "slideshow_interval.h"
 #include "slideshow_transition.h"
 
@@ -585,6 +586,10 @@ bool changes_photo_presentation(std::string_view key) {
   return std::ranges::find(options, key) != std::end(options);
 }
 
+bool changes_live_presentation(std::string_view key) {
+  return key == "clock_format" || key == "transition" || key == "transition_speed";
+}
+
 void publish_photo_feed(Settings &settings, bool selection_changed) {
   active_photo_preset.store(settings.photo_source.preset(), std::memory_order_relaxed);
   published_feed = std::move(static_cast<PhotoFeedSettings &>(settings));
@@ -866,6 +871,12 @@ bool Settings::save_playback(const char *json, bool *restart_required) {
   return result == UpdateResult::Saved || result == UpdateResult::SavedLive || result == UpdateResult::Unchanged;
 }
 
+void Settings::publish_live_presentation() const {
+  active_clock_twelve_hour.store(clock.twelve_hour(), std::memory_order_relaxed);
+  active_playback_transition.store(PlaybackTransition::from_settings(transition, transition_speed),
+                                   std::memory_order_relaxed);
+}
+
 Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optional<uint32_t> expected_epoch) {
   std::string replacement_key;
   std::string replacement_token;
@@ -916,6 +927,8 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   bool changed = connection_secret_changed || fixed_night_brightness;
   bool restart = changed || !was_configured;
   bool selection_changed = false;
+  bool photo_changed = false;
+  bool live_presentation_changed = false;
   const cJSON *field;
   cJSON_ArrayForEach(field, next.get()) {
     const std::string_view key(field->string);
@@ -926,8 +939,12 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
     if (changes_photo_source(key))
       settings.photo_source.legacy_preset.reset();
     const bool selects_photos = changes_photo_selection(key);
+    const bool presents_photos = changes_photo_presentation(key);
+    const bool presents_playback = changes_live_presentation(key);
     selection_changed |= selects_photos;
-    restart |= !selects_photos && !changes_photo_presentation(key);
+    photo_changed |= selects_photos || presents_photos;
+    live_presentation_changed |= presents_playback;
+    restart |= !selects_photos && !presents_photos && !presents_playback;
   }
   if (!changed)
     return UpdateResult::Unchanged;
@@ -935,7 +952,10 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   next.reset();
   const auto result = store_settings(settings);
   if (result == UpdateResult::Saved && !restart) {
-    publish_photo_feed(settings, selection_changed);
+    if (live_presentation_changed)
+      settings.publish_live_presentation();
+    if (photo_changed)
+      publish_photo_feed(settings, selection_changed);
     return UpdateResult::SavedLive;
   }
   return result;

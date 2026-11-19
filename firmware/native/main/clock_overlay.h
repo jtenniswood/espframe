@@ -29,6 +29,7 @@ class ClockOverlay {
 
   bool init(const ClockSettings &settings, const uint8_t *atlas, bool snapshots,
             ScreenRotation rotation = ScreenRotation::Normal);
+  void set_twelve_hour(bool enabled) { twelve_hour_ = enabled; }
   bool update(const std::optional<std::tm> &local);
   void draw(uint16_t *frame, bool remember_underlay = false);
   void pin_underlay();

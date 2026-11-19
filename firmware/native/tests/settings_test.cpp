@@ -5,6 +5,7 @@
 #include "native_configuration.h"
 #include "nvs.h"
 #include "nvs_flash.h"
+#include "playback_transition.h"
 #include "settings.h"
 #include "slideshow_interval.h"
 #include "stock_connection_preferences.h"
@@ -856,6 +857,39 @@ int main() {
   const auto coalesced = Settings::take_live_photo_feed(before_queued_saves + 2);
   assert(coalesced && coalesced->photo_orientation == PhotoOrientation::Any &&
          coalesced->pair_display_mode() == DisplayMode::Fit);
+
+  using esphome::espframe::SlideTransition;
+  using espframe::native::active_clock_twelve_hour;
+  using espframe::native::active_playback_transition;
+  const auto photo_revision_before_appearance = photo_source_revision.load();
+  const auto appearance = update_configuration(R"({"values":{"clock_format":"12 Hour","transition":"Slide Left",
+      "transition_speed":"Slow"}})");
+  assert(!appearance.error && !appearance.restart_required && active_clock_twelve_hour.load());
+  const auto slow_slide = active_playback_transition.load();
+  assert(slow_slide.effect == SlideTransition::SLIDE_LEFT && slow_slide.duration_ms == 1500 && !slow_slide.random);
+  assert(current.read() && current.clock.twelve_hour() && current.transition == "Slide Left");
+  assert(photo_source_revision.load() == photo_revision_before_appearance);
+
+  fail_commit = true;
+  assert(update_configuration(R"({"values":{"clock_format":"24 Hour","transition_speed":"Fast"}})").error);
+  fail_commit = false;
+  assert(active_clock_twelve_hour.load() && active_playback_transition.load().duration_ms == 1500);
+
+  assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","clock_format":"24 Hour","transition":"Random",
+      "transition_speed":"Fast","display_mode":"Fill"})", &restart_required));
+  assert(!restart_required && !active_clock_twelve_hour.load());
+  const auto fast_random = active_playback_transition.load();
+  assert(fast_random.random && fast_random.duration_ms == 500);
+  assert(photo_source_revision.load() == photo_revision_before_appearance + 1);
+  const auto mixed_photo_feed = Settings::take_live_photo_feed(photo_revision_before_appearance + 1);
+  assert(mixed_photo_feed && mixed_photo_feed->display_mode == DisplayMode::Fill);
+
+  const auto clock_timezone = update_configuration(R"json({"values":{"clock_format":"12 Hour",
+      "timezone":"America/New_York (GMT-5)"}})json");
+  assert(!clock_timezone.error && clock_timezone.restart_required && !active_clock_twelve_hour.load());
+  assert(current.read() && current.clock.twelve_hour());
+  current.publish_live_presentation();
+  assert(active_clock_twelve_hour.load() && active_playback_transition.load().random);
 
   assert(Settings::save_wifi(*new_wifi, current.reset_epoch));
   assert(Settings::save(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","web_password":"new-settings"})"));

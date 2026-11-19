@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <ctime>
 #include <optional>
 #include <span>
@@ -12,7 +13,11 @@ struct ClockSettings {
   bool show{};
   std::string format{"24 Hour"};
   std::string timezone{"Europe/London (GMT+0)"};
+
+  bool twelve_hour() const { return format == "12 Hour"; }
 };
+
+inline std::atomic<bool> active_clock_twelve_hour{};
 
 struct ClockZone {
   const char *option;

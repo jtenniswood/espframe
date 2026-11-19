@@ -151,4 +151,13 @@ int main(int argc, char **argv) {
   expect_glyph(midnight, atlas, 2, 10);
   expect_glyph(midnight, atlas, 3, 0);
   expect_glyph(midnight, atlas, 4, 5);
+
+  twelve_hour.set_twelve_hour(false);
+  assert(twelve_hour.update(local_clock_time(winter)));
+  auto reformatted = plain;
+  twelve_hour.draw(reformatted.data());
+  expect_glyph(reformatted, atlas, 0, 0);
+  expect_glyph(reformatted, atlas, 1, 0);
+  expect_glyph(reformatted, atlas, 4, 5);
+  assert(reformatted != midnight && !twelve_hour.update(local_clock_time(winter)));
 }
