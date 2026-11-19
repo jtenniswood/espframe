@@ -1,0 +1,209 @@
+name: Native Swipe Prototype
+
+on:
+  pull_request:
+    paths:
+      - 'firmware/native/**'
+      - 'builds/guition-esp32-p4-jc8012p4a1.native-trial-readiness.yaml'
+      - 'components/gsl3680/**'
+      - 'components/libjpeg-turbo-esp32/**'
+      - 'components/libwebp-esp32/**'
+      - 'components/remote_image/jpeg_accelerator_helpers.h'
+      - 'components/remote_image/webp_rgb565.h'
+      - 'components/espframe/timezones.py'
+      - 'components/espframe/solar_times.h'
+      - 'components/espframe/warm_tone_luts.h'
+      - 'devices/guition-esp32-p4-jc8012p4a1*/device/device.yaml'
+      - 'components/mipi_dsi/models/guition.py'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/native-swipe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Test and build Guition ${{ matrix.board }} prototype
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [v1, v2, v3]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test swipe gestures and frame composition
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+            firmware/native/tests/swipe_test.cpp -o "$RUNNER_TEMP/swipe-test"
+          "$RUNNER_TEMP/swipe-test"
+          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+            firmware/native/tests/swipe_input_test.cpp -o "$RUNNER_TEMP/swipe-input-test"
+          "$RUNNER_TEMP/swipe-input-test"
+          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+            firmware/native/tests/autoplay_fade_test.cpp -o "$RUNNER_TEMP/autoplay-fade-test"
+          "$RUNNER_TEMP/autoplay-fade-test"
+          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+            firmware/native/tests/playback_trace_test.cpp -o "$RUNNER_TEMP/playback-trace-test"
+          "$RUNNER_TEMP/playback-trace-test"
+          python3 firmware/native/tests/report_performance_test.py
+          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+            firmware/native/tests/slide_cache_test.cpp -o "$RUNNER_TEMP/slide-cache-test"
+          "$RUNNER_TEMP/slide-cache-test"
+          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+            firmware/native/tests/slide_prefetch_test.cpp -o "$RUNNER_TEMP/slide-prefetch-test"
+          "$RUNNER_TEMP/slide-prefetch-test"
+          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+            firmware/native/tests/station_retry_test.cpp -o "$RUNNER_TEMP/station-retry-test"
+          "$RUNNER_TEMP/station-retry-test"
+          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+            firmware/native/main/recovery_card.cpp firmware/native/tests/wifi_recovery_test.cpp -o "$RUNNER_TEMP/wifi-recovery-test"
+          "$RUNNER_TEMP/wifi-recovery-test" firmware/native/assets/recovery_glyphs.bin
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main \
+            firmware/native/tests/improv_wire_test.cpp -o "$RUNNER_TEMP/improv-wire-test"
+          "$RUNNER_TEMP/improv-wire-test"
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main \
+            firmware/native/tests/photo_history_test.cpp -o "$RUNNER_TEMP/photo-history-test"
+          "$RUNNER_TEMP/photo-history-test"
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Icomponents/espframe \
+            firmware/native/main/photo_caption.cpp firmware/native/tests/photo_caption_test.cpp -o "$RUNNER_TEMP/photo-caption-test"
+          "$RUNNER_TEMP/photo-caption-test" firmware/native/assets/caption_glyphs.bin
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Icomponents/espframe \
+            firmware/native/main/screen_tone.cpp firmware/native/tests/screen_tone_test.cpp -o "$RUNNER_TEMP/screen-tone-test"
+          "$RUNNER_TEMP/screen-tone-test"
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/stubs \
+            firmware/native/tests/recent_previews_test.cpp -o "$RUNNER_TEMP/recent-previews-test"
+          "$RUNNER_TEMP/recent-previews-test"
+          python3 firmware/native/tests/test_preview_decoder.py
+      - name: Build native factory binary
+        run: |
+          docker pull espressif/idf:v6.1.1
+          docker run --rm -v "$PWD:/workspace" -w /workspace \
+            espressif/idf:v6.1.1 idf.py -C firmware/native -B "firmware/native/build/${{ matrix.board }}" \
+            -D SWIPE_BOARD="${{ matrix.board }}" -D SWIPE_TRACE=ON build merge-bin
+      - name: Check the effective Guition Wi-Fi configuration
+        run: |
+          settings='^(CONFIG_|# CONFIG_)(SLAVE_IDF_TARGET|ESP_WIFI_REMOTE|ESP_HOSTED|EH_HOST_PORT)'
+          while IFS= read -r setting; do
+            if ! grep -Fxq "$setting" "firmware/native/build/${{ matrix.board }}/sdkconfig"; then
+              printf 'Missing effective Wi-Fi setting: %s\n' "$setting" >&2
+              exit 1
+            fi
+          done < <(grep -E "$settings" firmware/native/sdkconfig.defaults)
+      - name: Test settings persistence
+        if: matrix.board == 'v3'
+        run: |
+          cjson=firmware/native/managed_components/espressif__cjson/cJSON
+          zones=firmware/native/build/v3/esp-idf/main
+          cc -c "$cjson/cJSON.c" -o "$RUNNER_TEMP/cjson.o"
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/stubs -I"$cjson" -I"$zones" \
+            firmware/native/main/settings.cpp firmware/native/main/clock_settings.cpp \
+            firmware/native/tests/settings_test.cpp "$RUNNER_TEMP/cjson.o" \
+            -o "$RUNNER_TEMP/settings-test"
+          "$RUNNER_TEMP/settings-test"
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/stubs -I"$zones" \
+            firmware/native/main/clock_settings.cpp firmware/native/main/clock_overlay.cpp \
+            firmware/native/tests/clock_overlay_test.cpp -o "$RUNNER_TEMP/clock-overlay-test"
+          "$RUNNER_TEMP/clock-overlay-test" firmware/native/assets/clock_glyphs.bin
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Icomponents/espframe -I"$zones" \
+            firmware/native/main/clock_settings.cpp firmware/native/main/daylight.cpp \
+            firmware/native/tests/daylight_test.cpp -o "$RUNNER_TEMP/daylight-test"
+          "$RUNNER_TEMP/daylight-test"
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -I"$cjson" \
+            firmware/native/main/immich_selection.cpp firmware/native/tests/immich_selection_test.cpp "$RUNNER_TEMP/cjson.o" \
+            -o "$RUNNER_TEMP/immich-selection-test"
+          "$RUNNER_TEMP/immich-selection-test"
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -I"$cjson" \
+            firmware/native/main/immich_memories.cpp firmware/native/main/immich_selection.cpp \
+            firmware/native/tests/immich_memories_test.cpp "$RUNNER_TEMP/cjson.o" -o "$RUNNER_TEMP/immich-memories-test"
+          "$RUNNER_TEMP/immich-memories-test"
+      - name: Test firmware update staging and rollback
+        if: matrix.board == 'v3'
+        run: |
+          c++ -std=c++20 -Wall -Wextra -Werror -DNATIVE_BOARD='"v3"' \
+            -Ifirmware/native/main -Ifirmware/native/tests/ota_stubs \
+            firmware/native/main/firmware_update.cpp firmware/native/tests/firmware_update_test.cpp \
+            -o "$RUNNER_TEMP/firmware-update-test"
+          "$RUNNER_TEMP/firmware-update-test" firmware/native/build/v3/espframe_native_v3.bin
+      - name: Test Immich HTTP connection reuse
+        if: matrix.board == 'v3'
+        run: |
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/http_stubs \
+            firmware/native/main/immich_http.cpp firmware/native/tests/immich_http_test.cpp \
+            -o "$RUNNER_TEMP/immich-http-test"
+          "$RUNNER_TEMP/immich-http-test"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: firmware-test-native-swipe-${{ matrix.board }}
+          path: |
+            firmware/native/build/${{ matrix.board }}/merged-binary.bin
+            firmware/native/build/${{ matrix.board }}/espframe_native_${{ matrix.board }}.bin
+          if-no-files-found: error
+
+  esphome-v1-trial:
+    name: Build the temporary V1 ESPHome swipe trial
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test the ESPHome rollback guard
+        run: |
+          c++ -std=c++20 -Wall -Wextra -Werror \
+            -Ifirmware/native/main -Ifirmware/native/tests/ota_stubs \
+            firmware/native/main/esphome_trial.cpp firmware/native/tests/esphome_trial_test.cpp \
+            -o "$RUNNER_TEMP/esphome-trial-test"
+          "$RUNNER_TEMP/esphome-trial-test"
+      - name: Build an app-only image
+        run: |
+          docker pull espressif/idf:v6.1.1
+          docker run --rm -v "$PWD:/workspace" -w /workspace espressif/idf:v6.1.1 bash -ec '
+            trial=firmware/native/build/esphome-trial-v1
+            idf.py -C firmware/native -B "$trial" \
+              -D SWIPE_BOARD=v1 -D SWIPE_ESPHOME_TRIAL=ON -D SWIPE_TRACE=ON build
+            riscv32-esp-elf-nm --defined-only "$trial/espframe_v1_legacy_swipe_trial.elf" > /tmp/trial-symbols
+            if grep -E "[[:space:]](esp_ota_mark_app_valid_cancel_rollback|esp_wifi_init|eh_host_auto_init_ctor|eh_wifi_remote_glue_anchor|nvs_flash_init_partition|nvs_erase_all|nvs_set_str|httpd_start)$" /tmp/trial-symbols; then
+              exit 1
+            fi
+          '
+      - uses: actions/upload-artifact@v7
+        with:
+          name: native-v1-esphome-swipe-trial-app
+          path: firmware/native/build/esphome-trial-v1/espframe_v1_legacy_swipe_trial.bin
+          if-no-files-found: error
+
+  browser-installer:
+    name: Package the native browser installer
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: firmware-test-native-swipe-*
+          path: firmware/native/build
+      - name: Test and package browser setup
+        run: |
+          npm ci
+          node firmware/native/tests/serial_setup_test.mjs
+          node firmware/native/tests/backup_import_test.mjs
+          node firmware/native/tests/wifi_recovery_browser_test.mjs
+          node firmware/native/tests/photo_source_browser_test.mjs
+          for board in v1 v2 v3; do
+            mv "firmware/native/build/firmware-test-native-swipe-$board" "firmware/native/build/$board"
+          done
+          node firmware/native/tools/package_installer.mjs firmware/native/build firmware/native/build/browser-installer
+          node firmware/native/tests/backup_installer_browser_test.mjs firmware/native/build/browser-installer
+          cd firmware/native/build/browser-installer
+          sha256sum -c SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        with:
+          name: native-browser-installer
+          path: firmware/native/build/browser-installer
+          if-no-files-found: error
