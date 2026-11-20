@@ -152,7 +152,7 @@ esp_err_t benchmark_status(httpd_req_t *request) {
     std::snprintf(replay, sizeof(replay), ",\"replay_prepared\":true,\"replay_pair_fill\":%s,\"replay_origin\":\"%s\"",
                   trial_replay_pair_fill ? "true" : "false", trial_replay_origin.data());
   }
-  char body[1600]{};
+  char body[1800]{};
   const auto length = std::snprintf(body, sizeof(body),
                 "{\"scripted\":%s,\"source\":\"%s\"%s%s,\"cache_hits\":%" PRIu32
                 ",\"dma_burst_bytes\":%u,\"dma_copies\":%" PRIu32 ",\"cpu_copies\":%" PRIu32
@@ -166,7 +166,8 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 ",\"busy_first_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
                 ",\"drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"quiet_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
-                ",\"busy_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}}",
+                ",\"busy_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
+                ",\"drag_handoff_delay\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_250_us\":%" PRIu32 "}}",
                 SWIPE_TRIAL_BENCHMARK ? "true" : "false", SWIPE_TRIAL_BENCHMARK_FIXTURES ? "fixtures" : "immich",
                 gesture_counts, replay, result.cache_hits,
                 FrameBlitter::burst_bytes, result.dma_copies, result.cpu_copies,
@@ -181,7 +182,8 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 result.busy_first_motion.count, result.busy_first_motion.worst_us, result.busy_first_motion.over_limit,
                 result.drag_gaps.count, result.drag_gaps.worst_us, result.drag_gaps.over_limit,
                 result.quiet_drag_gaps.count, result.quiet_drag_gaps.worst_us, result.quiet_drag_gaps.over_limit,
-                result.busy_drag_gaps.count, result.busy_drag_gaps.worst_us, result.busy_drag_gaps.over_limit);
+                result.busy_drag_gaps.count, result.busy_drag_gaps.worst_us, result.busy_drag_gaps.over_limit,
+                result.drag_handoff_delay.count, result.drag_handoff_delay.worst_us, result.drag_handoff_delay.over_limit);
   if (length < 0 || static_cast<size_t>(length) >= sizeof(body))
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not format swipe timings");
   httpd_resp_set_type(request, "application/json");
@@ -498,9 +500,9 @@ void record_live_trial_drag_outcome(TrialDragOutcome outcome) {
 }
 #endif
 
-void record_live_trial_frame(int64_t latched_us, MotionStamp stamp, uint32_t period_us) {
+void record_live_trial_frame(int64_t latched_us, MotionStamp stamp, uint32_t period_us, uint32_t handoff_delay_us) {
   portENTER_CRITICAL(&swipe_lock);
-  metrics.frame(latched_us, stamp, period_us);
+  metrics.frame(latched_us, stamp, period_us, handoff_delay_us);
   portEXIT_CRITICAL(&swipe_lock);
 }
 

@@ -209,13 +209,13 @@ int main() {
   timing.blit(false);
   timing.blit(true);
   constexpr auto period = 16'000;
-  timing.frame(10'000, {1, MotionPhase::Drag, true}, period);
-  timing.frame(26'000, {1, MotionPhase::Drag, true}, period);
-  timing.frame(50'000, {1, MotionPhase::Drag, true}, period);
-  timing.frame(82'000, {1, MotionPhase::Drag, false}, period);
-  timing.frame(106'000, {1, MotionPhase::Drag, false}, period);
-  timing.frame(128'000, {2, MotionPhase::Drag, false}, period);  // New gesture.
-  timing.frame(160'000, {3, MotionPhase::Settle, false}, period);
+  timing.frame(10'000, {1, MotionPhase::Drag, true}, period, 25);
+  timing.frame(26'000, {1, MotionPhase::Drag, true}, period, 250);
+  timing.frame(50'000, {1, MotionPhase::Drag, true}, period, 251);
+  timing.frame(82'000, {1, MotionPhase::Drag, false}, period, 990);
+  timing.frame(106'000, {1, MotionPhase::Drag, false}, period, 30);
+  timing.frame(128'000, {2, MotionPhase::Drag, false}, period, 30);  // New gesture.
+  timing.frame(160'000, {3, MotionPhase::Settle, false}, period, 2'000);
   const auto stats = timing.results();
   assert(stats.dma_copies == 2 && stats.cpu_copies == 1 && stats.worst_composition_us == 8'000);
   assert(stats.worst_before_submit_us == 7'000 && stats.worst_submit_us == 3'000);
@@ -229,4 +229,6 @@ int main() {
   assert(stats.drag_gaps.count == 4 && stats.drag_gaps.worst_us == 32'000 && stats.drag_gaps.over_limit == 1);
   assert(stats.quiet_drag_gaps.count == 1 && stats.quiet_drag_gaps.worst_us == 24'000 && stats.quiet_drag_gaps.over_limit == 0);
   assert(stats.busy_drag_gaps.count == 2 && stats.busy_drag_gaps.worst_us == 24'000 && stats.busy_drag_gaps.over_limit == 0);
+  assert(stats.drag_handoff_delay.count == 6 && stats.drag_handoff_delay.worst_us == 990 &&
+         stats.drag_handoff_delay.over_limit == 2);
 }

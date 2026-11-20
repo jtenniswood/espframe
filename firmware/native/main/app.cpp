@@ -578,6 +578,9 @@ void run(void *) {
       next_clock_poll = now + 250'000;
     }
     if (const auto scanout = display.poll_presented()) {
+      if constexpr (trial_immich)
+        record_live_trial_frame(*scanout, submitted_stamp, Display::nominal_frame_period_us(),
+                                static_cast<uint32_t>(esp_timer_get_time() - *scanout));
       if (!backlight_ready) {
         if (!schedule.update(local_hour, now, false))
           input.sleep(swipe);
@@ -606,8 +609,6 @@ void run(void *) {
           loader.report_gesture({motion_us, motion_render_us});
         submitted_motion_us = 0;
       }
-      if constexpr (trial_immich)
-        record_live_trial_frame(*scanout, submitted_stamp, Display::nominal_frame_period_us());
       if constexpr (track_physical_drags) {
         if (input.awake() && !input.engaged() && swipe.idle() && swipe.position() == display.presented_position())
           record_landing();

@@ -37,6 +37,7 @@ class TrialSwipeMetrics {
     Timing drag_gaps;
     Timing quiet_drag_gaps;
     Timing busy_drag_gaps;
+    Timing drag_handoff_delay;
   };
 
   const Results &results() const { return results_; }
@@ -60,7 +61,9 @@ class TrialSwipeMetrics {
 
   void blit(bool dma) { ++(dma ? results_.dma_copies : results_.cpu_copies); }
 
-  void frame(int64_t now, MotionStamp stamp, uint32_t period_us) {
+  void frame(int64_t now, MotionStamp stamp, uint32_t period_us, uint32_t handoff_delay_us) {
+    if (stamp.phase == MotionPhase::Drag)
+      results_.drag_handoff_delay.add(handoff_delay_us, 250);
     if (stamp.phase == MotionPhase::Drag && previous_stamp_.phase == MotionPhase::Drag &&
         stamp.epoch == previous_stamp_.epoch) {
       const auto elapsed = static_cast<uint32_t>(now - previous_frame_us_);
