@@ -62,6 +62,35 @@ class ReplayTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, message):
                     replays.compare(example(False), candidate)
 
+    def test_companion_comparison_keeps_primary_lookahead_enabled(self):
+        control = example(True)
+        candidate = deepcopy(control)
+        candidate["profile"]["run"] = "second"
+        control["benchmark"]["direct_replay_companion_prefetch"] = False
+        candidate["benchmark"]["direct_replay_companion_prefetch"] = True
+        control["preparation"]["new_slides"] = {"paired": 17, "single": 0}
+        candidate["preparation"]["new_slides"] = {"paired": 19, "single": 1}
+        candidate["preparation"]["prefetch_transfer"]["count"] = 22
+        candidate["preparation"]["prefetch_wait"] = {"count": 20, "total_us": 500_000}
+
+        report = replays.compare(control, candidate, companion_prefetch=True)
+        self.assertIn("| Metric | Control | Companion prefetch |", report)
+        self.assertIn("| New slides rendered as portrait pairs | 17/17 | 19/20 |", report)
+        self.assertIn("| Mean wait for staged previews | 100.0 ms | 25.0 ms |", report)
+        self.assertIn("| Lookahead previews used | 12 of 16 completed attempts | 20 of 22 completed attempts |", report)
+        with self.assertRaisesRegex(ValueError, "control capture"):
+            replays.compare(example(False), candidate, companion_prefetch=True)
+
+        candidate["benchmark"]["direct_replay_companion_prefetch"] = False
+        with self.assertRaisesRegex(ValueError, "enabled in the candidate"):
+            replays.compare(control, candidate, companion_prefetch=True)
+        candidate["benchmark"]["direct_replay_companion_prefetch"] = True
+        for counts in (None, {"paired": True, "single": 1}, {"paired": 0, "single": 0}):
+            with self.subTest(counts=counts):
+                candidate["preparation"]["new_slides"] = counts
+                with self.assertRaisesRegex(ValueError, "report newly prepared slides"):
+                    replays.compare(control, candidate, companion_prefetch=True)
+
     @patch.object(replays, "read_json")
     @patch.object(replays, "sleep")
     def test_capture_waits_for_final_swipe(self, wait, get):

@@ -66,3 +66,20 @@ python3 firmware/native/tools/compare_preview_replays.py compare control.json lo
 ```
 
 The comparison checks that both runs completed all 48 swipes with matching replay inputs, cache slots, and timing thresholds. It reports photos ready at the start of a swipe, cold returns, slow first motions, drag gaps and refill times. The lookahead columns also show how many staged previews the frame used and how long it waited for them.
+
+### Measure portrait companion prefetch
+
+For both builds, leave `SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD=OFF` so the worker can
+still download the next primary photo during decoding. Build the control with
+`SWIPE_TRIAL_REPLAY_DISABLE_COMPANION_PREFETCH=ON` and the candidate with it
+set to `OFF`. Use the same replay origin, dataset and timed trials as above.
+Capture each result after restarting the replay server, then compare them.
+
+```sh
+python3 firmware/native/tools/compare_preview_replays.py compare --companion-prefetch control.json candidate.json
+```
+
+This comparison verifies both firmware modes and reports the share of newly
+prepared slides that render both portraits. The firmware freezes these counts
+with the timing report after the final swipe. Reloading a slide from history
+does not count as a new slide.

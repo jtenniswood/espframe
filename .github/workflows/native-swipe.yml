@@ -61,7 +61,7 @@ jobs:
           cache-dependency-path: firmware/native/prepared-slides/package-lock.json
       - run: npm ci && npm run typecheck && npm test
         working-directory: firmware/native/prepared-slides
-      - name: Compile the V1 offline history replay app
+      - name: Compile the V1 offline history and companion prefetch replay apps
         run: |
           docker run --rm -v "$PWD:/workspace" -w /workspace espressif/idf:v6.1.1 bash -ec '
             idf.py -C firmware/native -B firmware/native/build/prepared-replay-ci \
@@ -69,6 +69,11 @@ jobs:
               -D SWIPE_TRIAL_BENCHMARK=ON -D SWIPE_TRIAL_BENCHMARK_RAPID=ON \
               -D SWIPE_TRIAL_REPLAY_ORIGIN=http://127.0.0.1:9116 -D SWIPE_TRIAL_REPLAY_PREPARED=ON \
               -D SWIPE_TRIAL_REPLAY_HISTORY=ON build
+            idf.py -C firmware/native -B firmware/native/build/prepared-replay-ci \
+              -D SWIPE_BOARD=v1 -D SWIPE_ESPHOME_TRIAL=ON -D SWIPE_TRIAL_IMMICH=ON \
+              -D SWIPE_TRIAL_BENCHMARK=ON -D SWIPE_TRIAL_BENCHMARK_RAPID=ON \
+              -D SWIPE_TRIAL_REPLAY_ORIGIN=http://127.0.0.1:9116 -D SWIPE_TRIAL_REPLAY_PREPARED=OFF \
+              -D SWIPE_TRIAL_REPLAY_HISTORY=OFF -D SWIPE_TRIAL_REPLAY_DISABLE_COMPANION_PREFETCH=ON build
           '
 
   build:

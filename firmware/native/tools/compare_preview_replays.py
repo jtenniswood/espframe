@@ -64,10 +64,31 @@ def sample(timing, limit):
     return f"{over}/{count} ({over / count:.1%}), worst {timing['worst_us'] / 1000:.1f} ms"
 
 
-def compare(control, enabled):
-    validate(control, lookahead=False)
+def prepared_pairs(run):
+    slides = run["preparation"].get("new_slides")
+    if not isinstance(slides, dict):
+        raise ValueError("Both companion prefetch captures must report newly prepared slides")
+    paired, single = slides.get("paired"), slides.get("single")
+    if any(type(value) is not int or value < 0 for value in (paired, single)) or paired + single == 0:
+        raise ValueError("Both companion prefetch captures must report newly prepared slides")
+    return f"{paired}/{paired + single}"
+
+
+def prefetch_summary(run):
+    stages = run["preparation"]
+    transfers, waits = stages["prefetch_transfer"], stages["prefetch_wait"]
+    used = f"{waits['count']} of {transfers['count']} completed attempts"
+    mean = f"{waits['total_us'] / waits['count'] / 1000:.1f} ms" if waits["count"] else "no samples"
+    return used, mean
+
+
+def compare(control, enabled, *, companion_prefetch=False):
+    validate(control, lookahead=companion_prefetch)
     validate(enabled, lookahead=True)
     before, after = control["benchmark"], enabled["benchmark"]
+    if companion_prefetch and (before.get("direct_replay_companion_prefetch") is not False
+                               or after.get("direct_replay_companion_prefetch") is not True):
+        raise ValueError("Expected companion prefetch disabled in the control capture and enabled in the candidate")
     status_before, status_after = control["status"], enabled["status"]
     if (control["profile"]["sha256"] != enabled["profile"]["sha256"]
             or before["replay_origin"] != after["replay_origin"]):
@@ -91,13 +112,16 @@ def compare(control, enabled):
          sample(before["refill"], "over_limit"), sample(after["refill"], "over_limit")),
         ("Wi-Fi RSSI", f"{status_before['wifi_rssi_dbm']} dBm", f"{status_after['wifi_rssi_dbm']} dBm"),
     ]
-    transfers = enabled["preparation"]["prefetch_transfer"]
-    waits = enabled["preparation"]["prefetch_wait"]
-    rows.append(("Lookahead previews used", "disabled", f"{waits['count']} of {transfers['count']} completed attempts"))
-    if waits["count"]:
-        rows.append(("Mean wait for staged previews", "disabled", f"{waits['total_us'] / waits['count'] / 1000:.1f} ms"))
+    before_used, before_wait = prefetch_summary(control) if companion_prefetch else ("disabled", "disabled")
+    after_used, after_wait = prefetch_summary(enabled)
+    if companion_prefetch:
+        rows.insert(2, ("New slides rendered as portrait pairs", prepared_pairs(control), prepared_pairs(enabled)))
+    rows.append(("Lookahead previews used", before_used, after_used))
+    if after_wait != "no samples" or (companion_prefetch and before_wait != "no samples"):
+        rows.append(("Mean wait for staged previews", before_wait, after_wait))
+    candidate = "Companion prefetch" if companion_prefetch else "Lookahead"
     return "\n".join([
-        "| Metric | Control | Lookahead |",
+        f"| Metric | Control | {candidate} |",
         "| --- | --- | --- |",
         *(f"| {label} | {baseline} | {candidate} |" for label, baseline, candidate in rows),
     ])
@@ -111,9 +135,11 @@ def main():
     collect.add_argument("--replay", required=True, help="HTTP origin of the synthetic replay server")
     collect.add_argument("--timeout", type=int, default=120, help="Seconds to wait for the scripted run")
     collect.add_argument("output", type=Path)
-    summarize = actions.add_parser("compare", help="Compare a control capture with a lookahead capture")
+    summarize = actions.add_parser("compare", help="Compare two direct preview captures")
     summarize.add_argument("control", type=Path)
-    summarize.add_argument("lookahead", type=Path)
+    summarize.add_argument("candidate", type=Path)
+    summarize.add_argument("--companion-prefetch", action="store_true",
+                           help="Compare companion prefetch with primary lookahead enabled in both runs")
     args = parser.parse_args()
     try:
         if args.action == "capture":
@@ -122,7 +148,8 @@ def main():
                 json.dump(result, output, indent=2)
                 output.write("\n")
         else:
-            print(compare(json.loads(args.control.read_text()), json.loads(args.lookahead.read_text())))
+            print(compare(json.loads(args.control.read_text()), json.loads(args.candidate.read_text()),
+                          companion_prefetch=args.companion_prefetch))
     except (OSError, ValueError, KeyError, TypeError) as error:
         parser.exit(1, f"{error}\n")
 

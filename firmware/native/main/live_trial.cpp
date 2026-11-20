@@ -63,6 +63,11 @@ constexpr std::array preparation_stages{"attempt", "selection", "transfer", "har
                                         "prepared_cache_decode", "prefetch_transfer", "prefetch_wait"};
 static_assert(preparation_stages.size() == static_cast<size_t>(TrialPreparationStage::Count));
 std::array<PreparationTiming, preparation_stages.size()> preparation_timings{};
+struct ReplaySlides {
+  uint32_t paired{};
+  uint32_t single{};
+};
+ReplaySlides replay_slides;
 portMUX_TYPE preparation_lock = portMUX_INITIALIZER_UNLOCKED;
 bool preparation_finished{};
 
@@ -123,10 +128,12 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 script.refill.count, script.refill.worst_us, script.refill.over_limit);
 #endif
   const auto period = Display::nominal_frame_period_us();
-  char replay[96]{};
+  char replay[160]{};
   if constexpr (direct_trial_replay) {
-    std::snprintf(replay, sizeof(replay), ",\"direct_replay_lookahead\":%s,\"replay_origin\":\"%s\"",
-                  SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD ? "false" : "true", trial_replay_origin.data());
+    std::snprintf(replay, sizeof(replay),
+                  ",\"direct_replay_lookahead\":%s,\"direct_replay_companion_prefetch\":%s,\"replay_origin\":\"%s\"",
+                  SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD ? "false" : "true",
+                  prefetch_portrait_companion ? "true" : "false", trial_replay_origin.data());
   }
   char body[1600]{};
   const auto length = std::snprintf(body, sizeof(body),
@@ -279,10 +286,20 @@ esp_err_t status(httpd_req_t *request) {
 esp_err_t preparation_status(httpd_req_t *request) {
   portENTER_CRITICAL(&preparation_lock);
   const auto timings = preparation_timings;
+  [[maybe_unused]] const auto slides = replay_slides;
   portEXIT_CRITICAL(&preparation_lock);
 
-  char body[1280]{'{'};
+  char body[1408]{'{'};
   size_t used = 1;
+  if constexpr (direct_trial_replay) {
+    const auto remaining = sizeof(body) - used;
+    const auto written = std::snprintf(body + used, remaining,
+                                       "\"new_slides\":{\"paired\":%" PRIu32 ",\"single\":%" PRIu32 "},",
+                                       slides.paired, slides.single);
+    if (written < 0 || static_cast<size_t>(written) >= remaining - 1)
+      return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Preparation report too large");
+    used += written;
+  }
   for (size_t i = 0; i < timings.size(); ++i) {
     const auto &timing = timings[i];
     const auto remaining = sizeof(body) - used;
@@ -409,6 +426,13 @@ void record_live_trial_preparation_time(TrialPreparationStage stage, uint32_t el
     timing.worst_us = std::max(timing.worst_us, elapsed_us);
     timing.bytes += bytes;
   }
+  portEXIT_CRITICAL(&preparation_lock);
+}
+
+void record_live_trial_replay_slide(bool paired) {
+  portENTER_CRITICAL(&preparation_lock);
+  if (!preparation_finished)
+    ++(paired ? replay_slides.paired : replay_slides.single);
   portEXIT_CRITICAL(&preparation_lock);
 }
 

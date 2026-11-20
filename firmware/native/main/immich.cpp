@@ -5,6 +5,7 @@
 #include "native_network.h"
 #include "photo_caption.h"
 #include "preview_decoder.h"
+#include "trial_replay.h"
 
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -533,7 +534,8 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
     return PreviewStatus::Retry;
 
   const auto request_us = esp_timer_get_time();
-  size_t length = this->prefetch_.take(id, this->http_connection_, {this->encoded_, photo_capacity}, deadline_us);
+  size_t length = !prefetch_portrait_companion && optional
+                      ? 0 : this->prefetch_.take(id, this->http_connection_, {this->encoded_, photo_capacity}, deadline_us);
   int status = 200;
   if (length != 0) {
     if constexpr (SWIPE_TRIAL_IMMICH)
@@ -732,12 +734,18 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     const bool paired_primary = pairs_only || retain_pair;
     // Start a known companion during primary decode. A new Immich search
     // still waits for the decoded portrait so it cannot delay a landscape.
-    if (optional_pair && !selected_companion && seed.portrait) {
+    if (prefetch_portrait_companion && optional_pair && !selected_companion && seed.portrait) {
       frame.companion = companion_for_(seed);
       selected_companion = frame.companion[0] != '\0';
     }
     const bool primary_last = !optional_pair || (seed.orientation_known && !seed.portrait);
-    const auto lookahead = frame.companion[0] != '\0' ? frame.companion : (primary_last ? upcoming({}) : AssetId{});
+    AssetId lookahead{};
+    if (frame.companion[0] != '\0') {
+      if constexpr (prefetch_portrait_companion)
+        lookahead = frame.companion;
+    } else if (primary_last) {
+      lookahead = upcoming({});
+    }
     const auto status = this->load_preview_(frame.primary, primary, paired_primary, 0, true, lookahead);
     if (this->cancelled_ || status == PreviewStatus::Retry)
       return retry_frame();
@@ -765,8 +773,10 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       if (right != PreviewStatus::Ready || !companion.portrait())
         frame.companion = {};
     } else {
-      if (frame.companion[0] != '\0')
-        this->prefetch_.cancel();
+      if constexpr (prefetch_portrait_companion) {
+        if (frame.companion[0] != '\0')
+          this->prefetch_.cancel();
+      }
       frame.companion = {};
     }
 
@@ -796,10 +806,13 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   caption_waiting_for_time = captions.needs_time() && !local && frame.metadata.capture_day.has_value();
   if (!remembered && frame.companion[0] != '\0')
     std::erase_if(this->pending_, [&](const ImmichPhoto &photo) { return photo.id == frame.companion; });
-  if (new_position)
+  if (new_position) {
     this->history_.append(frame);
-  else
+    if constexpr (direct_trial_replay)
+      record_live_trial_replay_slide(frame.companion[0] != '\0');
+  } else {
     *existing = frame;
+  }
   return PrepareResult::Ready;
 }
 
