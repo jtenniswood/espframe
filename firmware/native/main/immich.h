@@ -98,6 +98,7 @@ class ImmichSource {
   int64_t prepared_retry_us_{};
   int64_t prepared_frame_fill_retry_us_{};
   bool prepared_background_{true};
+  bool prepared_responsive_{};
   P4JpegDecoder jpeg_;
   uint32_t http_connection_{};
   ImmichSearchApi search_api_{ImmichSearchApi::Unknown};

@@ -290,9 +290,15 @@ int main() {
   service_download();
   assert(std::ranges::equal(warm_requests, urls) && task_creations == 1);
 
+  warm_requests.clear();
+  prefetch.warm_prepared({urls[1], urls[2], service_url + "fourth"}, 2, token);
+  service_download();
+  assert(warm_requests == std::vector{service_url + "fourth"});
+
   // Expiry is shared across the batch, so a slow hint leaves later ones queued for a future pass.
   warm_requests.clear();
   reply_delay_us = 300'000;
+  now_us += 5'000'000;
   const auto warm_started = now_us;
   prefetch.warm_prepared(urls, 2, token);
   service_download();
@@ -303,4 +309,9 @@ int main() {
   prefetch.cancel();
   service_download();
   assert(warm_requests.empty());
+
+  reply_delay_us = 0;
+  prefetch.warm_prepared(urls, 3, token);
+  service_download();
+  assert(std::ranges::equal(warm_requests, urls));
 }

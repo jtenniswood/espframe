@@ -153,13 +153,13 @@ void PreviewPrefetch::release_on_memory_pressure() {
 
 void PreviewPrefetch::run_(void *context) {
   auto &self = *static_cast<PreviewPrefetch *>(context);
-  uint32_t active_connection{};
   while (true) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    if (self.connection_ != active_connection) {
+    if (self.connection_ != self.active_connection_) {
       self.http_.disconnect();
       self.prepared_http_.disconnect();
-      active_connection = self.connection_;
+      self.recent_hints_ = {};
+      self.active_connection_ = self.connection_;
     }
     if (self.warming_) {
       const auto authorization = "Bearer " + *self.key_;
@@ -167,11 +167,18 @@ void PreviewPrefetch::run_(void *context) {
         const auto started = esp_timer_get_time();
         if (url.empty() || self.cancelled_ || started >= self.deadline_us_)
           break;
+        // Consecutive windows share photos. Avoid their duplicate requests.
+        if (std::ranges::any_of(self.recent_hints_, [&](const auto &entry) {
+              return started < entry.expires_us && url == entry.url;
+            }))
+          continue;
         size_t received{};
         const auto status = self.prepared_http_.read(url, authorization.c_str(), "{}", {}, received,
                                                     self.deadline_us_);
         if (status != 202 && status != 204)
           break;
+        auto &oldest = *std::ranges::min_element(self.recent_hints_, {}, &AcceptedHint::expires_us);
+        oldest = {url, started + 5'000'000};
 #if SWIPE_TRIAL_IMMICH
         record_live_trial_preparation_time(TrialPreparationStage::PreparedWarm,
                                            static_cast<uint32_t>(esp_timer_get_time() - started));

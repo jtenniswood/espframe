@@ -100,6 +100,7 @@ bool ImmichSource::online_() {
     prepared_retry_us_ = 0;
     prepared_frame_fill_retry_us_ = 0;
     prepared_background_ = true;
+    prepared_responsive_ = false;
     http_connection_ = connection;
   }
   return connection != 0 && !cancelled_;
@@ -727,6 +728,8 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
     status = request(url);
   }
   const auto decode_start = esp_timer_get_time();
+  const bool was_responsive = prepared_responsive_;
+  prepared_responsive_ = background && prepared_background_ && (status == 200 || status == 202 || status == 429);
   if constexpr (SWIPE_TRIAL_IMMICH)
     record_live_trial_preparation_time(TrialPreparationStage::PreparedTransfer,
                                        static_cast<uint32_t>(decode_start - start), length);
@@ -745,7 +748,8 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
   // Older service versions reject the orientation option with HTTP 400.
   if (!cancelled_ && (status == 0 || status == 401 || status == 403 || status == 429 || status >= 500 ||
                       (status == 400 && orientation != PhotoOrientation::Any)))
-    prepared_retry_us_ = decode_start + 30'000'000;
+    // Give an otherwise responsive service another chance after one transient timeout.
+    prepared_retry_us_ = decode_start + (status == 0 && was_responsive ? 2'000'000 : 30'000'000);
   if (!cancelled_ && status == 409 && orientation != PhotoOrientation::Any)
     return {false, true};
   if (status != 200)

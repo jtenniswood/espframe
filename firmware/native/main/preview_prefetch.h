@@ -33,6 +33,11 @@ class PreviewPrefetch {
   void release_on_memory_pressure();
 
  private:
+  struct AcceptedHint {
+    std::string url;
+    int64_t expires_us{};
+  };
+
   bool claim_slot_();
   bool start_task_();
   static void run_(void *context);
@@ -46,8 +51,10 @@ class PreviewPrefetch {
   uint8_t *buffer_{};
   AssetId id_{};
   uint32_t connection_{};
+  uint32_t active_connection_{};  // Owned by the transfer task.
   std::string url_;
   WarmUrls warm_urls_;
+  std::array<AcceptedHint, 2 * warm_depth> recent_hints_{};
   const std::string *key_{};  // Connection settings live as long as the task.
   int64_t deadline_us_{};
   int64_t memory_retry_at_us_{};

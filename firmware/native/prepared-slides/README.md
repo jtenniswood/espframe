@@ -4,7 +4,7 @@ This optional service prepares one JPEG for a single photo or a portrait pair. I
 
 The native firmware uses direct Immich previews by default. To opt in, open **Photo preparation service** in the browser installer or in the frame’s web settings and enter the service URL and its separate access token. The frame connects to Immich for photo selection and uses the service for prepared images. It continues to draw captions and the clock locally. During optional portrait pairing, photos with unknown orientation use direct previews so the frame can inspect their dimensions. Clear the service URL in the frame’s web settings to remove its token and return to direct previews. A repeat USB setup with the same Immich connection keeps the saved service if both service fields are left blank.
 
-The frame falls back to direct previews if a prepared image fails. An HTTPS preparation service becomes available after the frame synchronizes its clock. Connection, authentication and service failures defer further service requests for 30 seconds. Set a new token when changing the service URL. The frame’s settings response and backup omit the token.
+The frame falls back to direct previews if a prepared image fails. An HTTPS preparation service becomes available after the frame synchronizes its clock. Connection, authentication and service failures defer further service requests for 30 seconds. The first timeout after a successful response from a service that supports background preparation retries after two seconds. Set a new token when changing the service URL. The frame’s settings response and backup omit the token.
 
 ## Run on a test host
 
