@@ -1,0 +1,2 @@
+# Reserve a listener and client alongside the web server and both photo connections.
+CONFIG_LWIP_MAX_SOCKETS=14
