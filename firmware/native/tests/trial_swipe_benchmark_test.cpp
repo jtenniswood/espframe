@@ -109,31 +109,37 @@ int main() {
   assert(history.results().settled == history.target() && history.results().settled_slide == 1 &&
          history.results().wrong_slide == 0);
 
-  const auto run_cold = [&](int64_t ready_after, SlideIndex expected) {
+  const auto run_cold = [&](int64_t ready_after, bool visible_loading_page) {
     TrialSwipeBenchmark rapid{TrialSwipeBenchmark::Scenario::Rapid};
     Swipe player{slide_width, 64, 1};
     SwipeInput touch;
+    bool landed_before_ready = false;
     for (auto now = start; now < start + 1'400'000 && rapid.results().settled == 0; now += 1'000) {
       const SlideRange available{1, now - start >= ready_after ? 2 : 1};
       player.set_ready_range(available.first, available.last);
-      if (const auto report = rapid.poll(now, player.settled(), available, player.idle()))
+      if (player.idle() && player.loading_page()) {
+        assert(player.settled() == 2 && rapid.results().settled == 0);
+        landed_before_ready = true;
+      }
+      if (const auto report = rapid.poll(now, player.settled(), available, player.idle() && !player.loading_page()))
         touch.update(player, *report, player.position());
       player.tick(now);
     }
-    assert(player.settled() == expected);
+    assert(player.settled() == 2 && !player.loading_page());
+    assert(landed_before_ready == visible_loading_page);
     assert(rapid.results().started == 1 && rapid.results().settled == 1);
     assert(rapid.results().cold_starts == 1 && rapid.results().wrong_slide == 0);
     assert(rapid.results().refill.count == 1 && rapid.results().refill.worst_us == ready_after);
     return rapid.results();
   };
-  // A refill after release can still complete a deliberate swipe in time.
-  const auto late = run_cold(280'000, 2);
+  // A refill can replace the loading page during its arrival animation.
+  const auto late = run_cold(280'000, false);
   assert(late.cold_releases_unready == 1 && late.cold_returns == 0 && late.cold_release_advances == 1);
-  // A refill after the bounded wait leaves the original slide in place.
-  const auto expired = run_cold(1'000'000, 1);
-  assert(expired.cold_releases_unready == 1 && expired.cold_returns == 1 && expired.cold_release_advances == 0);
+  // A slower refill replaces the full loading page and only then completes the scripted step.
+  const auto slow = run_cold(1'000'000, true);
+  assert(slow.cold_releases_unready == 1 && slow.cold_returns == 0 && slow.cold_release_advances == 1);
   // A refill early in the drag leaves enough travel to advance.
-  const auto early = run_cold(48'000, 2);
+  const auto early = run_cold(48'000, false);
   assert(early.cold_releases_unready == 0 && early.cold_returns == 0);
 
   TrialSwipeBenchmark repeated{TrialSwipeBenchmark::Scenario::Rapid};
