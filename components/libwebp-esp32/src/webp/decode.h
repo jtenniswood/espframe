@@ -508,6 +508,12 @@ WEBP_NODISCARD WEBP_EXTERN WebPIDecoder* WebPIDecode(
 WEBP_EXTERN VP8StatusCode WebPDecode(const uint8_t* data, size_t data_size,
                                      WebPDecoderConfig* config);
 
+// Espframe extension. Call checkpoint on the decoding thread between row
+// batches. A zero return stops decoding with VP8_STATUS_USER_ABORT.
+WEBP_EXTERN VP8StatusCode WebPDecodeWithCheckpoint(
+    const uint8_t* data, size_t data_size, WebPDecoderConfig* config,
+    int (*checkpoint)(void*), void* context);
+
 #ifdef __cplusplus
 }    // extern "C"
 #endif
