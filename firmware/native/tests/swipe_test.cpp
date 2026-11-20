@@ -225,6 +225,33 @@ int main() {
   retake.tick(released + 600'000);
   assert(retake.idle() && retake.settled() == 2);
 
+  // Grabbing a resisted edge starts from the visible pull. A fresh drag
+  // can pull farther, retreat toward the photo, and request the missing slide.
+  for (const int direction : {-1, 1}) {
+    Swipe edge_grab{width, 5, 2};
+    edge_grab.set_ready_range(direction > 0 ? 1 : 2, direction > 0 ? 2 : 3);
+    edge_grab.press(650, 400, 2 * width, start);
+    edge_grab.move(650 - 600 * direction, 400, start + 110'000);
+    edge_grab.release(start + 120'000);
+    const auto visible = edge_grab.position();
+    assert(edge_grab.waiting_slide() == 2 + direction && (visible - 2 * width) * direction > 20);
+
+    edge_grab.press(650, 400, visible, start + 200'000);
+    assert(edge_grab.position() == visible && !edge_grab.waiting_slide());
+    edge_grab.move(650 - 32 * direction, 400, start + 310'000);
+    assert((edge_grab.position() - visible) * direction > 0);
+    assert((edge_grab.position() - 2 * width) * direction < 48);
+    edge_grab.move(650 + 20 * direction, 400, start + 420'000);
+    assert(edge_grab.position() == visible - 20 * direction);
+    edge_grab.move(650 - 160 * direction, 400, start + 530'000);
+    edge_grab.release(start + 640'000);
+    assert(edge_grab.waiting_slide() == 2 + direction);
+    edge_grab.set_ready_range(1, 3);
+    edge_grab.tick(start + 700'000);
+    edge_grab.tick(start + 930'000);
+    assert(edge_grab.idle() && edge_grab.settled() == 2 + direction);
+  }
+
   // An evicted history position is a true end, even when the panel has pixels for a newer neighbour.
   Swipe oldest{width, 5, 2};
   oldest.set_ready_range(2, 3);

@@ -97,7 +97,11 @@ class Swipe {
     // touch takes over the last frame of an animation in the other direction.
     const auto nearest = (presented_position + this->width_ / 2) / this->width_;
     this->origin_slide_ = std::clamp(nearest, this->ready_first_, this->ready_last_);
-    this->grabbed_between_slides_ = presented_position % this->width_ != 0;
+    // A pulled edge still displays only one photo. Use the normal release
+    // threshold there, even when the handoff is between integer positions.
+    this->grabbed_between_slides_ = presented_position % this->width_ != 0 &&
+                                   presented_position > this->ready_first_ * this->width_ &&
+                                   presented_position < this->ready_last_ * this->width_;
     this->origin_x_ = x;
     this->origin_y_ = y;
     this->last_x_ = x;
@@ -138,9 +142,9 @@ class Swipe {
     const float upper = this->slide_offset_(last);
     const float drawn = this->unresisted_offset_();
     if (drawn < lower && first == this->ready_first_) {
-      this->offset_ = lower + this->resist_(drawn - lower);
+      this->offset_ = this->resisted_position_(drawn, lower);
     } else if (drawn > upper && last == this->ready_last_) {
-      this->offset_ = upper + this->resist_(drawn - upper);
+      this->offset_ = this->resisted_position_(drawn, upper);
     } else {
       this->offset_ = std::clamp(drawn, lower, upper);
     }
@@ -248,9 +252,18 @@ class Swipe {
   float slide_offset_(SlideIndex slide) const { return static_cast<float>((slide - this->settled_) * this->width_); }
   float unresisted_offset_() const { return this->origin_offset_ + (this->origin_x_ - this->last_x_); }
 
-  float resist_(float overshoot) const {
+  float resisted_position_(float position, float edge) const {
+    const float pull = position - edge;
+    const float visible_pull = this->origin_offset_ - edge;
+    const float anchor = pull * visible_pull > 0.0f ? visible_pull : 0.0f;
+    // Returning from a grabbed edge follows the finger at full speed. Only
+    // further movement beyond the visible anchor uses the remaining pull.
+    if (std::abs(pull) <= std::abs(anchor))
+      return position;
     const float limit = this->width_ * 0.0375f;
-    return overshoot * limit / (std::abs(overshoot) + limit * 3.0f);
+    const float travel = pull - anchor;
+    const float remaining = std::max(0.0f, limit - std::abs(anchor));
+    return edge + anchor + travel * remaining / (std::abs(travel) + limit * 3.0f);
   }
 
   SlideIndex minimum_slide_() const { return std::max(this->ready_first_, this->origin_slide_ - 1); }
