@@ -8,6 +8,7 @@ type CachedSlide = { revision: string; jpeg: Buffer; expires: number }
 const assetId = /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i
 const maxPreviewBytes = 8 * 1024 * 1024
 const maxCacheBytes = 24 * 1024 * 1024
+const maxQueuedWarmSlides = 2
 
 class ReplyError extends Error {
   readonly status: number
@@ -104,6 +105,8 @@ export function createSlideService({ immichUrl, immichKey, token, maxAgeMs = 60_
   const authorization = digest(`Bearer ${token}`)
   const cache = new Map<string, CachedSlide>()
   const inFlight = new Map<string, ReturnType<typeof prepare>>()
+  const warmQueue = new Map<string, ReturnType<typeof requestLayout>>()
+  let warming = false
   let cachedBytes = 0
 
   async function prepare(slide: ReturnType<typeof requestLayout>, previous: CachedSlide | undefined) {
@@ -139,6 +142,26 @@ export function createSlideService({ immichUrl, immichKey, token, maxAgeMs = 60_
     return { jpeg, state }
   }
 
+  function start(slide: ReturnType<typeof requestLayout>, speculative = false): ReturnType<typeof prepare> {
+    warmQueue.delete(slide.key)
+    if (speculative) warming = true
+    const pending = prepare(slide, cache.get(slide.key)).finally(() => {
+      inFlight.delete(slide.key)
+      if (speculative) warming = false
+      startNextWarm()
+    })
+    inFlight.set(slide.key, pending)
+    // Preparation is shared even when all callers have taken the nonblocking reply.
+    void pending.catch(() => {})
+    return pending
+  }
+
+  function startNextWarm() {
+    if (warming || inFlight.size >= 2) return
+    const next = warmQueue.values().next().value
+    if (next) start(next, true)
+  }
+
   const server = createServer(async (request, response) => {
     response.setHeader('Cache-Control', 'private, no-store')
     try {
@@ -161,17 +184,18 @@ export function createSlideService({ immichUrl, immichKey, token, maxAgeMs = 60_
         result = { jpeg: cached.jpeg, state: 'hit' }
       } else {
         let pending = inFlight.get(slide.key)
-        if (!pending) {
-          // Leave one slot for a slide the frame is already trying to display.
-          if (inFlight.size >= (warmOnly ? 1 : 2)) {
-            throw new ReplyError(warmOnly || !slide.wait ? 429 : 503, 'Slide service busy')
+        if (warmOnly && !pending) {
+          if (!warmQueue.has(slide.key)) {
+            if (warmQueue.size >= maxQueuedWarmSlides) throw new ReplyError(429, 'Slide service busy')
+            warmQueue.set(slide.key, slide)
           }
-          pending = prepare(slide, cached).finally(() => inFlight.delete(slide.key))
-          inFlight.set(slide.key, pending)
-          // Preparation is shared even when all callers have taken the nonblocking reply.
-          void pending.catch(() => {})
+          startNextWarm()
+        } else if (!pending && inFlight.size < 2) {
+          pending = start(slide)
+        } else if (!pending && (slide.wait || !warmQueue.has(slide.key))) {
+          throw new ReplyError(slide.wait ? 503 : 429, 'Slide service busy')
         }
-        if (warmOnly || !slide.wait) {
+        if (!pending || warmOnly || !slide.wait) {
           response.writeHead(202, { 'Content-Length': 0 }).end()
           return
         }

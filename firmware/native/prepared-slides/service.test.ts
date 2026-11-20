@@ -161,7 +161,9 @@ test('warms an exact pair without waiting and leaves room for a foreground slide
   const left = 'a2345678-1234-1234-1234-123456789abc'
   const right = 'b2345678-1234-1234-1234-123456789abc'
   const other = 'c2345678-1234-1234-1234-123456789abc'
-  const extra = 'd2345678-1234-1234-1234-123456789abc'
+  const next = 'd2345678-1234-1234-1234-123456789abc'
+  const following = 'e2345678-1234-1234-1234-123456789abc'
+  const extra = 'f2345678-1234-1234-1234-123456789abc'
   const pairPreview = await preview(80, 120, red, blue)
   const singlePreview = await preview(160, 80, green, blue)
   const { promise: resumePair, resolve: releasePair } = Promise.withResolvers<void>()
@@ -181,6 +183,7 @@ test('warms an exact pair without waiting and leaves room for a foreground slide
       await resumeSingle
       return response.writeHead(200).end(singlePreview)
     }
+    if (id === next || id === following) return response.writeHead(200).end(singlePreview)
     response.writeHead(404).end()
   }))
   t.after(mock.close)
@@ -190,6 +193,8 @@ test('warms an exact pair without waiting and leaves room for a foreground slide
   const headers = { Authorization: `Bearer ${token}` }
   const pair = `${service.url}/v1/slides/${left}?mode=fill&companion=${right}&rotation=180`
   const another = `${service.url}/v1/slides/${other}`
+  const upcoming = `${service.url}/v1/slides/${next}`
+  const later = `${service.url}/v1/slides/${following}`
   const excess = `${service.url}/v1/slides/${extra}`
   assert.equal((await fetch(pair, { method: 'POST' })).status, 401)
   assert.equal((await fetch(`${pair}&wait=1`, { headers })).status, 400)
@@ -197,10 +202,15 @@ test('warms an exact pair without waiting and leaves room for a foreground slide
   assert.equal(accepted.status, 202)
   assert.equal(await accepted.text(), '')
   assert.equal((await fetch(`${pair}&wait=0`, { headers })).status, 202)
-  assert.equal((await fetch(another, { method: 'POST', headers })).status, 429)
+  assert.equal((await fetch(upcoming, { method: 'POST', headers })).status, 202)
+  assert.equal((await fetch(later, { method: 'POST', headers })).status, 202)
+  assert.equal((await fetch(upcoming, { method: 'POST', headers })).status, 202)
+  assert.equal((await fetch(excess, { method: 'POST', headers })).status, 429)
 
   const foreground = fetch(another, { headers })
   await singleStarted
+  assert.equal((await fetch(`${upcoming}?wait=0`, { headers })).status, 202)
+  assert.deepEqual([...calls].sort(), [left, right, other])
   assert.equal((await fetch(`${excess}?wait=0`, { headers })).status, 429)
   assert.equal((await fetch(excess, { headers })).status, 503)
   releaseSingle()
@@ -218,5 +228,10 @@ test('warms an exact pair without waiting and leaves room for a foreground slide
   const fast = await fetch(`${pair}&wait=0`, { headers })
   assert.equal(fast.headers.get('x-espframe-cache'), 'hit')
   assert.deepEqual(Buffer.from(await fast.arrayBuffer()), jpeg)
-  assert.deepEqual(calls.sort(), [left, right, other])
+  for (const endpoint of [upcoming, later]) {
+    const response = await fetch(endpoint, { headers })
+    assert.equal(response.status, 200)
+    await response.arrayBuffer()
+  }
+  assert.deepEqual(calls.sort(), [left, right, other, next, following])
 })
