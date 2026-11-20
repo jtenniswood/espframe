@@ -40,6 +40,7 @@ for (const name of ['v1-full', 'v2-full']) {
     base_tone_enabled: false, base_tone: 0, warm_tones_enabled: false, warm_tone_intensity: 50,
     schedule_enabled: false, schedule_on_hour: 6, schedule_off_hour: 23, schedule_wake_timeout: 60,
     show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
+    ntp_server_1: '0.pool.ntp.org', ntp_server_2: '1.pool.ntp.org', ntp_server_3: '2.pool.ntp.org',
     date_filter_enabled: true, date_filter_mode: 'Relative Range', date_from: '2024-01-01',
     date_to: name === 'v2-full' ? '2026-08-30' : '2026-06-07', relative_amount: 2, relative_unit: 'Years',
     ...(name === 'v2-full' ? {
@@ -59,6 +60,18 @@ for (const name of ['v1-full', 'v2-full']) {
   assert.equal(result.notices.some(text => text.includes('Choose a photo source')), false)
   assert.ok(result.notices.some(text => text.includes('original backup')))
   assert.doesNotMatch(JSON.stringify(result), /fixture-read-only-api-key/)
+}
+
+const customTime = readBackup({ version: 3, clock: { ntp_servers: [' time.example.test ', '2001:db8::5'] } })
+assert.deepEqual(customTime.settings, { ntp_server_1: 'time.example.test', ntp_server_2: '2001:db8::5', ntp_server_3: '' })
+assert.deepEqual(customTime.notices, [])
+assert.deepEqual(createBackup({ ...customTime.settings, slide_seconds: 15 }).clock.ntp_servers,
+  ['time.example.test', '2001:db8::5', ''])
+for (const ntp_servers of ['time.example.test', ['good.test', 'http://bad.test'], [17],
+                           ['a.test', 'b.test', 'c.test', 'd.test'], ['a'.repeat(254)]]) {
+  const malformedTime = readBackup({ version: 3, clock: { show: false, ntp_servers } })
+  assert.deepEqual(malformedTime.settings, { show_clock: false })
+  assert.deepEqual(malformedTime.notices, ['Review the time servers in the original backup.'])
 }
 
 const album = 'c48e2980-18ac-4d7d-876a-a636759a1aec'

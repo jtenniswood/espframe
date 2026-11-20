@@ -28,6 +28,7 @@ const setup = {
   screen_rotation: '180',
   schedule_enabled: true, schedule_on_hour: 6, schedule_off_hour: 22, schedule_wake_timeout: 60,
   show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
+  ntp_server_1: 'time.example.test', ntp_server_2: '', ntp_server_3: '2001:db8::5',
   photo_metadata_date_enabled: true, photo_metadata_location_enabled: false,
   photo_metadata_date_format: 'Relative Date', photo_metadata_date_taken_format: 'January 1, 2026',
 }
@@ -69,6 +70,9 @@ const fixture = html.replace('</body>', `<script>
     if (!form.elements.schedule_enabled.checked || form.elements.schedule_off_hour.value !== '22'
       || !document.querySelector('#screen-schedule').open)
       throw new Error('Incorrect initial screen schedule')
+    const timeServers = ['ntp_server_1', 'ntp_server_2', 'ntp_server_3'].map(name => form.elements[name].value)
+    if (timeServers.join(',') !== 'time.example.test,,2001:db8::5')
+      throw new Error('Saved time servers did not load into the form')
     document.querySelector('#download-backup').click()
     const backup = JSON.parse(await downloaded.text())
     if (!filename.startsWith('espframe-config-') || backup.version !== 3 || !backup.photos.favorites_enabled
@@ -83,6 +87,8 @@ const fixture = html.replace('</body>', `<script>
     if (!backup.metadata?.show_date || backup.metadata.show_location !== false
       || backup.metadata.date_format !== 'Relative Date' || backup.metadata.date_taken_format !== 'January 1, 2026')
       throw new Error('Unexpected caption backup settings')
+    if (backup.clock.ntp_servers?.join(',') !== timeServers.join(','))
+      throw new Error('Time servers missing from backup')
     if (!backup.screen.base_tone_enabled || backup.screen.base_tone !== 25
       || !backup.screen.warm_tones_enabled || backup.screen.warm_tone_intensity !== 60)
       throw new Error('Unexpected screen tone backup settings')
@@ -119,6 +125,7 @@ const fixture = html.replace('</body>', `<script>
     form.elements.schedule_wake_timeout.value = '90'
     form.elements.timezone.value = 'America/New_York (GMT-5)'
     form.elements.clock_format.value = '12 Hour'
+    form.elements.ntp_server_2.value = 'spare.example.test'
     source.dispatchEvent(new Event('change'))
     if (!album.required || album.disabled) throw new Error('Album selection did not enable the album field')
     if (dates.hidden || document.querySelector('#fixed-dates').hidden)
@@ -338,6 +345,7 @@ try {
     screen_rotation: '0', photo_orientation: 'Landscape Only',
     schedule_enabled: false, schedule_off_hour: 0, schedule_wake_timeout: 90,
     clock_format: '12 Hour', timezone: 'America/New_York (GMT-5)',
+    ntp_server_2: 'spare.example.test',
   }])
   console.log('Native photo source settings accept Immich album links and reject share links')
 

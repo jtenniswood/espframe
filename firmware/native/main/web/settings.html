@@ -136,6 +136,13 @@
           <label>Timezone
             <select name="timezone" required></select>
           </label>
+          <details>
+            <summary>Time servers</summary>
+            <label>NTP server 1 <input name="ntp_server_1" type="text" maxlength="253" spellcheck="false"></label>
+            <label>NTP server 2 <input name="ntp_server_2" type="text" maxlength="253" spellcheck="false"></label>
+            <label>NTP server 3 <input name="ntp_server_3" type="text" maxlength="253" spellcheck="false"></label>
+            <small>Leave all three blank to use the default time servers.</small>
+          </details>
         </details>
         <details>
           <summary>Photo captions</summary>

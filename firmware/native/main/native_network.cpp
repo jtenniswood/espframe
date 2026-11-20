@@ -1,6 +1,7 @@
 #include "native_network.h"
 
 #include "live_trial.h"
+#include "ntp_server_names.h"
 #include "settings.h"
 #include "station_retry.h"
 #include "web_settings.h"
@@ -353,6 +354,8 @@ void NativeNetwork::handle_(const Command &command, WifiCredentials &saved) {
 }
 
 void NativeNetwork::connect_loop_(WifiCredentials saved) {
+  const auto &configured_servers = settings_->clock.ntp_servers;
+  const auto ntp_servers = espframe_normalize_ntp_servers(configured_servers[0], configured_servers[1], configured_servers[2]);
   const bool https = settings_->immich_url.starts_with("https://");
   const bool need_time_at_boot = https || settings_->prepared_slides_need_time() || settings_->clock.show ||
                                  settings_->schedule.enabled || settings_->brightness_day != settings_->night_brightness() ||
@@ -444,7 +447,12 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
 #endif
       const bool need_time = need_time_at_boot || time_sync_requested_.load(std::memory_order_acquire);
       if (need_time && !sntp_started) {
-        esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+        esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(0, ESP_SNTP_SERVER_LIST());
+        static_assert(std::size(config.servers) >= ESPFRAME_NTP_SERVER_COUNT);
+        for (const auto &server : ntp_servers) {
+          if (!server.empty())
+            config.servers[config.num_of_servers++] = server.c_str();
+        }
         sntp_started = esp_netif_sntp_init(&config) == ESP_OK;
       }
       const bool time_ready = !https || clock_time_is_valid(std::time(nullptr));

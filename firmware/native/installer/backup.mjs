@@ -14,9 +14,12 @@ const clockFormats = ['24 Hour', '12 Hour']
 const pairingRanges = ['Same Day', 'Within 1 Day', 'Within 2 Days']
 const memoriesWindows = ['Same Day', 'Within 1 Day', 'Within 2 Days', 'Within 3 Days', 'Within 7 Days']
 const groups = ['connection', 'photos', 'frequency', 'screen', 'clock', 'metadata', 'firmware_updates', 'identity']
+export const ntpServerFields = ['ntp_server_1', 'ntp_server_2', 'ntp_server_3']
 const own = (object, key) => Object.hasOwn(object, key)
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const integerIn = (min, max) => value => Number.isInteger(value) && value >= min && value <= max
+const validNtpServer = value => typeof value === 'string' &&
+  new TextEncoder().encode(value.trim()).length <= 253 && !/[\s,/?#]/.test(value.trim())
 const captureDateFields = {
   date_filter_enabled: value => typeof value === 'boolean',
   date_filter_mode: value => ['Fixed Range', 'Relative Range'].includes(value),
@@ -227,6 +230,16 @@ export function readBackup(data) {
   if (typeof clock.timezone === 'string' && clock.timezone.length <= 96) {
     settings.timezone = clock.timezone === 'Asia/Almaty (GMT+6)' ? 'Asia/Almaty (GMT+5)' : clock.timezone
   }
+  if (own(clock, 'ntp_servers')) {
+    if (Array.isArray(clock.ntp_servers) && clock.ntp_servers.length <= ntpServerFields.length &&
+        clock.ntp_servers.every(validNtpServer)) {
+      ntpServerFields.forEach((field, index) => {
+        settings[field] = clock.ntp_servers[index]?.trim() ?? ''
+      })
+    } else {
+      notices.push('Review the time servers in the original backup.')
+    }
+  }
   for (const [key, [valid, notice, field = key]] of Object.entries(screenFields)) {
     if (!own(screen, key)) continue
     if (valid(screen[key])) settings[field] = screen[key]
@@ -242,7 +255,6 @@ export function readBackup(data) {
     notices.push('Review the photo filters in this backup. Choose a photo source before saving.')
   const skipped = []
   if (Object.keys(screen).some(key => !own(screenFields, key))) skipped.push('screen settings')
-  if (own(clock, 'ntp_servers')) skipped.push('custom time servers')
   if (own(data, 'firmware_updates')) skipped.push('firmware update settings')
   if (own(frequency, 'conn_timeout'))
     skipped.push('advanced playback settings')
@@ -280,6 +292,11 @@ export function createBackup(settings, date = new Date()) {
     ...(typeof settings.show_clock === 'boolean' ? { show: settings.show_clock } : {}),
     ...(clockFormats.includes(settings.clock_format) ? { format: settings.clock_format } : {}),
     ...(typeof settings.timezone === 'string' ? { timezone: settings.timezone } : {}),
+  }
+  if (ntpServerFields.some(field => own(settings, field))) {
+    const ntpServers = ntpServerFields.map(field => settings[field] ?? '')
+    if (ntpServers.every(validNtpServer))
+      clock.ntp_servers = ntpServers.map(server => server.trim())
   }
   const screen = {}
   const metadata = {}

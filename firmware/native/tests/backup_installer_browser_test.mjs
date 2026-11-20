@@ -30,7 +30,8 @@ const backup = {
     transition: 'Slide Down', transition_speed: 'Slow',
     memories_window: 'Within 7 Days', memories_fallback: false, date_filter_enabled: true,
     date_filter_mode: 'Fixed Range', date_from: '2024-02-29', date_to: '', relative_amount: 2, relative_unit: 'Months' },
-  clock: { show: false, format: '12 Hour', timezone: 'America/New_York (GMT-5)' },
+  clock: { show: false, format: '12 Hour', timezone: 'America/New_York (GMT-5)',
+    ntp_servers: ['time.example.test', '', '2001:db8::5'] },
   metadata: { show_date: true, show_location: false, date_format: 'Relative Date', date_taken_format: 'January 1, 2026' },
   screen: {
     brightness_day: 75, brightness_night: 35, schedule_enabled: true, rotation: '180',
@@ -204,6 +205,8 @@ const verify = `
       throw new Error('The installer did not send or clear the photo preparation settings correctly')
     if (received.show_clock !== false || received.clock_format !== '12 Hour' || received.timezone !== 'America/New_York (GMT-5)')
       throw new Error('The clock settings did not reach USB setup')
+    if (received.ntp_server_1 !== 'time.example.test' || received.ntp_server_2 !== '' || received.ntp_server_3 !== '2001:db8::5')
+      throw new Error('The ordered time servers did not reach USB setup')
     if (!received.date_filter_enabled || received.date_filter_mode !== 'Fixed Range' || received.date_from !== '2024-02-29'
       || received.date_to !== '' || received.relative_amount !== 2 || received.relative_unit !== 'Months')
       throw new Error('The capture date filter did not reach USB setup')

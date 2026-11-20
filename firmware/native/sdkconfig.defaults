@@ -32,5 +32,7 @@ CONFIG_EH_HOST_PORT_DMA_PREFER_SPIRAM=y
 # Keep the receive mailbox large enough for the preview download window.
 CONFIG_LWIP_TCP_WND_DEFAULT=16384
 CONFIG_LWIP_TCP_RECVMBOX_SIZE=14
+# Keep all three configured time servers available in preference order.
+CONFIG_LWIP_SNTP_MAX_SERVERS=3
 # Run the TCP/IP task on the photo worker core, away from touch and LCD updates.
 CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU0=y

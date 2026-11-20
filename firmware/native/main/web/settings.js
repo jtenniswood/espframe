@@ -1,5 +1,5 @@
 import { addCaptureDates, addPhotoFilters, bindPhotoSource, bindPortraitPairing, photoFilterDefaults, validateAlbum } from './photo_source.mjs'
-import { createBackup } from './backup.mjs'
+import { createBackup, ntpServerFields } from './backup.mjs'
 
 const form = document.querySelector('#settings')
 const status = document.querySelector('#status')
@@ -106,6 +106,9 @@ try {
   form.elements.schedule_wake_timeout.value = settings.schedule_wake_timeout ?? 60
   schedule.open = form.elements.schedule_enabled.checked
   const timezone = settings.timezone ?? 'Europe/London (GMT+0)'
+  ntpServerFields.forEach((field, index) => {
+    form.elements[field].value = settings[field] ?? (index === 0 ? 'pool.ntp.org' : '')
+  })
   for (const [value, label] of Object.entries(settings.clock_timezones ?? { [timezone]: timezone })) {
     form.elements.timezone.add(new Option(label.replaceAll('_', ' '), value))
   }

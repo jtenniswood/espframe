@@ -2,6 +2,7 @@
 #include "frame_identity_model.h"
 #include "home_assistant_key.h"
 #include "live_trial.h"
+#include "ntp_server_names.h"
 #include "playback_transition.h"
 #include "slideshow_interval.h"
 #include "slideshow_transition.h"
@@ -28,6 +29,7 @@ constexpr const char *store_namespace = "player";
 constexpr const char *settings_key = "settings_v1";
 constexpr size_t legacy_max_json_size = 3072;
 constexpr auto new_setup_framing = DisplayMode::Fill;
+constexpr std::array ntp_fields{"ntp_server_1", "ntp_server_2", "ntp_server_3"};
 std::mutex storage_mutex;
 std::optional<PhotoFeedSettings> published_feed;
 
@@ -141,6 +143,12 @@ bool read_flag(const cJSON *root, const char *name, bool &enabled) {
 }
 
 bool read_clock(const cJSON *root, ClockSettings &clock) {
+  for (size_t i = 0; i < ntp_fields.size(); ++i) {
+    auto &server = clock.ntp_servers[i];
+    if (!read_field(root, ntp_fields[i], server, true) || !espframe_is_valid_ntp_server(server))
+      return false;
+    server = espframe_trim_ntp_server(server);
+  }
   return read_flag(root, "show_clock", clock.show) && read_field(root, "clock_format", clock.format, true) &&
          (clock.format == "24 Hour" || clock.format == "12 Hour") &&
          read_field(root, "timezone", clock.timezone, true) && clock_timezone(clock.timezone) != nullptr;
@@ -728,6 +736,12 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
   if (!provided("portrait_pair_framing") && saved.pair_framing != PairFraming::FollowPhotos &&
       !cJSON_AddStringToObject(document.get(), "portrait_pair_framing", pair_framing_name(saved.pair_framing)))
     return Result::Rejected;
+  for (size_t i = 0; i < ntp_fields.size(); ++i) {
+    const auto *field = ntp_fields[i];
+    if (configured && !provided(field) && cJSON_HasObjectItem(previous.get(), field) &&
+        !cJSON_AddStringToObject(document.get(), field, saved.clock.ntp_servers[i].c_str()))
+      return Result::Rejected;
+  }
   Settings candidate;
   if (!put_epoch(document.get(), epoch) || !parse_all(document.get(), candidate) || !candidate.has_immich())
     return Result::Rejected;
@@ -845,6 +859,10 @@ std::optional<PhotoFeedSettings> Settings::take_live_photo_feed(uint32_t revisio
 }
 
 bool Settings::add_playback_fields(cJSON *object, PhotoFilterUpdate filter_update) const {
+  for (size_t i = 0; i < ntp_fields.size(); ++i) {
+    if (!cJSON_AddStringToObject(object, ntp_fields[i], clock.ntp_servers[i].c_str()))
+      return false;
+  }
   const bool filters_added = filter_update == PhotoFilterUpdate::Compose
                                  ? add_photo_filter_fields(object, shared_photo_filters(*this))
                                  : add_photo_filter_fields(object, photo_filters);

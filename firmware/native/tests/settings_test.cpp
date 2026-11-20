@@ -377,6 +377,7 @@ int main() {
   assert(legacy.photo_orientation == espframe::native::PhotoOrientation::Any);
   assert(legacy.screen_rotation == ScreenRotation::Normal);
   assert(!legacy.clock.show && legacy.clock.format == "24 Hour");
+  assert((legacy.clock.ntp_servers == std::array<std::string, 3>{"pool.ntp.org", "", ""}));
   assert(!legacy.schedule.enabled && legacy.schedule.on_hour == 6 && legacy.schedule.off_hour == 23 &&
          legacy.schedule.wake_seconds == 60);
   assert(legacy.web_password.empty());
@@ -976,6 +977,22 @@ int main() {
   current.publish_live_presentation();
   assert(active_clock_twelve_hour.load() && active_playback_transition.load().random);
 
+  const auto ntp_change = update_configuration(R"({"values":{"ntp_server_1":" time.example.test ",
+      "ntp_server_2":"","ntp_server_3":"2001:db8::5"}})");
+  assert(!ntp_change.error && ntp_change.restart_required);
+  const auto expected_servers = std::array<std::string, 3>{"time.example.test", "", "2001:db8::5"};
+  assert(current.read() && current.clock.ntp_servers == expected_servers);
+  const Json ntp_snapshot(configuration_snapshot(current), cJSON_Delete);
+  const auto *ntp_values = cJSON_GetObjectItemCaseSensitive(ntp_snapshot.get(), "values");
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(ntp_values, "ntp_server_1")) ==
+         expected_servers[0]);
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(ntp_values, "ntp_server_2")) ==
+         expected_servers[1]);
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(ntp_values, "ntp_server_3")) ==
+         expected_servers[2]);
+  assert(update_configuration(R"({"values":{"ntp_server_2":"https://other.test"}})").error);
+  assert(current.read() && current.clock.ntp_servers == expected_servers);
+
   assert(!current.needs_local_date());
   const auto live_time_settings = [&](const char *request, bool needs_time) {
     const auto saved = update_configuration(request);
@@ -994,6 +1011,7 @@ int main() {
   assert(Settings::save_wifi(*new_wifi, current.reset_epoch));
   assert(Settings::save(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","web_password":"new-settings"})"));
   assert(current.read() && current.home_assistant_key == ha_key);
+  assert(current.clock.ntp_servers == expected_servers);
 
   assert(!update_configuration(R"({"values":{"frame_name":"Restored frame"}})").error);
   assert(!reset_configuration(ResetMode::Customization).error);

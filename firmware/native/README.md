@@ -99,8 +99,11 @@ The frame adds its own four-character MAC suffix to the hostname.
 Under **Clock**, choose whether to show the local time and select the timezone
 and 12- or 24-hour format. After time synchronization, the clock stays fixed
 while photos move beneath it. New browser installs enable the clock by
-default. Older native settings keep it hidden until enabled. Backups carry
-the three clock settings. Time synchronization uses `pool.ntp.org`.
+default. Older native settings keep it hidden until enabled. Under **Time
+servers**, set up to three NTP hosts in preference order. Backups carry the
+clock settings and time servers. Existing native setups use `pool.ntp.org`
+until you set a server. Leaving all three fields blank selects the same
+default time-server pool as ESPHome. Changes apply after restart.
 Open **Photo sources & device tools** to change the Immich photo source,
 download a settings backup, or install a native firmware update.
 The page uses HTTP on the local network. Keep it on a trusted network.

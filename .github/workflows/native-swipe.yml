@@ -11,6 +11,7 @@ on:
       - 'components/remote_image/jpeg_accelerator_helpers.h'
       - 'components/remote_image/webp_rgb565.h'
       - 'components/espframe/timezones.py'
+      - 'components/espframe/ntp_server_names.h'
       - 'components/espframe/configuration_contract_generated.h'
       - 'components/espframe/immich_filter_config.h'
       - 'components/espframe/immich_helpers.h'

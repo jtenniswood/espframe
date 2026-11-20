@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <ctime>
 #include <optional>
@@ -13,6 +14,7 @@ struct ClockSettings {
   bool show{};
   std::string format{"24 Hour"};
   std::string timezone{"Europe/London (GMT+0)"};
+  std::array<std::string, 3> ntp_servers{"pool.ntp.org", "", ""};
 
   bool twelve_hour() const { return format == "12 Hour"; }
 };

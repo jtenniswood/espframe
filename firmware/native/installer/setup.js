@@ -1,5 +1,5 @@
 import 'esp-web-tools/dist/install-button.js'
-import { normalizeFrameName, readBackup } from './backup.mjs'
+import { normalizeFrameName, ntpServerFields, readBackup } from './backup.mjs'
 import { addCaptureDates, addPhotoFilters, bindPhotoSource, bindPortraitPairing, photoFilterDefaults, validateAlbum } from './photo_source.mjs'
 import { configure, findFrame, waitForFrame } from './serial.mjs'
 
@@ -83,7 +83,10 @@ for (const name of percentageFields) form.elements[name].addEventListener('input
 let importSequence = 0
 let importing = false
 let frameNameSpecified = false
+let ntpServersSpecified = false
 let importedPreset = null
+for (const name of ntpServerFields)
+  form.elements[name].addEventListener('input', () => { ntpServersSpecified = true })
 form.addEventListener('change', event => {
   if (event.target.name === 'photo_source' || Object.hasOwn(photoFilterDefaults, event.target.name))
     importedPreset = null
@@ -113,6 +116,7 @@ backup.addEventListener('change', async () => {
       frameNameSpecified = true
       frameName.setCustomValidity('')
     }
+    ntpServersSpecified ||= ntpServerFields.some(name => Object.hasOwn(settings, name))
     if (chooseSource) form.elements.photo_source.value = ''
     if (settings.photo_source && settings.photo_source !== 'album') form.elements.album_id.value = ''
     form.elements.photo_orientation.value = 'Any'
@@ -232,6 +236,9 @@ if ('serial' in navigator) {
     const keepImmich = keepStockImmich.checked
     if (frameNameSpecified) data.frame_name = normalizeFrameName(frameName.value)
     else delete data.frame_name
+    if (!ntpServersSpecified) {
+      for (const name of ntpServerFields) delete data[name]
+    }
     if (keepPairing) delete data.home_assistant_key
     else if (removeHomeAssistantKey.checked) data.home_assistant_key = ''
     else if (!homeAssistantKey.value) delete data.home_assistant_key
@@ -271,6 +278,7 @@ if ('serial' in navigator) {
       await configure(port, data, { keepPairing, keepWifi, keepImmich })
       form.reset()
       frameNameSpecified = false
+      ntpServersSpecified = false
       importedPreset = null
       refreshSource()
       refreshPairing()
