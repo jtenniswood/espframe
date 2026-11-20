@@ -199,6 +199,18 @@ class ReplayTest(unittest.TestCase):
         self.assertIn("| Metric | Control | Prepared slides |", result)
         self.assertIn("| Photo bytes downloaded by frame | 11000000 | 2000000 |", result)
         self.assertIn("| Preparation-service cache at start | — | prewarmed |", result)
+
+        captured_direct, captured_prepared = deepcopy(direct), deepcopy(prepared)
+        for run in (captured_direct, captured_prepared):
+            run["profile"].update(capturedPreviews=True, warmPairFill=False)
+            run["benchmark"]["replay_pair_fill"] = False
+        captured = replays.compare(captured_direct, captured_prepared, prepared_service=True)
+        self.assertIn("| Preview dataset | Captured Immich previews | Captured Immich previews |", captured)
+        self.assertIn("| New slides rendered as portrait pairs | 11/11 | 11/11 |", captured)
+        captured_prepared["profile"].pop("capturedPreviews")
+        with self.assertRaisesRegex(ValueError, "same kind of preview dataset"):
+            replays.compare(captured_direct, captured_prepared, prepared_service=True)
+
         prepared["preparation"]["transfer"]["count"] = 1
         with self.assertRaisesRegex(ValueError, "without falling back to direct previews"):
             replays.compare(direct, prepared, prepared_service=True)

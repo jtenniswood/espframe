@@ -143,6 +143,9 @@ def compare(control, enabled, *, companion_prefetch=False, slow_previews=False, 
     before_profile, after_profile = control["profile"], enabled["profile"]
     if before["replay_origin"] != after["replay_origin"]:
         raise ValueError("Both captures must use the same replay origin")
+    captured = before_profile.get("capturedPreviews", False)
+    if captured is not after_profile.get("capturedPreviews", False):
+        raise ValueError("Both captures must use the same kind of preview dataset")
     if preview_profiles:
         source_hash = before_profile.get("sourceSha256")
         if not source_hash or source_hash != after_profile.get("sourceSha256"):
@@ -154,7 +157,7 @@ def compare(control, enabled, *, companion_prefetch=False, slow_previews=False, 
         if type(companion) is not bool or companion is not after.get("direct_replay_companion_prefetch"):
             raise ValueError("Both profiles must use the same companion prefetch setting")
     elif before_profile["sha256"] != after_profile["sha256"]:
-        raise ValueError("Both captures must use the same synthetic preview dataset")
+        raise ValueError("Both captures must use the same preview dataset")
     stall_ms = control["profile"].get("previewStallMs", 0)
     if stall_ms != enabled["profile"].get("previewStallMs", 0):
         raise ValueError("Both captures must use the same preview stall duration")
@@ -212,6 +215,9 @@ def compare(control, enabled, *, companion_prefetch=False, slow_previews=False, 
     if prepared_service:
         direct = control["preparation"]
         prepared = enabled["preparation"]
+        if captured:
+            rows.insert(0, ("Preview dataset", "Captured Immich previews", "Captured Immich previews"))
+            rows.insert(3, ("New slides rendered as portrait pairs", prepared_pairs(control), prepared_pairs(enabled)))
         rows.append(("Photo bytes downloaded by frame", direct["transfer"]["bytes"] + direct["prefetch_transfer"]["bytes"],
                      prepared["prepared_transfer"]["bytes"]))
         mode = enabled["profile"].get("warmRotation")

@@ -1,10 +1,40 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createInterface } from 'node:readline'
 import test from 'node:test'
 import { setTimeout as sleep } from 'node:timers/promises'
+import sharp from 'sharp'
+import { readCapturedPreviews } from './replay_library.ts'
+
+test('captured Immich pairs retain the exact preview bytes and order', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'espframe-captured-previews-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const ids = ['00000002-1111-4222-8333-123456789abc', '00000001-1111-4222-8333-123456789abc']
+  const localDateTime = '2024-01-01T12:00:00.000Z'
+  const image = sharp({ create: { width: 32, height: 48, channels: 3, background: '#c84e36' } })
+  const previews = await Promise.all([image.clone().jpeg().toBuffer(), image.clone().webp().toBuffer()])
+  for (const [index, id] of ids.entries()) await writeFile(join(directory, `${id}.preview`), previews[index])
+  const writeManifest = (secondDate: string) => writeFile(join(directory, 'manifest.json'),
+    JSON.stringify([{ id: ids[0], localDateTime }, { id: ids[1], localDateTime: secondDate }]))
+  const collect = async () => {
+    const result = []
+    for await (const preview of readCapturedPreviews(directory)) result.push(preview)
+    return result
+  }
+  await writeManifest(localDateTime)
+  const captured = await collect()
+  assert.deepEqual(captured.map(({ asset }) => asset),
+    ids.map(id => ({ id, width: 32, height: 48, localDateTime })))
+  assert.deepEqual(captured.map(({ bytes }) => bytes), previews)
+
+  await writeManifest('2024-01-02T12:00:00.000Z')
+  await assert.rejects(collect, /same day/)
+})
 
 test('replay stalls every eighth preview and counts mid-response disconnects', { timeout: 30_000 }, async t => {
   const socket = createServer()
@@ -17,7 +47,8 @@ test('replay stalls every eighth preview and counts mid-response disconnects', {
   const child = spawn(process.execPath, ['replay.ts'], {
     cwd: new URL('.', import.meta.url),
     env: { ...process.env, REPLAY_HOST: '127.0.0.1', REPLAY_PORT: String(address.port), REPLAY_PREVIEW_STALL_MS: String(stallMs),
-      REPLAY_PREVIEW_SIZE: '360', REPLAY_PREVIEW_WEBP_QUALITY: '80', REPLAY_BASELINE_JPEG_QUALITY: undefined,
+      REPLAY_PREVIEW_DIRECTORY: undefined, REPLAY_PREVIEW_SIZE: '360', REPLAY_PREVIEW_WEBP_QUALITY: '80',
+      REPLAY_BASELINE_JPEG_QUALITY: undefined,
       REPLAY_WARM_ROTATION: undefined, REPLAY_PREPARED_UNAVAILABLE: undefined, REPLAY_OFFLINE_HISTORY: undefined },
     stdio: ['ignore', 'pipe', 'pipe'],
   })

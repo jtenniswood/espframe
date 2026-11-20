@@ -70,6 +70,39 @@ The comparison requires the same source pixel and metadata fingerprint,
 lookahead settings, frame and timing thresholds. It reports readiness,
 refills and the bytes transferred for each encode.
 
+### Replay captured Immich previews
+
+Use a private test network and a directory of previews you can use for
+testing. Save the response bytes from Immich's
+`GET /api/assets/<id>/thumbnail?size=preview` as `<id>.preview` for each
+photo. The replay accepts upright JPEG and WebP portraits of up to 2 MiB
+and 4 megapixels. It uses the exact preview bytes and fingerprints them
+together with the playback order and metadata.
+
+Write a `manifest.json` array containing the IDs in adjacent pairs.
+Assign both photos in each pair the same ISO UTC date. Leave at least
+five days between consecutive pairs to keep them distinct in the
+two-day pairing search. These dates are test inputs. The replay reads
+the width and height from the file. A two-photo manifest looks like this.
+
+```json
+[
+  { "id": "00000001-1111-4222-8333-123456789abc", "localDateTime": "2024-01-01T12:00:00.000Z" },
+  { "id": "00000002-1111-4222-8333-123456789abc", "localDateTime": "2024-01-01T12:00:00.000Z" }
+]
+```
+
+Use 72 previews to cover all 48 scripted gestures without intentionally
+exhausting the library. Start both replays with
+`REPLAY_PREVIEW_DIRECTORY=/path/to/capture` and use the direct and prepared
+builds described above. Set `SWIPE_TRIAL_REPLAY_PAIR_FILL=OFF` in both builds
+to use Fit. The synthetic Fill check expects bright pixels along the pane
+edges. Leave the preview resize and
+encoder overrides unset. To test a prewarmed cache, set
+`REPLAY_WARM_ROTATION` to the frame's mounting rotation for the prepared
+run. The usual `compare --prepared-service` command checks that both
+captures used the same files in the same order.
+
 ### Measure direct preview lookahead
 
 Build the direct replay twice from the same revision, using the same replay origin and separate build directories. Set `-D SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD=ON` for the control and set it to `OFF` for lookahead. For each run, restart the synthetic server with the same settings, then follow the [V1 rollback readiness and app-only trial instructions](../README.md#verify-the-rollback-and-gestures).

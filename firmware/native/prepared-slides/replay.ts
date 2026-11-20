@@ -4,6 +4,8 @@ import { createServer } from 'node:http'
 import { isIPv4 } from 'node:net'
 import sharp from 'sharp'
 import { createSlideService } from './service.ts'
+import { readCapturedPreviews } from './replay_library.ts'
+import type { ReplayAsset } from './replay_library.ts'
 
 const host = process.env.REPLAY_HOST ?? '127.0.0.1'
 const port = Number(process.env.REPLAY_PORT ?? 9116)
@@ -11,6 +13,7 @@ const warmRotation = process.env.REPLAY_WARM_ROTATION
 const warmPairFill = process.env.REPLAY_WARM_PAIR_FILL === '1'
 const unavailable = process.env.REPLAY_PREPARED_UNAVAILABLE === '1'
 const outageHistory = process.env.REPLAY_OFFLINE_HISTORY === '1'
+const captureDirectory = process.env.REPLAY_PREVIEW_DIRECTORY
 const previewSize = Number(process.env.REPLAY_PREVIEW_SIZE ?? '0')
 const baselineQuality = Number(process.env.REPLAY_BASELINE_JPEG_QUALITY ?? '0')
 const webpQuality = Number(process.env.REPLAY_PREVIEW_WEBP_QUALITY ?? '0')
@@ -35,57 +38,68 @@ if ([baselineQuality, webpQuality].some(quality => !Number.isInteger(quality) ||
 if (!Number.isInteger(previewStallMs) || previewStallMs < 0 || previewStallMs > 10_000) {
   throw new Error('Set REPLAY_PREVIEW_STALL_MS to a whole number between 0 and 10000')
 }
+if (captureDirectory && (previewSize || baselineQuality || webpQuality || warmPairFill)) {
+  throw new Error('Captured previews use their original encoded bytes and Fit pairs')
+}
 const immichKey = 'espframe-synthetic-preview'
 const token = 'espframe-synthetic-slide-replay-only'
 const origin = `http://${host}:${port}`
 const service = createSlideService({ immichUrl: origin, immichKey, token, maxAgeMs: 600_000 })
 const images = new Map<string, Buffer>()
-const library: { id: string; width: number; height: number; localDateTime: string }[] = []
+const library: ReplayAsset[] = []
 const fingerprint = createHash('sha256')
 const sourceFingerprint = createHash('sha256')
 
-for (let index = 0; index < 72; index++) {
-  const width = 960
-  const height = 1440
-  const pixels = Buffer.alloc(width * height * 3)
-  const ridge = Array.from({ length: width }, (_, x) => 680 + Math.sin(x / 70 + index) * 180)
-  let noise = index + 4321
-  const clamp = (value: number) => Math.max(0, Math.min(255, value))
-  for (let y = 0; y < height; y++) {
-    const layers = Math.cos(y / (13 + index % 12)) * 27
-    for (let x = 0; x < width; x++) {
-      noise = (Math.imul(noise, 1664525) + 1013904223) >>> 0
-      const terrain = (y > ridge[x] ? 40 : 85) + layers + (noise >>> 26)
-      const i = (y * width + x) * 3
-      pixels[i] = clamp(terrain + (x + index * 19) % 64)
-      pixels[i + 1] = clamp(terrain + (y + index * 13) % 72)
-      pixels[i + 2] = clamp(terrain + 60)
-    }
-  }
-  const id = `${(index + 1).toString(16).padStart(8, '0')}-1111-4222-8333-123456789abc`
-  const image = sharp(pixels, { raw: { width, height, channels: 3 } })
-  if (previewSize) {
-    // Immich resizes in linear light and fits the image outside the square,
-    // so the configured size describes the short edge for these portraits.
-    image.pipelineColourspace('scrgb').resize(previewSize, previewSize, { fit: 'outside', withoutEnlargement: true })
-      .toColourspace('srgb')
-  }
-  const preview = baselineQuality
-    ? image.jpeg({ quality: baselineQuality, chromaSubsampling: baselineQuality >= 80 ? '4:4:4' : '4:2:0' })
-    : webpQuality || index % 3 === 2 ? image.webp({ quality: webpQuality || 84 })
-      : image.jpeg({ quality: 87, progressive: index % 3 === 1 })
-  const bytes = await preview.toBuffer()
-  images.set(id, bytes)
-  const date = new Date(Date.UTC(2024, 0, Math.floor(index / 2) * 7 + 1, 12))
-  const asset = { id, width, height, localDateTime: date.toISOString() }
+function addPreview(asset: ReplayAsset, bytes: Buffer) {
   library.push(asset)
-  const metadata = JSON.stringify(asset)
-  sourceFingerprint.update(metadata).update(pixels)
-  fingerprint.update(metadata).update(String(bytes.length) + '\n').update(bytes)
+  images.set(asset.id, bytes)
+  fingerprint.update(JSON.stringify(asset)).update(String(bytes.length) + '\n').update(bytes)
+}
+
+if (captureDirectory) {
+  for await (const { asset, bytes } of readCapturedPreviews(captureDirectory)) addPreview(asset, bytes)
+} else {
+  for (let index = 0; index < 72; index++) {
+    const width = 960
+    const height = 1440
+    const pixels = Buffer.alloc(width * height * 3)
+    const ridge = Array.from({ length: width }, (_, x) => 680 + Math.sin(x / 70 + index) * 180)
+    let noise = index + 4321
+    const clamp = (value: number) => Math.max(0, Math.min(255, value))
+    for (let y = 0; y < height; y++) {
+      const layers = Math.cos(y / (13 + index % 12)) * 27
+      for (let x = 0; x < width; x++) {
+        noise = (Math.imul(noise, 1664525) + 1013904223) >>> 0
+        const terrain = (y > ridge[x] ? 40 : 85) + layers + (noise >>> 26)
+        const i = (y * width + x) * 3
+        pixels[i] = clamp(terrain + (x + index * 19) % 64)
+        pixels[i + 1] = clamp(terrain + (y + index * 13) % 72)
+        pixels[i + 2] = clamp(terrain + 60)
+      }
+    }
+    const id = `${(index + 1).toString(16).padStart(8, '0')}-1111-4222-8333-123456789abc`
+    const image = sharp(pixels, { raw: { width, height, channels: 3 } })
+    if (previewSize) {
+      // Immich resizes in linear light and fits the image outside the square,
+      // so the configured size describes the short edge for these portraits.
+      image.pipelineColourspace('scrgb').resize(previewSize, previewSize, { fit: 'outside', withoutEnlargement: true })
+        .toColourspace('srgb')
+    }
+    const preview = baselineQuality
+      ? image.jpeg({ quality: baselineQuality, chromaSubsampling: baselineQuality >= 80 ? '4:4:4' : '4:2:0' })
+      : webpQuality || index % 3 === 2 ? image.webp({ quality: webpQuality || 84 })
+        : image.jpeg({ quality: 87, progressive: index % 3 === 1 })
+    const bytes = await preview.toBuffer()
+    const date = new Date(Date.UTC(2024, 0, Math.floor(index / 2) * 7 + 1, 12))
+    const asset = { id, width, height, localDateTime: date.toISOString() }
+    sourceFingerprint.update(JSON.stringify(asset)).update(pixels)
+    addPreview(asset, bytes)
+  }
 }
 
 const replayProfile = JSON.stringify({
-  run: randomUUID(), sha256: fingerprint.digest('hex'), sourceSha256: sourceFingerprint.digest('hex'),
+  run: randomUUID(), sha256: fingerprint.digest('hex'), sourceSha256: captureDirectory ? undefined : sourceFingerprint.digest('hex'),
+  capturedPreviews: Boolean(captureDirectory),
   previewSize, baselineQuality, webpQuality, previewStallMs,
   warmRotation: warmRotation ?? null, warmPairFill,
 })
@@ -191,6 +205,7 @@ recordHistory = outageHistory
 applyPreviewStalls = previewStallMs > 0
 const encoding = baselineQuality ? `baseline JPEG quality ${baselineQuality}`
   : webpQuality ? `WebP quality ${webpQuality}` : 'mixed JPEG and WebP'
-console.log(`Replay previews ${previewSize || 'source size'}, ${encoding}`)
+if (captureDirectory) console.log(`Replay captured ${library.length} unchanged Immich previews`)
+else console.log(`Replay previews ${previewSize || 'source size'}, ${encoding}`)
 if (previewStallMs) console.log(`Replay pauses every eighth preview for ${previewStallMs} ms midway through the response`)
 console.log(`Replay ready at ${origin} (${unavailable ? 'service unavailable' : warmRotation === undefined ? 'cold' : 'prewarmed service cache'})`)
