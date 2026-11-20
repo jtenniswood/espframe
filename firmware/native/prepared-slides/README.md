@@ -112,6 +112,50 @@ encoder overrides unset. To test a prewarmed cache, set
 run. The usual `compare --prepared-service` command checks that both
 captures used the same files in the same order.
 
+### Measure thumbnail loading and the full-preview handoff
+
+Save Immich's `GET /api/assets/<id>/thumbnail?size=thumbnail` responses in
+a second directory as `<id>.preview`. Copy the same `manifest.json` to
+both directories. The replay checks the order, asset IDs and dates, then
+serves the two image sizes independently. Use the same two directories
+for the control and staged runs.
+
+```sh
+REPLAY_HOST="$REPLAY_IP" \
+REPLAY_PREVIEW_DIRECTORY=/path/to/previews \
+REPLAY_THUMBNAIL_DIRECTORY=/path/to/thumbnails \
+node replay.ts
+```
+
+Build the [V1 rapid app-only trial](../README.md#measure-swipe-rendering-over-the-local-network)
+with `-D SWIPE_TRIAL_REPLAY_ORIGIN=http://$REPLAY_IP:9116`,
+`-D SWIPE_TRIAL_REPLAY_PAIR_FILL=ON`, and
+`-D SWIPE_TRIAL_REPLAY_STAGED_DETAIL=ON`. Set staged detail to `OFF` for
+the control. Use the usual rollback readiness check before either upload.
+Restart the replay server between runs.
+
+The staged trial decodes both thumbnails before adding a portrait pair to
+the swipe cache. It requests full previews for the settled slide after a
+short pause when the next slide is available or the feed has ended. A failed
+replacement leaves the thumbnail pair in the cache.
+
+```sh
+python3 firmware/native/tools/compare_preview_replays.py capture \
+  --frame "http://$FRAME_IP" --replay "http://$REPLAY_IP:9116" staged.json
+```
+
+The capture waits for all 48 swipes and a full-detail display handoff for the
+last settled slide. It includes `observed_detail_after_settle_ms`, which
+includes polling time, and `status.last_detail_latency_ms`, which measures
+the firmware request through LCD handoff. Compare `benchmark.cache_hits`,
+`benchmark.cold_returns`, and `benchmark.refill` in the control and staged
+captures. With natural photos, the synthetic bright-edge check can flag
+dark picture content. Check full-detail framing visually.
+
+For a retry run, set `REPLAY_FAIL_DETAIL_ONCE=1` on the replay server. The
+first full-preview request returns HTTP 503. The capture also verifies that
+the server saw the injected error.
+
 ### Measure direct preview lookahead
 
 Build the direct replay twice from the same revision, using the same replay origin and separate build directories. Set `-D SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD=ON` for the control and set it to `OFF` for lookahead. For each run, restart the synthetic server with the same settings, then follow the [V1 rollback readiness and app-only trial instructions](../README.md#verify-the-rollback-and-gestures).

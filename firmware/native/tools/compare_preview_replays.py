@@ -35,6 +35,22 @@ def capture(frame, replay, timeout):
     preparation = read_json(frame, "/api/trial/prepare")
     status = read_json(frame, "/api/trial")
     result = {"frame": frame, "profile": profile, "benchmark": benchmark, "preparation": preparation, "status": status}
+    if benchmark.get("replay_staged_detail") is True:
+        if not profile.get("thumbnailSha256") or not status.get("thumbnail_slides") or benchmark.get("wrong_slide"):
+            raise ValueError("The staged replay must land on the expected thumbnail pair using a matched capture")
+        settled_sample_ms = status["uptime_ms"]
+        while status.get("last_detail_slide") != benchmark["settled_slide"]:
+            if monotonic() >= deadline:
+                raise ValueError("Full detail for the settled slide was not presented before the capture timeout")
+            sleep(0.5)
+            status = read_json(frame, "/api/trial")
+        if not status.get("detail_presentations") or status["uptime_ms"] < settled_sample_ms:
+            raise ValueError("The frame did not report a valid full-detail presentation")
+        result["status"] = status
+        result["observed_detail_after_settle_ms"] = status["uptime_ms"] - settled_sample_ms
+        result["replay_stats"] = read_json(replay, "/replay-stats")
+        if profile.get("failFirstDetail") and result["replay_stats"].get("failedDetails") != 1:
+            raise ValueError("The replay did not inject the expected full-preview error")
     if profile.get("previewStallMs"):
         result["replay_stats"] = read_json(replay, "/replay-stats")
     if benchmark != read_json(frame, "/api/trial/benchmark"):

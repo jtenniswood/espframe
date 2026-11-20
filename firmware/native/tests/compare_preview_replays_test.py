@@ -237,6 +237,29 @@ class ReplayTest(unittest.TestCase):
         wait.assert_called_once()
 
     @patch.object(replays, "read_json")
+    @patch.object(replays, "sleep")
+    def test_staged_capture_waits_for_detail_on_the_final_slide(self, wait, get):
+        run = example(True)
+        profile, benchmark, preparation = run["profile"], run["benchmark"], run["preparation"]
+        profile.update(thumbnailSha256="thumbnail fixture", failFirstDetail=True)
+        benchmark.update(replay_staged_detail=True, settled_slide=19)
+        settled = {**run["status"], "thumbnail_slides": 21, "uptime_ms": 31_000,
+                   "detail_presentations": 1, "last_detail_slide": 18}
+        detailed = {**settled, "uptime_ms": 34_000, "detail_presentations": 2,
+                    "last_detail_slide": 19, "last_detail_latency_ms": 1830}
+        stats = {"failedDetails": 1}
+        get.side_effect = [profile, benchmark, preparation, settled, detailed, stats, benchmark, profile]
+        result = replays.capture(FRAME, ORIGIN, 2)
+        self.assertEqual(result["observed_detail_after_settle_ms"], 3000)
+        self.assertEqual(result["status"], detailed)
+        self.assertEqual(result["replay_stats"], stats)
+        wait.assert_called_once()
+
+        get.side_effect = [profile, benchmark, preparation, settled, detailed, {"failedDetails": 0}]
+        with self.assertRaisesRegex(ValueError, "expected full-preview error"):
+            replays.capture(FRAME, ORIGIN, 2)
+
+    @patch.object(replays, "read_json")
     def test_capture_rejects_a_server_restart(self, get):
         run = example(True)
         profile, benchmark = run["profile"], run["benchmark"]

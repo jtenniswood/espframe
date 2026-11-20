@@ -52,6 +52,14 @@ class SlideCache {
     return ready;
   }
 
+  bool has_thumbnail(SlideIndex slide) const {
+    for (const auto &entry : entries_) {
+      if (entry.state == State::Ready && entry.slide == slide)
+        return entry.thumbnail;
+    }
+    return false;
+  }
+
   bool needs_refresh(SlideIndex slide) const {
     for (const auto &entry : this->entries_) {
       if (entry.state == State::Ready && entry.slide == slide)
@@ -132,7 +140,7 @@ class SlideCache {
   }
 
   bool complete(const Lease &lease, bool ready, bool caption_waiting_for_time = false,
-                bool caption_waiting_for_details = false) {
+                bool caption_waiting_for_details = false, bool thumbnail = false) {
     if (lease.slot >= capacity)
       return false;
     auto &entry = this->entries_[lease.slot];
@@ -145,6 +153,7 @@ class SlideCache {
       }
     }
     entry.state = ready ? State::Ready : State::Empty;
+    entry.thumbnail = ready && thumbnail;
     entry.caption_waiting_for_time = ready && caption_waiting_for_time;
     entry.caption_waiting_for_details = ready && caption_waiting_for_details;
     return true;
@@ -171,6 +180,7 @@ class SlideCache {
     bool needs_refresh{};
     bool caption_waiting_for_time{};
     bool caption_waiting_for_details{};
+    bool thumbnail{};
   };
 
   Buffers buffers_;

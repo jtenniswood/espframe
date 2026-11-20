@@ -227,7 +227,7 @@ class SlideLoader {
     bool cancelled;
     bool source_ready;
     bool caption_only;
-    ImmichSource::PendingCaption caption;
+    ImmichSource::PendingPresentation presentation;
   };
 
   bool live() const { return this->live_; }
@@ -409,7 +409,7 @@ class SlideLoader {
       const auto connection = network.photo_connection();
       auto result = Result::Ready;
       bool source_ready = true;
-      ImmichSource::PendingCaption caption{};
+      ImmichSource::PendingPresentation presentation{};
       if ((!esphome_trial || trial_immich) && !trial_fixtures && loader.live_ && lease.slide > 0) {
         if constexpr (trial_immich)
           record_live_trial_prepare();
@@ -421,7 +421,7 @@ class SlideLoader {
           }
         }
         result = source_ready ? loader.source_.prepare(lease.slide, lease.pixels, lease.replacement,
-                                                       caption, request.caption_only) : Result::Retry;
+                                                       presentation, request.caption_only) : Result::Retry;
       } else {
         const int fixture = lease.slide % fixture_count;
         const auto &photo = photos[fixture];
@@ -442,7 +442,7 @@ class SlideLoader {
       const Completion completion{lease, loader.source_.first_slide(), loader.source_.next_slide(), connection,
                                   loader.source_.source_status(), loader.source_.response(), result,
                                   result != Result::Ready && loader.cancelled_.load(), source_ready,
-                                  request.caption_only, caption};
+                                  request.caption_only, presentation};
       xQueueSend(loader.completed_, &completion, portMAX_DELAY);
     }
   }
@@ -562,12 +562,26 @@ void run(void *) {
       record_live_trial_drag_outcome(*outcome);
   };
   int64_t refill_started_us{};
+  struct DetailHandoff {
+    SlideIndex slide;
+    int64_t requested_us;
+  };
+  constexpr int64_t detail_idle_us = 500'000;
+  int64_t last_detail_motion_us{};
+  int64_t detail_request_us{};
+  std::optional<DetailHandoff> detail_to_submit;
+  std::optional<DetailHandoff> detail_submitted;
   if constexpr (trace_enabled)
     trace.start(Display::nominal_frame_period_us());
   if constexpr (!esphome_trial || trial_immich)
     loader.start_network();
   const auto submit_frame = [&](PixelPosition position, bool moving = true, bool resisted = false) {
     display.submit(position);
+    if constexpr (trial_replay_staged_detail) {
+      if (detail_to_submit && position == detail_to_submit->slide * slide_width)
+        detail_submitted = detail_to_submit;
+      detail_to_submit.reset();
+    }
     if constexpr (capture_motion)
       submitted_stamp = moving ? motion_epoch.stamp(preparing >= 0, resisted) : MotionStamp{};
     if constexpr (trial_immich)
@@ -616,6 +630,13 @@ void run(void *) {
       next_clock_poll = now + 250'000;
     }
     if (const auto scanout = display.poll_presented()) {
+      if constexpr (trial_replay_staged_detail) {
+        if (detail_submitted && display.presented_position() == detail_submitted->slide * slide_width) {
+          record_live_trial_detail_presented(detail_submitted->slide,
+                                             static_cast<uint32_t>((*scanout - detail_submitted->requested_us) / 1000));
+        }
+        detail_submitted.reset();
+      }
       if constexpr (trial_immich)
         record_live_trial_frame(*scanout, submitted_stamp, Display::nominal_frame_period_us(),
                                 static_cast<uint32_t>(esp_timer_get_time() - *scanout), submitted_drag_demand_us);
@@ -667,9 +688,9 @@ void run(void *) {
     if ((!preparing_refresh || at_source_handoff || discard_refresh) && loader.poll(completion)) {
       const bool ready = completion.result == SlideLoader::Result::Ready && !discard_refresh;
       const bool next_candidate = completion.result == SlideLoader::Result::NextCandidate;
-      const bool waiting_caption = ready && completion.caption.time;
-      ESP_ERROR_CHECK(cache.complete(completion.lease, ready, waiting_caption, completion.caption.details)
-                          ? ESP_OK : ESP_ERR_INVALID_STATE);
+      const bool waiting_caption = ready && completion.presentation.caption_time;
+      ESP_ERROR_CHECK(cache.complete(completion.lease, ready, waiting_caption, completion.presentation.caption_details,
+                                    completion.presentation.thumbnail) ? ESP_OK : ESP_ERR_INVALID_STATE);
       refresh_waiting_captions |= local_time_ready && waiting_caption;
       const auto slide = completion.lease.slide;
       if constexpr (trace_enabled) {
@@ -688,6 +709,14 @@ void run(void *) {
           record_live_trial_candidate_retry();
       }
       if (ready) {
+        if constexpr (trial_replay_staged_detail) {
+          if (completion.presentation.thumbnail)
+            record_live_trial_thumbnail_ready();
+          if (detail_request_us && slide == center) {
+            last_submitted = -1;
+            detail_to_submit = DetailHandoff{slide, detail_request_us};
+          }
+        }
         prefetch.prepared(slide);
         if constexpr (trial_immich) {
           if (slide > 0)
@@ -722,6 +751,7 @@ void run(void *) {
       }
       preparing = -1;
       preparing_refresh = false;
+      detail_request_us = 0;
     }
     if constexpr (!esphome_trial) {
       if (refresh_waiting_captions)
@@ -893,6 +923,10 @@ void run(void *) {
     // Let a stationary contact give time back to the worker. Protect the
     // start of a swipe even when only its landing is ready.
     const bool contact_engaged = input.engaged();
+    if constexpr (trial_replay_staged_detail) {
+      if (!at_source_handoff || contact_engaged)
+        last_detail_motion_us = now;
+    }
     user_motion = input.awake() && (contact_engaged ||
                   (user_motion && (!swipe.idle() || swipe.position() != display.presented_position())));
     bool pixel_work_deferred = false;
@@ -924,7 +958,17 @@ void run(void *) {
         preparing_refresh = refresh;
         return true;
       };
+      if constexpr (trial_replay_staged_detail) {
+        // Leave a forward swipe ready before spending the pause sharpening
+        // the current pair. A new edge drag can cancel the replacement.
+        if (center > 0 && at_source_handoff && !contact_engaged && cache.has_thumbnail(center) &&
+            now - last_detail_motion_us >= detail_idle_us && eligible(center) &&
+            (ready.last > center || center == available.last) && submit(center, prefetch.nearby_window(), true))
+          detail_request_us = now;
+      }
       for (const auto candidate : prefetch.candidates(keep)) {
+        if (preparing >= 0)
+          break;
         if (!eligible(candidate))
           continue;
         const bool refresh = !esphome_trial && cache.needs_refresh(candidate);

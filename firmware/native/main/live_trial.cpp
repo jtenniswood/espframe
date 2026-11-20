@@ -28,6 +28,10 @@ namespace espframe::native {
 namespace {
 
 std::atomic<uint32_t> prepared_slides{};
+std::atomic<uint32_t> thumbnail_slides{};
+std::atomic<uint32_t> detail_presentations{};
+std::atomic<int32_t> last_detail_slide{-1};
+std::atomic<uint32_t> last_detail_latency_ms{};
 std::atomic<unsigned> cache_slots{};
 std::atomic<unsigned> ready_ahead{};
 std::atomic<uint32_t> first_photo_ms{};
@@ -144,14 +148,14 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 script.offline_ready_last);
 #endif
   const auto period = Display::nominal_frame_period_us();
-  char replay[160]{};
+  char replay[192]{};
   if constexpr (direct_trial_replay) {
     std::snprintf(replay, sizeof(replay),
                   ",\"direct_replay_lookahead\":%s,\"direct_replay_companion_prefetch\":%s,\"replay_pair_fill\":%s"
-                  ",\"replay_origin\":\"%s\"",
+                  ",\"replay_origin\":\"%s\"%s",
                   SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD ? "false" : "true",
                   prefetch_portrait_companion ? "true" : "false", trial_replay_pair_fill ? "true" : "false",
-                  trial_replay_origin.data());
+                  trial_replay_origin.data(), trial_replay_staged_detail ? ",\"replay_staged_detail\":true" : "");
   } else if constexpr (synthetic_trial_replay) {
     std::snprintf(replay, sizeof(replay), ",\"replay_prepared\":true,\"replay_pair_fill\":%s,\"replay_origin\":\"%s\"",
                   trial_replay_pair_fill ? "true" : "false", trial_replay_origin.data());
@@ -291,7 +295,16 @@ esp_err_t status(httpd_req_t *request) {
   const auto &network = *static_cast<const NativeNetwork *>(request->user_ctx);
   const auto prepared = prepared_slides.load(std::memory_order_acquire);
   const auto gestures = swipes.load(std::memory_order_acquire);
-  char body[960]{};
+  char detail[152]{};
+  if constexpr (trial_replay_staged_detail) {
+    const auto presentations = detail_presentations.load(std::memory_order_acquire);
+    std::snprintf(detail, sizeof(detail),
+                  ",\"thumbnail_slides\":%" PRIu32 ",\"detail_presentations\":%" PRIu32
+                  ",\"last_detail_slide\":%" PRId32 ",\"last_detail_latency_ms\":%" PRIu32,
+                  thumbnail_slides.load(std::memory_order_relaxed), presentations,
+                  last_detail_slide.load(std::memory_order_relaxed), last_detail_latency_ms.load(std::memory_order_relaxed));
+  }
+  char body[1152]{};
   const auto length = std::snprintf(body, sizeof(body),
                 "{\"trial\":\"v1-live\",\"uptime_ms\":%" PRIu32 ",\"prepared_slides\":%" PRIu32
                 ",\"cache_slots\":%u,\"ready_ahead\":%u"
@@ -305,7 +318,7 @@ esp_err_t status(httpd_req_t *request) {
                 ",\"http_header_timeouts\":%" PRIu32 ",\"http_body_timeouts\":%" PRIu32
                 ",\"search_http\":%d,\"photo_candidates\":%" PRIu32 ",\"pairing_http\":%d,\"pair_candidates\":%" PRIu32
                 ",\"pairing_range_days\":%u"
-                ",\"preview_http\":%d,\"preview_requests\":%" PRIu32 "}",
+                ",\"preview_http\":%d,\"preview_requests\":%" PRIu32 "%s}",
                 static_cast<uint32_t>(esp_timer_get_time() / 1000), prepared,
                 cache_slots.load(std::memory_order_relaxed), ready_ahead.load(std::memory_order_relaxed),
                 first_photo_ms.load(std::memory_order_relaxed),
@@ -322,7 +335,7 @@ esp_err_t status(httpd_req_t *request) {
                 search_http.load(std::memory_order_relaxed), photo_candidates.load(std::memory_order_relaxed),
                 pairing_http.load(std::memory_order_relaxed), pair_candidates.load(std::memory_order_relaxed),
                 pairing_range_days.load(std::memory_order_relaxed),
-                preview_http.load(std::memory_order_relaxed), preview_requests.load(std::memory_order_relaxed));
+                preview_http.load(std::memory_order_relaxed), preview_requests.load(std::memory_order_relaxed), detail);
   if (length < 0 || static_cast<size_t>(length) >= sizeof(body))
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not format trial status");
   httpd_resp_set_type(request, "application/json");
@@ -508,6 +521,16 @@ void record_live_trial_replay_slide(bool paired, bool fill_edges_match) {
     replay_slides.pair_fill_edge_failures += !fill_edges_match;
   }
   portEXIT_CRITICAL(&preparation_lock);
+}
+
+void record_live_trial_thumbnail_ready() {
+  thumbnail_slides.fetch_add(1, std::memory_order_relaxed);
+}
+
+void record_live_trial_detail_presented(int64_t slide, uint32_t request_to_panel_ms) {
+  last_detail_slide.store(static_cast<int32_t>(slide), std::memory_order_relaxed);
+  last_detail_latency_ms.store(request_to_panel_ms, std::memory_order_relaxed);
+  detail_presentations.fetch_add(1, std::memory_order_release);
 }
 
 void record_live_trial_photo(uint32_t elapsed_ms) {

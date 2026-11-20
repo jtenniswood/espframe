@@ -14,6 +14,8 @@ const warmPairFill = process.env.REPLAY_WARM_PAIR_FILL === '1'
 const unavailable = process.env.REPLAY_PREPARED_UNAVAILABLE === '1'
 const outageHistory = process.env.REPLAY_OFFLINE_HISTORY === '1'
 const captureDirectory = process.env.REPLAY_PREVIEW_DIRECTORY
+const thumbnailDirectory = process.env.REPLAY_THUMBNAIL_DIRECTORY
+const failFirstDetail = process.env.REPLAY_FAIL_DETAIL_ONCE === '1'
 const previewSize = Number(process.env.REPLAY_PREVIEW_SIZE ?? '0')
 const baselineQuality = Number(process.env.REPLAY_BASELINE_JPEG_QUALITY ?? '0')
 const webpQuality = Number(process.env.REPLAY_PREVIEW_WEBP_QUALITY ?? '0')
@@ -40,6 +42,9 @@ if (!Number.isInteger(previewStallMs) || previewStallMs < 0 || previewStallMs > 
 }
 if (captureDirectory && (previewSize || baselineQuality || webpQuality || warmPairFill)) {
   throw new Error('Captured previews use their original encoded bytes and Fit pairs')
+}
+if ((thumbnailDirectory && !captureDirectory) || (failFirstDetail && !thumbnailDirectory)) {
+  throw new Error('Staged detail requires matching preview and thumbnail captures')
 }
 const immichKey = 'espframe-synthetic-preview'
 const token = 'espframe-synthetic-slide-replay-only'
@@ -97,13 +102,31 @@ if (captureDirectory) {
   }
 }
 
+const thumbnails = new Map<string, Buffer>()
+const thumbnailFingerprint = createHash('sha256')
+if (thumbnailDirectory) {
+  for await (const { asset, bytes } of readCapturedPreviews(thumbnailDirectory)) {
+    const preview = library[thumbnails.size]
+    if (preview?.id !== asset.id || preview.localDateTime !== asset.localDateTime) {
+      throw new Error('Thumbnail IDs and dates must match the preview manifest in order')
+    }
+    thumbnails.set(asset.id, bytes)
+    thumbnailFingerprint.update(JSON.stringify(asset)).update(String(bytes.length) + '\n').update(bytes)
+  }
+  if (thumbnails.size !== library.length) {
+    throw new Error('Preview and thumbnail manifests differ in length')
+  }
+}
 const replayProfile = JSON.stringify({
   run: randomUUID(), sha256: fingerprint.digest('hex'), sourceSha256: captureDirectory ? undefined : sourceFingerprint.digest('hex'),
   capturedPreviews: Boolean(captureDirectory),
   previewSize, baselineQuality, webpQuality, previewStallMs,
   warmRotation: warmRotation ?? null, warmPairFill,
+  thumbnailSha256: thumbnailDirectory ? thumbnailFingerprint.digest('hex') : undefined,
+  failFirstDetail: thumbnailDirectory ? failFirstDetail : undefined,
 })
 const stalledPreviews = { started: 0, completed: 0, interrupted: 0 }
+let failedDetails = 0
 let offset = 0
 const history = new Set<string>()
 let offline = false
@@ -116,7 +139,7 @@ const server = createServer(async (request, response) => {
   }
   if (request.method === 'GET' && path === '/replay-stats') {
     return response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-      .end(JSON.stringify({ stalledPreviews }))
+      .end(JSON.stringify({ stalledPreviews, failedDetails: thumbnailDirectory ? failedDetails : undefined }))
   }
   if (offline) {
     console.log(JSON.stringify({ offline: path }))
@@ -165,9 +188,20 @@ const server = createServer(async (request, response) => {
       return response.writeHead(400).end()
     }
   }
-  const id = /^\/api\/assets\/([a-f0-9-]+)\/thumbnail\?size=preview$/.exec(path)?.[1]
-  const bytes = id ? images.get(id) : undefined
+  const image = /^\/api\/assets\/([a-f0-9-]+)\/thumbnail\?size=(preview|thumbnail)$/.exec(path)
+  const id = image?.[1]
+  const thumbnail = image?.[2] === 'thumbnail'
+  const bytes = id ? (thumbnail ? thumbnails : images).get(id) : undefined
   if (!id || !bytes || request.method !== 'GET') return response.writeHead(404).end()
+  if (!thumbnail && failFirstDetail && !failedDetails) {
+    ++failedDetails
+    console.log(JSON.stringify({ preview: id, status: 503 }))
+    return response.writeHead(503).end()
+  }
+  if (thumbnail) {
+    console.log(JSON.stringify({ thumbnail: id, bytes: bytes.length }))
+    return response.writeHead(200, { 'Content-Length': bytes.length }).end(bytes)
+  }
   console.log(JSON.stringify({ preview: id, bytes: bytes.length }))
   response.writeHead(200, { 'Content-Length': bytes.length })
   if (!applyPreviewStalls || Number.parseInt(id.slice(0, 8), 16) % 8 !== 0) {

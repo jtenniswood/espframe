@@ -6,7 +6,7 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
-import test from 'node:test'
+import test, { type TestContext } from 'node:test'
 import { setTimeout as sleep } from 'node:timers/promises'
 import sharp from 'sharp'
 import { readCapturedPreviews } from './replay_library.ts'
@@ -36,20 +36,24 @@ test('captured Immich pairs retain the exact preview bytes and order', async t =
   await assert.rejects(collect, /same day/)
 })
 
-test('replay stalls every eighth preview and counts mid-response disconnects', { timeout: 30_000 }, async t => {
+async function startReplay(t: TestContext, options: NodeJS.ProcessEnv) {
   const socket = createServer()
   await once(socket.listen(0, '127.0.0.1'), 'listening')
   const address = socket.address()
   assert.ok(address && typeof address !== 'string')
   await new Promise<void>((resolve, reject) => socket.close(error => error ? reject(error) : resolve()))
 
-  const stallMs = 1000
   const child = spawn(process.execPath, ['replay.ts'], {
     cwd: new URL('.', import.meta.url),
-    env: { ...process.env, REPLAY_HOST: '127.0.0.1', REPLAY_PORT: String(address.port), REPLAY_PREVIEW_STALL_MS: String(stallMs),
-      REPLAY_PREVIEW_DIRECTORY: undefined, REPLAY_PREVIEW_SIZE: '360', REPLAY_PREVIEW_WEBP_QUALITY: '80',
-      REPLAY_BASELINE_JPEG_QUALITY: undefined,
-      REPLAY_WARM_ROTATION: undefined, REPLAY_PREPARED_UNAVAILABLE: undefined, REPLAY_OFFLINE_HISTORY: undefined },
+    env: {
+      ...process.env,
+      REPLAY_HOST: '127.0.0.1', REPLAY_PORT: String(address.port), REPLAY_PREVIEW_STALL_MS: undefined,
+      REPLAY_PREVIEW_DIRECTORY: undefined, REPLAY_THUMBNAIL_DIRECTORY: undefined, REPLAY_FAIL_DETAIL_ONCE: undefined,
+      REPLAY_PREVIEW_SIZE: undefined, REPLAY_PREVIEW_WEBP_QUALITY: undefined, REPLAY_BASELINE_JPEG_QUALITY: undefined,
+      REPLAY_WARM_ROTATION: undefined, REPLAY_WARM_PAIR_FILL: undefined, REPLAY_PREPARED_UNAVAILABLE: undefined,
+      REPLAY_OFFLINE_HISTORY: undefined,
+      ...options,
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   const exited = once(child, 'exit')
@@ -65,7 +69,16 @@ test('replay stalls every eighth preview and counts mid-response disconnects', {
   })
   await Promise.race([ready.promise, exited.then(() => { throw new Error(`Replay server exited\n${errors}`) })])
 
-  const origin = `http://127.0.0.1:${address.port}`
+  return `http://127.0.0.1:${address.port}`
+}
+
+test('replay stalls every eighth preview and counts mid-response disconnects', { timeout: 30_000 }, async t => {
+  const stallMs = 1000
+  const origin = await startReplay(t, {
+    REPLAY_PREVIEW_STALL_MS: String(stallMs),
+    REPLAY_PREVIEW_SIZE: '360',
+    REPLAY_PREVIEW_WEBP_QUALITY: '80',
+  })
   const metadata = async (path: string) => {
     const response = await fetch(origin + path, { signal: AbortSignal.timeout(5000) })
     assert.ok(response.ok)
@@ -108,4 +121,46 @@ test('replay stalls every eighth preview and counts mid-response disconnects', {
     await sleep(25)
   }
   assert.fail('The replay did not count the interrupted body')
+})
+
+
+test('staged replay serves both sizes for the same photos and can fail one full preview', { timeout: 10_000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), 'espframe-staged-replay-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const ids = ['00000001-1111-4222-8333-123456789abc', '00000002-1111-4222-8333-123456789abc']
+  const manifest = ids.map(id => ({ id, localDateTime: '2024-01-01T12:00:00.000Z' }))
+  const files = await Promise.all([
+    sharp({ create: { width: 32, height: 48, channels: 3, background: '#e08c67' } }).jpeg().toBuffer(),
+    sharp({ create: { width: 16, height: 24, channels: 3, background: '#e08c67' } }).webp().toBuffer(),
+  ])
+  const previews = await mkdtemp(join(root, 'previews-'))
+  const thumbs = await mkdtemp(join(root, 'thumbnails-'))
+  for (const [index, directory] of [previews, thumbs].entries()) {
+    await writeFile(join(directory, 'manifest.json'), JSON.stringify(manifest))
+    for (const id of ids) await writeFile(join(directory, `${id}.preview`), files[index])
+  }
+  const options = {
+    REPLAY_PREVIEW_DIRECTORY: previews,
+    REPLAY_THUMBNAIL_DIRECTORY: thumbs,
+    REPLAY_FAIL_DETAIL_ONCE: '1',
+  }
+  const origin = await startReplay(t, options)
+  const profile = await (await fetch(origin + '/replay-profile')).json()
+  assert.equal(profile.failFirstDetail, true)
+  assert.match(profile.thumbnailSha256, /^[a-f0-9]{64}$/)
+  assert.notEqual(profile.thumbnailSha256, profile.sha256)
+
+  const image = (id: string, size: string) => fetch(`${origin}/api/assets/${id}/thumbnail?size=${size}`, {
+    headers: { 'x-api-key': 'espframe-synthetic-preview' }, signal: AbortSignal.timeout(5000),
+  })
+  assert.deepEqual(Buffer.from(await (await image(ids[0], 'thumbnail')).arrayBuffer()), files[1])
+  assert.equal((await image(ids[0], 'preview')).status, 503)
+  for (const id of ids) {
+    assert.deepEqual(Buffer.from(await (await image(id, 'preview')).arrayBuffer()), files[0])
+    assert.deepEqual(Buffer.from(await (await image(id, 'thumbnail')).arrayBuffer()), files[1])
+  }
+  assert.equal((await (await fetch(origin + '/replay-stats')).json()).failedDetails, 1)
+
+  await writeFile(join(thumbs, 'manifest.json'), JSON.stringify([...manifest].reverse()))
+  await assert.rejects(startReplay(t, options), /Thumbnail IDs and dates must match/)
 })

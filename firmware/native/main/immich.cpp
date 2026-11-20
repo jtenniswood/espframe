@@ -607,6 +607,21 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
                                                                               : PreviewStatus::Retry;
 }
 
+bool ImmichSource::load_thumbnail_(const AssetId &id, DecodedPreview &preview) {
+  constexpr size_t thumbnail_capacity = 128 * 1024;
+  // Thumbnails are transient pixels. A separate request size must not seed
+  // the encoded preview cache used to upgrade or revisit this slide.
+  if (cancelled_ || !online_() || !allocate_download_())
+    return false;
+  const auto path = std::string("/assets/") + id.data() + "/thumbnail?size=thumbnail";
+  size_t length = 0;
+  if (fetch_(path, {}, thumbnail_capacity, length, esp_timer_get_time() + 650'000, false) != 200 || cancelled_)
+    return false;
+  const PreviewLayout layout{PreviewTarget::PairPane, feed_().display_mode, feed_().pair_display_mode()};
+  return preview.decode(encoded_, length, layout, nullptr, checkpoint_, PhotoOrientation::Portrait) ==
+         DecodedPreview::Result::Ready;
+}
+
 std::string ImmichSource::prepared_url_(const PhotoSlide &frame, PhotoOrientation orientation, bool frame_fill,
                                         DisplayMode framing) const {
   std::string url(settings_.prepared_slide_url);
@@ -742,7 +757,7 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
 }
 
 ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *panel, bool replacement,
-                                                  PendingCaption &pending_caption, bool caption_only) {
+                                                  PendingPresentation &presentation, bool caption_only) {
   const TrialStageTimer attempt{TrialPreparationStage::Attempt};
   if constexpr (!SWIPE_ESPHOME_TRIAL)
     this->response_ = ImmichResponse::Pending;
@@ -838,7 +853,22 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   if (this->cancelled_)
     return retry_frame();
   std::optional<TrialStageTimer> composition;
-  if (!prepared) {
+  bool thumbnail = false;
+  if constexpr (trial_replay_staged_detail) {
+    if (!prepared && new_position && !remembered && !replacement && pairs_only && seed.orientation_known &&
+        seed.portrait && frame.companion[0] != '\0' && !settings_.has_prepared_slides()) {
+      DecodedPreview left, right;
+      thumbnail = load_thumbnail_(frame.primary, left) && load_thumbnail_(frame.companion, right);
+      if (thumbnail) {
+        composition.emplace(TrialPreparationStage::Composition);
+        if (!left.render(panel, &right, feed_().pair_display_mode(), settings_.screen_rotation, checkpoint_))
+          return retry_frame();
+      }
+      if (cancelled_)
+        return retry_frame();
+    }
+  }
+  if (!prepared && !thumbnail) {
     const auto upcoming = [&](const AssetId &exclude) {
       if (!SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD && !remembered && !settings_.has_prepared_slides()) {
         if (const auto index = this->pending_index_(exclude))
@@ -935,7 +965,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     if (!primary.render(panel, frame.companion[0] == '\0' ? nullptr : &companion, this->feed_().pair_display_mode(),
                         this->settings_.screen_rotation, this->checkpoint_))
       return retry_frame();
-  } else {
+  } else if (!composition) {
     composition.emplace(TrialPreparationStage::Composition);
   }
   const bool paired = frame.companion[0] != '\0';
@@ -955,8 +985,9 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
                       this->settings_.screen_rotation, this->settings_.clock.show, local);
   if (this->cancelled_)
     return retry_frame();
-  pending_caption.time = captions.needs_time() && !local && frame.metadata.capture_day.has_value();
-  pending_caption.details = this->needs_caption_details_(frame.metadata);
+  presentation.thumbnail = thumbnail;
+  presentation.caption_time = captions.needs_time() && !local && frame.metadata.capture_day.has_value();
+  presentation.caption_details = this->needs_caption_details_(frame.metadata);
   if (!remembered && frame.companion[0] != '\0')
     std::erase_if(this->pending_, [&](const ImmichPhoto &photo) { return photo.id == frame.companion; });
   if (new_position) {

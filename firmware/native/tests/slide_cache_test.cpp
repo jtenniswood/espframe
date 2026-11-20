@@ -74,6 +74,20 @@ int main() {
   assert(cache.find(4) == new_crop->pixels && *cache.find(4) == 97);
   assert(!cache.needs_refresh(4) && cache.needs_refresh(3) && cache.needs_refresh(5));
   assert(cache.find(3) == previous_photo && cache.find(5) == next_photo);
+
+  // A thumbnail remains swipeable through a failed detail request and retry.
+  SlideCache staged{buffers};
+  const auto thumbnail = staged.reserve(8, 7, 9);
+  assert(thumbnail && staged.complete(*thumbnail, true, false, false, true));
+  const auto failed_detail = staged.reserve(8, 7, 9, true);
+  assert(failed_detail && staged.has_thumbnail(8) && staged.find(8) == thumbnail->pixels);
+  assert(staged.complete(*failed_detail, false) && staged.has_thumbnail(8));
+  const auto full_detail = staged.reserve(8, 7, 9, true);
+  assert(full_detail && !staged.complete(*failed_detail, true));
+  assert(staged.find(8) == thumbnail->pixels);
+  assert(staged.complete(*full_detail, true));
+  assert(staged.find(8) == full_detail->pixels && !staged.has_thumbnail(8));
+
   const auto next_crop = cache.reserve(5, 3, 5, true);
   assert(next_crop && cache.complete(*next_crop, true));
   assert(cache.find(5) == next_crop->pixels && !cache.needs_refresh(5));

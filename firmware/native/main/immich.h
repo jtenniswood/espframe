@@ -30,15 +30,16 @@ enum class PreviewTarget;
 class ImmichSource {
  public:
   enum class PrepareResult { Ready, Retry, NextCandidate };
-  struct PendingCaption {
-    bool time{};
-    bool details{};
+  struct PendingPresentation {
+    bool caption_time{};
+    bool caption_details{};
+    bool thumbnail{};
   };
 
   ImmichSource(const Settings &settings, const NativeNetwork &network, const std::atomic<bool> &cancelled,
                PreparationCheckpoint checkpoint)
       : cancelled_(cancelled), checkpoint_(checkpoint), settings_(settings), network_(network), http_(cancelled) {}
-  PrepareResult prepare(SlideIndex slide, uint16_t *panel, bool replacement, PendingCaption &caption,
+  PrepareResult prepare(SlideIndex slide, uint16_t *panel, bool replacement, PendingPresentation &presentation,
                         bool caption_only = false);
   void apply_photo_settings(PhotoFeedSettings feed, std::optional<SlideIndex> first_slide);
   void expire_warm_tone_override() {
@@ -80,6 +81,7 @@ class ImmichSource {
   void complete_caption_details_(PhotoSlide &frame);
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, PreviewTarget target, int64_t deadline_us,
                               bool report_response, const AssetId &lookahead = {});
+  bool load_thumbnail_(const AssetId &id, DecodedPreview &preview);
   PreparedPreview render_prepared_(const PhotoSlide &frame, uint16_t *panel, PhotoOrientation orientation);
   std::string prepared_url_(const PhotoSlide &frame, PhotoOrientation orientation, bool frame_fill, DisplayMode framing) const;
   void warm_next_prepared_(const PhotoSlide &current);

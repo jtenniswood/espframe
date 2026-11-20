@@ -54,6 +54,8 @@ void record_live_trial_preview(int http_status);
 void record_live_trial_preparation_time(TrialPreparationStage stage, uint32_t elapsed_us, size_t bytes = 0);
 void record_live_trial_progressive_jpeg(TrialJpegPhaseTiming input, TrialJpegPhaseTiming output);
 void record_live_trial_replay_slide(bool paired, bool fill_edges_match);
+void record_live_trial_thumbnail_ready();
+void record_live_trial_detail_presented(int64_t slide, uint32_t request_to_panel_ms);
 void record_live_trial_photo(uint32_t elapsed_ms);
 void record_live_trial_cache(unsigned slots, unsigned ahead);
 void record_live_trial_gesture(uint32_t motion_us, const FirstMotionTrace &motion);
