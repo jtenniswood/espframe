@@ -1,6 +1,7 @@
 #pragma once
 #include "date_utils.h"
 #include "esp_random.h"
+#include "immich_filter_config.h"
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
@@ -48,41 +49,6 @@ struct ImmichMetadataCountCacheEntry {
 enum class ImmichApiGeneration : uint8_t {
   V31_FLAT = 0,
   V32_STRUCTURED = 1,
-};
-
-struct ImmichFilterConfig {
-  bool albums_enabled = false;
-  bool people_enabled = false;
-  bool tags_enabled = false;
-  bool favorites_enabled = false;
-  bool rating_enabled = false;
-  bool location_enabled = false;
-  std::string album_ids;
-  std::string person_ids;
-  std::string tag_ids;
-  std::string album_matching = "Any selected";
-  std::string person_matching = "Any selected";
-  std::string tag_matching = "Any selected";
-  std::string inclusion_matching = "Match all enabled groups";
-  std::string favorite_mode = "Any";
-  uint8_t minimum_rating = 0;
-  std::string taken_after;
-  std::string taken_before;
-  std::string city;
-  std::string state;
-  std::string country;
-  std::string excluded_album_ids;
-  std::string excluded_person_ids;
-  std::string excluded_tag_ids;
-};
-
-struct ImmichFilterBranch {
-  // Empty means there are no inclusion groups. "All" means every enabled
-  // group is present; the other values identify the one sampled OR branch.
-  std::string group;
-  std::string album_ids;
-  std::string person_ids;
-  std::string tag_ids;
 };
 
 inline bool immich_matching_is_all(const std::string &value) {
@@ -327,7 +293,7 @@ inline std::string build_immich_filter_search_body(
     const ImmichFilterConfig &config, const ImmichFilterBranch &branch,
     ImmichApiGeneration generation, uint16_t size, bool with_people,
     bool metadata_search = false, uint32_t page = 1,
-    const std::string &cursor = "") {
+    const std::string &cursor = "", bool with_exif = true) {
   if (size == 0) size = 1;
   if (page == 0) page = 1;
   std::string body = "{";
@@ -338,7 +304,7 @@ inline std::string build_immich_filter_search_body(
     immich_append_json_field(body, root_field, "cursor", "\"" + immich_json_escape(cursor) + "\"");
   }
   immich_append_json_field(body, root_field, "size", std::to_string(size));
-  immich_append_json_field(body, root_field, "withExif", "true");
+  if (with_exif) immich_append_json_field(body, root_field, "withExif", "true");
   if (with_people) immich_append_json_field(body, root_field, "withPeople", "true");
 
   if (generation == ImmichApiGeneration::V31_FLAT) {
