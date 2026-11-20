@@ -864,13 +864,15 @@ void run(void *) {
     const bool contact_engaged = input.engaged();
     user_motion = input.awake() && (contact_engaged ||
                   (user_motion && (!swipe.idle() || swipe.position() != display.presented_position())));
+    bool pixel_work_deferred = false;
     if (live && !trial_fixtures) {
       const auto drag = swipe.drag_activity(now, drag_moving_window_us, drag_start_guard_us);
       const bool can_defer = drag != Swipe::DragActivity::Still
                                  ? prefetch.can_defer_drag(ready, swipe.origin_slide(), swipe.position(),
                                                            drag == Swipe::DragActivity::Starting)
                                  : !contact_engaged && prefetch.can_defer_settle(ready, swipe.settle_destination());
-      loader.defer_pixel_work(user_motion && can_defer);
+      pixel_work_deferred = user_motion && can_defer;
+      loader.defer_pixel_work(pixel_work_deferred);
     }
     if (preparing >= 0) {
       if (const auto wanted = prefetch.requested();
@@ -1079,7 +1081,15 @@ void run(void *) {
           constexpr auto limit = PixelPosition{slide_width - 1};
           const int logical_pull = static_cast<int>(std::clamp(position - inside, -limit, limit));
           const int pull = logical_pull * axis_direction(rotation);
+          // Protect the bulk copy, then let the urgent refill resume while
+          // the renderer draws overlays and the display scans out the frame.
+          const bool pause_for_copy = live && !trial_fixtures && preparing >= 0 && !pixel_work_deferred &&
+                                      swipe.dragging() && position != last_submitted;
+          if (pause_for_copy)
+            loader.defer_pixel_work(true);
           blitter.edge(output, left, pull);
+          if (pause_for_copy)
+            loader.defer_pixel_work(false);
           if (left == snapshot)
             clock.restore_rows(output, std::max(0, pull), std::max(0, -pull), panel_height - std::abs(pull));
         } else {

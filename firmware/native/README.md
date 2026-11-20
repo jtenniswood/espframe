@@ -549,10 +549,11 @@ The status route also reports clock and connection readiness, HTTP status
 codes, and candidate counts. `candidate_retries` counts times a preview was
 rejected and another candidate was already available, so the player could
 retry that slide after 100 ms. `pixel_pauses` and `pixel_pause_ms` report how
-often and how long photo preparation waited while the user moved between
-ready slides. Transfers can continue during a swipe. Pixel work can resume
-during a stationary hold, at an unready edge, or after six refresh periods
-of dragging toward the last ready neighbour. The status includes the Wi-Fi
+often and how long pixel preparation waited during a swipe. Transfers can
+continue during a swipe. At an unready edge, pixel work yields during the
+bulk copy of each moving frame and resumes between copies. It can also resume
+during a stationary hold or after six refresh periods of dragging toward
+the last ready neighbour. The status includes the Wi-Fi
 power-save mode, signal level and primary channel when the frame gets an address.
 HTTP diagnostic counts distinguish
 connection-open failures from retryable header and body timeouts. The loader
