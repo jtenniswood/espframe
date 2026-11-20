@@ -340,7 +340,8 @@ Eligible baseline JPEG previews use the ESP32-P4 JPEG decoder. The frame
 uses software decoding for progressive JPEG and WebP, and falls back to
 software if the hardware path cannot finish. The software JPEG decoder can
 downscale in eighths during decoding and uses the smallest size that covers
-the selected crop. WebP decoding can pause between row batches while a drag
+the selected crop. Progressive JPEGs skip transforms outside the crop's top
+and bottom edges. WebP decoding can pause between row batches while a drag
 needs the display's memory bandwidth. Compare
 `decode_us` and `hardware_jpeg` in the USB log when testing live playback.
 

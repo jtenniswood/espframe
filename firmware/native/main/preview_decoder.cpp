@@ -153,6 +153,19 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegCallbacks &callbacks, cons
   const bool direct = packed && left == 0 && top == 0 && crop_width == decoder.output_width &&
                       crop_height == decoder.output_height && static_cast<unsigned>(size.width) == crop_width &&
                       static_cast<unsigned>(size.height) == crop_height;
+  // A progressive JPEG has already read and checked the entire input in
+  // jpeg_start_decompress(). Skip transform and color work outside its crop.
+  const bool skip_margins = decoder.progressive_mode && (top != 0 || top + crop_height < decoder.output_height);
+  const auto skip_rows = [&](JDIMENSION rows) {
+    if (!checkpoint())
+      return Decode::Interrupted;
+    return jpeg_skip_scanlines(&decoder, rows) == rows ? Decode::Ready : Decode::Invalid;
+  };
+  if (skip_margins && top != 0) {
+    const auto skipped = skip_rows(top);
+    if (skipped != Decode::Ready)
+      return skipped;
+  }
   JSAMPARRAY rows = nullptr;
   uint16_t *column_offsets = nullptr;
   if (!direct) {
@@ -192,6 +205,11 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegCallbacks &callbacks, cons
         }
       }
       ++target_y;
+    }
+    if (skip_margins && target_y == static_cast<unsigned>(size.height) && decoder.output_scanline < decoder.output_height) {
+      const auto skipped = skip_rows(decoder.output_height - decoder.output_scanline);
+      if (skipped != Decode::Ready)
+        return skipped;
     }
   }
   return jpeg_finish_decompress(&decoder) ? Decode::Ready : Decode::Invalid;
