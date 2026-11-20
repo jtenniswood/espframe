@@ -59,6 +59,10 @@ std::optional<std::chrono::sys_days> local_today() {
   return sys_days{year(local->tm_year + 1900) / (local->tm_mon + 1) / local->tm_mday};
 }
 
+bool wants_search_exif(const PhotoFeedSettings &feed) {
+  return feed.metadata.show_location || feed.requires_portrait_pair();
+}
+
 }  // namespace
 
 void ImmichSource::apply_photo_settings(PhotoFeedSettings feed, std::optional<SlideIndex> first_slide) {
@@ -67,6 +71,8 @@ void ImmichSource::apply_photo_settings(PhotoFeedSettings feed, std::optional<Sl
     this->prepared_retry_us_ = 0;
     this->prepared_frame_fill_retry_us_ = 0;
   }
+  if (first_slide || wants_search_exif(this->feed_()) != wants_search_exif(feed))
+    this->random_search_count_ = photo_search_batch;
   this->selection_ = std::move(feed);
   if (!first_slide)
     return;
@@ -169,8 +175,10 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
   if (!pairing)
     this->pending_is_paged_ = paged;
   uint32_t page = album_page ? album_page->page : 1;
-  size_t count = album_page ? album_page->count : photo_search_batch;
-  const bool with_exif = this->feed_().metadata.show_location || this->feed_().requires_portrait_pair();
+  size_t count = pairing ? photo_search_batch : this->random_search_count_;
+  if (album_page)
+    count = album_page->count;
+  const bool with_exif = wants_search_exif(this->feed_());
   const auto dates = this->feed_().photo_source.mode == PhotoSourceMode::Memories
                          ? CaptureDateRange{} : this->capture_date_range_;
   const auto make_request = [&](bool exif) {
@@ -220,6 +228,11 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
     // A locally filtered page can be empty even when the album continues.
     this->pending_has_next_page_ = response.has_next_page(page);
     album_page->page = this->pending_has_next_page_ ? response.next_page : 1;
+  }
+  if (!pairing && !paged && response.valid) {
+    // Keep a size that worked for this random feed. A large EXIF response
+    // can exceed the search buffer every time, even with different photos.
+    this->random_search_count_ = count;
   }
   if constexpr (!SWIPE_ESPHOME_TRIAL) {
     if (!pairing && !response.valid && !cancelled_)

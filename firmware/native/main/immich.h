@@ -100,6 +100,7 @@ class ImmichSource {
     size_t count{photo_search_batch};
   };
   std::map<std::string, AlbumPage> album_pages_;
+  size_t random_search_count_{photo_search_batch};
   ImmichFilterBranch filter_branch_;
   uint8_t next_filter_group_{};
   int next_filter_album_{};
