@@ -123,13 +123,14 @@ int main() {
     assert(player.settled() == expected);
     assert(rapid.results().started == 1 && rapid.results().settled == 1);
     assert(rapid.results().cold_starts == 1 && rapid.results().wrong_slide == 0);
+    if (rapid.results().refill.count == 0)
+      assert(!rapid.poll(start + ready_after, player.settled(), {1, 2}, false));
     assert(rapid.results().refill.count == 1 && rapid.results().refill.worst_us == ready_after);
     return rapid.results();
   };
-  // A refill after release can still complete a deliberate swipe in time.
-  const auto late = run_cold(280'000, 2);
-  assert(late.cold_releases_unready == 1 && late.cold_returns == 0 && late.cold_release_advances == 1);
-  // A refill after the bounded wait leaves the original slide in place.
+  // A refill after release leaves the original slide in place.
+  const auto late = run_cold(280'000, 1);
+  assert(late.cold_releases_unready == 1 && late.cold_returns == 1 && late.cold_release_advances == 0);
   const auto expired = run_cold(1'000'000, 1);
   assert(expired.cold_releases_unready == 1 && expired.cold_returns == 1 && expired.cold_release_advances == 0);
   // A refill early in the drag leaves enough travel to advance.

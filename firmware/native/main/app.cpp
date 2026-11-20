@@ -800,10 +800,10 @@ void run(void *) {
     }
 
     const SlideRange ready{ready_first, ready_last};
-    if (swipe.dragging())
+    if (swipe.dragging() || (swipe.settling() && swipe.position() > ready.last * slide_width))
       prefetch.request_at_edge(swipe.position(), ready, available);
     else
-      prefetch.request_slide(swipe.waiting_slide());
+      prefetch.request_after_drag(swipe.waiting_slide());
     if (const auto wanted = prefetch.requested(); wanted && cache.find(*wanted))
       prefetch.prepared(*wanted);
     const auto keep = prefetch.window(available);

@@ -169,14 +169,14 @@ int main() {
   // The previous photo can finish prefetching after an intentional release.
   const auto held_edge = swipe.position();
   swipe.release(320'000);
-  prefetch.request_slide(swipe.waiting_slide());
+  prefetch.request_after_drag(swipe.waiting_slide());
   assert(prefetch.requested() == 9 && !prefetch.can_defer_pixel_work({10, 12}, false, 10));
   swipe.tick(500'000);
   assert(swipe.loading_direction(500'000) == -1 && swipe.position() == held_edge);
   swipe.set_ready_range(7, 12);
   swipe.tick(600'000);
   assert(swipe.settling() && swipe.position() == held_edge);
-  prefetch.request_slide(swipe.waiting_slide());
+  prefetch.request_after_drag(swipe.waiting_slide());
   assert(!prefetch.requested());
   swipe.tick(900'000);
   assert(swipe.idle() && swipe.settled() == 9);
@@ -213,18 +213,35 @@ int main() {
   reverse_drag.request_at_edge(active_drag.position(), {10, 11}, available);
   assert(reverse_drag.requested() == 9);
   active_drag.release(2'240'000);
-  reverse_drag.request_slide(active_drag.waiting_slide());
+  reverse_drag.request_after_drag(active_drag.waiting_slide());
   assert(!reverse_drag.requested());
 
   active_drag.show(10);
   active_drag.press(500, 200, 10 * slide_width, 3'000'000);
   active_drag.move(900, 200, 3'120'000);
   active_drag.release(3'240'000);
-  reverse_drag.request_slide(active_drag.waiting_slide());
+  reverse_drag.request_after_drag(active_drag.waiting_slide());
   assert(reverse_drag.requested() == 9);
   active_drag.tick(3'240'000 + Swipe::max_loading_wait_us);
-  reverse_drag.request_slide(active_drag.waiting_slide());
+  reverse_drag.request_after_drag(active_drag.waiting_slide());
   assert(!reverse_drag.requested() && active_drag.settle_destination() == 10);
+
+  // Pulling at the forward edge changes the priority, even after a rewind.
+  SlidePrefetch forward_edge{11};
+  forward_edge.moved_to(10);
+  const SlideRange cold_edge{8, 10};
+  forward_edge.request_at_edge(10 * slide_width + 20, cold_edge, available);
+  assert(forward_edge.requested() == 11 && forward_edge.can_yield(8, 11));
+  forward_edge.request_after_drag({});
+  assert(forward_edge.requested() == 11 && !forward_edge.can_defer_pixel_work(cold_edge, false, 10));
+  const auto forward_order = forward_edge.candidates(forward_edge.window(available));
+  assert(forward_order[1] == 11 && forward_order[2] == 11 && forward_order[3] == 12);
+  forward_edge.prepared(11);
+  forward_edge.request_after_drag({});
+  assert(!forward_edge.requested() && forward_edge.can_defer_drag({8, 11}, 10, 10 * slide_width + 20));
+  forward_edge.request_at_edge(10 * slide_width + 20, cold_edge, {8, 10});
+  forward_edge.request_after_drag({});
+  assert(!forward_edge.requested());
 
   // A reversal shifts the refill window, but the ready photos beyond it
   // still belong to the current feed and can be used by a touch takeover.

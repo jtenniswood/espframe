@@ -180,23 +180,24 @@ int main() {
   cancelled_refill.tick(start + 390'000);
   assert(cancelled_refill.idle() && cancelled_refill.settled() == 2);
 
-  // Hold the visible edge until the missed photo can join the transition.
+  // A forward miss resists the drag and settles back, even if its refill
+  // finishes during the return animation.
   Swipe waiting{width, 5, 2};
   waiting.set_ready_range(1, 2);
   waiting.press(900, 400, 2 * width, start);
   waiting.move(100, 400, start + 50'000);
-  assert(waiting.position() > 2 * width && waiting.position() < 2 * width + 48);
+  assert(waiting.position() > 2 * width && waiting.position() <= 2 * width + 32);
   constexpr int64_t released = start + 55'000;
   waiting.release(released);
-  const auto held_edge = waiting.position();
-  waiting.tick(released + 120'000);
-  assert(waiting.position() == held_edge && !waiting.idle() && !waiting.advance(released + 120'000, Swipe::Transition::Glide));
-  assert(waiting.loading_direction(released + 159'999) == 0);
-  assert(waiting.loading_direction(released + 160'000) == 1);
+  assert(waiting.settling() && waiting.settle_destination() == 2 && !waiting.waiting_slide());
+  waiting.tick(released + 80'000);
   waiting.set_ready_range(1, 3);
-  waiting.tick(released + 280'000);
-  assert(waiting.settling() && waiting.position() == held_edge && waiting.loading_direction(released + 280'000) == 0);
-  waiting.tick(released + 600'000);
+  waiting.tick(released + 180'000);
+  assert(waiting.idle() && waiting.settled() == 2 && waiting.loading_direction(released + 180'000) == 0);
+  waiting.press(900, 400, 2 * width, released + 200'000);
+  waiting.move(100, 400, released + 250'000);
+  waiting.release(released + 260'000);
+  waiting.tick(released + 510'000);
   assert(waiting.idle() && waiting.settled() == 3);
 
   Swipe expired{width, 5, 2};
@@ -234,7 +235,8 @@ int main() {
     edge_grab.move(650 - 600 * direction, 400, start + 110'000);
     edge_grab.release(start + 120'000);
     const auto visible = edge_grab.position();
-    assert(edge_grab.waiting_slide() == 2 + direction && (visible - 2 * width) * direction > 20);
+    assert((visible - 2 * width) * direction > 20);
+    assert(direction < 0 ? edge_grab.waiting_slide() == 1 : !edge_grab.waiting_slide());
 
     edge_grab.press(650, 400, visible, start + 200'000);
     assert(edge_grab.position() == visible && !edge_grab.waiting_slide());
@@ -245,11 +247,11 @@ int main() {
     assert(edge_grab.position() == visible - 20 * direction);
     edge_grab.move(650 - 160 * direction, 400, start + 530'000);
     edge_grab.release(start + 640'000);
-    assert(edge_grab.waiting_slide() == 2 + direction);
+    assert(direction < 0 ? edge_grab.waiting_slide() == 1 : !edge_grab.waiting_slide());
     edge_grab.set_ready_range(1, 3);
     edge_grab.tick(start + 700'000);
     edge_grab.tick(start + 930'000);
-    assert(edge_grab.idle() && edge_grab.settled() == 2 + direction);
+    assert(edge_grab.idle() && edge_grab.settled() == (direction < 0 ? 1 : 2));
   }
 
   // An evicted history position is a true end, even when the panel has pixels for a newer neighbour.

@@ -192,12 +192,11 @@ class Swipe {
     const bool track_original = this->release_offset_ && (projected - center) * (raw_projection - center) > 0.0f;
     const auto destination = std::clamp(this->origin_slide_ + direction(track_original ? raw_projection : projected),
                                         this->minimum_slide_(), this->maximum_slide_());
-    // The resisted pixels stay beside the ready photo. Use the actual drag
-    // and its velocity to decide whether the finger committed to a cold edge.
+    // Only a missing history slide can hold a release for a short refill.
+    // A forward cache edge settles back to the last ready photo.
     const auto intended = this->origin_slide_ + direction(track_original ? raw_projection : drawn + momentum);
-    if (this->available_(intended) &&
-        ((intended < this->ready_first_ && drawn < this->slide_offset_(this->ready_first_)) ||
-         (intended > this->ready_last_ && drawn > this->slide_offset_(this->ready_last_)))) {
+    if (this->available_(intended) && intended < this->ready_first_ &&
+        drawn < this->slide_offset_(this->ready_first_)) {
       this->released_us_ = now_us;
       this->loading_slide_ = intended;
       this->target_ = this->origin_slide_;
@@ -272,7 +271,7 @@ class Swipe {
     // further movement beyond the visible anchor uses the remaining pull.
     if (std::abs(pull) <= std::abs(anchor))
       return position;
-    const float limit = this->width_ * 0.0375f;
+    const float limit = this->width_ * (pull > 0.0f ? 0.025f : 0.0375f);
     const float travel = pull - anchor;
     const float remaining = std::max(0.0f, limit - std::abs(anchor));
     return edge + anchor + travel * remaining / (std::abs(travel) + limit * 3.0f);
