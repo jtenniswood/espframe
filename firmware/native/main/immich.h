@@ -30,12 +30,17 @@ enum class PreviewTarget;
 class ImmichSource {
  public:
   enum class PrepareResult { Ready, Retry, NextCandidate };
+  struct PendingCaption {
+    bool time{};
+    bool details{};
+  };
 
   ImmichSource(const Settings &settings, const NativeNetwork &network, const std::atomic<bool> &cancelled,
                const std::atomic<bool> &pixel_work_deferred)
       : cancelled_(cancelled), pixel_work_deferred_(pixel_work_deferred), settings_(settings), network_(network),
         http_(cancelled) {}
-  PrepareResult prepare(SlideIndex slide, uint16_t *panel, bool replacement, bool &caption_waiting_for_time);
+  PrepareResult prepare(SlideIndex slide, uint16_t *panel, bool replacement, PendingCaption &caption,
+                        bool caption_only = false);
   void apply_photo_settings(PhotoFeedSettings feed, std::optional<SlideIndex> first_slide);
   SlideIndex first_slide() const { return this->history_.first(); }
   SlideIndex next_slide() const { return this->history_.next(); }
@@ -66,7 +71,8 @@ class ImmichSource {
   bool select_pair_or_landscape_(ImmichPhoto &seed, AssetId &companion);
   AssetId companion_for_(const ImmichPhoto &primary, std::optional<int64_t> search_deadline = {});
   void discard_candidate_(const AssetId &id);
-  void complete_location_(PhotoSlide &frame);
+  bool needs_caption_details_(const PhotoMetadata &metadata) const;
+  void complete_caption_details_(PhotoSlide &frame);
   bool wait_for_pixel_work_() const;
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, PreviewTarget target, int64_t deadline_us,
                               bool report_response, const AssetId &lookahead = {});

@@ -454,11 +454,16 @@ void ImmichSource::discard_candidate_(const AssetId &id) {
   std::erase_if(this->memory_pool_, matches);
 }
 
-void ImmichSource::complete_location_(PhotoSlide &frame) {
-  if (!this->feed_().metadata.show_location || frame.metadata.location_known || !online_() || !allocate_download_())
+bool ImmichSource::needs_caption_details_(const PhotoMetadata &metadata) const {
+  const auto &captions = this->feed_().metadata;
+  return !metadata.location_known && (captions.show_location || (captions.show_date && !metadata.capture_day));
+}
+
+void ImmichSource::complete_caption_details_(PhotoSlide &frame) {
+  if (!this->needs_caption_details_(frame.metadata) || !online_() || !allocate_download_())
     return;
-  // The original search may have skipped EXIF when captions were disabled.
-  // A slow metadata response must not stop the photo from being reframed.
+  // Search responses can omit EXIF. Keep detail requests bounded so the
+  // displayed photo and its available caption can remain on screen.
   size_t length = 0;
   const auto path = std::string("/assets/") + frame.primary.data();
   if (this->fetch_(path, {}, search_capacity, length, esp_timer_get_time() + 350'000, false) != 200)
@@ -674,7 +679,7 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
 }
 
 ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *panel, bool replacement,
-                                                  bool &caption_waiting_for_time) {
+                                                  PendingCaption &pending_caption, bool caption_only) {
   const TrialStageTimer attempt{TrialPreparationStage::Attempt};
   if constexpr (!SWIPE_ESPHOME_TRIAL)
     this->response_ = ImmichResponse::Pending;
@@ -689,6 +694,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     return PrepareResult::Retry;
   const bool reframing_pair = replacement && existing->companion[0] != '\0';
   const bool pairs_only = this->feed_().requires_portrait_pair();
+  const bool preserve_pair = pairs_only || (caption_only && reframing_pair);
   ImmichPhoto seed;
   PhotoSlide frame;
   if (remembered) {
@@ -705,6 +711,22 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     }
     frame.primary = seed.id;
     frame.metadata = seed.metadata;
+  }
+
+  const auto &captions = this->feed_().metadata;
+  if (caption_only && this->needs_caption_details_(frame.metadata)) {
+    this->complete_caption_details_(frame);
+    if (this->cancelled_)
+      return PrepareResult::Retry;
+    if (!frame.metadata.location_known)
+      return PrepareResult::NextCandidate;
+    const auto &previous = existing->metadata;
+    const bool changed_location = captions.show_location &&
+                                  (frame.metadata.city != previous.city || frame.metadata.country != previous.country);
+    const bool changed_date = captions.show_date && frame.metadata.capture_day != previous.capture_day;
+    existing->metadata = frame.metadata;
+    if (!changed_location && !changed_date)
+      return PrepareResult::NextCandidate;
   }
 
   const auto reject_candidate = [&](const AssetId &id) {
@@ -774,7 +796,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       lookahead = upcoming({});
     }
     auto primary_target = PreviewTarget::Slide;
-    if (reframing_pair)
+    if (reframing_pair && !caption_only)
       primary_target = PreviewTarget::PairPane;
     else if (pairs_only)
       primary_target = PreviewTarget::RequiredPair;
@@ -783,7 +805,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     const auto status = this->load_preview_(frame.primary, primary, primary_target, 0, true, lookahead);
     if (this->cancelled_ || status == PreviewStatus::Retry)
       return retry_frame();
-    if (status == PreviewStatus::Missing || (pairs_only && reframing_pair && !primary.portrait()))
+    if (status == PreviewStatus::Missing || (preserve_pair && reframing_pair && !primary.portrait()))
       return reject_candidate(frame.primary);
 
     // Optional pairing leaves the first preview on the fast path.
@@ -812,7 +834,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
                                              paired_primary, upcoming(frame.companion));
       if (right == PreviewStatus::Retry && (remembered || pairs_only))
         return retry_frame();
-      if (pairs_only && (right == PreviewStatus::Missing || !companion.portrait())) {
+      if (preserve_pair && (right == PreviewStatus::Missing || !companion.portrait())) {
         if (!remembered && !settings_.has_prepared_slides() && unavailable_.contains(frame.companion, esp_timer_get_time()))
           this->pending_.push_back(seed);
         return reject_candidate(frame.companion);
@@ -844,9 +866,8 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   } else {
     composition.emplace(TrialPreparationStage::Composition);
   }
-  if (replacement)
-    this->complete_location_(frame);
-  const auto &captions = this->feed_().metadata;
+  if (replacement && !caption_only)
+    this->complete_caption_details_(frame);
   const auto &tone = this->settings_.tone;
   const auto local = captions.needs_time() || tone.night_enabled ? local_clock_time(std::time(nullptr)) : std::nullopt;
   if (tone.night_enabled && !this->tone_daylight_)
@@ -859,7 +880,8 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
                       this->settings_.screen_rotation, this->settings_.clock.show, local);
   if (this->cancelled_)
     return retry_frame();
-  caption_waiting_for_time = captions.needs_time() && !local && frame.metadata.capture_day.has_value();
+  pending_caption.time = captions.needs_time() && !local && frame.metadata.capture_day.has_value();
+  pending_caption.details = this->needs_caption_details_(frame.metadata);
   if (!remembered && frame.companion[0] != '\0')
     std::erase_if(this->pending_, [&](const ImmichPhoto &photo) { return photo.id == frame.companion; });
   if (new_position) {

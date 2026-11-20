@@ -124,8 +124,25 @@ int main() {
   captions.mark_waiting_captions_for_refresh();
   assert(!captions.needs_refresh(10));
   const auto old_source = captions.reserve(12, 10, 12);
-  assert(old_source && captions.complete(*old_source, true, true));
+  assert(old_source && captions.complete(*old_source, true, true, true));
+  assert(captions.needs_caption_details(12));
   captions.discard_other_ready_slides(12);
   captions.mark_waiting_captions_for_refresh();
-  assert(captions.find(12) == old_source->pixels && !captions.needs_refresh(12));
+  assert(captions.find(12) == old_source->pixels && !captions.needs_refresh(12) && !captions.needs_caption_details(12));
+
+  // Missing asset details do not prevent the uncaptioned slide from being
+  // read. Failed and cancelled lookups leave the visible pixels untouched.
+  const auto without_details = captions.reserve(13, 12, 13);
+  assert(without_details && captions.complete(*without_details, true, false, true));
+  assert(captions.find(13) == without_details->pixels && captions.needs_caption_details(13));
+  const auto cancelled_details = captions.reserve(13, 12, 13, true);
+  assert(cancelled_details && captions.complete(*cancelled_details, false));
+  assert(captions.find(13) == without_details->pixels && captions.needs_caption_details(13));
+  const auto new_caption = captions.reserve(13, 12, 13, true);
+  assert(new_caption && captions.complete(*new_caption, true));
+  assert(captions.find(13) == new_caption->pixels && !captions.needs_caption_details(13));
+  const auto another = captions.reserve(14, 12, 14);
+  assert(another && captions.complete(*another, true, false, true));
+  captions.stop_caption_details(14);
+  assert(captions.find(14) == another->pixels && !captions.needs_caption_details(14));
 }

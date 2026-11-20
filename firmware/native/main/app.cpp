@@ -222,7 +222,8 @@ class SlideLoader {
     Result result;
     bool cancelled;
     bool source_ready;
-    bool caption_waiting_for_time;
+    bool caption_only;
+    ImmichSource::PendingCaption caption;
   };
 
   bool live() const { return this->live_; }
@@ -295,9 +296,9 @@ class SlideLoader {
     return true;
   }
 
-  void submit(const SlideCache::Lease &lease, uint32_t source_revision, bool replace_source) {
+  void submit(const SlideCache::Lease &lease, uint32_t source_revision, bool replace_source, bool caption_only = false) {
     this->cancelled_ = false;
-    const Request request{lease, source_revision, replace_source};
+    const Request request{lease, source_revision, replace_source, caption_only};
     ESP_ERROR_CHECK(xQueueSend(this->requests_, &request, 0) == pdPASS ? ESP_OK : ESP_ERR_INVALID_STATE);
     xTaskNotifyGive(this->task_);
   }
@@ -322,6 +323,7 @@ class SlideLoader {
     SlideCache::Lease lease;
     uint32_t source_revision;
     bool replace_source;
+    bool caption_only;
   };
 
   bool apply_photo_settings_(const Request &request) {
@@ -355,7 +357,7 @@ class SlideLoader {
       const auto connection = network.photo_connection();
       auto result = Result::Ready;
       bool source_ready = true;
-      bool caption_waiting_for_time = false;
+      ImmichSource::PendingCaption caption{};
       if ((!esphome_trial || trial_immich) && !trial_fixtures && loader.live_ && lease.slide > 0) {
         if constexpr (trial_immich)
           record_live_trial_prepare();
@@ -367,7 +369,7 @@ class SlideLoader {
           }
         }
         result = source_ready ? loader.source_.prepare(lease.slide, lease.pixels, lease.replacement,
-                                                       caption_waiting_for_time) : Result::Retry;
+                                                       caption, request.caption_only) : Result::Retry;
       } else {
         const int fixture = lease.slide % fixture_count;
         const auto &photo = photos[fixture];
@@ -388,7 +390,7 @@ class SlideLoader {
       const Completion completion{lease, loader.source_.first_slide(), loader.source_.next_slide(), connection,
                                   loader.source_.source_status(), loader.source_.response(), result,
                                   result != Result::Ready && loader.cancelled_.load(), source_ready,
-                                  caption_waiting_for_time};
+                                  request.caption_only, caption};
       xQueueSend(loader.completed_, &completion, portMAX_DELAY);
     }
   }
@@ -596,14 +598,17 @@ void run(void *) {
     if ((!preparing_refresh || at_source_handoff || discard_refresh) && loader.poll(completion)) {
       const bool ready = completion.result == SlideLoader::Result::Ready && !discard_refresh;
       const bool next_candidate = completion.result == SlideLoader::Result::NextCandidate;
-      const bool waiting_caption = ready && completion.caption_waiting_for_time;
-      ESP_ERROR_CHECK(cache.complete(completion.lease, ready, waiting_caption) ? ESP_OK : ESP_ERR_INVALID_STATE);
+      const bool waiting_caption = ready && completion.caption.time;
+      ESP_ERROR_CHECK(cache.complete(completion.lease, ready, waiting_caption, completion.caption.details)
+                          ? ESP_OK : ESP_ERR_INVALID_STATE);
       refresh_waiting_captions |= local_time_ready && waiting_caption;
       const auto slide = completion.lease.slide;
       if constexpr (trace_enabled) {
-        const auto outcome = ready ? RefillOutcome::Ready
-                             : completion.cancelled || discard_refresh ? RefillOutcome::Cancelled : RefillOutcome::Retry;
-        trace.refill(esp_timer_get_time(), refill_started_us, slide, outcome);
+        if (!completion.caption_only) {
+          const auto outcome = ready ? RefillOutcome::Ready
+                               : completion.cancelled || discard_refresh ? RefillOutcome::Cancelled : RefillOutcome::Retry;
+          trace.refill(esp_timer_get_time(), refill_started_us, slide, outcome);
+        }
       }
       const bool time_available = local_time_ready && completion.source_status == PhotoSourceStatus::WaitingForTime;
       retries[slide % retries.size()] = ready || completion.cancelled || discard_refresh || time_available
@@ -620,20 +625,26 @@ void run(void *) {
             record_live_trial_photo(static_cast<uint32_t>(esp_timer_get_time() / 1000));
         }
       }
-      if (completion.source_ready && !discard_refresh) {
+      const bool completed_source_work = completion.source_ready && !discard_refresh && !completion.caption_only;
+      if (completed_source_work) {
         first_photo = completion.first_photo;
         next_photo = completion.next_photo;
         source_status = completion.source_status;
       }
       if constexpr (!esphome_trial) {
-        if (live && slide > 0 && completion.source_ready && !completion.cancelled && !discard_refresh)
+        if (live && slide > 0 && completed_source_work && !completion.cancelled)
           frame_status.finish_preparation(ready ? PhotoSourceStatus::None : source_status, completion.response);
         if (completion.lease.replacement && !discard_refresh) {
-          if (next_candidate)
-            cache.stop_refresh(slide);
+          if (next_candidate) {
+            if (completion.caption_only)
+              cache.stop_caption_details(slide);
+            else
+              cache.stop_refresh(slide);
+          }
           if (ready && slide == center) {
             last_submitted = -1;
-            dwell.reset();
+            if (!completion.caption_only)
+              dwell.reset();
           }
         }
       }
@@ -821,6 +832,17 @@ void run(void *) {
       // Until PPA finishes, its input slides must stay readable even if a
       // touch has moved the cache window in the other direction.
       const auto retained_during_motion = swipe.retain_for_motion(keep, display.handoff_position());
+      const auto submit = [&](SlideIndex candidate, SlideRange retained, bool refresh, bool caption_only = false) {
+        const auto lease = cache.reserve(candidate, retained.first, retained.last, refresh);
+        if (!lease)
+          return false;
+        if constexpr (trace_enabled)
+          refill_started_us = esp_timer_get_time();
+        loader.submit(*lease, source_revision, source_anchor >= 0, caption_only);
+        preparing = candidate;
+        preparing_refresh = refresh;
+        return true;
+      };
       for (const auto candidate : prefetch.candidates(keep)) {
         if (!eligible(candidate))
           continue;
@@ -832,13 +854,15 @@ void run(void *) {
         if (refresh && candidate != center && prefetch.has_nearby_refill(cache, eligible))
           continue;
         const auto retained = refresh ? prefetch.nearby_window() : retained_during_motion;
-        if (const auto lease = cache.reserve(candidate, retained.first, retained.last, refresh)) {
-          if constexpr (trace_enabled)
-            refill_started_us = esp_timer_get_time();
-          loader.submit(*lease, source_revision, source_anchor >= 0);
-          preparing = candidate;
-          preparing_refresh = refresh;
+        if (submit(candidate, retained, refresh))
           break;
+      }
+      if constexpr (!esphome_trial) {
+        if (preparing < 0 && at_source_handoff && !contact_engaged && active_connection && eligible(center) &&
+            cache.needs_caption_details(center) && !prefetch.has_nearby_refill(cache, eligible)) {
+          // A detail lookup may paint a richer caption once nearby photos
+          // are ready. Initial playback never waits for this request.
+          submit(center, prefetch.nearby_window(), true, true);
         }
       }
     }
