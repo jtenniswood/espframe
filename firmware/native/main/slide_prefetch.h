@@ -92,12 +92,20 @@ class SlidePrefetch {
 
   bool should_stage_forward(SlideIndex candidate, SlideRange ready, int64_t now) const {
     return center_ > 0 && candidate == ready.last + 1 && ready.last - center_ < desired_ready_in_direction &&
-           (now < stage_forward_until_ || requested_ == candidate);
+           (now < stage_forward_until_ || requested_ == candidate || promoted_ == candidate);
   }
+
+  bool can_promote(SlideIndex candidate) const {
+    return center_ > 0 && candidate > center_ && requested_ == candidate && promoted_ != candidate;
+  }
+
+  void promoted(SlideIndex candidate) { promoted_ = candidate; }
 
   void prepared(SlideIndex slide) {
     if (requested_ == slide)
       requested_.reset();
+    if (promoted_ == slide)
+      promoted_.reset();
   }
 
   bool can_yield(SlideIndex active, SlideIndex wanted, bool refreshing = false) const {
@@ -156,6 +164,7 @@ class SlidePrefetch {
   int direction_{1};
   int64_t stage_forward_until_{};
   std::optional<SlideIndex> requested_;
+  std::optional<SlideIndex> promoted_;
 };
 
 }  // namespace espframe::native

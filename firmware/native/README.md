@@ -38,7 +38,9 @@ configured the project with ESP-Hosted 2.x.
 When forward swipes run low on ready photos, the native player can start a
 known landscape or portrait pair from Immich thumbnails. Fast refills stay
 available for two seconds after a forward drag, including short pauses between
-swipes. The slide uses the existing display framing. Once you pause and the
+swipes. Reaching the forward edge can switch that slide's in-flight full
+preview to thumbnails once, while the current photo stays visible. The slide
+uses the existing display framing. Once you pause and the
 next swipe is covered, the frame replaces the thumbnail slide with full
 previews. Regular idle prefetch starts with full previews. Thumbnails that
 fail to load fall back to previews, and a failed detail upgrade leaves the
@@ -559,9 +561,10 @@ The live and rapid trials use the native player's forward refill policy.
 The frame can prepare the next landscape or portrait pair from thumbnails
 when forward gestures run low on cached photos. The benchmark reports
 `live_edge_detail`. The status route reports the number of thumbnail slides,
-how many were portrait pairs, how many full-detail replacements reached the
-LCD, and the last replacement's request-to-handoff time. A short run with a
-warm cache can finish with no thumbnail slides.
+how many were portrait pairs, how many full previews were switched to
+thumbnails at the edge, the number of full-detail LCD handoffs, and the last
+handoff time. A short run with a warm cache can finish with no thumbnail
+slides.
 
 Use high-frame-rate video to measure from finger movement to visible motion
 and check the panel for tearing.

@@ -82,6 +82,21 @@ void verify_fast_forward_refill() {
   prefetch.request_at_edge(8 * slide_width - 1, one_ahead, available);
   assert(!prefetch.should_stage_forward(7, one_ahead, now + 2'000'000));
   assert(!prefetch.should_stage_forward(12, one_ahead, now + 2'000'000));
+  assert(!prefetch.can_promote(7) && !prefetch.can_promote(12));
+
+  prefetch.request_at_edge(11 * slide_width + 1, one_ahead, available);
+  assert(prefetch.can_promote(12) && !prefetch.can_promote(13));
+  prefetch.promoted(12);
+  assert(!prefetch.can_promote(12));
+
+  // The old full-preview attempt may finish cancelling after the drag pulls
+  // back. Its retry should still be staged, without a second promotion.
+  prefetch.request_at_edge(11 * slide_width - 1, one_ahead, available);
+  assert(!prefetch.requested() && prefetch.should_stage_forward(12, one_ahead, now + 2'000'000));
+  prefetch.request_at_edge(11 * slide_width + 1, one_ahead, available);
+  assert(!prefetch.can_promote(12));
+  prefetch.prepared(12);
+  assert(!prefetch.should_stage_forward(12, one_ahead, now + 2'000'000));
 }
 
 int main() {

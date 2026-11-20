@@ -43,6 +43,8 @@ class ImmichSource {
       : cancelled_(cancelled), checkpoint_(checkpoint), settings_(settings), network_(network), http_(cancelled) {}
   PrepareResult prepare(SlideIndex slide, uint16_t *panel, bool replacement, PendingPresentation &presentation,
                         Preparation preparation);
+  bool claim_preview_promotion() { return preview_promotable_.exchange(false, std::memory_order_acq_rel); }
+  void end_preview_promotion() { preview_promotable_.store(false, std::memory_order_release); }
   void apply_photo_settings(PhotoFeedSettings feed, std::optional<SlideIndex> first_slide);
   void expire_warm_tone_override() {
     Settings::expire_warm_tone_override(this->settings_.clock.timezone, this->feed_());
@@ -89,6 +91,7 @@ class ImmichSource {
   void warm_next_prepared_(const PhotoSlide &current);
 
   const std::atomic<bool> &cancelled_;
+  std::atomic<bool> preview_promotable_{};
   const PreparationCheckpoint checkpoint_;
   const Settings &settings_;
   std::optional<PhotoFeedSettings> selection_;

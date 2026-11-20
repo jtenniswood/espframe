@@ -321,6 +321,12 @@ class SlideLoader {
       xSemaphoreGive(this->pixel_work_wake_);
   }
   bool yield_requested() const { return this->cancelled_.load(); }
+  bool promote_preview() {
+    if (!this->source_.claim_preview_promotion())
+      return false;
+    this->yield_to_swipe();
+    return true;
+  }
   void defer_pixel_work(bool defer) {
     if (this->pixel_work_deferred_.load(std::memory_order_relaxed) == defer)
       return;
@@ -423,6 +429,7 @@ class SlideLoader {
         }
         result = source_ready ? loader.source_.prepare(lease.slide, lease.pixels, lease.replacement,
                                                        presentation, request.preparation) : Result::Retry;
+        loader.source_.end_preview_promotion();
       } else {
         const int fixture = lease.slide % fixture_count;
         const auto &photo = photos[fixture];
@@ -955,9 +962,18 @@ void run(void *) {
       loader.defer_pixel_work(pixel_work_deferred);
     }
     if (preparing >= 0) {
-      if (const auto wanted = prefetch.requested();
-          wanted && eligible(*wanted) && prefetch.can_yield(preparing, *wanted, preparing_refresh))
-        loader.yield_to_swipe();
+      if (const auto wanted = prefetch.requested(); wanted && eligible(*wanted)) {
+        if (prefetch.can_yield(preparing, *wanted, preparing_refresh)) {
+          loader.yield_to_swipe();
+        } else if constexpr (stage_at_edge) {
+          if (preparing == *wanted && source_anchor < 0 && requested_revision == source_revision &&
+              prefetch.can_promote(preparing) && loader.promote_preview()) {
+            prefetch.promoted(preparing);
+            if constexpr (trial_detail_metrics)
+              record_live_trial_thumbnail_promotion();
+          }
+        }
+      }
     } else if (!blend.pending() && (esphome_trial || !backlight_ready || input.awake())) {
       // Until PPA finishes, its input slides must stay readable even if a
       // touch has moved the cache window in the other direction.

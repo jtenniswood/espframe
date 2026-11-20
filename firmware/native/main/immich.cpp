@@ -869,8 +869,9 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   const bool thumbnail_landscape = !seed.portrait && frame.companion[0] == '\0' &&
                                    (!trial_replay_staged_detail || SWIPE_TRIAL_REPLAY_EDGE_DETAIL) &&
                                    feed_().photo_orientation != PhotoOrientation::Portrait;
-  if (preparation == Preparation::AllowThumbnail && new_position && !remembered && seed.orientation_known &&
-      (thumbnail_pair || thumbnail_landscape) && !settings_.has_prepared_slides()) {
+  const bool can_stage = new_position && !remembered && seed.orientation_known &&
+                         (thumbnail_pair || thumbnail_landscape) && !settings_.has_prepared_slides();
+  if (preparation == Preparation::AllowThumbnail && can_stage) {
     DecodedPreview left, right;
     const auto orientation = thumbnail_pair ? PhotoOrientation::Portrait : PhotoOrientation::Landscape;
     thumbnail = load_thumbnail_(frame.primary, left, orientation) &&
@@ -909,6 +910,10 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       primary_target = PreviewTarget::RequiredPair;
     else if (optional_pair || frame.companion[0] != '\0')
       primary_target = PreviewTarget::OptionalPair;
+    // An edge drag can switch an existing speculative request to thumbnails.
+    // A failed thumbnail attempt falls back to a full preview just once.
+    if (can_stage && preparation == Preparation::FullPreview)
+      this->preview_promotable_.store(true, std::memory_order_release);
     const auto status = this->load_preview_(frame.primary, primary, primary_target, 0, true, lookahead);
     if (this->cancelled_ || status == PreviewStatus::Retry)
       return retry_frame();
@@ -972,6 +977,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
         return reject_candidate(frame.primary);
     }
     this->prefetch_next_(upcoming(frame.companion));
+    this->end_preview_promotion();
     composition.emplace(TrialPreparationStage::Composition);
     if (!primary.render(panel, frame.companion[0] == '\0' ? nullptr : &companion, this->feed_().pair_display_mode(),
                         this->settings_.screen_rotation, this->checkpoint_))

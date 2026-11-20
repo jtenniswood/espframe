@@ -55,6 +55,7 @@ void record_live_trial_preparation_time(TrialPreparationStage stage, uint32_t el
 void record_live_trial_progressive_jpeg(TrialJpegPhaseTiming input, TrialJpegPhaseTiming output);
 void record_live_trial_replay_slide(bool paired, bool fill_edges_match);
 void record_live_trial_thumbnail_ready(bool paired);
+void record_live_trial_thumbnail_promotion();
 void record_live_trial_detail_presented(int64_t slide, uint32_t request_to_panel_ms);
 void record_live_trial_touch_slide(int64_t slide);
 void record_live_trial_photo(uint32_t elapsed_ms);
