@@ -10,7 +10,7 @@
 namespace espframe::native {
 
 void PreviewPrefetch::start(const AssetId &id, uint32_t connection, const std::string &base_url, const std::string &key) {
-  if (disabled_ || !connection || slide_cancelled_)
+  if (!connection || slide_cancelled_)
     return;
   if (pending_) {
     if (id == id_ && connection == connection_ && !cancelled_)
@@ -19,13 +19,20 @@ void PreviewPrefetch::start(const AssetId &id, uint32_t connection, const std::s
       return;
     pending_ = false;
   }
-  // Startup already reserves 10 MiB for the full preview buffer and
-  // decoding. Leave 6 MiB here even if a pair's first pane is decoded.
-  constexpr size_t decode_reserve = 6 * 1024 * 1024;
-  if (!buffer_ && heap_caps_get_free_size(MALLOC_CAP_SPIRAM) >= decode_reserve + capacity)
+  if (!buffer_) {
+    if (memory_retry_at_us_ && esp_timer_get_time() < memory_retry_at_us_)
+      return;
+    // Leave room for decoding even with the first pane of a pair allocated.
+    // After pressure, require an extra buffer's worth of free memory so
+    // taking the staging slot back does not immediately recreate the shortage.
+    constexpr size_t decode_reserve = 6 * 1024 * 1024;
+    const size_t free_needed = decode_reserve + capacity + (memory_retry_at_us_ ? capacity : 0);
+    if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < free_needed)
+      return;
     buffer_ = static_cast<uint8_t *>(heap_caps_malloc(capacity, MALLOC_CAP_SPIRAM));
-  if (!buffer_)
-    return;
+    if (!buffer_)
+      return;
+  }
   if (!task_) {
     if (!complete_)
       complete_ = xSemaphoreCreateBinary();
@@ -75,16 +82,17 @@ size_t PreviewPrefetch::take(const AssetId &id, uint32_t connection, std::span<u
 }
 
 void PreviewPrefetch::release_on_memory_pressure() {
-  if (!buffer_)
-    return;
-  disabled_ = true;
-  cancel();
-  if (pending_) {
-    xSemaphoreTake(complete_, portMAX_DELAY);
-    pending_ = false;
+  if (buffer_) {
+    cancel();
+    if (pending_) {
+      xSemaphoreTake(complete_, portMAX_DELAY);
+      pending_ = false;
+    }
+    heap_caps_free(buffer_);
+    buffer_ = nullptr;
   }
-  heap_caps_free(buffer_);
-  buffer_ = nullptr;
+  constexpr int64_t memory_retry_delay_us = 30'000'000;
+  memory_retry_at_us_ = esp_timer_get_time() + memory_retry_delay_us;
 }
 
 void PreviewPrefetch::run_(void *context) {

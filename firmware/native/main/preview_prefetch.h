@@ -36,9 +36,9 @@ class PreviewPrefetch {
   std::string url_;
   const std::string *key_{};  // The Immich connection settings live as long as the task.
   int64_t deadline_us_{};
+  int64_t memory_retry_at_us_{};
   size_t length_{};
   bool pending_{};
-  bool disabled_{};
 };
 
 }  // namespace espframe::native

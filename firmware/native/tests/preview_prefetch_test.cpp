@@ -24,6 +24,7 @@ namespace {
 struct BlockedTask {};
 MockSemaphore completion;
 MockTask task;
+int task_creations;
 int requests;
 int reply = 200;
 bool interrupt_wait;
@@ -77,6 +78,7 @@ void xSemaphoreGive(SemaphoreHandle_t semaphore) {
 
 int xTaskCreatePinnedToCore(TaskFunction_t fn, const char *, unsigned, void *context, unsigned,
                             TaskHandle_t *handle, int) {
+  ++task_creations;
   task = {fn, context, false};
   *handle = &task;
   return pdPASS;
@@ -177,4 +179,20 @@ int main() {
   prefetch.start(asset('j'), 2, base_url, key);
   assert(!task.notified && !prefetch.take(asset('j'), 2, buffer));
   assert(requests == 6 && buffer[0] == 'f');
+
+  now_us += 29'999'999;
+  prefetch.start(asset('j'), 2, base_url, key);
+  assert(!task.notified);
+
+  // A recovered decoder needs more headroom than on initial startup.
+  ++now_us;
+  free_spiram = 7 * PreviewPrefetch::capacity;
+  prefetch.start(asset('j'), 2, base_url, key);
+  assert(!task.notified);
+  free_spiram = 8 * PreviewPrefetch::capacity;
+  reply = 200;
+  prefetch.start(asset('j'), 2, base_url, key);
+  assert(task.notified && prefetch.take(asset('j'), 2, buffer) == 1);
+  assert(requests == 7 && task_creations == 1 && buffer[0] == 'j');
+  prefetch.release_on_memory_pressure();
 }
