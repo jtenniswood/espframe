@@ -193,6 +193,16 @@ void verify_pair(const char *primary_path, const char *companion_path) {
   assert(left.decode(primary.data(), primary.size(),
                      {PreviewTarget::RequiredPair, DisplayMode::Fit, DisplayMode::Fill}) == Decode::Ready);
   assert(left.portrait() && left.render(panel.data() + 1, &right, DisplayMode::Fill) && panel == pair_panes);
+
+  // A reframe can lose an optional companion after decoding the primary
+  // into its pane. The standalone fallback crops from the original preview.
+  assert(left.decode(primary.data(), primary.size(), {PreviewTarget::PairPane, DisplayMode::Fill, DisplayMode::Fill}) ==
+         Decode::Ready);
+  assert(left.decode(primary.data(), primary.size(), {PreviewTarget::Slide, DisplayMode::Fill}) == Decode::Ready);
+  assert(left.render(panel.data() + 1));
+  assert(std::count(panel.begin() + 1, panel.end() - 1, 0) == 0);
+  assert(panel.front() == guard && panel.back() == guard);
+  expect_flipped(panel, left);
 }
 
 void verify_landscape_with_required_pairs(const char *path) {

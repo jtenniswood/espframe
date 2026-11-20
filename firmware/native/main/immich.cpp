@@ -687,7 +687,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     return PrepareResult::NextCandidate;
   if (!new_position && existing == nullptr)
     return PrepareResult::Retry;
-  const bool retain_pair = replacement && existing->companion[0] != '\0';
+  const bool reframing_pair = replacement && existing->companion[0] != '\0';
   const bool pairs_only = this->feed_().requires_portrait_pair();
   ImmichPhoto seed;
   PhotoSlide frame;
@@ -774,7 +774,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       lookahead = upcoming({});
     }
     auto primary_target = PreviewTarget::Slide;
-    if (retain_pair)
+    if (reframing_pair)
       primary_target = PreviewTarget::PairPane;
     else if (pairs_only)
       primary_target = PreviewTarget::RequiredPair;
@@ -783,11 +783,11 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     const auto status = this->load_preview_(frame.primary, primary, primary_target, 0, true, lookahead);
     if (this->cancelled_ || status == PreviewStatus::Retry)
       return retry_frame();
-    if (status == PreviewStatus::Missing || (retain_pair && !primary.portrait()))
+    if (status == PreviewStatus::Missing || (pairs_only && reframing_pair && !primary.portrait()))
       return reject_candidate(frame.primary);
 
     // Optional pairing leaves the first preview on the fast path.
-    const bool paired_primary = retain_pair || (pairs_only && primary.portrait());
+    const bool paired_primary = reframing_pair || (pairs_only && primary.portrait());
     const auto pair_deadline_us = paired_primary ? 0 : esp_timer_get_time() + (remembered ? 2 : 1) * pairing_time_us;
     if (paired_primary && frame.companion[0] == '\0') {
       if (!remembered) {
@@ -812,7 +812,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
                                              paired_primary, upcoming(frame.companion));
       if (right == PreviewStatus::Retry && (remembered || pairs_only))
         return retry_frame();
-      if (paired_primary && (right == PreviewStatus::Missing || !companion.portrait())) {
+      if (pairs_only && (right == PreviewStatus::Missing || !companion.portrait())) {
         if (!remembered && !settings_.has_prepared_slides() && unavailable_.contains(frame.companion, esp_timer_get_time()))
           this->pending_.push_back(seed);
         return reject_candidate(frame.companion);
@@ -827,6 +827,15 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       frame.companion = {};
     }
 
+    if (reframing_pair && frame.companion[0] == '\0') {
+      // The primary was decoded for a pane. A missing optional companion
+      // calls for a fresh crop of the original preview for the whole slide.
+      const auto single = this->load_preview_(frame.primary, primary, PreviewTarget::Slide, 0, true);
+      if (this->cancelled_ || single == PreviewStatus::Retry)
+        return retry_frame();
+      if (single == PreviewStatus::Missing)
+        return reject_candidate(frame.primary);
+    }
     this->prefetch_next_(upcoming(frame.companion));
     composition.emplace(TrialPreparationStage::Composition);
     if (!primary.render(panel, frame.companion[0] == '\0' ? nullptr : &companion, this->feed_().pair_display_mode(),
