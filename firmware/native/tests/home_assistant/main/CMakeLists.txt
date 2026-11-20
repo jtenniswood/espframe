@@ -1,0 +1,1 @@
+idf_component_register(SRCS probe.cpp PRIV_REQUIRES home_assistant esp_hw_support)
