@@ -1222,6 +1222,7 @@ int main() {
   const auto selection_before_language = photo_selection_revision.load();
   const auto new_language = update_configuration(R"({"values":{"device_language":"he"}})");
   assert(!new_language.error && !new_language.restart_required);
+  assert(espframe::native::active_device_language.load() == find_espframe_language("he"));
   assert(photo_source_revision.load() == before_language + 1 && photo_selection_revision.load() == selection_before_language);
   const auto localized_feed = Settings::take_live_photo_feed(before_language + 1);
   assert(localized_feed && localized_feed->metadata.language == find_espframe_language("he"));

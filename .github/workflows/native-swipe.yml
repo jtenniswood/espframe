@@ -120,9 +120,10 @@ jobs:
           c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
             firmware/native/tests/station_retry_test.cpp -o "$RUNNER_TEMP/station-retry-test"
           "$RUNNER_TEMP/station-retry-test"
-          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+          python3 firmware/native/tools/rasterize_status.py firmware/native/assets/status_masks.bin
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Icomponents/espframe \
             firmware/native/main/recovery_card.cpp firmware/native/tests/wifi_recovery_test.cpp -o "$RUNNER_TEMP/wifi-recovery-test"
-          "$RUNNER_TEMP/wifi-recovery-test" firmware/native/assets/recovery_glyphs.bin
+          "$RUNNER_TEMP/wifi-recovery-test" firmware/native/assets/recovery_glyphs.bin firmware/native/assets/status_masks.bin
           c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main \
             firmware/native/tests/improv_wire_test.cpp -o "$RUNNER_TEMP/improv-wire-test"
           "$RUNNER_TEMP/improv-wire-test"

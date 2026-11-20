@@ -226,9 +226,9 @@ const nativeSettingGroups: [string, [string, string][]][] = [
   ["Photo captions", [
     ["photo_metadata_date_enabled", "Show date"], ["photo_metadata_location_enabled", "Show location"],
     ["photo_metadata_date_format", "Date format"], ["photo_metadata_date_taken_format", "Date taken format"],
-    ["device_language", "Photo date language"],
   ]],
   ["Display", [
+    ["device_language", "Display language"],
     ["screen_rotation", "Mounting orientation"], ["brightness_day", "Daytime brightness (%)"],
     ["brightness_night", "Nighttime brightness (%)"], ["base_tone_enabled", "Adjust display tone"],
     ["base_tone", "Display warmth (%)"], ["warm_tones_enabled", "Use warmer tones at night"],

@@ -72,7 +72,7 @@ const screenFields = {
   warm_tones_enabled: [value => typeof value === 'boolean', 'Review whether night tone is enabled.'],
   warm_tone_intensity: [integerIn(10, 100), 'Choose a night warmth from 10% to 100%.'],
   warm_tone_override: [value => typeof value === 'boolean', 'Review whether warm tone is forced until sunrise.'],
-  language: [value => deviceLanguages.includes(value), 'Choose a supported photo date language.', 'device_language'],
+  language: [value => deviceLanguages.includes(value), 'Choose a supported display language.', 'device_language'],
   schedule_enabled: [value => typeof value === 'boolean', 'Review whether the screen schedule is enabled.'],
   schedule_on_hour: [integerIn(0, 23), 'Choose an on hour from 0 to 23.'],
   schedule_off_hour: [integerIn(0, 23), 'Choose an off hour from 0 to 23.'],

@@ -642,6 +642,7 @@ bool changes_live_presentation(std::string_view key) {
 void publish_photo_feed(PhotoFeedSettings &&feed, bool selection_changed) {
   active_photo_preset.store(feed.photo_source.preset(), std::memory_order_relaxed);
   active_warm_tone_override.store(feed.tone.night_override, std::memory_order_relaxed);
+  active_device_language.store(feed.metadata.language, std::memory_order_relaxed);
   published_feed = std::move(feed);
   const auto revision = photo_source_revision.load(std::memory_order_relaxed) + 1;
   // The last selection revision survives if another save publishes a
@@ -981,6 +982,7 @@ bool Settings::save_playback(const char *json, bool *restart_required) {
 
 void Settings::publish_live_presentation() const {
   active_clock_twelve_hour.store(clock.twelve_hour(), std::memory_order_relaxed);
+  active_device_language.store(metadata.language, std::memory_order_relaxed);
   active_warm_tone_override.store(tone.night_override, std::memory_order_relaxed);
   active_connection_timeout.store(connection_timeout_seconds, std::memory_order_relaxed);
   active_playback_transition.store(PlaybackTransition::from_settings(transition, transition_speed),

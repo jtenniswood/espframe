@@ -177,7 +177,7 @@ for (const language of deviceLanguages) {
 }
 const unsupportedLanguage = readBackup({ version: 3, screen: { language: 'unknown' } })
 assert.deepEqual(unsupportedLanguage.settings, {})
-assert.deepEqual(unsupportedLanguage.notices, ['Choose a supported photo date language.'])
+assert.deepEqual(unsupportedLanguage.notices, ['Choose a supported display language.'])
 for (const conn_timeout of connectionTimeouts) {
   const result = readBackup({ version: 3, frequency: { interval: '15 seconds', conn_timeout } })
   assert.deepEqual(result.settings, { slide_seconds: 15, conn_timeout })

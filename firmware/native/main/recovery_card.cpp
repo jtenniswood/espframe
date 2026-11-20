@@ -1,4 +1,5 @@
 #include "recovery_card.h"
+#include "i18n_generated.h"
 
 #include <algorithm>
 #include <string_view>
@@ -13,17 +14,67 @@ constexpr uint16_t background = 0x1105;
 constexpr uint16_t muted = 0xaeb5;
 constexpr uint16_t white = 0xffff;
 
+enum class StatusLabel {
+#define ESPFRAME_STATUS_LABEL(name) name,
+#include "status_labels.def"
+#undef ESPFRAME_STATUS_LABEL
+  Count
+};
+
+struct Line {
+  int width{};
+  std::span<const uint8_t> runs;
+};
+
+bool rtl(StatusText text) {
+  return text.language < espframe_i18n_catalogue::LANGUAGE_COUNT &&
+         std::string_view{espframe_i18n_catalogue::LANGUAGES[text.language]} == "he";
+}
+
+Line line(StatusText text, StatusLabel label) {
+  constexpr size_t fingerprint_bytes = 32;
+  constexpr size_t label_count = static_cast<size_t>(StatusLabel::Count);
+  constexpr size_t table_size = fingerprint_bytes + 4 * (label_count * espframe_i18n_catalogue::LANGUAGE_COUNT + 1);
+  if (text.masks.size() < table_size || label == StatusLabel::Count)
+    return {};
+  const size_t language = text.language < espframe_i18n_catalogue::LANGUAGE_COUNT ? text.language : 0;
+  const auto offset = [&](size_t index) -> size_t {
+    const auto *bytes = text.masks.data() + fingerprint_bytes + index * 4;
+    return uint32_t{bytes[0]} | (uint32_t{bytes[1]} << 8) | (uint32_t{bytes[2]} << 16) | (uint32_t{bytes[3]} << 24);
+  };
+  const size_t index = language * label_count + static_cast<size_t>(label);
+  const size_t begin = offset(index);
+  const size_t end = offset(index + 1);
+  if (begin < table_size || end <= begin || end - begin <= 2 || end > text.masks.size())
+    return {};
+  const int width = text.masks[begin] | (text.masks[begin + 1] << 8);
+  if (width <= 0 || width > 668)
+    return {};
+  return {width, text.masks.subspan(begin + 2, end - begin - 2)};
+}
+
 uint16_t masked(uint16_t color, unsigned opacity) {
   const auto channel = [opacity](unsigned from, unsigned to) { return (from * (15 - opacity) + to * opacity + 7) / 15; };
   return static_cast<uint16_t>((channel(background >> 11, color >> 11) << 11) |
       (channel((background >> 5) & 63, (color >> 5) & 63) << 5) | channel(background & 31, color & 31));
 }
 
-void text(uint16_t *frame, const uint8_t *atlas, ScreenRotation rotation, int x, int y,
-          std::string_view value, uint16_t color) {
+const uint8_t *ascii_glyph(const uint8_t *atlas, unsigned char character) {
+  const int code = character >= ' ' && character <= '~' ? character : '?';
+  return atlas + (code - ' ') * glyph_bytes;
+}
+
+int ascii_width(const uint8_t *atlas, std::string_view value) {
+  int width = 0;
+  for (const unsigned char character : value)
+    width += *ascii_glyph(atlas, character);
+  return width;
+}
+
+void ascii_text(uint16_t *frame, const uint8_t *atlas, ScreenRotation rotation, int x, int y, std::string_view value) {
   const int step = -axis_direction(rotation);
   for (const unsigned char character : value) {
-    const auto *glyph = atlas + (character - ' ') * glyph_bytes;
+    const auto *glyph = ascii_glyph(atlas, character);
     const int advance = *glyph++;
     for (int column = 0; column < glyph_width; ++column) {
       auto *pixels = frame + panel_offset(x + column, panel_width - 1 - y, rotation);
@@ -31,10 +82,31 @@ void text(uint16_t *frame, const uint8_t *atlas, ScreenRotation rotation, int x,
         const auto mask = glyph[row * (glyph_width / 2) + column / 2];
         const unsigned opacity = column % 2 ? mask & 15 : mask >> 4;
         if (opacity)
-          pixels[row * step] = masked(color, opacity);
+          pixels[row * step] = masked(white, opacity);
       }
     }
     x += advance;
+  }
+}
+
+void localized_text(uint16_t *frame, Line line, ScreenRotation rotation, int x, int y, uint16_t color) {
+  if (line.width <= 0 || x < 0 || x + line.width > slide_width || y < 0 || y + glyph_height > slide_height)
+    return;
+  size_t pixel = 0;
+  const size_t pixel_count = line.width * glyph_height;
+  for (const uint8_t run : line.runs) {
+    const unsigned opacity = run >> 4;
+    const size_t end = std::min(pixel + (run & 15) + 1, pixel_count);
+    if (opacity == 0) {
+      pixel = end;
+      continue;
+    }
+    const uint16_t value = masked(color, opacity);
+    for (; pixel < end; ++pixel) {
+      const int column = pixel % line.width;
+      const int row = pixel / line.width;
+      frame[panel_offset(x + column, panel_width - 1 - y - row, rotation)] = value;
+    }
   }
 }
 
@@ -46,56 +118,78 @@ void card(uint16_t *frame, ScreenRotation rotation, int left, int top, int width
   }
 }
 
+void source_notice(uint16_t *frame, StatusText text, StatusLabel key, ScreenRotation rotation) {
+  const auto message = line(text, key);
+  if (message.width == 0)
+    return;
+  constexpr int left = 48;
+  constexpr int top = 612;
+  constexpr int inset = 20;
+  const int width = std::max(396, message.width + 2 * inset);
+  card(frame, rotation, left, top, width, 60);
+  const int x = rtl(text) ? left + width - inset - message.width : left + inset;
+  localized_text(frame, message, rotation, x, top + 10, white);
+}
+
 }  // namespace
 
-void draw_recovery_card(uint16_t *frame, const uint8_t *atlas, const RecoveryNetwork &network, ScreenRotation rotation) {
+void draw_recovery_card(uint16_t *frame, const uint8_t *atlas, StatusText text, const RecoveryNetwork &network,
+                        ScreenRotation rotation) {
   constexpr int left = 48;
-  constexpr int width = 504;
   constexpr int height = 184;
   constexpr int top = panel_width - height - 48;
-  constexpr int x = left + 24;
-  constexpr int value = x + 139;
+  constexpr int inset = 24;
+  const auto title = line(text, StatusLabel::wifi_setup);
+  const Line labels[]{line(text, StatusLabel::wifi_network), line(text, StatusLabel::wifi_password),
+                      line(text, StatusLabel::recovery_address)};
+  const std::string_view values[]{network.ssid.data(), network.password.data(), recovery_url};
+  const int label_width = std::max({labels[0].width, labels[1].width, labels[2].width});
+  const int value_width = std::max({ascii_width(atlas, values[0]), ascii_width(atlas, values[1]), ascii_width(atlas, values[2])});
+  const int label_column = std::max(139, label_width + 22);
+  const int width = std::max({504, title.width + 2 * inset, label_column + value_width + 2 * inset});
+  const bool right_to_left = rtl(text);
+  const int end = left + width - inset;
   card(frame, rotation, left, top, width, height);
-  text(frame, atlas, rotation, x, top + 12, "Reconnect Wi-Fi", white);
-  text(frame, atlas, rotation, x, top + 52, "Network", muted);
-  text(frame, atlas, rotation, value, top + 52, network.ssid.data(), white);
-  text(frame, atlas, rotation, x, top + 90, "Password", muted);
-  text(frame, atlas, rotation, value, top + 90, network.password.data(), white);
-  text(frame, atlas, rotation, x, top + 128, "Open", muted);
-  text(frame, atlas, rotation, value, top + 128, recovery_url, white);
+  localized_text(frame, title, rotation, right_to_left ? end - title.width : left + inset, top + 12, white);
+  for (size_t i = 0; i < std::size(labels); ++i) {
+    const int y = top + 52 + 38 * static_cast<int>(i);
+    localized_text(frame, labels[i], rotation, right_to_left ? end - labels[i].width : left + inset, y, muted);
+    ascii_text(frame, atlas, rotation, right_to_left ? left + inset : left + inset + label_column, y, values[i]);
+  }
 }
 
-void draw_source_status(uint16_t *frame, const uint8_t *atlas, PhotoSourceStatus status, ScreenRotation rotation) {
-  std::string_view message;
+void draw_source_status(uint16_t *frame, StatusText text, PhotoSourceStatus status, ScreenRotation rotation) {
+  StatusLabel key = StatusLabel::Count;
   switch (status) {
-    case PhotoSourceStatus::WaitingForTime: message = "Waiting for the date"; break;
-    case PhotoSourceStatus::MemoriesEmpty: message = "No On This Day photos"; break;
-    case PhotoSourceStatus::MemoriesUnavailable: message = "Couldn't load On This Day"; break;
-    case PhotoSourceStatus::IncompleteFilters: message = "Choose filter values"; break;
-    case PhotoSourceStatus::UnsupportedFilters: message = "Filters need Immich 3.2"; break;
-    case PhotoSourceStatus::FiltersUnavailable: message = "Check photo filters"; break;
-    case PhotoSourceStatus::NoPhotos: message = "No photos found"; break;
-    case PhotoSourceStatus::WaitingForPair: message = "Waiting for a photo pair"; break;
+    case PhotoSourceStatus::WaitingForTime: key = StatusLabel::waiting_for_date; break;
+    case PhotoSourceStatus::MemoriesEmpty: key = StatusLabel::no_memories; break;
+    case PhotoSourceStatus::MemoriesUnavailable: key = StatusLabel::memories_unavailable; break;
+    case PhotoSourceStatus::IncompleteFilters: key = StatusLabel::source_needs_setup; break;
+    case PhotoSourceStatus::UnsupportedFilters: key = StatusLabel::filter_needs_v32; break;
+    case PhotoSourceStatus::FiltersUnavailable: key = StatusLabel::check_photo_filters; break;
+    case PhotoSourceStatus::NoPhotos: key = StatusLabel::no_photos; break;
+    case PhotoSourceStatus::WaitingForPair: key = StatusLabel::waiting_for_photo_pair; break;
     case PhotoSourceStatus::None: return;
   }
-  card(frame, rotation, 48, 612, 396, 60);
-  text(frame, atlas, rotation, 68, 622, message, white);
+  source_notice(frame, text, key, rotation);
 }
 
-void draw_connection_notice(uint16_t *frame, const uint8_t *atlas, ImmichResponse response, ScreenRotation rotation) {
-  card(frame, rotation, 48, 612, 396, 60);
-  text(frame, atlas, rotation, 68, 622,
-       response == ImmichResponse::Rejected ? "Check Immich API key" : "Immich connection failed", white);
+void draw_connection_notice(uint16_t *frame, StatusText text, ImmichResponse response, ScreenRotation rotation) {
+  source_notice(frame, text, response == ImmichResponse::Rejected ? StatusLabel::invalid_api_key : StatusLabel::connection_failed,
+                rotation);
 }
 
-void draw_loading_status(uint16_t *frame, const uint8_t *atlas, int direction, ScreenRotation rotation) {
+void draw_loading_status(uint16_t *frame, StatusText text, int direction, ScreenRotation rotation) {
   constexpr int margin = 44;
-  constexpr int width = 244;
+  constexpr int inset = 16;
   constexpr int height = 52;
   constexpr int top = slide_height - margin - height;
+  const auto message = line(text, StatusLabel::loading_photo);
+  const int width = std::max(244, message.width + 2 * inset);
   const int left = direction < 0 ? margin : slide_width - margin - width;
   card(frame, rotation, left, top, width, height);
-  text(frame, atlas, rotation, left + 16, top + 8, "Loading photo", white);
+  const int x = rtl(text) ? left + width - inset - message.width : left + inset;
+  localized_text(frame, message, rotation, x, top + 8, white);
 }
 
 }  // namespace espframe::native

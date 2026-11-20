@@ -1,12 +1,15 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <optional>
 #include <string_view>
 
 namespace espframe::native {
+
+inline std::atomic<uint8_t> active_device_language{};
 
 struct PhotoMetadata {
   std::optional<std::chrono::sys_days> capture_day;

@@ -368,12 +368,16 @@ When two portraits are paired, the caption describes the primary
 photo. The caption is composed with the cached slide, so dragging and
 swiping need no extra image, text, or network work. The frame can show the
 date in either date-taken format or as a relative age in the configured
-timezone. **Photo date language** uses the month and relative date wording
-from Espframe's 22-language catalogue. The installer restores this choice
-from the language in an Espframe backup. Switching languages redraws the
-cached captions in the background. Before time sync the frame shows the
-capture date. Once time is available, the player refreshes cached captions
-in the background.
+timezone. **Display language** uses Espframe's 22-language catalogue for
+dates, Wi-Fi recovery, loading, and photo source and connection notices.
+The installer restores this choice from an Espframe backup. Switching
+languages redraws cached captions in the background. Before time sync the
+frame shows the capture date. Once time is available, the player refreshes
+cached captions in the background.
+When changing status translations, rerun `firmware/native/tools/rasterize_status.py`
+with Pillow, `python-bidi==0.6.6`, and the two font faces recorded in
+`product/source-ownership.json`. Running it with just the output path checks
+that the shipped masks match the current catalogue.
 Turning on relative captions, a relative capture-date filter, or Memories
 requests time sync even when the clock is hidden.
 

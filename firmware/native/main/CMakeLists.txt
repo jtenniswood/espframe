@@ -41,7 +41,7 @@ idf_component_register(
                    "../installer/setup.css" "../installer/photo_source.mjs"
                    "../installer/backup.mjs"
     EMBED_FILES "../assets/clock_glyphs.bin" "../assets/recovery_glyphs.bin" "../assets/caption_glyphs.bin"
-                "../assets/date_glyphs.bin"
+                "../assets/date_glyphs.bin" "../assets/status_masks.bin"
 )
 
 # Emit native RGB565 words directly, avoiding a second pass through PSRAM.

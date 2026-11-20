@@ -5,13 +5,19 @@
 #include "wifi_recovery.h"
 
 #include <cstdint>
+#include <span>
 
 namespace espframe::native {
 
-void draw_recovery_card(uint16_t *frame, const uint8_t *atlas, const RecoveryNetwork &network,
+struct StatusText {
+  std::span<const uint8_t> masks;
+  uint8_t language{};
+};
+
+void draw_recovery_card(uint16_t *frame, const uint8_t *atlas, StatusText text, const RecoveryNetwork &network,
                         ScreenRotation rotation);
-void draw_source_status(uint16_t *frame, const uint8_t *atlas, PhotoSourceStatus status, ScreenRotation rotation);
-void draw_connection_notice(uint16_t *frame, const uint8_t *atlas, ImmichResponse response, ScreenRotation rotation);
-void draw_loading_status(uint16_t *frame, const uint8_t *atlas, int direction, ScreenRotation rotation);
+void draw_source_status(uint16_t *frame, StatusText text, PhotoSourceStatus status, ScreenRotation rotation);
+void draw_connection_notice(uint16_t *frame, StatusText text, ImmichResponse response, ScreenRotation rotation);
+void draw_loading_status(uint16_t *frame, StatusText text, int direction, ScreenRotation rotation);
 
 }  // namespace espframe::native
