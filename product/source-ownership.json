@@ -72,6 +72,11 @@
       "generator": "scripts/generate_assets.py"
     },
     {
+      "path": "firmware/native/main/web/shared_settings.js",
+      "sources": ["docs/webserver/src", "product/contract"],
+      "generator": "scripts/generate_assets.py"
+    },
+    {
       "path": "components/espframe/i18n_generated.h",
       "sources": [
         "product/translations",
@@ -81,6 +86,15 @@
     }
   ],
   "vendored": [
+    {
+      "path": "firmware/native/assets",
+      "name": "Noto Sans native glyph atlases",
+      "upstream": "https://fonts.google.com/noto",
+      "revision": "Stock ESPHome Noto Sans weight 325 (SHA-256 cfffc3ecf6aaa6a205b16c68070cceca472208a06581e6f131cdd0294913d900), weight 400 (SHA-256 5be701a9511117e73603bdab95947feef4f18bd1851dbddc30659370b26c69f1), and Noto Sans Regular 2.015 for recovery (SHA-256 f5f552c8c5edb61fe6efb824baf4d4de47b1a8689ab4925ff43f7bd6a4ebece5)",
+      "license": "OFL-1.1",
+      "license_file": "firmware/native/assets/OFL-Noto-Sans.txt",
+      "local_changes": "Rasterized the stock clock at 150 pixels, photo location at 36 pixels, and photo date at 28 pixels with firmware/native/tools/rasterize_clock.py. The Wi-Fi recovery mask remains 26 pixels. The firmware embeds 4-bit masks and has no font runtime dependency."
+    },
     {
       "path": "components/captive_portal",
       "name": "ESPHome captive portal and setup page",
@@ -124,7 +138,7 @@
       "revision": "v1.6.0",
       "license": "BSD-3-Clause",
       "license_file": "components/libwebp-esp32/LICENSE",
-      "local_changes": "Decode-only source subset with ESP32 PSRAM, watchdog, scaling, and error-handling adaptations."
+      "local_changes": "Decode-only source subset with ESP32 PSRAM, watchdog, scaling, error-handling, and cooperative decoding adaptations."
     },
     {
       "path": "components/remote_image",
@@ -146,6 +160,41 @@
     }
   ],
   "external_build_assets": [
+    {
+      "usage": "Native Guition Wi-Fi over the board's ESP32-C6 coprocessor",
+      "declarations": ["firmware/native/main/idf_component.yml", "firmware/native/dependencies.lock"],
+      "upstream": "https://github.com/espressif/esp-hosted-mcu",
+      "revision": "esp_hosted 3.1.0 and esp_wifi_remote 1.6.5 with exact transitive dependencies in dependencies.lock",
+      "license": "Apache-2.0"
+    },
+    {
+      "usage": "Native Immich response parsing",
+      "declarations": ["firmware/native/main/idf_component.yml", "firmware/native/dependencies.lock"],
+      "upstream": "https://github.com/DaveGamble/cJSON",
+      "revision": "Espressif Component Registry package 1.7.19~2",
+      "license": "MIT"
+    },
+    {
+      "usage": "Native Espframe local network name discovery",
+      "declarations": ["firmware/native/main/idf_component.yml", "firmware/native/dependencies.lock"],
+      "upstream": "https://github.com/espressif/esp-protocols/tree/master/components/mdns",
+      "revision": "Espressif Component Registry package 1.15.1",
+      "license": "Apache-2.0"
+    },
+    {
+      "usage": "Native ESPHome API Noise transport and Home Assistant interoperability test",
+      "declarations": ["firmware/native/home_assistant/idf_component.yml", "firmware/native/dependencies.lock", "firmware/native/tests/home_assistant/dependencies.lock", ".github/workflows/native-swipe.yml"],
+      "upstream": "https://github.com/esphome-libs/noise-c",
+      "revision": "Noise-C 0.1.31, esphome/libsodium 1.10021.12, and aioesphomeapi 46.25.0 for the host test",
+      "license": "MIT (Noise-C, ESPHome libsodium port, and aioesphomeapi), ISC (upstream libsodium)"
+    },
+    {
+      "usage": "Optional native Immich image preparation service",
+      "declarations": ["firmware/native/prepared-slides/package.json", "firmware/native/prepared-slides/package-lock.json"],
+      "upstream": "https://github.com/lovell/sharp",
+      "revision": "sharp 0.35.5 with its platform libvips packages pinned in package-lock.json",
+      "license": "Apache-2.0 (Sharp); libvips and bundled dependency notices in the platform packages"
+    },
     {
       "usage": "Device text fonts",
       "declarations": ["devices/guition-esp32-p4-jc8012p4a1/assets/fonts.yaml"],
@@ -170,11 +219,12 @@
       "license": "MIT"
     },
     {
-      "usage": "Documentation USB firmware installer",
+      "usage": "Browser USB firmware installers",
       "declarations": [
         "package.json",
         "package-lock.json",
-        "docs/.vitepress/theme/usb-installer.ts"
+        "docs/.vitepress/theme/usb-installer.ts",
+        "firmware/native/tools/package_installer.mjs"
       ],
       "upstream": "https://github.com/esphome/esp-web-tools",
       "revision": "esp-web-tools 10.5.2 with esptool-js 0.7.1 (https://github.com/espressif/esptool-js) and Material Web 2.5.0; exact dependencies and integrity hashes are recorded in package-lock.json",
