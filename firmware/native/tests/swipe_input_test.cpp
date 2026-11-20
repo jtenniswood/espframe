@@ -129,6 +129,41 @@ void a_small_vertical_nudge_can_turn_into_a_swipe() {
   }
 }
 
+void a_straight_drag_can_follow_the_finger_before_it_can_flick() {
+  for (const int direction : {-1, 1}) {
+    Swipe swipe{width, 5, 2};
+    SwipeInput input;
+    const auto start = 5'000;
+    input.update(swipe, report(1, start, 650), initial_position);
+    input.update(swipe, report(2, start + 5'000, 650 - 4 * direction), initial_position);
+    assert(!swipe.dragging() && input.take_first_motion() == 0);
+    auto touch = report(3, start + 10'000, 650 - 8 * direction);
+    touch.y += 3;
+    input.update(swipe, touch, initial_position);
+    assert(swipe.dragging() && swipe.position() == initial_position + 8 * direction);
+    assert(input.take_first_motion() == start + 10'000);
+    input.update(swipe, report(4, start + 15'000, 650 - 15 * direction), swipe.position());
+    input.update(swipe, report(5, start + 20'000, 0, 0), swipe.position());
+    swipe.tick(start + 250'000);
+    assert(swipe.idle() && swipe.settled() == 2);
+  }
+}
+
+void an_oblique_drag_still_uses_the_regular_lock_distance() {
+  Swipe swipe{width, 5, 2};
+  SwipeInput input;
+  input.update(swipe, report(1, 5'000, 650), initial_position);
+  auto touch = report(2, 10'000, 638);
+  touch.y += 8;
+  input.update(swipe, touch, initial_position);
+  assert(!swipe.dragging() && input.take_first_motion() == 0);
+  touch = report(3, 15'000, 634);
+  touch.y += 10;
+  input.update(swipe, touch, initial_position);
+  assert(swipe.dragging() && swipe.position() == initial_position + 16);
+  assert(input.take_first_motion() == 15'000);
+}
+
 void a_quick_flick_after_a_hold_uses_recent_motion() {
   for (const int direction : {-1, 1}) {
     for (const bool pause_before_release : {false, true}) {
@@ -254,6 +289,14 @@ void only_a_continuous_stationary_hold_can_sleep() {
   input.update(swipe, report(9, 12'000'000, 800), initial_position);
   assert(input.update(swipe, report(11, 15'010'000, 0, 0), initial_position) == Effect::None);
   assert(input.awake() && swipe.settled() == 2);
+
+  input.update(swipe, report(12, 16'000'000, 800), initial_position);
+  input.update(swipe, report(13, 19'095'000, 796), initial_position);
+  input.update(swipe, report(14, 19'100'000, 792), initial_position);
+  assert(swipe.dragging());
+  assert(input.update(swipe, report(15, 19'105'000, 0, 0), swipe.position()) == Effect::None);
+  swipe.tick(19'400'000);
+  assert(input.awake() && swipe.idle() && swipe.settled() == 2);
 }
 
 void scheduled_hours_preserve_manual_sleep_and_handle_midnight() {
@@ -388,6 +431,8 @@ int main() {
   sensor_axes_follow_the_picture_in_both_mounting_orientations();
   a_held_photo_can_be_dragged_from_either_side();
   a_small_vertical_nudge_can_turn_into_a_swipe();
+  a_straight_drag_can_follow_the_finger_before_it_can_flick();
+  an_oblique_drag_still_uses_the_regular_lock_distance();
   a_quick_flick_after_a_hold_uses_recent_motion();
   a_gap_cancels_without_flinging_into_another_photo();
   a_transient_transfer_failure_preserves_the_drag();

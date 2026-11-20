@@ -81,10 +81,10 @@ class SwipeInput {
       down_x_ = report.x;
       down_y_ = report.y;
     }
-    if (std::abs(report.x - down_x_) > hold_slop || std::abs(report.y - down_y_) > hold_slop)
-      hold_candidate_ = false;
     const bool was_dragging = swipe.dragging();
     swipe.move(report.x, report.y, report.sampled_us);
+    if (swipe.dragging() || std::abs(report.x - down_x_) > hold_slop || std::abs(report.y - down_y_) > hold_slop)
+      hold_candidate_ = false;
     if (!was_dragging && swipe.dragging() && swipe.position() != handoff)
       first_motion_us_ = report.sampled_us;
     return Effect::None;

@@ -108,18 +108,22 @@ class Swipe {
     this->grabbed_between_slides_ = presented_position % this->width_ != 0 &&
                                    presented_position > this->ready_first_ * this->width_ &&
                                    presented_position < this->ready_last_ * this->width_;
+    this->press_x_ = x;
     this->origin_x_ = x;
     this->origin_y_ = y;
+    this->previous_tracking_dx_ = 0;
     this->last_x_ = x;
     this->last_motion_us_ = now_us;
     this->velocity_ = 0;
+    this->can_flick_ = false;
     this->release_offset_.reset();
     this->phase_ = Phase::Tracking;
   }
 
   void move(int x, int y, int64_t now_us) {
     if (this->phase_ == Phase::Tracking) {
-      const int dx = std::abs(x - this->origin_x_);
+      const int horizontal = x - this->origin_x_;
+      const int dx = std::abs(horizontal);
       const int dy = std::abs(y - this->origin_y_);
       // A small vertical adjustment can precede a horizontal swipe. Lock
       // out the contact once the vertical movement is unambiguous.
@@ -127,7 +131,16 @@ class Swipe {
         this->phase_ = Phase::Ignored;
         return;
       }
-      if (dx < 16 || dx * 2 < dy * 3) {
+      // Let sustained horizontal motion start sooner. A single small jump
+      // during a stationary hold is still touch jitter.
+      const int previous = this->previous_tracking_dx_;
+      const int previous_distance = std::abs(previous);
+      this->previous_tracking_dx_ = horizontal;
+      const bool straight_start = dx >= straight_drag_distance && dx >= 2 * dy &&
+                                  previous_distance >= straight_drag_distance / 2 && dx > previous_distance &&
+                                  horizontal * previous > 0;
+      const bool ordinary_start = dx >= flick_distance && dx * 2 >= dy * 3;
+      if (!straight_start && !ordinary_start) {
         // Keep the velocity baseline current during a stationary hold,
         // including up to two pixels of reported horizontal jitter.
         if (dx <= 2) {
@@ -142,6 +155,7 @@ class Swipe {
     if (this->phase_ != Phase::Dragging)
       return;
 
+    this->can_flick_ |= std::abs(x - this->press_x_) >= flick_distance;
     if (this->last_x_ != x) {
       const int64_t elapsed = now_us - this->last_motion_us_;
       const int delta = this->last_x_ - x;
@@ -180,7 +194,8 @@ class Swipe {
     if (this->phase_ != Phase::Dragging)
       return;
 
-    const float velocity = now_us - this->last_motion_us_ < 85'000
+    // A small early drag can move the picture without gaining flick momentum.
+    const float velocity = this->can_flick_ && now_us - this->last_motion_us_ < 85'000
                                ? std::clamp(this->velocity_, -3.0f, 3.0f)
                                : 0.0f;
     const float momentum = velocity * 170.0f;
@@ -265,6 +280,8 @@ class Swipe {
  private:
   enum class Phase { Idle, Tracking, Ignored, Dragging, WaitingForSlide, Settling };
   static constexpr int64_t default_glide_duration_us = 640'000;
+  static constexpr int straight_drag_distance = 8;
+  static constexpr int flick_distance = 16;
 
   // Animation arithmetic stays near zero even after millions of photos.
   float slide_offset_(SlideIndex slide) const { return static_cast<float>((slide - this->settled_) * this->width_); }
@@ -326,9 +343,12 @@ class Swipe {
   Transition resume_transition_{Transition::Quick};
   SlideIndex resume_{};
   SlideIndex origin_slide_{};
+  int press_x_{};
   int origin_x_{};
   int origin_y_{};
+  int previous_tracking_dx_{};
   int last_x_{};
+  bool can_flick_{};
   bool grabbed_between_slides_{};
   float origin_offset_{};
   std::optional<float> release_offset_;
