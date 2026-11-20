@@ -140,7 +140,8 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegCallbacks &callbacks, cons
   decoder.do_fancy_upsampling = FALSE;
   // Libjpeg reads progressive scans inside jpeg_start_decompress. Its
   // progress hook lets a swipe pause or cancel between MCU rows.
-  if (checkpoint.proceed && jpeg_has_multiple_scans(&decoder)) {
+  const bool multiple_scans = jpeg_has_multiple_scans(&decoder);
+  if (checkpoint.proceed && multiple_scans) {
     callbacks.checkpoint = checkpoint;
     callbacks.progress.progress_monitor = jpeg_progress;
     decoder.progress = &callbacks.progress;
@@ -158,22 +159,46 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegCallbacks &callbacks, cons
 #endif
   decoder.progress = nullptr;
 
-  const auto left = crop.x * decoder.output_width / decoder.image_width;
+  auto left = crop.x * decoder.output_width / decoder.image_width;
   const auto top = crop.y * decoder.output_height / decoder.image_height;
   const auto crop_width = std::max(1u, (crop.x + crop.width) * decoder.output_width / decoder.image_width - left);
   const auto crop_height = std::max(1u, (crop.y + crop.height) * decoder.output_height / decoder.image_height - top);
+  const bool sequential_dct = decoder.Ss == 0 && decoder.Se == DCTSIZE2 - 1 && decoder.Ah == 0 && decoder.Al == 0;
+  if (packed && (sequential_dct || decoder.progressive_mode) && crop_width < decoder.output_width) {
+    // The decoder skips the inverse transform outside the crop and may extend
+    // the left edge to an MCU boundary. Keep sampling from the original crop.
+    auto decode_left = left;
+    auto decode_width = crop_width;
+    jpeg_crop_scanline(&decoder, &decode_left, &decode_width);
+    left -= decode_left;
+  }
   // Some previews already have the right dimensions. Decode their rows
   // straight into the framed preview without a scratch row or a pixel copy.
   const bool direct = packed && left == 0 && top == 0 && crop_width == decoder.output_width &&
                       crop_height == decoder.output_height && static_cast<unsigned>(size.width) == crop_width &&
                       static_cast<unsigned>(size.height) == crop_height;
-  // A progressive JPEG has already read and checked the entire input in
-  // jpeg_start_decompress(). Skip transform and color work outside its crop.
-  const bool skip_margins = decoder.progressive_mode && (top != 0 || top + crop_height < decoder.output_height);
+  const bool single_scan_dct = packed && sequential_dct && !multiple_scans && !decoder.arith_code;
+  const bool skip_margins = (decoder.progressive_mode || single_scan_dct) &&
+                            (top != 0 || top + crop_height < decoder.output_height);
+  const auto mcu_height = static_cast<JDIMENSION>(decoder.min_DCT_v_scaled_size * decoder.max_v_samp_factor);
+  // A progressive JPEG has already read its entire input. For a single scan,
+  // decode the final MCU row so the decoder still consumes the scan ending.
+  const auto skip_end = single_scan_dct ? (decoder.output_height - 1) / mcu_height * mcu_height
+                                      : decoder.output_height;
   const auto skip_rows = [&](JDIMENSION rows) {
-    if (!checkpoint())
-      return Decode::Interrupted;
-    return jpeg_skip_scanlines(&decoder, rows) == rows ? Decode::Ready : Decode::Invalid;
+    while (rows) {
+      if (!checkpoint())
+        return Decode::Interrupted;
+      // Keep intermediate stops on MCU boundaries so repeated skips cannot
+      // pass an MCU row whose entropy data the decoder has yet to consume.
+      constexpr JDIMENSION row_limit = 32;
+      const auto batch = single_scan_dct ? std::min(rows, row_limit - (decoder.output_scanline + row_limit) % mcu_height)
+                                         : rows;
+      if (jpeg_skip_scanlines(&decoder, batch) != batch)
+        return Decode::Invalid;
+      rows -= batch;
+    }
+    return Decode::Ready;
   };
   if (skip_margins && top != 0) {
     const auto skipped = skip_rows(top);
@@ -220,8 +245,8 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegCallbacks &callbacks, cons
       }
       ++target_y;
     }
-    if (skip_margins && target_y == static_cast<unsigned>(size.height) && decoder.output_scanline < decoder.output_height) {
-      const auto skipped = skip_rows(decoder.output_height - decoder.output_scanline);
+    if (skip_margins && target_y == static_cast<unsigned>(size.height) && decoder.output_scanline < skip_end) {
+      const auto skipped = skip_rows(skip_end - decoder.output_scanline);
       if (skipped != Decode::Ready)
         return skipped;
     }
