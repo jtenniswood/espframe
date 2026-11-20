@@ -27,6 +27,9 @@ MockTask task;
 int requests;
 int reply = 200;
 bool interrupt_wait;
+bool hold_download;
+int64_t now_us = 100'000;
+TickType_t last_wait_ms{};
 std::atomic<bool> slide_cancelled{};
 const std::string base_url = "https://photos.test/api";
 const std::string key = "test-key";
@@ -55,6 +58,11 @@ int xSemaphoreTake(SemaphoreHandle_t semaphore, TickType_t timeout) {
     if (interrupt_wait) {
       slide_cancelled = true;
       interrupt_wait = false;
+      return 0;
+    }
+    if (hold_download) {
+      last_wait_ms = timeout;
+      now_us += 1'000 * timeout;
       return 0;
     }
     service_download();
@@ -87,7 +95,7 @@ uint32_t ulTaskNotifyTake(int, TickType_t) {
   return 1;
 }
 
-int64_t esp_timer_get_time() { return 100'000; }
+int64_t esp_timer_get_time() { return now_us; }
 
 ImmichHttp::~ImmichHttp() = default;
 void ImmichHttp::disconnect() {}
@@ -141,9 +149,32 @@ int main() {
   assert(!prefetch.take(asset('e'), 2, buffer) && buffer[0] == 'b');
   assert(requests == 4);
 
+  // A companion started during the primary decode uses the same staging
+  // slot, including when its bytes are ready before the bounded wait starts.
+  reply = 200;
   prefetch.start(asset('f'), 2, base_url, key);
-  prefetch.release_on_memory_pressure();
+  service_download();
+  assert(prefetch.take(asset('f'), 2, buffer, now_us + 1'500'000) == 1);
+  assert(requests == 5 && buffer[0] == 'f');
+
   prefetch.start(asset('g'), 2, base_url, key);
-  assert(!task.notified && !prefetch.take(asset('g'), 2, buffer));
-  assert(requests == 4 && buffer[0] == 'b');
+  const auto deadline = now_us + 25'000;
+  hold_download = true;
+  assert(!prefetch.take(asset('g'), 2, buffer, deadline));
+  assert(now_us == deadline && last_wait_ms == 5 && task.notified && buffer[0] == 'f');
+  hold_download = false;
+  service_download();
+  assert(requests == 5);
+
+  // An over-limit staged download falls back to the caller's larger buffer.
+  reply = 413;
+  prefetch.start(asset('h'), 2, base_url, key);
+  assert(!prefetch.take(asset('h'), 2, buffer, now_us + 1'500'000));
+  assert(requests == 6 && buffer[0] == 'f');
+
+  prefetch.start(asset('i'), 2, base_url, key);
+  prefetch.release_on_memory_pressure();
+  prefetch.start(asset('j'), 2, base_url, key);
+  assert(!task.notified && !prefetch.take(asset('j'), 2, buffer));
+  assert(requests == 6 && buffer[0] == 'f');
 }

@@ -4,6 +4,7 @@
 #include "esp_timer.h"
 #include "live_trial.h"
 
+#include <algorithm>
 #include <cstring>
 
 namespace espframe::native {
@@ -44,21 +45,28 @@ void PreviewPrefetch::start(const AssetId &id, uint32_t connection, const std::s
   xTaskNotifyGive(task_);
 }
 
-size_t PreviewPrefetch::take(const AssetId &id, uint32_t connection, std::span<uint8_t> destination) {
+size_t PreviewPrefetch::take(const AssetId &id, uint32_t connection, std::span<uint8_t> destination,
+                             int64_t deadline_us) {
   if (!pending_ || cancelled_)
     return 0;
   if (id != id_ || connection != connection_ || destination.empty()) {
     cancel();
     return 0;
   }
-  while (xSemaphoreTake(complete_, pdMS_TO_TICKS(10)) != pdTRUE) {
-    if (slide_cancelled_) {
+  constexpr int64_t poll_interval_us = 10'000;
+  for (;;) {
+    const auto remaining = deadline_us ? deadline_us - esp_timer_get_time() : poll_interval_us;
+    if (slide_cancelled_ || remaining <= 0) {
       cancel();
       return 0;
     }
+    const auto wait_ms = (std::min(remaining, poll_interval_us) + 999) / 1000;
+    if (xSemaphoreTake(complete_, pdMS_TO_TICKS(wait_ms)) == pdTRUE)
+      break;
   }
   pending_ = false;
-  if (slide_cancelled_ || !length_ || length_ > destination.size())
+  if (slide_cancelled_ || (deadline_us && esp_timer_get_time() >= deadline_us) ||
+      !length_ || length_ > destination.size())
     return 0;
   // Keep the staging buffer smaller than the foreground download limit.
   // Once copied, the slot can start filling again during this decode.

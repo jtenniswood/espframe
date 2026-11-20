@@ -63,7 +63,7 @@ class ImmichSource {
   std::optional<size_t> pending_index_(const AssetId &exclude = {}) const;
   void prefetch_next_(const AssetId &id);
   bool select_pair_(ImmichPhoto &seed, AssetId &companion);
-  AssetId companion_for_(const ImmichPhoto &primary, int64_t deadline_us);
+  AssetId companion_for_(const ImmichPhoto &primary, std::optional<int64_t> search_deadline = {});
   void discard_candidate_(const AssetId &id);
   void complete_location_(PhotoSlide &frame);
   bool wait_for_pixel_work_() const;

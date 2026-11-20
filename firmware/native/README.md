@@ -302,7 +302,9 @@ The frame reuses the Immich connection when the server allows it, and
 reconnects if an idle connection has closed before the next response.
 While decoding a direct Immich slide, it can start downloading the next
 known preview if enough PSRAM is available. The lookahead holds one preview
-up to 1 MiB. A missed or oversized lookahead uses the normal download path.
+up to 1 MiB. When a portrait companion is already known, the worker starts it
+while decoding the first portrait. A missed or oversized lookahead uses the
+normal download path. Optional companions keep the existing pairing deadline.
 Wi-Fi association and time synchronization run independently of photo
 preparation, so the worker can prepare cached previews during reconnect.
 The native frame scans all channels at connection time and tries the

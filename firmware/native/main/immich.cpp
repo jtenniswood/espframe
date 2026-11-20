@@ -403,7 +403,7 @@ bool ImmichSource::select_pair_(ImmichPhoto &seed, AssetId &companion) {
   }
 }
 
-AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, int64_t deadline_us) {
+AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, std::optional<int64_t> search_deadline) {
   if (!primary.metadata.capture_day)
     return {};
   auto choose = [&](const std::vector<ImmichPhoto> &photos) {
@@ -430,12 +430,13 @@ AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, int64_t deadlin
   if (known[0] != '\0')
     return known;
   const auto &source = this->feed_().photo_source;
-  if (source.mode == PhotoSourceMode::Memories) {
-    if (!this->using_memory_fallback_)
-      return choose(this->memory_pool_);
-    return choose(this->search_(PhotoSource{}, primary.metadata.capture_day, deadline_us));
-  }
-  return choose(this->search_(source, primary.metadata.capture_day, deadline_us));
+  const bool memories = source.mode == PhotoSourceMode::Memories;
+  if (memories && !this->using_memory_fallback_)
+    return choose(this->memory_pool_);
+  if (!search_deadline)
+    return {};
+  const PhotoSource all_photos;
+  return choose(this->search_(memories ? all_photos : source, primary.metadata.capture_day, *search_deadline));
 }
 
 void ImmichSource::discard_candidate_(const AssetId &id) {
@@ -532,9 +533,7 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
     return PreviewStatus::Retry;
 
   const auto request_us = esp_timer_get_time();
-  // Optional pair deadlines also govern how long a companion can take. A
-  // staged preview is for the next primary, so claim it on the primary path.
-  size_t length = optional ? 0 : this->prefetch_.take(id, this->http_connection_, {this->encoded_, photo_capacity});
+  size_t length = this->prefetch_.take(id, this->http_connection_, {this->encoded_, photo_capacity}, deadline_us);
   int status = 200;
   if (length != 0) {
     if constexpr (SWIPE_TRIAL_IMMICH)
@@ -731,9 +730,15 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     };
     DecodedPreview primary;
     const bool paired_primary = pairs_only || retain_pair;
-    const bool primary_last = frame.companion[0] == '\0' && (!optional_pair || (seed.orientation_known && !seed.portrait));
-    const auto status = this->load_preview_(frame.primary, primary, paired_primary, 0, true,
-                                            primary_last ? upcoming({}) : AssetId{});
+    // Start a known companion during primary decode. A new Immich search
+    // still waits for the decoded portrait so it cannot delay a landscape.
+    if (optional_pair && !selected_companion && seed.portrait) {
+      frame.companion = companion_for_(seed);
+      selected_companion = frame.companion[0] != '\0';
+    }
+    const bool primary_last = !optional_pair || (seed.orientation_known && !seed.portrait);
+    const auto lookahead = frame.companion[0] != '\0' ? frame.companion : (primary_last ? upcoming({}) : AssetId{});
+    const auto status = this->load_preview_(frame.primary, primary, paired_primary, 0, true, lookahead);
     if (this->cancelled_ || status == PreviewStatus::Retry)
       return retry_frame();
     if (status == PreviewStatus::Missing || (paired_primary && !primary.portrait()))
@@ -760,6 +765,8 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       if (right != PreviewStatus::Ready || !companion.portrait())
         frame.companion = {};
     } else {
+      if (frame.companion[0] != '\0')
+        this->prefetch_.cancel();
       frame.companion = {};
     }
 
