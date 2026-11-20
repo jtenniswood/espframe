@@ -8,6 +8,7 @@
 
 #include "esp_lcd_mipi_dsi.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 namespace espframe::native {
 
@@ -18,6 +19,7 @@ class Display {
   void set_backlight(uint8_t brightness) const;
   static unsigned nominal_frame_period_us();
   std::optional<int64_t> poll_presented();
+  void wait_for_frame_or_tick() const;
   PixelPosition presented_position() const { return position_; }
   // A queued frame can still reach the panel after touch arrives. Start
   // from that frame so taking over doesn't visibly undo the pending swap.
@@ -34,6 +36,7 @@ class Display {
   esp_lcd_panel_handle_t panel_{};
   uint16_t *buffers_[3]{};
   FrameSlots slots_;
+  TaskHandle_t renderer_{};
   portMUX_TYPE boundary_lock_ = portMUX_INITIALIZER_UNLOCKED;
   int64_t latched_us_{};
   bool awaiting_latch_{};

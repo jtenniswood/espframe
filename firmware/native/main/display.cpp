@@ -7,7 +7,6 @@
 #include "esp_ldo_regulator.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "sdkconfig.h"
 
 #if defined(CONFIG_ESP32P4_SELECTS_REV_LESS_V3) != SWIPE_EARLY_P4
@@ -110,6 +109,7 @@ void Display::init(bool request_snapshot) {
   this->buffers_[0] = static_cast<uint16_t *>(first);
   this->buffers_[1] = static_cast<uint16_t *>(second);
   this->buffers_[2] = static_cast<uint16_t *>(third);
+  this->renderer_ = xTaskGetCurrentTaskHandle();
   esp_lcd_dpi_panel_event_callbacks_t callbacks{};
   callbacks.on_frame_buf_complete = frame_done_;
   ESP_ERROR_CHECK(esp_lcd_dpi_panel_register_event_callbacks(this->panel_, &callbacks, this));
@@ -145,12 +145,16 @@ unsigned Display::nominal_frame_period_us() {
 bool Display::frame_done_(esp_lcd_panel_handle_t, esp_lcd_dpi_panel_event_data_t *, void *context) {
   auto &display = *static_cast<Display *>(context);
   portENTER_CRITICAL_ISR(&display.boundary_lock_);
-  if (display.awaiting_latch_) {
+  const bool latched = display.awaiting_latch_;
+  if (latched) {
     display.latched_us_ = esp_timer_get_time();
     display.awaiting_latch_ = false;
   }
   portEXIT_CRITICAL_ISR(&display.boundary_lock_);
-  return false;
+  BaseType_t task_woken = pdFALSE;
+  if (latched)
+    vTaskNotifyGiveFromISR(display.renderer_, &task_woken);
+  return task_woken == pdTRUE;
 }
 
 std::optional<int64_t> Display::poll_presented() {
@@ -164,6 +168,12 @@ std::optional<int64_t> Display::poll_presented() {
   this->slots_.latch();
   this->position_ = this->pending_position_;
   return latched_us;
+}
+
+void Display::wait_for_frame_or_tick() const {
+  // The DMA handoff can free a buffer before the next scheduler tick. Keep
+  // the tick timeout so touch and preparation still progress without a swap.
+  ulTaskNotifyTake(pdTRUE, 1);
 }
 
 uint16_t *Display::writable_buffer() {

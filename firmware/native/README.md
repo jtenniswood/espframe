@@ -570,7 +570,9 @@ writeback. The route counts
 movement-to-LCD-handoff samples over 50 ms and drag gaps beyond one and a
 half nominal refresh periods. The busy counts cover first motion submitted
 while a preparation lease was active and drag gaps whose two ends overlapped
-preparation. Save the response before the automatic return to ESPHome.
+preparation. `drag_handoff_delay` counts how long the renderer took to observe
+each drag frame's LCD DMA handoff, including the number of waits over 250 µs.
+Save the response before the automatic return to ESPHome.
 
 To test faster browsing, build the same live trial in a separate directory
 with `-D SWIPE_TRIAL_BENCHMARK_RAPID=ON` and upload

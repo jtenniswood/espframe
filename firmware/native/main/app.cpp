@@ -976,7 +976,7 @@ void run(void *) {
     }
 
     if (blend.pending()) {
-      vTaskDelay(1);
+      display.wait_for_frame_or_tick();
       continue;
     }
     if (fade.running()) {
@@ -1027,7 +1027,7 @@ void run(void *) {
           }
         }
       }
-      vTaskDelay(1);
+      display.wait_for_frame_or_tick();
       continue;
     }
 
@@ -1108,7 +1108,7 @@ void run(void *) {
         last_inside = inside;
       }
     }
-    vTaskDelay(1);
+    display.wait_for_frame_or_tick();
   }
 }
 
