@@ -473,6 +473,8 @@ WEBP_NODISCARD static VP8StatusCode DecodeInto(const uint8_t* const data,
   }
   io.data = headers.data + headers.offset;
   io.data_size = headers.data_size - headers.offset;
+  io.checkpoint = params->checkpoint;
+  io.checkpoint_context = params->checkpoint_context;
   WebPInitCustomIo(params, &io);  // Plug the I/O functions.
 
   if (!headers.is_lossless) {
@@ -821,6 +823,12 @@ VP8StatusCode WebPGetFeaturesInternal(const uint8_t* data, size_t data_size,
 
 VP8StatusCode WebPDecode(const uint8_t* data, size_t data_size,
                          WebPDecoderConfig* config) {
+  return WebPDecodeWithCheckpoint(data, data_size, config, NULL, NULL);
+}
+
+VP8StatusCode WebPDecodeWithCheckpoint(const uint8_t* data, size_t data_size,
+                                      WebPDecoderConfig* config,
+                                      int (*checkpoint)(void*), void* context) {
   WebPDecParams params;
   VP8StatusCode status;
 
@@ -839,6 +847,8 @@ VP8StatusCode WebPDecode(const uint8_t* data, size_t data_size,
   WebPResetDecParams(&params);
   params.options = &config->options;
   params.output = &config->output;
+  params.checkpoint = checkpoint;
+  params.checkpoint_context = context;
   if (WebPAvoidSlowMemory(params.output, &config->input)) {
     // decoding to slow memory: use a temporary in-mem buffer to decode into.
     WebPDecBuffer in_mem_buffer;
