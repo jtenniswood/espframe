@@ -240,6 +240,24 @@ constexpr uint8_t brightness_color_mode = 3;
 constexpr uint8_t configuration_category = 1;
 constexpr uint8_t diagnostic_category = 2;
 
+struct MemorySensor {
+  uint32_t key;
+  const char *object_id;
+  const char *name;
+  const char *unit;
+  uint8_t decimals;
+  std::optional<float> EspHomeMemorySample::*reading;
+};
+
+constexpr MemorySensor memory_sensors[] = {
+    {3519121973U, "memory__heap_free", "Memory: Heap Free", "%", 1, &EspHomeMemorySample::heap_free_percent},
+    {3632003571U, "memory__heap_largest_block", "Memory: Heap Largest Block", "B", 0,
+     &EspHomeMemorySample::heap_largest_block},
+    {276662424U, "memory__psram_free", "Memory: PSRAM Free", "%", 1, &EspHomeMemorySample::psram_free_percent},
+    {1399957840U, "memory__psram_largest_block", "Memory: PSRAM Largest Block", "B", 0,
+     &EspHomeMemorySample::psram_largest_block},
+};
+
 constexpr auto stock_language_options = [] {
   std::array<std::string_view, espframe_i18n_catalogue::LANGUAGE_COUNT> options{};
   std::ranges::copy(espframe_i18n_catalogue::LANGUAGES, options.begin());
@@ -371,6 +389,22 @@ bool send_display_entities(NoiseSession &session) {
   return timeout.send(session, Message::Select);
 }
 
+bool send_memory_entities(NoiseSession &session) {
+  for (const auto &sensor : memory_sensors) {
+    ProtoReply reply;
+    reply.text(1, sensor.object_id);
+    reply.fixed32(2, sensor.key);
+    reply.text(3, sensor.name);
+    reply.text(5, "mdi:memory");
+    reply.text(6, sensor.unit);
+    reply.number(7, sensor.decimals);
+    reply.number(13, diagnostic_category);
+    if (!reply.send(session, Message::Sensor))
+      return false;
+  }
+  return true;
+}
+
 bool send_entities(NoiseSession &session, uint32_t custom_interval) {
   ProtoReply backlight;
   backlight.text(1, "screen_backlight");
@@ -408,7 +442,7 @@ bool send_entities(NoiseSession &session, uint32_t custom_interval) {
   for (const auto option : photo_presets)
     source.text(6, option);
   return source.send(session, Message::Select) && send_network_entities(session) && send_device_entities(session) &&
-         send_display_entities(session) && session.send(Message::EntitiesDone);
+         send_display_entities(session) && send_memory_entities(session) && session.send(Message::EntitiesDone);
 }
 
 bool send_select_state(NoiseSession &session, uint32_t key, std::string_view option) {
@@ -454,14 +488,27 @@ std::optional<uint8_t> wifi_strength(const EspHomeControls &controls) {
   return {};
 }
 
-bool send_wifi_strength(NoiseSession &session, std::optional<uint8_t> strength) {
+bool send_sensor_state(NoiseSession &session, uint32_t key, std::optional<float> value) {
   ProtoReply reply;
-  reply.fixed32(1, wifi_strength_key);
-  if (strength)
-    reply.fixed32(2, std::bit_cast<uint32_t>(static_cast<float>(*strength)));
+  reply.fixed32(1, key);
+  if (value)
+    reply.fixed32(2, std::bit_cast<uint32_t>(*value));
   else
     reply.number(3, 1);
   return reply.send(session, Message::SensorState);
+}
+
+bool report_memory(NoiseSession &session, const EspHomeControls &controls, EspHomeMemorySample &reported,
+                   bool force = false) {
+  const auto sample = controls.memory(controls.context);
+  for (const auto &sensor : memory_sensors) {
+    const auto &value = sample.*sensor.reading;
+    const auto &previous = reported.*sensor.reading;
+    if ((force || value != previous) && !send_sensor_state(session, sensor.key, value))
+      return false;
+  }
+  reported = sample;
+  return true;
 }
 
 bool send_text_state(NoiseSession &session, uint32_t key, std::string_view value) {
@@ -627,6 +674,7 @@ void serve_esphome(EspHomeStream stream, const EspHomeIdentity &identity,
   bool subscribed = false;
   uint8_t reported_backlight{};
   std::optional<uint8_t> reported_strength;
+  EspHomeMemorySample reported_memory;
   DisplayStates display;
   while (true) {
     if (subscribed && stream.poll) {
@@ -638,11 +686,12 @@ void serve_esphome(EspHomeStream stream, const EspHomeIdentity &identity,
       }
       const auto strength = wifi_strength(controls);
       if (strength != reported_strength) {
-        if (!send_wifi_strength(session, strength))
+        if (!send_sensor_state(session, wifi_strength_key, strength))
           return;
         reported_strength = strength;
       }
-      if (!display.report_language(session) || !display.report_timeout(session))
+      if (!display.report_language(session) || !display.report_timeout(session) ||
+          !report_memory(session, controls, reported_memory))
         return;
       const auto ready = stream.poll(stream.context);
       if (ready == EspHomeReadiness::Idle)
@@ -666,9 +715,11 @@ void serve_esphome(EspHomeStream stream, const EspHomeIdentity &identity,
         sent = send_select_state(session, interval_key, interval_label(controls.interval(controls.context))) &&
                send_backlight(session, reported_backlight) &&
                send_select_state(session, photo_source_key, photo_preset_name(controls.photo_preset(controls.context))) &&
-               send_network_status(session, controls.station_address) && send_wifi_strength(session, reported_strength) &&
+               send_network_status(session, controls.station_address) &&
+               send_sensor_state(session, wifi_strength_key, reported_strength) &&
                send_text_state(session, reset_reason_key, controls.reset_reason) &&
-               display.report_language(session, true) && display.report_timeout(session, true);
+               display.report_language(session, true) && display.report_timeout(session, true) &&
+               report_memory(session, controls, reported_memory, true);
         break;
       case Message::SelectCommand:
         if (const auto request = select_request(body)) {

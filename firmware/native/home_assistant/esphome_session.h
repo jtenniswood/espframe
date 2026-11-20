@@ -20,6 +20,13 @@ struct EspHomeIdentity {
   std::array<uint8_t, 6> mac;
 };
 
+struct EspHomeMemorySample {
+  std::optional<float> heap_free_percent;
+  std::optional<float> heap_largest_block;
+  std::optional<float> psram_free_percent;
+  std::optional<float> psram_largest_block;
+};
+
 struct EspHomeControls {
   ScreenControl &screen;
   const void *context;
@@ -33,6 +40,7 @@ struct EspHomeControls {
   void (*restart)(const void *);
   bool (*set_connection_timeout)(const void *, uint32_t);
   bool (*set_device_language)(const void *, uint8_t);
+  EspHomeMemorySample (*memory)(const void *);
 };
 
 enum class EspHomeReadiness { Ready, Idle, Closed };

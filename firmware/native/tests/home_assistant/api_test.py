@@ -29,6 +29,10 @@ REBOOT_KEY = 2194406813
 RESET_REASON_KEY = 2962208445
 LANGUAGE_KEY = 4083618279
 TIMEOUT_KEY = 1991622891
+HEAP_FREE_KEY = 3519121973
+HEAP_LARGEST_KEY = 3632003571
+PSRAM_FREE_KEY = 276662424
+PSRAM_LARGEST_KEY = 1399957840
 CONTRACT = Path(__file__).resolve().parents[4] / "product/contract/settings.json"
 STOCK_FIELDS = {field["key"]: field for field in json.loads(CONTRACT.read_text())}
 STOCK_INTERVALS = STOCK_FIELDS["interval"]["options"]
@@ -140,6 +144,32 @@ async def expect_reset_reason(states, value):
     assert reason.state == value and not reason.missing_state
 
 
+def check_memory_entities(entities):
+    by_key = {item.key: item for item in entities}
+    for key, name, object_id, unit, decimals in (
+        (HEAP_FREE_KEY, "Memory: Heap Free", "memory__heap_free", "%", 1),
+        (HEAP_LARGEST_KEY, "Memory: Heap Largest Block", "memory__heap_largest_block", "B", 0),
+        (PSRAM_FREE_KEY, "Memory: PSRAM Free", "memory__psram_free", "%", 1),
+        (PSRAM_LARGEST_KEY, "Memory: PSRAM Largest Block", "memory__psram_largest_block", "B", 0),
+    ):
+        sensor = by_key[key]
+        assert isinstance(sensor, SensorInfo) and not sensor.disabled_by_default
+        assert sensor.name == name and sensor.icon == "mdi:memory" and sensor.entity_category == EntityCategory.DIAGNOSTIC
+        assert sensor.unit_of_measurement == unit and sensor.accuracy_decimals == decimals
+        assert not sensor.device_class and sensor.state_class == SensorStateClass.NONE
+        assert build_device_unique_id(MAC, sensor) == f"{MAC}/0/sensor/{name}"
+        assert build_device_unique_id(MAC, sensor, version=1) == f"{MAC}-sensor-{object_id}"
+
+
+async def expect_memory_states(states, readings):
+    for key, expected in readings:
+        sensor = await states.get()
+        assert isinstance(sensor, SensorState) and sensor.key == key
+        assert sensor.missing_state == (expected is None)
+        if expected is not None:
+            assert sensor.state == expected
+
+
 def check_display_entities(entities):
     by_key = {item.key: item for item in entities}
     for key, field, name, icon, category, object_id in (
@@ -197,10 +227,11 @@ async def verify(port, clock_input):
         assert info.mac_address.lower().replace(":", "") == MAC
         assert info.api_encryption_supported and not info.api_encryption_provisionable
         assert info.project_name == "jtenniswood.immich-frame"
-        assert not services and len(entities) == 12
+        assert not services and len(entities) == 16
         check_network_entities(entities)
         check_restart_entities(entities)
         check_display_entities(entities)
+        check_memory_entities(entities)
         buttons = [entity for entity in entities if isinstance(entity, ButtonInfo) and entity.key != REBOOT_KEY]
         for button, name, key, object_id in zip(
             buttons, ("Screen: Sleep", "Screen: Wake"), (2655868716, 1917547667),
@@ -245,6 +276,16 @@ async def verify(port, clock_input):
         await expect_reset_reason(states, "power-on event")
         await expect_select(states, LANGUAGE_KEY, "en")
         await expect_select(states, TIMEOUT_KEY, "10 minutes")
+        await expect_memory_states(states, (
+            (HEAP_FREE_KEY, 35.25), (HEAP_LARGEST_KEY, 32768), (PSRAM_FREE_KEY, 54.5), (PSRAM_LARGEST_KEY, 8_388_608),
+        ))
+        for command, readings in (
+            (b"m", ((HEAP_LARGEST_KEY, 8192), (PSRAM_FREE_KEY, None), (PSRAM_LARGEST_KEY, 0))),
+            (b"r", ((HEAP_FREE_KEY, 30), (PSRAM_FREE_KEY, 41.5), (PSRAM_LARGEST_KEY, 262144))),
+        ):
+            clock_input.write(command)
+            await clock_input.drain()
+            await expect_memory_states(states, readings)
         for command, strength in ((b"x", None), (b"w", 0), (b"s", 100)):
             clock_input.write(command)
             await clock_input.drain()
@@ -346,6 +387,9 @@ async def verify(port, clock_input):
         await expect_reset_reason(states, "software via esp_restart")
         await expect_select(states, LANGUAGE_KEY, "he")
         await expect_select(states, TIMEOUT_KEY, "15 minutes")
+        await expect_memory_states(states, (
+            (HEAP_FREE_KEY, 30), (HEAP_LARGEST_KEY, 8192), (PSRAM_FREE_KEY, 41.5), (PSRAM_LARGEST_KEY, 262144),
+        ))
     finally:
         await api.disconnect()
 
@@ -366,6 +410,7 @@ async def main(executable):
     print("Network status, IP address and Wi-Fi strength used the stock diagnostic identities and reported live state.")
     print("The stock reboot button disconnected the simulated frame and Reset Reason updated on reconnect.")
     print("Device language and connection timeout used stock select identities, options and live state.")
+    print("Heap and PSRAM sensors preserved stock identities and reported changed, missing and zero readings.")
     print("Silent clients, wrong keys, plaintext, oversized frames and inconsistent lengths were rejected. The client reconnected.")
 
 

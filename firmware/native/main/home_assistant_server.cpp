@@ -9,6 +9,7 @@
 #include "slideshow_interval.h"
 
 #include "bootloader_random.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_random.h"
 #include "esp_timer.h"
@@ -34,6 +35,14 @@ namespace {
 constexpr char tag[] = "home-assistant";
 constexpr char service[] = "_esphomelib";
 constexpr uint16_t port = 6053;
+constexpr int64_t diagnostic_interval_us = 60'000'000;
+
+std::optional<float> free_memory_percent(uint32_t capabilities) {
+  const auto total = heap_caps_get_total_size(capabilities);
+  if (!total)
+    return {};
+  return 100.0f * heap_caps_get_free_size(capabilities) / total;
+}
 
 struct Socket {
   const int fd;
@@ -60,15 +69,32 @@ struct HomeAssistantServer {
   std::string_view paired_key;
   mutable std::optional<int8_t> last_rssi{};
   mutable int64_t next_wifi_sample_us{};
+  mutable EspHomeMemorySample last_memory{};
+  mutable int64_t next_memory_sample_us{};
 
   std::optional<int8_t> wifi_rssi() const {
     const auto now = esp_timer_get_time();
     if (now >= next_wifi_sample_us) {
       wifi_ap_record_t ap{};
       last_rssi = esp_wifi_sta_get_ap_info(&ap) == ESP_OK ? std::optional<int8_t>{ap.rssi} : std::nullopt;
-      next_wifi_sample_us = now + 60'000'000;
+      next_wifi_sample_us = now + diagnostic_interval_us;
     }
     return last_rssi;
+  }
+
+  EspHomeMemorySample memory() const {
+    const auto now = esp_timer_get_time();
+    if (now >= next_memory_sample_us) {
+      // Match the stock diagnostics. The largest blocks are byte-addressable.
+      last_memory = {
+          free_memory_percent(MALLOC_CAP_INTERNAL),
+          static_cast<float>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL)),
+          free_memory_percent(MALLOC_CAP_SPIRAM),
+          static_cast<float>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM)),
+      };
+      next_memory_sample_us = now + diagnostic_interval_us;
+    }
+    return last_memory;
   }
 
   void listen_on_station(uint32_t lease) const {
@@ -100,6 +126,7 @@ struct HomeAssistantServer {
     std::array<char, INET_ADDRSTRLEN> station_address{};
     inet_ntop(AF_INET, &address.sin_addr, station_address.data(), station_address.size());
     next_wifi_sample_us = 0;
+    next_memory_sample_us = 0;
     const EspHomeControls controls{
         screen_control, this,
         [](const void *) { return active_slideshow_interval.load(std::memory_order_relaxed); },
@@ -124,6 +151,7 @@ struct HomeAssistantServer {
           const auto &server = *static_cast<const HomeAssistantServer *>(context);
           return Settings::save_device_language(language, server.paired_key);
         },
+        [](const void *context) { return static_cast<const HomeAssistantServer *>(context)->memory(); },
     };
     while (network->station_lease() == lease) {
       const Socket client{accept(listener.fd, nullptr, nullptr)};

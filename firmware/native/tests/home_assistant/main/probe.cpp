@@ -31,6 +31,7 @@ extern "C" void app_main() {
       [](const void *) {},
       [](const void *, uint32_t) { return false; },
       [](const void *, uint8_t) { return false; },
+      [](const void *) { return EspHomeMemorySample{}; },
   };
   serve_esphome(closed, {"espframe-link-test", {}, {}, {2, 0, 0, 0, 0, 1}}, no_key, controls);
 }

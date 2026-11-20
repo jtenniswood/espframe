@@ -25,6 +25,7 @@ namespace {
 
 struct TestDevice {
   std::atomic<int8_t> rssi{-65};
+  std::atomic<uint8_t> memory_sample{};
   int connection{-1};
   mutable bool rebooted{};
 };
@@ -103,6 +104,13 @@ int main() {
         active_device_language.store(language);
         return true;
       },
+      [](const void *context) -> EspHomeMemorySample {
+        switch (static_cast<const TestDevice *>(context)->memory_sample.load()) {
+          case 1: return {35.25f, 8192.0f, std::nullopt, 0.0f};
+          case 2: return {30.0f, 8192.0f, 41.5f, 262144.0f};
+          default: return {35.25f, 32768.0f, 54.5f, 8'388'608.0f};
+        }
+      },
   };
   std::jthread player([&device](std::stop_token stop) {
     ScreenSchedule schedule{{true, 6, 22, 60}};
@@ -119,6 +127,8 @@ int main() {
           case 's': device.rssi.store(-45); break;
           case 'p': active_device_language.store(find_espframe_language("he")); break;
           case 't': active_connection_timeout.store(900); break;
+          case 'm': device.memory_sample.store(1); break;
+          case 'r': device.memory_sample.store(2); break;
         }
       }
       const bool commanded = screen_control.apply_pending(schedule, 1'000, hour, manual_brightness);

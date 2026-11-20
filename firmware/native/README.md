@@ -160,6 +160,9 @@ The native player uses the stock entity IDs for **Screen: Backlight**,
 **Screen: Sleep**, **Screen: Wake**, and **Photos: Slideshow Interval**.
 Existing dashboards can also use **Network: Online**, **Network: WiFi Strength**,
 and **Network: IP Address** after migration. Wi-Fi strength refreshes once a minute.
+The four stock **Memory** sensors report free internal heap and PSRAM as
+percentages, and the largest byte-addressable block in each region in bytes.
+The frame samples those values once a minute while Home Assistant subscribes.
 **Device: Reboot Screen** restarts the frame, and **Reset Reason** reports what
 caused the last startup. A reboot request takes effect when the frame is
 running a confirmed image and no firmware update is in progress.
