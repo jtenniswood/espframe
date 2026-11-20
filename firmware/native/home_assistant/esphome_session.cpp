@@ -1,4 +1,6 @@
 #include "esphome_session.h"
+#include "i18n.h"
+#include "photo_metadata.h"
 #include "photo_source.h"
 #include "screen_control.h"
 #include "slideshow_interval.h"
@@ -232,9 +234,19 @@ constexpr uint32_t wifi_strength_key = 3943756064U;
 constexpr uint32_t ip_address_key = 3394986237U;
 constexpr uint32_t reboot_key = 2194406813U;
 constexpr uint32_t reset_reason_key = 2962208445U;
+constexpr uint32_t device_language_key = 4083618279U;
+constexpr uint32_t connection_timeout_key = 1991622891U;
 constexpr uint8_t brightness_color_mode = 3;
 constexpr uint8_t configuration_category = 1;
 constexpr uint8_t diagnostic_category = 2;
+
+constexpr auto stock_language_options = [] {
+  std::array<std::string_view, espframe_i18n_catalogue::LANGUAGE_COUNT> options{};
+  std::ranges::copy(espframe_i18n_catalogue::LANGUAGES, options.begin());
+  // ESPHome lists English first, then sorts the remaining language codes.
+  std::sort(options.begin() + 1, options.end());
+  return options;
+}();
 
 }  // namespace
 
@@ -336,6 +348,29 @@ bool send_network_entities(NoiseSession &session) {
   return reply.send(session, Message::TextSensor);
 }
 
+bool send_display_entities(NoiseSession &session) {
+  {
+    ProtoReply language;
+    language.text(1, "device__language");
+    language.fixed32(2, device_language_key);
+    language.text(3, "Device: Language");
+    language.text(5, "mdi:translate");
+    for (const auto option : stock_language_options)
+      language.text(6, option);
+    language.number(8, configuration_category);
+    if (!language.send(session, Message::Select))
+      return false;
+  }
+  ProtoReply timeout;
+  timeout.text(1, "screen__connection_timeout");
+  timeout.fixed32(2, connection_timeout_key);
+  timeout.text(3, "Screen: Connection Timeout");
+  timeout.text(5, "mdi:connection");
+  for (const auto seconds : connection_timeouts)
+    timeout.text(6, interval_label(seconds));
+  return timeout.send(session, Message::Select);
+}
+
 bool send_entities(NoiseSession &session, uint32_t custom_interval) {
   ProtoReply backlight;
   backlight.text(1, "screen_backlight");
@@ -373,7 +408,7 @@ bool send_entities(NoiseSession &session, uint32_t custom_interval) {
   for (const auto option : photo_presets)
     source.text(6, option);
   return source.send(session, Message::Select) && send_network_entities(session) && send_device_entities(session) &&
-         session.send(Message::EntitiesDone);
+         send_display_entities(session) && session.send(Message::EntitiesDone);
 }
 
 bool send_select_state(NoiseSession &session, uint32_t key, std::string_view option) {
@@ -382,6 +417,27 @@ bool send_select_state(NoiseSession &session, uint32_t key, std::string_view opt
   reply.text(2, option);
   return reply.send(session, Message::SelectState);
 }
+
+struct DisplayStates {
+  uint8_t language{};
+  uint32_t timeout{};
+
+  bool report_language(NoiseSession &session, bool force = false) {
+    const auto current = active_device_language.load(std::memory_order_relaxed);
+    if (!force && language == current)
+      return true;
+    language = current;
+    return send_select_state(session, device_language_key, espframe_i18n_catalogue::LANGUAGES[language]);
+  }
+
+  bool report_timeout(NoiseSession &session, bool force = false) {
+    const auto current = active_connection_timeout.load(std::memory_order_relaxed);
+    if (!force && timeout == current)
+      return true;
+    timeout = current;
+    return send_select_state(session, connection_timeout_key, interval_label(timeout));
+  }
+};
 
 bool send_backlight(NoiseSession &session, uint8_t level) {
   ProtoReply reply;
@@ -571,6 +627,7 @@ void serve_esphome(EspHomeStream stream, const EspHomeIdentity &identity,
   bool subscribed = false;
   uint8_t reported_backlight{};
   std::optional<uint8_t> reported_strength;
+  DisplayStates display;
   while (true) {
     if (subscribed && stream.poll) {
       const auto level = controls.screen.backlight();
@@ -585,6 +642,8 @@ void serve_esphome(EspHomeStream stream, const EspHomeIdentity &identity,
           return;
         reported_strength = strength;
       }
+      if (!display.report_language(session) || !display.report_timeout(session))
+        return;
       const auto ready = stream.poll(stream.context);
       if (ready == EspHomeReadiness::Idle)
         continue;
@@ -608,7 +667,8 @@ void serve_esphome(EspHomeStream stream, const EspHomeIdentity &identity,
                send_backlight(session, reported_backlight) &&
                send_select_state(session, photo_source_key, photo_preset_name(controls.photo_preset(controls.context))) &&
                send_network_status(session, controls.station_address) && send_wifi_strength(session, reported_strength) &&
-               send_text_state(session, reset_reason_key, controls.reset_reason);
+               send_text_state(session, reset_reason_key, controls.reset_reason) &&
+               display.report_language(session, true) && display.report_timeout(session, true);
         break;
       case Message::SelectCommand:
         if (const auto request = select_request(body)) {
@@ -623,6 +683,20 @@ void serve_esphome(EspHomeStream stream, const EspHomeIdentity &identity,
               controls.set_photo_preset(controls.context, *preset);
               if (subscribed)
                 sent = send_select_state(session, photo_source_key, photo_preset_name(controls.photo_preset(controls.context)));
+            }
+          } else if (request->key == device_language_key) {
+            const auto language = find_espframe_language(request->option);
+            if (language < espframe_i18n_catalogue::LANGUAGE_COUNT) {
+              controls.set_device_language(controls.context, static_cast<uint8_t>(language));
+              if (subscribed)
+                sent = display.report_language(session, true);
+            }
+          } else if (request->key == connection_timeout_key) {
+            const auto timeout = interval_seconds(request->option);
+            if (valid_connection_timeout(timeout) && interval_label(timeout) == request->option) {
+              controls.set_connection_timeout(controls.context, timeout);
+              if (subscribed)
+                sent = display.report_timeout(session, true);
             }
           }
         }

@@ -104,6 +104,8 @@ struct Settings : PhotoFeedSettings {
   static bool save_wifi(const WifiCredentials &wifi, uint32_t expected_epoch);
   static bool save_slide_interval(uint32_t seconds, std::string_view paired_key);
   static bool save_photo_preset(PhotoPreset preset, std::string_view paired_key);
+  static bool save_connection_timeout(uint32_t seconds, std::string_view paired_key);
+  static bool save_device_language(uint8_t language, std::string_view paired_key);
   static bool expire_warm_tone_override(std::string_view timezone, const PhotoFeedSettings &active_feed);
   static std::optional<PhotoFeedSettings> take_live_photo_feed(uint32_t revision);
   static bool save_playback(const char *json, bool *restart_required = nullptr);

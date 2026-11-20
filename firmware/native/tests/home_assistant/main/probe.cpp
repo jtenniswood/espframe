@@ -29,6 +29,8 @@ extern "C" void app_main() {
       [](const void *) -> std::optional<int8_t> { return {}; },
       "power-on event",
       [](const void *) {},
+      [](const void *, uint32_t) { return false; },
+      [](const void *, uint8_t) { return false; },
   };
   serve_esphome(closed, {"espframe-link-test", {}, {}, {2, 0, 0, 0, 0, 1}}, no_key, controls);
 }

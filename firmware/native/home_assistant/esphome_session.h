@@ -31,6 +31,8 @@ struct EspHomeControls {
   std::optional<int8_t> (*wifi_rssi)(const void *);
   std::string_view reset_reason;
   void (*restart)(const void *);
+  bool (*set_connection_timeout)(const void *, uint32_t);
+  bool (*set_device_language)(const void *, uint8_t);
 };
 
 enum class EspHomeReadiness { Ready, Idle, Closed };

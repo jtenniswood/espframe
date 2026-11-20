@@ -169,6 +169,10 @@ Use **Screen: Wake** for a temporary wake during off-hours. A brightness
 change lasts until the next sleep, explicit wake, or scheduled brightness change.
 Interval changes take effect without restarting the player. Home Assistant
 shows the stock interval choices and any custom interval already selected in native settings.
+**Device: Language** updates display text and photo dates. **Screen: Connection Timeout**
+sets how long the frame waits for its first photo before showing a connection warning.
+Both controls use the stock entity identities and choices. Changes apply immediately
+and are shared with the frame's web settings.
 **Photos: Source** keeps the stock presets. Source changes keep the displayed
 photo visible and advance to the new source as soon as its first slide is ready.
 A preset uses the saved Immich IDs for that source from the frame's settings.

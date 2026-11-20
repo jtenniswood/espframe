@@ -1020,6 +1020,17 @@ int main() {
   assert(update_configuration(R"({"values":{"conn_timeout":"5 minutes"}})").error);
   fail_commit = false;
   assert(current.read() && current.connection_timeout_seconds == 45 && active_connection_timeout.load() == 45);
+  const auto before_ha_timeout = photo_source_revision.load();
+  assert(!Settings::save_connection_timeout(90, ha_key));
+  assert(!Settings::save_connection_timeout(180, "previous-pairing"));
+  assert(Settings::save_connection_timeout(180, ha_key));
+  fail_commit = true;
+  assert(Settings::save_connection_timeout(180, ha_key));
+  assert(!Settings::save_connection_timeout(300, ha_key));
+  fail_commit = false;
+  assert(current.read() && current.connection_timeout_seconds == 180 && active_connection_timeout.load() == 180);
+  assert(photo_source_revision.load() == before_ha_timeout);
+  assert(Settings::save_connection_timeout(45, ha_key));
 
   assert(!current.needs_local_date());
   const auto live_time_settings = [&](const char *request, bool needs_time) {
@@ -1239,6 +1250,26 @@ int main() {
   const Json language_snapshot(configuration_snapshot(current), cJSON_Delete);
   assert(std::string_view(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(
       cJSON_GetObjectItemCaseSensitive(language_snapshot.get(), "values"), "device_language"))) == "he");
+
+  const auto paired_language_settings = std::string(R"({"immich_url":"http://photos.test","immich_key":"tone-key",
+      "web_password":"tone-settings","home_assistant_key":")") + ha_key + R"("})";
+  assert(Settings::save(paired_language_settings.c_str()));
+  const auto before_ha_language = photo_source_revision.load();
+  const auto selections_before_ha_language = photo_selection_revision.load();
+  const auto french = static_cast<uint8_t>(find_espframe_language("fr"));
+  const auto german = static_cast<uint8_t>(find_espframe_language("de"));
+  assert(!Settings::save_device_language(255, ha_key));
+  assert(!Settings::save_device_language(french, "previous-pairing"));
+  assert(Settings::save_device_language(french, ha_key));
+  fail_commit = true;
+  assert(Settings::save_device_language(french, ha_key));
+  assert(!Settings::save_device_language(german, ha_key));
+  fail_commit = false;
+  assert(current.read() && current.metadata.language == french && espframe::native::active_device_language.load() == french);
+  assert(photo_source_revision.load() == before_ha_language + 1);
+  assert(photo_selection_revision.load() == selections_before_ha_language);
+  const auto ha_language_feed = Settings::take_live_photo_feed(before_ha_language + 1);
+  assert(ha_language_feed && ha_language_feed->metadata.language == french);
 
   assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"tone-key","web_password":"tone-settings",
       "firmware_updates":{"auto_update":false,"update_frequency":"Weekly","wifi_auto_update":true}})"));

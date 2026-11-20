@@ -116,6 +116,14 @@ struct HomeAssistantServer {
         [](const void *context) { return static_cast<const HomeAssistantServer *>(context)->wifi_rssi(); },
         last_reset_reason(),
         [](const void *) { request_frame_restart(); },
+        [](const void *context, uint32_t seconds) {
+          const auto &server = *static_cast<const HomeAssistantServer *>(context);
+          return Settings::save_connection_timeout(seconds, server.paired_key);
+        },
+        [](const void *context, uint8_t language) {
+          const auto &server = *static_cast<const HomeAssistantServer *>(context);
+          return Settings::save_device_language(language, server.paired_key);
+        },
     };
     while (network->station_lease() == lease) {
       const Socket client{accept(listener.fd, nullptr, nullptr)};

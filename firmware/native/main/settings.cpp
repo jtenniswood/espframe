@@ -473,7 +473,7 @@ bool read_connection_timeout(const cJSON *root, uint32_t &seconds) {
     return true;
   const auto *label = cJSON_GetStringValue(field);
   const auto timeout = label ? interval_seconds(label) : 0;
-  if (std::ranges::find(connection_timeouts, timeout) == connection_timeouts.end() || interval_label(timeout) != label)
+  if (!valid_connection_timeout(timeout) || interval_label(timeout) != label)
     return false;
   seconds = timeout;
   return true;
@@ -861,6 +861,40 @@ bool Settings::save_slide_interval(uint32_t seconds, std::string_view paired_key
       return false;
   }
   active_slideshow_interval.store(seconds, std::memory_order_relaxed);
+  return true;
+}
+
+bool Settings::save_connection_timeout(uint32_t seconds, std::string_view paired_key) {
+  if (!valid_connection_timeout(seconds) || paired_key.empty())
+    return false;
+  const std::lock_guard lock(storage_mutex);
+  Settings settings;
+  if (!load(settings) || settings.home_assistant_key != paired_key)
+    return false;
+  if (settings.connection_timeout_seconds != seconds) {
+    settings.connection_timeout_seconds = seconds;
+    if (store_settings(settings) != UpdateResult::Saved)
+      return false;
+  }
+  active_connection_timeout.store(seconds, std::memory_order_relaxed);
+  return true;
+}
+
+bool Settings::save_device_language(uint8_t language, std::string_view paired_key) {
+  if (language >= espframe_i18n_catalogue::LANGUAGE_COUNT || paired_key.empty())
+    return false;
+  const std::lock_guard lock(storage_mutex);
+  Settings settings;
+  if (!load(settings) || settings.home_assistant_key != paired_key)
+    return false;
+  if (settings.metadata.language == language && active_device_language.load(std::memory_order_relaxed) == language)
+    return true;
+  if (settings.metadata.language != language) {
+    settings.metadata.language = language;
+    if (store_settings(settings) != UpdateResult::Saved)
+      return false;
+  }
+  publish_photo_feed(std::move(settings), false);
   return true;
 }
 

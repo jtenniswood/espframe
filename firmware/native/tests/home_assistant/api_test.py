@@ -27,6 +27,8 @@ WIFI_STRENGTH_KEY = 3943756064
 IP_ADDRESS_KEY = 3394986237
 REBOOT_KEY = 2194406813
 RESET_REASON_KEY = 2962208445
+LANGUAGE_KEY = 4083618279
+TIMEOUT_KEY = 1991622891
 CONTRACT = Path(__file__).resolve().parents[4] / "product/contract/settings.json"
 STOCK_FIELDS = {field["key"]: field for field in json.loads(CONTRACT.read_text())}
 STOCK_INTERVALS = STOCK_FIELDS["interval"]["options"]
@@ -138,6 +140,26 @@ async def expect_reset_reason(states, value):
     assert reason.state == value and not reason.missing_state
 
 
+def check_display_entities(entities):
+    by_key = {item.key: item for item in entities}
+    for key, field, name, icon, category, object_id in (
+        (LANGUAGE_KEY, "device_language", "Device: Language", "mdi:translate", EntityCategory.CONFIG, "device__language"),
+        (TIMEOUT_KEY, "conn_timeout", "Screen: Connection Timeout", "mdi:connection", EntityCategory.NONE,
+         "screen__connection_timeout"),
+    ):
+        entity = by_key[key]
+        assert isinstance(entity, SelectInfo) and not entity.disabled_by_default
+        assert entity.name == name and entity.icon == icon and entity.entity_category == category
+        assert entity.options == STOCK_FIELDS[field]["options"]
+        assert build_device_unique_id(MAC, entity) == f"{MAC}/0/select/{name}"
+        assert build_device_unique_id(MAC, entity, version=1) == f"{MAC}-select-{object_id}"
+
+
+async def expect_select(states, key, value):
+    state = await states.get()
+    assert isinstance(state, SelectState) and state.key == key and state.state == value
+
+
 async def verify(port, clock_input):
     reader, writer = await asyncio.open_connection(HOST, port)
     try:
@@ -175,9 +197,10 @@ async def verify(port, clock_input):
         assert info.mac_address.lower().replace(":", "") == MAC
         assert info.api_encryption_supported and not info.api_encryption_provisionable
         assert info.project_name == "jtenniswood.immich-frame"
-        assert not services and len(entities) == 10
+        assert not services and len(entities) == 12
         check_network_entities(entities)
         check_restart_entities(entities)
+        check_display_entities(entities)
         buttons = [entity for entity in entities if isinstance(entity, ButtonInfo) and entity.key != REBOOT_KEY]
         for button, name, key, object_id in zip(
             buttons, ("Screen: Sleep", "Screen: Wake"), (2655868716, 1917547667),
@@ -220,6 +243,8 @@ async def verify(port, clock_input):
         assert initial_source.state == "All Photos"
         await expect_network_states(states, 70)
         await expect_reset_reason(states, "power-on event")
+        await expect_select(states, LANGUAGE_KEY, "en")
+        await expect_select(states, TIMEOUT_KEY, "10 minutes")
         for command, strength in ((b"x", None), (b"w", 0), (b"s", 100)):
             clock_input.write(command)
             await clock_input.drain()
@@ -233,6 +258,11 @@ async def verify(port, clock_input):
         api.select_command(interval.key, "1 minutes")
         api.select_command(source.key, "favorites")
         api.select_command(source.key, "Person", device_id=1)
+        api.select_command(LANGUAGE_KEY, "FR")
+        api.select_command(LANGUAGE_KEY, "fr", device_id=1)
+        api.select_command(TIMEOUT_KEY, "30 second")
+        api.select_command(TIMEOUT_KEY, "17 seconds")
+        api.select_command(TIMEOUT_KEY, "30 seconds", device_id=1)
         api.button_command(REBOOT_KEY, device_id=1)
         assert isinstance(await connection.send_message_await_response(PingRequest(), PingResponse), PingResponse)
         assert states.empty()
@@ -249,6 +279,16 @@ async def verify(port, clock_input):
             api.select_command(source.key, requested)
             accepted = await states.get()
             assert accepted.key == PHOTO_SOURCE_KEY and accepted.state == applied
+        for key, requested, applied in (
+            (LANGUAGE_KEY, "pt-br", "pt-br"), (LANGUAGE_KEY, "de", "pt-br"),
+            (TIMEOUT_KEY, "45 seconds", "45 seconds"), (TIMEOUT_KEY, "2 minutes", "45 seconds"),
+        ):
+            api.select_command(key, requested)
+            await expect_select(states, key, applied)
+        for command, key, value in ((b"p", LANGUAGE_KEY, "he"), (b"t", TIMEOUT_KEY, "15 minutes")):
+            clock_input.write(command)
+            await clock_input.drain()
+            await expect_select(states, key, value)
         api.button_command(1234)
         api.button_command(buttons[1].key, device_id=1)
         api.button_command(buttons[0].key)
@@ -304,6 +344,8 @@ async def verify(port, clock_input):
         assert isinstance(source, SelectState) and source.key == PHOTO_SOURCE_KEY and source.state == "Person"
         await expect_network_states(states, 100)
         await expect_reset_reason(states, "software via esp_restart")
+        await expect_select(states, LANGUAGE_KEY, "he")
+        await expect_select(states, TIMEOUT_KEY, "15 minutes")
     finally:
         await api.disconnect()
 
@@ -323,6 +365,7 @@ async def main(executable):
     print("ESPHome client authenticated and controlled the backlight, sleep, wake and slideshow interval with stock entity IDs.")
     print("Network status, IP address and Wi-Fi strength used the stock diagnostic identities and reported live state.")
     print("The stock reboot button disconnected the simulated frame and Reset Reason updated on reconnect.")
+    print("Device language and connection timeout used stock select identities, options and live state.")
     print("Silent clients, wrong keys, plaintext, oversized frames and inconsistent lengths were rejected. The client reconnected.")
 
 

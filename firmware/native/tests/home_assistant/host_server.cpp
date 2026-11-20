@@ -1,5 +1,7 @@
 #include "esphome_socket.h"
 #include "home_assistant_key.h"
+#include "i18n.h"
+#include "photo_metadata.h"
 #include "photo_source.h"
 #include "screen_control.h"
 #include "slideshow_interval.h"
@@ -89,6 +91,18 @@ int main() {
         device.rebooted = true;
         shutdown(device.connection, SHUT_RDWR);
       },
+      [](const void *, uint32_t seconds) {
+        if (seconds == 120)
+          return false;  // Simulate a failed persistence operation.
+        active_connection_timeout.store(seconds);
+        return true;
+      },
+      [](const void *, uint8_t language) {
+        if (language == find_espframe_language("de"))
+          return false;  // Simulate a failed persistence operation.
+        active_device_language.store(language);
+        return true;
+      },
   };
   std::jthread player([&device](std::stop_token stop) {
     ScreenSchedule schedule{{true, 6, 22, 60}};
@@ -103,6 +117,8 @@ int main() {
           case 'x': device.rssi.store(0); break;
           case 'w': device.rssi.store(-110); break;
           case 's': device.rssi.store(-45); break;
+          case 'p': active_device_language.store(find_espframe_language("he")); break;
+          case 't': active_connection_timeout.store(900); break;
         }
       }
       const bool commanded = screen_control.apply_pending(schedule, 1'000, hour, manual_brightness);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <charconv>
@@ -17,6 +18,10 @@ inline std::atomic<uint32_t> active_slideshow_interval{15};
 inline constexpr std::array<uint32_t, 10> connection_timeouts{30, 45, 60, 120, 180, 300, 600, 900, 1200, 1800};
 inline constexpr uint32_t default_connection_timeout = 600;
 inline std::atomic<uint32_t> active_connection_timeout{default_connection_timeout};
+
+inline bool valid_connection_timeout(uint32_t seconds) {
+  return std::ranges::find(connection_timeouts, seconds) != connection_timeouts.end();
+}
 
 inline std::string interval_label(unsigned seconds) {
   if (seconds % 3600 == 0)
