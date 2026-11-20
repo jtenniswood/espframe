@@ -10,14 +10,14 @@
 
 namespace espframe::native {
 
-std::optional<std::string> read_stock_frame_name() {
+std::optional<std::string> read_stock_frame_name(const char *partition) {
   // Stock saves a little-endian uint32_t version, a NUL-terminated
   // char[121], and three bytes of alignment padding on the ESP32-P4.
   constexpr std::array<uint8_t, 4> version{1, 0, 0, 0};
   constexpr size_t name_bytes = esphome::espframe::FRAME_NAME_MAX_BYTES + 1;
   std::array<uint8_t, version.size() + name_bytes + 3> record{};
   nvs_handle_t storage;
-  if (nvs_open_from_partition("nvs", "espframe_id", NVS_READONLY, &storage) != ESP_OK)
+  if (nvs_open_from_partition(partition, "espframe_id", NVS_READONLY, &storage) != ESP_OK)
     return std::nullopt;
   size_t size = record.size();
   const auto result = nvs_get_blob(storage, "identity", record.data(), &size);

@@ -1,5 +1,6 @@
 #include "stock_settings.h"
 #include "stock_connection_preferences.h"
+#include "stock_frame_identity.h"
 
 #include "nvs.h"
 #include "nvs_flash.h"
@@ -46,6 +47,8 @@ StockSettings read_stock_settings(StockSettingsRequest request) {
     }
     nvs_close(storage);
   }
+  if (result.pairing)
+    result.frame_name = read_stock_frame_name(partition);
   nvs_flash_deinit_partition(partition);
   return result;
 }

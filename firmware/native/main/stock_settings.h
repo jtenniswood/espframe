@@ -20,6 +20,7 @@ struct StockSettings {
   std::string immich_url;
   std::string immich_key;
   std::optional<HomeAssistantKey> pairing;
+  std::optional<std::string> frame_name;
 };
 
 StockSettings read_stock_settings(StockSettingsRequest request);

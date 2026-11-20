@@ -158,6 +158,9 @@ To keep a stock ESPHome pairing during USB migration, export your settings
 backup and leave **Erase device** unchecked when installing native firmware.
 Then choose **Keep the existing ESPHome pairing** in browser setup and save
 over USB. The frame copies the retained key into native settings locally.
+If the native settings and installer leave the frame name unspecified, the
+frame also copies the saved ESPHome name so Home Assistant can use the same
+hostname. A name supplied by the installer or backup takes precedence.
 If the stored pairing is unavailable, setup reports that before saving.
 You can also enter an existing key manually. Keep the matching stock
 installer available if you need to return to ESPHome.

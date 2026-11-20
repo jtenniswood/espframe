@@ -28,6 +28,7 @@ std::set<std::string> staged_blobs;
 bool fail_commit{};
 bool fail_erase{};
 constexpr nvs_handle_t stock_handle = 2;
+constexpr nvs_handle_t stock_identity_handle = 3;
 bool stock_partition_available{true};
 bool stock_initialized{};
 bool stock_opened{};
@@ -56,9 +57,10 @@ esp_err_t nvs_flash_deinit_partition(const char *partition) {
 
 esp_err_t nvs_open_from_partition(const char *partition, const char *name, int mode, nvs_handle_t *handle) {
   if (std::string_view(partition) == "stock_prefs") {
-    assert(std::string_view(name) == "esphome" && mode == NVS_READONLY && stock_initialized && !stock_opened);
+    const std::string_view space(name);
+    assert((space == "esphome" || space == "espframe_id") && mode == NVS_READONLY && stock_initialized && !stock_opened);
     stock_opened = true;
-    *handle = stock_handle;
+    *handle = space == "espframe_id" ? stock_identity_handle : stock_handle;
     return ESP_OK;
   }
   assert(std::string(partition) == "native_config" && std::string(name) == "player");
@@ -88,10 +90,10 @@ esp_err_t nvs_set_str(nvs_handle_t handle, const char *key, const char *value) {
 }
 
 esp_err_t nvs_get_blob(nvs_handle_t handle, const char *key, void *out, size_t *size) {
-  if (handle == stock_handle) {
+  if (handle == stock_handle || handle == stock_identity_handle) {
     assert(stock_opened && out);
     ++stock_reads;
-    const auto value = stock_preferences.find(key);
+    const auto value = stock_preferences.find(handle == stock_identity_handle ? std::string("espframe_id/") + key : key);
     if (value == stock_preferences.end())
       return ESP_ERR_NVS_NOT_FOUND;
     if (*size < value->second.size())
@@ -147,7 +149,7 @@ esp_err_t nvs_commit(nvs_handle_t handle) {
 }
 
 void nvs_close(nvs_handle_t handle) {
-  if (handle == stock_handle) {
+  if (handle == stock_handle || handle == stock_identity_handle) {
     assert(stock_opened);
     stock_opened = false;
     return;
@@ -222,6 +224,10 @@ void verify_stock_pairing_migration() {
   }
 
   stock_preferences["88491486"] = std::string(reinterpret_cast<const char *>(key->data()), key->size());
+  std::string stock_name(128, '\0');
+  stock_name[0] = 1;
+  stock_name.replace(4, std::strlen("  Salon été  "), "  Salon été  ");
+  stock_preferences["espframe_id/identity"] = stock_name;
   const auto original = stock_preferences;
   const auto initial_reads = stock_reads;
   assert(Settings::save_usb(manual, 0, pairing, read_stock_settings) == Result::Rejected);
@@ -234,9 +240,14 @@ void verify_stock_pairing_migration() {
   assert(migrate() == Result::Saved);
   Settings loaded;
   assert(loaded.read() && loaded.home_assistant_key == expected_key && loaded.ssid == "Photo Lab");
+  assert(loaded.frame_name == "Salon été");
+  constexpr FrameMac mac{0x02, 0xab, 0xcd, 0xef, 0x12, 0x9a};
+  assert(make_frame_identity(loaded.frame_name, mac, "immich-frame-10inch", "Espframe 10inch", true).hostname ==
+         "salon-t-129a");
   const auto imported_reads = stock_reads;
   assert(migrate() == Result::PairingUnavailable && stock_reads == imported_reads);
-  assert(Settings::save(setup, 0) && loaded.read() && loaded.home_assistant_key == expected_key);
+  assert(Settings::save(setup, 0) && loaded.read() && loaded.home_assistant_key == expected_key &&
+         loaded.frame_name == "Salon été");
   assert(Settings::save(manual, 0) && loaded.read() && loaded.home_assistant_key.empty());
   assert(!Settings::save_slide_interval(45, expected_key));
   assert(Settings::save_playback(R"({"immich_url":"http://photos.test","slide_seconds":45})"));
@@ -248,6 +259,26 @@ void verify_stock_pairing_migration() {
   assert(stock_reads == imported_reads && !stock_initialized && !stock_opened);
   stored["settings_v1"] = "{corrupt";
   assert(migrate() == Result::PairingUnavailable && stock_reads == imported_reads);
+
+  stored.clear();
+  stored_blobs.clear();
+  assert(Settings::save_wifi(*wifi, 0));
+  constexpr char explicit_name[] = R"({"immich_url":"http://photos.test","immich_key":"fresh-key",
+                                      "frame_name":"Backup name"})";
+  assert(Settings::save_usb(explicit_name, 0, pairing, read_stock_settings) == Result::Saved);
+  assert(loaded.read() && loaded.frame_name == "Backup name");
+
+  stored.clear();
+  stored_blobs.clear();
+  assert(Settings::save_wifi(*wifi, 0) && Settings::save(explicit_name, 0));
+  assert(migrate() == Result::Saved && loaded.read() && loaded.frame_name == "Backup name");
+
+  stored.clear();
+  stored_blobs.clear();
+  assert(Settings::save_wifi(*wifi, 0));
+  assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"fresh-key","frame_name":""})"));
+  assert(Settings::save(setup, 0));
+  assert(migrate() == Result::Saved && loaded.read() && loaded.frame_name.empty() && stock_preferences == original);
 }
 
 void verify_stock_connection_migration() {

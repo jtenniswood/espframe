@@ -710,8 +710,10 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
         !cJSON_AddStringToObject(document.get(), "immich_key", stock.immich_key.c_str()))
       return Result::Rejected;
   }
-  if (!cJSON_HasObjectItem(document.get(), "frame_name") && !saved.frame_name.empty() &&
-      !cJSON_AddStringToObject(document.get(), "frame_name", saved.frame_name.c_str()))
+  const auto *name = stock.frame_name ? &*stock.frame_name : nullptr;
+  if (configured && cJSON_HasObjectItem(previous.get(), "frame_name"))
+    name = &saved.frame_name;
+  if (!provided("frame_name") && name && !cJSON_AddStringToObject(document.get(), "frame_name", name->c_str()))
     return Result::Rejected;
   if (!new_key && saved.home_assistant_key_set &&
       !cJSON_AddStringToObject(document.get(), "home_assistant_key", saved.home_assistant_key.c_str()))

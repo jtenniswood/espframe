@@ -61,39 +61,39 @@ int main(int argc, char **argv) {
   constexpr char friendly_name[] = "Espframe 10inch";
 
   stock_record("  Salon été  ");
-  const auto saved_name = read_stock_frame_name();
+  const auto saved_name = read_stock_frame_name("nvs");
   assert(saved_name == "Salon été" && !opened);
   assert(make_frame_identity(*saved_name, mac, hostname, friendly_name, true).hostname == "salon-t-129a");
   stock_record("");
-  const auto cleared_name = read_stock_frame_name();
+  const auto cleared_name = read_stock_frame_name("nvs");
   assert(cleared_name == "");
   assert(make_frame_identity(*cleared_name, mac, hostname, friendly_name, true).hostname == "immich-frame-10inch-ef129a");
   stock_record(std::string(120, 'a'));
-  assert(read_stock_frame_name() == std::string(120, 'a'));
+  assert(read_stock_frame_name("nvs") == std::string(120, 'a'));
   stored[124] = 'a';
-  assert(!read_stock_frame_name() && !opened);
+  assert(!read_stock_frame_name("nvs") && !opened);
   stock_record("wrong version");
   stored[0] = 2;
-  assert(!read_stock_frame_name());
+  assert(!read_stock_frame_name("nvs"));
   stock_record("truncated blob");
   stored.pop_back();
-  assert(!read_stock_frame_name());
+  assert(!read_stock_frame_name("nvs"));
   stored.resize(129);
-  assert(!read_stock_frame_name());
+  assert(!read_stock_frame_name("nvs"));
   stock_record("invalid\xc0\xaf");
-  assert(!read_stock_frame_name());
+  assert(!read_stock_frame_name("nvs"));
   stock_record("invalid\x1f");
-  assert(!read_stock_frame_name());
+  assert(!read_stock_frame_name("nvs"));
   stored.clear();
-  assert(!read_stock_frame_name() && !opened);
+  assert(!read_stock_frame_name("nvs") && !opened);
   namespace_present = false;
-  assert(!read_stock_frame_name() && !opened);
+  assert(!read_stock_frame_name("nvs") && !opened);
 
   if (argc > 1) {
     std::ifstream blob(argv[1], std::ios::binary);
     assert(blob);
     stored.assign(std::istreambuf_iterator<char>(blob), {});
     namespace_present = true;
-    assert(read_stock_frame_name() == "Salon été" && !opened);
+    assert(read_stock_frame_name("nvs") == "Salon été" && !opened);
   }
 }

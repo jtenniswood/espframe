@@ -357,7 +357,7 @@ bool read_live_trial_credentials(Settings &settings) {
   settings.immich_url = immich_url;
   settings.immich_key = immich_key;
   if constexpr (!SWIPE_TRIAL_BENCHMARK)
-    settings.frame_name = read_stock_frame_name().value_or(std::string{});
+    settings.frame_name = read_stock_frame_name("nvs").value_or(std::string{});
   return true;
 }
 
