@@ -2265,6 +2265,14 @@ function runChrome(args, timeoutMs) {
 async function runScenario(scenario) {
   console.log(`running web browser smoke scenario: ${scenario.name}`);
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "espframe-web-smoke-"));
+  try {
+    await runScenarioInDirectory(scenario, tempDir);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function runScenarioInDirectory(scenario, tempDir) {
   const htmlPath = path.join(tempDir, `${scenario.name}.html`);
   const userDataDir = path.join(tempDir, "chrome-profile");
   const query = scenario.query ? `?${scenario.query}` : "";
