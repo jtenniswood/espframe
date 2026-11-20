@@ -13,6 +13,7 @@ const unavailable = process.env.REPLAY_PREPARED_UNAVAILABLE === '1'
 const outageHistory = process.env.REPLAY_OFFLINE_HISTORY === '1'
 const previewSize = Number(process.env.REPLAY_PREVIEW_SIZE ?? '0')
 const baselineQuality = Number(process.env.REPLAY_BASELINE_JPEG_QUALITY ?? '0')
+const webpQuality = Number(process.env.REPLAY_PREVIEW_WEBP_QUALITY ?? '0')
 const previewStallMs = Number(process.env.REPLAY_PREVIEW_STALL_MS ?? '0')
 if (!isIPv4(host) || !Number.isInteger(port) || port < 1 || port > 65535 ||
     (warmRotation !== undefined && warmRotation !== '0' && warmRotation !== '180')) {
@@ -24,9 +25,12 @@ if (outageHistory && unavailable) {
 if (warmPairFill && warmRotation === undefined) {
   throw new Error('Set REPLAY_WARM_ROTATION when prewarming Fill pairs')
 }
-if (![0, 720, 1080, 1440].includes(previewSize) || !Number.isInteger(baselineQuality) ||
-    baselineQuality < 0 || baselineQuality > 100) {
-  throw new Error('Set REPLAY_PREVIEW_SIZE to 720, 1080 or 1440 and REPLAY_BASELINE_JPEG_QUALITY to 1–100, or leave them unset')
+if (![0, 360, 720, 1080, 1440].includes(previewSize)) {
+  throw new Error('Set REPLAY_PREVIEW_SIZE to 360, 720, 1080 or 1440, or leave it unset')
+}
+if ([baselineQuality, webpQuality].some(quality => !Number.isInteger(quality) || quality < 0 || quality > 100) ||
+    (baselineQuality && webpQuality)) {
+  throw new Error('Set either REPLAY_BASELINE_JPEG_QUALITY or REPLAY_PREVIEW_WEBP_QUALITY to 1–100, or leave both unset')
 }
 if (!Number.isInteger(previewStallMs) || previewStallMs < 0 || previewStallMs > 10_000) {
   throw new Error('Set REPLAY_PREVIEW_STALL_MS to a whole number between 0 and 10000')
@@ -38,6 +42,7 @@ const service = createSlideService({ immichUrl: origin, immichKey, token, maxAge
 const images = new Map<string, Buffer>()
 const library: { id: string; width: number; height: number; localDateTime: string }[] = []
 const fingerprint = createHash('sha256')
+const sourceFingerprint = createHash('sha256')
 
 for (let index = 0; index < 72; index++) {
   const width = 960
@@ -67,17 +72,21 @@ for (let index = 0; index < 72; index++) {
   }
   const preview = baselineQuality
     ? image.jpeg({ quality: baselineQuality, chromaSubsampling: baselineQuality >= 80 ? '4:4:4' : '4:2:0' })
-    : index % 3 === 2 ? image.webp({ quality: 84 }) : image.jpeg({ quality: 87, progressive: index % 3 === 1 })
+    : webpQuality || index % 3 === 2 ? image.webp({ quality: webpQuality || 84 })
+      : image.jpeg({ quality: 87, progressive: index % 3 === 1 })
   const bytes = await preview.toBuffer()
   images.set(id, bytes)
   const date = new Date(Date.UTC(2024, 0, Math.floor(index / 2) * 7 + 1, 12))
   const asset = { id, width, height, localDateTime: date.toISOString() }
   library.push(asset)
-  fingerprint.update(JSON.stringify(asset)).update(String(bytes.length) + '\n').update(bytes)
+  const metadata = JSON.stringify(asset)
+  sourceFingerprint.update(metadata).update(pixels)
+  fingerprint.update(metadata).update(String(bytes.length) + '\n').update(bytes)
 }
 
 const replayProfile = JSON.stringify({
-  run: randomUUID(), sha256: fingerprint.digest('hex'), previewSize, baselineQuality, previewStallMs,
+  run: randomUUID(), sha256: fingerprint.digest('hex'), sourceSha256: sourceFingerprint.digest('hex'),
+  previewSize, baselineQuality, webpQuality, previewStallMs,
   warmRotation: warmRotation ?? null, warmPairFill,
 })
 const stalledPreviews = { started: 0, completed: 0, interrupted: 0 }
@@ -180,6 +189,8 @@ if (warmRotation !== undefined) {
 }
 recordHistory = outageHistory
 applyPreviewStalls = previewStallMs > 0
-console.log(`Replay previews ${previewSize || 'source size'}, ${baselineQuality ? `baseline JPEG quality ${baselineQuality}` : 'mixed JPEG and WebP'}`)
+const encoding = baselineQuality ? `baseline JPEG quality ${baselineQuality}`
+  : webpQuality ? `WebP quality ${webpQuality}` : 'mixed JPEG and WebP'
+console.log(`Replay previews ${previewSize || 'source size'}, ${encoding}`)
 if (previewStallMs) console.log(`Replay pauses every eighth preview for ${previewStallMs} ms midway through the response`)
 console.log(`Replay ready at ${origin} (${unavailable ? 'service unavailable' : warmRotation === undefined ? 'cold' : 'prewarmed service cache'})`)

@@ -17,6 +17,7 @@ test('replay stalls every eighth preview and counts mid-response disconnects', {
   const child = spawn(process.execPath, ['replay.ts'], {
     cwd: new URL('.', import.meta.url),
     env: { ...process.env, REPLAY_HOST: '127.0.0.1', REPLAY_PORT: String(address.port), REPLAY_PREVIEW_STALL_MS: String(stallMs),
+      REPLAY_PREVIEW_SIZE: '360', REPLAY_PREVIEW_WEBP_QUALITY: '80', REPLAY_BASELINE_JPEG_QUALITY: undefined,
       REPLAY_WARM_ROTATION: undefined, REPLAY_PREPARED_UNAVAILABLE: undefined, REPLAY_OFFLINE_HISTORY: undefined },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -39,13 +40,20 @@ test('replay stalls every eighth preview and counts mid-response disconnects', {
     assert.ok(response.ok)
     return response.json()
   }
-  assert.equal((await metadata('/replay-profile')).previewStallMs, stallMs)
+  const profile = await metadata('/replay-profile')
+  assert.equal(profile.previewStallMs, stallMs)
+  assert.equal(profile.previewSize, 360)
+  assert.equal(profile.webpQuality, 80)
+  assert.match(profile.sourceSha256, /^[a-f0-9]{64}$/)
+  assert.notEqual(profile.sourceSha256, profile.sha256)
   const preview = (id: string, signal = AbortSignal.timeout(5000)) =>
     fetch(`${origin}/api/assets/${id}-1111-4222-8333-123456789abc/thumbnail?size=preview`, {
       headers: { 'x-api-key': 'espframe-synthetic-preview' }, signal,
     })
   const normal = await preview('00000007')
-  assert.ok(normal.ok && (await normal.arrayBuffer()).byteLength > 0)
+  assert.ok(normal.ok)
+  const bytes = Buffer.from(await normal.arrayBuffer())
+  assert.equal(bytes.toString('ascii', 8, 12), 'WEBP')
   assert.deepEqual((await metadata('/replay-stats')).stalledPreviews, { started: 0, completed: 0, interrupted: 0 })
 
   const controller = new AbortController()

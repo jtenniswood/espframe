@@ -55,6 +55,21 @@ To test browsing previously seen slides during an outage, start a fresh server w
 
 To measure direct Immich with smaller previews, use the same direct V1 trial image and restart the replay server with `REPLAY_PREVIEW_SIZE=720`. The synthetic 960 × 1440 portraits become 720 × 1080 while retaining the same JPEG, progressive JPEG and WebP mix. Also set `REPLAY_BASELINE_JPEG_QUALITY=80` to test baseline JPEG at Immich’s default quality, using the current encoder’s chroma sampling rule. The replay retains the same originals, order, pairing and mounting orientation. Both options apply to synthetic previews. Immich’s actual preview settings apply across the instance. [Immich image settings](https://docs.immich.app/administration/system-settings/#image-settings-thumbnails-and-previews) · [Immich encoder](https://raw.githubusercontent.com/immich-app/immich/main/server/src/repositories/media.repository.ts)
 
+To measure the speed of delivering thumbnail-sized images, run with
+`REPLAY_PREVIEW_SIZE=360 REPLAY_PREVIEW_WEBP_QUALITY=80`. The replay serves
+these images on its usual preview endpoint, so the same direct firmware can
+measure both profiles. This test measures swipe readiness and transfer size.
+It takes a separate visual check to judge thumbnail detail on the panel.
+Capture both runs as below and compare them with:
+
+```sh
+python3 firmware/native/tools/compare_preview_replays.py compare --preview-profiles control.json candidate.json
+```
+
+The comparison requires the same source pixel and metadata fingerprint,
+lookahead settings, frame and timing thresholds. It reports readiness,
+refills and the bytes transferred for each encode.
+
 ### Measure direct preview lookahead
 
 Build the direct replay twice from the same revision, using the same replay origin and separate build directories. Set `-D SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD=ON` for the control and set it to `OFF` for lookahead. For each run, restart the synthetic server with the same settings, then follow the [V1 rollback readiness and app-only trial instructions](../README.md#verify-the-rollback-and-gestures).

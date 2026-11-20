@@ -115,8 +115,18 @@ def checked_fill_pairs(run):
     return paired
 
 
-def compare(control, enabled, *, companion_prefetch=False, slow_previews=False, prepared_service=False):
-    control_lookahead = companion_prefetch or slow_previews or prepared_service
+def preview_profile_label(profile):
+    size = f"{profile['previewSize']} px short edge" if profile["previewSize"] else "source size"
+    if profile["baselineQuality"]:
+        return f"{size}, baseline JPEG quality {profile['baselineQuality']}"
+    if profile["webpQuality"]:
+        return f"{size}, WebP quality {profile['webpQuality']}"
+    return f"{size}, mixed JPEG and WebP"
+
+
+def compare(control, enabled, *, companion_prefetch=False, slow_previews=False, prepared_service=False,
+            preview_profiles=False):
+    control_lookahead = companion_prefetch or slow_previews or prepared_service or preview_profiles
     validate(control, lookahead=control_lookahead)
     validate(enabled, lookahead=None if prepared_service else True)
     before, after = control["benchmark"], enabled["benchmark"]
@@ -130,9 +140,21 @@ def compare(control, enabled, *, companion_prefetch=False, slow_previews=False, 
                                or after.get("direct_replay_companion_prefetch") is not True):
         raise ValueError("Expected companion prefetch disabled in the control capture and enabled in the candidate")
     status_before, status_after = control["status"], enabled["status"]
-    if (control["profile"]["sha256"] != enabled["profile"]["sha256"]
-            or before["replay_origin"] != after["replay_origin"]):
-        raise ValueError("Both captures must use the same replay origin and synthetic preview dataset")
+    before_profile, after_profile = control["profile"], enabled["profile"]
+    if before["replay_origin"] != after["replay_origin"]:
+        raise ValueError("Both captures must use the same replay origin")
+    if preview_profiles:
+        source_hash = before_profile.get("sourceSha256")
+        if not source_hash or source_hash != after_profile.get("sourceSha256"):
+            raise ValueError("Both profiles must encode the same synthetic source library")
+        if (before_profile["sha256"] == after_profile["sha256"]
+                or preview_profile_label(before_profile) == preview_profile_label(after_profile)):
+            raise ValueError("The profiles must use different preview encodes")
+        companion = before.get("direct_replay_companion_prefetch")
+        if type(companion) is not bool or companion is not after.get("direct_replay_companion_prefetch"):
+            raise ValueError("Both profiles must use the same companion prefetch setting")
+    elif before_profile["sha256"] != after_profile["sha256"]:
+        raise ValueError("Both captures must use the same synthetic preview dataset")
     stall_ms = control["profile"].get("previewStallMs", 0)
     if stall_ms != enabled["profile"].get("previewStallMs", 0):
         raise ValueError("Both captures must use the same preview stall duration")
@@ -195,6 +217,12 @@ def compare(control, enabled, *, companion_prefetch=False, slow_previews=False, 
         mode = enabled["profile"].get("warmRotation")
         rows.append(("Preparation-service cache at start", "—", "cold" if mode is None else "prewarmed"))
         candidate = "Prepared slides"
+    if preview_profiles:
+        rows.insert(0, ("Preview profile", preview_profile_label(before_profile), preview_profile_label(after_profile)))
+        direct_bytes = tuple(run["preparation"]["transfer"]["bytes"] + run["preparation"]["prefetch_transfer"]["bytes"]
+                             for run in (control, enabled))
+        rows.append(("Photo bytes downloaded by frame", *direct_bytes))
+        candidate = "Candidate profile"
     return "\n".join([
         f"| Metric | Control | {candidate} |",
         "| --- | --- | --- |",
@@ -220,6 +248,8 @@ def main():
                          help="Compare firmware versions with the same preview stall and lookahead settings")
     variant.add_argument("--prepared-service", action="store_true",
                          help="Compare direct previews with the prepared-slide service")
+    variant.add_argument("--preview-profiles", action="store_true",
+                         help="Compare two direct preview encodes of the same synthetic source photos")
     args = parser.parse_args()
     try:
         if args.action == "capture":
@@ -230,7 +260,7 @@ def main():
         else:
             print(compare(json.loads(args.control.read_text()), json.loads(args.candidate.read_text()),
                           companion_prefetch=args.companion_prefetch, slow_previews=args.slow_previews,
-                          prepared_service=args.prepared_service))
+                          prepared_service=args.prepared_service, preview_profiles=args.preview_profiles))
     except (OSError, ValueError, KeyError, TypeError) as error:
         parser.exit(1, f"{error}\n")
 

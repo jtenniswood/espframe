@@ -159,6 +159,30 @@ class ReplayTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "render each new slide as a pair"):
             replays.compare(control, candidate)
 
+    def test_profile_comparison_matches_the_source_library_and_firmware_options(self):
+        control, candidate = example(True), example(True)
+        for run, size, webp, transferred in ((control, 0, 0, 1_500_000), (candidate, 360, 80, 30_000)):
+            run["profile"].update(run=str(size), sha256=f"preview-{size}", sourceSha256="originals",
+                                  previewSize=size, baselineQuality=0, webpQuality=webp)
+            run["benchmark"]["direct_replay_companion_prefetch"] = True
+            run["preparation"]["transfer"] = {"bytes": transferred}
+            run["preparation"]["prefetch_transfer"]["bytes"] = transferred
+        report = replays.compare(control, candidate, preview_profiles=True)
+        self.assertIn("| Metric | Control | Candidate profile |", report)
+        self.assertIn("| Preview profile | source size, mixed JPEG and WebP | 360 px short edge, WebP quality 80 |", report)
+        self.assertIn("| Photo bytes downloaded by frame | 3000000 | 60000 |", report)
+
+        for section, key, value, message in (
+            ("profile", "sourceSha256", "other-originals", "same synthetic source"),
+            ("profile", "sha256", "preview-0", "different preview encodes"),
+            ("benchmark", "direct_replay_companion_prefetch", False, "same companion prefetch"),
+        ):
+            with self.subTest(key=key):
+                changed = deepcopy(candidate)
+                changed[section][key] = value
+                with self.assertRaisesRegex(ValueError, message):
+                    replays.compare(control, changed, preview_profiles=True)
+
     def test_prepared_comparison_checks_that_the_service_supplied_the_slides(self):
         direct, prepared = example(True), example(True)
         prepared["profile"].update(run="prepared", warmRotation="0", warmPairFill=True)
