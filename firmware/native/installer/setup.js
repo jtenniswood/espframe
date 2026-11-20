@@ -1,5 +1,5 @@
 import 'esp-web-tools/dist/install-button.js'
-import { normalizeFrameName, ntpServerFields, readBackup } from './backup.mjs'
+import { connectionTimeouts, normalizeFrameName, ntpServerFields, readBackup } from './backup.mjs'
 import { addCaptureDates, addPhotoFilters, bindPhotoSource, bindPortraitPairing, photoFilterDefaults, validateAlbum } from './photo_source.mjs'
 import { configure, findFrame, waitForFrame } from './serial.mjs'
 
@@ -28,6 +28,8 @@ const homeAssistantKey = form.elements.home_assistant_key
 const keepStockPairing = document.querySelector('#keep-stock-pairing')
 const removeHomeAssistantKey = document.querySelector('#remove-home-assistant-key')
 const frameName = form.elements.frame_name
+for (const timeout of connectionTimeouts)
+  form.elements.conn_timeout.add(new Option(timeout, timeout))
 const refreshSource = bindPhotoSource(form)
 const refreshPairing = bindPortraitPairing(form)
 const percentageFields = ['brightness_day', 'brightness_night', 'base_tone', 'warm_tone_intensity']
@@ -122,6 +124,7 @@ backup.addEventListener('change', async () => {
     form.elements.photo_orientation.value = 'Any'
     form.elements.display_mode.value = ''
     form.elements.portrait_pair_framing.value = ''
+    form.elements.conn_timeout.value = ''
     for (const [name, value] of Object.entries({ ...photoFilterDefaults, ...settings })) {
       if (typeof value === 'boolean') form.elements[name].checked = value
       else form.elements[name].value = value
@@ -252,6 +255,7 @@ if ('serial' in navigator) {
     if (!addPreparedSlides(data) || !validateAlbum(form, data) || !addCaptureDates(form, data) || !addPhotoFilters(form, data)) return
     if (data.photo_source === 'custom' && importedPreset) data.legacy_photo_preset = importedPreset
     data.slide_seconds = Number(data.slide_seconds)
+    if (!data.conn_timeout) delete data.conn_timeout
     for (const name of percentageFields) data[name] = form.elements[name].valueAsNumber
     data.base_tone_enabled = form.elements.base_tone_enabled.checked
     data.warm_tones_enabled = form.elements.warm_tones_enabled.checked

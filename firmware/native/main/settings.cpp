@@ -431,9 +431,21 @@ bool read_transition(const cJSON *root, Settings &settings) {
           settings.transition_speed == "Slow");
 }
 
+bool read_connection_timeout(const cJSON *root, uint32_t &seconds) {
+  const auto *field = cJSON_GetObjectItemCaseSensitive(root, "conn_timeout");
+  if (!field)
+    return true;
+  const auto *label = cJSON_GetStringValue(field);
+  const auto timeout = label ? interval_seconds(label) : 0;
+  if (std::ranges::find(connection_timeouts, timeout) == connection_timeouts.end() || interval_label(timeout) != label)
+    return false;
+  seconds = timeout;
+  return true;
+}
+
 bool read_playback(const cJSON *root, Settings &settings) {
   return read_integer(root, "slide_seconds", 2, 86'400, settings.slide_seconds) && read_pairing(root, settings) &&
-         read_transition(root, settings) &&
+         read_transition(root, settings) && read_connection_timeout(root, settings.connection_timeout_seconds) &&
          read_display_mode(root, settings.display_mode) && read_orientation(root, settings.photo_orientation) &&
          read_rotation(root, settings.screen_rotation) &&
          read_source(root, settings.photo_source) && read_photo_filters(root, settings.photo_filters) &&
@@ -614,7 +626,7 @@ bool changes_photo_presentation(std::string_view key) {
 }
 
 bool changes_live_presentation(std::string_view key) {
-  return key == "clock_format" || key == "transition" || key == "transition_speed";
+  return key == "clock_format" || key == "transition" || key == "transition_speed" || key == "conn_timeout";
 }
 
 void publish_photo_feed(Settings &settings, bool selection_changed) {
@@ -735,6 +747,9 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
   }
   if (!provided("portrait_pair_framing") && saved.pair_framing != PairFraming::FollowPhotos &&
       !cJSON_AddStringToObject(document.get(), "portrait_pair_framing", pair_framing_name(saved.pair_framing)))
+    return Result::Rejected;
+  if (configured && !provided("conn_timeout") && saved.connection_timeout_seconds != default_connection_timeout &&
+      !cJSON_AddStringToObject(document.get(), "conn_timeout", interval_label(saved.connection_timeout_seconds).c_str()))
     return Result::Rejected;
   for (size_t i = 0; i < ntp_fields.size(); ++i) {
     const auto *field = ntp_fields[i];
@@ -871,6 +886,7 @@ bool Settings::add_playback_fields(cJSON *object, PhotoFilterUpdate filter_updat
          cJSON_AddStringToObject(object, "immich_url", immich_url.c_str()) &&
          cJSON_AddStringToObject(object, "prepared_slide_url", prepared_slide_url.c_str()) &&
          cJSON_AddNumberToObject(object, "slide_seconds", slide_seconds) &&
+         cJSON_AddStringToObject(object, "conn_timeout", interval_label(connection_timeout_seconds).c_str()) &&
          cJSON_AddStringToObject(object, "transition", transition.c_str()) &&
          cJSON_AddStringToObject(object, "transition_speed", transition_speed.c_str()) &&
          cJSON_AddNumberToObject(object, "brightness_day", brightness_day) &&
@@ -930,6 +946,7 @@ bool Settings::save_playback(const char *json, bool *restart_required) {
 
 void Settings::publish_live_presentation() const {
   active_clock_twelve_hour.store(clock.twelve_hour(), std::memory_order_relaxed);
+  active_connection_timeout.store(connection_timeout_seconds, std::memory_order_relaxed);
   active_playback_transition.store(PlaybackTransition::from_settings(transition, transition_speed),
                                    std::memory_order_relaxed);
 }

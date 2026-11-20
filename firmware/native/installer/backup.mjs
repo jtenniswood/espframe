@@ -11,6 +11,10 @@ const transitionSpeeds = ['Fast', 'Normal', 'Slow']
 const pairFramings = ['Follow photo framing', ...displayModes]
 const photoOrientations = ['Any', 'Portrait Only', 'Landscape Only']
 const clockFormats = ['24 Hour', '12 Hour']
+export const connectionTimeouts = [
+  '30 seconds', '45 seconds', '1 minute', '2 minutes', '3 minutes', '5 minutes',
+  '10 minutes', '15 minutes', '20 minutes', '30 minutes',
+]
 const pairingRanges = ['Same Day', 'Within 1 Day', 'Within 2 Days']
 const memoriesWindows = ['Same Day', 'Within 1 Day', 'Within 2 Days', 'Within 3 Days', 'Within 7 Days']
 const groups = ['connection', 'photos', 'frequency', 'screen', 'clock', 'metadata', 'firmware_updates', 'identity']
@@ -191,6 +195,10 @@ export function readBackup(data) {
     if (seconds) settings.slide_seconds = seconds
     else notices.push('Choose a slideshow interval.')
   }
+  if (own(frequency, 'conn_timeout')) {
+    if (connectionTimeouts.includes(frequency.conn_timeout)) settings.conn_timeout = frequency.conn_timeout
+    else notices.push('Review the connection timeout in the original backup.')
+  }
   for (const [key, options] of [['transition', transitions], ['transition_speed', transitionSpeeds]]) {
     if (!own(photos, key)) continue
     if (options.includes(photos[key])) settings[key] = photos[key]
@@ -256,8 +264,6 @@ export function readBackup(data) {
   const skipped = []
   if (Object.keys(screen).some(key => !own(screenFields, key))) skipped.push('screen settings')
   if (own(data, 'firmware_updates')) skipped.push('firmware update settings')
-  if (own(frequency, 'conn_timeout'))
-    skipped.push('advanced playback settings')
   if (skipped.length) notices.push(`Keep the original backup for ${skipped.join(', ')}.`)
   const legacyPreset = settings.photo_source === 'custom' && compoundPresets.includes(photos.source) ? photos.source : null
   return { settings, notices, chooseSource, ...(legacyPreset ? { legacyPreset } : {}) }
@@ -329,7 +335,10 @@ export function createBackup(settings, date = new Date()) {
       ...(pairFramings.includes(settings.portrait_pair_framing) ? { portrait_pair_framing: settings.portrait_pair_framing } : {}),
       ...(photoOrientations.includes(settings.photo_orientation) ? { orientation: settings.photo_orientation } : {}),
     },
-    frequency: { interval: formatInterval(settings.slide_seconds) },
+    frequency: {
+      interval: formatInterval(settings.slide_seconds),
+      ...(connectionTimeouts.includes(settings.conn_timeout) ? { conn_timeout: settings.conn_timeout } : {}),
+    },
     ...(name !== undefined ? { identity: { name } } : {}),
     ...(Object.keys(clock).length ? { clock } : {}),
     ...(Object.keys(screen).length ? { screen } : {}),

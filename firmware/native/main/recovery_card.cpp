@@ -82,6 +82,12 @@ void draw_source_status(uint16_t *frame, const uint8_t *atlas, PhotoSourceStatus
   text(frame, atlas, rotation, 68, 622, message, white);
 }
 
+void draw_connection_notice(uint16_t *frame, const uint8_t *atlas, ImmichResponse response, ScreenRotation rotation) {
+  card(frame, rotation, 48, 612, 396, 60);
+  text(frame, atlas, rotation, 68, 622,
+       response == ImmichResponse::Rejected ? "Check Immich API key" : "Immich connection failed", white);
+}
+
 void draw_loading_status(uint16_t *frame, const uint8_t *atlas, int direction, ScreenRotation rotation) {
   constexpr int margin = 44;
   constexpr int width = 244;

@@ -7,6 +7,7 @@
 #include "frame_blend.h"
 #include "frame_blitter.h"
 #include "immich.h"
+#include "initial_photo_timeout.h"
 #include "live_trial.h"
 #include "native_network.h"
 #include "playback_transition.h"
@@ -482,6 +483,8 @@ void run(void *) {
   int painted_loading_direction = 0;
   PhotoSourceStatus source_status = PhotoSourceStatus::None;
   PhotoSourceStatus painted_source_status = PhotoSourceStatus::None;
+  InitialPhotoTimeout initial_photo_timeout;
+  ImmichResponse painted_connection_notice = ImmichResponse::Pending;
   std::optional<int> local_hour;
 
   int64_t submitted_motion_us = 0;
@@ -520,6 +523,7 @@ void run(void *) {
     submit_frame(fade.anchor() * slide_width);
     recovery_painted = false;
     painted_source_status = PhotoSourceStatus::None;
+    painted_connection_notice = ImmichResponse::Pending;
     fade.submitted(progress);
   };
   SlideIndex first_photo = 1;
@@ -634,8 +638,11 @@ void run(void *) {
         source_status = completion.source_status;
       }
       if constexpr (!esphome_trial) {
-        if (live && slide > 0 && completed_source_work && !completion.cancelled)
+        if (live && slide > 0 && completed_source_work && !completion.cancelled) {
           frame_status.finish_preparation(ready ? PhotoSourceStatus::None : source_status, completion.response);
+          if (!showed_photo)
+            initial_photo_timeout.observe(now, ready, completion.response);
+        }
         if (completion.lease.replacement && !discard_refresh) {
           if (next_candidate) {
             if (completion.caption_only)
@@ -679,6 +686,7 @@ void run(void *) {
             prefetch = SlidePrefetch(center, cache_slots);
           }
           source_status = PhotoSourceStatus::None;
+          initial_photo_timeout = {};
           retries.fill({});
           dwell.reset();
         }
@@ -962,6 +970,7 @@ void run(void *) {
             submit_frame(last_submitted);
             recovery_painted = false;
             painted_source_status = PhotoSourceStatus::None;
+            painted_connection_notice = ImmichResponse::Pending;
             fade.finish();
             display.unpin();
             snapshot = nullptr;
@@ -1002,11 +1011,17 @@ void run(void *) {
     const bool show_clock = live && swipe.settled() != 0;
     const bool show_notice = backlight_ready && input.awake() && !input.engaged() && swipe.idle() && !fade.held();
     const bool show_recovery = show_notice && network.recovery_status() != NativeNetwork::RecoveryStatus::Off;
-    const auto source_notice = show_notice && !show_recovery && ready_last == center ? source_status : PhotoSourceStatus::None;
+    const bool show_source_notice = show_notice && !show_recovery && ready_last == center;
+    const auto connection_notice = !esphome_trial && live && show_source_notice && !showed_photo
+                                       ? initial_photo_timeout.notice(now, active_connection_timeout.load(std::memory_order_relaxed))
+                                       : ImmichResponse::Pending;
+    const auto source_notice = show_source_notice && connection_notice == ImmichResponse::Pending
+                                   ? source_status : PhotoSourceStatus::None;
     const int loading_direction = input.awake() ? swipe.loading_direction(now) : 0;
     if (auto *output = display.writable_buffer(); output != nullptr &&
         (position != last_submitted || inside != last_inside || show_recovery != recovery_painted ||
          loading_direction != painted_loading_direction || source_notice != painted_source_status ||
+         connection_notice != painted_connection_notice ||
          (show_clock && clock_dirty))) {
       const auto index = inside / slide_width;
       const int offset = inside % slide_width;
@@ -1041,11 +1056,14 @@ void run(void *) {
           draw_recovery_card(output, recovery_atlas, network.recovery_network(), rotation);
         else if (loading_direction)
           draw_loading_status(output, recovery_atlas, loading_direction, rotation);
+        else if (connection_notice != ImmichResponse::Pending)
+          draw_connection_notice(output, recovery_atlas, connection_notice, rotation);
         else if (source_notice != PhotoSourceStatus::None)
           draw_source_status(output, recovery_atlas, source_notice, rotation);
         recovery_painted = show_recovery;
         painted_loading_direction = loading_direction;
         painted_source_status = source_notice;
+        painted_connection_notice = connection_notice;
         const auto started_submit = trial_immich && motion != 0 ? esp_timer_get_time() : 0;
         submit_frame(position, position != last_submitted);
         submitted_motion_us = motion;

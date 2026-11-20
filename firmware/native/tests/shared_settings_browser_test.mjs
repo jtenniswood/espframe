@@ -33,6 +33,7 @@ const testScript = `
     const field = name => form.elements.namedItem(name)
     const save = form.querySelector('button[type="submit"]')
     check(field('interval').value === '25 seconds', 'Custom interval was replaced')
+    check(field('conn_timeout').value === '3 minutes', 'Connection timeout was replaced')
     check(field('transition').value === 'Cross Fade' && field('transition_speed').value === 'Fast',
       'Saved slideshow transition was lost')
     check(field('brightness_day').value === '74', 'Daytime brightness was replaced')
@@ -118,6 +119,9 @@ const testScript = `
     check(reloadedFraming.value === 'Fill' && !reloadedFraming.disabled, 'The selected pair framing was lost')
     reloadedFraming.value = 'Fit'
     reloadedFraming.dispatchEvent(new Event('change', {bubbles: true}))
+    const reloadedTimeout = reloaded.elements.namedItem('conn_timeout')
+    reloadedTimeout.value = '45 seconds'
+    reloadedTimeout.dispatchEvent(new Event('change', {bubbles: true}))
     reloaded.requestSubmit()
     const applied = await waitFor(() => {
       const next = document.querySelector('#native-settings')
@@ -125,6 +129,7 @@ const testScript = `
     })
     check(applied.elements.namedItem('portrait_pair_framing').value === 'Fit', 'Live framing did not reload')
     check(applied.elements.namedItem('portrait_pairing').checked, 'Live pairing did not reload')
+    check(applied.elements.namedItem('conn_timeout').value === '45 seconds', 'Live connection timeout did not reload')
     check(applied.querySelector('button[type=submit]').disabled, 'The saved form still has pending edits')
     document.body.dataset.testResult = 'passed'
   }
@@ -141,6 +146,7 @@ const snapshot = {
   api_version: 1, reset_epoch: 0, api_key_configured: true, unavailable: ['albums_enabled', 'brightness_night'],
   values: {
     immich_url: 'https://photos.test/api', interval: '25 seconds', display_mode: 'Fit', brightness_day: 74,
+    conn_timeout: '3 minutes',
     brightness_night: 48, screen_rotation: '180', show_clock: false, timezone: 'Europe/London (GMT+0)',
     portrait_pairing: true, portrait_pairs_only: false, portrait_pairing_range: 'Within 2 Days',
     portrait_pair_framing: 'Follow photo framing',
@@ -367,7 +373,7 @@ try {
         prepared_slide_url: 'https://new-prepare.test', prepared_slide_token: 'service-token-for-browser-regression-test',
       },
     },
-    { api_version: 1, reset_epoch: 0, values: { portrait_pairing: true, portrait_pair_framing: 'Fit' } },
+    { api_version: 1, reset_epoch: 0, values: { portrait_pairing: true, portrait_pair_framing: 'Fit', conn_timeout: '45 seconds' } },
   ])
   assert.equal(reconnectFailures, 1)
   assert.equal(statusRequests, 0)

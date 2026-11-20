@@ -16,6 +16,7 @@ const [html, script, css, sourceScript, backupScript] = await Promise.all([
 const albumId = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
 const setup = {
   immich_url: 'https://photos.test/api', slide_seconds: 15, portrait_pairing: true, portrait_pairs_only: true,
+  conn_timeout: '3 minutes',
   transition: 'Fade to White', transition_speed: 'Normal',
   portrait_pairing_range: 'Within 2 Days',
   photo_source: 'favorites', album_id: '', display_mode: 'Fill', brightness_day: 74,
@@ -77,6 +78,7 @@ const fixture = html.replace('</body>', `<script>
     const backup = JSON.parse(await downloaded.text())
     if (!filename.startsWith('espframe-config-') || backup.version !== 3 || !backup.photos.favorites_enabled
       || backup.frequency.interval !== '15 seconds' || Object.keys(backup.connection).join() !== 'immich_url'
+      || backup.frequency.conn_timeout !== '3 minutes'
       || backup.photos.display_mode !== 'Fill' || backup.clock?.show !== true || backup.clock.timezone !== '${setup.timezone}'
       || backup.screen?.brightness_day !== 74 || backup.screen.brightness_night !== 44
       || backup.screen.rotation !== '180' || backup.photos.orientation !== 'Portrait Only'
@@ -125,6 +127,7 @@ const fixture = html.replace('</body>', `<script>
     form.elements.schedule_wake_timeout.value = '90'
     form.elements.timezone.value = 'America/New_York (GMT-5)'
     form.elements.clock_format.value = '12 Hour'
+    form.elements.conn_timeout.value = '45 seconds'
     form.elements.ntp_server_2.value = 'spare.example.test'
     source.dispatchEvent(new Event('change'))
     if (!album.required || album.disabled) throw new Error('Album selection did not enable the album field')
@@ -346,6 +349,7 @@ try {
     schedule_enabled: false, schedule_off_hour: 0, schedule_wake_timeout: 90,
     clock_format: '12 Hour', timezone: 'America/New_York (GMT-5)',
     ntp_server_2: 'spare.example.test',
+    conn_timeout: '45 seconds',
   }])
   console.log('Native photo source settings accept Immich album links and reject share links')
 

@@ -524,7 +524,11 @@
   }
   var nativeSettingGroups = [
     ["Frame", [["frame_name", "Frame name"]]],
-    ["Immich connection", [["immich_url", "Immich server URL"], ["api_key", "Replacement Immich API key"]]],
+    ["Immich connection", [
+      ["immich_url", "Immich server URL"],
+      ["api_key", "Replacement Immich API key"],
+      ["conn_timeout", "Connection timeout"]
+    ]],
     ["Photo preparation service", [["prepared_slide_url", "Service URL"], ["prepared_slide_token", "Service access token"]]],
     ["Playback", [
       ["interval", "Time per photo"],

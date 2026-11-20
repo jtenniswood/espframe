@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { createBackup, readBackup } from '../installer/backup.mjs'
+import { connectionTimeouts, createBackup, readBackup } from '../installer/backup.mjs'
 
 const fixture = async name => JSON.parse(await readFile(
   new URL(`../../../tests/fixtures/backup/espframe-config-${name}.json`, import.meta.url), 'utf8'))
@@ -32,6 +32,7 @@ for (const name of ['v1-full', 'v2-full']) {
   const result = readBackup(await fixture(name))
   assert.deepEqual(result.settings, {
     immich_url: 'https://photos.example.com', slide_seconds: 15, portrait_pairing: true, portrait_pairs_only: true,
+    conn_timeout: '10 minutes',
     portrait_pairing_range: 'Within 2 Days', portrait_pair_framing: 'Fill',
     display_mode: 'Fill',
     transition: name === 'v2-full' ? 'Cross Fade' : 'Random',
@@ -164,6 +165,17 @@ assert.equal(personBackup.photos.source, 'Person')
 assert.equal(readBackup(personBackup).legacyPreset, 'Person')
 assert.equal(readBackup({ version: 3, photos: { source: 'Custom', excluded_person_ids: `${album},broken`, people_enabled: true } }).chooseSource, true)
 assert.deepEqual(readBackup({ version: 3, frequency: { interval: '1 hour' } }).settings, { slide_seconds: 3600 })
+const productSettings = JSON.parse(await readFile(new URL('../../../product/contract/settings.json', import.meta.url), 'utf8'))
+assert.deepEqual(connectionTimeouts, productSettings.find(setting => setting.key === 'conn_timeout').options)
+for (const conn_timeout of connectionTimeouts) {
+  const result = readBackup({ version: 3, frequency: { interval: '15 seconds', conn_timeout } })
+  assert.deepEqual(result.settings, { slide_seconds: 15, conn_timeout })
+  assert.deepEqual(result.notices, [])
+  assert.deepEqual(createBackup(result.settings).frequency, { interval: '15 seconds', conn_timeout })
+}
+const invalidTimeout = readBackup({ version: 3, frequency: { interval: '15 seconds', conn_timeout: '5 seconds' } })
+assert.deepEqual(invalidTimeout.settings, { slide_seconds: 15 })
+assert.deepEqual(invalidTimeout.notices, ['Review the connection timeout in the original backup.'])
 const invalid = readBackup({
   version: 3, connection: { immich_url: 'https://photos.test/?key=secret' }, frequency: { interval: '25 hours' },
 })

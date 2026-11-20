@@ -50,7 +50,7 @@ settings password. Use **Find frame on Wi-Fi** to retry the address check.
 
 When upgrading an existing frame, export an Espframe settings backup from
 its web page before installation. In the native installer, choose that
-backup to prefill the frame name, Immich URL, supported photo source, slideshow interval,
+backup to prefill the frame name, Immich URL, supported photo source, slideshow interval, connection timeout,
 display mode, portrait pairing, mounting orientation, clock, brightness, and
 screen schedule. Recognized ESPHome backups prefill **Fill each half** for
 portrait pairs, independently of the display mode for single photos.
@@ -93,6 +93,9 @@ pairing rules keeps the current photo visible until the first slide from
 the new feed is ready.
 Changing the clock format redraws the clock in place. The next automatic
 photo change uses the saved transition and speed.
+The connection timeout applies immediately. It controls when an Immich
+connection or API key warning appears if the frame has yet to load its
+first photo. Once playback starts, the frame keeps the last ready photo.
 Saves that also change connection or device settings apply after a restart.
 If you change **Frame name**, it also shows the new `.local` address.
 The frame adds its own four-character MAC suffix to the hostname.

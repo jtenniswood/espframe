@@ -11,6 +11,7 @@
 #include "screen_schedule.h"
 #include "screen_tone.h"
 #include "slide_geometry.h"
+#include "slideshow_interval.h"
 #include "stock_settings.h"
 #include "wifi_credentials.h"
 
@@ -73,6 +74,7 @@ struct Settings : PhotoFeedSettings {
   bool home_assistant_key_set{};
   uint32_t reset_epoch{};
   uint32_t slide_seconds{15};
+  uint32_t connection_timeout_seconds{default_connection_timeout};
   std::string transition{"Cross Fade"};
   std::string transition_speed{"Fast"};
   uint8_t brightness_day{64};

@@ -2,6 +2,7 @@
 #include "frame_identity.h"
 #include "frame_status.h"
 #include "home_assistant_key.h"
+#include "initial_photo_timeout.h"
 #include "native_configuration.h"
 #include "nvs.h"
 #include "nvs_flash.h"
@@ -367,6 +368,7 @@ int main() {
   const auto legacy_store = stored;
   assert(legacy.read());
   assert(legacy.immich_url == "http://legacy.local/api" && legacy.slide_seconds == 15);
+  assert(legacy.connection_timeout_seconds == 600);
   assert(legacy.transition == "Cross Fade" && legacy.transition_speed == "Fast");
   assert(legacy.portrait_pairing);
   assert(!legacy.portrait_pairs_only && !legacy.requires_portrait_pair() && legacy.portrait_pairing_days == 0);
@@ -993,6 +995,22 @@ int main() {
   assert(update_configuration(R"({"values":{"ntp_server_2":"https://other.test"}})").error);
   assert(current.read() && current.clock.ntp_servers == expected_servers);
 
+  using espframe::native::active_connection_timeout;
+  assert(active_connection_timeout.load() == 600);
+  const auto timeout_change = update_configuration(R"({"values":{"conn_timeout":"45 seconds"}})");
+  assert(!timeout_change.error && !timeout_change.restart_required && active_connection_timeout.load() == 45);
+  assert(current.read() && current.connection_timeout_seconds == 45);
+  const Json timeout_snapshot(configuration_snapshot(current), cJSON_Delete);
+  const auto *timeout_values = cJSON_GetObjectItemCaseSensitive(timeout_snapshot.get(), "values");
+  assert(std::string_view(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(timeout_values, "conn_timeout"))) ==
+         "45 seconds");
+  assert(update_configuration(R"({"values":{"conn_timeout":"7 seconds"}})").error);
+  assert(update_configuration(R"({"values":{"conn_timeout":45}})").error);
+  fail_commit = true;
+  assert(update_configuration(R"({"values":{"conn_timeout":"5 minutes"}})").error);
+  fail_commit = false;
+  assert(current.read() && current.connection_timeout_seconds == 45 && active_connection_timeout.load() == 45);
+
   assert(!current.needs_local_date());
   const auto live_time_settings = [&](const char *request, bool needs_time) {
     const auto saved = update_configuration(request);
@@ -1012,6 +1030,7 @@ int main() {
   assert(Settings::save(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","web_password":"new-settings"})"));
   assert(current.read() && current.home_assistant_key == ha_key);
   assert(current.clock.ntp_servers == expected_servers);
+  assert(current.connection_timeout_seconds == 45);
 
   assert(!update_configuration(R"({"values":{"frame_name":"Restored frame"}})").error);
   assert(!reset_configuration(ResetMode::Customization).error);
@@ -1101,6 +1120,7 @@ int main() {
   using espframe::native::frame_status_snapshot;
   using espframe::native::FrameStatusStore;
   using espframe::native::ImmichResponse;
+  using espframe::native::InitialPhotoTimeout;
   using espframe::native::immich_response;
   using espframe::native::PhotoSourceStatus;
   FrameStatusStore status;
@@ -1141,6 +1161,24 @@ int main() {
   expect_status(true, false, "awake", "showing", "memories", "responding", "waiting_for_pair", true);
   status.set_screen(false);
   expect_status(true, true, "asleep", "paused", "memories", "responding", "waiting_for_pair");
+
+  constexpr int64_t second = 1'000'000;
+  InitialPhotoTimeout initial;
+  assert(initial.notice(60 * second, 30) == ImmichResponse::Pending);
+  initial.observe(65 * second, false, ImmichResponse::Unreachable);
+  initial.observe(70 * second, false, ImmichResponse::Pending);
+  initial.observe(80 * second, false, ImmichResponse::Rejected);
+  assert(initial.notice(95 * second - 1, 30) == ImmichResponse::Pending);
+  assert(initial.notice(95 * second, 30) == ImmichResponse::Rejected);
+  assert(initial.notice(95 * second, 45) == ImmichResponse::Pending);
+  initial.observe(96 * second, false, ImmichResponse::Responding);
+  assert(initial.notice(100 * second, 30) == ImmichResponse::Pending);
+  initial.observe(100 * second, false, ImmichResponse::RequestFailed);
+  assert(initial.notice(129 * second, 30) == ImmichResponse::Pending);
+  assert(initial.notice(130 * second, 30) == ImmichResponse::RequestFailed);
+  initial.observe(131 * second, true, ImmichResponse::Pending);
+  assert(initial.notice(160 * second, 30) == ImmichResponse::Pending);
+
   verify_stock_pairing_migration();
   verify_stock_connection_migration();
   verify_setup_framing();

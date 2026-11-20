@@ -38,7 +38,7 @@ const backup = {
     base_tone_enabled: true, base_tone: 25, warm_tones_enabled: true, warm_tone_intensity: 60,
     schedule_on_hour: 21, schedule_off_hour: 6, schedule_wake_timeout: 30,
   },
-  frequency: { interval: '24 hours' },
+  frequency: { interval: '24 hours', conn_timeout: '3 minutes' },
 }
 const verify = `
   const encoder = new TextEncoder()
@@ -207,6 +207,8 @@ const verify = `
       throw new Error('The clock settings did not reach USB setup')
     if (received.ntp_server_1 !== 'time.example.test' || received.ntp_server_2 !== '' || received.ntp_server_3 !== '2001:db8::5')
       throw new Error('The ordered time servers did not reach USB setup')
+    if (received.conn_timeout !== '3 minutes')
+      throw new Error('The saved connection timeout did not reach USB setup')
     if (!received.date_filter_enabled || received.date_filter_mode !== 'Fixed Range' || received.date_from !== '2024-02-29'
       || received.date_to !== '' || received.relative_amount !== 2 || received.relative_unit !== 'Months')
       throw new Error('The capture date filter did not reach USB setup')
