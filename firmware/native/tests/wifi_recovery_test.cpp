@@ -1,0 +1,81 @@
+#include "recovery_card.h"
+#include "wifi_recovery.h"
+
+#include <algorithm>
+#include <cassert>
+#include <cstring>
+#include <fstream>
+#include <iterator>
+#include <vector>
+
+using namespace espframe::native;
+
+int main(int argc, char **argv) {
+  RecoveryWindow recovery;
+  assert(!recovery.change_at(true, false));
+  recovery.update(0, false);
+  assert(recovery.change_at(false, false) == 0);
+  assert(recovery.change_at(true, false) == 90'000'000);
+  recovery.update(25'000'000, false);
+  assert(recovery.change_at(true, false) == 90'000'000);
+  assert(!recovery.change_at(true, true));
+  recovery.update(28'000'000, true);
+  assert(!recovery.change_at(true, false));
+  assert(recovery.change_at(true, true) == 43'000'000);
+  recovery.update(41'000'000, true);
+  assert(recovery.change_at(true, true) == 43'000'000);
+  recovery.update(42'000'000, false);
+  assert(!recovery.change_at(true, true));
+  assert(recovery.change_at(true, false) == 132'000'000);
+
+  assert(argc == 2);
+  std::ifstream atlas_file(argv[1], std::ios::binary);
+  std::vector<uint8_t> atlas{std::istreambuf_iterator<char>{atlas_file}, {}};
+  assert(atlas.size() == 95 * (1 + 32 * 36 / 2));
+  RecoveryNetwork access_point;
+  std::memcpy(access_point.ssid.data(), "espframe_BBBBBB", sizeof("espframe_BBBBBB"));
+  std::memcpy(access_point.password.data(), "WWWWWWWWWWWW", sizeof("WWWWWWWWWWWW"));
+  const uint16_t photo = 0x4321;
+  std::vector<uint16_t> normal(pixel_count, photo);
+  std::vector<uint16_t> inverted(pixel_count, photo);
+  draw_recovery_card(normal.data(), atlas.data(), access_point, ScreenRotation::Normal);
+  draw_recovery_card(inverted.data(), atlas.data(), access_point, ScreenRotation::UpsideDown);
+  assert(std::equal(normal.begin(), normal.end(), inverted.rbegin()));
+  assert(std::count(normal.begin(), normal.end(), photo) == pixel_count - 504 * 184);
+  assert(std::count(normal.begin(), normal.end(), 0xffff) > 900);
+
+  for (auto status : {PhotoSourceStatus::WaitingForTime, PhotoSourceStatus::MemoriesEmpty,
+                      PhotoSourceStatus::MemoriesUnavailable, PhotoSourceStatus::IncompleteFilters,
+                      PhotoSourceStatus::UnsupportedFilters, PhotoSourceStatus::FiltersUnavailable,
+                      PhotoSourceStatus::NoPhotos, PhotoSourceStatus::WaitingForPair}) {
+    std::fill(normal.begin(), normal.end(), photo);
+    std::fill(inverted.begin(), inverted.end(), photo);
+    draw_source_status(normal.data(), atlas.data(), status, ScreenRotation::Normal);
+    draw_source_status(inverted.data(), atlas.data(), status, ScreenRotation::UpsideDown);
+    assert(std::equal(normal.begin(), normal.end(), inverted.rbegin()));
+    assert(std::count(normal.begin(), normal.end(), photo) == pixel_count - 396 * 60);
+  }
+
+  for (const int direction : {-1, 1}) {
+    std::fill(normal.begin(), normal.end(), photo);
+    std::fill(inverted.begin(), inverted.end(), photo);
+    draw_loading_status(normal.data(), atlas.data(), direction, ScreenRotation::Normal);
+    draw_loading_status(inverted.data(), atlas.data(), direction, ScreenRotation::UpsideDown);
+    assert(std::equal(normal.begin(), normal.end(), inverted.rbegin()));
+    assert(std::count(normal.begin(), normal.end(), photo) == pixel_count - 244 * 52);
+    const auto point = panel_offset(direction < 0 ? 44 : slide_width - 44 - 244, 44, ScreenRotation::Normal);
+    assert(normal[point] != photo);
+  }
+
+  for (const int shift : {-slide_width, -slide_width / 2, 0, slide_width / 2, slide_width}) {
+    std::fill(normal.begin(), normal.end(), loading_page_background);
+    std::fill(inverted.begin(), inverted.end(), loading_page_background);
+    draw_loading_page_text(normal.data(), atlas.data(), shift, ScreenRotation::Normal);
+    draw_loading_page_text(inverted.data(), atlas.data(), shift, ScreenRotation::UpsideDown);
+    assert(std::equal(normal.begin(), normal.end(), inverted.rbegin()));
+    if (shift == 0)
+      assert(std::count(normal.begin(), normal.end(), 0xffff) > 100);
+    if (std::abs(shift) == slide_width)
+      assert(std::count(normal.begin(), normal.end(), loading_page_background) == pixel_count);
+  }
+}
