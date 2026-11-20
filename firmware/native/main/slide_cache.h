@@ -43,6 +43,15 @@ class SlideCache {
     return nullptr;
   }
 
+  SlideRange ready_range(SlideIndex center, SlideRange available) const {
+    SlideRange ready{center, center};
+    while (ready.first > available.first && this->find(ready.first - 1))
+      --ready.first;
+    while (ready.last < available.last && this->find(ready.last + 1))
+      ++ready.last;
+    return ready;
+  }
+
   bool needs_refresh(SlideIndex slide) const {
     for (const auto &entry : this->entries_) {
       if (entry.state == State::Ready && entry.slide == slide)
@@ -92,7 +101,7 @@ class SlideCache {
       } else if (entry.state == State::Ready && !replaces_ready &&
                  (entry.slide < keep_first || entry.slide > keep_last)) {
         const auto distance = entry.slide < keep_first ? keep_first - entry.slide : entry.slide - keep_last;
-        if (evict == capacity || (replacement && distance > evict_distance)) {
+        if (evict == capacity || distance > evict_distance) {
           evict = index;
           evict_distance = distance;
         }

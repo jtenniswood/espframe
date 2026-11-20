@@ -27,6 +27,37 @@ class Swipe {
   bool dragging() const { return this->phase_ == Phase::Dragging; }
   bool settling() const { return this->phase_ == Phase::Settling; }
   SlideIndex settle_destination() const { return this->settling() ? this->target_ : this->settled_; }
+
+  SlideRange retain_for_motion(SlideRange keep, PixelPosition presented) const {
+    const auto include_slide = [&](SlideIndex slide) {
+      keep.include(std::clamp(slide, this->ready_first_, this->ready_last_));
+    };
+    const auto include_position = [&](PixelPosition position) {
+      const auto bounded = std::clamp(position, this->ready_first_ * this->width_, this->ready_last_ * this->width_);
+      const auto first = bounded / this->width_;
+      keep.include(first);
+      if (bounded % this->width_ != 0)
+        keep.include(first + 1);
+    };
+
+    // Retaking a moving photo uses the last presented position, which may
+    // lag the current gesture. Keep the photos on both sides of that point.
+    include_position(presented);
+    if (this->idle())
+      return keep;
+    include_position(this->position());
+    if (this->phase_ == Phase::Tracking || this->phase_ == Phase::Dragging || this->phase_ == Phase::Ignored) {
+      include_slide(this->origin_slide_ - 1);
+      include_slide(this->origin_slide_ + 1);
+      include_slide(this->resume_);
+    } else {
+      include_slide(this->target_);
+      if (this->phase_ == Phase::WaitingForSlide)
+        include_slide(this->loading_slide_);
+    }
+    return keep;
+  }
+
   int loading_direction(int64_t now_us) const {
     constexpr int64_t feedback_delay_us = 160'000;
     if (this->phase_ != Phase::WaitingForSlide || now_us - this->released_us_ < feedback_delay_us)

@@ -9,13 +9,6 @@
 
 namespace espframe::native {
 
-struct SlideRange {
-  SlideIndex first;
-  SlideIndex last;
-
-  bool contains(SlideIndex slide) const { return slide >= first && slide <= last; }
-};
-
 struct SlideRetry {
   SlideIndex slide{};
   int64_t until{};

@@ -678,13 +678,7 @@ void run(void *) {
                             : live && display.presented_position() >= slide_width ? first_photo : 0;
     const SlideRange available{first, slide_count - 1};
     swipe.set_available_range(available.first, available.last);
-    const auto window = prefetch.window(available);
-    auto ready_first = center;
-    auto ready_last = center;
-    while (ready_first > window.first && cache.find(ready_first - 1) != nullptr)
-      --ready_first;
-    while (ready_last < window.last && cache.find(ready_last + 1) != nullptr)
-      ++ready_last;
+    const auto [ready_first, ready_last] = cache.ready_range(center, available);
     if constexpr (trial_immich) {
       const auto ahead = static_cast<unsigned>(ready_last - center);
       if (ahead != reported_ahead) {
@@ -800,7 +794,9 @@ void run(void *) {
     const auto eligible = [&](SlideIndex candidate) {
       // Live photos have to be assigned in order. Trying a later index would
       // give it a retry delay even though no request for it has gone to Immich.
-      return keep.contains(candidate) && (!live || trial_fixtures || candidate <= next_photo) &&
+      // A gesture taking over a transition can reach beyond the speculative window.
+      const bool wanted = keep.contains(candidate) || candidate == prefetch.requested();
+      return wanted && available.contains(candidate) && (!live || trial_fixtures || candidate <= next_photo) &&
              retries[candidate % retries.size()].due(candidate, now, active_connection);
     };
     if (const auto wanted = prefetch.requested(); wanted && cache.find(*wanted))
@@ -820,6 +816,7 @@ void run(void *) {
     } else if (!blend.pending() && (esphome_trial || !backlight_ready || input.awake())) {
       // Until PPA finishes, its input slides must stay readable even if a
       // touch has moved the cache window in the other direction.
+      const auto retained_during_motion = swipe.retain_for_motion(keep, display.handoff_position());
       for (const auto candidate : prefetch.candidates(keep)) {
         if (!eligible(candidate))
           continue;
@@ -828,7 +825,7 @@ void run(void *) {
           continue;
         // Keep both immediate neighbors readable while the worker prepares
         // a new crop. If the cache is full, borrow a more distant slot.
-        const auto retained = refresh ? SlideRange{center - 1, center + 1} : keep;
+        const auto retained = refresh ? SlideRange{center - 1, center + 1} : retained_during_motion;
         if (const auto lease = cache.reserve(candidate, retained.first, retained.last, refresh)) {
           if constexpr (trace_enabled)
             refill_started_us = esp_timer_get_time();

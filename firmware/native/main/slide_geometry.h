@@ -1,11 +1,23 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 
 namespace espframe::native {
 
 using SlideIndex = int64_t;
 using PixelPosition = int64_t;
+
+struct SlideRange {
+  SlideIndex first;
+  SlideIndex last;
+
+  bool contains(SlideIndex slide) const { return slide >= first && slide <= last; }
+  void include(SlideIndex slide) {
+    first = std::min(first, slide);
+    last = std::max(last, slide);
+  }
+};
 
 inline constexpr int panel_width = 800;
 inline constexpr int panel_height = 1280;
