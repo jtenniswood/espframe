@@ -597,7 +597,12 @@ preparation. `drag_handoff_delay` counts how long the renderer took to observe
 each drag frame's LCD DMA handoff, including the number of waits over 250 µs.
 `in_range_drag_gaps` measures movement among ready slides and
 `resisted_drag_gaps` measures movement outside that range. A gap spanning
-both paths is included in the overall count. `split_blits` reports the time
+both paths is included in the overall count. `in_range_drag_updates` and
+`resisted_drag_updates` measure from when the renderer first sees a new pixel
+position to the handoff that satisfies it. They omit intervals when a hold or
+rounding at the edge produces the same position. Each reports the number of
+updates that waited longer than one and a half nominal refresh periods.
+`split_blits` reports the time
 to copy both slices for frames that show two photos and counts how often
 both copies were queued together.
 Save the response before the automatic return to ESPHome.

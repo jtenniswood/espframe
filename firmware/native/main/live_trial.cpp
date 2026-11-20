@@ -155,7 +155,7 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                   trial_replay_pair_fill ? "true" : "false", trial_replay_origin.data());
   }
   // Keep the full diagnostics response off the small HTTP task stack.
-  constexpr size_t report_capacity = 2000;
+  constexpr size_t report_capacity = 2300;
   const std::unique_ptr<char[]> body{new (std::nothrow) char[report_capacity]};
   if (!body)
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not allocate swipe report");
@@ -177,6 +177,8 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 ",\"busy_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"in_range_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"resisted_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
+                ",\"in_range_drag_updates\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
+                ",\"resisted_drag_updates\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"drag_handoff_delay\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_250_us\":%" PRIu32 "}}",
                 SWIPE_TRIAL_BENCHMARK ? "true" : "false", SWIPE_TRIAL_BENCHMARK_FIXTURES ? "fixtures" : "immich",
                 gesture_counts, replay, result.cache_hits,
@@ -197,6 +199,8 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 result.busy_drag_gaps.count, result.busy_drag_gaps.worst_us, result.busy_drag_gaps.over_limit,
                 result.in_range_drag_gaps.count, result.in_range_drag_gaps.worst_us, result.in_range_drag_gaps.over_limit,
                 result.resisted_drag_gaps.count, result.resisted_drag_gaps.worst_us, result.resisted_drag_gaps.over_limit,
+                result.in_range_drag_updates.count, result.in_range_drag_updates.worst_us, result.in_range_drag_updates.over_limit,
+                result.resisted_drag_updates.count, result.resisted_drag_updates.worst_us, result.resisted_drag_updates.over_limit,
                 result.drag_handoff_delay.count, result.drag_handoff_delay.worst_us, result.drag_handoff_delay.over_limit);
   if (length < 0 || static_cast<size_t>(length) >= report_capacity)
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not format swipe timings");
@@ -514,9 +518,10 @@ void record_live_trial_drag_outcome(TrialDragOutcome outcome) {
 }
 #endif
 
-void record_live_trial_frame(int64_t latched_us, MotionStamp stamp, uint32_t period_us, uint32_t handoff_delay_us) {
+void record_live_trial_frame(int64_t latched_us, MotionStamp stamp, uint32_t period_us, uint32_t handoff_delay_us,
+                             int64_t demand_us) {
   portENTER_CRITICAL(&swipe_lock);
-  metrics.frame(latched_us, stamp, period_us, handoff_delay_us);
+  metrics.frame(latched_us, stamp, period_us, handoff_delay_us, demand_us);
   portEXIT_CRITICAL(&swipe_lock);
 }
 

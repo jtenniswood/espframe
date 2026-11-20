@@ -523,6 +523,8 @@ void run(void *) {
   static TraceLogger trace;
   MotionEpoch motion_epoch;
   MotionStamp submitted_stamp;
+  DragFrameDemand drag_demand;
+  int64_t submitted_drag_demand_us{};
   FirstMotionTrace first_motion;
   TrialSwipeLanding physical_landing;
   const auto record_landing = [&] {
@@ -538,6 +540,8 @@ void run(void *) {
     display.submit(position);
     if constexpr (capture_motion)
       submitted_stamp = moving ? motion_epoch.stamp(preparing >= 0, resisted) : MotionStamp{};
+    if constexpr (trial_immich)
+      submitted_drag_demand_us = submitted_stamp.phase == MotionPhase::Drag ? drag_demand.take() : 0;
   };
   const auto submit_autoplay_frame = [&](uint16_t *output, uint8_t progress) {
     clock.draw(output, true);
@@ -583,7 +587,7 @@ void run(void *) {
     if (const auto scanout = display.poll_presented()) {
       if constexpr (trial_immich)
         record_live_trial_frame(*scanout, submitted_stamp, Display::nominal_frame_period_us(),
-                                static_cast<uint32_t>(esp_timer_get_time() - *scanout));
+                                static_cast<uint32_t>(esp_timer_get_time() - *scanout), submitted_drag_demand_us);
       if (!backlight_ready) {
         if (!schedule.update(local_hour, now, false))
           input.sleep(swipe);
@@ -788,6 +792,8 @@ void run(void *) {
         if (was_dragging && !swipe.dragging())
           motion_epoch.update(MotionPhase::Still);
       }
+      if constexpr (trial_immich)
+        drag_demand.observe(esp_timer_get_time(), swipe.dragging(), swipe.position(), last_submitted);
       if (effect == SwipeInput::Effect::Sleep) {
         manual_brightness.reset();
         schedule.sleep();
@@ -980,6 +986,8 @@ void run(void *) {
         phase = MotionPhase::Settle;
       motion_epoch.update(input.awake() ? phase : MotionPhase::Still);
     }
+    if constexpr (trial_immich)
+      drag_demand.observe(esp_timer_get_time(), motion_epoch.phase() == MotionPhase::Drag, position, last_submitted);
 
     if (blend.pending()) {
       display.wait_for_frame_or_tick();

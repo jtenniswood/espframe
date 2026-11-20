@@ -200,6 +200,21 @@ int main() {
   assert(!last_cold.poll(now, 1, {1, 2}, true));
   assert(last_cold.results().refill.count == 0);  // A later download is outside the run.
 
+  DragFrameDemand demand;
+  demand.observe(1'000, true, 120, 120);  // A hold or rounded edge position needs no new frame.
+  assert(demand.take() == 0);
+  demand.observe(2'000, true, 121, 120);
+  demand.observe(3'000, true, 123, 120);  // Keep the earliest unsatisfied update.
+  assert(demand.take() == 2'000 && demand.take() == 0);
+  demand.observe(4'000, true, 124, 123);
+  demand.observe(5'000, true, 123, 123);  // Reversal back to the queued position clears demand.
+  assert(demand.take() == 0);
+  demand.observe(6'000, true, 124, 123);
+  demand.observe(7'000, false, 125, 123);  // A release ends the drag measurement.
+  assert(demand.take() == 0);
+  demand.observe(8'000, true, 124, 123);
+  assert(demand.take() == 8'000);
+
   TrialSwipeMetrics timing;
   timing.gesture(12'000, {0, 0, 8'000, {CacheRead::Hit}, true, 1'000});
   timing.gesture(50'000, {0, 0, 6'000, {CacheRead::Hit}, false, 0});
@@ -211,13 +226,13 @@ int main() {
   timing.split_blit(13'000, false);
   timing.split_blit(14'000, true);
   constexpr auto period = 16'000;
-  timing.frame(10'000, {1, MotionPhase::Drag, true}, period, 25);
-  timing.frame(26'000, {1, MotionPhase::Drag, true}, period, 250);
-  timing.frame(50'000, {1, MotionPhase::Drag, true}, period, 251);
-  timing.frame(82'000, {1, MotionPhase::Drag, false, true}, period, 990);
-  timing.frame(106'000, {1, MotionPhase::Drag, false, true}, period, 30);
-  timing.frame(128'000, {2, MotionPhase::Drag, false}, period, 30);  // New gesture.
-  timing.frame(160'000, {3, MotionPhase::Settle, false}, period, 2'000);
+  timing.frame(10'000, {1, MotionPhase::Drag, true}, period, 25, 2'000);
+  timing.frame(26'000, {1, MotionPhase::Drag, true}, period, 250, 0);
+  timing.frame(50'000, {1, MotionPhase::Drag, true}, period, 251, 25'000);
+  timing.frame(82'000, {1, MotionPhase::Drag, false, true}, period, 990, 60'000);
+  timing.frame(106'000, {1, MotionPhase::Drag, false, true}, period, 30, 82'000);
+  timing.frame(128'000, {2, MotionPhase::Drag, false}, period, 30, 104'000);  // New gesture.
+  timing.frame(160'000, {3, MotionPhase::Settle, false}, period, 2'000, 132'000);
   const auto stats = timing.results();
   assert(stats.dma_copies == 2 && stats.cpu_copies == 1 && stats.worst_composition_us == 8'000);
   assert(stats.split_blits == 2 && stats.batched_split_blits == 1 && stats.worst_split_blit_us == 14'000 &&
@@ -239,4 +254,8 @@ int main() {
          stats.resisted_drag_gaps.over_limit == 0);
   assert(stats.drag_handoff_delay.count == 6 && stats.drag_handoff_delay.worst_us == 990 &&
          stats.drag_handoff_delay.over_limit == 2);
+  assert(stats.in_range_drag_updates.count == 3 && stats.in_range_drag_updates.worst_us == 25'000 &&
+         stats.in_range_drag_updates.over_limit == 1);
+  assert(stats.resisted_drag_updates.count == 2 && stats.resisted_drag_updates.worst_us == 24'000 &&
+         stats.resisted_drag_updates.over_limit == 0);
 }

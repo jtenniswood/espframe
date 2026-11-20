@@ -165,6 +165,8 @@ def compare(control, enabled, *, companion_prefetch=False, slow_previews=False, 
         ("busy_cache_hit_motion", "Cached first motion over 50 ms, preparing", "over_50_ms"),
         ("quiet_drag_gaps", f"Drag gaps over {gap_ms:.1f} ms, idle worker", "over_limit"),
         ("busy_drag_gaps", f"Drag gaps over {gap_ms:.1f} ms, preparing", "over_limit"),
+        ("in_range_drag_updates", f"Ready drag updates waiting over {gap_ms:.1f} ms", "over_limit"),
+        ("resisted_drag_updates", f"Resisted drag updates waiting over {gap_ms:.1f} ms", "over_limit"),
     ):
         if key in before and key in after:
             rows.append((label, sample(before[key], limit), sample(after[key], limit)))

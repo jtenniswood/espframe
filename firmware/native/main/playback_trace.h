@@ -2,6 +2,8 @@
 
 #include "slide_prefetch.h"
 
+#include <utility>
+
 namespace espframe::native {
 
 enum class MotionPhase : char { Still = '-', Drag = 'd', Settle = 's', Crossfade = 'f' };
@@ -29,6 +31,21 @@ class MotionEpoch {
  private:
   uint32_t epoch_{};
   MotionPhase phase_{MotionPhase::Still};
+};
+
+class DragFrameDemand {
+ public:
+  void observe(int64_t now, bool dragging, PixelPosition wanted, PixelPosition submitted) {
+    if (!dragging || wanted == submitted)
+      oldest_us_ = 0;
+    else if (oldest_us_ == 0)
+      oldest_us_ = now;
+  }
+
+  int64_t take() { return std::exchange(oldest_us_, 0); }
+
+ private:
+  int64_t oldest_us_{};
 };
 
 struct CacheSample {

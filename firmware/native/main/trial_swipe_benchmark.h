@@ -44,6 +44,8 @@ class TrialSwipeMetrics {
     Timing in_range_drag_gaps;
     Timing resisted_drag_gaps;
     Timing drag_handoff_delay;
+    Timing in_range_drag_updates;
+    Timing resisted_drag_updates;
   };
 
   const Results &results() const { return results_; }
@@ -74,13 +76,18 @@ class TrialSwipeMetrics {
     results_.worst_split_blit_us = std::max(results_.worst_split_blit_us, elapsed_us);
   }
 
-  void frame(int64_t now, MotionStamp stamp, uint32_t period_us, uint32_t handoff_delay_us) {
-    if (stamp.phase == MotionPhase::Drag)
+  void frame(int64_t now, MotionStamp stamp, uint32_t period_us, uint32_t handoff_delay_us, int64_t demand_us) {
+    const auto gap_limit = period_us + period_us / 2;
+    if (stamp.phase == MotionPhase::Drag) {
       results_.drag_handoff_delay.add(handoff_delay_us, 250);
+      if (demand_us != 0) {
+        auto &updates = stamp.resisted ? results_.resisted_drag_updates : results_.in_range_drag_updates;
+        updates.add(static_cast<uint32_t>(now - demand_us), gap_limit);
+      }
+    }
     if (stamp.phase == MotionPhase::Drag && previous_stamp_.phase == MotionPhase::Drag &&
         stamp.epoch == previous_stamp_.epoch) {
       const auto elapsed = static_cast<uint32_t>(now - previous_frame_us_);
-      const auto gap_limit = period_us + period_us / 2;
       results_.drag_gaps.add(elapsed, gap_limit);
       if (stamp.resisted == previous_stamp_.resisted) {
         auto &path_gaps = stamp.resisted ? results_.resisted_drag_gaps : results_.in_range_drag_gaps;
