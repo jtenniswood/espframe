@@ -50,8 +50,30 @@ void verify_refill_before_refresh() {
   assert(prefetch.has_nearby_refill(cache, eligible));
 }
 
+void verify_fast_forward_refill() {
+  constexpr SlideRange available{1, 100};
+  constexpr SlideRange one_ahead{8, 11};
+  SlidePrefetch prefetch{10};
+  assert(!SlidePrefetch{0}.should_stage_forward(1, {0, 0}, true));
+  assert(!prefetch.should_stage_forward(12, one_ahead, false));
+  assert(prefetch.should_stage_forward(12, one_ahead, true));
+  assert(!prefetch.should_stage_forward(7, one_ahead, true));
+  assert(!prefetch.should_stage_forward(13, one_ahead, true));
+  assert(!prefetch.should_stage_forward(13, {8, 12}, true));
+
+  prefetch.request_at_edge(11 * slide_width + 1, one_ahead, available);
+  prefetch.request_after_drag(std::nullopt);
+  assert(prefetch.should_stage_forward(12, one_ahead, false));
+  prefetch.prepared(12);
+  assert(!prefetch.should_stage_forward(12, one_ahead, false));
+  prefetch.request_at_edge(8 * slide_width - 1, one_ahead, available);
+  assert(!prefetch.should_stage_forward(7, one_ahead, false));
+  assert(!prefetch.should_stage_forward(12, one_ahead, false));
+}
+
 int main() {
   verify_refill_before_refresh();
+  verify_fast_forward_refill();
   const auto next_candidate_retry = SlideRetry::after(10, 1'000, 1, true);
   assert(!next_candidate_retry.due(10, 100'999, 1) && next_candidate_retry.due(10, 101'000, 1));
   const auto transport_retry = SlideRetry::after(10, 1'000, 1, false);

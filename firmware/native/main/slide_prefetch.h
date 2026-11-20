@@ -83,6 +83,11 @@ class SlidePrefetch {
 
   std::optional<SlideIndex> requested() const { return requested_; }
 
+  bool should_stage_forward(SlideIndex candidate, SlideRange ready, bool browsing) const {
+    return center_ > 0 && candidate == ready.last + 1 && ready.last - center_ < desired_ready_in_direction &&
+           (browsing || requested_ == candidate);
+  }
+
   void prepared(SlideIndex slide) {
     if (requested_ == slide)
       requested_.reset();

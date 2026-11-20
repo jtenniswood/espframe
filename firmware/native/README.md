@@ -35,6 +35,13 @@ and 3.x generations. [ESP-Hosted migration guide](https://github.com/espressif/e
 The player only updates the P4. Use a fresh build directory if you previously
 configured the project with ESP-Hosted 2.x.
 
+When forward swipes run low on ready photos, the native player can start a
+known portrait pair from Immich thumbnails. Both photos use the existing
+pair framing. Once you pause and the next swipe is covered, the frame
+replaces the pair with full previews. Regular idle prefetch starts with full
+previews. Thumbnails that fail to load fall back to previews, and a failed
+detail upgrade leaves the original pair swipeable.
+
 ### Install and connect in a browser
 
 Download and extract the `native-browser-installer` artifact from the Native

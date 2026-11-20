@@ -214,6 +214,7 @@ void allocate_slide_buffers(SlideCache::Buffers &buffers, size_t first, size_t l
 
 class SlideLoader {
  public:
+  using Preparation = ImmichSource::Preparation;
   using Result = ImmichSource::PrepareResult;
 
   struct Completion {
@@ -226,7 +227,7 @@ class SlideLoader {
     Result result;
     bool cancelled;
     bool source_ready;
-    bool caption_only;
+    Preparation preparation;
     ImmichSource::PendingPresentation presentation;
   };
 
@@ -304,9 +305,9 @@ class SlideLoader {
     return true;
   }
 
-  void submit(const SlideCache::Lease &lease, uint32_t source_revision, bool replace_source, bool caption_only = false) {
+  void submit(const SlideCache::Lease &lease, uint32_t source_revision, bool replace_source, Preparation preparation) {
     this->cancelled_ = false;
-    const Request request{lease, source_revision, replace_source, caption_only};
+    const Request request{lease, source_revision, replace_source, preparation};
     ESP_ERROR_CHECK(xQueueSend(this->requests_, &request, 0) == pdPASS ? ESP_OK : ESP_ERR_INVALID_STATE);
     xTaskNotifyGive(this->task_);
   }
@@ -354,7 +355,7 @@ class SlideLoader {
     SlideCache::Lease lease;
     uint32_t source_revision;
     bool replace_source;
-    bool caption_only;
+    Preparation preparation;
   };
 
   bool apply_photo_settings_(const Request &request) {
@@ -421,7 +422,7 @@ class SlideLoader {
           }
         }
         result = source_ready ? loader.source_.prepare(lease.slide, lease.pixels, lease.replacement,
-                                                       presentation, request.caption_only) : Result::Retry;
+                                                       presentation, request.preparation) : Result::Retry;
       } else {
         const int fixture = lease.slide % fixture_count;
         const auto &photo = photos[fixture];
@@ -442,7 +443,7 @@ class SlideLoader {
       const Completion completion{lease, loader.source_.first_slide(), loader.source_.next_slide(), connection,
                                   loader.source_.source_status(), loader.source_.response(), result,
                                   result != Result::Ready && loader.cancelled_.load(), source_ready,
-                                  request.caption_only, presentation};
+                                  request.preparation, presentation};
       xQueueSend(loader.completed_, &completion, portMAX_DELAY);
     }
   }
@@ -604,6 +605,9 @@ void run(void *) {
   uint32_t selection_revision{};
   SlideIndex source_anchor = -1;
   bool preparing_refresh = false;
+  using Preparation = SlideLoader::Preparation;
+  constexpr bool stage_at_edge = !esphome_trial || SWIPE_TRIAL_REPLAY_EDGE_DETAIL;
+  constexpr bool stage_all_pairs = trial_replay_staged_detail && !SWIPE_TRIAL_REPLAY_EDGE_DETAIL;
   unsigned reported_ahead = 0;
   std::array<SlideRetry, SlideCache::capacity> retries{};
   const int64_t refresh_period_us = Display::nominal_frame_period_us();
@@ -693,13 +697,15 @@ void run(void *) {
     if ((!preparing_refresh || at_source_handoff || discard_refresh) && loader.poll(completion)) {
       const bool ready = completion.result == SlideLoader::Result::Ready && !discard_refresh;
       const bool next_candidate = completion.result == SlideLoader::Result::NextCandidate;
+      const bool caption_only = completion.preparation == Preparation::CaptionOnly;
+      const bool refining = completion.preparation == Preparation::RefineThumbnail;
       const bool waiting_caption = ready && completion.presentation.caption_time;
       ESP_ERROR_CHECK(cache.complete(completion.lease, ready, waiting_caption, completion.presentation.caption_details,
                                     completion.presentation.thumbnail) ? ESP_OK : ESP_ERR_INVALID_STATE);
       refresh_waiting_captions |= local_time_ready && waiting_caption;
       const auto slide = completion.lease.slide;
       if constexpr (trace_enabled) {
-        if (!completion.caption_only) {
+        if (!caption_only) {
           const auto outcome = ready ? RefillOutcome::Ready
                                : completion.cancelled || discard_refresh ? RefillOutcome::Cancelled : RefillOutcome::Retry;
           trace.refill(esp_timer_get_time(), refill_started_us, slide, outcome);
@@ -708,7 +714,7 @@ void run(void *) {
       const bool time_available = local_time_ready && completion.source_status == PhotoSourceStatus::WaitingForTime;
       retries[slide % retries.size()] = ready || completion.cancelled || discard_refresh || time_available
                                            ? SlideRetry{}
-                                           : SlideRetry::after(slide, now, completion.connection, next_candidate);
+                                           : SlideRetry::after(slide, now, completion.connection, next_candidate && !refining);
       if constexpr (trial_immich) {
         if (next_candidate && !completion.cancelled)
           record_live_trial_candidate_retry();
@@ -728,7 +734,7 @@ void run(void *) {
             record_live_trial_photo(static_cast<uint32_t>(esp_timer_get_time() / 1000));
         }
       }
-      const bool completed_source_work = completion.source_ready && !discard_refresh && !completion.caption_only;
+      const bool completed_source_work = completion.source_ready && !discard_refresh && !caption_only && !refining;
       if (completed_source_work) {
         first_photo = completion.first_photo;
         next_photo = completion.next_photo;
@@ -741,15 +747,15 @@ void run(void *) {
             initial_photo_timeout.observe(now, ready, completion.response);
         }
         if (completion.lease.replacement && !discard_refresh) {
-          if (next_candidate) {
-            if (completion.caption_only)
+          if (next_candidate && !refining) {
+            if (caption_only)
               cache.stop_caption_details(slide);
             else
               cache.stop_refresh(slide);
           }
           if (ready && slide == center) {
             last_submitted = -1;
-            if (!completion.caption_only)
+            if (!caption_only && !refining)
               dwell.reset();
           }
         }
@@ -928,7 +934,7 @@ void run(void *) {
     // Let a stationary contact give time back to the worker. Protect the
     // start of a swipe even when only its landing is ready.
     const bool contact_engaged = input.engaged();
-    if constexpr (trial_replay_staged_detail) {
+    if constexpr (!esphome_trial || trial_replay_staged_detail) {
       if (!at_source_handoff || contact_engaged)
         last_detail_motion_us = now;
     }
@@ -952,24 +958,29 @@ void run(void *) {
       // Until PPA finishes, its input slides must stay readable even if a
       // touch has moved the cache window in the other direction.
       const auto retained_during_motion = swipe.retain_for_motion(keep, display.handoff_position());
-      const auto submit = [&](SlideIndex candidate, SlideRange retained, bool refresh, bool caption_only = false) {
+      const auto submit = [&](SlideIndex candidate, SlideRange retained, bool refresh,
+                              Preparation preparation = Preparation::FullPreview) {
         const auto lease = cache.reserve(candidate, retained.first, retained.last, refresh);
         if (!lease)
           return false;
         if constexpr (trace_enabled)
           refill_started_us = esp_timer_get_time();
-        loader.submit(*lease, source_revision, source_anchor >= 0, caption_only);
+        loader.submit(*lease, source_revision, source_anchor >= 0, preparation);
         preparing = candidate;
         preparing_refresh = refresh;
         return true;
       };
-      if constexpr (trial_replay_staged_detail) {
+      if constexpr (!esphome_trial || trial_replay_staged_detail) {
         // Leave a forward swipe ready before spending the pause sharpening
         // the current pair. A new edge drag can cancel the replacement.
-        if (center > 0 && at_source_handoff && !contact_engaged && cache.has_thumbnail(center) &&
+        if (center > 0 && source_anchor < 0 && requested_revision == source_revision && active_connection &&
+            at_source_handoff && !contact_engaged && cache.has_thumbnail(center) &&
             now - last_detail_motion_us >= detail_idle_us && eligible(center) &&
-            (ready.last > center || center == available.last) && submit(center, prefetch.nearby_window(), true))
-          detail_request_us = now;
+            (ready.last > center || !eligible(center + 1)) &&
+            submit(center, prefetch.nearby_window(), true, Preparation::RefineThumbnail)) {
+          if constexpr (trial_replay_staged_detail)
+            detail_request_us = now;
+        }
       }
       for (const auto candidate : prefetch.candidates(keep)) {
         if (preparing >= 0)
@@ -984,15 +995,21 @@ void run(void *) {
         if (refresh && candidate != center && prefetch.has_nearby_refill(cache, eligible))
           continue;
         const auto retained = refresh ? prefetch.nearby_window() : retained_during_motion;
-        if (submit(candidate, retained, refresh))
+        const bool browsing_forward = (swipe.dragging() && swipe.position() > swipe.origin_slide() * slide_width) ||
+                                      (user_motion && swipe.settling() && swipe.settle_destination() > center);
+        const bool staged = !refresh && (stage_all_pairs ||
+                            (stage_at_edge && source_anchor < 0 && requested_revision == source_revision &&
+                             prefetch.should_stage_forward(candidate, ready, browsing_forward)));
+        if (submit(candidate, retained, refresh, staged ? Preparation::AllowThumbnail : Preparation::FullPreview))
           break;
       }
       if constexpr (!esphome_trial) {
         if (preparing < 0 && at_source_handoff && !contact_engaged && active_connection && eligible(center) &&
-            cache.needs_caption_details(center) && !prefetch.has_nearby_refill(cache, eligible)) {
+            !cache.has_thumbnail(center) && cache.needs_caption_details(center) &&
+            !prefetch.has_nearby_refill(cache, eligible)) {
           // A detail lookup may paint a richer caption once nearby photos
           // are ready. Initial playback never waits for this request.
-          submit(center, prefetch.nearby_window(), true, true);
+          submit(center, prefetch.nearby_window(), true, Preparation::CaptionOnly);
         }
       }
     }

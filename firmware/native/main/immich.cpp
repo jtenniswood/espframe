@@ -757,7 +757,7 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
 }
 
 ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *panel, bool replacement,
-                                                  PendingPresentation &presentation, bool caption_only) {
+                                                 PendingPresentation &presentation, Preparation preparation) {
   const TrialStageTimer attempt{TrialPreparationStage::Attempt};
   if constexpr (!SWIPE_ESPHOME_TRIAL)
     this->response_ = ImmichResponse::Pending;
@@ -772,7 +772,9 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     return PrepareResult::Retry;
   const bool reframing_pair = replacement && existing->companion[0] != '\0';
   const bool pairs_only = this->feed_().requires_portrait_pair();
-  const bool preserve_pair = pairs_only || (caption_only && reframing_pair);
+  const bool caption_only = preparation == Preparation::CaptionOnly;
+  const bool refining = preparation == Preparation::RefineThumbnail;
+  const bool preserve_pair = pairs_only || (reframing_pair && (caption_only || refining));
   ImmichPhoto seed;
   PhotoSlide frame;
   if (remembered) {
@@ -852,21 +854,25 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   }
   if (this->cancelled_)
     return retry_frame();
+  // Start a known companion during primary decode. A new Immich search
+  // still waits for the decoded portrait so it cannot delay a landscape.
+  if (!prepared && prefetch_portrait_companion && optional_pair && !selected_companion && seed.portrait) {
+    frame.companion = companion_for_(seed);
+    selected_companion = frame.companion[0] != '\0';
+  }
   std::optional<TrialStageTimer> composition;
   bool thumbnail = false;
-  if constexpr (trial_replay_staged_detail) {
-    if (!prepared && new_position && !remembered && !replacement && pairs_only && seed.orientation_known &&
-        seed.portrait && frame.companion[0] != '\0' && !settings_.has_prepared_slides()) {
-      DecodedPreview left, right;
-      thumbnail = load_thumbnail_(frame.primary, left) && load_thumbnail_(frame.companion, right);
-      if (thumbnail) {
-        composition.emplace(TrialPreparationStage::Composition);
-        if (!left.render(panel, &right, feed_().pair_display_mode(), settings_.screen_rotation, checkpoint_))
-          return retry_frame();
-      }
-      if (cancelled_)
+  if (preparation == Preparation::AllowThumbnail && new_position && !remembered && seed.orientation_known &&
+      seed.portrait && frame.companion[0] != '\0' && !settings_.has_prepared_slides()) {
+    DecodedPreview left, right;
+    thumbnail = load_thumbnail_(frame.primary, left) && load_thumbnail_(frame.companion, right);
+    if (thumbnail) {
+      composition.emplace(TrialPreparationStage::Composition);
+      if (!left.render(panel, &right, feed_().pair_display_mode(), settings_.screen_rotation, checkpoint_))
         return retry_frame();
     }
+    if (cancelled_)
+      return retry_frame();
   }
   if (!prepared && !thumbnail) {
     const auto upcoming = [&](const AssetId &exclude) {
@@ -877,12 +883,6 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       return AssetId{};
     };
     DecodedPreview primary;
-    // Start a known companion during primary decode. A new Immich search
-    // still waits for the decoded portrait so it cannot delay a landscape.
-    if (prefetch_portrait_companion && optional_pair && !selected_companion && seed.portrait) {
-      frame.companion = companion_for_(seed);
-      selected_companion = frame.companion[0] != '\0';
-    }
     const bool primary_last = (!optional_pair && !pairs_only) || (seed.orientation_known && !seed.portrait) ||
                               (remembered && frame.companion[0] == '\0');
     AssetId lookahead{};
@@ -971,7 +971,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   const bool paired = frame.companion[0] != '\0';
   const bool fill_edges_match = !trial_replay_pair_fill || !new_position || !paired ||
                                 replay_pair_fills_panes(panel, this->settings_.screen_rotation, prepared);
-  if (replacement && !caption_only)
+  if (replacement && !caption_only && !refining)
     this->complete_caption_details_(frame);
   const auto &tone = this->feed_().tone;
   const auto local = captions.needs_time() || tone.night_enabled ? local_clock_time(std::time(nullptr)) : std::nullopt;

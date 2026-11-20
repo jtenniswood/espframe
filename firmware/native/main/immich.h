@@ -30,6 +30,7 @@ enum class PreviewTarget;
 class ImmichSource {
  public:
   enum class PrepareResult { Ready, Retry, NextCandidate };
+  enum class Preparation { FullPreview, AllowThumbnail, RefineThumbnail, CaptionOnly };
   struct PendingPresentation {
     bool caption_time{};
     bool caption_details{};
@@ -40,7 +41,7 @@ class ImmichSource {
                PreparationCheckpoint checkpoint)
       : cancelled_(cancelled), checkpoint_(checkpoint), settings_(settings), network_(network), http_(cancelled) {}
   PrepareResult prepare(SlideIndex slide, uint16_t *panel, bool replacement, PendingPresentation &presentation,
-                        bool caption_only = false);
+                        Preparation preparation);
   void apply_photo_settings(PhotoFeedSettings feed, std::optional<SlideIndex> first_slide);
   void expire_warm_tone_override() {
     Settings::expire_warm_tone_override(this->settings_.clock.timezone, this->feed_());

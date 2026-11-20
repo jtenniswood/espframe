@@ -156,6 +156,15 @@ For a retry run, set `REPLAY_FAIL_DETAIL_ONCE=1` on the replay server. The
 first full-preview request returns HTTP 503. The capture also verifies that
 the server saw the injected error.
 
+Add `-D SWIPE_TRIAL_REPLAY_EDGE_DETAIL=ON` to use the factory firmware's
+refill policy in this app-only replay. It uses thumbnails only for the next
+missing portrait pair when swiping forward with fewer than two neighbors
+ready. Read `/api/trial`, `/api/trial/benchmark`, and `/api/trial/prepare`
+directly in this mode and check `replay_edge_detail`, `thumbnail_slides`, and
+`detail_presentations` before rollback. The `capture` command for the staged
+comparison expects an upgrade on the final slide, which can already be a full
+preview in this mode.
+
 ### Compare the handoff with physical touch
 
 Use the same paired preview and thumbnail captures. Build both physical-touch

@@ -149,14 +149,15 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 script.offline_ready_last);
 #endif
   const auto period = Display::nominal_frame_period_us();
-  char replay[216]{};
+  char replay[240]{};
   if constexpr (direct_trial_replay) {
     std::snprintf(replay, sizeof(replay),
                   ",\"direct_replay_lookahead\":%s,\"direct_replay_companion_prefetch\":%s,\"replay_pair_fill\":%s"
-                  ",\"replay_origin\":\"%s\"%s%s",
+                  ",\"replay_origin\":\"%s\"%s%s%s",
                   SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD ? "false" : "true",
                   prefetch_portrait_companion ? "true" : "false", trial_replay_pair_fill ? "true" : "false",
                   trial_replay_origin.data(), trial_replay_staged_detail ? ",\"replay_staged_detail\":true" : "",
+                  SWIPE_TRIAL_REPLAY_EDGE_DETAIL ? ",\"replay_edge_detail\":true" : "",
                   trial_replay_touch ? ",\"replay_touch\":true" : "");
   } else if constexpr (synthetic_trial_replay) {
     std::snprintf(replay, sizeof(replay), ",\"replay_prepared\":true,\"replay_pair_fill\":%s,\"replay_origin\":\"%s\"",
