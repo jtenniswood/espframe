@@ -570,6 +570,10 @@ decode by format, and panel composition. Transfer entries include received
 bytes. Attempt time includes failed attempts and overlaps the other stages.
 Decode and composition timings include time waiting for a pixel checkpoint,
 which `/api/trial` reports separately as `pixel_pause_ms`.
+For completed progressive JPEG decodes, `progressive_jpeg_input` measures
+loading and processing the JPEG scans. `progressive_jpeg_output` measures
+transforms, color conversion, cropping, and scaling into the output buffer.
+Each reports its own accumulated `checkpoint_us` within the elapsed time.
 ESPHome returns automatically after five minutes.
 
 #### Measure swipe rendering over the local network

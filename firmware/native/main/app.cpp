@@ -346,7 +346,7 @@ class SlideLoader {
     while (this->pixel_work_deferred_.load(std::memory_order_acquire) && !this->cancelled_)
       xSemaphoreTake(this->pixel_work_wake_, portMAX_DELAY);
     if constexpr (trial_immich)
-      record_live_trial_pixel_pause(static_cast<uint32_t>((esp_timer_get_time() - started) / 1000));
+      record_live_trial_pixel_pause(static_cast<uint32_t>(esp_timer_get_time() - started));
     return !this->cancelled_;
   }
 

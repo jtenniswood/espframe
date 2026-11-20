@@ -30,7 +30,14 @@ enum class TrialPreparationStage : uint8_t {
   PrefetchTransfer,
   PrefetchWait,
   PreparedWarm,
+  ProgressiveJpegInput,
+  ProgressiveJpegOutput,
   Count,
+};
+
+struct TrialJpegPhaseTiming {
+  uint32_t elapsed_us;
+  uint32_t checkpoint_us;
 };
 
 bool read_live_trial_credentials(Settings &settings);
@@ -38,12 +45,14 @@ bool start_live_trial_status(NativeNetwork &network);
 void record_live_trial_wifi_link(int power_save, int rssi, unsigned channel);
 void record_live_trial_prepare();
 void record_live_trial_candidate_retry();
-void record_live_trial_pixel_pause(uint32_t pause_ms);
+void record_live_trial_pixel_pause(uint32_t pause_us);
+uint32_t live_trial_pixel_pause_us();
 void record_live_trial_http_open_error(int error);
 void record_live_trial_http_read_timeout(bool headers);
 void record_live_trial_search(bool pairing, int http_status, size_t candidates);
 void record_live_trial_preview(int http_status);
 void record_live_trial_preparation_time(TrialPreparationStage stage, uint32_t elapsed_us, size_t bytes = 0);
+void record_live_trial_progressive_jpeg(TrialJpegPhaseTiming input, TrialJpegPhaseTiming output);
 void record_live_trial_replay_slide(bool paired, bool fill_edges_match);
 void record_live_trial_photo(uint32_t elapsed_ms);
 void record_live_trial_cache(unsigned slots, unsigned ahead);

@@ -4,6 +4,11 @@
 #include "p4_jpeg_decoder.h"
 #include "slide_geometry.h"
 
+#if SWIPE_TRIAL_IMMICH
+#include "esp_timer.h"
+#include "live_trial.h"
+#endif
+
 #include <algorithm>
 #include <bit>
 #include <csetjmp>
@@ -140,8 +145,17 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegCallbacks &callbacks, cons
     callbacks.progress.progress_monitor = jpeg_progress;
     decoder.progress = &callbacks.progress;
   }
+#if SWIPE_TRIAL_IMMICH
+  const bool measure_progressive = decoder.progressive_mode;
+  const auto input_started_us = measure_progressive ? esp_timer_get_time() : 0;
+  const auto pause_before_input_us = measure_progressive ? live_trial_pixel_pause_us() : 0;
+#endif
   if (!jpeg_start_decompress(&decoder) || decoder.output_components != 3)
     return Decode::Invalid;
+#if SWIPE_TRIAL_IMMICH
+  const auto output_started_us = measure_progressive ? esp_timer_get_time() : 0;
+  const auto pause_before_output_us = measure_progressive ? live_trial_pixel_pause_us() : 0;
+#endif
   decoder.progress = nullptr;
 
   const auto left = crop.x * decoder.output_width / decoder.image_width;
@@ -212,7 +226,19 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegCallbacks &callbacks, cons
         return skipped;
     }
   }
-  return jpeg_finish_decompress(&decoder) ? Decode::Ready : Decode::Invalid;
+  if (!jpeg_finish_decompress(&decoder))
+    return Decode::Invalid;
+#if SWIPE_TRIAL_IMMICH
+  if (measure_progressive) {
+    const auto output_finished_us = esp_timer_get_time();
+    const auto pause_finished_us = live_trial_pixel_pause_us();
+    record_live_trial_progressive_jpeg({static_cast<uint32_t>(output_started_us - input_started_us),
+                                        pause_before_output_us - pause_before_input_us},
+                                       {static_cast<uint32_t>(output_finished_us - output_started_us),
+                                        pause_finished_us - pause_before_output_us});
+  }
+#endif
+  return Decode::Ready;
 }
 
 Decode decode_jpeg(const uint8_t *encoded, size_t length, uint16_t *&pixels, PhotoFraming &size, PreviewLayout layout,

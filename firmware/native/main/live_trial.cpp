@@ -37,7 +37,7 @@ std::atomic<uint32_t> last_motion_us{};
 std::atomic<uint32_t> prepare_attempts{};
 std::atomic<uint32_t> candidate_retries{};
 std::atomic<uint32_t> pixel_pauses{};
-std::atomic<uint32_t> pixel_pause_ms{};
+std::atomic<uint32_t> pixel_pause_us{};
 std::atomic<uint32_t> http_open_errors{};
 std::atomic<int> http_last_open_error{};
 std::atomic<uint32_t> http_header_timeouts{};
@@ -58,11 +58,13 @@ struct PreparationTiming {
   uint32_t total_us{};
   uint32_t worst_us{};
   size_t bytes{};
+  uint32_t checkpoint_us{};
 };
 
 constexpr std::array preparation_stages{"attempt", "selection", "transfer", "hardware_jpeg", "software_jpeg",
                                         "webp", "rejected_preview", "composition", "prepared_transfer", "prepared_decode",
-                                        "prepared_cache_decode", "prefetch_transfer", "prefetch_wait", "prepared_warm"};
+                                        "prepared_cache_decode", "prefetch_transfer", "prefetch_wait", "prepared_warm",
+                                        "progressive_jpeg_input", "progressive_jpeg_output"};
 static_assert(preparation_stages.size() == static_cast<size_t>(TrialPreparationStage::Count));
 std::array<PreparationTiming, preparation_stages.size()> preparation_timings{};
 struct ReplaySlides {
@@ -314,7 +316,7 @@ esp_err_t status(httpd_req_t *request) {
                 wifi_power_save.load(std::memory_order_relaxed), wifi_rssi_dbm.load(std::memory_order_relaxed),
                 wifi_primary_channel.load(std::memory_order_relaxed),
                 candidate_retries.load(std::memory_order_relaxed), SWIPE_TRIAL_BENCHMARK ? "true" : "false",
-                pixel_pauses.load(std::memory_order_relaxed), pixel_pause_ms.load(std::memory_order_relaxed),
+                pixel_pauses.load(std::memory_order_relaxed), live_trial_pixel_pause_us() / 1000,
                 http_open_errors.load(std::memory_order_relaxed), http_last_open_error.load(std::memory_order_relaxed),
                 http_header_timeouts.load(std::memory_order_relaxed), http_body_timeouts.load(std::memory_order_relaxed),
                 search_http.load(std::memory_order_relaxed), photo_candidates.load(std::memory_order_relaxed),
@@ -334,11 +336,16 @@ esp_err_t preparation_status(httpd_req_t *request) {
   [[maybe_unused]] const auto slides = replay_slides;
   portEXIT_CRITICAL(&preparation_lock);
 
-  char body[1408]{'{'};
+  // Keep the expanded timing response off the HTTP task stack.
+  constexpr size_t report_capacity = 2400;
+  const std::unique_ptr<char[]> body{new (std::nothrow) char[report_capacity]};
+  if (!body)
+    return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not allocate preparation report");
+  body[0] = '{';
   size_t used = 1;
   if constexpr (synthetic_trial_replay) {
-    const auto remaining = sizeof(body) - used;
-    const auto written = std::snprintf(body + used, remaining,
+    const auto remaining = report_capacity - used;
+    const auto written = std::snprintf(body.get() + used, remaining,
                                        "\"new_slides\":{\"paired\":%" PRIu32 ",\"single\":%" PRIu32
                                        ",\"pair_fill_edge_failures\":%" PRIu32 "},",
                                        slides.paired, slides.single, slides.pair_fill_edge_failures);
@@ -348,12 +355,15 @@ esp_err_t preparation_status(httpd_req_t *request) {
   }
   for (size_t i = 0; i < timings.size(); ++i) {
     const auto &timing = timings[i];
-    const auto remaining = sizeof(body) - used;
-    const auto written = std::snprintf(body + used, remaining,
+    char pause_field[40]{};
+    if (i >= static_cast<size_t>(TrialPreparationStage::ProgressiveJpegInput))
+      std::snprintf(pause_field, sizeof(pause_field), ",\"checkpoint_us\":%" PRIu32, timing.checkpoint_us);
+    const auto remaining = report_capacity - used;
+    const auto written = std::snprintf(body.get() + used, remaining,
                                       "%s\"%s\":{\"count\":%" PRIu32 ",\"total_us\":%" PRIu32
-                                      ",\"worst_us\":%" PRIu32 ",\"bytes\":%zu}",
+                                      ",\"worst_us\":%" PRIu32 ",\"bytes\":%zu%s}",
                                       i == 0 ? "" : ",", preparation_stages[i], timing.count, timing.total_us,
-                                      timing.worst_us, timing.bytes);
+                                      timing.worst_us, timing.bytes, pause_field);
     if (written < 0 || static_cast<size_t>(written) >= remaining - 1)
       return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Preparation report too large");
     used += written;
@@ -361,7 +371,7 @@ esp_err_t preparation_status(httpd_req_t *request) {
   body[used++] = '}';
   httpd_resp_set_type(request, "application/json");
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-  return httpd_resp_send(request, body, used);
+  return httpd_resp_send(request, body.get(), used);
 }
 
 }  // namespace
@@ -438,9 +448,13 @@ void record_live_trial_prepare() { prepare_attempts.fetch_add(1, std::memory_ord
 
 void record_live_trial_candidate_retry() { candidate_retries.fetch_add(1, std::memory_order_relaxed); }
 
-void record_live_trial_pixel_pause(uint32_t pause_ms) {
-  pixel_pause_ms.fetch_add(pause_ms, std::memory_order_relaxed);
+void record_live_trial_pixel_pause(uint32_t pause_us) {
+  pixel_pause_us.fetch_add(pause_us, std::memory_order_relaxed);
   pixel_pauses.fetch_add(1, std::memory_order_relaxed);
+}
+
+uint32_t live_trial_pixel_pause_us() {
+  return pixel_pause_us.load(std::memory_order_relaxed);
 }
 
 void record_live_trial_http_open_error(int error) {
@@ -462,14 +476,27 @@ void record_live_trial_preview(int http_status) {
   preview_requests.fetch_add(1, std::memory_order_relaxed);
 }
 
+static void add_preparation_time(TrialPreparationStage stage, uint32_t elapsed_us, size_t bytes, uint32_t checkpoint_us) {
+  auto &timing = preparation_timings[static_cast<size_t>(stage)];
+  ++timing.count;
+  timing.total_us += elapsed_us;
+  timing.worst_us = std::max(timing.worst_us, elapsed_us);
+  timing.bytes += bytes;
+  timing.checkpoint_us += checkpoint_us;
+}
+
 void record_live_trial_preparation_time(TrialPreparationStage stage, uint32_t elapsed_us, size_t bytes) {
   portENTER_CRITICAL(&preparation_lock);
+  if (!synthetic_trial_replay || !preparation_finished)
+    add_preparation_time(stage, elapsed_us, bytes, 0);
+  portEXIT_CRITICAL(&preparation_lock);
+}
+
+void record_live_trial_progressive_jpeg(TrialJpegPhaseTiming input, TrialJpegPhaseTiming output) {
+  portENTER_CRITICAL(&preparation_lock);
   if (!synthetic_trial_replay || !preparation_finished) {
-    auto &timing = preparation_timings[static_cast<size_t>(stage)];
-    ++timing.count;
-    timing.total_us += elapsed_us;
-    timing.worst_us = std::max(timing.worst_us, elapsed_us);
-    timing.bytes += bytes;
+    add_preparation_time(TrialPreparationStage::ProgressiveJpegInput, input.elapsed_us, 0, input.checkpoint_us);
+    add_preparation_time(TrialPreparationStage::ProgressiveJpegOutput, output.elapsed_us, 0, output.checkpoint_us);
   }
   portEXIT_CRITICAL(&preparation_lock);
 }
