@@ -14,9 +14,8 @@ inline bool replay_pair_fills_panes(const uint16_t *panel, ScreenRotation rotati
     if (!panel[panel_offset(0, column, rotation)] || !panel[panel_offset(portrait_pair_width - 1, column, rotation)] ||
         !panel[panel_offset(right, column, rotation)] || !panel[panel_offset(slide_width - 1, column, rotation)])
       return false;
-    // JPEG can mix colors across the gutter edge. For prepared slides,
-    // check the inner four pixels and allow small RGB565 rounding errors.
-    const int inset = prepared ? 2 : 0;
+    // JPEG can mix colors into the outermost divider pixels on prepared slides.
+    const int inset = prepared ? 1 : 0;
     for (int x = portrait_pair_width + inset; x < right - inset; ++x) {
       const auto pixel = panel[panel_offset(x, column, rotation)];
       const bool dark = (pixel & 0xf800) <= 0x2000 && (pixel & 0x07e0) <= 0x0100 && (pixel & 0x001f) <= 4;

@@ -160,11 +160,11 @@ void verify_pair(const char *primary_path, const char *companion_path) {
   assert(!left.render(panel.data() + 1, &right, DisplayMode::Fill, ScreenRotation::Normal, interrupt));
   for (int x = 0; x < slide_width; ++x) {
     const auto first = panel.begin() + 1 + x * panel_width;
-    const auto expected = x >= 636 && x < 644 ? 0 : guard;
+    const auto expected = x >= 638 && x < 642 ? 0 : guard;
     assert(std::all_of(first, first + panel_width, [expected](uint16_t pixel) { return pixel == expected; }));
   }
   assert(left.render(panel.data() + 1, &right, DisplayMode::Fill));
-  assert(std::count(panel.begin() + 1, panel.end() - 1, 0) == 8 * slide_height);
+  assert(std::count(panel.begin() + 1, panel.end() - 1, 0) == 4 * slide_height);
   assert((at(panel, 0, 420) & 0xf800) >= 0xf000 && (at(panel, 1279, 420) & 0x001f) >= 0x001e);
   assert(at(panel, 0, 0) != 0 && at(panel, 1279, 799) != 0);
   assert(at(panel, 639, 420) == 0 && at(panel, 640, 420) == 0);
@@ -176,7 +176,7 @@ void verify_pair(const char *primary_path, const char *companion_path) {
   rotated[panel_offset(portrait_pair_width, panel_width - 1, ScreenRotation::UpsideDown)] = guard;
   assert(!replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown));
   assert(replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown, true));
-  const auto middle_gap = panel_offset(portrait_pair_width + 3, panel_width - 1, ScreenRotation::UpsideDown);
+  const auto middle_gap = panel_offset(portrait_pair_width + 1, panel_width - 1, ScreenRotation::UpsideDown);
   rotated[middle_gap] = 0x1082;
   assert(replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown, true));
   rotated[middle_gap] = 0xf800;
@@ -320,7 +320,7 @@ void verify_scaled_jpeg(const char *path) {
   std::vector<uint16_t> panel(pixel_count + 2, guard);
   assert(decoded.render(panel.data() + 1, &decoded, DisplayMode::Fill));
   assert(panel.front() == guard && panel.back() == guard);
-  // The 961x1441 JPEG takes the fractional IDCT path for a 636x800 pane.
+  // The 961x1441 JPEG takes the fractional IDCT path for a 638x800 pane.
   // Center cropping removes the cyan bands at the top and bottom.
   assert(at(panel, 0, 0) == 0xf800 && at(panel, 635, 0) == 0x07e0);
   assert(at(panel, 0, 799) == 0x001f && at(panel, 635, 799) == 0xffff);

@@ -252,7 +252,7 @@ python3 firmware/native/tools/compare_preview_replays.py compare --prepared-serv
 The report includes photo bytes downloaded by the frame and whether the
 service was prewarmed. It requires the prepared run to use the service
 throughout. Prepared JPEGs pass the Fill check when the pane edges contain
-photo pixels and the inner four divider pixels are dark.
+photo pixels and the inner two divider pixels are dark.
 
 To exercise the frame's lookahead, leave the replay's warm options unset
 and use the prepared Fill build. Check `prepared_warm` for acknowledged

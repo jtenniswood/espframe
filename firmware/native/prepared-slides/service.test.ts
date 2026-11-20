@@ -30,12 +30,12 @@ async function measure(jpeg: Buffer, rotation = 0) {
   assert.equal(info.chromaSubsampling, '4:2:0')
   assert.equal(info.orientation, undefined)
   const pixels = await sharp(jpeg).raw().toBuffer()
-  return (x: number, y: number, expected: number[]) => {
+  return (x: number, y: number, expected: number[], tolerance = 8) => {
     const row = rotation === 180 ? 1279 - x : x
     const column = rotation === 180 ? y : 799 - y
     const offset = (row * 800 + column) * 3
     const rgb = [...pixels.subarray(offset, offset + 3)]
-    assert.ok(rgb.every((channel, i) => Math.abs(channel - expected[i]) <= 8), `${x},${y}: ${rgb} vs ${expected}`)
+    assert.ok(rgb.every((channel, i) => Math.abs(channel - expected[i]) <= tolerance), `${x},${y}: ${rgb} vs ${expected}`)
   }
 }
 
@@ -65,7 +65,11 @@ test('EXIF portrait stays intact and the WebP pair uses the native gutter', asyn
   const pair = await measure(await prepareSlide(portrait, companion, { mode: 'fill', rotation: 0, orientation: 'portrait' }))
   pair(100, 400 - 100, red)
   pair(100, 400 + 100, blue)
+  // 4:2:0 softens the color on either side of the divider.
+  pair(637, 300, red, 40)
+  pair(639, 400, black)
   pair(640, 400, black)
+  pair(642, 400, green, 40)
   pair(900, 400, green)
   await assert.rejects(prepareSlide(await preview(120, 80, red, blue), companion, { mode: 'fit', rotation: 0 }), /two portrait/)
   await assert.rejects(prepareSlide(portrait, undefined, { mode: 'fit', rotation: 0, orientation: 'landscape' }), OrientationMismatch)

@@ -6,7 +6,7 @@ export class OrientationMismatch extends Error {}
 
 const width = 1280
 const height = 800
-const gap = 8
+const gap = 4 // Match portrait_pair_gap in slide_geometry.h.
 const background = '#000000'
 const inputOptions = { failOn: 'warning', limitInputPixels: 4_000_000 } as const
 
