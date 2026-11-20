@@ -136,3 +136,10 @@ This comparison verifies both firmware modes and reports the share of newly
 prepared slides that render both portraits. The firmware freezes these counts
 with the timing report after the final swipe. Reloading a slide from history
 does not count as a new slide.
+
+When both photo IDs are known, direct playback can start a companion while
+the primary transfers. For a required pair with a primary still in flight
+on the background worker, the foreground worker can prepare the companion
+first. `overlapped_companion` counts both paths in the preparation report.
+Use the stalled-preview comparison with companion prefetch enabled on both
+builds to measure the effect on Fill, refills and gestures.

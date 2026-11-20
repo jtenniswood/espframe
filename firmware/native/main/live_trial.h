@@ -30,6 +30,7 @@ enum class TrialPreparationStage : uint8_t {
   PrefetchTransfer,
   PrefetchWait,
   PreparedWarm,
+  OverlappedCompanion,
   Count,
 };
 

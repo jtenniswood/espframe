@@ -401,13 +401,13 @@ std::optional<size_t> ImmichSource::pending_index_(const AssetId &exclude) const
   return {};
 }
 
-void ImmichSource::prefetch_next_(const AssetId &id) {
+bool ImmichSource::prefetch_next_(const AssetId &id) {
   if constexpr (SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD)
-    return;
+    return false;
   if (id[0] == '\0' || !this->online_() || this->unavailable_.contains(id, esp_timer_get_time()) ||
       !this->previews_.find(id).empty())
-    return;
-  this->prefetch_.start(id, this->http_connection_, this->settings_.immich_url, this->settings_.immich_key);
+    return false;
+  return this->prefetch_.start(id, this->http_connection_, this->settings_.immich_url, this->settings_.immich_key);
 }
 
 bool ImmichSource::select_pair_or_landscape_(ImmichPhoto &seed, AssetId &companion) {
@@ -511,7 +511,7 @@ bool ImmichSource::wait_for_pixel_work_() const {
 
 ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, DecodedPreview &preview,
                                                         PreviewTarget target, int64_t deadline_us, bool report_response,
-                                                        const AssetId &lookahead) {
+                                                        const AssetId &lookahead, StagingUse staging) {
   if (this->cancelled_)
     return PreviewStatus::Retry;
   const bool optional = deadline_us != 0;
@@ -566,7 +566,7 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
     return PreviewStatus::Retry;
 
   const auto request_us = esp_timer_get_time();
-  const auto staged = !prefetch_portrait_companion && optional
+  const auto staged = staging == StagingUse::KeepPending || (!prefetch_portrait_companion && optional)
                           ? std::nullopt
                           : this->prefetch_.take(id, this->http_connection_, {this->encoded_, photo_capacity}, deadline_us);
   size_t length = staged.value_or(0);
@@ -582,6 +582,12 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
         this->response_ = immich_response(status);
     }
   } else {
+    // The current preview is coming from Immich, so give its known companion
+    // the staging slot for this transfer as well as the decode.
+    if (staging == StagingUse::DuringTransfer && this->prefetch_next_(lookahead)) {
+      if constexpr (SWIPE_TRIAL_IMMICH)
+        record_live_trial_preparation_time(TrialPreparationStage::OverlappedCompanion, 0);
+    }
     const auto path = std::string("/assets/") + id.data() + "/thumbnail?size=preview";
     status = this->fetch_(path, {}, photo_capacity, length, deadline_us, report_response);
     if constexpr (SWIPE_TRIAL_IMMICH) {
@@ -855,7 +861,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       return AssetId{};
     };
     DecodedPreview primary;
-    // Start a known companion during primary decode. A new Immich search
+    // Start a known companion as soon as the staging slot is free. A new Immich search
     // still waits for the decoded portrait so it cannot delay a landscape.
     if (prefetch_portrait_companion && optional_pair && !selected_companion && seed.portrait) {
       frame.companion = companion_for_(seed);
@@ -863,8 +869,30 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     }
     const bool primary_last = (!optional_pair && !pairs_only) || (seed.orientation_known && !seed.portrait) ||
                               (remembered && frame.companion[0] == '\0');
+    DecodedPreview companion;
+    std::optional<PreviewStatus> early_companion;
+    auto early_response = ImmichResponse::Pending;
+    const bool known_companion = frame.companion[0] != '\0';
+    if constexpr (prefetch_portrait_companion) {
+      // A required pair needs both previews. Use the free connection for
+      // its other pane while the staged primary is still arriving.
+      if (pairs_only && !remembered && known_companion && online_() && previews_.find(frame.primary).empty() &&
+          prefetch_.receiving(frame.primary, http_connection_)) {
+        if constexpr (SWIPE_TRIAL_IMMICH)
+          record_live_trial_preparation_time(TrialPreparationStage::OverlappedCompanion, 0);
+        const auto previous_response = std::exchange(response_, ImmichResponse::Pending);
+        early_companion = this->load_preview_(frame.companion, companion, PreviewTarget::PairPane, 0, true, {},
+                                              StagingUse::KeepPending);
+        early_response = std::exchange(response_, previous_response);
+        if (cancelled_)
+          return retry_frame();
+      }
+    }
     AssetId lookahead{};
-    if (frame.companion[0] != '\0') {
+    if (early_companion) {
+      if (*early_companion == PreviewStatus::Ready)
+        lookahead = upcoming(frame.companion);
+    } else if (known_companion) {
       if constexpr (prefetch_portrait_companion)
         lookahead = frame.companion;
     } else if (primary_last) {
@@ -877,7 +905,8 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       primary_target = PreviewTarget::RequiredPair;
     else if (optional_pair || frame.companion[0] != '\0')
       primary_target = PreviewTarget::OptionalPair;
-    const auto status = this->load_preview_(frame.primary, primary, primary_target, 0, true, lookahead);
+    const auto staging = known_companion && !early_companion ? StagingUse::DuringTransfer : StagingUse::DuringDecode;
+    const auto status = this->load_preview_(frame.primary, primary, primary_target, 0, true, lookahead, staging);
     if (this->cancelled_ || status == PreviewStatus::Retry)
       return retry_frame();
     if (status == PreviewStatus::Missing && prepared_pending && unavailable_.contains(frame.primary, esp_timer_get_time()))
@@ -905,10 +934,13 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       frame.companion = this->companion_for_(seed, pair_deadline_us);
     }
 
-    DecodedPreview companion;
     if (frame.companion[0] != '\0' && primary.portrait()) {
-      const auto right = this->load_preview_(frame.companion, companion, PreviewTarget::PairPane, pair_deadline_us,
-                                             paired_primary, upcoming(frame.companion));
+      if (early_response != ImmichResponse::Pending)
+        response_ = early_response;
+      const auto right = early_companion
+                             ? *early_companion
+                             : this->load_preview_(frame.companion, companion, PreviewTarget::PairPane, pair_deadline_us,
+                                                   paired_primary, upcoming(frame.companion));
       if (right == PreviewStatus::Retry && (remembered || pairs_only))
         return retry_frame();
       if (right == PreviewStatus::Missing && preserve_pair && prepared_pending &&

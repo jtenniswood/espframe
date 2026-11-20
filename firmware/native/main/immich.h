@@ -49,6 +49,7 @@ class ImmichSource {
 
  private:
   enum class PreviewStatus { Ready, Missing, Retry };
+  enum class StagingUse { DuringDecode, DuringTransfer, KeepPending };
   struct PreparedPreview {
     bool ready{};
     bool orientation_mismatch{};
@@ -68,7 +69,7 @@ class ImmichSource {
   bool next_asset_(ImmichPhoto &asset);
   bool take_pending_(ImmichPhoto &asset);
   std::optional<size_t> pending_index_(const AssetId &exclude = {}) const;
-  void prefetch_next_(const AssetId &id);
+  bool prefetch_next_(const AssetId &id);
   bool select_pair_or_landscape_(ImmichPhoto &seed, AssetId &companion);
   AssetId companion_for_(const ImmichPhoto &primary, std::optional<int64_t> search_deadline = {},
                          const PhotoSlide *exclude = nullptr);
@@ -77,7 +78,8 @@ class ImmichSource {
   void complete_caption_details_(PhotoSlide &frame);
   bool wait_for_pixel_work_() const;
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, PreviewTarget target, int64_t deadline_us,
-                              bool report_response, const AssetId &lookahead = {});
+                              bool report_response, const AssetId &lookahead = {},
+                              StagingUse staging = StagingUse::DuringDecode);
   PreparedPreview render_prepared_(const PhotoSlide &frame, uint16_t *panel, PhotoOrientation orientation);
   std::string prepared_url_(const PhotoSlide &frame, PhotoOrientation orientation, bool frame_fill, DisplayMode framing) const;
   void warm_next_prepared_(const PhotoSlide &current);

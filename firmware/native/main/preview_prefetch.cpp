@@ -27,28 +27,28 @@ bool PreviewPrefetch::start_task_() {
   return complete_ && xTaskCreatePinnedToCore(run_, "preview-fetch", 6144, this, 2, &task_, xPortGetCoreID()) == pdPASS;
 }
 
-void PreviewPrefetch::start(const AssetId &id, uint32_t connection, const std::string &base_url, const std::string &key) {
+bool PreviewPrefetch::start(const AssetId &id, uint32_t connection, const std::string &base_url, const std::string &key) {
   if (!connection || slide_cancelled_ ||
       (pending_ && !warming_ && id == id_ && connection == connection_ && !cancelled_) || !claim_slot_())
-    return;
+    return false;
   if (!buffer_) {
     if (memory_retry_at_us_ && esp_timer_get_time() < memory_retry_at_us_)
-      return;
+      return false;
     // Leave room for decoding even with the first pane of a pair allocated.
     // After pressure, require an extra buffer's worth of free memory so
     // taking the staging slot back does not immediately recreate the shortage.
     constexpr size_t decode_reserve = 6 * 1024 * 1024;
     const size_t free_needed = decode_reserve + capacity + (memory_retry_at_us_ ? capacity : 0);
     if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < free_needed)
-      return;
+      return false;
     buffer_ = static_cast<uint8_t *>(heap_caps_malloc(capacity, MALLOC_CAP_SPIRAM));
     if (!buffer_)
-      return;
+      return false;
   }
   if (!start_task_()) {
     heap_caps_free(buffer_);
     buffer_ = nullptr;
-    return;
+    return false;
   }
   id_ = id;
   connection_ = connection;
@@ -59,6 +59,7 @@ void PreviewPrefetch::start(const AssetId &id, uint32_t connection, const std::s
   cancelled_ = false;
   pending_ = true;
   xTaskNotifyGive(task_);
+  return true;
 }
 
 void PreviewPrefetch::warm_prepared(std::string url, uint32_t connection, const std::string &token) {
@@ -72,6 +73,15 @@ void PreviewPrefetch::warm_prepared(std::string url, uint32_t connection, const 
   cancelled_ = false;
   pending_ = true;
   xTaskNotifyGive(task_);
+}
+
+bool PreviewPrefetch::receiving(const AssetId &id, uint32_t connection) const {
+  if (!pending_ || warming_ || cancelled_ || connection != connection_ || id != id_)
+    return false;
+  if (xSemaphoreTake(complete_, 0) != pdTRUE)
+    return true;
+  xSemaphoreGive(complete_);
+  return false;
 }
 
 std::optional<size_t> PreviewPrefetch::take(const AssetId &id, uint32_t connection, std::span<uint8_t> destination,

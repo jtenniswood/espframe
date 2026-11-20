@@ -130,18 +130,20 @@ int main() {
   PreviewPrefetch prefetch(slide_cancelled);
   std::array<uint8_t, 4> buffer{};
   free_spiram = PreviewPrefetch::capacity;
-  prefetch.start(asset('a'), 1, base_url, key);
+  assert(!prefetch.start(asset('a'), 1, base_url, key));
   assert(!task.notified && !prefetch.take(asset('a'), 1, buffer));
   free_spiram = 32 * 1024 * 1024;
 
-  prefetch.start(asset('a'), 1, base_url, key);
-  prefetch.start(asset('a'), 1, base_url, key);
+  assert(prefetch.start(asset('a'), 1, base_url, key));
+  assert(!prefetch.start(asset('a'), 1, base_url, key));
+  assert(prefetch.receiving(asset('a'), 1) && !prefetch.receiving(asset('a'), 2) && !prefetch.receiving(asset('b'), 1));
   assert(task.notified && requests == 0);
   assert(prefetch.take(asset('a'), 1, buffer) == 1);
   assert(buffer[0] == 'a' && buffer[1] == 0 && requests == 1);
 
   prefetch.start(asset('b'), 1, base_url, key);
   service_download();
+  assert(!prefetch.receiving(asset('b'), 1));
   assert(prefetch.take(asset('b'), 1, buffer) == 1);
   assert(buffer[0] == 'b' && buffer[1] == 0 && requests == 2);
 

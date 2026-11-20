@@ -19,8 +19,9 @@ class PreviewPrefetch {
   static constexpr size_t capacity = 1024 * 1024;
 
   explicit PreviewPrefetch(const std::atomic<bool> &slide_cancelled) : slide_cancelled_(slide_cancelled) {}
-  void start(const AssetId &id, uint32_t connection, const std::string &base_url, const std::string &key);
+  bool start(const AssetId &id, uint32_t connection, const std::string &base_url, const std::string &key);
   void warm_prepared(std::string url, uint32_t connection, const std::string &token);
+  bool receiving(const AssetId &id, uint32_t connection) const;
   // Empty lets the caller download from Immich. Zero means a required
   // transfer already used its budget while the caller waited.
   std::optional<size_t> take(const AssetId &id, uint32_t connection, std::span<uint8_t> destination,
