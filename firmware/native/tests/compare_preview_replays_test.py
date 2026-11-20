@@ -2,6 +2,7 @@
 """Exercise capture and comparison without a device connection."""
 
 from copy import deepcopy
+from http.client import RemoteDisconnected
 from pathlib import Path
 import sys
 import unittest
@@ -232,9 +233,12 @@ class ReplayTest(unittest.TestCase):
         profile, benchmark, preparation, status = (
             run["profile"], run["benchmark"], run["preparation"], run["status"],
         )
-        get.side_effect = [profile, {**benchmark, "settled": 47}, benchmark, preparation, status, benchmark, profile]
+        get.side_effect = [
+            profile, RemoteDisconnected(), {**benchmark, "settled": 47}, benchmark,
+            ConnectionResetError(), benchmark, preparation, status, benchmark, profile,
+        ]
         self.assertEqual(replays.capture(FRAME, ORIGIN, 2), run)
-        wait.assert_called_once()
+        self.assertEqual(wait.call_count, 3)
 
     @patch.object(replays, "read_json")
     @patch.object(replays, "sleep")
@@ -248,12 +252,14 @@ class ReplayTest(unittest.TestCase):
         detailed = {**settled, "uptime_ms": 34_000, "detail_presentations": 2,
                     "last_detail_slide": 19, "last_detail_latency_ms": 1830}
         stats = {"failedDetails": 1}
-        get.side_effect = [profile, benchmark, preparation, settled, detailed, stats, benchmark, profile]
+        get.side_effect = [
+            profile, benchmark, preparation, settled, RemoteDisconnected(), detailed, stats, benchmark, profile,
+        ]
         result = replays.capture(FRAME, ORIGIN, 2)
         self.assertEqual(result["observed_detail_after_settle_ms"], 3000)
         self.assertEqual(result["status"], detailed)
         self.assertEqual(result["replay_stats"], stats)
-        wait.assert_called_once()
+        self.assertEqual(wait.call_count, 2)
 
         get.side_effect = [profile, benchmark, preparation, settled, detailed, {"failedDetails": 0}]
         with self.assertRaisesRegex(ValueError, "expected full-preview error"):

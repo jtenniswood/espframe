@@ -5,7 +5,6 @@ import argparse
 import json
 from pathlib import Path
 from time import monotonic, sleep
-from urllib.error import URLError
 from urllib.request import urlopen
 
 
@@ -20,20 +19,19 @@ def capture(frame, replay, timeout):
     while monotonic() < deadline:
         try:
             benchmark = read_json(frame, "/api/trial/benchmark")
-        except (URLError, TimeoutError):
-            sleep(0.5)
-            continue
-        if benchmark.get("replay_origin") != replay or (
-                benchmark.get("replay_prepared") is not True and type(benchmark.get("direct_replay_lookahead")) is not bool):
-            raise ValueError("The frame is not running a synthetic trial for this replay server")
-        if benchmark.get("settled") == benchmark.get("target") == 48:
-            break
+            if benchmark.get("replay_origin") != replay or (benchmark.get("replay_prepared") is not True
+                    and type(benchmark.get("direct_replay_lookahead")) is not bool):
+                raise ValueError("The frame is not running a synthetic trial for this replay server")
+            if benchmark.get("settled") == benchmark.get("target") == 48:
+                preparation = read_json(frame, "/api/trial/prepare")
+                status = read_json(frame, "/api/trial")
+                break
+        except OSError:
+            pass
         sleep(0.5)
     else:
         raise ValueError("The frame did not finish 48 rapid swipes before the capture timeout")
 
-    preparation = read_json(frame, "/api/trial/prepare")
-    status = read_json(frame, "/api/trial")
     result = {"frame": frame, "profile": profile, "benchmark": benchmark, "preparation": preparation, "status": status}
     if benchmark.get("replay_staged_detail") is True:
         if not profile.get("thumbnailSha256") or not status.get("thumbnail_slides") or benchmark.get("wrong_slide"):
@@ -43,7 +41,10 @@ def capture(frame, replay, timeout):
             if monotonic() >= deadline:
                 raise ValueError("Full detail for the settled slide was not presented before the capture timeout")
             sleep(0.5)
-            status = read_json(frame, "/api/trial")
+            try:
+                status = read_json(frame, "/api/trial")
+            except OSError:
+                continue
         if not status.get("detail_presentations") or status["uptime_ms"] < settled_sample_ms:
             raise ValueError("The frame did not report a valid full-detail presentation")
         result["status"] = status
