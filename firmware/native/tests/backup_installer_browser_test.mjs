@@ -37,6 +37,7 @@ const backup = {
     brightness_day: 75, brightness_night: 35, schedule_enabled: true, rotation: '180',
     base_tone_enabled: true, base_tone: 25, warm_tones_enabled: true, warm_tone_intensity: 60,
     warm_tone_override: true,
+    language: 'he',
     schedule_on_hour: 21, schedule_off_hour: 6, schedule_wake_timeout: 30,
   },
   frequency: { interval: '24 hours', conn_timeout: '3 minutes' },
@@ -222,6 +223,8 @@ const verify = `
       throw new Error('Screen tone did not reach USB setup')
     if (received.warm_tone_override !== true)
       throw new Error('Warm tone override did not reach USB setup')
+    if (received.device_language !== 'he')
+      throw new Error('The saved photo date language did not reach USB setup')
     if (received.screen_rotation !== '180' || received.photo_orientation !== 'Landscape Only')
       throw new Error('Photo and mounting orientation did not reach USB setup independently')
     if (!received.schedule_enabled || received.schedule_on_hour !== 21 || received.schedule_off_hour !== 6

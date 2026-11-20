@@ -1,5 +1,5 @@
 import 'esp-web-tools/dist/install-button.js'
-import { connectionTimeouts, normalizeFrameName, ntpServerFields, readBackup } from './backup.mjs'
+import { connectionTimeouts, deviceLanguageLabel, deviceLanguages, normalizeFrameName, ntpServerFields, readBackup } from './backup.mjs'
 import { addCaptureDates, addPhotoFilters, bindPhotoSource, bindPortraitPairing, photoFilterDefaults, validateAlbum } from './photo_source.mjs'
 import { configure, findFrame, waitForFrame } from './serial.mjs'
 
@@ -30,6 +30,8 @@ const removeHomeAssistantKey = document.querySelector('#remove-home-assistant-ke
 const frameName = form.elements.frame_name
 for (const timeout of connectionTimeouts)
   form.elements.conn_timeout.add(new Option(timeout, timeout))
+for (const language of deviceLanguages)
+  form.elements.device_language.add(new Option(deviceLanguageLabel(language), language))
 const refreshSource = bindPhotoSource(form)
 const refreshPairing = bindPortraitPairing(form)
 const percentageFields = ['brightness_day', 'brightness_night', 'base_tone', 'warm_tone_intensity']
@@ -125,6 +127,7 @@ backup.addEventListener('change', async () => {
     form.elements.display_mode.value = ''
     form.elements.portrait_pair_framing.value = ''
     form.elements.conn_timeout.value = ''
+    form.elements.device_language.value = ''
     form.elements.warm_tone_override.value = ''
     for (const [name, value] of Object.entries({ ...photoFilterDefaults, ...settings })) {
       if (name === 'warm_tone_override') form.elements[name].value = String(value)
@@ -258,6 +261,7 @@ if ('serial' in navigator) {
     if (data.photo_source === 'custom' && importedPreset) data.legacy_photo_preset = importedPreset
     data.slide_seconds = Number(data.slide_seconds)
     if (!data.conn_timeout) delete data.conn_timeout
+    if (!data.device_language) delete data.device_language
     for (const name of percentageFields) data[name] = form.elements[name].valueAsNumber
     data.base_tone_enabled = form.elements.base_tone_enabled.checked
     data.warm_tones_enabled = form.elements.warm_tones_enabled.checked

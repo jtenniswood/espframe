@@ -17,6 +17,7 @@ const albumId = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
 const setup = {
   immich_url: 'https://photos.test/api', slide_seconds: 15, portrait_pairing: true, portrait_pairs_only: true,
   conn_timeout: '3 minutes',
+  device_language: 'fr',
   transition: 'Fade to White', transition_speed: 'Normal',
   portrait_pairing_range: 'Within 2 Days',
   photo_source: 'favorites', album_id: '', display_mode: 'Fill', brightness_day: 74,
@@ -71,6 +72,8 @@ const fixture = html.replace('</body>', `<script>
       throw new Error('Incorrect initial night warmth')
     if (!form.elements.warm_tone_override.checked)
       throw new Error('Saved warm tone override did not load into the form')
+    if (form.elements.device_language.value !== 'fr')
+      throw new Error('Saved photo date language did not load into the form')
     if (!form.elements.schedule_enabled.checked || form.elements.schedule_off_hour.value !== '22'
       || !document.querySelector('#screen-schedule').open)
       throw new Error('Incorrect initial screen schedule')
@@ -94,6 +97,8 @@ const fixture = html.replace('</body>', `<script>
       throw new Error('Unexpected caption backup settings')
     if (backup.clock.ntp_servers?.join(',') !== timeServers.join(','))
       throw new Error('Time servers missing from backup')
+    if (backup.screen.language !== 'fr')
+      throw new Error('Photo date language missing from backup')
     if (!backup.screen.base_tone_enabled || backup.screen.base_tone !== 25
       || !backup.screen.warm_tones_enabled || backup.screen.warm_tone_intensity !== 60 || !backup.screen.warm_tone_override)
       throw new Error('Unexpected screen tone backup settings')
@@ -131,6 +136,7 @@ const fixture = html.replace('</body>', `<script>
     form.elements.timezone.value = 'America/New_York (GMT-5)'
     form.elements.clock_format.value = '12 Hour'
     form.elements.conn_timeout.value = '45 seconds'
+    form.elements.device_language.value = 'he'
     form.elements.warm_tone_override.checked = false
     form.elements.ntp_server_2.value = 'spare.example.test'
     source.dispatchEvent(new Event('change'))
@@ -354,6 +360,7 @@ try {
     clock_format: '12 Hour', timezone: 'America/New_York (GMT-5)',
     ntp_server_2: 'spare.example.test',
     conn_timeout: '45 seconds',
+    device_language: 'he',
     warm_tone_override: false,
   }])
   console.log('Native photo source settings accept Immich album links and reject share links')

@@ -132,6 +132,27 @@ void draw_line(uint16_t *frame, std::span<const uint8_t> atlas, std::string_view
   }
 }
 
+std::string hebrew_date_visual_order(std::string_view text) {
+  // The Hebrew date templates contain Hebrew words, decimal numbers and
+  // separators. Lay out the words right to left and keep each number intact.
+  std::string result;
+  result.reserve(text.size());
+  while (!text.empty()) {
+    size_t start = text.size() - 1;
+    const auto digit = [](char value) { return value >= '0' && value <= '9'; };
+    if (digit(text[start])) {
+      while (start > 0 && digit(text[start - 1]))
+        --start;
+    } else {
+      while (start > 0 && (static_cast<uint8_t>(text[start]) & 0xc0) == 0x80)
+        --start;
+    }
+    result += text.substr(start);
+    text.remove_suffix(text.size() - start);
+  }
+  return result;
+}
+
 }  // namespace
 
 std::string photo_caption_date(const PhotoMetadata &metadata, const PhotoMetadataSettings &settings,
@@ -142,10 +163,16 @@ std::string photo_caption_date(const PhotoMetadata &metadata, const PhotoMetadat
   const auto year = static_cast<int>(day.year());
   const auto month = static_cast<unsigned>(day.month());
   const auto number = static_cast<unsigned>(day.day());
+  const auto language = settings.language < espframe_i18n_catalogue::LANGUAGE_COUNT ? settings.language : 0;
+  std::string date;
   if (settings.relative && local)
-    return format_photo_age(year, month, number, local->tm_year + 1900, local->tm_mon + 1, local->tm_mday);
-  return settings.month_before_day ? format_photo_date_month_day_year(year, month, number)
-                                    : format_photo_date_full(year, month, number);
+    date = format_photo_age(year, month, number, local->tm_year + 1900, local->tm_mon + 1, local->tm_mday, language);
+  else
+    date = settings.month_before_day ? format_photo_date_month_day_year(year, month, number, language)
+                                     : format_photo_date_full(year, month, number, language);
+  if (std::string_view{espframe_i18n_catalogue::LANGUAGES[language]} == "he")
+    return hebrew_date_visual_order(date);
+  return date;
 }
 
 void paint_photo_caption(uint16_t *frame, std::span<const uint8_t> locations, std::span<const uint8_t> dates,

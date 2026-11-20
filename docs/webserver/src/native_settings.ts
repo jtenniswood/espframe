@@ -226,6 +226,7 @@ const nativeSettingGroups: [string, [string, string][]][] = [
   ["Photo captions", [
     ["photo_metadata_date_enabled", "Show date"], ["photo_metadata_location_enabled", "Show location"],
     ["photo_metadata_date_format", "Date format"], ["photo_metadata_date_taken_format", "Date taken format"],
+    ["device_language", "Photo date language"],
   ]],
   ["Display", [
     ["screen_rotation", "Mounting orientation"], ["brightness_day", "Daytime brightness (%)"],
@@ -253,6 +254,7 @@ function nativeSettingControl(key: string, value: ConfigurationValue): HTMLInput
     if (!options.includes(current)) options.push(current);
     return selectFromOptions(options, current, function () {}, function (option) {
       if (key === "timezone") return (TIMEZONE_LABELS[option] || option).replace(/_/g, " ");
+      if (key === "device_language") return new Intl.DisplayNames([option], { type: "language", languageDisplay: "standard" }).of(option) || option;
       if (key === "display_mode") return option === "Fit" ? "Show full image" : "Crop to fit";
       if (key === "portrait_pair_framing" && option !== "Follow photo framing") {
         return option === "Fill" ? "Fill each half" : "Fit both full photos";

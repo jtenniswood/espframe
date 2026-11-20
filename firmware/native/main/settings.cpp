@@ -1,6 +1,7 @@
 #include "settings.h"
 #include "frame_identity_model.h"
 #include "home_assistant_key.h"
+#include "i18n.h"
 #include "live_trial.h"
 #include "ntp_server_names.h"
 #include "playback_transition.h"
@@ -182,6 +183,13 @@ bool read_metadata(const cJSON *root, PhotoMetadataSettings &settings) {
     return false;
   settings.relative = date == Format::relative_date;
   settings.month_before_day = taken == Format::month_first;
+  if (const auto *field = cJSON_GetObjectItemCaseSensitive(root, "device_language")) {
+    const auto *code = cJSON_GetStringValue(field);
+    const auto language = code ? find_espframe_language(code) : espframe_i18n_catalogue::LANGUAGE_COUNT;
+    if (language == espframe_i18n_catalogue::LANGUAGE_COUNT)
+      return false;
+    settings.language = static_cast<uint8_t>(language);
+  }
   return true;
 }
 
@@ -622,7 +630,7 @@ bool changes_photo_selection(std::string_view key) {
 bool changes_photo_presentation(std::string_view key) {
   constexpr std::string_view options[]{
       "display_mode", "portrait_pair_framing", "photo_metadata_date_enabled", "photo_metadata_location_enabled",
-      "photo_metadata_date_format", "photo_metadata_date_taken_format", "base_tone_enabled", "base_tone",
+      "photo_metadata_date_format", "photo_metadata_date_taken_format", "device_language", "base_tone_enabled", "base_tone",
       "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"};
   return std::ranges::find(options, key) != std::end(options);
 }
@@ -756,6 +764,9 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
     return Result::Rejected;
   if (configured && !provided("warm_tone_override") && saved.tone.night_override &&
       !cJSON_AddTrueToObject(document.get(), "warm_tone_override"))
+    return Result::Rejected;
+  if (configured && !provided("device_language") && saved.metadata.language != 0 &&
+      !cJSON_AddStringToObject(document.get(), "device_language", espframe_i18n_catalogue::LANGUAGES[saved.metadata.language]))
     return Result::Rejected;
   for (size_t i = 0; i < ntp_fields.size(); ++i) {
     const auto *field = ntp_fields[i];
@@ -945,6 +956,7 @@ bool Settings::add_playback_fields(cJSON *object, PhotoFilterUpdate filter_updat
          cJSON_AddBoolToObject(object, "photo_metadata_location_enabled", metadata.show_location) &&
          cJSON_AddStringToObject(object, "photo_metadata_date_format", metadata.date_format()) &&
          cJSON_AddStringToObject(object, "photo_metadata_date_taken_format", metadata.taken_format()) &&
+         cJSON_AddStringToObject(object, "device_language", espframe_i18n_catalogue::LANGUAGES[metadata.language]) &&
          cJSON_AddBoolToObject(object, "show_clock", clock.show) &&
          cJSON_AddStringToObject(object, "clock_format", clock.format.c_str()) &&
          cJSON_AddStringToObject(object, "timezone", clock.timezone.c_str());

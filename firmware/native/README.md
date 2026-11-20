@@ -368,8 +368,12 @@ When two portraits are paired, the caption describes the primary
 photo. The caption is composed with the cached slide, so dragging and
 swiping need no extra image, text, or network work. The frame can show the
 date in either date-taken format or as a relative age in the configured
-timezone. Before time sync the frame shows the capture date. Once time is
-available, the player refreshes those cached captions in the background.
+timezone. **Photo date language** uses the month and relative date wording
+from Espframe's 22-language catalogue. The installer restores this choice
+from the language in an Espframe backup. Switching languages redraws the
+cached captions in the background. Before time sync the frame shows the
+capture date. Once time is available, the player refreshes cached captions
+in the background.
 Turning on relative captions, a relative capture-date filter, or Memories
 requests time sync even when the clock is hidden.
 

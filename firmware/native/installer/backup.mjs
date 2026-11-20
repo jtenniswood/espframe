@@ -19,6 +19,11 @@ const pairingRanges = ['Same Day', 'Within 1 Day', 'Within 2 Days']
 const memoriesWindows = ['Same Day', 'Within 1 Day', 'Within 2 Days', 'Within 3 Days', 'Within 7 Days']
 const groups = ['connection', 'photos', 'frequency', 'screen', 'clock', 'metadata', 'firmware_updates', 'identity']
 export const ntpServerFields = ['ntp_server_1', 'ntp_server_2', 'ntp_server_3']
+export const deviceLanguages = [
+  'en', 'cs', 'da', 'de', 'es', 'fi', 'fr', 'he', 'hu', 'it', 'nb', 'nl',
+  'pl', 'pt', 'pt-br', 'ro', 'ru', 'sk', 'sl', 'sv', 'tr', 'uk',
+]
+export const deviceLanguageLabel = code => new Intl.DisplayNames([code], { type: 'language', languageDisplay: 'standard' }).of(code)
 const own = (object, key) => Object.hasOwn(object, key)
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const integerIn = (min, max) => value => Number.isInteger(value) && value >= min && value <= max
@@ -67,6 +72,7 @@ const screenFields = {
   warm_tones_enabled: [value => typeof value === 'boolean', 'Review whether night tone is enabled.'],
   warm_tone_intensity: [integerIn(10, 100), 'Choose a night warmth from 10% to 100%.'],
   warm_tone_override: [value => typeof value === 'boolean', 'Review whether warm tone is forced until sunrise.'],
+  language: [value => deviceLanguages.includes(value), 'Choose a supported photo date language.', 'device_language'],
   schedule_enabled: [value => typeof value === 'boolean', 'Review whether the screen schedule is enabled.'],
   schedule_on_hour: [integerIn(0, 23), 'Choose an on hour from 0 to 23.'],
   schedule_off_hour: [integerIn(0, 23), 'Choose an off hour from 0 to 23.'],

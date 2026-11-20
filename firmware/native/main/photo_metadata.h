@@ -2,6 +2,7 @@
 
 #include <array>
 #include <chrono>
+#include <cstdint>
 #include <optional>
 #include <string_view>
 
@@ -24,6 +25,7 @@ struct PhotoMetadataSettings {
   bool show_location{true};
   bool relative{};
   bool month_before_day{};
+  uint8_t language{};
 
   bool needs_time() const { return show_date && relative; }
   const char *date_format() const { return relative ? relative_date.data() : date_taken.data(); }

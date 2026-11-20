@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - 'firmware/native/**'
+      - 'product/translations/**'
+      - 'components/espframe/i18n.h'
+      - 'components/espframe/date_utils.h'
       - 'builds/guition-esp32-p4-jc8012p4a1.native-trial-readiness.yaml'
       - 'components/gsl3680/**'
       - 'components/libjpeg-turbo-esp32/**'
@@ -126,6 +129,7 @@ jobs:
           c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main \
             firmware/native/tests/photo_history_test.cpp -o "$RUNNER_TEMP/photo-history-test"
           "$RUNNER_TEMP/photo-history-test"
+          python3 firmware/native/tools/rasterize_clock.py --check-dates firmware/native/assets/date_glyphs.bin
           c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Icomponents/espframe \
             firmware/native/main/photo_caption.cpp firmware/native/tests/photo_caption_test.cpp -o "$RUNNER_TEMP/photo-caption-test"
           "$RUNNER_TEMP/photo-caption-test" firmware/native/assets/caption_glyphs.bin firmware/native/assets/date_glyphs.bin

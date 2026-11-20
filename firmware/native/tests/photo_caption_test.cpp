@@ -1,5 +1,6 @@
 #include "photo_caption.h"
 #include "clock_overlay.h"
+#include "i18n.h"
 
 #include <algorithm>
 #include <cassert>
@@ -39,6 +40,21 @@ int main(int argc, char **argv) {
   assert(photo_caption_date(photo, settings, {}) == "29 February, 2024");
   assert(photo_caption_date(PhotoMetadata{}, settings, {}).empty());
 
+  settings.language = find_espframe_language("de");
+  assert(photo_caption_date(photo, settings, local) == "vor 1 Tag");
+  assert(photo_caption_date(photo, settings, {}) == "29 Februar, 2024");
+  settings.language = find_espframe_language("ru");
+  assert(photo_caption_date(photo, settings, {}) == "29 Февраль, 2024");
+  settings.language = find_espframe_language("he");
+  assert(photo_caption_date(photo, settings, {}) == "2024 ,ראורבפ 29");
+  settings.month_before_day = true;
+  assert(photo_caption_date(photo, settings, {}) == "2024 ,29 ראורבפ");
+  local.tm_mday = 12;
+  assert(photo_caption_date(photo, settings, local) == "םימי 12 ינפל");
+  settings.language = 0;
+  settings.month_before_day = false;
+  local.tm_mday = 1;
+
   constexpr uint16_t background = 0x53a9;
   const std::vector<uint16_t> blank(pixel_count, background);
   auto normal = blank;
@@ -66,6 +82,16 @@ int main(int argc, char **argv) {
   settings.relative = false;
   paint_photo_caption(absolute_date.data(), atlas, dates, photo, settings, ScreenRotation::Normal, false, local);
   assert(absolute_date == capture_date_only);
+
+  for (size_t language = 1; language < espframe_i18n_catalogue::LANGUAGE_COUNT; ++language) {
+    settings.language = static_cast<uint8_t>(language);
+    auto localized = blank;
+    auto flipped = blank;
+    paint_photo_caption(localized.data(), atlas, dates, photo, settings, ScreenRotation::Normal, true);
+    paint_photo_caption(flipped.data(), atlas, dates, photo, settings, ScreenRotation::UpsideDown, true);
+    assert(localized != blank && std::equal(localized.begin(), localized.end(), flipped.rbegin()));
+  }
+  settings.language = 0;
 
   settings.show_date = false;
   settings.show_location = true;

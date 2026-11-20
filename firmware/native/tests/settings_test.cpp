@@ -2,6 +2,7 @@
 #include "frame_identity.h"
 #include "frame_status.h"
 #include "home_assistant_key.h"
+#include "i18n.h"
 #include "initial_photo_timeout.h"
 #include "native_configuration.h"
 #include "nvs.h"
@@ -374,6 +375,7 @@ int main() {
   assert(!legacy.portrait_pairs_only && !legacy.requires_portrait_pair() && legacy.portrait_pairing_days == 0);
   assert(legacy.brightness_day == 64);
   assert(!legacy.tone.night_override);
+  assert(legacy.metadata.language == 0);
   assert(!legacy.brightness_night && legacy.night_brightness() == 64);
   assert(legacy.photo_source.mode == PhotoSourceMode::Library);
   assert(legacy.display_mode == DisplayMode::Fit);
@@ -1215,6 +1217,20 @@ int main() {
   assert(current.read() && !current.tone.night_override && current.tone.night_amount == 65);
   assert(current.brightness_day == 70 && current.photo_filters.criteria.favorites_enabled);
   assert(!Settings::expire_warm_tone_override(current.clock.timezone, *after_tone));
+
+  const auto before_language = photo_source_revision.load();
+  const auto selection_before_language = photo_selection_revision.load();
+  const auto new_language = update_configuration(R"({"values":{"device_language":"he"}})");
+  assert(!new_language.error && !new_language.restart_required);
+  assert(photo_source_revision.load() == before_language + 1 && photo_selection_revision.load() == selection_before_language);
+  const auto localized_feed = Settings::take_live_photo_feed(before_language + 1);
+  assert(localized_feed && localized_feed->metadata.language == find_espframe_language("he"));
+  assert(update_configuration(R"({"values":{"device_language":"unknown"}})").error);
+  assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"tone-key","web_password":"tone-settings"})"));
+  assert(current.read() && current.metadata.language == find_espframe_language("he"));
+  const Json language_snapshot(configuration_snapshot(current), cJSON_Delete);
+  assert(std::string_view(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(
+      cJSON_GetObjectItemCaseSensitive(language_snapshot.get(), "values"), "device_language"))) == "he");
 
   verify_stock_pairing_migration();
   verify_stock_connection_migration();

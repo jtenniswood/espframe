@@ -1,9 +1,11 @@
 import { addCaptureDates, addPhotoFilters, bindPhotoSource, bindPortraitPairing, photoFilterDefaults, validateAlbum } from './photo_source.mjs'
-import { connectionTimeouts, createBackup, ntpServerFields } from './backup.mjs'
+import { connectionTimeouts, createBackup, deviceLanguageLabel, deviceLanguages, ntpServerFields } from './backup.mjs'
 
 const form = document.querySelector('#settings')
 for (const timeout of connectionTimeouts)
   form.elements.conn_timeout.add(new Option(timeout, timeout))
+for (const language of deviceLanguages)
+  form.elements.device_language.add(new Option(deviceLanguageLabel(language), language))
 const status = document.querySelector('#status')
 const submit = form.querySelector('button[type="submit"]')
 const download = form.querySelector('#download-backup')
@@ -65,6 +67,7 @@ try {
   }
   form.elements.slide_seconds.value = settings.slide_seconds
   form.elements.conn_timeout.value = settings.conn_timeout ?? '10 minutes'
+  form.elements.device_language.value = settings.device_language ?? 'en'
   form.elements.transition.value = settings.transition ?? 'Cross Fade'
   form.elements.transition_speed.value = settings.transition_speed ?? 'Fast'
   form.elements.brightness_day.value = settings.brightness_day ?? 64
