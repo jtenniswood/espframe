@@ -777,3 +777,52 @@ quick flicks, reversals, and automatic crossfades. The report gives:
 
 USB traces measure the firmware and DMA path. Repeat the camera test with
 `SWIPE_TRACE=OFF` to check perceived latency and tearing without trace logging.
+
+#### Score a high-speed swipe recording
+
+Record the original real-time video at 120 fps or higher, preferably 240 fps.
+Keep the point of finger contact and the whole panel visible. Start moving
+as soon as your finger touches the panel for the latency test. Film cached
+left and right swipes while the frame is quiet and while it is preparing
+photos. Use separate clips for those conditions and record the board revision,
+firmware build and playback settings with each clip. Keep the original file
+with its high-speed timestamps. A slowed or interpolated export cannot
+establish the real touch-to-motion time.
+
+Step through the video in presentation order and number frames from zero.
+If your player has no frame counter, extract numbered review frames with
+FFmpeg. Keep using the original video for timing.
+
+```sh
+mkdir -p review
+ffmpeg -i v1-warm.mov -map 0:V:0 -fps_mode passthrough -start_number 0 review/frame-%06d.png
+```
+
+Mark every attempted swipe in the test sequence, including swipes where the
+photo never moved. Save the frame of first physical contact, the first frame
+where the photo moves, and the last frame reviewed for that swipe. Leave
+`motion_frame` empty if there was no visible response. Inspect the full
+gesture for a split or discontinuity in the moving photo and mark tearing
+`none`, `visible`, or `unclear`. Camera bands or ambiguous frames belong in
+`unclear`. Include a frame before each contact, and finish reviewing each
+swipe before the next one starts.
+
+```csv
+contact_frame,motion_frame,last_frame,tear
+24,32,67,none
+88,,121,unclear
+```
+
+With FFmpeg's `ffprobe` on `PATH`, run the report against the original clip.
+
+```sh
+python3 firmware/native/tools/report_optical_swipes.py v1-warm.mov v1-warm.csv
+```
+
+The report uses the actual frame timestamps and gives lower and upper bounds
+for each response and for the measured P95. A camera frame can contain either
+event anywhere between adjacent observations, so a bound spanning 50 ms leaves
+that result unresolved. A swipe with no visible response keeps an unbounded
+upper estimate. Review the latency coverage and tearing counts alongside the
+board, workload and swipe count. Keep the video and CSV together so the
+reported hashes can identify the evidence.
