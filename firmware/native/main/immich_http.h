@@ -14,6 +14,8 @@ namespace espframe::native {
 // read-only. A stale connection can be retried before a response arrives.
 class ImmichHttp {
  public:
+  static constexpr int64_t transfer_budget_us = 12'000'000;
+
   explicit ImmichHttp(const std::atomic<bool> &cancelled, const char *auth_header = "x-api-key")
       : cancelled_(cancelled), auth_header_(auth_header) {}
   ~ImmichHttp();

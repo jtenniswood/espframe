@@ -14,7 +14,6 @@ constexpr int buffer_size = 4096;
 constexpr int transport_timeout_ms = 3000;
 constexpr int optional_timeout_ms = 1000;
 constexpr int receive_wait_ms = 250;
-constexpr int64_t transfer_timeout_us = 12'000'000;
 
 }  // namespace
 
@@ -55,7 +54,7 @@ int ImmichHttp::read(const std::string &url, const char *api_key, std::string_vi
   const bool optional = deadline_us != 0;
   const int64_t now = esp_timer_get_time();
   if (!optional)
-    deadline_us = now + transfer_timeout_us;
+    deadline_us = now + transfer_budget_us;
   if (cancelled_ || now >= deadline_us || (!client_ && !init_(url.c_str(), api_key)))
     return 0;
   if (esp_http_client_set_url(client_, url.c_str()) != ESP_OK ||

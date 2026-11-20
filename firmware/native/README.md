@@ -307,7 +307,9 @@ While decoding a direct Immich slide, it can start downloading the next
 known preview if enough PSRAM is available. The lookahead holds one preview
 up to 1 MiB. When a portrait companion is already known, the worker starts it
 while decoding the first portrait. A missed or oversized lookahead uses the
-normal download path. Optional companions keep the existing pairing deadline.
+normal download path. A required preview can use the normal transfer budget
+on its existing request. If that wait runs out, the frame uses its usual retry
+delay. Optional companions keep the shorter pairing deadline.
 Wi-Fi association and time synchronization run independently of photo
 preparation, so the worker can prepare cached previews during reconnect.
 The native frame scans all channels at connection time and tries the

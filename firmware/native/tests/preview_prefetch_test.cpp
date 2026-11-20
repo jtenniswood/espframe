@@ -27,6 +27,7 @@ MockTask task;
 int task_creations;
 int requests;
 int reply = 200;
+int64_t reply_delay_us{};
 bool interrupt_wait;
 bool hold_download;
 bool cancel_after_transfer;
@@ -113,6 +114,11 @@ int ImmichHttp::read(const std::string &url, const char *api_key, std::string_vi
   assert(url.starts_with(base_url + "/assets/") && url.ends_with("/thumbnail?size=preview"));
   assert(api_key == key && query.empty() && output.size() == PreviewPrefetch::capacity && deadline > esp_timer_get_time());
   ++requests;
+  if (reply_delay_us >= deadline - now_us) {
+    now_us = deadline;
+    return 0;
+  }
+  now_us += reply_delay_us;
   if (reply == 200) {
     output.front() = static_cast<uint8_t>(url[base_url.size() + std::strlen("/assets/")]);
     received = 1;
@@ -227,5 +233,35 @@ int main() {
   slide_cancelled = false;
   assert(prefetch.take(asset('n'), 2, buffer) == 1 && buffer[0] == 'n');
   assert(requests == downloaded + 1);
+
+  // A needed preview can take longer than a speculative-only request.
+  reply_delay_us = 3'000'000;
+  prefetch.start(asset('o'), 2, base_url, key);
+  const auto slow_started = now_us;
+  assert(prefetch.take(asset('o'), 2, buffer) == 1);
+  assert(now_us - slow_started == reply_delay_us && requests == downloaded + 2 && buffer[0] == 'o');
+
+  // A required transfer that times out while needed should use the normal
+  // slide retry path without immediately starting a second full download.
+  reply_delay_us = ImmichHttp::transfer_budget_us + 1;
+  prefetch.start(asset('p'), 2, base_url, key);
+  const auto timeout_started = now_us;
+  assert(prefetch.take(asset('p'), 2, buffer) == 0);
+  assert(now_us - timeout_started == ImmichHttp::transfer_budget_us && requests == downloaded + 3);
+
+  // A request that already failed during lookahead doesn't delay the
+  // foreground attempt when the slide worker eventually needs it.
+  prefetch.start(asset('q'), 2, base_url, key);
+  service_download();
+  assert(!prefetch.take(asset('q'), 2, buffer) && buffer[0] == 'o');
+
+  // The slide worker also stops waiting if the network task has yet to
+  // signal when the deadline arrives.
+  prefetch.start(asset('r'), 2, base_url, key);
+  hold_download = true;
+  assert(prefetch.take(asset('r'), 2, buffer) == 0);
+  hold_download = false;
+  service_download();
+  assert(requests == downloaded + 4);
   prefetch.release_on_memory_pressure();
 }

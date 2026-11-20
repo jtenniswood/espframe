@@ -561,13 +561,17 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
     return PreviewStatus::Retry;
 
   const auto request_us = esp_timer_get_time();
-  size_t length = !prefetch_portrait_companion && optional
-                      ? 0 : this->prefetch_.take(id, this->http_connection_, {this->encoded_, photo_capacity}, deadline_us);
-  int status = 200;
-  if (length != 0) {
-    if constexpr (SWIPE_TRIAL_IMMICH)
-      record_live_trial_preparation_time(TrialPreparationStage::PrefetchWait,
-                                         static_cast<uint32_t>(esp_timer_get_time() - request_us));
+  const auto staged = !prefetch_portrait_companion && optional
+                          ? std::nullopt
+                          : this->prefetch_.take(id, this->http_connection_, {this->encoded_, photo_capacity}, deadline_us);
+  size_t length = staged.value_or(0);
+  int status = length ? 200 : 0;
+  if (staged) {
+    if constexpr (SWIPE_TRIAL_IMMICH) {
+      if (length)
+        record_live_trial_preparation_time(TrialPreparationStage::PrefetchWait,
+                                           static_cast<uint32_t>(esp_timer_get_time() - request_us));
+    }
     if constexpr (!SWIPE_ESPHOME_TRIAL) {
       if (report_response && !cancelled_)
         this->response_ = immich_response(status);
