@@ -2055,6 +2055,7 @@ function smokeAssertionsForScenario(scenario) {
             }
             requirePostContains("Import text field", "Connection: Server URL");
             requirePostContains("Import switch field", "Firmware: Auto Update", "turn_on");
+            requirePostContains("Import update frequency", "Firmware: Update Frequency", "option=Weekly");
             requirePostContains("Import select field", "Photos: Source", "option=Person");
             requirePostContains("Import number field", "Screen: Daytime Brightness", "value=90");
             requirePostContains("Import language", "Device: Language", "option=de");
