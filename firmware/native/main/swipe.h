@@ -115,12 +115,21 @@ class Swipe {
     if (this->phase_ == Phase::Tracking) {
       const int dx = std::abs(x - this->origin_x_);
       const int dy = std::abs(y - this->origin_y_);
-      if (dy >= 16 && dy > dx) {
+      // A small vertical adjustment can precede a horizontal swipe. Lock
+      // out the contact once the vertical movement is unambiguous.
+      if (dy >= 32 && dy > dx) {
         this->phase_ = Phase::Ignored;
         return;
       }
-      if (dx < 16 || dx * 2 < dy * 3)
+      if (dx < 16 || dx * 2 < dy * 3) {
+        // Keep the velocity baseline current during a stationary hold,
+        // including up to two pixels of reported horizontal jitter.
+        if (dx <= 2) {
+          this->last_x_ = x;
+          this->last_motion_us_ = now_us;
+        }
         return;
+      }
       this->phase_ = Phase::Dragging;
     }
     if (this->phase_ != Phase::Dragging)

@@ -109,6 +109,45 @@ void a_held_photo_can_be_dragged_from_either_side() {
   assert(swipe.settled() == 2);
 }
 
+void a_small_vertical_nudge_can_turn_into_a_swipe() {
+  for (const int direction : {-1, 1}) {
+    Swipe swipe{width, 5, 2};
+    SwipeInput input;
+    input.update(swipe, report(1, 5'000, 650), initial_position);
+    auto touch = report(2, 15'000, 650);
+    touch.y += 20;
+    input.update(swipe, touch, initial_position);
+    assert(!swipe.dragging() && swipe.position() == initial_position);
+    touch = report(3, 160'000, 650 - 140 * direction);
+    touch.y += 22;
+    input.update(swipe, touch, initial_position);
+    assert(swipe.dragging() && swipe.position() == initial_position + 140 * direction);
+    assert(input.take_first_motion() == 160'000);
+    input.update(swipe, report(4, 170'000, 0, 0), swipe.position());
+    swipe.tick(410'000);
+    assert(swipe.idle() && swipe.settled() == 2 + direction);
+  }
+}
+
+void a_quick_flick_after_a_hold_uses_recent_motion() {
+  for (const int direction : {-1, 1}) {
+    for (const bool pause_before_release : {false, true}) {
+      Swipe swipe{width, 5, 2};
+      SwipeInput input;
+      const int end_x = 650 - 45 * direction;
+      input.update(swipe, report(1, 5'000, 650), initial_position);
+      input.update(swipe, report(2, 494'000, 651), initial_position);
+      input.update(swipe, report(3, 500'000, end_x), initial_position);
+      assert(swipe.dragging() && swipe.position() == initial_position + 45 * direction);
+      const auto stationary_at = pause_before_release ? 605'000 : 503'000;
+      input.update(swipe, report(4, stationary_at, end_x), swipe.position());
+      input.update(swipe, report(5, stationary_at + 2'000, 0, 0), swipe.position());
+      swipe.tick(stationary_at + 250'000);
+      assert(swipe.idle() && swipe.settled() == (pause_before_release ? 2 : 2 + direction));
+    }
+  }
+}
+
 void a_gap_cancels_without_flinging_into_another_photo() {
   Swipe swipe{width, 5, 2};
   SwipeInput input;
@@ -348,6 +387,8 @@ int main() {
   ordered_reports_keep_release_and_next_press();
   sensor_axes_follow_the_picture_in_both_mounting_orientations();
   a_held_photo_can_be_dragged_from_either_side();
+  a_small_vertical_nudge_can_turn_into_a_swipe();
+  a_quick_flick_after_a_hold_uses_recent_motion();
   a_gap_cancels_without_flinging_into_another_photo();
   a_transient_transfer_failure_preserves_the_drag();
   a_second_finger_blocks_until_release_even_at_sequence_rollover();
