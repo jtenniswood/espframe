@@ -58,6 +58,22 @@ class SlidePrefetch {
     return {first, std::min(available.last, first + slots_ - 1)};
   }
 
+  SlideRange nearby_window() const {
+    if (refill_direction_() < 0)
+      return {center_ - desired_ready_in_direction, center_ + 1};
+    return {center_ - 1, center_ + desired_ready_in_direction};
+  }
+
+  template <class Eligible>
+  bool has_nearby_refill(const SlideCache &cache, const Eligible &eligible) const {
+    const auto [first, last] = nearby_window();
+    for (auto slide = first; slide <= last; ++slide) {
+      if (eligible(slide) && !cache.find(slide))
+        return true;
+    }
+    return false;
+  }
+
   std::optional<SlideIndex> requested() const { return requested_; }
 
   void prepared(SlideIndex slide) {

@@ -5,13 +5,53 @@
 #include <cassert>
 
 using espframe::native::SlideCache;
+using espframe::native::SlideIndex;
 using espframe::native::SlidePrefetch;
 using espframe::native::SlideRange;
 using espframe::native::SlideRetry;
 using espframe::native::Swipe;
 using espframe::native::slide_width;
 
+void verify_refill_before_refresh() {
+  uint16_t pixels[SlideCache::minimum_capacity]{};
+  SlideCache::Buffers buffers{};
+  for (size_t i = 0; i < SlideCache::minimum_capacity; ++i)
+    buffers[i] = &pixels[i];
+  SlideCache cache{buffers};
+  for (const auto slide : {7, 9, 10, 11, 13, 14}) {
+    const auto lease = cache.reserve(slide, 7, 14);
+    assert(lease && cache.complete(*lease, true));
+  }
+  cache.mark_ready_for_refresh();
+  SlidePrefetch prefetch{10};
+  const auto forward = prefetch.nearby_window();
+  assert(forward.first == 9 && forward.last == 12);
+  const auto eligible = [&](SlideIndex slide) { return prefetch.window({1, 100}).contains(slide); };
+  assert(prefetch.has_nearby_refill(cache, eligible));
+  const auto in_backoff = [&](SlideIndex slide) { return eligible(slide) && slide != 12; };
+  assert(!prefetch.has_nearby_refill(cache, in_backoff));
+
+  // Fill the gap without first consuming time on a playable neighbour.
+  const auto forward_cache = prefetch.window({1, 100});
+  const auto refill = cache.reserve(12, forward_cache.first, forward_cache.last);
+  assert(refill && cache.complete(*refill, true));
+  assert(!prefetch.has_nearby_refill(cache, eligible));
+
+  // Protect the playable headroom even when replacing the visible slide in
+  // a full cache. The spare for the new crop comes from farther away.
+  const auto refresh = cache.reserve(10, forward.first, forward.last, true);
+  assert(refresh && cache.find(9) && cache.find(10) && cache.find(11) && cache.find(12));
+  assert(cache.complete(*refresh, true) && cache.find(10) == refresh->pixels);
+
+  prefetch.moved_to(11);
+  prefetch.moved_to(10);
+  const auto backward = prefetch.nearby_window();
+  assert(backward.first == 8 && backward.last == 11);
+  assert(prefetch.has_nearby_refill(cache, eligible));
+}
+
 int main() {
+  verify_refill_before_refresh();
   const auto next_candidate_retry = SlideRetry::after(10, 1'000, 1, true);
   assert(!next_candidate_retry.due(10, 100'999, 1) && next_candidate_retry.due(10, 101'000, 1));
   const auto transport_retry = SlideRetry::after(10, 1'000, 1, false);

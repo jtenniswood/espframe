@@ -827,9 +827,11 @@ void run(void *) {
         const bool refresh = !esphome_trial && cache.needs_refresh(candidate);
         if (refresh && (!at_source_handoff || contact_engaged))
           continue;
-        // Keep both immediate neighbors readable while the worker prepares
-        // a new crop. If the cache is full, borrow a more distant slot.
-        const auto retained = refresh ? SlideRange{center - 1, center + 1} : retained_during_motion;
+        // Apply a visible change promptly, but keep upcoming swipes ready
+        // before redrawing offscreen slides that already have pixels.
+        if (refresh && candidate != center && prefetch.has_nearby_refill(cache, eligible))
+          continue;
+        const auto retained = refresh ? prefetch.nearby_window() : retained_during_motion;
         if (const auto lease = cache.reserve(candidate, retained.first, retained.last, refresh)) {
           if constexpr (trace_enabled)
             refill_started_us = esp_timer_get_time();
