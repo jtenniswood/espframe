@@ -51,6 +51,7 @@ void record_live_trial_gesture(uint32_t motion_us, const FirstMotionTrace &motio
 void record_live_trial_drag_outcome(TrialDragOutcome outcome);
 void record_live_trial_frame(int64_t latched_us, MotionStamp stamp, uint32_t period_us, uint32_t handoff_delay_us);
 void record_live_trial_blit(bool dma);
+void record_live_trial_split_blit(uint32_t elapsed_us, bool batched);
 
 #if SWIPE_TRIAL_BENCHMARK
 std::optional<TouchReport> poll_live_trial_benchmark(NativeNetwork &network, int64_t now, SlideIndex center,

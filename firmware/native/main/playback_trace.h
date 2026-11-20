@@ -12,6 +12,7 @@ struct MotionStamp {
   uint32_t epoch{};
   MotionPhase phase{MotionPhase::Still};
   bool preparing{};
+  bool resisted{};
 };
 
 class MotionEpoch {
@@ -23,7 +24,7 @@ class MotionEpoch {
       ++epoch_;
     }
   }
-  MotionStamp stamp(bool preparing) const { return {epoch_, phase_, preparing}; }
+  MotionStamp stamp(bool preparing, bool resisted = false) const { return {epoch_, phase_, preparing, resisted}; }
 
  private:
   uint32_t epoch_{};

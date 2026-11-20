@@ -208,16 +208,20 @@ int main() {
   timing.blit(true);
   timing.blit(false);
   timing.blit(true);
+  timing.split_blit(13'000, false);
+  timing.split_blit(14'000, true);
   constexpr auto period = 16'000;
   timing.frame(10'000, {1, MotionPhase::Drag, true}, period, 25);
   timing.frame(26'000, {1, MotionPhase::Drag, true}, period, 250);
   timing.frame(50'000, {1, MotionPhase::Drag, true}, period, 251);
-  timing.frame(82'000, {1, MotionPhase::Drag, false}, period, 990);
-  timing.frame(106'000, {1, MotionPhase::Drag, false}, period, 30);
+  timing.frame(82'000, {1, MotionPhase::Drag, false, true}, period, 990);
+  timing.frame(106'000, {1, MotionPhase::Drag, false, true}, period, 30);
   timing.frame(128'000, {2, MotionPhase::Drag, false}, period, 30);  // New gesture.
   timing.frame(160'000, {3, MotionPhase::Settle, false}, period, 2'000);
   const auto stats = timing.results();
   assert(stats.dma_copies == 2 && stats.cpu_copies == 1 && stats.worst_composition_us == 8'000);
+  assert(stats.split_blits == 2 && stats.batched_split_blits == 1 && stats.worst_split_blit_us == 14'000 &&
+         stats.total_split_blit_us == 27'000);
   assert(stats.worst_before_submit_us == 7'000 && stats.worst_submit_us == 3'000);
   assert(stats.first_motion.count == 4 && stats.first_motion.worst_us == 50'001 && stats.first_motion.over_limit == 1);
   assert(stats.cache_miss_motion.count == 1 && stats.cache_miss_motion.worst_us == 50'001);
@@ -229,6 +233,10 @@ int main() {
   assert(stats.drag_gaps.count == 4 && stats.drag_gaps.worst_us == 32'000 && stats.drag_gaps.over_limit == 1);
   assert(stats.quiet_drag_gaps.count == 1 && stats.quiet_drag_gaps.worst_us == 24'000 && stats.quiet_drag_gaps.over_limit == 0);
   assert(stats.busy_drag_gaps.count == 2 && stats.busy_drag_gaps.worst_us == 24'000 && stats.busy_drag_gaps.over_limit == 0);
+  assert(stats.in_range_drag_gaps.count == 2 && stats.in_range_drag_gaps.worst_us == 24'000 &&
+         stats.in_range_drag_gaps.over_limit == 0);
+  assert(stats.resisted_drag_gaps.count == 1 && stats.resisted_drag_gaps.worst_us == 24'000 &&
+         stats.resisted_drag_gaps.over_limit == 0);
   assert(stats.drag_handoff_delay.count == 6 && stats.drag_handoff_delay.worst_us == 990 &&
          stats.drag_handoff_delay.over_limit == 2);
 }

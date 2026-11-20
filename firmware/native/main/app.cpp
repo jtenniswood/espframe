@@ -534,10 +534,10 @@ void run(void *) {
     trace.start(Display::nominal_frame_period_us());
   if constexpr (!esphome_trial || trial_immich)
     loader.start_network();
-  const auto submit_frame = [&](PixelPosition position, bool moving = true) {
+  const auto submit_frame = [&](PixelPosition position, bool moving = true, bool resisted = false) {
     display.submit(position);
     if constexpr (capture_motion)
-      submitted_stamp = moving ? motion_epoch.stamp(preparing >= 0) : MotionStamp{};
+      submitted_stamp = moving ? motion_epoch.stamp(preparing >= 0, resisted) : MotionStamp{};
   };
   const auto submit_autoplay_frame = [&](uint16_t *output, uint8_t progress) {
     clock.draw(output, true);
@@ -1095,7 +1095,7 @@ void run(void *) {
         painted_connection_notice = connection_notice;
         painted_notice_language = notice_language;
         const auto started_submit = trial_immich && motion != 0 ? esp_timer_get_time() : 0;
-        submit_frame(position, position != last_submitted);
+        submit_frame(position, position != last_submitted, use_edge);
         submitted_motion_us = motion;
         motion_render_us = motion != 0 ? esp_timer_get_time() - started_render : 0;
         if constexpr (capture_motion) {

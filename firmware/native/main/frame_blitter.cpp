@@ -3,6 +3,7 @@
 #include "live_trial.h"
 
 #include "esp_log.h"
+#include "esp_timer.h"
 
 #include <algorithm>
 
@@ -65,8 +66,15 @@ void FrameBlitter::copy_block_(uint16_t *destination, const uint16_t *source, in
 }
 
 void FrameBlitter::slides(uint16_t *output, SlideSpan span) {
+#if SWIPE_TRIAL_IMMICH
+  const auto started = span.offset != 0 ? esp_timer_get_time() : 0;
+#endif
   blit_slides(output, span.first, span.second, panel_width, panel_height, span.offset,
               [this](auto *to, const auto *from, int width, int rows) { copy_rows_(to, from, width, rows); });
+#if SWIPE_TRIAL_IMMICH
+  if (started)
+    record_live_trial_split_blit(static_cast<uint32_t>(esp_timer_get_time() - started), false);
+#endif
 }
 
 void FrameBlitter::edge(uint16_t *output, const uint16_t *photo, int pull) {

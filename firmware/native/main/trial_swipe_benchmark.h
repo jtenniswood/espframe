@@ -29,6 +29,10 @@ class TrialSwipeMetrics {
     uint32_t worst_composition_us{};
     uint32_t worst_before_submit_us{};
     uint32_t worst_submit_us{};
+    uint32_t split_blits{};
+    uint32_t batched_split_blits{};
+    uint32_t worst_split_blit_us{};
+    uint64_t total_split_blit_us{};
     Timing first_motion;
     Timing cache_miss_motion;
     Timing busy_first_motion;
@@ -37,6 +41,8 @@ class TrialSwipeMetrics {
     Timing drag_gaps;
     Timing quiet_drag_gaps;
     Timing busy_drag_gaps;
+    Timing in_range_drag_gaps;
+    Timing resisted_drag_gaps;
     Timing drag_handoff_delay;
   };
 
@@ -61,6 +67,13 @@ class TrialSwipeMetrics {
 
   void blit(bool dma) { ++(dma ? results_.dma_copies : results_.cpu_copies); }
 
+  void split_blit(uint32_t elapsed_us, bool batched) {
+    ++results_.split_blits;
+    results_.batched_split_blits += batched;
+    results_.total_split_blit_us += elapsed_us;
+    results_.worst_split_blit_us = std::max(results_.worst_split_blit_us, elapsed_us);
+  }
+
   void frame(int64_t now, MotionStamp stamp, uint32_t period_us, uint32_t handoff_delay_us) {
     if (stamp.phase == MotionPhase::Drag)
       results_.drag_handoff_delay.add(handoff_delay_us, 250);
@@ -69,6 +82,10 @@ class TrialSwipeMetrics {
       const auto elapsed = static_cast<uint32_t>(now - previous_frame_us_);
       const auto gap_limit = period_us + period_us / 2;
       results_.drag_gaps.add(elapsed, gap_limit);
+      if (stamp.resisted == previous_stamp_.resisted) {
+        auto &path_gaps = stamp.resisted ? results_.resisted_drag_gaps : results_.in_range_drag_gaps;
+        path_gaps.add(elapsed, gap_limit);
+      }
       if (stamp.preparing == previous_stamp_.preparing) {
         auto &workload_gaps = stamp.preparing ? results_.busy_drag_gaps : results_.quiet_drag_gaps;
         workload_gaps.add(elapsed, gap_limit);

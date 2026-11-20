@@ -152,10 +152,12 @@ esp_err_t benchmark_status(httpd_req_t *request) {
     std::snprintf(replay, sizeof(replay), ",\"replay_prepared\":true,\"replay_pair_fill\":%s,\"replay_origin\":\"%s\"",
                   trial_replay_pair_fill ? "true" : "false", trial_replay_origin.data());
   }
-  char body[1800]{};
+  char body[2000]{};
   const auto length = std::snprintf(body, sizeof(body),
                 "{\"scripted\":%s,\"source\":\"%s\"%s%s,\"cache_hits\":%" PRIu32
                 ",\"dma_burst_bytes\":%u,\"dma_copies\":%" PRIu32 ",\"cpu_copies\":%" PRIu32
+                ",\"split_blits\":{\"count\":%" PRIu32 ",\"batched\":%" PRIu32 ",\"total_us\":%" PRIu64
+                ",\"worst_us\":%" PRIu32 "}"
                 ",\"frame_period_us\":%u,\"drag_gap_limit_us\":%u"
                 ",\"first_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
                 ",\"cache_miss_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
@@ -167,10 +169,14 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 ",\"drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"quiet_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"busy_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
+                ",\"in_range_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
+                ",\"resisted_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"drag_handoff_delay\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_250_us\":%" PRIu32 "}}",
                 SWIPE_TRIAL_BENCHMARK ? "true" : "false", SWIPE_TRIAL_BENCHMARK_FIXTURES ? "fixtures" : "immich",
                 gesture_counts, replay, result.cache_hits,
                 FrameBlitter::burst_bytes, result.dma_copies, result.cpu_copies,
+                result.split_blits, result.batched_split_blits, result.total_split_blit_us,
+                result.worst_split_blit_us,
                 period, period + period / 2,
                 result.first_motion.count, result.first_motion.worst_us, result.first_motion.over_limit,
                 result.cache_miss_motion.count, result.cache_miss_motion.worst_us, result.cache_miss_motion.over_limit,
@@ -183,6 +189,8 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 result.drag_gaps.count, result.drag_gaps.worst_us, result.drag_gaps.over_limit,
                 result.quiet_drag_gaps.count, result.quiet_drag_gaps.worst_us, result.quiet_drag_gaps.over_limit,
                 result.busy_drag_gaps.count, result.busy_drag_gaps.worst_us, result.busy_drag_gaps.over_limit,
+                result.in_range_drag_gaps.count, result.in_range_drag_gaps.worst_us, result.in_range_drag_gaps.over_limit,
+                result.resisted_drag_gaps.count, result.resisted_drag_gaps.worst_us, result.resisted_drag_gaps.over_limit,
                 result.drag_handoff_delay.count, result.drag_handoff_delay.worst_us, result.drag_handoff_delay.over_limit);
   if (length < 0 || static_cast<size_t>(length) >= sizeof(body))
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not format swipe timings");
@@ -509,6 +517,12 @@ void record_live_trial_frame(int64_t latched_us, MotionStamp stamp, uint32_t per
 void record_live_trial_blit(bool dma) {
   portENTER_CRITICAL(&swipe_lock);
   metrics.blit(dma);
+  portEXIT_CRITICAL(&swipe_lock);
+}
+
+void record_live_trial_split_blit(uint32_t elapsed_us, bool batched) {
+  portENTER_CRITICAL(&swipe_lock);
+  metrics.split_blit(elapsed_us, batched);
   portEXIT_CRITICAL(&swipe_lock);
 }
 
