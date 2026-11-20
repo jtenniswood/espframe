@@ -27,6 +27,9 @@ class Swipe {
   bool dragging() const { return this->phase_ == Phase::Dragging; }
   bool settling() const { return this->phase_ == Phase::Settling; }
   SlideIndex settle_destination() const { return this->settling() ? this->target_ : this->settled_; }
+  std::optional<SlideIndex> waiting_slide() const {
+    return this->phase_ == Phase::WaitingForSlide ? std::optional{this->loading_slide_} : std::nullopt;
+  }
 
   SlideRange retain_for_motion(SlideRange keep, PixelPosition presented) const {
     const auto include_slide = [&](SlideIndex slide) {

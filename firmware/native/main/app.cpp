@@ -746,11 +746,8 @@ void run(void *) {
         manual_brightness.reset();
         schedule.wake(report.sampled_us);
       }
-      if (swipe.dragging()) {
-        if (fade.held())
-          fade.note_drag();
-        prefetch.request_at_edge(swipe.position(), {ready_first, ready_last}, available);
-      }
+      if (swipe.dragging() && fade.held())
+        fade.note_drag();
     }
 
     now = esp_timer_get_time();
@@ -789,6 +786,13 @@ void run(void *) {
       submit_autoplay_frame(output, pending_opacity);
     }
 
+    const SlideRange ready{ready_first, ready_last};
+    if (swipe.dragging())
+      prefetch.request_at_edge(swipe.position(), ready, available);
+    else
+      prefetch.request_slide(swipe.waiting_slide());
+    if (const auto wanted = prefetch.requested(); wanted && cache.find(*wanted))
+      prefetch.prepared(*wanted);
     const auto keep = prefetch.window(available);
     const auto active_connection = network.photo_connection();
     const auto eligible = [&](SlideIndex candidate) {
@@ -799,16 +803,16 @@ void run(void *) {
       return wanted && available.contains(candidate) && (!live || trial_fixtures || candidate <= next_photo) &&
              retries[candidate % retries.size()].due(candidate, now, active_connection);
     };
-    if (const auto wanted = prefetch.requested(); wanted && cache.find(*wanted))
-      prefetch.prepared(*wanted);
     // Protect the finger-driven frames. A short ready range can refill during
     // settle, and an explicit cache-edge request can refill immediately.
     const bool contact_engaged = input.engaged();
     user_motion = input.awake() && (contact_engaged ||
                   (user_motion && (!swipe.idle() || swipe.position() != display.presented_position())));
-    if (live && !trial_fixtures)
-      loader.defer_pixel_work(user_motion && prefetch.can_defer_pixel_work({ready_first, ready_last}, contact_engaged,
-                                                                         swipe.settle_destination()));
+    if (live && !trial_fixtures) {
+      const bool can_defer = swipe.dragging() ? prefetch.can_defer_drag(ready, swipe.origin_slide(), swipe.position())
+                               : prefetch.can_defer_pixel_work(ready, contact_engaged, swipe.settle_destination());
+      loader.defer_pixel_work(user_motion && can_defer);
+    }
     if (preparing >= 0) {
       if (const auto wanted = prefetch.requested();
           wanted && eligible(*wanted) && prefetch.can_yield(preparing, *wanted, preparing_refresh))

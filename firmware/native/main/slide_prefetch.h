@@ -46,14 +46,13 @@ class SlidePrefetch {
   }
 
   void request_at_edge(PixelPosition position, SlideRange ready, SlideRange available) {
-    if (const auto missing = missing_neighbor_at_edge(position, ready, available)) {
-      requested_ = missing;
-      direction_ = *missing < ready.first ? -1 : 1;
-    }
+    request_slide(missing_neighbor_at_edge(position, ready, available));
   }
 
+  void request_slide(std::optional<SlideIndex> slide) { requested_ = slide; }
+
   SlideRange window(SlideRange available) const {
-    const auto ideal_first = center_ - (direction_ < 0 ? slots_ - 3 : 2);
+    const auto ideal_first = center_ - (refill_direction_() < 0 ? slots_ - 3 : 2);
     const auto rightmost_first = std::max(available.first, available.last - slots_ + 1);
     const auto first = std::clamp(ideal_first, available.first, rightmost_first);
     return {first, std::min(available.last, first + slots_ - 1)};
@@ -68,6 +67,15 @@ class SlidePrefetch {
 
   bool can_yield(SlideIndex active, SlideIndex wanted, bool refreshing = false) const {
     return active != wanted && (refreshing || active != center_);
+  }
+
+  bool can_defer_drag(SlideRange ready, SlideIndex origin, PixelPosition position) const {
+    if (center_ == 0 || requested_ || !ready.contains(origin))
+      return false;
+    const auto anchor = origin * slide_width;
+    // Follow the side of the photo under the finger. A touch can grab a
+    // moving photo whose origin differs from the last settled slide.
+    return (position <= anchor && ready.first < origin) || (position >= anchor && origin < ready.last);
   }
 
   bool can_defer_pixel_work(SlideRange ready, bool contact_engaged, SlideIndex destination) const {
@@ -89,18 +97,23 @@ class SlidePrefetch {
       if (keep.contains(slide))
         result[index++] = slide;
     };
+    const int direction = refill_direction_();
     for (SlideIndex distance = 1; distance <= desired_ready_in_direction; ++distance)
-      add(center_ + distance * direction_);
+      add(center_ + distance * direction);
     for (SlideIndex distance = 1; distance < slots_; ++distance) {
       if (distance > desired_ready_in_direction)
-        add(center_ + distance * direction_);
-      add(center_ - distance * direction_);
+        add(center_ + distance * direction);
+      add(center_ - distance * direction);
     }
     return result;
   }
 
  private:
   static constexpr SlideIndex desired_ready_in_direction = 2;
+
+  int refill_direction_() const {
+    return requested_ ? (*requested_ < center_ ? -1 : 1) : direction_;
+  }
 
   SlideIndex center_;
   SlideIndex slots_;
