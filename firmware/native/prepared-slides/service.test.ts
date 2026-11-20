@@ -156,3 +156,67 @@ test('authorizes one library, bounds options and reuses unchanged prepared image
   cropPixel(1270, 780, blue)
   assert.equal((await fetch(`${endpoint}?mode=fill-frame&orientation=portrait`, { headers })).headers.get('x-espframe-cache'), 'hit')
 })
+
+test('warms an exact pair without waiting and leaves room for a foreground slide', { timeout: 10_000 }, async t => {
+  const left = 'a2345678-1234-1234-1234-123456789abc'
+  const right = 'b2345678-1234-1234-1234-123456789abc'
+  const other = 'c2345678-1234-1234-1234-123456789abc'
+  const extra = 'd2345678-1234-1234-1234-123456789abc'
+  const pairPreview = await preview(80, 120, red, blue)
+  const singlePreview = await preview(160, 80, green, blue)
+  const { promise: resumePair, resolve: releasePair } = Promise.withResolvers<void>()
+  const { promise: resumeSingle, resolve: releaseSingle } = Promise.withResolvers<void>()
+  const { promise: singleStarted, resolve: startSingle } = Promise.withResolvers<void>()
+  t.after(() => { releasePair(); releaseSingle() })
+  const calls: string[] = []
+  const mock = await listen(createServer(async (request, response) => {
+    const id = request.url?.split('/')[3] ?? ''
+    calls.push(id)
+    if (id === left || id === right) {
+      await resumePair
+      return response.writeHead(200).end(pairPreview)
+    }
+    if (id === other) {
+      startSingle()
+      await resumeSingle
+      return response.writeHead(200).end(singlePreview)
+    }
+    response.writeHead(404).end()
+  }))
+  t.after(mock.close)
+  const token = 'frame-access-key-for-a-local-test-only'
+  const service = await listen(createSlideService({ immichUrl: mock.url, immichKey: 'test-immich-key', token }))
+  t.after(service.close)
+  const headers = { Authorization: `Bearer ${token}` }
+  const pair = `${service.url}/v1/slides/${left}?mode=fill&companion=${right}&rotation=180`
+  const another = `${service.url}/v1/slides/${other}`
+  const excess = `${service.url}/v1/slides/${extra}`
+  assert.equal((await fetch(pair, { method: 'POST' })).status, 401)
+  assert.equal((await fetch(`${pair}&wait=1`, { headers })).status, 400)
+  const accepted = await fetch(pair, { method: 'POST', headers, body: '{}' })
+  assert.equal(accepted.status, 202)
+  assert.equal(await accepted.text(), '')
+  assert.equal((await fetch(`${pair}&wait=0`, { headers })).status, 202)
+  assert.equal((await fetch(another, { method: 'POST', headers })).status, 429)
+
+  const foreground = fetch(another, { headers })
+  await singleStarted
+  assert.equal((await fetch(`${excess}?wait=0`, { headers })).status, 429)
+  assert.equal((await fetch(excess, { headers })).status, 503)
+  releaseSingle()
+  assert.equal((await foreground).status, 200)
+
+  releasePair()
+  const finished = await fetch(pair, { headers })
+  const jpeg = Buffer.from(await finished.arrayBuffer())
+  assert.equal(finished.status, 200)
+  const pixels = await measure(jpeg, 180)
+  pixels(8, 100, red)
+  pixels(640, 400, black)
+  const warmed = await fetch(pair, { method: 'POST', headers })
+  assert.equal(warmed.status, 204)
+  const fast = await fetch(`${pair}&wait=0`, { headers })
+  assert.equal(fast.headers.get('x-espframe-cache'), 'hit')
+  assert.deepEqual(Buffer.from(await fast.arrayBuffer()), jpeg)
+  assert.deepEqual(calls.sort(), [left, right, other])
+})

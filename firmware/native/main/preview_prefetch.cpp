@@ -6,19 +6,31 @@
 
 #include <algorithm>
 #include <cstring>
+#include <utility>
 
 namespace espframe::native {
 
-void PreviewPrefetch::start(const AssetId &id, uint32_t connection, const std::string &base_url, const std::string &key) {
-  if (!connection || slide_cancelled_)
-    return;
+bool PreviewPrefetch::claim_slot_() {
   if (pending_) {
-    if (id == id_ && connection == connection_ && !cancelled_)
-      return;
     if (xSemaphoreTake(complete_, 0) != pdTRUE)
-      return;
+      return false;
     pending_ = false;
   }
+  return true;
+}
+
+bool PreviewPrefetch::start_task_() {
+  if (task_)
+    return true;
+  if (!complete_)
+    complete_ = xSemaphoreCreateBinary();
+  return complete_ && xTaskCreatePinnedToCore(run_, "preview-fetch", 6144, this, 2, &task_, xPortGetCoreID()) == pdPASS;
+}
+
+void PreviewPrefetch::start(const AssetId &id, uint32_t connection, const std::string &base_url, const std::string &key) {
+  if (!connection || slide_cancelled_ ||
+      (pending_ && !warming_ && id == id_ && connection == connection_ && !cancelled_) || !claim_slot_())
+    return;
   if (!buffer_) {
     if (memory_retry_at_us_ && esp_timer_get_time() < memory_retry_at_us_)
       return;
@@ -33,20 +45,30 @@ void PreviewPrefetch::start(const AssetId &id, uint32_t connection, const std::s
     if (!buffer_)
       return;
   }
-  if (!task_) {
-    if (!complete_)
-      complete_ = xSemaphoreCreateBinary();
-    if (!complete_ || xTaskCreatePinnedToCore(run_, "preview-fetch", 6144, this, 2, &task_, xPortGetCoreID()) != pdPASS) {
-      heap_caps_free(buffer_);
-      buffer_ = nullptr;
-      return;
-    }
+  if (!start_task_()) {
+    heap_caps_free(buffer_);
+    buffer_ = nullptr;
+    return;
   }
   id_ = id;
   connection_ = connection;
   url_ = base_url + "/assets/" + id.data() + "/thumbnail?size=preview";
   key_ = &key;
   deadline_us_ = esp_timer_get_time() + ImmichHttp::transfer_budget_us;
+  warming_ = false;
+  cancelled_ = false;
+  pending_ = true;
+  xTaskNotifyGive(task_);
+}
+
+void PreviewPrefetch::warm_prepared(std::string url, uint32_t connection, const std::string &token) {
+  if (!connection || slide_cancelled_ || !claim_slot_() || !start_task_())
+    return;
+  url_ = std::move(url);
+  connection_ = connection;
+  key_ = &token;
+  deadline_us_ = esp_timer_get_time() + 500'000;
+  warming_ = true;
   cancelled_ = false;
   pending_ = true;
   xTaskNotifyGive(task_);
@@ -54,7 +76,7 @@ void PreviewPrefetch::start(const AssetId &id, uint32_t connection, const std::s
 
 std::optional<size_t> PreviewPrefetch::take(const AssetId &id, uint32_t connection, std::span<uint8_t> destination,
                                            int64_t deadline_us) {
-  if (!pending_ || cancelled_)
+  if (!pending_ || warming_ || cancelled_)
     return {};
   if (connection != connection_) {
     cancel();
@@ -104,7 +126,7 @@ std::optional<size_t> PreviewPrefetch::take(const AssetId &id, uint32_t connecti
 }
 
 void PreviewPrefetch::cancel_incomplete() {
-  if (!pending_ || cancelled_)
+  if (!pending_ || warming_ || cancelled_)
     return;
   if (xSemaphoreTake(complete_, 0) != pdTRUE) {
     cancel();
@@ -136,11 +158,26 @@ void PreviewPrefetch::run_(void *context) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     if (self.connection_ != active_connection) {
       self.http_.disconnect();
+      self.prepared_http_.disconnect();
       active_connection = self.connection_;
     }
 #if SWIPE_TRIAL_IMMICH
     const auto started = esp_timer_get_time();
 #endif
+    if (self.warming_) {
+      const auto authorization = "Bearer " + *self.key_;
+      const auto status = self.prepared_http_.read(self.url_, authorization.c_str(), "{}", {}, self.length_,
+                                                  self.deadline_us_);
+#if SWIPE_TRIAL_IMMICH
+      if (status == 202 || status == 204)
+        record_live_trial_preparation_time(TrialPreparationStage::PreparedWarm,
+                                           static_cast<uint32_t>(esp_timer_get_time() - started));
+#else
+      (void) status;
+#endif
+      xSemaphoreGive(self.complete_);
+      continue;
+    }
     const int status = self.http_.read(self.url_, self.key_->c_str(), {}, {self.buffer_, capacity}, self.length_,
                                        self.deadline_us_);
     if (status != 200 || self.cancelled_)

@@ -99,6 +99,7 @@ bool ImmichSource::online_() {
     prefetch_.cancel();
     prepared_retry_us_ = 0;
     prepared_frame_fill_retry_us_ = 0;
+    prepared_background_ = true;
     http_connection_ = connection;
   }
   return connection != 0 && !cancelled_;
@@ -426,7 +427,8 @@ bool ImmichSource::select_pair_or_landscape_(ImmichPhoto &seed, AssetId &compani
   }
 }
 
-AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, std::optional<int64_t> search_deadline) {
+AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, std::optional<int64_t> search_deadline,
+                                    const PhotoSlide *exclude) {
   if (!primary.metadata.capture_day)
     return {};
   auto choose = [&](const std::vector<ImmichPhoto> &photos) {
@@ -435,6 +437,8 @@ AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, std::optional<i
     bool best_seen = true;
     const auto now = esp_timer_get_time();
     for (const auto &candidate : photos) {
+      if (exclude && (candidate.id == exclude->primary || candidate.id == exclude->companion))
+        continue;
       if (!is_portrait_companion(primary, candidate, this->feed_().portrait_pairing_days))
         continue;
       if (!this->settings_.has_prepared_slides() && this->unavailable_.contains(candidate.id, now))
@@ -618,6 +622,53 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
                                                                               : PreviewStatus::Retry;
 }
 
+std::string ImmichSource::prepared_url_(const PhotoSlide &frame, PhotoOrientation orientation, bool frame_fill,
+                                        DisplayMode framing) const {
+  std::string url(settings_.prepared_slide_url);
+  url += "/v1/slides/";
+  url += frame.primary.data();
+  url += frame_fill ? "?mode=fill-frame" : framing == DisplayMode::Fill ? "?mode=fill" : "?mode=fit";
+  if (frame.companion[0] != '\0') {
+    url += "&companion=";
+    url += frame.companion.data();
+  }
+  url += "&rotation=";
+  url += screen_rotation_name(settings_.screen_rotation);
+  if (orientation != PhotoOrientation::Any)
+    url += orientation == PhotoOrientation::Portrait ? "&orientation=portrait" : "&orientation=landscape";
+  return url;
+}
+
+void ImmichSource::warm_next_prepared_(const PhotoSlide &current) {
+  if (!online_() || !prepared_background_ || esp_timer_get_time() < prepared_retry_us_ ||
+      (settings_.prepared_slides_need_time() && !clock_time_is_valid(std::time(nullptr))))
+    return;
+  const auto index = pending_index_(current.companion);
+  if (!index)
+    return;
+  const auto &seed = pending_[*index];
+  const auto &feed = feed_();
+  if (!seed.orientation_known || !seed.may_match_orientation(feed.photo_orientation))
+    return;
+  PhotoSlide next{seed.id};
+  if (seed.portrait && feed.pairs_portraits()) {
+    next.companion = companion_for_(seed, {}, &current);
+    if (next.companion[0] == '\0')
+      return;  // A companion that needs more metadata will be selected by the slide worker.
+  }
+  const bool paired = next.companion[0] != '\0';
+  if (feed.requires_portrait_pair() && !paired && feed.photo_orientation != PhotoOrientation::Any)
+    return;
+  const auto orientation = feed.requires_portrait_pair() && !paired ? PhotoOrientation::Landscape
+                                                                   : feed.photo_orientation;
+  const auto framing = paired ? feed.pair_display_mode() : feed.display_mode;
+  const bool frame_fill = !paired && framing == DisplayMode::Fill && orientation != PhotoOrientation::Landscape;
+  const RecentPreviews::PreparedKey key{next.primary, next.companion, framing, orientation};
+  if (previews_.find(key).empty())
+    prefetch_.warm_prepared(prepared_url_(next, orientation, frame_fill, framing), http_connection_,
+                            settings_.prepared_slide_token);
+}
+
 ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &frame, uint16_t *panel,
                                                             PhotoOrientation orientation) {
   const bool paired = frame.companion[0] != '\0';
@@ -644,27 +695,29 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
   if (now < prepared_retry_us_ || (frame_fill && now < prepared_frame_fill_retry_us_) ||
       (settings_.prepared_slides_need_time() && !clock_time_is_valid(std::time(nullptr))) || !allocate_download_())
     return {};
-  std::string url(settings_.prepared_slide_url);
-  url += "/v1/slides/";
-  url += frame.primary.data();
-  url += frame_fill ? "?mode=fill-frame" : framing == DisplayMode::Fill ? "?mode=fill" : "?mode=fit";
-  if (paired) {
-    url += "&companion=";
-    url += frame.companion.data();
-  }
-  url += "&rotation=";
-  url += screen_rotation_name(settings_.screen_rotation);
-  if (orientation != PhotoOrientation::Any)
-    url += orientation == PhotoOrientation::Portrait ? "&orientation=portrait" : "&orientation=landscape";
+  const auto url = prepared_url_(frame, orientation, frame_fill, framing);
   const auto authorization = "Bearer " + settings_.prepared_slide_token;
   const auto start = esp_timer_get_time();
   size_t length = 0;
-  const int status = prepared_http_.read(url, authorization.c_str(), {}, {encoded_, photo_capacity}, length,
-                                         start + 1'500'000);
+  const bool background = prepared_background_ && !unavailable_.contains(frame.primary, now) &&
+                          (!paired || !unavailable_.contains(frame.companion, now));
+  const auto request = [&](const std::string &target) {
+    return prepared_http_.read(target, authorization.c_str(), {}, {encoded_, photo_capacity}, length, start + 1'500'000);
+  };
+  int status = request(background ? url + "&wait=0" : url);
+  if (status == 400 && background && !cancelled_) {
+    // An older preparation service rejects the extra option.
+    prepared_background_ = false;
+    status = request(url);
+  }
   const auto decode_start = esp_timer_get_time();
   if constexpr (SWIPE_TRIAL_IMMICH)
     record_live_trial_preparation_time(TrialPreparationStage::PreparedTransfer,
                                        static_cast<uint32_t>(decode_start - start), length);
+  if (background && status == 202)
+    return {.pending = true};
+  if (background && prepared_background_ && status == 429)
+    return {};
   if (!cancelled_ && status == 400 && frame_fill) {
     // Older services reject the full-frame crop option. Keep their paired
     // and Fit requests available while preparing these slides locally.
@@ -764,6 +817,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     return PrepareResult::Retry;
   };
   bool prepared = false;
+  bool prepared_pending = false;
   const bool optional_pair = !remembered && !pairs_only && slide > 1 && feed_().pairs_portraits();
   bool selected_companion = false;
   const bool pair_needs_selection = optional_pair && seed.portrait;
@@ -781,10 +835,13 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       selected_companion = true;
     }
     const auto prepared_orientation = verify_landscape ? PhotoOrientation::Landscape : feed_().photo_orientation;
+    if (new_position)
+      this->warm_next_prepared_(frame);
     const auto preview = this->render_prepared_(frame, panel, prepared_orientation);
     if (preview.orientation_mismatch && !verify_landscape)
       return reject_candidate(frame.primary);
     prepared = preview.ready;
+    prepared_pending = preview.pending;
   }
   if (this->cancelled_)
     return retry_frame();
@@ -823,6 +880,8 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     const auto status = this->load_preview_(frame.primary, primary, primary_target, 0, true, lookahead);
     if (this->cancelled_ || status == PreviewStatus::Retry)
       return retry_frame();
+    if (status == PreviewStatus::Missing && prepared_pending && unavailable_.contains(frame.primary, esp_timer_get_time()))
+      return retry_frame();
     if (status == PreviewStatus::Missing || (preserve_pair && reframing_pair && !primary.portrait()))
       return reject_candidate(frame.primary);
 
@@ -851,6 +910,9 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       const auto right = this->load_preview_(frame.companion, companion, PreviewTarget::PairPane, pair_deadline_us,
                                              paired_primary, upcoming(frame.companion));
       if (right == PreviewStatus::Retry && (remembered || pairs_only))
+        return retry_frame();
+      if (right == PreviewStatus::Missing && preserve_pair && prepared_pending &&
+          unavailable_.contains(frame.companion, esp_timer_get_time()))
         return retry_frame();
       if (preserve_pair && (right == PreviewStatus::Missing || !companion.portrait())) {
         if (!remembered && !settings_.has_prepared_slides() && unavailable_.contains(frame.companion, esp_timer_get_time()))

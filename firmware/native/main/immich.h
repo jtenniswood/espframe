@@ -52,6 +52,7 @@ class ImmichSource {
   struct PreparedPreview {
     bool ready{};
     bool orientation_mismatch{};
+    bool pending{};
   };
 
   bool online_();
@@ -69,7 +70,8 @@ class ImmichSource {
   std::optional<size_t> pending_index_(const AssetId &exclude = {}) const;
   void prefetch_next_(const AssetId &id);
   bool select_pair_or_landscape_(ImmichPhoto &seed, AssetId &companion);
-  AssetId companion_for_(const ImmichPhoto &primary, std::optional<int64_t> search_deadline = {});
+  AssetId companion_for_(const ImmichPhoto &primary, std::optional<int64_t> search_deadline = {},
+                         const PhotoSlide *exclude = nullptr);
   void discard_candidate_(const AssetId &id);
   bool needs_caption_details_(const PhotoMetadata &metadata) const;
   void complete_caption_details_(PhotoSlide &frame);
@@ -77,6 +79,8 @@ class ImmichSource {
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, PreviewTarget target, int64_t deadline_us,
                               bool report_response, const AssetId &lookahead = {});
   PreparedPreview render_prepared_(const PhotoSlide &frame, uint16_t *panel, PhotoOrientation orientation);
+  std::string prepared_url_(const PhotoSlide &frame, PhotoOrientation orientation, bool frame_fill, DisplayMode framing) const;
+  void warm_next_prepared_(const PhotoSlide &current);
 
   const std::atomic<bool> &cancelled_;
   const std::atomic<bool> &pixel_work_deferred_;
@@ -92,6 +96,7 @@ class ImmichSource {
   PreviewPrefetch prefetch_{cancelled_};
   int64_t prepared_retry_us_{};
   int64_t prepared_frame_fill_retry_us_{};
+  bool prepared_background_{true};
   P4JpegDecoder jpeg_;
   uint32_t http_connection_{};
   ImmichSearchApi search_api_{ImmichSearchApi::Unknown};

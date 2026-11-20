@@ -67,7 +67,8 @@ function requestLayout(target: string) {
   const { pathname, searchParams: query } = new URL(target, 'http://localhost')
   const id = /^\/v1\/slides\/([^/]+)$/.exec(pathname)?.[1]
   if (!id) throw new ReplyError(404, 'Unknown route')
-  if (Array.from(query).some(([key]) => !['companion', 'mode', 'rotation', 'orientation'].includes(key) || query.getAll(key).length > 1)) {
+  if (Array.from(query).some(([key]) => !['companion', 'mode', 'rotation', 'orientation', 'wait'].includes(key) ||
+      query.getAll(key).length > 1)) {
     throw new ReplyError(400, 'Invalid slide options')
   }
   const primary = id.toLowerCase()
@@ -75,13 +76,16 @@ function requestLayout(target: string) {
   const mode = query.get('mode') ?? 'fit'
   const rotation = query.get('rotation') ?? '0'
   const orientation = query.get('orientation') ?? undefined
+  const wait = query.get('wait')
   if (!assetId.test(primary) || (companion !== undefined && (!assetId.test(companion) || companion === primary)) ||
       (mode !== 'fit' && mode !== 'fill' && mode !== 'fill-frame') || (rotation !== '0' && rotation !== '180') ||
-      (orientation !== undefined && orientation !== 'portrait' && orientation !== 'landscape')) {
+      (orientation !== undefined && orientation !== 'portrait' && orientation !== 'landscape') ||
+      (wait !== null && wait !== '0')) {
     throw new ReplyError(400, 'Invalid slide options')
   }
   const layout: SlideLayout = { mode, rotation: rotation === '180' ? 180 : 0, orientation }
-  return { primary, companion, layout, key: `${primary}/${companion ?? ''}/${mode}/${rotation}/${orientation ?? ''}` }
+  return { primary, companion, layout, wait: wait !== '0',
+    key: `${primary}/${companion ?? ''}/${mode}/${rotation}/${orientation ?? ''}` }
 }
 
 const digest = (data: string | Buffer) => createHash('sha256').update(data).digest()
@@ -141,20 +145,35 @@ export function createSlideService({ immichUrl, immichKey, token, maxAgeMs = 60_
       if (!timingSafeEqual(authorization, digest(request.headers.authorization ?? ''))) {
         throw new ReplyError(401, 'Unauthorized')
       }
-      if (request.method !== 'GET') throw new ReplyError(405, 'Method not allowed')
+      const warmOnly = request.method === 'POST'
+      if (!warmOnly && request.method !== 'GET') throw new ReplyError(405, 'Method not allowed')
+      if (warmOnly) request.resume()
       const slide = requestLayout(request.url ?? '')
       const cached = cache.get(slide.key)
       let result
       if (cached && cached.expires > Date.now()) {
         cache.delete(slide.key)
         cache.set(slide.key, cached)
+        if (warmOnly) {
+          response.writeHead(204).end()
+          return
+        }
         result = { jpeg: cached.jpeg, state: 'hit' }
       } else {
         let pending = inFlight.get(slide.key)
         if (!pending) {
-          if (inFlight.size >= 2) throw new ReplyError(503, 'Slide service busy')
+          // Leave one slot for a slide the frame is already trying to display.
+          if (inFlight.size >= (warmOnly ? 1 : 2)) {
+            throw new ReplyError(warmOnly || !slide.wait ? 429 : 503, 'Slide service busy')
+          }
           pending = prepare(slide, cached).finally(() => inFlight.delete(slide.key))
           inFlight.set(slide.key, pending)
+          // Preparation is shared even when all callers have taken the nonblocking reply.
+          void pending.catch(() => {})
+        }
+        if (warmOnly || !slide.wait) {
+          response.writeHead(202, { 'Content-Length': 0 }).end()
+          return
         }
         result = await pending
       }
