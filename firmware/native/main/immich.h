@@ -51,6 +51,7 @@ class ImmichSource {
 
  private:
   enum class PreviewStatus { Ready, Missing, Retry };
+  enum class PreparedWait { Bounded, Immediate, Legacy };
   struct PreparedPreview {
     bool ready{};
     bool orientation_mismatch{};
@@ -94,7 +95,7 @@ class ImmichSource {
   PreviewPrefetch prefetch_{cancelled_};
   int64_t prepared_retry_us_{};
   int64_t prepared_frame_fill_retry_us_{};
-  bool prepared_background_{true};
+  PreparedWait prepared_wait_{PreparedWait::Bounded};
   P4JpegDecoder jpeg_;
   uint32_t http_connection_{};
   ImmichSearchApi search_api_{ImmichSearchApi::Unknown};

@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { createServer, type ServerResponse } from 'node:http'
+import { setTimeout as delay } from 'node:timers/promises'
 import { OrientationMismatch, prepareSlide, type SlideLayout } from './prepare.ts'
 
 type Options = { immichUrl: string; immichKey: string; token: string; maxAgeMs?: number }
@@ -9,6 +10,7 @@ const assetId = /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i
 const maxPreviewBytes = 8 * 1024 * 1024
 const maxCacheBytes = 24 * 1024 * 1024
 const maxQueuedWarmSlides = 2
+const maxWaitMs = 250
 
 class ReplyError extends Error {
   readonly status: number
@@ -78,14 +80,15 @@ function requestLayout(target: string) {
   const rotation = query.get('rotation') ?? '0'
   const orientation = query.get('orientation') ?? undefined
   const wait = query.get('wait')
+  const waitMs = wait === null ? undefined : Number(wait)
   if (!assetId.test(primary) || (companion !== undefined && (!assetId.test(companion) || companion === primary)) ||
       (mode !== 'fit' && mode !== 'fill' && mode !== 'fill-frame') || (rotation !== '0' && rotation !== '180') ||
       (orientation !== undefined && orientation !== 'portrait' && orientation !== 'landscape') ||
-      (wait !== null && wait !== '0')) {
+      (wait !== null && (!/^(0|[1-9][0-9]{0,2})$/.test(wait) || Number(wait) > maxWaitMs))) {
     throw new ReplyError(400, 'Invalid slide options')
   }
   const layout: SlideLayout = { mode, rotation: rotation === '180' ? 180 : 0, orientation }
-  return { primary, companion, layout, wait: wait !== '0',
+  return { primary, companion, layout, waitMs,
     key: `${primary}/${companion ?? ''}/${mode}/${rotation}/${orientation ?? ''}` }
 }
 
@@ -192,14 +195,25 @@ export function createSlideService({ immichUrl, immichKey, token, maxAgeMs = 60_
           startNextWarm()
         } else if (!pending && inFlight.size < 2) {
           pending = start(slide)
-        } else if (!pending && (slide.wait || !warmQueue.has(slide.key))) {
-          throw new ReplyError(slide.wait ? 503 : 429, 'Slide service busy')
+        } else if (!pending && (slide.waitMs === undefined || !warmQueue.has(slide.key))) {
+          throw new ReplyError(slide.waitMs === undefined ? 503 : 429, 'Slide service busy')
         }
-        if (!pending || warmOnly || !slide.wait) {
+        if (pending && !warmOnly && slide.waitMs !== 0) {
+          if (slide.waitMs === undefined) {
+            result = await pending
+          } else {
+            const timeout = new AbortController()
+            try {
+              result = await Promise.race([pending, delay(slide.waitMs, undefined, { signal: timeout.signal })])
+            } finally {
+              timeout.abort()
+            }
+          }
+        }
+        if (!result) {
           response.writeHead(202, { 'Content-Length': 0 }).end()
           return
         }
-        result = await pending
       }
       response.writeHead(200, {
         'Content-Type': 'image/jpeg', 'Content-Length': result.jpeg.length, 'X-Espframe-Cache': result.state,

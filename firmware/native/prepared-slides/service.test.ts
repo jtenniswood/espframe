@@ -197,11 +197,18 @@ test('warms an exact pair without waiting and leaves room for a foreground slide
   const later = `${service.url}/v1/slides/${following}`
   const excess = `${service.url}/v1/slides/${extra}`
   assert.equal((await fetch(pair, { method: 'POST' })).status, 401)
-  assert.equal((await fetch(`${pair}&wait=1`, { headers })).status, 400)
+  for (const wait of ['-1', '1.5', '251']) {
+    assert.equal((await fetch(`${pair}&wait=${wait}`, { headers })).status, 400)
+  }
   const accepted = await fetch(pair, { method: 'POST', headers, body: '{}' })
   assert.equal(accepted.status, 202)
   assert.equal(await accepted.text(), '')
   assert.equal((await fetch(`${pair}&wait=0`, { headers })).status, 202)
+  const started = performance.now()
+  const bounded = await fetch(`${pair}&wait=40`, { headers })
+  assert.equal(bounded.status, 202)
+  assert.equal(await bounded.text(), '')
+  assert.ok(performance.now() - started >= 30)
   assert.equal((await fetch(upcoming, { method: 'POST', headers })).status, 202)
   assert.equal((await fetch(later, { method: 'POST', headers })).status, 202)
   assert.equal((await fetch(upcoming, { method: 'POST', headers })).status, 202)
@@ -234,4 +241,10 @@ test('warms an exact pair without waiting and leaves room for a foreground slide
     await response.arrayBuffer()
   }
   assert.deepEqual(calls.sort(), [left, right, other, next, following])
+
+  const quick = await fetch(`${another}?rotation=180&wait=250`, { headers })
+  assert.equal(quick.status, 200)
+  assert.equal(quick.headers.get('x-espframe-cache'), 'miss')
+  await quick.arrayBuffer()
+  assert.equal(calls.filter(id => id === other).length, 2)
 })

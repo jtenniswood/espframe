@@ -37,7 +37,16 @@ Add `orientation=portrait` or `orientation=landscape` to filter the primary phot
 
 The in-memory cache holds up to 128 slides and 24 MiB. It serves a hit for up to one minute, then fetches previews again and reuses the finished JPEG if their content hashes match. `X-Espframe-Cache` distinguishes `miss`, `hit`, and `revalidated` responses. The cache starts empty after a restart. The endpoint returns an error when a preview is missing, unsupported, or too large, or when both preparation slots are busy.
 
-Recent firmware sends `POST` with the same path and layout options to warm the next slide when its photo IDs are already known. The service replies with an empty `202` for queued or active preparation, `204` when the JPEG is ready, or `429` when the hint queue is full. Up to two hints can wait behind one speculative job, leaving capacity for a foreground request. The frame requests `GET` with `wait=0` to take a ready JPEG or start preparing it in the background. A `202` or `429` lets the frame start direct playback immediately. The original blocking `GET` remains available, including when a frame connects to an older service.
+Recent firmware sends `POST` with the same path and layout options to warm the next slide when its photo IDs are already known. The service replies with an empty `202` for queued or active preparation, `204` when the JPEG is ready, or `429` when the hint queue is full. Up to two hints can wait behind one speculative job, leaving capacity for a foreground request.
+
+The frame requests `GET` with `wait=180` so a fast preparation can complete
+before it starts fetching and decoding direct previews. A ready JPEG is
+returned immediately. The service accepts a wait budget between 0 and
+250 milliseconds. If preparation is still underway at the deadline, the
+service returns `202` and finishes preparing the JPEG in the background
+while the frame falls back to direct previews. A busy service can return
+`429` immediately. The frame also supports the earlier `wait=0` and
+blocking `GET` protocols when connecting to an older service.
 
 ## Verify the V1 hardware decoder
 

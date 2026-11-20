@@ -97,7 +97,7 @@ bool ImmichSource::online_() {
     prefetch_.cancel();
     prepared_retry_us_ = 0;
     prepared_frame_fill_retry_us_ = 0;
-    prepared_background_ = true;
+    prepared_wait_ = PreparedWait::Bounded;
     http_connection_ = connection;
   }
   return connection != 0 && !cancelled_;
@@ -625,7 +625,7 @@ std::string ImmichSource::prepared_url_(const PhotoSlide &frame, PhotoOrientatio
 }
 
 void ImmichSource::warm_next_prepared_(const PhotoSlide &current) {
-  if (!online_() || !prepared_background_ || esp_timer_get_time() < prepared_retry_us_ ||
+  if (!online_() || prepared_wait_ == PreparedWait::Legacy || esp_timer_get_time() < prepared_retry_us_ ||
       (settings_.prepared_slides_need_time() && !clock_time_is_valid(std::time(nullptr))))
     return;
   const auto index = pending_index_(current.companion);
@@ -684,15 +684,22 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
   const auto authorization = "Bearer " + settings_.prepared_slide_token;
   const auto start = esp_timer_get_time();
   size_t length = 0;
-  const bool background = prepared_background_ && !unavailable_.contains(frame.primary, now) &&
+  const bool background = prepared_wait_ != PreparedWait::Legacy && !unavailable_.contains(frame.primary, now) &&
                           (!paired || !unavailable_.contains(frame.companion, now));
   const auto request = [&](const std::string &target) {
     return prepared_http_.read(target, authorization.c_str(), {}, {encoded_, photo_capacity}, length, start + 1'500'000);
   };
-  int status = request(background ? url + "&wait=0" : url);
+  const auto wait = background ? prepared_wait_ : PreparedWait::Legacy;
+  int status = request(wait == PreparedWait::Bounded ? url + "&wait=180"
+                       : wait == PreparedWait::Immediate ? url + "&wait=0" : url);
+  if (status == 400 && wait == PreparedWait::Bounded && !cancelled_) {
+    // Immediate background requests work with the previous service protocol.
+    prepared_wait_ = PreparedWait::Immediate;
+    status = request(url + "&wait=0");
+  }
   if (status == 400 && background && !cancelled_) {
-    // An older preparation service rejects the extra option.
-    prepared_background_ = false;
+    // The original service supports only a blocking request.
+    prepared_wait_ = PreparedWait::Legacy;
     status = request(url);
   }
   const auto decode_start = esp_timer_get_time();
@@ -701,7 +708,7 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
                                        static_cast<uint32_t>(decode_start - start), length);
   if (background && status == 202)
     return {.pending = true};
-  if (background && prepared_background_ && status == 429)
+  if (background && prepared_wait_ != PreparedWait::Legacy && status == 429)
     return {};
   if (!cancelled_ && status == 400 && frame_fill) {
     // Older services reject the full-frame crop option. Keep their paired
