@@ -890,6 +890,10 @@ void run(void *) {
               position = swipe.position();
               dwell.reset();
             }
+          } else if (previous_transition == SlideTransition::SLIDE_LEFT) {
+            // The automatic move follows the same slide order as a swipe.
+            // Keep its real position so touch can grab the visible seam.
+            swipe.advance(now, Swipe::Transition::Glide, transition.duration_ms * 1000LL);
           } else if (can_fade) {
             fade.start(anchor, anchor + 1, now, transition.duration_ms * 1000LL);
           } else {

@@ -319,6 +319,27 @@ int main() {
   glide.tick(start + 640'000);
   assert(glide.idle() && glide.position() == 3 * width);
 
+  // Slide Left uses the swipe position throughout the configured autoplay
+  // transition. A tap resumes from the handed-off frame at the saved speed.
+  for (const int64_t duration : {500'000, 1'000'000, 1'500'000}) {
+    Swipe custom_glide{width, 5, 2};
+    assert(custom_glide.advance(start, Swipe::Transition::Glide, duration));
+    custom_glide.tick(start + duration / 2);
+    const auto handoff = 2 * width + width / 2;
+    assert(custom_glide.position() == handoff);
+    custom_glide.tick(start + duration / 2 + 20'000);
+    assert(custom_glide.position() > handoff);
+    const auto pressed = start + duration / 2 + 21'000;
+    custom_glide.press(540, 300, handoff, pressed);
+    assert(custom_glide.position() == handoff);
+    const auto released_at = pressed + 15'000;
+    custom_glide.release(released_at);
+    custom_glide.tick(released_at + duration / 4);
+    assert(custom_glide.position() == handoff + width / 4);
+    custom_glide.tick(released_at + duration / 2);
+    assert(custom_glide.idle() && custom_glide.settled() == 3);
+  }
+
   // Take over an actual presented frame midway through the ambient move.
   Swipe grab{width, 5, 2};
   assert(grab.advance(start, Swipe::Transition::Glide));

@@ -205,9 +205,11 @@ class Swipe {
       this->settle_to_(this->resume_, now_us, this->resume_transition_);
   }
 
-  bool advance(int64_t now_us, Transition transition) {
+  bool advance(int64_t now_us, Transition transition, int64_t glide_duration_us = default_glide_duration_us) {
     if (this->phase_ != Phase::Idle || this->settled_ >= this->ready_last_)
       return false;
+    if (transition == Transition::Glide)
+      this->glide_duration_us_ = static_cast<float>(std::max<int64_t>(1, glide_duration_us));
     this->settle_to_(this->settled_ + 1, now_us, transition);
     return true;
   }
@@ -247,6 +249,7 @@ class Swipe {
 
  private:
   enum class Phase { Idle, Tracking, Ignored, Dragging, WaitingForSlide, Settling };
+  static constexpr int64_t default_glide_duration_us = 640'000;
 
   // Animation arithmetic stays near zero even after millions of photos.
   float slide_offset_(SlideIndex slide) const { return static_cast<float>((slide - this->settled_) * this->width_); }
@@ -288,8 +291,10 @@ class Swipe {
     }
     const float fraction = std::min(distance / this->width_, 1.0f);
     this->transition_ = transition;
-    this->duration_us_ = transition == Transition::Glide ? std::max(180'000.0f, 640'000.0f * fraction)
-                                                       : 120'000.0f + 100'000.0f * fraction;
+    const float minimum_glide = std::min(180'000.0f, this->glide_duration_us_);
+    this->duration_us_ = transition == Transition::Glide
+                             ? std::max(minimum_glide, this->glide_duration_us_ * fraction)
+                             : 120'000.0f + 100'000.0f * fraction;
     this->phase_ = Phase::Settling;
   }
 
@@ -316,6 +321,7 @@ class Swipe {
   int64_t last_motion_us_{};
   float settle_from_{};
   float duration_us_{};
+  float glide_duration_us_{default_glide_duration_us};
   int64_t settle_us_{};
   SlideIndex loading_slide_{};
   int64_t released_us_{};
