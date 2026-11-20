@@ -11,6 +11,8 @@ inline const char *esp_err_to_name(esp_err_t) { return "mock DMA failure"; }
 
 struct async_color_convert_context_t;
 using async_color_convert_handle_t = async_color_convert_context_t *;
+struct async_color_convert_event_data_t {};
+using async_color_convert_isr_cb_t = bool (*)(async_color_convert_handle_t, async_color_convert_event_data_t *, void *);
 
 struct async_color_convert_config_t {
   uint32_t backlog;
@@ -37,4 +39,6 @@ struct async_color_convert_request_t {
 
 esp_err_t esp_async_color_convert_install_dma2d(const async_color_convert_config_t *, async_color_convert_handle_t *);
 esp_err_t esp_async_color_convert_uninstall(async_color_convert_handle_t);
+esp_err_t esp_async_color_convert(async_color_convert_handle_t, const async_color_convert_request_t *,
+                                  async_color_convert_isr_cb_t, void *);
 esp_err_t esp_color_convert_blocking(async_color_convert_handle_t, const async_color_convert_request_t *, int32_t);

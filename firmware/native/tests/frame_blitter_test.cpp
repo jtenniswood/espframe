@@ -1,5 +1,7 @@
 #include "frame_blitter.h"
+#include "freertos/semphr.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <numeric>
@@ -14,11 +16,55 @@ bool reject_install{};
 int reject_request{};
 int requests{};
 int releases{};
+struct QueuedCopy {
+  async_color_convert_request_t request;
+  async_color_convert_isr_cb_t completed;
+  void *context;
+};
+std::vector<QueuedCopy> queued;
+size_t most_queued{};
+
+void complete(const async_color_convert_request_t &copy) {
+  using espframe::native::panel_width;
+  for (size_t row = 0; row < copy.copy_height; ++row) {
+    std::memcpy(static_cast<uint16_t *>(copy.dst_buffer) + row * panel_width + copy.dst_x,
+                static_cast<const uint16_t *>(copy.src_buffer) + row * panel_width + copy.src_x,
+                copy.copy_width * sizeof(uint16_t));
+  }
+}
 }  // namespace
+
+SemaphoreHandle_t xSemaphoreCreateCountingStatic(UBaseType_t maximum, UBaseType_t count, StaticSemaphore_t *storage) {
+  assert(queued.empty() && maximum == 2 && count == 0);
+  *storage = {maximum, count};
+  return storage;
+}
+
+BaseType_t xSemaphoreTake(SemaphoreHandle_t signal, TickType_t timeout) {
+  assert(timeout == portMAX_DELAY);
+  // Drain simulated hardware in reverse order to cover out-of-order callbacks.
+  if (signal->count == 0) {
+    assert(!queued.empty());
+    const auto last = queued.back();
+    queued.pop_back();
+    complete(last.request);
+    last.completed(&driver, nullptr, last.context);
+  }
+  assert(signal->count != 0);
+  --signal->count;
+  return pdTRUE;
+}
+
+BaseType_t xSemaphoreGiveFromISR(SemaphoreHandle_t signal, BaseType_t *task_woken) {
+  assert(signal->count < signal->maximum);
+  ++signal->count;
+  *task_woken = pdTRUE;
+  return pdTRUE;
+}
 
 esp_err_t esp_async_color_convert_install_dma2d(const async_color_convert_config_t *config,
                                                 async_color_convert_handle_t *handle) {
-  assert(config->backlog == 1 && config->dma_burst_size == espframe::native::FrameBlitter::burst_bytes);
+  assert(config->backlog == 2 && config->dma_burst_size == espframe::native::FrameBlitter::burst_bytes);
   if (reject_install)
     return ESP_FAIL;
   *handle = &driver;
@@ -26,8 +72,20 @@ esp_err_t esp_async_color_convert_install_dma2d(const async_color_convert_config
 }
 
 esp_err_t esp_async_color_convert_uninstall(async_color_convert_handle_t handle) {
-  assert(handle == &driver);
+  assert(handle == &driver && queued.empty());
   ++releases;
+  return ESP_OK;
+}
+
+esp_err_t esp_async_color_convert(async_color_convert_handle_t handle, const async_color_convert_request_t *request,
+                                  async_color_convert_isr_cb_t done, void *context) {
+  using espframe::native::panel_width;
+  assert(handle == &driver && queued.size() < 2 && done != nullptr);
+  assert(request->copy_width == panel_width && request->dst_x == 0 && request->src_x == 0);
+  if (++requests == reject_request)
+    return ESP_FAIL;
+  queued.push_back({*request, done, context});
+  most_queued = std::max(most_queued, queued.size());
   return ESP_OK;
 }
 
@@ -42,11 +100,7 @@ esp_err_t esp_color_convert_blocking(async_color_convert_handle_t handle, const 
   assert(request->src_y == 0 && request->dst_y == 0);
   if (++requests == reject_request)
     return ESP_FAIL;
-  for (size_t row = 0; row < request->copy_height; ++row) {
-    std::memcpy(static_cast<uint16_t *>(request->dst_buffer) + row * panel_width + request->dst_x,
-                static_cast<const uint16_t *>(request->src_buffer) + row * panel_width + request->src_x,
-                request->copy_width * sizeof(uint16_t));
-  }
+  complete(*request);
   return ESP_OK;
 }
 
@@ -62,7 +116,7 @@ int main() {
   FrameBlitter dma;
   dma.init();
   dma.slides(output.data(), span);
-  assert(output == expected && requests == 2);
+  assert(output == expected && requests == 2 && most_queued == 2 && queued.empty());
 
   constexpr int edge_offset = -36;
   dma.edge(output.data(), left.data(), edge_offset);
@@ -102,6 +156,12 @@ int main() {
   assert(output == expected && releases == 1);
   dma.slides(output.data(), {right.data(), nullptr, 0});
   assert(output == right && requests == reject_request && releases == 1);
+
+  FrameBlitter failed_first;
+  failed_first.init();
+  reject_request = requests + 1;
+  failed_first.slides(output.data(), {left.data(), right.data(), offset});
+  assert(output == expected && requests == reject_request && releases == 2 && queued.empty());
 
   reject_install = true;
   FrameBlitter cpu;

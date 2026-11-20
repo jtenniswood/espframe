@@ -19,9 +19,11 @@ class FrameBlitter {
             ScreenRotation rotation);
 
  private:
+  bool copy_split_(uint16_t *output, SlideSpan span);
   void copy_rows_(uint16_t *destination, const uint16_t *source, int width, int rows);
   void copy_block_(uint16_t *destination, const uint16_t *source, int stride, int rows,
                    int dest_x, int source_x, int width);
+  void disable_dma_(esp_err_t result);
 
   async_color_convert_handle_t dma_{};
 };
