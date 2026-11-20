@@ -88,7 +88,8 @@ void expect_flipped(const std::vector<uint16_t> &upright, const DecodedPreview &
                     const DecodedPreview *companion = nullptr, DisplayMode mode = DisplayMode::Fit) {
   const auto guard = upright.front();
   std::vector<uint16_t> flipped(pixel_count + 2, guard);
-  photo.render(flipped.data() + 1, companion, mode, ScreenRotation::UpsideDown);
+  std::fill(flipped.begin() + 1, flipped.end() - 1, static_cast<uint16_t>(~guard));
+  assert(photo.render(flipped.data() + 1, companion, mode, ScreenRotation::UpsideDown));
   assert(flipped.front() == guard && flipped.back() == guard);
   assert(std::equal(flipped.begin() + 1, flipped.end() - 1, upright.rbegin() + 1));
 }
@@ -148,7 +149,20 @@ void verify_pair(const char *primary_path, const char *companion_path) {
   assert(left.render(panel.data() + 1, &right));
   assert(panel == full_photo_pair);
   assert(right.decode(companion.data(), companion.size(), {PreviewTarget::PairPane, DisplayMode::Fit, DisplayMode::Fill}) == Decode::Ready);
-  left.render(panel.data() + 1, &right, DisplayMode::Fill);
+  std::fill(panel.begin() + 1, panel.end() - 1, guard);
+  int checkpoints = 0;
+  const PreparationCheckpoint interrupt{&checkpoints, [](void *context) {
+    return ++*static_cast<int *>(context) < 2;
+  }};
+  // Before either photo is painted, Fill clears exactly the divider.
+  assert(!left.render(panel.data() + 1, &right, DisplayMode::Fill, ScreenRotation::Normal, interrupt));
+  for (int x = 0; x < slide_width; ++x) {
+    const auto first = panel.begin() + 1 + x * panel_width;
+    const auto expected = x >= 636 && x < 644 ? 0 : guard;
+    assert(std::all_of(first, first + panel_width, [expected](uint16_t pixel) { return pixel == expected; }));
+  }
+  assert(left.render(panel.data() + 1, &right, DisplayMode::Fill));
+  assert(std::count(panel.begin() + 1, panel.end() - 1, 0) == 8 * slide_height);
   assert((at(panel, 0, 420) & 0xf800) >= 0xf000 && (at(panel, 1279, 420) & 0x001f) >= 0x001e);
   assert(at(panel, 0, 0) != 0 && at(panel, 1279, 799) != 0);
   assert(at(panel, 639, 420) == 0 && at(panel, 640, 420) == 0);
@@ -374,4 +388,8 @@ int main(int argc, char **argv) {
   const uint8_t unsupported[]{0, 1, 2, 3};
   DecodedPreview decoded;
   assert(decoded.decode(unsupported, sizeof(unsupported)) == Decode::Invalid);
+  std::vector<uint16_t> panel(pixel_count + 2, 0xffff);
+  assert(decoded.render(panel.data() + 1, nullptr, DisplayMode::Fit, ScreenRotation::UpsideDown));
+  assert(std::count(panel.begin(), panel.end(), 0) == pixel_count);
+  assert(panel.front() == 0xffff && panel.back() == 0xffff);
 }

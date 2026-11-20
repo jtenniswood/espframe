@@ -22,6 +22,28 @@ constexpr int pair_gap = 8;
 constexpr int pair_width = (slide_width - pair_gap) / 2;
 constexpr int row_batch = 16;
 
+bool clear_region(uint16_t *panel, int left, int top, int width, int height,
+                  ScreenRotation rotation, PreparationCheckpoint checkpoint) {
+  if (width == 0 || height == 0)
+    return true;
+  // A logical column is stored as one scanline on the panel.
+  const bool flipped = rotation == ScreenRotation::UpsideDown;
+  const int start_column = flipped ? slide_height - 1 - top : slide_height - top - height;
+  for (int x = left; x < left + width; x += row_batch) {
+    if (!checkpoint())
+      return false;
+    const int count = std::min(row_batch, left + width - x);
+    if (height == slide_height) {
+      const int first_x = flipped ? x + count - 1 : x;
+      std::fill_n(panel + panel_offset(first_x, start_column, rotation), count * height, 0);
+    } else {
+      for (int column = x; column < x + count; ++column)
+        std::fill_n(panel + panel_offset(column, start_column, rotation), height, 0);
+    }
+  }
+  return true;
+}
+
 bool supported(unsigned width, unsigned height) {
   return width > 0 && height > 0 && width <= 4096 && height <= 4096 && width * height <= 4'000'000;
 }
@@ -245,8 +267,19 @@ bool DecodedPreview::paint_(uint16_t *panel, int left, int max_width, DisplayMod
   const auto size = mode == DisplayMode::Fit && this->width_ <= max_width
                         ? PhotoFraming{{0, 0, this->width_, this->height_}, this->width_, this->height_, this->portrait_}
                         : frame_photo(this->width_, this->height_, max_width, slide_height, mode);
-  left += (max_width - size.width) / 2;
+  const int side = (max_width - size.width) / 2;
   const int top = (slide_height - size.height) / 2;
+  const int photo_left = left + side;
+  const int photo_right = photo_left + size.width;
+  const int photo_bottom = top + size.height;
+  if (size.width != max_width &&
+      (!clear_region(panel, left, 0, side, slide_height, rotation, checkpoint) ||
+       !clear_region(panel, photo_right, 0, left + max_width - photo_right, slide_height, rotation, checkpoint)))
+    return false;
+  if (size.height != slide_height &&
+      (!clear_region(panel, photo_left, 0, size.width, top, rotation, checkpoint) ||
+       !clear_region(panel, photo_left, photo_bottom, size.width, slide_height - photo_bottom, rotation, checkpoint)))
+    return false;
   // Refit an already decoded portrait to a half-screen without divisions
   // in the pixel loop. A 1:1 fit keeps the original integer coordinates.
   const auto &crop = size.source;
@@ -259,7 +292,7 @@ bool DecodedPreview::paint_(uint16_t *panel, int left, int max_width, DisplayMod
       return false;
     for (int x0 = 0; x0 < size.width; x0 += tile) {
       for (int x = x0; x < std::min(x0 + tile, size.width); ++x) {
-        auto *column = panel + panel_offset(x + left, panel_width - 1 - top, rotation);
+        auto *column = panel + panel_offset(x + photo_left, panel_width - 1 - top, rotation);
         const int source_x = crop.x + ((x * scale_x) >> 16);
         for (int y = y0; y < std::min(y0 + tile, size.height); ++y) {
           const int source_y = crop.y + ((y * scale_y) >> 16);
@@ -309,18 +342,10 @@ DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t len
 bool DecodedPreview::render(uint16_t *panel, const DecodedPreview *companion, DisplayMode pair_mode,
                             ScreenRotation rotation, PreparationCheckpoint checkpoint) const {
   const bool pair = companion != nullptr && this->portrait() && companion->portrait();
-  const bool letterboxed = this->display_mode_ == DisplayMode::Fit &&
-                           (this->width_ != slide_width || this->height_ != slide_height);
-  if (pair || letterboxed || this->width_ == 0) {
-    constexpr int batch = panel_width * row_batch;
-    for (int offset = 0; offset < pixel_count; offset += batch) {
-      if (!checkpoint())
-        return false;
-      std::fill_n(panel + offset, std::min(batch, pixel_count - offset), 0);
-    }
-  }
   if (this->width_ == 0)
-    return true;
+    return clear_region(panel, 0, 0, slide_width, slide_height, rotation, checkpoint);
+  if (pair && !clear_region(panel, pair_width, 0, pair_gap, slide_height, rotation, checkpoint))
+    return false;
   return this->paint_(panel, 0, pair ? pair_width : slide_width, pair ? pair_mode : this->display_mode_, rotation, checkpoint) &&
          (!pair || companion->paint_(panel, pair_width + pair_gap, pair_width, pair_mode, rotation, checkpoint));
 }
