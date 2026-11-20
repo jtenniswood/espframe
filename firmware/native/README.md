@@ -551,9 +551,9 @@ rejected and another candidate was already available, so the player could
 retry that slide after 100 ms. `pixel_pauses` and `pixel_pause_ms` report how
 often and how long pixel preparation waited during a swipe. Transfers can
 continue during a swipe. At an unready edge, pixel work yields during the
-bulk copy of each moving frame and resumes between copies. It can also resume
-during a stationary hold or after six refresh periods of dragging toward
-the last ready neighbour. The status includes the Wi-Fi
+bulk copies in the first four refresh periods of a drag. It resumes between
+copies, during a stationary hold, or after six refresh periods of dragging
+toward the last ready neighbour. The status includes the Wi-Fi
 power-save mode, signal level and primary channel when the frame gets an address.
 HTTP diagnostic counts distinguish
 connection-open failures from retryable header and body timeouts. The loader
