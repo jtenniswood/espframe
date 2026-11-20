@@ -374,6 +374,7 @@ jobs:
             grep -Fq "espframe::native::start_live_trial_status(" /tmp/trial-symbols
             grep -Fq "espframe::native::read_stock_frame_name" /tmp/trial-symbols
             grep -Fq "espframe::native::record_live_trial_drag_outcome(" /tmp/trial-symbols
+            grep -Fq "espframe::native::record_live_trial_detail_presented(" /tmp/trial-symbols
             if grep -E "espframe::native::(Settings::save|start_usb_setup|stage_firmware|start_home_assistant)|[[:space:]](esp_ota_mark_app_valid_cancel_rollback|nvs_erase_all|nvs_flash_erase|nvs_set_str|noise_rand_bytes)$" /tmp/trial-symbols; then
               exit 1
             fi
@@ -407,6 +408,7 @@ jobs:
               -D SWIPE_ESPHOME_TRIAL=ON -D SWIPE_TRIAL_IMMICH=ON -D SWIPE_TRIAL_BENCHMARK=ON \
               -D SWIPE_TRIAL_BENCHMARK_RAPID=ON build
             check_benchmark "$rapid" espframe_v1_rapid_benchmark
+            grep -Fq "espframe::native::record_live_trial_detail_presented(" /tmp/bench-symbols
             wifi=firmware/native/build/esphome-benchmark-wifi-v1
             idf.py -C firmware/native -B "$wifi" -D SWIPE_BOARD=v1 \
               -D SWIPE_ESPHOME_TRIAL=ON -D SWIPE_TRIAL_IMMICH=ON -D SWIPE_TRIAL_BENCHMARK=ON \

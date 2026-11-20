@@ -162,6 +162,8 @@ esp_err_t benchmark_status(httpd_req_t *request) {
   } else if constexpr (synthetic_trial_replay) {
     std::snprintf(replay, sizeof(replay), ",\"replay_prepared\":true,\"replay_pair_fill\":%s,\"replay_origin\":\"%s\"",
                   trial_replay_pair_fill ? "true" : "false", trial_replay_origin.data());
+  } else if constexpr (live_trial_edge_detail) {
+    std::snprintf(replay, sizeof(replay), ",\"live_edge_detail\":true");
   }
   // Keep the full diagnostics response off the small HTTP task stack.
   constexpr size_t report_capacity = 2300;
@@ -299,7 +301,7 @@ esp_err_t status(httpd_req_t *request) {
   const auto prepared = prepared_slides.load(std::memory_order_acquire);
   const auto gestures = swipes.load(std::memory_order_acquire);
   char presentation[184]{};
-  if constexpr (trial_replay_staged_detail) {
+  if constexpr (trial_detail_metrics) {
     const auto presentations = detail_presentations.load(std::memory_order_acquire);
     std::snprintf(presentation, sizeof(presentation),
                   ",\"thumbnail_slides\":%" PRIu32 ",\"detail_presentations\":%" PRIu32

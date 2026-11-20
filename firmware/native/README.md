@@ -553,6 +553,14 @@ before their final frame reached the display. Taps and gestures that
 never start a horizontal drag are outside these counts. Drag continuously
 to assess pacing, since a pause mid-drag can also widen the gap between
 display updates.
+The live and rapid trials use the native player's forward refill policy.
+With portrait pairing enabled, the frame can prepare the next pair from
+thumbnails when a forward gesture runs low on cached photos. The benchmark
+reports `live_edge_detail`. The status route reports how many thumbnail pairs
+became ready, how many full-detail replacements reached the LCD, and the last
+replacement's request-to-handoff time. A short run with a warm cache can
+finish with both counters at zero.
+
 Use high-frame-rate video to measure from finger movement to visible motion
 and check the panel for tearing.
 The status route also reports clock and connection readiness, HTTP status

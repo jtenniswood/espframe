@@ -578,7 +578,7 @@ void run(void *) {
     loader.start_network();
   const auto submit_frame = [&](PixelPosition position, bool moving = true, bool resisted = false) {
     display.submit(position);
-    if constexpr (trial_replay_staged_detail) {
+    if constexpr (trial_detail_metrics) {
       if (detail_to_submit && position == detail_to_submit->slide * slide_width)
         detail_submitted = detail_to_submit;
       detail_to_submit.reset();
@@ -606,7 +606,7 @@ void run(void *) {
   SlideIndex source_anchor = -1;
   bool preparing_refresh = false;
   using Preparation = SlideLoader::Preparation;
-  constexpr bool stage_at_edge = !esphome_trial || SWIPE_TRIAL_REPLAY_EDGE_DETAIL;
+  constexpr bool stage_at_edge = !esphome_trial || live_trial_edge_detail || SWIPE_TRIAL_REPLAY_EDGE_DETAIL;
   constexpr bool stage_all_pairs = trial_replay_staged_detail && !SWIPE_TRIAL_REPLAY_EDGE_DETAIL;
   unsigned reported_ahead = 0;
   std::array<SlideRetry, SlideCache::capacity> retries{};
@@ -639,7 +639,7 @@ void run(void *) {
         if (presented % slide_width == 0)
           record_live_trial_touch_slide(presented / slide_width);
       }
-      if constexpr (trial_replay_staged_detail) {
+      if constexpr (trial_detail_metrics) {
         if (detail_submitted && display.presented_position() == detail_submitted->slide * slide_width) {
           record_live_trial_detail_presented(detail_submitted->slide,
                                              static_cast<uint32_t>((*scanout - detail_submitted->requested_us) / 1000));
@@ -720,7 +720,7 @@ void run(void *) {
           record_live_trial_candidate_retry();
       }
       if (ready) {
-        if constexpr (trial_replay_staged_detail) {
+        if constexpr (trial_detail_metrics) {
           if (completion.presentation.thumbnail)
             record_live_trial_thumbnail_ready();
           if (detail_request_us && slide == center) {
@@ -934,7 +934,7 @@ void run(void *) {
     // Let a stationary contact give time back to the worker. Protect the
     // start of a swipe even when only its landing is ready.
     const bool contact_engaged = input.engaged();
-    if constexpr (!esphome_trial || trial_replay_staged_detail) {
+    if constexpr (stage_at_edge || stage_all_pairs) {
       if (!at_source_handoff || contact_engaged)
         last_detail_motion_us = now;
     }
@@ -970,7 +970,7 @@ void run(void *) {
         preparing_refresh = refresh;
         return true;
       };
-      if constexpr (!esphome_trial || trial_replay_staged_detail) {
+      if constexpr (stage_at_edge || stage_all_pairs) {
         // Leave a forward swipe ready before spending the pause sharpening
         // the current pair. A new edge drag can cancel the replacement.
         if (center > 0 && source_anchor < 0 && requested_revision == source_revision && active_connection &&
@@ -978,7 +978,7 @@ void run(void *) {
             now - last_detail_motion_us >= detail_idle_us && eligible(center) &&
             (ready.last > center || !eligible(center + 1)) &&
             submit(center, prefetch.nearby_window(), true, Preparation::RefineThumbnail)) {
-          if constexpr (trial_replay_staged_detail)
+          if constexpr (trial_detail_metrics)
             detail_request_us = now;
         }
       }
