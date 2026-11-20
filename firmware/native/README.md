@@ -329,10 +329,11 @@ is unavailable. Landscape photos still appear as single slides. Turning off
 portrait pairing pauses this filter and retains
 its saved value and range. Native setup and Espframe settings backups carry
 both options.
-**Show full image** is the default for the native prototype. **Crop to fit**
-center-crops a single photo to fill the screen, including a portrait shown
-alone. With **Follow photo framing**, it also crops paired portraits to their
-respective halves.
+New setups default to **Crop to fit**. This center-crops a single photo to
+fill the screen, including a portrait shown alone. With **Follow photo framing**,
+it also crops paired portraits to their respective halves. **Show full image**
+keeps the whole photo visible. Running USB setup again uses the frame's saved
+framing unless you pick a different option or import a backup with framing settings.
 Set **Portrait pair framing** to **Fill each half** to crop both portraits
 independently of single-photo framing. **Fit both full photos** keeps both
 portraits intact. **Follow photo framing** retains the previous behavior.

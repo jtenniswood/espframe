@@ -156,6 +156,43 @@ void nvs_close(nvs_handle_t handle) {
   staged_blobs.clear();
 }
 
+void verify_setup_framing() {
+  using namespace espframe::native;
+  constexpr char first_setup[] = R"({"ssid":"Photo Lab","password":"","immich_url":"http://photos.test",
+                                    "immich_key":"first-key"})";
+  constexpr char reuse_wifi[] = R"({"immich_url":"http://photos.test","immich_key":"next-key"})";
+  stored.clear();
+  stored_blobs.clear();
+  Settings settings;
+  assert(Settings::save(first_setup));
+  assert(settings.read() && settings.display_mode == DisplayMode::Fill && settings.pair_display_mode() == DisplayMode::Fill);
+
+  assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"next-key",
+                            "display_mode":"Fit","portrait_pair_framing":"Fill"})"));
+  assert(Settings::save(reuse_wifi));
+  assert(settings.read() && settings.display_mode == DisplayMode::Fit && settings.pair_display_mode() == DisplayMode::Fill);
+
+  stored_blobs.clear();
+  stored = {{"settings_v1", R"({"ssid":"Photo Lab","password":"","immich_url":"http://photos.test",
+                                "immich_key":"legacy-key"})"}};
+  assert(Settings::save(reuse_wifi));
+  assert(settings.read() && settings.display_mode == DisplayMode::Fit);
+
+  stored.clear();
+  stored_blobs.clear();
+  const auto wifi = WifiCredentials::from("Photo Lab", "");
+  assert(wifi && Settings::save_wifi(*wifi, 0));
+  assert(settings.read() && !settings.has_immich() && settings.display_mode == DisplayMode::Fill);
+  assert(Settings::save(reuse_wifi));
+  assert(settings.read() && settings.display_mode == DisplayMode::Fill);
+
+  stored_blobs.clear();
+  stored = {{"settings_v1", R"({"ssid":"Photo Lab","password":"","immich_url":"","immich_key":"",
+                                "display_mode":"Fit"})"}};
+  assert(Settings::save(reuse_wifi));
+  assert(settings.read() && settings.display_mode == DisplayMode::Fit);
+}
+
 void verify_stock_pairing_migration() {
   using namespace espframe::native;
   using Result = Settings::UsbSaveResult;
@@ -833,8 +870,8 @@ int main() {
   assert(Settings::save_photo_preset(PhotoPreset::Tag, ha_key));
   assert(current.read() && current.photo_source.preset() == PhotoPreset::Tag && current.photo_filters.criteria.tags_enabled);
   assert(!current.photo_filters.criteria.people_enabled && !current.photo_filters.criteria.person_ids.empty());
-  assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","filter_city":"London"})"));
-  assert(current.read() && current.photo_source.preset() == PhotoPreset::Custom);
+  assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","filter_city":"London","display_mode":"Fit"})"));
+  assert(current.read() && current.photo_source.preset() == PhotoPreset::Custom && current.display_mode == DisplayMode::Fit);
 
   const auto before_live = photo_source_revision.load();
   const auto live = update_configuration(R"({"values":{"portrait_pair_framing":"Fill","photo_orientation":"Portrait Only",
@@ -1057,4 +1094,5 @@ int main() {
   expect_status(true, true, "asleep", "paused", "memories", "responding", "waiting_for_pair");
   verify_stock_pairing_migration();
   verify_stock_connection_migration();
+  verify_setup_framing();
 }

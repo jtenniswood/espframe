@@ -27,6 +27,7 @@ constexpr const char *partition = "native_config";
 constexpr const char *store_namespace = "player";
 constexpr const char *settings_key = "settings_v1";
 constexpr size_t legacy_max_json_size = 3072;
+constexpr auto new_setup_framing = DisplayMode::Fill;
 std::mutex storage_mutex;
 std::optional<PhotoFeedSettings> published_feed;
 
@@ -678,7 +679,8 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
   const std::lock_guard lock(storage_mutex);
   Settings saved;
   bool may_create = false;
-  const bool configured = load(saved, request.any() ? &may_create : nullptr);
+  const auto previous = load_document(request.any() ? &may_create : nullptr);
+  const bool configured = parse_all(previous.get(), saved);
   const auto epoch = configured ? saved.reset_epoch : 0;
   if (expected_epoch && *expected_epoch != epoch)
     return Result::Rejected;
@@ -714,7 +716,14 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
   if (!new_key && saved.home_assistant_key_set &&
       !cJSON_AddStringToObject(document.get(), "home_assistant_key", saved.home_assistant_key.c_str()))
     return Result::Rejected;
-  if (!cJSON_HasObjectItem(document.get(), "portrait_pair_framing") && saved.pair_framing != PairFraming::FollowPhotos &&
+  if (!provided("display_mode")) {
+    // Established libraries without an explicit choice used the old Fit default.
+    const bool keep_framing = configured && (saved.has_immich() || cJSON_HasObjectItem(previous.get(), "display_mode"));
+    const auto framing = keep_framing ? saved.display_mode : new_setup_framing;
+    if (!cJSON_AddStringToObject(document.get(), "display_mode", display_mode_name(framing)))
+      return Result::Rejected;
+  }
+  if (!provided("portrait_pair_framing") && saved.pair_framing != PairFraming::FollowPhotos &&
       !cJSON_AddStringToObject(document.get(), "portrait_pair_framing", pair_framing_name(saved.pair_framing)))
     return Result::Rejected;
   Settings candidate;
@@ -747,7 +756,8 @@ bool Settings::save_wifi(const WifiCredentials &wifi, uint32_t expected_epoch) {
       return false;
     document.reset(cJSON_CreateObject());
     if (!document || !cJSON_AddStringToObject(document.get(), "immich_url", "") ||
-        !cJSON_AddStringToObject(document.get(), "immich_key", ""))
+        !cJSON_AddStringToObject(document.get(), "immich_key", "") ||
+        !cJSON_AddStringToObject(document.get(), "display_mode", display_mode_name(new_setup_framing)))
       return false;
   }
   Settings candidate;

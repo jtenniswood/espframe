@@ -116,6 +116,8 @@ backup.addEventListener('change', async () => {
     if (chooseSource) form.elements.photo_source.value = ''
     if (settings.photo_source && settings.photo_source !== 'album') form.elements.album_id.value = ''
     form.elements.photo_orientation.value = 'Any'
+    form.elements.display_mode.value = ''
+    form.elements.portrait_pair_framing.value = ''
     for (const [name, value] of Object.entries({ ...photoFilterDefaults, ...settings })) {
       if (typeof value === 'boolean') form.elements[name].checked = value
       else form.elements[name].value = value
@@ -249,6 +251,7 @@ if ('serial' in navigator) {
     data.portrait_pairing = form.elements.portrait_pairing.checked
     data.portrait_pairs_only = form.elements.portrait_pairs_only.checked
     data.portrait_pairing_range = form.elements.portrait_pairing_range.value
+    if (!data.display_mode) delete data.display_mode
     const pairFraming = form.elements.portrait_pair_framing.value
     if (pairFraming) data.portrait_pair_framing = pairFraming
     else delete data.portrait_pair_framing

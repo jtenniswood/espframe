@@ -95,8 +95,8 @@ const verify = `
   }
   async function runSetup() {
     const form = document.querySelector('#settings')
-    if (form.elements.portrait_pair_framing.value !== '')
-      throw new Error('Opening the installer selected a replacement for saved portrait framing')
+    if (form.elements.display_mode.value !== '' || form.elements.portrait_pair_framing.value !== '')
+      throw new Error('Opening the installer selected a replacement for saved framing')
     const file = document.querySelector('#backup')
     const status = document.querySelector('#backup-status')
     function loadBackup(json, message) {
@@ -123,6 +123,9 @@ const verify = `
       throw new Error('Active paired-portrait preference was not imported')
     if (form.elements.portrait_pairing_range.value !== 'Within 2 Days' || form.elements.portrait_pairing_range.disabled)
       throw new Error('Existing pairing range was not imported')
+    await loadBackup(${JSON.stringify(JSON.stringify(personBackup))}, 'Backup loaded.')
+    if (form.elements.display_mode.value !== '' || form.elements.portrait_pair_framing.value !== '')
+      throw new Error('A backup without framing kept framing from a different backup')
     await loadBackup(${JSON.stringify(JSON.stringify(malformedBackup))}, 'Choose a photo source before saving.')
     if (form.elements.photo_source.value || form.checkValidity()) throw new Error('Unrepresentable filters allowed a save')
     form.requestSubmit()
@@ -234,7 +237,8 @@ const verify = `
     await reused
     if (attempts !== 4 || received.immich_key !== 'after-improv'
       || Object.hasOwn(received, 'ssid') || Object.hasOwn(received, 'password') || Object.hasOwn(received, 'frame_name')
-      || Object.hasOwn(received, 'home_assistant_key') || Object.hasOwn(received, 'portrait_pair_framing')
+      || Object.hasOwn(received, 'home_assistant_key') || Object.hasOwn(received, 'display_mode')
+      || Object.hasOwn(received, 'portrait_pair_framing')
       || Object.hasOwn(received, 'prepared_slide_url')
       || Object.hasOwn(received, 'prepared_slide_token'))
       throw new Error('Immich setup sent settings that were left blank')
