@@ -29,6 +29,7 @@ int requests;
 int reply = 200;
 bool interrupt_wait;
 bool hold_download;
+bool cancel_after_transfer;
 int64_t now_us = 100'000;
 TickType_t last_wait_ms{};
 std::atomic<bool> slide_cancelled{};
@@ -67,6 +68,8 @@ int xSemaphoreTake(SemaphoreHandle_t semaphore, TickType_t timeout) {
       return 0;
     }
     service_download();
+    if (std::exchange(cancel_after_transfer, false))
+      slide_cancelled = true;
   }
   return std::exchange(semaphore->ready, false);
 }
@@ -139,6 +142,7 @@ int main() {
   prefetch.start(asset('c'), 1, base_url, key);
   service_download();
   assert(!prefetch.take(asset('c'), 2, buffer) && buffer[0] == 'b');
+  assert(!prefetch.take(asset('c'), 1, buffer));
   prefetch.start(asset('d'), 2, base_url, key);
   interrupt_wait = true;
   assert(!prefetch.take(asset('d'), 2, buffer) && buffer[0] == 'b');
@@ -194,5 +198,34 @@ int main() {
   prefetch.start(asset('j'), 2, base_url, key);
   assert(task.notified && prefetch.take(asset('j'), 2, buffer) == 1);
   assert(requests == 7 && task_creations == 1 && buffer[0] == 'j');
+
+  // A rewind may need a different preview before the already downloaded
+  // lookahead is needed again.
+  prefetch.start(asset('k'), 2, base_url, key);
+  service_download();
+  const auto downloaded = requests;
+  slide_cancelled = true;
+  prefetch.cancel_incomplete();
+  assert(!prefetch.take(asset('k'), 2, buffer));
+  slide_cancelled = false;
+  assert(!prefetch.take(asset('l'), 2, buffer));
+  assert(prefetch.take(asset('k'), 2, buffer) == 1);
+  assert(requests == downloaded && buffer[0] == 'k');
+
+  // A queued transfer still yields without holding up the new swipe.
+  prefetch.start(asset('m'), 2, base_url, key);
+  prefetch.cancel_incomplete();
+  assert(task.notified && !prefetch.take(asset('m'), 2, buffer));
+  service_download();
+  assert(requests == downloaded);
+
+  // Cancellation can arrive after the download signaled completion.
+  prefetch.start(asset('n'), 2, base_url, key);
+  cancel_after_transfer = true;
+  assert(!prefetch.take(asset('n'), 2, buffer) && buffer[0] == 'k');
+  assert(slide_cancelled && requests == downloaded + 1);
+  slide_cancelled = false;
+  assert(prefetch.take(asset('n'), 2, buffer) == 1 && buffer[0] == 'n');
+  assert(requests == downloaded + 1);
   prefetch.release_on_memory_pressure();
 }

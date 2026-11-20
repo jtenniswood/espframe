@@ -56,14 +56,22 @@ size_t PreviewPrefetch::take(const AssetId &id, uint32_t connection, std::span<u
                              int64_t deadline_us) {
   if (!pending_ || cancelled_)
     return 0;
-  if (id != id_ || connection != connection_ || destination.empty()) {
+  if (connection != connection_) {
     cancel();
+    return 0;
+  }
+  if (id != id_ || destination.empty()) {
+    cancel_incomplete();
     return 0;
   }
   constexpr int64_t poll_interval_us = 10'000;
   for (;;) {
     const auto remaining = deadline_us ? deadline_us - esp_timer_get_time() : poll_interval_us;
-    if (slide_cancelled_ || remaining <= 0) {
+    if (slide_cancelled_) {
+      cancel_incomplete();
+      return 0;
+    }
+    if (remaining <= 0) {
       cancel();
       return 0;
     }
@@ -71,14 +79,29 @@ size_t PreviewPrefetch::take(const AssetId &id, uint32_t connection, std::span<u
     if (xSemaphoreTake(complete_, pdMS_TO_TICKS(wait_ms)) == pdTRUE)
       break;
   }
+  if (slide_cancelled_) {
+    xSemaphoreGive(complete_);
+    return 0;
+  }
   pending_ = false;
-  if (slide_cancelled_ || (deadline_us && esp_timer_get_time() >= deadline_us) ||
-      !length_ || length_ > destination.size())
+  if ((deadline_us && esp_timer_get_time() >= deadline_us) || !length_ || length_ > destination.size())
     return 0;
   // Keep the staging buffer smaller than the foreground download limit.
   // Once copied, the slot can start filling again during this decode.
   std::memcpy(destination.data(), buffer_, length_);
   return length_;
+}
+
+void PreviewPrefetch::cancel_incomplete() {
+  if (!pending_ || cancelled_)
+    return;
+  if (xSemaphoreTake(complete_, 0) != pdTRUE) {
+    cancel();
+  } else {
+    // The preparation task owns the slot again. Leave the result for a
+    // later request for this asset without moving or copying its bytes.
+    xSemaphoreGive(complete_);
+  }
 }
 
 void PreviewPrefetch::release_on_memory_pressure() {

@@ -20,6 +20,7 @@ class PreviewPrefetch {
   void start(const AssetId &id, uint32_t connection, const std::string &base_url, const std::string &key);
   size_t take(const AssetId &id, uint32_t connection, std::span<uint8_t> destination, int64_t deadline_us = 0);
   void cancel() { cancelled_ = true; }
+  void cancel_incomplete();
   void release_on_memory_pressure();
 
  private:

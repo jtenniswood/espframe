@@ -718,7 +718,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     return !cancelled_ && more_candidates ? PrepareResult::NextCandidate : PrepareResult::Retry;
   };
   const auto retry_frame = [&] {
-    this->prefetch_.cancel();
+    this->prefetch_.cancel_incomplete();
     if (!remembered)
       this->pending_.push_back(seed);
     return PrepareResult::Retry;
