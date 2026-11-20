@@ -1,0 +1,99 @@
+:root {
+  color-scheme: light dark;
+  font: 16px/1.5 system-ui, sans-serif;
+}
+
+main {
+  width: min(100% - 2rem, 34rem);
+  margin: 3rem auto;
+}
+
+h1, h2 {
+  line-height: 1.2;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 2.75rem);
+}
+
+section {
+  margin: 2rem 0;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid color-mix(in srgb, CanvasText 18%, Canvas);
+  border-radius: 1rem;
+}
+
+section h2 {
+  margin: 0 0 .75rem;
+  font-size: 1.22rem;
+}
+
+label,
+input,
+select,
+small {
+  display: block;
+}
+
+label {
+  margin-top: .75rem;
+}
+
+input,
+select {
+  box-sizing: border-box;
+  width: 100%;
+  margin: .2rem 0;
+  padding: .65rem;
+  border: 1px solid color-mix(in srgb, CanvasText 30%, Canvas);
+  border-radius: .45rem;
+  font: inherit;
+}
+
+button {
+  margin-top: .85rem;
+  padding: .65rem 1rem;
+  border: 0;
+  border-radius: .5rem;
+  background: #304c40;
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+input.inline-option {
+  display: inline-block;
+  width: auto;
+  margin-inline-end: .3rem;
+}
+
+details {
+  margin-top: 1rem;
+}
+
+button:disabled {
+  opacity: .55;
+  cursor: default;
+}
+
+#confirm-reset {
+  width: min(100% - 4rem, 27rem);
+  padding: 1.25rem 1.5rem;
+  border: 1px solid color-mix(in srgb, CanvasText 18%, Canvas);
+  border-radius: 1rem;
+}
+
+#confirm-reset h2 {
+  margin: 0;
+}
+
+#confirm-reset button + button,
+#confirm-factory-reset button + button {
+  margin-inline-start: .5rem;
+}
+
+esp-web-install-button[hidden] {
+  display: none;
+}
