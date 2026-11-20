@@ -275,6 +275,39 @@ class ReplayTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "restarted"):
             replays.capture(FRAME, ORIGIN, 2)
 
+    @patch.object(replays, "read_json")
+    def test_capture_touch_preserves_landing_and_detail_reports(self, get):
+        run = example(True)
+        profile, benchmark = run["profile"], run["benchmark"]
+        profile["thumbnailSha256"] = "thumbnail fixture"
+        benchmark.update(replay_touch=True, scripted=False, replay_staged_detail=True,
+                         physical_drags={"forward": 3, "backward": 2, "returned": 1,
+                                         "cancelled": 0, "interrupted": 1})
+        run["status"]["last_detail_slide"] = 2
+        run["replay_stats"] = {"failedDetails": 0}
+        get.side_effect = [profile, benchmark, run["status"], run["preparation"],
+                           run["replay_stats"], benchmark, profile]
+        self.assertEqual(replays.capture_touch(FRAME, ORIGIN), run)
+
+    @patch.object(replays, "read_json")
+    def test_capture_touch_rejects_scripted_and_moving_captures(self, get):
+        run = example(True)
+        profile, benchmark = run["profile"], run["benchmark"]
+        get.side_effect = [profile, benchmark]
+        with self.assertRaisesRegex(ValueError, "physical-touch trial"):
+            replays.capture_touch(FRAME, ORIGIN)
+
+        benchmark.update(replay_touch=True, scripted=False, replay_staged_detail=True)
+        get.side_effect = [profile, benchmark]
+        with self.assertRaisesRegex(ValueError, "matched thumbnail capture"):
+            replays.capture_touch(FRAME, ORIGIN)
+
+        profile["thumbnailSha256"] = "thumbnail fixture"
+        get.side_effect = [profile, benchmark, run["status"], run["preparation"],
+                           {}, {**benchmark, "cache_hits": 4}]
+        with self.assertRaisesRegex(ValueError, "last swipe to settle"):
+            replays.capture_touch(FRAME, ORIGIN)
+
 
 if __name__ == "__main__":
     unittest.main()

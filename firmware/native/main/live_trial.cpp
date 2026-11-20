@@ -32,6 +32,7 @@ std::atomic<uint32_t> thumbnail_slides{};
 std::atomic<uint32_t> detail_presentations{};
 std::atomic<int32_t> last_detail_slide{-1};
 std::atomic<uint32_t> last_detail_latency_ms{};
+std::atomic<int32_t> last_aligned_touch_slide{-1};
 std::atomic<unsigned> cache_slots{};
 std::atomic<unsigned> ready_ahead{};
 std::atomic<uint32_t> first_photo_ms{};
@@ -148,14 +149,15 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 script.offline_ready_last);
 #endif
   const auto period = Display::nominal_frame_period_us();
-  char replay[192]{};
+  char replay[216]{};
   if constexpr (direct_trial_replay) {
     std::snprintf(replay, sizeof(replay),
                   ",\"direct_replay_lookahead\":%s,\"direct_replay_companion_prefetch\":%s,\"replay_pair_fill\":%s"
-                  ",\"replay_origin\":\"%s\"%s",
+                  ",\"replay_origin\":\"%s\"%s%s",
                   SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD ? "false" : "true",
                   prefetch_portrait_companion ? "true" : "false", trial_replay_pair_fill ? "true" : "false",
-                  trial_replay_origin.data(), trial_replay_staged_detail ? ",\"replay_staged_detail\":true" : "");
+                  trial_replay_origin.data(), trial_replay_staged_detail ? ",\"replay_staged_detail\":true" : "",
+                  trial_replay_touch ? ",\"replay_touch\":true" : "");
   } else if constexpr (synthetic_trial_replay) {
     std::snprintf(replay, sizeof(replay), ",\"replay_prepared\":true,\"replay_pair_fill\":%s,\"replay_origin\":\"%s\"",
                   trial_replay_pair_fill ? "true" : "false", trial_replay_origin.data());
@@ -295,14 +297,19 @@ esp_err_t status(httpd_req_t *request) {
   const auto &network = *static_cast<const NativeNetwork *>(request->user_ctx);
   const auto prepared = prepared_slides.load(std::memory_order_acquire);
   const auto gestures = swipes.load(std::memory_order_acquire);
-  char detail[152]{};
+  char presentation[184]{};
   if constexpr (trial_replay_staged_detail) {
     const auto presentations = detail_presentations.load(std::memory_order_acquire);
-    std::snprintf(detail, sizeof(detail),
+    std::snprintf(presentation, sizeof(presentation),
                   ",\"thumbnail_slides\":%" PRIu32 ",\"detail_presentations\":%" PRIu32
                   ",\"last_detail_slide\":%" PRId32 ",\"last_detail_latency_ms\":%" PRIu32,
                   thumbnail_slides.load(std::memory_order_relaxed), presentations,
                   last_detail_slide.load(std::memory_order_relaxed), last_detail_latency_ms.load(std::memory_order_relaxed));
+  }
+  if constexpr (trial_replay_touch) {
+    const auto used = std::strlen(presentation);
+    std::snprintf(presentation + used, sizeof(presentation) - used,
+                  ",\"last_aligned_slide\":%" PRId32, last_aligned_touch_slide.load(std::memory_order_relaxed));
   }
   char body[1152]{};
   const auto length = std::snprintf(body, sizeof(body),
@@ -335,7 +342,7 @@ esp_err_t status(httpd_req_t *request) {
                 search_http.load(std::memory_order_relaxed), photo_candidates.load(std::memory_order_relaxed),
                 pairing_http.load(std::memory_order_relaxed), pair_candidates.load(std::memory_order_relaxed),
                 pairing_range_days.load(std::memory_order_relaxed),
-                preview_http.load(std::memory_order_relaxed), preview_requests.load(std::memory_order_relaxed), detail);
+                preview_http.load(std::memory_order_relaxed), preview_requests.load(std::memory_order_relaxed), presentation);
   if (length < 0 || static_cast<size_t>(length) >= sizeof(body))
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not format trial status");
   httpd_resp_set_type(request, "application/json");
@@ -531,6 +538,10 @@ void record_live_trial_detail_presented(int64_t slide, uint32_t request_to_panel
   last_detail_slide.store(static_cast<int32_t>(slide), std::memory_order_relaxed);
   last_detail_latency_ms.store(request_to_panel_ms, std::memory_order_relaxed);
   detail_presentations.fetch_add(1, std::memory_order_release);
+}
+
+void record_live_trial_touch_slide(int64_t slide) {
+  last_aligned_touch_slide.store(static_cast<int32_t>(slide), std::memory_order_relaxed);
 }
 
 void record_live_trial_photo(uint32_t elapsed_ms) {

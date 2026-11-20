@@ -156,6 +156,45 @@ For a retry run, set `REPLAY_FAIL_DETAIL_ONCE=1` on the replay server. The
 first full-preview request returns HTTP 503. The capture also verifies that
 the server saw the injected error.
 
+### Compare the handoff with physical touch
+
+Use the same paired preview and thumbnail captures. Build both physical-touch
+variants from the same revision and point them at the same replay origin.
+The frame advances to the first photo on startup and then holds each settled
+photo for inspection. Both apps read the actual touchscreen and roll back
+after five minutes.
+
+```sh
+for stage in OFF ON; do
+  idf.py -C firmware/native -B "firmware/native/build/touch-replay-$stage" \
+    -D SWIPE_BOARD=v1 -D SWIPE_ESPHOME_TRIAL=ON -D SWIPE_TRIAL_IMMICH=ON \
+    -D SWIPE_TRIAL_BENCHMARK=OFF -D SWIPE_TRIAL_REPLAY_TOUCH=ON \
+    -D SWIPE_TRIAL_REPLAY_ORIGIN="http://$REPLAY_IP:9116" \
+    -D SWIPE_TRIAL_REPLAY_PAIR_FILL=ON -D SWIPE_TRIAL_REPLAY_STAGED_DETAIL="$stage" build
+done
+```
+
+For each build, restart the replay server and complete the
+[V1 rollback readiness check](../README.md#verify-the-rollback-and-gestures).
+Upload only `espframe_v1_live_trial.bin` from that build. Drag and cancel,
+flick forward, reverse direction, and pause on a portrait pair. Record
+the screen at high frame rate so you can inspect the finger-to-photo
+response, the animation and the change in detail after release.
+
+After the last swipe has settled and the picture has finished redrawing,
+capture the firmware's landing counts and timing reports over Wi-Fi.
+Use separate output files for the full-preview and staged builds.
+
+```sh
+python3 firmware/native/tools/compare_preview_replays.py capture-touch \
+  --frame "http://$FRAME_IP" --replay "http://$REPLAY_IP:9116" touch-staged.json
+```
+
+Check that the preview hashes and pair framing match across both runs.
+The capture includes the panel handoff, gesture counts and the most recent
+whole slide presented by the frame. Measure visible movement and tearing
+from the video.
+
 ### Measure direct preview lookahead
 
 Build the direct replay twice from the same revision, using the same replay origin and separate build directories. Set `-D SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD=ON` for the control and set it to `OFF` for lookahead. For each run, restart the synthetic server with the same settings, then follow the [V1 rollback readiness and app-only trial instructions](../README.md#verify-the-rollback-and-gestures).

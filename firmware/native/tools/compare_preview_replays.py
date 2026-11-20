@@ -61,6 +61,27 @@ def capture(frame, replay, timeout):
     return result
 
 
+def capture_touch(frame, replay):
+    profile = read_json(replay, "/replay-profile")
+    benchmark = read_json(frame, "/api/trial/benchmark")
+    if (benchmark.get("replay_touch") is not True or benchmark.get("scripted") is not False
+            or benchmark.get("source") != "immich" or benchmark.get("replay_origin") != replay):
+        raise ValueError("The frame is not running a physical-touch trial for this replay server")
+    if benchmark.get("replay_staged_detail") is True and not profile.get("thumbnailSha256"):
+        raise ValueError("The staged touch replay needs the matched thumbnail capture")
+    result = {
+        "frame": frame, "profile": profile, "benchmark": benchmark,
+        "status": read_json(frame, "/api/trial"),
+        "preparation": read_json(frame, "/api/trial/prepare"),
+        "replay_stats": read_json(replay, "/replay-stats"),
+    }
+    if benchmark != read_json(frame, "/api/trial/benchmark"):
+        raise ValueError("Gesture counts or timings changed during capture. Wait for the last swipe to settle")
+    if profile != read_json(replay, "/replay-profile"):
+        raise ValueError("The replay server restarted during capture")
+    return result
+
+
 def validate(run, *, lookahead):
     benchmark = run["benchmark"]
     prepared = lookahead is None
@@ -257,10 +278,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     actions = parser.add_subparsers(dest="action", required=True)
     collect = actions.add_parser("capture", help="Wait for the trial and save its reports")
-    collect.add_argument("--frame", required=True, help="HTTP origin of the V1 trial")
-    collect.add_argument("--replay", required=True, help="HTTP origin of the synthetic replay server")
     collect.add_argument("--timeout", type=int, default=120, help="Seconds to wait for the scripted run")
-    collect.add_argument("output", type=Path)
+    touch = actions.add_parser("capture-touch", help="Save the current reports from a physical-touch replay")
+    for command in (collect, touch):
+        command.add_argument("--frame", required=True, help="HTTP origin of the V1 trial")
+        command.add_argument("--replay", required=True, help="HTTP origin of the synthetic replay server")
+        command.add_argument("output", type=Path)
     summarize = actions.add_parser("compare", help="Compare two preview captures")
     summarize.add_argument("control", type=Path)
     summarize.add_argument("candidate", type=Path)
@@ -275,8 +298,9 @@ def main():
                          help="Compare two direct preview encodes of the same synthetic source photos")
     args = parser.parse_args()
     try:
-        if args.action == "capture":
-            result = capture(args.frame.rstrip("/"), args.replay.rstrip("/"), args.timeout)
+        if args.action in ("capture", "capture-touch"):
+            frame, replay = args.frame.rstrip("/"), args.replay.rstrip("/")
+            result = capture(frame, replay, args.timeout) if args.action == "capture" else capture_touch(frame, replay)
             with args.output.open("x") as output:
                 json.dump(result, output, indent=2)
                 output.write("\n")

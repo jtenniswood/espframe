@@ -637,6 +637,8 @@ ESPHome returns after two minutes.
 The measurements start at a touch report and end at an LCD DMA handoff.
 Use the regular live trial with physical touch and high-frame-rate video to
 check sensor response, visible animation pacing, and tearing.
+To compare the detail handoff on the same photos, use the
+[physical-touch replay](prepared-slides/README.md#compare-the-handoff-with-physical-touch).
 
 #### Verify cached swipes during a Wi-Fi outage
 

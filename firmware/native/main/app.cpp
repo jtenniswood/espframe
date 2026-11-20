@@ -630,6 +630,11 @@ void run(void *) {
       next_clock_poll = now + 250'000;
     }
     if (const auto scanout = display.poll_presented()) {
+      if constexpr (trial_replay_touch) {
+        const auto presented = display.presented_position();
+        if (presented % slide_width == 0)
+          record_live_trial_touch_slide(presented / slide_width);
+      }
       if constexpr (trial_replay_staged_detail) {
         if (detail_submitted && display.presented_position() == detail_submitted->slide * slide_width) {
           record_live_trial_detail_presented(detail_submitted->slide,
@@ -1020,8 +1025,9 @@ void run(void *) {
       const bool first_photo = swipe.settled() == 0;
       const bool source_changed = source_anchor == swipe.settled();
       const bool dwelling = visible_and_idle && !fade.running() && !fade.held();
-      // Outage tests count only scripted swipes after the startup scene.
-      if ((!(SWIPE_TRIAL_REPLAY_HISTORY || SWIPE_TRIAL_WIFI_OUTAGE) || first_photo) &&
+      // Keep the settled photo available for inspection during the touch replay.
+      constexpr bool hold_photo = SWIPE_TRIAL_REPLAY_HISTORY || SWIPE_TRIAL_WIFI_OUTAGE || trial_replay_touch;
+      if ((!hold_photo || first_photo) &&
           dwell.elapsed(now, dwelling, first_photo || source_changed ? 0 : loader.slide_interval_us())) {
         const auto anchor = swipe.settled();
         if (first_photo) {
@@ -1217,7 +1223,8 @@ void run(void *) {
 
 void start_player() {
   if constexpr (esphome_trial) {
-    constexpr unsigned trial_seconds = trial_fixtures || !trial_replay_origin.empty() ? 120 : trial_immich ? 300 : 180;
+    constexpr bool short_trial = trial_fixtures || (synthetic_trial_replay && !trial_replay_touch);
+    constexpr unsigned trial_seconds = short_trial ? 120 : trial_immich ? 300 : 180;
     if (!start_esphome_trial(trial_seconds))
       return;
   } else {

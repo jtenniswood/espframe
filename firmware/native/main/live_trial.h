@@ -56,6 +56,7 @@ void record_live_trial_progressive_jpeg(TrialJpegPhaseTiming input, TrialJpegPha
 void record_live_trial_replay_slide(bool paired, bool fill_edges_match);
 void record_live_trial_thumbnail_ready();
 void record_live_trial_detail_presented(int64_t slide, uint32_t request_to_panel_ms);
+void record_live_trial_touch_slide(int64_t slide);
 void record_live_trial_photo(uint32_t elapsed_ms);
 void record_live_trial_cache(unsigned slots, unsigned ahead);
 void record_live_trial_gesture(uint32_t motion_us, const FirstMotionTrace &motion);
