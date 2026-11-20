@@ -1,0 +1,6 @@
+/build/
+/sdkconfig
+/sdkconfig.old
+/photos/
+/managed_components/
+/tests/home_assistant/managed_components/
