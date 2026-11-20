@@ -12,6 +12,7 @@ namespace espframe::native {
 class Swipe {
  public:
   enum class Transition { Quick, Glide };
+  enum class DragActivity { Still, Starting, Moving };
   static constexpr int64_t max_loading_wait_us = 750'000;
 
   Swipe(int width, SlideIndex slide_count, SlideIndex initial_slide)
@@ -25,6 +26,11 @@ class Swipe {
   SlideIndex origin_slide() const { return this->origin_slide_; }
   bool idle() const { return this->phase_ == Phase::Idle; }
   bool dragging() const { return this->phase_ == Phase::Dragging; }
+  DragActivity drag_activity(int64_t now_us, int64_t window_us) const {
+    if (!dragging() || now_us - this->last_motion_us_ >= window_us)
+      return DragActivity::Still;
+    return now_us - this->drag_started_us_ < window_us ? DragActivity::Starting : DragActivity::Moving;
+  }
   bool settling() const { return this->phase_ == Phase::Settling; }
   SlideIndex settle_destination() const { return this->settling() ? this->target_ : this->settled_; }
   std::optional<SlideIndex> waiting_slide() const {
@@ -131,6 +137,7 @@ class Swipe {
         return;
       }
       this->phase_ = Phase::Dragging;
+      this->drag_started_us_ = now_us;
     }
     if (this->phase_ != Phase::Dragging)
       return;
@@ -326,6 +333,7 @@ class Swipe {
   float origin_offset_{};
   std::optional<float> release_offset_;
   float velocity_{};
+  int64_t drag_started_us_{};
   int64_t last_motion_us_{};
   float settle_from_{};
   float duration_us_{};

@@ -558,6 +558,7 @@ void run(void *) {
   bool preparing_refresh = false;
   unsigned reported_ahead = 0;
   std::array<SlideRetry, SlideCache::capacity> retries{};
+  const auto drag_start_guard_us = 3 * Display::nominal_frame_period_us();
 
   while (true) {
     auto now = esp_timer_get_time();
@@ -850,14 +851,17 @@ void run(void *) {
       return wanted && available.contains(candidate) && (!live || trial_fixtures || candidate <= next_photo) &&
              retries[candidate % retries.size()].due(candidate, now, active_connection);
     };
-    // Protect the finger-driven frames. A short ready range can refill during
-    // settle, and an explicit cache-edge request can refill immediately.
+    // Let a stationary contact give time back to the worker. Protect the
+    // start of a swipe even when only its landing is ready.
     const bool contact_engaged = input.engaged();
     user_motion = input.awake() && (contact_engaged ||
                   (user_motion && (!swipe.idle() || swipe.position() != display.presented_position())));
     if (live && !trial_fixtures) {
-      const bool can_defer = swipe.dragging() ? prefetch.can_defer_drag(ready, swipe.origin_slide(), swipe.position())
-                               : prefetch.can_defer_pixel_work(ready, contact_engaged, swipe.settle_destination());
+      const auto drag = swipe.drag_activity(now, drag_start_guard_us);
+      const bool can_defer = drag != Swipe::DragActivity::Still
+                                 ? prefetch.can_defer_drag(ready, swipe.origin_slide(), swipe.position(),
+                                                           drag == Swipe::DragActivity::Starting)
+                                 : !contact_engaged && prefetch.can_defer_settle(ready, swipe.settle_destination());
       loader.defer_pixel_work(user_motion && can_defer);
     }
     if (preparing >= 0) {

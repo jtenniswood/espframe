@@ -70,14 +70,17 @@ int main() {
   SlidePrefetch prefetch{10};
   auto window = prefetch.window(available);
   assert(window.first == 8 && window.last == 13);
-  assert(!SlidePrefetch{0}.can_defer_pixel_work({0, 1}, true, 0));
-  assert(!prefetch.can_defer_pixel_work({10, 10}, true, 10));
-  assert(!prefetch.can_defer_pixel_work({9, 10}, true, 10) && prefetch.can_defer_pixel_work({10, 11}, true, 10));
-  assert(!prefetch.can_defer_pixel_work({10, 11}, false, 10) && prefetch.can_defer_pixel_work({10, 12}, false, 10));
-  assert(prefetch.can_defer_drag({9, 10}, 10, 10 * slide_width - 20));
-  assert(!prefetch.can_defer_drag({9, 10}, 10, 10 * slide_width + 20));
-  assert(prefetch.can_defer_drag({10, 11}, 10, 10 * slide_width + 20));
-  assert(!SlidePrefetch{0}.can_defer_drag({0, 1}, 0, 20));
+  assert(!prefetch.can_defer_settle({10, 11}, 10) && prefetch.can_defer_settle({10, 12}, 10));
+  constexpr auto left_pull = 10 * slide_width - 20;
+  constexpr auto right_pull = 10 * slide_width + 20;
+  assert(prefetch.can_defer_drag({9, 10}, 10, left_pull, true));
+  assert(!prefetch.can_defer_drag({9, 10}, 10, left_pull, false));
+  assert(prefetch.can_defer_drag({8, 10}, 10, left_pull, false));
+  assert(!prefetch.can_defer_drag({9, 10}, 10, right_pull, true));
+  assert(prefetch.can_defer_drag({10, 11}, 10, right_pull, true));
+  assert(!prefetch.can_defer_drag({10, 11}, 10, right_pull, false));
+  assert(prefetch.can_defer_drag({10, 12}, 10, right_pull, false));
+  assert(!SlidePrefetch{0}.can_defer_drag({0, 1}, 0, 20, true));
   const auto forward = prefetch.candidates(window);
   // A missing slide 9 must not delay preparing 12 for the next forward swipe.
   assert(forward[2] == 11 && forward[3] == 12 && forward[4] == 9);
@@ -89,8 +92,8 @@ int main() {
   assert(deeper.window(available).first == 3 && deeper.window(available).last == 11);
   const auto backward = deeper.candidates(deeper.window(available));
   assert(backward[2] == 8 && backward[3] == 7 && backward[4] == 10);
-  assert(deeper.can_defer_pixel_work({8, 11}, true, 9) && !deeper.can_defer_pixel_work({8, 11}, false, 9));
-  assert(deeper.can_defer_pixel_work({7, 11}, false, 9));
+  assert(!deeper.can_defer_settle({8, 11}, 9));
+  assert(deeper.can_defer_settle({7, 11}, 9));
   deeper.moved_to(1);
   assert(deeper.window(available).first == 1 && deeper.window(available).last == 9);
   assert(deeper.candidates(deeper.window(available))[9] == 9);
@@ -100,11 +103,11 @@ int main() {
   landing.press(850, 200, 10 * slide_width, 10'000);
   landing.move(250, 200, 30'000);
   assert(landing.dragging() && landing.settle_destination() == 10);
-  assert(prefetch.can_defer_pixel_work({8, 12}, true, landing.settle_destination()));
+  assert(prefetch.can_defer_drag({8, 12}, landing.origin_slide(), landing.position(), false));
   landing.release(35'000);
   assert(landing.settling() && landing.settle_destination() == 11);
-  assert(!prefetch.can_defer_pixel_work({8, 12}, false, landing.settle_destination()));
-  assert(prefetch.can_defer_pixel_work({8, 13}, false, landing.settle_destination()));
+  assert(!prefetch.can_defer_settle({8, 12}, landing.settle_destination()));
+  assert(prefetch.can_defer_settle({8, 13}, landing.settle_destination()));
 
   // A reversal counts the ready photos behind the backward landing.
   landing.show(10);
@@ -112,8 +115,8 @@ int main() {
   landing.move(850, 200, 60'000);
   landing.release(65'000);
   assert(landing.settling() && landing.settle_destination() == 9);
-  assert(!prefetch.can_defer_pixel_work({8, 13}, false, landing.settle_destination()));
-  assert(prefetch.can_defer_pixel_work({7, 13}, false, landing.settle_destination()));
+  assert(!prefetch.can_defer_settle({8, 13}, landing.settle_destination()));
+  assert(prefetch.can_defer_settle({7, 13}, landing.settle_destination()));
 
   uint16_t pixels[SlideCache::minimum_capacity]{};
   SlideCache::Buffers buffers{};
@@ -146,11 +149,10 @@ int main() {
   swipe.move(900, 200, 310'000);
   prefetch.request_at_edge(swipe.position(), {10, 12}, available);
   assert(prefetch.requested() == 9 && prefetch.candidates(prefetch.window(available))[1] == 9);
-  assert(!prefetch.can_defer_pixel_work({10, 12}, true, 10));
-  assert(!prefetch.can_defer_pixel_work({10, 12}, false, 10));
+  assert(!prefetch.can_defer_settle({10, 12}, 10));
 
   prefetch.prepared(9);
-  assert(prefetch.can_defer_drag({9, 12}, 10, 10 * slide_width - 20));
+  assert(prefetch.can_defer_drag({9, 12}, 10, left_pull, true));
   prefetch.request_at_edge(8 * slide_width - 20, {8, 12}, available);
   assert(prefetch.requested() == 7 && prefetch.candidates(prefetch.window(available))[1] == 7);
   assert(prefetch.can_yield(13, 7));
@@ -170,7 +172,7 @@ int main() {
   const auto held_edge = swipe.position();
   swipe.release(320'000);
   prefetch.request_after_drag(swipe.waiting_slide());
-  assert(prefetch.requested() == 9 && !prefetch.can_defer_pixel_work({10, 12}, false, 10));
+  assert(prefetch.requested() == 9 && !prefetch.can_defer_settle({10, 12}, 10));
   swipe.tick(500'000);
   assert(swipe.loading_direction(500'000) == -1 && swipe.position() == held_edge);
   swipe.set_ready_range(7, 12);
@@ -199,11 +201,11 @@ int main() {
   active_drag.move(900, 200, 1'120'000);
   reverse_drag.request_at_edge(active_drag.position(), {10, 11}, available);
   assert(reverse_drag.requested() == 9 && reverse_drag.window(available).first == 7);
-  assert(!reverse_drag.can_defer_drag({10, 11}, 10, active_drag.position()));
+  assert(!reverse_drag.can_defer_drag({10, 11}, 10, active_drag.position(), true));
   active_drag.move(100, 200, 1'240'000);
   reverse_drag.request_at_edge(active_drag.position(), {10, 11}, available);
   assert(!reverse_drag.requested() && reverse_drag.window(available).first == 8);
-  assert(reverse_drag.can_defer_drag({10, 11}, 10, active_drag.position()));
+  assert(reverse_drag.can_defer_drag({10, 11}, 10, active_drag.position(), true));
   active_drag.release(1'360'000);
   assert(!active_drag.waiting_slide() && active_drag.settle_destination() == 11);
 
@@ -233,12 +235,12 @@ int main() {
   forward_edge.request_at_edge(10 * slide_width + 20, cold_edge, available);
   assert(forward_edge.requested() == 11 && forward_edge.can_yield(8, 11));
   forward_edge.request_after_drag({});
-  assert(forward_edge.requested() == 11 && !forward_edge.can_defer_pixel_work(cold_edge, false, 10));
+  assert(forward_edge.requested() == 11 && !forward_edge.can_defer_settle(cold_edge, 10));
   const auto forward_order = forward_edge.candidates(forward_edge.window(available));
   assert(forward_order[1] == 11 && forward_order[2] == 11 && forward_order[3] == 12);
   forward_edge.prepared(11);
   forward_edge.request_after_drag({});
-  assert(!forward_edge.requested() && forward_edge.can_defer_drag({8, 11}, 10, 10 * slide_width + 20));
+  assert(!forward_edge.requested() && forward_edge.can_defer_drag({8, 11}, 10, right_pull, true));
   forward_edge.request_at_edge(10 * slide_width + 20, cold_edge, {8, 10});
   forward_edge.request_after_drag({});
   assert(!forward_edge.requested());
@@ -272,7 +274,7 @@ int main() {
   assert(takeover.dragging() && takeover.origin_slide() == 15);
   reverse_window.request_at_edge(takeover.position(), ready, available);
   assert(!reverse_window.requested());
-  assert(reverse_window.can_defer_drag({15, 17}, takeover.origin_slide(), takeover.position()));
+  assert(reverse_window.can_defer_drag({15, 17}, takeover.origin_slide(), takeover.position(), true));
   const auto retain = takeover.retain_for_motion(reverse_keep, presented);
   assert(retain.first == 5 && retain.last == 16);
   const auto refill = wide_cache.reserve(6, retain.first, retain.last);

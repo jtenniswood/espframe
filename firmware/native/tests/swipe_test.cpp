@@ -14,6 +14,23 @@ int main() {
   constexpr int width = 1280;
   constexpr int64_t start = 1'000'000;
 
+  using Activity = Swipe::DragActivity;
+  constexpr int64_t motion_window = 60'000;
+  Swipe held{width, 5, 2};
+  held.press(900, 400, 2 * width, start);
+  assert(held.drag_activity(start + 1'000'000, motion_window) == Activity::Still);
+  held.move(870, 400, start + 1'000'000);
+  assert(held.drag_activity(start + 1'000'000, motion_window) == Activity::Starting);
+  held.move(800, 400, start + 1'058'000);
+  assert(held.drag_activity(start + 1'059'000, motion_window) == Activity::Starting);
+  assert(held.drag_activity(start + 1'060'000, motion_window) == Activity::Moving);
+  held.move(800, 400, start + 1'118'000);
+  assert(held.drag_activity(start + 1'118'000, motion_window) == Activity::Still);
+  held.move(780, 400, start + 1'200'000);
+  assert(held.drag_activity(start + 1'200'000, motion_window) == Activity::Moving);
+  held.release(start + 1'210'000);
+  assert(held.drag_activity(start + 1'210'000, motion_window) == Activity::Still);
+
   Swipe slow{width, 5, 2};
   slow.press(900, 400, 2 * width, start - 10'000);
   slow.move(895, 400, start);
