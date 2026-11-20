@@ -116,12 +116,16 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegCallbacks &callbacks, cons
   }
   if (!checkpoint())
     return Decode::Interrupted;
-  // Let the DCT do the first downsampling step when both axes can afford it.
-  for (unsigned divisor : {2, 4, 8}) {
-    if (static_cast<unsigned>(size.source.width) / divisor < static_cast<unsigned>(size.width) ||
-        static_cast<unsigned>(size.source.height) / divisor < static_cast<unsigned>(size.height))
-      break;
-    decoder.scale_denom = divisor;
+  // libjpeg-turbo scales by eighths in the IDCT. Pick the smallest scale
+  // that still covers the crop at its final size on both axes.
+  const auto &crop = size.source;
+  const auto scale_needed = [](unsigned source, unsigned target) {
+    return (DCTSIZE * target + source - 1) / source;
+  };
+  const unsigned scale = std::max(scale_needed(crop.width, size.width), scale_needed(crop.height, size.height));
+  if (scale < DCTSIZE) {
+    decoder.scale_num = scale;
+    decoder.scale_denom = DCTSIZE;
   }
   // The common YCbCr path can pack the final color in libjpeg's upsampler.
   // Leave RGB JPEGs on the existing path, including lossless RGB input.
@@ -140,7 +144,6 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegCallbacks &callbacks, cons
     return Decode::Invalid;
   decoder.progress = nullptr;
 
-  const auto &crop = size.source;
   const auto left = crop.x * decoder.output_width / decoder.image_width;
   const auto top = crop.y * decoder.output_height / decoder.image_height;
   const auto crop_width = std::max(1u, (crop.x + crop.width) * decoder.output_width / decoder.image_width - left);

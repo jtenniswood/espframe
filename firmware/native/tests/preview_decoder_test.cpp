@@ -311,6 +311,24 @@ void verify_hardware(const char *baseline_path, const char *progressive_path, co
   assert(!decoded.hardware_jpeg() && hardware_calls == 4 && engine_creates == 1);
 }
 
+void verify_scaled_jpeg(const char *path) {
+  const auto photo = load(path);
+  DecodedPreview decoded;
+  constexpr PreviewLayout pane{PreviewTarget::PairPane, DisplayMode::Fit, DisplayMode::Fill};
+  assert(decoded.decode(photo.data(), photo.size(), pane) == Decode::Ready && decoded.portrait());
+  constexpr uint16_t guard = 0x43cd;
+  std::vector<uint16_t> panel(pixel_count + 2, guard);
+  assert(decoded.render(panel.data() + 1, &decoded, DisplayMode::Fill));
+  assert(panel.front() == guard && panel.back() == guard);
+  // The 961x1441 JPEG takes the fractional IDCT path for a 636x800 pane.
+  // Center cropping removes the cyan bands at the top and bottom.
+  assert(at(panel, 0, 0) == 0xf800 && at(panel, 635, 0) == 0x07e0);
+  assert(at(panel, 0, 799) == 0x001f && at(panel, 635, 799) == 0xffff);
+  assert(replay_pair_fills_panes(panel.data() + 1, ScreenRotation::Normal));
+  expect_flipped(panel, decoded, &decoded, DisplayMode::Fill);
+  assert(decoded.decode(photo.data(), photo.size() / 2, pane) == Decode::Invalid);
+}
+
 void verify_interruption(const char *jpeg_path, const char *progressive_path, const char *webp_path) {
   const auto jpeg = load(jpeg_path);
   const auto progressive = load(progressive_path);
@@ -398,7 +416,7 @@ void verify_orientation(const char *square_jpeg, const char *square_webp, const 
 }
 
 int main(int argc, char **argv) {
-  assert(argc == 8);
+  assert(argc == 9);
   const auto wide = frame_photo(1600, 900, slide_width, slide_height, DisplayMode::Fill);
   assert(wide.source.x == 80 && wide.source.y == 0 && wide.source.width == 1440 && wide.source.height == 900);
   const auto narrow = frame_photo(600, 500, slide_width, slide_height, DisplayMode::Fill);
@@ -412,6 +430,7 @@ int main(int argc, char **argv) {
   verify_hardware(argv[1], argv[2], argv[3]);
   verify_interruption(argv[1], argv[2], argv[3]);
   verify_lossy_webp_interruption(argv[7]);
+  verify_scaled_jpeg(argv[8]);
   verify_orientation(argv[1], argv[3], argv[4]);
   const uint8_t unsupported[]{0, 1, 2, 3};
   DecodedPreview decoded;

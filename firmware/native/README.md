@@ -338,8 +338,10 @@ photo retry delay. If Wi-Fi disconnects or the frame gets a different IP,
 the next Immich request uses a fresh HTTP connection.
 Eligible baseline JPEG previews use the ESP32-P4 JPEG decoder. The frame
 uses software decoding for progressive JPEG and WebP, and falls back to
-software if the hardware path cannot finish. WebP decoding can pause between
-row batches while a drag needs the display's memory bandwidth. Compare
+software if the hardware path cannot finish. The software JPEG decoder can
+downscale in eighths during decoding and uses the smallest size that covers
+the selected crop. WebP decoding can pause between row batches while a drag
+needs the display's memory bandwidth. Compare
 `decode_us` and `hardware_jpeg` in the USB log when testing live playback.
 
 Portrait pairing is on by default. From the second slide onward, the player
