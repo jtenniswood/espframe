@@ -2,6 +2,7 @@
 #include "p4_jpeg_decoder.h"
 #include "recent_previews.h"
 #include "slide_geometry.h"
+#include "trial_pair_fill.h"
 #include "esp_heap_caps.h"
 #include "jpeg_accelerator_helpers.h"
 
@@ -136,6 +137,7 @@ void verify_pair(const char *primary_path, const char *companion_path) {
   assert((at(panel, 960, 420) & 0x001f) >= 0x001e);
   assert(at(panel, 639, 420) == 0 && at(panel, 640, 420) == 0);
   assert(at(panel, 320, 0) == 0 && at(panel, 960, 0) != 0);
+  assert(!replay_pair_fills_panes(panel.data() + 1, ScreenRotation::Normal));
   const auto full_photo_pair = panel;
   expect_flipped(panel, left, &right);
   assert(left.decode(primary.data(), primary.size(), {PreviewTarget::Slide, DisplayMode::Fill}) == Decode::Ready);
@@ -167,6 +169,15 @@ void verify_pair(const char *primary_path, const char *companion_path) {
   assert(at(panel, 0, 0) != 0 && at(panel, 1279, 799) != 0);
   assert(at(panel, 639, 420) == 0 && at(panel, 640, 420) == 0);
   expect_flipped(panel, left, &right, DisplayMode::Fill);
+  assert(replay_pair_fills_panes(panel.data() + 1, ScreenRotation::Normal));
+  std::vector<uint16_t> rotated(pixel_count);
+  assert(left.render(rotated.data(), &right, DisplayMode::Fill, ScreenRotation::UpsideDown));
+  assert(replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown));
+  rotated[panel_offset(portrait_pair_width, panel_width - 1, ScreenRotation::UpsideDown)] = guard;
+  assert(!replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown));
+  rotated[panel_offset(portrait_pair_width, panel_width - 1, ScreenRotation::UpsideDown)] = 0;
+  rotated[panel_offset(slide_width - 1, 0, ScreenRotation::UpsideDown)] = 0;
+  assert(!replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown));
   assert(right.decode(companion.data(), companion.size() / 2, {PreviewTarget::PairPane}) == Decode::Invalid);
   left.render(panel.data() + 1, &right);
   assert((at(panel, 640, 420) & 0xf800) >= 0xf000 && at(panel, 0, 0) != 0 && at(panel, 1279, 799) != 0);

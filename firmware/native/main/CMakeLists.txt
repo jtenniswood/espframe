@@ -72,6 +72,7 @@ target_compile_definitions(${COMPONENT_LIB} PRIVATE NATIVE_BOARD="${SWIPE_BOARD}
                                                    SWIPE_TRIAL_REPLAY_HISTORY=$<BOOL:${SWIPE_TRIAL_REPLAY_HISTORY}>
                                                    SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD=$<BOOL:${SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD}>
                                                    SWIPE_TRIAL_REPLAY_DISABLE_COMPANION_PREFETCH=$<BOOL:${SWIPE_TRIAL_REPLAY_DISABLE_COMPANION_PREFETCH}>
+                                                   SWIPE_TRIAL_REPLAY_PAIR_FILL=$<BOOL:${SWIPE_TRIAL_REPLAY_PAIR_FILL}>
                                                    SWIPE_NATIVE_OTA_TEST=$<NOT:$<STREQUAL:${SWIPE_NATIVE_OTA_TEST},OFF>>
                                                    SWIPE_NATIVE_OTA_TEST_FAIL=$<STREQUAL:${SWIPE_NATIVE_OTA_TEST},FAIL>
                                                    SWIPE_TRIAL_BENCHMARK_FIXTURES=$<BOOL:${SWIPE_TRIAL_BENCHMARK_FIXTURES}>)

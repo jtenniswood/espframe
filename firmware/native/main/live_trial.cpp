@@ -66,6 +66,7 @@ std::array<PreparationTiming, preparation_stages.size()> preparation_timings{};
 struct ReplaySlides {
   uint32_t paired{};
   uint32_t single{};
+  uint32_t pair_fill_edge_failures{};
 };
 ReplaySlides replay_slides;
 portMUX_TYPE preparation_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -131,9 +132,11 @@ esp_err_t benchmark_status(httpd_req_t *request) {
   char replay[160]{};
   if constexpr (direct_trial_replay) {
     std::snprintf(replay, sizeof(replay),
-                  ",\"direct_replay_lookahead\":%s,\"direct_replay_companion_prefetch\":%s,\"replay_origin\":\"%s\"",
+                  ",\"direct_replay_lookahead\":%s,\"direct_replay_companion_prefetch\":%s,\"replay_pair_fill\":%s"
+                  ",\"replay_origin\":\"%s\"",
                   SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD ? "false" : "true",
-                  prefetch_portrait_companion ? "true" : "false", trial_replay_origin.data());
+                  prefetch_portrait_companion ? "true" : "false", trial_replay_pair_fill ? "true" : "false",
+                  trial_replay_origin.data());
   }
   char body[1600]{};
   const auto length = std::snprintf(body, sizeof(body),
@@ -302,8 +305,9 @@ esp_err_t preparation_status(httpd_req_t *request) {
   if constexpr (direct_trial_replay) {
     const auto remaining = sizeof(body) - used;
     const auto written = std::snprintf(body + used, remaining,
-                                       "\"new_slides\":{\"paired\":%" PRIu32 ",\"single\":%" PRIu32 "},",
-                                       slides.paired, slides.single);
+                                       "\"new_slides\":{\"paired\":%" PRIu32 ",\"single\":%" PRIu32
+                                       ",\"pair_fill_edge_failures\":%" PRIu32 "},",
+                                       slides.paired, slides.single, slides.pair_fill_edge_failures);
     if (written < 0 || static_cast<size_t>(written) >= remaining - 1)
       return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Preparation report too large");
     used += written;
@@ -437,10 +441,12 @@ void record_live_trial_preparation_time(TrialPreparationStage stage, uint32_t el
   portEXIT_CRITICAL(&preparation_lock);
 }
 
-void record_live_trial_replay_slide(bool paired) {
+void record_live_trial_replay_slide(bool paired, bool fill_edges_match) {
   portENTER_CRITICAL(&preparation_lock);
-  if (!preparation_finished)
+  if (!preparation_finished) {
     ++(paired ? replay_slides.paired : replay_slides.single);
+    replay_slides.pair_fill_edge_failures += !fill_edges_match;
+  }
   portEXIT_CRITICAL(&preparation_lock);
 }
 

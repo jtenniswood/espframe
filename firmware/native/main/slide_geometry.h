@@ -24,6 +24,8 @@ inline constexpr int panel_height = 1280;
 inline constexpr int slide_width = panel_height;
 inline constexpr int slide_height = panel_width;
 inline constexpr int pixel_count = panel_width * panel_height;
+inline constexpr int portrait_pair_gap = 8;
+inline constexpr int portrait_pair_width = (slide_width - portrait_pair_gap) / 2;
 
 enum class ScreenRotation : uint8_t { Normal, UpsideDown };
 

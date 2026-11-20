@@ -139,6 +139,26 @@ class ReplayTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "consistent counts"):
             replays.compare(control, candidate, slow_previews=True)
 
+    def test_fill_comparison_checks_both_modes_and_pair_pixels(self):
+        control, candidate = example(False), example(True)
+        control["benchmark"]["replay_pair_fill"] = True
+        with self.assertRaisesRegex(ValueError, "same portrait pair framing"):
+            replays.compare(control, candidate)
+        candidate["benchmark"]["replay_pair_fill"] = True
+        control["preparation"]["new_slides"] = {"paired": 11, "single": 0, "pair_fill_edge_failures": 0}
+        candidate["preparation"]["new_slides"] = {"paired": 13, "single": 0, "pair_fill_edge_failures": 0}
+        report = replays.compare(control, candidate)
+        self.assertIn("| Filled pairs with matching edges and divider | 11 | 13 |", report)
+        candidate["preparation"]["new_slides"]["pair_fill_edge_failures"] = 1
+        with self.assertRaisesRegex(ValueError, "edge check failed for 1 of 13"):
+            replays.compare(control, candidate)
+        candidate["preparation"]["new_slides"] = {"paired": 0, "single": 1, "pair_fill_edge_failures": 0}
+        with self.assertRaisesRegex(ValueError, "at least one portrait pair"):
+            replays.compare(control, candidate)
+        candidate["preparation"]["new_slides"]["paired"] = 13
+        with self.assertRaisesRegex(ValueError, "render each new slide as a pair"):
+            replays.compare(control, candidate)
+
     @patch.object(replays, "read_json")
     def test_capture_saves_server_counts_with_the_stall_profile(self, get):
         run = example(True)

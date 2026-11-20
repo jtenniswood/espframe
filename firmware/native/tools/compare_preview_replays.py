@@ -94,11 +94,26 @@ def stalled_previews(run):
     return started, completed, interrupted
 
 
+def checked_fill_pairs(run):
+    slides = run["preparation"].get("new_slides", {})
+    paired, single, failures = (slides.get(key) for key in ("paired", "single", "pair_fill_edge_failures"))
+    if type(paired) is not int or paired <= 0 or type(failures) is not int or not 0 <= failures <= paired:
+        raise ValueError("Both Fill captures must report edge checks for at least one portrait pair")
+    if type(single) is not int or single != 0:
+        raise ValueError("The portrait-only Fill replay must render each new slide as a pair")
+    if failures:
+        raise ValueError(f"Portrait Fill edge check failed for {failures} of {paired} prepared pairs")
+    return paired
+
+
 def compare(control, enabled, *, companion_prefetch=False, slow_previews=False):
     lookahead_in_both = companion_prefetch or slow_previews
     validate(control, lookahead=lookahead_in_both)
     validate(enabled, lookahead=True)
     before, after = control["benchmark"], enabled["benchmark"]
+    pair_fill = before.get("replay_pair_fill", False)
+    if type(pair_fill) is not bool or pair_fill is not after.get("replay_pair_fill", False):
+        raise ValueError("Both captures must use the same portrait pair framing")
     if companion_prefetch and (before.get("direct_replay_companion_prefetch") is not False
                                or after.get("direct_replay_companion_prefetch") is not True):
         raise ValueError("Expected companion prefetch disabled in the control capture and enabled in the candidate")
@@ -145,6 +160,9 @@ def compare(control, enabled, *, companion_prefetch=False, slow_previews=False):
     after_used, after_wait = prefetch_summary(enabled)
     if companion_prefetch:
         rows.insert(2, ("New slides rendered as portrait pairs", prepared_pairs(control), prepared_pairs(enabled)))
+    if pair_fill:
+        rows.insert(2, ("Filled pairs with matching edges and divider", checked_fill_pairs(control),
+                        checked_fill_pairs(enabled)))
     rows.append(("Lookahead previews used", before_used, after_used))
     if after_wait != "no samples" or (lookahead_in_both and before_wait != "no samples"):
         rows.append(("Mean wait for staged previews", before_wait, after_wait))

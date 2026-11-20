@@ -6,6 +6,7 @@
 #include "photo_caption.h"
 #include "preview_decoder.h"
 #include "trial_replay.h"
+#include "trial_pair_fill.h"
 
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -883,6 +884,9 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   } else {
     composition.emplace(TrialPreparationStage::Composition);
   }
+  const bool paired = frame.companion[0] != '\0';
+  const bool fill_edges_match = !trial_replay_pair_fill || !new_position || !paired ||
+                                replay_pair_fills_panes(panel, this->settings_.screen_rotation);
   if (replacement && !caption_only)
     this->complete_caption_details_(frame);
   const auto &tone = this->settings_.tone;
@@ -904,7 +908,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   if (new_position) {
     this->history_.append(frame);
     if constexpr (direct_trial_replay)
-      record_live_trial_replay_slide(frame.companion[0] != '\0');
+      record_live_trial_replay_slide(paired, fill_edges_match);
   } else {
     *existing = frame;
   }

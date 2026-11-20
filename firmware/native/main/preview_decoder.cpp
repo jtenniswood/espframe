@@ -18,8 +18,6 @@ namespace {
 
 using Decode = DecodedPreview::Result;
 
-constexpr int pair_gap = 8;
-constexpr int pair_width = (slide_width - pair_gap) / 2;
 constexpr int row_batch = 16;
 
 bool clear_region(uint16_t *panel, int left, int top, int width, int height,
@@ -51,7 +49,7 @@ bool supported(unsigned width, unsigned height) {
 PhotoFraming framing(int width, int height, PreviewLayout layout) {
   const bool portrait = height > width;
   if (layout.target == PreviewTarget::PairPane || (layout.target == PreviewTarget::RequiredPair && portrait))
-    return frame_photo(width, height, pair_width, slide_height, layout.pair);
+    return frame_photo(width, height, portrait_pair_width, slide_height, layout.pair);
   // Retain the portrait's full image until the companion is ready so
   // either layout can choose its own crop.
   const auto effective = layout.target == PreviewTarget::OptionalPair && portrait ? DisplayMode::Fit : layout.photo;
@@ -344,10 +342,12 @@ bool DecodedPreview::render(uint16_t *panel, const DecodedPreview *companion, Di
   const bool pair = companion != nullptr && this->portrait() && companion->portrait();
   if (this->width_ == 0)
     return clear_region(panel, 0, 0, slide_width, slide_height, rotation, checkpoint);
-  if (pair && !clear_region(panel, pair_width, 0, pair_gap, slide_height, rotation, checkpoint))
+  if (pair && !clear_region(panel, portrait_pair_width, 0, portrait_pair_gap, slide_height, rotation, checkpoint))
     return false;
-  return this->paint_(panel, 0, pair ? pair_width : slide_width, pair ? pair_mode : this->display_mode_, rotation, checkpoint) &&
-         (!pair || companion->paint_(panel, pair_width + pair_gap, pair_width, pair_mode, rotation, checkpoint));
+  return this->paint_(panel, 0, pair ? portrait_pair_width : slide_width, pair ? pair_mode : this->display_mode_, rotation,
+                      checkpoint) &&
+         (!pair || companion->paint_(panel, portrait_pair_width + portrait_pair_gap, portrait_pair_width, pair_mode,
+                                     rotation, checkpoint));
 }
 
 }  // namespace espframe::native

@@ -271,6 +271,8 @@ class SlideLoader {
         this->settings_.portrait_pairing = this->settings_.portrait_pairs_only = true;
         this->settings_.portrait_pairing_days = 2;
         this->settings_.display_mode = DisplayMode::Fit;
+        if constexpr (trial_replay_pair_fill)
+          this->settings_.pair_framing = PairFraming::Fill;
         if constexpr (SWIPE_TRIAL_REPLAY_PREPARED) {
           this->settings_.prepared_slide_url = trial_replay_origin;
           this->settings_.prepared_slide_token = replay_slide_token;

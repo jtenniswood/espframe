@@ -43,7 +43,7 @@ void record_live_trial_http_read_timeout(bool headers);
 void record_live_trial_search(bool pairing, int http_status, size_t candidates);
 void record_live_trial_preview(int http_status);
 void record_live_trial_preparation_time(TrialPreparationStage stage, uint32_t elapsed_us, size_t bytes = 0);
-void record_live_trial_replay_slide(bool paired);
+void record_live_trial_replay_slide(bool paired, bool fill_edges_match);
 void record_live_trial_photo(uint32_t elapsed_ms);
 void record_live_trial_cache(unsigned slots, unsigned ahead);
 void record_live_trial_gesture(uint32_t motion_us, const FirstMotionTrace &motion);

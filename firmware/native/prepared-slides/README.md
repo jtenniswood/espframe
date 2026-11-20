@@ -89,6 +89,13 @@ downloads started, completed or were interrupted by capture time, alongside
 swipe wait times and cache hits. The server starts with fresh counters when
 restarted. Leave `REPLAY_PREVIEW_STALL_MS` unset for ordinary replay runs.
 
+Add `-D SWIPE_TRIAL_REPLAY_PAIR_FILL=ON` to both direct trial builds to
+measure **Fill each half**. The frame samples each new pair's outer edges,
+pane boundaries and centre divider before adding captions or tone. The
+comparison requires each new synthetic slide to render as a pair and rejects
+a failed edge check or a mismatch between Fit and Fill. Use the physical panel
+to check the visible crop.
+
 ### Measure portrait companion prefetch
 
 For both builds, leave `SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD=OFF` so the worker can
