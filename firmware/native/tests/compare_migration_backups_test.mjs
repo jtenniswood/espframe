@@ -53,6 +53,10 @@ try {
   assert.match(invalid.stderr, /Could not read the after backup as JSON/)
   assert.doesNotMatch(invalid.stdout + invalid.stderr, /private-syntax-error/)
 
+  await writeFile(before, JSON.stringify({ version: 3, connection: { immich_url: 'http://api' } }))
+  await writeFile(after, JSON.stringify({ version: 3, connection: { immich_url: 'http://api/api/' } }))
+  assert.equal(run().status, 0)
+
   for (const target of [before, after]) await writeFile(target, '{"version":3}')
   const empty = run()
   assert.equal(empty.status, 2)

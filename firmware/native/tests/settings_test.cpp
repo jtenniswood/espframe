@@ -354,6 +354,13 @@ void verify_stock_connection_migration() {
   assert(stock_reads == after_import + 3);
   assert(loaded.read() && loaded.ssid == "Native Network" && loaded.immich_url == "https://stock.test/library/api");
   assert(stock_preferences == source);
+
+  stored.clear();
+  stored_blobs.clear();
+  stock_preferences[esphome_immich_url_key] = text_record("http://api", esphome_url_bytes);
+  assert(Settings::save_wifi(*native_wifi, 0));
+  assert(Settings::save_usb(setup, 0, immich_only, read_stock_settings) == Result::Saved);
+  assert(loaded.read() && loaded.immich_url == "http://api/api" && loaded.immich_key == "fixture-immich-key");
 }
 
 int main() {

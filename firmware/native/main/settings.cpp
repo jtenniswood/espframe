@@ -89,7 +89,7 @@ bool normalize(Settings &settings) {
     return !settings.has_prepared_slides();
   if (!settings.has_immich() || !normalize_http_base(url))
     return false;
-  if (!url.ends_with("/api"))
+  if (url.find('/', url.find("://") + 3) == std::string::npos || !url.ends_with("/api"))
     url += "/api";
   return true;
 }

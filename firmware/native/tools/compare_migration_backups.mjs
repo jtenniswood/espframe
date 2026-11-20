@@ -18,7 +18,11 @@ async function loadBackup(filename, phase) {
 function comparableSettings({ settings, legacyPreset }) {
   const { firmware_updates, immich_url, ...fields } = settings
   // Native firmware stores an /api suffix even if the stock backup omits it.
-  if (immich_url) fields.immich_url = immich_url.replace(/\/+$/, '').replace(/\/api$/, '')
+  if (immich_url) {
+    const base = immich_url.replace(/\/+$/, '')
+    const path = base.indexOf('/', base.indexOf('://') + 3)
+    fields.immich_url = path !== -1 && base.endsWith('/api') ? base.slice(0, -4) : base
+  }
   if (legacyPreset) fields.legacy_photo_preset = legacyPreset
   for (const [key, value] of Object.entries(firmware_updates ?? {})) {
     fields[`firmware_updates.${key}`] = value
