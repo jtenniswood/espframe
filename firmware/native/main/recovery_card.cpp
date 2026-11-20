@@ -9,7 +9,7 @@ namespace {
 constexpr int glyph_width = 32;
 constexpr int glyph_height = 36;
 constexpr int glyph_bytes = 1 + glyph_width * glyph_height / 2;
-constexpr uint16_t background = 0x1105;
+constexpr uint16_t background = loading_page_background;
 constexpr uint16_t muted = 0xaeb5;
 constexpr uint16_t white = 0xffff;
 
@@ -26,6 +26,8 @@ void text(uint16_t *frame, const uint8_t *atlas, ScreenRotation rotation, int x,
     const auto *glyph = atlas + (character - ' ') * glyph_bytes;
     const int advance = *glyph++;
     for (int column = 0; column < glyph_width; ++column) {
+      if (x + column < 0 || x + column >= slide_width)
+        continue;
       auto *pixels = frame + panel_offset(x + column, panel_width - 1 - y, rotation);
       for (int row = 0; row < glyph_height; ++row) {
         const auto mask = glyph[row * (glyph_width / 2) + column / 2];
@@ -90,6 +92,14 @@ void draw_loading_status(uint16_t *frame, const uint8_t *atlas, int direction, S
   const int left = direction < 0 ? margin : slide_width - margin - width;
   card(frame, rotation, left, top, width, height);
   text(frame, atlas, rotation, left + 16, top + 8, "Loading photo", white);
+}
+
+void draw_loading_page_text(uint16_t *frame, const uint8_t *atlas, int shift, ScreenRotation rotation) {
+  constexpr std::string_view label = "Loading photos";
+  int width = 0;
+  for (const unsigned char character : label)
+    width += atlas[(character - ' ') * glyph_bytes];
+  text(frame, atlas, rotation, (slide_width - width) / 2 + shift, (slide_height - glyph_height) / 2, label, white);
 }
 
 }  // namespace espframe::native

@@ -64,9 +64,9 @@ void FrameBlitter::copy_block_(uint16_t *destination, const uint16_t *source, in
 #endif
 }
 
-void FrameBlitter::slides(uint16_t *output, SlideSpan span) {
+void FrameBlitter::slides(uint16_t *output, SlideSpan span, uint16_t blank) {
   blit_slides(output, span.first, span.second, panel_width, panel_height, span.offset,
-              [this](auto *to, const auto *from, int width, int rows) { copy_rows_(to, from, width, rows); });
+              [this](auto *to, const auto *from, int width, int rows) { copy_rows_(to, from, width, rows); }, blank);
 }
 
 void FrameBlitter::edge(uint16_t *output, const uint16_t *photo, int pull) {

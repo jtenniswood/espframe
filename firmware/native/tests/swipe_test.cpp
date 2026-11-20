@@ -180,7 +180,7 @@ int main() {
   cancelled_refill.tick(start + 390'000);
   assert(cancelled_refill.idle() && cancelled_refill.settled() == 2);
 
-  // Hold the visible edge until the missed photo can join the transition.
+  // A committed forward swipe lands on the empty page and keeps its request.
   Swipe waiting{width, 5, 2};
   waiting.set_ready_range(1, 2);
   waiting.press(900, 400, 2 * width, start);
@@ -188,16 +188,19 @@ int main() {
   assert(waiting.position() > 2 * width && waiting.position() < 2 * width + 48);
   constexpr int64_t released = start + 55'000;
   waiting.release(released);
-  const auto held_edge = waiting.position();
-  waiting.tick(released + 120'000);
-  assert(waiting.position() == held_edge && !waiting.idle() && !waiting.advance(released + 120'000, Swipe::Transition::Glide));
-  assert(waiting.loading_direction(released + 159'999) == 0);
-  assert(waiting.loading_direction(released + 160'000) == 1);
-  waiting.set_ready_range(1, 3);
-  waiting.tick(released + 280'000);
-  assert(waiting.settling() && waiting.position() == held_edge && waiting.loading_direction(released + 280'000) == 0);
-  waiting.tick(released + 600'000);
-  assert(waiting.idle() && waiting.settled() == 3);
+  assert(waiting.settling() && waiting.loading_page() == 3 && waiting.waiting_slide() == 3);
+  waiting.tick(released + 250'000);
+  waiting.tick(released + 3'000'000);
+  assert(waiting.idle() && waiting.settled() == 3 && waiting.loading_page() == 3);
+  assert(!waiting.advance(released + 3'000'000, Swipe::Transition::Glide));
+  waiting.press(900, 400, 3 * width, released + 3'010'000);
+  waiting.move(100, 400, released + 3'060'000);
+  assert(waiting.position() == 3 * width);
+  waiting.set_ready_range(1, 4);
+  waiting.move(40, 400, released + 3'070'000);
+  waiting.release(released + 3'080'000);
+  assert(waiting.idle() && waiting.settled() == 3 && !waiting.waiting_slide());
+  assert(waiting.advance(released + 3'090'000, Swipe::Transition::Quick));
 
   Swipe expired{width, 5, 2};
   expired.set_ready_range(2, 3);
@@ -213,21 +216,24 @@ int main() {
   expired.tick(deadline + 250'000);
   assert(expired.idle() && expired.settled() == 2);
 
-  // A fresh touch owns the screen, even if the old neighbour loads during it.
+  // A fresh touch can reverse away from the loading page.
   Swipe retake{width, 5, 2};
   retake.set_ready_range(1, 2);
   retake.press(900, 400, 2 * width, start);
   retake.move(100, 400, start + 50'000);
   retake.release(released);
-  retake.press(500, 400, retake.position(), released + 200'000);
-  retake.set_ready_range(1, 3);
-  retake.release(released + 240'000);
-  retake.tick(released + 600'000);
-  assert(retake.idle() && retake.settled() == 2);
+  retake.tick(released + 250'000);
+  retake.press(200, 400, retake.position(), released + 300'000);
+  retake.move(900, 400, released + 350'000);
+  retake.release(released + 360'000);
+  retake.tick(released + 610'000);
+  assert(retake.idle() && retake.settled() == 2 && !retake.loading_page());
+  assert(retake.visible_last_slide() == 2);
 
   // Grabbing a resisted edge starts from the visible pull. A fresh drag
   // can pull farther, retreat toward the photo, and request the missing slide.
-  for (const int direction : {-1, 1}) {
+  {
+    constexpr int direction = -1;
     Swipe edge_grab{width, 5, 2};
     edge_grab.set_ready_range(direction > 0 ? 1 : 2, direction > 0 ? 2 : 3);
     edge_grab.press(650, 400, 2 * width, start);
@@ -391,6 +397,13 @@ int main() {
   assert((output == std::array<uint16_t, 6>{2, 3, 4, 5, 6, 7}));
   espframe::native::blit_slides(output.data(), left.data(), right.data(), 2, 3, 2);
   assert((output == std::array<uint16_t, 6>{4, 5, 6, 7, 8, 9}));
+  espframe::native::blit_slides(output.data(), left.data(), nullptr, 2, 3, 1);
+  assert((output == std::array<uint16_t, 6>{2, 3, 4, 5, 0, 0}));
+  const auto rotated_loading = espframe::native::orient_slide_span(left.data(), nullptr, 3, 1,
+                                                                  espframe::native::ScreenRotation::UpsideDown);
+  espframe::native::blit_slides(output.data(), rotated_loading.first, rotated_loading.second, 2, 3,
+                               rotated_loading.offset);
+  assert((output == std::array<uint16_t, 6>{0, 0, 0, 1, 2, 3}));
   espframe::native::blit_slide_edge(output.data(), left.data(), 2, 3, -1);
   assert((output == std::array<uint16_t, 6>{0, 1, 0, 1, 2, 3}));
   espframe::native::blit_slide_edge(output.data(), left.data(), 2, 3, 1);

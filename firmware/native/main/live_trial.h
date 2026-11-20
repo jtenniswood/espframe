@@ -39,6 +39,7 @@ void record_live_trial_wifi_link(int power_save, int rssi, unsigned channel);
 void record_live_trial_prepare();
 void record_live_trial_candidate_retry();
 void record_live_trial_pixel_pause(uint32_t pause_ms);
+void record_live_trial_loading_page(bool filled);
 void record_live_trial_http_open_error(int error);
 void record_live_trial_http_read_timeout(bool headers);
 void record_live_trial_search(bool pairing, int http_status, size_t candidates);

@@ -66,4 +66,16 @@ int main(int argc, char **argv) {
     const auto point = panel_offset(direction < 0 ? 44 : slide_width - 44 - 244, 44, ScreenRotation::Normal);
     assert(normal[point] != photo);
   }
+
+  for (const int shift : {-slide_width, -slide_width / 2, 0, slide_width / 2, slide_width}) {
+    std::fill(normal.begin(), normal.end(), loading_page_background);
+    std::fill(inverted.begin(), inverted.end(), loading_page_background);
+    draw_loading_page_text(normal.data(), atlas.data(), shift, ScreenRotation::Normal);
+    draw_loading_page_text(inverted.data(), atlas.data(), shift, ScreenRotation::UpsideDown);
+    assert(std::equal(normal.begin(), normal.end(), inverted.rbegin()));
+    if (shift == 0)
+      assert(std::count(normal.begin(), normal.end(), 0xffff) > 100);
+    if (std::abs(shift) == slide_width)
+      assert(std::count(normal.begin(), normal.end(), loading_page_background) == pixel_count);
+  }
 }

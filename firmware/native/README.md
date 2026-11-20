@@ -287,7 +287,10 @@ loads additional photos directly from Immich. Each photo is fully visible
 for 15 seconds by default before a half-second crossfade. A touch holds the
 frame already sent to the panel, and a swipe can take over from that frame in
 either direction. A tap resumes the fade. Cancelling a drag settles back
-and fades into the original photo. The player uses a glide when the pixel
+and fades into the original photo. A committed forward swipe to an uncached
+slide opens a **Loading photos** page. The whole slide appears there once
+its photos are ready. While it loads, you can swipe back. A new forward
+swipe becomes available once the slide appears. The player uses a glide when the pixel
 accelerator or third display buffer is unavailable. It keeps the current
 photo visible during a network failure. The random feed continues as new
 previews become available. It

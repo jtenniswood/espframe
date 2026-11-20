@@ -13,7 +13,7 @@ class FrameBlitter {
   static constexpr unsigned burst_bytes = 128;
 
   void init();
-  void slides(uint16_t *output, SlideSpan span);
+  void slides(uint16_t *output, SlideSpan span, uint16_t blank = 0);
   void edge(uint16_t *output, const uint16_t *photo, int pull);
   void push(uint16_t *output, const uint16_t *from, const uint16_t *to, int dx, int dy, uint8_t progress,
             ScreenRotation rotation);

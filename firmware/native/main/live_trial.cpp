@@ -47,6 +47,8 @@ std::atomic<uint32_t> preview_requests{};
 std::atomic<int> search_http{};
 std::atomic<int> pairing_http{};
 std::atomic<int> preview_http{};
+std::atomic<uint32_t> loading_pages{};
+std::atomic<uint32_t> loading_pages_filled{};
 std::atomic<int> wifi_power_save{-1};
 std::atomic<int> wifi_rssi_dbm{-128};
 std::atomic<unsigned> wifi_primary_channel{};
@@ -272,7 +274,8 @@ esp_err_t status(httpd_req_t *request) {
                 ",\"http_header_timeouts\":%" PRIu32 ",\"http_body_timeouts\":%" PRIu32
                 ",\"search_http\":%d,\"photo_candidates\":%" PRIu32 ",\"pairing_http\":%d,\"pair_candidates\":%" PRIu32
                 ",\"pairing_range_days\":%u"
-                ",\"preview_http\":%d,\"preview_requests\":%" PRIu32 "}",
+                ",\"preview_http\":%d,\"preview_requests\":%" PRIu32
+                ",\"loading_pages\":%" PRIu32 ",\"loading_pages_filled\":%" PRIu32 "}",
                 static_cast<uint32_t>(esp_timer_get_time() / 1000), prepared,
                 cache_slots.load(std::memory_order_relaxed), ready_ahead.load(std::memory_order_relaxed),
                 first_photo_ms.load(std::memory_order_relaxed),
@@ -289,7 +292,8 @@ esp_err_t status(httpd_req_t *request) {
                 search_http.load(std::memory_order_relaxed), photo_candidates.load(std::memory_order_relaxed),
                 pairing_http.load(std::memory_order_relaxed), pair_candidates.load(std::memory_order_relaxed),
                 pairing_range_days.load(std::memory_order_relaxed),
-                preview_http.load(std::memory_order_relaxed), preview_requests.load(std::memory_order_relaxed));
+                preview_http.load(std::memory_order_relaxed), preview_requests.load(std::memory_order_relaxed),
+                loading_pages.load(std::memory_order_relaxed), loading_pages_filled.load(std::memory_order_relaxed));
   if (length < 0 || static_cast<size_t>(length) >= sizeof(body))
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not format trial status");
   httpd_resp_set_type(request, "application/json");
@@ -430,6 +434,10 @@ void record_live_trial_search(bool pairing, int http_status, size_t candidates) 
 void record_live_trial_preview(int http_status) {
   preview_http.store(http_status, std::memory_order_relaxed);
   preview_requests.fetch_add(1, std::memory_order_relaxed);
+}
+
+void record_live_trial_loading_page(bool filled) {
+  (filled ? loading_pages_filled : loading_pages).fetch_add(1, std::memory_order_relaxed);
 }
 
 void record_live_trial_preparation_time(TrialPreparationStage stage, uint32_t elapsed_us, size_t bytes) {

@@ -2,6 +2,7 @@
 
 #include "slide_geometry.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -28,11 +29,20 @@ inline SlideSpan orient_slide_span(const uint16_t *left, const uint16_t *right, 
 // copies. The cache stores each slide in that same native order.
 template <class CopyRows>
 void blit_slides(uint16_t *output, const uint16_t *left, const uint16_t *right,
-                 int native_width, int native_height, int offset, CopyRows copy_rows) {
+                 int native_width, int native_height, int offset, CopyRows copy_rows, uint16_t blank = 0) {
   const size_t stride = static_cast<size_t>(native_width);
-  copy_rows(output, left + offset * stride, native_width, native_height - offset);
-  if (offset != 0)
-    copy_rows(output + (native_height - offset) * stride, right, native_width, offset);
+  const int first_rows = native_height - offset;
+  if (left)
+    copy_rows(output, left + offset * stride, native_width, first_rows);
+  else
+    std::fill_n(output, first_rows * stride, blank);
+  if (offset != 0) {
+    auto *tail = output + first_rows * stride;
+    if (right)
+      copy_rows(tail, right, native_width, offset);
+    else
+      std::fill_n(tail, offset * stride, blank);
+  }
 }
 
 // At a cold cache boundary, move the photo a short distance under the

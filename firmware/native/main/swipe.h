@@ -27,7 +27,11 @@ class Swipe {
   bool dragging() const { return this->phase_ == Phase::Dragging; }
   bool settling() const { return this->phase_ == Phase::Settling; }
   SlideIndex settle_destination() const { return this->settling() ? this->target_ : this->settled_; }
+  SlideIndex visible_last_slide() const { return this->ready_last_; }
+  std::optional<SlideIndex> loading_page() const { return this->loading_page_; }
   std::optional<SlideIndex> waiting_slide() const {
+    if (this->loading_page_)
+      return this->loading_page_;
     return this->phase_ == Phase::WaitingForSlide ? std::optional{this->loading_slide_} : std::nullopt;
   }
 
@@ -74,6 +78,12 @@ class Swipe {
   }
 
   void set_ready_range(SlideIndex first, SlideIndex last) {
+    if (this->loading_page_) {
+      if (last >= *this->loading_page_)
+        this->loading_page_.reset();
+      else
+        last = *this->loading_page_;
+    }
     if (this->phase_ == Phase::Dragging &&
         ((first < this->ready_first_ && this->offset_ < this->slide_offset_(this->ready_first_)) ||
          (last > this->ready_last_ && this->offset_ > this->slide_offset_(this->ready_last_)))) {
@@ -89,6 +99,7 @@ class Swipe {
   }
 
   void press(int x, int y, PixelPosition presented_position, int64_t now_us) {
+    this->forward_limit_ = this->loading_page_;
     this->resume_ = this->target_;
     this->resume_transition_ = this->transition_;
     this->offset_ = static_cast<float>(presented_position - this->settled_ * this->width_);
@@ -152,7 +163,7 @@ class Swipe {
     const float drawn = this->unresisted_offset_();
     if (drawn < lower && first == this->ready_first_) {
       this->offset_ = this->resisted_position_(drawn, lower);
-    } else if (drawn > upper && last == this->ready_last_) {
+    } else if (drawn > upper && last == this->ready_last_ && !this->loading_page_ && !this->forward_limit_) {
       this->offset_ = this->resisted_position_(drawn, upper);
     } else {
       this->offset_ = std::clamp(drawn, lower, upper);
@@ -195,9 +206,14 @@ class Swipe {
     // The resisted pixels stay beside the ready photo. Use the actual drag
     // and its velocity to decide whether the finger committed to a cold edge.
     const auto intended = this->origin_slide_ + direction(track_original ? raw_projection : drawn + momentum);
-    if (this->available_(intended) &&
-        ((intended < this->ready_first_ && drawn < this->slide_offset_(this->ready_first_)) ||
-         (intended > this->ready_last_ && drawn > this->slide_offset_(this->ready_last_)))) {
+    if (!this->loading_page_ && !this->forward_limit_ && this->available_(intended) &&
+        intended > this->ready_last_ && drawn > this->slide_offset_(this->ready_last_)) {
+      this->loading_page_ = this->ready_last_ = intended;
+      this->settle_to_(intended, now_us, Transition::Quick);
+      return;
+    }
+    if (this->available_(intended) && intended < this->ready_first_ &&
+        drawn < this->slide_offset_(this->ready_first_)) {
       this->released_us_ = now_us;
       this->loading_slide_ = intended;
       this->target_ = this->origin_slide_;
@@ -215,7 +231,7 @@ class Swipe {
   }
 
   bool advance(int64_t now_us, Transition transition, int64_t glide_duration_us = default_glide_duration_us) {
-    if (this->phase_ != Phase::Idle || this->settled_ >= this->ready_last_)
+    if (this->phase_ != Phase::Idle || this->loading_page_ || this->settled_ >= this->ready_last_)
       return false;
     if (transition == Transition::Glide)
       this->glide_duration_us_ = static_cast<float>(std::max<int64_t>(1, glide_duration_us));
@@ -279,11 +295,19 @@ class Swipe {
   }
 
   SlideIndex minimum_slide_() const { return std::max(this->ready_first_, this->origin_slide_ - 1); }
-  SlideIndex maximum_slide_() const { return std::min(this->ready_last_, this->origin_slide_ + 1); }
+  SlideIndex maximum_slide_() const {
+    const auto last = std::min(this->ready_last_, this->origin_slide_ + 1);
+    return this->forward_limit_ ? std::min(last, *this->forward_limit_) : last;
+  }
   bool available_(SlideIndex slide) const { return slide >= this->available_first_ && slide <= this->available_last_; }
 
   void finish_settle_() {
     this->settled_ = this->target_;
+    if (this->loading_page_ && this->settled_ < *this->loading_page_) {
+      this->ready_last_ = *this->loading_page_ - 1;
+      this->loading_page_.reset();
+    }
+    this->forward_limit_.reset();
     this->offset_ = 0;
     this->transition_ = Transition::Quick;
     this->phase_ = Phase::Idle;
@@ -333,6 +357,8 @@ class Swipe {
   float glide_duration_us_{default_glide_duration_us};
   int64_t settle_us_{};
   SlideIndex loading_slide_{};
+  std::optional<SlideIndex> loading_page_;
+  std::optional<SlideIndex> forward_limit_;
   int64_t released_us_{};
 };
 
