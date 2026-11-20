@@ -741,7 +741,8 @@ void run(void *) {
       }
       const bool at_rest = backlight_ready && input.awake() && !input.engaged() && swipe.idle() &&
                            !fade.running() && !fade.held() && display.presented_position() == center * slide_width;
-      if (const auto sample = poll_live_trial_benchmark(esp_timer_get_time(), center, {ready_first, ready_last}, at_rest)) {
+      if (const auto sample =
+              poll_live_trial_benchmark(network, esp_timer_get_time(), center, {ready_first, ready_last}, at_rest)) {
         report = *sample;
         return true;
       }
@@ -929,9 +930,8 @@ void run(void *) {
       const bool first_photo = swipe.settled() == 0;
       const bool source_changed = source_anchor == swipe.settled();
       const bool dwelling = visible_and_idle && !fade.running() && !fade.held();
-      // In the outage replay, only scripted swipes may change the photo
-      // after the startup scene. A missing history slide must stop the run.
-      if ((!SWIPE_TRIAL_REPLAY_HISTORY || first_photo) &&
+      // Outage tests count only scripted swipes after the startup scene.
+      if ((!(SWIPE_TRIAL_REPLAY_HISTORY || SWIPE_TRIAL_WIFI_OUTAGE) || first_photo) &&
           dwell.elapsed(now, dwelling, first_photo || source_changed ? 0 : loader.slide_interval_us())) {
         const auto anchor = swipe.settled();
         if (first_photo) {

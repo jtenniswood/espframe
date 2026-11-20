@@ -8,6 +8,45 @@ using namespace espframe::native;
 
 namespace {
 
+void test_wifi_outage() {
+  using Script = TrialSwipeBenchmark;
+  using Window = Script::WifiWindow;
+  Script script{Script::Scenario::WifiOutage};
+  Swipe swipe{slide_width, 64, 1};
+  SwipeInput touch;
+  const auto run = [&](int64_t start, int64_t end, Window wifi, SlideIndex last_ready) {
+    swipe.set_ready_range(1, last_ready);
+    for (auto now = start; now < end; now += 1'000) {
+      if (const auto report = script.poll(now, swipe.settled(), {1, last_ready}, swipe.idle(), wifi))
+        touch.update(swipe, *report, swipe.position());
+      swipe.tick(now);
+    }
+  };
+
+  run(0, 1'000'000, Window::Waiting, 5);
+  assert(script.results().started == 0);
+  run(1'000'000, 13'000'000, Window::Offline, 5);
+  assert(script.results().offline_settled == Script::wifi_offline_moves);
+  assert(script.results().settled == Script::wifi_offline_moves && swipe.settled() == 1);
+  assert(script.results().offline_ready_last == 5 && script.results().reconnected_settled == 0);
+  run(13'000'000, 15'000'000, Window::Waiting, 5);
+  assert(script.results().started == Script::wifi_offline_moves);
+
+  run(15'000'000, 22'000'000, Window::Reconnected, 5);
+  assert(!script.finished() && swipe.settled() == 5);
+  assert(script.results().reconnected_settled == 4);
+  run(22'000'000, 30'000'000, Window::Reconnected, 13);
+  assert(script.finished() && script.results().reconnected_settled == Script::wifi_reconnected_moves);
+  assert(swipe.settled() == 13 && script.results().wrong_slide == 0);
+
+  Script missed{Script::Scenario::WifiOutage};
+  assert(missed.poll(100'000, 1, {1, 5}, true, Window::Offline));
+  assert(missed.poll(300'000, 1, {1, 5}, false, Window::Offline));
+  assert(!missed.poll(500'000, 2, {1, 5}, true, Window::Reconnected));
+  assert(!missed.poll(1'000'000, 2, {1, 5}, true, Window::Reconnected));
+  assert(missed.results().settled == 1 && missed.results().offline_settled == 0);
+}
+
 void test_physical_drag_outcomes() {
   Swipe swipe{slide_width, 5, 2};
   SwipeInput input;
@@ -60,6 +99,7 @@ void test_physical_drag_outcomes() {
 
 int main() {
   test_physical_drag_outcomes();
+  test_wifi_outage();
   constexpr int64_t start = 500'000;
   TrialSwipeBenchmark script;
   assert(!script.poll(start, 0, {0, 1}, true));

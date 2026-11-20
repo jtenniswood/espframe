@@ -53,7 +53,8 @@ void record_live_trial_frame(int64_t latched_us, MotionStamp stamp, uint32_t per
 void record_live_trial_blit(bool dma);
 
 #if SWIPE_TRIAL_BENCHMARK
-std::optional<TouchReport> poll_live_trial_benchmark(int64_t now, SlideIndex center, SlideRange ready, bool at_rest);
+std::optional<TouchReport> poll_live_trial_benchmark(NativeNetwork &network, int64_t now, SlideIndex center,
+                                                    SlideRange ready, bool at_rest);
 #endif
 
 }  // namespace espframe::native

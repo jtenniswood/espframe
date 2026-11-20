@@ -43,6 +43,11 @@ class NativeNetwork {
   uint32_t station_lease() const;
   uint32_t photo_connection() const;
   void request_time_sync();
+#if SWIPE_TRIAL_WIFI_OUTAGE
+  enum class TrialLink : uint8_t { Ready, Requested, Disconnecting, Offline, Reconnecting, Reconnected, Failed };
+  void start_trial_wifi_outage();
+  TrialLink trial_link() const { return trial_link_.load(std::memory_order_acquire); }
+#endif
   bool available() const { return available_.load(std::memory_order_acquire); }
   bool busy() const { return busy_.load(std::memory_order_acquire); }
   bool submit(Request request, const WifiCredentials &wifi = {});
@@ -90,6 +95,9 @@ class NativeNetwork {
   std::atomic<bool> available_{};
   std::atomic<bool> busy_{};
   std::atomic<bool> provisioning_{};
+#if SWIPE_TRIAL_WIFI_OUTAGE
+  std::atomic<TrialLink> trial_link_{TrialLink::Ready};
+#endif
   RecoveryNetwork recovery_network_;
   std::atomic<RecoveryStatus> recovery_status_{RecoveryStatus::Off};
 };

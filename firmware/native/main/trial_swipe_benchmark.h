@@ -83,10 +83,13 @@ class TrialSwipeMetrics {
 
 class TrialSwipeBenchmark {
  public:
-  enum class Scenario { Normal, Rapid, History };
+  enum class Scenario { Normal, Rapid, History, WifiOutage };
+  enum class WifiWindow { Waiting, Offline, Reconnected };
 
   static constexpr unsigned swipe_limit = 48;
   static constexpr unsigned history_forward_moves = 9;
+  static constexpr unsigned wifi_offline_moves = 6;
+  static constexpr unsigned wifi_reconnected_moves = 12;
   static constexpr int64_t report_period_us = 8'000;
   static constexpr int64_t drag_us = 192'000;
   static constexpr int64_t rest_us = 420'000;
@@ -103,18 +106,28 @@ class TrialSwipeBenchmark {
     uint32_t cold_release_advances{};
     uint32_t cold_returns{};
     uint32_t elapsed_us{};
+    uint32_t offline_settled{};
+    uint32_t reconnected_settled{};
+    SlideIndex offline_ready_last{};
     TrialSwipeMetrics::Timing refill;
   };
 
   explicit TrialSwipeBenchmark(Scenario scenario = Scenario::Normal) : scenario_(scenario) {}
 
   const Results &results() const { return results_; }
-  unsigned target() const { return scenario_ == Scenario::History ? 2 * history_forward_moves : swipe_limit; }
+  unsigned target() const {
+    if (scenario_ == Scenario::WifiOutage)
+      return wifi_offline_moves + wifi_reconnected_moves;
+    return scenario_ == Scenario::History ? 2 * history_forward_moves : swipe_limit;
+  }
   bool finished() const { return results_.settled == target(); }
 
-  std::optional<TouchReport> poll(int64_t now, SlideIndex center, SlideRange ready, bool at_rest) {
+  std::optional<TouchReport> poll(int64_t now, SlideIndex center, SlideRange ready, bool at_rest,
+                                WifiWindow wifi = WifiWindow::Waiting) {
     if (finished())
       return {};
+    if (scenario_ == Scenario::WifiOutage && wifi == WifiWindow::Offline)
+      results_.offline_ready_last = std::max(results_.offline_ready_last, ready.last);
     if (missing_slide_ && ready.contains(*missing_slide_)) {
       results_.refill.add(static_cast<uint32_t>(now - missing_since_), refill_limit_us);
       missing_slide_.reset();
@@ -144,10 +157,21 @@ class TrialSwipeBenchmark {
       // If a neighbor arrived during the drag, the movement remaining
       // after re-anchoring determines whether it advances or settles back.
       results_.wrong_slide += center != destination_ && !returned;
+      if (scenario_ == Scenario::WifiOutage && center == destination_) {
+        if (results_.started <= wifi_offline_moves && wifi == WifiWindow::Offline)
+          ++results_.offline_settled;
+        if (results_.started > wifi_offline_moves && wifi == WifiWindow::Reconnected)
+          ++results_.reconnected_settled;
+      }
       waiting_for_settle_ = false;
       next_swipe_at_ = now + (scenario_ == Scenario::Rapid ? rapid_rest_us : rest_us);
     }
     if (!at_rest || center < 1 || results_.started == target() || now < next_swipe_at_)
+      return {};
+    const bool offline_move = results_.started < wifi_offline_moves;
+    if (scenario_ == Scenario::WifiOutage &&
+        (offline_move ? wifi != WifiWindow::Offline
+                      : wifi != WifiWindow::Reconnected || results_.offline_settled != wifi_offline_moves))
       return {};
 
     // The normal run waits for two forward moves and one backward move.
@@ -155,6 +179,7 @@ class TrialSwipeBenchmark {
     // The history run reaches slide ten, then returns to slide one.
     const bool back = scenario_ == Scenario::History ? results_.started >= history_forward_moves
                     : scenario_ == Scenario::Rapid ? results_.started % 5 == 4 && ready.contains(center - 1)
+                    : scenario_ == Scenario::WifiOutage ? offline_move && results_.started % 2 != 0
                                                    : results_.started % 3 == 1;
     const int direction = back ? -1 : 1;
     const auto destination = center + direction;

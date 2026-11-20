@@ -594,6 +594,24 @@ The measurements start at a touch report and end at an LCD DMA handoff.
 Use the regular live trial with physical touch and high-frame-rate video to
 check sensor response, visible animation pacing, and tearing.
 
+#### Verify cached swipes during a Wi-Fi outage
+
+Build the standard live benchmark in a separate directory with
+`-D SWIPE_TRIAL_WIFI_OUTAGE=ON`. After the ESPHome rollback readiness check,
+upload the app-only `espframe_v1_wifi_benchmark.bin` from that build or the
+`native-v1-esphome-wifi-outage-benchmark` CI artifact.
+
+The frame warms at least three forward slides, disconnects its own Wi-Fi
+station, and holds reconnection for 12 seconds after the driver reports the
+disconnect. It alternates six swipes through cached photos while offline.
+The normal reconnect loop then resumes. The script waits for photo access
+and walks forward 12 slides, past the range that was ready during the outage.
+The HTTP report becomes reachable again after Wi-Fi recovers.
+
+Before ESPHome returns, save `/api/trial/benchmark` and check that `wifi_phase`
+is `reconnected`, `offline_settled` is 6, `reconnected_settled` is 12,
+`wrong_slide` is 0, and `settled_slide` exceeds `offline_ready_last`.
+
 #### Verify the rollback and gestures
 
 The demo checks the running partition map and the previous ESPHome app before
@@ -611,12 +629,13 @@ reset, then confirm the original frame reconnects and retains its settings.
 4. Check the first and last scenes. Dragging beyond a ready boundary should
    move the photo slightly with resistance, keep the screen filled, and ease
    back when released. When a neighbor becomes ready mid-drag, continuing the
-   gesture should move from its current position without a jump. A decisive
-   swipe gives a loading photo up to 750 ms to become ready after release.
-   The current photo stays visible, with a loading label after a brief delay.
-   The swipe finishes when the photo arrives in time. Otherwise it eases back.
-   A new touch takes over immediately. Try this in both directions on a slow connection, including a drag
-   back to an older cached preview while a new photo is downloading.
+   gesture should move from its current position without a jump. Forward
+   swipes released at an unready edge settle back immediately while the
+   player prioritizes the next photo. Swipe forward again once it is ready.
+   A decisive backward swipe into older history can wait up to 750 ms for
+   the photo, with a loading label after a brief delay. A new touch takes
+   over immediately. Try both directions on a slow connection, including a
+   drag back to an older cached preview while a new photo is downloading.
 5. Record high-frame-rate video for touch-to-visible motion and pacing.
    Use the USB trace below to measure from the first moving touch report to
    the LCD DMA handoff, with cached neighbours and during background work.

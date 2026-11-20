@@ -34,6 +34,9 @@ constexpr uint32_t address_lost = BIT2;
 constexpr uint32_t station_stopped = BIT3;
 constexpr uint32_t command_ready = BIT4;
 constexpr uint32_t time_sync_requested = BIT5;
+#if SWIPE_TRIAL_WIFI_OUTAGE
+constexpr uint32_t trial_outage_requested = BIT6;
+#endif
 constexpr int network_core = 0;
 constexpr bool trial_immich = SWIPE_TRIAL_IMMICH;
 constexpr bool trial_benchmark = SWIPE_TRIAL_BENCHMARK;
@@ -80,6 +83,14 @@ void NativeNetwork::request_time_sync() {
   if (!time_sync_requested_.exchange(true, std::memory_order_acq_rel) && available())
     xTaskNotify(task_, time_sync_requested, eSetBits);
 }
+
+#if SWIPE_TRIAL_WIFI_OUTAGE
+void NativeNetwork::start_trial_wifi_outage() {
+  auto ready = TrialLink::Ready;
+  if (station_lease() && trial_link_.compare_exchange_strong(ready, TrialLink::Requested))
+    xTaskNotify(task_, trial_outage_requested, eSetBits);
+}
+#endif
 
 bool NativeNetwork::submit(Request request, const WifiCredentials &wifi) {
   bool idle = false;
@@ -370,6 +381,9 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
   StationRetry retry;
   RecoveryWindow recovery;
   int64_t next_hotspot_attempt = 0;
+#if SWIPE_TRIAL_WIFI_OUTAGE
+  int64_t trial_deadline = 0;
+#endif
   photo_time_ready_.store(!https || clock_time_is_valid(std::time(nullptr)), std::memory_order_release);
 
   while (true) {
@@ -386,6 +400,29 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
     const int64_t now = esp_timer_get_time();
     const auto lease = lease_version_.load(std::memory_order_acquire);
     const bool connected = has_station_address(lease);
+    bool hold_reconnect = false;
+#if SWIPE_TRIAL_WIFI_OUTAGE
+    auto phase = trial_link();
+    if (phase == TrialLink::Requested) {
+      phase = connected && esp_wifi_disconnect() == ESP_OK ? TrialLink::Disconnecting : TrialLink::Failed;
+      trial_deadline = now + 2'000'000;
+    } else if (phase == TrialLink::Disconnecting && !connected && (events & disconnected)) {
+      phase = TrialLink::Offline;
+      trial_deadline = now + 12'000'000;
+    } else if (phase == TrialLink::Disconnecting && now >= trial_deadline) {
+      phase = TrialLink::Failed;
+    } else if (phase == TrialLink::Offline && connected) {
+      phase = TrialLink::Failed;
+    } else if (phase == TrialLink::Offline && now >= trial_deadline) {
+      phase = TrialLink::Reconnecting;
+    } else if (phase == TrialLink::Reconnecting && connected) {
+      phase = TrialLink::Reconnected;
+    }
+    // Only the station task changes the phase after it accepts the request.
+    if (phase != TrialLink::Ready)
+      trial_link_.store(phase, std::memory_order_release);
+    hold_reconnect = phase == TrialLink::Disconnecting || phase == TrialLink::Offline;
+#endif
     recovery.update(now, connected);
     bool hotspot = recovery_status() != RecoveryStatus::Off;
     if constexpr (!trial_immich) {
@@ -402,7 +439,7 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
     }
     const auto event = (events & address_lost) ? StationRetry::Event::AddressLost
                        : (events & disconnected) ? StationRetry::Event::Disconnected : StationRetry::Event::None;
-    const bool auto_reconnect = saved.configured() && station_running_ && station_config_valid_;
+    const bool auto_reconnect = !hold_reconnect && saved.configured() && station_running_ && station_config_valid_;
     switch (auto_reconnect ? retry.step(now, connected, event) : StationRetry::Action::Wait) {
       case StationRetry::Action::Connect:
         if (esp_wifi_connect() != ESP_OK)
@@ -477,6 +514,12 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
       const auto remaining_us = std::max(*change, next_hotspot_attempt) - esp_timer_get_time();
       wait = std::min(wait, pdMS_TO_TICKS(std::max<int64_t>(1, (remaining_us + 999) / 1000)));
     }
+#if SWIPE_TRIAL_WIFI_OUTAGE
+    if (hold_reconnect) {
+      const auto remaining_us = trial_deadline - esp_timer_get_time();
+      wait = std::min(wait, pdMS_TO_TICKS(std::max<int64_t>(1, (remaining_us + 999) / 1000)));
+    }
+#endif
     last_lease = lease;
     events = 0;
     xTaskNotifyWait(0, UINT32_MAX, &events, wait);

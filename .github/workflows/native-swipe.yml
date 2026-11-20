@@ -337,7 +337,7 @@ jobs:
   esphome-v1-live-trial:
     name: Build the live V1 Immich trial
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - name: Test decoding of stock ESPHome connection preferences
@@ -398,6 +398,12 @@ jobs:
               -D SWIPE_ESPHOME_TRIAL=ON -D SWIPE_TRIAL_IMMICH=ON -D SWIPE_TRIAL_BENCHMARK=ON \
               -D SWIPE_TRIAL_BENCHMARK_RAPID=ON build
             check_benchmark "$rapid" espframe_v1_rapid_benchmark
+            wifi=firmware/native/build/esphome-benchmark-wifi-v1
+            idf.py -C firmware/native -B "$wifi" -D SWIPE_BOARD=v1 \
+              -D SWIPE_ESPHOME_TRIAL=ON -D SWIPE_TRIAL_IMMICH=ON -D SWIPE_TRIAL_BENCHMARK=ON \
+              -D SWIPE_TRIAL_WIFI_OUTAGE=ON build
+            check_benchmark "$wifi" espframe_v1_wifi_benchmark
+            grep -Fq "espframe::native::NativeNetwork::start_trial_wifi_outage()" /tmp/bench-symbols
             fixtures=firmware/native/build/esphome-benchmark-fixtures-v1
             idf.py -C firmware/native -B "$fixtures" -D SWIPE_BOARD=v1 -D SWIPE_ESPHOME_TRIAL=ON \
               -D SWIPE_TRIAL_IMMICH=ON -D SWIPE_TRIAL_BENCHMARK=ON -D SWIPE_TRIAL_BENCHMARK_FIXTURES=ON build
@@ -410,4 +416,9 @@ jobs:
             firmware/native/build/esphome-benchmark-v1/espframe_v1_swipe_benchmark.bin
             firmware/native/build/esphome-benchmark-rapid-v1/espframe_v1_rapid_benchmark.bin
             firmware/native/build/esphome-benchmark-fixtures-v1/espframe_v1_fixture_benchmark.bin
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: native-v1-esphome-wifi-outage-benchmark
+          path: firmware/native/build/esphome-benchmark-wifi-v1/espframe_v1_wifi_benchmark.bin
           if-no-files-found: error

@@ -73,7 +73,8 @@ portMUX_TYPE preparation_lock = portMUX_INITIALIZER_UNLOCKED;
 bool preparation_finished{};
 
 #if SWIPE_TRIAL_BENCHMARK
-constexpr auto benchmark_scenario = SWIPE_TRIAL_REPLAY_HISTORY ? TrialSwipeBenchmark::Scenario::History
+constexpr auto benchmark_scenario = SWIPE_TRIAL_WIFI_OUTAGE ? TrialSwipeBenchmark::Scenario::WifiOutage
+                                  : SWIPE_TRIAL_REPLAY_HISTORY ? TrialSwipeBenchmark::Scenario::History
                                   : SWIPE_TRIAL_BENCHMARK_RAPID ? TrialSwipeBenchmark::Scenario::Rapid
                                                                : TrialSwipeBenchmark::Scenario::Normal;
 TrialSwipeBenchmark benchmark{benchmark_scenario};
@@ -127,6 +128,16 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 script.cold_starts, script.cold_releases_unready, script.cold_release_advances, script.cold_returns,
                 script.elapsed_us, TrialSwipeBenchmark::refill_limit_us,
                 script.refill.count, script.refill.worst_us, script.refill.over_limit);
+#endif
+#if SWIPE_TRIAL_WIFI_OUTAGE
+  const auto link = static_cast<const NativeNetwork *>(request->user_ctx)->trial_link();
+  constexpr std::array link_label{"ready", "requested", "disconnecting", "offline", "reconnecting", "reconnected", "failed"};
+  const auto used = std::strlen(gesture_counts);
+  std::snprintf(gesture_counts + used, sizeof(gesture_counts) - used,
+                ",\"scenario\":\"wifi-outage\",\"wifi_phase\":\"%s\",\"offline_settled\":%" PRIu32
+                ",\"reconnected_settled\":%" PRIu32 ",\"offline_ready_last\":%" PRId64,
+                link_label[static_cast<size_t>(link)], script.offline_settled, script.reconnected_settled,
+                script.offline_ready_last);
 #endif
   const auto period = Display::nominal_frame_period_us();
   char replay[160]{};
@@ -384,7 +395,6 @@ bool start_live_trial_status(NativeNetwork &network) {
   if (result == ESP_OK) {
     route.uri = "/api/trial/benchmark";
     route.handler = benchmark_status;
-    route.user_ctx = nullptr;
     result = httpd_register_uri_handler(server, &route);
   }
   if (result == ESP_OK) {
@@ -501,10 +511,21 @@ void record_live_trial_blit(bool dma) {
 }
 
 #if SWIPE_TRIAL_BENCHMARK
-std::optional<TouchReport> poll_live_trial_benchmark(int64_t now, SlideIndex center, SlideRange ready, bool at_rest) {
+std::optional<TouchReport> poll_live_trial_benchmark([[maybe_unused]] NativeNetwork &network, int64_t now,
+                                                    SlideIndex center, SlideRange ready, bool at_rest) {
+  auto wifi = TrialSwipeBenchmark::WifiWindow::Waiting;
+#if SWIPE_TRIAL_WIFI_OUTAGE
+  const auto link = network.trial_link();
+  if (link == NativeNetwork::TrialLink::Ready && at_rest && center == 1 && ready.last - center >= 3)
+    network.start_trial_wifi_outage();
+  if (link == NativeNetwork::TrialLink::Offline && !network.station_lease())
+    wifi = TrialSwipeBenchmark::WifiWindow::Offline;
+  if (link == NativeNetwork::TrialLink::Reconnected && network.photo_connection())
+    wifi = TrialSwipeBenchmark::WifiWindow::Reconnected;
+#endif
   portENTER_CRITICAL(&swipe_lock);
-  const auto report = benchmark.poll(now, center, ready, at_rest);
-  if constexpr (synthetic_trial_replay) {
+  const auto report = benchmark.poll(now, center, ready, at_rest, wifi);
+  if constexpr (synthetic_trial_replay || SWIPE_TRIAL_WIFI_OUTAGE) {
     if (benchmark.finished() && !completed_replay_metrics) {
       completed_replay_metrics = metrics.results();
       // Freeze both reports before publishing the final settle. A download
