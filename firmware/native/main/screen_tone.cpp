@@ -9,7 +9,8 @@ namespace espframe::native {
 
 float ScreenToneSettings::warmth(float night_fraction) const {
   const auto base = base_enabled ? base_amount : 0;
-  const auto night = night_enabled ? night_amount * std::clamp(night_fraction, 0.0f, 1.0f) : 0.0f;
+  const auto night = night_override ? night_amount
+                   : night_enabled ? night_amount * std::clamp(night_fraction, 0.0f, 1.0f) : 0.0f;
   return (base + night) / 100.0f;
 }
 

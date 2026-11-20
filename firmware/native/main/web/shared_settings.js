@@ -563,7 +563,8 @@
       ["base_tone_enabled", "Adjust display tone"],
       ["base_tone", "Display warmth (%)"],
       ["warm_tones_enabled", "Use warmer tones at night"],
-      ["warm_tone_intensity", "Nighttime warmth (%)"]
+      ["warm_tone_intensity", "Nighttime warmth (%)"],
+      ["warm_tone_override", "Warm tone until sunrise"]
     ]],
     ["Clock", [["show_clock", "Show clock"], ["clock_format", "Time format"], ["timezone", "Timezone"]]],
     ["Sleep schedule", [

@@ -39,6 +39,7 @@ for (const name of ['v1-full', 'v2-full']) {
     transition_speed: name === 'v2-full' ? 'Fast' : 'Slow',
     brightness_day: 100, brightness_night: 75, screen_rotation: '0',
     base_tone_enabled: false, base_tone: 0, warm_tones_enabled: false, warm_tone_intensity: 50,
+    warm_tone_override: false,
     schedule_enabled: false, schedule_on_hour: 6, schedule_off_hour: 23, schedule_wake_timeout: 60,
     show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
     ntp_server_1: '0.pool.ntp.org', ntp_server_2: '1.pool.ntp.org', ntp_server_3: '2.pool.ntp.org',
@@ -192,6 +193,13 @@ for (const brightness_day of [9, 100.5, '80']) {
 const invalidNight = readBackup({ version: 3, screen: { brightness_day: 70, brightness_night: null } })
 assert.deepEqual(invalidNight.settings, { brightness_day: 70 })
 assert.match(invalidNight.notices[0], /nighttime brightness/)
+for (const warm_tone_override of [true, false]) {
+  const result = readBackup({ version: 3, screen: { warm_tone_override } })
+  assert.deepEqual(result.settings, { warm_tone_override })
+  assert.deepEqual(result.notices, [])
+  assert.equal(createBackup({ ...result.settings, slide_seconds: 15 }).screen.warm_tone_override, warm_tone_override)
+}
+assert.deepEqual(readBackup({ version: 3, screen: { warm_tone_override: 'true' } }).settings, {})
 const portraitMount = readBackup({ version: 3, screen: { rotation: '90' } })
 assert.deepEqual(portraitMount.settings, {})
 assert.match(portraitMount.notices[0], /mounting orientation/)

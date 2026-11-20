@@ -42,6 +42,9 @@ class ImmichSource {
   PrepareResult prepare(SlideIndex slide, uint16_t *panel, bool replacement, PendingCaption &caption,
                         bool caption_only = false);
   void apply_photo_settings(PhotoFeedSettings feed, std::optional<SlideIndex> first_slide);
+  void expire_warm_tone_override() {
+    Settings::expire_warm_tone_override(this->settings_.clock.timezone, this->feed_());
+  }
   SlideIndex first_slide() const { return this->history_.first(); }
   SlideIndex next_slide() const { return this->history_.next(); }
   PhotoSourceStatus source_status() const { return this->source_status_; }

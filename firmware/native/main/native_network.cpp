@@ -359,7 +359,7 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
   const bool https = settings_->immich_url.starts_with("https://");
   const bool need_time_at_boot = https || settings_->prepared_slides_need_time() || settings_->clock.show ||
                                  settings_->schedule.enabled || settings_->brightness_day != settings_->night_brightness() ||
-                                 settings_->tone.night_enabled || settings_->needs_local_date();
+                                 settings_->tone.needs_time() || settings_->needs_local_date();
   bool sntp_started = false;
   bool web_started = false;
 #if !SWIPE_ESPHOME_TRIAL

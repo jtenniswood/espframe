@@ -373,6 +373,7 @@ int main() {
   assert(legacy.portrait_pairing);
   assert(!legacy.portrait_pairs_only && !legacy.requires_portrait_pair() && legacy.portrait_pairing_days == 0);
   assert(legacy.brightness_day == 64);
+  assert(!legacy.tone.night_override);
   assert(!legacy.brightness_night && legacy.night_brightness() == 64);
   assert(legacy.photo_source.mode == PhotoSourceMode::Library);
   assert(legacy.display_mode == DisplayMode::Fit);
@@ -1178,6 +1179,42 @@ int main() {
   assert(initial.notice(130 * second, 30) == ImmichResponse::RequestFailed);
   initial.observe(131 * second, true, ImmichResponse::Pending);
   assert(initial.notice(160 * second, 30) == ImmichResponse::Pending);
+
+  using espframe::native::active_warm_tone_override;
+  assert(Settings::save(R"({"ssid":"Photo Lab","password":"","immich_url":"http://photos.test",
+      "immich_key":"tone-key","web_password":"tone-settings","warm_tone_override":true})"));
+  assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"tone-key","web_password":"tone-settings"})"));
+  assert(current.read() && current.tone.night_override);
+  current.publish_live_presentation();
+  assert(active_warm_tone_override.load());
+  const auto before_tone = photo_source_revision.load();
+  const auto before_tone_selection = photo_selection_revision.load();
+  const auto tone_change = update_configuration(R"({"values":{"base_tone_enabled":true,"base_tone":25,
+      "warm_tone_intensity":65,"warm_tone_override":true}})");
+  assert(!tone_change.error && !tone_change.restart_required && photo_source_revision.load() == before_tone + 1);
+  const auto tinted_feed = Settings::take_live_photo_feed(before_tone + 1);
+  assert(tinted_feed && tinted_feed->tone.night_override && tinted_feed->tone.night_amount == 65);
+  assert(current.read() && current.tone.night_override);
+  const Json tone_snapshot(configuration_snapshot(current), cJSON_Delete);
+  assert(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(tone_snapshot.get(), "values"),
+                                                    "warm_tone_override")));
+  assert(update_configuration(R"({"values":{"warm_tone_override":"true"}})").error);
+  assert(!Settings::expire_warm_tone_override("Different timezone", *tinted_feed));
+  fail_commit = true;
+  assert(!Settings::expire_warm_tone_override(current.clock.timezone, *tinted_feed));
+  fail_commit = false;
+  assert(active_warm_tone_override.load() && photo_source_revision.load() == before_tone + 1);
+  const auto awaiting_restart = update_configuration(R"({"values":{"brightness_day":70,"favorites_enabled":true}})");
+  assert(!awaiting_restart.error && awaiting_restart.restart_required);
+  assert(Settings::expire_warm_tone_override(current.clock.timezone, *tinted_feed));
+  assert(!active_warm_tone_override.load() && photo_source_revision.load() == before_tone + 2);
+  assert(photo_selection_revision.load() == before_tone_selection);
+  const auto after_tone = Settings::take_live_photo_feed(before_tone + 2);
+  assert(after_tone && !after_tone->tone.night_override && after_tone->tone.base_enabled);
+  assert(after_tone->photo_source.mode == tinted_feed->photo_source.mode && !after_tone->photo_filters.criteria.favorites_enabled);
+  assert(current.read() && !current.tone.night_override && current.tone.night_amount == 65);
+  assert(current.brightness_day == 70 && current.photo_filters.criteria.favorites_enabled);
+  assert(!Settings::expire_warm_tone_override(current.clock.timezone, *after_tone));
 
   verify_stock_pairing_migration();
   verify_stock_connection_migration();

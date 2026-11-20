@@ -73,6 +73,7 @@ try {
   form.elements.base_tone.value = settings.base_tone ?? 0
   form.elements.warm_tones_enabled.checked = settings.warm_tones_enabled === true
   form.elements.warm_tone_intensity.value = settings.warm_tone_intensity ?? 50
+  form.elements.warm_tone_override.checked = settings.warm_tone_override === true
   showPercentages()
   form.elements.portrait_pairing.checked = settings.portrait_pairing === true
   form.elements.portrait_pairs_only.checked = settings.portrait_pairs_only === true
@@ -147,6 +148,7 @@ form.addEventListener('submit', async event => {
     delete data.brightness_night
   data.base_tone_enabled = form.elements.base_tone_enabled.checked
   data.warm_tones_enabled = form.elements.warm_tones_enabled.checked
+  data.warm_tone_override = form.elements.warm_tone_override.checked
   data.portrait_pairing = form.elements.portrait_pairing.checked
   data.portrait_pairs_only = form.elements.portrait_pairs_only.checked
   data.portrait_pairing_range = form.elements.portrait_pairing_range.value

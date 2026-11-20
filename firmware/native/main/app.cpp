@@ -247,7 +247,7 @@ class SlideLoader {
     return active_clock_twelve_hour.load(std::memory_order_relaxed);
   }
   bool photos_need_time() const {
-    return this->settings_.needs_local_date() || this->settings_.tone.night_enabled;
+    return this->settings_.needs_local_date() || this->settings_.tone.needs_time();
   }
   const ScreenScheduleSettings &schedule() const { return this->settings_.schedule; }
   ScreenRotation rotation() const { return this->settings_.screen_rotation; }
@@ -333,7 +333,7 @@ class SlideLoader {
     auto feed = Settings::take_live_photo_feed(request.source_revision);
     if (!feed)
       return false;
-    if (feed->needs_local_date())
+    if (feed->needs_local_date() || feed->tone.needs_time())
       network.request_time_sync();
     frame_status.configure(true, feed->photo_source.mode);
     this->source_.apply_photo_settings(std::move(*feed), request.replace_source ? std::optional{request.lease.slide}
@@ -345,8 +345,29 @@ class SlideLoader {
     auto &loader = *static_cast<SlideLoader *>(context);
     jpeg_decoder_handle_t decoder{};
     uint32_t source_revision{};
+    constexpr int64_t tone_check_interval_us = 60'000'000;
+    int64_t next_tone_check = esp_timer_get_time() + tone_check_interval_us;
+    const auto *tone_zone = !esphome_trial && loader.live_ ? find_clock_zone(loader.settings_.clock.timezone) : nullptr;
+    Daylight tone_daylight{tone_zone};
     while (true) {
-      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+      if (tone_zone) {
+        const auto remaining_ms = (next_tone_check - esp_timer_get_time() + 999) / 1000;
+        ulTaskNotifyTake(pdTRUE, std::max<TickType_t>(1, pdMS_TO_TICKS(std::max<int64_t>(0, remaining_ms))));
+        const auto now = esp_timer_get_time();
+        if (now >= next_tone_check) {
+          next_tone_check = now + tone_check_interval_us;
+          if (active_warm_tone_override.load(std::memory_order_relaxed) &&
+              !loader.pixel_work_deferred_.load(std::memory_order_relaxed)) {
+            const auto local = local_clock_time(std::time(nullptr));
+            if (!local)
+              network.request_time_sync();
+            else if (tone_daylight.is_day(local))
+              loader.source_.expire_warm_tone_override();
+          }
+        }
+      } else {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+      }
       if constexpr (!trace_enabled) {
         GestureTiming timing;
         while (xQueueReceive(loader.timings_, &timing, 0) == pdPASS)

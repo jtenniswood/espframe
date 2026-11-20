@@ -11,8 +11,13 @@ using namespace espframe::native;
 int main() {
   ScreenToneSettings settings;
   assert(settings.warmth(1.0f) == 0.0f);
+  assert(!settings.needs_time());
+  settings.night_override = true;
+  assert(settings.warmth(0.0f) == 0.5f && settings.needs_time());
   settings.base_enabled = true;
   settings.base_amount = 25;
+  assert(settings.warmth(0.0f) == 0.75f);
+  settings.night_override = false;
   assert(settings.warmth(1.0f) == 0.25f);
   settings.night_enabled = true;
   assert(settings.warmth(0.0f) == 0.25f);

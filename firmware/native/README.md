@@ -96,6 +96,9 @@ photo change uses the saved transition and speed.
 The connection timeout applies immediately. It controls when an Immich
 connection or API key warning appears if the frame has yet to load its
 first photo. Once playback starts, the frame keeps the last ready photo.
+Screen tone changes refresh visible and cached photos through the same path
+as framing. **Warm tone until sunrise** applies the configured nighttime warmth
+and turns off once the frame's clock and timezone place it in daylight.
 Saves that also change connection or device settings apply after a restart.
 If you change **Frame name**, it also shows the new `.local` address.
 The frame adds its own four-character MAC suffix to the hostname.

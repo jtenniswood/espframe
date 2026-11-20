@@ -165,7 +165,8 @@ bool read_tone(const cJSON *root, ScreenToneSettings &tone) {
   return read_flag(root, "base_tone_enabled", tone.base_enabled) &&
          read_integer(root, "base_tone", 0, 100, tone.base_amount) &&
          read_flag(root, "warm_tones_enabled", tone.night_enabled) &&
-         read_integer(root, "warm_tone_intensity", 10, 100, tone.night_amount);
+         read_integer(root, "warm_tone_intensity", 10, 100, tone.night_amount) &&
+         read_flag(root, "warm_tone_override", tone.night_override);
 }
 
 bool read_metadata(const cJSON *root, PhotoMetadataSettings &settings) {
@@ -621,7 +622,8 @@ bool changes_photo_selection(std::string_view key) {
 bool changes_photo_presentation(std::string_view key) {
   constexpr std::string_view options[]{
       "display_mode", "portrait_pair_framing", "photo_metadata_date_enabled", "photo_metadata_location_enabled",
-      "photo_metadata_date_format", "photo_metadata_date_taken_format"};
+      "photo_metadata_date_format", "photo_metadata_date_taken_format", "base_tone_enabled", "base_tone",
+      "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"};
   return std::ranges::find(options, key) != std::end(options);
 }
 
@@ -629,9 +631,10 @@ bool changes_live_presentation(std::string_view key) {
   return key == "clock_format" || key == "transition" || key == "transition_speed" || key == "conn_timeout";
 }
 
-void publish_photo_feed(Settings &settings, bool selection_changed) {
-  active_photo_preset.store(settings.photo_source.preset(), std::memory_order_relaxed);
-  published_feed = std::move(static_cast<PhotoFeedSettings &>(settings));
+void publish_photo_feed(PhotoFeedSettings &&feed, bool selection_changed) {
+  active_photo_preset.store(feed.photo_source.preset(), std::memory_order_relaxed);
+  active_warm_tone_override.store(feed.tone.night_override, std::memory_order_relaxed);
+  published_feed = std::move(feed);
   const auto revision = photo_source_revision.load(std::memory_order_relaxed) + 1;
   // The last selection revision survives if another save publishes a
   // framing change before the player has picked up the new selection.
@@ -751,6 +754,9 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
   if (configured && !provided("conn_timeout") && saved.connection_timeout_seconds != default_connection_timeout &&
       !cJSON_AddStringToObject(document.get(), "conn_timeout", interval_label(saved.connection_timeout_seconds).c_str()))
     return Result::Rejected;
+  if (configured && !provided("warm_tone_override") && saved.tone.night_override &&
+      !cJSON_AddTrueToObject(document.get(), "warm_tone_override"))
+    return Result::Rejected;
   for (size_t i = 0; i < ntp_fields.size(); ++i) {
     const auto *field = ntp_fields[i];
     if (configured && !provided(field) && cJSON_HasObjectItem(previous.get(), field) &&
@@ -862,7 +868,7 @@ bool Settings::save_photo_preset(PhotoPreset preset, std::string_view paired_key
   }
   if (store_settings(settings) != UpdateResult::Saved)
     return false;
-  publish_photo_feed(settings, true);
+  publish_photo_feed(std::move(settings), true);
   return true;
 }
 
@@ -871,6 +877,22 @@ std::optional<PhotoFeedSettings> Settings::take_live_photo_feed(uint32_t revisio
   if (revision != photo_source_revision.load(std::memory_order_relaxed))
     return {};
   return std::exchange(published_feed, std::nullopt);
+}
+
+bool Settings::expire_warm_tone_override(std::string_view timezone, const PhotoFeedSettings &active_feed) {
+  const std::lock_guard lock(storage_mutex);
+  Settings settings;
+  if (!load(settings) || settings.clock.timezone != timezone || !settings.tone.night_override)
+    return false;
+  settings.tone.night_override = false;
+  if (store_settings(settings) != UpdateResult::Saved)
+    return false;
+  // Keep the current selection or its queued live replacement. Stored
+  // settings may already contain changes waiting for a restart.
+  auto feed = published_feed ? std::move(*published_feed) : PhotoFeedSettings{active_feed};
+  feed.tone.night_override = false;
+  publish_photo_feed(std::move(feed), false);
+  return true;
 }
 
 bool Settings::add_playback_fields(cJSON *object, PhotoFilterUpdate filter_update) const {
@@ -899,6 +921,7 @@ bool Settings::add_playback_fields(cJSON *object, PhotoFilterUpdate filter_updat
          cJSON_AddNumberToObject(object, "base_tone", tone.base_amount) &&
          cJSON_AddBoolToObject(object, "warm_tones_enabled", tone.night_enabled) &&
          cJSON_AddNumberToObject(object, "warm_tone_intensity", tone.night_amount) &&
+         cJSON_AddBoolToObject(object, "warm_tone_override", tone.night_override) &&
          cJSON_AddBoolToObject(object, "portrait_pairing", portrait_pairing) &&
          cJSON_AddBoolToObject(object, "portrait_pairs_only", portrait_pairs_only) &&
          cJSON_AddStringToObject(object, "portrait_pairing_range", portrait_pairing_ranges[portrait_pairing_days].data()) &&
@@ -946,6 +969,7 @@ bool Settings::save_playback(const char *json, bool *restart_required) {
 
 void Settings::publish_live_presentation() const {
   active_clock_twelve_hour.store(clock.twelve_hour(), std::memory_order_relaxed);
+  active_warm_tone_override.store(tone.night_override, std::memory_order_relaxed);
   active_connection_timeout.store(connection_timeout_seconds, std::memory_order_relaxed);
   active_playback_transition.store(PlaybackTransition::from_settings(transition, transition_speed),
                                    std::memory_order_relaxed);
@@ -1062,7 +1086,7 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
     if (live_presentation_changed)
       settings.publish_live_presentation();
     if (photo_changed)
-      publish_photo_feed(settings, selection_changed);
+      publish_photo_feed(std::move(settings), selection_changed);
     return UpdateResult::SavedLive;
   }
   return result;

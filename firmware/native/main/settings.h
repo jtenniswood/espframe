@@ -42,6 +42,7 @@ struct PhotoFeedSettings {
   PhotoFilters photo_filters;
   CaptureDateSettings capture_dates;
   PhotoMetadataSettings metadata;
+  ScreenToneSettings tone;
 
   bool needs_local_date() const {
     return metadata.needs_time() || capture_dates.needs_time() || photo_source.mode == PhotoSourceMode::Memories;
@@ -82,7 +83,6 @@ struct Settings : PhotoFeedSettings {
   ScreenRotation screen_rotation{ScreenRotation::Normal};
   ClockSettings clock;
   ScreenScheduleSettings schedule;
-  ScreenToneSettings tone;
 
   uint8_t night_brightness() const { return brightness_night.value_or(brightness_day); }
   bool has_immich() const { return !immich_url.empty() && !immich_key.empty(); }
@@ -97,6 +97,7 @@ struct Settings : PhotoFeedSettings {
   static bool save_wifi(const WifiCredentials &wifi, uint32_t expected_epoch);
   static bool save_slide_interval(uint32_t seconds, std::string_view paired_key);
   static bool save_photo_preset(PhotoPreset preset, std::string_view paired_key);
+  static bool expire_warm_tone_override(std::string_view timezone, const PhotoFeedSettings &active_feed);
   static std::optional<PhotoFeedSettings> take_live_photo_feed(uint32_t revision);
   static bool save_playback(const char *json, bool *restart_required = nullptr);
   static UpdateResult update_playback(const cJSON *update, std::optional<uint32_t> expected_epoch = {},

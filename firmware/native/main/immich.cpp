@@ -951,7 +951,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
                                 replay_pair_fills_panes(panel, this->settings_.screen_rotation, prepared);
   if (replacement && !caption_only)
     this->complete_caption_details_(frame);
-  const auto &tone = this->settings_.tone;
+  const auto &tone = this->feed_().tone;
   const auto local = captions.needs_time() || tone.night_enabled ? local_clock_time(std::time(nullptr)) : std::nullopt;
   if (tone.night_enabled && !this->tone_daylight_)
     this->tone_daylight_.emplace(find_clock_zone(this->settings_.clock.timezone));

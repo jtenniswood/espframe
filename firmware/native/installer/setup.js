@@ -125,8 +125,10 @@ backup.addEventListener('change', async () => {
     form.elements.display_mode.value = ''
     form.elements.portrait_pair_framing.value = ''
     form.elements.conn_timeout.value = ''
+    form.elements.warm_tone_override.value = ''
     for (const [name, value] of Object.entries({ ...photoFilterDefaults, ...settings })) {
-      if (typeof value === 'boolean') form.elements[name].checked = value
+      if (name === 'warm_tone_override') form.elements[name].value = String(value)
+      else if (typeof value === 'boolean') form.elements[name].checked = value
       else form.elements[name].value = value
     }
     if (!form.elements.timezone.value) notices.push('Choose a timezone supported by the frame.')
@@ -259,6 +261,8 @@ if ('serial' in navigator) {
     for (const name of percentageFields) data[name] = form.elements[name].valueAsNumber
     data.base_tone_enabled = form.elements.base_tone_enabled.checked
     data.warm_tones_enabled = form.elements.warm_tones_enabled.checked
+    if (data.warm_tone_override) data.warm_tone_override = data.warm_tone_override === 'true'
+    else delete data.warm_tone_override
     data.portrait_pairing = form.elements.portrait_pairing.checked
     data.portrait_pairs_only = form.elements.portrait_pairs_only.checked
     data.portrait_pairing_range = form.elements.portrait_pairing_range.value

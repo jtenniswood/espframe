@@ -26,6 +26,7 @@ const setup = {
   date_to: '2024-03-01', relative_amount: 1, relative_unit: 'Years',
   brightness_night: 44,
   base_tone_enabled: true, base_tone: 25, warm_tones_enabled: true, warm_tone_intensity: 60,
+  warm_tone_override: true,
   screen_rotation: '180',
   schedule_enabled: true, schedule_on_hour: 6, schedule_off_hour: 22, schedule_wake_timeout: 60,
   show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
@@ -68,6 +69,8 @@ const fixture = html.replace('</body>', `<script>
     if (!form.elements.warm_tones_enabled.checked || form.elements.warm_tone_intensity.value !== '60'
       || form.querySelector('output[for="warm_tone_intensity"]').textContent !== '60%')
       throw new Error('Incorrect initial night warmth')
+    if (!form.elements.warm_tone_override.checked)
+      throw new Error('Saved warm tone override did not load into the form')
     if (!form.elements.schedule_enabled.checked || form.elements.schedule_off_hour.value !== '22'
       || !document.querySelector('#screen-schedule').open)
       throw new Error('Incorrect initial screen schedule')
@@ -92,7 +95,7 @@ const fixture = html.replace('</body>', `<script>
     if (backup.clock.ntp_servers?.join(',') !== timeServers.join(','))
       throw new Error('Time servers missing from backup')
     if (!backup.screen.base_tone_enabled || backup.screen.base_tone !== 25
-      || !backup.screen.warm_tones_enabled || backup.screen.warm_tone_intensity !== 60)
+      || !backup.screen.warm_tones_enabled || backup.screen.warm_tone_intensity !== 60 || !backup.screen.warm_tone_override)
       throw new Error('Unexpected screen tone backup settings')
     if (!backup.photos.date_filter_enabled || backup.photos.date_from !== '2024-02-29')
       throw new Error('Capture date filter missing from backup')
@@ -128,6 +131,7 @@ const fixture = html.replace('</body>', `<script>
     form.elements.timezone.value = 'America/New_York (GMT-5)'
     form.elements.clock_format.value = '12 Hour'
     form.elements.conn_timeout.value = '45 seconds'
+    form.elements.warm_tone_override.checked = false
     form.elements.ntp_server_2.value = 'spare.example.test'
     source.dispatchEvent(new Event('change'))
     if (!album.required || album.disabled) throw new Error('Album selection did not enable the album field')
@@ -350,6 +354,7 @@ try {
     clock_format: '12 Hour', timezone: 'America/New_York (GMT-5)',
     ntp_server_2: 'spare.example.test',
     conn_timeout: '45 seconds',
+    warm_tone_override: false,
   }])
   console.log('Native photo source settings accept Immich album links and reject share links')
 
