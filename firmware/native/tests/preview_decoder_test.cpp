@@ -175,6 +175,13 @@ void verify_pair(const char *primary_path, const char *companion_path) {
   assert(replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown));
   rotated[panel_offset(portrait_pair_width, panel_width - 1, ScreenRotation::UpsideDown)] = guard;
   assert(!replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown));
+  assert(replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown, true));
+  const auto middle_gap = panel_offset(portrait_pair_width + 3, panel_width - 1, ScreenRotation::UpsideDown);
+  rotated[middle_gap] = 0x1082;
+  assert(replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown, true));
+  rotated[middle_gap] = 0xf800;
+  assert(!replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown, true));
+  rotated[middle_gap] = 0;
   rotated[panel_offset(portrait_pair_width, panel_width - 1, ScreenRotation::UpsideDown)] = 0;
   rotated[panel_offset(slide_width - 1, 0, ScreenRotation::UpsideDown)] = 0;
   assert(!replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown));

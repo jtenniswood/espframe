@@ -137,6 +137,9 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                   SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD ? "false" : "true",
                   prefetch_portrait_companion ? "true" : "false", trial_replay_pair_fill ? "true" : "false",
                   trial_replay_origin.data());
+  } else if constexpr (synthetic_trial_replay) {
+    std::snprintf(replay, sizeof(replay), ",\"replay_prepared\":true,\"replay_pair_fill\":%s,\"replay_origin\":\"%s\"",
+                  trial_replay_pair_fill ? "true" : "false", trial_replay_origin.data());
   }
   char body[1600]{};
   const auto length = std::snprintf(body, sizeof(body),
@@ -302,7 +305,7 @@ esp_err_t preparation_status(httpd_req_t *request) {
 
   char body[1408]{'{'};
   size_t used = 1;
-  if constexpr (direct_trial_replay) {
+  if constexpr (synthetic_trial_replay) {
     const auto remaining = sizeof(body) - used;
     const auto written = std::snprintf(body + used, remaining,
                                        "\"new_slides\":{\"paired\":%" PRIu32 ",\"single\":%" PRIu32
@@ -431,7 +434,7 @@ void record_live_trial_preview(int http_status) {
 
 void record_live_trial_preparation_time(TrialPreparationStage stage, uint32_t elapsed_us, size_t bytes) {
   portENTER_CRITICAL(&preparation_lock);
-  if (!direct_trial_replay || !preparation_finished) {
+  if (!synthetic_trial_replay || !preparation_finished) {
     auto &timing = preparation_timings[static_cast<size_t>(stage)];
     ++timing.count;
     timing.total_us += elapsed_us;
@@ -501,7 +504,7 @@ void record_live_trial_blit(bool dma) {
 std::optional<TouchReport> poll_live_trial_benchmark(int64_t now, SlideIndex center, SlideRange ready, bool at_rest) {
   portENTER_CRITICAL(&swipe_lock);
   const auto report = benchmark.poll(now, center, ready, at_rest);
-  if constexpr (direct_trial_replay) {
+  if constexpr (synthetic_trial_replay) {
     if (benchmark.finished() && !completed_replay_metrics) {
       completed_replay_metrics = metrics.results();
       // Freeze both reports before publishing the final settle. A download

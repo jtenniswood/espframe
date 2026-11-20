@@ -159,6 +159,26 @@ class ReplayTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "render each new slide as a pair"):
             replays.compare(control, candidate)
 
+    def test_prepared_comparison_checks_that_the_service_supplied_the_slides(self):
+        direct, prepared = example(True), example(True)
+        prepared["profile"].update(run="prepared", warmRotation="0", warmPairFill=True)
+        prepared["benchmark"].pop("direct_replay_lookahead")
+        prepared["benchmark"]["replay_prepared"] = True
+        for run in (direct, prepared):
+            run["benchmark"]["replay_pair_fill"] = True
+            run["preparation"]["new_slides"] = {"paired": 11, "single": 0, "pair_fill_edge_failures": 0}
+        direct["preparation"]["transfer"] = {"count": 4, "bytes": 1_500_000}
+        direct["preparation"]["prefetch_transfer"]["bytes"] = 9_500_000
+        prepared["preparation"].update(transfer={"count": 0}, prefetch_transfer={"count": 0},
+                                       prepared_transfer={"count": 12, "bytes": 2_000_000}, prepared_decode={"count": 11})
+        result = replays.compare(direct, prepared, prepared_service=True)
+        self.assertIn("| Metric | Control | Prepared slides |", result)
+        self.assertIn("| Photo bytes downloaded by frame | 11000000 | 2000000 |", result)
+        self.assertIn("| Preparation-service cache at start | — | prewarmed |", result)
+        prepared["preparation"]["transfer"]["count"] = 1
+        with self.assertRaisesRegex(ValueError, "without falling back to direct previews"):
+            replays.compare(direct, prepared, prepared_service=True)
+
     @patch.object(replays, "read_json")
     def test_capture_saves_server_counts_with_the_stall_profile(self, get):
         run = example(True)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Capture and compare the two direct synthetic runs on a Guition V1."""
+"""Capture and compare synthetic preview trials on a Guition V1."""
 
 import argparse
 import json
@@ -23,8 +23,9 @@ def capture(frame, replay, timeout):
         except (URLError, TimeoutError):
             sleep(0.5)
             continue
-        if benchmark.get("replay_origin") != replay or type(benchmark.get("direct_replay_lookahead")) is not bool:
-            raise ValueError("The frame is not running a direct synthetic trial for this replay server")
+        if benchmark.get("replay_origin") != replay or (
+                benchmark.get("replay_prepared") is not True and type(benchmark.get("direct_replay_lookahead")) is not bool):
+            raise ValueError("The frame is not running a synthetic trial for this replay server")
         if benchmark.get("settled") == benchmark.get("target") == 48:
             break
         sleep(0.5)
@@ -45,17 +46,25 @@ def capture(frame, replay, timeout):
 
 def validate(run, *, lookahead):
     benchmark = run["benchmark"]
-    if (benchmark.get("direct_replay_lookahead") is not lookahead or benchmark["scripted"] is not True
-            or benchmark["source"] != "immich" or benchmark["scenario"] != "rapid"):
+    prepared = lookahead is None
+    if prepared:
+        if benchmark.get("replay_prepared") is not True:
+            raise ValueError("Expected the prepared replay as the candidate capture")
+    elif benchmark.get("replay_prepared", False) is not False or benchmark.get("direct_replay_lookahead") is not lookahead:
         raise ValueError("Expected the control capture first and the lookahead capture second")
+    if benchmark["scripted"] is not True or benchmark["source"] != "immich" or benchmark["scenario"] != "rapid":
+        raise ValueError("Each capture must be from a rapid scripted Immich replay")
     if not (benchmark["target"] == benchmark["started"] == benchmark["settled"] == benchmark["first_motion"]["count"] == 48):
         raise ValueError("Each capture must contain all 48 settled swipes and first-motion samples")
     if benchmark["wrong_slide"]:
         raise ValueError("A swipe settled on the wrong slide")
     prep = run["preparation"]
-    if prep["prepared_transfer"]["count"]:
+    if prepared:
+        if not prep["prepared_decode"]["count"] or (prep["transfer"]["count"] or prep["prefetch_transfer"]["count"]):
+            raise ValueError("The candidate must decode prepared slides without falling back to direct previews")
+    elif prep["prepared_transfer"]["count"]:
         raise ValueError("The capture includes requests to the preparation service")
-    if not lookahead and (prep["prefetch_transfer"]["count"] or prep["prefetch_wait"]["count"]):
+    if lookahead is False and (prep["prefetch_transfer"]["count"] or prep["prefetch_wait"]["count"]):
         raise ValueError("The control capture includes preview lookahead")
 
 
@@ -106,14 +115,17 @@ def checked_fill_pairs(run):
     return paired
 
 
-def compare(control, enabled, *, companion_prefetch=False, slow_previews=False):
-    lookahead_in_both = companion_prefetch or slow_previews
-    validate(control, lookahead=lookahead_in_both)
-    validate(enabled, lookahead=True)
+def compare(control, enabled, *, companion_prefetch=False, slow_previews=False, prepared_service=False):
+    control_lookahead = companion_prefetch or slow_previews or prepared_service
+    validate(control, lookahead=control_lookahead)
+    validate(enabled, lookahead=None if prepared_service else True)
     before, after = control["benchmark"], enabled["benchmark"]
     pair_fill = before.get("replay_pair_fill", False)
     if type(pair_fill) is not bool or pair_fill is not after.get("replay_pair_fill", False):
         raise ValueError("Both captures must use the same portrait pair framing")
+    if (prepared_service and enabled["profile"].get("warmRotation") is not None
+            and enabled["profile"].get("warmPairFill", False) is not pair_fill):
+        raise ValueError("The prewarmed service cache must use the replay's portrait pair framing")
     if companion_prefetch and (before.get("direct_replay_companion_prefetch") is not False
                                or after.get("direct_replay_companion_prefetch") is not True):
         raise ValueError("Expected companion prefetch disabled in the control capture and enabled in the candidate")
@@ -156,15 +168,15 @@ def compare(control, enabled, *, companion_prefetch=False, slow_previews=False):
     ):
         if key in before and key in after:
             rows.append((label, sample(before[key], limit), sample(after[key], limit)))
-    before_used, before_wait = prefetch_summary(control) if lookahead_in_both else ("disabled", "disabled")
-    after_used, after_wait = prefetch_summary(enabled)
+    before_used, before_wait = prefetch_summary(control) if control_lookahead else ("disabled", "disabled")
+    after_used, after_wait = ("disabled", "no samples") if prepared_service else prefetch_summary(enabled)
     if companion_prefetch:
         rows.insert(2, ("New slides rendered as portrait pairs", prepared_pairs(control), prepared_pairs(enabled)))
     if pair_fill:
         rows.insert(2, ("Filled pairs with matching edges and divider", checked_fill_pairs(control),
                         checked_fill_pairs(enabled)))
     rows.append(("Lookahead previews used", before_used, after_used))
-    if after_wait != "no samples" or (lookahead_in_both and before_wait != "no samples"):
+    if after_wait != "no samples" or (control_lookahead and before_wait != "no samples"):
         rows.append(("Mean wait for staged previews", before_wait, after_wait))
     candidate = "Companion prefetch" if companion_prefetch else "Lookahead"
     if slow_previews:
@@ -173,6 +185,14 @@ def compare(control, enabled, *, companion_prefetch=False, slow_previews=False):
                                             stalled_previews(control), stalled_previews(enabled)):
             rows.append((label, baseline, changed))
         candidate = "Candidate firmware"
+    if prepared_service:
+        direct = control["preparation"]
+        prepared = enabled["preparation"]
+        rows.append(("Photo bytes downloaded by frame", direct["transfer"]["bytes"] + direct["prefetch_transfer"]["bytes"],
+                     prepared["prepared_transfer"]["bytes"]))
+        mode = enabled["profile"].get("warmRotation")
+        rows.append(("Preparation-service cache at start", "—", "cold" if mode is None else "prewarmed"))
+        candidate = "Prepared slides"
     return "\n".join([
         f"| Metric | Control | {candidate} |",
         "| --- | --- | --- |",
@@ -188,7 +208,7 @@ def main():
     collect.add_argument("--replay", required=True, help="HTTP origin of the synthetic replay server")
     collect.add_argument("--timeout", type=int, default=120, help="Seconds to wait for the scripted run")
     collect.add_argument("output", type=Path)
-    summarize = actions.add_parser("compare", help="Compare two direct preview captures")
+    summarize = actions.add_parser("compare", help="Compare two preview captures")
     summarize.add_argument("control", type=Path)
     summarize.add_argument("candidate", type=Path)
     variant = summarize.add_mutually_exclusive_group()
@@ -196,6 +216,8 @@ def main():
                          help="Compare companion prefetch with primary lookahead enabled in both runs")
     variant.add_argument("--slow-previews", action="store_true",
                          help="Compare firmware versions with the same preview stall and lookahead settings")
+    variant.add_argument("--prepared-service", action="store_true",
+                         help="Compare direct previews with the prepared-slide service")
     args = parser.parse_args()
     try:
         if args.action == "capture":
@@ -205,7 +227,8 @@ def main():
                 output.write("\n")
         else:
             print(compare(json.loads(args.control.read_text()), json.loads(args.candidate.read_text()),
-                          companion_prefetch=args.companion_prefetch, slow_previews=args.slow_previews))
+                          companion_prefetch=args.companion_prefetch, slow_previews=args.slow_previews,
+                          prepared_service=args.prepared_service))
     except (OSError, ValueError, KeyError, TypeError) as error:
         parser.exit(1, f"{error}\n")
 

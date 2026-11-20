@@ -96,6 +96,22 @@ comparison requires each new synthetic slide to render as a pair and rejects
 a failed edge check or a mismatch between Fit and Fill. Use the physical panel
 to check the visible crop.
 
+To measure a **prewarmed preparation service** under the same conditions,
+use `SWIPE_TRIAL_REPLAY_PAIR_FILL=ON` on both builds and enable
+`SWIPE_TRIAL_REPLAY_PREPARED` on the second one. For that run, start the server
+with `REPLAY_WARM_PAIR_FILL=1` and `REPLAY_WARM_ROTATION=0` or `180` to match
+the frame. The service builds the pairs before the timed run and before the
+preview pauses begin. Leave both warm options unset for the direct run.
+
+```sh
+python3 firmware/native/tools/compare_preview_replays.py compare --prepared-service direct.json prepared.json
+```
+
+The report includes photo bytes downloaded by the frame and whether the
+service was prewarmed. It requires the prepared run to use the service
+throughout. Prepared JPEGs pass the Fill check when the pane edges contain
+photo pixels and the inner four divider pixels are dark.
+
 ### Measure portrait companion prefetch
 
 For both builds, leave `SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD=OFF` so the worker can

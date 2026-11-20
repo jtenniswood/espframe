@@ -8,6 +8,7 @@ import { createSlideService } from './service.ts'
 const host = process.env.REPLAY_HOST ?? '127.0.0.1'
 const port = Number(process.env.REPLAY_PORT ?? 9116)
 const warmRotation = process.env.REPLAY_WARM_ROTATION
+const warmPairFill = process.env.REPLAY_WARM_PAIR_FILL === '1'
 const unavailable = process.env.REPLAY_PREPARED_UNAVAILABLE === '1'
 const outageHistory = process.env.REPLAY_OFFLINE_HISTORY === '1'
 const previewSize = Number(process.env.REPLAY_PREVIEW_SIZE ?? '0')
@@ -19,6 +20,9 @@ if (!isIPv4(host) || !Number.isInteger(port) || port < 1 || port > 65535 ||
 }
 if (outageHistory && unavailable) {
   throw new Error('REPLAY_OFFLINE_HISTORY starts with an available service')
+}
+if (warmPairFill && warmRotation === undefined) {
+  throw new Error('Set REPLAY_WARM_ROTATION when prewarming Fill pairs')
 }
 if (![0, 720, 1080, 1440].includes(previewSize) || !Number.isInteger(baselineQuality) ||
     baselineQuality < 0 || baselineQuality > 100) {
@@ -74,6 +78,7 @@ for (let index = 0; index < 72; index++) {
 
 const replayProfile = JSON.stringify({
   run: randomUUID(), sha256: fingerprint.digest('hex'), previewSize, baselineQuality, previewStallMs,
+  warmRotation: warmRotation ?? null, warmPairFill,
 })
 const stalledPreviews = { started: 0, completed: 0, interrupted: 0 }
 let offset = 0
@@ -165,7 +170,7 @@ await once(server.listen(port, host), 'listening')
 if (warmRotation !== undefined) {
   for (let index = 0; index < library.length; index += 2) {
     // The native pending queue selects its next photo from the back.
-    const query = `companion=${library[index].id}&rotation=${warmRotation}`
+    const query = `companion=${library[index].id}&rotation=${warmRotation}&mode=${warmPairFill ? 'fill' : 'fit'}`
     const response = await fetch(`${origin}/v1/slides/${library[index + 1].id}?${query}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
