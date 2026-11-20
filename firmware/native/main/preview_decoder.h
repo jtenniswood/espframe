@@ -11,7 +11,13 @@
 namespace espframe::native {
 
 class P4JpegDecoder;
-enum class PreviewTarget { Slide, PairPane, OptionalPair };
+enum class PreviewTarget { Slide, PairPane, OptionalPair, RequiredPair };
+
+struct PreviewLayout {
+  PreviewTarget target{PreviewTarget::Slide};
+  DisplayMode photo{DisplayMode::Fit};
+  DisplayMode pair{DisplayMode::Fit};
+};
 inline bool is_jpeg_preview(const uint8_t *encoded, size_t length) {
   return length >= 2 && encoded[0] == 0xff && encoded[1] == 0xd8;
 }
@@ -28,8 +34,8 @@ class DecodedPreview {
   DecodedPreview(const DecodedPreview &) = delete;
   DecodedPreview &operator=(const DecodedPreview &) = delete;
 
-  Result decode(const uint8_t *encoded, size_t length, PreviewTarget target = PreviewTarget::Slide,
-                P4JpegDecoder *hardware = nullptr, DisplayMode mode = DisplayMode::Fit, PreparationCheckpoint checkpoint = {},
+  Result decode(const uint8_t *encoded, size_t length, PreviewLayout layout = {},
+                P4JpegDecoder *hardware = nullptr, PreparationCheckpoint checkpoint = {},
                 PhotoOrientation orientation = PhotoOrientation::Any);
   bool portrait() const { return this->portrait_; }
   bool hardware_jpeg() const { return this->hardware_jpeg_; }

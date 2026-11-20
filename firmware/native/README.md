@@ -324,8 +324,9 @@ looks for a companion within the selected local capture date range.
 Choose **Same Day**, **Within 1 Day** or **Within 2 Days**. A pair is composed
 into one slide before it can be shown or swiped. If a new companion is
 missing or slow to arrive, the primary photo fills the slide by itself.
-Enable **Show paired portraits only** to wait for a complete pair for
-every slide. Turning off portrait pairing pauses this filter and retains
+Enable **Show paired portraits only** to skip a portrait when its companion
+is unavailable. Landscape photos still appear as single slides. Turning off
+portrait pairing pauses this filter and retains
 its saved value and range. Native setup and Espframe settings backups carry
 both options.
 **Show full image** is the default for the native prototype. **Crop to fit**

@@ -279,12 +279,23 @@ bool can_start_portrait_pair(const ImmichPhoto &photo) {
   return photo.metadata.capture_day && (!photo.orientation_known || photo.portrait);
 }
 
-std::optional<size_t> find_pair_seed(std::span<const ImmichPhoto> photos, unsigned pairing_days, const AssetId &exclude) {
-  // Match the pending queue's back-to-front preference. A known pair can
-  // be tried with no additional metadata request.
+bool can_play_with_required_pairs(const ImmichPhoto &photo, PhotoOrientation orientation) {
+  return (orientation != PhotoOrientation::Portrait && photo.may_match_orientation(PhotoOrientation::Landscape)) ||
+         (orientation != PhotoOrientation::Landscape && can_start_portrait_pair(photo));
+}
+
+std::optional<size_t> find_pair_or_landscape_seed(std::span<const ImmichPhoto> photos, unsigned pairing_days,
+                                                  const AssetId &exclude, PhotoOrientation orientation) {
+  // Match the pending queue's back-to-front preference among photos that
+  // can be tried with no additional metadata request.
   for (size_t i = photos.size(); i > 0; --i) {
     const auto &seed = photos[i - 1];
-    if (seed.portrait && seed.id != exclude && std::any_of(photos.begin(), photos.end(), [&](const ImmichPhoto &candidate) {
+    if (seed.id == exclude)
+      continue;
+    if (orientation != PhotoOrientation::Portrait && seed.orientation_known && !seed.portrait)
+      return i - 1;
+    if (orientation != PhotoOrientation::Landscape && seed.portrait &&
+        std::any_of(photos.begin(), photos.end(), [&](const ImmichPhoto &candidate) {
           return candidate.id != exclude && is_portrait_companion(seed, candidate, pairing_days);
         }))
       return i - 1;

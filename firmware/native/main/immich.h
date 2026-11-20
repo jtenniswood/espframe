@@ -63,14 +63,14 @@ class ImmichSource {
   bool take_pending_(ImmichPhoto &asset);
   std::optional<size_t> pending_index_(const AssetId &exclude = {}) const;
   void prefetch_next_(const AssetId &id);
-  bool select_pair_(ImmichPhoto &seed, AssetId &companion);
+  bool select_pair_or_landscape_(ImmichPhoto &seed, AssetId &companion);
   AssetId companion_for_(const ImmichPhoto &primary, std::optional<int64_t> search_deadline = {});
   void discard_candidate_(const AssetId &id);
   void complete_location_(PhotoSlide &frame);
   bool wait_for_pixel_work_() const;
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, PreviewTarget target, int64_t deadline_us,
                               bool report_response, const AssetId &lookahead = {});
-  PreparedPreview render_prepared_(const PhotoSlide &frame, uint16_t *panel);
+  PreparedPreview render_prepared_(const PhotoSlide &frame, uint16_t *panel, PhotoOrientation orientation);
 
   const std::atomic<bool> &cancelled_;
   const std::atomic<bool> &pixel_work_deferred_;

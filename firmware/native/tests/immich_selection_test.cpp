@@ -83,17 +83,29 @@ int main() {
   two_days_away.metadata.capture_day = *primary.metadata.capture_day + days{2};
   assert(!is_portrait_companion(primary, two_days_away, 1) && is_portrait_companion(primary, two_days_away, 2));
   const std::array wider_pair{primary, two_days_away};
-  assert(!find_pair_seed(wider_pair, 1) && find_pair_seed(wider_pair, 2) == 1);
+  const auto only_pairs = [](std::span<const ImmichPhoto> candidates, unsigned days = 0, const AssetId &exclude = {}) {
+    return find_pair_or_landscape_seed(candidates, days, exclude, PhotoOrientation::Portrait);
+  };
+  assert(!only_pairs(wider_pair, 1) && only_pairs(wider_pair, 2) == 1);
   assert(!photos[5].metadata.capture_day && !is_portrait_companion(primary, photos[5]));
   assert(primary.orientation_known && photos[2].orientation_known && photos[3].orientation_known);
   assert(can_start_portrait_pair(primary));
   assert(!can_start_portrait_pair(photos[3]));
   assert(!can_start_portrait_pair(photos[5]));
-  assert(find_pair_seed(photos) == 2);
-  assert(find_pair_seed(photos, 0, photos[2].id) == 1);
-  assert(!find_pair_seed(wider_pair, 2, primary.id));
-  assert(!find_pair_seed(wider_pair, 2, two_days_away.id));
-  assert(!find_pair_seed(std::span(photos).last(3)));
+  assert(only_pairs(photos) == 2);
+  assert(only_pairs(photos, 0, photos[2].id) == 1);
+  assert(!only_pairs(wider_pair, 2, primary.id));
+  assert(!only_pairs(wider_pair, 2, two_days_away.id));
+  assert(!only_pairs(std::span(photos).last(3)));
+  auto undated_landscape = photos[3];
+  undated_landscape.metadata.capture_day.reset();
+  assert(can_play_with_required_pairs(undated_landscape, PhotoOrientation::Any));
+  assert(!can_play_with_required_pairs(undated_landscape, PhotoOrientation::Portrait));
+  assert(!can_play_with_required_pairs(photos[5], PhotoOrientation::Any));
+  const std::array mixed{primary, photos[1], undated_landscape, photos[4]};
+  assert(find_pair_or_landscape_seed(mixed, 0, {}, PhotoOrientation::Any) == 2);
+  assert(find_pair_or_landscape_seed(mixed, 0, undated_landscape.id, PhotoOrientation::Any) == 1);
+  assert(only_pairs(mixed) == 1);
   const auto uncertain = parse_photo_search(R"([
     {"id":"ef492926-9046-408b-be47-a959620753bb","localDateTime":"2024-03-01T19:00:00Z","width":null,"height":null},
     {"id":"ec492926-9046-408b-be47-a959620753bb","localDateTime":"2024-03-01T19:00:00Z","exifInfo":{"exifImageWidth":1920,"exifImageHeight":1080}},
@@ -103,7 +115,11 @@ int main() {
   for (const auto &photo : uncertain)
     assert(!photo.orientation_known && can_start_portrait_pair(photo) &&
            photo.may_match_orientation(PhotoOrientation::Portrait) && photo.may_match_orientation(PhotoOrientation::Landscape));
-  assert(!find_pair_seed(uncertain));
+  assert(!only_pairs(uncertain));
+  auto undated_preview = uncertain.front();
+  undated_preview.metadata.capture_day.reset();
+  assert(can_play_with_required_pairs(undated_preview, PhotoOrientation::Any));
+  assert(!can_play_with_required_pairs(undated_preview, PhotoOrientation::Portrait));
   assert(parse_photo_search(response, 2, false, false).photos.size() == 2);
   const auto visible = parse_photo_search(R"([
     {"id":"c48e2980-18ac-4d7d-876a-a636759a1aec","visibility":"archive"},

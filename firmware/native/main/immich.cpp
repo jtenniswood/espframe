@@ -335,7 +335,9 @@ bool ImmichSource::next_asset_(ImmichPhoto &asset) {
   if (this->pending_.empty()) {
     this->pending_ = memory_mode ? this->memories_() : this->search_(source);
     if (this->feed_().requires_portrait_pair()) {
-      const auto removed = std::erase_if(this->pending_, [](const ImmichPhoto &photo) { return !can_start_portrait_pair(photo); });
+      const auto removed = std::erase_if(this->pending_, [&](const ImmichPhoto &photo) {
+        return !can_play_with_required_pairs(photo, this->feed_().photo_orientation);
+      });
       if (removed != 0 && this->pending_.empty() && !this->pending_has_next_page_)
         this->source_status_ = PhotoSourceStatus::WaitingForPair;
     }
@@ -373,7 +375,8 @@ bool ImmichSource::take_pending_(ImmichPhoto &asset) {
 
 std::optional<size_t> ImmichSource::pending_index_(const AssetId &exclude) const {
   if (this->feed_().requires_portrait_pair() && !this->pending_is_paged_) {
-    if (const auto match = find_pair_seed(this->pending_, this->feed_().portrait_pairing_days, exclude))
+    if (const auto match = find_pair_or_landscape_seed(this->pending_, this->feed_().portrait_pairing_days, exclude,
+                                                       this->feed_().photo_orientation))
       return match;
   }
   for (auto i = this->pending_.size(); i > 0; --i) {
@@ -392,9 +395,11 @@ void ImmichSource::prefetch_next_(const AssetId &id) {
   this->prefetch_.start(id, this->http_connection_, this->settings_.immich_url, this->settings_.immich_key);
 }
 
-bool ImmichSource::select_pair_(ImmichPhoto &seed, AssetId &companion) {
+bool ImmichSource::select_pair_or_landscape_(ImmichPhoto &seed, AssetId &companion) {
   const auto deadline = esp_timer_get_time() + pairing_time_us;
   for (unsigned search = 1;; ++search) {
+    if (!seed.orientation_known || !seed.portrait)
+      return true;
     companion = this->companion_for_(seed, deadline);
     if (this->cancelled_) {
       this->pending_.push_back(seed);
@@ -489,14 +494,14 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
   const bool optional = deadline_us != 0;
   const bool for_pair = target == PreviewTarget::PairPane;
   const auto orientation = for_pair ? PhotoOrientation::Portrait : this->feed_().photo_orientation;
-  const auto framing = for_pair ? this->feed_().pair_display_mode() : this->feed_().display_mode;
+  const PreviewLayout layout{target, this->feed_().display_mode, this->feed_().pair_display_mode()};
   const auto decode = [&](const uint8_t *data, size_t length) {
     if (is_jpeg_preview(data, length) || is_webp_preview(data, length))
       this->prefetch_next_(lookahead);
     int64_t started_us = 0;
     if constexpr (SWIPE_TRIAL_IMMICH)
       started_us = esp_timer_get_time();
-    const auto result = preview.decode(data, length, target, &this->jpeg_, framing, this->checkpoint_, orientation);
+    const auto result = preview.decode(data, length, layout, &this->jpeg_, this->checkpoint_, orientation);
     if constexpr (SWIPE_TRIAL_IMMICH) {
       const auto elapsed = static_cast<uint32_t>(esp_timer_get_time() - started_us);
       auto stage = TrialPreparationStage::RejectedPreview;
@@ -590,10 +595,10 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
                                                                               : PreviewStatus::Retry;
 }
 
-ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &frame, uint16_t *panel) {
+ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &frame, uint16_t *panel,
+                                                            PhotoOrientation orientation) {
   const bool paired = frame.companion[0] != '\0';
   const auto framing = paired ? this->feed_().pair_display_mode() : this->feed_().display_mode;
-  const auto orientation = this->feed_().photo_orientation;
   const bool frame_fill = !paired && framing == DisplayMode::Fill && orientation != PhotoOrientation::Landscape;
   const RecentPreviews::PreparedKey key{frame.primary, frame.companion, framing, orientation};
   const auto cached = previews_.find(key);
@@ -692,10 +697,11 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     const TrialStageTimer selection{TrialPreparationStage::Selection};
     if (!this->next_asset_(seed))
       return !cancelled_ && this->pending_has_next_page_ ? PrepareResult::NextCandidate : PrepareResult::Retry;
-    if (pairs_only && !this->select_pair_(seed, frame.companion)) {
+    if (pairs_only && !this->select_pair_or_landscape_(seed, frame.companion)) {
       if (!cancelled_)
         this->source_status_ = PhotoSourceStatus::WaitingForPair;
-      return PrepareResult::Retry;
+      return !cancelled_ && (!this->pending_.empty() || this->pending_has_next_page_)
+                 ? PrepareResult::NextCandidate : PrepareResult::Retry;
     }
     frame.primary = seed.id;
     frame.metadata = seed.metadata;
@@ -721,15 +727,22 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   const bool optional_pair = !remembered && !pairs_only && slide > 1 && feed_().pairs_portraits();
   bool selected_companion = false;
   const bool pair_needs_selection = optional_pair && seed.portrait;
+  // Ask the service to verify a single landscape before using an opaque
+  // prepared slide in a feed that must never show a single portrait.
+  const bool verify_landscape = pairs_only && frame.companion[0] == '\0';
+  const bool may_prepare_landscape = feed_().photo_orientation == PhotoOrientation::Any &&
+                                    (remembered || (seed.orientation_known && !seed.portrait));
   if (settings_.has_prepared_slides() && (!optional_pair || seed.orientation_known) &&
+      (!verify_landscape || may_prepare_landscape) &&
       (!pair_needs_selection || esp_timer_get_time() >= prepared_retry_us_)) {
     if (pair_needs_selection) {
       const TrialStageTimer selection{TrialPreparationStage::Selection};
       frame.companion = companion_for_(seed, esp_timer_get_time() + pairing_time_us);
       selected_companion = true;
     }
-    const auto preview = this->render_prepared_(frame, panel);
-    if (preview.orientation_mismatch)
+    const auto prepared_orientation = verify_landscape ? PhotoOrientation::Landscape : feed_().photo_orientation;
+    const auto preview = this->render_prepared_(frame, panel, prepared_orientation);
+    if (preview.orientation_mismatch && !verify_landscape)
       return reject_candidate(frame.primary);
     prepared = preview.ready;
   }
@@ -745,14 +758,14 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       return AssetId{};
     };
     DecodedPreview primary;
-    const bool paired_primary = pairs_only || retain_pair;
     // Start a known companion during primary decode. A new Immich search
     // still waits for the decoded portrait so it cannot delay a landscape.
     if (prefetch_portrait_companion && optional_pair && !selected_companion && seed.portrait) {
       frame.companion = companion_for_(seed);
       selected_companion = frame.companion[0] != '\0';
     }
-    const bool primary_last = !optional_pair || (seed.orientation_known && !seed.portrait);
+    const bool primary_last = (!optional_pair && !pairs_only) || (seed.orientation_known && !seed.portrait) ||
+                              (remembered && frame.companion[0] == '\0');
     AssetId lookahead{};
     if (frame.companion[0] != '\0') {
       if constexpr (prefetch_portrait_companion)
@@ -761,18 +774,33 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       lookahead = upcoming({});
     }
     auto primary_target = PreviewTarget::Slide;
-    if (paired_primary)
+    if (retain_pair)
       primary_target = PreviewTarget::PairPane;
+    else if (pairs_only)
+      primary_target = PreviewTarget::RequiredPair;
     else if (optional_pair || frame.companion[0] != '\0')
       primary_target = PreviewTarget::OptionalPair;
     const auto status = this->load_preview_(frame.primary, primary, primary_target, 0, true, lookahead);
     if (this->cancelled_ || status == PreviewStatus::Retry)
       return retry_frame();
-    if (status == PreviewStatus::Missing || (paired_primary && !primary.portrait()))
+    if (status == PreviewStatus::Missing || (retain_pair && !primary.portrait()))
       return reject_candidate(frame.primary);
 
     // Optional pairing leaves the first preview on the fast path.
+    const bool paired_primary = retain_pair || (pairs_only && primary.portrait());
     const auto pair_deadline_us = paired_primary ? 0 : esp_timer_get_time() + (remembered ? 2 : 1) * pairing_time_us;
+    if (paired_primary && frame.companion[0] == '\0') {
+      if (!remembered) {
+        const TrialStageTimer selection{TrialPreparationStage::Selection};
+        frame.companion = this->companion_for_(seed, esp_timer_get_time() + pairing_time_us);
+      }
+      if (this->cancelled_)
+        return retry_frame();
+      if (frame.companion[0] == '\0') {
+        this->source_status_ = PhotoSourceStatus::WaitingForPair;
+        return reject_candidate(frame.primary);
+      }
+    }
     if (optional_pair && !selected_companion && primary.portrait()) {
       const TrialStageTimer selection{TrialPreparationStage::Selection};
       frame.companion = this->companion_for_(seed, pair_deadline_us);
