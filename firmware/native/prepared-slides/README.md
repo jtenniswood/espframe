@@ -28,7 +28,10 @@ docker run --rm --env-file /path/to/service.env -p 127.0.0.1:8080:8080 espframe-
 
 ## Request a slide
 
-Send `GET /v1/slides/<asset-uuid>` with the `Authorization: Bearer <service-token>` header. Add `companion=<asset-uuid>` for a portrait pair, `mode=fill` to crop, or `rotation=180` for an upside-down mount. `fit` and `0` are the defaults. A pair uses the primary photo on the left, the companion on the right and an eight-pixel gap.
+Send `GET /v1/slides/<asset-uuid>` with the `Authorization: Bearer <service-token>` header. Add `companion=<asset-uuid>` for a portrait pair or `rotation=180` for an upside-down mount. `fit` and `0` are the defaults. `mode=fill` crops landscape photos and portrait pairs and retains the full image of a single portrait. `mode=fill-frame` also crops single portraits to fill the screen. A pair uses the primary photo on the left, the companion on the right and an eight-pixel gap.
+
+The frame uses direct Immich previews for full-frame crops when an older
+preparation service rejects `mode=fill-frame`.
 
 Add `orientation=portrait` or `orientation=landscape` to filter the primary photo by its dimensions after EXIF correction. A mismatch returns HTTP 409, and the frame moves on to the next candidate. Square photos count as landscape. Frames with a photo orientation filter use direct previews when an older service rejects the option.
 

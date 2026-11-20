@@ -1,6 +1,6 @@
 import sharp from 'sharp'
 
-export type SlideLayout = { mode: 'fit' | 'fill'; rotation: 0 | 180; orientation?: 'portrait' | 'landscape' }
+export type SlideLayout = { mode: 'fit' | 'fill' | 'fill-frame'; rotation: 0 | 180; orientation?: 'portrait' | 'landscape' }
 
 export class OrientationMismatch extends Error {}
 
@@ -50,7 +50,7 @@ export async function prepareSlide(primary: Buffer, companion: Buffer | undefine
   if (layout.orientation && portrait !== (layout.orientation === 'portrait')) {
     throw new OrientationMismatch('Preview does not match the requested orientation')
   }
-  const fill = layout.mode === 'fill'
+  const fill = layout.mode !== 'fit'
   const layers = []
   if (companion) {
     const right = await orient(companion)
@@ -60,7 +60,7 @@ export async function prepareSlide(primary: Buffer, companion: Buffer | undefine
     const half = (width - gap) / 2
     layers.push(await tile(left, 0, half, fill), await tile(right, half + gap, half, fill))
   } else {
-    layers.push(await tile(left, 0, width, fill && !portrait))
+    layers.push(await tile(left, 0, width, layout.mode === 'fill-frame' || (fill && !portrait)))
   }
   const logical = await sharp({ create: { width, height, channels: 3, background } })
     .composite(layers).raw().toBuffer({ resolveWithObject: true })

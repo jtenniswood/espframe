@@ -109,7 +109,7 @@ void verify(const char *path) {
   assert((at(panel, 400, 650) & 0x001f) >= 0x001e);
   assert(at(panel, 880, 650) >= 0xf7de);
   expect_flipped(panel, decoded);
-  assert(decoded.decode(photo.data(), photo.size(), false, nullptr, DisplayMode::Fill) == Decode::Ready);
+  assert(decoded.decode(photo.data(), photo.size(), PreviewTarget::Slide, nullptr, DisplayMode::Fill) == Decode::Ready);
   decoded.render(panel.data() + 1, nullptr, DisplayMode::Fill);
   assert(panel.front() == guard && panel.back() == guard);
   assert((at(panel, 0, 150) & 0xf800) >= 0xf000);
@@ -126,7 +126,7 @@ void verify_pair(const char *primary_path, const char *companion_path) {
   const auto primary = load(primary_path);
   const auto companion = load(companion_path);
   assert(left.decode(primary.data(), primary.size()) == Decode::Ready && left.portrait());
-  assert(right.decode(companion.data(), companion.size(), true) == Decode::Ready && right.portrait());
+  assert(right.decode(companion.data(), companion.size(), PreviewTarget::PairPane) == Decode::Ready && right.portrait());
   constexpr uint16_t guard = 0x43cd;
   std::vector<uint16_t> panel(pixel_count + 2, guard);
   left.render(panel.data() + 1, &right);
@@ -135,27 +135,42 @@ void verify_pair(const char *primary_path, const char *companion_path) {
   assert((at(panel, 960, 420) & 0x001f) >= 0x001e);
   assert(at(panel, 639, 420) == 0 && at(panel, 640, 420) == 0);
   assert(at(panel, 320, 0) == 0 && at(panel, 960, 0) != 0);
+  const auto full_photo_pair = panel;
   expect_flipped(panel, left, &right);
-  assert(left.decode(primary.data(), primary.size(), false, nullptr, DisplayMode::Fill) == Decode::Ready);
-  left.render(panel.data() + 1, nullptr, DisplayMode::Fill);
-  assert(at(panel, 0, 420) == 0 && (at(panel, 640, 420) & 0xf800) >= 0xf000);
-  assert(right.decode(companion.data(), companion.size(), true, nullptr, DisplayMode::Fill) == Decode::Ready);
+  assert(left.decode(primary.data(), primary.size(), PreviewTarget::Slide, nullptr, DisplayMode::Fill) == Decode::Ready);
+  left.render(panel.data() + 1);
+  assert((at(panel, 0, 420) & 0xf800) >= 0xf000 && (at(panel, 640, 420) & 0xf800) >= 0xf000);
+  expect_flipped(panel, left, nullptr);
+
+  // A flexible primary keeps the full portrait for Fit pairs, even when
+  // a single-photo fallback would fill the whole frame.
+  assert(left.decode(primary.data(), primary.size(), PreviewTarget::OptionalPair, nullptr, DisplayMode::Fill) == Decode::Ready);
+  assert(left.render(panel.data() + 1, &right));
+  assert(panel == full_photo_pair);
+  assert(right.decode(companion.data(), companion.size(), PreviewTarget::PairPane, nullptr, DisplayMode::Fill) == Decode::Ready);
   left.render(panel.data() + 1, &right, DisplayMode::Fill);
   assert((at(panel, 0, 420) & 0xf800) >= 0xf000 && (at(panel, 1279, 420) & 0x001f) >= 0x001e);
+  assert(at(panel, 0, 0) != 0 && at(panel, 1279, 799) != 0);
   assert(at(panel, 639, 420) == 0 && at(panel, 640, 420) == 0);
   expect_flipped(panel, left, &right, DisplayMode::Fill);
-  assert(right.decode(companion.data(), companion.size() / 2, true) == Decode::Invalid);
+  assert(right.decode(companion.data(), companion.size() / 2, PreviewTarget::PairPane) == Decode::Invalid);
   left.render(panel.data() + 1, &right);
-  assert((at(panel, 640, 420) & 0xf800) >= 0xf000 && at(panel, 0, 420) == 0);
+  assert((at(panel, 640, 420) & 0xf800) >= 0xf000 && at(panel, 0, 0) != 0 && at(panel, 1279, 799) != 0);
   fail_heap_allocations = true;
-  assert(right.decode(companion.data(), companion.size(), true) == Decode::NoMemory);
-  left.render(panel.data() + 1, &right);
-  assert((at(panel, 640, 420) & 0xf800) >= 0xf000 && at(panel, 0, 420) == 0);
+  assert(right.decode(companion.data(), companion.size(), PreviewTarget::PairPane) == Decode::NoMemory);
   fail_heap_allocations = false;
+  assert(left.decode(primary.data(), primary.size(), PreviewTarget::OptionalPair) == Decode::Ready);
+  left.render(panel.data() + 1, &right, DisplayMode::Fill);
+  assert((at(panel, 640, 420) & 0xf800) >= 0xf000 && at(panel, 0, 420) == 0);
+
+  assert(right.decode(companion.data(), companion.size(), PreviewTarget::Slide, nullptr, DisplayMode::Fill) == Decode::Ready);
+  assert(right.render(panel.data() + 1));
+  assert((at(panel, 0, 420) & 0x001f) >= 0x001e && at(panel, 1279, 799) != 0);
+  expect_flipped(panel, right, nullptr);
 
   // In a required pair, both sides decode directly to their final pane.
-  assert(left.decode(primary.data(), primary.size(), true, nullptr, DisplayMode::Fill) == Decode::Ready);
-  assert(right.decode(companion.data(), companion.size(), true, nullptr, DisplayMode::Fill) == Decode::Ready);
+  assert(left.decode(primary.data(), primary.size(), PreviewTarget::PairPane, nullptr, DisplayMode::Fill) == Decode::Ready);
+  assert(right.decode(companion.data(), companion.size(), PreviewTarget::PairPane, nullptr, DisplayMode::Fill) == Decode::Ready);
   left.render(panel.data() + 1, &right, DisplayMode::Fill);
   assert((at(panel, 0, 420) & 0xf800) >= 0xf000 && (at(panel, 1279, 420) & 0x001f) >= 0x001e);
   assert(at(panel, 639, 420) == 0 && at(panel, 640, 420) == 0);
@@ -178,7 +193,7 @@ void verify_odd_jpeg_rows(const char *path) {
     assert(at(panel, 1279, y) == 0);
   }
   expect_flipped(panel, decoded);
-  assert(decoded.decode(photo.data(), photo.size(), false, nullptr, DisplayMode::Fill) == Decode::Ready);
+  assert(decoded.decode(photo.data(), photo.size(), PreviewTarget::Slide, nullptr, DisplayMode::Fill) == Decode::Ready);
   assert(decoded.render(panel.data() + 1, nullptr, DisplayMode::Fill));
   assert(at(panel, 1279, 160) == 0x07e0 && at(panel, 1279, 639) == 0xffff);
   assert(panel.front() == guard && panel.back() == guard);
@@ -197,14 +212,14 @@ void verify_hardware(const char *baseline_path, const char *progressive_path, co
 
   P4JpegDecoder hardware;
   DecodedPreview decoded;
-  assert(decoded.decode(progressive.data(), progressive.size(), false, &hardware) == Decode::Ready);
+  assert(decoded.decode(progressive.data(), progressive.size(), PreviewTarget::Slide, &hardware) == Decode::Ready);
   assert(!decoded.hardware_jpeg() && hardware_calls == 0);
-  assert(decoded.decode(webp.data(), webp.size(), false, &hardware) == Decode::Ready);
+  assert(decoded.decode(webp.data(), webp.size(), PreviewTarget::Slide, &hardware) == Decode::Ready);
   assert(!decoded.hardware_jpeg() && hardware_calls == 0);
-  assert(decoded.decode(baseline.data(), baseline.size() / 2, false, &hardware) == Decode::Invalid);
+  assert(decoded.decode(baseline.data(), baseline.size() / 2, PreviewTarget::Slide, &hardware) == Decode::Invalid);
   assert(!decoded.hardware_jpeg() && hardware_calls == 0);
 
-  assert(decoded.decode(baseline.data(), baseline.size(), false, &hardware) == Decode::Ready);
+  assert(decoded.decode(baseline.data(), baseline.size(), PreviewTarget::Slide, &hardware) == Decode::Ready);
   assert(decoded.hardware_jpeg() && hardware_calls == 1 && engine_creates == 1);
   constexpr uint16_t guard = 0x43cd;
   std::vector<uint16_t> panel(pixel_count + 2, guard);
@@ -216,24 +231,24 @@ void verify_hardware(const char *baseline_path, const char *progressive_path, co
   expect_flipped(panel, decoded);
   sof[6] = 30;
   sof[8] = 32;
-  assert(decoded.decode(baseline.data(), baseline.size(), false, &hardware, DisplayMode::Fill) == Decode::Ready);
+  assert(decoded.decode(baseline.data(), baseline.size(), PreviewTarget::Slide, &hardware, DisplayMode::Fill) == Decode::Ready);
   assert(decoded.hardware_jpeg() && hardware_calls == 2 && engine_creates == 1);
   decoded.render(panel.data() + 1, nullptr, DisplayMode::Fill);
   assert(at(panel, 0, 0) == 0xf800 && at(panel, slide_width - 1, slide_height - 1) == 0xffff);
 
   dma_allocations_fail = true;
-  assert(decoded.decode(baseline.data(), baseline.size(), false, &hardware) == Decode::Ready);
+  assert(decoded.decode(baseline.data(), baseline.size(), PreviewTarget::Slide, &hardware) == Decode::Ready);
   assert(!decoded.hardware_jpeg() && hardware_calls == 2);
   dma_allocations_fail = false;
   short_output = true;
-  assert(decoded.decode(baseline.data(), baseline.size(), false, &hardware) == Decode::Ready);
+  assert(decoded.decode(baseline.data(), baseline.size(), PreviewTarget::Slide, &hardware) == Decode::Ready);
   assert(!decoded.hardware_jpeg() && hardware_calls == 3 && engine_creates == 1);
   short_output = false;
   force_timeout = true;
-  assert(decoded.decode(baseline.data(), baseline.size(), false, &hardware) == Decode::Ready);
+  assert(decoded.decode(baseline.data(), baseline.size(), PreviewTarget::Slide, &hardware) == Decode::Ready);
   assert(!decoded.hardware_jpeg() && hardware_calls == 4);
   force_timeout = false;
-  assert(decoded.decode(baseline.data(), baseline.size(), false, &hardware) == Decode::Ready);
+  assert(decoded.decode(baseline.data(), baseline.size(), PreviewTarget::Slide, &hardware) == Decode::Ready);
   assert(!decoded.hardware_jpeg() && hardware_calls == 4 && engine_creates == 1);
 }
 
@@ -246,7 +261,7 @@ void verify_interruption(const char *jpeg_path, const char *progressive_path, co
     return --*static_cast<int *>(context) >= 0;
   }};
   DecodedPreview decoded;
-  assert(decoded.decode(webp.data(), webp.size(), false, nullptr, DisplayMode::Fit, checkpoint) == Decode::Interrupted);
+  assert(decoded.decode(webp.data(), webp.size(), PreviewTarget::Slide, nullptr, DisplayMode::Fit, checkpoint) == Decode::Interrupted);
   RecentPreviews downloads;
   AssetId webp_id{};
   webp_id.front() = 'w';
@@ -254,7 +269,7 @@ void verify_interruption(const char *jpeg_path, const char *progressive_path, co
   const auto saved_webp = downloads.find(webp_id);
   assert(!saved_webp.empty() && decoded.decode(saved_webp.data(), saved_webp.size()) == Decode::Ready);
   remaining = 3;
-  assert(decoded.decode(jpeg.data(), jpeg.size(), false, nullptr, DisplayMode::Fit, checkpoint) == Decode::Interrupted);
+  assert(decoded.decode(jpeg.data(), jpeg.size(), PreviewTarget::Slide, nullptr, DisplayMode::Fit, checkpoint) == Decode::Interrupted);
 
   // The malformed final scan can only be detected after the earlier scans
   // have been read. A swipe should be able to interrupt the read before then.
@@ -265,10 +280,10 @@ void verify_interruption(const char *jpeg_path, const char *progressive_path, co
   last_scan[3] = 1;
   assert(decoded.decode(malformed.data(), malformed.size()) == Decode::Invalid);
   remaining = 4;
-  assert(decoded.decode(malformed.data(), malformed.size(), false, nullptr, DisplayMode::Fit, checkpoint) ==
+  assert(decoded.decode(malformed.data(), malformed.size(), PreviewTarget::Slide, nullptr, DisplayMode::Fit, checkpoint) ==
          Decode::Interrupted);
   remaining = 4;
-  assert(decoded.decode(progressive.data(), progressive.size(), false, nullptr, DisplayMode::Fit, checkpoint) ==
+  assert(decoded.decode(progressive.data(), progressive.size(), PreviewTarget::Slide, nullptr, DisplayMode::Fit, checkpoint) ==
          Decode::Interrupted);
   AssetId progressive_id{};
   progressive_id.front() = 'j';
@@ -280,7 +295,7 @@ void verify_interruption(const char *jpeg_path, const char *progressive_path, co
   P4JpegDecoder hardware;
   const auto before = hardware_calls;
   remaining = 4;
-  assert(decoded.decode(jpeg.data(), jpeg.size(), false, &hardware, DisplayMode::Fit, checkpoint) == Decode::Interrupted);
+  assert(decoded.decode(jpeg.data(), jpeg.size(), PreviewTarget::Slide, &hardware, DisplayMode::Fit, checkpoint) == Decode::Interrupted);
   assert(hardware_calls == before + 1 && !decoded.hardware_jpeg());
 
   assert(decoded.decode(jpeg.data(), jpeg.size()) == Decode::Ready);
@@ -298,10 +313,10 @@ void verify_lossy_webp_interruption(const char *path) {
     return ++*static_cast<int *>(context) < 2;
   }};
   DecodedPreview decoded;
-  assert(decoded.decode(photo.data(), photo.size(), false, nullptr, DisplayMode::Fill, interrupt) == Decode::Interrupted);
+  assert(decoded.decode(photo.data(), photo.size(), PreviewTarget::Slide, nullptr, DisplayMode::Fill, interrupt) == Decode::Interrupted);
   assert(checkpoints == 2);
-  assert(decoded.decode(photo.data(), photo.size() - 2, false, nullptr, DisplayMode::Fill) == Decode::Invalid);
-  assert(decoded.decode(photo.data(), photo.size(), false, nullptr, DisplayMode::Fill) == Decode::Ready);
+  assert(decoded.decode(photo.data(), photo.size() - 2, PreviewTarget::Slide, nullptr, DisplayMode::Fill) == Decode::Invalid);
+  assert(decoded.decode(photo.data(), photo.size(), PreviewTarget::Slide, nullptr, DisplayMode::Fill) == Decode::Ready);
 }
 
 void verify_orientation(const char *square_jpeg, const char *square_webp, const char *portrait) {
@@ -310,16 +325,16 @@ void verify_orientation(const char *square_jpeg, const char *square_webp, const 
   for (const auto *path : {square_jpeg, square_webp}) {
     const auto bytes = load(path);
     fail_heap_allocations = true;
-    assert(decoded.decode(bytes.data(), bytes.size(), false, nullptr, DisplayMode::Fit, {}, PhotoOrientation::Portrait) ==
+    assert(decoded.decode(bytes.data(), bytes.size(), PreviewTarget::Slide, nullptr, DisplayMode::Fit, {}, PhotoOrientation::Portrait) ==
            Decode::OrientationMismatch);
     fail_heap_allocations = false;
-    assert(decoded.decode(bytes.data(), bytes.size(), false, nullptr, DisplayMode::Fill, {}, PhotoOrientation::Landscape) ==
+    assert(decoded.decode(bytes.data(), bytes.size(), PreviewTarget::Slide, nullptr, DisplayMode::Fill, {}, PhotoOrientation::Landscape) ==
            Decode::Ready);
     assert(!decoded.portrait());
   }
-  assert(decoded.decode(portrait_bytes.data(), portrait_bytes.size(), false, nullptr, DisplayMode::Fit, {},
+  assert(decoded.decode(portrait_bytes.data(), portrait_bytes.size(), PreviewTarget::Slide, nullptr, DisplayMode::Fit, {},
                         PhotoOrientation::Landscape) == Decode::OrientationMismatch);
-  assert(decoded.decode(portrait_bytes.data(), portrait_bytes.size(), false, nullptr, DisplayMode::Fit, {},
+  assert(decoded.decode(portrait_bytes.data(), portrait_bytes.size(), PreviewTarget::Slide, nullptr, DisplayMode::Fit, {},
                         PhotoOrientation::Portrait) == Decode::Ready && decoded.portrait());
 }
 

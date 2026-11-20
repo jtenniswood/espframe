@@ -329,8 +329,9 @@ every slide. Turning off portrait pairing pauses this filter and retains
 its saved value and range. Native setup and Espframe settings backups carry
 both options.
 **Show full image** is the default for the native prototype. **Crop to fit**
-center-crops landscape photos to the screen and paired portraits to their
-respective halves. A single portrait stays fully visible on a landscape frame.
+center-crops a single photo to fill the screen, including a portrait shown
+alone. With **Follow photo framing**, it also crops paired portraits to their
+respective halves.
 Set **Portrait pair framing** to **Fill each half** to crop both portraits
 independently of single-photo framing. **Fit both full photos** keeps both
 portraits intact. **Follow photo framing** retains the previous behavior.

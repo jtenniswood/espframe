@@ -76,7 +76,7 @@ function requestLayout(target: string) {
   const rotation = query.get('rotation') ?? '0'
   const orientation = query.get('orientation') ?? undefined
   if (!assetId.test(primary) || (companion !== undefined && (!assetId.test(companion) || companion === primary)) ||
-      (mode !== 'fit' && mode !== 'fill') || (rotation !== '0' && rotation !== '180') ||
+      (mode !== 'fit' && mode !== 'fill' && mode !== 'fill-frame') || (rotation !== '0' && rotation !== '180') ||
       (orientation !== undefined && orientation !== 'portrait' && orientation !== 'landscape')) {
     throw new ReplyError(400, 'Invalid slide options')
   }

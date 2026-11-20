@@ -11,6 +11,7 @@
 namespace espframe::native {
 
 class P4JpegDecoder;
+enum class PreviewTarget { Slide, PairPane, OptionalPair };
 inline bool is_jpeg_preview(const uint8_t *encoded, size_t length) {
   return length >= 2 && encoded[0] == 0xff && encoded[1] == 0xd8;
 }
@@ -27,12 +28,12 @@ class DecodedPreview {
   DecodedPreview(const DecodedPreview &) = delete;
   DecodedPreview &operator=(const DecodedPreview &) = delete;
 
-  Result decode(const uint8_t *encoded, size_t length, bool companion = false, P4JpegDecoder *hardware = nullptr,
-                DisplayMode mode = DisplayMode::Fit, PreparationCheckpoint checkpoint = {},
+  Result decode(const uint8_t *encoded, size_t length, PreviewTarget target = PreviewTarget::Slide,
+                P4JpegDecoder *hardware = nullptr, DisplayMode mode = DisplayMode::Fit, PreparationCheckpoint checkpoint = {},
                 PhotoOrientation orientation = PhotoOrientation::Any);
   bool portrait() const { return this->portrait_; }
   bool hardware_jpeg() const { return this->hardware_jpeg_; }
-  bool render(uint16_t *panel, const DecodedPreview *companion = nullptr, DisplayMode mode = DisplayMode::Fit,
+  bool render(uint16_t *panel, const DecodedPreview *companion = nullptr, DisplayMode pair_mode = DisplayMode::Fit,
               ScreenRotation rotation = ScreenRotation::Normal, PreparationCheckpoint checkpoint = {}) const;
 
  private:
@@ -42,6 +43,7 @@ class DecodedPreview {
   uint16_t *pixels_{};
   int width_{};
   int height_{};
+  DisplayMode display_mode_{DisplayMode::Fit};
   bool portrait_{};
   bool hardware_jpeg_{};
 };

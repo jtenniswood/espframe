@@ -26,10 +26,11 @@ bool supported(unsigned width, unsigned height) {
   return width > 0 && height > 0 && width <= 4096 && height <= 4096 && width * height <= 4'000'000;
 }
 
-PhotoFraming framing(int width, int height, bool companion, DisplayMode mode) {
-  // Keep single portraits intact in landscape, including when pairing fails.
-  const auto effective = height > width && !companion ? DisplayMode::Fit : mode;
-  return frame_photo(width, height, companion ? pair_width : slide_width, slide_height, effective);
+PhotoFraming framing(int width, int height, PreviewTarget target, DisplayMode mode) {
+  // Retain the portrait's full image until the companion is ready so
+  // either layout can choose its own crop.
+  const auto effective = target == PreviewTarget::OptionalPair && height > width ? DisplayMode::Fit : mode;
+  return frame_photo(width, height, target == PreviewTarget::PairPane ? pair_width : slide_width, slide_height, effective);
 }
 
 uint16_t *allocate(const PhotoFraming &size) {
@@ -62,7 +63,7 @@ void jpeg_progress(j_common_ptr info) {
 }
 
 Decode read_jpeg(jpeg_decompress_struct &decoder, JpegCallbacks &callbacks, const uint8_t *encoded,
-                 size_t length, uint16_t *&pixels, PhotoFraming &size, bool companion, DisplayMode mode,
+                 size_t length, uint16_t *&pixels, PhotoFraming &size, PreviewTarget target, DisplayMode mode,
                  P4JpegDecoder *hardware, bool &accelerated, PreparationCheckpoint checkpoint, PhotoOrientation orientation) {
   if (const int status = setjmp(callbacks.escape); status != 0) {
     if (status == jpeg_cancelled)
@@ -77,7 +78,7 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegCallbacks &callbacks, cons
     return Decode::Invalid;
   if (!matches_photo_orientation(orientation, decoder.image_height > decoder.image_width))
     return Decode::OrientationMismatch;
-  size = framing(decoder.image_width, decoder.image_height, companion, mode);
+  size = framing(decoder.image_width, decoder.image_height, target, mode);
   pixels = allocate(size);
   if (pixels == nullptr)
     return Decode::NoMemory;
@@ -170,7 +171,7 @@ Decode read_jpeg(jpeg_decompress_struct &decoder, JpegCallbacks &callbacks, cons
   return jpeg_finish_decompress(&decoder) ? Decode::Ready : Decode::Invalid;
 }
 
-Decode decode_jpeg(const uint8_t *encoded, size_t length, uint16_t *&pixels, PhotoFraming &size, bool companion,
+Decode decode_jpeg(const uint8_t *encoded, size_t length, uint16_t *&pixels, PhotoFraming &size, PreviewTarget target,
                    DisplayMode mode, P4JpegDecoder *hardware, bool &accelerated, PreparationCheckpoint checkpoint,
                    PhotoOrientation orientation) {
   jpeg_decompress_struct decoder{};
@@ -178,13 +179,13 @@ Decode decode_jpeg(const uint8_t *encoded, size_t length, uint16_t *&pixels, Pho
   decoder.err = jpeg_std_error(&callbacks.manager);
   callbacks.manager.error_exit = jpeg_failure;
   callbacks.manager.emit_message = jpeg_message;
-  const auto result = read_jpeg(decoder, callbacks, encoded, length, pixels, size, companion, mode, hardware, accelerated,
+  const auto result = read_jpeg(decoder, callbacks, encoded, length, pixels, size, target, mode, hardware, accelerated,
                                 checkpoint, orientation);
   jpeg_destroy_decompress(&decoder);
   return result;
 }
 
-Decode decode_webp(const uint8_t *encoded, size_t length, uint16_t *&pixels, PhotoFraming &size, bool companion,
+Decode decode_webp(const uint8_t *encoded, size_t length, uint16_t *&pixels, PhotoFraming &size, PreviewTarget target,
                    DisplayMode mode, PreparationCheckpoint checkpoint, PhotoOrientation orientation) {
   WebPDecoderConfig decoder;
   if (!WebPInitDecoderConfig(&decoder) || WebPGetFeatures(encoded, length, &decoder.input) != VP8_STATUS_OK ||
@@ -192,7 +193,7 @@ Decode decode_webp(const uint8_t *encoded, size_t length, uint16_t *&pixels, Pho
     return Decode::Invalid;
   if (!matches_photo_orientation(orientation, decoder.input.height > decoder.input.width))
     return Decode::OrientationMismatch;
-  size = framing(decoder.input.width, decoder.input.height, companion, mode);
+  size = framing(decoder.input.width, decoder.input.height, target, mode);
   pixels = allocate(size);
   if (pixels == nullptr)
     return Decode::NoMemory;
@@ -271,7 +272,7 @@ bool is_webp_preview(const uint8_t *encoded, size_t length) {
   return length >= 12 && std::memcmp(encoded, "RIFF", 4) == 0 && std::memcmp(encoded + 8, "WEBP", 4) == 0;
 }
 
-DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t length, bool companion,
+DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t length, PreviewTarget target,
                                               P4JpegDecoder *hardware, DisplayMode mode,
                                            PreparationCheckpoint checkpoint, PhotoOrientation orientation) {
   heap_caps_free(this->pixels_);
@@ -287,13 +288,14 @@ DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t len
   if (!jpeg && !webp)
     return Result::Invalid;
   PhotoFraming size{};
-  const auto result = jpeg ? decode_jpeg(encoded, length, this->pixels_, size, companion, mode, hardware,
+  const auto result = jpeg ? decode_jpeg(encoded, length, this->pixels_, size, target, mode, hardware,
                                         this->hardware_jpeg_, checkpoint, orientation)
-                           : decode_webp(encoded, length, this->pixels_, size, companion, mode, checkpoint, orientation);
+                           : decode_webp(encoded, length, this->pixels_, size, target, mode, checkpoint, orientation);
   if (result == Result::Ready) {
     this->width_ = size.width;
     this->height_ = size.height;
     this->portrait_ = size.portrait;
+    this->display_mode_ = mode;
   } else {
     heap_caps_free(this->pixels_);
     this->pixels_ = nullptr;
@@ -301,10 +303,12 @@ DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t len
   return result;
 }
 
-bool DecodedPreview::render(uint16_t *panel, const DecodedPreview *companion, DisplayMode mode,
+bool DecodedPreview::render(uint16_t *panel, const DecodedPreview *companion, DisplayMode pair_mode,
                             ScreenRotation rotation, PreparationCheckpoint checkpoint) const {
   const bool pair = companion != nullptr && this->portrait() && companion->portrait();
-  if (pair || this->width_ != slide_width || this->height_ != slide_height) {
+  const bool letterboxed = this->display_mode_ == DisplayMode::Fit &&
+                           (this->width_ != slide_width || this->height_ != slide_height);
+  if (pair || letterboxed || this->width_ == 0) {
     constexpr int batch = panel_width * row_batch;
     for (int offset = 0; offset < pixel_count; offset += batch) {
       if (!checkpoint())
@@ -314,8 +318,8 @@ bool DecodedPreview::render(uint16_t *panel, const DecodedPreview *companion, Di
   }
   if (this->width_ == 0)
     return true;
-  return this->paint_(panel, 0, pair ? pair_width : slide_width, pair ? mode : DisplayMode::Fit, rotation, checkpoint) &&
-         (!pair || companion->paint_(panel, pair_width + pair_gap, pair_width, mode, rotation, checkpoint));
+  return this->paint_(panel, 0, pair ? pair_width : slide_width, pair ? pair_mode : this->display_mode_, rotation, checkpoint) &&
+         (!pair || companion->paint_(panel, pair_width + pair_gap, pair_width, pair_mode, rotation, checkpoint));
 }
 
 }  // namespace espframe::native

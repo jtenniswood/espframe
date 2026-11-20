@@ -24,6 +24,7 @@ namespace espframe::native {
 
 class DecodedPreview;
 class NativeNetwork;
+enum class PreviewTarget;
 
 // The slide preparation task owns the Immich HTTP client and photo order.
 class ImmichSource {
@@ -67,7 +68,7 @@ class ImmichSource {
   void discard_candidate_(const AssetId &id);
   void complete_location_(PhotoSlide &frame);
   bool wait_for_pixel_work_() const;
-  PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, bool for_pair, int64_t deadline_us,
+  PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, PreviewTarget target, int64_t deadline_us,
                               bool report_response, const AssetId &lookahead = {});
   PreparedPreview render_prepared_(const PhotoSlide &frame, uint16_t *panel);
 
@@ -84,6 +85,7 @@ class ImmichSource {
   ImmichHttp prepared_http_{cancelled_, "Authorization"};
   PreviewPrefetch prefetch_{cancelled_};
   int64_t prepared_retry_us_{};
+  int64_t prepared_frame_fill_retry_us_{};
   P4JpegDecoder jpeg_;
   uint32_t http_connection_{};
   ImmichSearchApi search_api_{ImmichSearchApi::Unknown};
