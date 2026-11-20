@@ -105,7 +105,7 @@ class SlidePrefetch {
     if (requested_ == slide)
       requested_.reset();
     if (promoted_ == slide)
-      promoted_.reset();
+      promoted_ = -1;
   }
 
   bool can_yield(SlideIndex active, SlideIndex wanted, bool refreshing = false) const {
@@ -164,7 +164,7 @@ class SlidePrefetch {
   int direction_{1};
   int64_t stage_forward_until_{};
   std::optional<SlideIndex> requested_;
-  std::optional<SlideIndex> promoted_;
+  SlideIndex promoted_{-1};
 };
 
 }  // namespace espframe::native
