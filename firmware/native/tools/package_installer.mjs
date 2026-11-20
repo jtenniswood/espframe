@@ -14,9 +14,76 @@ if (!binaryRoot || !destination) {
 const source = fileURLToPath(new URL('../installer/', import.meta.url))
 const output = resolve(destination)
 const boards = ['v1', 'v2', 'v3']
-const factoryOffset = 0x10000
-const settingsOffset = 0x410000
-const appSize = settingsOffset - factoryOffset
+const partitionTableOffset = 0x8000
+const partitionTableSize = 0xc00
+const partitionEntrySize = 32
+const partitionTypes = new Map([
+  ['app/factory', [0, 0]], ['app/ota_0', [0, 0x10]], ['app/ota_1', [0, 0x11]],
+  ['data/ota', [1, 0]], ['data/phy', [1, 1]], ['data/nvs', [1, 2]],
+])
+
+function partitionBytes(value) {
+  if (/^0x[\da-f]+$/i.test(value)) return Number(value)
+  const size = /^(\d+)([KM]?)$/i.exec(value)
+  return size ? Number(size[1]) * ({ K: 1024, M: 1024 * 1024 }[size[2].toUpperCase()] ?? 1) : NaN
+}
+
+async function readPartitions(name) {
+  const csv = await readFile(new URL(`../${name}`, import.meta.url), 'utf8')
+  const partitions = new Map()
+  for (const line of csv.split(/\r?\n/)) {
+    const row = line.split('#', 1)[0].trim()
+    if (!row) continue
+    const fields = row.split(',').map(field => field.trim())
+    const [label, type, subtype, start, length, flag = ''] = fields
+    const codes = partitionTypes.get(`${type}/${subtype}`)
+    const offset = partitionBytes(start)
+    const size = partitionBytes(length)
+    if (fields.length < 5 || fields.length > 6 || !/^[a-z0-9_]{1,16}$/.test(label) || partitions.has(label) ||
+        !codes || !['', 'readonly'].includes(flag) || !Number.isSafeInteger(offset) || !Number.isSafeInteger(size) ||
+        offset < 0 || offset % 4096 !== 0 || size <= 0 || size % 4096 !== 0 || offset + size > 0x1000000)
+      throw new Error(`Invalid partition in ${name}: ${row}`)
+    partitions.set(label, { codes, offset, size, flags: flag === 'readonly' ? 2 : 0 })
+  }
+  return partitions
+}
+
+function encodePartitionTable(partitions) {
+  const checksumOffset = partitions.size * partitionEntrySize
+  if (checksumOffset + partitionEntrySize > partitionTableSize)
+    throw new Error('Native partition table exceeds its reserved space')
+  const table = Buffer.alloc(partitionTableSize, 0xff)
+  let offset = 0
+  for (const [label, partition] of partitions) {
+    table.fill(0, offset, offset + partitionEntrySize)
+    table.writeUInt16LE(0x50aa, offset)
+    table.set(partition.codes, offset + 2)
+    table.writeUInt32LE(partition.offset, offset + 4)
+    table.writeUInt32LE(partition.size, offset + 8)
+    table.write(label, offset + 12, 'ascii')
+    table.writeUInt32LE(partition.flags, offset + 28)
+    offset += partitionEntrySize
+  }
+  table.writeUInt16LE(0xebeb, checksumOffset)
+  createHash('md5').update(table.subarray(0, checksumOffset)).digest().copy(table, checksumOffset + 16)
+  return table
+}
+
+const [partitions, stockPartitions] = await Promise.all([
+  readPartitions('partitions.csv'),
+  readPartitions('partitions.esphome-v1.csv'),
+])
+const nativeFactory = partitions.get('factory')
+const nativeSettings = partitions.get('native_config')
+const stockPreferences = partitions.get('stock_prefs')
+const stockNvs = stockPartitions.get('nvs')
+if (!nativeFactory || !nativeSettings || !stockPreferences || !stockNvs ||
+    stockPreferences.offset !== stockNvs.offset || stockPreferences.size !== stockNvs.size ||
+    stockPreferences.codes.join() !== '1,2' || stockPreferences.flags !== 2 ||
+    nativeSettings.offset < nativeFactory.offset + nativeFactory.size ||
+    nativeSettings.offset + nativeSettings.size > stockPreferences.offset)
+  throw new Error('Native flash layout must preserve the stock settings partition as read-only')
+const expectedTable = encodePartitionTable(partitions)
 
 function matchesBoard(image, board) {
   if (image.length < 288 || image[0] !== 0xe9 || image.readUInt16LE(12) !== 0x12 || image[23] !== 1 ||
@@ -31,11 +98,13 @@ const images = await Promise.all(boards.map(async board => {
     readFile(join(binaryRoot, board, 'merged-binary.bin')),
     readFile(join(binaryRoot, board, `espframe_native_${board}.bin`)),
   ])
-  if (factory.length > settingsOffset || !matchesBoard(factory.subarray(factoryOffset), board))
+  if (!factory.subarray(partitionTableOffset, partitionTableOffset + partitionTableSize).equals(expectedTable))
+    throw new Error(`Invalid ${board} factory partition table. Rebuild the native firmware and package matching images.`)
+  if (factory.length > nativeFactory.offset + nativeFactory.size || !matchesBoard(factory.subarray(nativeFactory.offset), board))
     throw new Error(`Invalid or oversized ${board} factory binary`)
-  if (ota.length > appSize || !matchesBoard(ota, board))
+  if (ota.length > nativeFactory.size || !matchesBoard(ota, board))
     throw new Error(`Invalid or oversized ${board} update binary`)
-  if (!factory.subarray(factoryOffset).equals(ota))
+  if (!factory.subarray(nativeFactory.offset).equals(ota))
     throw new Error(`The ${board} factory and update images must come from the same build`)
   return { board, factory, ota }
 }))

@@ -322,6 +322,7 @@ jobs:
           for board in v1 v2 v3; do
             mv "firmware/native/build/firmware-test-native-swipe-$board" "firmware/native/build/$board"
           done
+          node firmware/native/tests/package_installer_test.mjs firmware/native/build
           node firmware/native/tools/package_installer.mjs firmware/native/build firmware/native/build/browser-installer
           node firmware/native/tests/backup_installer_browser_test.mjs firmware/native/build/browser-installer
           node firmware/native/tests/standalone_installer_browser_test.mjs firmware/native/build/browser-installer

@@ -250,6 +250,9 @@ An older native prototype needs one USB install to add the update slots. Export
 a backup first and leave the installer's full erase option unchecked to retain
 its native settings. The OTA files are for the web settings and the installer
 uses the corresponding factory images for USB.
+The packager verifies each factory image's partition table against the native
+layout. The layout reserves native settings separately and maps the retained
+ESPHome settings read-only.
 
 Host regression checks run without the ESP-IDF toolchain:
 
