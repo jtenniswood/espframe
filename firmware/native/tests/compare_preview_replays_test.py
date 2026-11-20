@@ -45,6 +45,29 @@ class ReplayTest(unittest.TestCase):
         self.assertIn("12 of 16 completed attempts", report)
         self.assertIn("100.0 ms", report)
 
+    def test_comparison_reports_workloads_when_both_captures_have_them(self):
+        control, candidate = example(False), example(True)
+        control["benchmark"].update(
+            quiet_cache_hit_motion={"count": 8, "worst_us": 37_000, "over_50_ms": 0},
+            busy_cache_hit_motion={"count": 10, "worst_us": 65_000, "over_50_ms": 2},
+            quiet_drag_gaps={"count": 20, "worst_us": 21_000, "over_limit": 0},
+            busy_drag_gaps={"count": 60, "worst_us": 38_000, "over_limit": 18},
+        )
+        candidate["benchmark"].update(
+            quiet_cache_hit_motion={"count": 0, "worst_us": 0, "over_50_ms": 0},
+            busy_cache_hit_motion={"count": 28, "worst_us": 57_000, "over_50_ms": 1},
+            quiet_drag_gaps={"count": 0, "worst_us": 0, "over_limit": 0},
+            busy_drag_gaps={"count": 60, "worst_us": 32_000, "over_limit": 15},
+        )
+        report = replays.compare(control, candidate)
+        self.assertIn("| Cached first motion over 50 ms, idle worker | 0/8 (0.0%), worst 37.0 ms | no samples |", report)
+        self.assertIn("| Cached first motion over 50 ms, preparing | 2/10 (20.0%), worst 65.0 ms | 1/28 (3.6%)", report)
+        self.assertIn("| Drag gaps over 28.9 ms, idle worker | 0/20 (0.0%), worst 21.0 ms | no samples |", report)
+        self.assertIn("| Drag gaps over 28.9 ms, preparing | 18/60 (30.0%), worst 38.0 ms | 15/60 (25.0%)", report)
+        old_capture_report = replays.compare(example(False), candidate)
+        self.assertIn("| First motion over 50 ms |", old_capture_report)
+        self.assertNotIn("Cached first motion", old_capture_report)
+
     def test_comparison_rejects_invalid_inputs(self):
         for section, key, value, message in (
             ("profile", "run", "False", "Restart"),

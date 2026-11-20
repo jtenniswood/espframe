@@ -479,7 +479,10 @@ touch-report-to-LCD-handoff timing for the most recent swipe.
 For a hands-on session, open `/api/trial/benchmark` from another device
 after dragging the photos and save its response before rollback. The response
 shows `"scripted":false` and summarizes the first motion, drag gaps and
-cache hits from physical gestures since boot. Its `physical_drags` counts
+cache hits from physical gestures since boot. The cached first-motion
+samples are split by whether a preparation job is in flight. Drag gaps
+are split when both frames are in the same workload, and gaps across a
+workload change still count in the overall total. Its `physical_drags` counts
 report forward and backward landings, returns to the starting photo,
 cancellations during a recognized drag, and released drags interrupted
 before their final frame reached the display. Taps and gestures that

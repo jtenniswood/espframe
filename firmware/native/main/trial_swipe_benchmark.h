@@ -32,7 +32,10 @@ class TrialSwipeMetrics {
     Timing first_motion;
     Timing cache_miss_motion;
     Timing busy_first_motion;
+    Timing quiet_cache_hit_motion;
+    Timing busy_cache_hit_motion;
     Timing drag_gaps;
+    Timing quiet_drag_gaps;
     Timing busy_drag_gaps;
   };
 
@@ -44,9 +47,13 @@ class TrialSwipeMetrics {
     results_.worst_before_submit_us =
         std::max(results_.worst_before_submit_us, static_cast<uint32_t>(motion.composed_us - motion.submit_us));
     results_.worst_submit_us = std::max(results_.worst_submit_us, static_cast<uint32_t>(motion.submit_us));
-    results_.cache_hits += motion.cache.result == CacheRead::Hit;
-    if (motion.cache.result == CacheRead::Miss)
+    if (motion.cache.result == CacheRead::Hit) {
+      ++results_.cache_hits;
+      auto &cache_hit_motion = motion.preparing ? results_.busy_cache_hit_motion : results_.quiet_cache_hit_motion;
+      cache_hit_motion.add(latency_us, 50'000);
+    } else if (motion.cache.result == CacheRead::Miss) {
       results_.cache_miss_motion.add(latency_us, 50'000);
+    }
     if (motion.preparing)
       results_.busy_first_motion.add(latency_us, 50'000);
   }
@@ -59,8 +66,10 @@ class TrialSwipeMetrics {
       const auto elapsed = static_cast<uint32_t>(now - previous_frame_us_);
       const auto gap_limit = period_us + period_us / 2;
       results_.drag_gaps.add(elapsed, gap_limit);
-      if (stamp.preparing && previous_stamp_.preparing)
-        results_.busy_drag_gaps.add(elapsed, gap_limit);
+      if (stamp.preparing == previous_stamp_.preparing) {
+        auto &workload_gaps = stamp.preparing ? results_.busy_drag_gaps : results_.quiet_drag_gaps;
+        workload_gaps.add(elapsed, gap_limit);
+      }
     }
     previous_frame_us_ = now;
     previous_stamp_ = stamp;

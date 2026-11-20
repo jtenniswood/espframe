@@ -112,6 +112,15 @@ def compare(control, enabled, *, companion_prefetch=False):
          sample(before["refill"], "over_limit"), sample(after["refill"], "over_limit")),
         ("Wi-Fi RSSI", f"{status_before['wifi_rssi_dbm']} dBm", f"{status_after['wifi_rssi_dbm']} dBm"),
     ]
+    gap_ms = before["drag_gap_limit_us"] / 1000
+    for key, label, limit in (
+        ("quiet_cache_hit_motion", "Cached first motion over 50 ms, idle worker", "over_50_ms"),
+        ("busy_cache_hit_motion", "Cached first motion over 50 ms, preparing", "over_50_ms"),
+        ("quiet_drag_gaps", f"Drag gaps over {gap_ms:.1f} ms, idle worker", "over_limit"),
+        ("busy_drag_gaps", f"Drag gaps over {gap_ms:.1f} ms, preparing", "over_limit"),
+    ):
+        if key in before and key in after:
+            rows.append((label, sample(before[key], limit), sample(after[key], limit)))
     before_used, before_wait = prefetch_summary(control) if companion_prefetch else ("disabled", "disabled")
     after_used, after_wait = prefetch_summary(enabled)
     if companion_prefetch:

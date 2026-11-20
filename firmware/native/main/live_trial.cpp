@@ -142,10 +142,13 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 ",\"frame_period_us\":%u,\"drag_gap_limit_us\":%u"
                 ",\"first_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
                 ",\"cache_miss_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
+                ",\"quiet_cache_hit_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
+                ",\"busy_cache_hit_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
                 ",\"compose_and_submit_worst_us\":%" PRIu32
                 ",\"before_submit_worst_us\":%" PRIu32 ",\"submit_worst_us\":%" PRIu32
                 ",\"busy_first_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
                 ",\"drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
+                ",\"quiet_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"busy_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}}",
                 SWIPE_TRIAL_BENCHMARK ? "true" : "false", SWIPE_TRIAL_BENCHMARK_FIXTURES ? "fixtures" : "immich",
                 gesture_counts, replay, result.cache_hits,
@@ -153,9 +156,14 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 period, period + period / 2,
                 result.first_motion.count, result.first_motion.worst_us, result.first_motion.over_limit,
                 result.cache_miss_motion.count, result.cache_miss_motion.worst_us, result.cache_miss_motion.over_limit,
+                result.quiet_cache_hit_motion.count, result.quiet_cache_hit_motion.worst_us,
+                result.quiet_cache_hit_motion.over_limit,
+                result.busy_cache_hit_motion.count, result.busy_cache_hit_motion.worst_us,
+                result.busy_cache_hit_motion.over_limit,
                 result.worst_composition_us, result.worst_before_submit_us, result.worst_submit_us,
                 result.busy_first_motion.count, result.busy_first_motion.worst_us, result.busy_first_motion.over_limit,
                 result.drag_gaps.count, result.drag_gaps.worst_us, result.drag_gaps.over_limit,
+                result.quiet_drag_gaps.count, result.quiet_drag_gaps.worst_us, result.quiet_drag_gaps.over_limit,
                 result.busy_drag_gaps.count, result.busy_drag_gaps.worst_us, result.busy_drag_gaps.over_limit);
   if (length < 0 || static_cast<size_t>(length) >= sizeof(body))
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not format swipe timings");
