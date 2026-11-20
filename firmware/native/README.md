@@ -63,6 +63,21 @@ selected connection directly from its retained settings. It keeps the Immich
 URL and API key together. If a connection is unavailable, clear its checkbox
 and enter the details in the form.
 
+For migration acceptance, export a second backup from the native frame after
+setup. Run this comparison from the repository root with the original
+ESPHome backup and the new export.
+
+```sh
+node firmware/native/tools/compare_migration_backups.mjs before.json after.json
+```
+
+The comparison checks settings recognized by the installer and reports
+missing or changed fields by name. It exits with an error when it finds a
+difference or an import notice that needs review. Use the original backup
+again to check the settings after restoring ESPHome. Verify Wi-Fi, Immich,
+and Home Assistant by confirming the frame reconnects to each after the
+firmware change.
+
 To build the same installer locally, use Python 3.10 or later, run `npm ci`,
 and place each
 `merged-binary.bin` and `espframe_native_vN.bin` in the matching

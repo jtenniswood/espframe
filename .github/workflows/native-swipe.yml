@@ -316,6 +316,7 @@ jobs:
           npm ci
           node firmware/native/tests/serial_setup_test.mjs
           node firmware/native/tests/backup_import_test.mjs
+          node firmware/native/tests/compare_migration_backups_test.mjs
           node firmware/native/tests/wifi_recovery_browser_test.mjs
           node firmware/native/tests/photo_source_browser_test.mjs
           node firmware/native/tests/shared_settings_browser_test.mjs
