@@ -70,6 +70,25 @@ python3 firmware/native/tools/compare_preview_replays.py compare control.json lo
 
 The comparison checks that both runs completed all 48 swipes with matching replay inputs, cache slots, and timing thresholds. It reports photos ready at the start of a swipe, cold returns, slow first motions, drag gaps and refill times. The lookahead columns also show how many staged previews the frame used and how long it waited for them.
 
+### Compare firmware when Immich previews stall
+
+Start the same replay server before each run with `REPLAY_PREVIEW_STALL_MS=2500`.
+It sends half of every eighth preview, pauses for 2.5 seconds, then sends
+the rest. Search responses and the other previews arrive normally. This
+reproduces a slow response after headers and data have already arrived.
+Leave the preparation service off and use the same lookahead and companion
+prefetch options in both direct trial images. Capture the two versions as
+above, then compare them with:
+
+```sh
+python3 firmware/native/tools/compare_preview_replays.py compare --slow-previews control.json candidate.json
+```
+
+The comparison checks the pause duration and reports how many paused
+downloads started, completed or were interrupted by capture time, alongside
+swipe wait times and cache hits. The server starts with fresh counters when
+restarted. Leave `REPLAY_PREVIEW_STALL_MS` unset for ordinary replay runs.
+
 ### Measure portrait companion prefetch
 
 For both builds, leave `SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD=OFF` so the worker can

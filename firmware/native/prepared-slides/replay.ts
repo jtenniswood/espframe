@@ -12,6 +12,7 @@ const unavailable = process.env.REPLAY_PREPARED_UNAVAILABLE === '1'
 const outageHistory = process.env.REPLAY_OFFLINE_HISTORY === '1'
 const previewSize = Number(process.env.REPLAY_PREVIEW_SIZE ?? '0')
 const baselineQuality = Number(process.env.REPLAY_BASELINE_JPEG_QUALITY ?? '0')
+const previewStallMs = Number(process.env.REPLAY_PREVIEW_STALL_MS ?? '0')
 if (!isIPv4(host) || !Number.isInteger(port) || port < 1 || port > 65535 ||
     (warmRotation !== undefined && warmRotation !== '0' && warmRotation !== '180')) {
   throw new Error('Set an IPv4 REPLAY_HOST, TCP REPLAY_PORT, and optional REPLAY_WARM_ROTATION (0 or 180)')
@@ -22,6 +23,9 @@ if (outageHistory && unavailable) {
 if (![0, 720, 1080, 1440].includes(previewSize) || !Number.isInteger(baselineQuality) ||
     baselineQuality < 0 || baselineQuality > 100) {
   throw new Error('Set REPLAY_PREVIEW_SIZE to 720, 1080 or 1440 and REPLAY_BASELINE_JPEG_QUALITY to 1–100, or leave them unset')
+}
+if (!Number.isInteger(previewStallMs) || previewStallMs < 0 || previewStallMs > 10_000) {
+  throw new Error('Set REPLAY_PREVIEW_STALL_MS to a whole number between 0 and 10000')
 }
 const immichKey = 'espframe-synthetic-preview'
 const token = 'espframe-synthetic-slide-replay-only'
@@ -69,16 +73,22 @@ for (let index = 0; index < 72; index++) {
 }
 
 const replayProfile = JSON.stringify({
-  run: randomUUID(), sha256: fingerprint.digest('hex'), previewSize, baselineQuality,
+  run: randomUUID(), sha256: fingerprint.digest('hex'), previewSize, baselineQuality, previewStallMs,
 })
+const stalledPreviews = { started: 0, completed: 0, interrupted: 0 }
 let offset = 0
 const history = new Set<string>()
 let offline = false
 let recordHistory = false
+let applyPreviewStalls = false
 const server = createServer(async (request, response) => {
   const path = request.url ?? ''
   if (request.method === 'GET' && path === '/replay-profile') {
     return response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(replayProfile)
+  }
+  if (request.method === 'GET' && path === '/replay-stats') {
+    return response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      .end(JSON.stringify({ stalledPreviews }))
   }
   if (offline) {
     console.log(JSON.stringify({ offline: path }))
@@ -129,9 +139,26 @@ const server = createServer(async (request, response) => {
   }
   const id = /^\/api\/assets\/([a-f0-9-]+)\/thumbnail\?size=preview$/.exec(path)?.[1]
   const bytes = id ? images.get(id) : undefined
-  if (!bytes || request.method !== 'GET') return response.writeHead(404).end()
+  if (!id || !bytes || request.method !== 'GET') return response.writeHead(404).end()
   console.log(JSON.stringify({ preview: id, bytes: bytes.length }))
-  response.writeHead(200, { 'Content-Length': bytes.length }).end(bytes)
+  response.writeHead(200, { 'Content-Length': bytes.length })
+  if (!applyPreviewStalls || Number.parseInt(id.slice(0, 8), 16) % 8 !== 0) {
+    response.end(bytes)
+    return
+  }
+  // Use the same slots on every run. Write the headers and some data first
+  // so this tests a stalled body on an established connection.
+  ++stalledPreviews.started
+  const halfway = Math.floor(bytes.length / 2)
+  let finish: NodeJS.Timeout | undefined
+  response.once('finish', () => { ++stalledPreviews.completed })
+  response.once('close', () => {
+    clearTimeout(finish)
+    if (!response.writableFinished) ++stalledPreviews.interrupted
+  })
+  response.write(bytes.subarray(0, halfway), error => {
+    if (!error && !response.destroyed) finish = setTimeout(() => response.end(bytes.subarray(halfway)), previewStallMs)
+  })
 })
 
 await once(server.listen(port, host), 'listening')
@@ -147,5 +174,7 @@ if (warmRotation !== undefined) {
   }
 }
 recordHistory = outageHistory
+applyPreviewStalls = previewStallMs > 0
 console.log(`Replay previews ${previewSize || 'source size'}, ${baselineQuality ? `baseline JPEG quality ${baselineQuality}` : 'mixed JPEG and WebP'}`)
+if (previewStallMs) console.log(`Replay pauses every eighth preview for ${previewStallMs} ms midway through the response`)
 console.log(`Replay ready at ${origin} (${unavailable ? 'service unavailable' : warmRotation === undefined ? 'cold' : 'prewarmed service cache'})`)

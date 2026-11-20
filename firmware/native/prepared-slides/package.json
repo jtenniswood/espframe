@@ -9,8 +9,8 @@
   "scripts": {
     "start": "node server.ts",
     "replay": "node replay.ts",
-    "typecheck": "tsc --noEmit --strict --module nodenext --allowImportingTsExtensions --erasableSyntaxOnly prepare.ts service.ts server.ts service.test.ts replay.ts",
-    "test": "node --test service.test.ts"
+    "typecheck": "tsc --noEmit --strict --module nodenext --allowImportingTsExtensions --erasableSyntaxOnly prepare.ts service.ts server.ts service.test.ts replay.ts replay.test.ts",
+    "test": "node --test service.test.ts replay.test.ts"
   },
   "dependencies": {
     "sharp": "0.35.5"

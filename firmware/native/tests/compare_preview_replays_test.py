@@ -114,6 +114,41 @@ class ReplayTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "report newly prepared slides"):
                     replays.compare(control, candidate, companion_prefetch=True)
 
+    def test_slow_preview_comparison_keeps_stall_and_prefetch_settings_equal(self):
+        control, candidate = example(True), example(True)
+        candidate["profile"]["run"] = "second"
+        for run, counts in ((control, (11, 7, 4)), (candidate, (9, 8, 0))):
+            run["profile"]["previewStallMs"] = 2500
+            run["benchmark"]["direct_replay_companion_prefetch"] = True
+            run["replay_stats"] = {"stalledPreviews": dict(zip(("started", "completed", "interrupted"), counts))}
+        report = replays.compare(control, candidate, slow_previews=True)
+        self.assertIn("| Metric | Control | Candidate firmware |", report)
+        self.assertIn("| Previews with a 2500 ms body pause started | 11 | 9 |", report)
+        self.assertIn("| Paused previews completed | 7 | 8 |", report)
+        self.assertIn("| Paused previews interrupted | 4 | 0 |", report)
+
+        candidate["profile"]["previewStallMs"] = 2800
+        with self.assertRaisesRegex(ValueError, "same preview stall duration"):
+            replays.compare(control, candidate, slow_previews=True)
+        candidate["profile"]["previewStallMs"] = 2500
+        candidate["benchmark"]["direct_replay_companion_prefetch"] = False
+        with self.assertRaisesRegex(ValueError, "same companion prefetch setting"):
+            replays.compare(control, candidate, slow_previews=True)
+        candidate["benchmark"]["direct_replay_companion_prefetch"] = True
+        candidate["replay_stats"]["stalledPreviews"]["interrupted"] = 3
+        with self.assertRaisesRegex(ValueError, "consistent counts"):
+            replays.compare(control, candidate, slow_previews=True)
+
+    @patch.object(replays, "read_json")
+    def test_capture_saves_server_counts_with_the_stall_profile(self, get):
+        run = example(True)
+        profile, benchmark = run["profile"], run["benchmark"]
+        profile["previewStallMs"] = 2500
+        run["replay_stats"] = {"stalledPreviews": {"started": 5, "completed": 4, "interrupted": 1}}
+        get.side_effect = [profile, benchmark, run["preparation"], run["status"], run["replay_stats"], benchmark, profile]
+        self.assertEqual(replays.capture(FRAME, ORIGIN, 2), run)
+        get.assert_any_call(ORIGIN, "/replay-stats")
+
     @patch.object(replays, "read_json")
     @patch.object(replays, "sleep")
     def test_capture_waits_for_final_swipe(self, wait, get):

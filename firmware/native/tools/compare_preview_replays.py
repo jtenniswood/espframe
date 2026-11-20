@@ -33,11 +33,14 @@ def capture(frame, replay, timeout):
 
     preparation = read_json(frame, "/api/trial/prepare")
     status = read_json(frame, "/api/trial")
+    result = {"frame": frame, "profile": profile, "benchmark": benchmark, "preparation": preparation, "status": status}
+    if profile.get("previewStallMs"):
+        result["replay_stats"] = read_json(replay, "/replay-stats")
     if benchmark != read_json(frame, "/api/trial/benchmark"):
         raise ValueError("The benchmark changed during capture")
     if profile != read_json(replay, "/replay-profile"):
         raise ValueError("The replay server restarted during capture")
-    return {"frame": frame, "profile": profile, "benchmark": benchmark, "preparation": preparation, "status": status}
+    return result
 
 
 def validate(run, *, lookahead):
@@ -82,8 +85,18 @@ def prefetch_summary(run):
     return used, mean
 
 
-def compare(control, enabled, *, companion_prefetch=False):
-    validate(control, lookahead=companion_prefetch)
+def stalled_previews(run):
+    stats = run.get("replay_stats", {}).get("stalledPreviews", {})
+    started, completed, interrupted = (stats.get(key) for key in ("started", "completed", "interrupted"))
+    if (any(type(value) is not int or value < 0 for value in (started, completed, interrupted))
+            or not started or completed + interrupted > started):
+        raise ValueError("Both captures must report consistent counts for stalled previews")
+    return started, completed, interrupted
+
+
+def compare(control, enabled, *, companion_prefetch=False, slow_previews=False):
+    lookahead_in_both = companion_prefetch or slow_previews
+    validate(control, lookahead=lookahead_in_both)
     validate(enabled, lookahead=True)
     before, after = control["benchmark"], enabled["benchmark"]
     if companion_prefetch and (before.get("direct_replay_companion_prefetch") is not False
@@ -93,6 +106,13 @@ def compare(control, enabled, *, companion_prefetch=False):
     if (control["profile"]["sha256"] != enabled["profile"]["sha256"]
             or before["replay_origin"] != after["replay_origin"]):
         raise ValueError("Both captures must use the same replay origin and synthetic preview dataset")
+    stall_ms = control["profile"].get("previewStallMs", 0)
+    if stall_ms != enabled["profile"].get("previewStallMs", 0):
+        raise ValueError("Both captures must use the same preview stall duration")
+    if slow_previews and (type(stall_ms) is not int or stall_ms <= 0
+                          or type(before.get("direct_replay_companion_prefetch")) is not bool
+                          or before["direct_replay_companion_prefetch"] is not after.get("direct_replay_companion_prefetch")):
+        raise ValueError("Use a preview stall and the same companion prefetch setting for both captures")
     if control["profile"]["run"] == enabled["profile"]["run"]:
         raise ValueError("Restart the replay server between captures to start at the same photo")
     if control["frame"] != enabled["frame"]:
@@ -121,14 +141,20 @@ def compare(control, enabled, *, companion_prefetch=False):
     ):
         if key in before and key in after:
             rows.append((label, sample(before[key], limit), sample(after[key], limit)))
-    before_used, before_wait = prefetch_summary(control) if companion_prefetch else ("disabled", "disabled")
+    before_used, before_wait = prefetch_summary(control) if lookahead_in_both else ("disabled", "disabled")
     after_used, after_wait = prefetch_summary(enabled)
     if companion_prefetch:
         rows.insert(2, ("New slides rendered as portrait pairs", prepared_pairs(control), prepared_pairs(enabled)))
     rows.append(("Lookahead previews used", before_used, after_used))
-    if after_wait != "no samples" or (companion_prefetch and before_wait != "no samples"):
+    if after_wait != "no samples" or (lookahead_in_both and before_wait != "no samples"):
         rows.append(("Mean wait for staged previews", before_wait, after_wait))
     candidate = "Companion prefetch" if companion_prefetch else "Lookahead"
+    if slow_previews:
+        for label, baseline, changed in zip((f"Previews with a {stall_ms} ms body pause started",
+                                             "Paused previews completed", "Paused previews interrupted"),
+                                            stalled_previews(control), stalled_previews(enabled)):
+            rows.append((label, baseline, changed))
+        candidate = "Candidate firmware"
     return "\n".join([
         f"| Metric | Control | {candidate} |",
         "| --- | --- | --- |",
@@ -147,8 +173,11 @@ def main():
     summarize = actions.add_parser("compare", help="Compare two direct preview captures")
     summarize.add_argument("control", type=Path)
     summarize.add_argument("candidate", type=Path)
-    summarize.add_argument("--companion-prefetch", action="store_true",
-                           help="Compare companion prefetch with primary lookahead enabled in both runs")
+    variant = summarize.add_mutually_exclusive_group()
+    variant.add_argument("--companion-prefetch", action="store_true",
+                         help="Compare companion prefetch with primary lookahead enabled in both runs")
+    variant.add_argument("--slow-previews", action="store_true",
+                         help="Compare firmware versions with the same preview stall and lookahead settings")
     args = parser.parse_args()
     try:
         if args.action == "capture":
@@ -158,7 +187,7 @@ def main():
                 output.write("\n")
         else:
             print(compare(json.loads(args.control.read_text()), json.loads(args.candidate.read_text()),
-                          companion_prefetch=args.companion_prefetch))
+                          companion_prefetch=args.companion_prefetch, slow_previews=args.slow_previews))
     except (OSError, ValueError, KeyError, TypeError) as error:
         parser.exit(1, f"{error}\n")
 
