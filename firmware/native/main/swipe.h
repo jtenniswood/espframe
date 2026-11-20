@@ -26,10 +26,10 @@ class Swipe {
   SlideIndex origin_slide() const { return this->origin_slide_; }
   bool idle() const { return this->phase_ == Phase::Idle; }
   bool dragging() const { return this->phase_ == Phase::Dragging; }
-  DragActivity drag_activity(int64_t now_us, int64_t window_us) const {
-    if (!dragging() || now_us - this->last_motion_us_ >= window_us)
+  DragActivity drag_activity(int64_t now_us, int64_t moving_window_us, int64_t start_guard_us) const {
+    if (!dragging() || now_us - this->last_motion_us_ >= moving_window_us)
       return DragActivity::Still;
-    return now_us - this->drag_started_us_ < window_us ? DragActivity::Starting : DragActivity::Moving;
+    return now_us - this->drag_started_us_ < start_guard_us ? DragActivity::Starting : DragActivity::Moving;
   }
   bool settling() const { return this->phase_ == Phase::Settling; }
   SlideIndex settle_destination() const { return this->settling() ? this->target_ : this->settled_; }

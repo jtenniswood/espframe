@@ -16,20 +16,24 @@ int main() {
 
   using Activity = Swipe::DragActivity;
   constexpr int64_t motion_window = 60'000;
+  constexpr int64_t start_guard = 120'000;
   Swipe held{width, 5, 2};
+  const auto activity = [&](int64_t elapsed) { return held.drag_activity(start + elapsed, motion_window, start_guard); };
   held.press(900, 400, 2 * width, start);
-  assert(held.drag_activity(start + 1'000'000, motion_window) == Activity::Still);
+  assert(activity(1'000'000) == Activity::Still);
   held.move(870, 400, start + 1'000'000);
-  assert(held.drag_activity(start + 1'000'000, motion_window) == Activity::Starting);
+  assert(activity(1'000'000) == Activity::Starting);
   held.move(800, 400, start + 1'058'000);
-  assert(held.drag_activity(start + 1'059'000, motion_window) == Activity::Starting);
-  assert(held.drag_activity(start + 1'060'000, motion_window) == Activity::Moving);
+  assert(activity(1'117'000) == Activity::Starting);
   held.move(800, 400, start + 1'118'000);
-  assert(held.drag_activity(start + 1'118'000, motion_window) == Activity::Still);
+  assert(activity(1'118'000) == Activity::Still);
+  held.move(790, 400, start + 1'119'000);
+  assert(activity(1'119'000) == Activity::Starting);
+  assert(activity(1'120'000) == Activity::Moving);
   held.move(780, 400, start + 1'200'000);
-  assert(held.drag_activity(start + 1'200'000, motion_window) == Activity::Moving);
+  assert(activity(1'200'000) == Activity::Moving);
   held.release(start + 1'210'000);
-  assert(held.drag_activity(start + 1'210'000, motion_window) == Activity::Still);
+  assert(activity(1'210'000) == Activity::Still);
 
   Swipe slow{width, 5, 2};
   slow.press(900, 400, 2 * width, start - 10'000);

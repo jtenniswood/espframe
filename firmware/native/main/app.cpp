@@ -558,7 +558,9 @@ void run(void *) {
   bool preparing_refresh = false;
   unsigned reported_ahead = 0;
   std::array<SlideRetry, SlideCache::capacity> retries{};
-  const auto drag_start_guard_us = 3 * Display::nominal_frame_period_us();
+  const int64_t refresh_period_us = Display::nominal_frame_period_us();
+  const auto drag_moving_window_us = 3 * refresh_period_us;
+  const auto drag_start_guard_us = 6 * refresh_period_us;
 
   while (true) {
     auto now = esp_timer_get_time();
@@ -857,7 +859,7 @@ void run(void *) {
     user_motion = input.awake() && (contact_engaged ||
                   (user_motion && (!swipe.idle() || swipe.position() != display.presented_position())));
     if (live && !trial_fixtures) {
-      const auto drag = swipe.drag_activity(now, drag_start_guard_us);
+      const auto drag = swipe.drag_activity(now, drag_moving_window_us, drag_start_guard_us);
       const bool can_defer = drag != Swipe::DragActivity::Still
                                  ? prefetch.can_defer_drag(ready, swipe.origin_slide(), swipe.position(),
                                                            drag == Swipe::DragActivity::Starting)
