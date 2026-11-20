@@ -53,22 +53,35 @@ void verify_refill_before_refresh() {
 void verify_fast_forward_refill() {
   constexpr SlideRange available{1, 100};
   constexpr SlideRange one_ahead{8, 11};
+  constexpr int64_t now = 1'000;
   SlidePrefetch prefetch{10};
-  assert(!SlidePrefetch{0}.should_stage_forward(1, {0, 0}, true));
-  assert(!prefetch.should_stage_forward(12, one_ahead, false));
-  assert(prefetch.should_stage_forward(12, one_ahead, true));
-  assert(!prefetch.should_stage_forward(7, one_ahead, true));
-  assert(!prefetch.should_stage_forward(13, one_ahead, true));
-  assert(!prefetch.should_stage_forward(13, {8, 12}, true));
+  SlidePrefetch startup{0};
+  startup.note_drag(10, now);
+  assert(!startup.should_stage_forward(1, {0, 0}, now));
+  assert(!prefetch.should_stage_forward(12, one_ahead, now));
+  prefetch.note_drag(10, now);
+  assert(prefetch.should_stage_forward(12, one_ahead, now + 1'000'000));
+  assert(!prefetch.should_stage_forward(7, one_ahead, now));
+  assert(!prefetch.should_stage_forward(13, one_ahead, now));
+  assert(!prefetch.should_stage_forward(13, {8, 12}, now));
+  assert(!prefetch.should_stage_forward(12, one_ahead, now + 2'000'000));
+
+  prefetch.moved_to(11);
+  assert(prefetch.should_stage_forward(12, one_ahead, now + 1'000'000));
+  prefetch.moved_to(10);
+  assert(!prefetch.should_stage_forward(12, one_ahead, now + 1'000'000));
+  prefetch.note_drag(10, now);
+  prefetch.note_drag(-10, now + 1);
+  assert(!prefetch.should_stage_forward(12, one_ahead, now + 2));
 
   prefetch.request_at_edge(11 * slide_width + 1, one_ahead, available);
   prefetch.request_after_drag(std::nullopt);
-  assert(prefetch.should_stage_forward(12, one_ahead, false));
+  assert(prefetch.should_stage_forward(12, one_ahead, now + 2'000'000));
   prefetch.prepared(12);
-  assert(!prefetch.should_stage_forward(12, one_ahead, false));
+  assert(!prefetch.should_stage_forward(12, one_ahead, now + 2'000'000));
   prefetch.request_at_edge(8 * slide_width - 1, one_ahead, available);
-  assert(!prefetch.should_stage_forward(7, one_ahead, false));
-  assert(!prefetch.should_stage_forward(12, one_ahead, false));
+  assert(!prefetch.should_stage_forward(7, one_ahead, now + 2'000'000));
+  assert(!prefetch.should_stage_forward(12, one_ahead, now + 2'000'000));
 }
 
 int main() {

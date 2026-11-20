@@ -607,7 +607,7 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
                                                                               : PreviewStatus::Retry;
 }
 
-bool ImmichSource::load_thumbnail_(const AssetId &id, DecodedPreview &preview) {
+bool ImmichSource::load_thumbnail_(const AssetId &id, DecodedPreview &preview, PhotoOrientation orientation) {
   constexpr size_t thumbnail_capacity = 128 * 1024;
   // Thumbnails are transient pixels. A separate request size must not seed
   // the encoded preview cache used to upgrade or revisit this slide.
@@ -617,8 +617,9 @@ bool ImmichSource::load_thumbnail_(const AssetId &id, DecodedPreview &preview) {
   size_t length = 0;
   if (fetch_(path, {}, thumbnail_capacity, length, esp_timer_get_time() + 650'000, false) != 200 || cancelled_)
     return false;
-  const PreviewLayout layout{PreviewTarget::PairPane, feed_().display_mode, feed_().pair_display_mode()};
-  return preview.decode(encoded_, length, layout, nullptr, checkpoint_, PhotoOrientation::Portrait) ==
+  const auto target = orientation == PhotoOrientation::Portrait ? PreviewTarget::PairPane : PreviewTarget::Slide;
+  const PreviewLayout layout{target, feed_().display_mode, feed_().pair_display_mode()};
+  return preview.decode(encoded_, length, layout, nullptr, checkpoint_, orientation) ==
          DecodedPreview::Result::Ready;
 }
 
@@ -862,13 +863,22 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   }
   std::optional<TrialStageTimer> composition;
   bool thumbnail = false;
+  const bool thumbnail_pair = seed.portrait && frame.companion[0] != '\0';
+  // The all-pairs replay is a fixed comparison. The adaptive player can
+  // also stage a known landscape, which does not need a companion lookup.
+  const bool thumbnail_landscape = !seed.portrait && frame.companion[0] == '\0' &&
+                                   (!trial_replay_staged_detail || SWIPE_TRIAL_REPLAY_EDGE_DETAIL) &&
+                                   feed_().photo_orientation != PhotoOrientation::Portrait;
   if (preparation == Preparation::AllowThumbnail && new_position && !remembered && seed.orientation_known &&
-      seed.portrait && frame.companion[0] != '\0' && !settings_.has_prepared_slides()) {
+      (thumbnail_pair || thumbnail_landscape) && !settings_.has_prepared_slides()) {
     DecodedPreview left, right;
-    thumbnail = load_thumbnail_(frame.primary, left) && load_thumbnail_(frame.companion, right);
+    const auto orientation = thumbnail_pair ? PhotoOrientation::Portrait : PhotoOrientation::Landscape;
+    thumbnail = load_thumbnail_(frame.primary, left, orientation) &&
+                (!thumbnail_pair || load_thumbnail_(frame.companion, right, orientation));
     if (thumbnail) {
       composition.emplace(TrialPreparationStage::Composition);
-      if (!left.render(panel, &right, feed_().pair_display_mode(), settings_.screen_rotation, checkpoint_))
+      if (!left.render(panel, thumbnail_pair ? &right : nullptr, feed_().pair_display_mode(), settings_.screen_rotation,
+                       checkpoint_))
         return retry_frame();
     }
     if (cancelled_)
@@ -904,7 +914,8 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
       return retry_frame();
     if (status == PreviewStatus::Missing && prepared_pending && unavailable_.contains(frame.primary, esp_timer_get_time()))
       return retry_frame();
-    if (status == PreviewStatus::Missing || (preserve_pair && reframing_pair && !primary.portrait()))
+    if (status == PreviewStatus::Missing || (preserve_pair && reframing_pair && !primary.portrait()) ||
+        (refining && !reframing_pair && primary.portrait()))
       return reject_candidate(frame.primary);
 
     // Optional pairing leaves the first preview on the fast path.
@@ -986,6 +997,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   if (this->cancelled_)
     return retry_frame();
   presentation.thumbnail = thumbnail;
+  presentation.thumbnail_pair = thumbnail && paired;
   presentation.caption_time = captions.needs_time() && !local && frame.metadata.capture_day.has_value();
   presentation.caption_details = this->needs_caption_details_(frame.metadata);
   if (!remembered && frame.companion[0] != '\0')

@@ -234,6 +234,14 @@ void verify_landscape_with_required_pairs(const char *path) {
                         {PreviewTarget::RequiredPair, DisplayMode::Fill, DisplayMode::Fit}) == Decode::Ready);
   assert(!decoded.portrait() && decoded.render(pairs_only.data()));
   assert(single == pairs_only && pairs_only.front() != 0 && pairs_only.back() != 0);
+  for (const auto mode : {DisplayMode::Fit, DisplayMode::Fill}) {
+    assert(decoded.decode(photo.data(), photo.size(), {PreviewTarget::RequiredPair, mode, DisplayMode::Fit}) ==
+           Decode::Ready);
+    assert(decoded.render(pairs_only.data()));
+    assert(decoded.decode(photo.data(), photo.size(), {PreviewTarget::Slide, mode, DisplayMode::Fit}, nullptr, {},
+                          PhotoOrientation::Landscape) == Decode::Ready);
+    assert(decoded.render(single.data()) && single == pairs_only);
+  }
 }
 
 void verify_odd_jpeg_rows(const char *path) {

@@ -28,7 +28,8 @@ namespace espframe::native {
 namespace {
 
 std::atomic<uint32_t> prepared_slides{};
-std::atomic<uint32_t> thumbnail_slides{};
+std::atomic<uint32_t> thumbnail_landscapes{};
+std::atomic<uint32_t> thumbnail_pairs{};
 std::atomic<uint32_t> detail_presentations{};
 std::atomic<int32_t> last_detail_slide{-1};
 std::atomic<uint32_t> last_detail_latency_ms{};
@@ -300,13 +301,15 @@ esp_err_t status(httpd_req_t *request) {
   const auto &network = *static_cast<const NativeNetwork *>(request->user_ctx);
   const auto prepared = prepared_slides.load(std::memory_order_acquire);
   const auto gestures = swipes.load(std::memory_order_acquire);
-  char presentation[184]{};
+  char presentation[208]{};
   if constexpr (trial_detail_metrics) {
     const auto presentations = detail_presentations.load(std::memory_order_acquire);
+    const auto pairs = thumbnail_pairs.load(std::memory_order_relaxed);
+    const auto landscapes = thumbnail_landscapes.load(std::memory_order_relaxed);
     std::snprintf(presentation, sizeof(presentation),
-                  ",\"thumbnail_slides\":%" PRIu32 ",\"detail_presentations\":%" PRIu32
+                  ",\"thumbnail_slides\":%" PRIu32 ",\"thumbnail_pairs\":%" PRIu32 ",\"detail_presentations\":%" PRIu32
                   ",\"last_detail_slide\":%" PRId32 ",\"last_detail_latency_ms\":%" PRIu32,
-                  thumbnail_slides.load(std::memory_order_relaxed), presentations,
+                  pairs + landscapes, pairs, presentations,
                   last_detail_slide.load(std::memory_order_relaxed), last_detail_latency_ms.load(std::memory_order_relaxed));
   }
   if constexpr (trial_replay_touch) {
@@ -533,8 +536,8 @@ void record_live_trial_replay_slide(bool paired, bool fill_edges_match) {
   portEXIT_CRITICAL(&preparation_lock);
 }
 
-void record_live_trial_thumbnail_ready() {
-  thumbnail_slides.fetch_add(1, std::memory_order_relaxed);
+void record_live_trial_thumbnail_ready(bool paired) {
+  (paired ? thumbnail_pairs : thumbnail_landscapes).fetch_add(1, std::memory_order_relaxed);
 }
 
 void record_live_trial_detail_presented(int64_t slide, uint32_t request_to_panel_ms) {

@@ -35,6 +35,7 @@ class ImmichSource {
     bool caption_time{};
     bool caption_details{};
     bool thumbnail{};
+    bool thumbnail_pair{};
   };
 
   ImmichSource(const Settings &settings, const NativeNetwork &network, const std::atomic<bool> &cancelled,
@@ -82,7 +83,7 @@ class ImmichSource {
   void complete_caption_details_(PhotoSlide &frame);
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, PreviewTarget target, int64_t deadline_us,
                               bool report_response, const AssetId &lookahead = {});
-  bool load_thumbnail_(const AssetId &id, DecodedPreview &preview);
+  bool load_thumbnail_(const AssetId &id, DecodedPreview &preview, PhotoOrientation orientation);
   PreparedPreview render_prepared_(const PhotoSlide &frame, uint16_t *panel, PhotoOrientation orientation);
   std::string prepared_url_(const PhotoSlide &frame, PhotoOrientation orientation, bool frame_fill, DisplayMode framing) const;
   void warm_next_prepared_(const PhotoSlide &current);

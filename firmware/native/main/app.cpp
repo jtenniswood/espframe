@@ -722,7 +722,7 @@ void run(void *) {
       if (ready) {
         if constexpr (trial_detail_metrics) {
           if (completion.presentation.thumbnail)
-            record_live_trial_thumbnail_ready();
+            record_live_trial_thumbnail_ready(completion.presentation.thumbnail_pair);
           if (detail_request_us && slide == center) {
             last_submitted = -1;
             detail_to_submit = DetailHandoff{slide, detail_request_us};
@@ -849,6 +849,10 @@ void run(void *) {
       SwipeInput::DragEnd drag_end{};
       const auto effect = input.update(swipe, report, display.handoff_position(),
                                        track_physical_drags ? &drag_end : nullptr);
+      if constexpr (stage_at_edge) {
+        if (swipe.dragging())
+          prefetch.note_drag(swipe.position() - swipe.origin_slide() * slide_width, report.sampled_us);
+      }
       if constexpr (track_physical_drags) {
         if (previous_contact != input.contact_started_us() && physical_landing.interrupt())
           record_live_trial_drag_outcome(TrialDragOutcome::Interrupted);
@@ -972,7 +976,7 @@ void run(void *) {
       };
       if constexpr (stage_at_edge || stage_all_pairs) {
         // Leave a forward swipe ready before spending the pause sharpening
-        // the current pair. A new edge drag can cancel the replacement.
+        // the current slide. A new edge drag can cancel the replacement.
         if (center > 0 && source_anchor < 0 && requested_revision == source_revision && active_connection &&
             at_source_handoff && !contact_engaged && cache.has_thumbnail(center) &&
             now - last_detail_motion_us >= detail_idle_us && eligible(center) &&
@@ -995,11 +999,9 @@ void run(void *) {
         if (refresh && candidate != center && prefetch.has_nearby_refill(cache, eligible))
           continue;
         const auto retained = refresh ? prefetch.nearby_window() : retained_during_motion;
-        const bool browsing_forward = (swipe.dragging() && swipe.position() > swipe.origin_slide() * slide_width) ||
-                                      (user_motion && swipe.settling() && swipe.settle_destination() > center);
         const bool staged = !refresh && (stage_all_pairs ||
                             (stage_at_edge && source_anchor < 0 && requested_revision == source_revision &&
-                             prefetch.should_stage_forward(candidate, ready, browsing_forward)));
+                             prefetch.should_stage_forward(candidate, ready, now)));
         if (submit(candidate, retained, refresh, staged ? Preparation::AllowThumbnail : Preparation::FullPreview))
           break;
       }

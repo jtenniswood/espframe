@@ -41,6 +41,8 @@ class SlidePrefetch {
     if (center == center_)
       return;
     direction_ = center > center_ ? 1 : -1;
+    if (direction_ < 0)
+      stage_forward_until_ = 0;
     center_ = center;
     requested_.reset();
   }
@@ -83,9 +85,14 @@ class SlidePrefetch {
 
   std::optional<SlideIndex> requested() const { return requested_; }
 
-  bool should_stage_forward(SlideIndex candidate, SlideRange ready, bool browsing) const {
+  void note_drag(PixelPosition offset, int64_t now) {
+    if (offset != 0)
+      stage_forward_until_ = offset > 0 ? now + 2'000'000 : 0;
+  }
+
+  bool should_stage_forward(SlideIndex candidate, SlideRange ready, int64_t now) const {
     return center_ > 0 && candidate == ready.last + 1 && ready.last - center_ < desired_ready_in_direction &&
-           (browsing || requested_ == candidate);
+           (now < stage_forward_until_ || requested_ == candidate);
   }
 
   void prepared(SlideIndex slide) {
@@ -147,6 +154,7 @@ class SlidePrefetch {
   SlideIndex center_;
   SlideIndex slots_;
   int direction_{1};
+  int64_t stage_forward_until_{};
   std::optional<SlideIndex> requested_;
 };
 

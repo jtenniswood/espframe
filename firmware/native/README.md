@@ -36,11 +36,13 @@ The player only updates the P4. Use a fresh build directory if you previously
 configured the project with ESP-Hosted 2.x.
 
 When forward swipes run low on ready photos, the native player can start a
-known portrait pair from Immich thumbnails. Both photos use the existing
-pair framing. Once you pause and the next swipe is covered, the frame
-replaces the pair with full previews. Regular idle prefetch starts with full
-previews. Thumbnails that fail to load fall back to previews, and a failed
-detail upgrade leaves the original pair swipeable.
+known landscape or portrait pair from Immich thumbnails. Fast refills stay
+available for two seconds after a forward drag, including short pauses between
+swipes. The slide uses the existing display framing. Once you pause and the
+next swipe is covered, the frame replaces the thumbnail slide with full
+previews. Regular idle prefetch starts with full previews. Thumbnails that
+fail to load fall back to previews, and a failed detail upgrade leaves the
+original slide swipeable.
 
 ### Install and connect in a browser
 
@@ -554,12 +556,12 @@ never start a horizontal drag are outside these counts. Drag continuously
 to assess pacing, since a pause mid-drag can also widen the gap between
 display updates.
 The live and rapid trials use the native player's forward refill policy.
-With portrait pairing enabled, the frame can prepare the next pair from
-thumbnails when a forward gesture runs low on cached photos. The benchmark
-reports `live_edge_detail`. The status route reports how many thumbnail pairs
-became ready, how many full-detail replacements reached the LCD, and the last
-replacement's request-to-handoff time. A short run with a warm cache can
-finish with both counters at zero.
+The frame can prepare the next landscape or portrait pair from thumbnails
+when forward gestures run low on cached photos. The benchmark reports
+`live_edge_detail`. The status route reports the number of thumbnail slides,
+how many were portrait pairs, how many full-detail replacements reached the
+LCD, and the last replacement's request-to-handoff time. A short run with a
+warm cache can finish with no thumbnail slides.
 
 Use high-frame-rate video to measure from finger movement to visible motion
 and check the panel for tearing.
