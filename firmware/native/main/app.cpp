@@ -33,6 +33,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 
 #include <algorithm>
@@ -293,9 +294,11 @@ class SlideLoader {
     }
     this->requests_ = xQueueCreate(1, sizeof(Request));
     this->completed_ = xQueueCreate(1, sizeof(Completion));
+    this->pixel_work_wake_ = xSemaphoreCreateBinaryStatic(&this->pixel_work_wake_storage_);
     if constexpr (!trace_enabled)
       this->timings_ = xQueueCreate(32, sizeof(GestureTiming));
-    ESP_ERROR_CHECK(this->requests_ && this->completed_ && (trace_enabled || this->timings_) ? ESP_OK : ESP_ERR_NO_MEM);
+    ESP_ERROR_CHECK(this->requests_ && this->completed_ && this->pixel_work_wake_ && (trace_enabled || this->timings_)
+                        ? ESP_OK : ESP_ERR_NO_MEM);
     const auto result = xTaskCreatePinnedToCore(run_, "slide-prepare", 6144, this, 2, &this->task_, loader_core);
     ESP_ERROR_CHECK(result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
     return true;
@@ -312,9 +315,18 @@ class SlideLoader {
     return xQueueReceive(this->completed_, &completion, 0) == pdPASS;
   }
 
-  void yield_to_swipe() { this->cancelled_ = true; }
+  void yield_to_swipe() {
+    if (!this->cancelled_.exchange(true))
+      xSemaphoreGive(this->pixel_work_wake_);
+  }
   bool yield_requested() const { return this->cancelled_.load(); }
-  void defer_pixel_work(bool defer) { this->pixel_work_deferred_.store(defer, std::memory_order_relaxed); }
+  void defer_pixel_work(bool defer) {
+    if (this->pixel_work_deferred_.load(std::memory_order_relaxed) == defer)
+      return;
+    this->pixel_work_deferred_.store(defer, std::memory_order_release);
+    if (!defer)
+      xSemaphoreGive(this->pixel_work_wake_);
+  }
 
   void report_gesture(const GestureTiming &timing) {
     // USB output can block. Leave it to the worker and drop a diagnostic
@@ -324,6 +336,20 @@ class SlideLoader {
   }
 
  private:
+  bool wait_for_pixel_work() const {
+    if (!this->pixel_work_deferred_.load(std::memory_order_acquire) || this->cancelled_)
+      return !this->cancelled_;
+
+    const auto started = esp_timer_get_time();
+    // A give before the wait is retained. Recheck after waking because a
+    // subsequent frame may already need the bandwidth, or the lease may end.
+    while (this->pixel_work_deferred_.load(std::memory_order_acquire) && !this->cancelled_)
+      xSemaphoreTake(this->pixel_work_wake_, portMAX_DELAY);
+    if constexpr (trial_immich)
+      record_live_trial_pixel_pause(static_cast<uint32_t>((esp_timer_get_time() - started) / 1000));
+    return !this->cancelled_;
+  }
+
   struct Request {
     SlideCache::Lease lease;
     uint32_t source_revision;
@@ -423,8 +449,12 @@ class SlideLoader {
 
   std::atomic<bool> cancelled_{};
   std::atomic<bool> pixel_work_deferred_{};
+  StaticSemaphore_t pixel_work_wake_storage_{};
+  SemaphoreHandle_t pixel_work_wake_{};
   Settings settings_;
-  ImmichSource source_{settings_, network, cancelled_, pixel_work_deferred_};
+  ImmichSource source_{settings_, network, cancelled_, {this, [](void *context) {
+    return static_cast<const SlideLoader *>(context)->wait_for_pixel_work();
+  }}};
   QueueHandle_t requests_{};
   QueueHandle_t completed_{};
   QueueHandle_t timings_{};

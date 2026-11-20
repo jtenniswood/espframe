@@ -11,8 +11,6 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 
 #include <algorithm>
 #include <cinttypes>
@@ -494,19 +492,6 @@ void ImmichSource::complete_caption_details_(PhotoSlide &frame) {
   frame.metadata.location_known = true;
   if (!frame.metadata.capture_day)
     frame.metadata.capture_day = photo->metadata.capture_day;
-}
-
-bool ImmichSource::wait_for_pixel_work_() const {
-  if (!this->pixel_work_deferred_.load(std::memory_order_relaxed) || this->cancelled_)
-    return !this->cancelled_;
-
-  const auto started = esp_timer_get_time();
-  do {
-    vTaskDelay(pdMS_TO_TICKS(4));
-  } while (this->pixel_work_deferred_.load(std::memory_order_relaxed) && !this->cancelled_);
-  if constexpr (SWIPE_TRIAL_IMMICH)
-    record_live_trial_pixel_pause(static_cast<uint32_t>((esp_timer_get_time() - started) / 1000));
-  return !this->cancelled_;
 }
 
 ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, DecodedPreview &preview,

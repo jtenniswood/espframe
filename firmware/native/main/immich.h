@@ -36,9 +36,8 @@ class ImmichSource {
   };
 
   ImmichSource(const Settings &settings, const NativeNetwork &network, const std::atomic<bool> &cancelled,
-               const std::atomic<bool> &pixel_work_deferred)
-      : cancelled_(cancelled), pixel_work_deferred_(pixel_work_deferred), settings_(settings), network_(network),
-        http_(cancelled) {}
+               PreparationCheckpoint checkpoint)
+      : cancelled_(cancelled), checkpoint_(checkpoint), settings_(settings), network_(network), http_(cancelled) {}
   PrepareResult prepare(SlideIndex slide, uint16_t *panel, bool replacement, PendingCaption &caption,
                         bool caption_only = false);
   void apply_photo_settings(PhotoFeedSettings feed, std::optional<SlideIndex> first_slide);
@@ -78,7 +77,6 @@ class ImmichSource {
   void discard_candidate_(const AssetId &id);
   bool needs_caption_details_(const PhotoMetadata &metadata) const;
   void complete_caption_details_(PhotoSlide &frame);
-  bool wait_for_pixel_work_() const;
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, PreviewTarget target, int64_t deadline_us,
                               bool report_response, const AssetId &lookahead = {});
   PreparedPreview render_prepared_(const PhotoSlide &frame, uint16_t *panel, PhotoOrientation orientation);
@@ -86,10 +84,7 @@ class ImmichSource {
   void warm_next_prepared_(const PhotoSlide &current);
 
   const std::atomic<bool> &cancelled_;
-  const std::atomic<bool> &pixel_work_deferred_;
-  const PreparationCheckpoint checkpoint_{this, [](void *source) {
-    return static_cast<const ImmichSource *>(source)->wait_for_pixel_work_();
-  }};
+  const PreparationCheckpoint checkpoint_;
   const Settings &settings_;
   std::optional<PhotoFeedSettings> selection_;
   const PhotoFeedSettings &feed_() const { return selection_ ? *selection_ : settings_; }
