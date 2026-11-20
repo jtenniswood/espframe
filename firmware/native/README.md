@@ -186,6 +186,9 @@ images from builds you trust. The package includes SHA-256 checksums for those
 files. The prototype checks image integrity and board identity and accepts
 unsigned firmware.
 
+The installer preserves ESPHome's update preferences in native settings
+exports for a future restore to ESPHome. Native updates use this manual upload flow.
+
 The frame writes to an inactive slot and restarts after validating the image.
 The first boot must initialize the display, submit a frame and read the touch
 controller. Keep the update page open to see whether startup passed or whether

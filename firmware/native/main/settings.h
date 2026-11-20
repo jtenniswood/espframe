@@ -59,6 +59,12 @@ struct PhotoFeedSettings {
   }
 };
 
+struct StockUpdatePreferences {
+  std::optional<bool> auto_update;
+  std::optional<std::string> frequency;
+  std::optional<bool> wifi_auto_update;
+};
+
 struct Settings : PhotoFeedSettings {
   enum class UpdateResult { Saved, SavedLive, Unchanged, Invalid, Stale, Failed };
   enum class UsbSaveResult { Saved, Rejected, WifiUnavailable, ImmichUnavailable, PairingUnavailable };
@@ -83,6 +89,7 @@ struct Settings : PhotoFeedSettings {
   ScreenRotation screen_rotation{ScreenRotation::Normal};
   ClockSettings clock;
   ScreenScheduleSettings schedule;
+  StockUpdatePreferences stock_update_preferences;
 
   uint8_t night_brightness() const { return brightness_night.value_or(brightness_day); }
   bool has_immich() const { return !immich_url.empty() && !immich_key.empty(); }
@@ -105,6 +112,7 @@ struct Settings : PhotoFeedSettings {
   void publish_live_presentation() const;
   static bool reset(ResetMode mode);
   bool add_playback_fields(cJSON *object, PhotoFilterUpdate filter_update = PhotoFilterUpdate::KeepSource) const;
+  bool add_stock_update_preferences(cJSON *object) const;
 };
 
 }  // namespace espframe::native

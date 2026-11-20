@@ -43,6 +43,7 @@ for (const name of ['v1-full', 'v2-full']) {
     schedule_enabled: false, schedule_on_hour: 6, schedule_off_hour: 23, schedule_wake_timeout: 60,
     show_clock: true, clock_format: '24 Hour', timezone: 'Europe/London (GMT+0)',
     ntp_server_1: '0.pool.ntp.org', ntp_server_2: '1.pool.ntp.org', ntp_server_3: '2.pool.ntp.org',
+    firmware_updates: { auto_update: true, update_frequency: 'Daily', wifi_auto_update: true },
     date_filter_enabled: true, date_filter_mode: 'Relative Range', date_from: '2024-01-01',
     date_to: name === 'v2-full' ? '2026-08-30' : '2026-06-07', relative_amount: 2, relative_unit: 'Years',
     ...(name === 'v2-full' ? {
@@ -60,7 +61,7 @@ for (const name of ['v1-full', 'v2-full']) {
   })
   assert.equal(result.chooseSource, false)
   assert.equal(result.notices.some(text => text.includes('Choose a photo source')), false)
-  assert.ok(result.notices.some(text => text.includes('original backup')))
+  assert.deepEqual(result.notices, [])
   assert.doesNotMatch(JSON.stringify(result), /fixture-read-only-api-key/)
 }
 
@@ -97,6 +98,7 @@ const legacyPhotos = { display_mode: 'Fit', portrait_pairing: false }
 const stock = { version: 3, firmware_updates: { update_frequency: 'Daily' }, photos: legacyPhotos }
 assert.deepEqual(readBackup(stock).settings, {
   display_mode: 'Fit', portrait_pairing: false, portrait_pair_framing: 'Fill',
+  firmware_updates: { update_frequency: 'Daily' },
 })
 assert.deepEqual(readBackup({ version: 3, photos: legacyPhotos }).settings, {
   display_mode: 'Fit', portrait_pairing: false,
@@ -107,6 +109,21 @@ for (const framing of ['Follow photo framing', 'Fit', 'Fill']) {
 }
 const invalidPairFraming = readBackup({ ...stock, photos: { ...legacyPhotos, portrait_pair_framing: 'Stretch' } })
 assert.equal(invalidPairFraming.settings.portrait_pair_framing, undefined)
+const invalidUpdates = readBackup({
+  version: 3, firmware_updates: { auto_update: false, update_frequency: 'Yearly', wifi_auto_update: 'false', unknown: true },
+})
+assert.deepEqual(invalidUpdates.settings, { firmware_updates: { auto_update: false } })
+assert.deepEqual(invalidUpdates.notices, ['Review the firmware update preferences in the original backup.'])
+for (const update_frequency of ['Hourly', 'Daily', 'Weekly', 'Monthly']) {
+  const firmware_updates = { auto_update: false, update_frequency, wifi_auto_update: false }
+  const copied = createBackup({ immich_url: 'https://photos.test', slide_seconds: 15, display_mode: 'Fit', firmware_updates })
+  assert.deepEqual(copied.firmware_updates, firmware_updates)
+  const restored = readBackup(copied)
+  assert.deepEqual(restored.settings.firmware_updates, firmware_updates)
+  assert.equal(restored.settings.portrait_pair_framing, 'Follow photo framing')
+  assert.deepEqual(restored.notices, [])
+}
+assert.equal(createBackup({ slide_seconds: 15 }).firmware_updates, undefined)
 assert.match(invalidPairFraming.notices[0], /frame portrait pairs/)
 const dateOnly = readBackup({ version: 3, photos: { source: 'Custom', date_filter_enabled: true,
   date_filter_mode: 'Fixed Range', date_from: '2024-02-29', date_to: '' } })

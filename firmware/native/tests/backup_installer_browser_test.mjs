@@ -211,6 +211,8 @@ const verify = `
       throw new Error('The ordered time servers did not reach USB setup')
     if (received.conn_timeout !== '3 minutes')
       throw new Error('The saved connection timeout did not reach USB setup')
+    if (JSON.stringify(received.firmware_updates) !== JSON.stringify(${JSON.stringify(backup.firmware_updates)}))
+      throw new Error('The update preferences did not reach USB setup')
     if (!received.date_filter_enabled || received.date_filter_mode !== 'Fixed Range' || received.date_from !== '2024-02-29'
       || received.date_to !== '' || received.relative_amount !== 2 || received.relative_unit !== 'Months')
       throw new Error('The capture date filter did not reach USB setup')

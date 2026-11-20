@@ -143,6 +143,33 @@ bool read_flag(const cJSON *root, const char *name, bool &enabled) {
   return true;
 }
 
+bool read_stock_update_preferences(const cJSON *root, StockUpdatePreferences &preferences) {
+  const auto *fields = cJSON_GetObjectItemCaseSensitive(root, "firmware_updates");
+  if (!fields)
+    return true;
+  if (!cJSON_IsObject(fields))
+    return false;
+  const auto read_optional_flag = [&](const char *key, std::optional<bool> &value) {
+    if (!cJSON_HasObjectItem(fields, key))
+      return true;
+    bool enabled{};
+    if (!read_flag(fields, key, enabled))
+      return false;
+    value = enabled;
+    return true;
+  };
+  if (cJSON_HasObjectItem(fields, "update_frequency")) {
+    constexpr std::string_view frequencies[]{"Hourly", "Daily", "Weekly", "Monthly"};
+    std::string frequency;
+    if (!read_field(fields, "update_frequency", frequency) ||
+        std::ranges::find(frequencies, frequency) == std::end(frequencies))
+      return false;
+    preferences.frequency = std::move(frequency);
+  }
+  return read_optional_flag("auto_update", preferences.auto_update) &&
+         read_optional_flag("wifi_auto_update", preferences.wifi_auto_update);
+}
+
 bool read_clock(const cJSON *root, ClockSettings &clock) {
   for (size_t i = 0; i < ntp_fields.size(); ++i) {
     auto &server = clock.ntp_servers[i];
@@ -493,7 +520,8 @@ bool parse_all(const cJSON *root, Settings &settings) {
          read_home_assistant_key(root, settings) &&
          read_field(root, "frame_name", settings.frame_name, true) &&
          read_integer(root, "reset_epoch", 0, std::numeric_limits<uint32_t>::max(), settings.reset_epoch) &&
-         read_playback(root, settings) && read_saved_photo_preset(root, settings.photo_source) && normalize(settings);
+         read_playback(root, settings) && read_saved_photo_preset(root, settings.photo_source) &&
+         read_stock_update_preferences(root, settings.stock_update_preferences) && normalize(settings);
 }
 
 Json load_document(bool *may_create = nullptr) {
@@ -662,7 +690,8 @@ Settings::UpdateResult store_settings(Settings &settings, bool clear_legacy = fa
       !cJSON_AddStringToObject(updated.get(), "web_password", settings.web_password.c_str()) ||
       (settings.home_assistant_key_set &&
        !cJSON_AddStringToObject(updated.get(), "home_assistant_key", settings.home_assistant_key.c_str())) ||
-      !put_epoch(updated.get(), settings.reset_epoch) || !settings.add_playback_fields(updated.get()))
+      !put_epoch(updated.get(), settings.reset_epoch) || !settings.add_playback_fields(updated.get()) ||
+      !settings.add_stock_update_preferences(updated.get()))
     return Result::Failed;
   if (!settings.brightness_night)
     cJSON_DeleteItemFromObjectCaseSensitive(updated.get(), "brightness_night");
@@ -776,7 +805,12 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
       return Result::Rejected;
   }
   Settings candidate;
+  if (configured)
+    candidate.stock_update_preferences = std::move(saved.stock_update_preferences);
   if (!put_epoch(document.get(), epoch) || !parse_all(document.get(), candidate) || !candidate.has_immich())
+    return Result::Rejected;
+  cJSON_DeleteItemFromObjectCaseSensitive(document.get(), "firmware_updates");
+  if (!candidate.add_stock_update_preferences(document.get()))
     return Result::Rejected;
   // An installer that omits the service fields keeps the connection for the same library.
   if (configured && !provided("prepared_slide_url") && !provided("prepared_slide_token") && saved.has_prepared_slides() &&
@@ -963,6 +997,17 @@ bool Settings::add_playback_fields(cJSON *object, PhotoFilterUpdate filter_updat
          cJSON_AddStringToObject(object, "timezone", clock.timezone.c_str());
 }
 
+bool Settings::add_stock_update_preferences(cJSON *object) const {
+  const auto &preferences = stock_update_preferences;
+  if (!preferences.auto_update && !preferences.frequency && !preferences.wifi_auto_update)
+    return true;
+  auto *fields = cJSON_AddObjectToObject(object, "firmware_updates");
+  return fields &&
+         (!preferences.auto_update || cJSON_AddBoolToObject(fields, "auto_update", *preferences.auto_update)) &&
+         (!preferences.frequency || cJSON_AddStringToObject(fields, "update_frequency", preferences.frequency->c_str())) &&
+         (!preferences.wifi_auto_update || cJSON_AddBoolToObject(fields, "wifi_auto_update", *preferences.wifi_auto_update));
+}
+
 bool Settings::save_playback(const char *json, bool *restart_required) {
   const auto update = parse(json);
   if (!cJSON_HasObjectItem(update.get(), "immich_url"))
@@ -1118,6 +1163,7 @@ bool Settings::reset(ResetMode mode) {
     reset.web_password = std::move(saved.web_password);
     reset.home_assistant_key = std::move(saved.home_assistant_key);
     reset.home_assistant_key_set = saved.home_assistant_key_set;
+    reset.stock_update_preferences = std::move(saved.stock_update_preferences);
   }
   reset.reset_epoch = saved.reset_epoch == std::numeric_limits<uint32_t>::max() ? 1 : saved.reset_epoch + 1;
   return store_settings(reset, mode == ResetMode::Factory) == UpdateResult::Saved;

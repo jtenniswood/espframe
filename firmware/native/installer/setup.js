@@ -89,6 +89,7 @@ let importing = false
 let frameNameSpecified = false
 let ntpServersSpecified = false
 let importedPreset = null
+let importedFirmwareUpdates
 for (const name of ntpServerFields)
   form.elements[name].addEventListener('input', () => { ntpServersSpecified = true })
 form.addEventListener('change', event => {
@@ -115,7 +116,9 @@ backup.addEventListener('change', async () => {
   try {
     const { settings, notices, chooseSource, legacyPreset } = readBackup(JSON.parse(await file.text()))
     if (sequence !== importSequence) return
+    const { firmware_updates, ...fields } = settings
     importedPreset = legacyPreset ?? null
+    importedFirmwareUpdates = firmware_updates
     if (Object.hasOwn(settings, 'frame_name')) {
       frameNameSpecified = true
       frameName.setCustomValidity('')
@@ -129,12 +132,14 @@ backup.addEventListener('change', async () => {
     form.elements.conn_timeout.value = ''
     form.elements.device_language.value = ''
     form.elements.warm_tone_override.value = ''
-    for (const [name, value] of Object.entries({ ...photoFilterDefaults, ...settings })) {
+    for (const [name, value] of Object.entries({ ...photoFilterDefaults, ...fields })) {
       if (name === 'warm_tone_override') form.elements[name].value = String(value)
       else if (typeof value === 'boolean') form.elements[name].checked = value
       else form.elements[name].value = value
     }
     if (!form.elements.timezone.value) notices.push('Choose a timezone supported by the frame.')
+    if (importedFirmwareUpdates)
+      notices.push('Update preferences will be kept for an ESPHome restore.')
     refreshSource()
     refreshPairing()
     showPercentages()
@@ -239,6 +244,7 @@ if ('serial' in navigator) {
       return
     }
     const data = Object.fromEntries(new FormData(form))
+    if (importedFirmwareUpdates) data.firmware_updates = importedFirmwareUpdates
     const keepPairing = keepStockPairing.checked
     const keepWifi = keepStockWifi.checked
     const keepImmich = keepStockImmich.checked
@@ -292,6 +298,7 @@ if ('serial' in navigator) {
       frameNameSpecified = false
       ntpServersSpecified = false
       importedPreset = null
+      importedFirmwareUpdates = undefined
       refreshSource()
       refreshPairing()
       showPercentages()

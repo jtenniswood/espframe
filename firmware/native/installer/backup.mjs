@@ -11,6 +11,12 @@ const transitionSpeeds = ['Fast', 'Normal', 'Slow']
 const pairFramings = ['Follow photo framing', ...displayModes]
 const photoOrientations = ['Any', 'Portrait Only', 'Landscape Only']
 const clockFormats = ['24 Hour', '12 Hour']
+const firmwareUpdateFrequencies = ['Hourly', 'Daily', 'Weekly', 'Monthly']
+const firmwareUpdateFields = {
+  auto_update: value => typeof value === 'boolean',
+  update_frequency: value => firmwareUpdateFrequencies.includes(value),
+  wifi_auto_update: value => typeof value === 'boolean',
+}
 export const connectionTimeouts = [
   '30 seconds', '45 seconds', '1 minute', '2 minutes', '3 minutes', '5 minutes',
   '10 minutes', '15 minutes', '20 minutes', '30 minutes',
@@ -27,6 +33,19 @@ export const deviceLanguageLabel = code => new Intl.DisplayNames([code], { type:
 const own = (object, key) => Object.hasOwn(object, key)
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const integerIn = (min, max) => value => Number.isInteger(value) && value >= min && value <= max
+function firmwareUpdatePreferences(values, notices) {
+  if (!object(values)) return {}
+  const preferences = {}
+  let needsReview = false
+  for (const [key, value] of Object.entries(values)) {
+    if (own(firmwareUpdateFields, key) && firmwareUpdateFields[key](value))
+      preferences[key] = value
+    else
+      needsReview = true
+  }
+  if (needsReview) notices?.push('Review the firmware update preferences in the original backup.')
+  return preferences
+}
 const validNtpServer = value => typeof value === 'string' &&
   new TextEncoder().encode(value.trim()).length <= 253 && !/[\s,/?#]/.test(value.trim())
 const captureDateFields = {
@@ -264,13 +283,14 @@ export function readBackup(data) {
       if (key.startsWith('schedule_')) settings.schedule_enabled = false
     }
   }
+  const firmwareUpdates = firmwareUpdatePreferences(data.firmware_updates, notices)
+  if (Object.keys(firmwareUpdates).length) settings.firmware_updates = firmwareUpdates
   const { chooseSource = false, ...sourceSettings } = importSource(photos, data.version)
   Object.assign(settings, sourceSettings)
   if (chooseSource)
     notices.push('Review the photo filters in this backup. Choose a photo source before saving.')
   const skipped = []
   if (Object.keys(screen).some(key => !own(screenFields, key))) skipped.push('screen settings')
-  if (own(data, 'firmware_updates')) skipped.push('firmware update settings')
   if (skipped.length) notices.push(`Keep the original backup for ${skipped.join(', ')}.`)
   const legacyPreset = settings.photo_source === 'custom' && compoundPresets.includes(photos.source) ? photos.source : null
   return { settings, notices, chooseSource, ...(legacyPreset ? { legacyPreset } : {}) }
@@ -313,6 +333,8 @@ export function createBackup(settings, date = new Date()) {
   }
   const screen = {}
   const metadata = {}
+  const firmwareUpdates = firmwareUpdatePreferences(settings.firmware_updates)
+  const hasFirmwareUpdates = Object.keys(firmwareUpdates).length !== 0
   for (const [key, [valid, field]] of Object.entries(metadataFields)) {
     if (valid(settings[field])) metadata[key] = settings[field]
   }
@@ -339,7 +361,8 @@ export function createBackup(settings, date = new Date()) {
       ...(displayModes.includes(settings.display_mode) ? { display_mode: settings.display_mode } : {}),
       ...(transitions.includes(settings.transition) ? { transition: settings.transition } : {}),
       ...(transitionSpeeds.includes(settings.transition_speed) ? { transition_speed: settings.transition_speed } : {}),
-      ...(pairFramings.includes(settings.portrait_pair_framing) ? { portrait_pair_framing: settings.portrait_pair_framing } : {}),
+      ...(pairFramings.includes(settings.portrait_pair_framing) ? { portrait_pair_framing: settings.portrait_pair_framing }
+        : hasFirmwareUpdates ? { portrait_pair_framing: 'Follow photo framing' } : {}),
       ...(photoOrientations.includes(settings.photo_orientation) ? { orientation: settings.photo_orientation } : {}),
     },
     frequency: {
@@ -350,5 +373,6 @@ export function createBackup(settings, date = new Date()) {
     ...(Object.keys(clock).length ? { clock } : {}),
     ...(Object.keys(screen).length ? { screen } : {}),
     ...(Object.keys(metadata).length ? { metadata } : {}),
+    ...(hasFirmwareUpdates ? { firmware_updates: firmwareUpdates } : {}),
   }
 }

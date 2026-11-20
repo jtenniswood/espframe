@@ -1233,6 +1233,30 @@ int main() {
   assert(std::string_view(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(
       cJSON_GetObjectItemCaseSensitive(language_snapshot.get(), "values"), "device_language"))) == "he");
 
+  assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"tone-key","web_password":"tone-settings",
+      "firmware_updates":{"auto_update":false,"update_frequency":"Weekly","wifi_auto_update":true}})"));
+  assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"tone-key","web_password":"tone-settings",
+      "firmware_updates":{"wifi_auto_update":false}})"));
+  assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"tone-key","web_password":"tone-settings"})"));
+  assert(!Settings::save(R"({"immich_url":"http://photos.test","immich_key":"tone-key","firmware_updates":{"auto_update":"false"}})"));
+  assert(!Settings::save(R"({"immich_url":"http://photos.test","immich_key":"tone-key","firmware_updates":{"update_frequency":"Yearly"}})"));
+  assert(!update_configuration(R"({"values":{"clock_format":"12 Hour"}})").error);
+  assert(current.read());
+  const auto &stock_updates = current.stock_update_preferences;
+  assert(stock_updates.auto_update == false && stock_updates.frequency == "Weekly" && stock_updates.wifi_auto_update == false);
+  const Json update_backup(cJSON_CreateObject(), cJSON_Delete);
+  assert(current.add_stock_update_preferences(update_backup.get()));
+  const auto *update_fields = cJSON_GetObjectItemCaseSensitive(update_backup.get(), "firmware_updates");
+  assert(cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(update_fields, "auto_update")));
+  assert(cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(update_fields, "wifi_auto_update")));
+  const auto *frequency = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(update_fields, "update_frequency"));
+  assert(frequency && std::string_view(frequency) == "Weekly");
+  assert(update_configuration(R"({"values":{"auto_update":true}})").error);
+  assert(Settings::reset(ResetMode::Customization));
+  assert(current.read() && current.stock_update_preferences.frequency == "Weekly");
+  assert(Settings::reset(ResetMode::Factory));
+  assert(current.read() && !current.stock_update_preferences.frequency && !current.stock_update_preferences.auto_update);
+
   verify_stock_pairing_migration();
   verify_stock_connection_migration();
   verify_setup_framing();

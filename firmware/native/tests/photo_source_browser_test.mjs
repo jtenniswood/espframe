@@ -14,6 +14,7 @@ const [html, script, css, sourceScript, backupScript] = await Promise.all([
   read('../installer/backup.mjs'),
 ])
 const albumId = 'c48e2980-18ac-4d7d-876a-a636759a1aec'
+const firmwarePreferences = { auto_update: false, update_frequency: 'Weekly', wifi_auto_update: true }
 const setup = {
   immich_url: 'https://photos.test/api', slide_seconds: 15, portrait_pairing: true, portrait_pairs_only: true,
   conn_timeout: '3 minutes',
@@ -97,6 +98,8 @@ const fixture = html.replace('</body>', `<script>
       throw new Error('Unexpected caption backup settings')
     if (backup.clock.ntp_servers?.join(',') !== timeServers.join(','))
       throw new Error('Time servers missing from backup')
+    if (JSON.stringify(backup.firmware_updates) !== JSON.stringify(${JSON.stringify(firmwarePreferences)}))
+      throw new Error('Preserved update preferences missing from backup')
     if (backup.screen.language !== 'fr')
       throw new Error('Photo date language missing from backup')
     if (!backup.screen.base_tone_enabled || backup.screen.base_tone !== 25
@@ -269,7 +272,7 @@ const server = createServer(async (request, response) => {
     response.end(customFilters ? '{"saved":true,"restart_required":false}' : '{"saved":true}')
   } else if (request.method === 'GET' && request.url === '/api/playback') {
     response.setHeader('Content-Type', 'application/json')
-    const playback = { ...setup, clock_timezones: clockTimezones }
+    const playback = { ...setup, clock_timezones: clockTimezones, firmware_updates: firmwarePreferences }
     if (customFilters) Object.assign(playback, {
       live_photo_settings: true, photo_source: 'custom', people_enabled: true, person_ids: albumId,
       ...updates.findLast(update => update.photo_source === 'custom'),

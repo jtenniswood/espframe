@@ -234,6 +234,7 @@ esp_err_t current(httpd_req_t *request) {
   std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(cJSON_CreateObject(), cJSON_Delete);
   if (!settings.read() || !document ||
       !settings.add_playback_fields(document.get()) ||
+      !settings.add_stock_update_preferences(document.get()) ||
       !cJSON_AddBoolToObject(document.get(), "live_photo_settings", true) ||
       !cJSON_AddBoolToObject(document.get(), "api_key_configured", settings.has_immich()) ||
       !cJSON_AddNumberToObject(document.get(), "reset_epoch", settings.reset_epoch) ||
