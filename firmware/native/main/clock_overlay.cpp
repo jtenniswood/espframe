@@ -10,11 +10,42 @@ namespace {
 
 constexpr int shadow = 2;
 
-uint16_t mix_rgb565(uint16_t from, uint16_t to, unsigned alpha) {
-  const auto channel = [alpha](unsigned a, unsigned b) { return (a * (255 - alpha) + b * alpha + 127) / 255; };
-  return static_cast<uint16_t>((channel(from >> 11, to >> 11) << 11) |
-      (channel((from >> 5) & 63, (to >> 5) & 63) << 5) | channel(from & 31, to & 31));
+constexpr unsigned mix_channel(unsigned from, unsigned to, unsigned alpha) {
+  return (from * (255 - alpha) + to * alpha + 127) / 255;
 }
+
+uint16_t mix_rgb565(uint16_t from, uint16_t to, unsigned alpha) {
+  return static_cast<uint16_t>((mix_channel(from >> 11, to >> 11, alpha) << 11) |
+      (mix_channel((from >> 5) & 63, (to >> 5) & 63, alpha) << 5) | mix_channel(from & 31, to & 31, alpha));
+}
+
+struct GlyphBlend {
+  std::array<uint8_t, 32> red_and_blue;
+  std::array<uint8_t, 64> green;
+
+  uint16_t apply(uint16_t from) const {
+    return static_cast<uint16_t>((red_and_blue[from >> 11] << 11) |
+        (green[(from >> 5) & 63] << 5) | red_and_blue[from & 31]);
+  }
+};
+
+constexpr auto glyph_blends(bool shadow_layer) {
+  std::array<GlyphBlend, 16> blends{};
+  for (unsigned alpha = 0; alpha < blends.size(); ++alpha) {
+    const unsigned opacity = shadow_layer ? (alpha * 17 + 2) / 5 : alpha * 17;
+    auto &blend = blends[alpha];
+    for (unsigned c = 0; c < blend.red_and_blue.size(); ++c)
+      blend.red_and_blue[c] = mix_channel(c, shadow_layer ? 0 : 31, opacity);
+    for (unsigned c = 0; c < blend.green.size(); ++c)
+      blend.green[c] = mix_channel(c, shadow_layer ? 0 : 63, opacity);
+  }
+  return blends;
+}
+
+// The atlas has 16 coverage levels, all blended against white or black.
+// Keep blend arithmetic out of the per-frame clock draw during a swipe.
+constexpr auto face_blends = glyph_blends(false);
+constexpr auto shadow_blends = glyph_blends(true);
 
 }  // namespace
 
@@ -66,7 +97,7 @@ void ClockOverlay::draw(uint16_t *frame, bool remember_underlay) {
     return;
   const int column_step = -axis_direction(rotation_);
   for (int layer : {shadow, 0}) {
-    const uint16_t color = layer == 0 ? 0xffff : 0;
+    const auto &blends = layer == 0 ? face_blends : shadow_blends;
     int left = first_row + layer;
     for (const char ch : text_) {
       if (ch == '\0')
@@ -87,9 +118,8 @@ void ClockOverlay::draw(uint16_t *frame, bool remember_underlay) {
             const unsigned alpha = half == 0 ? packed >> 4 : packed & 15;
             if (alpha == 0)
               continue;
-            const unsigned opacity = layer == 0 ? alpha * 17 : (alpha * 17 + 2) / 5;
             auto &pixel = column[(2 * pair + half) * column_step];
-            pixel = opacity == 255 ? color : mix_rgb565(pixel, color, opacity);
+            pixel = layer == 0 && alpha == 15 ? 0xffff : blends[alpha].apply(pixel);
           }
         }
       }

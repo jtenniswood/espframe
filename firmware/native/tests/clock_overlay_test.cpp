@@ -84,8 +84,32 @@ void expect_glyph(const std::vector<uint16_t> &frame, const std::vector<uint8_t>
   assert(found_opaque);
 }
 
+void verify_antialiasing() {
+  std::vector<uint8_t> atlas(ClockOverlay::atlas_size);
+  // Two different coverage values in the first column of the glyph for 1.
+  atlas[ClockOverlay::glyph_width * ClockOverlay::glyph_height / 2] = 0x87;
+  ClockSettings settings;
+  settings.show = true;
+  ClockOverlay clock;
+  assert(clock.init(settings, atlas.data(), false));
+  std::tm time{};
+  time.tm_hour = 13;
+  time.tm_min = 34;
+  assert(clock.update(time));
+  std::vector<uint16_t> frame(pixel_count, 0x39e7);
+  clock.draw(frame.data());
+  constexpr int top = ClockOverlay::first_column + ClockOverlay::columns - 1;
+  const auto pixel = [&](int x, int y) {
+    return frame[(ClockOverlay::first_row + x) * panel_width + top - y];
+  };
+  assert(pixel(0, 0) == 0xa534 && pixel(0, 1) == 0x94b2);
+  assert(pixel(2, 2) == 0x31a6 && pixel(2, 3) == 0x31c6);
+  assert(pixel(0, 2) == 0x39e7 && pixel(2, 4) == 0x39e7);
+}
+
 int main(int argc, char **argv) {
   assert(argc == 2);
+  verify_antialiasing();
   std::ifstream file(argv[1], std::ios::binary);
   const std::vector<uint8_t> atlas{std::istreambuf_iterator<char>(file), {}};
   assert(atlas.size() == ClockOverlay::atlas_size);
