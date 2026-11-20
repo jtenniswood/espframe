@@ -21,6 +21,8 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <memory>
+#include <new>
 
 namespace espframe::native {
 namespace {
@@ -152,8 +154,12 @@ esp_err_t benchmark_status(httpd_req_t *request) {
     std::snprintf(replay, sizeof(replay), ",\"replay_prepared\":true,\"replay_pair_fill\":%s,\"replay_origin\":\"%s\"",
                   trial_replay_pair_fill ? "true" : "false", trial_replay_origin.data());
   }
-  char body[2000]{};
-  const auto length = std::snprintf(body, sizeof(body),
+  // Keep the full diagnostics response off the small HTTP task stack.
+  constexpr size_t report_capacity = 2000;
+  const std::unique_ptr<char[]> body{new (std::nothrow) char[report_capacity]};
+  if (!body)
+    return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not allocate swipe report");
+  const auto length = std::snprintf(body.get(), report_capacity,
                 "{\"scripted\":%s,\"source\":\"%s\"%s%s,\"cache_hits\":%" PRIu32
                 ",\"dma_burst_bytes\":%u,\"dma_copies\":%" PRIu32 ",\"cpu_copies\":%" PRIu32
                 ",\"split_blits\":{\"count\":%" PRIu32 ",\"batched\":%" PRIu32 ",\"total_us\":%" PRIu64
@@ -192,11 +198,11 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 result.in_range_drag_gaps.count, result.in_range_drag_gaps.worst_us, result.in_range_drag_gaps.over_limit,
                 result.resisted_drag_gaps.count, result.resisted_drag_gaps.worst_us, result.resisted_drag_gaps.over_limit,
                 result.drag_handoff_delay.count, result.drag_handoff_delay.worst_us, result.drag_handoff_delay.over_limit);
-  if (length < 0 || static_cast<size_t>(length) >= sizeof(body))
+  if (length < 0 || static_cast<size_t>(length) >= report_capacity)
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not format swipe timings");
   httpd_resp_set_type(request, "application/json");
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-  return httpd_resp_sendstr(request, body);
+  return httpd_resp_send(request, body.get(), length);
 }
 
 template <size_t Size>
