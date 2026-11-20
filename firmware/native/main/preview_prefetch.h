@@ -7,6 +7,7 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 
+#include <array>
 #include <optional>
 
 namespace espframe::native {
@@ -17,10 +18,12 @@ namespace espframe::native {
 class PreviewPrefetch {
  public:
   static constexpr size_t capacity = 1024 * 1024;
+  static constexpr size_t warm_depth = 3;
+  using WarmUrls = std::array<std::string, warm_depth>;
 
   explicit PreviewPrefetch(const std::atomic<bool> &slide_cancelled) : slide_cancelled_(slide_cancelled) {}
   void start(const AssetId &id, uint32_t connection, const std::string &base_url, const std::string &key);
-  void warm_prepared(std::string url, uint32_t connection, const std::string &token);
+  void warm_prepared(WarmUrls urls, uint32_t connection, const std::string &token);
   // Empty lets the caller download from Immich. Zero means a required
   // transfer already used its budget while the caller waited.
   std::optional<size_t> take(const AssetId &id, uint32_t connection, std::span<uint8_t> destination,
@@ -44,6 +47,7 @@ class PreviewPrefetch {
   AssetId id_{};
   uint32_t connection_{};
   std::string url_;
+  WarmUrls warm_urls_;
   const std::string *key_{};  // Connection settings live as long as the task.
   int64_t deadline_us_{};
   int64_t memory_retry_at_us_{};

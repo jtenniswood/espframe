@@ -2,10 +2,12 @@
 
 #include "esp_heap_caps.h"
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstring>
 #include <utility>
+#include <vector>
 
 using namespace espframe::native;
 
@@ -36,6 +38,9 @@ TickType_t last_wait_ms{};
 std::atomic<bool> slide_cancelled{};
 const std::string base_url = "https://photos.test/api";
 const std::string key = "test-key";
+const std::string service_url = "https://prepared.test/v1/slides/";
+const std::string token = "test-token";
+std::vector<std::string> warm_requests;
 
 AssetId asset(char label) {
   AssetId id{};
@@ -111,6 +116,16 @@ int ImmichHttp::read(const std::string &url, const char *api_key, std::string_vi
   received = 0;
   if (cancelled_)
     return 0;
+  if (!query.empty()) {
+    assert(url.starts_with(service_url) && api_key == "Bearer " + token && query == "{}" && output.empty());
+    warm_requests.push_back(url);
+    if (reply_delay_us >= deadline - now_us) {
+      now_us = deadline;
+      return 0;
+    }
+    now_us += reply_delay_us;
+    return reply;
+  }
   assert(url.starts_with(base_url + "/assets/") && url.ends_with("/thumbnail?size=preview"));
   assert(api_key == key && query.empty() && output.size() == PreviewPrefetch::capacity && deadline > esp_timer_get_time());
   ++requests;
@@ -264,4 +279,28 @@ int main() {
   service_download();
   assert(requests == downloaded + 4);
   prefetch.release_on_memory_pressure();
+
+  // Hints share a transfer slot and issue in playback order without a pixel buffer.
+  const PreviewPrefetch::WarmUrls urls{service_url + "first", service_url + "second", service_url + "third"};
+  free_spiram = 0;
+  reply = 202;
+  reply_delay_us = 20'000;
+  prefetch.warm_prepared(urls, 2, token);
+  assert(!prefetch.take(asset('r'), 2, buffer));
+  service_download();
+  assert(std::ranges::equal(warm_requests, urls) && task_creations == 1);
+
+  // Expiry is shared across the batch, so a slow hint leaves later ones queued for a future pass.
+  warm_requests.clear();
+  reply_delay_us = 300'000;
+  const auto warm_started = now_us;
+  prefetch.warm_prepared(urls, 2, token);
+  service_download();
+  assert(warm_requests.size() == 2 && now_us - warm_started == 500'000);
+
+  warm_requests.clear();
+  prefetch.warm_prepared(urls, 2, token);
+  prefetch.cancel();
+  service_download();
+  assert(warm_requests.empty());
 }

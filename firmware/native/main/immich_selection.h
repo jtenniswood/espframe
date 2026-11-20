@@ -67,6 +67,6 @@ bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candid
 bool can_start_portrait_pair(const ImmichPhoto &photo);
 bool can_play_with_required_pairs(const ImmichPhoto &photo, PhotoOrientation orientation);
 std::optional<size_t> find_pair_or_landscape_seed(std::span<const ImmichPhoto> photos, unsigned pairing_days,
-                                                  const AssetId &exclude, PhotoOrientation orientation);
+                                                  std::span<const AssetId> excluded, PhotoOrientation orientation);
 
 }  // namespace espframe::native

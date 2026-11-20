@@ -67,11 +67,12 @@ class ImmichSource {
   std::vector<ImmichPhoto> memories_();
   bool next_asset_(ImmichPhoto &asset);
   bool take_pending_(ImmichPhoto &asset);
-  std::optional<size_t> pending_index_(const AssetId &exclude = {}) const;
+  std::optional<size_t> pending_index_(std::span<const AssetId> excluded = {}) const;
   void prefetch_next_(const AssetId &id);
   bool select_pair_or_landscape_(ImmichPhoto &seed, AssetId &companion);
-  AssetId companion_for_(const ImmichPhoto &primary, std::optional<int64_t> search_deadline = {},
-                         const PhotoSlide *exclude = nullptr);
+  AssetId companion_from_(std::span<const ImmichPhoto> photos, const ImmichPhoto &primary,
+                          std::span<const AssetId> excluded = {}) const;
+  AssetId companion_for_(const ImmichPhoto &primary, std::optional<int64_t> search_deadline = {});
   void discard_candidate_(const AssetId &id);
   bool needs_caption_details_(const PhotoMetadata &metadata) const;
   void complete_caption_details_(PhotoSlide &frame);
@@ -80,7 +81,7 @@ class ImmichSource {
                               bool report_response, const AssetId &lookahead = {});
   PreparedPreview render_prepared_(const PhotoSlide &frame, uint16_t *panel, PhotoOrientation orientation);
   std::string prepared_url_(const PhotoSlide &frame, PhotoOrientation orientation, bool frame_fill, DisplayMode framing) const;
-  void warm_next_prepared_(const PhotoSlide &current);
+  void warm_upcoming_prepared_(const PhotoSlide &current);
 
   const std::atomic<bool> &cancelled_;
   const std::atomic<bool> &pixel_work_deferred_;

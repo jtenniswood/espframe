@@ -388,14 +388,14 @@ bool ImmichSource::take_pending_(ImmichPhoto &asset) {
   return true;
 }
 
-std::optional<size_t> ImmichSource::pending_index_(const AssetId &exclude) const {
+std::optional<size_t> ImmichSource::pending_index_(std::span<const AssetId> excluded) const {
   if (this->feed_().requires_portrait_pair() && !this->pending_is_paged_) {
-    if (const auto match = find_pair_or_landscape_seed(this->pending_, this->feed_().portrait_pairing_days, exclude,
+    if (const auto match = find_pair_or_landscape_seed(this->pending_, this->feed_().portrait_pairing_days, excluded,
                                                        this->feed_().photo_orientation))
       return match;
   }
   for (auto i = this->pending_.size(); i > 0; --i) {
-    if (this->pending_[i - 1].id != exclude)
+    if (std::ranges::find(excluded, this->pending_[i - 1].id) == excluded.end())
       return i - 1;
   }
   return {};
@@ -427,43 +427,47 @@ bool ImmichSource::select_pair_or_landscape_(ImmichPhoto &seed, AssetId &compani
   }
 }
 
-AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, std::optional<int64_t> search_deadline,
-                                    const PhotoSlide *exclude) {
+AssetId ImmichSource::companion_from_(std::span<const ImmichPhoto> photos, const ImmichPhoto &primary,
+                                      std::span<const AssetId> excluded) const {
   if (!primary.metadata.capture_day)
     return {};
-  auto choose = [&](const std::vector<ImmichPhoto> &photos) {
-    AssetId best{};
-    auto closest = std::chrono::days::max();
-    bool best_seen = true;
-    const auto now = esp_timer_get_time();
-    for (const auto &candidate : photos) {
-      if (exclude && (candidate.id == exclude->primary || candidate.id == exclude->companion))
-        continue;
-      if (!is_portrait_companion(primary, candidate, this->feed_().portrait_pairing_days))
-        continue;
-      if (!this->settings_.has_prepared_slides() && this->unavailable_.contains(candidate.id, now))
-        continue;
-      const bool seen = this->history_.recently_seen(candidate.id, photo_search_batch);
-      const auto distance = std::chrono::abs(*candidate.metadata.capture_day - *primary.metadata.capture_day);
-      if ((!seen && best_seen) || (seen == best_seen && distance < closest)) {
-        best = candidate.id;
-        best_seen = seen;
-        closest = distance;
-      }
+  AssetId best{};
+  auto closest = std::chrono::days::max();
+  bool best_seen = true;
+  const auto now = esp_timer_get_time();
+  for (const auto &candidate : photos) {
+    if (std::ranges::find(excluded, candidate.id) != excluded.end())
+      continue;
+    if (!is_portrait_companion(primary, candidate, this->feed_().portrait_pairing_days))
+      continue;
+    if (!this->settings_.has_prepared_slides() && this->unavailable_.contains(candidate.id, now))
+      continue;
+    const bool seen = this->history_.recently_seen(candidate.id, photo_search_batch);
+    const auto distance = std::chrono::abs(*candidate.metadata.capture_day - *primary.metadata.capture_day);
+    if ((!seen && best_seen) || (seen == best_seen && distance < closest)) {
+      best = candidate.id;
+      best_seen = seen;
+      closest = distance;
     }
-    return best;
-  };
-  const auto known = choose(this->pending_);
+  }
+  return best;
+}
+
+AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, std::optional<int64_t> search_deadline) {
+  if (!primary.metadata.capture_day)
+    return {};
+  const auto known = companion_from_(pending_, primary);
   if (known[0] != '\0')
     return known;
   const auto &source = this->feed_().photo_source;
   const bool memories = source.mode == PhotoSourceMode::Memories;
   if (memories && !this->using_memory_fallback_)
-    return choose(this->memory_pool_);
+    return companion_from_(memory_pool_, primary);
   if (!search_deadline)
     return {};
   const PhotoSource all_photos;
-  return choose(this->search_(memories ? all_photos : source, primary.metadata.capture_day, *search_deadline));
+  return companion_from_(this->search_(memories ? all_photos : source, primary.metadata.capture_day, *search_deadline),
+                         primary);
 }
 
 void ImmichSource::discard_candidate_(const AssetId &id) {
@@ -639,34 +643,46 @@ std::string ImmichSource::prepared_url_(const PhotoSlide &frame, PhotoOrientatio
   return url;
 }
 
-void ImmichSource::warm_next_prepared_(const PhotoSlide &current) {
+void ImmichSource::warm_upcoming_prepared_(const PhotoSlide &current) {
   if (!online_() || !prepared_background_ || esp_timer_get_time() < prepared_retry_us_ ||
       (settings_.prepared_slides_need_time() && !clock_time_is_valid(std::time(nullptr))))
     return;
-  const auto index = pending_index_(current.companion);
-  if (!index)
-    return;
-  const auto &seed = pending_[*index];
   const auto &feed = feed_();
-  if (!seed.orientation_known || !seed.may_match_orientation(feed.photo_orientation))
-    return;
-  PhotoSlide next{seed.id};
-  if (seed.portrait && feed.pairs_portraits()) {
-    next.companion = companion_for_(seed, {}, &current);
-    if (next.companion[0] == '\0')
-      return;  // A companion that needs more metadata will be selected by the slide worker.
+  PreviewPrefetch::WarmUrls urls{};
+  std::array<AssetId, 2 * (PreviewPrefetch::warm_depth + 1)> excluded{current.primary, current.companion};
+  size_t excluded_count = current.companion[0] != '\0' ? 2 : 1;
+  size_t hint = 0;
+  for (size_t step = 0; step < urls.size(); ++step) {
+    const auto used = std::span(excluded).first(excluded_count);
+    const auto index = pending_index_(used);
+    if (!index)
+      break;
+    const auto &seed = pending_[*index];
+    if (!seed.orientation_known || !seed.may_match_orientation(feed.photo_orientation))
+      break;
+    PhotoSlide next{seed.id};
+    if (seed.portrait && feed.pairs_portraits()) {
+      next.companion = companion_from_(pending_, seed, used);
+      if (next.companion[0] == '\0')
+        break;  // Leave candidates that need further selection to playback.
+    }
+    const bool paired = next.companion[0] != '\0';
+    if (feed.requires_portrait_pair() && !paired && feed.photo_orientation != PhotoOrientation::Any)
+      break;
+    const auto orientation = feed.requires_portrait_pair() && !paired ? PhotoOrientation::Landscape
+                                                                     : feed.photo_orientation;
+    const auto framing = paired ? feed.pair_display_mode() : feed.display_mode;
+    const bool frame_fill = !paired && framing == DisplayMode::Fill && orientation != PhotoOrientation::Landscape;
+    const RecentPreviews::PreparedKey key{next.primary, next.companion, framing, orientation};
+    if (previews_.find(key).empty())
+      urls[hint++] = prepared_url_(next, orientation, frame_fill, framing);
+    // Track the two photos playback would remove, while leaving the live queue intact.
+    excluded[excluded_count++] = next.primary;
+    if (paired)
+      excluded[excluded_count++] = next.companion;
   }
-  const bool paired = next.companion[0] != '\0';
-  if (feed.requires_portrait_pair() && !paired && feed.photo_orientation != PhotoOrientation::Any)
-    return;
-  const auto orientation = feed.requires_portrait_pair() && !paired ? PhotoOrientation::Landscape
-                                                                   : feed.photo_orientation;
-  const auto framing = paired ? feed.pair_display_mode() : feed.display_mode;
-  const bool frame_fill = !paired && framing == DisplayMode::Fill && orientation != PhotoOrientation::Landscape;
-  const RecentPreviews::PreparedKey key{next.primary, next.companion, framing, orientation};
-  if (previews_.find(key).empty())
-    prefetch_.warm_prepared(prepared_url_(next, orientation, frame_fill, framing), http_connection_,
-                            settings_.prepared_slide_token);
+  if (hint != 0)
+    prefetch_.warm_prepared(std::move(urls), http_connection_, settings_.prepared_slide_token);
 }
 
 ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &frame, uint16_t *panel,
@@ -836,7 +852,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     }
     const auto prepared_orientation = verify_landscape ? PhotoOrientation::Landscape : feed_().photo_orientation;
     if (new_position)
-      this->warm_next_prepared_(frame);
+      this->warm_upcoming_prepared_(frame);
     const auto preview = this->render_prepared_(frame, panel, prepared_orientation);
     if (preview.orientation_mismatch && !verify_landscape)
       return reject_candidate(frame.primary);
@@ -849,7 +865,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   if (!prepared) {
     const auto upcoming = [&](const AssetId &exclude) {
       if (!SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD && !remembered && !settings_.has_prepared_slides()) {
-        if (const auto index = this->pending_index_(exclude))
+        if (const auto index = this->pending_index_(std::span(&exclude, 1)))
           return this->pending_[*index].id;
       }
       return AssetId{};

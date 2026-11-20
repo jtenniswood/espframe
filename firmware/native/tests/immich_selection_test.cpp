@@ -83,8 +83,9 @@ int main() {
   two_days_away.metadata.capture_day = *primary.metadata.capture_day + days{2};
   assert(!is_portrait_companion(primary, two_days_away, 1) && is_portrait_companion(primary, two_days_away, 2));
   const std::array wider_pair{primary, two_days_away};
-  const auto only_pairs = [](std::span<const ImmichPhoto> candidates, unsigned days = 0, const AssetId &exclude = {}) {
-    return find_pair_or_landscape_seed(candidates, days, exclude, PhotoOrientation::Portrait);
+  const auto only_pairs = [](std::span<const ImmichPhoto> candidates, unsigned days = 0,
+                             std::span<const AssetId> excluded = {}) {
+    return find_pair_or_landscape_seed(candidates, days, excluded, PhotoOrientation::Portrait);
   };
   assert(!only_pairs(wider_pair, 1) && only_pairs(wider_pair, 2) == 1);
   assert(!photos[5].metadata.capture_day && !is_portrait_companion(primary, photos[5]));
@@ -93,9 +94,9 @@ int main() {
   assert(!can_start_portrait_pair(photos[3]));
   assert(!can_start_portrait_pair(photos[5]));
   assert(only_pairs(photos) == 2);
-  assert(only_pairs(photos, 0, photos[2].id) == 1);
-  assert(!only_pairs(wider_pair, 2, primary.id));
-  assert(!only_pairs(wider_pair, 2, two_days_away.id));
+  assert(only_pairs(photos, 0, std::span(&photos[2].id, 1)) == 1);
+  assert(!only_pairs(wider_pair, 2, std::span(&primary.id, 1)));
+  assert(!only_pairs(wider_pair, 2, std::span(&two_days_away.id, 1)));
   assert(!only_pairs(std::span(photos).last(3)));
   auto undated_landscape = photos[3];
   undated_landscape.metadata.capture_day.reset();
@@ -104,8 +105,15 @@ int main() {
   assert(!can_play_with_required_pairs(photos[5], PhotoOrientation::Any));
   const std::array mixed{primary, photos[1], undated_landscape, photos[4]};
   assert(find_pair_or_landscape_seed(mixed, 0, {}, PhotoOrientation::Any) == 2);
-  assert(find_pair_or_landscape_seed(mixed, 0, undated_landscape.id, PhotoOrientation::Any) == 1);
+  assert(find_pair_or_landscape_seed(mixed, 0, std::span(&undated_landscape.id, 1), PhotoOrientation::Any) == 1);
   assert(only_pairs(mixed) == 1);
+  auto next_portrait = two_days_away;
+  next_portrait.id = photos[5].id;
+  next_portrait.metadata.capture_day = *photos[4].metadata.capture_day + days{1};
+  const std::array queued_slides{primary, photos[1], undated_landscape, photos[4], next_portrait};
+  const std::array used{primary.id, photos[1].id, undated_landscape.id};
+  assert(!find_pair_or_landscape_seed(queued_slides, 0, used, PhotoOrientation::Any));
+  assert(find_pair_or_landscape_seed(queued_slides, 1, used, PhotoOrientation::Any) == 4);
   const auto uncertain = parse_photo_search(R"([
     {"id":"ef492926-9046-408b-be47-a959620753bb","localDateTime":"2024-03-01T19:00:00Z","width":null,"height":null},
     {"id":"ec492926-9046-408b-be47-a959620753bb","localDateTime":"2024-03-01T19:00:00Z","exifInfo":{"exifImageWidth":1920,"exifImageHeight":1080}},

@@ -61,10 +61,10 @@ void PreviewPrefetch::start(const AssetId &id, uint32_t connection, const std::s
   xTaskNotifyGive(task_);
 }
 
-void PreviewPrefetch::warm_prepared(std::string url, uint32_t connection, const std::string &token) {
+void PreviewPrefetch::warm_prepared(WarmUrls urls, uint32_t connection, const std::string &token) {
   if (!connection || slide_cancelled_ || !claim_slot_() || !start_task_())
     return;
-  url_ = std::move(url);
+  warm_urls_ = std::move(urls);
   connection_ = connection;
   key_ = &token;
   deadline_us_ = esp_timer_get_time() + 500'000;
@@ -161,23 +161,28 @@ void PreviewPrefetch::run_(void *context) {
       self.prepared_http_.disconnect();
       active_connection = self.connection_;
     }
-#if SWIPE_TRIAL_IMMICH
-    const auto started = esp_timer_get_time();
-#endif
     if (self.warming_) {
       const auto authorization = "Bearer " + *self.key_;
-      const auto status = self.prepared_http_.read(self.url_, authorization.c_str(), "{}", {}, self.length_,
-                                                  self.deadline_us_);
+      for (const auto &url : self.warm_urls_) {
+        const auto started = esp_timer_get_time();
+        if (url.empty() || self.cancelled_ || started >= self.deadline_us_)
+          break;
+        size_t received{};
+        const auto status = self.prepared_http_.read(url, authorization.c_str(), "{}", {}, received,
+                                                    self.deadline_us_);
+        if (status != 202 && status != 204)
+          break;
 #if SWIPE_TRIAL_IMMICH
-      if (status == 202 || status == 204)
         record_live_trial_preparation_time(TrialPreparationStage::PreparedWarm,
                                            static_cast<uint32_t>(esp_timer_get_time() - started));
-#else
-      (void) status;
 #endif
+      }
       xSemaphoreGive(self.complete_);
       continue;
     }
+#if SWIPE_TRIAL_IMMICH
+    const auto started = esp_timer_get_time();
+#endif
     const int status = self.http_.read(self.url_, self.key_->c_str(), {}, {self.buffer_, capacity}, self.length_,
                                        self.deadline_us_);
     if (status != 200 || self.cancelled_)
