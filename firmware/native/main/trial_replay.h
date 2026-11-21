@@ -12,7 +12,8 @@ inline constexpr bool trial_replay_pair_fill = synthetic_trial_replay && SWIPE_T
 inline constexpr bool trial_replay_staged_detail = direct_trial_replay && SWIPE_TRIAL_REPLAY_STAGED_DETAIL;
 inline constexpr bool live_trial_edge_detail = SWIPE_TRIAL_IMMICH && !synthetic_trial_replay &&
                                                !SWIPE_TRIAL_BENCHMARK_FIXTURES && !SWIPE_TRIAL_WIFI_OUTAGE;
-inline constexpr bool trial_detail_metrics = trial_replay_staged_detail || live_trial_edge_detail;
+inline constexpr bool trial_detail_metrics =
+    trial_replay_staged_detail || SWIPE_TRIAL_REPLAY_EDGE_DETAIL || live_trial_edge_detail;
 inline constexpr bool prefetch_portrait_companion =
     !SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD && !SWIPE_TRIAL_REPLAY_DISABLE_COMPANION_PREFETCH;
 inline constexpr char replay_immich_key[] = "espframe-synthetic-preview";

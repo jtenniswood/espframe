@@ -888,8 +888,10 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   // stage single photos whose layout needs no companion lookup.
   const bool thumbnail_single = frame.companion[0] == '\0' && (!trial_replay_staged_detail || SWIPE_TRIAL_REPLAY_EDGE_DETAIL) &&
                                   seed.can_stage_unpaired(feed_().photo_orientation, feed_().pairs_portraits());
-  const bool can_stage = new_position && !remembered && seed.orientation_known &&
-                         (thumbnail_pair || thumbnail_single) && !settings_.has_prepared_slides();
+  // A prepared image already supplies full detail. If the service couldn't
+  // deliver it, keep the usual fast refill available from Immich.
+  const bool can_stage = !prepared && new_position && !remembered && seed.orientation_known &&
+                         (thumbnail_pair || thumbnail_single);
   const auto thumbnail_orientation = seed.portrait ? PhotoOrientation::Portrait : PhotoOrientation::Landscape;
   if (preparation == Preparation::AllowThumbnail && can_stage) {
     DecodedPreview left, right;

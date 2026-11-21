@@ -166,8 +166,9 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                   SWIPE_TRIAL_REPLAY_EDGE_DETAIL ? ",\"replay_edge_detail\":true" : "",
                   trial_replay_touch ? ",\"replay_touch\":true" : "");
   } else if constexpr (synthetic_trial_replay) {
-    std::snprintf(replay, sizeof(replay), ",\"replay_prepared\":true,\"replay_pair_fill\":%s,\"replay_origin\":\"%s\"",
-                  trial_replay_pair_fill ? "true" : "false", trial_replay_origin.data());
+    std::snprintf(replay, sizeof(replay), ",\"replay_prepared\":true,\"replay_pair_fill\":%s,\"replay_origin\":\"%s\"%s",
+                  trial_replay_pair_fill ? "true" : "false", trial_replay_origin.data(),
+                  SWIPE_TRIAL_REPLAY_EDGE_DETAIL ? ",\"replay_edge_detail\":true" : "");
   } else if constexpr (live_trial_edge_detail) {
     std::snprintf(replay, sizeof(replay), ",\"live_edge_detail\":true");
   }
