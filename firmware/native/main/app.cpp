@@ -1198,11 +1198,12 @@ void run(void *) {
     const bool paints_notice = show_recovery || loading_direction || connection_notice != ImmichResponse::Pending ||
                                source_notice != PhotoSourceStatus::None;
     const auto notice_language = paints_notice ? active_device_language.load(std::memory_order_relaxed) : uint8_t{0};
+    const bool sliding = swipe.dragging() || swipe.settling();
     if (auto *output = display.writable_buffer(); output != nullptr &&
         (position != last_submitted || inside != last_inside || show_recovery != recovery_painted ||
          loading_direction != painted_loading_direction || source_notice != painted_source_status ||
          connection_notice != painted_connection_notice || notice_language != painted_notice_language ||
-         (display.borrowing() && !swipe.dragging()) || (show_clock && clock_dirty))) {
+         (display.borrowing() && !sliding) || (show_clock && clock_dirty))) {
       const auto index = inside / slide_width;
       const int offset = inside % slide_width;
       const auto slide_pixels = [&](SlideIndex slide) {
@@ -1241,7 +1242,7 @@ void run(void *) {
 #if SWIPE_LINKED_SCANOUT
         std::optional<ScanoutFrame> segmented;
         int64_t segment_started{};
-        if (linked_scanout_ok && swipe.dragging() && input.awake() && snapshot == nullptr && !fade.held() &&
+        if (linked_scanout_ok && sliding && input.awake() && snapshot == nullptr && !fade.held() &&
             !paints_notice && (use_edge || offset != 0)) {
           segment_started = esp_timer_get_time();
           const auto copy_rows = [&](auto *to, const auto *from, int rows) { blitter.copy_panel_rows(to, from, rows); };

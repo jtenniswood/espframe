@@ -184,11 +184,10 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 ",\"borrowed_edge_worst_us\":%" PRIu32 ",\"borrowed_edge_max_bytes\":%" PRIu32,
                 dpi.refreshes, dpi.underruns, dpi.submits, dpi.worst_us, dpi.total_us, dpi.painted_bytes,
                 dpi.edge_submits, dpi.edge_total_us, dpi.edge_worst_us, dpi.edge_max_bytes);
-  constexpr size_t report_capacity = 2700;
 #else
   constexpr char linked_report[] = "";
-  constexpr size_t report_capacity = 2300;
 #endif
+  constexpr size_t report_capacity = 3000;
   const std::unique_ptr<char[]> body{new (std::nothrow) char[report_capacity]};
   if (!body)
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not allocate swipe report");
@@ -210,6 +209,9 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 ",\"busy_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"in_range_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"resisted_drag_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
+                ",\"settle_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
+                ",\"in_range_settle_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
+                ",\"resisted_settle_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"in_range_drag_updates\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"resisted_drag_updates\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"drag_handoff_delay\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_250_us\":%" PRIu32 "}}",
@@ -232,6 +234,9 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 result.busy_drag_gaps.count, result.busy_drag_gaps.worst_us, result.busy_drag_gaps.over_limit,
                 result.in_range_drag_gaps.count, result.in_range_drag_gaps.worst_us, result.in_range_drag_gaps.over_limit,
                 result.resisted_drag_gaps.count, result.resisted_drag_gaps.worst_us, result.resisted_drag_gaps.over_limit,
+                result.settle_gaps.count, result.settle_gaps.worst_us, result.settle_gaps.over_limit,
+                result.in_range_settle_gaps.count, result.in_range_settle_gaps.worst_us, result.in_range_settle_gaps.over_limit,
+                result.resisted_settle_gaps.count, result.resisted_settle_gaps.worst_us, result.resisted_settle_gaps.over_limit,
                 result.in_range_drag_updates.count, result.in_range_drag_updates.worst_us, result.in_range_drag_updates.over_limit,
                 result.resisted_drag_updates.count, result.resisted_drag_updates.worst_us, result.resisted_drag_updates.over_limit,
                 result.drag_handoff_delay.count, result.drag_handoff_delay.worst_us, result.drag_handoff_delay.over_limit);

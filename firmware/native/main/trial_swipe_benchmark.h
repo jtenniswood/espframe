@@ -46,6 +46,9 @@ class TrialSwipeMetrics {
     Timing drag_handoff_delay;
     Timing in_range_drag_updates;
     Timing resisted_drag_updates;
+    Timing settle_gaps;
+    Timing in_range_settle_gaps;
+    Timing resisted_settle_gaps;
   };
 
   const Results &results() const { return results_; }
@@ -96,6 +99,15 @@ class TrialSwipeMetrics {
       if (stamp.preparing == previous_stamp_.preparing) {
         auto &workload_gaps = stamp.preparing ? results_.busy_drag_gaps : results_.quiet_drag_gaps;
         workload_gaps.add(elapsed, gap_limit);
+      }
+    }
+    if (stamp.phase == MotionPhase::Settle && previous_stamp_.phase == MotionPhase::Settle &&
+        stamp.epoch == previous_stamp_.epoch) {
+      const auto elapsed = static_cast<uint32_t>(now - previous_frame_us_);
+      results_.settle_gaps.add(elapsed, gap_limit);
+      if (stamp.resisted == previous_stamp_.resisted) {
+        auto &path_gaps = stamp.resisted ? results_.resisted_settle_gaps : results_.in_range_settle_gaps;
+        path_gaps.add(elapsed, gap_limit);
       }
     }
     previous_frame_us_ = now;

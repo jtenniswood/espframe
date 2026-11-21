@@ -30,10 +30,10 @@ test. You can use the prototype browser installer or the ESP-IDF USB tools.
 
 For the experimental Guition V1 swipe renderer, use `-D SWIPE_BOARD=v1` and
 `-D SWIPE_LINKED_SCANOUT=ON` in a separate build directory. It scans cached
-photo rows directly during drags and draws the clock and resisted edge into
-the writable frame. The build patches a local copy of the ESP-IDF 6.1.1 DPI
-driver. The option defaults to `OFF` while physical touch latency and tearing
-are being measured on the V1.
+photo rows directly during drags and slide motion after release. It draws the
+clock and resisted edge into the writable frame. The build patches a local
+copy of the ESP-IDF 6.1.1 DPI driver. The option defaults to `OFF` while
+physical touch latency and tearing are being measured on the V1.
 
 The player uses ESP-Hosted 3.1.0 on the P4 to talk to the frame's ESP32-C6
 Wi-Fi radio. Espressif documents compatibility with C6 firmware from the 2.x
@@ -637,8 +637,11 @@ preparation. `drag_handoff_delay` counts how long the renderer took to observe
 each drag frame's LCD DMA handoff, including the number of waits over 250 µs.
 `in_range_drag_gaps` measures movement among ready slides and
 `resisted_drag_gaps` measures movement outside that range. A gap spanning
-both paths is included in the overall count. `in_range_drag_updates` and
-`resisted_drag_updates` measure from when the renderer first sees a new pixel
+both paths is included in the overall count. `settle_gaps` measures the snap-back
+or landing animation after release. The `in_range_settle_gaps` and
+`resisted_settle_gaps` fields distinguish those same two paths.
+`in_range_drag_updates` and `resisted_drag_updates` measure from when the
+renderer first sees a new pixel
 position to the handoff that satisfies it. They omit intervals when a hold or
 rounding at the edge produces the same position. Each reports the number of
 updates that waited longer than one and a half nominal refresh periods.
