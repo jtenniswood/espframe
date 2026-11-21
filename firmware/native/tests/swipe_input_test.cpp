@@ -31,7 +31,9 @@ void ordered_reports_keep_release_and_next_press() {
   assert(swipe.dragging() && input.engaged());
   assert(swipe.position() == initial_position + 100);
   assert(input.contact_started_us() == 5'000);
+  assert(input.first_motion_pending());
   assert(input.take_first_motion() == 10'000);
+  assert(!input.first_motion_pending());
   assert(input.take_first_motion() == 0);
 
   const auto first_handoff = swipe.position();

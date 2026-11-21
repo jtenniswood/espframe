@@ -112,7 +112,8 @@ class SlidePrefetch {
     return active != wanted && (refreshing || active != center_);
   }
 
-  bool can_defer_drag(SlideRange ready, SlideIndex origin, PixelPosition position, bool starting) const {
+  bool can_defer_drag(SlideRange ready, SlideIndex origin, PixelPosition position, bool starting,
+                      bool first_motion_pending = true) const {
     if (center_ == 0 || requested_ || !ready.contains(origin))
       return false;
     const auto anchor = origin * slide_width;
@@ -120,9 +121,12 @@ class SlidePrefetch {
     // moving photo whose origin differs from the last settled slide.
     // After the opening frames, keep working if the landing will be the
     // last ready photo. The decoder is already behind the next gesture.
-    const auto required_neighbors = starting ? 1 : desired_ready_in_direction;
-    return (position <= anchor && origin - ready.first >= required_neighbors) ||
-           (position >= anchor && ready.last - origin >= required_neighbors);
+    // With only the forward landing ready, resume decoding as soon as the
+    // first drag frame reaches the panel so the next swipe can also be ready.
+    const auto before = starting ? 1 : desired_ready_in_direction;
+    const auto after = starting && first_motion_pending ? 1 : desired_ready_in_direction;
+    return (position <= anchor && origin - ready.first >= before) ||
+           (position >= anchor && ready.last - origin >= after);
   }
 
   bool can_defer_settle(SlideRange ready, SlideIndex destination) const {

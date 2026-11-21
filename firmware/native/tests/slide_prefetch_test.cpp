@@ -12,6 +12,16 @@ using espframe::native::SlideRetry;
 using espframe::native::Swipe;
 using espframe::native::slide_width;
 
+void verify_drag_onset_guard() {
+  constexpr SlideIndex center = 10;
+  constexpr auto anchor = center * slide_width;
+  const SlidePrefetch prefetch{center};
+  assert(prefetch.can_defer_drag({9, 11}, center, anchor + 20, true, true));
+  assert(!prefetch.can_defer_drag({9, 11}, center, anchor + 20, true, false));
+  assert(prefetch.can_defer_drag({9, 12}, center, anchor + 20, true, false));
+  assert(prefetch.can_defer_drag({9, 11}, center, anchor - 20, true, false));
+}
+
 void verify_refill_before_refresh() {
   uint16_t pixels[SlideCache::minimum_capacity]{};
   SlideCache::Buffers buffers{};
@@ -100,6 +110,7 @@ void verify_fast_forward_refill() {
 }
 
 int main() {
+  verify_drag_onset_guard();
   verify_refill_before_refresh();
   verify_fast_forward_refill();
   const auto next_candidate_retry = SlideRetry::after(10, 1'000, 1, true);

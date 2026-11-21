@@ -952,13 +952,19 @@ void run(void *) {
     user_motion = input.awake() && (contact_engaged ||
                   (user_motion && (!swipe.idle() || swipe.position() != display.presented_position())));
     bool pixel_work_deferred = false;
+    bool protect_cached_copy = false;
     if (live && !trial_fixtures) {
       const auto drag = swipe.drag_activity(now, drag_moving_window_us, drag_start_guard_us);
+      const bool first_motion_pending = input.first_motion_pending() || submitted_motion_us != 0;
+      const auto origin = swipe.origin_slide();
       const bool can_defer = drag != Swipe::DragActivity::Still
-                                 ? prefetch.can_defer_drag(ready, swipe.origin_slide(), swipe.position(),
-                                                           drag == Swipe::DragActivity::Starting)
+                                 ? prefetch.can_defer_drag(ready, origin, swipe.position(),
+                                                           drag == Swipe::DragActivity::Starting, first_motion_pending)
                                  : !contact_engaged && prefetch.can_defer_settle(ready, swipe.settle_destination());
       pixel_work_deferred = user_motion && can_defer;
+      protect_cached_copy = drag == Swipe::DragActivity::Starting && !first_motion_pending && !can_defer &&
+                            !prefetch.requested() && ready.contains(origin) && ready.last == origin + 1 &&
+                            swipe.position() > origin * slide_width;
       loader.defer_pixel_work(pixel_work_deferred);
     }
     if (preparing >= 0) {
@@ -1212,7 +1218,14 @@ void run(void *) {
             clock.restore_rows(output, std::max(0, pull), std::max(0, -pull), panel_height - std::abs(pull));
         } else {
           const auto span = orient_slide_span(left, right, panel_height, offset, rotation);
+          // Give the worker the gaps between frame copies when only one
+          // forward photo is ready and the first drag frame has landed.
+          const bool pause_for_copy = protect_cached_copy && preparing >= 0 && position != last_submitted;
+          if (pause_for_copy)
+            loader.defer_pixel_work(true);
           blitter.slides(output, span);
+          if (pause_for_copy)
+            loader.defer_pixel_work(false);
           if (span.first == snapshot)
             clock.restore_rows(output, span.offset, 0, panel_height - span.offset);
           if (span.offset != 0 && span.second == snapshot)
