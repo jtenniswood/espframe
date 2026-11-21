@@ -70,7 +70,7 @@ function requestLayout(target: string) {
   const { pathname, searchParams: query } = new URL(target, 'http://localhost')
   const id = /^\/v1\/slides\/([^/]+)$/.exec(pathname)?.[1]
   if (!id) throw new ReplyError(404, 'Unknown route')
-  if (Array.from(query).some(([key]) => !['companion', 'mode', 'rotation', 'orientation', 'wait'].includes(key) ||
+  if (Array.from(query).some(([key]) => !['companion', 'mode', 'rotation', 'orientation', 'wait', 'gap'].includes(key) ||
       query.getAll(key).length > 1)) {
     throw new ReplyError(400, 'Invalid slide options')
   }
@@ -80,10 +80,12 @@ function requestLayout(target: string) {
   const rotation = query.get('rotation') ?? '0'
   const orientation = query.get('orientation') ?? undefined
   const wait = query.get('wait')
+  const gap = query.get('gap')
   const waitMs = wait === null ? undefined : Number(wait)
   if (!assetId.test(primary) || (companion !== undefined && (!assetId.test(companion) || companion === primary)) ||
       (mode !== 'fit' && mode !== 'fill' && mode !== 'fill-frame') || (rotation !== '0' && rotation !== '180') ||
       (orientation !== undefined && orientation !== 'portrait' && orientation !== 'landscape') ||
+      (gap !== null && (gap !== '0' || companion === undefined)) ||
       (wait !== null && (!/^(0|[1-9][0-9]{0,2})$/.test(wait) || Number(wait) > maxWaitMs))) {
     throw new ReplyError(400, 'Invalid slide options')
   }

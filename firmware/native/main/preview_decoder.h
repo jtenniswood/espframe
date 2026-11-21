@@ -43,7 +43,8 @@ class DecodedPreview {
               ScreenRotation rotation = ScreenRotation::Normal, PreparationCheckpoint checkpoint = {}) const;
 
  private:
-  bool paint_(uint16_t *panel, int x, int width, DisplayMode mode, ScreenRotation rotation,
+  enum class HorizontalAlignment { Left, Center, Right };
+  bool paint_(uint16_t *panel, int x, int width, DisplayMode mode, HorizontalAlignment alignment, ScreenRotation rotation,
               PreparationCheckpoint checkpoint) const;
 
   uint16_t *pixels_{};

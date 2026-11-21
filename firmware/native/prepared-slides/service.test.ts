@@ -50,7 +50,7 @@ test('landscape fit and fill match the panel geometry', async () => {
   fill(1270, 775, blue)
 })
 
-test('EXIF portrait stays intact and the WebP pair uses the native gutter', async () => {
+test('EXIF portrait stays intact and WebP pairs meet at the centre', async () => {
   const portrait = await preview(120, 80, red, blue, false, 6)
   const lone = await measure(await prepareSlide(portrait, undefined, { mode: 'fill', rotation: 0, orientation: 'portrait' }))
   lone(10, 400, black)
@@ -65,12 +65,15 @@ test('EXIF portrait stays intact and the WebP pair uses the native gutter', asyn
   const pair = await measure(await prepareSlide(portrait, companion, { mode: 'fill', rotation: 0, orientation: 'portrait' }))
   pair(100, 400 - 100, red)
   pair(100, 400 + 100, blue)
-  // 4:2:0 softens the color on either side of the divider.
-  pair(637, 300, red, 40)
-  pair(639, 400, black)
-  pair(640, 400, black)
-  pair(642, 400, green, 40)
+  // 4:2:0 can soften the color where the two images meet.
+  pair(639, 300, red, 75)
+  pair(640, 300, green, 75)
   pair(900, 400, green)
+  const fitPair = await measure(await prepareSlide(portrait, companion, { mode: 'fit', rotation: 180 }), 180)
+  fitPair(0, 300, black)
+  fitPair(639, 300, red, 75)
+  fitPair(640, 300, green, 75)
+  fitPair(1279, 300, black)
   await assert.rejects(prepareSlide(await preview(120, 80, red, blue), companion, { mode: 'fit', rotation: 0 }), /two portrait/)
   await assert.rejects(prepareSlide(portrait, undefined, { mode: 'fit', rotation: 0, orientation: 'landscape' }), OrientationMismatch)
 })
@@ -108,6 +111,7 @@ test('authorizes one library, bounds options and reuses unchanged prepared image
   assert.equal((await fetch(`${endpoint}?rotation=90`, { headers })).status, 400)
   assert.equal((await fetch(`${endpoint}?orientation=wide`, { headers })).status, 400)
   assert.equal((await fetch(`${endpoint}?orientation=portrait&orientation=landscape`, { headers })).status, 400)
+  assert.equal((await fetch(`${endpoint}?gap=0`, { headers })).status, 400)
   assert.equal(calls.length, 0)
   const results = await Promise.all([fetch(endpoint, { headers }), fetch(endpoint, { headers })])
   for (const response of results) {
@@ -201,10 +205,12 @@ test('warms an exact pair without waiting and leaves room for a foreground slide
   const later = `${service.url}/v1/slides/${following}`
   const excess = `${service.url}/v1/slides/${extra}`
   assert.equal((await fetch(pair, { method: 'POST' })).status, 401)
+  assert.equal((await fetch(`${pair}&gap=4`, { headers })).status, 400)
+  assert.equal((await fetch(`${pair}&gap=0&gap=0`, { headers })).status, 400)
   for (const wait of ['-1', '1.5', '251']) {
     assert.equal((await fetch(`${pair}&wait=${wait}`, { headers })).status, 400)
   }
-  const accepted = await fetch(pair, { method: 'POST', headers, body: '{}' })
+  const accepted = await fetch(`${pair}&gap=0`, { method: 'POST', headers, body: '{}' })
   assert.equal(accepted.status, 202)
   assert.equal(await accepted.text(), '')
   assert.equal((await fetch(`${pair}&wait=0`, { headers })).status, 202)
@@ -233,10 +239,11 @@ test('warms an exact pair without waiting and leaves room for a foreground slide
   assert.equal(finished.status, 200)
   const pixels = await measure(jpeg, 180)
   pixels(8, 100, red)
-  pixels(640, 400, black)
+  pixels(639, 400, blue, 60)
+  pixels(640, 400, red, 60)
   const warmed = await fetch(pair, { method: 'POST', headers })
   assert.equal(warmed.status, 204)
-  const fast = await fetch(`${pair}&wait=0`, { headers })
+  const fast = await fetch(`${pair}&gap=0&wait=0`, { headers })
   assert.equal(fast.headers.get('x-espframe-cache'), 'hit')
   assert.deepEqual(Buffer.from(await fast.arrayBuffer()), jpeg)
   for (const endpoint of [upcoming, later]) {

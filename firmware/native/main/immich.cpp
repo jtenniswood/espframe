@@ -69,6 +69,7 @@ void ImmichSource::apply_photo_settings(PhotoFeedSettings feed, std::optional<Sl
   if (this->feed_().photo_orientation != feed.photo_orientation) {
     this->prepared_retry_us_ = 0;
     this->prepared_frame_fill_retry_us_ = 0;
+    this->prepared_pair_retry_us_ = 0;
   }
   if (first_slide || wants_search_exif(this->feed_()) != wants_search_exif(feed))
     this->random_search_count_ = photo_search_batch;
@@ -97,6 +98,7 @@ bool ImmichSource::online_() {
     prefetch_.cancel();
     prepared_retry_us_ = 0;
     prepared_frame_fill_retry_us_ = 0;
+    prepared_pair_retry_us_ = 0;
     prepared_wait_ = PreparedWait::Bounded;
     http_connection_ = connection;
   }
@@ -652,6 +654,7 @@ std::string ImmichSource::prepared_url_(const PhotoSlide &frame, PhotoOrientatio
   if (frame.companion[0] != '\0') {
     url += "&companion=";
     url += frame.companion.data();
+    url += "&gap=0";
   }
   url += "&rotation=";
   url += screen_rotation_name(settings_.screen_rotation);
@@ -678,6 +681,8 @@ void ImmichSource::warm_next_prepared_(const PhotoSlide &current) {
       return;  // A companion that needs more metadata will be selected by the slide worker.
   }
   const bool paired = next.companion[0] != '\0';
+  if (paired && esp_timer_get_time() < prepared_pair_retry_us_)
+    return;
   if (feed.requires_portrait_pair() && !paired && feed.photo_orientation != PhotoOrientation::Any)
     return;
   const auto orientation = feed.requires_portrait_pair() && !paired ? PhotoOrientation::Landscape
@@ -714,6 +719,7 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
     return {};
   const auto now = esp_timer_get_time();
   if (now < prepared_retry_us_ || (frame_fill && now < prepared_frame_fill_retry_us_) ||
+      (paired && now < prepared_pair_retry_us_) ||
       (settings_.prepared_slides_need_time() && !clock_time_is_valid(std::time(nullptr))) || !allocate_download_())
     return {};
   const auto url = prepared_url_(frame, orientation, frame_fill, framing);
@@ -728,12 +734,12 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
   const auto wait = background ? prepared_wait_ : PreparedWait::Legacy;
   int status = request(wait == PreparedWait::Bounded ? url + "&wait=180"
                        : wait == PreparedWait::Immediate ? url + "&wait=0" : url);
-  if (status == 400 && wait == PreparedWait::Bounded && !cancelled_) {
+  if (!paired && status == 400 && wait == PreparedWait::Bounded && !cancelled_) {
     // Immediate background requests work with the previous service protocol.
     prepared_wait_ = PreparedWait::Immediate;
     status = request(url + "&wait=0");
   }
-  if (status == 400 && background && !cancelled_) {
+  if (!paired && status == 400 && background && !cancelled_) {
     // The original service supports only a blocking request.
     prepared_wait_ = PreparedWait::Legacy;
     status = request(url);
@@ -746,6 +752,12 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
     return {.pending = true};
   if (background && prepared_wait_ != PreparedWait::Legacy && status == 429)
     return {};
+  if (!cancelled_ && status == 400 && paired) {
+    // The old service rejects gap=0. Compose pairs on the frame and keep
+    // using the service for singles.
+    prepared_pair_retry_us_ = decode_start + 30'000'000;
+    return {};
+  }
   if (!cancelled_ && status == 400 && frame_fill) {
     // Older services reject the full-frame crop option. Keep their paired
     // and Fit requests available while preparing these slides locally.
@@ -1017,7 +1029,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   }
   const bool paired = frame.companion[0] != '\0';
   const bool fill_edges_match = !trial_replay_pair_fill || !new_position || !paired ||
-                                replay_pair_fills_panes(panel, this->settings_.screen_rotation, prepared);
+                                replay_pair_fills_panes(panel, this->settings_.screen_rotation);
   if (replacement && !caption_only && !refining)
     this->complete_caption_details_(frame);
   const auto &tone = this->feed_().tone;

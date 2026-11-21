@@ -105,6 +105,7 @@ class ImmichSource {
   PreviewPrefetch prefetch_{cancelled_};
   int64_t prepared_retry_us_{};
   int64_t prepared_frame_fill_retry_us_{};
+  int64_t prepared_pair_retry_us_{};
   PreparedWait prepared_wait_{PreparedWait::Bounded};
   P4JpegDecoder jpeg_;
   uint32_t http_connection_{};

@@ -331,14 +331,19 @@ Decode decode_webp(const uint8_t *encoded, size_t length, uint16_t *&pixels, Pho
 
 DecodedPreview::~DecodedPreview() { heap_caps_free(this->pixels_); }
 
-bool DecodedPreview::paint_(uint16_t *panel, int left, int max_width, DisplayMode mode,
+bool DecodedPreview::paint_(uint16_t *panel, int left, int max_width, DisplayMode mode, HorizontalAlignment alignment,
                             ScreenRotation rotation, PreparationCheckpoint checkpoint) const {
   // An existing fit can be placed as-is. Avoid a second rounding step on
   // images already scaled to the destination before rotating the pixels.
   const auto size = mode == DisplayMode::Fit && this->width_ <= max_width
                         ? PhotoFraming{{0, 0, this->width_, this->height_}, this->width_, this->height_, this->portrait_}
                         : frame_photo(this->width_, this->height_, max_width, slide_height, mode);
-  const int side = (max_width - size.width) / 2;
+  const int horizontal_space = max_width - size.width;
+  int side = 0;
+  if (alignment == HorizontalAlignment::Right)
+    side = horizontal_space;
+  else if (alignment == HorizontalAlignment::Center)
+    side = horizontal_space / 2;
   const int top = (slide_height - size.height) / 2;
   const int photo_left = left + side;
   const int photo_right = photo_left + size.width;
@@ -424,12 +429,11 @@ bool DecodedPreview::render(uint16_t *panel, const DecodedPreview *companion, Di
   const bool pair = companion != nullptr && this->portrait() && companion->portrait();
   if (this->width_ == 0)
     return clear_region(panel, 0, 0, slide_width, slide_height, rotation, checkpoint);
-  if (pair && !clear_region(panel, portrait_pair_width, 0, portrait_pair_gap, slide_height, rotation, checkpoint))
-    return false;
-  return this->paint_(panel, 0, pair ? portrait_pair_width : slide_width, pair ? pair_mode : this->display_mode_, rotation,
-                      checkpoint) &&
-         (!pair || companion->paint_(panel, portrait_pair_width + portrait_pair_gap, portrait_pair_width, pair_mode,
-                                     rotation, checkpoint));
+  // Keep Fit's side margins outside the pair so the two inner edges meet.
+  return this->paint_(panel, 0, pair ? portrait_pair_width : slide_width, pair ? pair_mode : this->display_mode_,
+                      pair ? HorizontalAlignment::Right : HorizontalAlignment::Center, rotation, checkpoint) &&
+         (!pair || companion->paint_(panel, portrait_pair_width, portrait_pair_width, pair_mode,
+                                     HorizontalAlignment::Left, rotation, checkpoint));
 }
 
 }  // namespace espframe::native

@@ -149,7 +149,7 @@ class ReplayTest(unittest.TestCase):
         control["preparation"]["new_slides"] = {"paired": 11, "single": 0, "pair_fill_edge_failures": 0}
         candidate["preparation"]["new_slides"] = {"paired": 13, "single": 0, "pair_fill_edge_failures": 0}
         report = replays.compare(control, candidate)
-        self.assertIn("| Filled pairs with matching edges and divider | 11 | 13 |", report)
+        self.assertIn("| Filled pairs with edge-to-edge coverage | 11 | 13 |", report)
         candidate["preparation"]["new_slides"]["pair_fill_edge_failures"] = 1
         with self.assertRaisesRegex(ValueError, "edge check failed for 1 of 13"):
             replays.compare(control, candidate)

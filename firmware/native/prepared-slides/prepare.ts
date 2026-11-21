@@ -6,7 +6,6 @@ export class OrientationMismatch extends Error {}
 
 const width = 1280
 const height = 800
-const gap = 4 // Match portrait_pair_gap in slide_geometry.h.
 const background = '#000000'
 const inputOptions = { failOn: 'warning', limitInputPixels: 4_000_000 } as const
 
@@ -19,7 +18,8 @@ async function orient(preview: Buffer) {
   return image.autoOrient().flatten({ background }).toColourspace('srgb').raw().toBuffer({ resolveWithObject: true })
 }
 
-async function tile(image: Awaited<ReturnType<typeof orient>>, left: number, maxWidth: number, fill: boolean) {
+async function tile(image: Awaited<ReturnType<typeof orient>>, left: number, maxWidth: number, fill: boolean,
+                    align: 'left' | 'center' | 'right' = 'center') {
   const { width: w, height: h } = image.info
   const wide = w * height >= h * maxWidth
   let targetWidth = maxWidth
@@ -36,10 +36,14 @@ async function tile(image: Awaited<ReturnType<typeof orient>>, left: number, max
   const input = await sharp(image.data, { raw: image.info }).extract({
     left: Math.floor((w - cropWidth) / 2), top: Math.floor((h - cropHeight) / 2), width: cropWidth, height: cropHeight,
   }).resize(targetWidth, targetHeight, { fit: 'fill' }).raw().toBuffer({ resolveWithObject: true })
+  const horizontalSpace = maxWidth - targetWidth
+  let offset = 0
+  if (align === 'right') offset = horizontalSpace
+  else if (align === 'center') offset = Math.floor(horizontalSpace / 2)
   return {
     input: input.data,
     raw: input.info,
-    left: left + Math.floor((maxWidth - targetWidth) / 2),
+    left: left + offset,
     top: Math.floor((height - targetHeight) / 2),
   }
 }
@@ -57,8 +61,8 @@ export async function prepareSlide(primary: Buffer, companion: Buffer | undefine
     if (!portrait || right.info.height <= right.info.width) {
       throw new Error('A portrait pair requires two portrait previews')
     }
-    const half = (width - gap) / 2
-    layers.push(await tile(left, 0, half, fill), await tile(right, half + gap, half, fill))
+    const half = width / 2
+    layers.push(await tile(left, 0, half, fill, 'right'), await tile(right, half, half, fill, 'left'))
   } else {
     layers.push(await tile(left, 0, width, layout.mode === 'fill-frame' || (fill && !portrait)))
   }

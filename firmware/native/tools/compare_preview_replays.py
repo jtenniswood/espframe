@@ -238,7 +238,7 @@ def compare(control, enabled, *, companion_prefetch=False, slow_previews=False, 
     if companion_prefetch:
         rows.insert(2, ("New slides rendered as portrait pairs", prepared_pairs(control), prepared_pairs(enabled)))
     if pair_fill:
-        rows.insert(2, ("Filled pairs with matching edges and divider", checked_fill_pairs(control),
+        rows.insert(2, ("Filled pairs with edge-to-edge coverage", checked_fill_pairs(control),
                         checked_fill_pairs(enabled)))
     rows.append(("Lookahead previews used", before_used, after_used))
     if after_wait != "no samples" or (control_lookahead and before_wait != "no samples"):

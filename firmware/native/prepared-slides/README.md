@@ -28,7 +28,7 @@ docker run --rm --env-file /path/to/service.env -p 127.0.0.1:8080:8080 espframe-
 
 ## Request a slide
 
-Send `GET /v1/slides/<asset-uuid>` with the `Authorization: Bearer <service-token>` header. Add `companion=<asset-uuid>` for a portrait pair or `rotation=180` for an upside-down mount. `fit` and `0` are the defaults. `mode=fill` crops landscape photos and portrait pairs and retains the full image of a single portrait. `mode=fill-frame` also crops single portraits to fill the screen. A pair uses the primary photo on the left, the companion on the right and an eight-pixel gap.
+Send `GET /v1/slides/<asset-uuid>` with the `Authorization: Bearer <service-token>` header. Add `companion=<asset-uuid>` for a portrait pair or `rotation=180` for an upside-down mount. `fit` and `0` are the defaults. `mode=fill` crops landscape photos and portrait pairs and retains the full image of a single portrait. `mode=fill-frame` also crops single portraits to fill the screen. The primary portrait and its companion meet at the centre. Fit puts side margins at the outside edges of the pair. The frame requests `gap=0` for pairs and composes them locally if an older service rejects that option.
 
 The frame uses direct Immich previews for full-frame crops when an older
 preparation service rejects `mode=fill-frame`.
@@ -243,8 +243,8 @@ swipe wait times and cache hits. The server starts with fresh counters when
 restarted. Leave `REPLAY_PREVIEW_STALL_MS` unset for ordinary replay runs.
 
 Add `-D SWIPE_TRIAL_REPLAY_PAIR_FILL=ON` to both direct trial builds to
-measure **Fill each half**. The frame samples each new pair's outer edges,
-pane boundaries and centre divider before adding captions or tone. The
+measure **Fill each half**. The frame samples each new pair's outer edges
+and both sides of the centre seam before adding captions or tone. The
 comparison requires each new synthetic slide to render as a pair and rejects
 a failed edge check or a mismatch between Fit and Fill. Use the physical panel
 to check the visible crop.
@@ -262,8 +262,8 @@ python3 firmware/native/tools/compare_preview_replays.py compare --prepared-serv
 
 The report includes photo bytes downloaded by the frame and whether the
 service was prewarmed. It requires the prepared run to use the service
-throughout. Prepared JPEGs pass the Fill check when the pane edges contain
-photo pixels and the inner two divider pixels are dark.
+throughout. Prepared JPEGs pass the Fill check when the outer edges and
+both sides of the centre seam contain photo pixels.
 
 To exercise the frame's lookahead, leave the replay's warm options unset
 and use the prepared Fill build. Check `prepared_warm` for acknowledged

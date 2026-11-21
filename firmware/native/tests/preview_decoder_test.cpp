@@ -135,7 +135,8 @@ void verify_pair(const char *primary_path, const char *companion_path) {
   assert(panel.front() == guard && panel.back() == guard);
   assert((at(panel, 320, 420) & 0xf800) >= 0xf000);
   assert((at(panel, 960, 420) & 0x001f) >= 0x001e);
-  assert(at(panel, 639, 420) == 0 && at(panel, 640, 420) == 0);
+  assert((at(panel, 639, 420) & 0xf800) >= 0xf000 && (at(panel, 640, 420) & 0x001f) >= 0x001e);
+  assert(at(panel, slide_width - 1, 420) == 0);
   assert(at(panel, 320, 0) == 0 && at(panel, 960, 0) != 0);
   assert(!replay_pair_fills_panes(panel.data() + 1, ScreenRotation::Normal));
   const auto full_photo_pair = panel;
@@ -152,37 +153,25 @@ void verify_pair(const char *primary_path, const char *companion_path) {
   assert(panel == full_photo_pair);
   assert(right.decode(companion.data(), companion.size(), {PreviewTarget::PairPane, DisplayMode::Fit, DisplayMode::Fill}) == Decode::Ready);
   std::fill(panel.begin() + 1, panel.end() - 1, guard);
-  int checkpoints = 0;
-  const PreparationCheckpoint interrupt{&checkpoints, [](void *context) {
-    return ++*static_cast<int *>(context) < 2;
-  }};
-  // Before either photo is painted, Fill clears exactly the divider.
+  const PreparationCheckpoint interrupt{nullptr, [](void *) { return false; }};
+  // An interrupted Fill leaves the panel untouched before either pane is painted.
   assert(!left.render(panel.data() + 1, &right, DisplayMode::Fill, ScreenRotation::Normal, interrupt));
-  for (int x = 0; x < slide_width; ++x) {
-    const auto first = panel.begin() + 1 + x * panel_width;
-    const auto expected = x >= 638 && x < 642 ? 0 : guard;
-    assert(std::all_of(first, first + panel_width, [expected](uint16_t pixel) { return pixel == expected; }));
-  }
+  assert(std::all_of(panel.begin(), panel.end(), [](uint16_t pixel) { return pixel == guard; }));
   assert(left.render(panel.data() + 1, &right, DisplayMode::Fill));
-  assert(std::count(panel.begin() + 1, panel.end() - 1, 0) == 4 * slide_height);
+  assert(std::count(panel.begin() + 1, panel.end() - 1, 0) == 0);
   assert((at(panel, 0, 420) & 0xf800) >= 0xf000 && (at(panel, 1279, 420) & 0x001f) >= 0x001e);
   assert(at(panel, 0, 0) != 0 && at(panel, 1279, 799) != 0);
-  assert(at(panel, 639, 420) == 0 && at(panel, 640, 420) == 0);
+  assert((at(panel, 639, 420) & 0xf800) >= 0xf000 && (at(panel, 640, 420) & 0x001f) >= 0x001e);
   expect_flipped(panel, left, &right, DisplayMode::Fill);
   assert(replay_pair_fills_panes(panel.data() + 1, ScreenRotation::Normal));
   std::vector<uint16_t> rotated(pixel_count);
   assert(left.render(rotated.data(), &right, DisplayMode::Fill, ScreenRotation::UpsideDown));
   assert(replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown));
-  rotated[panel_offset(portrait_pair_width, panel_width - 1, ScreenRotation::UpsideDown)] = guard;
+  const auto seam = panel_offset(portrait_pair_width, panel_width - 1, ScreenRotation::UpsideDown);
+  const auto seam_pixel = rotated[seam];
+  rotated[seam] = 0x1082;
   assert(!replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown));
-  assert(replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown, true));
-  const auto middle_gap = panel_offset(portrait_pair_width + 1, panel_width - 1, ScreenRotation::UpsideDown);
-  rotated[middle_gap] = 0x1082;
-  assert(replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown, true));
-  rotated[middle_gap] = 0xf800;
-  assert(!replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown, true));
-  rotated[middle_gap] = 0;
-  rotated[panel_offset(portrait_pair_width, panel_width - 1, ScreenRotation::UpsideDown)] = 0;
+  rotated[seam] = seam_pixel;
   rotated[panel_offset(slide_width - 1, 0, ScreenRotation::UpsideDown)] = 0;
   assert(!replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown));
   assert(right.decode(companion.data(), companion.size() / 2, {PreviewTarget::PairPane}) == Decode::Invalid);
@@ -205,7 +194,7 @@ void verify_pair(const char *primary_path, const char *companion_path) {
   assert(right.decode(companion.data(), companion.size(), {PreviewTarget::PairPane, DisplayMode::Fit, DisplayMode::Fill}) == Decode::Ready);
   left.render(panel.data() + 1, &right, DisplayMode::Fill);
   assert((at(panel, 0, 420) & 0xf800) >= 0xf000 && (at(panel, 1279, 420) & 0x001f) >= 0x001e);
-  assert(at(panel, 639, 420) == 0 && at(panel, 640, 420) == 0);
+  assert((at(panel, 639, 420) & 0xf800) >= 0xf000 && (at(panel, 640, 420) & 0x001f) >= 0x001e);
   expect_flipped(panel, left, &right, DisplayMode::Fill);
   const auto pair_panes = panel;
   assert(left.decode(primary.data(), primary.size(),
