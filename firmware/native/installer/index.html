@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Native Espframe setup</title>
+  <link rel="stylesheet" href="setup.css">
+  <script type="module" src="setup.js"></script>
+</head>
+<body>
+  <main>
+    <h1>Set up Espframe</h1>
+    <p>Connect a Guition JC8012P4A1 test frame by USB. Installing replaces the firmware on the frame.</p>
+    <section aria-labelledby="install">
+      <h2 id="install">Install firmware</h2>
+      <p>To keep connections from ESPHome, leave <strong>Erase device</strong> unchecked during installation.</p>
+      <label for="revision">Guition hardware revision</label>
+      <select id="revision">
+        <option value="">Select a revision</option>
+        <option value="v1">V1 · Original panel, case number 2627 or lower</option>
+        <option value="v2">V2 · New panel, case number 2628 or higher</option>
+        <option value="v3">V3 · ESP32-P4 v3.x chip, any case number</option>
+      </select>
+      <esp-web-install-button hidden>
+        <button type="button" slot="activate">Install native firmware</button>
+      </esp-web-install-button>
+    </section>
+    <section aria-labelledby="connection">
+      <h2 id="connection">Connect Wi-Fi and Immich</h2>
+      <p>Close the installer dialog after flashing, then fill in Wi-Fi and Immich below. If you already connected Wi-Fi in the dialog, choose <strong>Use Wi-Fi already saved on the frame</strong>.</p>
+      <form id="settings" method="post" autocomplete="off">
+        <label>Espframe settings backup <input id="backup" type="file" accept=".json,application/json" aria-describedby="backup-help"></label>
+        <small id="backup-help">Optional. Load your frame name, Immich URL and playback settings.</small>
+        <div id="backup-status" role="status" aria-live="polite"></div>
+        <label>Frame name <input name="frame_name" maxlength="120" placeholder="Use device default"></label>
+        <label><input id="reuse-wifi" type="checkbox" class="inline-option"> Use Wi-Fi already saved on the frame</label>
+        <label><input id="keep-stock-wifi" type="checkbox" class="inline-option"> Keep the Wi-Fi connection from ESPHome</label>
+        <div id="wifi-fields">
+          <label>Wi-Fi name <input name="ssid" maxlength="32" required></label>
+          <label>Wi-Fi password <input name="password" type="password" maxlength="64"></label>
+        </div>
+        <label><input id="keep-stock-immich" type="checkbox" class="inline-option"> Keep the Immich connection from ESPHome</label>
+        <div id="immich-fields">
+          <label>Immich base URL <input name="immich_url" type="url" maxlength="256" placeholder="https://photos.example.com" required></label>
+          <label>Immich API key <input name="immich_key" type="password" maxlength="256" aria-describedby="permissions" required></label>
+          <small id="permissions">Use a key with asset.read and asset.view permissions.</small>
+        </div>
+        <details id="prepared-slides">
+          <summary>Photo preparation service</summary>
+          <label>Service URL <input name="prepared_slide_url" type="url" maxlength="256" pattern="https?://.+" aria-describedby="prepared-slides-help"></label>
+          <label>Service access token <input name="prepared_slide_token" type="password" minlength="32" maxlength="256" autocomplete="off" aria-describedby="prepared-slides-help"></label>
+          <small id="prepared-slides-help">Optional. Enter both values if you run the photo preparation service alongside Immich.</small>
+        </details>
+        <label>Web settings password <input name="web_password" type="password" minlength="8" maxlength="64" aria-describedby="web-password"></label>
+        <small id="web-password">Optional. Set a password to enable settings on your local network.</small>
+        <details id="home-assistant">
+          <summary>Home Assistant</summary>
+          <label>ESPHome encryption key <input name="home_assistant_key" type="password" maxlength="44" aria-describedby="home-assistant-key"></label>
+          <small id="home-assistant-key">Use a unique 32-byte Base64 key. Enter the same key in Home Assistant. Leave blank to keep any saved key.</small>
+          <label><input id="keep-stock-pairing" type="checkbox" class="inline-option"> Keep the existing ESPHome pairing</label>
+          <label><input id="remove-home-assistant-key" type="checkbox" class="inline-option"> Remove saved Home Assistant key</label>
+        </details>
+        <details id="playback">
+          <summary>Playback settings</summary>
+          <label>Photo source
+            <select name="photo_source" required>
+              <option value="" disabled>Choose a photo source</option>
+              <option value="all" selected>All photos</option>
+              <option value="favorites">Favourites</option>
+              <option value="album">Album</option>
+              <option value="memories">On This Day</option>
+              <option value="custom">Custom filters</option>
+            </select>
+          </label>
+          <div id="album-choice" hidden>
+            <label>Immich album link or ID <input name="album_id" maxlength="512" disabled aria-describedby="album-help"></label>
+            <small id="album-help">Use a key with album.read permission.</small>
+          </div>
+          <div id="memories-choice" hidden>
+            <label>Memories window
+              <select name="memories_window">
+                <option>Same Day</option>
+                <option value="Within 1 Day">±1 day</option>
+                <option value="Within 2 Days" selected>±2 days</option>
+                <option value="Within 3 Days">±3 days</option>
+                <option value="Within 7 Days">±7 days</option>
+              </select>
+            </label>
+            <label><input name="memories_fallback" type="checkbox" class="inline-option" checked> Fall back to all photos</label>
+            <small>The Immich key needs memory.read permission.</small>
+          </div>
+          <details id="filter-controls" open hidden>
+            <summary>Custom photo filters</summary>
+            <p>Separate Immich IDs with commas. Exclusions and ratings require Immich 3.2 or newer.</p>
+          </details>
+          <details id="capture-dates">
+            <summary>Capture date filter</summary>
+            <label><input name="date_filter_enabled" type="checkbox" class="inline-option"> Limit photos by capture date</label>
+            <label>Date range
+              <select name="date_filter_mode">
+                <option>Fixed Range</option>
+                <option>Relative Range</option>
+              </select>
+            </label>
+            <div id="fixed-dates">
+              <label>From <input type="date" name="date_from" min="0002-01-01" max="9998-12-31"></label>
+              <label>Through <input type="date" name="date_to" min="0002-01-01" max="9998-12-31"></label>
+              <small>Dates are inclusive. Leave an end blank to keep it open.</small>
+            </div>
+            <div id="relative-dates" hidden>
+              <label>Last <input type="number" name="relative_amount" value="1" min="1" max="120" required></label>
+              <label>Unit
+                <select name="relative_unit">
+                  <option>Years</option>
+                  <option>Months</option>
+                </select>
+              </label>
+            </div>
+          </details>
+          <label>Display photos
+            <select name="photo_orientation" required>
+              <option value="" disabled>Choose a photo orientation</option>
+              <option value="Any" selected>Any orientation</option>
+              <option>Portrait Only</option>
+              <option>Landscape Only</option>
+            </select>
+          </label>
+          <label>Display mode
+            <select name="display_mode">
+              <option value="">Use saved framing (crop to fit on new setup)</option>
+              <option value="Fill">Crop to fit</option>
+              <option value="Fit">Show full image</option>
+            </select>
+          </label>
+          <label>Seconds per photo <input name="slide_seconds" type="number" min="2" max="86400" value="15" step="1" required></label>
+          <label>Connection timeout
+            <select name="conn_timeout"><option value="">Use frame setting</option></select>
+          </label>
+          <label>Display language
+            <select name="device_language"><option value="">Use frame setting</option></select>
+          </label>
+          <label>Slideshow transition
+            <select name="transition">
+              <option>None</option><option selected>Cross Fade</option><option>Fade to Black</option><option>Fade to White</option>
+              <option>Slide Left</option><option>Slide Right</option><option>Slide Up</option><option>Slide Down</option><option>Random</option>
+            </select>
+          </label>
+          <label>Transition speed
+            <select name="transition_speed"><option>Fast</option><option>Normal</option><option>Slow</option></select>
+          </label>
+          <label><input name="portrait_pairing" type="checkbox" class="inline-option" checked> Pair portrait photos</label>
+          <label>Portrait pair framing
+            <select name="portrait_pair_framing">
+              <option value="">Use saved framing</option>
+              <option>Follow photo framing</option>
+              <option value="Fill">Fill each half</option>
+              <option value="Fit">Fit both full photos</option>
+            </select>
+          </label>
+          <label><input name="portrait_pairs_only" type="checkbox" class="inline-option"> Show paired portraits only</label>
+          <label>Pairing range
+            <select name="portrait_pairing_range">
+              <option>Same Day</option>
+              <option>Within 1 Day</option>
+              <option>Within 2 Days</option>
+            </select>
+          </label>
+          <label>Mounting orientation
+            <select name="screen_rotation">
+              <option value="0">Normal</option>
+              <option value="180">Upside down (180°)</option>
+            </select>
+          </label>
+          <label for="brightness_day">Daytime brightness</label>
+          <input id="brightness_day" name="brightness_day" type="range" min="10" max="100" value="64">
+          <output for="brightness_day">64%</output>
+          <label for="brightness_night">Nighttime brightness</label>
+          <input id="brightness_night" name="brightness_night" type="range" min="10" max="100" value="40">
+          <output for="brightness_night">40%</output>
+          <small>Switches at estimated sunrise and sunset for your timezone.</small>
+          <label><input name="show_clock" type="checkbox" class="inline-option" checked> Show clock</label>
+          <label>Time format
+            <select name="clock_format">
+              <option>24 Hour</option>
+              <option>12 Hour</option>
+            </select>
+          </label>
+          <label>Timezone
+            <select name="timezone" required>
+              <!-- CLOCK_TIMEZONES -->
+            </select>
+          </label>
+          <details>
+            <summary>Time servers</summary>
+            <label>NTP server 1 <input name="ntp_server_1" type="text" maxlength="253" spellcheck="false" value="pool.ntp.org"></label>
+            <label>NTP server 2 <input name="ntp_server_2" type="text" maxlength="253" spellcheck="false"></label>
+            <label>NTP server 3 <input name="ntp_server_3" type="text" maxlength="253" spellcheck="false"></label>
+            <small>Leave all three blank to use the default time servers.</small>
+          </details>
+          <details>
+            <summary>Photo captions</summary>
+            <label><input name="photo_metadata_location_enabled" type="checkbox" class="inline-option" checked> Show location</label>
+            <label><input name="photo_metadata_date_enabled" type="checkbox" class="inline-option" checked> Show date</label>
+            <label>Date format
+              <select name="photo_metadata_date_format">
+                <option>Date Taken</option>
+                <option>Relative Date</option>
+              </select>
+            </label>
+            <label>Date taken format
+              <select name="photo_metadata_date_taken_format">
+                <option>1 January, 2026</option>
+                <option>January 1, 2026</option>
+              </select>
+            </label>
+          </details>
+          <details>
+            <summary>Screen tone</summary>
+            <label><input name="base_tone_enabled" type="checkbox" class="inline-option"> Adjust photo tone</label>
+            <label for="base_tone">Base warmth</label>
+            <input id="base_tone" name="base_tone" type="range" min="0" max="100" value="0">
+            <output for="base_tone">0%</output>
+            <label><input name="warm_tones_enabled" type="checkbox" class="inline-option"> Warm photos at night</label>
+            <label for="warm_tone_intensity">Night warmth</label>
+            <input id="warm_tone_intensity" name="warm_tone_intensity" type="range" min="10" max="100" value="50">
+            <output for="warm_tone_intensity">50%</output>
+            <label>Warm tone until sunrise
+              <select name="warm_tone_override">
+                <option value="">Use frame setting</option><option value="false">Off</option><option value="true">On</option>
+              </select>
+            </label>
+            <small>Uses sunrise and sunset in the frame’s timezone.</small>
+          </details>
+          <details id="screen-schedule">
+            <summary>Screen schedule</summary>
+            <label><input name="schedule_enabled" type="checkbox" class="inline-option"> Turn off screen outside these hours</label>
+            <label>On hour <input name="schedule_on_hour" type="number" min="0" max="23" value="6" required></label>
+            <label>Off hour <input name="schedule_off_hour" type="number" min="0" max="23" value="23" required></label>
+            <small>Uses the frame’s timezone and a 24-hour clock. Matching hours keep the screen on all day.</small>
+            <label>Wake duration in seconds <input name="schedule_wake_timeout" type="number" min="10" max="3600" value="60" required></label>
+            <small>How long the screen stays on when tapped outside the scheduled hours.</small>
+          </details>
+        </details>
+        <button type="submit" disabled>Save settings over USB</button>
+      </form>
+      <p id="status" role="status" aria-live="polite"></p>
+      <button type="button" id="find-frame" disabled>Find frame on Wi-Fi</button>
+      <p id="network-status" role="status" aria-live="polite"></p>
+      <details id="repair-wifi" hidden>
+        <summary>Change Wi-Fi over USB</summary>
+        <form id="wifi-repair" method="post" autocomplete="off">
+          <label>Wi-Fi name <input name="ssid" maxlength="32" required></label>
+          <label>Wi-Fi password <input name="password" type="password" maxlength="64"></label>
+          <button type="submit" disabled>Connect to Wi-Fi</button>
+        </form>
+      </details>
+    </section>
+  </main>
+</body>
+</html>
