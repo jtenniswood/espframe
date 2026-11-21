@@ -29,6 +29,12 @@ Plug the cable into the **bottom USB-C port**, next to the USB-A connector. The 
 
 <EspInstallButton />
 
+If the installer asks whether to erase the device, leave **Erase device**
+unchecked to keep your saved ESPHome settings.
+If you are returning from the native prototype, choose the same hardware
+revision and leave **Erase device** unchecked to recover the settings from
+before the switch.
+
 ::: info Browser and USB help
 The installer uses Web Serial; Safari and Firefox cannot flash the display. Having trouble? See [USB flashing help](/usb-flashing).
 :::

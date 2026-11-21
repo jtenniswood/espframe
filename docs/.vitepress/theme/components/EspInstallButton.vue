@@ -28,16 +28,19 @@
           </div>
         </fieldset>
       </section>
-      <esp-web-install-button v-if="selectedDevice" :manifest="manifestUrl">
+      <esp-web-install-button v-if="selectedManifest" :manifest="selectedManifest.url">
         <button slot="activate" class="brand-button">Install {{ selectedDevice.label }}</button>
       </esp-web-install-button>
+      <p v-else-if="manifestSource" role="status">
+        {{ manifestError ? 'Could not load the firmware for this revision. Reload the page to try again.' : 'Loading firmware details…' }}
+      </p>
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed, ref, onMounted, watch } from 'vue'
-import { loadUsbInstaller } from '../usb-installer'
+import { loadUsbInstaller, preservingManifestUrl } from '../usb-installer'
 
 const devices = [
   {
@@ -66,22 +69,34 @@ const selectedDeviceId = ref('')
 const availableDeviceIds = ref(new Set(devices.filter((device) => !device.requirePublishedManifest).map((device) => device.id)))
 const supported = ref(false)
 const loadError = ref(null)
-const manifestVersion = ref('')
+const loadedManifest = ref(null)
+const manifestError = ref(false)
 const availableDevices = computed(() => devices.filter((device) => availableDeviceIds.value.has(device.id)))
 const selectedDevice = computed(() => availableDevices.value.find((device) => device.id === selectedDeviceId.value) || null)
-const manifestUrl = computed(() => selectedDevice.value?.manifest || '')
+const manifestSource = computed(() => selectedDevice.value?.manifest || '')
+const selectedManifest = computed(() => loadedManifest.value?.source === manifestSource.value ? loadedManifest.value : null)
+const manifestVersion = computed(() => selectedManifest.value?.version || '')
 
-async function loadManifestVersion() {
-  manifestVersion.value = ''
+watch(manifestSource, async (source, _, onCleanup) => {
+  loadedManifest.value = null
+  manifestError.value = false
+  if (!source) return
+  const request = new AbortController()
+  onCleanup(() => request.abort())
   try {
-    const response = await fetch(manifestUrl.value, { cache: 'no-store' })
-    if (!response.ok) return
+    const response = await fetch(source, { cache: 'no-store', signal: request.signal })
+    if (!response.ok) throw new Error('Firmware manifest unavailable')
     const manifest = await response.json()
-    manifestVersion.value = typeof manifest.version === 'string' ? manifest.version : ''
+    if (request.signal.aborted) return
+    loadedManifest.value = {
+      source,
+      url: preservingManifestUrl(manifest, response.url),
+      version: typeof manifest.version === 'string' ? manifest.version : '',
+    }
   } catch (_) {
-    manifestVersion.value = ''
+    if (!request.signal.aborted) manifestError.value = true
   }
-}
+})
 
 async function discoverPublishedDevices() {
   const available = new Set(availableDeviceIds.value)
@@ -106,8 +121,6 @@ onMounted(async () => {
     loadError.value = err?.message || 'Network or script load error.'
   }
 })
-
-watch(manifestUrl, loadManifestVersion)
 </script>
 
 <style scoped>
