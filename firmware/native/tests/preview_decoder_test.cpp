@@ -402,7 +402,7 @@ void verify_interruption(const char *jpeg_path, const char *progressive_path, co
     for (int x = 0; x < slide_width; ++x) {
       for (int y = 0; y < slide_height; ++y) {
         const auto pixel = panel_offset(x, panel_width - 1 - y, rotation);
-        assert(panel[pixel] == (y < 16 ? complete[pixel] : untouched));
+        assert(panel[pixel] == (y < 32 && x < 256 ? complete[pixel] : untouched));
       }
     }
   }

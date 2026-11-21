@@ -357,17 +357,22 @@ bool DecodedPreview::paint_(uint16_t *panel, int left, int max_width, DisplayMod
   const uint32_t scale_x = (static_cast<uint32_t>(crop.width) << 16) / size.width;
   const uint32_t scale_y = (static_cast<uint32_t>(crop.height) << 16) / size.height;
   const int column_step = -axis_direction(rotation);
-  std::array<const uint16_t *, row_batch> source_rows;
-  for (int y0 = 0; y0 < size.height; y0 += row_batch) {
-    if (!checkpoint())
-      return false;
-    const int rows = std::min(row_batch, size.height - y0);
+  // A longer run of RGB565 pixels lets each rotated column fill more of a
+  // PSRAM cache line before moving on. Check for touch work between groups
+  // of columns so a wider band does not delay a swipe or cancellation.
+  constexpr int column_run = 32;
+  constexpr int columns_per_checkpoint = 256;
+  std::array<const uint16_t *, column_run> source_rows;
+  for (int y0 = 0; y0 < size.height; y0 += column_run) {
+    const int rows = std::min(column_run, size.height - y0);
     for (int row = 0; row < rows; ++row) {
       const int source_y = crop.y + (((y0 + row) * scale_y) >> 16);
       source_rows[row] = this->pixels_ + source_y * this->width_;
     }
-    for (int x0 = 0; x0 < size.width; x0 += row_batch) {
-      const int x_end = std::min(x0 + row_batch, size.width);
+    for (int x0 = 0; x0 < size.width; x0 += columns_per_checkpoint) {
+      if (!checkpoint())
+        return false;
+      const int x_end = std::min(x0 + columns_per_checkpoint, size.width);
       for (int x = x0; x < x_end; ++x) {
         auto *column = panel + panel_offset(x + photo_left, panel_width - 1 - top - y0, rotation);
         const int source_x = crop.x + ((x * scale_x) >> 16);
