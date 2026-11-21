@@ -108,6 +108,9 @@ struct VP8Io {
   // start of the current row (That is: it is pre-offset by mb_y and takes
   // cropping into account).
   const uint8_t* a;
+
+  int (*checkpoint)(void*);  // Espframe cooperative decode callback.
+  void* checkpoint_context;
 };
 
 // Internal, version-checked, entry point
