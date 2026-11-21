@@ -10,6 +10,7 @@
 #endif
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <csetjmp>
 #include <cstdio>
@@ -356,18 +357,22 @@ bool DecodedPreview::paint_(uint16_t *panel, int left, int max_width, DisplayMod
   const uint32_t scale_x = (static_cast<uint32_t>(crop.width) << 16) / size.width;
   const uint32_t scale_y = (static_cast<uint32_t>(crop.height) << 16) / size.height;
   const int column_step = -axis_direction(rotation);
-  constexpr int tile = row_batch;
-  for (int y0 = 0; y0 < size.height; y0 += tile) {
+  std::array<const uint16_t *, row_batch> source_rows;
+  for (int y0 = 0; y0 < size.height; y0 += row_batch) {
     if (!checkpoint())
       return false;
-    for (int x0 = 0; x0 < size.width; x0 += tile) {
-      for (int x = x0; x < std::min(x0 + tile, size.width); ++x) {
-        auto *column = panel + panel_offset(x + photo_left, panel_width - 1 - top, rotation);
+    const int rows = std::min(row_batch, size.height - y0);
+    for (int row = 0; row < rows; ++row) {
+      const int source_y = crop.y + (((y0 + row) * scale_y) >> 16);
+      source_rows[row] = this->pixels_ + source_y * this->width_;
+    }
+    for (int x0 = 0; x0 < size.width; x0 += row_batch) {
+      const int x_end = std::min(x0 + row_batch, size.width);
+      for (int x = x0; x < x_end; ++x) {
+        auto *column = panel + panel_offset(x + photo_left, panel_width - 1 - top - y0, rotation);
         const int source_x = crop.x + ((x * scale_x) >> 16);
-        for (int y = y0; y < std::min(y0 + tile, size.height); ++y) {
-          const int source_y = crop.y + ((y * scale_y) >> 16);
-          column[y * column_step] = this->pixels_[source_y * this->width_ + source_x];
-        }
+        for (int row = 0; row < rows; ++row)
+          column[row * column_step] = source_rows[row][source_x];
       }
     }
   }

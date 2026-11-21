@@ -390,6 +390,22 @@ void verify_interruption(const char *jpeg_path, const char *progressive_path, co
   assert(!decoded.render(panel.data(), nullptr, DisplayMode::Fit, ScreenRotation::Normal, checkpoint));
   assert(panel.front() == 0 && panel.back() == 0xffff);
   assert(decoded.render(panel.data()));
+
+  assert(decoded.decode(jpeg.data(), jpeg.size(), {PreviewTarget::Slide, DisplayMode::Fill}) == Decode::Ready);
+  constexpr uint16_t untouched = 0x43cd;
+  std::vector<uint16_t> complete(pixel_count);
+  for (const auto rotation : {ScreenRotation::Normal, ScreenRotation::UpsideDown}) {
+    assert(decoded.render(complete.data(), nullptr, DisplayMode::Fill, rotation));
+    std::fill(panel.begin(), panel.end(), untouched);
+    remaining = 1;
+    assert(!decoded.render(panel.data(), nullptr, DisplayMode::Fill, rotation, checkpoint));
+    for (int x = 0; x < slide_width; ++x) {
+      for (int y = 0; y < slide_height; ++y) {
+        const auto pixel = panel_offset(x, panel_width - 1 - y, rotation);
+        assert(panel[pixel] == (y < 16 ? complete[pixel] : untouched));
+      }
+    }
+  }
 }
 
 void verify_lossy_webp_interruption(const char *path) {
