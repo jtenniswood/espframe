@@ -12,8 +12,7 @@ constexpr size_t bitmap_header_size = 5;
 constexpr int side_margin = 45;
 constexpr int right = slide_width - side_margin;
 constexpr int bottom = slide_height - 50;
-constexpr int location_height = 49;
-constexpr int date_height = 38;
+constexpr int line_height = 34;
 constexpr int line_gap = 4;
 constexpr int clock_gap = 24;
 
@@ -214,10 +213,10 @@ void paint_photo_caption(uint16_t *frame, std::span<const uint8_t> locations, st
                          const PhotoCaption &caption, ScreenRotation rotation, uint8_t opacity) {
   if (!opacity)
     return;
-  int location_top = bottom - location_height;
+  int location_top = bottom - line_height;
   if (caption.date.width) {
-    draw_line(frame, dates, caption.date, bottom - date_height, rotation, opacity);
-    location_top -= date_height + line_gap;
+    draw_line(frame, dates, caption.date, location_top, rotation, opacity);
+    location_top -= line_height + line_gap;
   }
   draw_line(frame, locations, caption.location, location_top, rotation, opacity);
 }

@@ -89,6 +89,17 @@ int main(int argc, char **argv) {
   paint(absolute_date.data(), photo, settings, ScreenRotation::Normal, false, local);
   assert(absolute_date == capture_date_only);
 
+  auto date_as_location = blank;
+  auto location_photo = photo;
+  const auto date = photo_caption_date(photo, settings, {});
+  std::strcpy(location_photo.city.data(), date.c_str());
+  location_photo.country = {};
+  auto location_style = settings;
+  location_style.show_date = false;
+  location_style.show_location = true;
+  paint(date_as_location.data(), location_photo, location_style, ScreenRotation::Normal, false);
+  assert(date_as_location == capture_date_only);
+
   for (size_t language = 1; language < espframe_i18n_catalogue::LANGUAGE_COUNT; ++language) {
     settings.language = static_cast<uint8_t>(language);
     auto localized = blank;

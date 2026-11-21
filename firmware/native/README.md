@@ -415,7 +415,7 @@ landscape mounting choice.
 
 Under **Photo captions**, enable the capture date, location, or both. The
 frame uses the photo's local capture day and the city and country supplied by
-Immich. The right-aligned location and date use the stock Noto Sans sizes.
+Immich. Both right-aligned lines use 25-pixel Rubik Light at weight 300.
 Long locations shorten to leave room for the clock when it is enabled.
 The clock uses the stock 150-pixel Noto Sans face at the lower left.
 When two portraits are paired, the caption describes the primary
@@ -435,9 +435,10 @@ that the shipped masks match the current catalogue.
 Turning on relative captions, a relative capture-date filter, or Memories
 requests time sync even when the clock is hidden.
 
-The caption font covers Latin, Greek and Cyrillic text. When a name cannot
-be rendered, the frame can still show the other location field. These
-settings are included in the native player's backups.
+Location glyphs missing from Rubik use Noto Sans Light to retain Latin, Greek
+and Cyrillic coverage. When a name cannot be rendered, the frame can still
+show the other location field. These settings are included in the native
+player's backups.
 
 The photo source defaults to **All photos** from the Immich timeline. Choose **Favourites** or
 **Album** in the frame's web settings to limit both photos and their
