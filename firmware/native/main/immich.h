@@ -85,7 +85,8 @@ class ImmichSource {
   void complete_caption_details_(PhotoSlide &frame);
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, PreviewTarget target, int64_t deadline_us,
                               bool report_response, const AssetId &lookahead = {});
-  bool load_thumbnail_(const AssetId &id, DecodedPreview &preview, PhotoOrientation orientation);
+  bool load_thumbnail_(const AssetId &id, DecodedPreview &preview, PhotoOrientation orientation,
+                       bool use_prefetch = false);
   PreparedPreview render_prepared_(const PhotoSlide &frame, uint16_t *panel, PhotoOrientation orientation);
   std::string prepared_url_(const PhotoSlide &frame, PhotoOrientation orientation, bool frame_fill, DisplayMode framing) const;
   void warm_next_prepared_(const PhotoSlide &current);

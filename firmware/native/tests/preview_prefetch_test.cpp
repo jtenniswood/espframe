@@ -111,8 +111,10 @@ int ImmichHttp::read(const std::string &url, const char *api_key, std::string_vi
   received = 0;
   if (cancelled_)
     return 0;
-  assert(url.starts_with(base_url + "/assets/") && url.ends_with("/thumbnail?size=preview"));
-  assert(api_key == key && query.empty() && output.size() == PreviewPrefetch::capacity && deadline > esp_timer_get_time());
+  const bool thumbnail = url.ends_with("/thumbnail?size=thumbnail");
+  assert(url.starts_with(base_url + "/assets/") && (thumbnail || url.ends_with("/thumbnail?size=preview")));
+  assert(api_key == key && query.empty() && deadline > esp_timer_get_time());
+  assert(output.size() == (thumbnail ? PreviewPrefetch::thumbnail_capacity : PreviewPrefetch::capacity));
   ++requests;
   if (reply_delay_us >= deadline - now_us) {
     now_us = deadline;
@@ -263,5 +265,32 @@ int main() {
   hold_download = false;
   service_download();
   assert(requests == downloaded + 4);
+
+  constexpr auto thumbnail = PreviewPrefetch::Size::Thumbnail;
+  reply_delay_us = 0;
+  const int before_thumbnails = requests;
+  assert(prefetch.start(asset('s'), 2, base_url, key));
+  assert(!prefetch.start(asset('s'), 2, base_url, key, thumbnail));
+  assert(!prefetch.take(asset('s'), 2, buffer, now_us + PreviewPrefetch::thumbnail_budget_us, thumbnail));
+  assert(prefetch.take(asset('s'), 2, buffer) == 1 && buffer[0] == 's');
+
+  assert(prefetch.start(asset('s'), 2, base_url, key, thumbnail));
+  assert(!prefetch.take(asset('s'), 2, buffer));
+  service_download();
+  assert(prefetch.take(asset('s'), 2, buffer, now_us + PreviewPrefetch::thumbnail_budget_us, thumbnail) == 1);
+  assert(requests == before_thumbnails + 2 && buffer[0] == 's');
+
+  reply = 503;
+  assert(prefetch.start(asset('t'), 2, base_url, key, thumbnail));
+  assert(prefetch.take(asset('t'), 2, buffer, now_us + PreviewPrefetch::thumbnail_budget_us, thumbnail) == 0);
+  assert(!prefetch.take(asset('t'), 2, buffer, now_us + PreviewPrefetch::thumbnail_budget_us, thumbnail));
+  assert(requests == before_thumbnails + 3 && buffer[0] == 's');
+
+  reply = 200;
+  reply_delay_us = PreviewPrefetch::thumbnail_budget_us + 1;
+  assert(prefetch.start(asset('u'), 2, base_url, key, thumbnail));
+  const auto thumbnail_started = now_us;
+  assert(prefetch.take(asset('u'), 2, buffer, now_us + 2 * PreviewPrefetch::thumbnail_budget_us, thumbnail) == 0);
+  assert(now_us - thumbnail_started == PreviewPrefetch::thumbnail_budget_us);
   prefetch.release_on_memory_pressure();
 }

@@ -32,6 +32,9 @@ enum class TrialPreparationStage : uint8_t {
   PreparedWarm,
   ProgressiveJpegInput,
   ProgressiveJpegOutput,
+  ThumbnailTransfer,
+  ThumbnailPrefetchTransfer,
+  ThumbnailPrefetchWait,
   Count,
 };
 

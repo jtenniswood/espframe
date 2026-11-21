@@ -71,7 +71,8 @@ struct PreparationTiming {
 constexpr std::array preparation_stages{"attempt", "selection", "transfer", "hardware_jpeg", "software_jpeg",
                                         "webp", "rejected_preview", "composition", "prepared_transfer", "prepared_decode",
                                         "prepared_cache_decode", "prefetch_transfer", "prefetch_wait", "prepared_warm",
-                                        "progressive_jpeg_input", "progressive_jpeg_output"};
+                                        "progressive_jpeg_input", "progressive_jpeg_output", "thumbnail_transfer",
+                                        "thumbnail_prefetch_transfer", "thumbnail_prefetch_wait"};
 static_assert(preparation_stages.size() == static_cast<size_t>(TrialPreparationStage::Count));
 std::array<PreparationTiming, preparation_stages.size()> preparation_timings{};
 struct ReplaySlides {
@@ -384,7 +385,8 @@ esp_err_t preparation_status(httpd_req_t *request) {
   for (size_t i = 0; i < timings.size(); ++i) {
     const auto &timing = timings[i];
     char pause_field[40]{};
-    if (i >= static_cast<size_t>(TrialPreparationStage::ProgressiveJpegInput))
+    if (i == static_cast<size_t>(TrialPreparationStage::ProgressiveJpegInput) ||
+        i == static_cast<size_t>(TrialPreparationStage::ProgressiveJpegOutput))
       std::snprintf(pause_field, sizeof(pause_field), ",\"checkpoint_us\":%" PRIu32, timing.checkpoint_us);
     const auto remaining = report_capacity - used;
     const auto written = std::snprintf(body.get() + used, remaining,

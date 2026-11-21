@@ -607,15 +607,36 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
                                                                               : PreviewStatus::Retry;
 }
 
-bool ImmichSource::load_thumbnail_(const AssetId &id, DecodedPreview &preview, PhotoOrientation orientation) {
-  constexpr size_t thumbnail_capacity = 128 * 1024;
+bool ImmichSource::load_thumbnail_(const AssetId &id, DecodedPreview &preview, PhotoOrientation orientation,
+                                  bool use_prefetch) {
+  constexpr auto thumbnail_capacity = PreviewPrefetch::thumbnail_capacity;
   // Thumbnails are transient pixels. A separate request size must not seed
   // the encoded preview cache used to upgrade or revisit this slide.
   if (cancelled_ || !online_() || !allocate_download_())
     return false;
-  const auto path = std::string("/assets/") + id.data() + "/thumbnail?size=thumbnail";
+  const auto started = esp_timer_get_time();
+  const auto deadline = started + PreviewPrefetch::thumbnail_budget_us;
+  const auto staged = use_prefetch ? prefetch_.take(id, http_connection_, {encoded_, thumbnail_capacity}, deadline,
+                                                   PreviewPrefetch::Size::Thumbnail)
+                                   : std::nullopt;
   size_t length = 0;
-  if (fetch_(path, {}, thumbnail_capacity, length, esp_timer_get_time() + 650'000, false) != 200 || cancelled_)
+  if (staged) {
+    length = *staged;
+    if (!length)
+      return false;
+    if constexpr (SWIPE_TRIAL_IMMICH)
+      record_live_trial_preparation_time(TrialPreparationStage::ThumbnailPrefetchWait,
+                                         static_cast<uint32_t>(esp_timer_get_time() - started), length);
+  } else if (!cancelled_) {
+    const auto path = std::string("/assets/") + id.data() + "/thumbnail?size=thumbnail";
+    const auto status = fetch_(path, {}, thumbnail_capacity, length, deadline, false);
+    if constexpr (SWIPE_TRIAL_IMMICH)
+      record_live_trial_preparation_time(TrialPreparationStage::ThumbnailTransfer,
+                                         static_cast<uint32_t>(esp_timer_get_time() - started), length);
+    if (status != 200)
+      return false;
+  }
+  if (cancelled_)
     return false;
   const auto target = orientation == PhotoOrientation::Portrait ? PreviewTarget::PairPane : PreviewTarget::Slide;
   const PreviewLayout layout{target, feed_().display_mode, feed_().pair_display_mode()};
@@ -874,8 +895,15 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   if (preparation == Preparation::AllowThumbnail && can_stage) {
     DecodedPreview left, right;
     const auto orientation = thumbnail_pair ? PhotoOrientation::Portrait : PhotoOrientation::Landscape;
+    // Both IDs are known. Share the same background slot as full previews
+    // so the second thumbnail can load while the first transfers and decodes.
+    const bool companion_prefetched = prefetch_portrait_companion && thumbnail_pair && online_() &&
+                                      prefetch_.start(frame.companion, http_connection_, settings_.immich_url,
+                                                      settings_.immich_key, PreviewPrefetch::Size::Thumbnail);
     thumbnail = load_thumbnail_(frame.primary, left, orientation) &&
-                (!thumbnail_pair || load_thumbnail_(frame.companion, right, orientation));
+                (!thumbnail_pair || load_thumbnail_(frame.companion, right, orientation, companion_prefetched));
+    if (!thumbnail && companion_prefetched)
+      prefetch_.cancel();
     if (thumbnail) {
       composition.emplace(TrialPreparationStage::Composition);
       if (!left.render(panel, thumbnail_pair ? &right : nullptr, feed_().pair_display_mode(), settings_.screen_rotation,

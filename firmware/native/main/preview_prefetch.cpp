@@ -27,38 +27,45 @@ bool PreviewPrefetch::start_task_() {
   return complete_ && xTaskCreatePinnedToCore(run_, "preview-fetch", 6144, this, 2, &task_, xPortGetCoreID()) == pdPASS;
 }
 
-void PreviewPrefetch::start(const AssetId &id, uint32_t connection, const std::string &base_url, const std::string &key) {
-  if (!connection || slide_cancelled_ ||
-      (pending_ && !warming_ && id == id_ && connection == connection_ && !cancelled_) || !claim_slot_())
-    return;
+bool PreviewPrefetch::start(const AssetId &id, uint32_t connection, const std::string &base_url, const std::string &key,
+                            Size size) {
+  if (!connection || slide_cancelled_)
+    return false;
+  if (pending_ && !warming_ && id == id_ && connection == connection_ && size == size_ && !cancelled_)
+    return true;
+  if (!claim_slot_())
+    return false;
   if (!buffer_) {
     if (memory_retry_at_us_ && esp_timer_get_time() < memory_retry_at_us_)
-      return;
+      return false;
     // Leave room for decoding even with the first pane of a pair allocated.
     // After pressure, require an extra buffer's worth of free memory so
     // taking the staging slot back does not immediately recreate the shortage.
     constexpr size_t decode_reserve = 6 * 1024 * 1024;
     const size_t free_needed = decode_reserve + capacity + (memory_retry_at_us_ ? capacity : 0);
     if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < free_needed)
-      return;
+      return false;
     buffer_ = static_cast<uint8_t *>(heap_caps_malloc(capacity, MALLOC_CAP_SPIRAM));
     if (!buffer_)
-      return;
+      return false;
   }
   if (!start_task_()) {
     heap_caps_free(buffer_);
     buffer_ = nullptr;
-    return;
+    return false;
   }
   id_ = id;
   connection_ = connection;
-  url_ = base_url + "/assets/" + id.data() + "/thumbnail?size=preview";
+  size_ = size;
+  const bool thumbnail = size == Size::Thumbnail;
+  url_ = base_url + "/assets/" + id.data() + (thumbnail ? "/thumbnail?size=thumbnail" : "/thumbnail?size=preview");
   key_ = &key;
-  deadline_us_ = esp_timer_get_time() + ImmichHttp::transfer_budget_us;
+  deadline_us_ = esp_timer_get_time() + (thumbnail ? thumbnail_budget_us : ImmichHttp::transfer_budget_us);
   warming_ = false;
   cancelled_ = false;
   pending_ = true;
   xTaskNotifyGive(task_);
+  return true;
 }
 
 void PreviewPrefetch::warm_prepared(std::string url, uint32_t connection, const std::string &token) {
@@ -75,8 +82,8 @@ void PreviewPrefetch::warm_prepared(std::string url, uint32_t connection, const 
 }
 
 std::optional<size_t> PreviewPrefetch::take(const AssetId &id, uint32_t connection, std::span<uint8_t> destination,
-                                           int64_t deadline_us) {
-  if (!pending_ || warming_ || cancelled_)
+                                           int64_t deadline_us, Size size) {
+  if (!pending_ || warming_ || cancelled_ || size != size_)
     return {};
   if (connection != connection_) {
     cancel();
@@ -89,7 +96,7 @@ std::optional<size_t> PreviewPrefetch::take(const AssetId &id, uint32_t connecti
   const auto started = esp_timer_get_time();
   const auto wait_until = deadline_us ? std::min(deadline_us, deadline_us_) : deadline_us_;
   const auto failed = [&]() -> std::optional<size_t> {
-    if (!deadline_us && started < deadline_us_ && esp_timer_get_time() >= deadline_us_)
+    if (size == Size::Thumbnail || (!deadline_us && started < deadline_us_ && esp_timer_get_time() >= deadline_us_))
       return 0;
     return {};
   };
@@ -116,7 +123,7 @@ std::optional<size_t> PreviewPrefetch::take(const AssetId &id, uint32_t connecti
   }
   pending_ = false;
   if ((deadline_us && esp_timer_get_time() >= deadline_us) || length_ > destination.size())
-    return {};
+    return size == Size::Thumbnail ? std::optional<size_t>{0} : std::nullopt;
   if (!length_)
     return failed();
   // Keep the staging buffer smaller than the foreground download limit.
@@ -178,13 +185,17 @@ void PreviewPrefetch::run_(void *context) {
       xSemaphoreGive(self.complete_);
       continue;
     }
-    const int status = self.http_.read(self.url_, self.key_->c_str(), {}, {self.buffer_, capacity}, self.length_,
+    const bool thumbnail = self.size_ == Size::Thumbnail;
+    const size_t limit = thumbnail ? thumbnail_capacity : capacity;
+    const int status = self.http_.read(self.url_, self.key_->c_str(), {}, {self.buffer_, limit}, self.length_,
                                        self.deadline_us_);
     if (status != 200 || self.cancelled_)
       self.length_ = 0;
 #if SWIPE_TRIAL_IMMICH
-    record_live_trial_preview(status);
-    record_live_trial_preparation_time(TrialPreparationStage::PrefetchTransfer,
+    if (!thumbnail)
+      record_live_trial_preview(status);
+    record_live_trial_preparation_time(thumbnail ? TrialPreparationStage::ThumbnailPrefetchTransfer
+                                                 : TrialPreparationStage::PrefetchTransfer,
                                        static_cast<uint32_t>(esp_timer_get_time() - started), self.length_);
 #endif
     xSemaphoreGive(self.complete_);
