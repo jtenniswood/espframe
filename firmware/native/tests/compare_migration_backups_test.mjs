@@ -57,6 +57,32 @@ try {
   await writeFile(after, JSON.stringify({ version: 3, connection: { immich_url: 'http://api/api/' } }))
   assert.equal(run().status, 0)
 
+  const writePhotos = (filename, photos) => writeFile(filename, JSON.stringify({ version: 3, photos }))
+  const allPhotos = { source: 'All Photos', orientation: 'Any' }
+  await writePhotos(before, allPhotos)
+  await writePhotos(after, allPhotos)
+  assert.equal(run().status, 0)
+  await writePhotos(after, { ...allPhotos, orientation: 'Portrait Only' })
+  const restricted = run()
+  assert.equal(restricted.status, 1)
+  assert.match(restricted.stdout, /Changed settings — photo_orientation/)
+  await writePhotos(after, { source: 'All Photos' })
+  const omitted = run()
+  assert.equal(omitted.status, 1)
+  assert.match(omitted.stdout, /Missing settings — photo_orientation/)
+
+  const people = { source: 'Custom', people_enabled: true, person_ids: '11111111-1111-4111-8111-111111111111' }
+  await writePhotos(before, { ...people, person_matching: 'Any selected person', tags_enabled: false })
+  await writePhotos(after, people)
+  assert.equal(run().status, 0)
+  await writePhotos(after, {
+    ...people, person_matching: 'All selected people', tags_enabled: true,
+    tag_ids: '22222222-2222-4222-8222-222222222222',
+  })
+  const changedFilters = run()
+  assert.equal(changedFilters.status, 1)
+  assert.match(changedFilters.stdout, /Changed settings — person_matching, tag_ids, tags_enabled/)
+
   for (const target of [before, after]) await writeFile(target, '{"version":3}')
   const empty = run()
   assert.equal(empty.status, 2)

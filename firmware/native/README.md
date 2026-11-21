@@ -91,8 +91,9 @@ ESPHome backup and the new export.
 node firmware/native/tools/compare_migration_backups.mjs before.json after.json
 ```
 
-The comparison checks settings recognized by the installer and reports
-missing or changed fields by name. It exits with an error when it finds a
+The comparison checks settings recognized by the installer, including the
+filter defaults applied when restoring a photo source. It reports missing or
+changed fields by name and exits with an error when it finds a
 difference or an import notice that needs review. Use the original backup
 again to check the settings after restoring ESPHome. Verify Wi-Fi, Immich,
 and Home Assistant by confirming the frame reconnects to each after the

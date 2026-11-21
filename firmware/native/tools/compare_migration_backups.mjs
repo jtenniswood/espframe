@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { readBackup } from '../installer/backup.mjs'
+import { photoFilterDefaults } from '../installer/photo_source.mjs'
 
 async function loadBackup(filename, phase) {
   let data
@@ -16,7 +17,9 @@ async function loadBackup(filename, phase) {
 }
 
 function comparableSettings({ settings, legacyPreset }) {
-  const { firmware_updates, immich_url, ...fields } = settings
+  const { firmware_updates, immich_url, ...stored } = settings
+  // Setup applies these defaults when restoring a photo source, and backups can omit them.
+  const fields = stored.photo_source ? { ...photoFilterDefaults, ...stored } : stored
   // Native firmware stores an /api suffix even if the stock backup omits it.
   if (immich_url) {
     const base = immich_url.replace(/\/+$/, '')

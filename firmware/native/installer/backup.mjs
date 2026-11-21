@@ -252,7 +252,7 @@ export function readBackup(data) {
     // portraits always fill their halves, independently of display_mode.
     settings.portrait_pair_framing = 'Fill'
   }
-  if (own(photos, 'orientation') && photos.orientation !== 'Any') {
+  if (own(photos, 'orientation')) {
     if (photoOrientations.includes(photos.orientation)) settings.photo_orientation = photos.orientation
     else {
       settings.photo_orientation = ''

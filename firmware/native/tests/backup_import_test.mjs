@@ -34,7 +34,7 @@ for (const name of ['v1-full', 'v2-full']) {
     immich_url: 'https://photos.example.com', slide_seconds: 15, portrait_pairing: true, portrait_pairs_only: true,
     conn_timeout: '10 minutes',
     portrait_pairing_range: 'Within 2 Days', portrait_pair_framing: 'Fill',
-    display_mode: 'Fill',
+    display_mode: 'Fill', photo_orientation: 'Any',
     transition: name === 'v2-full' ? 'Cross Fade' : 'Random',
     transition_speed: name === 'v2-full' ? 'Fast' : 'Slow',
     brightness_day: 100, brightness_night: 75, screen_rotation: '0',
@@ -165,6 +165,9 @@ for (const version of [1, 2, 3]) {
     screen: { rotation: '180' } })
   assert.deepEqual(result, { settings: { photo_source: 'memories', photo_orientation: 'Portrait Only',
     screen_rotation: '180' }, chooseSource: false, notices: [] })
+  const unrestricted = readBackup({ version, photos: { source: 'All Photos', orientation: 'Any' } })
+  assert.deepEqual(unrestricted.settings, { photo_source: 'all', photo_orientation: 'Any' })
+  assert.equal(createBackup({ ...unrestricted.settings, slide_seconds: 15 }).photos.orientation, 'Any')
 }
 const invalidOrientation = readBackup({ version: 3, photos: { source: 'Album', album_ids: album, orientation: '90' } })
 assert.equal(invalidOrientation.chooseSource, false)
