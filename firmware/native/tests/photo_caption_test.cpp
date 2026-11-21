@@ -131,15 +131,19 @@ int main(int argc, char **argv) {
 
   PhotoCaptionFade fade;
   assert(fade.update(0, 1).opacity == 0);
-  assert(fade.update(999'999, 1).opacity == 0);
-  assert(fade.update(1'090'000, 1).opacity == 7);
-  assert(fade.update(1'200'000, 1).opacity == PhotoCaptionFade::opaque);
-  assert((fade.update(2'000'000, std::nullopt) == PhotoCaptionSample{1, 15}));
-  assert((fade.update(2'060'000, std::nullopt) == PhotoCaptionSample{1, 7}));
-  assert(fade.update(2'120'000, 2).opacity == 0);
-  assert(fade.update(3'119'999, 2).opacity == 0);
-  assert(fade.update(3'120'000, std::nullopt).opacity == 0);
-  assert(fade.update(3'200'000, 2).opacity == 0);
-  assert(fade.update(4'199'999, 2).opacity == 0);
-  assert((fade.update(4'380'000, 2) == PhotoCaptionSample{2, 15}));
+  assert(fade.update(249'999, 1).opacity == 0);
+  assert((fade.update(320'000, 1) == PhotoCaptionSample{1, 7}));
+  assert((fade.update(390'000, 1) == PhotoCaptionSample{1, PhotoCaptionFade::opaque}));
+
+  assert((fade.update(500'000, std::nullopt) == PhotoCaptionSample{1, PhotoCaptionFade::opaque}));
+  assert((fade.update(535'000, std::nullopt) == PhotoCaptionSample{1, 7}));
+  assert(fade.update(570'000, std::nullopt).opacity == 0);
+
+  // A new swipe before the caption appears restarts the still period.
+  assert(fade.update(600'000, 2).opacity == 0);
+  assert(fade.update(849'999, 2).opacity == 0);
+  assert(fade.update(850'000, std::nullopt).opacity == 0);
+  assert(fade.update(900'000, 2).opacity == 0);
+  assert(fade.update(1'149'999, 2).opacity == 0);
+  assert((fade.update(1'290'000, 2) == PhotoCaptionSample{2, PhotoCaptionFade::opaque}));
 }

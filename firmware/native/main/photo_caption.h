@@ -44,9 +44,9 @@ struct PhotoCaptionSample {
 class PhotoCaptionFade {
  public:
   static constexpr uint8_t opaque = 15;
-  static constexpr int64_t still_delay_us = 1'000'000;
-  static constexpr int64_t fade_in_us = 180'000;
-  static constexpr int64_t fade_out_us = 120'000;
+  static constexpr int64_t still_delay_us = 250'000;
+  static constexpr int64_t fade_in_us = 140'000;
+  static constexpr int64_t fade_out_us = 70'000;
 
   PhotoCaptionSample update(int64_t now, std::optional<SlideIndex> settled) {
     if (settled != settled_) {
