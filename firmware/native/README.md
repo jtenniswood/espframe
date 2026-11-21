@@ -183,8 +183,9 @@ The backlight light entity shows the current screen state and brightness.
 Turning it off puts the frame to sleep. Turning it on respects scheduled off-hours.
 Use **Screen: Wake** for a temporary wake during off-hours. A brightness
 change lasts until the next sleep, explicit wake, or scheduled brightness change.
-Interval changes take effect without restarting the player. Home Assistant
-shows the stock interval choices and any custom interval already selected in native settings.
+Interval changes from either the frame's web settings or Home Assistant take
+effect during playback. Home Assistant shows the current interval and the stock
+choices. It picks up a new custom choice the next time it reads the entity list.
 **Device: Language** updates display text and photo dates. **Screen: Connection Timeout**
 sets how long the frame waits for its first photo before showing a connection warning.
 Both controls use the stock entity identities and choices. Changes apply immediately
@@ -193,6 +194,7 @@ and are shared with the frame's web settings.
 photo visible and advance to the new source as soon as its first slide is ready.
 A preset uses the saved Immich IDs for that source from the frame's settings.
 The installer keeps the active preset when importing an Espframe backup.
+Changes made from the frame's web settings also update an active Home Assistant session.
 A frame without a custom name advertises its stock
 MAC-suffixed hostname when Home Assistant is enabled. The key stays on the
 frame across native OTA updates and customization resets. Use **Remove saved

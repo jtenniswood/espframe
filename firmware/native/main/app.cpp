@@ -287,7 +287,6 @@ class SlideLoader {
     } else {
       this->live_ = !esphome_trial && this->settings_.read() && this->settings_.has_immich();
       if constexpr (!esphome_trial) {
-        active_slideshow_interval.store(this->settings_.slide_seconds, std::memory_order_relaxed);
         this->settings_.publish_live_presentation();
         active_photo_preset.store(this->settings_.photo_source.preset(), std::memory_order_relaxed);
         frame_status.configure(this->live_, this->settings_.photo_source.mode);

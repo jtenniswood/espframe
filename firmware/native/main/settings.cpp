@@ -664,7 +664,8 @@ bool changes_photo_presentation(std::string_view key) {
 }
 
 bool changes_live_presentation(std::string_view key) {
-  return key == "clock_format" || key == "transition" || key == "transition_speed" || key == "conn_timeout";
+  return key == "slide_seconds" || key == "clock_format" || key == "transition" || key == "transition_speed" ||
+         key == "conn_timeout";
 }
 
 void publish_photo_feed(PhotoFeedSettings &&feed, bool selection_changed) {
@@ -1060,6 +1061,7 @@ bool Settings::save_playback(const char *json, bool *restart_required) {
 }
 
 void Settings::publish_live_presentation() const {
+  active_slideshow_interval.store(slide_seconds, std::memory_order_relaxed);
   active_clock_twelve_hour.store(clock.twelve_hour(), std::memory_order_relaxed);
   active_device_language.store(metadata.language, std::memory_order_relaxed);
   active_warm_tone_override.store(tone.night_override, std::memory_order_relaxed);

@@ -889,6 +889,19 @@ int main() {
   assert(serialized_ha && std::string_view(serialized_ha.get()).find(ha_key) == std::string_view::npos);
   assert(update_configuration(R"({"values":{"home_assistant_key":""}})").error);
 
+  const auto interval_revision = espframe::native::photo_source_revision.load();
+  const auto web_interval = update_configuration(R"({"values":{"interval":"17 seconds"}})");
+  assert(!web_interval.error && web_interval.updated == 1 && !web_interval.restart_required);
+  assert(current.read() && current.slide_seconds == 17 && active_slideshow_interval.load() == 17);
+  bool restart_for_interval = true;
+  assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","slide_seconds":20})", &restart_for_interval));
+  assert(!restart_for_interval && current.read() && current.slide_seconds == 20 && active_slideshow_interval.load() == 20);
+  fail_commit = true;
+  assert(update_configuration(R"({"values":{"interval":"30 seconds"}})").error);
+  fail_commit = false;
+  assert(current.read() && current.slide_seconds == 20 && active_slideshow_interval.load() == 20);
+  assert(espframe::native::photo_source_revision.load() == interval_revision);
+
   using espframe::native::PhotoPreset;
   using espframe::native::active_photo_preset;
   using espframe::native::photo_selection_revision;

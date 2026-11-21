@@ -127,6 +127,8 @@ int main() {
           case 's': device.rssi.store(-45); break;
           case 'p': active_device_language.store(find_espframe_language("he")); break;
           case 't': active_connection_timeout.store(900); break;
+          case 'i': active_slideshow_interval.store(23); break;
+          case 'f': active_photo_preset.store(PhotoPreset::Memories); break;
           case 'm': device.memory_sample.store(1); break;
           case 'r': device.memory_sample.store(2); break;
         }

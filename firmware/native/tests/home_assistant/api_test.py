@@ -330,6 +330,17 @@ async def verify(port, clock_input):
             clock_input.write(command)
             await clock_input.drain()
             await expect_select(states, key, value)
+        for command, key, value in ((b"i", INTERVAL_KEY, "23 seconds"), (b"f", PHOTO_SOURCE_KEY, "Memories")):
+            clock_input.write(command)  # Change playback independently of this Home Assistant session.
+            await clock_input.drain()
+            await expect_select(states, key, value)
+        _, refreshed_entities, _ = await api.device_info_and_list_entities()
+        refreshed_interval = next(entity for entity in refreshed_entities if entity.key == INTERVAL_KEY)
+        assert refreshed_interval.options == [*STOCK_INTERVALS, "23 seconds"]
+        api.select_command(INTERVAL_KEY, "23 seconds")
+        await expect_select(states, INTERVAL_KEY, "23 seconds")
+        assert isinstance(await connection.send_message_await_response(PingRequest(), PingResponse), PingResponse)
+        assert states.empty()
         api.button_command(1234)
         api.button_command(buttons[1].key, device_id=1)
         api.button_command(buttons[0].key)
@@ -375,14 +386,14 @@ async def verify(port, clock_input):
         assert (await api.device_info()).name == NAME
         _, entities, _ = await api.device_info_and_list_entities()
         interval = next(entity for entity in entities if isinstance(entity, SelectInfo))
-        assert interval.options == STOCK_INTERVALS
+        assert interval.options == [*STOCK_INTERVALS, "23 seconds"]
         states = asyncio.Queue()
         api.subscribe_states(states.put_nowait)
-        assert (await states.get()).state == "2 hours"
+        assert (await states.get()).state == "23 seconds"
         restored = await states.get()
         assert isinstance(restored, LightState) and restored.state and round(restored.brightness * 100) == 20
         source = await states.get()
-        assert isinstance(source, SelectState) and source.key == PHOTO_SOURCE_KEY and source.state == "Person"
+        assert isinstance(source, SelectState) and source.key == PHOTO_SOURCE_KEY and source.state == "Memories"
         await expect_network_states(states, 100)
         await expect_reset_reason(states, "software via esp_restart")
         await expect_select(states, LANGUAGE_KEY, "he")

@@ -452,9 +452,27 @@ bool send_select_state(NoiseSession &session, uint32_t key, std::string_view opt
   return reply.send(session, Message::SelectState);
 }
 
-struct DisplayStates {
+struct SelectStates {
+  uint32_t interval{};
+  PhotoPreset source{};
   uint8_t language{};
   uint32_t timeout{};
+
+  bool report_interval(NoiseSession &session, const EspHomeControls &controls, bool force = false) {
+    const auto current = controls.interval(controls.context);
+    if (!force && interval == current)
+      return true;
+    interval = current;
+    return send_select_state(session, interval_key, interval_label(interval));
+  }
+
+  bool report_source(NoiseSession &session, const EspHomeControls &controls, bool force = false) {
+    const auto current = controls.photo_preset(controls.context);
+    if (!force && source == current)
+      return true;
+    source = current;
+    return send_select_state(session, photo_source_key, photo_preset_name(source));
+  }
 
   bool report_language(NoiseSession &session, bool force = false) {
     const auto current = active_device_language.load(std::memory_order_relaxed);
@@ -670,12 +688,12 @@ void serve_esphome(EspHomeStream stream, const EspHomeIdentity &identity,
     stream.authenticated(stream.context);
 
   const auto initial_interval = controls.interval(controls.context);
-  const auto custom_interval = stock_interval(initial_interval) ? 0 : initial_interval;
+  auto custom_interval = stock_interval(initial_interval) ? 0 : initial_interval;
   bool subscribed = false;
   uint8_t reported_backlight{};
   std::optional<uint8_t> reported_strength;
   EspHomeMemorySample reported_memory;
-  DisplayStates display;
+  SelectStates selects;
   while (true) {
     if (subscribed && stream.poll) {
       const auto level = controls.screen.backlight();
@@ -690,7 +708,8 @@ void serve_esphome(EspHomeStream stream, const EspHomeIdentity &identity,
           return;
         reported_strength = strength;
       }
-      if (!display.report_language(session) || !display.report_timeout(session) ||
+      if (!selects.report_interval(session, controls) || !selects.report_source(session, controls) ||
+          !selects.report_language(session) || !selects.report_timeout(session) ||
           !report_memory(session, controls, reported_memory))
         return;
       const auto ready = stream.poll(stream.context);
@@ -707,18 +726,23 @@ void serve_esphome(EspHomeStream stream, const EspHomeIdentity &identity,
       case Message::Ping: sent = session.send(Message::PingResponse); break;
       case Message::DeviceInfo: sent = send_device_info(session, identity); break;
       case Message::DeviceCapabilities: sent = session.send(Message::DeviceCapabilitiesResponse); break;
-      case Message::ListEntities: sent = send_entities(session, custom_interval); break;
+      case Message::ListEntities: {
+        const auto interval = controls.interval(controls.context);
+        custom_interval = stock_interval(interval) ? 0 : interval;
+        sent = send_entities(session, custom_interval);
+        break;
+      }
       case Message::SubscribeStates:
         subscribed = true;
         reported_backlight = controls.screen.backlight();
         reported_strength = wifi_strength(controls);
-        sent = send_select_state(session, interval_key, interval_label(controls.interval(controls.context))) &&
+        sent = selects.report_interval(session, controls, true) &&
                send_backlight(session, reported_backlight) &&
-               send_select_state(session, photo_source_key, photo_preset_name(controls.photo_preset(controls.context))) &&
+               selects.report_source(session, controls, true) &&
                send_network_status(session, controls.station_address) &&
                send_sensor_state(session, wifi_strength_key, reported_strength) &&
                send_text_state(session, reset_reason_key, controls.reset_reason) &&
-               display.report_language(session, true) && display.report_timeout(session, true) &&
+               selects.report_language(session, true) && selects.report_timeout(session, true) &&
                report_memory(session, controls, reported_memory, true);
         break;
       case Message::SelectCommand:
@@ -727,27 +751,27 @@ void serve_esphome(EspHomeStream stream, const EspHomeIdentity &identity,
             if (const auto seconds = requested_interval(request->option, custom_interval)) {
               controls.set_interval(controls.context, seconds);
               if (subscribed)
-                sent = send_select_state(session, interval_key, interval_label(controls.interval(controls.context)));
+                sent = selects.report_interval(session, controls, true);
             }
           } else if (request->key == photo_source_key) {
             if (const auto preset = parse_photo_preset(request->option)) {
               controls.set_photo_preset(controls.context, *preset);
               if (subscribed)
-                sent = send_select_state(session, photo_source_key, photo_preset_name(controls.photo_preset(controls.context)));
+                sent = selects.report_source(session, controls, true);
             }
           } else if (request->key == device_language_key) {
             const auto language = find_espframe_language(request->option);
             if (language < espframe_i18n_catalogue::LANGUAGE_COUNT) {
               controls.set_device_language(controls.context, static_cast<uint8_t>(language));
               if (subscribed)
-                sent = display.report_language(session, true);
+                sent = selects.report_language(session, true);
             }
           } else if (request->key == connection_timeout_key) {
             const auto timeout = interval_seconds(request->option);
             if (valid_connection_timeout(timeout) && interval_label(timeout) == request->option) {
               controls.set_connection_timeout(controls.context, timeout);
               if (subscribed)
-                sent = display.report_timeout(session, true);
+                sent = selects.report_timeout(session, true);
             }
           }
         }
