@@ -229,6 +229,13 @@
       "upstream": "https://github.com/esphome/esp-web-tools",
       "revision": "esp-web-tools 10.5.2 with esptool-js 0.7.1 (https://github.com/espressif/esptool-js) and Material Web 2.5.0; exact dependencies and integrity hashes are recorded in package-lock.json",
       "license": "Apache-2.0 (ESP Web Tools and Material Web), MIT (esptool-js)"
+    },
+    {
+      "usage": "USB Wi-Fi recovery in the native browser installer",
+      "declarations": ["package.json", "package-lock.json", "firmware/native/installer/setup.js"],
+      "upstream": "https://github.com/improv-wifi/sdk-serial-js",
+      "revision": "3.0.0",
+      "license": "Apache-2.0"
     }
   ],
   "runtime_network_policy": {

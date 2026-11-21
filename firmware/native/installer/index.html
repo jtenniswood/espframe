@@ -247,6 +247,14 @@
       <p id="status" role="status" aria-live="polite"></p>
       <button type="button" id="find-frame" disabled>Find frame on Wi-Fi</button>
       <p id="network-status" role="status" aria-live="polite"></p>
+      <details id="repair-wifi" hidden>
+        <summary>Change Wi-Fi over USB</summary>
+        <form id="wifi-repair" method="post" autocomplete="off">
+          <label>Wi-Fi name <input name="ssid" maxlength="32" required></label>
+          <label>Wi-Fi password <input name="password" type="password" maxlength="64"></label>
+          <button type="submit" disabled>Connect to Wi-Fi</button>
+        </form>
+      </details>
     </section>
   </main>
 </body>

@@ -1,4 +1,5 @@
 import 'esp-web-tools/dist/install-button.js'
+import { ImprovSerial } from '@improv-wifi/serial-sdk/dist/serial.js'
 import { connectionTimeouts, deviceLanguageLabel, deviceLanguages, normalizeFrameName, ntpServerFields, readBackup } from './backup.mjs'
 import { addCaptureDates, addPhotoFilters, bindPhotoSource, bindPortraitPairing, photoFilterDefaults, validateAlbum } from './photo_source.mjs'
 import { configure, findFrame, waitForFrame } from './serial.mjs'
@@ -11,6 +12,9 @@ const submit = form.querySelector('button')
 const status = document.querySelector('#status')
 const find = document.querySelector('#find-frame')
 const networkStatus = document.querySelector('#network-status')
+const repairWifi = document.querySelector('#repair-wifi')
+const wifiRepairForm = document.querySelector('#wifi-repair')
+const connectWifi = wifiRepairForm.querySelector('button')
 const reuseWifi = document.querySelector('#reuse-wifi')
 const keepStockWifi = document.querySelector('#keep-stock-wifi')
 const keepStockImmich = document.querySelector('#keep-stock-immich')
@@ -188,7 +192,8 @@ revision.addEventListener('change', () => {
 
 function showFrameAddress(frame) {
   if (!frame) {
-    networkStatus.textContent = 'The frame is waiting for Wi-Fi. Check the Wi-Fi name and password if it stays offline.'
+    networkStatus.textContent = 'The frame is waiting for Wi-Fi. Use Change Wi-Fi over USB to update the connection details.'
+    repairWifi.open = true
   } else if (frame.web === 'disabled') {
     networkStatus.textContent = `Connected at ${frame.address}. Set a web settings password to open the frame’s settings.`
   } else if (frame.web === 'starting') {
@@ -198,6 +203,26 @@ function showFrameAddress(frame) {
     link.href = `http://${frame.address}/`
     link.textContent = 'Open frame settings'
     networkStatus.replaceChildren(`Connected at ${frame.address}. `, link)
+  }
+}
+
+async function provisionWifi(port, ssid, password) {
+  await port.open({ baudRate: 115200 })
+  let client
+  try {
+    // Improv debug logging can contain the raw credentials packet.
+    const quiet = () => {}
+    client = new ImprovSerial(port, { log: quiet, debug: quiet, error: quiet })
+    const info = await client.initialize(5000)
+    if (!/^Native Espframe V[123]$/.test(info?.firmware) || info.chipFamily !== 'ESP32-P4')
+      throw new Error('Select the USB port of a frame running Native Espframe.')
+    await client.provision(ssid, password, 30_000)
+  } finally {
+    try {
+      await client?.close()
+    } finally {
+      await port.close().catch(() => {})
+    }
   }
 }
 
@@ -217,13 +242,56 @@ function addPreparedSlides(data) {
 if ('serial' in navigator) {
   submit.disabled = false
   find.disabled = false
+  repairWifi.hidden = false
+  connectWifi.disabled = false
   const setSerialBusy = busy => {
     submit.disabled = busy
     find.disabled = busy
+    connectWifi.disabled = busy
     backup.disabled = busy
     revision.disabled = busy
     installButton.disabled = busy
   }
+  const networkFields = ['ssid', 'password']
+  for (const name of networkFields) {
+    const field = wifiRepairForm.elements[name]
+    field.addEventListener('input', () => field.setCustomValidity(''))
+  }
+  wifiRepairForm.addEventListener('submit', async event => {
+    event.preventDefault()
+    if (connectWifi.disabled) return
+    const encoder = new TextEncoder()
+    for (const name of networkFields) {
+      const field = wifiRepairForm.elements[name]
+      if (encoder.encode(field.value).length > field.maxLength) {
+        field.setCustomValidity(`Use up to ${field.maxLength} UTF-8 bytes.`)
+        field.reportValidity()
+        return
+      }
+    }
+    const { ssid, password } = Object.fromEntries(new FormData(wifiRepairForm))
+    setSerialBusy(true)
+    networkStatus.textContent = 'Connecting the frame to Wi-Fi…'
+    try {
+      const port = await navigator.serial.requestPort()
+      await provisionWifi(port, ssid, password)
+      wifiRepairForm.reset()
+      repairWifi.open = false
+      keepStockWifi.checked = false
+      reuseWifi.checked = true
+      refreshWifi()
+      networkStatus.textContent = 'Wi-Fi saved. Checking the frame’s address…'
+      const frame = await waitForFrame(port)
+      if (frame) showFrameAddress(frame)
+      else networkStatus.textContent = 'Wi-Fi saved. Choose Find frame on Wi-Fi to check its address again.'
+    } catch (error) {
+      networkStatus.textContent = error.name === 'NotFoundError'
+        ? 'Choose the frame’s USB port to continue.'
+        : error.message || String(error)
+    } finally {
+      setSerialBusy(false)
+    }
+  })
   find.addEventListener('click', async () => {
     setSerialBusy(true)
     networkStatus.textContent = 'Checking the frame’s Wi-Fi connection…'
@@ -310,7 +378,7 @@ if ('serial' in navigator) {
       networkStatus.textContent = 'Waiting for the frame to restart and reconnect to Wi-Fi…'
       const frame = await waitForFrame(port)
       if (frame) showFrameAddress(frame)
-      else networkStatus.textContent = 'The frame hasn’t reconnected yet. Keep it plugged in and choose Find frame on Wi-Fi to check again.'
+      else showFrameAddress(null)
     } catch (error) {
       status.textContent = error.name === 'NotFoundError' ? 'Choose the frame’s USB port to continue.' : error.message
     } finally {

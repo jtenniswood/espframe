@@ -58,6 +58,8 @@ in only the remaining settings. Select the frame's USB port to save.
 Keep the USB cable connected while the frame restarts. The installer
 shows the frame's address and an **Open frame settings** link if you set a web
 settings password. Use **Find frame on Wi-Fi** to retry the address check.
+If the frame stays offline or you change routers, open **Change Wi-Fi over USB**.
+This updates the network and keeps your saved Immich and playback settings.
 
 When upgrading an existing frame, export an Espframe settings backup from
 its web page before installation. In the native installer, choose that
