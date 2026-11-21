@@ -238,16 +238,16 @@ inline void civil_from_days(int days, int &year, int &month, int &day) {
   year += month <= 2;
 }
 
-inline std::string plural_time_ago(int value, const char *unit) {
-  if (std::strcmp(unit, "year") == 0) return espframe_i18n_count("year_ago", "years_ago", value);
-  if (std::strcmp(unit, "month") == 0) return espframe_i18n_count("month_ago", "months_ago", value);
-  if (std::strcmp(unit, "day") == 0) return espframe_i18n_count("day_ago", "days_ago", value);
+inline std::string plural_time_ago(int value, const char *unit, size_t language = espframe_language_index()) {
+  if (std::strcmp(unit, "year") == 0) return espframe_i18n_count("year_ago", "years_ago", value, language);
+  if (std::strcmp(unit, "month") == 0) return espframe_i18n_count("month_ago", "months_ago", value, language);
+  if (std::strcmp(unit, "day") == 0) return espframe_i18n_count("day_ago", "days_ago", value, language);
   if (value == 1) return std::string("1 ") + unit + " ago";
   return std::to_string(value) + " " + unit + "s ago";
 }
 
 inline std::string format_photo_age(int photo_year, int photo_month, int photo_day,
-                                    int now_year, int now_month, int now_day) {
+                                    int now_year, int now_month, int now_day, size_t language = espframe_language_index()) {
   if (!is_valid_date_parts(photo_year, photo_month, photo_day) ||
       !is_valid_date_parts(now_year, now_month, now_day)) {
     return "";
@@ -256,17 +256,17 @@ inline std::string format_photo_age(int photo_year, int photo_month, int photo_d
   int days_ago = days_from_civil(now_year, now_month, now_day) -
                  days_from_civil(photo_year, photo_month, photo_day);
   if (days_ago < 0) days_ago = 0;
-  if (days_ago == 0) return espframe_i18n_key("today");
+  if (days_ago == 0) return espframe_i18n_key("today", language);
 
   if (days_ago >= 365) {
-    return plural_time_ago((days_ago + 182) / 365, "year");
+    return plural_time_ago((days_ago + 182) / 365, "year", language);
   }
   if (days_ago >= 30) {
     int months = (days_ago + 15) / 30;
-    if (months >= 12) return espframe_i18n_key("year_ago");
-    return plural_time_ago(months, "month");
+    if (months >= 12) return espframe_i18n_key("year_ago", language);
+    return plural_time_ago(months, "month", language);
   }
-  return plural_time_ago(days_ago, "day");
+  return plural_time_ago(days_ago, "day", language);
 }
 
 inline std::string format_photo_date(int year, int month) {
@@ -275,12 +275,13 @@ inline std::string format_photo_date(int year, int month) {
   return "";
 }
 
-inline std::string format_photo_date_full(int year, int month, int day) {
+inline std::string format_photo_date_full(int year, int month, int day, size_t language = espframe_language_index()) {
   if (!is_valid_date_parts(year, month, day)) return "";
-  return std::to_string(day) + " " + std::string(espframe_i18n(MONTH_NAMES_FULL[month])) + ", " + std::to_string(year);
+  return std::to_string(day) + " " + std::string(espframe_i18n(MONTH_NAMES_FULL[month], language)) + ", " + std::to_string(year);
 }
 
-inline std::string format_photo_date_month_day_year(int year, int month, int day) {
+inline std::string format_photo_date_month_day_year(int year, int month, int day,
+                                                   size_t language = espframe_language_index()) {
   if (!is_valid_date_parts(year, month, day)) return "";
-  return std::string(espframe_i18n(MONTH_NAMES_FULL[month])) + " " + std::to_string(day) + ", " + std::to_string(year);
+  return std::string(espframe_i18n(MONTH_NAMES_FULL[month], language)) + " " + std::to_string(day) + ", " + std::to_string(year);
 }
