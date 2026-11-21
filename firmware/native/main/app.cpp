@@ -559,7 +559,6 @@ void run(void *) {
   bool clock_dirty = false;
   bool local_time_ready = false;
   bool recovery_painted = false;
-  int painted_loading_direction = 0;
   PhotoSourceStatus source_status = PhotoSourceStatus::None;
   PhotoSourceStatus painted_source_status = PhotoSourceStatus::None;
   InitialPhotoTimeout initial_photo_timeout;
@@ -838,7 +837,6 @@ void run(void *) {
     const SlideIndex first = source_anchor >= 0 ? source_anchor
                             : live && display.presented_position() >= slide_width ? first_photo : 0;
     const SlideRange available{first, slide_count - 1};
-    swipe.set_available_range(available.first, available.last);
     const auto [ready_first, ready_last] = cache.ready_range(center, available);
     if constexpr (trial_immich) {
       const auto ahead = static_cast<unsigned>(ready_last - center);
@@ -955,11 +953,11 @@ void run(void *) {
     }
 
     const SlideRange ready{ready_first, ready_last};
-    if (swipe.dragging() || (swipe.settling() && swipe.position() > ready.last * slide_width))
-      prefetch.request_at_edge(swipe.position(), ready, available);
-    else
-      prefetch.request_after_drag(swipe.waiting_slide());
-    if (const auto wanted = prefetch.requested(); wanted && cache.find(*wanted))
+    const auto edge_position = swipe.position();
+    if (swipe.dragging() || (swipe.settling() && missing_neighbor_at_edge(edge_position, ready, available)))
+      prefetch.request_at_edge(edge_position, ready, available);
+    // Keep a cache miss urgent through the snap-back and into idle.
+    if (const auto wanted = prefetch.requested(); wanted && (cache.find(*wanted) || !available.contains(*wanted)))
       prefetch.prepared(*wanted);
     const auto keep = prefetch.window(available);
     const auto active_connection = network.photo_connection();
@@ -1147,7 +1145,7 @@ void run(void *) {
     // A tap on the displayed photo is still rest. An active drag, a pending
     // neighbour, or a photo grabbed midway through a transition is not.
     std::optional<SlideIndex> settled_caption;
-    if (photo_at_rest && !swipe.dragging() && !swipe.settling() && !swipe.waiting_slide() &&
+    if (photo_at_rest && !swipe.dragging() && !swipe.settling() &&
         !fade.running() && !fade.held() && swipe.settled() > 0 &&
         position == swipe.settled() * slide_width && position == display.presented_position())
       settled_caption = swipe.settled();
@@ -1220,8 +1218,7 @@ void run(void *) {
                                        : ImmichResponse::Pending;
     const auto source_notice = show_source_notice && connection_notice == ImmichResponse::Pending
                                    ? source_status : PhotoSourceStatus::None;
-    const int loading_direction = input.awake() ? swipe.loading_direction(now) : 0;
-    const bool paints_notice = show_recovery || loading_direction || connection_notice != ImmichResponse::Pending ||
+    const bool paints_notice = show_recovery || connection_notice != ImmichResponse::Pending ||
                                source_notice != PhotoSourceStatus::None;
     const auto notice_language = paints_notice ? active_device_language.load(std::memory_order_relaxed) : uint8_t{0};
     const bool sliding = swipe.dragging() || swipe.settling();
@@ -1232,7 +1229,7 @@ void run(void *) {
       caption_sample = {};
     if (auto *output = display.writable_buffer(); output != nullptr &&
         (position != last_submitted || inside != last_inside || show_recovery != recovery_painted ||
-         loading_direction != painted_loading_direction || source_notice != painted_source_status ||
+         source_notice != painted_source_status ||
          connection_notice != painted_connection_notice || notice_language != painted_notice_language ||
          (display.borrowing() && !sliding) || (show_clock && clock_dirty) || caption_sample != last_caption)) {
       const auto index = inside / slide_width;
@@ -1306,14 +1303,11 @@ void run(void *) {
         const StatusText status_text{{status_masks, static_cast<size_t>(status_masks_end - status_masks)}, notice_language};
         if (show_recovery)
           draw_recovery_card(output, recovery_atlas, status_text, network.recovery_network(), rotation);
-        else if (loading_direction)
-          draw_loading_status(output, status_text, loading_direction, rotation);
         else if (connection_notice != ImmichResponse::Pending)
           draw_connection_notice(output, status_text, connection_notice, rotation);
         else if (source_notice != PhotoSourceStatus::None)
           draw_source_status(output, status_text, source_notice, rotation);
         recovery_painted = show_recovery;
-        painted_loading_direction = loading_direction;
         painted_source_status = source_notice;
         painted_connection_notice = connection_notice;
         painted_notice_language = notice_language;

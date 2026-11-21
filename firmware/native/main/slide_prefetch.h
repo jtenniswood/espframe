@@ -49,15 +49,8 @@ class SlidePrefetch {
 
   void request_at_edge(PixelPosition position, SlideRange ready, SlideRange available) {
     requested_ = missing_neighbor_at_edge(position, ready, available);
-    if (requested_ && *requested_ > center_)
-      direction_ = 1;
-  }
-
-  void request_after_drag(std::optional<SlideIndex> waiting_history) {
-    // Keep the first forward miss urgent through the settle and into idle.
-    // Once it is ready, the normal window refills ahead in the same direction.
-    if (waiting_history || (requested_ && *requested_ <= center_))
-      requested_ = waiting_history;
+    if (requested_)
+      direction_ = *requested_ < center_ ? -1 : 1;
   }
 
   SlideRange window(SlideRange available) const {

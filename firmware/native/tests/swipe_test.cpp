@@ -135,20 +135,20 @@ int main() {
   cold_boundary.tick(start + 600'000);
   assert(cold_boundary.settled() == 3);
 
-  Swipe previous_waiting{width, 5, 2};
-  previous_waiting.set_ready_range(2, 3);
-  previous_waiting.press(150, 300, 2 * width, start);
-  previous_waiting.move(800, 300, start + 80'000);
-  const auto resisted_previous = previous_waiting.position();
-  assert(resisted_previous < 2 * width && resisted_previous > 2 * width - 48);
-  previous_waiting.set_ready_range(1, 3);
-  previous_waiting.move(800, 300, start + 100'000);
-  assert(previous_waiting.position() == resisted_previous);
-  previous_waiting.move(835, 300, start + 110'000);
-  assert(previous_waiting.position() == resisted_previous - 35);
-  previous_waiting.release(start + 120'000);
-  previous_waiting.tick(start + 600'000);
-  assert(previous_waiting.settled() == 1);
+  Swipe older_refill{width, 5, 2};
+  older_refill.set_ready_range(2, 3);
+  older_refill.press(150, 300, 2 * width, start);
+  older_refill.move(800, 300, start + 80'000);
+  const auto resisted_previous = older_refill.position();
+  assert(resisted_previous < 2 * width && resisted_previous > 2 * width - 32);
+  older_refill.set_ready_range(1, 3);
+  older_refill.move(800, 300, start + 100'000);
+  assert(older_refill.position() == resisted_previous);
+  older_refill.move(835, 300, start + 110'000);
+  assert(older_refill.position() == resisted_previous - 35);
+  older_refill.release(start + 120'000);
+  older_refill.tick(start + 600'000);
+  assert(older_refill.settled() == 1);
 
   // A refill must not undo a committed drag even if the finger holds still
   // until its velocity expires. Exercise either edge and a short drag.
@@ -201,39 +201,40 @@ int main() {
   cancelled_refill.tick(start + 390'000);
   assert(cancelled_refill.idle() && cancelled_refill.settled() == 2);
 
-  // A forward miss resists the drag and settles back, even if its refill
-  // finishes during the return animation.
-  Swipe waiting{width, 5, 2};
-  waiting.set_ready_range(1, 2);
-  waiting.press(900, 400, 2 * width, start);
-  waiting.move(100, 400, start + 50'000);
-  assert(waiting.position() > 2 * width && waiting.position() <= 2 * width + 32);
+  // Either miss uses the same pull and snap-back. A refill during that
+  // animation becomes swipeable on the next gesture.
   constexpr int64_t released = start + 55'000;
-  waiting.release(released);
-  assert(waiting.settling() && waiting.settle_destination() == 2 && !waiting.waiting_slide());
-  waiting.tick(released + 80'000);
-  waiting.set_ready_range(1, 3);
-  waiting.tick(released + 180'000);
-  assert(waiting.idle() && waiting.settled() == 2 && waiting.loading_direction(released + 180'000) == 0);
-  waiting.press(900, 400, 2 * width, released + 200'000);
-  waiting.move(100, 400, released + 250'000);
-  waiting.release(released + 260'000);
-  waiting.tick(released + 510'000);
-  assert(waiting.idle() && waiting.settled() == 3);
-
-  Swipe expired{width, 5, 2};
-  expired.set_ready_range(2, 3);
-  expired.press(200, 400, 2 * width, start);
-  expired.move(900, 400, start + 50'000);
-  expired.release(released);
-  assert(expired.loading_direction(released + 160'000) == -1);
-  const auto deadline = released + Swipe::max_loading_wait_us;
-  expired.tick(deadline - 1);
-  assert(!expired.idle() && !expired.settling());
-  expired.set_ready_range(1, 3);
-  expired.tick(deadline);
-  expired.tick(deadline + 250'000);
-  assert(expired.idle() && expired.settled() == 2);
+  PixelPosition forward_pull{};
+  PixelPosition forward_return{};
+  for (const int direction : {1, -1}) {
+    Swipe boundary{width, 5, 2};
+    boundary.set_ready_range(direction > 0 ? 1 : 2, direction > 0 ? 2 : 3);
+    const int from = direction > 0 ? 900 : 100;
+    const int to = from - 800 * direction;
+    boundary.press(from, 400, 2 * width, start);
+    boundary.move(to, 400, start + 50'000);
+    const auto pull = (boundary.position() - 2 * width) * direction;
+    assert(pull > 0 && pull <= 32);
+    boundary.release(released);
+    assert(boundary.settling() && boundary.settle_destination() == 2);
+    boundary.tick(released + 45'000);
+    const auto returning = (boundary.position() - 2 * width) * direction;
+    assert(returning > 0 && returning < pull);
+    if (direction > 0) {
+      forward_pull = pull;
+      forward_return = returning;
+    } else {
+      assert(pull == forward_pull && returning == forward_return);
+    }
+    boundary.set_ready_range(1, 3);
+    boundary.tick(released + 180'000);
+    assert(boundary.idle() && boundary.settled() == 2);
+    boundary.press(from, 400, 2 * width, released + 200'000);
+    boundary.move(to, 400, released + 250'000);
+    boundary.release(released + 260'000);
+    boundary.tick(released + 510'000);
+    assert(boundary.idle() && boundary.settled() == 2 + direction);
+  }
 
   // A fresh touch owns the screen, even if the old neighbour loads during it.
   Swipe retake{width, 5, 2};
@@ -257,28 +258,27 @@ int main() {
     edge_grab.release(start + 120'000);
     const auto visible = edge_grab.position();
     assert((visible - 2 * width) * direction > 20);
-    assert(direction < 0 ? edge_grab.waiting_slide() == 1 : !edge_grab.waiting_slide());
+    assert(edge_grab.settling() && edge_grab.settle_destination() == 2);
 
     edge_grab.press(650, 400, visible, start + 200'000);
-    assert(edge_grab.position() == visible && !edge_grab.waiting_slide());
+    assert(edge_grab.position() == visible && !edge_grab.settling());
     edge_grab.move(650 - 32 * direction, 400, start + 310'000);
     assert((edge_grab.position() - visible) * direction > 0);
-    assert((edge_grab.position() - 2 * width) * direction < 48);
+    assert((edge_grab.position() - 2 * width) * direction <= 32);
     edge_grab.move(650 + 20 * direction, 400, start + 420'000);
     assert(edge_grab.position() == visible - 20 * direction);
     edge_grab.move(650 - 160 * direction, 400, start + 530'000);
     edge_grab.release(start + 640'000);
-    assert(direction < 0 ? edge_grab.waiting_slide() == 1 : !edge_grab.waiting_slide());
+    assert(edge_grab.settling() && edge_grab.settle_destination() == 2);
     edge_grab.set_ready_range(1, 3);
     edge_grab.tick(start + 700'000);
     edge_grab.tick(start + 930'000);
-    assert(edge_grab.idle() && edge_grab.settled() == (direction < 0 ? 1 : 2));
+    assert(edge_grab.idle() && edge_grab.settled() == 2);
   }
 
   // An evicted history position is a true end, even when the panel has pixels for a newer neighbour.
   Swipe oldest{width, 5, 2};
   oldest.set_ready_range(2, 3);
-  oldest.set_available_range(2, 4);
   oldest.press(200, 400, 2 * width, start);
   oldest.move(900, 400, start + 50'000);
   oldest.release(released);

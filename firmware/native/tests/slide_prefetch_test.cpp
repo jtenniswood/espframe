@@ -85,7 +85,6 @@ void verify_fast_forward_refill() {
   assert(!prefetch.should_stage_forward(12, one_ahead, now + 2));
 
   prefetch.request_at_edge(11 * slide_width + 1, one_ahead, available);
-  prefetch.request_after_drag(std::nullopt);
   assert(prefetch.should_stage_forward(12, one_ahead, now + 2'000'000));
   prefetch.prepared(12);
   assert(!prefetch.should_stage_forward(12, one_ahead, now + 2'000'000));
@@ -193,7 +192,6 @@ int main() {
 
   // Take over a backward move near the outer ready slide and drag beyond it.
   Swipe swipe{slide_width, 101, 10};
-  swipe.set_available_range(available.first, available.last);
   swipe.set_ready_range(8, 12);
   swipe.press(150, 200, 9 * slide_width, 5'000);
   swipe.move(151, 200, 10'000);
@@ -227,23 +225,20 @@ int main() {
   assert(requested && cache.complete(*requested, true));
   assert(cache.find(8) && cache.find(10) && cache.find(12));
   prefetch.prepared(7);
-  assert(!prefetch.requested() && prefetch.window(available).first == 8);
+  assert(!prefetch.requested() && prefetch.window(available).first == 7);
 
-  // The previous photo can finish prefetching after an intentional release.
-  const auto held_edge = swipe.position();
+  // The previous photo remains urgent while the drag snaps back and after
+  // it settles. Its arrival allows the next swipe instead of moving this one.
+  prefetch.request_at_edge(swipe.position(), {10, 12}, available);
   swipe.release(320'000);
-  prefetch.request_after_drag(swipe.waiting_slide());
+  assert(swipe.settling() && swipe.settle_destination() == 10);
   assert(prefetch.requested() == 9 && !prefetch.can_defer_settle({10, 12}, 10));
   swipe.tick(500'000);
-  assert(swipe.loading_direction(500'000) == -1 && swipe.position() == held_edge);
+  assert(swipe.idle() && swipe.settled() == 10 && prefetch.requested() == 9);
+  prefetch.prepared(9);
   swipe.set_ready_range(7, 12);
   swipe.tick(600'000);
-  assert(swipe.settling() && swipe.position() == held_edge);
-  prefetch.request_after_drag(swipe.waiting_slide());
-  assert(!prefetch.requested());
-  swipe.tick(900'000);
-  assert(swipe.idle() && swipe.settled() == 9);
-  prefetch.moved_to(swipe.settled());
+  assert(swipe.idle() && swipe.settled() == 10 && !prefetch.requested());
 
   prefetch.request_at_edge(12 * slide_width + 20, {7, 12}, available);
   assert(prefetch.requested() == 13);
@@ -265,29 +260,25 @@ int main() {
   assert(!reverse_drag.can_defer_drag({10, 11}, 10, active_drag.position(), true));
   active_drag.move(100, 200, 1'240'000);
   reverse_drag.request_at_edge(active_drag.position(), {10, 11}, available);
-  assert(!reverse_drag.requested() && reverse_drag.window(available).first == 8);
+  assert(!reverse_drag.requested());
   assert(reverse_drag.can_defer_drag({10, 11}, 10, active_drag.position(), true));
   active_drag.release(1'360'000);
-  assert(!active_drag.waiting_slide() && active_drag.settle_destination() == 11);
+  assert(active_drag.settle_destination() == 11);
 
-  active_drag.show(10);
-  active_drag.press(500, 200, 10 * slide_width, 2'000'000);
-  active_drag.move(560, 200, 2'120'000);
-  reverse_drag.request_at_edge(active_drag.position(), {10, 11}, available);
-  assert(reverse_drag.requested() == 9);
-  active_drag.release(2'240'000);
-  reverse_drag.request_after_drag(active_drag.waiting_slide());
-  assert(!reverse_drag.requested());
-
-  active_drag.show(10);
-  active_drag.press(500, 200, 10 * slide_width, 3'000'000);
-  active_drag.move(900, 200, 3'120'000);
-  active_drag.release(3'240'000);
-  reverse_drag.request_after_drag(active_drag.waiting_slide());
-  assert(reverse_drag.requested() == 9);
-  active_drag.tick(3'240'000 + Swipe::max_loading_wait_us);
-  reverse_drag.request_after_drag(active_drag.waiting_slide());
-  assert(!reverse_drag.requested() && active_drag.settle_destination() == 10);
+  // If touch reports contain a whole drag and release, the returned photo
+  // is still outside the ready range when the player starts the refill.
+  for (const int distance : {60, 400}) {
+    active_drag.show(10);
+    active_drag.press(500, 200, 10 * slide_width, 3'000'000);
+    active_drag.move(500 + distance, 200, 3'120'000);
+    active_drag.release(3'240'000);
+    assert(active_drag.settling());
+    reverse_drag.request_at_edge(active_drag.position(), {10, 11}, available);
+    assert(reverse_drag.requested() == 9);
+    active_drag.tick(3'430'000);
+    assert(active_drag.idle() && active_drag.settled() == 10 && reverse_drag.requested() == 9);
+    reverse_drag.prepared(9);
+  }
 
   // Pulling at the forward edge changes the priority, even after a rewind.
   SlidePrefetch forward_edge{11};
@@ -295,15 +286,12 @@ int main() {
   const SlideRange cold_edge{8, 10};
   forward_edge.request_at_edge(10 * slide_width + 20, cold_edge, available);
   assert(forward_edge.requested() == 11 && forward_edge.can_yield(8, 11));
-  forward_edge.request_after_drag({});
   assert(forward_edge.requested() == 11 && !forward_edge.can_defer_settle(cold_edge, 10));
   const auto forward_order = forward_edge.candidates(forward_edge.window(available));
   assert(forward_order[1] == 11 && forward_order[2] == 11 && forward_order[3] == 12);
   forward_edge.prepared(11);
-  forward_edge.request_after_drag({});
   assert(!forward_edge.requested() && forward_edge.can_defer_drag({8, 11}, 10, right_pull, true));
   forward_edge.request_at_edge(10 * slide_width + 20, cold_edge, {8, 10});
-  forward_edge.request_after_drag({});
   assert(!forward_edge.requested());
 
   // A reversal shifts the refill window, but the ready photos beyond it

@@ -13,11 +13,8 @@ class Swipe {
  public:
   enum class Transition { Quick, Glide };
   enum class DragActivity { Still, Starting, Moving };
-  static constexpr int64_t max_loading_wait_us = 750'000;
-
   Swipe(int width, SlideIndex slide_count, SlideIndex initial_slide)
-      : width_(width), ready_last_(slide_count - 1), available_last_(slide_count - 1),
-        settled_(initial_slide), target_(initial_slide) {}
+      : width_(width), ready_last_(slide_count - 1), settled_(initial_slide), target_(initial_slide) {}
 
   PixelPosition position() const {
     return this->settled_ * this->width_ + static_cast<PixelPosition>(std::floor(this->offset_ + 0.5f));
@@ -33,10 +30,6 @@ class Swipe {
   }
   bool settling() const { return this->phase_ == Phase::Settling; }
   SlideIndex settle_destination() const { return this->settling() ? this->target_ : this->settled_; }
-  std::optional<SlideIndex> waiting_slide() const {
-    return this->phase_ == Phase::WaitingForSlide ? std::optional{this->loading_slide_} : std::nullopt;
-  }
-
   SlideRange retain_for_motion(SlideRange keep, PixelPosition presented) const {
     const auto include_slide = [&](SlideIndex slide) {
       keep.include(std::clamp(slide, this->ready_first_, this->ready_last_));
@@ -61,22 +54,8 @@ class Swipe {
       include_slide(this->resume_);
     } else {
       include_slide(this->target_);
-      if (this->phase_ == Phase::WaitingForSlide)
-        include_slide(this->loading_slide_);
     }
     return keep;
-  }
-
-  int loading_direction(int64_t now_us) const {
-    constexpr int64_t feedback_delay_us = 160'000;
-    if (this->phase_ != Phase::WaitingForSlide || now_us - this->released_us_ < feedback_delay_us)
-      return 0;
-    return this->loading_slide_ > this->target_ ? 1 : -1;
-  }
-
-  void set_available_range(SlideIndex first, SlideIndex last) {
-    this->available_first_ = first;
-    this->available_last_ = last;
   }
 
   void set_ready_range(SlideIndex first, SlideIndex last) {
@@ -209,23 +188,12 @@ class Swipe {
     };
     // Keep the original drag distance when a ready neighbor rebased the
     // visible drag and the release still points toward the same edge.
-    const float drawn = this->unresisted_offset_();
-    const float raw_projection = this->release_offset_.value_or(drawn) + momentum;
+    const float raw_projection = this->release_offset_.value_or(this->unresisted_offset_()) + momentum;
     const bool track_original = this->release_offset_ && (projected - center) * (raw_projection - center) > 0.0f;
     const auto destination = std::clamp(this->origin_slide_ + direction(track_original ? raw_projection : projected),
                                         this->minimum_slide_(), this->maximum_slide_());
-    // Only a missing history slide can hold a release for a short refill.
-    // A forward cache edge settles back to the last ready photo.
-    const auto intended = this->origin_slide_ + direction(track_original ? raw_projection : drawn + momentum);
-    if (this->available_(intended) && intended < this->ready_first_ &&
-        drawn < this->slide_offset_(this->ready_first_)) {
-      this->released_us_ = now_us;
-      this->loading_slide_ = intended;
-      this->target_ = this->origin_slide_;
-      this->transition_ = Transition::Quick;
-      this->phase_ = Phase::WaitingForSlide;
-      return;
-    }
+    // The release commits to a ready slide. A later refill can be used by
+    // another gesture while this one finishes its snap-back.
     this->settle_to_(destination, now_us, Transition::Quick);
   }
 
@@ -250,15 +218,6 @@ class Swipe {
   }
 
   void tick(int64_t now_us) {
-    if (this->phase_ == Phase::WaitingForSlide) {
-      const bool expired = now_us - this->released_us_ >= max_loading_wait_us;
-      if (expired || !this->available_(this->loading_slide_)) {
-        this->settle_to_(this->target_, now_us, Transition::Quick);
-      } else if (this->loading_slide_ >= this->ready_first_ && this->loading_slide_ <= this->ready_last_) {
-        this->settle_to_(this->loading_slide_, now_us, Transition::Quick);
-      }
-      return;
-    }
     if (this->phase_ != Phase::Settling)
       return;
 
@@ -278,7 +237,7 @@ class Swipe {
   }
 
  private:
-  enum class Phase { Idle, Tracking, Ignored, Dragging, WaitingForSlide, Settling };
+  enum class Phase { Idle, Tracking, Ignored, Dragging, Settling };
   static constexpr int64_t default_glide_duration_us = 640'000;
   static constexpr int straight_drag_distance = 8;
   static constexpr int flick_distance = 16;
@@ -295,7 +254,7 @@ class Swipe {
     // further movement beyond the visible anchor uses the remaining pull.
     if (std::abs(pull) <= std::abs(anchor))
       return position;
-    const float limit = this->width_ * (pull > 0.0f ? 0.025f : 0.0375f);
+    const float limit = this->width_ * 0.025f;
     const float travel = pull - anchor;
     const float remaining = std::max(0.0f, limit - std::abs(anchor));
     return edge + anchor + travel * remaining / (std::abs(travel) + limit * 3.0f);
@@ -303,7 +262,6 @@ class Swipe {
 
   SlideIndex minimum_slide_() const { return std::max(this->ready_first_, this->origin_slide_ - 1); }
   SlideIndex maximum_slide_() const { return std::min(this->ready_last_, this->origin_slide_ + 1); }
-  bool available_(SlideIndex slide) const { return slide >= this->available_first_ && slide <= this->available_last_; }
 
   void finish_settle_() {
     this->settled_ = this->target_;
@@ -333,8 +291,6 @@ class Swipe {
   int width_;
   SlideIndex ready_first_{};
   SlideIndex ready_last_;
-  SlideIndex available_first_{};
-  SlideIndex available_last_;
   float offset_{};
   SlideIndex settled_;
   SlideIndex target_;
@@ -359,8 +315,6 @@ class Swipe {
   float duration_us_{};
   float glide_duration_us_{default_glide_duration_us};
   int64_t settle_us_{};
-  SlideIndex loading_slide_{};
-  int64_t released_us_{};
 };
 
 }  // namespace espframe::native

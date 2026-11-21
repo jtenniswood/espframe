@@ -62,17 +62,6 @@ int main(int argc, char **argv) {
     assert(std::count(normal.begin(), normal.end(), photo) <= pixel_count - 396 * 60);
   }
 
-  for (const int direction : {-1, 1}) {
-    std::fill(normal.begin(), normal.end(), photo);
-    std::fill(inverted.begin(), inverted.end(), photo);
-    draw_loading_status(normal.data(), english, direction, ScreenRotation::Normal);
-    draw_loading_status(inverted.data(), english, direction, ScreenRotation::UpsideDown);
-    assert(std::equal(normal.begin(), normal.end(), inverted.rbegin()));
-    assert(std::count(normal.begin(), normal.end(), photo) == pixel_count - 244 * 52);
-    const auto point = panel_offset(direction < 0 ? 44 : slide_width - 44 - 244, 44, ScreenRotation::Normal);
-    assert(normal[point] != photo);
-  }
-
   std::fill(normal.begin(), normal.end(), photo);
   draw_connection_notice(normal.data(), english, ImmichResponse::Rejected, ScreenRotation::Normal);
   const auto english_warning = normal;
@@ -92,9 +81,6 @@ int main(int argc, char **argv) {
     });
     verify_notice([&](uint16_t *frame, ScreenRotation rotation) {
       draw_connection_notice(frame, localized, ImmichResponse::Unreachable, rotation);
-    });
-    verify_notice([&](uint16_t *frame, ScreenRotation rotation) {
-      draw_loading_status(frame, localized, 1, rotation);
     });
     for (const auto status : notices) {
       verify_notice([&](uint16_t *frame, ScreenRotation rotation) {

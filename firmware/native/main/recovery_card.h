@@ -18,6 +18,5 @@ void draw_recovery_card(uint16_t *frame, const uint8_t *atlas, StatusText text, 
                         ScreenRotation rotation);
 void draw_source_status(uint16_t *frame, StatusText text, PhotoSourceStatus status, ScreenRotation rotation);
 void draw_connection_notice(uint16_t *frame, StatusText text, ImmichResponse response, ScreenRotation rotation);
-void draw_loading_status(uint16_t *frame, StatusText text, int direction, ScreenRotation rotation);
 
 }  // namespace espframe::native

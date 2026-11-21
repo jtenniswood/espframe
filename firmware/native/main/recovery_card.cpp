@@ -179,17 +179,4 @@ void draw_connection_notice(uint16_t *frame, StatusText text, ImmichResponse res
                 rotation);
 }
 
-void draw_loading_status(uint16_t *frame, StatusText text, int direction, ScreenRotation rotation) {
-  constexpr int margin = 44;
-  constexpr int inset = 16;
-  constexpr int height = 52;
-  constexpr int top = slide_height - margin - height;
-  const auto message = line(text, StatusLabel::loading_photo);
-  const int width = std::max(244, message.width + 2 * inset);
-  const int left = direction < 0 ? margin : slide_width - margin - width;
-  card(frame, rotation, left, top, width, height);
-  const int x = rtl(text) ? left + width - inset - message.width : left + inset;
-  localized_text(frame, message, rotation, x, top + 8, white);
-}
-
 }  // namespace espframe::native

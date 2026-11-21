@@ -712,13 +712,11 @@ reset, then confirm the original frame reconnects and retains its settings.
 4. Check the first and last scenes. Dragging beyond a ready boundary should
    move the photo slightly with resistance, keep the screen filled, and ease
    back when released. When a neighbor becomes ready mid-drag, continuing the
-   gesture should move from its current position without a jump. Forward
-   swipes released at an unready edge settle back immediately while the
-   player prioritizes the next photo. Swipe forward again once it is ready.
-   A decisive backward swipe into older history can wait up to 750 ms for
-   the photo, with a loading label after a brief delay. A new touch takes
-   over immediately. Try both directions on a slow connection, including a
-   drag back to an older cached preview while a new photo is downloading.
+   gesture should move from its current position without a jump. Releasing
+   at either unready edge settles back immediately while the player
+   prioritizes the missing photo. Swipe again once it is ready. Try both
+   directions on a slow connection, including a drag back to an older
+   cached preview while a new photo is downloading.
 5. Record high-frame-rate video for touch-to-visible motion and pacing.
    Use the USB trace below to measure from the first moving touch report to
    the LCD DMA handoff, with cached neighbours and during background work.
