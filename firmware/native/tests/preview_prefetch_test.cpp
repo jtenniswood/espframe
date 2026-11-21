@@ -287,10 +287,18 @@ int main() {
   assert(requests == before_thumbnails + 3 && buffer[0] == 's');
 
   reply = 200;
-  reply_delay_us = PreviewPrefetch::thumbnail_budget_us + 1;
+  reply_delay_us = 2 * PreviewPrefetch::thumbnail_budget_us + 1;
   assert(prefetch.start(asset('u'), 2, base_url, key, thumbnail));
   const auto thumbnail_started = now_us;
-  assert(prefetch.take(asset('u'), 2, buffer, now_us + 2 * PreviewPrefetch::thumbnail_budget_us, thumbnail) == 0);
-  assert(now_us - thumbnail_started == PreviewPrefetch::thumbnail_budget_us);
+  assert(prefetch.take(asset('u'), 2, buffer, now_us + 3 * PreviewPrefetch::thumbnail_budget_us, thumbnail) == 0);
+  assert(now_us - thumbnail_started == 2 * PreviewPrefetch::thumbnail_budget_us);
+
+  assert(prefetch.start(asset('v'), 2, base_url, key, thumbnail));
+  hold_download = true;
+  const auto thumbnail_needed = now_us;
+  assert(prefetch.take(asset('v'), 2, buffer, now_us + PreviewPrefetch::thumbnail_budget_us, thumbnail) == 0);
+  assert(now_us - thumbnail_needed == PreviewPrefetch::thumbnail_budget_us);
+  hold_download = false;
+  service_download();
   prefetch.release_on_memory_pressure();
 }

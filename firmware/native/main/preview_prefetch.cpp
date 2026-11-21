@@ -60,7 +60,9 @@ bool PreviewPrefetch::start(const AssetId &id, uint32_t connection, const std::s
   const bool thumbnail = size == Size::Thumbnail;
   url_ = base_url + "/assets/" + id.data() + (thumbnail ? "/thumbnail?size=thumbnail" : "/thumbnail?size=preview");
   key_ = &key;
-  deadline_us_ = esp_timer_get_time() + (thumbnail ? thumbnail_budget_us : ImmichHttp::transfer_budget_us);
+  // The companion can use the primary's transfer time as well as its own.
+  // Once needed, take() still limits the foreground wait to one request budget.
+  deadline_us_ = esp_timer_get_time() + (thumbnail ? 2 * thumbnail_budget_us : ImmichHttp::transfer_budget_us);
   warming_ = false;
   cancelled_ = false;
   pending_ = true;
