@@ -106,7 +106,8 @@ def test_10inch_installer_requires_a_version_and_probes_manifests_independently(
     assert "Use the table to choose **Hardware version** below" not in install_guide
     assert "What your display reports" not in install_guide
     assert "Initial USB installation and OTA updates have not yet been tested" not in install_guide
-    assert '<esp-web-install-button v-if="selectedDevice"' in installer
+    assert '<esp-web-install-button v-if="selectedManifest" :manifest="selectedManifest.url">' in installer
+    assert 'loadedManifest.value?.source === manifestSource.value' in installer
 
     for revision in ("v1", "v2", "v3"):
         guide = ROOT / f"docs/screens/jc8012p4a1-{revision}.md"
