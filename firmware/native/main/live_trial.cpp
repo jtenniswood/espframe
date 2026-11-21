@@ -187,7 +187,7 @@ esp_err_t benchmark_status(httpd_req_t *request) {
 #else
   constexpr char linked_report[] = "";
 #endif
-  constexpr size_t report_capacity = 3000;
+  constexpr size_t report_capacity = 3200;
   const std::unique_ptr<char[]> body{new (std::nothrow) char[report_capacity]};
   if (!body)
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not allocate swipe report");
@@ -212,6 +212,8 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 ",\"settle_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"in_range_settle_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"resisted_settle_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
+                ",\"landing_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
+                ",\"approach_gaps\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"in_range_drag_updates\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"resisted_drag_updates\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_limit\":%" PRIu32 "}"
                 ",\"drag_handoff_delay\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_250_us\":%" PRIu32 "}}",
@@ -237,6 +239,8 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 result.settle_gaps.count, result.settle_gaps.worst_us, result.settle_gaps.over_limit,
                 result.in_range_settle_gaps.count, result.in_range_settle_gaps.worst_us, result.in_range_settle_gaps.over_limit,
                 result.resisted_settle_gaps.count, result.resisted_settle_gaps.worst_us, result.resisted_settle_gaps.over_limit,
+                result.landing_gaps.count, result.landing_gaps.worst_us, result.landing_gaps.over_limit,
+                result.approach_gaps.count, result.approach_gaps.worst_us, result.approach_gaps.over_limit,
                 result.in_range_drag_updates.count, result.in_range_drag_updates.worst_us, result.in_range_drag_updates.over_limit,
                 result.resisted_drag_updates.count, result.resisted_drag_updates.worst_us, result.resisted_drag_updates.over_limit,
                 result.drag_handoff_delay.count, result.drag_handoff_delay.worst_us, result.drag_handoff_delay.over_limit);

@@ -233,7 +233,7 @@ int main() {
   timing.frame(106'000, {1, MotionPhase::Drag, false, true}, period, 30, 82'000);
   timing.frame(128'000, {2, MotionPhase::Drag, false}, period, 30, 104'000);  // New gesture.
   timing.frame(160'000, {3, MotionPhase::Settle, false}, period, 2'000, 132'000);
-  timing.frame(176'000, {3, MotionPhase::Settle, false}, period, 25, 0);
+  timing.frame(176'000, {3, MotionPhase::Settle, false, false, true}, period, 25, 0);
   timing.frame(208'000, {3, MotionPhase::Settle, true, true}, period, 25, 0);
   timing.frame(232'000, {3, MotionPhase::Settle, true, true}, period, 25, 0);
   // A later release may use the same phase but belongs to a new gesture.
@@ -263,6 +263,8 @@ int main() {
          stats.in_range_settle_gaps.over_limit == 0);
   assert(stats.resisted_settle_gaps.count == 1 && stats.resisted_settle_gaps.worst_us == 24'000 &&
          stats.resisted_settle_gaps.over_limit == 0);
+  assert(stats.landing_gaps.count == 1 && stats.landing_gaps.worst_us == 16'000 && stats.landing_gaps.over_limit == 0);
+  assert(stats.approach_gaps.count == 2 && stats.approach_gaps.worst_us == 32'000 && stats.approach_gaps.over_limit == 1);
   assert(stats.drag_handoff_delay.count == 6 && stats.drag_handoff_delay.worst_us == 990 &&
          stats.drag_handoff_delay.over_limit == 2);
   assert(stats.in_range_drag_updates.count == 3 && stats.in_range_drag_updates.worst_us == 25'000 &&

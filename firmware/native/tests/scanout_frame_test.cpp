@@ -88,7 +88,7 @@ void verify_cached(const std::vector<uint8_t> &atlas, const std::vector<uint16_t
       ClockOverlay clock;
       prepare_clock(clock, atlas, rotation, show_clock, format);
       for (int offset = 0; offset < panel_height; ++offset) {
-        const auto photos = orient_slide_span(left.data(), right.data(), panel_height, offset, rotation);
+        const auto photos = orient_slide_span(left.data(), offset == 0 ? nullptr : right.data(), panel_height, offset, rotation);
         blit_slides(reference.data(), photos.first, photos.second, panel_width, panel_height, photos.offset);
         clock.draw(reference.data());
         std::fill(owned.begin(), owned.end(), 0xf81f);

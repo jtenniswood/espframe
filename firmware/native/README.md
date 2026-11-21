@@ -639,7 +639,9 @@ each drag frame's LCD DMA handoff, including the number of waits over 250 µs.
 `resisted_drag_gaps` measures movement outside that range. A gap spanning
 both paths is included in the overall count. `settle_gaps` measures the snap-back
 or landing animation after release. The `in_range_settle_gaps` and
-`resisted_settle_gaps` fields distinguish those same two paths.
+`resisted_settle_gaps` fields distinguish those same two paths. `landing_gaps`
+measures the interval ending at the destination, and `approach_gaps` measures
+earlier intervals in that animation.
 `in_range_drag_updates` and `resisted_drag_updates` measure from when the
 renderer first sees a new pixel
 position to the handoff that satisfies it. They omit intervals when a hold or

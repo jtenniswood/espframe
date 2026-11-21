@@ -15,6 +15,7 @@ struct MotionStamp {
   MotionPhase phase{MotionPhase::Still};
   bool preparing{};
   bool resisted{};
+  bool landing{};
 };
 
 class MotionEpoch {

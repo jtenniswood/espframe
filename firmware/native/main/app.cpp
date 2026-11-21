@@ -601,8 +601,11 @@ void run(void *) {
         detail_submitted = detail_to_submit;
       detail_to_submit.reset();
     }
-    if constexpr (capture_motion)
+    if constexpr (capture_motion) {
       submitted_stamp = moving ? motion_epoch.stamp(preparing >= 0, resisted) : MotionStamp{};
+      submitted_stamp.landing = submitted_stamp.phase == MotionPhase::Settle &&
+                                position == swipe.settle_destination() * slide_width;
+    }
     if constexpr (trial_immich)
       submitted_drag_demand_us = submitted_stamp.phase == MotionPhase::Drag ? drag_demand.take() : 0;
     return true;
@@ -1242,8 +1245,13 @@ void run(void *) {
 #if SWIPE_LINKED_SCANOUT
         std::optional<ScanoutFrame> segmented;
         int64_t segment_started{};
-        if (linked_scanout_ok && sliding && input.awake() && snapshot == nullptr && !fade.held() &&
-            !paints_notice && (use_edge || offset != 0)) {
+        // Present the destination promptly. Once it is stationary, the
+        // ordinary owned submission releases the source after its handoff.
+        const bool landing = !use_edge && offset == 0 && position != last_submitted &&
+                             position == swipe.settle_destination() * slide_width &&
+                             (swipe.settling() || (swipe.idle() && display.borrowing()));
+        if (linked_scanout_ok && input.awake() && snapshot == nullptr && !fade.held() && !paints_notice &&
+            ((sliding && (use_edge || offset != 0)) || landing)) {
           segment_started = esp_timer_get_time();
           const auto copy_rows = [&](auto *to, const auto *from, int rows) { blitter.copy_panel_rows(to, from, rows); };
           const bool paint_clock = show_clock && clock.visible();
@@ -1281,7 +1289,7 @@ void run(void *) {
         if (segmented) {
           segmented->prepare_us = static_cast<uint32_t>(esp_timer_get_time() - segment_started);
           submitted = submit_frame(position, position != last_submitted, use_edge, &*segmented,
-                                   SlideRange{index, use_edge ? index : index + 1});
+                                   SlideRange{index, (use_edge || offset == 0) ? index : index + 1});
           if (!submitted) {
             linked_scanout_ok = false;
             render_owned();

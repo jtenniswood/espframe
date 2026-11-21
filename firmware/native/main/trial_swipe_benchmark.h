@@ -49,6 +49,8 @@ class TrialSwipeMetrics {
     Timing settle_gaps;
     Timing in_range_settle_gaps;
     Timing resisted_settle_gaps;
+    Timing landing_gaps;
+    Timing approach_gaps;
   };
 
   const Results &results() const { return results_; }
@@ -105,6 +107,8 @@ class TrialSwipeMetrics {
         stamp.epoch == previous_stamp_.epoch) {
       const auto elapsed = static_cast<uint32_t>(now - previous_frame_us_);
       results_.settle_gaps.add(elapsed, gap_limit);
+      auto &stage_gaps = stamp.landing ? results_.landing_gaps : results_.approach_gaps;
+      stage_gaps.add(elapsed, gap_limit);
       if (stamp.resisted == previous_stamp_.resisted) {
         auto &path_gaps = stamp.resisted ? results_.resisted_settle_gaps : results_.in_range_settle_gaps;
         path_gaps.add(elapsed, gap_limit);
