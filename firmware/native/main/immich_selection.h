@@ -24,6 +24,10 @@ struct ImmichPhoto {
   bool may_match_orientation(PhotoOrientation orientation) const {
     return !orientation_known || matches_photo_orientation(orientation, portrait);
   }
+
+  bool can_stage_unpaired(PhotoOrientation orientation, bool pairs_portraits) const {
+    return orientation_known && may_match_orientation(orientation) && (!portrait || !pairs_portraits);
+  }
 };
 
 inline constexpr size_t photo_search_batch = 16;

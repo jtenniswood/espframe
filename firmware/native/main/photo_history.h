@@ -1,6 +1,7 @@
 #pragma once
 
 #include "photo_metadata.h"
+#include "photo_orientation.h"
 #include "slide_geometry.h"
 
 #include <algorithm>
@@ -14,6 +15,7 @@ struct PhotoSlide {
   AssetId primary{};
   AssetId companion{};
   PhotoMetadata metadata{};
+  PhotoOrientation thumbnail_orientation{PhotoOrientation::Any};
 };
 
 // Keep recent Immich IDs, while the slide cache separately owns decoded pixels.

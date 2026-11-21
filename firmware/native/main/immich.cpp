@@ -607,8 +607,8 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
                                                                               : PreviewStatus::Retry;
 }
 
-bool ImmichSource::load_thumbnail_(const AssetId &id, DecodedPreview &preview, PhotoOrientation orientation,
-                                  bool use_prefetch) {
+bool ImmichSource::load_thumbnail_(const AssetId &id, DecodedPreview &preview, PreviewTarget target,
+                                  PhotoOrientation orientation, bool use_prefetch) {
   constexpr auto thumbnail_capacity = PreviewPrefetch::thumbnail_capacity;
   // Thumbnails are transient pixels. A separate request size must not seed
   // the encoded preview cache used to upgrade or revisit this slide.
@@ -638,7 +638,6 @@ bool ImmichSource::load_thumbnail_(const AssetId &id, DecodedPreview &preview, P
   }
   if (cancelled_)
     return false;
-  const auto target = orientation == PhotoOrientation::Portrait ? PreviewTarget::PairPane : PreviewTarget::Slide;
   const PreviewLayout layout{target, feed_().display_mode, feed_().pair_display_mode()};
   return preview.decode(encoded_, length, layout, nullptr, checkpoint_, orientation) ==
          DecodedPreview::Result::Ready;
@@ -886,22 +885,23 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   bool thumbnail = false;
   const bool thumbnail_pair = seed.portrait && frame.companion[0] != '\0';
   // The all-pairs replay is a fixed comparison. The adaptive player can
-  // also stage a known landscape, which does not need a companion lookup.
-  const bool thumbnail_landscape = !seed.portrait && frame.companion[0] == '\0' &&
-                                   (!trial_replay_staged_detail || SWIPE_TRIAL_REPLAY_EDGE_DETAIL) &&
-                                   feed_().photo_orientation != PhotoOrientation::Portrait;
+  // stage single photos whose layout needs no companion lookup.
+  const bool thumbnail_single = frame.companion[0] == '\0' && (!trial_replay_staged_detail || SWIPE_TRIAL_REPLAY_EDGE_DETAIL) &&
+                                  seed.can_stage_unpaired(feed_().photo_orientation, feed_().pairs_portraits());
   const bool can_stage = new_position && !remembered && seed.orientation_known &&
-                         (thumbnail_pair || thumbnail_landscape) && !settings_.has_prepared_slides();
+                         (thumbnail_pair || thumbnail_single) && !settings_.has_prepared_slides();
+  const auto thumbnail_orientation = seed.portrait ? PhotoOrientation::Portrait : PhotoOrientation::Landscape;
   if (preparation == Preparation::AllowThumbnail && can_stage) {
     DecodedPreview left, right;
-    const auto orientation = thumbnail_pair ? PhotoOrientation::Portrait : PhotoOrientation::Landscape;
+    const auto target = thumbnail_pair ? PreviewTarget::PairPane : PreviewTarget::Slide;
     // Both IDs are known. Share the same background slot as full previews
     // so the second thumbnail can load while the first transfers and decodes.
     const bool companion_prefetched = prefetch_portrait_companion && thumbnail_pair && online_() &&
                                       prefetch_.start(frame.companion, http_connection_, settings_.immich_url,
                                                       settings_.immich_key, PreviewPrefetch::Size::Thumbnail);
-    thumbnail = load_thumbnail_(frame.primary, left, orientation) &&
-                (!thumbnail_pair || load_thumbnail_(frame.companion, right, orientation, companion_prefetched));
+    thumbnail = load_thumbnail_(frame.primary, left, target, thumbnail_orientation) &&
+                (!thumbnail_pair || load_thumbnail_(frame.companion, right, PreviewTarget::PairPane,
+                                                     thumbnail_orientation, companion_prefetched));
     if (!thumbnail && companion_prefetched)
       prefetch_.cancel();
     if (thumbnail) {
@@ -948,7 +948,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     if (status == PreviewStatus::Missing && prepared_pending && unavailable_.contains(frame.primary, esp_timer_get_time()))
       return retry_frame();
     if (status == PreviewStatus::Missing || (preserve_pair && reframing_pair && !primary.portrait()) ||
-        (refining && !reframing_pair && primary.portrait()))
+        (refining && !reframing_pair && !matches_photo_orientation(frame.thumbnail_orientation, primary.portrait())))
       return reject_candidate(frame.primary);
 
     // Optional pairing leaves the first preview on the fast path.
@@ -1031,6 +1031,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   if (this->cancelled_)
     return retry_frame();
   presentation.thumbnail = thumbnail;
+  frame.thumbnail_orientation = thumbnail ? thumbnail_orientation : PhotoOrientation::Any;
   presentation.thumbnail_pair = thumbnail && paired;
   presentation.caption_time = captions.needs_time() && !local && frame.metadata.capture_day.has_value();
   presentation.caption_details = this->needs_caption_details_(frame.metadata);

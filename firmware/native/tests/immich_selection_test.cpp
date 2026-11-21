@@ -89,6 +89,10 @@ int main() {
   assert(!only_pairs(wider_pair, 1) && only_pairs(wider_pair, 2) == 1);
   assert(!photos[5].metadata.capture_day && !is_portrait_companion(primary, photos[5]));
   assert(primary.orientation_known && photos[2].orientation_known && photos[3].orientation_known);
+  assert(primary.can_stage_unpaired(PhotoOrientation::Portrait, false));
+  assert(!primary.can_stage_unpaired(PhotoOrientation::Landscape, false));
+  assert(!primary.can_stage_unpaired(PhotoOrientation::Any, true));
+  assert(photos[3].can_stage_unpaired(PhotoOrientation::Any, true));
   assert(can_start_portrait_pair(primary));
   assert(!can_start_portrait_pair(photos[3]));
   assert(!can_start_portrait_pair(photos[5]));
@@ -114,7 +118,8 @@ int main() {
   assert(uncertain.size() == 3);
   for (const auto &photo : uncertain)
     assert(!photo.orientation_known && can_start_portrait_pair(photo) &&
-           photo.may_match_orientation(PhotoOrientation::Portrait) && photo.may_match_orientation(PhotoOrientation::Landscape));
+           photo.may_match_orientation(PhotoOrientation::Portrait) && photo.may_match_orientation(PhotoOrientation::Landscape) &&
+           !photo.can_stage_unpaired(PhotoOrientation::Any, false));
   assert(!only_pairs(uncertain));
   auto undated_preview = uncertain.front();
   undated_preview.metadata.capture_day.reset();
