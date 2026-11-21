@@ -221,6 +221,9 @@ int main() {
   timing.gesture(50'001, {0, 0, 7'000, {CacheRead::Miss}, true, 3'000});
   timing.gesture(15'000, {0, 0, 6'000, {CacheRead::Edge}, false, 0});
   timing.blit(true);
+  timing.drag_stage(true);
+  timing.drag_stage(false);
+  timing.drag_stage(true);
   timing.blit(false);
   timing.blit(true);
   timing.split_blit(13'000, false);
@@ -237,6 +240,7 @@ int main() {
   assert(stats.dma_copies == 2 && stats.cpu_copies == 1 && stats.worst_composition_us == 8'000);
   assert(stats.split_blits == 2 && stats.batched_split_blits == 1 && stats.worst_split_blit_us == 14'000 &&
          stats.total_split_blit_us == 27'000);
+  assert(stats.staged_drag_submitted == 2 && stats.staged_drag_dropped == 1);
   assert(stats.worst_before_submit_us == 7'000 && stats.worst_submit_us == 3'000);
   assert(stats.first_motion.count == 4 && stats.first_motion.worst_us == 50'001 && stats.first_motion.over_limit == 1);
   assert(stats.cache_miss_motion.count == 1 && stats.cache_miss_motion.worst_us == 50'001);

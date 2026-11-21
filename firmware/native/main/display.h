@@ -3,6 +3,7 @@
 #include "frame_slots.h"
 #include "slide_geometry.h"
 
+#include <array>
 #include <cstdint>
 #include <optional>
 
@@ -25,7 +26,8 @@ class Display {
   // from that frame so taking over doesn't visibly undo the pending swap.
   PixelPosition handoff_position() const { return slots_.queued() ? pending_position_ : position_; }
   uint16_t *writable_buffer();
-  void submit(PixelPosition position);
+  uint16_t *spare_buffer();
+  void submit(const uint16_t *pixels, PixelPosition position);
   bool can_pin_frame() const { return slots_.can_pin(); }
   const uint16_t *pin_handoff();
   void unpin() { slots_.unpin(); }
@@ -34,7 +36,7 @@ class Display {
   static bool frame_done_(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *event, void *context);
 
   esp_lcd_panel_handle_t panel_{};
-  uint16_t *buffers_[3]{};
+  std::array<uint16_t *, FrameSlots::none> buffers_{};
   FrameSlots slots_;
   TaskHandle_t renderer_{};
   portMUX_TYPE boundary_lock_ = portMUX_INITIALIZER_UNLOCKED;

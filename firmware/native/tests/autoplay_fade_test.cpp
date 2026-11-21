@@ -48,6 +48,7 @@ int main() {
   assert(double_buffer.writable() == 1);
   double_buffer.submit(1);
   assert(double_buffer.writable() == FrameSlots::none);
+  assert(double_buffer.spare() == FrameSlots::none);
   double_buffer.latch();
   assert(double_buffer.writable() == 0);
 
@@ -72,4 +73,18 @@ int main() {
   assert(triple_buffer.writable() == 2);
   triple_buffer.unpin();
   assert(triple_buffer.writable() == 0);
+
+  FrameSlots staged{3};
+  staged.submit(1);
+  const auto scratch = staged.spare();
+  assert(scratch == 2 && !staged.can_submit(scratch));
+  staged.latch();
+  assert(staged.writable() == 0 && staged.can_submit(scratch));
+  assert(!staged.can_submit(1) && !staged.can_submit(FrameSlots::none));
+  assert(staged.pin() == 1);
+  staged.submit(scratch);
+  staged.latch();
+  assert(!staged.can_submit(1) && !staged.can_submit(scratch));
+  staged.submit(staged.writable());
+  assert(staged.spare() == FrameSlots::none);
 }

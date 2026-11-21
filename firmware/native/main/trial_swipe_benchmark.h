@@ -31,6 +31,8 @@ class TrialSwipeMetrics {
     uint32_t worst_submit_us{};
     uint32_t split_blits{};
     uint32_t batched_split_blits{};
+    uint32_t staged_drag_submitted{};
+    uint32_t staged_drag_dropped{};
     uint32_t worst_split_blit_us{};
     uint64_t total_split_blit_us{};
     Timing first_motion;
@@ -68,6 +70,8 @@ class TrialSwipeMetrics {
   }
 
   void blit(bool dma) { ++(dma ? results_.dma_copies : results_.cpu_copies); }
+
+  void drag_stage(bool submitted) { ++(submitted ? results_.staged_drag_submitted : results_.staged_drag_dropped); }
 
   void split_blit(uint32_t elapsed_us, bool batched) {
     ++results_.split_blits;

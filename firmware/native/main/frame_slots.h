@@ -12,15 +12,17 @@ class FrameSlots {
   bool can_pin() const { return count_ == 3; }
   bool queued() const { return pending_ != none; }
 
-  unsigned writable() const {
-    if (!queued()) {
-      for (unsigned index = 0; index < count_; ++index) {
-        if (index != front_ && index != pinned_)
-          return index;
-      }
+  unsigned writable() const { return queued() ? none : spare(); }
+
+  unsigned spare() const {
+    for (unsigned index = 0; index < count_; ++index) {
+      if (is_spare_(index))
+        return index;
     }
     return none;
   }
+
+  bool can_submit(unsigned index) const { return !queued() && is_spare_(index); }
 
   void submit(unsigned index) { pending_ = index; }
 
@@ -39,6 +41,10 @@ class FrameSlots {
   void unpin() { pinned_ = none; }
 
  private:
+  bool is_spare_(unsigned index) const {
+    return index < count_ && index != front_ && index != pending_ && index != pinned_;
+  }
+
   unsigned count_;
   unsigned front_{};
   unsigned pending_{none};

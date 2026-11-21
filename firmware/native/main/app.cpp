@@ -583,8 +583,8 @@ void run(void *) {
     trace.start(Display::nominal_frame_period_us());
   if constexpr (!esphome_trial || trial_immich)
     loader.start_network();
-  const auto submit_frame = [&](PixelPosition position, bool moving = true, bool resisted = false) {
-    display.submit(position);
+  const auto submit_frame = [&](const uint16_t *output, PixelPosition position, bool moving = true, bool resisted = false) {
+    display.submit(output, position);
     if constexpr (trial_detail_metrics) {
       if (detail_to_submit && position == detail_to_submit->slide * slide_width)
         detail_submitted = detail_to_submit;
@@ -600,7 +600,7 @@ void run(void *) {
     clock_dirty = false;
     if constexpr (capture_motion)
       motion_epoch.update(MotionPhase::Crossfade);
-    submit_frame(fade.anchor() * slide_width);
+    submit_frame(output, fade.anchor() * slide_width);
     recovery_painted = false;
     painted_source_status = PhotoSourceStatus::None;
     painted_connection_notice = ImmichResponse::Pending;
@@ -622,24 +622,7 @@ void run(void *) {
   const auto drag_start_guard_us = 6 * refresh_period_us;
   const auto edge_drag_guard_us = 4 * refresh_period_us;
 
-  while (true) {
-    auto now = esp_timer_get_time();
-    bool local_time_became_ready = false;
-    if ((use_local_time || !esphome_trial) && local_time_configured && now >= next_clock_poll) {
-      const auto local = local_clock_time(std::time(nullptr));
-      local_time_became_ready = local && !local_time_ready;
-      local_time_ready = local.has_value();
-      if (use_local_time) {
-        clock.set_twelve_hour(loader.twelve_hour_clock());
-        clock_dirty |= clock.update(local);
-        local_hour = local ? std::optional<int>{local->tm_hour} : std::nullopt;
-        const uint8_t scheduled_brightness = daylight.is_day(local) ? day_level : night_level;
-        if (scheduled_brightness != brightness)
-          manual_brightness.reset();
-        brightness = scheduled_brightness;
-      }
-      next_clock_poll = now + 250'000;
-    }
+  const auto poll_display = [&](int64_t now) {
     if (const auto scanout = display.poll_presented()) {
       if constexpr (trial_replay_touch) {
         const auto presented = display.presented_position();
@@ -690,7 +673,30 @@ void run(void *) {
       }
       if constexpr (trace_enabled)
         trace.frame(*scanout, submitted_stamp);
+      return true;
     }
+    return false;
+  };
+
+  while (true) {
+    auto now = esp_timer_get_time();
+    bool local_time_became_ready = false;
+    if ((use_local_time || !esphome_trial) && local_time_configured && now >= next_clock_poll) {
+      const auto local = local_clock_time(std::time(nullptr));
+      local_time_became_ready = local && !local_time_ready;
+      local_time_ready = local.has_value();
+      if (use_local_time) {
+        clock.set_twelve_hour(loader.twelve_hour_clock());
+        clock_dirty |= clock.update(local);
+        local_hour = local ? std::optional<int>{local->tm_hour} : std::nullopt;
+        const uint8_t scheduled_brightness = daylight.is_day(local) ? day_level : night_level;
+        if (scheduled_brightness != brightness)
+          manual_brightness.reset();
+        brightness = scheduled_brightness;
+      }
+      next_clock_poll = now + 250'000;
+    }
+    poll_display(now);
 
     const auto center = swipe.settled();
     const auto requested_revision = esphome_trial ? 0 : photo_source_revision.load(std::memory_order_acquire);
@@ -1124,7 +1130,7 @@ void run(void *) {
             clock_dirty = false;
             swipe.show(fade.target());
             last_submitted = last_inside = swipe.position();
-            submit_frame(last_submitted);
+            submit_frame(output, last_submitted);
             recovery_painted = false;
             painted_source_status = PhotoSourceStatus::None;
             painted_connection_notice = ImmichResponse::Pending;
@@ -1178,7 +1184,12 @@ void run(void *) {
     const bool paints_notice = show_recovery || loading_direction || connection_notice != ImmichResponse::Pending ||
                                source_notice != PhotoSourceStatus::None;
     const auto notice_language = paints_notice ? active_device_language.load(std::memory_order_relaxed) : uint8_t{0};
-    if (auto *output = display.writable_buffer(); output != nullptr &&
+    auto *output = display.writable_buffer();
+    const bool stage_drag = output == nullptr && swipe.dragging() && !use_edge && snapshot == nullptr &&
+                            position != last_submitted && inside % slide_width != 0;
+    if (stage_drag)
+      output = display.spare_buffer();
+    if (output != nullptr &&
         (position != last_submitted || inside != last_inside || show_recovery != recovery_painted ||
          loading_direction != painted_loading_direction || source_notice != painted_source_status ||
          connection_notice != painted_connection_notice || notice_language != painted_notice_language ||
@@ -1191,8 +1202,7 @@ void run(void *) {
       const auto *left = slide_pixels(index);
       const auto *right = offset == 0 ? nullptr : slide_pixels(index + 1);
       if (left != nullptr && (offset == 0 || right != nullptr)) {
-        const auto motion = input.take_first_motion();
-        const auto started_render = motion != 0 ? esp_timer_get_time() : 0;
+        const auto started_render = esp_timer_get_time();
         if (use_edge) {
           constexpr auto limit = PixelPosition{slide_width - 1};
           const int logical_pull = static_cast<int>(std::clamp(position - inside, -limit, limit));
@@ -1218,6 +1228,22 @@ void run(void *) {
           if (span.offset != 0 && span.second == snapshot)
             clock.restore_rows(output, 0, panel_height - span.offset, span.offset);
         }
+        if (stage_drag) {
+          // Only pixels in the spare buffer have changed. Keep the previous
+          // frame's metadata and buffers until the panel releases its old front.
+          auto checked_at = esp_timer_get_time();
+          bool latched = poll_display(checked_at);
+          while (!latched && checked_at - started_render < refresh_period_us) {
+            display.wait_for_frame_or_tick();
+            checked_at = esp_timer_get_time();
+            latched = poll_display(checked_at);
+          }
+          if constexpr (trial_immich)
+            record_live_trial_drag_stage(latched);
+          if (!latched)
+            continue;
+        }
+        const auto motion = input.take_first_motion();
         if (show_clock) {
           clock.draw(output);
           clock_dirty = false;
@@ -1237,7 +1263,7 @@ void run(void *) {
         painted_connection_notice = connection_notice;
         painted_notice_language = notice_language;
         const auto started_submit = trial_immich && motion != 0 ? esp_timer_get_time() : 0;
-        submit_frame(position, position != last_submitted, use_edge);
+        submit_frame(output, position, position != last_submitted, use_edge);
         submitted_motion_us = motion;
         motion_render_us = motion != 0 ? esp_timer_get_time() - started_render : 0;
         if constexpr (capture_motion) {

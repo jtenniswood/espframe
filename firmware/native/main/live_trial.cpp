@@ -177,6 +177,7 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 ",\"dma_burst_bytes\":%u,\"dma_copies\":%" PRIu32 ",\"cpu_copies\":%" PRIu32
                 ",\"split_blits\":{\"count\":%" PRIu32 ",\"batched\":%" PRIu32 ",\"total_us\":%" PRIu64
                 ",\"worst_us\":%" PRIu32 "}"
+                ",\"staged_drag_frames\":{\"submitted\":%" PRIu32 ",\"dropped\":%" PRIu32 "}"
                 ",\"frame_period_us\":%u,\"drag_gap_limit_us\":%u"
                 ",\"first_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
                 ",\"cache_miss_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
@@ -198,6 +199,7 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 FrameBlitter::burst_bytes, result.dma_copies, result.cpu_copies,
                 result.split_blits, result.batched_split_blits, result.total_split_blit_us,
                 result.worst_split_blit_us,
+                result.staged_drag_submitted, result.staged_drag_dropped,
                 period, period + period / 2,
                 result.first_motion.count, result.first_motion.worst_us, result.first_motion.over_limit,
                 result.cache_miss_motion.count, result.cache_miss_motion.worst_us, result.cache_miss_motion.over_limit,
@@ -601,6 +603,12 @@ void record_live_trial_frame(int64_t latched_us, MotionStamp stamp, uint32_t per
 void record_live_trial_blit(bool dma) {
   portENTER_CRITICAL(&swipe_lock);
   metrics.blit(dma);
+  portEXIT_CRITICAL(&swipe_lock);
+}
+
+void record_live_trial_drag_stage(bool submitted) {
+  portENTER_CRITICAL(&swipe_lock);
+  metrics.drag_stage(submitted);
   portEXIT_CRITICAL(&swipe_lock);
 }
 

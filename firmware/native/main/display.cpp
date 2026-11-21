@@ -9,6 +9,8 @@
 #include "freertos/FreeRTOS.h"
 #include "sdkconfig.h"
 
+#include <algorithm>
+
 #if defined(CONFIG_ESP32P4_SELECTS_REV_LESS_V3) != SWIPE_EARLY_P4
 #error "Use a fresh build directory for each SWIPE_BOARD silicon profile"
 #endif
@@ -181,15 +183,21 @@ uint16_t *Display::writable_buffer() {
   return index == FrameSlots::none ? nullptr : this->buffers_[index];
 }
 
+uint16_t *Display::spare_buffer() {
+  const auto index = this->slots_.spare();
+  return index == FrameSlots::none ? nullptr : this->buffers_[index];
+}
+
 const uint16_t *Display::pin_handoff() {
   const auto index = this->slots_.pin();
   return index == FrameSlots::none ? nullptr : this->buffers_[index];
 }
 
-void Display::submit(PixelPosition position) {
-  const auto index = this->slots_.writable();
-  ESP_ERROR_CHECK(index == FrameSlots::none ? ESP_ERR_INVALID_STATE : ESP_OK);
-  ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(this->panel_, 0, 0, panel_width, panel_height, this->buffers_[index]));
+void Display::submit(const uint16_t *pixels, PixelPosition position) {
+  const auto found = std::find(this->buffers_.begin(), this->buffers_.end(), pixels);
+  const auto index = static_cast<unsigned>(found - this->buffers_.begin());
+  ESP_ERROR_CHECK(pixels != nullptr && this->slots_.can_submit(index) ? ESP_OK : ESP_ERR_INVALID_STATE);
+  ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(this->panel_, 0, 0, panel_width, panel_height, pixels));
   // Observe a boundary after the submission so the old front buffer cannot
   // be reused while the panel could still be scanning it.
   portENTER_CRITICAL(&this->boundary_lock_);

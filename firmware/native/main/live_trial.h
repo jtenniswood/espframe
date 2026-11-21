@@ -65,6 +65,7 @@ void record_live_trial_drag_outcome(TrialDragOutcome outcome);
 void record_live_trial_frame(int64_t latched_us, MotionStamp stamp, uint32_t period_us, uint32_t handoff_delay_us,
                              int64_t demand_us);
 void record_live_trial_blit(bool dma);
+void record_live_trial_drag_stage(bool submitted);
 void record_live_trial_split_blit(uint32_t elapsed_us, bool batched);
 
 #if SWIPE_TRIAL_BENCHMARK
