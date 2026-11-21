@@ -452,17 +452,18 @@ function disclosureElement(tagName, className = "") {
   };
 }
 const disclosureContext = {
-  el: disclosureElement,
+  module: { exports: {} },
   document: { createElement: disclosureElement },
 };
-const disclosureSource = liveHelpersSource.slice(
-  liveHelpersSource.indexOf("  var controlId = 0;"),
-  liveHelpersSource.indexOf("  function makeBackupCard()")
+const disclosureSource = fs.readFileSync(path.join(root, "docs/webserver/src/shared_controls.ts"), "utf8");
+require("vm").runInNewContext(
+  require("esbuild").transformSync(disclosureSource, { loader: "ts", format: "cjs" }).code,
+  disclosureContext
 );
-require("vm").runInNewContext(require("esbuild").transformSync(disclosureSource, { loader: "ts" }).code, disclosureContext);
+const { makeCollapsibleCard } = disclosureContext.module.exports;
 const disclosureIds = new Set();
 for (const initiallyCollapsed of [true, false]) {
-  const card = disclosureContext.makeCollapsibleCard("Settings", disclosureElement("div"), initiallyCollapsed);
+  const card = makeCollapsibleCard("Settings", disclosureElement("div"), initiallyCollapsed);
   const [header, body] = card.children;
   const toggle = header.children[0].children[0];
   const chevron = header.children[1].children[0];

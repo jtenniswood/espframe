@@ -1,0 +1,68 @@
+import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { createBackup, readBackup } from '../installer/backup.mjs'
+
+const cli = fileURLToPath(new URL('../tools/compare_migration_backups.mjs', import.meta.url))
+const oldBackup = JSON.parse(await readFile(
+  new URL('../../../tests/fixtures/backup/espframe-config-v2-full.json', import.meta.url), 'utf8'))
+oldBackup.photos.source = 'Person'
+oldBackup.connection.api_key = 'older-private-api-key'
+const { settings, legacyPreset } = readBackup(oldBackup)
+const nativeBackup = createBackup({
+  ...settings,
+  immich_url: `${settings.immich_url}/api`,
+  legacy_photo_preset: legacyPreset,
+  device_language: 'en',
+})
+
+const workspace = await mkdtemp(join(tmpdir(), 'espframe-compare-backups-'))
+try {
+  const before = join(workspace, 'before.json')
+  const after = join(workspace, 'after.json')
+  const run = () => spawnSync(process.execPath, [cli, before, after], { encoding: 'utf8' })
+  await writeFile(before, JSON.stringify(oldBackup))
+  await writeFile(after, JSON.stringify(nativeBackup))
+  const matched = run()
+  assert.equal(matched.status, 0, matched.stdout + matched.stderr)
+  assert.match(matched.stdout, /Matched (\d+) of \1 recognized settings/)
+
+  delete nativeBackup.clock.ntp_servers
+  delete nativeBackup.firmware_updates.wifi_auto_update
+  nativeBackup.photos.portrait_pair_framing = 'Fit'
+  nativeBackup.photos.source = 'Custom'
+  nativeBackup.connection.immich_url = 'https://different-private-origin.test'
+  await writeFile(after, JSON.stringify(nativeBackup))
+  const mismatch = run()
+  assert.equal(mismatch.status, 1)
+  assert.match(mismatch.stdout, /Missing settings — firmware_updates\.wifi_auto_update, legacy_photo_preset, ntp_server_1, ntp_server_2, ntp_server_3/)
+  assert.match(mismatch.stdout, /Changed settings — immich_url, portrait_pair_framing/)
+  assert.doesNotMatch(mismatch.stdout + mismatch.stderr, /older-private-api-key|different-private-origin/)
+
+  await writeFile(after, JSON.stringify({ ...oldBackup, photos: { source: 'Custom' } }))
+  const review = run()
+  assert.equal(review.status, 1)
+  assert.match(review.stdout, /After backup — Review the photo filters/)
+
+  await writeFile(after, '{"connection":"private-syntax-error"')
+  const invalid = run()
+  assert.equal(invalid.status, 2)
+  assert.match(invalid.stderr, /Could not read the after backup as JSON/)
+  assert.doesNotMatch(invalid.stdout + invalid.stderr, /private-syntax-error/)
+
+  await writeFile(before, JSON.stringify({ version: 3, connection: { immich_url: 'http://api' } }))
+  await writeFile(after, JSON.stringify({ version: 3, connection: { immich_url: 'http://api/api/' } }))
+  assert.equal(run().status, 0)
+
+  for (const target of [before, after]) await writeFile(target, '{"version":3}')
+  const empty = run()
+  assert.equal(empty.status, 2)
+  assert.match(empty.stderr, /no recognized settings to compare/)
+} finally {
+  await rm(workspace, { recursive: true, force: true })
+}
+
+console.log('Migration backup comparison detects missing or changed settings without showing their values')
