@@ -621,9 +621,12 @@ void run(void *) {
   const auto drag_moving_window_us = 3 * refresh_period_us;
   const auto drag_start_guard_us = 6 * refresh_period_us;
   const auto edge_drag_guard_us = 4 * refresh_period_us;
+  constexpr int64_t drag_overlap_lead_us = 3'000;
+  int64_t last_panel_handoff_us{};
 
   const auto poll_display = [&](int64_t now) {
     if (const auto scanout = display.poll_presented()) {
+      last_panel_handoff_us = *scanout;
       if constexpr (trial_replay_touch) {
         const auto presented = display.presented_position();
         if (presented % slide_width == 0)
@@ -1185,10 +1188,17 @@ void run(void *) {
                                source_notice != PhotoSourceStatus::None;
     const auto notice_language = paints_notice ? active_device_language.load(std::memory_order_relaxed) : uint8_t{0};
     auto *output = display.writable_buffer();
-    const bool stage_drag = output == nullptr && swipe.dragging() && !use_edge && snapshot == nullptr &&
-                            position != last_submitted && inside % slide_width != 0;
-    if (stage_drag)
-      output = display.spare_buffer();
+    bool stage_drag = false;
+    if (output == nullptr && swipe.dragging() && !use_edge && snapshot == nullptr &&
+        position != last_submitted && inside % slide_width != 0) {
+      const auto since_handoff = esp_timer_get_time() - last_panel_handoff_us;
+      // Keep draining touch reports until the panel is near its next handoff.
+      // Rendering earlier displays an older finger position at the same time.
+      if (since_handoff >= refresh_period_us - drag_overlap_lead_us && since_handoff < refresh_period_us) {
+        output = display.spare_buffer();
+        stage_drag = output != nullptr;
+      }
+    }
     if (output != nullptr &&
         (position != last_submitted || inside != last_inside || show_recovery != recovery_painted ||
          loading_direction != painted_loading_direction || source_notice != painted_source_status ||
