@@ -2,6 +2,9 @@
 
 #include "frame_slots.h"
 #include "slide_geometry.h"
+#if SWIPE_LINKED_SCANOUT
+#include "scanout_frame.h"
+#endif
 
 #include <cstdint>
 #include <optional>
@@ -11,6 +14,8 @@
 #include "freertos/task.h"
 
 namespace espframe::native {
+
+struct ScanoutFrame;
 
 class Display {
  public:
@@ -25,7 +30,21 @@ class Display {
   // from that frame so taking over doesn't visibly undo the pending swap.
   PixelPosition handoff_position() const { return slots_.queued() ? pending_position_ : position_; }
   uint16_t *writable_buffer();
-  void submit(PixelPosition position);
+  bool submit(PixelPosition position, const ScanoutFrame *frame = nullptr, std::optional<SlideRange> sources = {});
+  bool borrowing() const {
+#if SWIPE_LINKED_SCANOUT
+    return sources_.active();
+#else
+    return false;
+#endif
+  }
+  SlideRange retain_sources(SlideRange range) const {
+#if SWIPE_LINKED_SCANOUT
+    return sources_.retain(range);
+#else
+    return range;
+#endif
+  }
   bool can_pin_frame() const { return slots_.can_pin(); }
   const uint16_t *pin_handoff();
   void unpin() { slots_.unpin(); }
@@ -39,7 +58,12 @@ class Display {
   TaskHandle_t renderer_{};
   portMUX_TYPE boundary_lock_ = portMUX_INITIALIZER_UNLOCKED;
   int64_t latched_us_{};
+#if SWIPE_LINKED_SCANOUT
+  unsigned awaiting_index_{FrameSlots::none};
+  ScanoutSources sources_;
+#else
   bool awaiting_latch_{};
+#endif
   PixelPosition pending_position_{};
   PixelPosition position_{-1};
 };

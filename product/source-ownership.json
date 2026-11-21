@@ -161,6 +161,13 @@
   ],
   "external_build_assets": [
     {
+      "usage": "Optional Guition V1 linked display scanout. The build compiles a patched copy of the DPI driver with multiple linked row spans, verified buffer handoffs, and trial counters.",
+      "declarations": ["firmware/native/tools/linked_dpi.cmake", "firmware/native/tools/esp-idf-v6.1.1-linked-dpi.patch", "firmware/native/tools/ESP-IDF-LICENSE"],
+      "upstream": "https://github.com/espressif/esp-idf/tree/v6.1.1/components/esp_lcd/dsi",
+      "revision": "ESP-IDF v6.1.1, 051e4c4eb20346e043cdd47bc388fde75ff8af63",
+      "license": "Apache-2.0"
+    },
+    {
       "usage": "Native Guition Wi-Fi over the board's ESP32-C6 coprocessor",
       "declarations": ["firmware/native/main/idf_component.yml", "firmware/native/dependencies.lock"],
       "upstream": "https://github.com/espressif/esp-hosted-mcu",

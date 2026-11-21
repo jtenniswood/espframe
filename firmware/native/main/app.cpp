@@ -27,6 +27,7 @@
 #include "usb_setup.h"
 
 #include "driver/jpeg_decode.h"
+#include "esp_cache.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_random.h"
@@ -62,6 +63,7 @@ constexpr bool esphome_trial = SWIPE_ESPHOME_TRIAL;
 constexpr bool trial_immich = SWIPE_TRIAL_IMMICH;
 constexpr bool track_physical_drags = trial_immich && !SWIPE_TRIAL_BENCHMARK;
 constexpr bool capture_motion = trace_enabled || trial_immich;
+constexpr bool linked_scanout = SWIPE_LINKED_SCANOUT;
 constexpr bool trial_fixtures = SWIPE_TRIAL_BENCHMARK_FIXTURES;
 extern const uint8_t clock_atlas[] asm("_binary_clock_glyphs_bin_start");
 extern const uint8_t recovery_atlas[] asm("_binary_recovery_glyphs_bin_start");
@@ -446,6 +448,13 @@ class SlideLoader {
         else if (loader.rotation() == ScreenRotation::UpsideDown)
           std::reverse(lease.pixels, lease.pixels + pixel_count);
       }
+      // The worker owns every pixel until it publishes the lease. Sync it
+      // here so scanout can borrow immutable rows without a per-frame flush.
+      if constexpr (linked_scanout) {
+        if (result == Result::Ready &&
+            esp_cache_msync(lease.pixels, pixel_count * sizeof(*lease.pixels), ESP_CACHE_MSYNC_FLAG_DIR_C2M) != ESP_OK)
+          result = Result::Retry;
+      }
       const Completion completion{lease, loader.source_.first_slide(), loader.source_.next_slide(), connection,
                                   loader.source_.source_status(), loader.source_.response(), result,
                                   result != Result::Ready && loader.cancelled_.load(), source_ready,
@@ -555,6 +564,7 @@ void run(void *) {
   bool backlight_ready = false;
   bool showed_photo = false;
   bool user_motion = false;
+  [[maybe_unused]] bool linked_scanout_ok = linked_scanout;
   // Slide zero is the startup scene, so only negative indices mean no job.
   SlideIndex preparing = -1;
   static TraceLogger trace;
@@ -582,8 +592,10 @@ void run(void *) {
     trace.start(Display::nominal_frame_period_us());
   if constexpr (!esphome_trial || trial_immich)
     loader.start_network();
-  const auto submit_frame = [&](PixelPosition position, bool moving = true, bool resisted = false) {
-    display.submit(position);
+  const auto submit_frame = [&](PixelPosition position, bool moving = true, bool resisted = false,
+                                const ScanoutFrame *frame = nullptr, std::optional<SlideRange> sources = {}) {
+    if (!display.submit(position, frame, sources))
+      return false;
     if constexpr (trial_detail_metrics) {
       if (detail_to_submit && position == detail_to_submit->slide * slide_width)
         detail_submitted = detail_to_submit;
@@ -593,6 +605,7 @@ void run(void *) {
       submitted_stamp = moving ? motion_epoch.stamp(preparing >= 0, resisted) : MotionStamp{};
     if constexpr (trial_immich)
       submitted_drag_demand_us = submitted_stamp.phase == MotionPhase::Drag ? drag_demand.take() : 0;
+    return true;
   };
   const auto submit_autoplay_frame = [&](uint16_t *output, uint8_t progress) {
     clock.draw(output, true);
@@ -694,7 +707,8 @@ void run(void *) {
     const auto center = swipe.settled();
     const auto requested_revision = esphome_trial ? 0 : photo_source_revision.load(std::memory_order_acquire);
     const bool at_source_handoff = swipe.idle() && !input.engaged() && !fade.running() && !fade.held() &&
-                                   !blend.pending() && display.presented_position() == center * slide_width;
+                                   !blend.pending() && !display.borrowing() &&
+                                   display.presented_position() == center * slide_width;
     const bool discard_refresh = preparing_refresh && (loader.yield_requested() || requested_revision != source_revision);
     bool refresh_waiting_captions = local_time_became_ready;
     SlideLoader::Completion completion{};
@@ -985,6 +999,7 @@ void run(void *) {
       const auto retained_during_motion = swipe.retain_for_motion(keep, display.handoff_position());
       const auto submit = [&](SlideIndex candidate, SlideRange retained, bool refresh,
                               Preparation preparation = Preparation::FullPreview) {
+        retained = display.retain_sources(retained);
         const auto lease = cache.reserve(candidate, retained.first, retained.last, refresh);
         if (!lease)
           return false;
@@ -1040,7 +1055,7 @@ void run(void *) {
     swipe.tick(now);
     auto position = swipe.position();
     const bool visible_and_idle = backlight_ready && input.awake() && !input.engaged() && swipe.idle() &&
-                                  position == display.presented_position();
+                                  !display.borrowing() && position == display.presented_position();
     if constexpr (track_physical_drags) {
       if (visible_and_idle)
         record_landing();
@@ -1187,7 +1202,7 @@ void run(void *) {
         (position != last_submitted || inside != last_inside || show_recovery != recovery_painted ||
          loading_direction != painted_loading_direction || source_notice != painted_source_status ||
          connection_notice != painted_connection_notice || notice_language != painted_notice_language ||
-         (show_clock && clock_dirty))) {
+         (display.borrowing() && !swipe.dragging()) || (show_clock && clock_dirty))) {
       const auto index = inside / slide_width;
       const int offset = inside % slide_width;
       const auto slide_pixels = [&](SlideIndex slide) {
@@ -1198,38 +1213,49 @@ void run(void *) {
       if (left != nullptr && (offset == 0 || right != nullptr)) {
         const auto motion = input.take_first_motion();
         const auto started_render = motion != 0 ? esp_timer_get_time() : 0;
-        if (use_edge) {
-          constexpr auto limit = PixelPosition{slide_width - 1};
-          const int logical_pull = static_cast<int>(std::clamp(position - inside, -limit, limit));
-          const int pull = logical_pull * axis_direction(rotation);
-          // Protect bulk copies at the start of an edge drag. Give the
-          // urgent refill time to work between copies and after that window.
-          const bool pause_for_copy = live && !trial_fixtures && preparing >= 0 && !pixel_work_deferred &&
-                                      position != last_submitted &&
-                                      swipe.drag_activity(now, drag_moving_window_us, edge_drag_guard_us) ==
-                                          Swipe::DragActivity::Starting;
-          if (pause_for_copy)
-            loader.defer_pixel_work(true);
-          blitter.edge(output, left, pull);
-          if (pause_for_copy)
-            loader.defer_pixel_work(false);
-          if (left == snapshot)
-            clock.restore_rows(output, std::max(0, pull), std::max(0, -pull), panel_height - std::abs(pull));
-        } else {
-          const auto span = orient_slide_span(left, right, panel_height, offset, rotation);
-          // Give the worker the gaps between frame copies when only one
-          // forward photo is ready and the first drag frame has landed.
-          const bool pause_for_copy = protect_cached_copy && preparing >= 0 && position != last_submitted;
-          if (pause_for_copy)
-            loader.defer_pixel_work(true);
-          blitter.slides(output, span);
-          if (pause_for_copy)
-            loader.defer_pixel_work(false);
-          if (span.first == snapshot)
-            clock.restore_rows(output, span.offset, 0, panel_height - span.offset);
-          if (span.offset != 0 && span.second == snapshot)
-            clock.restore_rows(output, 0, panel_height - span.offset, span.offset);
+        constexpr auto limit = PixelPosition{slide_width - 1};
+        const int pull = static_cast<int>(std::clamp(position - inside, -limit, limit)) * axis_direction(rotation);
+        const auto span = orient_slide_span(left, right, panel_height, offset, rotation);
+        const auto render_owned = [&] {
+          if (use_edge) {
+            blitter.edge(output, left, pull);
+            if (left == snapshot)
+              clock.restore_rows(output, std::max(0, pull), std::max(0, -pull), panel_height - std::abs(pull));
+          } else {
+            blitter.slides(output, span);
+            if (span.first == snapshot)
+              clock.restore_rows(output, span.offset, 0, panel_height - span.offset);
+            if (span.offset != 0 && span.second == snapshot)
+              clock.restore_rows(output, 0, panel_height - span.offset, span.offset);
+          }
+        };
+        // Protect the first frame of a resisted drag, but let the urgent
+        // refill run between copies and after the initial touch window.
+        const bool protect_edge_copy = use_edge && live && !trial_fixtures && !pixel_work_deferred &&
+                                       swipe.drag_activity(now, drag_moving_window_us, edge_drag_guard_us) ==
+                                           Swipe::DragActivity::Starting;
+        const bool pause_for_copy = preparing >= 0 && position != last_submitted &&
+                                    (use_edge ? protect_edge_copy : protect_cached_copy);
+        if (pause_for_copy)
+          loader.defer_pixel_work(true);
+#if SWIPE_LINKED_SCANOUT
+        std::optional<ScanoutFrame> segmented;
+        int64_t segment_started{};
+        if (linked_scanout_ok && swipe.dragging() && input.awake() && snapshot == nullptr && !fade.held() &&
+            !paints_notice && (use_edge || offset != 0)) {
+          segment_started = esp_timer_get_time();
+          const auto copy_rows = [&](auto *to, const auto *from, int rows) { blitter.copy_panel_rows(to, from, rows); };
+          const bool paint_clock = show_clock && clock.visible();
+          if (use_edge)
+            segmented = prepare_edge_scanout(output, left, pull, paint_clock, rotation, copy_rows);
+          else
+            segmented = prepare_scanout(output, span, paint_clock, rotation, copy_rows);
         }
+        if (!segmented)
+#endif
+          render_owned();
+        if (pause_for_copy)
+          loader.defer_pixel_work(false);
         if (show_clock) {
           clock.draw(output);
           clock_dirty = false;
@@ -1249,7 +1275,22 @@ void run(void *) {
         painted_connection_notice = connection_notice;
         painted_notice_language = notice_language;
         const auto started_submit = trial_immich && motion != 0 ? esp_timer_get_time() : 0;
-        submit_frame(position, position != last_submitted, use_edge);
+        bool submitted = false;
+#if SWIPE_LINKED_SCANOUT
+        if (segmented) {
+          segmented->prepare_us = static_cast<uint32_t>(esp_timer_get_time() - segment_started);
+          submitted = submit_frame(position, position != last_submitted, use_edge, &*segmented,
+                                   SlideRange{index, use_edge ? index : index + 1});
+          if (!submitted) {
+            linked_scanout_ok = false;
+            render_owned();
+            if (show_clock)
+              clock.draw(output);
+          }
+        }
+#endif
+        if (!submitted)
+          submit_frame(position, position != last_submitted, use_edge);
         submitted_motion_us = motion;
         motion_render_us = motion != 0 ? esp_timer_get_time() - started_render : 0;
         if constexpr (capture_motion) {

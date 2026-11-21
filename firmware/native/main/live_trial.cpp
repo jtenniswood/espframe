@@ -1,4 +1,7 @@
 #include "live_trial.h"
+#if SWIPE_LINKED_SCANOUT
+#include "linked_dpi.h"
+#endif
 #include "stock_frame_identity.h"
 #include "display.h"
 #include "frame_blitter.h"
@@ -169,7 +172,23 @@ esp_err_t benchmark_status(httpd_req_t *request) {
     std::snprintf(replay, sizeof(replay), ",\"live_edge_detail\":true");
   }
   // Keep the full diagnostics response off the small HTTP task stack.
+#if SWIPE_LINKED_SCANOUT
+  espframe_dpi_report_t dpi{};
+  espframe_dpi_read_report(&dpi);
+  char linked_report[320]{};
+  std::snprintf(linked_report, sizeof(linked_report),
+                ",\"dpi_refreshes\":%" PRIu32 ",\"dpi_underruns\":%" PRIu32
+                ",\"borrowed_submits\":%" PRIu32 ",\"borrowed_worst_us\":%" PRIu32
+                ",\"borrowed_total_us\":%" PRIu32 ",\"borrowed_band_bytes\":%" PRIu32
+                ",\"borrowed_edge_submits\":%" PRIu32 ",\"borrowed_edge_total_us\":%" PRIu32
+                ",\"borrowed_edge_worst_us\":%" PRIu32 ",\"borrowed_edge_max_bytes\":%" PRIu32,
+                dpi.refreshes, dpi.underruns, dpi.submits, dpi.worst_us, dpi.total_us, dpi.painted_bytes,
+                dpi.edge_submits, dpi.edge_total_us, dpi.edge_worst_us, dpi.edge_max_bytes);
+  constexpr size_t report_capacity = 2700;
+#else
+  constexpr char linked_report[] = "";
   constexpr size_t report_capacity = 2300;
+#endif
   const std::unique_ptr<char[]> body{new (std::nothrow) char[report_capacity]};
   if (!body)
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not allocate swipe report");
@@ -178,7 +197,7 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 ",\"dma_burst_bytes\":%u,\"dma_copies\":%" PRIu32 ",\"cpu_copies\":%" PRIu32
                 ",\"split_blits\":{\"count\":%" PRIu32 ",\"batched\":%" PRIu32 ",\"total_us\":%" PRIu64
                 ",\"worst_us\":%" PRIu32 "}"
-                ",\"frame_period_us\":%u,\"drag_gap_limit_us\":%u"
+                "%s,\"frame_period_us\":%u,\"drag_gap_limit_us\":%u"
                 ",\"first_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
                 ",\"cache_miss_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
                 ",\"quiet_cache_hit_motion\":{\"count\":%" PRIu32 ",\"worst_us\":%" PRIu32 ",\"over_50_ms\":%" PRIu32 "}"
@@ -199,7 +218,7 @@ esp_err_t benchmark_status(httpd_req_t *request) {
                 FrameBlitter::burst_bytes, result.dma_copies, result.cpu_copies,
                 result.split_blits, result.batched_split_blits, result.total_split_blit_us,
                 result.worst_split_blit_us,
-                period, period + period / 2,
+                linked_report, period, period + period / 2,
                 result.first_motion.count, result.first_motion.worst_us, result.first_motion.over_limit,
                 result.cache_miss_motion.count, result.cache_miss_motion.worst_us, result.cache_miss_motion.over_limit,
                 result.quiet_cache_hit_motion.count, result.quiet_cache_hit_motion.worst_us,

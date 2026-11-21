@@ -62,6 +62,7 @@ else()
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SWIPE_EARLY_P4=1)
 endif()
 target_compile_definitions(${COMPONENT_LIB} PRIVATE NATIVE_BOARD="${SWIPE_BOARD}" SWIPE_TRACE=$<BOOL:${SWIPE_TRACE}>
+                                                   SWIPE_LINKED_SCANOUT=$<BOOL:${SWIPE_LINKED_SCANOUT}>
                                                    NATIVE_HOSTNAME="${default_hostname}" NATIVE_FRIENDLY_NAME="${default_friendly_name}"
                                                    SWIPE_ESPHOME_TRIAL=$<BOOL:${SWIPE_ESPHOME_TRIAL}>
                                                    SWIPE_TRIAL_IMMICH=$<BOOL:${SWIPE_TRIAL_IMMICH}>

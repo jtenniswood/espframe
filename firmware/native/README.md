@@ -28,6 +28,13 @@ test frame after exporting its settings. Have the regular Espframe
 factory image for that revision available to restore the device after the
 test. You can use the prototype browser installer or the ESP-IDF USB tools.
 
+For the experimental Guition V1 swipe renderer, use `-D SWIPE_BOARD=v1` and
+`-D SWIPE_LINKED_SCANOUT=ON` in a separate build directory. It scans cached
+photo rows directly during drags and draws the clock and resisted edge into
+the writable frame. The build patches a local copy of the ESP-IDF 6.1.1 DPI
+driver. The option defaults to `OFF` while physical touch latency and tearing
+are being measured on the V1.
+
 The player uses ESP-Hosted 3.1.0 on the P4 to talk to the frame's ESP32-C6
 Wi-Fi radio. Espressif documents compatibility with C6 firmware from the 2.x
 and 3.x generations. [ESP-Hosted migration guide](https://github.com/espressif/esp-hosted-mcu/blob/v3.1.0/docs/migration.md#compatibility)

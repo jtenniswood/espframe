@@ -1,10 +1,14 @@
 #include "display.h"
+#if SWIPE_LINKED_SCANOUT
+#include "linked_dpi.h"
+#endif
 
 #include "driver/gpio.h"
 #include "driver/ledc.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_ldo_regulator.h"
+#include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "sdkconfig.h"
@@ -142,13 +146,21 @@ unsigned Display::nominal_frame_period_us() {
   return (columns * rows + pixel_clock_mhz / 2) / pixel_clock_mhz;
 }
 
-bool Display::frame_done_(esp_lcd_panel_handle_t, esp_lcd_dpi_panel_event_data_t *, void *context) {
+bool Display::frame_done_([[maybe_unused]] esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *, void *context) {
   auto &display = *static_cast<Display *>(context);
   portENTER_CRITICAL_ISR(&display.boundary_lock_);
+#if SWIPE_LINKED_SCANOUT
+  const bool latched = display.awaiting_index_ == espframe_dpi_armed_frame(panel);
+#else
   const bool latched = display.awaiting_latch_;
+#endif
   if (latched) {
     display.latched_us_ = esp_timer_get_time();
+#if SWIPE_LINKED_SCANOUT
+    display.awaiting_index_ = FrameSlots::none;
+#else
     display.awaiting_latch_ = false;
+#endif
   }
   portEXIT_CRITICAL_ISR(&display.boundary_lock_);
   BaseType_t task_woken = pdFALSE;
@@ -166,6 +178,9 @@ std::optional<int64_t> Display::poll_presented() {
   if (latched_us == 0)
     return {};
   this->slots_.latch();
+#if SWIPE_LINKED_SCANOUT
+  this->sources_.latch();
+#endif
   this->position_ = this->pending_position_;
   return latched_us;
 }
@@ -182,22 +197,46 @@ uint16_t *Display::writable_buffer() {
 }
 
 const uint16_t *Display::pin_handoff() {
+  if (this->borrowing())
+    return nullptr;
   const auto index = this->slots_.pin();
   return index == FrameSlots::none ? nullptr : this->buffers_[index];
 }
 
-void Display::submit(PixelPosition position) {
+bool Display::submit(PixelPosition position, [[maybe_unused]] const ScanoutFrame *frame,
+                     [[maybe_unused]] std::optional<SlideRange> sources) {
   const auto index = this->slots_.writable();
   ESP_ERROR_CHECK(index == FrameSlots::none ? ESP_ERR_INVALID_STATE : ESP_OK);
+#if SWIPE_LINKED_SCANOUT
+  static_assert(ScanoutFrame::segment_count == ESPFRAME_DPI_SEGMENTS);
+  const auto error = espframe_dpi_submit_frame(this->panel_, index, this->buffers_[index],
+                                              frame ? frame->sources.data() : nullptr,
+                                              frame ? frame->lengths.data() : nullptr,
+                                              frame && frame->resisted, frame ? frame->prepare_us : 0);
+  if (frame && error != ESP_OK) {
+    ESP_LOGW("photo-display", "Segmented submit failed, using a full frame: %s", esp_err_to_name(error));
+    return false;
+  }
+  ESP_ERROR_CHECK(error);
+  this->sources_.submit(sources);
+#else
   ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(this->panel_, 0, 0, panel_width, panel_height, this->buffers_[index]));
+#endif
   // Observe a boundary after the submission so the old front buffer cannot
   // be reused while the panel could still be scanning it.
   portENTER_CRITICAL(&this->boundary_lock_);
   this->latched_us_ = 0;
+#if SWIPE_LINKED_SCANOUT
+  // The DMA callback may already be in flight with the old index. Only a
+  // callback that arms this exact slot can release the preceding photo leases.
+  this->awaiting_index_ = index;
+#else
   this->awaiting_latch_ = true;
+#endif
   portEXIT_CRITICAL(&this->boundary_lock_);
   this->pending_position_ = position;
   this->slots_.submit(index);
+  return true;
 }
 
 }  // namespace espframe::native

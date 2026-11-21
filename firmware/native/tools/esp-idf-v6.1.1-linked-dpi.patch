@@ -1,0 +1,255 @@
+--- a/esp_lcd_panel_dpi.c
++++ b/esp_lcd_panel_dpi.c
+@@ -10,6 +10,7 @@
+ #include "esp_clk_tree.h"
+ #include "esp_cache.h"
+ #include "mipi_dsi_priv.h"
++#include "linked_dpi.h"
+ #include "esp_memory_utils.h"
+ #include "esp_private/async_memcpy_dma2d.h"
+ #include "esp_private/dw_gdma.h"
+@@ -28,7 +29,9 @@
+     esp_lcd_panel_t base;         // Base class of generic lcd panel
+     esp_lcd_dsi_bus_handle_t bus; // DSI bus handle
+     uint8_t virtual_channel;      // Virtual channel ID, index from 0
+-    uint8_t cur_fb_index;         // Current frame buffer index
++    uint32_t cur_fb_index;        // Requested frame buffer index
++    uint32_t armed_fb_index;
++    bool segmented_slots[DPI_PANEL_MAX_FB_NUM];
+     uint8_t num_fbs;              // Number of frame buffers
+     uint8_t *fbs[DPI_PANEL_MAX_FB_NUM]; // Frame buffers
+     uint32_t h_pixels;            // Horizontal pixels
+@@ -81,21 +84,55 @@
+     return need_yield;
+ }
+
++static uint32_t trial_dma_refreshes;
++static uint32_t trial_dma_underruns;
++static uint32_t trial_borrowed_submits;
++static uint32_t trial_max_submit_us;
++static uint32_t trial_total_submit_us;
++static uint32_t trial_band_bytes;
++static uint32_t trial_edge_submits;
++static uint32_t trial_edge_total_us;
++static uint32_t trial_edge_worst_us;
++static uint32_t trial_edge_max_bytes;
++
++void espframe_dpi_read_report(espframe_dpi_report_t *report)
++{
++    report->refreshes = __atomic_load_n(&trial_dma_refreshes, __ATOMIC_RELAXED);
++    report->underruns = __atomic_load_n(&trial_dma_underruns, __ATOMIC_RELAXED);
++    report->submits = __atomic_load_n(&trial_borrowed_submits, __ATOMIC_RELAXED);
++    report->worst_us = __atomic_load_n(&trial_max_submit_us, __ATOMIC_RELAXED);
++    report->total_us = __atomic_load_n(&trial_total_submit_us, __ATOMIC_RELAXED);
++    report->painted_bytes = __atomic_load_n(&trial_band_bytes, __ATOMIC_RELAXED);
++    report->edge_submits = __atomic_load_n(&trial_edge_submits, __ATOMIC_RELAXED);
++    report->edge_total_us = __atomic_load_n(&trial_edge_total_us, __ATOMIC_RELAXED);
++    report->edge_worst_us = __atomic_load_n(&trial_edge_worst_us, __ATOMIC_RELAXED);
++    report->edge_max_bytes = __atomic_load_n(&trial_edge_max_bytes, __ATOMIC_RELAXED);
++}
++
++static inline void dpi_linked_rearm_link(dw_gdma_link_list_handle_t link_list)
++{
++    for (unsigned i = 0; i < ESPFRAME_DPI_SEGMENTS; ++i) {
++        dw_gdma_block_markers_t markers = {
++            .is_valid = true,
++            .is_last = i + 1 == ESPFRAME_DPI_SEGMENTS,
++        };
++        dw_gdma_lli_set_block_markers(dw_gdma_link_list_get_item(link_list, i), markers);
++    }
++}
++
+ bool mipi_dsi_dma_trans_done_cb(dw_gdma_channel_handle_t chan, const dw_gdma_trans_done_event_data_t *event_data, void *user_data)
+ {
+     bool yield_needed = false;
+     esp_lcd_dpi_panel_t *dpi_panel = (esp_lcd_dpi_panel_t *)user_data;
+-    uint8_t fb_index = dpi_panel->cur_fb_index;
++    unsigned fb_index = __atomic_load_n(&dpi_panel->cur_fb_index, __ATOMIC_ACQUIRE);
+     dw_gdma_link_list_handle_t link_list = dpi_panel->link_lists[fb_index];
+
+-    // restart the DMA transfer, keep refreshing the LCD
+-    dw_gdma_block_markers_t markers = {
+-        .is_valid = true,
+-        .is_last = true,
+-    };
+-    dw_gdma_lli_set_block_markers(dw_gdma_link_list_get_item(link_list, 0), markers);
++    // Restart the complete descriptor chain on each refresh.
++    dpi_linked_rearm_link(link_list);
++    __atomic_add_fetch(&trial_dma_refreshes, 1, __ATOMIC_RELAXED);
+     dw_gdma_channel_use_link_list(chan, link_list);
+     dw_gdma_channel_enable_ctrl(chan, true);
++    __atomic_store_n(&dpi_panel->armed_fb_index, fb_index, __ATOMIC_RELEASE);
+
+     if (dpi_panel->on_frame_buf_complete) {
+         if (dpi_panel->on_frame_buf_complete(&dpi_panel->base, NULL, dpi_panel->user_ctx)) {
+@@ -123,6 +160,7 @@
+     mipi_dsi_brg_ll_clear_interrupt_status(hal->bridge, intr_status);
+
+     if (intr_status & MIPI_DSI_BRG_LL_EVENT_UNDERRUN) {
++        __atomic_add_fetch(&trial_dma_underruns, 1, __ATOMIC_RELAXED);
+         // when an underrun happens, the LCD display may already becomes blue
+         // it's too late to recover the display, so we just print an error message
+         // as a hint to the user that he should optimize the memory bandwidth (with AXI-ICM)
+@@ -165,7 +203,7 @@
+
+     // create DMA link lists
+     dw_gdma_link_list_config_t link_list_config = {
+-        .num_items = DPI_PANEL_MIN_DMA_NODES_PER_LINK,
++        .num_items = ESPFRAME_DPI_SEGMENTS,
+         .link_type = DW_GDMA_LINKED_LIST_TYPE_SINGLY,
+     };
+     for (int i = 0; i < dpi_panel->num_fbs; i++) {
+@@ -340,7 +378,7 @@
+     mipi_dsi_brg_ll_set_output_color_format(hal->bridge, out_color_format, 0);
+     // use the DW_GDMA as the flow controller
+     mipi_dsi_brg_ll_set_flow_controller(hal->bridge, MIPI_DSI_LL_FLOW_CONTROLLER_DMA);
+-    mipi_dsi_brg_ll_set_multi_block_number(hal->bridge, DPI_PANEL_MIN_DMA_NODES_PER_LINK);
++    mipi_dsi_brg_ll_set_multi_block_number(hal->bridge, ESPFRAME_DPI_SEGMENTS);
+     mipi_dsi_brg_ll_set_burst_len(hal->bridge, 256);
+     mipi_dsi_brg_ll_set_empty_threshold(hal->bridge, 1024 - 256);
+     // enable DSI bridge
+@@ -436,14 +474,9 @@
+     return ESP_OK;
+ }
+
+-static esp_err_t dpi_panel_init(esp_lcd_panel_t *panel)
+-{
+-    esp_lcd_dpi_panel_t *dpi_panel = __containerof(panel, esp_lcd_dpi_panel_t, base);
+-    esp_lcd_dsi_bus_handle_t bus = dpi_panel->bus;
+-    mipi_dsi_hal_context_t *hal = &bus->hal;
+-    dw_gdma_channel_handle_t dma_chan = dpi_panel->dma_chan;
+-    dw_gdma_link_list_handle_t link_list = NULL;
+-
++static esp_err_t dpi_linked_configure_frame(esp_lcd_dpi_panel_t *panel, unsigned index,
++                                           const uint16_t *const *sources, const size_t *lengths)
++{
+     dw_gdma_block_transfer_config_t dma_transfer_config = {
+         .src = {
+             .burst_mode = DW_GDMA_BURST_MODE_INCREMENT,
+@@ -458,21 +491,97 @@
+             .burst_len = 16,
+             .width = DW_GDMA_TRANS_WIDTH_64,
+         },
+-        .size = dpi_panel->fb_size * 8 / 64,
+     };
+-    for (int i = 0; i < dpi_panel->num_fbs; i++) {
+-        link_list = dpi_panel->link_lists[i];
+-        dma_transfer_config.src.addr = (uint32_t)(dpi_panel->fbs[i]);
+-        dw_gdma_lli_config_transfer(dw_gdma_link_list_get_item(link_list, 0), &dma_transfer_config);
+-        dw_gdma_block_markers_t markers = {
+-            .is_valid = true,
+-            .is_last = true,
+-        };
+-        dw_gdma_lli_set_block_markers(dw_gdma_link_list_get_item(link_list, 0), markers);
++    const size_t row_bytes = panel->fb_size / panel->v_pixels;
++    ESP_RETURN_ON_FALSE(row_bytes % 32 == 0 && panel->v_pixels >= ESPFRAME_DPI_SEGMENTS,
++                        ESP_ERR_INVALID_ARG, TAG, "trial requires aligned complete rows");
++    size_t frame_bytes = 0;
++    for (unsigned i = 0; i < ESPFRAME_DPI_SEGMENTS; ++i) {
++        const size_t first_row = i * panel->v_pixels / ESPFRAME_DPI_SEGMENTS;
++        const size_t last_row = (i + 1) * panel->v_pixels / ESPFRAME_DPI_SEGMENTS;
++        const size_t bytes = sources ? lengths[i] : (last_row - first_row) * row_bytes;
++        const uintptr_t start = sources ? (uintptr_t)sources[i] : (uintptr_t)(panel->fbs[index] + first_row * row_bytes);
++        ESP_RETURN_ON_FALSE(start && start % 32 == 0 && bytes && bytes % row_bytes == 0 &&
++                            bytes <= panel->fb_size - frame_bytes, ESP_ERR_INVALID_ARG, TAG, "invalid display slice");
++        frame_bytes += bytes;
++        dma_transfer_config.src.addr = start;
++        dma_transfer_config.size = bytes / 8;
++        ESP_RETURN_ON_ERROR(dw_gdma_lli_config_transfer(dw_gdma_link_list_get_item(panel->link_lists[index], i),
++                                                       &dma_transfer_config), TAG, "configure display slice failed");
++    }
++    ESP_RETURN_ON_FALSE(frame_bytes == panel->fb_size, ESP_ERR_INVALID_ARG, TAG, "incomplete display frame");
++    dpi_linked_rearm_link(panel->link_lists[index]);
++    panel->segmented_slots[index] = sources != NULL;
++    return ESP_OK;
++}
++
++unsigned IRAM_ATTR espframe_dpi_armed_frame(esp_lcd_panel_handle_t handle)
++{
++    esp_lcd_dpi_panel_t *panel = __containerof(handle, esp_lcd_dpi_panel_t, base);
++    return __atomic_load_n(&panel->armed_fb_index, __ATOMIC_ACQUIRE);
++}
++
++esp_err_t espframe_dpi_submit_frame(esp_lcd_panel_handle_t handle, unsigned index, const uint16_t *expected_buffer,
++                                    const uint16_t *const *sources, const size_t *lengths,
++                                    bool resisted, uint32_t elapsed_us)
++{
++    esp_lcd_dpi_panel_t *panel = __containerof(handle, esp_lcd_dpi_panel_t, base);
++    ESP_RETURN_ON_FALSE(index < panel->num_fbs && panel->fbs[index] == (const uint8_t *)expected_buffer &&
++                        index != espframe_dpi_armed_frame(handle) &&
++                        index != __atomic_load_n(&panel->cur_fb_index, __ATOMIC_ACQUIRE),
++                        ESP_ERR_INVALID_STATE, TAG, "display slot still active");
++    if (!sources) {
++        if (panel->segmented_slots[index])
++            ESP_RETURN_ON_ERROR(dpi_linked_configure_frame(panel, index, NULL, NULL), TAG, "restore display slot failed");
++        return dpi_panel_draw_bitmap(handle, 0, 0, panel->h_pixels, panel->v_pixels, expected_buffer);
++    }
++
++    ESP_RETURN_ON_FALSE(lengths, ESP_ERR_INVALID_ARG, TAG, "missing segment lengths");
++    // Restore the stock layout on a later owned submission even if a write
++    // back or descriptor setup below fails after changing this slot.
++    panel->segmented_slots[index] = true;
++    ESP_RETURN_ON_ERROR(dpi_linked_configure_frame(panel, index, sources, lengths), TAG, "configure segmented display failed");
++    const uintptr_t owned_start = (uintptr_t)expected_buffer;
++    size_t painted_bytes = 0;
++    for (unsigned i = 0; i < ESPFRAME_DPI_SEGMENTS; ++i) {
++        const uintptr_t start = (uintptr_t)sources[i];
++        if (start >= owned_start && start - owned_start < panel->fb_size) {
++            ESP_RETURN_ON_FALSE(lengths[i] <= panel->fb_size - (start - owned_start), ESP_ERR_INVALID_ARG,
++                                TAG, "painted segment exceeds output buffer");
++            ESP_RETURN_ON_ERROR(esp_cache_msync((void *)start, lengths[i], ESP_CACHE_MSYNC_FLAG_DIR_C2M |
++                                               ESP_CACHE_MSYNC_FLAG_UNALIGNED), TAG, "flush painted band failed");
++            painted_bytes += lengths[i];
++        }
++    }
++    uint32_t *submits = resisted ? &trial_edge_submits : &trial_borrowed_submits;
++    uint32_t *total = resisted ? &trial_edge_total_us : &trial_total_submit_us;
++    uint32_t *worst = resisted ? &trial_edge_worst_us : &trial_max_submit_us;
++    uint32_t *maximum_bytes = resisted ? &trial_edge_max_bytes : &trial_band_bytes;
++    __atomic_add_fetch(submits, 1, __ATOMIC_RELAXED);
++    __atomic_add_fetch(total, elapsed_us, __ATOMIC_RELAXED);
++    if (elapsed_us > __atomic_load_n(worst, __ATOMIC_RELAXED))
++        __atomic_store_n(worst, elapsed_us, __ATOMIC_RELAXED);
++    if (painted_bytes > __atomic_load_n(maximum_bytes, __ATOMIC_RELAXED))
++        __atomic_store_n(maximum_bytes, (uint32_t)painted_bytes, __ATOMIC_RELAXED);
++    __atomic_store_n(&panel->cur_fb_index, index, __ATOMIC_RELEASE);
++    return ESP_OK;
++}
++
++static esp_err_t dpi_panel_init(esp_lcd_panel_t *panel)
++{
++    esp_lcd_dpi_panel_t *dpi_panel = __containerof(panel, esp_lcd_dpi_panel_t, base);
++    esp_lcd_dsi_bus_handle_t bus = dpi_panel->bus;
++    mipi_dsi_hal_context_t *hal = &bus->hal;
++    dw_gdma_channel_handle_t dma_chan = dpi_panel->dma_chan;
++    dw_gdma_link_list_handle_t link_list = NULL;
++
++    for (unsigned i = 0; i < dpi_panel->num_fbs; ++i) {
++        ESP_RETURN_ON_ERROR(dpi_linked_configure_frame(dpi_panel, i, NULL, NULL),
++                            TAG, "configure contiguous display slots failed");
+     }
+
+     // by default, we use the fb0 as the first working frame buffer
+-    dpi_panel->cur_fb_index = 0;
++    __atomic_store_n(&dpi_panel->cur_fb_index, 0, __ATOMIC_RELEASE);
+     link_list = dpi_panel->link_lists[0];
+     dw_gdma_channel_use_link_list(dma_chan, link_list);
+     // enable the DMA channel
+@@ -605,7 +714,7 @@
+ {
+     esp_lcd_dpi_panel_t *dpi_panel = __containerof(panel, esp_lcd_dpi_panel_t, base);
+
+-    uint8_t cur_fb_index = dpi_panel->cur_fb_index;
++    uint8_t cur_fb_index = __atomic_load_n(&dpi_panel->cur_fb_index, __ATOMIC_ACQUIRE);
+     uint8_t *frame_buffer = dpi_panel->fbs[cur_fb_index];
+     const uint8_t *draw_buffer = (const uint8_t *)color_data;
+     size_t fb_size = dpi_panel->fb_size;
+@@ -662,7 +771,7 @@
+         // the buffer to be flushed is still within the frame buffer, so even an unaligned address is OK
+         esp_cache_msync(cache_sync_start, cache_sync_size, ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
+
+-        dpi_panel->cur_fb_index = draw_buf_fb_index;
++        __atomic_store_n(&dpi_panel->cur_fb_index, draw_buf_fb_index, __ATOMIC_RELEASE);
+         // invoke the trans done callback
+         if (dpi_panel->on_color_trans_done) {
+             dpi_panel->on_color_trans_done(&dpi_panel->base, NULL, dpi_panel->user_ctx);

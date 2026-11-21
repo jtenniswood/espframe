@@ -88,6 +88,27 @@ jobs:
               -D SWIPE_TRIAL_REPLAY_EDGE_DETAIL=OFF build
           '
 
+  linked-scanout:
+    name: Test experimental V1 linked scanout
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify panel pixels and cache ownership
+        run: |
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/stubs \
+            firmware/native/main/clock_overlay.cpp firmware/native/tests/scanout_frame_test.cpp \
+            -o "$RUNNER_TEMP/scanout-frame-test"
+          "$RUNNER_TEMP/scanout-frame-test" firmware/native/assets/clock_glyphs.bin
+      - name: Compile V1 linked scanout for the OTA benchmark
+        run: |
+          docker run --rm -v "$PWD:/workspace" -w /workspace espressif/idf:v6.1.1 \
+            idf.py -C firmware/native -B firmware/native/build/linked-scanout-ci \
+            -D SWIPE_BOARD=v1 -D SWIPE_LINKED_SCANOUT=ON -D SWIPE_ESPHOME_TRIAL=ON \
+            -D SWIPE_TRIAL_IMMICH=ON -D SWIPE_TRIAL_BENCHMARK=ON -D SWIPE_TRIAL_BENCHMARK_RAPID=ON \
+            -D SWIPE_TRIAL_REPLAY_ORIGIN=http://127.0.0.1:9116 -D SWIPE_TRIAL_REPLAY_PAIR_FILL=ON \
+            -D SWIPE_TRIAL_REPLAY_STAGED_DETAIL=ON -D SWIPE_TRIAL_REPLAY_EDGE_DETAIL=ON build
+
   build:
     name: Test and build Guition ${{ matrix.board }} prototype
     runs-on: ubuntu-latest
