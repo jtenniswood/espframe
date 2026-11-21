@@ -1,0 +1,22 @@
+{
+  "name": "espframe-prepared-slides",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node server.ts",
+    "replay": "node replay.ts",
+    "typecheck": "tsc --noEmit --strict --module nodenext --allowImportingTsExtensions --erasableSyntaxOnly prepare.ts service.ts server.ts service.test.ts replay.ts replay.test.ts",
+    "test": "node --test service.test.ts replay.test.ts"
+  },
+  "dependencies": {
+    "sharp": "0.35.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2"
+  }
+}

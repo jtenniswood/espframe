@@ -677,6 +677,10 @@ static int ParseFrame(VP8Decoder* const dec, VP8Io* io) {
       esp_task_wdt_reset();
     }
 #endif
+    if (io->checkpoint != NULL &&
+        !io->checkpoint(io->checkpoint_context)) {
+      return VP8SetError(dec, VP8_STATUS_USER_ABORT, "Decoding aborted.");
+    }
     // Parse bitstream for this row.
     VP8BitReader* const token_br =
         &dec->parts[dec->mb_y & dec->num_parts_minus_one];
