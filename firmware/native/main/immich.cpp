@@ -1027,9 +1027,9 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   const float night_progress = this->tone_daylight_ ? this->tone_daylight_->night_warmth(local) : 0.0f;
   if (!tint_photo({panel, pixel_count}, tone.warmth(night_progress), this->checkpoint_) || !this->checkpoint_())
     return retry_frame();
-  paint_photo_caption(panel, {caption_atlas, static_cast<size_t>(caption_atlas_end - caption_atlas)},
-                      {date_atlas, static_cast<size_t>(date_atlas_end - date_atlas)}, frame.metadata, captions,
-                      this->settings_.screen_rotation, this->settings_.clock.show, local);
+  presentation.caption = prepare_photo_caption({caption_atlas, static_cast<size_t>(caption_atlas_end - caption_atlas)},
+                                               {date_atlas, static_cast<size_t>(date_atlas_end - date_atlas)},
+                                               frame.metadata, captions, this->settings_.clock.show, local);
   if (this->cancelled_)
     return retry_frame();
   presentation.thumbnail = thumbnail;

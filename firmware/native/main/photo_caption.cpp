@@ -88,26 +88,33 @@ uint16_t paint(uint16_t old, unsigned opacity, unsigned light) {
       (channel((old >> 5) & 63, 63) << 5) | channel(old & 31, 31));
 }
 
-void draw_line(uint16_t *frame, std::span<const uint8_t> atlas, std::string_view value, int top,
-               int line_width, ScreenRotation rotation) {
-  const int step = -axis_direction(rotation);
+PhotoCaptionLine layout_line(std::span<const uint8_t> atlas, std::string_view value, int line_width) {
+  PhotoCaptionLine line;
   const auto *ellipsis = find_glyph(atlas, 0x2026);
   const int tail = ellipsis ? ellipsis[0] : 0;
   auto remaining = value;
-  size_t prefix = 0;
-  int advance = 0;
   while (!remaining.empty()) {
     const auto *glyph = find_glyph(atlas, read_codepoint(remaining));
-    if (!glyph || advance + glyph[0] + (remaining.empty() ? 0 : tail) > line_width)
+    const auto length = value.size() - remaining.size();
+    if (!glyph || length > line.text.size() || line.width + glyph[0] + (remaining.empty() ? 0 : tail) > line_width)
       break;
-    advance += glyph[0];
-    prefix = value.size() - remaining.size();
+    line.width += glyph[0];
+    line.length = static_cast<uint8_t>(length);
   }
-  const bool shortened = prefix < value.size();
-  if (shortened)
-    advance += tail;
+  std::copy_n(value.begin(), line.length, line.text.begin());
+  line.ellipsis = ellipsis && line.length < value.size();
+  if (line.ellipsis)
+    line.width += tail;
+  return line;
+}
+
+void draw_line(uint16_t *frame, std::span<const uint8_t> atlas, const PhotoCaptionLine &line, int top,
+               ScreenRotation rotation, uint8_t opacity) {
+  if (!line.width)
+    return;
+  const int step = -axis_direction(rotation);
   for (const int shadow : {2, 0}) {
-    int x = right + shadow - advance;
+    int x = right + shadow - line.width;
     const auto draw = [&](const uint8_t *glyph) {
       const auto *mask = glyph + bitmap_header_size;
       const int stride = (glyph[3] + 1) / 2;
@@ -116,19 +123,20 @@ void draw_line(uint16_t *frame, std::span<const uint8_t> atlas, std::string_view
         for (int row = 0; row < glyph[4]; ++row) {
           const auto packed = mask[row * stride + column / 2];
           const unsigned coverage = column % 2 ? packed & 15 : packed >> 4;
-          const unsigned alpha = shadow == 0 ? coverage : (coverage + 2) / 5;
+          const unsigned ink = shadow == 0 ? coverage : (coverage + 2) / 5;
+          const unsigned alpha = (ink * opacity + 7) / PhotoCaptionFade::opaque;
           if (alpha)
             pixels[row * step] = paint(pixels[row * step], alpha, shadow == 0);
         }
       }
       x += glyph[0];
     };
-    auto displayed = value.substr(0, prefix);
+    std::string_view displayed{line.text.data(), line.length};
     while (!displayed.empty()) {
       draw(find_glyph(atlas, read_codepoint(displayed)));
     }
-    if (shortened && ellipsis)
-      draw(ellipsis);
+    if (line.ellipsis)
+      draw(find_glyph(atlas, 0x2026));
   }
 }
 
@@ -175,18 +183,18 @@ std::string photo_caption_date(const PhotoMetadata &metadata, const PhotoMetadat
   return date;
 }
 
-void paint_photo_caption(uint16_t *frame, std::span<const uint8_t> locations, std::span<const uint8_t> dates,
-                         const PhotoMetadata &metadata,
-                         const PhotoMetadataSettings &settings, ScreenRotation rotation, bool show_clock,
-                         const std::optional<std::tm> &local) {
+int PhotoCaption::band_rows() const {
+  const auto width = std::max(location.width, date.width);
+  return width ? side_margin + width : 0;
+}
+
+PhotoCaption prepare_photo_caption(std::span<const uint8_t> locations, std::span<const uint8_t> dates,
+                                   const PhotoMetadata &metadata, const PhotoMetadataSettings &settings,
+                                   bool show_clock, const std::optional<std::tm> &local) {
   const int left = show_clock ? ClockOverlay::first_row + ClockOverlay::rows + clock_gap : side_margin;
   const int line_width = right - left;
-  const auto date = photo_caption_date(metadata, settings, local);
-  int location_top = bottom - location_height;
-  if (!date.empty()) {
-    draw_line(frame, dates, date, bottom - date_height, line_width, rotation);
-    location_top -= date_height + line_gap;
-  }
+  PhotoCaption caption;
+  caption.date = layout_line(dates, photo_caption_date(metadata, settings, local), line_width);
   if (settings.show_location) {
     const auto city = supported(locations, metadata.city.data());
     const auto country = supported(locations, metadata.country.data());
@@ -194,11 +202,24 @@ void paint_photo_caption(uint16_t *frame, std::span<const uint8_t> locations, st
       std::string place{city};
       place += ", ";
       place += country;
-      draw_line(frame, locations, place, location_top, line_width, rotation);
+      caption.location = layout_line(locations, place, line_width);
     } else {
-      draw_line(frame, locations, city.empty() ? country : city, location_top, line_width, rotation);
+      caption.location = layout_line(locations, city.empty() ? country : city, line_width);
     }
   }
+  return caption;
+}
+
+void paint_photo_caption(uint16_t *frame, std::span<const uint8_t> locations, std::span<const uint8_t> dates,
+                         const PhotoCaption &caption, ScreenRotation rotation, uint8_t opacity) {
+  if (!opacity)
+    return;
+  int location_top = bottom - location_height;
+  if (caption.date.width) {
+    draw_line(frame, dates, caption.date, bottom - date_height, rotation, opacity);
+    location_top -= date_height + line_gap;
+  }
+  draw_line(frame, locations, caption.location, location_top, rotation, opacity);
 }
 
 }  // namespace espframe::native

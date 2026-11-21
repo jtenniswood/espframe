@@ -69,32 +69,50 @@ struct ScanoutFrame {
   }
 };
 
-// Keeping the clock band against a panel edge bounds it and two photos to three slices.
 inline constexpr int clock_band_rows = ClockOverlay::first_row + ClockOverlay::rows;
+
+struct ScanoutBands {
+  int prefix;
+  int suffix;
+};
+
+inline ScanoutBands overlay_bands(bool show_clock, int caption_rows, ScreenRotation rotation) {
+  const int clock = show_clock ? clock_band_rows : 0;
+  return rotation == ScreenRotation::Normal ? ScanoutBands{clock, caption_rows} : ScanoutBands{caption_rows, clock};
+}
 
 template<class CopyRows>
 ScanoutFrame prepare_scanout(uint16_t *output, SlideSpan photos, bool show_clock, ScreenRotation rotation,
-                             CopyRows copy_rows) {
-  const int clock_first = rotation == ScreenRotation::Normal ? 0 : panel_height - clock_band_rows;
-  const int clock_end = clock_first + (show_clock ? clock_band_rows : 0);
+                             CopyRows copy_rows, int caption_rows = 0) {
+  auto [prefix, suffix] = overlay_bands(show_clock, caption_rows, rotation);
   const int first_end = panel_height - photos.offset;
+  int suffix_first = std::max(prefix, panel_height - suffix);
+  // Two decorations on opposite sides can split the photos into four
+  // slices. Extend the nearer painted band to the seam only in that case.
+  if (prefix && suffix && first_end > prefix && first_end < suffix_first) {
+    if (first_end - prefix <= suffix_first - first_end)
+      prefix = first_end;
+    else
+      suffix_first = first_end;
+  }
   const auto photo_at = [&](int row) {
     if (row < first_end)
       return photos.first + (row + photos.offset) * panel_width;
     return photos.second + (row - first_end) * panel_width;
   };
-  for (int row = clock_first; row < clock_end;) {
-    const int end = row < first_end ? std::min(first_end, clock_end) : clock_end;
-    copy_rows(output + row * panel_width, photo_at(row), end - row);
-    row = end;
-  }
-
   ScanoutFrame frame;
   for (int row = 0; row < panel_height;) {
-    const bool in_clock = show_clock && row >= clock_first && row < clock_end;
+    const bool painted = row < prefix || row >= suffix_first;
     const int photo_end = row < first_end ? first_end : panel_height;
-    const int end = in_clock ? clock_end : (show_clock && row < clock_first ? std::min(photo_end, clock_first) : photo_end);
-    frame.add(in_clock ? output + row * panel_width : photo_at(row), end - row);
+    const int end = row < prefix ? prefix : row >= suffix_first ? panel_height : std::min(photo_end, suffix_first);
+    if (painted) {
+      for (int painted_row = row; painted_row < end;) {
+        const int copy_end = painted_row < first_end ? std::min(first_end, end) : end;
+        copy_rows(output + painted_row * panel_width, photo_at(painted_row), copy_end - painted_row);
+        painted_row = copy_end;
+      }
+    }
+    frame.add(painted ? output + row * panel_width : photo_at(row), end - row);
     row = end;
   }
   frame.complete();
@@ -103,15 +121,14 @@ ScanoutFrame prepare_scanout(uint16_t *output, SlideSpan photos, bool show_clock
 
 template<class CopyRows>
 std::optional<ScanoutFrame> prepare_edge_scanout(uint16_t *output, const uint16_t *photo, int pull,
-                                                       bool show_clock, ScreenRotation rotation,
-                                                 CopyRows copy_rows) {
+                                                bool show_clock, ScreenRotation rotation,
+                                                CopyRows copy_rows, int caption_rows = 0) {
   const int strip = std::abs(pull);
   const int photo_first = pull < 0 ? strip : 0;
   const int photo_end = pull < 0 ? panel_height : panel_height - strip;
-  const int clock_prefix = show_clock && rotation == ScreenRotation::Normal ? clock_band_rows : 0;
-  const int clock_suffix = show_clock && rotation == ScreenRotation::UpsideDown ? clock_band_rows : 0;
-  const int borrowed_first = std::max(photo_first, clock_prefix);
-  const int borrowed_end = std::min(photo_end, panel_height - clock_suffix);
+  const auto [prefix, suffix] = overlay_bands(show_clock, caption_rows, rotation);
+  const int borrowed_first = std::max(photo_first, prefix);
+  const int borrowed_end = std::min(photo_end, panel_height - suffix);
   if (borrowed_first >= borrowed_end)
     return {};
 

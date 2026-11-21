@@ -34,13 +34,18 @@ class SlideCache {
     return allocated;
   }
 
-  const uint16_t *find(SlideIndex slide) const {
+  std::optional<size_t> ready_slot(SlideIndex slide) const {
     for (size_t index = 0; index < capacity; ++index) {
       const auto &entry = this->entries_[index];
       if (entry.state == State::Ready && entry.slide == slide)
-        return this->buffers_[index];
+        return index;
     }
-    return nullptr;
+    return std::nullopt;
+  }
+
+  const uint16_t *find(SlideIndex slide) const {
+    const auto slot = ready_slot(slide);
+    return slot ? buffers_[*slot] : nullptr;
   }
 
   SlideRange ready_range(SlideIndex center, SlideRange available) const {

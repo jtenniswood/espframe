@@ -127,6 +127,41 @@ void verify_edge(const std::vector<uint8_t> &atlas, const std::vector<uint16_t> 
   assert(!prepare_edge_scanout(owned.data(), photo.data(), pull, true, rotation, copy));
 }
 
+void verify_caption_band(const std::vector<uint16_t> &left, const std::vector<uint16_t> &right,
+                         ScreenRotation rotation) {
+  std::vector<uint16_t> reference(pixel_count), owned(pixel_count);
+  const auto copy = [](auto *to, const auto *from, int rows) { copy_slide_rows(to, from, panel_width, rows); };
+  constexpr int caption_rows = 260;
+  const int first = rotation == ScreenRotation::Normal ? panel_height - caption_rows : 0;
+  const auto paint_caption = [&](auto &frame) {
+    for (int row = first; row < first + caption_rows; ++row)
+      frame[row * panel_width + 80] = 0xffff;
+  };
+  for (const bool clock : {false, true}) {
+    for (const int offset : {0, 42, 200, 550, 800, 1040, 1238}) {
+      const auto span = orient_slide_span(left.data(), offset == 0 ? nullptr : right.data(), panel_height, offset, rotation);
+      blit_slides(reference.data(), span.first, span.second, panel_width, panel_height, span.offset);
+      paint_caption(reference);
+      std::fill(owned.begin(), owned.end(), 0xf81f);
+      const auto frame = prepare_scanout(owned.data(), span, clock, rotation, copy, caption_rows);
+      paint_caption(owned);
+      const auto painted = verify_frame(frame, reference, owned);
+      const auto overlay_bytes = (caption_rows + (clock ? clock_band_rows : 0)) * ScanoutFrame::row_bytes;
+      assert(painted >= overlay_bytes && painted < pixel_count * sizeof(uint16_t));
+      if (!clock)
+        assert(painted == overlay_bytes);
+    }
+    for (const int pull : {-42, 42}) {
+      blit_slide_edge(reference.data(), left.data(), panel_width, panel_height, pull);
+      const auto frame = prepare_edge_scanout(owned.data(), left.data(), pull, clock, rotation, copy, caption_rows);
+      assert(frame && frame->resisted);
+      paint_caption(reference);
+      paint_caption(owned);
+      verify_frame(*frame, reference, owned);
+    }
+  }
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -146,6 +181,7 @@ int main(int argc, char **argv) {
   for (const auto rotation : {ScreenRotation::Normal, ScreenRotation::UpsideDown}) {
     verify_cached(atlas, left, right, rotation);
     verify_edge(atlas, left, rotation);
+    verify_caption_band(left, right, rotation);
   }
   std::cout << "Linked scanout matches full frames and retains cache sources through handoff\n";
 }

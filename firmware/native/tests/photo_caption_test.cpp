@@ -21,6 +21,12 @@ int main(int argc, char **argv) {
   assert(atlas.size() > 1000 && atlas.size() < 512 * 1024);
   assert(dates.size() > 1000 && dates.size() < 64 * 1024);
 
+  const auto paint = [&](uint16_t *frame, const PhotoMetadata &metadata, const PhotoMetadataSettings &style,
+                         ScreenRotation rotation, bool clock, const std::optional<std::tm> &time = {}) {
+    const auto caption = prepare_photo_caption(atlas, dates, metadata, style, clock, time);
+    paint_photo_caption(frame, atlas, dates, caption, rotation, PhotoCaptionFade::opaque);
+  };
+
   PhotoMetadata photo;
   photo.capture_day = sys_days{year(2024)/2/29};
   std::strcpy(photo.city.data(), "São Paulo");
@@ -59,36 +65,36 @@ int main(int argc, char **argv) {
   const std::vector<uint16_t> blank(pixel_count, background);
   auto normal = blank;
   auto rotation = blank;
-  paint_photo_caption(normal.data(), atlas, dates, photo, settings, ScreenRotation::Normal, true, local);
-  paint_photo_caption(rotation.data(), atlas, dates, photo, settings, ScreenRotation::UpsideDown, true, local);
+  paint(normal.data(), photo, settings, ScreenRotation::Normal, true, local);
+  paint(rotation.data(), photo, settings, ScreenRotation::UpsideDown, true, local);
   assert(normal != blank && std::equal(normal.begin(), normal.end(), rotation.rbegin()));
   assert(std::equal(normal.begin(), normal.begin() + 800 * panel_width, blank.begin()));
   auto country_only = blank;
   const auto city = photo.city;
   photo.city = {};
-  paint_photo_caption(country_only.data(), atlas, dates, photo, settings, ScreenRotation::Normal, true, local);
+  paint(country_only.data(), photo, settings, ScreenRotation::Normal, true, local);
   assert(normal != country_only);
   auto unsupported_city = blank;
   std::strcpy(photo.city.data(), "東京");
-  paint_photo_caption(unsupported_city.data(), atlas, dates, photo, settings, ScreenRotation::Normal, true, local);
+  paint(unsupported_city.data(), photo, settings, ScreenRotation::Normal, true, local);
   assert(unsupported_city == country_only);
   photo.city = city;
 
   auto capture_date_only = blank;
   settings.show_location = false;
-  paint_photo_caption(capture_date_only.data(), atlas, dates, photo, settings, ScreenRotation::Normal, false);
+  paint(capture_date_only.data(), photo, settings, ScreenRotation::Normal, false);
   assert(capture_date_only != blank);
   auto absolute_date = blank;
   settings.relative = false;
-  paint_photo_caption(absolute_date.data(), atlas, dates, photo, settings, ScreenRotation::Normal, false, local);
+  paint(absolute_date.data(), photo, settings, ScreenRotation::Normal, false, local);
   assert(absolute_date == capture_date_only);
 
   for (size_t language = 1; language < espframe_i18n_catalogue::LANGUAGE_COUNT; ++language) {
     settings.language = static_cast<uint8_t>(language);
     auto localized = blank;
     auto flipped = blank;
-    paint_photo_caption(localized.data(), atlas, dates, photo, settings, ScreenRotation::Normal, true);
-    paint_photo_caption(flipped.data(), atlas, dates, photo, settings, ScreenRotation::UpsideDown, true);
+    paint(localized.data(), photo, settings, ScreenRotation::Normal, true);
+    paint(flipped.data(), photo, settings, ScreenRotation::UpsideDown, true);
     assert(localized != blank && std::equal(localized.begin(), localized.end(), flipped.rbegin()));
   }
   settings.language = 0;
@@ -100,16 +106,40 @@ int main(int argc, char **argv) {
   auto clock_visible = blank;
   auto clock_hidden = blank;
   rotation = blank;
-  paint_photo_caption(clock_visible.data(), atlas, dates, photo, settings, ScreenRotation::Normal, true);
-  paint_photo_caption(clock_hidden.data(), atlas, dates, photo, settings, ScreenRotation::Normal, false);
-  paint_photo_caption(rotation.data(), atlas, dates, photo, settings, ScreenRotation::UpsideDown, true);
+  paint(clock_visible.data(), photo, settings, ScreenRotation::Normal, true);
+  paint(clock_hidden.data(), photo, settings, ScreenRotation::Normal, false);
+  paint(rotation.data(), photo, settings, ScreenRotation::UpsideDown, true);
   assert(clock_visible != blank && std::equal(clock_visible.begin(), clock_visible.end(), rotation.rbegin()));
   const auto clock_rows = (ClockOverlay::first_row + ClockOverlay::rows) * panel_width;
   assert(std::equal(clock_visible.begin(), clock_visible.begin() + clock_rows, blank.begin()));
   assert(!std::equal(clock_hidden.begin(), clock_hidden.begin() + clock_rows, blank.begin()));
 
+  const auto caption = prepare_photo_caption(atlas, dates, photo, settings, true);
+  const int first_caption_row = panel_height - caption.band_rows();
+  auto translucent = blank;
+  paint_photo_caption(translucent.data(), atlas, dates, caption, ScreenRotation::Normal, 7);
+  assert(translucent != blank && translucent != clock_visible);
+  assert(std::equal(translucent.begin(), translucent.begin() + first_caption_row * panel_width, blank.begin()));
+  auto invisible = blank;
+  paint_photo_caption(invisible.data(), atlas, dates, caption, ScreenRotation::Normal, 0);
+  assert(invisible == blank);
+
   settings.show_date = settings.show_location = false;
   normal = blank;
-  paint_photo_caption(normal.data(), atlas, dates, photo, settings, ScreenRotation::Normal, true, local);
+  paint(normal.data(), photo, settings, ScreenRotation::Normal, true, local);
   assert(normal == blank);
+
+  PhotoCaptionFade fade;
+  assert(fade.update(0, 1).opacity == 0);
+  assert(fade.update(999'999, 1).opacity == 0);
+  assert(fade.update(1'090'000, 1).opacity == 7);
+  assert(fade.update(1'200'000, 1).opacity == PhotoCaptionFade::opaque);
+  assert((fade.update(2'000'000, std::nullopt) == PhotoCaptionSample{1, 15}));
+  assert((fade.update(2'060'000, std::nullopt) == PhotoCaptionSample{1, 7}));
+  assert(fade.update(2'120'000, 2).opacity == 0);
+  assert(fade.update(3'119'999, 2).opacity == 0);
+  assert(fade.update(3'120'000, std::nullopt).opacity == 0);
+  assert(fade.update(3'200'000, 2).opacity == 0);
+  assert(fade.update(4'199'999, 2).opacity == 0);
+  assert((fade.update(4'380'000, 2) == PhotoCaptionSample{2, 15}));
 }

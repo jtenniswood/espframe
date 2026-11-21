@@ -66,6 +66,10 @@ constexpr bool capture_motion = trace_enabled || trial_immich;
 constexpr bool linked_scanout = SWIPE_LINKED_SCANOUT;
 constexpr bool trial_fixtures = SWIPE_TRIAL_BENCHMARK_FIXTURES;
 extern const uint8_t clock_atlas[] asm("_binary_clock_glyphs_bin_start");
+extern const uint8_t caption_atlas[] asm("_binary_caption_glyphs_bin_start");
+extern const uint8_t caption_atlas_end[] asm("_binary_caption_glyphs_bin_end");
+extern const uint8_t date_atlas[] asm("_binary_date_glyphs_bin_start");
+extern const uint8_t date_atlas_end[] asm("_binary_date_glyphs_bin_end");
 extern const uint8_t recovery_atlas[] asm("_binary_recovery_glyphs_bin_start");
 extern const uint8_t status_masks[] asm("_binary_status_masks_bin_start");
 extern const uint8_t status_masks_end[] asm("_binary_status_masks_bin_end");
@@ -519,6 +523,12 @@ void run(void *) {
   if (live && !trial_fixtures)
     allocate_slide_buffers(buffers, SlideCache::minimum_capacity, buffers.size());
   SlideCache cache{buffers};
+  // Caption layout travels with the cache lease, separate from scanout pixels.
+  static std::array<PhotoCaption, SlideCache::capacity> captions;
+  const std::span<const uint8_t> caption_glyphs{caption_atlas, static_cast<size_t>(caption_atlas_end - caption_atlas)};
+  const std::span<const uint8_t> date_glyphs{date_atlas, static_cast<size_t>(date_atlas_end - date_atlas)};
+  PhotoCaptionFade caption_fade;
+  PhotoCaptionSample last_caption;
   const auto cache_slots = static_cast<unsigned>(cache.size());
   ESP_LOGI(tag, "Decoded photo cache: %u slides", cache_slots);
   if constexpr (trial_immich)
@@ -611,6 +621,8 @@ void run(void *) {
     return true;
   };
   const auto submit_autoplay_frame = [&](uint16_t *output, uint8_t progress) {
+    // A transition can be pinned and dragged later, so keep its pixels caption-free.
+    last_caption = {};
     clock.draw(output, true);
     clock_dirty = false;
     if constexpr (capture_motion)
@@ -743,6 +755,7 @@ void run(void *) {
           record_live_trial_candidate_retry();
       }
       if (ready) {
+        captions[completion.lease.slot] = completion.presentation.caption;
         if constexpr (trial_detail_metrics) {
           if (completion.presentation.thumbnail)
             record_live_trial_thumbnail_ready(completion.presentation.thumbnail_pair);
@@ -1057,8 +1070,9 @@ void run(void *) {
     const bool was_settling = swipe.settling();
     swipe.tick(now);
     auto position = swipe.position();
-    const bool visible_and_idle = backlight_ready && input.awake() && !input.engaged() && swipe.idle() &&
-                                  !display.borrowing() && position == display.presented_position();
+    const bool photo_at_rest = backlight_ready && input.awake() && !display.borrowing() &&
+                               position == display.presented_position();
+    const bool visible_and_idle = photo_at_rest && swipe.idle() && !input.engaged();
     if constexpr (track_physical_drags) {
       if (visible_and_idle)
         record_landing();
@@ -1130,6 +1144,14 @@ void run(void *) {
     if constexpr (trial_immich)
       drag_demand.observe(esp_timer_get_time(), motion_epoch.phase() == MotionPhase::Drag, position, last_submitted);
 
+    // A tap on the displayed photo is still rest. An active drag, a pending
+    // neighbour, or a photo grabbed midway through a transition is not.
+    std::optional<SlideIndex> settled_caption;
+    if (photo_at_rest && !swipe.dragging() && !swipe.settling() && !swipe.waiting_slide() &&
+        !fade.running() && !fade.held() && swipe.settled() > 0 &&
+        position == swipe.settled() * slide_width && position == display.presented_position())
+      settled_caption = swipe.settled();
+    auto caption_sample = caption_fade.update(now, settled_caption);
     if (blend.pending()) {
       display.wait_for_frame_or_tick();
       continue;
@@ -1143,6 +1165,7 @@ void run(void *) {
         if (target && from) {
           if (opacity == AutoplayFade::opaque) {
             blitter.slides(output, {target, nullptr, 0});
+            last_caption = {};
             clock.draw(output);
             clock_dirty = false;
             swipe.show(fade.target());
@@ -1202,11 +1225,16 @@ void run(void *) {
                                source_notice != PhotoSourceStatus::None;
     const auto notice_language = paints_notice ? active_device_language.load(std::memory_order_relaxed) : uint8_t{0};
     const bool sliding = swipe.dragging() || swipe.settling();
+    const auto caption_slot = caption_sample.opacity && !show_recovery ? cache.ready_slot(caption_sample.slide)
+                                                                      : std::nullopt;
+    const auto *caption = caption_slot && captions[*caption_slot].band_rows() ? &captions[*caption_slot] : nullptr;
+    if (!caption)
+      caption_sample = {};
     if (auto *output = display.writable_buffer(); output != nullptr &&
         (position != last_submitted || inside != last_inside || show_recovery != recovery_painted ||
          loading_direction != painted_loading_direction || source_notice != painted_source_status ||
          connection_notice != painted_connection_notice || notice_language != painted_notice_language ||
-         (display.borrowing() && !sliding) || (show_clock && clock_dirty))) {
+         (display.borrowing() && !sliding) || (show_clock && clock_dirty) || caption_sample != last_caption)) {
       const auto index = inside / slide_width;
       const int offset = inside % slide_width;
       const auto slide_pixels = [&](SlideIndex slide) {
@@ -1233,6 +1261,10 @@ void run(void *) {
               clock.restore_rows(output, 0, panel_height - span.offset, span.offset);
           }
         };
+        const auto paint_caption = [&] {
+          if (caption)
+            paint_photo_caption(output, caption_glyphs, date_glyphs, *caption, rotation, caption_sample.opacity);
+        };
         // Protect the first frame of a resisted drag, but let the urgent
         // refill run between copies and after the initial touch window.
         const bool protect_edge_copy = use_edge && live && !trial_fixtures && !pixel_work_deferred &&
@@ -1255,10 +1287,11 @@ void run(void *) {
           segment_started = esp_timer_get_time();
           const auto copy_rows = [&](auto *to, const auto *from, int rows) { blitter.copy_panel_rows(to, from, rows); };
           const bool paint_clock = show_clock && clock.visible();
+          const int caption_rows = caption ? caption->band_rows() : 0;
           if (use_edge)
-            segmented = prepare_edge_scanout(output, left, pull, paint_clock, rotation, copy_rows);
+            segmented = prepare_edge_scanout(output, left, pull, paint_clock, rotation, copy_rows, caption_rows);
           else
-            segmented = prepare_scanout(output, span, paint_clock, rotation, copy_rows);
+            segmented = prepare_scanout(output, span, paint_clock, rotation, copy_rows, caption_rows);
         }
         if (!segmented)
 #endif
@@ -1269,6 +1302,7 @@ void run(void *) {
           clock.draw(output);
           clock_dirty = false;
         }
+        paint_caption();
         const StatusText status_text{{status_masks, static_cast<size_t>(status_masks_end - status_masks)}, notice_language};
         if (show_recovery)
           draw_recovery_card(output, recovery_atlas, status_text, network.recovery_network(), rotation);
@@ -1295,11 +1329,13 @@ void run(void *) {
             render_owned();
             if (show_clock)
               clock.draw(output);
+            paint_caption();
           }
         }
 #endif
         if (!submitted)
           submit_frame(position, position != last_submitted, use_edge);
+        last_caption = caption_sample;
         submitted_motion_us = motion;
         motion_render_us = motion != 0 ? esp_timer_get_time() - started_render : 0;
         if constexpr (capture_motion) {

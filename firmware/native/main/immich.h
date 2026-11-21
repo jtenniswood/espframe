@@ -5,6 +5,7 @@
 #include "immich_http.h"
 #include "immich_selection.h"
 #include "p4_jpeg_decoder.h"
+#include "photo_caption.h"
 #include "photo_history.h"
 #include "preparation_checkpoint.h"
 #include "preview_prefetch.h"
@@ -32,6 +33,7 @@ class ImmichSource {
   enum class PrepareResult { Ready, Retry, NextCandidate };
   enum class Preparation { FullPreview, AllowThumbnail, RefineThumbnail, CaptionOnly };
   struct PendingPresentation {
+    PhotoCaption caption;
     bool caption_time{};
     bool caption_details{};
     bool thumbnail{};
