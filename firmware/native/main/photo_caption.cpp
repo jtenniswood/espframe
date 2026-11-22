@@ -12,7 +12,7 @@ constexpr size_t bitmap_header_size = 5;
 constexpr int side_margin = 45;
 constexpr int right = slide_width - side_margin;
 constexpr int bottom = slide_height - 50;
-constexpr int line_height = 34;
+constexpr int line_height = 38;
 constexpr int line_gap = 4;
 constexpr int clock_gap = 24;
 

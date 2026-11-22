@@ -71,7 +71,7 @@ def main():
     mode.add_argument("--captions", action="store_true", help="create the photo caption atlas")
     mode.add_argument("--dates", action="store_true", help="create the photo date atlas")
     mode.add_argument("--check-dates", type=Path, help="check an existing photo date atlas against the catalogue")
-    parser.add_argument("--noto-fallback", type=Path, help="recorded Noto Sans Light face for location glyphs missing in Rubik")
+    parser.add_argument("--noto-fallback", type=Path, help="recorded variable Noto Sans face for location glyphs missing in Rubik")
     args = parser.parse_args()
     if args.check_dates:
         check_date_atlas(args.check_dates)
@@ -81,28 +81,30 @@ def main():
     from PIL import Image, ImageDraw, ImageFont
 
     rubik = "1b3a7437ba2af80e465e773ed60c5036d1ba6ace492d89046dbcf18fb31e4e88"
-    light = "cfffc3ecf6aaa6a205b16c68070cceca472208a06581e6f131cdd0294913d900"
+    noto_sans = "bfb7bb691513f12e734dc346c03a03f784912432d7e3fa8e56efcf906fe86b3d"
     recovery = "f5f552c8c5edb61fe6efb824baf4d4de47b1a8689ab4925ff43f7bd6a4ebece5"
     expected = recovery if args.recovery else rubik
     if sha256(args.font.read_bytes()).hexdigest() != expected:
         parser.error("use the recorded font for the requested atlas")
-    if args.captions and (not args.noto_fallback or sha256(args.noto_fallback.read_bytes()).hexdigest() != light):
-        parser.error("use the recorded Noto Sans Light face with --noto-fallback for --captions")
+    if args.captions and (not args.noto_fallback or sha256(args.noto_fallback.read_bytes()).hexdigest() != noto_sans):
+        parser.error("use the recorded Noto Sans face with --noto-fallback for --captions")
     size, width, height, origin = (26, 32, 36, (0, 27)) if args.recovery else (150, 88, 116, (0, 113))
     glyphs = (chr(code) for code in range(32, 127)) if args.recovery else "0123456789:"
     if args.captions or args.dates:
-        size, width, height, origin = (25, 48, 48, (1, 28))
+        size, width, height, origin = (28, 48, 48, (3, 30))
+        weight = 500
         ranges = [(32, 127), (0x2010, 0x2027)]
         if args.captions:
             ranges[1:1] = [(0xa0, 0x250), (0x370, 0x530), (0x1e00, 0x1efa)]
         glyphs = (chr(code) for start, end in ranges for code in range(start, end))
         font = ImageFont.truetype(str(args.font), size)
-        font.set_variation_by_axes([300])
+        font.set_variation_by_axes([weight])
         fallback = None
         if args.dates:
             glyphs = date_glyphs()
         else:
             fallback = ImageFont.truetype(str(args.noto_fallback), size)
+            fallback.set_variation_by_axes([weight, 100])
         args.output.write_bytes(caption_atlas(font, glyphs, width, height, origin, fallback, require_all=args.dates))
         return
     font = ImageFont.truetype(str(args.font), size)
