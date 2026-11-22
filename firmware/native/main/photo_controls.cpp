@@ -9,7 +9,6 @@ namespace {
 constexpr uint16_t background = 0x10A3;
 constexpr uint16_t button = 0x2946;
 constexpr uint16_t icon = 0xD6DC;
-constexpr int radius = 24;
 
 int lerp(int from, int to, int progress) {
   return from + ((to - from) * progress + PhotoControls::open / 2) / PhotoControls::open;
@@ -30,7 +29,7 @@ void corner_insets(std::array<int, Size> &insets, int r) {
   }
 }
 
-void draw_toolbar(uint16_t *output, ScreenRotation rotation, int progress) {
+void paint_toolbar(uint16_t *output, ScreenRotation rotation, int progress) {
   constexpr int reveal = 160;
   if (progress <= reveal)
     return;
@@ -112,11 +111,9 @@ int PhotoControls::progress(int64_t now) const {
   if (now <= this->started_us_)
     return this->start_;
   const int elapsed = static_cast<int>((now - this->started_us_) * open / this->duration_us_);
-  const int remaining = open - elapsed;
-  // A cubic ease-out settles gently and starts a reversal from the current size.
-  const int distance = this->start_ - this->target_;
-  const int eased_remaining = remaining * remaining * remaining / open;
-  return this->target_ + distance * eased_remaining / (open * open);
+  // Start and end at rest so the largest steps are in the middle of the move.
+  const int eased = elapsed * elapsed * (3 * open - 2 * elapsed) / (open * open);
+  return this->start_ + (this->target_ - this->start_) * eased / open;
 }
 
 void PhotoControls::animate(bool show, int64_t now) {
@@ -129,35 +126,62 @@ void PhotoControls::animate(bool show, int64_t now) {
   this->duration_us_ = 140'000 + 180'000 * std::abs(target - this->start_) / open;
 }
 
-void PhotoControls::draw(uint16_t *output, SlideSpan span, int pull, ScreenRotation rotation, int progress) {
+void PhotoControls::prepare(uint16_t *output, SlideSpan span, int pull, ScreenRotation rotation, int progress) {
+  this->output_ = output;
+  this->span_ = span;
+  this->pull_ = pull;
+  this->rotation_ = rotation;
+  this->progress_ = progress;
   // The resting card is 1072 x 670. Round the two axes to whole pixels.
-  const int left = lerp(0, 104, progress);
-  const int width = slide_width - 2 * left;
+  this->left_ = lerp(0, 104, progress);
+  this->width_ = slide_width - 2 * this->left_;
   const int removed_height = lerp(0, 130, progress);
-  const int height = slide_height - removed_height;
+  this->height_ = slide_height - removed_height;
   const int top = removed_height * 4 / 5;
-  const int base_column = rotation == ScreenRotation::Normal ? panel_width - top - height : top;
-  const int rounding = lerp(0, radius, progress);
-  std::array<int, radius> corners;
-  corner_insets(corners, rounding);
-  for (int column = 0; column < height; ++column)
-    this->source_columns_[column] = source_coordinate(column, height, panel_width, rotation);
-  std::fill_n(output, left * panel_width, background);
-  for (int row = 0; row < width; ++row) {
-    auto *out = output + (left + row) * panel_width;
-    const int source_row = source_coordinate(row, width, panel_height, rotation);
-    const int mapped = std::clamp(source_row + span.offset + pull, 0, panel_height + span.offset - 1);
-    const auto *source = mapped < panel_height ? span.first + mapped * panel_width
-                                               : span.second + (mapped - panel_height) * panel_width;
-    const int edge = std::min(row, width - row - 1);
-    const int inset = edge < rounding ? corners[edge] : 0;
-    std::fill_n(out, base_column + inset, background);
-    for (int column = inset; column < height - inset; ++column)
-      out[base_column + column] = source[this->source_columns_[column]];
-    std::fill_n(out + base_column + height - inset, panel_width - base_column - height + inset, background);
+  this->base_column_ = rotation == ScreenRotation::Normal ? removed_height - top : top;
+  this->rounding_ = lerp(0, radius, progress);
+  corner_insets(this->corners_, this->rounding_);
+  for (int column = 0; column < this->height_; ++column)
+    this->source_columns_[column] = source_coordinate(column, this->height_, panel_width, rotation);
+}
+
+void PhotoControls::draw_rows(int first, int end) const {
+  const int first_card = std::clamp(this->left_, first, end);
+  const int end_card = std::clamp(this->left_ + this->width_, first, end);
+  std::fill_n(this->output_ + first * panel_width, (first_card - first) * panel_width, background);
+  for (int row = first_card; row < end_card; ++row) {
+    auto *out = this->output_ + row * panel_width;
+    const int card_row = row - this->left_;
+    const int source_row = source_coordinate(card_row, this->width_, panel_height, this->rotation_);
+    const int mapped = std::clamp(source_row + this->span_.offset + this->pull_, 0,
+                                  panel_height + this->span_.offset - 1);
+    const auto *source = mapped < panel_height ? this->span_.first + mapped * panel_width
+                                               : this->span_.second + (mapped - panel_height) * panel_width;
+    const int edge = std::min(card_row, this->width_ - card_row - 1);
+    const int inset = edge < this->rounding_ ? this->corners_[edge] : 0;
+    std::fill_n(out, this->base_column_ + inset, background);
+    auto *card = out + this->base_column_;
+    const int last = this->height_ - inset;
+    if (this->height_ == panel_width) {
+      copy_slide_rows(card, source, panel_width, 1);
+    } else {
+      int column = inset;
+      for (; column + 4 <= last; column += 4) {
+        card[column] = source[this->source_columns_[column]];
+        card[column + 1] = source[this->source_columns_[column + 1]];
+        card[column + 2] = source[this->source_columns_[column + 2]];
+        card[column + 3] = source[this->source_columns_[column + 3]];
+      }
+      for (; column < last; ++column)
+        card[column] = source[this->source_columns_[column]];
+    }
+    std::fill_n(card + last, panel_width - this->base_column_ - last, background);
   }
-  std::fill_n(output + (left + width) * panel_width, left * panel_width, background);
-  draw_toolbar(output, rotation, progress);
+  std::fill_n(this->output_ + end_card * panel_width, (end - end_card) * panel_width, background);
+}
+
+void PhotoControls::draw_toolbar() const {
+  paint_toolbar(this->output_, this->rotation_, this->progress_);
 }
 
 }  // namespace espframe::native

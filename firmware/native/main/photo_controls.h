@@ -12,18 +12,33 @@ class PhotoControls {
   static constexpr int toolbar_bottom = 96;
 
   int progress(int64_t now) const;
+  bool animating(int progress) const { return progress != this->target_; }
   bool target_open() const { return this->target_ == open; }
   void animate(bool show, int64_t now);
   void reset() { this->start_ = this->target_ = 0; }
 
-  // The same RGB565 slide pixels feed both the slideshow and the card.
-  void draw(uint16_t *output, SlideSpan span, int pull, ScreenRotation rotation, int progress);
+  // Prepare once, then draw disjoint panel rows before painting the toolbar.
+  void prepare(uint16_t *output, SlideSpan span, int pull, ScreenRotation rotation, int progress);
+  void draw_rows(int first, int end) const;
+  void draw_toolbar() const;
 
  private:
   int start_{};
   int target_{};
   int64_t started_us_{};
   int64_t duration_us_{};
+  uint16_t *output_{};
+  SlideSpan span_{};
+  int pull_{};
+  ScreenRotation rotation_{};
+  int progress_{};
+  int left_{};
+  int width_{};
+  int height_{};
+  int base_column_{};
+  int rounding_{};
+  static constexpr int radius = 24;
+  std::array<int, radius> corners_{};
   std::array<uint16_t, panel_width> source_columns_{};
 };
 

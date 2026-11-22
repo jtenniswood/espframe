@@ -76,6 +76,44 @@ extern const uint8_t status_masks[] asm("_binary_status_masks_bin_start");
 extern const uint8_t status_masks_end[] asm("_binary_status_masks_bin_end");
 NativeNetwork network;
 
+class PhotoControlsRenderer {
+ public:
+  explicit PhotoControlsRenderer(const PhotoControls &controls) : controls_(controls) {}
+
+  void start() {
+    done_ = xSemaphoreCreateBinaryStatic(&done_storage_);
+    if (xTaskCreatePinnedToCore(run_, "photo-scale", 2048, this, player_priority, &worker_, loader_core) != pdPASS)
+      worker_ = nullptr;
+  }
+
+  void draw() const {
+    if (worker_) {
+      // Each core writes whole rows. Join before painting the toolbar or submitting the frame.
+      xTaskNotifyGive(worker_);
+      controls_.draw_rows(panel_height / 2, panel_height);
+      xSemaphoreTake(done_, portMAX_DELAY);
+    } else {
+      controls_.draw_rows(0, panel_height);
+    }
+    controls_.draw_toolbar();
+  }
+
+ private:
+  static void run_(void *context) {
+    const auto &renderer = *static_cast<PhotoControlsRenderer *>(context);
+    while (true) {
+      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+      renderer.controls_.draw_rows(0, panel_height / 2);
+      xSemaphoreGive(renderer.done_);
+    }
+  }
+
+  const PhotoControls &controls_;
+  StaticSemaphore_t done_storage_{};
+  SemaphoreHandle_t done_{};
+  TaskHandle_t worker_{};
+};
+
 struct GestureTiming {
   int64_t gesture_to_scanout_us{};
   int64_t compose_and_submit_us{};
@@ -539,6 +577,7 @@ void run(void *) {
   Swipe swipe{slide_width, slide_count, live ? 0 : 2};
   SwipeInput input;
   static PhotoControls controls;
+  static PhotoControlsRenderer controls_renderer{controls};
   const uint16_t *controls_snapshot = nullptr;
   int last_control_progress = 0;
   const auto unpin_controls = [&] {
@@ -611,6 +650,8 @@ void run(void *) {
     trace.start(Display::nominal_frame_period_us());
   if constexpr (!esphome_trial || trial_immich)
     loader.start_network();
+  if constexpr (!SWIPE_TRIAL_BENCHMARK)
+    controls_renderer.start();
   const auto submit_frame = [&](PixelPosition position, bool moving = true, bool resisted = false,
                                 const ScanoutFrame *frame = nullptr, std::optional<SlideRange> sources = {}) {
     if (!display.submit(position, frame, sources))
@@ -1024,7 +1065,8 @@ void run(void *) {
                                  ? prefetch.can_defer_drag(ready, origin, swipe.position(),
                                                            drag == Swipe::DragActivity::Starting, first_motion_pending)
                                  : !contact_engaged && prefetch.can_defer_settle(ready, swipe.settle_destination());
-      pixel_work_deferred = user_motion && can_defer;
+      const bool scaling_at_rest = controls.animating(control_progress) && !swipe.dragging() && !swipe.settling();
+      pixel_work_deferred = (user_motion && can_defer) || scaling_at_rest;
       protect_cached_copy = drag == Swipe::DragActivity::Starting && !first_motion_pending && !can_defer &&
                             !prefetch.requested() && ready.contains(origin) && ready.last == origin + 1 &&
                             swipe.position() > origin * slide_width;
@@ -1297,8 +1339,9 @@ void run(void *) {
           last_control_progress = control_progress;
         };
         if (control_progress != 0) {
-          controls.draw(output, controls_snapshot ? SlideSpan{controls_snapshot, nullptr, 0} : span,
-                        controls_snapshot ? 0 : pull, rotation, control_progress);
+          controls.prepare(output, controls_snapshot ? SlideSpan{controls_snapshot, nullptr, 0} : span,
+                           controls_snapshot ? 0 : pull, rotation, control_progress);
+          controls_renderer.draw();
           const auto started_submit = trial_immich && motion != 0 ? esp_timer_get_time() : 0;
           submit_frame(position, position != last_submitted, use_edge);
           finish_render(started_submit);
