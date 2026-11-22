@@ -111,6 +111,25 @@ node firmware/native/tools/package_installer.mjs firmware/native/build firmware/
 The package also includes `index.html` and its assets for serving the same
 installer over HTTPS or localhost.
 
+### Prepare a versioned Native Preview
+
+Run the **Native Swipe Prototype** workflow on the intended source commit
+with `preview_version` set to a version such as `v0.1.0-preview.1`. The
+`preview_v1_linked_scanout` option selects the experimental V1 renderer
+for a hands-on comparison. It defaults to off. The workflow produces the
+`espframe-native-v0.1.0-preview.1` artifact with the standalone browser
+installer, factory and OTA images, SHA-256 checksums, and the source commit.
+
+For a local build set `-D NATIVE_PREVIEW_VERSION=v0.1.0-preview.1` in each
+native factory build. Pass the same version as the third argument to
+`package_installer.mjs`. The packager checks that every image embeds the
+requested version before creating the installer.
+
+Open **Espframe Native Installer.html** in desktop Chrome or Edge. The
+stable ESPHome installer provides the return path. Keep a backup and leave
+**Erase device** unchecked when switching firmware to retain the saved
+ESPHome preferences.
+
 ### Open the frame's web settings
 
 Set a web settings password when saving over USB to enable the frame's

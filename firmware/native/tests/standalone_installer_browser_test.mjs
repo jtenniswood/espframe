@@ -6,9 +6,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-const installer = process.argv[2]
+const [installer, previewVersion = ''] = process.argv.slice(2)
 assert.ok(installer, 'Pass the directory of the packaged native installer')
 const html = await readFile(join(installer, 'Espframe Native Installer.html'), 'utf8')
+if (previewVersion) assert.ok(html.includes(`<p>Native Preview ${previewVersion}</p>`))
 const firmware = await Promise.all(['v1', 'v2', 'v3'].map(async board => {
   const bytes = await readFile(join(installer, `${board}.bin`))
   return [board, createHash('sha256').update(bytes).digest('hex')]
@@ -31,7 +32,8 @@ const verify = `
         const manifest = await (await fetch(install.manifest)).json()
         const [build] = manifest.builds
         const [part] = build.parts
-        check(manifest.name === 'Native Espframe ' + board.toUpperCase() && manifest.new_install_prompt_erase &&
+        check(manifest.name === 'Native Espframe ' + board.toUpperCase() &&
+          manifest.version === ${JSON.stringify(previewVersion || 'prototype')} && manifest.new_install_prompt_erase &&
           build.chipFamily === 'ESP32-P4' && build.parts.length === 1 && part.offset === 0, 'Unexpected firmware manifest')
         const bytes = await (await fetch(new URL(part.path, location.href))).arrayBuffer()
         const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))

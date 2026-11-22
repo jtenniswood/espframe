@@ -5,10 +5,13 @@ import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 
-const [binaryRoot, destination] = process.argv.slice(2)
+const [binaryRoot, destination, previewVersion = ''] = process.argv.slice(2)
 if (!binaryRoot || !destination) {
-  console.error('Usage: node firmware/native/tools/package_installer.mjs BINARY_ROOT NEW_OUTPUT_DIRECTORY')
+  console.error('Usage: node firmware/native/tools/package_installer.mjs BINARY_ROOT NEW_OUTPUT_DIRECTORY [PREVIEW_VERSION]')
   process.exit(2)
+}
+if (previewVersion && (!/^v[0-9]+\.[0-9]+\.[0-9]+-preview\.[0-9]+$/.test(previewVersion) || previewVersion.length > 31)) {
+  throw new Error('Expected a preview version such as v0.1.0-preview.1, at most 31 bytes')
 }
 
 const source = fileURLToPath(new URL('../installer/', import.meta.url))
@@ -106,6 +109,10 @@ const images = await Promise.all(boards.map(async board => {
     throw new Error(`Invalid or oversized ${board} update binary`)
   if (!factory.subarray(nativeFactory.offset).equals(ota))
     throw new Error(`The ${board} factory and update images must come from the same build`)
+  // ESP-IDF writes the 32-byte project version before the project name.
+  const version = ota.toString('ascii', 48, 80).split('\0', 1)[0]
+  if (previewVersion && version !== previewVersion)
+    throw new Error(`Expected ${board} firmware version ${previewVersion}, found ${version}`)
   return { board, factory, ota }
 }))
 await mkdir(output)
@@ -114,10 +121,11 @@ const embedded = {}
 for (const { board, factory, ota } of images) {
   await writeFile(join(output, `${board}.bin`), factory)
   await writeFile(join(output, `${board}-ota.bin`), ota)
-  hashes.push(`${createHash('sha256').update(ota).digest('hex')}  ${board}-ota.bin`)
+  hashes.push(`${createHash('sha256').update(factory).digest('hex')}  ${board}.bin`,
+              `${createHash('sha256').update(ota).digest('hex')}  ${board}-ota.bin`)
   const manifest = {
     name: `Native Espframe ${board.toUpperCase()}`,
-    version: 'prototype',
+    version: previewVersion || 'prototype',
     new_install_prompt_erase: true,
     builds: [{ chipFamily: 'ESP32-P4', parts: [{ path: `${board}.bin`, offset: 0 }] }],
   }
@@ -142,6 +150,7 @@ const [template, css] = await Promise.all([
   readFile(join(source, 'setup.css'), 'utf8'),
 ])
 const html = template.replace('<!-- CLOCK_TIMEZONES -->', () => clockOptions.trim())
+  .replace('<!-- NATIVE_PREVIEW_VERSION -->', previewVersion ? `<p>Native Preview ${previewVersion}</p>` : '')
 // Keep the hosted bundle and provide a self-contained copy for file://, where
 // Chromium's module loader and fetch cannot read neighboring local assets.
 const standalone = html

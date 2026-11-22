@@ -62,6 +62,16 @@ try {
     assert.match(result.stderr, /Invalid v1 factory partition table/, description)
     await assert.rejects(stat(destination), { code: 'ENOENT' })
   }
+  await writeFile(join(temp, 'v1', 'merged-binary.bin'), original)
+  const version = 'v999.0.0-preview.1'
+  const wrongVersion = spawnSync(process.execPath, [packager, temp, destination, version], { encoding: 'utf8' })
+  assert.equal(wrongVersion.status, 1)
+  assert.match(wrongVersion.stderr, /Expected v[123] firmware version v999\.0\.0-preview\.1/)
+  await assert.rejects(stat(destination), { code: 'ENOENT' })
+  const stableVersion = spawnSync(process.execPath, [packager, temp, destination, 'v1.0.0'], { encoding: 'utf8' })
+  assert.equal(stableVersion.status, 1)
+  assert.match(stableVersion.stderr, /Expected a preview version/)
+  await assert.rejects(stat(destination), { code: 'ENOENT' })
   console.log('Native installer rejects incompatible flash layouts before creating output')
 } finally {
   await rm(temp, { recursive: true, force: true })

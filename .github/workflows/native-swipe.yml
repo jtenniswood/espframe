@@ -1,4 +1,5 @@
 name: Native Swipe Prototype
+run-name: ${{ inputs.preview_version != '' && format('Build Native Preview {0}', inputs.preview_version) || github.event.pull_request.title || 'Native Swipe Prototype' }}
 
 on:
   pull_request:
@@ -27,12 +28,22 @@ on:
       - 'package-lock.json'
       - '.github/workflows/native-swipe.yml'
   workflow_dispatch:
+    inputs:
+      preview_version:
+        description: Optional native preview version, such as v0.1.0-preview.1
+        type: string
+        default: ''
+      preview_v1_linked_scanout:
+        description: Use experimental linked scanout on V1 in this preview
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   home-assistant:
+    if: github.event_name != 'workflow_dispatch' || inputs.preview_version == ''
     name: Test encrypted native Home Assistant session
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -53,6 +64,7 @@ jobs:
           '
 
   prepared-slides:
+    if: github.event_name != 'workflow_dispatch' || inputs.preview_version == ''
     name: Test prepared Immich slides
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -91,6 +103,7 @@ jobs:
           '
 
   linked-scanout:
+    if: github.event_name != 'workflow_dispatch' || inputs.preview_version == ''
     name: Test experimental V1 linked scanout
     runs-on: ubuntu-latest
     timeout-minutes: 12
@@ -173,11 +186,24 @@ jobs:
           "$RUNNER_TEMP/recent-previews-test"
           python3 firmware/native/tests/test_preview_decoder.py
       - name: Build native factory binary
+        env:
+          BOARD: ${{ matrix.board }}
+          NATIVE_PREVIEW_VERSION: ${{ inputs.preview_version }}
+          PREVIEW_V1_LINKED_SCANOUT: ${{ inputs.preview_v1_linked_scanout }}
         run: |
+          trace=ON
+          linked=OFF
+          if [[ -n "$NATIVE_PREVIEW_VERSION" ]]; then
+            trace=OFF
+            if [[ "$BOARD" == v1 && "$PREVIEW_V1_LINKED_SCANOUT" == true ]]; then
+              linked=ON
+            fi
+          fi
           docker pull espressif/idf:v6.1.1
           docker run --rm -v "$PWD:/workspace" -w /workspace \
-            espressif/idf:v6.1.1 idf.py -C firmware/native -B "firmware/native/build/${{ matrix.board }}" \
-            -D SWIPE_BOARD="${{ matrix.board }}" -D SWIPE_TRACE=ON build merge-bin
+            espressif/idf:v6.1.1 idf.py -C firmware/native -B "firmware/native/build/$BOARD" \
+            -D "SWIPE_BOARD=$BOARD" -D "SWIPE_TRACE=$trace" -D "SWIPE_LINKED_SCANOUT=$linked" \
+            -D "NATIVE_PREVIEW_VERSION=$NATIVE_PREVIEW_VERSION" build merge-bin
       - name: Check the effective Guition network configuration
         run: |
           settings='^(CONFIG_|# CONFIG_)(SLAVE_IDF_TARGET|ESP_WIFI_REMOTE|ESP_HOSTED|EH_HOST_PORT|MDNS_PREDEF_NETIF|LWIP_MAX_SOCKETS)'
@@ -256,6 +282,7 @@ jobs:
           if-no-files-found: error
 
   native-ota-test:
+    if: github.event_name != 'workflow_dispatch' || inputs.preview_version == ''
     name: Build native OTA recovery test images for Guition V1
     runs-on: ubuntu-latest
     timeout-minutes: 12
@@ -297,6 +324,7 @@ jobs:
           if-no-files-found: error
 
   esphome-v1-trial:
+    if: github.event_name != 'workflow_dispatch' || inputs.preview_version == ''
     name: Build the temporary V1 ESPHome swipe trial
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -343,6 +371,9 @@ jobs:
           pattern: firmware-test-native-swipe-*
           path: firmware/native/build
       - name: Test and package browser setup
+        env:
+          NATIVE_PREVIEW_VERSION: ${{ inputs.preview_version }}
+          PREVIEW_V1_LINKED_SCANOUT: ${{ inputs.preview_v1_linked_scanout }}
         run: |
           npm ci
           node firmware/native/tests/serial_setup_test.mjs
@@ -355,18 +386,24 @@ jobs:
             mv "firmware/native/build/firmware-test-native-swipe-$board" "firmware/native/build/$board"
           done
           node firmware/native/tests/package_installer_test.mjs firmware/native/build
-          node firmware/native/tools/package_installer.mjs firmware/native/build firmware/native/build/browser-installer
+          node firmware/native/tools/package_installer.mjs firmware/native/build firmware/native/build/browser-installer "$NATIVE_PREVIEW_VERSION"
           node firmware/native/tests/backup_installer_browser_test.mjs firmware/native/build/browser-installer
-          node firmware/native/tests/standalone_installer_browser_test.mjs firmware/native/build/browser-installer
+          node firmware/native/tests/standalone_installer_browser_test.mjs firmware/native/build/browser-installer "$NATIVE_PREVIEW_VERSION"
+          if [[ -n "$NATIVE_PREVIEW_VERSION" ]]; then
+            printf 'Version: %s\nSource commit: %s\nV1 linked scanout: %s\n' \
+              "$NATIVE_PREVIEW_VERSION" "$(git rev-parse HEAD)" "$PREVIEW_V1_LINKED_SCANOUT" \
+              > firmware/native/build/browser-installer/BUILD-INFO.txt
+          fi
           cd firmware/native/build/browser-installer
           sha256sum -c SHA256SUMS
       - uses: actions/upload-artifact@v7
         with:
-          name: native-browser-installer
+          name: ${{ inputs.preview_version != '' && format('espframe-native-{0}', inputs.preview_version) || 'native-browser-installer' }}
           path: firmware/native/build/browser-installer
           if-no-files-found: error
 
   esphome-v1-live-trial:
+    if: github.event_name != 'workflow_dispatch' || inputs.preview_version == ''
     name: Build the live V1 Immich trial
     runs-on: ubuntu-latest
     timeout-minutes: 20
