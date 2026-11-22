@@ -123,7 +123,7 @@ void PhotoControls::animate(bool show, int64_t now) {
   this->start_ = this->progress(now);
   this->target_ = target;
   this->started_us_ = now;
-  this->duration_us_ = 140'000 + 180'000 * std::abs(target - this->start_) / open;
+  this->duration_us_ = 105'000 + 135'000 * std::abs(target - this->start_) / open;
 }
 
 void PhotoControls::prepare(uint16_t *output, SlideSpan span, int pull, ScreenRotation rotation, int progress) {

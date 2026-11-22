@@ -21,10 +21,11 @@ void draw(PhotoControls &controls, uint16_t *output, SlideSpan span, int pull, S
 void slows_down_near_both_ends() {
   PhotoControls controls;
   controls.animate(true, 0);
-  assert(controls.progress(40'000) < PhotoControls::open / 16);
-  assert(controls.progress(160'000) == PhotoControls::open / 2);
-  assert(controls.progress(280'000) > 15 * PhotoControls::open / 16);
-  assert(controls.progress(320'000) == PhotoControls::open);
+  assert(controls.progress(30'000) < PhotoControls::open / 16);
+  assert(controls.progress(120'000) == PhotoControls::open / 2);
+  assert(controls.progress(210'000) > 15 * PhotoControls::open / 16);
+  assert(controls.progress(239'999) < PhotoControls::open);
+  assert(controls.progress(240'000) == PhotoControls::open);
 }
 
 void reverses_from_the_current_size_and_settles() {
