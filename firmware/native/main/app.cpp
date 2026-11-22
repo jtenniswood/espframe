@@ -10,6 +10,7 @@
 #include "initial_photo_timeout.h"
 #include "live_trial.h"
 #include "native_network.h"
+#include "photo_controls.h"
 #include "playback_transition.h"
 #include "recovery_card.h"
 #include "screen_control.h"
@@ -537,6 +538,15 @@ void run(void *) {
   touch.start(rotation);
   Swipe swipe{slide_width, slide_count, live ? 0 : 2};
   SwipeInput input;
+  static PhotoControls controls;
+  const uint16_t *controls_snapshot = nullptr;
+  int last_control_progress = 0;
+  const auto unpin_controls = [&] {
+    if (controls_snapshot != nullptr) {
+      display.unpin();
+      controls_snapshot = nullptr;
+    }
+  };
   ScreenSchedule schedule{loader.schedule()};
   SlideDwell dwell;
   SlidePrefetch prefetch{swipe.settled(), cache_slots};
@@ -721,6 +731,7 @@ void run(void *) {
     const auto center = swipe.settled();
     const auto requested_revision = esphome_trial ? 0 : photo_source_revision.load(std::memory_order_acquire);
     const bool at_source_handoff = swipe.idle() && !input.engaged() && !fade.running() && !fade.held() &&
+                                   !controls.target_open() && last_control_progress == 0 &&
                                    !blend.pending() && !display.borrowing() &&
                                    display.presented_position() == center * slide_width;
     const bool discard_refresh = preparing_refresh && (loader.yield_requested() || requested_revision != source_revision);
@@ -912,6 +923,25 @@ void run(void *) {
         manual_brightness.reset();
         schedule.wake(report.sampled_us);
       }
+      if constexpr (!SWIPE_TRIAL_BENCHMARK) {
+        if (effect == SwipeInput::Effect::Tap && applied_brightness != 0 && swipe.idle() && swipe.settled() > 0 &&
+            swipe.position() == display.handoff_position() && !fade.running() && !fade.held() && !blend.pending() &&
+            network.recovery_status() == NativeNetwork::RecoveryStatus::Off && !recovery_painted &&
+            cache.find(swipe.settled())) {
+          if (!controls.target_open()) {
+            // Retain the visible overlays with the photo when a spare slot exists.
+            if (last_control_progress == 0 && controls_snapshot == nullptr)
+              controls_snapshot = display.pin_handoff();
+            controls.animate(true, esp_timer_get_time());
+          } else if (last_control_progress < PhotoControls::open || input.contact_y() >= PhotoControls::toolbar_bottom) {
+            controls.animate(false, esp_timer_get_time());
+          }
+        }
+        if (swipe.dragging() && !was_dragging && (controls.target_open() || last_control_progress != 0)) {
+          controls.animate(false, esp_timer_get_time());
+          unpin_controls();
+        }
+      }
       if (swipe.dragging() && fade.held())
         fade.note_drag();
     }
@@ -942,6 +972,12 @@ void run(void *) {
       if (commanded)
         screen_control.completed();
     }
+    if ((controls.target_open() || last_control_progress != 0) &&
+        (applied_brightness == 0 || network.recovery_status() != NativeNetwork::RecoveryStatus::Off))
+      controls.reset();
+    const int control_progress = controls.progress(now);
+    if (control_progress == 0 && !controls.target_open())
+      unpin_controls();
 
     if (blend.poll_complete() && fade.running()) {
       // Touch is handled before this block so a superseded blend can never
@@ -1094,7 +1130,8 @@ void run(void *) {
     if (live) {
       const bool first_photo = swipe.settled() == 0;
       const bool source_changed = source_anchor == swipe.settled();
-      const bool dwelling = visible_and_idle && !fade.running() && !fade.held();
+      const bool dwelling = visible_and_idle && !fade.running() && !fade.held() &&
+                            !controls.target_open() && control_progress == 0 && last_control_progress == 0;
       // Keep the settled photo available for inspection during the touch replay.
       constexpr bool hold_photo = SWIPE_TRIAL_REPLAY_HISTORY || SWIPE_TRIAL_WIFI_OUTAGE || trial_replay_touch;
       if ((!hold_photo || first_photo) &&
@@ -1228,10 +1265,11 @@ void run(void *) {
     if (!caption)
       caption_sample = {};
     if (auto *output = display.writable_buffer(); output != nullptr &&
-        (position != last_submitted || inside != last_inside || show_recovery != recovery_painted ||
-         source_notice != painted_source_status ||
-         connection_notice != painted_connection_notice || notice_language != painted_notice_language ||
-         (display.borrowing() && !sliding) || (show_clock && clock_dirty) || caption_sample != last_caption)) {
+        (position != last_submitted || inside != last_inside || control_progress != last_control_progress ||
+         (control_progress == 0 &&
+          (show_recovery != recovery_painted || source_notice != painted_source_status ||
+           connection_notice != painted_connection_notice || notice_language != painted_notice_language ||
+           (display.borrowing() && !sliding) || (show_clock && clock_dirty) || caption_sample != last_caption)))) {
       const auto index = inside / slide_width;
       const int offset = inside % slide_width;
       const auto slide_pixels = [&](SlideIndex slide) {
@@ -1245,6 +1283,28 @@ void run(void *) {
         constexpr auto limit = PixelPosition{slide_width - 1};
         const int pull = static_cast<int>(std::clamp(position - inside, -limit, limit)) * axis_direction(rotation);
         const auto span = orient_slide_span(left, right, panel_height, offset, rotation);
+        const auto finish_render = [&](int64_t started_submit) {
+          submitted_motion_us = motion;
+          motion_render_us = motion != 0 ? esp_timer_get_time() - started_render : 0;
+          if constexpr (capture_motion) {
+            if (motion != 0)
+              first_motion = {motion, input.contact_started_us(), motion_render_us,
+                              ready_at_motion(position, {ready_first, ready_last}, available), preparing >= 0,
+                              started_submit != 0 ? started_render + motion_render_us - started_submit : 0};
+          }
+          last_submitted = position;
+          last_inside = inside;
+          last_control_progress = control_progress;
+        };
+        if (control_progress != 0) {
+          controls.draw(output, controls_snapshot ? SlideSpan{controls_snapshot, nullptr, 0} : span,
+                        controls_snapshot ? 0 : pull, rotation, control_progress);
+          const auto started_submit = trial_immich && motion != 0 ? esp_timer_get_time() : 0;
+          submit_frame(position, position != last_submitted, use_edge);
+          finish_render(started_submit);
+          display.wait_for_frame_or_tick();
+          continue;
+        }
         const auto render_owned = [&] {
           if (use_edge) {
             blitter.edge(output, left, pull);
@@ -1330,16 +1390,7 @@ void run(void *) {
         if (!submitted)
           submit_frame(position, position != last_submitted, use_edge);
         last_caption = caption_sample;
-        submitted_motion_us = motion;
-        motion_render_us = motion != 0 ? esp_timer_get_time() - started_render : 0;
-        if constexpr (capture_motion) {
-          if (motion != 0)
-            first_motion = {motion, input.contact_started_us(), motion_render_us,
-                            ready_at_motion(position, {ready_first, ready_last}, available), preparing >= 0,
-                            started_submit != 0 ? started_render + motion_render_us - started_submit : 0};
-        }
-        last_submitted = position;
-        last_inside = inside;
+        finish_render(started_submit);
       }
     }
     display.wait_for_frame_or_tick();

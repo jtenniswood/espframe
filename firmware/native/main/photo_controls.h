@@ -1,0 +1,30 @@
+#pragma once
+
+#include "slide_blit.h"
+
+#include <array>
+
+namespace espframe::native {
+
+class PhotoControls {
+ public:
+  static constexpr int open = 256;
+  static constexpr int toolbar_bottom = 96;
+
+  int progress(int64_t now) const;
+  bool target_open() const { return this->target_ == open; }
+  void animate(bool show, int64_t now);
+  void reset() { this->start_ = this->target_ = 0; }
+
+  // The same RGB565 slide pixels feed both the slideshow and the card.
+  void draw(uint16_t *output, SlideSpan span, int pull, ScreenRotation rotation, int progress);
+
+ private:
+  int start_{};
+  int target_{};
+  int64_t started_us_{};
+  int64_t duration_us_{};
+  std::array<uint16_t, panel_width> source_columns_{};
+};
+
+}  // namespace espframe::native
