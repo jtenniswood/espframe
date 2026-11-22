@@ -924,7 +924,7 @@ void run(void *) {
         schedule.wake(report.sampled_us);
       }
       if constexpr (!SWIPE_TRIAL_BENCHMARK) {
-        if (effect == SwipeInput::Effect::Tap && applied_brightness != 0 && swipe.idle() && swipe.settled() > 0 &&
+        if (effect == SwipeInput::Effect::Tap && swipe.idle() && swipe.settled() > 0 &&
             swipe.position() == display.handoff_position() && !fade.running() && !fade.held() && !blend.pending() &&
             network.recovery_status() == NativeNetwork::RecoveryStatus::Off && !recovery_painted &&
             cache.find(swipe.settled())) {
@@ -973,7 +973,7 @@ void run(void *) {
         screen_control.completed();
     }
     if ((controls.target_open() || last_control_progress != 0) &&
-        (applied_brightness == 0 || network.recovery_status() != NativeNetwork::RecoveryStatus::Off))
+        (!input.awake() || network.recovery_status() != NativeNetwork::RecoveryStatus::Off))
       controls.reset();
     const int control_progress = controls.progress(now);
     if (control_progress == 0 && !controls.target_open())
