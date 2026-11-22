@@ -107,12 +107,34 @@ void verify_antialiasing() {
   assert(pixel(0, 2) == 0x39e7 && pixel(2, 4) == 0x39e7);
 }
 
+void verify_atlas_slots(const std::vector<uint8_t> &atlas) {
+  constexpr int height = ClockOverlay::glyph_height;
+  constexpr int width = ClockOverlay::glyph_width;
+  for (int glyph = 0; glyph <= 10; ++glyph) {
+    const int advance = glyph == 10 ? ClockOverlay::colon_advance : ClockOverlay::digit_advance;
+    int left = advance;
+    int right = -1;
+    for (int x = 0; x < width; ++x) {
+      for (int y = 0; y < height; ++y) {
+        const auto packed = atlas[(glyph * width * height + x * height + y) / 2];
+        if ((y % 2 != 0 ? packed & 15 : packed >> 4) == 0)
+          continue;
+        assert(x > 0 && x < advance - 1 && y > 0 && y < height - 1);
+        left = std::min(left, x);
+        right = std::max(right, x);
+      }
+    }
+    assert(left <= right && std::abs(left - (advance - 1 - right)) <= 2);
+  }
+}
+
 int main(int argc, char **argv) {
   assert(argc == 2);
   verify_antialiasing();
   std::ifstream file(argv[1], std::ios::binary);
   const std::vector<uint8_t> atlas{std::istreambuf_iterator<char>(file), {}};
   assert(atlas.size() == ClockOverlay::atlas_size);
+  verify_atlas_slots(atlas);
   static constexpr uint16_t photo = 0x39e7;
   const std::vector<uint16_t> plain(pixel_count, photo);
   auto baked = plain;

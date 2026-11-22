@@ -83,7 +83,7 @@ def main():
     rubik = "1b3a7437ba2af80e465e773ed60c5036d1ba6ace492d89046dbcf18fb31e4e88"
     light = "cfffc3ecf6aaa6a205b16c68070cceca472208a06581e6f131cdd0294913d900"
     recovery = "f5f552c8c5edb61fe6efb824baf4d4de47b1a8689ab4925ff43f7bd6a4ebece5"
-    expected = recovery if args.recovery else rubik if args.captions or args.dates else light
+    expected = recovery if args.recovery else rubik
     if sha256(args.font.read_bytes()).hexdigest() != expected:
         parser.error("use the recorded font for the requested atlas")
     if args.captions and (not args.noto_fallback or sha256(args.noto_fallback.read_bytes()).hexdigest() != light):
@@ -106,10 +106,23 @@ def main():
         args.output.write_bytes(caption_atlas(font, glyphs, width, height, origin, fallback, require_all=args.dates))
         return
     font = ImageFont.truetype(str(args.font), size)
+    if not args.recovery:
+        font.set_variation_by_axes([300])
     result = bytearray()
     for glyph in glyphs:
         image = Image.new("L", (width, height))
-        ImageDraw.Draw(image).text(origin, glyph, font=font, fill=255, anchor="ls")
+        position = origin
+        if not args.recovery:
+            # Centre Rubik's proportional glyphs in the clock's fixed slots.
+            advance = 37 if glyph == ":" else 86
+            mask, (offset_x, offset_y) = font.getmask2(glyph, mode="L", anchor="ls")
+            left, top, right, bottom = mask.getbbox()
+            ink_width = right - left
+            baseline = origin[1]
+            if ink_width > advance - 2 or not 0 < baseline + offset_y + top < baseline + offset_y + bottom < height:
+                raise ValueError(f"Clock glyph {glyph!r} does not fit within its slot")
+            position = ((advance - ink_width) // 2 - offset_x - left, baseline)
+        ImageDraw.Draw(image).text(position, glyph, font=font, fill=255, anchor="ls")
         if args.recovery:
             result.append(ceil(font.getlength(glyph)))
         else:

@@ -417,7 +417,8 @@ Under **Photo captions**, enable the capture date, location, or both. The
 frame uses the photo's local capture day and the city and country supplied by
 Immich. Both right-aligned lines use 25-pixel Rubik Light at weight 300.
 Long locations shorten to leave room for the clock when it is enabled.
-The clock uses the stock 150-pixel Noto Sans face at the lower left.
+The clock uses 150-pixel Rubik Light at the lower left, with equal-width
+slots for the digits.
 When two portraits are paired, the caption describes the primary
 photo. The caption is composed with the cached slide, so dragging and
 swiping need no extra image, text, or network work. The frame can show the
