@@ -83,17 +83,14 @@ esphome:
             wg->set_peer_endpoint(config.endpoint.c_str());
             wg->set_peer_public_key(config.peer_public_key.c_str());
             wg->set_peer_port(config.port);
-            // set_allowed_ips only takes a fixed-size initializer list.
-            const auto allowed = [&](size_t i) {
-              return esphome::wireguard::AllowedIP{config.allowed_ips[i].first.c_str(),
-                                                   config.allowed_ips[i].second.c_str()};
-            };
-            switch (config.allowed_ips.size()) {
-              case 1: wg->set_allowed_ips({allowed(0)}); break;
-              case 2: wg->set_allowed_ips({allowed(0), allowed(1)}); break;
-              case 3: wg->set_allowed_ips({allowed(0), allowed(1), allowed(2)}); break;
-              default: wg->set_allowed_ips({allowed(0), allowed(1), allowed(2), allowed(3)}); break;
+            // ESPHome stores this table by pointer and stops at a null IP.
+            static std::array<esphome::wireguard::AllowedIP, ESPFRAME_WIREGUARD_MAX_ALLOWED_IPS + 1> allowed{};
+            for (size_t i = 0; i < config.allowed_ips.size(); ++i) {
+              const auto &network = config.allowed_ips[i];
+              allowed[i] = {network.first.c_str(), network.second.c_str()};
             }
+            allowed[config.allowed_ips.size()] = {};
+            wg->set_allowed_ips(allowed.data());
             ESP_LOGI("wireguard", "Tunnel configured for %s:%u, address %s, netmask %s", config.endpoint.c_str(),
                      (unsigned) config.port, config.address.c_str(), config.netmask.c_str());
             for (const auto &allowed_ip : config.allowed_ips) {
