@@ -8,12 +8,15 @@
 #include "components/espframe/configuration_contract_generated.h"
 #include "components/espframe/duration_helpers.h"
 #include "components/espframe/immich_helpers.h"
+#include "components/espframe/wireguard_helpers.h"
+#include "components/espframe/wireguard_runtime.h"
 #include "components/remote_image/jpeg_accelerator_helpers.h"
 
 #include "components/espframe/slideshow_controller.h"
 #include "components/espframe/slideshow_component.h"
 #include "components/espframe/memory_pressure.h"
 #include "components/espframe/slideshow_transition.h"
+#include "components/espframe/slideshow_gesture.h"
 
 static void test_memory_pressure_prefetch() {
   esphome::espframe::MemoryPressurePolicy policy;
@@ -77,6 +80,156 @@ static void test_date_and_url_helpers() {
   assert(shifted_year == 2026);
   assert(shifted_month == 2);
   assert(shifted_day == 27);
+}
+
+static void test_wireguard_helpers() {
+  const std::string key = "YBk6X3pP8KjUnS4VvXG0Zk1d3b0Qn0q9yYQe2jqk0Gs=";
+  const std::string peer = "n6XQ3yS2m0b5y4Vf8qkq1Qn0q9yYQe2jqk0GsYBk6X0=";
+  assert(espframe_is_valid_wireguard_key(key));
+  assert(espframe_is_valid_wireguard_key(peer));
+  assert(!espframe_is_valid_wireguard_key(""));
+  assert(!espframe_is_valid_wireguard_key(key.substr(1)));
+  assert(!espframe_is_valid_wireguard_key(key.substr(0, 43) + "A"));
+  assert(!espframe_is_valid_wireguard_key("YBk6X3pP8KjUnS4VvXG0Zk1d3b0Qn0q9yYQe2jqk0Gt="));
+  assert(!espframe_is_valid_wireguard_key("YBk6X3pP8KjUnS4VvXG0Zk1d3b0Qn0q9yYQe2jqk-Gs="));
+
+  uint32_t address = 0;
+  assert(espframe_parse_ipv4("192.168.88.200", address) && address == 0xC0A858C8u);
+  assert(!espframe_parse_ipv4("192.168.88", address));
+  assert(!espframe_parse_ipv4("192.168.88.256", address));
+  assert(!espframe_parse_ipv4("192.168.88.1.5", address));
+  assert(!espframe_parse_ipv4("192.168.88.1 ", address));
+  assert(!espframe_parse_ipv4("a.b.c.d", address));
+  assert(espframe_is_valid_wireguard_address("10.0.0.2"));
+  assert(!espframe_is_valid_wireguard_address("0.0.0.0"));
+  assert(!espframe_is_valid_wireguard_address("255.255.255.255"));
+
+  assert(espframe_is_valid_ipv4_netmask("255.255.255.255"));
+  assert(espframe_is_valid_ipv4_netmask("255.255.255.0"));
+  assert(espframe_is_valid_ipv4_netmask("0.0.0.0"));
+  assert(!espframe_is_valid_ipv4_netmask("255.0.255.0"));
+  assert(!espframe_is_valid_ipv4_netmask("0.255.255.255"));
+  assert(!espframe_is_valid_ipv4_netmask("255.255.255"));
+
+  assert(espframe_is_valid_wireguard_port(51820));
+  assert(espframe_is_valid_wireguard_port(1));
+  assert(espframe_is_valid_wireguard_port(65535));
+  assert(!espframe_is_valid_wireguard_port(0));
+  assert(!espframe_is_valid_wireguard_port(65536));
+
+  assert(espframe_is_valid_wireguard_endpoint("vpn.example.com"));
+  assert(espframe_is_valid_wireguard_endpoint("203.0.113.7"));
+  assert(!espframe_is_valid_wireguard_endpoint(""));
+  assert(!espframe_is_valid_wireguard_endpoint("vpn.example.com:51820"));
+  assert(!espframe_is_valid_wireguard_endpoint("https://vpn.example.com"));
+  assert(!espframe_is_valid_wireguard_endpoint("vpn example"));
+  assert(!espframe_is_valid_wireguard_endpoint(".example.com"));
+
+  std::vector<EspframeWireguardAllowedIp> allowed;
+  assert(espframe_parse_wireguard_allowed_ips("192.168.88.0/24", allowed));
+  assert(allowed.size() == 1 && allowed[0].first == "192.168.88.0" && allowed[0].second == "255.255.255.0");
+  assert(espframe_parse_wireguard_allowed_ips("192.168.88.77/24, 10.0.0.5", allowed));
+  assert(allowed.size() == 2 && allowed[0].first == "192.168.88.0");
+  assert(allowed[1].first == "10.0.0.5" && allowed[1].second == "255.255.255.255");
+  assert(espframe_normalize_wireguard_allowed_ips("192.168.88.77/24;10.0.0.5") == "192.168.88.0/24, 10.0.0.5/32");
+  assert(espframe_normalize_wireguard_allowed_ips("0.0.0.0/0") == "0.0.0.0/0");
+  assert(espframe_normalize_wireguard_allowed_ips("192.168.88.0/33").empty());
+  assert(espframe_normalize_wireguard_allowed_ips("192.168.88.0/").empty());
+  assert(espframe_normalize_wireguard_allowed_ips("").empty());
+  assert(espframe_normalize_wireguard_allowed_ips("not-an-ip").empty());
+  assert(espframe_normalize_wireguard_allowed_ips("10.0.0.0/8 10.1.0.0/16 10.2.0.0/16 10.3.0.0/16").size() > 0);
+  assert(espframe_normalize_wireguard_allowed_ips(
+             "10.0.0.0/8 10.1.0.0/16 10.2.0.0/16 10.3.0.0/16 10.4.0.0/16").empty());
+
+  EspframeWireguardConfig config;
+  std::string error;
+  assert(espframe_build_wireguard_config(" vpn.example.com ", 51820, "192.168.88.200", "255.255.255.0",
+                                         "192.168.88.0/24", peer, key, config, error));
+  assert(config.endpoint == "vpn.example.com" && config.port == 51820 && config.address == "192.168.88.200");
+  assert(config.allowed_ips.size() == 1 && config.private_key == key && config.peer_public_key == peer);
+
+  struct Case {
+    const char *endpoint;
+    long port;
+    const char *address;
+    const char *netmask;
+    const char *allowed;
+    const char *peer;
+    const char *priv;
+    const char *field;
+  };
+  const Case cases[] = {
+      {"", 51820, "10.0.0.2", "255.255.255.255", "10.0.0.0/24", "PEER", "KEY", "endpoint"},
+      {"vpn.example.com", 0, "10.0.0.2", "255.255.255.255", "10.0.0.0/24", "PEER", "KEY", "port"},
+      {"vpn.example.com", 51820, "bad", "255.255.255.255", "10.0.0.0/24", "PEER", "KEY", "address"},
+      {"vpn.example.com", 51820, "10.0.0.2", "255.0.255.0", "10.0.0.0/24", "PEER", "KEY", "netmask"},
+      {"vpn.example.com", 51820, "10.0.0.2", "255.255.255.255", "", "PEER", "KEY", "allowed_ips"},
+      {"vpn.example.com", 51820, "10.0.0.2", "255.255.255.255", "10.0.0.0/24", "short", "KEY", "peer_public_key"},
+      {"vpn.example.com", 51820, "10.0.0.2", "255.255.255.255", "10.0.0.0/24", "PEER", "", "private_key"},
+  };
+  for (const auto &item : cases) {
+    EspframeWireguardConfig rejected;
+    error.clear();
+    const std::string peer_key = std::string(item.peer) == "PEER" ? peer : item.peer;
+    const std::string private_key = std::string(item.priv) == "KEY" ? key : item.priv;
+    assert(!espframe_build_wireguard_config(item.endpoint, item.port, item.address, item.netmask, item.allowed,
+                                            peer_key, private_key, rejected, error));
+    assert(error == item.field);
+  }
+
+  // Tunnel interface ordering: the tunnel node ends up last, others keep order.
+  struct Node {
+    char tag;
+    Node *next;
+  };
+  const auto is_tunnel = [](const Node *node) { return node->tag == 'w'; };
+  auto order = [](Node *head) {
+    std::string result;
+    for (Node *node = head; node != nullptr; node = node->next) result += node->tag;
+    return result;
+  };
+  bool moved = true;
+  Node a{'a', nullptr}, b{'b', nullptr}, tunnel{'w', nullptr};
+  tunnel.next = &a;
+  a.next = &b;
+  Node *head = espframe_move_to_tail(&tunnel, is_tunnel, moved);
+  assert(moved && order(head) == "abw" && head == &a);
+  head = espframe_move_to_tail(head, is_tunnel, moved);
+  assert(!moved && order(head) == "abw");  // already last: unchanged
+  a.next = &tunnel;
+  tunnel.next = &b;
+  b.next = nullptr;
+  head = espframe_move_to_tail(&a, is_tunnel, moved);
+  assert(moved && order(head) == "abw");  // tunnel in the middle
+  Node only{'w', nullptr};
+  head = espframe_move_to_tail(&only, is_tunnel, moved);
+  assert(!moved && head == &only);  // single node
+  Node plain{'a', nullptr};
+  head = espframe_move_to_tail(&plain, is_tunnel, moved);
+  assert(!moved && head == &plain);  // no tunnel node
+  head = espframe_move_to_tail<Node>(nullptr, is_tunnel, moved);
+  assert(!moved && head == nullptr);
+
+  assert(espframe_wireguard_url_host("https://photos.example.com:2283/path") == "photos.example.com");
+  assert(espframe_wireguard_url_host("http://192.168.88.10:2283") == "192.168.88.10");
+  assert(espframe_wireguard_url_host("photos.example.com") == "photos.example.com");
+  assert(espframe_wireguard_url_host("").empty());
+
+  uint32_t immich = 0;
+  assert(espframe_parse_ipv4("192.168.88.10", immich));
+  assert(espframe_ipv4_in_network(immich, "192.168.88.0", "255.255.255.0"));
+  assert(!espframe_ipv4_in_network(immich, "10.0.2.0", "255.255.255.0"));
+  assert(!espframe_ipv4_in_network(immich, "bad", "255.255.255.0"));
+  uint32_t public_ip = 0;
+  assert(espframe_parse_ipv4("203.0.113.7", public_ip));
+  EspframeWireguardConfig coverage_config;
+  assert(espframe_build_wireguard_config("vpn.example.com", 51820, "192.168.88.200", "255.255.255.0",
+                                         "192.168.88.0/24", peer, key, coverage_config, error));
+  assert(espframe_wireguard_coverage(coverage_config, immich) ==
+         "inside tunnel netmask: yes, inside allowed IPs: yes");
+  assert(espframe_wireguard_coverage(coverage_config, public_ip) ==
+         "inside tunnel netmask: no, inside allowed IPs: no");
+  assert(!espframe_wireguard_active());
 }
 
 static void test_duration_helpers() {
@@ -1790,14 +1943,25 @@ static void test_configuration_contract_capabilities() {
   static_assert(CONTRACT_VERSION == 2);
   static_assert(API_VERSION == 1);
   static_assert(SETTING_COUNT == 55);
-  static_assert(CONFIGURATION_FIELD_COUNT == 76);
+  static_assert(CONFIGURATION_FIELD_COUNT == 84);
   bool has_language = false;
+  int wireguard_fields = 0;
+  bool private_key_is_secret = false;
   for (const auto &field : CONFIGURATION_FIELDS) {
     if (std::string(field.key) == "device_language") {
       has_language = std::string(field.domain) == "select" && std::string(field.entity_name) == "Device: Language";
     }
+    if (std::string(field.key).rfind("wireguard_", 0) == 0) {
+      wireguard_fields++;
+      // Only the private key is a write-only secret.
+      const bool is_private_key = std::string(field.key) == "wireguard_private_key";
+      assert(field.secret == is_private_key);
+      if (is_private_key) private_key_is_secret = std::string(field.domain) == "text";
+    }
   }
   assert(has_language);
+  assert(wireguard_fields == 8);
+  assert(private_key_is_secret);
   assert(std::string(CAPABILITIES_PATH) == "/espframe/api/v1/capabilities");
   assert(std::string(CONFIGURATION_PATH) == "/espframe/api/v1/configuration");
   const std::string capabilities(CAPABILITIES_JSON);
@@ -2056,12 +2220,27 @@ static void test_slide_transitions() {
   assert(dx == -1 && dy == 0);
 }
 
+static void test_slideshow_swipe_threshold() {
+  using esphome::espframe::is_slideshow_swipe;
+  assert(!is_slideshow_swipe(0, 0, 1280));
+  assert(!is_slideshow_swipe(63, 0, 1280));
+  assert(is_slideshow_swipe(64, 0, 1280));
+  assert(is_slideshow_swipe(-64, -42, 1280));
+  assert(!is_slideshow_swipe(-64, -43, 1280));
+  assert(!is_slideshow_swipe(47, 0, 800));
+  assert(is_slideshow_swipe(-48, 0, 800));
+  assert(!is_slideshow_swipe(48, 32, 800));
+  assert(!is_slideshow_swipe(0, 200, 800));
+}
+
 int main() {
+  test_slideshow_swipe_threshold();
   test_structured_companion_pagination();
   test_memory_pressure_prefetch();
   test_filter_invalidation_preserves_display_and_clears_work();
   test_date_and_url_helpers();
   test_duration_helpers();
+  test_wireguard_helpers();
   test_p4_jpeg_accelerator_helpers();
   test_immich_body_helpers();
   test_smart_filter_helpers();

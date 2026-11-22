@@ -7,7 +7,8 @@ import {
   MAX_PHOTO_ID_FIELD_LENGTH, extractUrlHost, extractUrlPort, isValidHttpUrl,
   normalizeImmichUrl, normalizeNtpServer, normalizeDateTakenFormat,
   parsePhotoLabelList, photoIdFieldTooLong, photoLabelFieldTooLong,
-  splitPhotoIdList, isValidUuidList
+  splitPhotoIdList, isValidUuidList, formatWireguardHandshakeAge, isValidWireguardKey, isValidWireguardAddress,
+  isValidIpv4Netmask, isValidWireguardPort, isValidWireguardEndpoint, normalizeWireguardAllowedIps
 } from "./compat";
 
   __ESPFRAME_WEB_CONTRACTS__
@@ -43,6 +44,8 @@ import {
     backlight_on: true,
     immich_url: "",
     api_key_configured: false,
+    wireguard_available: false,
+    wireguard_private_key_configured: false,
     firmware: "",
     installed_version: "",
     latest_version: "",

@@ -629,6 +629,27 @@
         ]
       },
       {
+        "id": "wireguard",
+        "label": "WireGuard VPN",
+        "tab": "immich",
+        "function": "makeWireguardCard",
+        "static_entities": [
+          "wireguard_enabled",
+          "wireguard_endpoint",
+          "wireguard_port",
+          "wireguard_address",
+          "wireguard_netmask",
+          "wireguard_allowed_ips",
+          "wireguard_peer_public_key",
+          "wireguard_connected",
+          "wireguard_tunnel_enabled",
+          "wireguard_handshake_age"
+        ],
+        "manual_entities": [
+          "wireguard_private_key"
+        ]
+      },
+      {
         "id": "frequency",
         "label": "Frequency",
         "tab": "immich",
@@ -911,6 +932,7 @@
       "screen-rotation-developer",
       "screen-tone-schedule",
       "daily-settings-controls",
+      "wireguard-settings",
       "backup-import-success",
       "backup-import-save-failure",
       "backup-import-partial",
@@ -968,6 +990,62 @@
         "firmware_file": "common/addon/time.yaml",
         "default": "2.pool.ntp.org",
         "fetch": true
+      },
+      "wireguard_enabled": {
+        "entity": "switch/WireGuard: Enabled",
+        "firmware_file": "common/addon/wireguard.yaml",
+        "boolFromState": true,
+        "default": false,
+        "fetch": true
+      },
+      "wireguard_endpoint": {
+        "entity": "text/WireGuard: Endpoint",
+        "firmware_file": "common/addon/wireguard.yaml",
+        "default": "",
+        "fetch": true
+      },
+      "wireguard_port": {
+        "entity": "number/WireGuard: Port",
+        "firmware_file": "common/addon/wireguard.yaml",
+        "default": 51820,
+        "number": true,
+        "fetch": true
+      },
+      "wireguard_address": {
+        "entity": "text/WireGuard: Address",
+        "firmware_file": "common/addon/wireguard.yaml",
+        "default": "",
+        "fetch": true
+      },
+      "wireguard_netmask": {
+        "entity": "text/WireGuard: Netmask",
+        "firmware_file": "common/addon/wireguard.yaml",
+        "default": "255.255.255.255",
+        "fetch": true
+      },
+      "wireguard_allowed_ips": {
+        "entity": "text/WireGuard: Allowed IPs",
+        "firmware_file": "common/addon/wireguard.yaml",
+        "default": "",
+        "fetch": true
+      },
+      "wireguard_peer_public_key": {
+        "entity": "text/WireGuard: Peer Public Key",
+        "firmware_file": "common/addon/wireguard.yaml",
+        "default": "",
+        "fetch": true
+      },
+      "wireguard_connected": {
+        "entity": "binary_sensor/WireGuard: Connected",
+        "firmware_file": "common/addon/wireguard.yaml"
+      },
+      "wireguard_tunnel_enabled": {
+        "entity": "binary_sensor/WireGuard: Tunnel Enabled",
+        "firmware_file": "common/addon/wireguard.yaml"
+      },
+      "wireguard_handshake_age": {
+        "entity": "sensor/WireGuard: Handshake Age",
+        "firmware_file": "common/addon/wireguard.yaml"
       },
       "album_ids": {
         "entity": "text/Photos: Album IDs",
@@ -1098,6 +1176,11 @@
         "entity": "text/Connection: API Key",
         "secret": true,
         "firmware_file": "common/addon/immich_config.yaml"
+      },
+      "wireguard_private_key": {
+        "entity": "text/WireGuard: Private Key",
+        "secret": true,
+        "firmware_file": "common/addon/wireguard.yaml"
       },
       "backlight": {
         "entity": "light/Screen: Backlight",
@@ -1306,6 +1389,8 @@
     },
     "web_local_state_keys": [
       "api_key_configured",
+      "wireguard_available",
+      "wireguard_private_key_configured",
       "backlight_on",
       "brightness",
       "brightness_current",
@@ -1548,6 +1633,7 @@
       "devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml",
       "docs/public/webserver/app.js",
       "docs/public/webserver/style.css",
+      "firmware/native/main/web/shared_settings.js",
       "components/espframe/i18n_generated.h"
     ],
     "generated_asset_output_headers": {
@@ -1559,6 +1645,7 @@
       "devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml": "# ESPFRAME: generated from product/contract; run `npm run generate` to update.",
       "docs/public/webserver/app.js": "// ESPFRAME: generated from typed docs/webserver/src and product/contract; run `npm run generate` to update.",
       "docs/public/webserver/style.css": "/* ESPFRAME: generated from docs/webserver/src/style.css; run `npm run generate` to update. */",
+      "firmware/native/main/web/shared_settings.js": "// ESPFRAME: generated from typed docs/webserver/src and product/contract; run `npm run generate` to update.",
       "components/espframe/i18n_generated.h": "// ESPFRAME: generated from product/translations; run `npm run generate` to update."
     },
     "generated_asset_sources": [
@@ -1572,6 +1659,8 @@
       "docs/webserver/src/setting_save.ts",
       "docs/webserver/src/endpoints.ts",
       "docs/webserver/src/live_helpers.ts",
+      "docs/webserver/src/native_settings.ts",
+      "docs/webserver/src/shared_controls.ts",
       "docs/webserver/src/runtime_state.ts",
       "docs/webserver/src/settings_firmware_card.ts",
       "docs/webserver/src/settings_immich_cards.ts",
@@ -1647,6 +1736,15 @@
       "__ESPFRAME_WEB_SETTINGS_FIRMWARE_CARD__",
       "__ESPFRAME_WEB_SETTINGS_CONTROLS__",
       "__ESPFRAME_WEB_LIVE_HELPERS__",
+      "__ESPFRAME_SHARED_CONTROL_SELECT__",
+      "__ESPFRAME_SHARED_CONTROL_ELEMENT__",
+      "__ESPFRAME_SHARED_CONTROL_ACTIONS__",
+      "__ESPFRAME_SHARED_CONTROL_CARDS__",
+      "__ESPFRAME_SHARED_CONTROL_FIELD__",
+      "__ESPFRAME_NATIVE_CAPABILITIES_PATH__",
+      "__ESPFRAME_NATIVE_PRODUCT_SETTINGS__",
+      "__ESPFRAME_NATIVE_TIMEZONES__",
+      "__ESPFRAME_NATIVE_TIMEZONE_LABELS__",
       "__ESPFRAME_WEB_BACKUP_IMPORT__",
       "__ESPFRAME_SETTING_STATE_TYPES__",
       "__ESPFRAME_CSS__"
@@ -2049,6 +2147,10 @@
           "path": "../../common/addon/network.yaml"
         },
         {
+          "alias": "wireguard",
+          "path": "../../common/addon/wireguard.yaml"
+        },
+        {
           "alias": "memory_diagnostics",
           "path": "../../common/addon/memory_diagnostics.yaml"
         },
@@ -2285,6 +2387,10 @@
         {
           "alias": "network",
           "path": "../../common/addon/network.yaml"
+        },
+        {
+          "alias": "wireguard",
+          "path": "../../common/addon/wireguard.yaml"
         },
         {
           "alias": "memory_diagnostics",
@@ -2525,6 +2631,10 @@
         {
           "alias": "network",
           "path": "../../common/addon/network.yaml"
+        },
+        {
+          "alias": "wireguard",
+          "path": "../../common/addon/wireguard.yaml"
         },
         {
           "alias": "memory_diagnostics",

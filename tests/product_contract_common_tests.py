@@ -106,7 +106,8 @@ def test_10inch_installer_requires_a_version_and_probes_manifests_independently(
     assert "Use the table to choose **Hardware version** below" not in install_guide
     assert "What your display reports" not in install_guide
     assert "Initial USB installation and OTA updates have not yet been tested" not in install_guide
-    assert '<esp-web-install-button v-if="selectedDevice"' in installer
+    assert '<esp-web-install-button v-if="selectedManifest" :manifest="selectedManifest.url">' in installer
+    assert 'loadedManifest.value?.source === manifestSource.value' in installer
 
     for revision in ("v1", "v2", "v3"):
         guide = ROOT / f"docs/screens/jc8012p4a1-{revision}.md"
@@ -165,10 +166,10 @@ def test_configuration_api_redacts_secret_fields() -> None:
     api_key_metadata = product["project"]["web_manual_entities"]["api_key"]
 
     assert api_key_metadata["secret"] is True
-    assert 'root["api_key_configured"] = this->secret_configured_();' in source
+    assert 'root["api_key_configured"] = this->secret_configured_("api_key");' in source
     assert "if (field.secret)" in source
     assert 'root["value"] = "";' in source
-    assert 'root["api_key_configured"] = configured;' in source
+    assert 'if (std::strcmp(field.key, "api_key") == 0) root["api_key_configured"] = configured;' in source
     assert "include_secret" not in source
     assert "request->method() != HTTP_GET" in source
     assert "encode_url_path_" in source
@@ -178,6 +179,57 @@ def test_configuration_api_redacts_secret_fields() -> None:
     assert "api_key" not in product["project"]["web_manual_state_keys"]
     assert "api_key" not in product["project"]["web_local_state_keys"]
     assert "api_key_configured" in product["project"]["web_local_state_keys"]
+
+
+def test_wireguard_build_reserves_slots_for_every_configurable_allowed_ip() -> None:
+    import ipaddress
+    import re
+
+    config = (ROOT / "common/addon/wireguard.yaml").read_text(encoding="utf-8")
+    helpers = (ROOT / "components/espframe/wireguard_helpers.h").read_text(encoding="utf-8")
+    max_user_entries = re.search(r"ESPFRAME_WIREGUARD_MAX_ALLOWED_IPS = (\d+);", helpers)
+    compile_time_entries = re.search(r"^  peer_allowed_ips:\n((?:    - [^\n]+\n)+)", config, re.MULTILINE)
+    assert max_user_entries is not None and compile_time_entries is not None
+    networks = [ipaddress.ip_network(line.split()[1]) for line in compile_time_entries[1].splitlines()]
+    assert len(list(ipaddress.collapse_addresses(networks))) == int(max_user_entries[1])
+
+
+def test_wireguard_private_key_is_write_only_and_kept_out_of_backups() -> None:
+    import re
+
+    source = (ROOT / "components" / "espframe" / "configuration_api.h").read_text(encoding="utf-8")
+    generated = (ROOT / "components" / "espframe" / "configuration_contract_generated.h").read_text(encoding="utf-8")
+    wireguard_yaml = (ROOT / "common" / "addon" / "wireguard.yaml").read_text(encoding="utf-8")
+    project = load_product()["project"]
+
+    assert project["web_manual_entities"]["wireguard_private_key"]["secret"] is True
+    assert '{"wireguard_private_key", "text", "WireGuard: Private Key", true}' in generated
+    assert "wireguard_private_key" not in project["web_manual_state_keys"]
+    assert "wireguard_private_key" not in project["web_local_state_keys"]
+    assert "wireguard_private_key_configured" in project["web_local_state_keys"]
+    assert "secrets[field.key] = this->secret_configured_(field);" in source
+
+    # Nothing WireGuard related is exported to, or restored from, backups.
+    backup_metadata = json.dumps(
+        [project["backup_export_groups"], project["backup_export_fields"], project["backup_field_state_keys"]]
+    )
+    assert "wireguard" not in backup_metadata
+
+    # The real key lives in a restored global; the entity only reports a mask.
+    assert "wireguard_private_key_value" in wireguard_yaml
+    assert 'publish_state("********")' in wireguard_yaml
+    private_key_block = wireguard_yaml.split('name: "WireGuard: Private Key"', 1)[1]
+    assert "restore_value: false" in private_key_block
+    for line in wireguard_yaml.splitlines():
+        if "ESP_LOG" in line:
+            assert "wireguard_private_key_value" not in line
+    assert all("x.c_str()" not in line for line in private_key_block.splitlines() if "ESP_LOG" in line)
+
+    web_sources = "".join(
+        path.read_text(encoding="utf-8") for path in (ROOT / "docs" / "webserver" / "src").glob("*.ts")
+    )
+    assert not re.search(r"\bS\.wireguard_private_key(?!_configured)", web_sources)
+    assert "values.wireguard_private_key" not in web_sources
 
 
 def test_secret_is_not_logged_or_hydrated_into_browser_state() -> None:

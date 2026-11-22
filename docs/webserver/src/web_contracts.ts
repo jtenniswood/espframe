@@ -5,6 +5,9 @@ export interface ConfigurationSnapshot {
   api_version: number;
   reset_epoch: number;
   api_key_configured: boolean;
+  // Present on firmware that exposes write-only secrets other than the Immich
+  // API key. A key is listed only when its entity exists on the device.
+  secrets_configured?: Record<string, boolean>;
   values: ConfigurationValues;
   unavailable: string[];
 }
@@ -13,6 +16,8 @@ export interface ConfigurationUpdateResponse {
   api_version: number;
   status: "accepted" | "rejected";
   updated?: number;
+  frame_hostname?: string;
+  restart_required?: boolean;
   error?: string;
   field?: string;
 }
@@ -23,6 +28,8 @@ export interface ConfigurationCapabilities {
   base_path: string;
   capabilities_path: string;
   configuration_path: string;
+  status_path?: string;
+  screen_control_path?: string;
   reset_path?: string;
   reset_modes?: string[];
   update_mode: "atomic";
@@ -56,6 +63,8 @@ interface RuntimeState {
   brightness_current: number;
   backlight_on: boolean;
   api_key_configured: boolean;
+  wireguard_available: boolean;
+  wireguard_private_key_configured: boolean;
   installed_version: string;
   latest_version: string;
   update_available: boolean;
@@ -111,7 +120,16 @@ function parseConfigurationSnapshot(value: unknown): ConfigurationSnapshot | nul
     values[key] = fieldValue;
   }
   if (!value.unavailable.every(key => typeof key === "string")) return null;
-  return { api_version: 1, reset_epoch: Number.isInteger(value.reset_epoch) ? value.reset_epoch as number : 0, api_key_configured: apiKeyConfigured, values: values, unavailable: value.unavailable };
+  var secretsConfigured: Record<string, boolean> | undefined;
+  if (value.secrets_configured !== undefined) {
+    if (!isObject(value.secrets_configured)) return null;
+    secretsConfigured = {};
+    for (var secret of Object.entries(value.secrets_configured)) {
+      if (typeof secret[1] !== "boolean") return null;
+      secretsConfigured[secret[0]] = secret[1];
+    }
+  }
+  return { api_version: 1, reset_epoch: Number.isInteger(value.reset_epoch) ? value.reset_epoch as number : 0, api_key_configured: apiKeyConfigured, secrets_configured: secretsConfigured, values: values, unavailable: value.unavailable };
 }
 
 function configurationUpdateBody(values: ConfigurationValues): string {

@@ -119,6 +119,7 @@ def test_valid_files_and_directory() -> None:
     with TemporaryDirectory() as tmp:
         base = Path(tmp)
         manifest, factory, ota = make_release_files(base)
+        assert json.loads(manifest.read_text())["new_install_prompt_erase"] is True
         run_ok([
             "verify-files",
             "--slug", SLUG,

@@ -1,27 +1,27 @@
 {
   "schema_version": 1,
   "web": {
-    "app_bytes_max": 264000,
+    "app_bytes_max": 280500,
     "style_bytes_max": 27000,
-    "combined_bytes_max": 291000,
-    "app_gzip_bytes_max": 58600,
+    "combined_bytes_max": 307500,
+    "app_gzip_bytes_max": 62300,
     "style_gzip_bytes_max": 6000,
-    "combined_gzip_bytes_max": 64500
+    "combined_gzip_bytes_max": 68200
   },
   "firmware": {
     "factory": {
-      "flash_used_bytes_max": 2950000,
-      "flash_used_percent_max": 36.0,
+      "flash_used_bytes_max": 2985000,
+      "flash_used_percent_max": 36.7,
       "ram_static_bytes_warn": 142000,
       "ram_static_bytes_max": 143000,
-      "binary_bytes_max": 3000000
+      "binary_bytes_max": 3050000
     },
     "ota": {
-      "flash_used_bytes_max": 2950000,
-      "flash_used_percent_max": 36.0,
+      "flash_used_bytes_max": 2985000,
+      "flash_used_percent_max": 36.7,
       "ram_static_bytes_warn": 142000,
       "ram_static_bytes_max": 143000,
-      "binary_bytes_max": 2900000
+      "binary_bytes_max": 2985000
     }
   }
 }

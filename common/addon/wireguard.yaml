@@ -1,0 +1,367 @@
+# =============================================================================
+# WIREGUARD - Runtime-configurable VPN tunnel
+# =============================================================================
+# Lets the frame reach an Immich server through a WireGuard server (for example
+# a home router) while it is on another network. The tunnel is compiled in but
+# stays OFF until it is enabled and fully configured in the web UI. Values are
+# saved to NVS flash and applied once at boot, so a change needs a reboot.
+#
+# The ESPHome component only routes traffic whose destination falls inside the
+# tunnel address and netmask; it adds no default route. Give the frame an
+# address inside the subnet Immich lives on and set the netmask to match.
+# Boot never waits for the tunnel, so the setup screens still appear when the
+# VPN is down.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Private key. Like the Immich API key, the real secret is kept in a restored
+# global and the text entity only ever reports a mask, because ESPHome includes
+# text entity values in /events.
+# -----------------------------------------------------------------------------
+globals:
+  - id: wireguard_private_key_value
+    type: std::string
+    restore_value: true
+    max_restore_data_length: 254
+    initial_value: '""'
+
+# -----------------------------------------------------------------------------
+# Compile-time placeholders only. The component requires valid-looking keys and
+# an address, but they are replaced at boot from the saved settings below, or the
+# tunnel is switched off. reboot_timeout stays 0 so an unreachable router never
+# reboots the frame.
+# -----------------------------------------------------------------------------
+wireguard:
+  id: wireguard_tunnel
+  address: 192.0.2.2
+  private_key: "YBk6X3pP8KjUnS4VvXG0Zk1d3b0Qn0q9yYQe2jqk0Gs="
+  peer_endpoint: wireguard.invalid
+  peer_public_key: "n6XQ3yS2m0b5y4Vf8qkq1Qn0q9yYQe2jqk0GsYBk6X0="
+  # ESPHome collapses adjacent networks before sizing the library's allowed-IP
+  # table. Keep four disjoint, non-adjacent placeholders plus the frame's slot.
+  peer_allowed_ips:
+    - 192.0.2.0/32
+    - 192.0.2.4/32
+    - 192.0.2.8/32
+    - 192.0.2.12/32
+  peer_persistent_keepalive: 25s
+  reboot_timeout: 0s
+  require_connection_to_proceed: false
+
+esphome:
+  on_boot:
+    # Run after the template entities restore (priority 800) and before the
+    # WireGuard component sets up (priority 220), which copies these values.
+    - priority: 590
+      then:
+        - lambda: |-
+            if (!id(wireguard_private_key_value).empty()) {
+              id(wireguard_private_key_text).publish_state("********");
+            }
+            auto *wg = id(wireguard_tunnel);
+            if (!id(wireguard_enabled).state) {
+              wg->disable();
+              return;
+            }
+            // The component keeps raw pointers, so the strings must outlive it.
+            auto &config = espframe_wireguard_active_config();
+            const float port = id(wireguard_port).state;
+            std::string error;
+            if (std::isnan(port) ||
+                !espframe_build_wireguard_config(
+                    id(wireguard_endpoint).state, (long) port, id(wireguard_address).state,
+                    id(wireguard_netmask).state, id(wireguard_allowed_ips).state,
+                    id(wireguard_peer_public_key).state, id(wireguard_private_key_value), config, error)) {
+              ESP_LOGW("wireguard", "Enabled, but %s is missing or invalid; tunnel stays off",
+                       error.empty() ? "port" : error.c_str());
+              wg->disable();
+              return;
+            }
+            wg->set_address(config.address.c_str());
+            wg->set_netmask(config.netmask.c_str());
+            wg->set_private_key(config.private_key.c_str());
+            wg->set_peer_endpoint(config.endpoint.c_str());
+            wg->set_peer_public_key(config.peer_public_key.c_str());
+            wg->set_peer_port(config.port);
+            // ESPHome stores this table by pointer and stops at a null IP.
+            static std::array<esphome::wireguard::AllowedIP, ESPFRAME_WIREGUARD_MAX_ALLOWED_IPS + 1> allowed{};
+            for (size_t i = 0; i < config.allowed_ips.size(); ++i) {
+              const auto &network = config.allowed_ips[i];
+              allowed[i] = {network.first.c_str(), network.second.c_str()};
+            }
+            allowed[config.allowed_ips.size()] = {};
+            wg->set_allowed_ips(allowed.data());
+            ESP_LOGI("wireguard", "Tunnel configured for %s:%u, address %s, netmask %s", config.endpoint.c_str(),
+                     (unsigned) config.port, config.address.c_str(), config.netmask.c_str());
+            for (const auto &allowed_ip : config.allowed_ips) {
+              ESP_LOGI("wireguard", "  allowed IP %s/%s", allowed_ip.first.c_str(), allowed_ip.second.c_str());
+            }
+            espframe_wireguard_active() = true;
+
+# -----------------------------------------------------------------------------
+# Routing diagnostics and fix. lwIP sends traffic to the first interface whose
+# subnet contains the destination, and the tunnel interface is added ahead of
+# Wi-Fi. On a LAN that overlaps the tunnel network that would pull local Immich
+# traffic into the VPN, so the tunnel interface is kept behind the others. It is
+# re-created on every reconnect, hence the periodic check, which also logs the
+# state and the interface chosen for the saved Immich host every 30 seconds.
+# -----------------------------------------------------------------------------
+script:
+  # Also run when an Immich request starts or fails, so the log shows which
+  # interface and address that request used.
+  - id: wireguard_log_immich_route
+    mode: single
+    then:
+      - lambda: |-
+          if (!id(wireguard_tunnel)->is_enabled()) return;
+          ESP_LOGI("wireguard", "Tunnel %s; %s", id(wireguard_tunnel)->is_peer_up() ? "up" : "down",
+                   espframe_describe_route_to(espframe_wireguard_url_host(id(immich_url).state)).c_str());
+
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          auto *wg = id(wireguard_tunnel);
+          if (!wg->is_enabled()) return;
+          const bool reordered = espframe_wireguard_prefer_other_netifs();
+          static uint8_t ticks = 0;
+          if (reordered) {
+            ESP_LOGI("wireguard", "Moved the tunnel interface behind Wi-Fi so same-network traffic stays local");
+          }
+          if (!reordered && ticks++ % 6 != 0) return;
+          const float age = id(wireguard_handshake_age).state;
+          ESP_LOGI("wireguard", "Tunnel %s, handshake %s", wg->is_peer_up() ? "up" : "down",
+                   (std::isnan(age) || age < 0) ? "none yet" : (std::to_string((int) age) + "s ago").c_str());
+          ESP_LOGI("wireguard", "Interfaces in routing order: %s", espframe_describe_netifs().c_str());
+          ESP_LOGI("wireguard", "%s",
+                   espframe_describe_route_to(espframe_wireguard_url_host(id(immich_url).state)).c_str());
+
+# -----------------------------------------------------------------------------
+# Read-only tunnel status for the web UI.
+# -----------------------------------------------------------------------------
+binary_sensor:
+  - platform: wireguard
+    status:
+      name: "WireGuard: Connected"
+      id: wireguard_connected
+      internal: true
+    enabled:
+      name: "WireGuard: Tunnel Enabled"
+      id: wireguard_tunnel_enabled
+      internal: true
+
+text_sensor:
+  - platform: wireguard
+    address:
+      name: "WireGuard: Tunnel Address"
+      id: wireguard_tunnel_address
+      internal: true
+
+sensor:
+  - platform: wireguard
+    latest_handshake:
+      name: "WireGuard: Last Handshake"
+      id: wireguard_last_handshake
+      internal: true
+
+  # The component's own sensor is an epoch stored in a float, which is only
+  # accurate to about two minutes. Read the exact value from the component and
+  # report the age in seconds, or -1 before the first handshake.
+  - platform: template
+    name: "WireGuard: Handshake Age"
+    id: wireguard_handshake_age
+    internal: true
+    unit_of_measurement: "s"
+    accuracy_decimals: 0
+    update_interval: 5s
+    lambda: |-
+      static time_t last_handshake = 0;
+      const time_t latest = id(wireguard_tunnel)->get_latest_handshake();
+      if (latest > 0) last_handshake = latest;
+      auto now = id(sntp_time).now();
+      if (last_handshake <= 0 || !now.is_valid()) return -1.0f;
+      const time_t age = now.timestamp - last_handshake;
+      return age < 0 ? 0.0f : (float) age;
+
+# -----------------------------------------------------------------------------
+# Settings (persisted via NVS). The web UI writes these; a reboot applies them.
+# -----------------------------------------------------------------------------
+switch:
+  - platform: template
+    name: "WireGuard: Enabled"
+    id: wireguard_enabled
+    internal: true
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    icon: "mdi:vpn"
+    web_server:
+      sorting_group_id: sg_connection
+
+number:
+  - platform: template
+    name: "WireGuard: Port"
+    id: wireguard_port
+    internal: true
+    min_value: 1
+    max_value: 65535
+    step: 1
+    initial_value: 51820
+    optimistic: true
+    restore_value: true
+    mode: box
+    icon: "mdi:ethernet"
+    web_server:
+      sorting_group_id: sg_connection
+
+text:
+  - platform: template
+    name: "WireGuard: Endpoint"
+    id: wireguard_endpoint
+    internal: true
+    entity_category: config
+    optimistic: false
+    restore_value: true
+    initial_value: ""
+    min_length: 0
+    max_length: 253
+    mode: text
+    icon: "mdi:server-network"
+    web_server:
+      sorting_group_id: sg_connection
+    set_action:
+      - lambda: |-
+          const std::string endpoint = espframe_wireguard_trim(x);
+          if (!endpoint.empty() && !espframe_is_valid_wireguard_endpoint(endpoint)) {
+            ESP_LOGW("wireguard", "Invalid WireGuard endpoint: %s", x.c_str());
+            return;
+          }
+          id(wireguard_endpoint).publish_state(endpoint);
+
+  - platform: template
+    name: "WireGuard: Address"
+    id: wireguard_address
+    internal: true
+    entity_category: config
+    optimistic: false
+    restore_value: true
+    initial_value: ""
+    min_length: 0
+    max_length: 15
+    mode: text
+    icon: "mdi:ip-network"
+    web_server:
+      sorting_group_id: sg_connection
+    set_action:
+      - lambda: |-
+          const std::string address = espframe_wireguard_trim(x);
+          if (!address.empty() && !espframe_is_valid_wireguard_address(address)) {
+            ESP_LOGW("wireguard", "Invalid WireGuard address: %s", x.c_str());
+            return;
+          }
+          id(wireguard_address).publish_state(address);
+
+  - platform: template
+    name: "WireGuard: Netmask"
+    id: wireguard_netmask
+    internal: true
+    entity_category: config
+    optimistic: false
+    restore_value: true
+    initial_value: "255.255.255.255"
+    min_length: 0
+    max_length: 15
+    mode: text
+    icon: "mdi:ip-network-outline"
+    web_server:
+      sorting_group_id: sg_connection
+    set_action:
+      - lambda: |-
+          const std::string netmask = espframe_wireguard_trim(x);
+          if (!espframe_is_valid_ipv4_netmask(netmask)) {
+            ESP_LOGW("wireguard", "Invalid WireGuard netmask: %s", x.c_str());
+            return;
+          }
+          id(wireguard_netmask).publish_state(netmask);
+
+  - platform: template
+    name: "WireGuard: Allowed IPs"
+    id: wireguard_allowed_ips
+    internal: true
+    entity_category: config
+    optimistic: false
+    restore_value: true
+    initial_value: ""
+    min_length: 0
+    max_length: 100
+    mode: text
+    icon: "mdi:lan"
+    web_server:
+      sorting_group_id: sg_connection
+    set_action:
+      - lambda: |-
+          if (espframe_wireguard_trim(x).empty()) {
+            id(wireguard_allowed_ips).publish_state("");
+            return;
+          }
+          const std::string allowed = espframe_normalize_wireguard_allowed_ips(x);
+          if (allowed.empty()) {
+            ESP_LOGW("wireguard", "Invalid WireGuard allowed IPs: %s", x.c_str());
+            return;
+          }
+          id(wireguard_allowed_ips).publish_state(allowed);
+
+  - platform: template
+    name: "WireGuard: Peer Public Key"
+    id: wireguard_peer_public_key
+    internal: true
+    entity_category: config
+    optimistic: false
+    restore_value: true
+    initial_value: ""
+    min_length: 0
+    max_length: 44
+    mode: text
+    icon: "mdi:key-variant"
+    web_server:
+      sorting_group_id: sg_connection
+    set_action:
+      - lambda: |-
+          const std::string key = espframe_wireguard_trim(x);
+          if (!key.empty() && !espframe_is_valid_wireguard_key(key)) {
+            ESP_LOGW("wireguard", "Invalid WireGuard peer public key");
+            return;
+          }
+          id(wireguard_peer_public_key).publish_state(key);
+
+  - platform: template
+    name: "WireGuard: Private Key"
+    id: wireguard_private_key_text
+    internal: true
+    entity_category: config
+    optimistic: false
+    restore_value: false
+    initial_value: ""
+    min_length: 0
+    max_length: 44
+    mode: password
+    icon: "mdi:key"
+    web_server:
+      sorting_group_id: sg_connection
+    set_action:
+      - lambda: |-
+          const std::string key = espframe_wireguard_trim(x);
+          if (key.empty()) {
+            id(wireguard_private_key_value) = "";
+            id(wireguard_private_key_text).publish_state("");
+            global_preferences->sync();
+            ESP_LOGI("wireguard", "WireGuard private key cleared");
+            return;
+          }
+          if (!espframe_is_valid_wireguard_key(key)) {
+            ESP_LOGW("wireguard", "Invalid WireGuard private key");
+            return;
+          }
+          id(wireguard_private_key_value) = key;
+          id(wireguard_private_key_text).publish_state("********");
+          global_preferences->sync();
+          ESP_LOGI("wireguard", "WireGuard private key configured");

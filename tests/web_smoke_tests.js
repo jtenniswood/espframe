@@ -242,6 +242,7 @@ const scenarios = [
   { name: "screen-rotation-developer", configured: true, width: 1280, height: 900, query: "dev=experimental" },
   { name: "screen-tone-schedule", configured: true, width: 1280, height: 900 },
   { name: "daily-settings-controls", configured: true, width: 1280, height: 900 },
+  { name: "wireguard-settings", configured: true, wireguardAvailable: true, width: 1280, height: 900 },
   { name: "backup-import-success", configured: true, width: 1280, height: 900, importFixture: validBackupFixture },
   { name: "backup-import-key-guidance", configured: true, apiKeyConfigured: false, width: 1280, height: 900, importFixture: validBackupFixture },
   { name: "backup-import-read-failure", configured: true, width: 1280, height: 900, importFixture: validBackupFixture, fileReadFailure: true },
@@ -451,6 +452,18 @@ function browserScriptForScenario(scenario) {
       "Screen: Rotation": "0",
       "Developer: Features": false
     };
+    if (${JSON.stringify(!!scenario.wireguardAvailable)}) {
+      Object.assign(endpointValues, {
+        "WireGuard: Enabled": false,
+        "WireGuard: Endpoint": "",
+        "WireGuard: Port": 51820,
+        "WireGuard: Address": "",
+        "WireGuard: Netmask": "255.255.255.255",
+        "WireGuard: Allowed IPs": "",
+        "WireGuard: Peer Public Key": "",
+        "WireGuard: Private Key": ""
+      });
+    }
     if (${JSON.stringify(!!scenario.filterCompatibilityVersion)}) {
       Object.assign(endpointValues, {
         "Immich: Server Version": ${JSON.stringify(scenario.filterCompatibilityVersion || "3.2.0")},
@@ -473,20 +486,29 @@ function browserScriptForScenario(scenario) {
     function configurationSnapshotValues() {
       const values = {};
       Object.entries(configurationEndpointNameByKey).forEach(([key, name]) => {
-        if (key === "api_key") return;
+        if (key === "api_key" || key === "wireguard_private_key") return;
         if (Object.prototype.hasOwnProperty.call(endpointValues, name)) values[key] = endpointValues[name];
       });
       return values;
     }
 
     function configurationSnapshot() {
-      return {
+      const snapshot = {
         api_version: 1,
         reset_epoch: 0,
         api_key_configured: !!String(endpointValues["Connection: API Key"] || ""),
         values: configurationSnapshotValues(),
         unavailable: []
       };
+      // Firmware lists a secret only when its entity exists, which is how the
+      // web UI knows the WireGuard card applies.
+      if (${JSON.stringify(!!scenario.wireguardAvailable)}) {
+        snapshot.secrets_configured = {
+          api_key: snapshot.api_key_configured,
+          wireguard_private_key: !!String(endpointValues["WireGuard: Private Key"] || "")
+        };
+      }
+      return snapshot;
     }
 
     function configurationSnapshotForRequest() {
@@ -1237,6 +1259,85 @@ function smokeAssertionsForScenario(scenario) {
           }
         }, 8000, "screen tone and schedule saves");
       }
+      async function requireWireguardCard() {
+        clickTab("Immich");
+        const card = expandCard("WireGuard VPN");
+        const privateKey = "YBk6X3pP8KjUnS4VvXG0Zk1d3b0Qn0q9yYQe2jqk0Gs=";
+        const peerKey = "n6XQ3yS2m0b5y4Vf8qkq1Qn0q9yYQe2jqk0GsYBk6X0=";
+        function setField(label, value) {
+          const input = fieldByLabel(label).querySelector("input");
+          input.value = value;
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        // Tunnel status stays hidden until the firmware reports its sensors, then follows live events.
+        const tunnelStatus = document.getElementById("wireguard-status");
+        if (!tunnelStatus || tunnelStatus.style.display !== "none") throw new Error("Tunnel status should be hidden before sensors report");
+        const emitState = (id, value) => window.__smoke.eventSource.dispatch("state", { id, value });
+        emitState("binary_sensor/WireGuard: Tunnel Enabled", true);
+        emitState("binary_sensor/WireGuard: Connected", true);
+        emitState("sensor/WireGuard: Handshake Age", 12);
+        await waitFor(() => tunnelStatus.style.display !== "none" && tunnelStatus.textContent.includes("Connected") &&
+          tunnelStatus.textContent.includes("last handshake 12s ago"), 3000, "tunnel connected status");
+        emitState("binary_sensor/WireGuard: Connected", false);
+        await waitFor(() => tunnelStatus.textContent.includes("Not connected"), 3000, "tunnel disconnected status");
+        function cardButton(text) {
+          const button = Array.from(card.querySelectorAll("button")).find((item) => item.textContent.trim() === text);
+          if (!button) throw new Error("WireGuard button not found: " + text);
+          return button;
+        }
+
+        // Invalid values are explained and never sent to the device.
+        const rejected = [
+          ["Server Address", "https://vpn.example.com", "WireGuard: Endpoint"],
+          ["Server Port", "70000", "WireGuard: Port"],
+          ["Frame Address", "300.1.1.1", "WireGuard: Address"],
+          ["Network Mask", "255.0.255.0", "WireGuard: Netmask"],
+          ["Allowed IPs", "192.168.88.0/33", "WireGuard: Allowed IPs"],
+          ["Server Public Key", "short", "WireGuard: Peer Public Key"]
+        ];
+        for (const [label, value, entity] of rejected) {
+          setField(label, value);
+          if (!fieldByLabel(label).querySelector(".field-error").textContent) throw new Error("Invalid " + label + " was not explained");
+          if (hasConfigurationPost(entity)) throw new Error("Invalid " + label + " was saved");
+        }
+
+        const accepted = [
+          ["Server Address", " vpn.example.com ", "WireGuard: Endpoint", "vpn.example.com"],
+          ["Server Port", "51821", "WireGuard: Port", 51821],
+          ["Frame Address", "192.168.88.200", "WireGuard: Address", "192.168.88.200"],
+          ["Network Mask", "255.255.255.0", "WireGuard: Netmask", "255.255.255.0"],
+          ["Allowed IPs", "192.168.88.77/24", "WireGuard: Allowed IPs", "192.168.88.0/24"],
+          ["Server Public Key", peerKey, "WireGuard: Peer Public Key", peerKey]
+        ];
+        for (const [label, value, entity, expected] of accepted) {
+          setField(label, value);
+          await waitFor(() => latestConfigurationValue(entity).value === expected, 4000, label + " save");
+          if (fieldByLabel(label).querySelector(".field-error").textContent) throw new Error("Valid " + label + " showed an error");
+        }
+
+        const notice = card.querySelector(".reset-backup-notice");
+        if (!notice || notice.style.display === "none") throw new Error("Restart notice should appear after saving");
+
+        card.querySelector('[role="switch"]').click();
+        await waitFor(() => latestConfigurationValue("WireGuard: Enabled").value === true, 4000, "enable save");
+
+        // The private key is write-only: only whether it is set reaches the page.
+        const keyInput = fieldByLabel("Frame Private Key").querySelector("input");
+        keyInput.value = "not-a-key";
+        cardButton("Save").click();
+        if (!fieldByLabel("Frame Private Key").querySelector(".field-error").textContent) throw new Error("Invalid private key was not explained");
+        if (hasConfigurationPost("WireGuard: Private Key")) throw new Error("Invalid private key was saved");
+        keyInput.value = privateKey;
+        cardButton("Save").click();
+        await waitFor(() => card.querySelector(".key-mask"), 4000, "masked private key");
+        if (latestConfigurationValue("WireGuard: Private Key").value !== privateKey) throw new Error("Private key was not written to the device");
+        // The injected test script holds the key, so inspect rendered text and fields only.
+        if (pageText().indexOf(privateKey) !== -1 || Array.from(document.querySelectorAll("input")).some((item) => item.value === privateKey)) {
+          throw new Error("Private key leaked into the page");
+        }
+        cardButton("Remove").click();
+        await waitFor(() => !card.querySelector(".key-mask") && latestConfigurationValue("WireGuard: Private Key").value === "", 4000, "private key removal");
+      }
       async function requireDailySettingsControls() {
         expandCard("Connection");
         expandCard("Frequency");
@@ -1941,6 +2042,13 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "daily-settings-controls") {
             await requireDailySettingsControls();
+            if (Array.from(document.querySelectorAll(".card h3")).some((heading) => heading.textContent.trim() === "WireGuard VPN")) {
+              throw new Error("WireGuard card must stay hidden on firmware without WireGuard support");
+            }
+          }
+
+          if (${JSON.stringify(scenario.name)} === "wireguard-settings") {
+            await requireWireguardCard();
           }
 
           if (${JSON.stringify(scenario.name)} === "connection-overlapping-url-saves") {
@@ -2055,6 +2163,7 @@ function smokeAssertionsForScenario(scenario) {
             }
             requirePostContains("Import text field", "Connection: Server URL");
             requirePostContains("Import switch field", "Firmware: Auto Update", "turn_on");
+            requirePostContains("Import update frequency", "Firmware: Update Frequency", "option=Weekly");
             requirePostContains("Import select field", "Photos: Source", "option=Person");
             requirePostContains("Import number field", "Screen: Daytime Brightness", "value=90");
             requirePostContains("Import language", "Device: Language", "option=de");
@@ -2264,6 +2373,14 @@ function runChrome(args, timeoutMs) {
 async function runScenario(scenario) {
   console.log(`running web browser smoke scenario: ${scenario.name}`);
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "espframe-web-smoke-"));
+  try {
+    await runScenarioInDirectory(scenario, tempDir);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function runScenarioInDirectory(scenario, tempDir) {
   const htmlPath = path.join(tempDir, `${scenario.name}.html`);
   const userDataDir = path.join(tempDir, "chrome-profile");
   const query = scenario.query ? `?${scenario.query}` : "";

@@ -1157,7 +1157,8 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
   uint32_t* const src_last = data + width * last_row;  // Last pixel to decode
   const int len_code_limit = NUM_LITERAL_CODES + NUM_LENGTH_CODES;
   const int color_cache_limit = len_code_limit + hdr->color_cache_size;
-  int next_sync_row = dec->incremental ? row : 1 << 24;
+  const int use_checkpoint = dec->io != NULL && dec->io->checkpoint != NULL;
+  int next_sync_row = (dec->incremental || use_checkpoint) ? row : 1 << 24;
   VP8LColorCache* const color_cache =
       (hdr->color_cache_size > 0) ? &hdr->color_cache : NULL;
   const int mask = hdr->huffman_mask;
@@ -1169,7 +1170,11 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
   while (src < src_last) {
     int code;
     if (row >= next_sync_row) {
-      SaveState(dec, (int)(src - data));
+      if (use_checkpoint &&
+          !dec->io->checkpoint(dec->io->checkpoint_context)) {
+        return VP8LSetError(dec, VP8_STATUS_USER_ABORT);
+      }
+      if (dec->incremental) SaveState(dec, (int)(src - data));
       next_sync_row = row + SYNC_EVERY_N_ROWS;
     }
     // Only update when changing tile. Note we could use this test:

@@ -154,6 +154,10 @@
         "path": "../../common/addon/network.yaml"
       },
       {
+        "alias": "wireguard",
+        "path": "../../common/addon/wireguard.yaml"
+      },
+      {
         "alias": "memory_diagnostics",
         "path": "../../common/addon/memory_diagnostics.yaml"
       },
@@ -390,6 +394,10 @@
       {
         "alias": "network",
         "path": "../../common/addon/network.yaml"
+      },
+      {
+        "alias": "wireguard",
+        "path": "../../common/addon/wireguard.yaml"
       },
       {
         "alias": "memory_diagnostics",
@@ -630,6 +638,10 @@
       {
         "alias": "network",
         "path": "../../common/addon/network.yaml"
+      },
+      {
+        "alias": "wireguard",
+        "path": "../../common/addon/wireguard.yaml"
       },
       {
         "alias": "memory_diagnostics",

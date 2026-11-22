@@ -633,6 +633,7 @@ def cmd_manifest(args: argparse.Namespace) -> None:
         "name": display_name_for_slug(args.slug),
         "version": args.version,
         "home_assistant_domain": "esphome",
+        "new_install_prompt_erase": True,
         "builds": [
             {
                 "chipFamily": chip,

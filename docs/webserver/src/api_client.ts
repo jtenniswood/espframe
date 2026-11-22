@@ -67,7 +67,7 @@ export class EspframeApiClient {
     return this.requestWith(url, init, async response => response);
   }
 
-  private requestJson(url: string, init: RequestInit, message: string): Promise<unknown> {
+  protected requestJson(url: string, init: RequestInit, message: string): Promise<unknown> {
     return this.requestWith(url, init, response => this.json(response, message));
   }
 
@@ -92,7 +92,7 @@ export class EspframeApiClient {
     return value as unknown as ConfigurationCapabilities;
   }
 
-  private negotiate(): Promise<ConfigurationCapabilities | null> {
+  protected negotiate(): Promise<ConfigurationCapabilities | null> {
     if (this.negotiated !== undefined) return Promise.resolve(this.negotiated);
     if (!this.capabilities) {
       this.capabilities = this.requestJson(this.capabilitiesPath, { cache: "no-store" }, "capabilities_unavailable")
@@ -136,11 +136,21 @@ export class EspframeApiClient {
       values[key] = value;
     }
     if (apiKeyConfigured === undefined) apiKeyConfigured = false;
+    let secretsConfigured: Record<string, boolean> | undefined;
+    if (payload.secrets_configured !== undefined) {
+      if (!object(payload.secrets_configured)) throw new EspframeApiError("server", "invalid_configuration_snapshot");
+      secretsConfigured = {};
+      for (const [key, value] of Object.entries(payload.secrets_configured)) {
+        if (typeof value !== "boolean") throw new EspframeApiError("server", "invalid_configuration_snapshot");
+        secretsConfigured[key] = value;
+      }
+    }
     this.resetEpoch = Number.isInteger(payload.reset_epoch) ? payload.reset_epoch as number : 0;
     return {
       api_version: capabilities.api_version,
       reset_epoch: this.resetEpoch,
       api_key_configured: apiKeyConfigured,
+      secrets_configured: secretsConfigured,
       values,
       unavailable: payload.unavailable as string[],
     };

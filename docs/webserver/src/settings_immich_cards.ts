@@ -197,6 +197,271 @@
 
   }
 
+  function saveAndVerifyWireguardPrivateKey(value) {
+    var privateKey = String(value || "").trim();
+    if (!isValidWireguardKey(privateKey)) return Promise.reject(Error("invalid_wireguard_key"));
+    // Like the API key, the private key is write-only: only whether it is set
+    // enters browser state.
+    return settingSaves.save({ wireguard_private_key_configured: true }, function () {
+      return apiClient.updateSettings(
+        { wireguard_private_key: privateKey },
+        [legacySettingWrite("wireguard_private_key", privateKey)]
+      )
+        .then(function () { return delayMs(150); })
+        .then(function () { return getConfigurationSnapshot(); })
+        .then(function (snapshot) {
+          if (!snapshot.secrets_configured || !snapshot.secrets_configured.wireguard_private_key) {
+            throw Error("verify_failed");
+          }
+        });
+    });
+  }
+
+  function removeWireguardPrivateKey() {
+    return settingSaves.save({ wireguard_private_key_configured: false }, function () {
+      return apiClient.updateSettings(
+        { wireguard_private_key: "" },
+        [legacySettingWrite("wireguard_private_key", "")]
+      )
+        .then(function () { return delayMs(150); })
+        .then(function () { return getConfigurationSnapshot(); })
+        .then(function (snapshot) {
+          if (!snapshot.secrets_configured || snapshot.secrets_configured.wireguard_private_key) {
+            throw Error("verify_failed");
+          }
+        });
+    });
+  }
+
+  // Read-only tunnel state. Hidden until the firmware reports its status
+  // sensors, so older builds and builds without them show nothing.
+  // Sensor states arrive as raw strings ("true"/"ON") and are absent until reported.
+  function wireguardSensorOn(value) {
+    return value === true || value === "true" || value === "ON";
+  }
+
+  function updateWireguardStatus(statusEl, badgeEl) {
+    if (!statusEl) return;
+    if (S.wireguard_connected === undefined || S.wireguard_connected === "") {
+      statusEl.style.display = "none";
+      setBadgeActive(badgeEl, false);
+      return;
+    }
+    statusEl.style.display = "";
+    var running = wireguardSensorOn(S.wireguard_tunnel_enabled);
+    var connected = running && wireguardSensorOn(S.wireguard_connected);
+    var age = running ? formatWireguardHandshakeAge(S.wireguard_handshake_age) : "";
+    var message = !running ? "Tunnel is off" : (connected ? "Connected" : "Not connected");
+    if (age) message += " \u00b7 last handshake " + age;
+    if (!!S.wireguard_enabled !== running) message += " \u00b7 restart to apply the saved setting";
+    setStatus(statusEl, message, connected ? "green" : (running ? "red" : "orange"));
+    setBadgeActive(badgeEl, connected);
+  }
+
+  function updateWireguardStatusFromPage() {
+    updateWireguardStatus(document.getElementById("wireguard-status"), document.getElementById("wireguard-badge"));
+  }
+
+  function makeWireguardCard() {
+    // Firmware without the WireGuard entities does not list the secret.
+    if (!S.wireguard_available) return null;
+    var body = el("div");
+    var tunnelStatus = el("div", "status mb-12");
+    tunnelStatus.id = "wireguard-status";
+    var tunnelBadge = makeBadge(false, "Connected");
+    tunnelBadge.id = "wireguard-badge";
+    updateWireguardStatus(tunnelStatus, tunnelBadge);
+    body.appendChild(tunnelStatus);
+    var status = el("div", "status mb-12");
+    var restartNotice = el("div", "reset-backup-notice mb-12");
+    restartNotice.style.display = "none";
+    var restartText = el("span");
+    restartText.textContent = "WireGuard changes apply after the frame restarts.";
+    var restartButton = button("Restart now", "btn btn-secondary btn-sm", function () {
+      restartButton.disabled = true;
+      restartButton.textContent = "Restarting...";
+      post(endpoints.reboot_screen + "/press")
+        .catch(function () {
+          // Shared request helpers already surface failures in the UI.
+        })
+        .finally(function () {
+          setTimeout(function () {
+            restartButton.disabled = false;
+            restartButton.textContent = "Restart now";
+          }, 3000);
+        });
+    });
+    restartNotice.appendChild(restartText);
+    restartNotice.appendChild(restartButton);
+
+    function saved(message) {
+      setStatus(status, message, "green", 3000);
+      restartNotice.style.display = "";
+    }
+    function failed(message) {
+      setStatus(status, message, "red");
+    }
+
+    var detailsBody = el("div");
+    var enabled = toggleSettingRow({
+      label: "Connect through WireGuard",
+      value: !!S.wireguard_enabled,
+      getValue: function () { return !!S.wireguard_enabled; },
+      setValue: function (value) { S.wireguard_enabled = value; },
+      details: detailsBody,
+      onChange: function () {
+        saveSetting("wireguard_enabled", !!S.wireguard_enabled).then(function () {
+          saved("Saved");
+        }, function () {});
+      }
+    });
+    detailsBody.style.display = S.wireguard_enabled ? "" : "none";
+    body.appendChild(enabled.field);
+
+    function trimmed(value) { return String(value == null ? "" : value).trim(); }
+
+    // An empty value clears the setting; anything else must pass isValid and is
+    // saved in its canonical form.
+    function textField(label, key, placeholder, hint, maxLength, isValid, invalidMessage, canonical?) {
+      var f = field(label);
+      var inputEl = input("text", S[key], placeholder, maxLength);
+      var error = makeFieldError();
+      inputEl.onchange = function () {
+        var raw = trimmed(inputEl.value);
+        if (raw && !isValid(raw)) {
+          error.textContent = invalidMessage;
+          return;
+        }
+        var value = raw && canonical ? canonical(raw) : raw;
+        error.textContent = "";
+        inputEl.value = value;
+        saveSetting(key, value).then(function () { saved("Saved"); }, function () {});
+      };
+      f.appendChild(inputEl);
+      f.appendChild(error);
+      if (hint) {
+        var hintEl = el("div", "field-hint");
+        hintEl.textContent = hint;
+        f.appendChild(hintEl);
+      }
+      return f;
+    }
+
+    detailsBody.appendChild(textField(
+      "Server Address", "wireguard_endpoint", "vpn.example.com",
+      "Public IP address or hostname of your WireGuard server, such as your router.",
+      253, isValidWireguardEndpoint, "Enter a hostname or IPv4 address without http:// or a port."
+    ));
+
+    var portField = field("Server Port");
+    var portInput = input("text", S.wireguard_port, "51820", 5);
+    portInput.inputMode = "numeric";
+    var portError = makeFieldError();
+    portInput.onchange = function () {
+      var value = trimmed(portInput.value);
+      if (!isValidWireguardPort(value)) {
+        portError.textContent = "Enter a port from 1 to 65535.";
+        return;
+      }
+      portError.textContent = "";
+      saveSetting("wireguard_port", Number(value)).then(function () { saved("Saved"); }, function () {});
+    };
+    portField.appendChild(portInput);
+    portField.appendChild(portError);
+    detailsBody.appendChild(portField);
+
+    detailsBody.appendChild(textField(
+      "Frame Address", "wireguard_address", "192.168.88.200",
+      "The address this frame has inside the VPN. It must match the peer you create on the server. " +
+      "Choose an unused address in the same network as your Immich server.",
+      15, isValidWireguardAddress, "Enter an IPv4 address such as 192.168.88.200."
+    ));
+    detailsBody.appendChild(textField(
+      "Network Mask", "wireguard_netmask", "255.255.255.0",
+      "Only traffic inside this network is sent through the VPN. Use the mask of the network Immich is on.",
+      15, isValidIpv4Netmask, "Enter a netmask such as 255.255.255.0."
+    ));
+    detailsBody.appendChild(textField(
+      "Allowed IPs", "wireguard_allowed_ips", "192.168.88.0/24",
+      "Networks reachable through the VPN, separated by commas (up to 4).",
+      100,
+      function (value) { return !!normalizeWireguardAllowedIps(value); },
+      "Enter up to 4 networks such as 192.168.88.0/24.",
+      normalizeWireguardAllowedIps
+    ));
+    detailsBody.appendChild(textField(
+      "Server Public Key", "wireguard_peer_public_key", "",
+      "The public key of the WireGuard interface on your server.",
+      44, isValidWireguardKey, "Enter a 44-character WireGuard key."
+    ));
+
+    var keyField = field("Frame Private Key");
+    var keyWrap = el("div");
+    var keyError = makeFieldError();
+    function showKeyMasked() {
+      keyWrap.replaceChildren();
+      var row = makeMaskedApiKeyRow(function () {
+        keyWrap.replaceChildren();
+        keyWrap.appendChild(makeKeyInput());
+        connectFieldLabels(keyField);
+      });
+      row.appendChild(button("Remove", "btn btn-secondary", function () {
+        removeWireguardPrivateKey().then(function () {
+          saved("Private key removed");
+          showKeyInput();
+        }, function () {
+          failed("Failed to remove private key");
+        });
+      }));
+      keyWrap.appendChild(row);
+    }
+    function showKeyInput() {
+      keyWrap.replaceChildren();
+      keyWrap.appendChild(makeKeyInput());
+      connectFieldLabels(keyField);
+    }
+    function makeKeyInput() {
+      return makeApiKeyInputGroup({
+        type: "password",
+        value: "",
+        placeholder: "Paste the frame's private key",
+        buttonText: "Save",
+        buttonClass: "btn btn-primary",
+        onButtonClick: function (keyInput, saveBtn) {
+          var value = trimmed(keyInput.value);
+          if (!isValidWireguardKey(value)) {
+            keyError.textContent = "Enter a 44-character WireGuard key.";
+            return;
+          }
+          keyError.textContent = "";
+          saveBtn.disabled = true;
+          saveBtn.textContent = "Saving\u2026";
+          saveAndVerifyWireguardPrivateKey(value).then(function () {
+            saved("Private key saved");
+            showKeyMasked();
+          }, function () {
+            saveBtn.disabled = false;
+            saveBtn.textContent = "Save";
+            failed("Failed to save private key");
+          });
+        }
+      }).group;
+    }
+    if (S.wireguard_private_key_configured) showKeyMasked();
+    else showKeyInput();
+    keyField.appendChild(keyWrap);
+    keyField.appendChild(keyError);
+    var keyHint = el("div", "field-hint");
+    keyHint.textContent = "Stored on the frame and never shown again. It is not included in settings backups.";
+    keyField.appendChild(keyHint);
+    detailsBody.appendChild(keyField);
+
+    body.appendChild(detailsBody);
+    body.appendChild(status);
+    body.appendChild(restartNotice);
+    return makeCollapsibleCard("WireGuard VPN", body, true, tunnelBadge);
+  }
+
   function makeFrequencyCard() {
     // Frequency
     var dispBody = el("div");
