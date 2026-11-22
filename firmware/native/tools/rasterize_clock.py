@@ -14,12 +14,12 @@ def pack_mask(image):
                  for a, b in zip(pixels[::2], pixels[1::2], strict=True))
 
 
-def blurred_shadow(image, padding, radius, offset):
+def blurred_shadow(image, padding, radius, offset, opacity=2 / 3):
     from PIL import Image, ImageFilter
 
     shadow = Image.new("L", (image.width + 2 * padding, image.height + 2 * padding))
     shadow.paste(image, (padding + offset[0], padding + offset[1]))
-    return shadow.filter(ImageFilter.GaussianBlur(radius)).point(lambda coverage: (2 * coverage + 1) // 3)
+    return shadow.filter(ImageFilter.GaussianBlur(radius)).point(lambda coverage: round(coverage * opacity))
 
 
 def crop_mask(image):
@@ -149,7 +149,7 @@ def main():
             result.append(ceil(font.getlength(glyph)))
         else:
             # Native panel columns are contiguous through the height of a glyph.
-            shadow = blurred_shadow(image, 10, 3.2, (2, 4))
+            shadow = blurred_shadow(image, 10, 3.2, (1, 2), opacity=0.45)
             shadows.extend(pack_mask(shadow.transpose(Image.Transpose.TRANSPOSE)))
             image = image.transpose(Image.Transpose.TRANSPOSE)
         result.extend(pack_mask(image))
