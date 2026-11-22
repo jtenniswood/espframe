@@ -2,6 +2,7 @@
 // Register I/O is mocked; this test never opens a serial port or writes firmware.
 const assert = require('node:assert/strict');
 const { createRequire } = require('node:module');
+const { resolve } = require('node:path');
 const { buildSync } = require('esbuild');
 
 const installerRequire = createRequire(require.resolve('esp-web-tools'));
@@ -12,6 +13,43 @@ const compiled = buildSync({
 const loaded = { exports: {} };
 new Function('module', 'exports', 'require', compiled.outputFiles[0].text)(loaded, loaded.exports, require);
 const { ESP32P4ROM } = loaded.exports;
+
+async function checkPreservingManifest() {
+  const compiled = buildSync({
+    stdin: {
+      contents: "export { preservingManifestUrl } from './docs/.vitepress/theme/usb-installer';",
+      resolveDir: resolve(__dirname, '..'),
+    },
+    bundle: true, platform: 'node', format: 'cjs', write: false,
+  });
+  const loaded = { exports: {} };
+  new Function('module', 'exports', compiled.outputFiles[0].text)(loaded, loaded.exports);
+  const { preservingManifestUrl } = loaded.exports;
+  const olderManifest = {
+    name: 'Espframe V2',
+    version: 'v1.17.3',
+    home_assistant_domain: 'esphome',
+    builds: [{
+      chipFamily: 'ESP32-P4',
+      parts: [{ path: 'immich-frame-v2.factory.bin', offset: 0 }],
+      ota: { path: 'immich-frame-v2.ota.bin', md5: 'example' },
+    }],
+  };
+  const source = 'https://firmware.example/espframe/firmware/jc8012p4a1-v2/manifest.json';
+  const url = preservingManifestUrl(olderManifest, source);
+  const manifest = await (await fetch(url)).json();
+  assert.deepEqual(manifest, {
+    ...olderManifest,
+    new_install_prompt_erase: true,
+    builds: [{
+      ...olderManifest.builds[0],
+      parts: [{ path: 'https://firmware.example/espframe/firmware/jc8012p4a1-v2/immich-frame-v2.factory.bin', offset: 0 }],
+    }],
+  });
+  assert.equal(olderManifest.new_install_prompt_erase, undefined);
+  assert.equal(olderManifest.builds[0].parts[0].path, 'immich-frame-v2.factory.bin');
+  console.log('The browser installer offers the erase choice for older published manifests.');
+}
 
 async function checkFlashInitialization(revision, romPowered = false, secureDownloadMode = false) {
   const chip = new ESP32P4ROM();
@@ -55,6 +93,7 @@ async function checkFlashInitialization(revision, romPowered = false, secureDown
   await checkFlashInitialization(302, true);
   await checkFlashInitialization(302, false, true);
   console.log('Installer P4 flash initialization checks passed (mocked registers, no USB writes).');
+  await checkPreservingManifest();
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;
