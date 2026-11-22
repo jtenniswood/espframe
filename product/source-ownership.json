@@ -93,7 +93,7 @@
       "revision": "Stock ESPHome Noto Sans weight 325 (SHA-256 cfffc3ecf6aaa6a205b16c68070cceca472208a06581e6f131cdd0294913d900), weight 400 (SHA-256 5be701a9511117e73603bdab95947feef4f18bd1851dbddc30659370b26c69f1), stock Noto Sans Hebrew 3.001 weight 400 from the Noto Hebrew project (SHA-256 a5cc5ce90ed4f6393992728fcc63657c4dd83aed119acbd5f4ed223e40c71129), and Noto Sans Regular 2.015 for recovery (SHA-256 f5f552c8c5edb61fe6efb824baf4d4de47b1a8689ab4925ff43f7bd6a4ebece5)",
       "license": "OFL-1.1",
       "license_file": "firmware/native/assets/OFL-Noto-Sans.txt",
-      "local_changes": "The clock uses 150-pixel Rubik at weight 300, centred in fixed digit slots. Photo captions use 28-pixel Rubik at weight 500, with Noto Sans at weight 500 for location glyphs missing in Rubik. The date atlas covers the month and relative date strings in product/translations. firmware/native/tools/rasterize_clock.py generates the atlases. firmware/native/tools/rasterize_status.py generates 26-pixel localized status lines from the recorded Noto Sans faces. The Wi-Fi recovery credential glyphs are 26 pixels. The firmware embeds 4-bit masks and has no font runtime dependency."
+      "local_changes": "The clock uses 150-pixel Rubik at weight 300, centred in fixed digit slots. Photo captions use 28-pixel Rubik at weight 300, with Noto Sans at weight 300 for location glyphs missing in Rubik. The date atlas covers the month and relative date strings in product/translations. firmware/native/tools/rasterize_clock.py generates the atlases. firmware/native/tools/rasterize_status.py generates 26-pixel localized status lines from the recorded Noto Sans faces. The Wi-Fi recovery credential glyphs are 26 pixels. The firmware embeds 4-bit masks and has no font runtime dependency."
     },
     {
       "path": "components/captive_portal",
@@ -210,14 +210,14 @@
       "license": "OFL-1.1"
     },
     {
-      "usage": "Rubik Light clock and Rubik Medium caption glyphs for native Espframe",
+      "usage": "Rubik Light clock and caption glyphs for native Espframe",
       "declarations": ["firmware/native/tools/rasterize_clock.py", "firmware/native/assets/OFL-Rubik.txt"],
       "upstream": "https://github.com/google/fonts/tree/e09ebe46ba39be6077deb3fe9a866fce278bb9f8/ofl/rubik",
       "revision": "e09ebe46ba39be6077deb3fe9a866fce278bb9f8; variable Rubik face SHA-256 1b3a7437ba2af80e465e773ed60c5036d1ba6ace492d89046dbcf18fb31e4e88",
       "license": "OFL-1.1"
     },
     {
-      "usage": "Noto Sans Medium fallback location glyphs for native Espframe",
+      "usage": "Noto Sans Light fallback location glyphs for native Espframe",
       "declarations": ["firmware/native/tools/rasterize_clock.py", "firmware/native/assets/OFL-Noto-Sans.txt"],
       "upstream": "https://github.com/google/fonts/tree/2984c575fdce412ee02b2baaba67672b9a9434d8/ofl/notosans",
       "revision": "2984c575fdce412ee02b2baaba67672b9a9434d8; variable Noto Sans face SHA-256 bfb7bb691513f12e734dc346c03a03f784912432d7e3fa8e56efcf906fe86b3d",

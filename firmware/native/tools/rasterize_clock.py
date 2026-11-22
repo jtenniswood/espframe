@@ -88,11 +88,11 @@ def main():
         parser.error("use the recorded font for the requested atlas")
     if args.captions and (not args.noto_fallback or sha256(args.noto_fallback.read_bytes()).hexdigest() != noto_sans):
         parser.error("use the recorded Noto Sans face with --noto-fallback for --captions")
+    weight = 300
     size, width, height, origin = (26, 32, 36, (0, 27)) if args.recovery else (150, 88, 116, (0, 113))
     glyphs = (chr(code) for code in range(32, 127)) if args.recovery else "0123456789:"
     if args.captions or args.dates:
         size, width, height, origin = (28, 48, 48, (3, 30))
-        weight = 500
         ranges = [(32, 127), (0x2010, 0x2027)]
         if args.captions:
             ranges[1:1] = [(0xa0, 0x250), (0x370, 0x530), (0x1e00, 0x1efa)]
@@ -109,7 +109,7 @@ def main():
         return
     font = ImageFont.truetype(str(args.font), size)
     if not args.recovery:
-        font.set_variation_by_axes([300])
+        font.set_variation_by_axes([weight])
     result = bytearray()
     for glyph in glyphs:
         image = Image.new("L", (width, height))
