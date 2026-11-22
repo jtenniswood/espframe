@@ -21,11 +21,17 @@ class ClockOverlay {
   static constexpr int glyph_height = 116;
   static constexpr int digit_advance = 86;
   static constexpr int colon_advance = 37;
-  static constexpr size_t atlas_size = 11 * glyph_width * glyph_height / 2;
-  static constexpr int first_row = 45;
-  static constexpr int first_column = 58;
-  static constexpr int rows = 4 * digit_advance + colon_advance + 4;
-  static constexpr int columns = glyph_height + 2;
+  static constexpr int shadow_padding = 10;
+  static constexpr int shadow_width = glyph_width + 2 * shadow_padding;
+  static constexpr int shadow_height = glyph_height + 2 * shadow_padding;
+  static constexpr size_t face_atlas_size = 11 * glyph_width * glyph_height / 2;
+  static constexpr size_t atlas_size = face_atlas_size + 11 * shadow_width * shadow_height / 2;
+  static constexpr int face_first_row = 45;
+  static constexpr int face_top_column = 175;
+  static constexpr int first_row = face_first_row - shadow_padding;
+  static constexpr int first_column = face_top_column + shadow_padding - shadow_height + 1;
+  static constexpr int rows = 4 * digit_advance + colon_advance + 2 * shadow_padding;
+  static constexpr int columns = shadow_height;
 
   bool init(const ClockSettings &settings, const uint8_t *atlas, bool snapshots,
             ScreenRotation rotation = ScreenRotation::Normal);

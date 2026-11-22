@@ -7,8 +7,10 @@ namespace espframe::native {
 namespace {
 
 constexpr int glyph_extent = 64;
+constexpr int shadow_padding = 8;
 constexpr size_t index_entry_size = 6;
-constexpr size_t bitmap_header_size = 5;
+// Each glyph stores its advance, two four-byte bounds, then the face and shadow masks.
+constexpr size_t glyph_header_size = 9;
 constexpr int side_margin = 45;
 constexpr int right = slide_width - side_margin;
 constexpr int bottom = slide_height - 50;
@@ -38,6 +40,10 @@ uint16_t read_codepoint(std::string_view &text) {
   return code;
 }
 
+size_t mask_size(const uint8_t *bounds) {
+  return ((bounds[2] + 1) / 2) * bounds[3];
+}
+
 const uint8_t *find_glyph(std::span<const uint8_t> atlas, uint16_t code) {
   if (atlas.size() < 2)
     return nullptr;
@@ -54,13 +60,15 @@ const uint8_t *find_glyph(std::span<const uint8_t> atlas, uint16_t code) {
     if (key == code) {
       const uint32_t offset = record[2] | (record[3] << 8) | (record[4] << 16) | (uint32_t{record[5]} << 24);
       const size_t available = atlas.size() - bitmaps;
-      if (offset > available || available - offset < bitmap_header_size)
+      if (offset > available || available - offset < glyph_header_size)
         return nullptr;
       const auto *glyph = atlas.data() + bitmaps + offset;
-      if (glyph[1] + glyph[3] > glyph_extent || glyph[2] + glyph[4] > glyph_extent)
-        return nullptr;
-      const size_t bitmap_size = ((glyph[3] + 1) / 2) * glyph[4];
-      return bitmap_size <= available - offset - bitmap_header_size ? glyph : nullptr;
+      for (const auto *bounds : {glyph + 1, glyph + 5}) {
+        if (bounds[0] + bounds[2] > glyph_extent || bounds[1] + bounds[3] > glyph_extent)
+          return nullptr;
+      }
+      const auto bytes = mask_size(glyph + 1) + mask_size(glyph + 5);
+      return bytes <= available - offset - glyph_header_size ? glyph : nullptr;
     }
     if (key < code)
       first = middle + 1;
@@ -108,35 +116,35 @@ PhotoCaptionLine layout_line(std::span<const uint8_t> atlas, std::string_view va
 }
 
 void draw_line(uint16_t *frame, std::span<const uint8_t> atlas, const PhotoCaptionLine &line, int top,
-               ScreenRotation rotation, uint8_t opacity) {
+               ScreenRotation rotation, uint8_t opacity, bool shadow) {
   if (!line.width)
     return;
   const int step = -axis_direction(rotation);
-  for (const int shadow : {2, 0}) {
-    int x = right + shadow - line.width;
-    const auto draw = [&](const uint8_t *glyph) {
-      const auto *mask = glyph + bitmap_header_size;
-      const int stride = (glyph[3] + 1) / 2;
-      for (int column = 0; column < glyph[3]; ++column) {
-        auto *pixels = frame + panel_offset(x + glyph[1] + column, panel_width - 1 - top - glyph[2] - shadow, rotation);
-        for (int row = 0; row < glyph[4]; ++row) {
-          const auto packed = mask[row * stride + column / 2];
-          const unsigned coverage = column % 2 ? packed & 15 : packed >> 4;
-          const unsigned ink = shadow == 0 ? coverage : (coverage + 2) / 5;
-          const unsigned alpha = (ink * opacity + 7) / PhotoCaptionFade::opaque;
-          if (alpha)
-            pixels[row * step] = paint(pixels[row * step], alpha, shadow == 0);
-        }
+  const int padding = shadow ? shadow_padding : 0;
+  int x = right - line.width - padding;
+  const auto draw = [&](const uint8_t *glyph) {
+    const auto *bounds = glyph + (shadow ? 5 : 1);
+    const auto *mask = glyph + glyph_header_size + (shadow ? mask_size(glyph + 1) : 0);
+    const int stride = (bounds[2] + 1) / 2;
+    const int first_column = panel_width - 1 - top + padding - bounds[1];
+    for (int column = 0; column < bounds[2]; ++column) {
+      auto *pixels = frame + panel_offset(x + bounds[0] + column, first_column, rotation);
+      for (int row = 0; row < bounds[3]; ++row) {
+        const auto packed = mask[row * stride + column / 2];
+        const unsigned coverage = column % 2 ? packed & 15 : packed >> 4;
+        const unsigned alpha = (coverage * opacity + 7) / PhotoCaptionFade::opaque;
+        if (alpha)
+          pixels[row * step] = paint(pixels[row * step], alpha, !shadow);
       }
-      x += glyph[0];
-    };
-    std::string_view displayed{line.text.data(), line.length};
-    while (!displayed.empty()) {
-      draw(find_glyph(atlas, read_codepoint(displayed)));
     }
-    if (line.ellipsis)
-      draw(find_glyph(atlas, 0x2026));
+    x += glyph[0];
+  };
+  std::string_view displayed{line.text.data(), line.length};
+  while (!displayed.empty()) {
+    draw(find_glyph(atlas, read_codepoint(displayed)));
   }
+  if (line.ellipsis)
+    draw(find_glyph(atlas, 0x2026));
 }
 
 std::string hebrew_date_visual_order(std::string_view text) {
@@ -184,13 +192,13 @@ std::string photo_caption_date(const PhotoMetadata &metadata, const PhotoMetadat
 
 int PhotoCaption::band_rows() const {
   const auto width = std::max(location.width, date.width);
-  return width ? side_margin + width : 0;
+  return width ? side_margin + width + shadow_padding : 0;
 }
 
 PhotoCaption prepare_photo_caption(std::span<const uint8_t> locations, std::span<const uint8_t> dates,
                                    const PhotoMetadata &metadata, const PhotoMetadataSettings &settings,
                                    bool show_clock, const std::optional<std::tm> &local) {
-  const int left = show_clock ? ClockOverlay::first_row + ClockOverlay::rows + clock_gap : side_margin;
+  const int left = (show_clock ? ClockOverlay::first_row + ClockOverlay::rows + clock_gap : side_margin) + shadow_padding;
   const int line_width = right - left;
   PhotoCaption caption;
   caption.date = layout_line(dates, photo_caption_date(metadata, settings, local), line_width);
@@ -213,12 +221,12 @@ void paint_photo_caption(uint16_t *frame, std::span<const uint8_t> locations, st
                          const PhotoCaption &caption, ScreenRotation rotation, uint8_t opacity) {
   if (!opacity)
     return;
-  int location_top = bottom - line_height;
-  if (caption.date.width) {
-    draw_line(frame, dates, caption.date, location_top, rotation, opacity);
-    location_top -= line_height + line_gap;
+  const int date_top = bottom - line_height;
+  const int location_top = caption.date.width ? date_top - line_height - line_gap : date_top;
+  for (const bool shadow : {true, false}) {
+    draw_line(frame, dates, caption.date, date_top, rotation, opacity, shadow);
+    draw_line(frame, locations, caption.location, location_top, rotation, opacity, shadow);
   }
-  draw_line(frame, locations, caption.location, location_top, rotation, opacity);
 }
 
 }  // namespace espframe::native

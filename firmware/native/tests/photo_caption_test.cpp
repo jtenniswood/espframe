@@ -18,8 +18,8 @@ int main(int argc, char **argv) {
   const std::vector<uint8_t> atlas{std::istreambuf_iterator<char>{glyphs}, {}};
   std::ifstream date_glyphs(argv[2], std::ios::binary);
   const std::vector<uint8_t> dates{std::istreambuf_iterator<char>{date_glyphs}, {}};
-  assert(atlas.size() > 1000 && atlas.size() < 512 * 1024);
-  assert(dates.size() > 1000 && dates.size() < 64 * 1024);
+  assert(atlas.size() > 1000 && atlas.size() < 640 * 1024);
+  assert(dates.size() > 1000 && dates.size() < 96 * 1024);
 
   const auto paint = [&](uint16_t *frame, const PhotoMetadata &metadata, const PhotoMetadataSettings &style,
                          ScreenRotation rotation, bool clock, const std::optional<std::tm> &time = {}) {
@@ -131,6 +131,12 @@ int main(int argc, char **argv) {
   paint_photo_caption(translucent.data(), atlas, dates, caption, ScreenRotation::Normal, 7);
   assert(translucent != blank && translucent != clock_visible);
   assert(std::equal(translucent.begin(), translucent.begin() + first_caption_row * panel_width, blank.begin()));
+  std::vector<uint16_t> shadow_tones;
+  for (const auto pixel : clock_visible) {
+    if (pixel < background && std::find(shadow_tones.begin(), shadow_tones.end(), pixel) == shadow_tones.end())
+      shadow_tones.push_back(pixel);
+  }
+  assert(shadow_tones.size() >= 3);
   auto invisible = blank;
   paint_photo_caption(invisible.data(), atlas, dates, caption, ScreenRotation::Normal, 0);
   assert(invisible == blank);

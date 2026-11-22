@@ -8,8 +8,6 @@
 namespace espframe::native {
 namespace {
 
-constexpr int shadow = 2;
-
 constexpr unsigned mix_channel(unsigned from, unsigned to, unsigned alpha) {
   return (from * (255 - alpha) + to * alpha + 127) / 255;
 }
@@ -32,7 +30,7 @@ struct GlyphBlend {
 constexpr auto glyph_blends(bool shadow_layer) {
   std::array<GlyphBlend, 16> blends{};
   for (unsigned alpha = 0; alpha < blends.size(); ++alpha) {
-    const unsigned opacity = shadow_layer ? (alpha * 17 + 2) / 5 : alpha * 17;
+    const unsigned opacity = alpha * 17;
     auto &blend = blends[alpha];
     for (unsigned c = 0; c < blend.red_and_blue.size(); ++c)
       blend.red_and_blue[c] = mix_channel(c, shadow_layer ? 0 : 31, opacity);
@@ -96,21 +94,27 @@ void ClockOverlay::draw(uint16_t *frame, bool remember_underlay) {
   if (text_[0] == '\0')
     return;
   const int column_step = -axis_direction(rotation_);
-  for (int layer : {shadow, 0}) {
-    const auto &blends = layer == 0 ? face_blends : shadow_blends;
-    int left = first_row + layer;
+  for (const bool shadow : {true, false}) {
+    const auto &blends = shadow ? shadow_blends : face_blends;
+    const int padding = shadow ? shadow_padding : 0;
+    const int height = shadow ? shadow_height : glyph_height;
+    const int width = shadow ? shadow_width : glyph_width;
+    const int stride = height / 2;
+    const auto *bitmap = atlas_ + (shadow ? face_atlas_size : 0);
+    const int top = face_top_column + padding;
+    int left = face_first_row - padding;
     for (const char ch : text_) {
       if (ch == '\0')
         break;
       if (ch == ' ')
         continue;
       const int digit = ch == ':' ? 10 : ch - '0';
-      const auto *mask = atlas_ + digit * glyph_width * glyph_height / 2;
+      const auto *mask = bitmap + digit * width * stride;
       const int advance = ch == ':' ? colon_advance : digit_advance;
-      for (int x = 0; x < advance; ++x) {
-        auto *column = frame + panel_offset(left + x, first_column + columns - 1 - layer, rotation_);
-        const auto *ink = mask + x * (glyph_height / 2);
-        for (int pair = 0; pair < glyph_height / 2; ++pair) {
+      for (int x = 0; x < advance + 2 * padding; ++x) {
+        auto *column = frame + panel_offset(left + x, top, rotation_);
+        const auto *ink = mask + x * stride;
+        for (int pair = 0; pair < stride; ++pair) {
           const auto packed = ink[pair];
           if (packed == 0)
             continue;
@@ -119,7 +123,7 @@ void ClockOverlay::draw(uint16_t *frame, bool remember_underlay) {
             if (alpha == 0)
               continue;
             auto &pixel = column[(2 * pair + half) * column_step];
-            pixel = layer == 0 && alpha == 15 ? 0xffff : blends[alpha].apply(pixel);
+            pixel = !shadow && alpha == 15 ? 0xffff : blends[alpha].apply(pixel);
           }
         }
       }

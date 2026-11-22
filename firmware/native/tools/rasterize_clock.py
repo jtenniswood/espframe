@@ -8,6 +8,32 @@ from pathlib import Path
 from struct import pack, unpack_from
 
 
+def pack_mask(image):
+    pixels = image.tobytes()
+    return bytes(((a + 8) // 17 << 4) | ((b + 8) // 17)
+                 for a, b in zip(pixels[::2], pixels[1::2], strict=True))
+
+
+def blurred_shadow(image, padding, radius, offset):
+    from PIL import Image, ImageFilter
+
+    shadow = Image.new("L", (image.width + 2 * padding, image.height + 2 * padding))
+    shadow.paste(image, (padding + offset[0], padding + offset[1]))
+    return shadow.filter(ImageFilter.GaussianBlur(radius)).point(lambda coverage: (2 * coverage + 1) // 3)
+
+
+def crop_mask(image):
+    from PIL import Image
+
+    left, top, right, bottom = image.point(lambda coverage: coverage if coverage >= 9 else 0).getbbox() or (0, 0, 0, 0)
+    width, height = right - left, bottom - top
+    if not width:
+        return bytes(4), b""
+    cropped = Image.new("L", (width + width % 2, height))
+    cropped.paste(image.crop((left, top, right, bottom)))
+    return bytes((left, top, width, height)), pack_mask(cropped)
+
+
 def caption_atlas(font, glyphs, width, height, origin, fallback=None, require_all=False):
     from PIL import Image, ImageDraw
 
@@ -24,17 +50,10 @@ def caption_atlas(font, glyphs, width, height, origin, fallback=None, require_al
             continue
         image = Image.new("L", (width, height))
         ImageDraw.Draw(image).text(origin, glyph, font=face, fill=255, anchor="ls")
-        bounds = image.getbbox() or (0, 0, 0, 0)
-        left, top, right, bottom = bounds
-        ink_width, ink_height = right - left, bottom - top
+        face_bounds, face_mask = crop_mask(image)
+        shadow_bounds, shadow_mask = crop_mask(blurred_shadow(image, 8, 2.4, (2, 3)))
         index.extend(pack("<HI", ord(glyph), len(bitmaps)))
-        bitmaps.extend(bytes((ceil(face.getlength(glyph)), left, top, ink_width, ink_height)))
-        if ink_width:
-            cropped = Image.new("L", (ink_width + ink_width % 2, ink_height))
-            cropped.paste(image.crop(bounds))
-            pixels = cropped.tobytes()
-            bitmaps.extend(((a + 8) // 17 << 4) | ((b + 8) // 17)
-                           for a, b in zip(pixels[::2], pixels[1::2], strict=True))
+        bitmaps.extend(bytes((ceil(face.getlength(glyph)),)) + face_bounds + shadow_bounds + face_mask + shadow_mask)
     return pack("<H", len(index) // 6) + index + bitmaps
 
 
@@ -88,29 +107,30 @@ def main():
         parser.error("use the recorded font for the requested atlas")
     if args.captions and (not args.noto_fallback or sha256(args.noto_fallback.read_bytes()).hexdigest() != noto_sans):
         parser.error("use the recorded Noto Sans face with --noto-fallback for --captions")
-    weight = 300
     size, width, height, origin = (26, 32, 36, (0, 27)) if args.recovery else (150, 88, 116, (0, 113))
     glyphs = (chr(code) for code in range(32, 127)) if args.recovery else "0123456789:"
     if args.captions or args.dates:
         size, width, height, origin = (28, 48, 48, (3, 30))
+        caption_weight = 400
         ranges = [(32, 127), (0x2010, 0x2027)]
         if args.captions:
             ranges[1:1] = [(0xa0, 0x250), (0x370, 0x530), (0x1e00, 0x1efa)]
         glyphs = (chr(code) for start, end in ranges for code in range(start, end))
         font = ImageFont.truetype(str(args.font), size)
-        font.set_variation_by_axes([weight])
+        font.set_variation_by_axes([caption_weight])
         fallback = None
         if args.dates:
             glyphs = date_glyphs()
         else:
             fallback = ImageFont.truetype(str(args.noto_fallback), size)
-            fallback.set_variation_by_axes([weight, 100])
+            fallback.set_variation_by_axes([caption_weight, 100])
         args.output.write_bytes(caption_atlas(font, glyphs, width, height, origin, fallback, require_all=args.dates))
         return
     font = ImageFont.truetype(str(args.font), size)
     if not args.recovery:
-        font.set_variation_by_axes([weight])
+        font.set_variation_by_axes([300])
     result = bytearray()
+    shadows = bytearray()
     for glyph in glyphs:
         image = Image.new("L", (width, height))
         position = origin
@@ -129,11 +149,11 @@ def main():
             result.append(ceil(font.getlength(glyph)))
         else:
             # Native panel columns are contiguous through the height of a glyph.
+            shadow = blurred_shadow(image, 10, 3.2, (2, 4))
+            shadows.extend(pack_mask(shadow.transpose(Image.Transpose.TRANSPOSE)))
             image = image.transpose(Image.Transpose.TRANSPOSE)
-        pixels = image.tobytes()
-        result.extend(((left + 8) // 17 << 4) | ((right + 8) // 17)
-                      for left, right in zip(pixels[::2], pixels[1::2], strict=True))
-    args.output.write_bytes(result)
+        result.extend(pack_mask(image))
+    args.output.write_bytes(result + shadows)
 
 
 if __name__ == "__main__":

@@ -73,9 +73,9 @@ void expect_glyph(const std::vector<uint16_t> &frame, const std::vector<uint8_t>
     for (int x = 0; x < width; ++x) {
       const auto value = atlas[(glyph * width * height + x * height + y) / 2];
       if ((y % 2 != 0 ? value & 15 : value >> 4) == 15) {
-        const int row = ClockOverlay::first_row + place * ClockOverlay::digit_advance + x -
+        const int row = ClockOverlay::face_first_row + place * ClockOverlay::digit_advance + x -
                         (place > 2 ? ClockOverlay::digit_advance - ClockOverlay::colon_advance : 0);
-        const int column = ClockOverlay::first_column + ClockOverlay::columns - 1 - y;
+        const int column = ClockOverlay::face_top_column - y;
         assert(frame[row * panel_width + column] == 0xffff);
         found_opaque = true;
       }
@@ -88,6 +88,10 @@ void verify_antialiasing() {
   std::vector<uint8_t> atlas(ClockOverlay::atlas_size);
   // Two different coverage values in the first column of the glyph for 1.
   atlas[ClockOverlay::glyph_width * ClockOverlay::glyph_height / 2] = 0x87;
+  constexpr int stride = ClockOverlay::shadow_height / 2;
+  constexpr int shadow_index = ClockOverlay::face_atlas_size + ClockOverlay::shadow_width * stride;
+  constexpr int padding = ClockOverlay::shadow_padding;
+  atlas[shadow_index + (padding + 2) * stride + (padding + 2) / 2] = 0x21;
   ClockSettings settings;
   settings.show = true;
   ClockOverlay clock;
@@ -98,12 +102,11 @@ void verify_antialiasing() {
   assert(clock.update(time));
   std::vector<uint16_t> frame(pixel_count, 0x39e7);
   clock.draw(frame.data());
-  constexpr int top = ClockOverlay::first_column + ClockOverlay::columns - 1;
   const auto pixel = [&](int x, int y) {
-    return frame[(ClockOverlay::first_row + x) * panel_width + top - y];
+    return frame[(ClockOverlay::face_first_row + x) * panel_width + ClockOverlay::face_top_column - y];
   };
   assert(pixel(0, 0) == 0xa534 && pixel(0, 1) == 0x94b2);
-  assert(pixel(2, 2) == 0x31a6 && pixel(2, 3) == 0x31c6);
+  assert(pixel(2, 2) == 0x31a6 && pixel(2, 3) == 0x39c7);
   assert(pixel(0, 2) == 0x39e7 && pixel(2, 4) == 0x39e7);
 }
 
@@ -125,6 +128,21 @@ void verify_atlas_slots(const std::vector<uint8_t> &atlas) {
       }
     }
     assert(left <= right && std::abs(left - (advance - 1 - right)) <= 2);
+
+    constexpr int shadow_width = ClockOverlay::shadow_width;
+    constexpr int shadow_height = ClockOverlay::shadow_height;
+    constexpr int padding = ClockOverlay::shadow_padding;
+    std::array<bool, 16> shadow_levels{};
+    for (int x = 0; x < shadow_width; ++x) {
+      for (int y = 0; y < shadow_height; ++y) {
+        const auto packed = atlas[ClockOverlay::face_atlas_size + ((glyph * shadow_width + x) * shadow_height + y) / 2];
+        const int alpha = y % 2 != 0 ? packed & 15 : packed >> 4;
+        if (alpha)
+          assert(x > 0 && x < advance + 2 * padding - 1 && y > 0 && y < shadow_height - 1);
+        shadow_levels[alpha] = true;
+      }
+    }
+    assert(std::count(shadow_levels.begin() + 1, shadow_levels.end(), true) >= 3);
   }
 }
 
