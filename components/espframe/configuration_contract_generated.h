@@ -15,7 +15,7 @@ struct ConfigurationField {
 inline constexpr unsigned int CONTRACT_VERSION = 2;
 inline constexpr unsigned int API_VERSION = 1;
 inline constexpr unsigned int SETTING_COUNT = 55;
-inline constexpr unsigned int CONFIGURATION_FIELD_COUNT = 76;
+inline constexpr unsigned int CONFIGURATION_FIELD_COUNT = 84;
 inline constexpr float SCHEDULE_WAKE_TIMEOUT_DEFAULT = 60;
 inline constexpr float SCHEDULE_WAKE_TIMEOUT_MIN = 10;
 inline constexpr float SCHEDULE_WAKE_TIMEOUT_MAX = 3600;
@@ -83,6 +83,13 @@ inline constexpr ConfigurationField CONFIGURATION_FIELDS[] = {
     {"ntp_server_1", "text", "Clock: NTP Server 1", false},
     {"ntp_server_2", "text", "Clock: NTP Server 2", false},
     {"ntp_server_3", "text", "Clock: NTP Server 3", false},
+    {"wireguard_enabled", "switch", "WireGuard: Enabled", false},
+    {"wireguard_endpoint", "text", "WireGuard: Endpoint", false},
+    {"wireguard_port", "number", "WireGuard: Port", false},
+    {"wireguard_address", "text", "WireGuard: Address", false},
+    {"wireguard_netmask", "text", "WireGuard: Netmask", false},
+    {"wireguard_allowed_ips", "text", "WireGuard: Allowed IPs", false},
+    {"wireguard_peer_public_key", "text", "WireGuard: Peer Public Key", false},
     {"album_ids", "text", "Photos: Album IDs", false},
     {"album_labels", "text", "Photos: Album Labels", false},
     {"person_ids", "text", "Photos: Person IDs", false},
@@ -100,6 +107,7 @@ inline constexpr ConfigurationField CONFIGURATION_FIELDS[] = {
     {"show_clock", "switch", "Clock: Show", false},
     {"immich_url", "text", "Connection: Server URL", false},
     {"api_key", "text", "Connection: API Key", true},
+    {"wireguard_private_key", "text", "WireGuard: Private Key", true},
 };
 
 }  // namespace esphome::espframe::contract

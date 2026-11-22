@@ -26,6 +26,7 @@ script:
           ESP_LOGW("immich",
                    "Fetch failure registered; pausing fetches for %us (consecutive failures=%d)",
                    (unsigned) (cooldown_ms / 1000), id(immich_request_state).consecutive_failures);
+      - script.execute: wireguard_log_immich_route
 
   - id: immich_register_fetch_success
     mode: restart

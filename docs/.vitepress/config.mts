@@ -173,6 +173,7 @@ export default defineConfig({
           { text: 'Screen Tone', link: '/screen-tone' },
           { text: 'Touch Controls', link: '/touch-controls' },
           { text: 'Backup & Restore', link: '/backup' },
+          { text: 'WireGuard VPN', link: '/wireguard' },
         ],
       },
       {

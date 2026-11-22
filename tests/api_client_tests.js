@@ -53,6 +53,38 @@ async function main() {
   };
   const oldSnapshot = await oldFirmware.getConfigurationSnapshot();
   assert.equal(oldSnapshot.reset_epoch, 0, "older firmware snapshots should default to epoch zero");
+  assert.equal(oldSnapshot.secrets_configured, undefined, "older firmware lists no write-only secrets");
+
+  const secretsClient = new EspframeApiClient(contract.capabilities_path, 1000);
+  context.fetch = async (url) => {
+    if (url.endsWith("/capabilities")) return response(contract);
+    if (url.endsWith("/configuration")) {
+      return response({
+        api_version: 1, reset_epoch: 0, api_key_configured: true,
+        secrets_configured: { api_key: true, wireguard_private_key: false },
+        values: { amount: 2 }, unavailable: [],
+      });
+    }
+    return response({});
+  };
+  const secretsSnapshot = await secretsClient.getConfigurationSnapshot();
+  // The client runs in a separate vm realm, so compare structure rather than prototypes.
+  assert.equal(JSON.stringify(secretsSnapshot.secrets_configured), JSON.stringify({ api_key: true, wireguard_private_key: false }));
+  assert.equal(secretsSnapshot.api_key_configured, true);
+  assert.equal(secretsSnapshot.values.wireguard_private_key, undefined, "secret values are never part of the snapshot");
+
+  for (const secrets of [true, [], { wireguard_private_key: "yes" }]) {
+    const invalidClient = new EspframeApiClient(contract.capabilities_path, 1000);
+    context.fetch = async (url) => {
+      if (url.endsWith("/capabilities")) return response(contract);
+      return response({ api_version: 1, reset_epoch: 0, secrets_configured: secrets, values: {}, unavailable: [] });
+    };
+    await assert.rejects(
+      invalidClient.getConfigurationSnapshot(),
+      error => error instanceof EspframeApiError && error.message === "invalid_configuration_snapshot",
+      "a malformed secrets_configured map must be rejected",
+    );
+  }
 
   for (const firmwarePolicy of [undefined, true]) {
     const capabilities = { ...contract, firmware_rotation_policy: firmwarePolicy };

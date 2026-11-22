@@ -15,7 +15,7 @@ Export your settings to a JSON file and import them back — useful for backups,
 
 The export captures all user-facing settings from the current session:
 
-Backups do not contain the Immich API key. Restoring a backup keeps the destination's existing key unchanged. When setting up a new frame, enter its API key on the Immich tab after restoring.
+Backups do not contain the Immich API key. Restoring a backup keeps the destination's existing key unchanged. When setting up a new frame, enter its API key on the Immich tab after restoring. [WireGuard VPN](/wireguard) settings and keys are not included either.
 
 | Category | Settings |
 |----------|----------|
