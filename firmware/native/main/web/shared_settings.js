@@ -130,11 +130,21 @@
         values[key] = value;
       }
       if (apiKeyConfigured === void 0) apiKeyConfigured = false;
+      let secretsConfigured;
+      if (payload.secrets_configured !== void 0) {
+        if (!object(payload.secrets_configured)) throw new EspframeApiError("server", "invalid_configuration_snapshot");
+        secretsConfigured = {};
+        for (const [key, value] of Object.entries(payload.secrets_configured)) {
+          if (typeof value !== "boolean") throw new EspframeApiError("server", "invalid_configuration_snapshot");
+          secretsConfigured[key] = value;
+        }
+      }
       this.resetEpoch = Number.isInteger(payload.reset_epoch) ? payload.reset_epoch : 0;
       return {
         api_version: capabilities.api_version,
         reset_epoch: this.resetEpoch,
         api_key_configured: apiKeyConfigured,
+        secrets_configured: secretsConfigured,
         values,
         unavailable: payload.unavailable
       };
