@@ -14,7 +14,7 @@ def pack_mask(image):
                  for a, b in zip(pixels[::2], pixels[1::2], strict=True))
 
 
-def blurred_shadow(image, padding, radius, offset, opacity=2 / 3):
+def blurred_shadow(image, padding, radius, offset, opacity):
     from PIL import Image, ImageFilter
 
     shadow = Image.new("L", (image.width + 2 * padding, image.height + 2 * padding))
@@ -51,7 +51,7 @@ def caption_atlas(font, glyphs, width, height, origin, fallback=None, require_al
         image = Image.new("L", (width, height))
         ImageDraw.Draw(image).text(origin, glyph, font=face, fill=255, anchor="ls")
         face_bounds, face_mask = crop_mask(image)
-        shadow_bounds, shadow_mask = crop_mask(blurred_shadow(image, 8, 2.4, (2, 3)))
+        shadow_bounds, shadow_mask = crop_mask(blurred_shadow(image, 8, 1.6, (1, 2), opacity=0.8))
         index.extend(pack("<HI", ord(glyph), len(bitmaps)))
         bitmaps.extend(bytes((ceil(face.getlength(glyph)),)) + face_bounds + shadow_bounds + face_mask + shadow_mask)
     return pack("<H", len(index) // 6) + index + bitmaps
