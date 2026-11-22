@@ -49,6 +49,9 @@ struct WebPDecParams {
   OutputFunc emit;               // output RGB or YUV samples
   OutputAlphaFunc emit_alpha;    // output alpha channel
   OutputRowFunc emit_alpha_row;  // output one line of rescaled alpha values
+
+  int (*checkpoint)(void*);
+  void* checkpoint_context;
 };
 
 // Should be called first, before any use of the WebPDecParams object.
