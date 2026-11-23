@@ -171,6 +171,8 @@ const browserTest = String.raw`
     if (tab('Device').getAttribute('aria-selected') !== 'true' ||
         !document.querySelector('#sp-settings.active') || !card('Rotation') || !card('Screen Brightness'))
       throw new Error('Device tab did not use the shared shell')
+    const tools = document.querySelector('#sp-settings a[href="/settings"]')
+    if (!tools || tools.textContent !== 'Photo sources & device tools') throw new Error('Device tools are unreachable')
     const brightness = openCard('Screen Brightness').querySelector('input[type="range"]')
     if (brightness.value !== '90') throw new Error('Brightness preference was not loaded')
     change(brightness, '85')
@@ -268,7 +270,7 @@ const server = createServer(async (req, res) => {
   const json = body => send(JSON.stringify(body), 'application/json')
   const route = new URL(req.url, 'http://localhost')
   switch (route.pathname) {
-    case '/admin':
+    case '/':
       res.setHeader('content-security-policy', "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'none'")
       return send(html.replace('</body>', '<script defer src="/verify.js"></script></body>'), 'text/html')
     case '/espframe/admin.js':
@@ -361,7 +363,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 try {
   const chrome = spawn(process.env.CHROME_BIN || 'google-chrome', [
     '--headless', '--no-sandbox', '--disable-background-networking', '--dump-dom', '--virtual-time-budget=42000',
-    'http://127.0.0.1:' + server.address().port + '/admin',
+    'http://127.0.0.1:' + server.address().port + '/',
   ], { signal: AbortSignal.timeout(18000) })
   let page = ''
   chrome.stdout.on('data', chunk => { page += chunk })

@@ -164,12 +164,7 @@ esp_err_t recovery_asset(httpd_req_t *request, const char *type, const char *sta
   return asset(request, type, start, end);
 }
 
-esp_err_t page(httpd_req_t *request) {
-  if (hotspot_socket(request))
-    return recovery_asset(request, "text/html; charset=utf-8", recovery_start, recovery_end);
-  return serve(request, "text/html; charset=utf-8", shared_page_start, shared_page_end);
-}
-esp_err_t admin_preview(httpd_req_t *request) {
+esp_err_t admin_page(httpd_req_t *request) {
   if (!authorize(request, shared_admin_content_policy))
     return ESP_OK;
   return asset(request, "text/html; charset=utf-8", admin_preview_start, admin_preview_end);
@@ -177,6 +172,16 @@ esp_err_t admin_preview(httpd_req_t *request) {
 
 esp_err_t admin_cards(httpd_req_t *request) {
   return serve(request, "text/javascript", admin_cards_start, admin_cards_end);
+}
+
+esp_err_t home_page(httpd_req_t *request) {
+  if (hotspot_socket(request))
+    return recovery_asset(request, "text/html; charset=utf-8", recovery_start, recovery_end);
+  return admin_page(request);
+}
+
+esp_err_t native_settings(httpd_req_t *request) {
+  return serve(request, "text/html; charset=utf-8", shared_page_start, shared_page_end);
 }
 
 esp_err_t admin_app(httpd_req_t *request) {
@@ -686,8 +691,9 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
   config.recv_wait_timeout = 3;
 
   const httpd_uri_t routes[]{
-      {.uri = "/", .method = HTTP_GET, .handler = page, .user_ctx = &network},
-      {.uri = "/admin", .method = HTTP_GET, .handler = admin_preview, .user_ctx = &network},
+      {.uri = "/", .method = HTTP_GET, .handler = home_page, .user_ctx = &network},
+      {.uri = "/admin", .method = HTTP_GET, .handler = admin_page, .user_ctx = &network},
+      {.uri = "/native-settings", .method = HTTP_GET, .handler = native_settings, .user_ctx = &network},
       {.uri = "/espframe/admin.js", .method = HTTP_GET, .handler = admin_app, .user_ctx = &network},
       {.uri = "/espframe/admin-cards.js", .method = HTTP_GET, .handler = admin_cards, .user_ctx = &network},
       {.uri = "/settings", .method = HTTP_GET, .handler = device_tools, .user_ctx = &network},

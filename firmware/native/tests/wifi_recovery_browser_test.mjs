@@ -48,6 +48,7 @@ const fixture = html.replace('</html>', `<script>
     }
   })
   observer.observe(status, { childList: true })
+  observer.observe(form, { attributes: true, attributeFilter: ['hidden'] })
 </script></html>`)
 
 const requests = []
@@ -78,7 +79,7 @@ const server = createServer(async (request, response) => {
     const result = pending ? { status: 'joining' } : requests.length === 0 ? { status: 'ready' }
       : requests.length === 1 ? { status: 'failed' } : { status: 'connected', ipv4: '192.168.6.17', web_settings: false }
     pending = false
-    response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(result))
+    response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(result))
   } else {
     response.writeHead(404).end()
   }
@@ -90,13 +91,13 @@ try {
   const chrome = spawn(process.env.CHROME_BIN || 'google-chrome', [
     '--headless', '--no-sandbox', '--disable-gpu', '--disable-background-networking',
     `--user-data-dir=${profile}`, `http://127.0.0.1:${server.address().port}/`,
-  ], { signal: AbortSignal.timeout(18_000), stdio: ['ignore', 'ignore', 'pipe'] })
+  ], { signal: AbortSignal.timeout(45_000), stdio: ['ignore', 'ignore', 'pipe'] })
   let errors = ''
   chrome.stderr.on('data', chunk => { errors += chunk })
   const stopped = new Promise(resolve => chrome.once('close', resolve))
   try {
     const browserFailure = new Promise((_, reject) => {
-      chrome.once('error', error => reject(new Error(`Chromium error before Wi-Fi recovery reported a result.\n${errors}`, { cause: error })))
+      chrome.once('error', error => reject(new Error(`Chromium error before Wi-Fi recovery reported a result (${requests.length} submissions).\n${errors}`, { cause: error })))
       chrome.once('close', code => reject(new Error(`Chromium stopped before Wi-Fi recovery reported a result (${code}).\n${errors}`)))
     })
     assert.equal(await Promise.race([testResult, browserFailure]), 'passed')

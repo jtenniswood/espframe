@@ -146,8 +146,10 @@ servers**, set up to three NTP hosts in preference order. Backups carry the
 clock settings and time servers. Existing native setups use `pool.ntp.org`
 until you set a server. Leaving all three fields blank selects the same
 default time-server pool as ESPHome. Changes apply after restart.
-Open **Photo sources & device tools** to change the Immich photo source,
-download a settings backup, or install a native firmware update.
+The frame address opens the **Immich**, **Device**, and **Logs** tabs.
+Use **Backup** in the **Device** tab to export or restore your settings.
+Open **Photo sources & device tools** at the bottom of the **Device** tab
+for manual firmware upload and detailed native configuration.
 The page uses HTTP on the local network. Keep it on a trusted network.
 
 The native player also answers the shared configuration API at
