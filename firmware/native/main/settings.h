@@ -25,7 +25,13 @@ struct cJSON;
 namespace espframe::native {
 
 inline constexpr const char *screen_rotation_name(ScreenRotation rotation) {
-  return rotation == ScreenRotation::UpsideDown ? "180" : "0";
+  switch (rotation) {
+    case ScreenRotation::Clockwise: return "90";
+    case ScreenRotation::UpsideDown: return "180";
+    case ScreenRotation::Counterclockwise: return "270";
+    case ScreenRotation::Normal: return "0";
+  }
+  return "0";
 }
 
 enum class ResetMode { Customization, Factory };
@@ -101,6 +107,7 @@ struct Settings : PhotoFeedSettings {
   uint8_t brightness_day{64};
   std::optional<uint8_t> brightness_night;
   ScreenRotation screen_rotation{ScreenRotation::Normal};
+  bool developer_features_enabled{};
   ClockSettings clock;
   ScreenScheduleSettings schedule;
   StockUpdatePreferences stock_update_preferences;

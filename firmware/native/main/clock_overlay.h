@@ -40,7 +40,7 @@ class ClockOverlay {
   bool visible() const { return text_[0] != '\0'; }
   void draw(uint16_t *frame, bool remember_underlay = false);
   void pin_underlay();
-  void restore_rows(uint16_t *frame, int source_row, int target_row, int count) const;
+  void restore_slide_slice(uint16_t *frame, int source, int target, int count) const;
   void restore_blend(uint16_t *frame, const uint16_t *target, uint8_t opacity) const;
 
  private:
@@ -55,6 +55,8 @@ class ClockOverlay {
   ScreenRotation rotation_{};
   int physical_row_{first_row};
   int physical_column_{first_column};
+  int physical_rows_{rows};
+  int physical_columns_{columns};
   bool twelve_hour_{};
   bool latest_painted_{};
   bool pinned_painted_{};

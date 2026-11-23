@@ -56,9 +56,14 @@ bool ClockOverlay::init(const ClockSettings &settings, const uint8_t *atlas, boo
   atlas_ = atlas;
   twelve_hour_ = settings.twelve_hour();
   rotation_ = rotation;
-  const bool upside_down = rotation == ScreenRotation::UpsideDown;
-  physical_row_ = upside_down ? panel_height - first_row - rows : first_row;
-  physical_column_ = upside_down ? panel_width - first_column - columns : first_column;
+  const Viewport viewport{rotation};
+  const int top = viewport.height - first_column - columns;
+  const int first = viewport.offset(first_row + (viewport.x_stride < 0 ? rows - 1 : 0),
+                                    top + (viewport.y_stride < 0 ? columns - 1 : 0));
+  physical_row_ = first / panel_width;
+  physical_column_ = first % panel_width;
+  physical_rows_ = viewport.portrait ? columns : rows;
+  physical_columns_ = viewport.portrait ? rows : columns;
   if (snapshots)
     underlays_ = static_cast<Underlays *>(heap_caps_malloc(sizeof(Underlays), MALLOC_CAP_SPIRAM));
   return !snapshots || underlays_ != nullptr;
@@ -86,14 +91,14 @@ void ClockOverlay::draw(uint16_t *frame, bool remember_underlay) {
   if (remember_underlay) {
     latest_painted_ = text_[0] != '\0' && underlays_;
     if (latest_painted_) {
-      for (int row = 0; row < rows; ++row)
-        std::memcpy(underlays_->latest.data() + row * columns,
-                    frame + (physical_row_ + row) * panel_width + physical_column_, columns * sizeof(*frame));
+      for (int row = 0; row < physical_rows_; ++row)
+        std::memcpy(underlays_->latest.data() + row * physical_columns_,
+                    frame + (physical_row_ + row) * panel_width + physical_column_, physical_columns_ * sizeof(*frame));
     }
   }
   if (text_[0] == '\0')
     return;
-  const int column_step = -axis_direction(rotation_);
+  const Viewport viewport{rotation_};
   for (const bool shadow : {true, false}) {
     const auto &blends = shadow ? shadow_blends : face_blends;
     const int padding = shadow ? shadow_padding : 0;
@@ -101,7 +106,7 @@ void ClockOverlay::draw(uint16_t *frame, bool remember_underlay) {
     const int width = shadow ? shadow_width : glyph_width;
     const int stride = height / 2;
     const auto *bitmap = atlas_ + (shadow ? face_atlas_size : 0);
-    const int top = face_top_column + padding;
+    const int top = viewport.height - 1 - face_top_column - padding;
     int left = face_first_row - padding;
     for (const char ch : text_) {
       if (ch == '\0')
@@ -112,7 +117,7 @@ void ClockOverlay::draw(uint16_t *frame, bool remember_underlay) {
       const auto *mask = bitmap + digit * width * stride;
       const int advance = ch == ':' ? colon_advance : digit_advance;
       for (int x = 0; x < advance + 2 * padding; ++x) {
-        auto *column = frame + panel_offset(left + x, top, rotation_);
+        auto *column = frame + viewport.offset(left + x, top);
         const auto *ink = mask + x * stride;
         for (int pair = 0; pair < stride; ++pair) {
           const auto packed = ink[pair];
@@ -122,7 +127,7 @@ void ClockOverlay::draw(uint16_t *frame, bool remember_underlay) {
             const unsigned alpha = half == 0 ? packed >> 4 : packed & 15;
             if (alpha == 0)
               continue;
-            auto &pixel = column[(2 * pair + half) * column_step];
+            auto &pixel = column[(2 * pair + half) * viewport.y_stride];
             pixel = !shadow && alpha == 15 ? 0xffff : blends[alpha].apply(pixel);
           }
         }
@@ -138,22 +143,33 @@ void ClockOverlay::pin_underlay() {
     underlays_->pinned = underlays_->latest;
 }
 
-void ClockOverlay::restore_rows(uint16_t *frame, int source_row, int target_row, int count) const {
+void ClockOverlay::restore_slide_slice(uint16_t *frame, int source, int target, int count) const {
   if (!pinned_painted_)
     return;
-  const int end = std::min(source_row + count, physical_row_ + rows);
-  for (int row = std::max(source_row, physical_row_); row < end; ++row)
-    std::memcpy(frame + (target_row + row - source_row) * panel_width + physical_column_,
-                underlays_->pinned.data() + (row - physical_row_) * columns, columns * sizeof(*frame));
+  if (portrait_screen(rotation_)) {
+    const int begin = std::max(source, physical_column_);
+    const int end = std::min(source + count, physical_column_ + physical_columns_);
+    if (begin >= end)
+      return;
+    for (int row = 0; row < physical_rows_; ++row)
+      std::memcpy(frame + (physical_row_ + row) * panel_width + target + begin - source,
+                  underlays_->pinned.data() + row * physical_columns_ + begin - physical_column_,
+                  (end - begin) * sizeof(*frame));
+  } else {
+    const int end = std::min(source + count, physical_row_ + physical_rows_);
+    for (int row = std::max(source, physical_row_); row < end; ++row)
+      std::memcpy(frame + (target + row - source) * panel_width + physical_column_,
+                  underlays_->pinned.data() + (row - physical_row_) * physical_columns_, physical_columns_ * sizeof(*frame));
+  }
 }
 
 void ClockOverlay::restore_blend(uint16_t *frame, const uint16_t *target, uint8_t opacity) const {
   if (!pinned_painted_)
     return;
-  for (int row = 0; row < rows; ++row) {
+  for (int row = 0; row < physical_rows_; ++row) {
     const auto offset = (physical_row_ + row) * panel_width + physical_column_;
-    for (int column = 0; column < columns; ++column)
-      frame[offset + column] = mix_rgb565(underlays_->pinned[row * columns + column], target[offset + column], opacity);
+    for (int column = 0; column < physical_columns_; ++column)
+      frame[offset + column] = mix_rgb565(underlays_->pinned[row * physical_columns_ + column], target[offset + column], opacity);
   }
 }
 

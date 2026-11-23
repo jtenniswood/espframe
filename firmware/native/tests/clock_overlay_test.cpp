@@ -43,9 +43,9 @@ void verify_upside_down_clock(const ClockSettings &settings, const std::vector<u
       const auto span = orient_slide_span(left, right, panel_height, offset, rotation);
       blit_slides(actual.data(), span.first, span.second, panel_width, panel_height, span.offset);
       if (span.first == flipped_held.data())
-        upside_down.restore_rows(actual.data(), span.offset, 0, panel_height - span.offset);
+        upside_down.restore_slide_slice(actual.data(), span.offset, 0, panel_height - span.offset);
       if (span.second == flipped_held.data())
-        upside_down.restore_rows(actual.data(), 0, panel_height - span.offset, span.offset);
+        upside_down.restore_slide_slice(actual.data(), 0, panel_height - span.offset, span.offset);
       assert(std::equal(expected.rbegin(), expected.rend(), actual.begin()));
     }
   }
@@ -54,7 +54,7 @@ void verify_upside_down_clock(const ClockSettings &settings, const std::vector<u
     const int pull = logical_pull * axis_direction(rotation);
     blit_slide_edge(expected.data(), photo.data(), panel_width, panel_height, logical_pull);
     blit_slide_edge(actual.data(), flipped_held.data(), panel_width, panel_height, pull);
-    upside_down.restore_rows(actual.data(), std::max(0, pull), std::max(0, -pull), panel_height - std::abs(pull));
+    upside_down.restore_slide_slice(actual.data(), std::max(0, pull), std::max(0, -pull), panel_height - std::abs(pull));
     assert(std::equal(expected.rbegin(), expected.rend(), actual.begin()));
   }
 
@@ -108,6 +108,40 @@ void verify_antialiasing() {
   assert(pixel(0, 0) == 0xa534 && pixel(0, 1) == 0x94b2);
   assert(pixel(2, 2) == 0x31a6 && pixel(2, 3) == 0x39c7);
   assert(pixel(0, 2) == 0x39e7 && pixel(2, 4) == 0x39e7);
+}
+
+void verify_portrait_clock(const ClockSettings &settings, const std::vector<uint8_t> &atlas, std::time_t time) {
+  const Viewport upright{ScreenRotation::Normal};
+  ClockOverlay clock;
+  assert(clock.init(settings, atlas.data(), false));
+  assert(clock.update(local_clock_time(time)));
+  const uint16_t base = 0x39e7;
+  std::vector<uint16_t> landscape(pixel_count, base);
+  clock.draw(landscape.data());
+  for (const auto rotation : {ScreenRotation::Clockwise, ScreenRotation::Counterclockwise}) {
+    const Viewport viewport{rotation};
+    ClockOverlay portrait;
+    assert(portrait.init(settings, atlas.data(), true, rotation));
+    assert(portrait.update(local_clock_time(time)));
+    std::vector<uint16_t> frame(pixel_count, base);
+    portrait.draw(frame.data(), true);
+    for (int y = 0; y < viewport.height; ++y) {
+      const int landscape_y = y - (viewport.height - upright.height);
+      for (int x = 0; x < viewport.width; ++x)
+        assert(frame[viewport.offset(x, y)] == (landscape_y < 0 ? base : landscape[upright.offset(x, landscape_y)]));
+    }
+    portrait.pin_underlay();
+    for (int shift : {-80, 80}) {
+      std::vector<uint16_t> moved(pixel_count, base);
+      const int from = std::max(0, shift);
+      const int to = std::max(0, -shift);
+      const int count = panel_width - std::abs(shift);
+      for (int row = 0; row < panel_height; ++row)
+        std::copy_n(frame.data() + row * panel_width + from, count, moved.data() + row * panel_width + to);
+      portrait.restore_slide_slice(moved.data(), from, to, count);
+      assert(std::all_of(moved.begin(), moved.end(), [&](uint16_t pixel) { return pixel == base; }));
+    }
+  }
 }
 
 void verify_atlas_slots(const std::vector<uint8_t> &atlas) {
@@ -171,6 +205,7 @@ int main(int argc, char **argv) {
   constexpr std::time_t summer = 1'782'909'240;
   assert(clock.update(local_clock_time(summer)) && !clock.update(local_clock_time(summer + 1)));
   verify_upside_down_clock(settings, atlas, summer);
+  verify_portrait_clock(settings, atlas, summer);
   assert(local_clock_time(summer)->tm_hour == 13);
   clock.draw(baked.data(), true);
   expect_glyph(baked, atlas, 0, 1);
@@ -183,11 +218,11 @@ int main(int argc, char **argv) {
   constexpr int shift = 80;
   blit_slides(moved.data(), baked.data(), plain.data(), panel_width, panel_height, shift);
   assert(moved != plain);
-  clock.restore_rows(moved.data(), shift, 0, panel_height - shift);
+  clock.restore_slide_slice(moved.data(), shift, 0, panel_height - shift);
   assert(moved == plain);
   blit_slides(moved.data(), plain.data(), baked.data(), panel_width, panel_height, shift);
   assert(moved != plain);
-  clock.restore_rows(moved.data(), 0, panel_height - shift, shift);
+  clock.restore_slide_slice(moved.data(), 0, panel_height - shift, shift);
   assert(moved == plain);
   clock.draw(moved.data());
   assert(moved == baked);

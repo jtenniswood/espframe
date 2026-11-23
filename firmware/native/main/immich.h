@@ -101,6 +101,9 @@ class ImmichSource {
   const Settings &settings_;
   std::optional<PhotoFeedSettings> selection_;
   const PhotoFeedSettings &feed_() const { return selection_ ? *selection_ : settings_; }
+  bool uses_prepared_slides_() const {
+    return !portrait_screen(settings_.screen_rotation) && settings_.has_prepared_slides();
+  }
   const NativeNetwork &network_;
   ImmichHttp http_;
   ImmichHttp prepared_http_{cancelled_, "Authorization"};

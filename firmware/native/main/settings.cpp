@@ -64,6 +64,12 @@ bool valid_immich_key(std::string_view key) {
 }
 
 bool normalize(Settings &settings) {
+  if (portrait_screen(settings.screen_rotation)) {
+    if (settings.developer_features_enabled)
+      settings.portrait_pairing = false;
+    else
+      settings.screen_rotation = ScreenRotation::Normal;
+  }
   std::string name;
   if (!esphome::espframe::normalize_frame_name(settings.frame_name, name))
     return false;
@@ -312,8 +318,12 @@ bool read_rotation(const cJSON *root, ScreenRotation &rotation) {
   const std::string_view value{text};
   if (value == "0")
     rotation = ScreenRotation::Normal;
+  else if (value == "90")
+    rotation = ScreenRotation::Clockwise;
   else if (value == "180")
     rotation = ScreenRotation::UpsideDown;
+  else if (value == "270")
+    rotation = ScreenRotation::Counterclockwise;
   else
     return false;
   return true;
@@ -551,6 +561,7 @@ bool read_playback(const cJSON *root, Settings &settings) {
          read_transition(root, settings) && read_connection_timeout(root, settings.connection_timeout_seconds) &&
          read_display_mode(root, settings.display_mode) && read_orientation(root, settings.photo_orientation) &&
          read_rotation(root, settings.screen_rotation) &&
+         read_flag(root, "developer_features_enabled", settings.developer_features_enabled) &&
          read_source(root, settings.photo_source) && read_photo_filters(root, settings.photo_filters) &&
          read_capture_dates(root, settings.capture_dates) &&
          read_clock(root, settings.clock) && read_brightness(root, settings) &&
@@ -1105,6 +1116,7 @@ bool Settings::add_playback_fields(cJSON *object, PhotoFilterUpdate filter_updat
          cJSON_AddStringToObject(object, "display_mode", display_mode_name(display_mode)) &&
          cJSON_AddStringToObject(object, "photo_orientation", photo_orientation_name(photo_orientation)) &&
          cJSON_AddStringToObject(object, "screen_rotation", screen_rotation_name(screen_rotation)) &&
+         cJSON_AddBoolToObject(object, "developer_features_enabled", developer_features_enabled) &&
          cJSON_AddStringToObject(object, "photo_source", source_name) &&
          (!photo_source.legacy_preset ||
           cJSON_AddStringToObject(object, "legacy_photo_preset", photo_preset_name(photo_source.preset()))) &&
@@ -1213,6 +1225,9 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
       !read_field(update, "prepared_slide_url", settings.prepared_slide_url, true) ||
       !read_field(update, "prepared_slide_token", replacement_token, true) || !read_playback(update, settings))
     return UpdateResult::Invalid;
+  if (cJSON_HasObjectItem(update, "screen_rotation") && portrait_screen(settings.screen_rotation) &&
+      !settings.developer_features_enabled)
+    return UpdateResult::Invalid;
   const bool connection_secret_changed =
       (!replacement_key.empty() && replacement_key != settings.immich_key) ||
       (!replacement_token.empty() && replacement_token != settings.prepared_slide_token);
@@ -1262,7 +1277,7 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
     selection_changed |= selects_photos;
     photo_changed |= selects_photos || presents_photos;
     live_presentation_changed |= presents_playback;
-    restart |= !selects_photos && !presents_photos && !presents_playback;
+    restart |= !selects_photos && !presents_photos && !presents_playback && key != "developer_features_enabled";
   }
   if (cJSON_HasObjectItem(update, "c6_auto_update")) {
     bool enabled{};

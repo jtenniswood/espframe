@@ -17,6 +17,7 @@ struct PreviewLayout {
   PreviewTarget target{PreviewTarget::Slide};
   DisplayMode photo{DisplayMode::Fit};
   DisplayMode pair{DisplayMode::Fit};
+  ScreenRotation rotation{ScreenRotation::Normal};
 };
 inline bool is_jpeg_preview(const uint8_t *encoded, size_t length) {
   return length >= 2 && encoded[0] == 0xff && encoded[1] == 0xd8;

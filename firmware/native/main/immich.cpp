@@ -374,7 +374,7 @@ bool ImmichSource::next_asset_(ImmichPhoto &asset) {
         this->source_status_ = PhotoSourceStatus::WaitingForPair;
     }
     // A prepared slide can still work when the direct preview is unavailable.
-    if (!this->settings_.has_prepared_slides()) {
+    if (!this->uses_prepared_slides_()) {
       const auto now = esp_timer_get_time();
       std::erase_if(this->pending_, [&](const ImmichPhoto &photo) {
         return this->unavailable_.contains(photo.id, now);
@@ -458,7 +458,7 @@ AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, std::optional<i
         continue;
       if (!is_portrait_companion(primary, candidate, this->feed_().portrait_pairing_days))
         continue;
-      if (!this->settings_.has_prepared_slides() && this->unavailable_.contains(candidate.id, now))
+      if (!this->uses_prepared_slides_() && this->unavailable_.contains(candidate.id, now))
         continue;
       const bool seen = this->history_.recently_seen(candidate.id, photo_search_batch);
       const auto distance = std::chrono::abs(*candidate.metadata.capture_day - *primary.metadata.capture_day);
@@ -521,7 +521,8 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
   const bool optional = deadline_us != 0;
   const bool for_pair = target == PreviewTarget::PairPane;
   const auto orientation = for_pair ? PhotoOrientation::Portrait : this->feed_().photo_orientation;
-  const PreviewLayout layout{target, this->feed_().display_mode, this->feed_().pair_display_mode()};
+  const PreviewLayout layout{target, this->feed_().display_mode, this->feed_().pair_display_mode(),
+                             this->settings_.screen_rotation};
   const auto decode = [&](const uint8_t *data, size_t length) {
     if (is_jpeg_preview(data, length) || is_webp_preview(data, length))
       this->prefetch_next_(lookahead);
@@ -657,7 +658,7 @@ bool ImmichSource::load_thumbnail_(const AssetId &id, DecodedPreview &preview, P
   }
   if (cancelled_)
     return false;
-  const PreviewLayout layout{target, feed_().display_mode, feed_().pair_display_mode()};
+  const PreviewLayout layout{target, feed_().display_mode, feed_().pair_display_mode(), settings_.screen_rotation};
   return preview.decode(encoded_, length, layout, nullptr, checkpoint_, orientation) ==
          DecodedPreview::Result::Ready;
 }
@@ -885,7 +886,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   const bool verify_landscape = pairs_only && frame.companion[0] == '\0';
   const bool may_prepare_landscape = feed_().photo_orientation == PhotoOrientation::Any &&
                                     (remembered || (seed.orientation_known && !seed.portrait));
-  if (settings_.has_prepared_slides() && (!optional_pair || seed.orientation_known) &&
+  if (uses_prepared_slides_() && (!optional_pair || seed.orientation_known) &&
       (!verify_landscape || may_prepare_landscape) &&
       (!pair_needs_selection || esp_timer_get_time() >= prepared_retry_us_)) {
     if (pair_needs_selection) {
@@ -946,7 +947,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   }
   if (!prepared && !thumbnail) {
     const auto upcoming = [&](const AssetId &exclude) {
-      if (!SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD && !remembered && !settings_.has_prepared_slides()) {
+      if (!SWIPE_TRIAL_REPLAY_DISABLE_LOOKAHEAD && !remembered && !uses_prepared_slides_()) {
         if (const auto index = this->pending_index_(exclude))
           return this->pending_[*index].id;
       }
@@ -1012,7 +1013,7 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
           unavailable_.contains(frame.companion, esp_timer_get_time()))
         return retry_frame();
       if (preserve_pair && (right == PreviewStatus::Missing || !companion.portrait())) {
-        if (!remembered && !settings_.has_prepared_slides() && unavailable_.contains(frame.companion, esp_timer_get_time()))
+        if (!remembered && !uses_prepared_slides_() && unavailable_.contains(frame.companion, esp_timer_get_time()))
           this->pending_.push_back(seed);
         return reject_candidate(frame.companion);
       }
@@ -1058,7 +1059,8 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     return retry_frame();
   presentation.caption = prepare_photo_caption({caption_atlas, static_cast<size_t>(caption_atlas_end - caption_atlas)},
                                                {date_atlas, static_cast<size_t>(date_atlas_end - date_atlas)},
-                                               frame.metadata, captions, this->settings_.clock.show, local);
+                                               frame.metadata, captions, this->settings_.clock.show, local,
+                                               this->settings_.screen_rotation);
   if (this->cancelled_)
     return retry_frame();
   presentation.thumbnail = thumbnail;

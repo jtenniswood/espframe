@@ -119,6 +119,23 @@ void verify(const char *path) {
   assert((at(panel, 0, 650) & 0x001f) >= 0x001e);
   assert(at(panel, slide_width - 1, 650) >= 0xf7de);
   expect_flipped(panel, decoded, nullptr, DisplayMode::Fill);
+  for (const auto mode : {DisplayMode::Fit, DisplayMode::Fill}) {
+    for (const auto rotation : {ScreenRotation::Clockwise, ScreenRotation::Counterclockwise}) {
+      const Viewport viewport{rotation};
+      assert(decoded.decode(photo.data(), photo.size(), {PreviewTarget::Slide, mode, mode, rotation}) == Decode::Ready);
+      std::fill(panel.begin() + 1, panel.end() - 1, guard);
+      assert(decoded.render(panel.data() + 1, nullptr, mode, rotation));
+      const auto pixel = [&](int x, int y) { return panel[1 + viewport.offset(x, y)]; };
+      const auto framing = frame_photo(32, 32, viewport.width, viewport.height, mode);
+      const int top = (viewport.height - framing.height) / 2;
+      const int upper = top + framing.height / 4;
+      const int lower = top + 3 * framing.height / 4;
+      assert(panel.front() == guard && panel.back() == guard);
+      assert((pixel(100, upper) & 0xf800) >= 0xf000 && (pixel(700, upper) & 0x07e0) >= 0x07c0);
+      assert((pixel(100, lower) & 0x001f) >= 0x001e && pixel(700, lower) >= 0xf7de);
+      assert((pixel(400, 0) == 0) == (mode == DisplayMode::Fit));
+    }
+  }
   assert(decoded.decode(photo.data(), photo.size() / 2) == Decode::Invalid);
 }
 

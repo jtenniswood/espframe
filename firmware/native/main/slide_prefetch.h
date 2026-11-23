@@ -23,19 +23,20 @@ struct SlideRetry {
   }
 };
 
-inline std::optional<SlideIndex> missing_neighbor_at_edge(PixelPosition position, SlideRange ready, SlideRange available) {
-  if (position < ready.first * slide_width && ready.first > available.first)
+inline std::optional<SlideIndex> missing_neighbor_at_edge(PixelPosition position, SlideRange ready, SlideRange available,
+                                                         int width = slide_width) {
+  if (position < ready.first * width && ready.first > available.first)
     return ready.first - 1;
-  if (position > ready.last * slide_width && ready.last < available.last)
+  if (position > ready.last * width && ready.last < available.last)
     return ready.last + 1;
   return {};
 }
 
 class SlidePrefetch {
  public:
-  explicit SlidePrefetch(SlideIndex center, size_t slots = SlideCache::minimum_capacity)
+  explicit SlidePrefetch(SlideIndex center, size_t slots = SlideCache::minimum_capacity, int width = slide_width)
       : center_(center), slots_(static_cast<SlideIndex>(std::clamp(slots, SlideCache::minimum_capacity,
-                                                                  SlideCache::capacity))) {}
+                                                                  SlideCache::capacity))), width_(width) {}
 
   void moved_to(SlideIndex center) {
     if (center == center_)
@@ -48,7 +49,7 @@ class SlidePrefetch {
   }
 
   void request_at_edge(PixelPosition position, SlideRange ready, SlideRange available) {
-    requested_ = missing_neighbor_at_edge(position, ready, available);
+    requested_ = missing_neighbor_at_edge(position, ready, available, width_);
     if (requested_)
       direction_ = *requested_ < center_ ? -1 : 1;
   }
@@ -109,7 +110,7 @@ class SlidePrefetch {
                       bool first_motion_pending = true) const {
     if (center_ == 0 || requested_ || !ready.contains(origin))
       return false;
-    const auto anchor = origin * slide_width;
+    const auto anchor = origin * width_;
     // Follow the side of the photo under the finger. A touch can grab a
     // moving photo whose origin differs from the last settled slide.
     // After the opening frames, keep working if the landing will be the
@@ -158,6 +159,7 @@ class SlidePrefetch {
 
   SlideIndex center_;
   SlideIndex slots_;
+  int width_;
   int direction_{1};
   int64_t stage_forward_until_{};
   std::optional<SlideIndex> requested_;

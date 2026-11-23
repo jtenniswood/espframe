@@ -388,6 +388,7 @@ int main() {
   assert(legacy.display_mode == DisplayMode::Fit);
   assert(legacy.photo_orientation == espframe::native::PhotoOrientation::Any);
   assert(legacy.screen_rotation == ScreenRotation::Normal);
+  assert(!legacy.developer_features_enabled);
   assert(!legacy.clock.show && legacy.clock.format == "24 Hour");
   assert((legacy.clock.ntp_servers == std::array<std::string, 3>{"pool.ntp.org", "", ""}));
   assert(!legacy.schedule.enabled && legacy.schedule.on_hour == 6 && legacy.schedule.off_hour == 23 &&
@@ -810,8 +811,31 @@ int main() {
   assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(
       cJSON_GetObjectItemCaseSensitive(orientation_snapshot.get(), "values"), "photo_orientation")) ==
       std::string_view("Portrait Only"));
+  const auto enable_developer = update_configuration(R"({"values":{"developer_features_enabled":true}})");
+  assert(!enable_developer.error && !enable_developer.restart_required);
+  assert(current.read() && current.developer_features_enabled && current.screen_rotation == ScreenRotation::UpsideDown);
+  const auto rotate = update_configuration(R"({"values":{"screen_rotation":"90","portrait_pairing":true}})");
+  assert(!rotate.error && rotate.restart_required);
+  assert(current.read() && current.screen_rotation == ScreenRotation::Clockwise && !current.portrait_pairing);
+  assert(!update_configuration(R"({"values":{"portrait_pairing":true}})").error);
+  assert(current.read() && !current.portrait_pairing && !current.requires_portrait_pair());
+  assert(!update_configuration(R"({"values":{"screen_rotation":"270"}})").error);
+  assert(current.read() && current.screen_rotation == ScreenRotation::Counterclockwise);
+  const Json rotated_snapshot(configuration_snapshot(current), cJSON_Delete);
+  const auto *rotated_values = cJSON_GetObjectItemCaseSensitive(rotated_snapshot.get(), "values");
+  assert(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(rotated_values, "developer_features_enabled")));
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(rotated_values, "screen_rotation")) == std::string_view("270"));
+  const auto disable_developer = update_configuration(R"({"values":{"developer_features_enabled":false}})");
+  assert(!disable_developer.error && disable_developer.restart_required);
+  assert(current.read() && !current.developer_features_enabled && current.screen_rotation == ScreenRotation::Normal &&
+         !current.portrait_pairing);
+  // A stock backup may restore the fields in any order.
+  assert(!update_configuration(R"({"values":{"screen_rotation":"90","portrait_pairing":true,
+                                             "developer_features_enabled":true}})").error);
+  assert(current.read() && current.screen_rotation == ScreenRotation::Clockwise && !current.portrait_pairing);
   assert(!reset_configuration(ResetMode::Customization).error);
-  assert(current.read() && current.photo_orientation == PhotoOrientation::Any);
+  assert(current.read() && current.photo_orientation == PhotoOrientation::Any &&
+         !current.developer_features_enabled && current.screen_rotation == ScreenRotation::Normal);
 
   using espframe::native::decode_identity_form;
   using espframe::native::make_frame_identity;

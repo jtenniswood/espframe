@@ -17,10 +17,14 @@ struct TouchReport {
 };
 
 inline void map_gsl_touch(TouchReport &report, int sensor_x, int sensor_y, ScreenRotation rotation) {
-  // Match the Guition touchscreen mounting used by ESPHome. The sensor's
-  // Y axis is landscape X, and its X axis is landscape Y.
-  report.x = oriented_axis(std::clamp(sensor_y, 0, slide_width - 1), slide_width, rotation);
-  report.y = oriented_axis(std::clamp(sensor_x, 0, slide_height - 1), slide_height, rotation);
+  // The Guition sensor's Y axis is the panel row, and its X axis is the
+  // reversed panel column. Convert through the same axes as the renderer.
+  const Viewport viewport{rotation};
+  const int row = std::clamp(sensor_y, 0, panel_height - 1);
+  const int column = panel_width - 1 - std::clamp(sensor_x, 0, panel_width - 1);
+  report.x = oriented_axis(viewport.portrait ? column : row, viewport.width, rotation);
+  const int y = viewport.portrait ? row : panel_width - 1 - column;
+  report.y = oriented_axis(y, viewport.height, rotation);
 }
 
 }  // namespace espframe::native

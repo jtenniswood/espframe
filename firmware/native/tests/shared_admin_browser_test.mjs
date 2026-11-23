@@ -55,6 +55,7 @@ const snapshot = {
     interval: '15 seconds',
     photo_orientation: 'Any', display_mode: 'Fit', transition: 'Cross Fade', transition_speed: 'Fast',
     screen_rotation: '0',
+    developer_features_enabled: false,
     brightness_day: 90,
     brightness_night: 75,
     sunrise: '',
@@ -316,6 +317,18 @@ const browserTest = String.raw`
         !document.querySelector('#sun-info').textContent.includes('Sunset: 7:05 PM')) {
       throw new Error('The device brightness card did not display the frame’s daylight times')
     }
+    const rotation = () => card('Rotation').closest('.card').querySelector('select')
+    const angles = () => [...rotation().options].map(option => option.value).sort().join(',')
+    if (angles() !== '0,180') throw new Error('Portrait rotations were visible before Developer Features was enabled')
+    setting(openCard('Developer'), 'Enable in-development features').click()
+    await until(async () => await savedValue('developer_features_enabled', true) && angles() === '0,180,270,90',
+      'the developer portrait orientations')
+    change(rotation(), '90')
+    await until(async () => await savedValue('screen_rotation', '90') && await savedValue('portrait_pairing', false),
+      'portrait rotation to turn portrait pairing off')
+    setting(openCard('Developer'), 'Enable in-development features').click()
+    await until(async () => await savedValue('developer_features_enabled', false) && await savedValue('screen_rotation', '0') &&
+      angles() === '0,180' && rotation().value === '0', 'disabling developer mode to restore the landscape orientation')
     const reboot = button(openCard('Device Reboot'), 'Reboot Screen')
     reboot.click()
     await until(() => !reboot.disabled, 'the reboot action')
@@ -363,6 +376,10 @@ const server = createServer(async (req, res) => {
         writes.push(update)
         const { api_key, wireguard_private_key, ...values } = update.values
         Object.assign(snapshot.values, values)
+        if (['90', '270'].includes(snapshot.values.screen_rotation)) {
+          if (snapshot.values.developer_features_enabled) snapshot.values.portrait_pairing = false
+          else snapshot.values.screen_rotation = '0'
+        }
         if (api_key) snapshot.api_key_configured = true
         if (wireguard_private_key !== undefined) snapshot.secrets_configured.wireguard_private_key = !!wireguard_private_key
         restartPending = !!(api_key || values.immich_url)
@@ -469,7 +486,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 try {
   const chrome = spawn(process.env.CHROME_BIN || 'google-chrome', [
     '--headless', '--no-sandbox', '--disable-background-networking', '--dump-dom', '--virtual-time-budget=42000',
-    'http://127.0.0.1:' + server.address().port + '/',
+    'http://127.0.0.1:' + server.address().port + '/?developer=experimental',
   ], { signal: AbortSignal.timeout(18000) })
   let page = ''
   chrome.stdout.on('data', chunk => { page += chunk })
@@ -494,6 +511,9 @@ try {
     { c6_auto_update: false },
     { update_frequency: 'Weekly' },
     { auto_update: false },
+    { developer_features_enabled: true },
+    { screen_rotation: '90', portrait_pairing: false },
+    { developer_features_enabled: false, screen_rotation: '0' },
   ].map(values => ({ api_version: 1, reset_epoch: 2, values })))
   assert.deepEqual(writes.slice(-2), [
     { api_version: 1, reset_epoch: 3, values: { immich_url: 'https://setup-photos.test/api', api_key: 'setup-key' } },
