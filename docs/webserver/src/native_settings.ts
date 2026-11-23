@@ -6,8 +6,6 @@ const PRODUCT_SETTINGS: Record<string, { options?: string[]; min?: number; max?:
 const TIMEZONES: string[] = __ESPFRAME_NATIVE_TIMEZONES__;
 const TIMEZONE_LABELS: Record<string, string> = __ESPFRAME_NATIVE_TIMEZONE_LABELS__;
 const frameStatusPath = "/espframe/api/v1/status";
-const screenControlPath = "/espframe/api/v1/screen";
-type ScreenAction = "sleep" | "wake";
 
 interface NativeFrameStatus {
   screen: string;
@@ -16,7 +14,6 @@ interface NativeFrameStatus {
   immich: string;
   notice: string;
   restarting: boolean;
-  screenPending: boolean | null;
 }
 
 class NativeSettingsApi extends EspframeApiClient {
@@ -25,24 +22,11 @@ class NativeSettingsApi extends EspframeApiClient {
     if (capabilities?.status_path !== frameStatusPath) return null;
     const payload = await this.requestJson(frameStatusPath, { cache: "no-store" }, "frame_status_failed");
     if (!payload || typeof payload !== "object") throw new Error("invalid_frame_status");
-    const status = payload as Partial<NativeFrameStatus> & { api_version?: unknown; screen_pending?: unknown };
-    const controlsScreen = capabilities.screen_control_path === screenControlPath;
+    const status = payload as Partial<NativeFrameStatus> & { api_version?: unknown };
     if (status.api_version !== capabilities.api_version || typeof status.restarting !== "boolean" ||
         typeof status.screen !== "string" || typeof status.playback !== "string" || typeof status.source !== "string" ||
-        typeof status.immich !== "string" || typeof status.notice !== "string" ||
-        (controlsScreen && typeof status.screen_pending !== "boolean")) throw new Error("invalid_frame_status");
-    return { ...status, screenPending: controlsScreen ? status.screen_pending : null } as NativeFrameStatus;
-  }
-
-  async changeScreen(action: ScreenAction): Promise<void> {
-    const payload = await this.requestJson(screenControlPath, {
-      method: "POST",
-      cache: "no-store",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ action }),
-    }, "screen_control_failed");
-    if (!payload || typeof payload !== "object" || (payload as { status?: unknown }).status !== "accepted")
-      throw new Error("screen_control_failed");
+        typeof status.immich !== "string" || typeof status.notice !== "string") throw new Error("invalid_frame_status");
+    return status as NativeFrameStatus;
   }
 }
 
@@ -88,34 +72,16 @@ function initNativeFrameStatus() {
   const notice = el("p", "native-frame-notice");
   notice.setAttribute("role", "status");
   notice.hidden = true;
-  const screenButton = button("Sleep screen");
-  screenButton.id = "native-screen-action";
-  const actionStatus = el("span");
-  actionStatus.setAttribute("role", "status");
-  const controls = el("div", "native-screen-controls");
-  controls.hidden = true;
-  controls.append(screenButton, actionStatus);
-  panel.append(values, notice, controls);
+  panel.append(values, notice);
 
   let timer: number | undefined;
   let busy = false;
   let supported = true;
-  let commanding = false;
-  let commandVersion = 0;
-  let latest: NativeFrameStatus | null = null;
   const setNotice = (message: string) => {
     if (notice.textContent !== message) notice.textContent = message;
     notice.hidden = !message;
   };
-  const renderControl = () => {
-    controls.hidden = !latest || latest.restarting || latest.screenPending === null ||
-      (latest.screen !== "awake" && latest.screen !== "asleep");
-    screenButton.disabled = commanding || latest?.screenPending === true;
-    const label = latest?.screen === "asleep" ? "Wake screen" : "Sleep screen";
-    if (screenButton.textContent !== label) screenButton.textContent = label;
-  };
   const render = (status: NativeFrameStatus) => {
-    latest = status;
     for (const [key, value] of Object.entries(status)) {
       const field = fields.get(key);
       if (!field || typeof value !== "string") continue;
@@ -128,23 +94,20 @@ function initNativeFrameStatus() {
       status.immich === "rejected" ? "Check the Immich API key and its permissions." : typeof detail === "string" ? detail : "");
     values.hidden = status.restarting;
     panel.hidden = false;
-    renderControl();
   };
   const scheduleRefresh = (delay = 5000) => {
     window.clearTimeout(timer);
-    if (supported && !document.hidden && !commanding) timer = window.setTimeout(refresh, delay);
+    if (supported && !document.hidden) timer = window.setTimeout(refresh, delay);
   };
   const visibilityChanged = () => {
     window.clearTimeout(timer);
     if (!document.hidden) void refresh();
   };
   const refresh = async () => {
-    if (document.hidden || busy || commanding || !supported) return;
+    if (document.hidden || busy || !supported) return;
     busy = true;
-    const version = commandVersion;
     try {
       const status = await apiClient.getFrameStatus();
-      if (version !== commandVersion) return;
       if (!status) {
         supported = false;
         panel.hidden = true;
@@ -153,46 +116,11 @@ function initNativeFrameStatus() {
       }
       render(status);
     } catch (_) {
-      if (version !== commandVersion) return;
-      latest = null;
       values.hidden = true;
       setNotice("The frame is unavailable. Waiting to reconnect.");
-      renderControl();
     } finally {
       busy = false;
       scheduleRefresh();
-    }
-  };
-  screenButton.onclick = async () => {
-    if (commanding || screenButton.disabled || controls.hidden || !latest) return;
-    const action = latest.screen === "asleep" ? "wake" : "sleep";
-    const expected = action === "wake" ? "awake" : "asleep";
-    commanding = true;
-    commandVersion++;
-    window.clearTimeout(timer);
-    renderControl();
-    actionStatus.textContent = action === "wake" ? "Waking screen…" : "Putting screen to sleep…";
-    let confirmed = false;
-    try {
-      await apiClient.changeScreen(action);
-      for (let attempt = 0; attempt < 10; ++attempt) {
-        const status = await apiClient.getFrameStatus();
-        if (!status || status.restarting || status.screenPending === null) break;
-        render(status);
-        if (!status.screenPending) {
-          confirmed = status.screen === expected;
-          break;
-        }
-        await delayMs(125);
-      }
-      actionStatus.textContent = confirmed ? "" : "Couldn’t confirm the screen change.";
-    } catch (error) {
-      actionStatus.textContent = error instanceof EspframeApiError && error.kind === "conflict" ?
-        "The frame is busy. Try again when it’s ready." : "Couldn’t confirm the screen change.";
-    } finally {
-      commanding = false;
-      renderControl();
-      scheduleRefresh(confirmed ? 5000 : 0);
     }
   };
   document.addEventListener("visibilitychange", visibilityChanged);
@@ -245,10 +173,11 @@ function nativeSecret(key: string): boolean {
   return key === "api_key" || key === "prepared_slide_token";
 }
 
-function nativeSettingControl(key: string, value: ConfigurationValue): HTMLInputElement | HTMLSelectElement {
+function nativeSettingControl(key: string, value: ConfigurationValue, developer: boolean): HTMLInputElement | HTMLSelectElement {
   const spec = PRODUCT_SETTINGS[key];
   const options = key === "timezone" ? TIMEZONES.slice() : key === "portrait_pair_framing"
-    ? ["Follow photo framing", "Fill", "Fit"] : (spec?.options?.slice() ?? []);
+    ? ["Follow photo framing", "Fill", "Fit"] : key === "screen_rotation" && !developer
+      ? ["0", "180"] : (spec?.options?.slice() ?? []);
   if (options.length) {
     const current = String(value);
     if (!options.includes(current)) options.push(current);
@@ -259,7 +188,8 @@ function nativeSettingControl(key: string, value: ConfigurationValue): HTMLInput
       if (key === "portrait_pair_framing" && option !== "Follow photo framing") {
         return option === "Fill" ? "Fill each half" : "Fit both full photos";
       }
-      if (key === "screen_rotation") return option === "180" ? "Upside down (180°)" : "Normal";
+      if (key === "screen_rotation") return option === "0" ? "Normal" :
+        option === "180" ? "Upside down (180°)" : "Portrait (" + option + "°)";
       return option;
     });
   }
@@ -305,9 +235,10 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot, savedNotice = ""): 
     const body = el("div");
     for (const [key, label] of definitions) {
       const snapshotKey = key === "prepared_slide_token" ? "prepared_slide_url" : key;
+      if (snapshotKey === "prepared_slide_url" && !snapshot.values.prepared_slide_url) continue;
       if (unavailable.has(key) || (key !== "api_key" && !Object.prototype.hasOwnProperty.call(snapshot.values, snapshotKey))) continue;
       const value = nativeSecret(key) ? "" : snapshot.values[key];
-      const control = nativeSettingControl(key, value);
+      const control = nativeSettingControl(key, value, snapshot.values.developer_features_enabled === true);
       if (key === "api_key" && control instanceof HTMLInputElement) control.required = !snapshot.api_key_configured;
       control.name = key;
       const row = field(key === "api_key" && !snapshot.api_key_configured ? "Immich API key" : label);
@@ -319,7 +250,7 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot, savedNotice = ""): 
         if (key === "api_key") hint.textContent = snapshot.api_key_configured ? "Leave blank to keep the current key." :
           "Enter your API key to connect Immich.";
         if (key === "frame_name") hint.textContent = "Leave blank to use the device default.";
-        if (key === "prepared_slide_url") hint.textContent = "Optional. Clear the URL to use direct Immich previews exclusively.";
+        if (key === "prepared_slide_url") hint.textContent = "Clear the URL to return to direct Immich previews.";
         if (key === "prepared_slide_token") hint.textContent = snapshot.values.prepared_slide_token_configured ?
           "Leave blank to keep the current token. Enter a new token if you change the service URL." :
           "Enter the token from your preparation service.";

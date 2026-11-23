@@ -134,6 +134,9 @@ jobs:
             firmware/native/tests/swipe_input_test.cpp -o "$RUNNER_TEMP/swipe-input-test"
           "$RUNNER_TEMP/swipe-input-test"
           c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+            firmware/native/main/photo_controls.cpp firmware/native/tests/photo_controls_test.cpp -o "$RUNNER_TEMP/photo-controls-test"
+          "$RUNNER_TEMP/photo-controls-test"
+          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
             firmware/native/tests/autoplay_fade_test.cpp -o "$RUNNER_TEMP/autoplay-fade-test"
           "$RUNNER_TEMP/autoplay-fade-test"
           c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \

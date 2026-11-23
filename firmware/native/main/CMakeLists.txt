@@ -26,7 +26,7 @@ idf_component_register(
     SRCS app.cpp clock_overlay.cpp clock_settings.cpp daylight.cpp display.cpp frame_blend.cpp frame_blitter.cpp immich.cpp immich_http.cpp
          immich_memories.cpp immich_selection.cpp improv_serial.cpp native_configuration.cpp native_network.cpp p4_jpeg_decoder.cpp
          playback_trace.cpp preview_decoder.cpp preview_prefetch.cpp
-         photo_caption.cpp recovery_card.cpp screen_tone.cpp settings.cpp touch.cpp
+         photo_caption.cpp photo_controls.cpp recovery_card.cpp screen_tone.cpp settings.cpp touch.cpp
          firmware_update.cpp usb_setup.cpp web_settings.cpp
          ${platform_source}
          web_logs.cpp
@@ -38,6 +38,7 @@ idf_component_register(
     PRIV_REQUIRES esp_lcd esp_hw_support esp_driver_dma esp_driver_gpio esp_driver_i2c esp_driver_ledc esp_timer esp_mm esp_driver_jpeg esp_driver_ppa
                   esp_driver_uart esp_event esp_http_client esp_http_server esp_netif esp_wifi mbedtls nvs_flash
                   app_update bootloader_support esp_app_format libjpeg-turbo-esp32 libwebp-esp32 home_assistant lwip
+                  esphome__libsodium
     EMBED_TXTFILES web/native_settings.html web/native_settings.css web/shared_settings.js
                    web/admin_preview.html web/admin_cards.js "${repo_root}/docs/public/webserver/app.js"
                    web/settings.html web/settings.js web/recovery.html web/recovery.js

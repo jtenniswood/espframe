@@ -51,6 +51,8 @@ const verify = `
       const packets = []
       let portOpen = false
       let online = false
+      let webState = 2
+      let removedPassword = false
       let firmwareName = 'Unrelated Improv'
       let rejectsWifi = false
       const port = {
@@ -98,8 +100,20 @@ const verify = `
               return
             }
             const command = decoder.decode(bytes).trim().split(' ')
+            if (command[2] === 'HELLO' || command[2] === 'SET') {
+              if (command[2] === 'SET') {
+                const fields = JSON.parse(command.slice(4).join(' '))
+                check(Object.keys(fields).length === 1 && fields.web_password === '',
+                  'Password removal sent unrelated settings')
+                removedPassword = true
+                webState = 2
+              }
+              const result = command[2] === 'HELLO' ? 'READY' : 'SAVED'
+              output.enqueue(encoder.encode('ESPFRAME_SETUP 1 ' + result + ' ' + command[3] + '\\n'))
+              return
+            }
             check(command.length === 4 && command[2] === 'STATUS', 'Wi-Fi repair sent a full settings request')
-            const reply = online ? 'CONNECTED ' + command[3] + ' 192.168.50.10 2' : 'OFFLINE ' + command[3]
+            const reply = online ? 'CONNECTED ' + command[3] + ' 192.168.50.10 ' + webState : 'OFFLINE ' + command[3]
             output.enqueue(encoder.encode('ESPFRAME_SETUP 1 ' + reply + '\\n'))
           } })
         },
@@ -144,6 +158,16 @@ const verify = `
       check(!wifi.elements.ssid.value && !wifi.elements.password.value && !repair.open &&
         document.querySelector('#reuse-wifi').checked && settings.elements.immich_key.value === 'preserved-immich-key',
         'Wi-Fi repair did not clear the credentials, reuse Wi-Fi, or preserve the main setup form')
+      webState = 0
+      await run(find)
+      check(status.querySelector('a')?.getAttribute('href') === '#web-admin-password' &&
+        document.querySelector('#web-admin-password') === settings.elements.web_password,
+        'A frame with its admin disabled did not link to password setup')
+      status.querySelector('a').click()
+      check(document.querySelector('#web-admin-access').open, 'The legacy password setup link did not open its field')
+      await run(document.querySelector('#clear-web-password'))
+      check(removedPassword && status.querySelector('a')?.href === 'http://192.168.50.10/' &&
+        !status.textContent.includes('sign in'), 'Password removal did not show the direct settings link')
     } catch (error) {
       result = error.message
     } finally {

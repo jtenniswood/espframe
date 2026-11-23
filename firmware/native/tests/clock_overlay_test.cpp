@@ -108,6 +108,14 @@ void verify_antialiasing() {
   assert(pixel(0, 0) == 0xa534 && pixel(0, 1) == 0x94b2);
   assert(pixel(2, 2) == 0x31a6 && pixel(2, 3) == 0x39c7);
   assert(pixel(0, 2) == 0x39e7 && pixel(2, 4) == 0x39e7);
+
+  std::fill(frame.begin(), frame.end(), 0x39e7);
+  clock.draw(frame.data(), false, 128);
+  assert(pixel(0, 0) == 0x6b8d && pixel(0, 1) == 0x6b8d);
+  assert(pixel(2, 2) == 0x39c7);
+  std::fill(frame.begin(), frame.end(), 0x39e7);
+  clock.draw(frame.data(), false, 0);
+  assert(std::all_of(frame.begin(), frame.end(), [](uint16_t color) { return color == 0x39e7; }));
 }
 
 void verify_portrait_clock(const ClockSettings &settings, const std::vector<uint8_t> &atlas, std::time_t time) {

@@ -63,8 +63,8 @@ and fill in Wi-Fi and Immich together. If you used Improv Serial to connect
 Wi-Fi in the dialog, select **Use Wi-Fi already saved on the frame** and fill
 in only the remaining settings. Select the frame's USB port to save.
 Keep the USB cable connected while the frame restarts. The installer
-shows the frame's address and an **Open frame settings** link if you set a web
-settings password. Use **Find frame on Wi-Fi** to retry the address check.
+shows the frame's address and an **Open frame settings** link.
+Use **Find frame on Wi-Fi** to retry the address check.
 If the frame stays offline or you change routers, open **Change Wi-Fi over USB**.
 This updates the network and keeps your saved Immich and playback settings.
 
@@ -113,13 +113,13 @@ installer over HTTPS or localhost.
 
 ### Open the frame's web settings
 
-Set a web settings password when saving over USB to enable the frame's
-settings page. Use **Find frame on Wi-Fi** in the browser installer or open
-the IP address shown in the USB logs. The frame uses its stock board hostname
-when its name is blank. Sign in as `espframe`
-with the password you chose. The settings page uses Espframe's shared web
-controls and configuration client. It shows the settings supported by the
-running native firmware.
+Use **Find frame on Wi-Fi** in the browser installer or open the IP address
+shown in the USB logs. The frame uses its stock board hostname when its name
+is blank. The settings page opens without a password by default. If you set
+an optional password over USB, sign in as `espframe` with the password you
+chose. **Remove saved web admin password over USB** clears a saved password
+and returns to direct access. The settings page uses Espframe's shared web
+controls and shows the settings supported by the running native firmware.
 Edit the Immich connection, display mode, time per photo, and other
 playback and screen settings, then choose **Save settings**. Changes limited
 to framing or captions redraw the current photo or portrait pair and keep
@@ -424,6 +424,11 @@ Set **Mounting orientation** to **Upside down (180°)** when the frame is
 mounted the other way round. After restart, photos, portrait pairs, the clock,
 and touch follow the new orientation together. Espframe backups carry the
 landscape mounting choice.
+
+To mount the frame vertically, open the admin with `?developer=experimental`
+and enable in-development features under **Device**. The **Rotation** card
+then offers 90 and 270 degrees. Portrait rotation uses one photo per slide.
+Turning off in-development features restores the default landscape orientation.
 
 Under **Photo captions**, enable the capture date, location, or both. The
 frame uses the photo's local capture day and the city and country supplied by

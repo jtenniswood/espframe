@@ -86,13 +86,30 @@ void set_response_headers(httpd_req_t *request, const char *content_policy = def
 
 NativeNetwork &network(httpd_req_t *request) { return *static_cast<NativeNetwork *>(request->user_ctx); }
 
+uint32_t socket_ipv4(const sockaddr_storage &address, socklen_t length) {
+  if (address.ss_family == AF_INET && length >= sizeof(sockaddr_in))
+    return reinterpret_cast<const sockaddr_in &>(address).sin_addr.s_addr;
+#if CONFIG_LWIP_IPV6
+  if (address.ss_family == AF_INET6 && length >= sizeof(sockaddr_in6)) {
+    // The dual-stack HTTP listener represents IPv4 connections as ::ffff:a.b.c.d.
+    constexpr uint8_t mapped_prefix[]{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff};
+    const auto &bytes = reinterpret_cast<const sockaddr_in6 &>(address).sin6_addr.s6_addr;
+    if (std::memcmp(bytes, mapped_prefix, sizeof(mapped_prefix)) == 0) {
+      uint32_t ipv4;
+      std::memcpy(&ipv4, bytes + sizeof(mapped_prefix), sizeof(ipv4));
+      return ipv4;
+    }
+  }
+#endif
+  return 0;
+}
+
 uint32_t local_address(httpd_req_t *request) {
-  sockaddr_in address{};
+  sockaddr_storage address{};
   socklen_t length = sizeof(address);
-  if (getsockname(httpd_req_to_sockfd(request), reinterpret_cast<sockaddr *>(&address), &length) != 0 ||
-      address.sin_family != AF_INET)
+  if (getsockname(httpd_req_to_sockfd(request), reinterpret_cast<sockaddr *>(&address), &length) != 0)
     return 0;
-  return address.sin_addr.s_addr;
+  return socket_ipv4(address, length);
 }
 
 bool hotspot_socket(httpd_req_t *request) {
@@ -111,11 +128,27 @@ bool same_origin(httpd_req_t *request) {
          header_is(request, "Origin", std::string("http://") + host);
 }
 
+bool matches_station_host(httpd_req_t *request, uint32_t station) {
+  char header[80]{};
+  if (httpd_req_get_hdr_value_str(request, "Host", header, sizeof(header)) != ESP_OK)
+    return false;
+  std::string_view host(header);
+  if (host.ends_with(":80"))
+    host.remove_suffix(3);
+  char ipv4[INET_ADDRSTRLEN]{};
+  const in_addr address{station};
+  const auto &hostname = network(request).running_identity().hostname;
+  return (inet_ntop(AF_INET, &address, ipv4, sizeof(ipv4)) && host == ipv4) ||
+         (!hostname.empty() && host == hostname + ".local");
+}
+
 bool from_hotspot_client(httpd_req_t *request) {
-  sockaddr_in peer{};
+  sockaddr_storage peer{};
   socklen_t length = sizeof(peer);
-  if (getpeername(httpd_req_to_sockfd(request), reinterpret_cast<sockaddr *>(&peer), &length) != 0 ||
-      peer.sin_family != AF_INET)
+  if (getpeername(httpd_req_to_sockfd(request), reinterpret_cast<sockaddr *>(&peer), &length) != 0)
+    return false;
+  const auto ipv4 = socket_ipv4(peer, length);
+  if (!ipv4)
     return false;
 
   wifi_sta_list_t associated{};
@@ -123,7 +156,7 @@ bool from_hotspot_client(httpd_req_t *request) {
   if (esp_wifi_ap_get_sta_list(&associated) != ESP_OK || esp_wifi_ap_get_sta_list_with_ip(&associated, &addresses) != ESP_OK)
     return false;
   for (int i = 0; i < addresses.num; ++i) {
-    if (addresses.sta[i].ip.addr == peer.sin_addr.s_addr)
+    if (addresses.sta[i].ip.addr == ipv4)
       return true;
   }
   return false;
@@ -132,8 +165,15 @@ bool from_hotspot_client(httpd_req_t *request) {
 bool authorize(httpd_req_t *request, const char *content_policy = default_content_policy) {
   set_response_headers(request, content_policy);
   const auto station = network(request).address().ipv4;
-  if (!station || local_address(request) != station || hotspot_socket(request) || authorization.empty()) {
+  if (!station || local_address(request) != station || hotspot_socket(request) ||
+      (authorization.empty() && !matches_station_host(request, station))) {
     httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "Settings are unavailable on this connection.");
+    return false;
+  }
+  if (authorization.empty()) {
+    if (request->method != HTTP_POST || same_origin(request))
+      return true;
+    httpd_resp_send_err(request, HTTPD_403_FORBIDDEN, "Open settings on the frame to make changes.");
     return false;
   }
   std::array<char, auth_capacity> header{};
@@ -753,7 +793,8 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
     return false;
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.lru_purge_enable = true;
-  config.stack_size = 6144;
+  // Configuration writes validate and persist a full settings record on this task.
+  config.stack_size = 12288;
   config.max_open_sockets = 4;
   config.recv_wait_timeout = 3;
 
@@ -808,8 +849,7 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
   }
 
   esp_netif_ip_info_t ip{};
-  if (!settings.web_password.empty() &&
-      esp_netif_get_ip_info(esp_netif_get_handle_from_ifkey("WIFI_STA_DEF"), &ip) == ESP_OK && ip.ip.addr)
+  if (esp_netif_get_ip_info(esp_netif_get_handle_from_ifkey("WIFI_STA_DEF"), &ip) == ESP_OK && ip.ip.addr)
     ESP_LOGI(tag, "Settings page listening at http://" IPSTR "/", IP2STR(&ip.ip));
   return true;
 }

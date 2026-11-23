@@ -38,7 +38,7 @@ class ClockOverlay {
   void set_twelve_hour(bool enabled) { twelve_hour_ = enabled; }
   bool update(const std::optional<std::tm> &local);
   bool visible() const { return text_[0] != '\0'; }
-  void draw(uint16_t *frame, bool remember_underlay = false);
+  void draw(uint16_t *frame, bool remember_underlay = false, uint8_t opacity = 255);
   void pin_underlay();
   void restore_slide_slice(uint16_t *frame, int source, int target, int count) const;
   void restore_blend(uint16_t *frame, const uint16_t *target, uint8_t opacity) const;

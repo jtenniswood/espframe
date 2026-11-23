@@ -301,6 +301,35 @@ void only_a_continuous_stationary_hold_can_sleep() {
   assert(input.awake() && swipe.idle() && swipe.settled() == 2);
 }
 
+void only_a_short_stationary_contact_on_a_settled_photo_taps() {
+  Swipe swipe{width, 5, 2};
+  SwipeInput input;
+  input.update(swipe, report(1, 5'000, 800), initial_position);
+  auto jitter = report(2, 15'000, 802);
+  jitter.y += 4;
+  input.update(swipe, jitter, initial_position);
+  assert(input.update(swipe, report(3, 90'000, 0, 0), initial_position) == Effect::Tap);
+  assert(input.contact_y() == 200 && swipe.idle() && swipe.position() == initial_position);
+
+  input.update(swipe, report(4, 100'000, 800), initial_position);
+  jitter = report(5, 110'000, 800);
+  jitter.y += 30;
+  input.update(swipe, jitter, initial_position);
+  assert(input.update(swipe, report(6, 125'000, 0, 0), initial_position) == Effect::None);
+  input.update(swipe, report(7, 130'000, 800), initial_position);
+  input.update(swipe, report(8, 140'000, 0, 0, false), initial_position);
+  assert(input.update(swipe, report(9, 150'000, 0, 0), initial_position) == Effect::None);
+
+  const auto moving_handoff = initial_position + 200;
+  swipe.advance(160'000, Swipe::Transition::Glide);
+  input.update(swipe, report(10, 170'000, 800), moving_handoff);
+  assert(input.update(swipe, report(11, 200'000, 0, 0), moving_handoff) == Effect::None);
+
+  input.sleep(swipe);
+  assert(input.update(swipe, report(12, 210'000, 800), initial_position) == Effect::Wake);
+  assert(input.update(swipe, report(13, 220'000, 0, 0), initial_position) == Effect::None);
+}
+
 void scheduled_hours_preserve_manual_sleep_and_handle_midnight() {
   ScreenSchedule disabled{{false, 6, 22, 60}};
   assert(disabled.update(4, 100, false));
@@ -441,6 +470,7 @@ int main() {
   a_second_finger_blocks_until_release_even_at_sequence_rollover();
   a_hold_sleeps_on_release_and_the_wake_contact_never_swipes();
   only_a_continuous_stationary_hold_can_sleep();
+  only_a_short_stationary_contact_on_a_settled_photo_taps();
   scheduled_hours_preserve_manual_sleep_and_handle_midnight();
   entering_the_on_window_clears_a_temporary_wake();
   a_scheduled_wake_consumes_the_touch_and_expires_after_its_duration();

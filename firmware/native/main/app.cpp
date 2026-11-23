@@ -11,6 +11,7 @@
 #include "initial_photo_timeout.h"
 #include "live_trial.h"
 #include "native_network.h"
+#include "photo_controls.h"
 #include "playback_transition.h"
 #include "recovery_card.h"
 #include "screen_control.h"
@@ -76,6 +77,44 @@ extern const uint8_t recovery_atlas[] asm("_binary_recovery_glyphs_bin_start");
 extern const uint8_t status_masks[] asm("_binary_status_masks_bin_start");
 extern const uint8_t status_masks_end[] asm("_binary_status_masks_bin_end");
 NativeNetwork network;
+
+class PhotoControlsRenderer {
+ public:
+  explicit PhotoControlsRenderer(const PhotoControls &controls) : controls_(controls) {}
+
+  void start() {
+    done_ = xSemaphoreCreateBinaryStatic(&done_storage_);
+    if (xTaskCreatePinnedToCore(run_, "photo-scale", 2048, this, player_priority, &worker_, loader_core) != pdPASS)
+      worker_ = nullptr;
+  }
+
+  void draw() const {
+    if (worker_) {
+      // Each core writes whole rows. Join before painting the toolbar or submitting the frame.
+      xTaskNotifyGive(worker_);
+      controls_.draw_rows(panel_height / 2, panel_height);
+      xSemaphoreTake(done_, portMAX_DELAY);
+    } else {
+      controls_.draw_rows(0, panel_height);
+    }
+    controls_.draw_toolbar();
+  }
+
+ private:
+  static void run_(void *context) {
+    const auto &renderer = *static_cast<PhotoControlsRenderer *>(context);
+    while (true) {
+      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+      renderer.controls_.draw_rows(0, panel_height / 2);
+      xSemaphoreGive(renderer.done_);
+    }
+  }
+
+  const PhotoControls &controls_;
+  StaticSemaphore_t done_storage_{};
+  SemaphoreHandle_t done_{};
+  TaskHandle_t worker_{};
+};
 
 struct GestureTiming {
   int64_t gesture_to_scanout_us{};
@@ -309,7 +348,10 @@ class SlideLoader {
       this->timings_ = xQueueCreate(32, sizeof(GestureTiming));
     ESP_ERROR_CHECK(this->requests_ && this->completed_ && this->pixel_work_wake_ && (trace_enabled || this->timings_)
                         ? ESP_OK : ESP_ERR_NO_MEM);
-    const auto result = xTaskCreatePinnedToCore(run_, "slide-prepare", 6144, this, 2, &this->task_, loader_core);
+    // Native playback also applies saved feed changes in this worker.
+    constexpr uint32_t loader_stack_bytes = esphome_trial ? 6144 : 12288;
+    const auto result = xTaskCreatePinnedToCore(run_, "slide-prepare", loader_stack_bytes, this, 2, &this->task_,
+                                              loader_core);
     ESP_ERROR_CHECK(result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
     return true;
   }
@@ -552,6 +594,10 @@ void run(void *) {
   touch.start(rotation);
   Swipe swipe{viewport.width, slide_count, live ? 0 : 2};
   SwipeInput input;
+  static PhotoControls controls;
+  static PhotoControlsRenderer controls_renderer{controls};
+  int last_control_progress = 0;
+  uint8_t last_text_opacity = PhotoControls::opaque;
   ScreenSchedule schedule{loader.schedule()};
   SlideDwell dwell;
   SlidePrefetch prefetch{swipe.settled(), cache_slots, viewport.width};
@@ -616,6 +662,8 @@ void run(void *) {
     trace.start(Display::nominal_frame_period_us());
   if constexpr (!esphome_trial || trial_immich)
     loader.start_network();
+  if constexpr (!SWIPE_TRIAL_BENCHMARK)
+    controls_renderer.start();
   const auto submit_frame = [&](PixelPosition position, bool moving = true, bool resisted = false,
                                 const ScanoutFrame *frame = nullptr, std::optional<SlideRange> sources = {}) {
     if (!display.submit(position, frame, sources))
@@ -743,6 +791,7 @@ void run(void *) {
     const auto center = swipe.settled();
     const auto requested_revision = esphome_trial ? 0 : photo_source_revision.load(std::memory_order_acquire);
     const bool at_source_handoff = swipe.idle() && !input.engaged() && !fade.running() && !fade.held() &&
+                                   !controls.target_open() && last_control_progress == 0 &&
                                    !blend.pending() && !display.borrowing() &&
                                    display.presented_position() == center * viewport.width;
     const bool discard_refresh = preparing_refresh && (loader.yield_requested() || requested_revision != source_revision);
@@ -934,6 +983,18 @@ void run(void *) {
         manual_brightness.reset();
         schedule.wake(report.sampled_us);
       }
+      if constexpr (!SWIPE_TRIAL_BENCHMARK) {
+        if (effect == SwipeInput::Effect::Tap && swipe.idle() && swipe.settled() > 0 &&
+            swipe.position() == display.handoff_position() && !fade.running() && !fade.held() && !blend.pending() &&
+            network.recovery_status() == NativeNetwork::RecoveryStatus::Off && !recovery_painted &&
+            cache.find(swipe.settled())) {
+          const bool opening = !controls.target_open();
+          if (opening || last_control_progress < PhotoControls::open || input.contact_y() >= PhotoControls::toolbar_bottom)
+            controls.animate(opening, esp_timer_get_time(), clock.visible() || last_caption.opacity != 0);
+        }
+        if (swipe.dragging() && !was_dragging && (controls.target_open() || last_control_progress != 0))
+          controls.animate(false, esp_timer_get_time());
+      }
       if (swipe.dragging() && fade.held())
         fade.note_drag();
     }
@@ -964,6 +1025,11 @@ void run(void *) {
       if (commanded)
         screen_control.completed();
     }
+    if ((controls.target_open() || last_control_progress != 0) &&
+        (!input.awake() || network.recovery_status() != NativeNetwork::RecoveryStatus::Off))
+      controls.reset();
+    const int control_progress = controls.progress(now);
+    const uint8_t text_opacity = controls.text_opacity(now);
 
     if (blend.poll_complete() && fade.running()) {
       // Touch is handled before this block so a superseded blend can never
@@ -1010,7 +1076,8 @@ void run(void *) {
                                  ? prefetch.can_defer_drag(ready, origin, swipe.position(),
                                                            drag == Swipe::DragActivity::Starting, first_motion_pending)
                                  : !contact_engaged && prefetch.can_defer_settle(ready, swipe.settle_destination());
-      pixel_work_deferred = user_motion && can_defer;
+      const bool scaling_at_rest = controls.animating(control_progress) && !swipe.dragging() && !swipe.settling();
+      pixel_work_deferred = (user_motion && can_defer) || scaling_at_rest;
       protect_cached_copy = drag == Swipe::DragActivity::Starting && !first_motion_pending && !can_defer &&
                             !prefetch.requested() && ready.contains(origin) && ready.last == origin + 1 &&
                             swipe.position() > origin * viewport.width;
@@ -1116,7 +1183,9 @@ void run(void *) {
     if (live) {
       const bool first_photo = swipe.settled() == 0;
       const bool source_changed = source_anchor == swipe.settled();
-      const bool dwelling = visible_and_idle && !fade.running() && !fade.held();
+      const bool dwelling = visible_and_idle && !fade.running() && !fade.held() &&
+                            !controls.target_open() && control_progress == 0 && last_control_progress == 0 &&
+                            text_opacity == PhotoControls::opaque;
       // Keep the settled photo available for inspection during the touch replay.
       constexpr bool hold_photo = SWIPE_TRIAL_REPLAY_HISTORY || SWIPE_TRIAL_WIFI_OUTAGE || trial_replay_touch;
       if ((!hold_photo || first_photo) &&
@@ -1172,6 +1241,7 @@ void run(void *) {
         position == swipe.settled() * viewport.width && position == display.presented_position())
       settled_caption = swipe.settled();
     auto caption_sample = caption_fade.update(now, settled_caption);
+    caption_sample.opacity = (caption_sample.opacity * text_opacity + 127) / 255;
     if (blend.pending()) {
       display.wait_for_frame_or_tick();
       continue;
@@ -1244,20 +1314,22 @@ void run(void *) {
                                source_notice != PhotoSourceStatus::None;
     const auto notice_language = paints_notice ? active_device_language.load(std::memory_order_relaxed) : uint8_t{0};
     const bool sliding = swipe.dragging() || swipe.settling();
+    const bool clock_changed = show_clock && (clock_dirty || (clock.visible() && text_opacity != last_text_opacity));
     const auto caption_slot = caption_sample.opacity && !show_recovery ? cache.ready_slot(caption_sample.slide)
                                                                       : std::nullopt;
     const auto *caption = caption_slot && captions[*caption_slot].band_rows() ? &captions[*caption_slot] : nullptr;
     if (!caption)
       caption_sample = {};
     if (auto *output = display.writable_buffer(); output != nullptr &&
-        (position != last_submitted || inside != last_inside || show_recovery != recovery_painted ||
-         source_notice != painted_source_status ||
-         connection_notice != painted_connection_notice || notice_language != painted_notice_language ||
-         (display.borrowing() && !sliding) || (show_clock && clock_dirty) || caption_sample != last_caption)) {
+        (position != last_submitted || inside != last_inside || control_progress != last_control_progress ||
+         (control_progress == 0 &&
+          (show_recovery != recovery_painted || source_notice != painted_source_status ||
+           connection_notice != painted_connection_notice || notice_language != painted_notice_language ||
+           (display.borrowing() && !sliding) || clock_changed || caption_sample != last_caption)))) {
       const auto index = inside / viewport.width;
       const int offset = inside % viewport.width;
       const auto slide_pixels = [&](SlideIndex slide) {
-        return snapshot != nullptr && slide == fade.anchor() ? snapshot : cache.find(slide);
+        return control_progress == 0 && snapshot != nullptr && slide == fade.anchor() ? snapshot : cache.find(slide);
       };
       const auto *left = slide_pixels(index);
       const auto *right = offset == 0 ? nullptr : slide_pixels(index + 1);
@@ -1267,6 +1339,29 @@ void run(void *) {
         const auto limit = PixelPosition{viewport.width - 1};
         const int pull = static_cast<int>(std::clamp(position - inside, -limit, limit)) * axis_direction(rotation);
         const auto span = orient_slide_span(left, right, viewport.width, offset, rotation);
+        const auto finish_render = [&](int64_t started_submit) {
+          submitted_motion_us = motion;
+          motion_render_us = motion != 0 ? esp_timer_get_time() - started_render : 0;
+          if constexpr (capture_motion) {
+            if (motion != 0)
+              first_motion = {motion, input.contact_started_us(), motion_render_us,
+                              ready_at_motion(position, {ready_first, ready_last}, available, viewport.width), preparing >= 0,
+                              started_submit != 0 ? started_render + motion_render_us - started_submit : 0};
+          }
+          last_submitted = position;
+          last_inside = inside;
+          last_control_progress = control_progress;
+          last_text_opacity = text_opacity;
+        };
+        if (control_progress != 0) {
+          controls.prepare(output, span, pull, rotation, control_progress);
+          controls_renderer.draw();
+          const auto started_submit = trial_immich && motion != 0 ? esp_timer_get_time() : 0;
+          submit_frame(position, position != last_submitted, use_edge);
+          finish_render(started_submit);
+          display.wait_for_frame_or_tick();
+          continue;
+        }
         const auto render_owned = [&] {
           if (use_edge) {
             blitter.edge(output, left, pull, viewport.portrait);
@@ -1305,7 +1400,7 @@ void run(void *) {
             ((sliding && (use_edge || offset != 0)) || landing)) {
           segment_started = esp_timer_get_time();
           const auto copy_rows = [&](auto *to, const auto *from, int rows) { blitter.copy_panel_rows(to, from, rows); };
-          const bool paint_clock = show_clock && clock.visible();
+          const bool paint_clock = show_clock && clock.visible() && text_opacity != 0;
           const int caption_rows = caption ? caption->band_rows() : 0;
           if (use_edge)
             segmented = prepare_edge_scanout(output, left, pull, paint_clock, rotation, copy_rows, caption_rows);
@@ -1318,7 +1413,7 @@ void run(void *) {
         if (pause_for_copy)
           loader.defer_pixel_work(false);
         if (show_clock) {
-          clock.draw(output);
+          clock.draw(output, false, text_opacity);
           clock_dirty = false;
         }
         paint_caption();
@@ -1344,7 +1439,7 @@ void run(void *) {
             linked_scanout_ok = false;
             render_owned();
             if (show_clock)
-              clock.draw(output);
+              clock.draw(output, false, text_opacity);
             paint_caption();
           }
         }
@@ -1352,16 +1447,7 @@ void run(void *) {
         if (!submitted)
           submit_frame(position, position != last_submitted, use_edge);
         last_caption = caption_sample;
-        submitted_motion_us = motion;
-        motion_render_us = motion != 0 ? esp_timer_get_time() - started_render : 0;
-        if constexpr (capture_motion) {
-          if (motion != 0)
-            first_motion = {motion, input.contact_started_us(), motion_render_us,
-                            ready_at_motion(position, {ready_first, ready_last}, available, viewport.width), preparing >= 0,
-                            started_submit != 0 ? started_render + motion_render_us - started_submit : 0};
-        }
-        last_submitted = position;
-        last_inside = inside;
+        finish_render(started_submit);
       }
     }
     display.wait_for_frame_or_tick();
@@ -1380,8 +1466,8 @@ void start_player() {
     start_web_logs();
     start_usb_setup(network);
   }
-  // Live trials read ESPHome NVS while a candidate Settings record is on this stack.
-  constexpr uint32_t player_stack_bytes = trial_immich ? 6144 : 4096;
+  // The standalone player also loads and normalizes its saved configuration at startup.
+  constexpr uint32_t player_stack_bytes = !esphome_trial ? 8192 : trial_immich ? 6144 : 4096;
   const auto result = xTaskCreatePinnedToCore(run, "photo-player", player_stack_bytes, nullptr, player_priority, nullptr,
                                             player_core);
   ESP_ERROR_CHECK(result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
