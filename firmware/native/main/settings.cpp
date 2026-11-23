@@ -1191,6 +1191,13 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
     live_presentation_changed |= presents_playback;
     restart |= !selects_photos && !presents_photos && !presents_playback;
   }
+  if (cJSON_HasObjectItem(update, "c6_auto_update")) {
+    bool enabled{};
+    if (!read_flag(update, "c6_auto_update", enabled))
+      return UpdateResult::Invalid;
+    changed |= settings.stock_update_preferences.wifi_auto_update != enabled;
+    settings.stock_update_preferences.wifi_auto_update = enabled;
+  }
   if (!changed && !change_preset && previous_labels == settings.photo_filters.labels)
     return UpdateResult::Unchanged;
   if (filters_changed) {

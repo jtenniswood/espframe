@@ -16,16 +16,19 @@ const capabilities = '/espframe/api/v1/capabilities'
 const configuration = '/espframe/api/v1/configuration'
 const resetPath = '/espframe/api/v1/reset'
 const releasePath = '/api/firmware/releases'
+const wifiPath = '/api/firmware/wifi'
 const writes = []
 const deviceActions = []
 const logPositions = []
 const releaseRequests = []
+const wifiRequests = []
 const unexpected = []
 let restartPending = false
 let restartsObserved = 0
 let bootChecks = 0
 let configurationReads = 0
 let release = { current: 'v0.1.0-preview.9', versions: [], status: 'idle', available: true }
+let wifi = { current: '2.12.8', latest: '', status: 'idle' }
 const snapshot = {
   api_version: 1, reset_epoch: 2, api_key_configured: true,
   values: {
@@ -49,6 +52,7 @@ const snapshot = {
     brightness_day: 90,
     brightness_night: 75,
     auto_update: true,
+    c6_auto_update: true,
     update_frequency: 'Daily',
     frame_name: 'Living Room',
   },
@@ -106,9 +110,10 @@ const browserTest = String.raw`
       }
       tab('Device').click()
       button(openCard('Backup'), 'Import').click()
-      await until(() => document.body.textContent.includes('Backup restored successfully; 1 skipped setting'), 'the backup restore')
-      if (!await savedValue('immich_url', 'https://backup-photos.test/api') || !await savedValue('portrait_pair_framing', 'Fit')) {
-        throw new Error('Backup did not restore the URL and portrait framing')
+      await until(() => document.body.textContent.includes('Backup restored successfully'), 'the backup restore')
+      if (!await savedValue('immich_url', 'https://backup-photos.test/api') ||
+          !await savedValue('portrait_pair_framing', 'Fit') || !await savedValue('c6_auto_update', true)) {
+        throw new Error('Backup did not restore the URL, portrait framing or WiFi update preference')
       }
       document.body.dataset.result = 'passed'
       return
@@ -180,7 +185,17 @@ const browserTest = String.raw`
     const firmware = openCard('Firmware')
     const disclosures = [...firmware.querySelectorAll('.inline-disclosure-button')]
     const disclosure = name => disclosures.find(el => el.firstChild.textContent === name)
-    if (disclosure('WiFi firmware')) throw new Error('Unsupported WiFi updater appeared')
+    disclosure('WiFi firmware').click()
+    const wifiFirmware = disclosure('WiFi firmware').closest('.inline-disclosure')
+    const wifiToggle = wifiFirmware.querySelector('[role="switch"]')
+    if (wifiToggle.getAttribute('aria-checked') !== 'true') throw new Error('WiFi auto-update preference was not loaded')
+    wifiToggle.click()
+    await until(() => savedValue('c6_auto_update', false), 'WiFi auto-update preference save')
+    await until(() => wifiFirmware.textContent.includes('2.12.8'), 'current WiFi firmware')
+    button(wifiFirmware, 'Check for Update').click()
+    await until(() => button(wifiFirmware, 'Update WiFi Firmware'), 'WiFi firmware availability')
+    button(wifiFirmware, 'Update WiFi Firmware').click()
+    await until(() => document.body.textContent.includes('WiFi firmware update complete.'), 'verified WiFi firmware')
     disclosure('Auto updates').click()
     const automation = disclosure('Auto updates').closest('.inline-disclosure')
     const toggle = automation.querySelector('[role="switch"]')
@@ -244,8 +259,8 @@ const browserTest = String.raw`
     await until(() => exported, 'the exported backup')
     const backup = await exported
     if (backup.version !== 3 || backup.photos.portrait_pair_framing !== 'Fill' ||
-        backup.connection.api_key !== undefined || backup.firmware_updates.wifi_auto_update !== undefined) {
-      throw new Error('Backup included an unavailable field or lost native portrait framing')
+        backup.connection.api_key !== undefined || backup.firmware_updates.wifi_auto_update !== false) {
+      throw new Error('Backup included a secret or lost a native setting')
     }
     const reboot = button(openCard('Device Reboot'), 'Reboot Screen')
     reboot.click()
@@ -345,6 +360,17 @@ const server = createServer(async (req, res) => {
         return res.writeHead(202).end()
       }
       return json(release)
+    case wifiPath:
+      if (req.method === 'POST') {
+        const chunks = []
+        for await (const chunk of req) chunks.push(chunk)
+        const action = Buffer.concat(chunks).toString()
+        wifiRequests.push(action)
+        if (action === 'check') wifi = { ...wifi, latest: '3.1.0', status: 'ready' }
+        if (action === 'install') wifi = { ...wifi, current: '3.1.0', status: 'idle' }
+        return res.writeHead(202).end()
+      }
+      return json(wifi)
     case '/api/firmware':
       ++bootChecks
       if (bootChecks > 1) release.status = 'ready'
@@ -382,16 +408,19 @@ try {
     { immich_url: 'https://new-photos.test/api' },
     { api_key: 'replacement-test-key' },
     { brightness_day: 85 },
+    { c6_auto_update: false },
     { update_frequency: 'Weekly' },
     { auto_update: false },
   ].map(values => ({ api_version: 1, reset_epoch: 2, values })))
   assert.deepEqual(writes.slice(-2), [
     { api_version: 1, reset_epoch: 3, values: { immich_url: 'https://setup-photos.test/api', api_key: 'setup-key' } },
-    { api_version: 1, reset_epoch: 3, values: { immich_url: 'https://backup-photos.test/api', brightness_day: 75, portrait_pair_framing: 'Fit' } },
+    { api_version: 1, reset_epoch: 3, values: { immich_url: 'https://backup-photos.test/api', brightness_day: 75,
+      portrait_pair_framing: 'Fit', c6_auto_update: true } },
   ])
   assert.deepEqual(deviceActions, ['reboot', 'customization'])
   assert.deepEqual(logPositions, [0, 1, 1, 2, 3, 0])
   assert.deepEqual(releaseRequests, ['', '', 'v0.1.0-preview.10', 'v0.1.0-preview.8'])
+  assert.deepEqual(wifiRequests, ['check', 'install'])
   assert.equal(restartsObserved, 4)
   assert.ok(bootChecks > 2)
   assert.deepEqual(unexpected, [])

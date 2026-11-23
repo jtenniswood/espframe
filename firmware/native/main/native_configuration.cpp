@@ -157,6 +157,8 @@ cJSON *configuration_snapshot(const Settings &settings) {
   auto *values = cJSON_AddObjectToObject(body.get(), "values");
   auto *unavailable = cJSON_AddArrayToObject(body.get(), "unavailable");
   const auto search_api = active_immich_search_api.load(std::memory_order_relaxed);
+  if (!cJSON_AddBoolToObject(playback.get(), "c6_auto_update", settings.stock_update_preferences.wifi_auto_update.value_or(true)))
+    return nullptr;
   if (!values || !unavailable ||
       !cJSON_AddStringToObject(values, "interval", interval_label(settings.slide_seconds).c_str()) ||
       !cJSON_AddStringToObject(values, "frame_name", settings.frame_name.c_str()) ||
@@ -261,6 +263,14 @@ ConfigurationUpdate update_configuration(const char *json) {
   const cJSON *value;
   cJSON_ArrayForEach(value, values) {
     const std::string_view requested_key(value->string);
+    if (requested_key == "c6_auto_update") {
+      if (!cJSON_IsBool(value) || cJSON_HasObjectItem(update.get(), value->string))
+        return {"422 Unprocessable Entity", "invalid_value", value->string};
+      if (!add_copy(update.get(), value->string, value))
+        return {"500 Internal Server Error", "settings_unavailable", {}};
+      ++count;
+      continue;
+    }
     if (requested_key == "photo_source") {
       const auto *name = cJSON_GetStringValue(value);
       if (source_preset || !name || !(source_preset = parse_photo_preset(name)))

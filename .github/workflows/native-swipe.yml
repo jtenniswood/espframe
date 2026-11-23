@@ -229,6 +229,10 @@ jobs:
           "$RUNNER_TEMP/immich-memories-test"
           c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main firmware/native/tests/web_logs_test.cpp -o "$RUNNER_TEMP/web-logs-test"
           "$RUNNER_TEMP/web-logs-test"
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -I"$cjson" \
+            firmware/native/main/c6_firmware_manifest.cpp firmware/native/tests/c6_firmware_manifest_test.cpp \
+            "$RUNNER_TEMP/cjson.o" -o "$RUNNER_TEMP/c6-firmware-manifest-test"
+          "$RUNNER_TEMP/c6-firmware-manifest-test"
       - name: Test firmware update staging and rollback
         if: matrix.board == 'v3'
         run: |

@@ -221,6 +221,14 @@ bool frame_restart_available() {
   return operation.owns_lock() && can_restart_running_image();
 }
 
+bool run_coprocessor_update(bool (*install)(void *), void *context) {
+  const std::unique_lock operation(firmware_operation, std::try_to_lock);
+  if (!operation.owns_lock() || !can_restart_running_image() || !install(context))
+    return false;
+  esp_restart();
+  return true;
+}
+
 void request_frame_restart() {
   const std::unique_lock operation(firmware_operation, std::try_to_lock);
   if (operation.owns_lock() && can_restart_running_image())

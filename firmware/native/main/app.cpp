@@ -1,4 +1,5 @@
 #include "autoplay_fade.h"
+#include "c6_firmware_update.h"
 #include "clock_overlay.h"
 #include "daylight.h"
 #include "display.h"
@@ -265,6 +266,8 @@ class SlideLoader {
 
   void start_network() const {
     network.start(this->settings_);
+    if constexpr (!esphome_trial)
+      start_c6_firmware_updates(network);
   }
 
   bool start() {

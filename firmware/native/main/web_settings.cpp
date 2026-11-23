@@ -1,4 +1,5 @@
 #include "web_settings.h"
+#include "c6_firmware_update.h"
 #include "configuration_contract_generated.h"
 #include "firmware_update.h"
 #include "frame_identity.h"
@@ -336,6 +337,43 @@ esp_err_t capabilities(httpd_req_t *request) {
     return ESP_OK;
   const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(configuration_capabilities(), cJSON_Delete);
   return send_configuration(request, document.get());
+}
+
+esp_err_t wifi_firmware(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  if (request->method == HTTP_GET) {
+    const auto status = c6_firmware_status();
+    const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> body(cJSON_CreateObject(), cJSON_Delete);
+    if (!body || !cJSON_AddStringToObject(body.get(), "current", status.current.c_str()) ||
+        !cJSON_AddStringToObject(body.get(), "latest", status.latest.c_str()) ||
+        !cJSON_AddStringToObject(body.get(), "status", status.state))
+      return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to read Wi-Fi firmware status.");
+    return send_configuration(request, body.get());
+  }
+  if (!same_origin(request))
+    return httpd_resp_send_err(request, HTTPD_403_FORBIDDEN, "Open settings on the frame to make changes.");
+  if (!header_is(request, "Content-Type", "text/plain") ||
+      (request->content_len != 5 && request->content_len != 7))
+    return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Choose check or install.");
+  std::array<char, 7> data{};
+  size_t offset = 0;
+  while (offset < request->content_len) {
+    const auto bytes = httpd_req_recv(request, data.data() + offset, request->content_len - offset);
+    if (bytes <= 0)
+      return ESP_FAIL;
+    offset += bytes;
+  }
+  const std::string_view action(data.data(), offset);
+  if (action != "check" && action != "install")
+    return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Choose check or install.");
+  if (esp_timer_is_active(restart_timer) || network(request).busy() ||
+      !request_c6_firmware_update(action == "install")) {
+    httpd_resp_set_status(request, "409 Conflict");
+    return httpd_resp_sendstr(request, "The frame is busy.");
+  }
+  httpd_resp_set_status(request, "202 Accepted");
+  return httpd_resp_sendstr(request, "Wi-Fi firmware request accepted.");
 }
 
 esp_err_t configuration(httpd_req_t *request) {
@@ -709,6 +747,8 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       {.uri = contract::CAPABILITIES_PATH, .method = HTTP_GET, .handler = capabilities, .user_ctx = &network},
       {.uri = frame_status_path, .method = HTTP_GET, .handler = status, .user_ctx = &network},
       {.uri = "/espframe/api/v1/logs", .method = HTTP_GET, .handler = logs, .user_ctx = &network},
+      {.uri = "/api/firmware/wifi", .method = HTTP_GET, .handler = wifi_firmware, .user_ctx = &network},
+      {.uri = "/api/firmware/wifi", .method = HTTP_POST, .handler = wifi_firmware, .user_ctx = &network},
       {.uri = "/espframe/api/v1/reboot", .method = HTTP_POST, .handler = reboot_device, .user_ctx = &network},
       {.uri = frame_identity_path, .method = HTTP_GET, .handler = identity, .user_ctx = &network},
       {.uri = frame_identity_path, .method = HTTP_POST, .handler = identity, .user_ctx = &network},

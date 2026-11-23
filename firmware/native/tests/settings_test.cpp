@@ -1342,4 +1342,15 @@ int main() {
   verify_stock_pairing_migration();
   verify_stock_connection_migration();
   verify_setup_framing();
+
+  assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"wifi-key","web_password":"wifi-settings",
+      "firmware_updates":{"auto_update":false,"update_frequency":"Weekly","wifi_auto_update":false}})"));
+  const auto wifi_preference = update_configuration(R"({"values":{"c6_auto_update":true}})");
+  assert(!wifi_preference.error && !wifi_preference.restart_required);
+  assert(update_configuration(R"({"values":{"c6_auto_update":"false"}})").error);
+  assert(current.read() && current.stock_update_preferences.wifi_auto_update == true &&
+         current.stock_update_preferences.auto_update == false && current.stock_update_preferences.frequency == "Weekly");
+  const Json wifi_snapshot(configuration_snapshot(current), cJSON_Delete);
+  assert(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(wifi_snapshot.get(), "values"),
+                                                     "c6_auto_update")));
 }

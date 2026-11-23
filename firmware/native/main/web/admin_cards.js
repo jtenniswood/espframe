@@ -14,7 +14,7 @@ window.espframeNativeCards = {
   makeLanguageCard: ["device_language"],
   makeClockCard: ["show_clock", "clock_format", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"],
   makeFrameNameCard: ["frame_name"],
-  makeFirmwareCard: ["auto_update", "update_frequency"],
+  makeFirmwareCard: [],
   makeBackupCard: [],
   makeDeviceRebootCard: [],
   makeResetCard: [],
@@ -145,6 +145,70 @@ window.espframeNativeReconnect = async function (readSettings) {
       await wait(1500);
     }
   }
+};
+
+window.espframeNativeWifiFirmware = function (card, state, refresh, showBanner) {
+  const path = "/api/firmware/wifi";
+  let requestInFlight = false;
+  let pendingVersion = "";
+  let timer;
+
+  function schedule() {
+    clearTimeout(timer);
+    if (card.isConnected) timer = setTimeout(read, 3000);
+  }
+
+  async function read() {
+    if (!card.isConnected || requestInFlight) return;
+    try {
+      const response = await fetch(path, { cache: "no-store", signal: AbortSignal.timeout(2500) });
+      if (!response.ok) throw Error("wifi_firmware_unavailable");
+      const wifi = await response.json();
+      if (!card.isConnected || requestInFlight) return;
+      state.c6_current_firmware = wifi.current;
+      state.c6_available_firmware = wifi.latest;
+      state.c6_firmware_checking = wifi.status === "checking";
+      state.c6_firmware_installing = wifi.status === "installing";
+      const verified = pendingVersion && wifi.current === pendingVersion;
+      const failed = wifi.status === "failed" || (pendingVersion && wifi.status === "ready" && !verified);
+      if (verified) showBanner("WiFi firmware update complete.", "success");
+      if (verified || failed || wifi.status === "unavailable") pendingVersion = "";
+      if (pendingVersion) state.c6_firmware_installing = true;
+      state.c6_update_status = failed ? "Could not install the WiFi firmware update." :
+        wifi.status === "unavailable" ? "Could not check WiFi firmware." :
+        wifi.status === "ready" ? "Up-to-date" : "";
+      refresh();
+    } catch (_) {
+      // Installing Wi-Fi firmware temporarily disconnects the frame.
+    } finally {
+      schedule();
+    }
+  }
+
+  setTimeout(read, 0);
+  return async install => {
+    if (requestInFlight || !card.isConnected) return;
+    requestInFlight = true;
+    state.c6_firmware_installing = install;
+    state.c6_firmware_checking = !install;
+    refresh();
+    try {
+      const response = await fetch(path, {
+        method: "POST", headers: { "Content-Type": "text/plain" }, body: install ? "install" : "check",
+        signal: AbortSignal.timeout(4000),
+      });
+      if (!response.ok) throw Error("wifi_firmware_request_failed");
+      pendingVersion = install ? state.c6_available_firmware : "";
+    } catch (_) {
+      state.c6_firmware_checking = false;
+      state.c6_firmware_installing = false;
+      state.c6_update_status = "Could not start the WiFi firmware request.";
+      refresh();
+    } finally {
+      requestInFlight = false;
+      schedule();
+    }
+  };
 };
 
 window.espframeNativeFirmware = function (card, state, refreshUi, compareVersions, showBanner) {

@@ -30,6 +30,7 @@ idf_component_register(
          firmware_update.cpp usb_setup.cpp web_settings.cpp
          ${platform_source}
          web_logs.cpp
+         c6_firmware_manifest.cpp c6_firmware_update.cpp
          "${touch_source}/gsl_point_id.cpp"
     PRIV_INCLUDE_DIRS "${touch_source}" "${repo_root}/components/remote_image" "${repo_root}/components/espframe"
                       "${CMAKE_CURRENT_BINARY_DIR}"

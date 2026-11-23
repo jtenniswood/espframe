@@ -32,6 +32,7 @@ FirmwareUpdateResult stage_firmware(size_t length, FirmwareRead read, void *cont
 FirmwareBootStatus firmware_boot_status();
 std::string_view last_reset_reason();
 bool frame_restart_available();
+bool run_coprocessor_update(bool (*install)(void *), void *context);
 void request_frame_restart();
 void start_firmware_boot_check();
 void confirm_firmware_boot();

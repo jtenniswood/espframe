@@ -150,6 +150,11 @@ The frame address opens the **Immich**, **Device**, and **Logs** tabs.
 Use **Backup** in the **Device** tab to export or restore your settings.
 Open **Photo sources & device tools** at the bottom of the **Device** tab
 for manual firmware upload and detailed native configuration.
+Under **Firmware → WiFi firmware**, see the current and latest compatible
+Wi-Fi chip firmware, check manually, or install an available update. The
+separate **Auto Update** switch applies to the Wi-Fi chip and is included
+in settings backups. The frame checks the ESPHome Wi-Fi firmware feed after
+connecting and then daily.
 The page uses HTTP on the local network. Keep it on a trusted network.
 
 The native player also answers the shared configuration API at
