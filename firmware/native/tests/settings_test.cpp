@@ -1384,4 +1384,17 @@ int main() {
   assert(update_configuration(R"({"values":{"brightness_day":75}})").error);
   fail_commit = false;
   assert(Settings::storage_revision() == stored + 1);
+
+  espframe::native::FrameStatusStore live_status;
+  assert(!live_status.solar_times());
+  live_status.set_solar_times(espframe::native::SolarTimes{390, 1145});
+  const Json solar_snapshot(configuration_snapshot(current, live_status.solar_times()), cJSON_Delete);
+  const auto *solar_values = cJSON_GetObjectItemCaseSensitive(solar_snapshot.get(), "values");
+  assert(std::string_view(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(solar_values, "sunrise"))) == "6:30 AM");
+  assert(std::string_view(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(solar_values, "sunset"))) == "7:05 PM");
+  live_status.set_solar_times({});
+  const Json syncing_snapshot(configuration_snapshot(current, live_status.solar_times()), cJSON_Delete);
+  const auto *syncing_values = cJSON_GetObjectItemCaseSensitive(syncing_snapshot.get(), "values");
+  assert(std::string_view(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(syncing_values, "sunrise"))).empty());
+  assert(update_configuration(R"({"values":{"sunrise":"6:10 AM"}})").error);
 }

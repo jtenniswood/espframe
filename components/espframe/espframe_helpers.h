@@ -41,15 +41,6 @@ inline bool is_daytime(int now_h, int now_m, int rise_h, int rise_m, int set_h, 
   return now_min >= rise_min && now_min < set_min;
 }
 
-inline std::string format_time_12h(int h, int m) {
-  char buf[16];
-  const char *suffix = (h >= 12) ? "PM" : "AM";
-  int dh = h % 12;
-  if (dh == 0) dh = 12;
-  snprintf(buf, sizeof(buf), "%d:%02d %s", dh, m, suffix);
-  return buf;
-}
-
 inline bool is_http_auth_error(int status) { return status == 401; }
 inline bool is_http_retryable(int status) { return status >= 500 || status == 429; }
 inline bool is_http_client_error(int status) {

@@ -6,6 +6,7 @@
 #include "screen_control.h"
 #include "settings.h"
 #include "slideshow_interval.h"
+#include "solar_times.h"
 
 #include "cJSON.h"
 
@@ -146,7 +147,7 @@ cJSON *frame_status_snapshot(const FrameStatus &status, bool network_ready, bool
   return body.release();
 }
 
-cJSON *configuration_snapshot(const Settings &settings) {
+cJSON *configuration_snapshot(const Settings &settings, std::optional<SolarTimes> solar_times) {
   Json body(cJSON_CreateObject(), cJSON_Delete);
   Json playback(cJSON_CreateObject(), cJSON_Delete);
   if (!body || !playback || !settings.add_playback_fields(playback.get(), PhotoFilterUpdate::Compose) ||
@@ -171,6 +172,11 @@ cJSON *configuration_snapshot(const Settings &settings) {
       !cJSON_AddStringToObject(values, "portrait_pair_framing", pair_framing_name(settings.pair_framing)) ||
       !cJSON_AddStringToObject(values, "prepared_slide_url", settings.prepared_slide_url.c_str()) ||
       !cJSON_AddBoolToObject(values, "prepared_slide_token_configured", settings.has_prepared_slides()))
+    return nullptr;
+  const auto sunrise = solar_times ? format_time_12h(solar_times->sunrise / 60, solar_times->sunrise % 60) : "";
+  const auto sunset = solar_times ? format_time_12h(solar_times->sunset / 60, solar_times->sunset % 60) : "";
+  if (!cJSON_AddStringToObject(values, "sunrise", sunrise.c_str()) ||
+      !cJSON_AddStringToObject(values, "sunset", sunset.c_str()))
     return nullptr;
   for (const auto &field : contract::CONFIGURATION_FIELDS) {
     if (field.secret || std::string_view(field.key) == "interval")

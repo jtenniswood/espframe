@@ -52,6 +52,12 @@ bool Daylight::is_day(const std::optional<std::tm> &local) {
   return minute >= rise_ || minute < set_;
 }
 
+std::optional<SolarTimes> Daylight::times(const std::optional<std::tm> &local) {
+  if (!update_(local))
+    return {};
+  return SolarTimes{rise_, set_};
+}
+
 float Daylight::night_warmth(const std::optional<std::tm> &local) {
   if (!update_(local))
     return 0.0f;

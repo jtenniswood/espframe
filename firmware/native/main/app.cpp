@@ -516,9 +516,14 @@ void run(void *) {
   const auto night_level = loader.night_brightness();
   const bool solar_brightness = day_level != night_level;
   const bool use_local_time = loader.clock().show || loader.schedule().enabled || solar_brightness;
-  const bool local_time_configured = (use_local_time || loader.photos_need_time() || (!esphome_trial && live)) &&
+  const auto *clock_zone = find_clock_zone(loader.clock().timezone);
+  const bool show_solar_times = !esphome_trial && clock_zone != nullptr;
+  const bool local_time_configured = (use_local_time || loader.photos_need_time() || (!esphome_trial && live) || show_solar_times) &&
                                      configure_local_time(loader.clock().timezone);
-  Daylight daylight{solar_brightness ? find_clock_zone(loader.clock().timezone) : nullptr};
+  Daylight daylight{solar_brightness || show_solar_times ? clock_zone : nullptr};
+  std::optional<SolarTimes> published_solar_times;
+  if (show_solar_times && local_time_configured)
+    network.request_time_sync();
   uint8_t brightness = day_level;
   std::optional<uint8_t> manual_brightness;
   uint8_t applied_brightness = 0;
@@ -664,6 +669,13 @@ void run(void *) {
       const auto local = local_clock_time(std::time(nullptr));
       local_time_became_ready = local && !local_time_ready;
       local_time_ready = local.has_value();
+      if (show_solar_times) {
+        const auto times = daylight.times(local);
+        if (times != published_solar_times) {
+          frame_status.set_solar_times(times);
+          published_solar_times = times;
+        }
+      }
       if (use_local_time) {
         clock.set_twelve_hour(loader.twelve_hour_clock());
         clock_dirty |= clock.update(local);

@@ -1,8 +1,10 @@
 #pragma once
 
+#include "daylight.h"
 #include "photo_source.h"
 
 #include <atomic>
+#include <cstdint>
 
 namespace espframe::native {
 
@@ -43,6 +45,18 @@ class FrameStatusStore {
 
   void presented_photo() { showed_photo_.store(true, std::memory_order_relaxed); }
 
+  void set_solar_times(std::optional<SolarTimes> times) {
+    solar_times_.store(times ? (static_cast<uint32_t>(times->sunrise) << 16) | times->sunset : UINT32_MAX,
+                       std::memory_order_relaxed);
+  }
+
+  std::optional<SolarTimes> solar_times() const {
+    const auto packed = solar_times_.load(std::memory_order_relaxed);
+    if (packed == UINT32_MAX)
+      return {};
+    return SolarTimes{static_cast<int>(packed >> 16), static_cast<int>(packed & UINT16_MAX)};
+  }
+
   void finish_preparation(PhotoSourceStatus notice, ImmichResponse contact) {
     notice_.store(notice, std::memory_order_relaxed);
     if (contact != ImmichResponse::Pending)
@@ -63,6 +77,7 @@ class FrameStatusStore {
   std::atomic<ImmichResponse> contact_{ImmichResponse::Pending};
   std::atomic<bool> configured_{};
   std::atomic<bool> showed_photo_{};
+  std::atomic<uint32_t> solar_times_{UINT32_MAX};
 };
 
 inline FrameStatusStore frame_status;

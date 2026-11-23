@@ -396,9 +396,11 @@ esp_err_t configuration(httpd_req_t *request) {
   static const auto boot = esp_random();
   const auto revision = Settings::storage_revision();
   const auto search_api = active_immich_search_api.load(std::memory_order_relaxed);
-  char etag[30]{};
-  std::snprintf(etag, sizeof(etag), "W/\"%08" PRIx32 "-%08" PRIx32 "-%u\"", boot, revision,
-                static_cast<unsigned>(search_api));
+  const auto solar_times = frame_status.solar_times();
+  char etag[44]{};
+  std::snprintf(etag, sizeof(etag), "W/\"%08" PRIx32 "-%08" PRIx32 "-%u-%d-%d\"", boot, revision,
+                static_cast<unsigned>(search_api), solar_times ? solar_times->sunrise : -1,
+                solar_times ? solar_times->sunset : -1);
   if (header_is(request, "If-None-Match", etag)) {
     httpd_resp_set_hdr(request, "ETag", etag);
     httpd_resp_set_status(request, "304 Not Modified");
@@ -406,7 +408,7 @@ esp_err_t configuration(httpd_req_t *request) {
   }
   Settings settings;
   const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(
-      settings.read() ? configuration_snapshot(settings) : nullptr, cJSON_Delete);
+      settings.read() ? configuration_snapshot(settings, solar_times) : nullptr, cJSON_Delete);
   if (document)
     httpd_resp_set_hdr(request, "ETag", etag);
   return send_configuration(request, document.get());

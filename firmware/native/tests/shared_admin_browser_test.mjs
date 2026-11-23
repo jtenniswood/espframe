@@ -57,6 +57,8 @@ const snapshot = {
     screen_rotation: '0',
     brightness_day: 90,
     brightness_night: 75,
+    sunrise: '',
+    sunset: '',
     auto_update: true,
     c6_auto_update: true,
     update_frequency: 'Daily',
@@ -203,6 +205,7 @@ const browserTest = String.raw`
     if (!tools || tools.textContent !== 'Photo sources & device tools') throw new Error('Device tools are unreachable')
     const brightness = openCard('Screen Brightness').querySelector('input[type="range"]')
     if (brightness.value !== '90') throw new Error('Brightness preference was not loaded')
+    if (document.querySelector('#sun-info').style.display !== 'none') throw new Error('Solar times appeared before clock sync')
     change(brightness, '85')
 
     const firmware = openCard('Firmware')
@@ -309,6 +312,10 @@ const browserTest = String.raw`
     }
     await until(() => document.title.includes('Hallway'), 'the remote frame name after restart')
     tab('Device').click()
+    if (!document.querySelector('#sun-info').textContent.includes('Sunrise: 6:30 AM') ||
+        !document.querySelector('#sun-info').textContent.includes('Sunset: 7:05 PM')) {
+      throw new Error('The device brightness card did not display the frame’s daylight times')
+    }
     const reboot = button(openCard('Device Reboot'), 'Reboot Screen')
     reboot.click()
     await until(() => !reboot.disabled, 'the reboot action')
@@ -383,6 +390,8 @@ const server = createServer(async (req, res) => {
       assert.equal(req.method, 'POST')
       snapshot.values.interval = '15 seconds'
       snapshot.values.frame_name = 'Hallway'
+      snapshot.values.sunrise = '6:30 AM'
+      snapshot.values.sunset = '7:05 PM'
       ++configurationBoot
       return res.writeHead(204).end()
     case '/espframe/api/v1/reboot':
