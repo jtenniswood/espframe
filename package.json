@@ -55,7 +55,7 @@
     "test:translations": "python3 tests/translation_catalogue_tests.py && python3 tests/translation_startup_tests.py"
   },
   "devDependencies": {
-    "@improv-wifi/serial-sdk": "3.0.0",
+    "@improv-wifi/serial-sdk": "3.0.1",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "esbuild": "^0.28.1",
