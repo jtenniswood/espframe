@@ -46,12 +46,6 @@
           <label>Immich API key <input name="immich_key" type="password" maxlength="256" aria-describedby="permissions" required></label>
           <small id="permissions">Use a key with asset.read and asset.view permissions.</small>
         </div>
-        <details id="prepared-slides">
-          <summary>Photo preparation service</summary>
-          <label>Service URL <input name="prepared_slide_url" type="url" maxlength="256" pattern="https?://.+" aria-describedby="prepared-slides-help"></label>
-          <label>Service access token <input name="prepared_slide_token" type="password" minlength="32" maxlength="256" autocomplete="off" aria-describedby="prepared-slides-help"></label>
-          <small id="prepared-slides-help">Optional. Enter both values if you run the photo preparation service alongside Immich.</small>
-        </details>
         <details id="web-admin-access">
           <summary>Optional web admin password</summary>
           <label>Web admin password <input id="web-admin-password" name="web_password" type="password" minlength="8" maxlength="64" autocomplete="new-password" aria-describedby="web-password"></label>

@@ -128,6 +128,9 @@ const testScript = `
     const language = reloaded.elements.namedItem('device_language')
     language.value = 'he'
     language.dispatchEvent(new Event('change', {bubbles: true}))
+    const preparationUrl = reloaded.elements.namedItem('prepared_slide_url')
+    preparationUrl.value = ''
+    preparationUrl.dispatchEvent(new Event('input', {bubbles: true}))
     reloaded.requestSubmit()
     const applied = await waitFor(() => {
       const next = document.querySelector('#native-settings')
@@ -138,6 +141,8 @@ const testScript = `
     check(applied.elements.namedItem('conn_timeout').value === '45 seconds', 'Live connection timeout did not reload')
     check(applied.elements.namedItem('warm_tone_override').checked, 'Live warm tone override did not reload')
     check(applied.elements.namedItem('device_language').value === 'he', 'Live photo date language did not reload')
+    check(!applied.elements.namedItem('prepared_slide_url') && !applied.elements.namedItem('prepared_slide_token') &&
+      !applied.textContent.includes('Photo preparation service'), 'The preparation card remained after returning to direct Immich previews')
     check(applied.querySelector('button[type=submit]').disabled, 'The saved form still has pending edits')
     document.body.dataset.testResult = 'passed'
   }
@@ -329,6 +334,7 @@ const server = createServer(async (request, response) => {
     } else {
       const { api_key, prepared_slide_token, ...settings } = post.values
       Object.assign(snapshot.values, settings)
+      if (settings.prepared_slide_url === '') snapshot.values.prepared_slide_token_configured = false
       disconnected = requests.length === 2
       json(200, { api_version: 1, status: 'accepted', updated: Object.keys(post.values).length,
         ...(disconnected ? { frame_hostname: 'salon-t-129a' } : { restart_required: false }) })
@@ -385,6 +391,7 @@ try {
     },
     { api_version: 1, reset_epoch: 0, values: {
       portrait_pairing: true, portrait_pair_framing: 'Fit', conn_timeout: '45 seconds', warm_tone_override: true, device_language: 'he',
+      prepared_slide_url: '',
     } },
   ])
   assert.equal(reconnectFailures, 1)

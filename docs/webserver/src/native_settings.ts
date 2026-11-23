@@ -305,6 +305,7 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot, savedNotice = ""): 
     const body = el("div");
     for (const [key, label] of definitions) {
       const snapshotKey = key === "prepared_slide_token" ? "prepared_slide_url" : key;
+      if (snapshotKey === "prepared_slide_url" && !snapshot.values.prepared_slide_url) continue;
       if (unavailable.has(key) || (key !== "api_key" && !Object.prototype.hasOwnProperty.call(snapshot.values, snapshotKey))) continue;
       const value = nativeSecret(key) ? "" : snapshot.values[key];
       const control = nativeSettingControl(key, value);
@@ -319,7 +320,7 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot, savedNotice = ""): 
         if (key === "api_key") hint.textContent = snapshot.api_key_configured ? "Leave blank to keep the current key." :
           "Enter your API key to connect Immich.";
         if (key === "frame_name") hint.textContent = "Leave blank to use the device default.";
-        if (key === "prepared_slide_url") hint.textContent = "Optional. Clear the URL to use direct Immich previews exclusively.";
+        if (key === "prepared_slide_url") hint.textContent = "Clear the URL to return to direct Immich previews.";
         if (key === "prepared_slide_token") hint.textContent = snapshot.values.prepared_slide_token_configured ?
           "Leave blank to keep the current token. Enter a new token if you change the service URL." :
           "Enter the token from your preparation service.";
