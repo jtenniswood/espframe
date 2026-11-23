@@ -349,6 +349,7 @@ jobs:
           node firmware/native/tests/backup_import_test.mjs
           node firmware/native/tests/compare_migration_backups_test.mjs
           node firmware/native/tests/wifi_recovery_browser_test.mjs
+          node firmware/native/tests/shared_admin_browser_test.mjs
           node firmware/native/tests/photo_source_browser_test.mjs
           node firmware/native/tests/shared_settings_browser_test.mjs
           for board in v1 v2 v3; do

@@ -40,6 +40,12 @@ std::string authorization;
 
 extern const char page_start[] asm("_binary_settings_html_start");
 extern const char page_end[] asm("_binary_settings_html_end");
+extern const char admin_preview_start[] asm("_binary_admin_preview_html_start");
+extern const char admin_preview_end[] asm("_binary_admin_preview_html_end");
+extern const char admin_cards_start[] asm("_binary_admin_cards_js_start");
+extern const char admin_cards_end[] asm("_binary_admin_cards_js_end");
+extern const char admin_app_start[] asm("_binary_app_js_start");
+extern const char admin_app_end[] asm("_binary_app_js_end");
 extern const char shared_page_start[] asm("_binary_native_settings_html_start");
 extern const char shared_page_end[] asm("_binary_native_settings_html_end");
 extern const char shared_app_start[] asm("_binary_shared_settings_js_start");
@@ -155,6 +161,22 @@ esp_err_t page(httpd_req_t *request) {
     return recovery_asset(request, "text/html; charset=utf-8", recovery_start, recovery_end);
   return serve(request, "text/html; charset=utf-8", shared_page_start, shared_page_end);
 }
+esp_err_t admin_preview(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  httpd_resp_set_hdr(request, "Content-Security-Policy",
+                    "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'none'");
+  return asset(request, "text/html; charset=utf-8", admin_preview_start, admin_preview_end);
+}
+
+esp_err_t admin_cards(httpd_req_t *request) {
+  return serve(request, "text/javascript", admin_cards_start, admin_cards_end);
+}
+
+esp_err_t admin_app(httpd_req_t *request) {
+  return serve(request, "text/javascript", admin_app_start, admin_app_end);
+}
+
 esp_err_t device_tools(httpd_req_t *request) {
   return serve(request, "text/html; charset=utf-8", page_start, page_end);
 }
@@ -597,6 +619,9 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
 
   const httpd_uri_t routes[]{
       {.uri = "/", .method = HTTP_GET, .handler = page, .user_ctx = &network},
+      {.uri = "/admin", .method = HTTP_GET, .handler = admin_preview, .user_ctx = &network},
+      {.uri = "/espframe/admin.js", .method = HTTP_GET, .handler = admin_app, .user_ctx = &network},
+      {.uri = "/espframe/admin-cards.js", .method = HTTP_GET, .handler = admin_cards, .user_ctx = &network},
       {.uri = "/settings", .method = HTTP_GET, .handler = device_tools, .user_ctx = &network},
       {.uri = "/espframe/app.js", .method = HTTP_GET, .handler = shared_app, .user_ctx = &network},
       {.uri = "/espframe/style.css", .method = HTTP_GET, .handler = shared_style, .user_ctx = &network},

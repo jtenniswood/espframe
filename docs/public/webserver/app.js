@@ -264,7 +264,7 @@
           await new Promise((resolve) => setTimeout(resolve, 100));
           return payload;
         } catch (error) {
-          if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+          if (!capabilities.legacy_entity_api || !(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
           this.negotiated = null;
           for (const setting of legacy) await this.legacyWrite(setting);
           return null;
@@ -522,6 +522,8 @@
   var SUPPORT_BUTTON_IMAGE_DATA_URI = "data:image/webp;base64,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";
   var CONFIGURATION_CAPABILITIES_PATH = "/espframe/api/v1/capabilities";
   var highlightApiKeyAfterRestore = false;
+  var nativeAdmin = document.documentElement.hasAttribute("data-native-admin");
+  var nativeSettings = /* @__PURE__ */ new Set();
   var S = {
     tz_options: TIMEZONES,
     tz_labels: TIMEZONE_LABELS,
@@ -2056,9 +2058,12 @@ to {
 .frame-name-dialog button { margin:1rem .5rem 0 0; }
 @media (max-width:480px) { .frame-name-row { flex-wrap:wrap; } .frame-name-row #frame-name { flex-basis:100%; } }`;
   var FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" id="mdi-home-automation" viewBox="0 0 24 24"><path fill="#5c73e7" d="M12,3L2,12H5V20H19V12H22L12,3M12,8.5C14.34,8.5 16.46,9.43 18,10.94L16.8,12.12C15.58,10.91 13.88,10.17 12,10.17C10.12,10.17 8.42,10.91 7.2,12.12L6,10.94C7.54,9.43 9.66,8.5 12,8.5M12,11.83C13.4,11.83 14.67,12.39 15.6,13.3L14.4,14.47C13.79,13.87 12.94,13.5 12,13.5C11.06,13.5 10.21,13.87 9.6,14.47L8.4,13.3C9.33,12.39 10.6,11.83 12,11.83M12,15.17C12.94,15.17 13.7,15.91 13.7,16.83C13.7,17.75 12.94,18.5 12,18.5C11.06,18.5 10.3,17.75 10.3,16.83C10.3,15.91 11.06,15.17 12,15.17Z"/></svg>';
-  var style = document.createElement("style");
-  style.textContent = CSS;
-  document.head.appendChild(style);
+  if (!nativeAdmin) {
+    style = document.createElement("style");
+    style.textContent = CSS;
+    document.head.appendChild(style);
+  }
+  var style;
   ensureFavicon();
   var els = {};
   var app;
@@ -2080,7 +2085,7 @@ to {
     buildHeader(root);
     buildImmichPage(root);
     buildSettingsPage(root);
-    buildLogsPage(root);
+    if (!nativeAdmin) buildLogsPage(root);
     var espApp = document.querySelector("esp-app");
     if (espApp) {
       espApp.parentNode.insertBefore(root, espApp);
@@ -2148,7 +2153,10 @@ to {
     parent.appendChild(header);
   }
   function webUiTabs() {
-    return Array.isArray(WEB_UI_TABS) && WEB_UI_TABS.length ? WEB_UI_TABS : [{ id: "immich", label: "Immich" }, { id: "settings", label: "Device" }];
+    var tabs = Array.isArray(WEB_UI_TABS) && WEB_UI_TABS.length ? WEB_UI_TABS : [{ id: "immich", label: "Immich" }, { id: "settings", label: "Device" }];
+    return nativeAdmin ? tabs.filter(function(tab) {
+      return tab.id !== "logs";
+    }) : tabs;
   }
   var immichApp;
   function buildImmichPage(parent) {
@@ -2202,7 +2210,7 @@ to {
     });
     els.immichPage.className = "sp-page" + (tab === "immich" ? " active" : "");
     els.settingsPage.className = "sp-page" + (tab === "settings" ? " active" : "");
-    els.logsPage.className = "sp-page" + (tab === "logs" ? " active" : "");
+    if (els.logsPage) els.logsPage.className = "sp-page" + (tab === "logs" ? " active" : "");
   }
   function openImmichConnectionForApiKey() {
     switchTab("immich");
@@ -2257,6 +2265,7 @@ to {
     return apiClient.getConfigurationSnapshot();
   }
   function applyConfigurationSnapshot(snapshot) {
+    if (nativeAdmin) nativeSettings = new Set(Object.keys(snapshot.values));
     settingSaves.receive("api_key_configured", snapshot.api_key_configured);
     var secrets = snapshot.secrets_configured || {};
     settingSaves.receive("wireguard_available", typeof secrets.wireguard_private_key === "boolean");
@@ -2762,7 +2771,7 @@ to {
     return getConfigurationSnapshot().then(function(snapshot) {
       applyConfigurationSnapshot(snapshot);
     }).catch(function(error) {
-      if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+      if (nativeAdmin || !(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
       return fetchLegacyDeviceSettingsState();
     });
   }
@@ -2840,6 +2849,10 @@ to {
       tryRender();
     }, delayMs2);
   }
+  function showSetup() {
+    if (nativeAdmin) location.replace("/");
+    else renderWizard();
+  }
   function showConfiguredSettings() {
     rendered = true;
     renderAttemptInFlight = false;
@@ -2858,7 +2871,7 @@ to {
           showConfiguredSettings();
         } else {
           rendered = true;
-          renderWizard();
+          showSetup();
         }
       } else if (S.immich_url) {
         renderSettingsAfterEditing();
@@ -2885,7 +2898,7 @@ to {
         showConfiguredSettings();
       } else {
         rendered = true;
-        renderWizard();
+        showSetup();
       }
     }).catch(function() {
       renderAttemptInFlight = false;
@@ -5163,7 +5176,10 @@ to {
     var renderers = settingsCardRenderers();
     if (!Array.isArray(WEB_UI_CARDS) || !WEB_UI_CARDS.length) return [];
     return WEB_UI_CARDS.filter(function(card) {
-      return card && card.tab === tabId;
+      var _a, _b;
+      return card && card.tab === tabId && (!nativeAdmin || ((_b = (_a = window["espframeNativeCards"]) == null ? void 0 : _a[card.function]) == null ? void 0 : _b.every(function(key) {
+        return nativeSettings.has(key);
+      })));
     }).map(function(card) {
       var renderer = renderers[card.function];
       return renderer ? { section: card.section || "", element: renderer() } : null;
@@ -5202,7 +5218,7 @@ to {
     var wrap = el("div");
     var immichCards = renderSettingsCardsForTab("immich");
     var settingsCardEntries = renderSettingsCardEntriesForTab("settings");
-    if (!immichCards.length) immichCards = [
+    if (!immichCards.length && !nativeAdmin) immichCards = [
       makeConnectionCard(),
       makeWireguardCard(),
       makeFrequencyCard(),
@@ -5214,7 +5230,7 @@ to {
     ];
     appendCards(immichWrap, immichCards);
     immichApp.appendChild(immichWrap);
-    if (!settingsCardEntries.length) settingsCardEntries = [
+    if (!settingsCardEntries.length && !nativeAdmin) settingsCardEntries = [
       { section: "Display", element: makeScreenBrightnessCard() },
       { section: "Display", element: makeScreenToneCard() },
       { section: "Display", element: makeRotationCard() },
@@ -6624,6 +6640,7 @@ to {
     fileInput.click();
   }
   buildUI();
-  initSSE();
+  if (nativeAdmin) tryRender();
+  else initSSE();
   loadFrameIdentity();
 })();

@@ -19,7 +19,7 @@
     buildHeader(root);
     buildImmichPage(root);
     buildSettingsPage(root);
-    buildLogsPage(root);
+    if (!nativeAdmin) buildLogsPage(root);
 
     var espApp = document.querySelector("esp-app");
     if (espApp) {
@@ -94,9 +94,10 @@
   }
 
   function webUiTabs() {
-    return Array.isArray(WEB_UI_TABS) && WEB_UI_TABS.length
+    var tabs = Array.isArray(WEB_UI_TABS) && WEB_UI_TABS.length
       ? WEB_UI_TABS
       : [{ id: "immich", label: "Immich" }, { id: "settings", label: "Device" }];
+    return nativeAdmin ? tabs.filter(function (tab) { return tab.id !== "logs"; }) : tabs;
   }
 
   var immichApp;
@@ -160,7 +161,7 @@
     });
     els.immichPage.className = "sp-page" + (tab === "immich" ? " active" : "");
     els.settingsPage.className = "sp-page" + (tab === "settings" ? " active" : "");
-    els.logsPage.className = "sp-page" + (tab === "logs" ? " active" : "");
+    if (els.logsPage) els.logsPage.className = "sp-page" + (tab === "logs" ? " active" : "");
   }
 
   function openImmichConnectionForApiKey() {

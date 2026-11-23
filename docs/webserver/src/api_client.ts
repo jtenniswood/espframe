@@ -196,7 +196,7 @@ export class EspframeApiClient {
         await new Promise(resolve => setTimeout(resolve, 100));
         return payload as unknown as ConfigurationUpdateResponse;
       } catch (error) {
-        if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+        if (!capabilities.legacy_entity_api || !(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
         this.negotiated = null;
         for (const setting of legacy) await this.legacyWrite(setting);
         return null;

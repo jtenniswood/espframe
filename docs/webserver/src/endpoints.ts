@@ -41,6 +41,7 @@
   }
 
   function applyConfigurationSnapshot(snapshot) {
+    if (nativeAdmin) nativeSettings = new Set(Object.keys(snapshot.values));
     settingSaves.receive("api_key_configured", snapshot.api_key_configured);
     var secrets = snapshot.secrets_configured || {};
     settingSaves.receive("wireguard_available", typeof secrets.wireguard_private_key === "boolean");

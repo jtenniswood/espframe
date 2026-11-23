@@ -176,7 +176,7 @@
     return getConfigurationSnapshot().then(function (snapshot) {
       applyConfigurationSnapshot(snapshot);
     }).catch(function (error) {
-      if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+      if (nativeAdmin || !(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
       return fetchLegacyDeviceSettingsState();
     });
   }
@@ -269,6 +269,11 @@
     }, delayMs);
   }
 
+  function showSetup() {
+    if (nativeAdmin) location.replace("/");
+    else renderWizard();
+  }
+
   function showConfiguredSettings() {
     rendered = true;
     renderAttemptInFlight = false;
@@ -289,7 +294,7 @@
           showConfiguredSettings();
         } else {
           rendered = true;
-          renderWizard();
+          showSetup();
         }
       } else if (S.immich_url) {
         renderSettingsAfterEditing();
@@ -319,7 +324,7 @@
         showConfiguredSettings();
       } else {
         rendered = true;
-        renderWizard();
+        showSetup();
       }
     }).catch(function () {
       renderAttemptInFlight = false;
