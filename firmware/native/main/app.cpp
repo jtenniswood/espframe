@@ -578,14 +578,7 @@ void run(void *) {
   SwipeInput input;
   static PhotoControls controls;
   static PhotoControlsRenderer controls_renderer{controls};
-  const uint16_t *controls_snapshot = nullptr;
   int last_control_progress = 0;
-  const auto unpin_controls = [&] {
-    if (controls_snapshot != nullptr) {
-      display.unpin();
-      controls_snapshot = nullptr;
-    }
-  };
   ScreenSchedule schedule{loader.schedule()};
   SlideDwell dwell;
   SlidePrefetch prefetch{swipe.settled(), cache_slots};
@@ -969,19 +962,12 @@ void run(void *) {
             swipe.position() == display.handoff_position() && !fade.running() && !fade.held() && !blend.pending() &&
             network.recovery_status() == NativeNetwork::RecoveryStatus::Off && !recovery_painted &&
             cache.find(swipe.settled())) {
-          if (!controls.target_open()) {
-            // Retain the visible overlays with the photo when a spare slot exists.
-            if (last_control_progress == 0 && controls_snapshot == nullptr)
-              controls_snapshot = display.pin_handoff();
-            controls.animate(true, esp_timer_get_time());
-          } else if (last_control_progress < PhotoControls::open || input.contact_y() >= PhotoControls::toolbar_bottom) {
-            controls.animate(false, esp_timer_get_time());
-          }
+          const bool opening = !controls.target_open();
+          if (opening || last_control_progress < PhotoControls::open || input.contact_y() >= PhotoControls::toolbar_bottom)
+            controls.animate(opening, esp_timer_get_time());
         }
-        if (swipe.dragging() && !was_dragging && (controls.target_open() || last_control_progress != 0)) {
+        if (swipe.dragging() && !was_dragging && (controls.target_open() || last_control_progress != 0))
           controls.animate(false, esp_timer_get_time());
-          unpin_controls();
-        }
       }
       if (swipe.dragging() && fade.held())
         fade.note_drag();
@@ -1017,8 +1003,6 @@ void run(void *) {
         (!input.awake() || network.recovery_status() != NativeNetwork::RecoveryStatus::Off))
       controls.reset();
     const int control_progress = controls.progress(now);
-    if (control_progress == 0 && !controls.target_open())
-      unpin_controls();
 
     if (blend.poll_complete() && fade.running()) {
       // Touch is handled before this block so a superseded blend can never
@@ -1315,7 +1299,7 @@ void run(void *) {
       const auto index = inside / slide_width;
       const int offset = inside % slide_width;
       const auto slide_pixels = [&](SlideIndex slide) {
-        return snapshot != nullptr && slide == fade.anchor() ? snapshot : cache.find(slide);
+        return control_progress == 0 && snapshot != nullptr && slide == fade.anchor() ? snapshot : cache.find(slide);
       };
       const auto *left = slide_pixels(index);
       const auto *right = offset == 0 ? nullptr : slide_pixels(index + 1);
@@ -1339,8 +1323,7 @@ void run(void *) {
           last_control_progress = control_progress;
         };
         if (control_progress != 0) {
-          controls.prepare(output, controls_snapshot ? SlideSpan{controls_snapshot, nullptr, 0} : span,
-                           controls_snapshot ? 0 : pull, rotation, control_progress);
+          controls.prepare(output, span, pull, rotation, control_progress);
           controls_renderer.draw();
           const auto started_submit = trial_immich && motion != 0 ? esp_timer_get_time() : 0;
           submit_frame(position, position != last_submitted, use_edge);

@@ -21,11 +21,18 @@ void draw(PhotoControls &controls, uint16_t *output, SlideSpan span, int pull, S
 void slows_down_near_both_ends() {
   PhotoControls controls;
   controls.animate(true, 0);
-  assert(controls.progress(30'000) < PhotoControls::open / 16);
-  assert(controls.progress(120'000) == PhotoControls::open / 2);
-  assert(controls.progress(210'000) > 15 * PhotoControls::open / 16);
-  assert(controls.progress(239'999) < PhotoControls::open);
-  assert(controls.progress(240'000) == PhotoControls::open);
+  assert(controls.progress(25'000) < PhotoControls::open / 16);
+  assert(controls.progress(100'000) == PhotoControls::open / 2);
+  assert(controls.progress(175'000) > 15 * PhotoControls::open / 16);
+  assert(controls.progress(199'999) < PhotoControls::open);
+  assert(controls.progress(200'000) == PhotoControls::open);
+
+  controls.animate(false, 200'000);
+  assert(controls.progress(225'000) > 15 * PhotoControls::open / 16);
+  assert(controls.progress(300'000) == PhotoControls::open / 2);
+  assert(controls.progress(375'000) < PhotoControls::open / 16);
+  assert(controls.progress(399'999) > 0);
+  assert(controls.progress(400'000) == 0);
 }
 
 void reverses_from_the_current_size_and_settles() {
@@ -40,9 +47,9 @@ void reverses_from_the_current_size_and_settles() {
   assert(closing > 0 && closing < middle);
   controls.animate(true, 100'100);
   assert(controls.progress(100'100) == closing);
-  assert(controls.progress(430'100) == PhotoControls::open);
+  assert(controls.progress(300'100) == PhotoControls::open);
   controls.reset();
-  assert(!controls.target_open() && controls.progress(430'100) == 0);
+  assert(!controls.target_open() && controls.progress(300'100) == 0);
 }
 
 void keeps_both_halves_and_the_toolbar_in_the_same_place_when_rotated() {

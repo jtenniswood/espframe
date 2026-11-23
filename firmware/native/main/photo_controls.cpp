@@ -117,13 +117,16 @@ int PhotoControls::progress(int64_t now) const {
 }
 
 void PhotoControls::animate(bool show, int64_t now) {
+  constexpr int64_t full_duration_us = 200'000;
+  constexpr int64_t minimum_duration_us = 87'500;
   const int target = show ? open : 0;
   if (target == this->target_)
     return;
   this->start_ = this->progress(now);
   this->target_ = target;
   this->started_us_ = now;
-  this->duration_us_ = 105'000 + 135'000 * std::abs(target - this->start_) / open;
+  this->duration_us_ = minimum_duration_us +
+                       (full_duration_us - minimum_duration_us) * std::abs(target - this->start_) / open;
 }
 
 void PhotoControls::prepare(uint16_t *output, SlideSpan span, int pull, ScreenRotation rotation, int progress) {
