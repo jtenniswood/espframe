@@ -13,6 +13,7 @@ if (!binaryRoot || !destination) {
 
 const source = fileURLToPath(new URL('../installer/', import.meta.url))
 const output = resolve(destination)
+const wireguardLicense = await readFile(join(source, 'LICENSE-WireGuard.txt'), 'utf8')
 const boards = ['v1', 'v2', 'v3']
 const partitionTableOffset = 0x8000
 const partitionTableSize = 0xc00
@@ -148,10 +149,12 @@ const standalone = html
   .replace('<link rel="stylesheet" href="setup.css">', () => `<style>${css}</style>`)
   .replace('<script type="module" src="setup.js"></script>', () =>
     `<script id="embedded-firmware" type="application/json">${JSON.stringify(embedded)}</script>\n` +
-    `  <script type="module">${script.text}</script>`)
+    `  <script type="module">${script.text}</script>`) +
+    `\n<!-- WireGuard library license\n${wireguardLicense}\n-->\n`
 await Promise.all([
   writeFile(join(output, 'index.html'), html),
   writeFile(join(output, 'setup.css'), css),
   writeFile(join(output, 'setup.js'), script.contents),
   writeFile(join(output, 'Espframe Native Installer.html'), standalone),
+  writeFile(join(output, 'LICENSE-WireGuard.txt'), wireguardLicense),
 ])

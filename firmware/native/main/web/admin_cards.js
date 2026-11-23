@@ -1,5 +1,6 @@
 window.espframeNativeCards = {
   makeConnectionCard: ["immich_url", "conn_timeout"],
+  makeWireguardCard: ["wireguard_enabled"],
   makeFrequencyCard: ["interval"],
   makeMemoriesCard: ["photo_source", "memories_window", "memories_fallback"],
   makeFiltersCard: ["photo_source", "immich_filter_support", "album_labels", "excluded_tag_labels"],
@@ -24,6 +25,27 @@ window.espframeNativeUrl = function (url) {
   if (!/^https?:\/\//.test(url)) return url;
   const hasPath = url.indexOf("/", url.indexOf("://") + 3) >= 0;
   return hasPath && url.endsWith("/api") ? url : url + "/api";
+};
+
+window.espframeWatchWireguard = function (card, receive) {
+  async function read() {
+    if (!card.isConnected) return;
+    try {
+      if (document.hidden || !card.offsetWidth) return;
+      const response = await fetch("/espframe/api/v1/wireguard", {
+        cache: "no-store", signal: AbortSignal.timeout(2500),
+      });
+      if (response.ok) {
+        const values = await response.json();
+        if (card.isConnected) receive(values);
+      }
+    } catch (_) {
+      // The frame can be restarting to apply the saved tunnel settings.
+    } finally {
+      if (card.isConnected) setTimeout(read, 3000);
+    }
+  }
+  setTimeout(read, 0);
 };
 
 window.espframeShowLogs = (() => {

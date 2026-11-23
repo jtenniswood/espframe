@@ -1,5 +1,6 @@
 #include "c6_firmware_update.h"
 
+#if !SWIPE_ESPHOME_TRIAL
 #include "c6_firmware_manifest.h"
 #include "clock_settings.h"
 #include "firmware_update.h"
@@ -294,3 +295,15 @@ bool request_c6_firmware_update(bool install) {
 }
 
 }  // namespace espframe::native
+
+#else
+
+namespace espframe::native {
+
+void start_c6_firmware_updates(NativeNetwork &) {}
+C6FirmwareStatus c6_firmware_status() { return {{}, {}, "unavailable"}; }
+bool request_c6_firmware_update(bool) { return false; }
+
+}  // namespace espframe::native
+
+#endif

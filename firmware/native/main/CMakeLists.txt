@@ -31,6 +31,7 @@ idf_component_register(
          ${platform_source}
          web_logs.cpp
          c6_firmware_manifest.cpp c6_firmware_update.cpp
+         native_wireguard.cpp
          "${touch_source}/gsl_point_id.cpp"
     PRIV_INCLUDE_DIRS "${touch_source}" "${repo_root}/components/remote_image" "${repo_root}/components/espframe"
                       "${CMAKE_CURRENT_BINARY_DIR}"
@@ -46,6 +47,10 @@ idf_component_register(
     EMBED_FILES "../assets/clock_glyphs.bin" "../assets/recovery_glyphs.bin" "../assets/caption_glyphs.bin"
                 "../assets/date_glyphs.bin" "../assets/status_masks.bin"
 )
+
+idf_component_get_property(wireguard_lib esphome__wireguard COMPONENT_LIB)
+# Four configured networks and the library's entry for the frame address.
+target_compile_definitions(${wireguard_lib} PRIVATE CONFIG_WIREGUARD_MAX_SRC_IPS=5)
 
 # Emit native RGB565 words directly, avoiding a second pass through PSRAM.
 idf_component_get_property(webp_lib libwebp-esp32 COMPONENT_LIB)

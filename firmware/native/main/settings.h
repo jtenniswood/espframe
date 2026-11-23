@@ -65,6 +65,20 @@ struct StockUpdatePreferences {
   std::optional<bool> wifi_auto_update;
 };
 
+struct WireguardSettings {
+  bool enabled{};
+  uint16_t port{51820};
+  std::string endpoint;
+  std::string address;
+  std::string netmask{"255.255.255.255"};
+  std::string allowed_ips;
+  std::string peer_public_key;
+  std::string private_key;
+  bool operator==(const WireguardSettings &) const = default;
+
+  bool add_public_fields(cJSON *object) const;
+};
+
 struct Settings : PhotoFeedSettings {
   enum class UpdateResult { Saved, SavedLive, Unchanged, Invalid, Stale, Failed };
   enum class UsbSaveResult { Saved, Rejected, WifiUnavailable, ImmichUnavailable, PairingUnavailable };
@@ -90,6 +104,7 @@ struct Settings : PhotoFeedSettings {
   ClockSettings clock;
   ScreenScheduleSettings schedule;
   StockUpdatePreferences stock_update_preferences;
+  WireguardSettings wireguard;
 
   uint8_t night_brightness() const { return brightness_night.value_or(brightness_day); }
   bool has_immich() const { return !immich_url.empty() && !immich_key.empty(); }

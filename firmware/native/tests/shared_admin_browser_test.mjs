@@ -29,8 +29,10 @@ let bootChecks = 0
 let configurationReads = 0
 let release = { current: 'v0.1.0-preview.9', versions: [], status: 'idle', available: true }
 let wifi = { current: '2.12.8', latest: '', status: 'idle' }
+let wireguard = { running: false, connected: false }
 const snapshot = {
   api_version: 1, reset_epoch: 2, api_key_configured: true,
+  secrets_configured: { wireguard_private_key: false },
   values: {
     immich_url: 'https://photos.test/api',
     conn_timeout: '10 minutes',
@@ -55,8 +57,11 @@ const snapshot = {
     c6_auto_update: true,
     update_frequency: 'Daily',
     frame_name: 'Living Room',
+    wireguard_enabled: false,
+    wireguard_endpoint: '',
+    wireguard_port: 51820,
   },
-  unavailable: ['wireguard_enabled', 'warm_tone_override'],
+  unavailable: ['warm_tone_override'],
 }
 const browserTest = String.raw`
   async function until(condition, description) {
@@ -120,10 +125,24 @@ const browserTest = String.raw`
     }
     await until(() => card('Frequency') && card('Photo Display') && card('Connection'), 'Immich cards')
     if (tab('Immich').getAttribute('aria-selected') !== 'true') throw new Error('Immich did not open first')
-    if (!tab('Logs') || card('WireGuard VPN') || card('Screen Tone')) throw new Error('Incorrect controls appeared')
+    if (!tab('Logs') || !card('WireGuard VPN') || card('Screen Tone')) throw new Error('Incorrect controls appeared')
     const rating = () => setting(card('Filters').closest('.card'), 'Filter by Rating')
     if (rating().tabIndex !== -1) throw new Error('Rating became available before discovery')
     await until(() => rating().tabIndex === 0, 'Immich to report support for structured filters')
+    const vpn = openCard('WireGuard VPN')
+    const vpnSwitch = setting(vpn, 'Connect through WireGuard')
+    if (vpnSwitch.getAttribute('aria-checked') !== 'false') throw new Error('WireGuard began enabled')
+    vpnSwitch.click()
+    const serverAddress = [...vpn.querySelectorAll('label')].find(label => label.textContent === 'Server Address').control
+    change(serverAddress, 'vpn.example.test')
+    const privateKey = 'A'.repeat(43) + '='
+    vpn.querySelector('input[type="password"]').value = privateKey
+    button(vpn, 'Save').click()
+    await until(() => vpn.querySelector('.key-mask'), 'the saved WireGuard key to be masked')
+    if (vpn.querySelector('input[type="password"]')) throw new Error('WireGuard key remained in the form')
+    button(vpn, 'Restart now').click()
+    await until(() => vpn.querySelector('#wireguard-status').textContent.includes('Connected'), 'WireGuard status after restart')
+    if (!vpn.querySelector('#wireguard-status').textContent.includes('handshake')) throw new Error('WireGuard handshake age was missing')
     const select = openCard('Frequency').querySelector('select')
     if (select.value !== '15 seconds') throw new Error('Native configuration was not loaded')
     change(select, '30 seconds')
@@ -259,7 +278,8 @@ const browserTest = String.raw`
     await until(() => exported, 'the exported backup')
     const backup = await exported
     if (backup.version !== 3 || backup.photos.portrait_pair_framing !== 'Fill' ||
-        backup.connection.api_key !== undefined || backup.firmware_updates.wifi_auto_update !== false) {
+        backup.connection.api_key !== undefined || backup.wireguard !== undefined ||
+        backup.firmware_updates.wifi_auto_update !== false) {
       throw new Error('Backup included a secret or lost a native setting')
     }
     const reboot = button(openCard('Device Reboot'), 'Reboot Screen')
@@ -307,9 +327,10 @@ const server = createServer(async (req, res) => {
         for await (const chunk of req) chunks.push(chunk)
         const update = JSON.parse(new URLSearchParams(Buffer.concat(chunks).toString()).get('configuration'))
         writes.push(update)
-        const { api_key, ...values } = update.values
+        const { api_key, wireguard_private_key, ...values } = update.values
         Object.assign(snapshot.values, values)
         if (api_key) snapshot.api_key_configured = true
+        if (wireguard_private_key !== undefined) snapshot.secrets_configured.wireguard_private_key = !!wireguard_private_key
         restartPending = !!(api_key || values.immich_url)
         return json({ api_version: 1, status: 'accepted', restart_required: restartPending })
       }
@@ -324,7 +345,12 @@ const server = createServer(async (req, res) => {
       assert.equal(req.method, 'POST')
       assert.equal(req.headers.origin, 'http://' + req.headers.host)
       deviceActions.push('reboot')
+      if (snapshot.values.wireguard_enabled && snapshot.secrets_configured.wireguard_private_key) {
+        wireguard = { running: true, connected: true, handshake_age: 5 }
+      }
       return json({ status: 'accepted', restart_required: true })
+    case '/espframe/api/v1/wireguard':
+      return json(wireguard)
     case '/espframe/api/v1/logs': {
       const after = Number(route.searchParams.get('after'))
       logPositions.push(after)
@@ -399,6 +425,9 @@ try {
   })
   assert.equal(page.match(/data-result="([^"]*)"/)?.[1], 'passed')
   assert.deepEqual(writes.slice(0, -2), [
+    { wireguard_enabled: true },
+    { wireguard_endpoint: 'vpn.example.test' },
+    { wireguard_private_key: 'A'.repeat(43) + '=' },
     { interval: '30 seconds' },
     { portrait_pair_framing: 'Fill' },
     { photo_source: 'Memories' },
@@ -417,7 +446,7 @@ try {
     { api_version: 1, reset_epoch: 3, values: { immich_url: 'https://backup-photos.test/api', brightness_day: 75,
       portrait_pair_framing: 'Fit', c6_auto_update: true } },
   ])
-  assert.deepEqual(deviceActions, ['reboot', 'customization'])
+  assert.deepEqual(deviceActions, ['reboot', 'reboot', 'customization'])
   assert.deepEqual(logPositions, [0, 1, 1, 2, 3, 0])
   assert.deepEqual(releaseRequests, ['', '', 'v0.1.0-preview.10', 'v0.1.0-preview.8'])
   assert.deepEqual(wifiRequests, ['check', 'install'])

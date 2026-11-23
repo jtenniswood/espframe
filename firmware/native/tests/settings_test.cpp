@@ -1353,4 +1353,26 @@ int main() {
   const Json wifi_snapshot(configuration_snapshot(current), cJSON_Delete);
   assert(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(wifi_snapshot.get(), "values"),
                                                      "c6_auto_update")));
+  const auto wireguard = update_configuration(R"({"values":{"wireguard_enabled":true,
+      "wireguard_endpoint":"vpn.example.test","wireguard_port":51821,"wireguard_address":"10.10.0.10",
+      "wireguard_netmask":"255.255.255.0","wireguard_allowed_ips":"10.10.0.25/24; 10.10.0.1",
+      "wireguard_peer_public_key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "wireguard_private_key":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA="}})");
+  assert(!wireguard.error && !wireguard.restart_required);
+  assert(update_configuration(R"({"values":{"wireguard_port":0,"wireguard_enabled":false}})").error);
+  assert(update_configuration(R"({"values":{"wireguard_private_key":"invalid"}})").error);
+  assert(current.read() && current.wireguard.enabled && current.wireguard.port == 51821 &&
+         current.wireguard.allowed_ips == "10.10.0.0/24, 10.10.0.1/32");
+  const auto saved_tunnel = current.wireguard;
+  const Json tunnel_snapshot(configuration_snapshot(current), cJSON_Delete);
+  const auto *tunnel_values = cJSON_GetObjectItemCaseSensitive(tunnel_snapshot.get(), "values");
+  const auto *tunnel_secrets = cJSON_GetObjectItemCaseSensitive(tunnel_snapshot.get(), "secrets_configured");
+  assert(!cJSON_HasObjectItem(tunnel_values, "wireguard_private_key") &&
+         cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(tunnel_secrets, "wireguard_private_key")));
+  assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"wifi-key","web_password":"wifi-settings"})"));
+  assert(current.read() && current.wireguard == saved_tunnel);
+  assert(!update_configuration(R"({"values":{"wireguard_private_key":""}})").error);
+  assert(current.read() && current.wireguard.private_key.empty() && current.wireguard.endpoint == "vpn.example.test");
+  assert(Settings::reset(ResetMode::Customization));
+  assert(current.read() && !current.wireguard.enabled && current.wireguard.endpoint.empty());
 }

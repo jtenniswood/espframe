@@ -1854,7 +1854,7 @@
     var restartButton = button("Restart now", "btn btn-secondary btn-sm", function() {
       restartButton.disabled = true;
       restartButton.textContent = "Restarting...";
-      post(endpoints.reboot_screen + "/press").catch(function() {
+      rebootFrame().catch(function() {
       }).finally(function() {
         setTimeout(function() {
           restartButton.disabled = false;
@@ -2051,7 +2051,16 @@
     body.appendChild(detailsBody);
     body.appendChild(status);
     body.appendChild(restartNotice);
-    return makeCollapsibleCard("WireGuard VPN", body, true, tunnelBadge);
+    var card = makeCollapsibleCard("WireGuard VPN", body, true, tunnelBadge);
+    if (nativeAdmin) {
+      window["espframeWatchWireguard"](card, function(state) {
+        S.wireguard_connected = state.connected;
+        S.wireguard_tunnel_enabled = state.running;
+        S.wireguard_handshake_age = state.handshake_age;
+        updateWireguardStatus(tunnelStatus, tunnelBadge);
+      });
+    }
+    return card;
   }
   function makeFrequencyCard() {
     var dispBody = el("div");

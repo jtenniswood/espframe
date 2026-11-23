@@ -1,6 +1,7 @@
 #include "native_network.h"
 
 #include "live_trial.h"
+#include "native_wireguard.h"
 #include "ntp_server_names.h"
 #include "settings.h"
 #include "station_retry.h"
@@ -368,7 +369,8 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
   const auto &configured_servers = settings_->clock.ntp_servers;
   const auto ntp_servers = espframe_normalize_ntp_servers(configured_servers[0], configured_servers[1], configured_servers[2]);
   const bool https = settings_->immich_url.starts_with("https://");
-  const bool need_time_at_boot = https || settings_->prepared_slides_need_time() || settings_->clock.show ||
+  const bool wireguard_enabled = !SWIPE_ESPHOME_TRIAL && configure_wireguard(settings_->wireguard, settings_->immich_url);
+  const bool need_time_at_boot = https || wireguard_enabled || settings_->prepared_slides_need_time() || settings_->clock.show ||
                                  settings_->schedule.enabled || settings_->brightness_day != settings_->night_brightness() ||
                                  settings_->tone.needs_time() || settings_->needs_local_date();
   bool sntp_started = false;
@@ -520,6 +522,11 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
       wait = std::min(wait, pdMS_TO_TICKS(std::max<int64_t>(1, (remaining_us + 999) / 1000)));
     }
 #endif
+    if (wireguard_enabled) {
+      const bool ready = connected && !hotspot && clock_time_is_valid(std::time(nullptr));
+      poll_wireguard(ready ? station_lease() : 0);
+      wait = std::min(wait, pdMS_TO_TICKS(2000));
+    }
     last_lease = lease;
     events = 0;
     xTaskNotifyWait(0, UINT32_MAX, &events, wait);

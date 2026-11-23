@@ -8,6 +8,7 @@
 #include "native_network.h"
 #include "screen_control.h"
 #include "web_logs.h"
+#include "native_wireguard.h"
 
 #include "cJSON.h"
 #include "esp_http_server.h"
@@ -337,6 +338,18 @@ esp_err_t capabilities(httpd_req_t *request) {
     return ESP_OK;
   const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(configuration_capabilities(), cJSON_Delete);
   return send_configuration(request, document.get());
+}
+
+esp_err_t wireguard_state(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  const auto state = wireguard_status();
+  const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> body(cJSON_CreateObject(), cJSON_Delete);
+  if (!body || !cJSON_AddBoolToObject(body.get(), "running", state.running) ||
+      !cJSON_AddBoolToObject(body.get(), "connected", state.connected) ||
+      (state.handshake_age && !cJSON_AddNumberToObject(body.get(), "handshake_age", *state.handshake_age)))
+    return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to read WireGuard status.");
+  return send_configuration(request, body.get());
 }
 
 esp_err_t wifi_firmware(httpd_req_t *request) {
@@ -747,6 +760,7 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       {.uri = contract::CAPABILITIES_PATH, .method = HTTP_GET, .handler = capabilities, .user_ctx = &network},
       {.uri = frame_status_path, .method = HTTP_GET, .handler = status, .user_ctx = &network},
       {.uri = "/espframe/api/v1/logs", .method = HTTP_GET, .handler = logs, .user_ctx = &network},
+      {.uri = "/espframe/api/v1/wireguard", .method = HTTP_GET, .handler = wireguard_state, .user_ctx = &network},
       {.uri = "/api/firmware/wifi", .method = HTTP_GET, .handler = wifi_firmware, .user_ctx = &network},
       {.uri = "/api/firmware/wifi", .method = HTTP_POST, .handler = wifi_firmware, .user_ctx = &network},
       {.uri = "/espframe/api/v1/reboot", .method = HTTP_POST, .handler = reboot_device, .user_ctx = &network},

@@ -3,3 +3,4 @@ dependencies:
   espressif/esp_wifi_remote: "==1.6.5"
   espressif/cjson: "==1.7.19~2"
   espressif/mdns: "==1.15.1"
+  esphome/wireguard: "==0.4.8"

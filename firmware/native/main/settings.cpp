@@ -7,6 +7,7 @@
 #include "playback_transition.h"
 #include "slideshow_interval.h"
 #include "slideshow_transition.h"
+#include "wireguard_helpers.h"
 
 #include "cJSON.h"
 #include "nvs.h"
@@ -141,6 +142,56 @@ bool read_flag(const cJSON *root, const char *name, bool &enabled) {
     return false;
   enabled = cJSON_IsTrue(field);
   return true;
+}
+
+bool read_wireguard_fields(const cJSON *root, WireguardSettings &config) {
+  struct Field {
+    const char *key;
+    std::string WireguardSettings::*member;
+    bool (*valid)(const std::string &);
+  };
+  constexpr Field fields[]{
+      {"wireguard_endpoint", &WireguardSettings::endpoint, espframe_is_valid_wireguard_endpoint},
+      {"wireguard_address", &WireguardSettings::address, espframe_is_valid_wireguard_address},
+      {"wireguard_netmask", &WireguardSettings::netmask, espframe_is_valid_ipv4_netmask},
+      {"wireguard_peer_public_key", &WireguardSettings::peer_public_key, espframe_is_valid_wireguard_key},
+      {"wireguard_private_key", &WireguardSettings::private_key, espframe_is_valid_wireguard_key},
+  };
+  for (const auto &field : fields) {
+    if (!cJSON_HasObjectItem(root, field.key))
+      continue;
+    auto &value = config.*field.member;
+    if (!read_field(root, field.key, value))
+      return false;
+    value = espframe_wireguard_trim(value);
+    if (!value.empty() && !field.valid(value))
+      return false;
+  }
+  if (cJSON_HasObjectItem(root, "wireguard_allowed_ips")) {
+    if (!read_field(root, "wireguard_allowed_ips", config.allowed_ips) || config.allowed_ips.size() > 100)
+      return false;
+    config.allowed_ips = espframe_wireguard_trim(config.allowed_ips);
+    if (!config.allowed_ips.empty()) {
+      config.allowed_ips = espframe_normalize_wireguard_allowed_ips(config.allowed_ips);
+      if (config.allowed_ips.empty())
+        return false;
+    }
+  }
+  return read_flag(root, "wireguard_enabled", config.enabled) &&
+         read_integer(root, "wireguard_port", 1, 65535, config.port);
+}
+
+bool read_saved_wireguard(const cJSON *root, WireguardSettings &config) {
+  const auto *saved = cJSON_GetObjectItemCaseSensitive(root, "wireguard");
+  return !saved || (cJSON_IsObject(saved) && read_wireguard_fields(saved, config));
+}
+
+bool add_saved_wireguard(cJSON *root, const WireguardSettings &config) {
+  if (config == WireguardSettings{})
+    return true;
+  auto *saved = cJSON_AddObjectToObject(root, "wireguard");
+  return saved && config.add_public_fields(saved) &&
+         cJSON_AddStringToObject(saved, "wireguard_private_key", config.private_key.c_str());
 }
 
 bool read_stock_update_preferences(const cJSON *root, StockUpdatePreferences &preferences) {
@@ -535,7 +586,8 @@ bool parse_all(const cJSON *root, Settings &settings) {
          read_field(root, "frame_name", settings.frame_name, true) &&
          read_integer(root, "reset_epoch", 0, std::numeric_limits<uint32_t>::max(), settings.reset_epoch) &&
          read_playback(root, settings) && read_saved_photo_preset(root, settings.photo_source) &&
-         read_stock_update_preferences(root, settings.stock_update_preferences) && normalize(settings);
+         read_stock_update_preferences(root, settings.stock_update_preferences) &&
+         read_saved_wireguard(root, settings.wireguard) && normalize(settings);
 }
 
 Json load_document(bool *may_create = nullptr) {
@@ -751,7 +803,7 @@ Settings::UpdateResult store_settings(Settings &settings, bool clear_legacy = fa
       (settings.home_assistant_key_set &&
        !cJSON_AddStringToObject(updated.get(), "home_assistant_key", settings.home_assistant_key.c_str())) ||
       !put_epoch(updated.get(), settings.reset_epoch) || !settings.add_playback_fields(updated.get()) ||
-      !settings.add_stock_update_preferences(updated.get()))
+      !settings.add_stock_update_preferences(updated.get()) || !add_saved_wireguard(updated.get(), settings.wireguard))
     return Result::Failed;
   if (!settings.brightness_night)
     cJSON_DeleteItemFromObjectCaseSensitive(updated.get(), "brightness_night");
@@ -779,6 +831,16 @@ bool Settings::read() {
     return false;
   *this = std::move(candidate);
   return true;
+}
+
+bool WireguardSettings::add_public_fields(cJSON *object) const {
+  return cJSON_AddBoolToObject(object, "wireguard_enabled", enabled) &&
+         cJSON_AddNumberToObject(object, "wireguard_port", port) &&
+         cJSON_AddStringToObject(object, "wireguard_endpoint", endpoint.c_str()) &&
+         cJSON_AddStringToObject(object, "wireguard_address", address.c_str()) &&
+         cJSON_AddStringToObject(object, "wireguard_netmask", netmask.c_str()) &&
+         cJSON_AddStringToObject(object, "wireguard_allowed_ips", allowed_ips.c_str()) &&
+         cJSON_AddStringToObject(object, "wireguard_peer_public_key", peer_public_key.c_str());
 }
 
 bool Settings::save(const char *json, std::optional<uint32_t> expected_epoch) {
@@ -867,6 +929,8 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
   Settings candidate;
   if (configured)
     candidate.stock_update_preferences = std::move(saved.stock_update_preferences);
+  if (configured && !provided("wireguard") && !add_saved_wireguard(document.get(), saved.wireguard))
+    return Result::Rejected;
   if (!put_epoch(document.get(), epoch) || !parse_all(document.get(), candidate) || !candidate.has_immich())
     return Result::Rejected;
   cJSON_DeleteItemFromObjectCaseSensitive(document.get(), "firmware_updates");
@@ -1198,6 +1262,10 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
     changed |= settings.stock_update_preferences.wifi_auto_update != enabled;
     settings.stock_update_preferences.wifi_auto_update = enabled;
   }
+  const auto previous_wireguard = settings.wireguard;
+  if (!read_wireguard_fields(update, settings.wireguard))
+    return UpdateResult::Invalid;
+  changed |= settings.wireguard != previous_wireguard;
   if (!changed && !change_preset && previous_labels == settings.photo_filters.labels)
     return UpdateResult::Unchanged;
   if (filters_changed) {
