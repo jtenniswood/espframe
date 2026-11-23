@@ -344,7 +344,10 @@ class SlideLoader {
       this->timings_ = xQueueCreate(32, sizeof(GestureTiming));
     ESP_ERROR_CHECK(this->requests_ && this->completed_ && this->pixel_work_wake_ && (trace_enabled || this->timings_)
                         ? ESP_OK : ESP_ERR_NO_MEM);
-    const auto result = xTaskCreatePinnedToCore(run_, "slide-prepare", 6144, this, 2, &this->task_, loader_core);
+    // Native playback also applies saved feed changes in this worker.
+    constexpr uint32_t loader_stack_bytes = esphome_trial ? 6144 : 12288;
+    const auto result = xTaskCreatePinnedToCore(run_, "slide-prepare", loader_stack_bytes, this, 2, &this->task_,
+                                              loader_core);
     ESP_ERROR_CHECK(result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
     return true;
   }
