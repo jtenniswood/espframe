@@ -45,6 +45,11 @@ class FrameStatusStore {
 
   void presented_photo() { showed_photo_.store(true, std::memory_order_relaxed); }
 
+  void begin_immich_connection() {
+    notice_.store(PhotoSourceStatus::None, std::memory_order_relaxed);
+    contact_.store(ImmichResponse::Pending, std::memory_order_relaxed);
+  }
+
   void set_solar_times(std::optional<SolarTimes> times) {
     solar_times_.store(times ? (static_cast<uint32_t>(times->sunrise) << 16) | times->sunset : UINT32_MAX,
                        std::memory_order_relaxed);

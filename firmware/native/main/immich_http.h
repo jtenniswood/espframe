@@ -25,6 +25,7 @@ class ImmichHttp {
   int read(const std::string &url, const char *api_key, std::string_view query, std::span<uint8_t> output,
            size_t &received, int64_t deadline_us = 0);
   void disconnect();
+  void reset();
 
  private:
   struct Reply {

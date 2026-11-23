@@ -70,6 +70,7 @@ class ImmichSource {
   };
 
   bool online_();
+  void reset_transfers_();
   bool allocate_download_();
   bool select_search_api_(PhotoSourceMode mode);
   int discover_search_api_(int64_t deadline_us, bool report_response);
@@ -104,11 +105,15 @@ class ImmichSource {
   std::atomic<bool> preview_promotable_{};
   const PreparationCheckpoint checkpoint_;
   const Settings &settings_;
+  std::optional<PhotoConnectionSettings> connection_settings_;
+  const PhotoConnectionSettings &connection_settings() const {
+    return connection_settings_ ? *connection_settings_ : static_cast<const PhotoConnectionSettings &>(settings_);
+  }
   ScreenRotation rotation_{};
   std::optional<PhotoFeedSettings> selection_;
   const PhotoFeedSettings &feed_() const { return selection_ ? *selection_ : settings_; }
   bool uses_prepared_slides_() const {
-    return !portrait_screen(rotation_) && settings_.has_prepared_slides();
+    return !portrait_screen(rotation_) && connection_settings().has_prepared_slides();
   }
   const NativeNetwork &network_;
   ImmichHttp http_;
@@ -120,6 +125,7 @@ class ImmichSource {
   PreparedWait prepared_wait_{PreparedWait::Bounded};
   P4JpegDecoder jpeg_;
   uint32_t http_connection_{};
+  uint32_t prefetch_connection_{1};
   ImmichSearchApi search_api_{ImmichSearchApi::Unknown};
   int64_t next_filter_probe_us_{};
   struct AlbumPage {

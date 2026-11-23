@@ -62,17 +62,22 @@ void log_photo_route(bool connected) {
   if (now < next_diagnostic)
     return;
   next_diagnostic = now + diagnostics_interval;
-  if (photo_host.empty())
+  std::string host;
+  {
+    const std::lock_guard lock(status_mutex);
+    host = photo_host;
+  }
+  if (host.empty())
     return;
   ip_addr_t address{};
-  if (resolve_ipv4(photo_host, address) != ERR_OK) {
-    ESP_LOGI(tag, "Tunnel %s; Immich host %s is not resolved yet", connected ? "up" : "down", photo_host.c_str());
+  if (resolve_ipv4(host, address) != ERR_OK) {
+    ESP_LOGI(tag, "Tunnel %s; Immich host %s is not resolved yet", connected ? "up" : "down", host.c_str());
     return;
   }
   const auto *route = ip4_route(ip_2_ip4(&address));
   const auto target = lwip_ntohl(ip4_addr_get_u32(ip_2_ip4(&address)));
   ESP_LOGI(tag, "Tunnel %s; Immich host %s -> %s via %c%c; %s", connected ? "up" : "down",
-           photo_host.c_str(), espframe_format_ipv4(target).c_str(),
+           host.c_str(), espframe_format_ipv4(target).c_str(),
            route ? route->name[0] : '-', route ? route->name[1] : '-',
            espframe_wireguard_coverage(settings, target).c_str());
 }
@@ -141,7 +146,7 @@ bool configure_wireguard(const WireguardSettings &saved, const std::string &immi
     ESP_LOGW(tag, "Enabled, but %s is missing or invalid; tunnel stays off", error.c_str());
     return false;
   }
-  photo_host = espframe_wireguard_url_host(immich_url);
+  set_wireguard_photo_url(immich_url);
   config.private_key = settings.private_key.c_str();
   config.public_key = settings.peer_public_key.c_str();
   config.address = settings.address.c_str();
@@ -150,6 +155,12 @@ bool configure_wireguard(const WireguardSettings &saved, const std::string &immi
   config.persistent_keepalive = 25;
   publish({.running = true, .connected = false, .handshake_age = {}});
   return true;
+}
+
+void set_wireguard_photo_url(const std::string &immich_url) {
+  auto host = espframe_wireguard_url_host(immich_url);
+  const std::lock_guard lock(status_mutex);
+  photo_host = std::move(host);
 }
 
 void poll_wireguard(uint32_t station_lease) {

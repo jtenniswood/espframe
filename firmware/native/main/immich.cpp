@@ -66,6 +66,17 @@ bool wants_search_exif(const PhotoFeedSettings &feed) {
 
 void ImmichSource::apply_photo_settings(PhotoFeedSettings feed, std::optional<SlideIndex> first_slide) {
   this->prefetch_.cancel();
+  if (feed.pending_connection && *feed.pending_connection != connection_settings()) {
+    connection_settings_ = std::move(feed.pending_connection);
+    reset_transfers_();
+    previews_.clear();
+    unavailable_.clear();
+    search_api_ = ImmichSearchApi::Unknown;
+    next_filter_probe_us_ = 0;
+    active_immich_search_api.store(search_api_, std::memory_order_relaxed);
+    frame_status.begin_immich_connection();
+  }
+  feed.pending_connection.reset();
   if (this->feed_().photo_orientation != feed.photo_orientation) {
     this->prepared_retry_us_ = 0;
     this->prepared_frame_fill_retry_us_ = 0;
@@ -90,16 +101,22 @@ void ImmichSource::apply_photo_settings(PhotoFeedSettings feed, std::optional<Sl
   this->source_status_ = PhotoSourceStatus::None;
 }
 
+void ImmichSource::reset_transfers_() {
+  http_.reset();
+  prepared_http_.reset();
+  prefetch_.cancel();
+  if (++prefetch_connection_ == 0)
+    ++prefetch_connection_;
+  prepared_retry_us_ = 0;
+  prepared_frame_fill_retry_us_ = 0;
+  prepared_pair_retry_us_ = 0;
+  prepared_wait_ = PreparedWait::Bounded;
+}
+
 bool ImmichSource::online_() {
   const auto connection = network_.photo_connection();
   if (connection != http_connection_) {
-    http_.disconnect();
-    prepared_http_.disconnect();
-    prefetch_.cancel();
-    prepared_retry_us_ = 0;
-    prepared_frame_fill_retry_us_ = 0;
-    prepared_pair_retry_us_ = 0;
-    prepared_wait_ = PreparedWait::Bounded;
+    reset_transfers_();
     http_connection_ = connection;
   }
   return connection != 0 && !cancelled_;
@@ -117,9 +134,9 @@ int ImmichSource::fetch_(std::string_view path, std::string_view body, size_t li
     received = 0;
     return 0;
   }
-  std::string url = this->settings_.immich_url;
+  std::string url = this->connection_settings().immich_url;
   url += path;
-  const int status = this->http_.read(url, this->settings_.immich_key.c_str(), body, {this->encoded_, limit},
+  const int status = this->http_.read(url, this->connection_settings().immich_key.c_str(), body, {this->encoded_, limit},
                                       received, deadline_us);
   if constexpr (!SWIPE_ESPHOME_TRIAL) {
     if (report_response && !cancelled_)
@@ -424,7 +441,8 @@ void ImmichSource::prefetch_next_(const AssetId &id) {
   if (id[0] == '\0' || !this->online_() || this->unavailable_.contains(id, esp_timer_get_time()) ||
       !this->previews_.find(id).empty())
     return;
-  this->prefetch_.start(id, this->http_connection_, this->settings_.immich_url, this->settings_.immich_key);
+  const auto &connection = connection_settings();
+  this->prefetch_.start(id, prefetch_connection_, connection.immich_url, connection.immich_key);
 }
 
 bool ImmichSource::select_pair_or_landscape_(ImmichPhoto &seed, AssetId &companion) {
@@ -573,7 +591,7 @@ ImmichSource::PreviewStatus ImmichSource::load_preview_(const AssetId &id, Decod
   const auto request_us = esp_timer_get_time();
   const auto staged = !prefetch_portrait_companion && optional
                           ? std::nullopt
-                          : this->prefetch_.take(id, this->http_connection_, {this->encoded_, photo_capacity}, deadline_us);
+                          : this->prefetch_.take(id, prefetch_connection_, {this->encoded_, photo_capacity}, deadline_us);
   size_t length = staged.value_or(0);
   int status = length ? 200 : 0;
   if (staged) {
@@ -636,7 +654,7 @@ bool ImmichSource::load_thumbnail_(const AssetId &id, DecodedPreview &preview, P
     return false;
   const auto started = esp_timer_get_time();
   const auto deadline = started + PreviewPrefetch::thumbnail_budget_us;
-  const auto staged = use_prefetch ? prefetch_.take(id, http_connection_, {encoded_, thumbnail_capacity}, deadline,
+  const auto staged = use_prefetch ? prefetch_.take(id, prefetch_connection_, {encoded_, thumbnail_capacity}, deadline,
                                                    PreviewPrefetch::Size::Thumbnail)
                                    : std::nullopt;
   size_t length = 0;
@@ -665,7 +683,7 @@ bool ImmichSource::load_thumbnail_(const AssetId &id, DecodedPreview &preview, P
 
 std::string ImmichSource::prepared_url_(const PhotoSlide &frame, PhotoOrientation orientation, bool frame_fill,
                                         DisplayMode framing) const {
-  std::string url(settings_.prepared_slide_url);
+  std::string url(connection_settings().prepared_slide_url);
   url += "/v1/slides/";
   url += frame.primary.data();
   url += frame_fill ? "?mode=fill-frame" : framing == DisplayMode::Fill ? "?mode=fill" : "?mode=fit";
@@ -683,7 +701,7 @@ std::string ImmichSource::prepared_url_(const PhotoSlide &frame, PhotoOrientatio
 
 void ImmichSource::warm_next_prepared_(const PhotoSlide &current) {
   if (!online_() || prepared_wait_ == PreparedWait::Legacy || esp_timer_get_time() < prepared_retry_us_ ||
-      (settings_.prepared_slides_need_time() && !clock_time_is_valid(std::time(nullptr))))
+      (connection_settings().prepared_slides_need_time() && !clock_time_is_valid(std::time(nullptr))))
     return;
   const auto index = pending_index_(current.companion);
   if (!index)
@@ -709,8 +727,8 @@ void ImmichSource::warm_next_prepared_(const PhotoSlide &current) {
   const bool frame_fill = !paired && framing == DisplayMode::Fill && orientation != PhotoOrientation::Landscape;
   const RecentPreviews::PreparedKey key{next.primary, next.companion, framing, orientation, rotation_};
   if (previews_.find(key).empty())
-    prefetch_.warm_prepared(prepared_url_(next, orientation, frame_fill, framing), http_connection_,
-                            settings_.prepared_slide_token);
+    prefetch_.warm_prepared(prepared_url_(next, orientation, frame_fill, framing), prefetch_connection_,
+                            connection_settings().prepared_slide_token);
 }
 
 ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &frame, uint16_t *panel,
@@ -738,10 +756,11 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
   const auto now = esp_timer_get_time();
   if (now < prepared_retry_us_ || (frame_fill && now < prepared_frame_fill_retry_us_) ||
       (paired && now < prepared_pair_retry_us_) ||
-      (settings_.prepared_slides_need_time() && !clock_time_is_valid(std::time(nullptr))) || !allocate_download_())
+      (connection_settings().prepared_slides_need_time() && !clock_time_is_valid(std::time(nullptr))) ||
+      !allocate_download_())
     return {};
   const auto url = prepared_url_(frame, orientation, frame_fill, framing);
-  const auto authorization = "Bearer " + settings_.prepared_slide_token;
+  const auto authorization = "Bearer " + connection_settings().prepared_slide_token;
   const auto start = esp_timer_get_time();
   size_t length = 0;
   const bool background = prepared_wait_ != PreparedWait::Legacy && !unavailable_.contains(frame.primary, now) &&
@@ -956,9 +975,10 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
     const auto target = thumbnail_pair ? PreviewTarget::PairPane : PreviewTarget::Slide;
     // Both IDs are known. Share the same background slot as full previews
     // so the second thumbnail can load while the first transfers and decodes.
+    const auto &connection = connection_settings();
     const bool companion_prefetched = prefetch_portrait_companion && thumbnail_pair && online_() &&
-                                      prefetch_.start(frame.companion, http_connection_, settings_.immich_url,
-                                                      settings_.immich_key, PreviewPrefetch::Size::Thumbnail);
+                                      prefetch_.start(frame.companion, prefetch_connection_, connection.immich_url,
+                                                      connection.immich_key, PreviewPrefetch::Size::Thumbnail);
     thumbnail = load_thumbnail_(frame.primary, left, target, thumbnail_orientation) &&
                 (!thumbnail_pair || load_thumbnail_(frame.companion, right, PreviewTarget::PairPane,
                                                      thumbnail_orientation, companion_prefetched));

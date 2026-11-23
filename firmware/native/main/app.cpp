@@ -433,6 +433,8 @@ class SlideLoader {
       return false;
     if (feed->needs_local_date() || feed->tone.needs_time())
       network.request_time_sync();
+    if (feed->pending_connection)
+      network.use_photo_connection(*feed->pending_connection);
     frame_status.configure(true, feed->photo_source.mode);
     this->source_.apply_photo_settings(std::move(*feed), request.replace_source ? std::optional{request.lease.slide}
                                                                                 : std::nullopt);
@@ -479,7 +481,7 @@ class SlideLoader {
       if (xQueueReceive(loader.requests_, &request, 0) != pdPASS)
         continue;
       const auto &lease = request.lease;
-      const auto connection = network.photo_connection();
+      auto connection = network.photo_connection();
       auto result = Result::Ready;
       bool source_ready = true;
       bool rotation_fallback = false;
@@ -511,8 +513,10 @@ class SlideLoader {
         if constexpr (!esphome_trial) {
           if (request.source_revision != source_revision) {
             source_ready = loader.apply_photo_settings_(request);
-            if (source_ready)
+            if (source_ready) {
               source_revision = request.source_revision;
+              connection = network.photo_connection();
+            }
           }
         }
         result = source_ready ? loader.source_.prepare(lease.slide, lease.pixels, lease.replacement,
@@ -934,7 +938,7 @@ void run(void *) {
         }
         if (live && slide > 0 && completed_source_work && !completion.cancelled) {
           frame_status.finish_preparation(ready ? PhotoSourceStatus::None : source_status, completion.response);
-          if (!showed_photo)
+          if (!showed_photo || source_anchor >= 0)
             initial_photo_timeout.observe(now, ready, completion.response);
         }
         if (completion.lease.replacement && !discard_refresh) {
@@ -1406,7 +1410,7 @@ void run(void *) {
     const bool show_notice = backlight_ready && input.awake() && !input.engaged() && swipe.idle() && !fade.held();
     const bool show_recovery = show_notice && network.recovery_status() != NativeNetwork::RecoveryStatus::Off;
     const bool show_source_notice = show_notice && !show_recovery && ready_last == center;
-    const auto connection_notice = !esphome_trial && live && show_source_notice && !showed_photo
+    const auto connection_notice = !esphome_trial && live && show_source_notice && (!showed_photo || source_anchor >= 0)
                                        ? initial_photo_timeout.notice(now, active_connection_timeout.load(std::memory_order_relaxed))
                                        : ImmichResponse::Pending;
     const auto source_notice = show_source_notice && connection_notice == ImmichResponse::Pending

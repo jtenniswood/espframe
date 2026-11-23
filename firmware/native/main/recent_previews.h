@@ -64,6 +64,13 @@ class RecentPreviews {
       this->remove_(*entry);
   }
 
+  void clear() {
+    for (auto &entry : entries_)
+      remove_(entry);
+    clock_ = 0;
+    byte_limit_ = byte_budget;
+  }
+
  private:
   void remember_(const Key &key, std::span<const uint8_t> data, bool may_evict) {
     if (data.empty() || data.size() > this->byte_limit_)

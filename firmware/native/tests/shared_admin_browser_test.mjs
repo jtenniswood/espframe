@@ -390,6 +390,7 @@ const server = createServer(async (req, res) => {
         const update = JSON.parse(new URLSearchParams(Buffer.concat(chunks).toString()).get('configuration'))
         writes.push(update)
         const { api_key, wireguard_private_key, ...values } = update.values
+        const wasConfigured = snapshot.api_key_configured && Boolean(snapshot.values.immich_url)
         Object.assign(snapshot.values, values)
         if (['90', '270'].includes(snapshot.values.screen_rotation)) {
           if (snapshot.values.developer_features_enabled) snapshot.values.portrait_pairing = false
@@ -397,7 +398,7 @@ const server = createServer(async (req, res) => {
         }
         if (api_key) snapshot.api_key_configured = true
         if (wireguard_private_key !== undefined) snapshot.secrets_configured.wireguard_private_key = !!wireguard_private_key
-        restartPending = !!(api_key || values.immich_url)
+        restartPending = !wasConfigured && !!(api_key || values.immich_url)
         return json({ api_version: 1, status: 'accepted', restart_required: restartPending })
       }
       if (restartPending) {
@@ -542,7 +543,7 @@ try {
   assert.deepEqual(logPositions, [0, 1, 1, 2, 3, 0])
   assert.deepEqual(releaseRequests, ['', '', 'v0.1.0-preview.10', 'v0.1.0-preview.8'])
   assert.deepEqual(wifiRequests, ['check', 'install'])
-  assert.equal(restartsObserved, 4)
+  assert.equal(restartsObserved, 1)
   assert.ok(unchangedReads > 0, 'idle polling should receive empty 304 replies')
   assert.ok(bootChecks > 2)
   assert.deepEqual(unexpected, [])

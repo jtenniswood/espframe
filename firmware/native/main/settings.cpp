@@ -802,6 +802,8 @@ void publish_photo_feed(PhotoFeedSettings &&feed, bool selection_changed) {
   active_photo_preset.store(feed.photo_source.preset(), std::memory_order_relaxed);
   active_warm_tone_override.store(feed.tone.night_override, std::memory_order_relaxed);
   active_device_language.store(feed.metadata.language, std::memory_order_relaxed);
+  if (published_feed && !feed.pending_connection)
+    feed.pending_connection = std::move(published_feed->pending_connection);
   published_feed = std::move(feed);
   const auto revision = photo_source_revision.load(std::memory_order_relaxed) + 1;
   // The last selection revision survives if another save publishes a
@@ -1234,7 +1236,7 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   const bool was_configured = settings.has_immich();
   const auto previous_updates = settings.stock_update_preferences;
   const auto previous_night_brightness = settings.brightness_night;
-  const auto previous_prepared_url = settings.prepared_slide_url;
+  const PhotoConnectionSettings previous_connection = settings;
   const auto previous_labels = settings.photo_filters.labels;
   const auto previous_rotation = settings.screen_rotation;
   if (change_preset) {
@@ -1252,9 +1254,6 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   if (cJSON_HasObjectItem(update, "screen_rotation") && portrait_screen(settings.screen_rotation) &&
       !settings.developer_features_enabled)
     return UpdateResult::Invalid;
-  const bool connection_secret_changed =
-      (!replacement_key.empty() && replacement_key != settings.immich_key) ||
-      (!replacement_token.empty() && replacement_token != settings.prepared_slide_token);
   if (!replacement_key.empty())
     settings.immich_key = replacement_key;
   if (settings.prepared_slide_url.empty()) {
@@ -1263,30 +1262,32 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
     settings.prepared_slide_token.clear();
   } else {
     if (!normalize_http_base(settings.prepared_slide_url) ||
-        (settings.prepared_slide_url != previous_prepared_url && replacement_token.empty()))
+        (settings.prepared_slide_url != previous_connection.prepared_slide_url && replacement_token.empty()))
       return UpdateResult::Invalid;
     if (!replacement_token.empty())
       settings.prepared_slide_token = std::move(replacement_token);
   }
   if (!normalize(settings))
     return UpdateResult::Invalid;
+  const bool connection_changed = previous_connection != static_cast<const PhotoConnectionSettings &>(settings);
   const bool rotation_changed = previous_rotation != settings.screen_rotation;
   if (!settings.add_playback_fields(next.get()))
     return UpdateResult::Failed;
   const bool fixed_night_brightness = previous_night_brightness != settings.brightness_night;
   // The device-tools form sends a full snapshot. Classify the actual changes
   // after validation, including an explicitly pinned night brightness.
-  bool restart = connection_secret_changed || !was_configured;
-  bool changed = connection_secret_changed || fixed_night_brightness ||
+  bool restart = !was_configured || !settings.has_immich();
+  bool changed = connection_changed || fixed_night_brightness ||
                  settings.stock_update_preferences != previous_updates;
-  bool selection_changed = false;
-  bool photo_changed = false;
+  bool selection_changed = connection_changed;
+  bool photo_changed = connection_changed;
   bool live_presentation_changed = false;
   bool filters_changed = false;
   const cJSON *field;
   cJSON_ArrayForEach(field, next.get()) {
     const std::string_view key(field->string);
-    if (key == "legacy_photo_preset" || std::ranges::find(filter_label_fields, key) != filter_label_fields.end() ||
+    if (key == "immich_url" || key == "prepared_slide_url" || key == "legacy_photo_preset" ||
+        std::ranges::find(filter_label_fields, key) != filter_label_fields.end() ||
         cJSON_Compare(field, cJSON_GetObjectItemCaseSensitive(previous.get(), field->string), true))
       continue;
     changed = true;
@@ -1336,6 +1337,8 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   if (result == UpdateResult::Saved && !restart) {
     if (live_presentation_changed)
       settings.publish_live_presentation();
+    if (connection_changed)
+      settings.pending_connection = std::move(static_cast<PhotoConnectionSettings &>(settings));
     if (photo_changed || change_preset)
       publish_photo_feed(std::move(settings), selection_changed || change_preset);
     return UpdateResult::SavedLive;

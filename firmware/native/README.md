@@ -165,12 +165,14 @@ Clock visibility, format and timezone update in place. A timezone change
 also updates sunrise, sunset and the screen schedule. The next automatic
 photo change uses the saved transition and speed.
 The connection timeout applies immediately. It controls when an Immich
-connection or API key warning appears if the frame has yet to load its
-first photo. Once playback starts, the frame keeps the last ready photo.
+connection or API key warning appears while the frame waits for its first
+photo or reconnects with new settings. The last ready photo stays visible
+during reconnection.
 Screen tone changes refresh visible and cached photos through the same path
 as framing. **Warm tone until sunrise** applies the configured nighttime warmth
 and turns off once the frame's clock and timezone place it in daylight.
-Saves that also change connection or device settings apply after a restart.
+Immich URL and API key changes reconnect during playback. Device settings
+such as the frame name apply after a restart.
 If you change **Frame name**, it also shows the new `.local` address.
 The frame adds its own four-character MAC suffix to the hostname.
 Under **Clock**, choose whether to show the local time and select the timezone

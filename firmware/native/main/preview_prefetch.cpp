@@ -59,7 +59,7 @@ bool PreviewPrefetch::start(const AssetId &id, uint32_t connection, const std::s
   size_ = size;
   const bool thumbnail = size == Size::Thumbnail;
   url_ = base_url + "/assets/" + id.data() + (thumbnail ? "/thumbnail?size=thumbnail" : "/thumbnail?size=preview");
-  key_ = &key;
+  key_ = key;
   // The companion can use the primary's transfer time as well as its own.
   // Once needed, take() still limits the foreground wait to one request budget.
   deadline_us_ = esp_timer_get_time() + (thumbnail ? 2 * thumbnail_budget_us : ImmichHttp::transfer_budget_us);
@@ -75,7 +75,7 @@ void PreviewPrefetch::warm_prepared(std::string url, uint32_t connection, const 
     return;
   url_ = std::move(url);
   connection_ = connection;
-  key_ = &token;
+  key_ = token;
   deadline_us_ = esp_timer_get_time() + 500'000;
   warming_ = true;
   cancelled_ = false;
@@ -166,15 +166,15 @@ void PreviewPrefetch::run_(void *context) {
   while (true) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     if (self.connection_ != active_connection) {
-      self.http_.disconnect();
-      self.prepared_http_.disconnect();
+      self.http_.reset();
+      self.prepared_http_.reset();
       active_connection = self.connection_;
     }
 #if SWIPE_TRIAL_IMMICH
     const auto started = esp_timer_get_time();
 #endif
     if (self.warming_) {
-      const auto authorization = "Bearer " + *self.key_;
+      const auto authorization = "Bearer " + self.key_;
       const auto status = self.prepared_http_.read(self.url_, authorization.c_str(), "{}", {}, self.length_,
                                                   self.deadline_us_);
 #if SWIPE_TRIAL_IMMICH
@@ -189,7 +189,7 @@ void PreviewPrefetch::run_(void *context) {
     }
     const bool thumbnail = self.size_ == Size::Thumbnail;
     const size_t limit = thumbnail ? thumbnail_capacity : capacity;
-    const int status = self.http_.read(self.url_, self.key_->c_str(), {}, {self.buffer_, limit}, self.length_,
+    const int status = self.http_.read(self.url_, self.key_.c_str(), {}, {self.buffer_, limit}, self.length_,
                                        self.deadline_us_);
     if (status != 200 || self.cancelled_)
       self.length_ = 0;

@@ -48,7 +48,7 @@ class PreviewPrefetch {
   AssetId id_{};
   uint32_t connection_{};
   std::string url_;
-  const std::string *key_{};  // Connection settings live as long as the task.
+  std::string key_;
   int64_t deadline_us_{};
   int64_t memory_retry_at_us_{};
   size_t length_{};

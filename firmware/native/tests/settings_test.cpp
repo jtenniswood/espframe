@@ -1011,7 +1011,14 @@ int main() {
   assert(!restart_required && photo_source_revision.load() == before_live + 2);
   assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","immich_key":"replacement-key","display_mode":"Fit"})",
                                  &restart_required));
-  assert(restart_required && photo_source_revision.load() == before_live + 2);
+  assert(!restart_required && photo_source_revision.load() == before_live + 3);
+  assert(photo_selection_revision.load() == before_live + 3);
+  assert(!Settings::take_live_photo_feed(before_live + 2));
+  fail_commit = true;
+  assert(update_configuration(R"({"values":{"immich_url":"https://failed.test","api_key":"failed-key"}})").error);
+  fail_commit = false;
+  assert(!update_configuration(R"({"values":{"immich_url":"http://fresh.test/api/"}})").restart_required);
+  assert(photo_source_revision.load() == before_live + 3);
 
   const auto before_queued_saves = photo_source_revision.load();
   assert(!update_configuration(R"({"values":{"photo_orientation":"Any"}})").restart_required);
@@ -1022,6 +1029,19 @@ int main() {
   const auto coalesced = Settings::take_live_photo_feed(before_queued_saves + 2);
   assert(coalesced && coalesced->photo_orientation == PhotoOrientation::Any &&
          coalesced->pair_display_mode() == DisplayMode::Fit);
+  assert(coalesced->pending_connection && coalesced->pending_connection->immich_url == "http://fresh.test/api" &&
+         coalesced->pending_connection->immich_key == "replacement-key");
+  assert(!Settings::take_live_photo_feed(before_queued_saves + 2));
+
+  const auto replacement = update_configuration(
+      R"({"values":{"immich_url":"https://new-photos.test/immich","api_key":"new-server-key"}})");
+  assert(!replacement.error && !replacement.restart_required);
+  const auto new_revision = photo_source_revision.load();
+  assert(new_revision == before_queued_saves + 3 && photo_selection_revision.load() == new_revision);
+  const auto reconnected = Settings::take_live_photo_feed(new_revision);
+  assert(reconnected && reconnected->pending_connection &&
+         reconnected->pending_connection->immich_url == "https://new-photos.test/immich/api" &&
+         reconnected->pending_connection->immich_key == "new-server-key");
 
   using esphome::espframe::SlideTransition;
   using espframe::native::active_clock_twelve_hour;

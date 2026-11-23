@@ -47,6 +47,18 @@ inline constexpr const char *screen_rotation_name(ScreenRotation rotation) {
 enum class ResetMode { Customization, Factory };
 enum class PhotoFilterUpdate { KeepSource, Compose };
 
+struct PhotoConnectionSettings {
+  std::string immich_url;
+  std::string immich_key;
+  std::string prepared_slide_url;
+  std::string prepared_slide_token;
+
+  bool has_immich() const { return !immich_url.empty() && !immich_key.empty(); }
+  bool has_prepared_slides() const { return !prepared_slide_url.empty() && !prepared_slide_token.empty(); }
+  bool prepared_slides_need_time() const { return prepared_slide_url.starts_with("https://"); }
+  bool operator==(const PhotoConnectionSettings &) const = default;
+};
+
 struct PhotoFeedSettings {
   bool portrait_pairing{true};
   bool portrait_pairs_only{};
@@ -59,6 +71,9 @@ struct PhotoFeedSettings {
   CaptureDateSettings capture_dates;
   PhotoMetadataSettings metadata;
   ScreenToneSettings tone;
+  // Present only in the live update that switches the worker's connection.
+  // This is never included in the serialized photo settings.
+  std::optional<PhotoConnectionSettings> pending_connection;
 
   bool needs_local_date() const {
     return metadata.needs_time() || capture_dates.needs_time() || photo_source.mode == PhotoSourceMode::Memories;
@@ -96,16 +111,12 @@ struct WireguardSettings {
   bool add_public_fields(cJSON *object) const;
 };
 
-struct Settings : PhotoFeedSettings {
+struct Settings : PhotoFeedSettings, PhotoConnectionSettings {
   enum class UpdateResult { Saved, SavedLive, Unchanged, Invalid, Stale, Failed };
   enum class UsbSaveResult { Saved, Rejected, WifiUnavailable, ImmichUnavailable, PairingUnavailable };
 
   std::string ssid;
   std::string password;
-  std::string immich_url;
-  std::string immich_key;
-  std::string prepared_slide_url;
-  std::string prepared_slide_token;
   std::string web_password;
   std::string home_assistant_key;
   std::string frame_name;
@@ -125,9 +136,6 @@ struct Settings : PhotoFeedSettings {
   WireguardSettings wireguard;
 
   uint8_t night_brightness() const { return brightness_night.value_or(brightness_day); }
-  bool has_immich() const { return !immich_url.empty() && !immich_key.empty(); }
-  bool has_prepared_slides() const { return !prepared_slide_url.empty() && !prepared_slide_token.empty(); }
-  bool prepared_slides_need_time() const { return prepared_slide_url.starts_with("https://"); }
   static constexpr size_t max_json_size = 6144;
   static uint32_t storage_revision();
   bool read();

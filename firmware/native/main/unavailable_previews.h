@@ -10,6 +10,8 @@ namespace espframe::native {
 
 class UnavailablePreviews {
  public:
+  void clear() { entries_.fill({}); }
+
   bool contains(const AssetId &id, int64_t now) const {
     return std::ranges::any_of(entries_, [&](const Entry &entry) {
       return now < entry.retry_after && entry.id == id;

@@ -55,6 +55,7 @@ FrameMac read_frame_mac() {
 
 void NativeNetwork::start(const Settings &settings) {
   settings_ = &settings;
+  photo_needs_time_.store(settings.immich_url.starts_with("https://"), std::memory_order_relaxed);
   if constexpr (!trial_immich)
     web_status_.store(WebStatus::Starting, std::memory_order_relaxed);
   if (xTaskCreatePinnedToCore(run_, "native-network", 6144, this, 2, nullptr, network_core) != pdPASS)
@@ -76,7 +77,17 @@ uint32_t NativeNetwork::station_lease() const {
 }
 
 uint32_t NativeNetwork::photo_connection() const {
-  return photo_time_ready_.load(std::memory_order_acquire) ? station_lease() : 0;
+  const bool ready = !photo_needs_time_.load(std::memory_order_relaxed) ||
+                     photo_time_ready_.load(std::memory_order_acquire);
+  return ready ? station_lease() : 0;
+}
+
+void NativeNetwork::use_photo_connection(const PhotoConnectionSettings &connection) {
+  const bool https = connection.immich_url.starts_with("https://");
+  photo_needs_time_.store(https, std::memory_order_relaxed);
+  set_wireguard_photo_url(connection.immich_url);
+  if (https || connection.prepared_slides_need_time())
+    request_time_sync();
 }
 
 void NativeNetwork::request_time_sync() {
@@ -388,7 +399,7 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
 #if SWIPE_TRIAL_WIFI_OUTAGE
   int64_t trial_deadline = 0;
 #endif
-  photo_time_ready_.store(!https || clock_time_is_valid(std::time(nullptr)), std::memory_order_release);
+  photo_time_ready_.store(clock_time_is_valid(std::time(nullptr)), std::memory_order_release);
 
   while (true) {
     if constexpr (!SWIPE_ESPHOME_TRIAL) {
@@ -509,8 +520,9 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
         if (sntp_started)
           ESP_LOGI(tag, "Time sync configured (%u servers)", static_cast<unsigned>(config.num_of_servers));
       }
-      const bool time_ready = !https || clock_time_is_valid(std::time(nullptr));
-      photo_time_ready_.store(time_ready, std::memory_order_release);
+      const bool clock_ready = clock_time_is_valid(std::time(nullptr));
+      photo_time_ready_.store(clock_ready, std::memory_order_release);
+      const bool time_ready = !photo_needs_time_.load(std::memory_order_relaxed) || clock_ready;
       const bool services_ready = web_started && (!need_time || sntp_started);
       wait = services_ready ? (time_ready ? portMAX_DELAY : pdMS_TO_TICKS(250)) : pdMS_TO_TICKS(2000);
 #if !SWIPE_ESPHOME_TRIAL

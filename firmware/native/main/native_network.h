@@ -16,6 +16,7 @@
 namespace espframe::native {
 
 struct Settings;
+struct PhotoConnectionSettings;
 
 class NativeNetwork {
  public:
@@ -42,6 +43,7 @@ class NativeNetwork {
   Address address() const;
   uint32_t station_lease() const;
   uint32_t photo_connection() const;
+  void use_photo_connection(const PhotoConnectionSettings &connection);
   void request_time_sync();
 #if SWIPE_TRIAL_WIFI_OUTAGE
   enum class TrialLink : uint8_t { Ready, Requested, Disconnecting, Offline, Reconnecting, Reconnected, Failed };
@@ -91,6 +93,7 @@ class NativeNetwork {
   std::atomic<uint32_t> ipv4_{};
   std::atomic<WebStatus> web_status_{WebStatus::Disabled};
   std::atomic<bool> photo_time_ready_{};
+  std::atomic<bool> photo_needs_time_{};
   std::atomic<bool> time_sync_requested_{};
   std::atomic<bool> available_{};
   std::atomic<bool> busy_{};
