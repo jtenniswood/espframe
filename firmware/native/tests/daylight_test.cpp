@@ -61,6 +61,11 @@ int main() {
 
   const auto *kathmandu = find_clock_zone("Asia/Kathmandu (GMT+5:45)");
   assert(kathmandu && configure_local_time(kathmandu->option));
+  const auto new_reading = local_clock_reading(1'782'909'240);
+  assert(new_reading.zone == kathmandu && new_reading.time && new_reading.time->tm_min == 19);
+  assert(!local_noon_offset(london, *new_reading.time));
+  london_solar.set_zone(kathmandu);
+  check_solar_boundaries(london_solar, *kathmandu, 2027, 1, 1, 5.75f);
   Daylight nepal_solar{kathmandu};
   check_solar_boundaries(nepal_solar, *kathmandu, 2026, 7, 1, 5.75f);
 
@@ -71,7 +76,7 @@ int main() {
   check_solar_boundaries(island_solar, *kiritimati, 2027, 1, 1, 14.0f);
 
   const ClockZone polar{"Test", "Test", "GMT0", 85.0f, 0.0f};
-  assert(configure_local_time(london->option));
+  assert(configure_local_time(&polar));
   Daylight polar_solar{&polar};
   std::tm midsummer{};
   midsummer.tm_mday = 21;

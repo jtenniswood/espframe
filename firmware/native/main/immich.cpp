@@ -810,9 +810,10 @@ ImmichSource::PreparedPreview ImmichSource::render_prepared_(const PhotoSlide &f
 void ImmichSource::describe_slide_(PendingPresentation &presentation, const PhotoMetadata &metadata,
                                     ScreenRotation rotation, const std::optional<std::tm> &local) const {
   const auto &captions = feed_().metadata;
+  const bool show_clock = SWIPE_ESPHOME_TRIAL ? settings_.clock.show : active_clock_visible.load(std::memory_order_relaxed);
   presentation.caption = prepare_photo_caption({caption_atlas, static_cast<size_t>(caption_atlas_end - caption_atlas)},
                                                {date_atlas, static_cast<size_t>(date_atlas_end - date_atlas)},
-                                               metadata, captions, settings_.clock.show, local, rotation);
+                                               metadata, captions, show_clock, local, rotation);
   presentation.caption_time = captions.needs_time() && !local && metadata.capture_day.has_value();
   presentation.caption_details = needs_caption_details_(metadata);
 }
@@ -1079,13 +1080,12 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   if (replacement && !caption_only && !refining && !rotating)
     this->complete_caption_details_(frame);
   const auto &tone = this->feed_().tone;
-  const auto local = captions.needs_time() || tone.night_enabled ? local_clock_time(std::time(nullptr)) : std::nullopt;
-  if (tone.night_enabled && !this->tone_daylight_)
-    this->tone_daylight_.emplace(find_clock_zone(this->settings_.clock.timezone));
-  const float night_progress = this->tone_daylight_ ? this->tone_daylight_->night_warmth(local) : 0.0f;
+  const auto clock = captions.needs_time() || tone.night_enabled ? local_clock_reading(std::time(nullptr)) : LocalClockReading{};
+  tone_daylight_.set_zone(clock.zone);
+  const float night_progress = tone.night_enabled ? tone_daylight_.night_warmth(clock.time) : 0.0f;
   if (!tint_photo({panel, pixel_count}, tone.warmth(night_progress), this->checkpoint_) || !this->checkpoint_())
     return retry_frame();
-  describe_slide_(presentation, frame.metadata, rotation, local);
+  describe_slide_(presentation, frame.metadata, rotation, clock.time);
   if (this->cancelled_)
     return retry_frame();
   presentation.thumbnail = thumbnail;

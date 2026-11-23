@@ -445,10 +445,10 @@ class SlideLoader {
     uint32_t source_revision{};
     constexpr int64_t tone_check_interval_us = 60'000'000;
     int64_t next_tone_check = esp_timer_get_time() + tone_check_interval_us;
-    const auto *tone_zone = !esphome_trial && loader.live_ ? find_clock_zone(loader.settings_.clock.timezone) : nullptr;
-    Daylight tone_daylight{tone_zone};
+    const bool maintain_tone = !esphome_trial && loader.live_;
+    Daylight tone_daylight{nullptr};
     while (true) {
-      if (tone_zone) {
+      if (maintain_tone) {
         const auto remaining_ms = (next_tone_check - esp_timer_get_time() + 999) / 1000;
         ulTaskNotifyTake(pdTRUE, std::max<TickType_t>(1, pdMS_TO_TICKS(std::max<int64_t>(0, remaining_ms))));
         const auto now = esp_timer_get_time();
@@ -456,11 +456,14 @@ class SlideLoader {
           next_tone_check = now + tone_check_interval_us;
           if (active_warm_tone_override.load(std::memory_order_relaxed) &&
               !loader.pixel_work_deferred_.load(std::memory_order_relaxed)) {
-            const auto local = local_clock_time(std::time(nullptr));
-            if (!local)
+            const auto local = local_clock_reading(std::time(nullptr));
+            if (!local.time)
               network.request_time_sync();
-            else if (tone_daylight.is_day(local))
-              loader.source_.expire_warm_tone_override();
+            else if (local.zone) {
+              tone_daylight.set_zone(local.zone);
+              if (tone_daylight.is_day(local.time))
+                loader.source_.expire_warm_tone_override(*local.zone);
+            }
           }
         }
       } else {
@@ -596,8 +599,8 @@ void run(void *) {
   const bool use_local_time = loader.clock().show || loader.schedule().enabled || solar_brightness;
   const auto *clock_zone = find_clock_zone(loader.clock().timezone);
   const bool show_solar_times = !esphome_trial && clock_zone != nullptr;
-  const bool local_time_configured = (use_local_time || loader.photos_need_time() || (!esphome_trial && live) || show_solar_times) &&
-                                     configure_local_time(loader.clock().timezone);
+  bool local_time_configured = (use_local_time || loader.photos_need_time() || (!esphome_trial && live) || show_solar_times) &&
+                               configure_local_time(clock_zone);
   Daylight daylight{solar_brightness || show_solar_times ? clock_zone : nullptr};
   std::optional<SolarTimes> published_solar_times;
   if (show_solar_times && local_time_configured)
@@ -752,6 +755,7 @@ void run(void *) {
 
   while (true) {
     auto now = esp_timer_get_time();
+    const auto requested_revision = esphome_trial ? 0 : photo_source_revision.load(std::memory_order_acquire);
     if constexpr (!esphome_trial) {
       const auto levels = active_screen_brightness.load(std::memory_order_relaxed);
       if (levels != brightness_levels) {
@@ -759,6 +763,15 @@ void run(void *) {
         manual_brightness.reset();
       }
       schedule.set_settings(ScreenScheduleSettings::unpack(active_screen_schedule.load(std::memory_order_relaxed)));
+      clock_dirty |= clock.set_shown(active_clock_visible.load(std::memory_order_relaxed));
+      if (const auto *next_zone = requested_clock_zone.load(std::memory_order_relaxed);
+          next_zone != clock_zone && configure_local_time(next_zone)) {
+        clock_zone = next_zone;
+        local_time_configured = true;
+        daylight.set_zone(clock_zone);
+        next_clock_poll = 0;
+        manual_brightness.reset();
+      }
     }
     bool local_time_became_ready = false;
     if ((use_local_time || !esphome_trial) && local_time_configured && now >= next_clock_poll) {
@@ -838,7 +851,6 @@ void run(void *) {
 
     const auto center = swipe.settled();
     const auto wanted_rotation = esphome_trial ? rotation : requested_screen_rotation.load(std::memory_order_relaxed);
-    const auto requested_revision = esphome_trial ? 0 : photo_source_revision.load(std::memory_order_acquire);
     if (wanted_rotation != rotation && controls.target_open() && !input.engaged())
       controls.animate(false, now);
     bool at_source_handoff = !awaiting_rotation_frame && swipe.idle() && !input.engaged() && !fade.running() && !fade.held() &&
@@ -1406,7 +1418,10 @@ void run(void *) {
     const bool clock_changed = show_clock && (clock_dirty || (clock.visible() && text_opacity != last_text_opacity));
     const auto caption_slot = caption_sample.opacity && !show_recovery ? cache.ready_slot(caption_sample.slide)
                                                                       : std::nullopt;
-    const auto *caption = caption_slot && captions[*caption_slot].band_rows() ? &captions[*caption_slot] : nullptr;
+    const auto *caption = caption_slot && captions[*caption_slot].band_rows() &&
+                                  (!clock.visible() || captions[*caption_slot].fits_beside_clock(rotation))
+                              ? &captions[*caption_slot]
+                              : nullptr;
     if (!caption)
       caption_sample = {};
     if (auto *output = display.writable_buffer(); output != nullptr &&

@@ -50,8 +50,8 @@ class ImmichSource {
   bool claim_preview_promotion() { return preview_promotable_.exchange(false, std::memory_order_acq_rel); }
   void end_preview_promotion() { preview_promotable_.store(false, std::memory_order_release); }
   void apply_photo_settings(PhotoFeedSettings feed, std::optional<SlideIndex> first_slide);
-  void expire_warm_tone_override() {
-    Settings::expire_warm_tone_override(this->settings_.clock.timezone, this->feed_());
+  void expire_warm_tone_override(const ClockZone &zone) {
+    Settings::expire_warm_tone_override(zone.option, this->feed_());
   }
   SlideIndex first_slide() const { return this->history_.first(); }
   SlideIndex next_slide() const { return this->history_.next(); }
@@ -137,7 +137,7 @@ class ImmichSource {
   PhotoHistory history_;
   RecentPreviews previews_;
   UnavailablePreviews unavailable_;
-  std::optional<Daylight> tone_daylight_;
+  Daylight tone_daylight_{nullptr};
   std::vector<ImmichPhoto> pending_;
   CaptureDateRange capture_date_range_;
   std::optional<std::chrono::sys_days> memory_day_;

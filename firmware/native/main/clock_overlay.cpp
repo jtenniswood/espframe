@@ -51,14 +51,20 @@ ClockOverlay::~ClockOverlay() { heap_caps_free(underlays_); }
 
 bool ClockOverlay::init(const ClockSettings &settings, const uint8_t *atlas, bool snapshots,
                         ScreenRotation rotation) {
-  if (!settings.show)
-    return true;
   atlas_ = atlas;
+  shown_ = settings.show;
   twelve_hour_ = settings.twelve_hour();
   set_rotation(rotation);
   if (snapshots)
     underlays_ = static_cast<Underlays *>(heap_caps_malloc(sizeof(Underlays), MALLOC_CAP_SPIRAM));
   return !snapshots || underlays_ != nullptr;
+}
+
+bool ClockOverlay::set_shown(bool shown) {
+  if (shown == shown_)
+    return false;
+  shown_ = shown;
+  return true;
 }
 
 void ClockOverlay::set_rotation(ScreenRotation rotation) {
@@ -89,7 +95,7 @@ bool ClockOverlay::update(const std::optional<std::tm> &local) {
   if (next == text_)
     return false;
   text_ = next;
-  return true;
+  return shown_;
 }
 
 void ClockOverlay::draw(uint16_t *frame, bool remember_underlay, uint8_t opacity) {

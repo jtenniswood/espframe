@@ -786,7 +786,7 @@ bool changes_photo_presentation(std::string_view key) {
   constexpr std::string_view options[]{
       "display_mode", "portrait_pair_framing", "photo_metadata_date_enabled", "photo_metadata_location_enabled",
       "photo_metadata_date_format", "photo_metadata_date_taken_format", "device_language", "base_tone_enabled", "base_tone",
-      "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"};
+      "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override", "show_clock", "timezone"};
   return std::ranges::find(options, key) != std::end(options);
 }
 
@@ -794,7 +794,8 @@ bool changes_live_presentation(std::string_view key) {
   return key == "slide_seconds" || key == "clock_format" || key == "transition" || key == "transition_speed" ||
          key == "conn_timeout" || key == "screen_rotation" || key == "brightness_day" || key == "brightness_night" ||
          key == "schedule_enabled" || key == "schedule_on_hour" || key == "schedule_off_hour" ||
-         key == "schedule_wake_timeout";
+         key == "schedule_wake_timeout" || key == "show_clock" || key == "timezone" ||
+         std::ranges::find(ntp_fields, key) != std::end(ntp_fields);
 }
 
 void publish_photo_feed(PhotoFeedSettings &&feed, bool selection_changed) {
@@ -1187,6 +1188,9 @@ void Settings::publish_live_presentation() const {
   active_screen_brightness.store({brightness_day, night_brightness()}, std::memory_order_relaxed);
   active_screen_schedule.store(schedule.packed(), std::memory_order_relaxed);
   active_clock_twelve_hour.store(clock.twelve_hour(), std::memory_order_relaxed);
+  active_clock_visible.store(clock.show, std::memory_order_relaxed);
+  requested_clock_zone.store(find_clock_zone(clock.timezone), std::memory_order_relaxed);
+  publish_ntp_servers(clock.ntp_servers);
   active_device_language.store(metadata.language, std::memory_order_relaxed);
   active_warm_tone_override.store(tone.night_override, std::memory_order_relaxed);
   active_connection_timeout.store(connection_timeout_seconds, std::memory_order_relaxed);

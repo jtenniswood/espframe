@@ -356,11 +356,14 @@ esp_err_t update(httpd_req_t *request) {
     received += bytes;
   }
   body[received] = '\0';
+  const auto previous_ntp_revision = ntp_settings_revision.load(std::memory_order_relaxed);
   bool restart_required = false;
   if (std::memchr(body.get(), '\0', received) || !Settings::save_playback(body.get(), &restart_required))
     return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Check the Immich connection and playback settings.");
   if (restart_required && esp_timer_start_once(restart_timer, 800'000) != ESP_OK)
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Saved. Restart the frame to apply settings.");
+  if (!restart_required && previous_ntp_revision != ntp_settings_revision.load(std::memory_order_relaxed))
+    static_cast<NativeNetwork *>(request->user_ctx)->request_time_sync();
   httpd_resp_set_type(request, "application/json");
   return httpd_resp_sendstr(request, restart_required ? "{\"saved\":true,\"restart_required\":true}"
                                                      : "{\"saved\":true,\"restart_required\":false}");
@@ -621,9 +624,13 @@ esp_err_t save_configuration(httpd_req_t *request) {
   const auto json = decode_configuration_form(form);
   if (!json)
     return configuration_reply(request, {"400 Bad Request", "invalid_configuration", {}});
+  const auto previous_ntp_revision = ntp_settings_revision.load(std::memory_order_relaxed);
   const auto result = update_configuration(json->c_str());
   if (!result.error && result.restart_required && esp_timer_start_once(restart_timer, 800'000) != ESP_OK)
     return configuration_reply(request, {"500 Internal Server Error", "restart_required", {}});
+  if (!result.error && !result.restart_required &&
+      previous_ntp_revision != ntp_settings_revision.load(std::memory_order_relaxed))
+    static_cast<NativeNetwork *>(request->user_ctx)->request_time_sync();
   return configuration_reply(request, result);
 }
 

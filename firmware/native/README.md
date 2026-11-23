@@ -161,7 +161,8 @@ its place in the slideshow. Cached neighbors stay swipeable while their
 framing and captions refresh in the background. Changing photo selection or
 pairing rules keeps the current photo visible until the first slide from
 the new feed is ready.
-Changing the clock format redraws the clock in place. The next automatic
+Clock visibility, format and timezone update in place. A timezone change
+also updates sunrise, sunset and the screen schedule. The next automatic
 photo change uses the saved transition and speed.
 The connection timeout applies immediately. It controls when an Immich
 connection or API key warning appears if the frame has yet to load its
@@ -179,7 +180,8 @@ default. Older native settings keep it hidden until enabled. Under **Time
 servers**, set up to three NTP hosts in preference order. Backups carry the
 clock settings and time servers. Existing native setups use `pool.ntp.org`
 until you set a server. Leaving all three fields blank selects the same
-default time-server pool as ESPHome. Changes apply after restart.
+default time-server pool as ESPHome. Changing the servers restarts time
+synchronization while the frame keeps running.
 The frame address opens the **Immich**, **Device**, and **Logs** tabs.
 Use **Backup** in the **Device** tab to export or restore your settings.
 Open **Photo sources & device tools** at the bottom of the **Device** tab

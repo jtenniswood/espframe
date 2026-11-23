@@ -27,6 +27,7 @@ struct PhotoCaption {
   PhotoCaptionLine date;
 
   int band_rows() const;
+  bool fits_beside_clock(ScreenRotation rotation) const;
 };
 
 PhotoCaption prepare_photo_caption(std::span<const uint8_t> locations, std::span<const uint8_t> dates,

@@ -37,8 +37,9 @@ class ClockOverlay {
             ScreenRotation rotation = ScreenRotation::Normal);
   void set_rotation(ScreenRotation rotation);
   void set_twelve_hour(bool enabled) { twelve_hour_ = enabled; }
+  bool set_shown(bool shown);
   bool update(const std::optional<std::tm> &local);
-  bool visible() const { return text_[0] != '\0'; }
+  bool visible() const { return shown_ && text_[0] != '\0'; }
   void draw(uint16_t *frame, bool remember_underlay = false, uint8_t opacity = 255);
   void pin_underlay();
   void restore_slide_slice(uint16_t *frame, int source, int target, int count) const;
@@ -59,6 +60,7 @@ class ClockOverlay {
   int physical_rows_{rows};
   int physical_columns_{columns};
   bool twelve_hour_{};
+  bool shown_{};
   bool latest_painted_{};
   bool pinned_painted_{};
 };

@@ -60,6 +60,12 @@ const snapshot = {
     brightness_night: 75,
     sunrise: '',
     sunset: '',
+    show_clock: true,
+    clock_format: '24 Hour',
+    timezone: 'Europe/London (GMT+0)',
+    ntp_server_1: 'pool.ntp.org',
+    ntp_server_2: '',
+    ntp_server_3: '',
     auto_update: true,
     c6_auto_update: true,
     update_frequency: 'Daily',
@@ -329,6 +335,15 @@ const browserTest = String.raw`
     setting(openCard('Developer'), 'Enable in-development features').click()
     await until(async () => await savedValue('developer_features_enabled', false) && await savedValue('screen_rotation', '0') &&
       angles() === '0,180' && rotation().value === '0', 'disabling developer mode to restore the landscape orientation')
+    const clock = openCard('Clock')
+    setting(clock, 'Show Clock').click()
+    await until(() => savedValue('show_clock', false), 'showing and hiding the clock')
+    const zone = 'Asia/Tokyo (GMT+9)'
+    change(clock.querySelector('option[value="' + zone + '"]').closest('select'), zone)
+    await until(() => savedValue('timezone', zone), 'the saved timezone')
+    button(clock, 'Advanced').click()
+    change(setting(clock, 'NTP Server 2'), 'time.example.test')
+    await until(() => savedValue('ntp_server_2', 'time.example.test'), 'the saved NTP server')
     const reboot = button(openCard('Device Reboot'), 'Reboot Screen')
     reboot.click()
     await until(() => !reboot.disabled, 'the reboot action')
@@ -514,6 +529,9 @@ try {
     { developer_features_enabled: true },
     { screen_rotation: '90', portrait_pairing: false },
     { developer_features_enabled: false, screen_rotation: '0' },
+    { show_clock: false },
+    { timezone: 'Asia/Tokyo (GMT+9)' },
+    { ntp_server_2: 'time.example.test' },
   ].map(values => ({ api_version: 1, reset_epoch: 2, values })))
   assert.deepEqual(writes.slice(-2), [
     { api_version: 1, reset_epoch: 3, values: { immich_url: 'https://setup-photos.test/api', api_key: 'setup-key' } },

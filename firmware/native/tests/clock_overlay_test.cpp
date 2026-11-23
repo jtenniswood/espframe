@@ -201,6 +201,20 @@ int main(int argc, char **argv) {
   auto moved = plain;
 
   ClockSettings settings;
+  ClockOverlay hidden_clock;
+  assert(hidden_clock.init(settings, atlas.data(), false));
+  assert(configure_local_time(settings.timezone));
+  constexpr std::time_t summer = 1'782'909'240;
+  assert(!hidden_clock.update(local_clock_time(summer)) && !hidden_clock.visible());
+  hidden_clock.draw(moved.data());
+  assert(moved == plain);
+  assert(hidden_clock.set_shown(true) && hidden_clock.visible());
+  hidden_clock.draw(moved.data());
+  assert(moved != plain);
+  assert(hidden_clock.set_shown(false) && !hidden_clock.visible());
+  moved = plain;
+  hidden_clock.draw(moved.data());
+  assert(moved == plain);
   settings.show = true;
   assert(configure_local_time(settings.timezone));
   ClockOverlay clock;
@@ -210,7 +224,6 @@ int main(int argc, char **argv) {
   assert(baked == plain);
 
   // 12:34 UTC on 1 July is 13:34 in Europe/London.
-  constexpr std::time_t summer = 1'782'909'240;
   assert(clock.update(local_clock_time(summer)) && !clock.update(local_clock_time(summer + 1)));
   verify_upside_down_clock(settings, atlas, summer);
   verify_portrait_clock(settings, atlas, summer);

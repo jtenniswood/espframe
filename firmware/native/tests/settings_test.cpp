@@ -1050,17 +1050,24 @@ int main() {
   assert(mixed_photo_feed && mixed_photo_feed->display_mode == DisplayMode::Fill);
 
   const auto clock_timezone = update_configuration(R"json({"values":{"clock_format":"12 Hour",
-      "timezone":"America/New_York (GMT-5)"}})json");
-  assert(!clock_timezone.error && clock_timezone.restart_required && !active_clock_twelve_hour.load());
-  assert(current.read() && current.clock.twelve_hour());
-  current.publish_live_presentation();
+      "timezone":"America/New_York (GMT-5)","show_clock":true}})json");
+  assert(!clock_timezone.error && !clock_timezone.restart_required && active_clock_twelve_hour.load());
+  assert(current.read() && current.clock.twelve_hour() && current.clock.show);
+  assert(espframe::native::active_clock_visible.load());
+  const auto *new_york = espframe::native::find_clock_zone("America/New_York (GMT-5)");
+  assert(new_york && espframe::native::requested_clock_zone.load() == new_york);
+  assert(photo_source_revision.load() == photo_revision_before_appearance + 2);
+  assert(Settings::take_live_photo_feed(photo_revision_before_appearance + 2));
   assert(active_clock_twelve_hour.load() && active_playback_transition.load().random);
 
+  auto ntp_revision = espframe::native::ntp_settings_revision.load();
   const auto ntp_change = update_configuration(R"({"values":{"ntp_server_1":" time.example.test ",
       "ntp_server_2":"","ntp_server_3":"2001:db8::5"}})");
-  assert(!ntp_change.error && ntp_change.restart_required);
+  assert(!ntp_change.error && !ntp_change.restart_required);
   const auto expected_servers = std::array<std::string, 3>{"time.example.test", "", "2001:db8::5"};
   assert(current.read() && current.clock.ntp_servers == expected_servers);
+  assert(espframe::native::updated_ntp_servers(ntp_revision) == expected_servers);
+  assert(!espframe::native::updated_ntp_servers(ntp_revision));
   const Json ntp_snapshot(configuration_snapshot(current), cJSON_Delete);
   const auto *ntp_values = cJSON_GetObjectItemCaseSensitive(ntp_snapshot.get(), "values");
   assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(ntp_values, "ntp_server_1")) ==
@@ -1071,6 +1078,12 @@ int main() {
          expected_servers[2]);
   assert(update_configuration(R"({"values":{"ntp_server_2":"https://other.test"}})").error);
   assert(current.read() && current.clock.ntp_servers == expected_servers);
+  fail_commit = true;
+  assert(update_configuration(R"json({"values":{"ntp_server_2":"time2.example.test",
+      "timezone":"Europe/London (GMT+0)","show_clock":false}})json").error);
+  fail_commit = false;
+  assert(!espframe::native::updated_ntp_servers(ntp_revision));
+  assert(espframe::native::active_clock_visible.load() && espframe::native::requested_clock_zone.load() == new_york);
 
   using espframe::native::active_connection_timeout;
   assert(active_connection_timeout.load() == 600);

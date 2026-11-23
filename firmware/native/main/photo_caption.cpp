@@ -193,6 +193,10 @@ int PhotoCaption::band_rows() const {
   return width ? side_margin + width + shadow_padding : 0;
 }
 
+bool PhotoCaption::fits_beside_clock(ScreenRotation rotation) const {
+  return band_rows() <= Viewport{rotation}.width - (ClockOverlay::first_row + ClockOverlay::rows + clock_gap);
+}
+
 PhotoCaption prepare_photo_caption(std::span<const uint8_t> locations, std::span<const uint8_t> dates,
                                    const PhotoMetadata &metadata, const PhotoMetadataSettings &settings,
                                    bool show_clock, const std::optional<std::tm> &local, ScreenRotation rotation) {

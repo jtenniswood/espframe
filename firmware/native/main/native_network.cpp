@@ -81,7 +81,8 @@ uint32_t NativeNetwork::photo_connection() const {
 
 void NativeNetwork::request_time_sync() {
   // Latch the request even if the Wi-Fi task is still starting.
-  if (!time_sync_requested_.exchange(true, std::memory_order_acq_rel) && available())
+  time_sync_requested_.store(true, std::memory_order_release);
+  if (available())
     xTaskNotify(task_, time_sync_requested, eSetBits);
 }
 
@@ -367,7 +368,8 @@ void NativeNetwork::handle_(const Command &command, WifiCredentials &saved) {
 
 void NativeNetwork::connect_loop_(WifiCredentials saved) {
   const auto &configured_servers = settings_->clock.ntp_servers;
-  const auto ntp_servers = espframe_normalize_ntp_servers(configured_servers[0], configured_servers[1], configured_servers[2]);
+  auto ntp_servers = espframe_normalize_ntp_servers(configured_servers[0], configured_servers[1], configured_servers[2]);
+  uint32_t ntp_revision = 0;
   const bool https = settings_->immich_url.starts_with("https://");
   const bool wireguard_enabled = !SWIPE_ESPHOME_TRIAL && configure_wireguard(settings_->wireguard, settings_->immich_url);
   const bool need_time_at_boot = https || wireguard_enabled || settings_->prepared_slides_need_time() || settings_->clock.show ||
@@ -389,6 +391,17 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
   photo_time_ready_.store(!https || clock_time_is_valid(std::time(nullptr)), std::memory_order_release);
 
   while (true) {
+    if constexpr (!SWIPE_ESPHOME_TRIAL) {
+      if (const auto updated = updated_ntp_servers(ntp_revision)) {
+        auto servers = espframe_normalize_ntp_servers((*updated)[0], (*updated)[1], (*updated)[2]);
+        if (servers != ntp_servers) {
+          if (sntp_started)
+            esp_netif_sntp_deinit();
+          sntp_started = false;
+          ntp_servers = std::move(servers);
+        }
+      }
+    }
     if constexpr (!trial_immich) {
       Command command{};
       if (xQueueReceive(commands_, &command, 0) == pdPASS) {
@@ -493,6 +506,8 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
             config.servers[config.num_of_servers++] = server.c_str();
         }
         sntp_started = esp_netif_sntp_init(&config) == ESP_OK;
+        if (sntp_started)
+          ESP_LOGI(tag, "Time sync configured (%u servers)", static_cast<unsigned>(config.num_of_servers));
       }
       const bool time_ready = !https || clock_time_is_valid(std::time(nullptr));
       photo_time_ready_.store(time_ready, std::memory_order_release);
