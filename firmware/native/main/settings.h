@@ -26,6 +26,13 @@ struct cJSON;
 namespace espframe::native {
 
 inline std::atomic<ScreenRotation> requested_screen_rotation{};
+struct ScreenBrightness {
+  uint8_t day{64};
+  uint8_t night{64};
+  bool operator==(const ScreenBrightness &) const = default;
+};
+inline std::atomic<ScreenBrightness> active_screen_brightness{};
+inline std::atomic<uint32_t> active_screen_schedule{ScreenScheduleSettings{}.packed()};
 
 inline constexpr const char *screen_rotation_name(ScreenRotation rotation) {
   switch (rotation) {

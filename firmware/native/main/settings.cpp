@@ -792,7 +792,9 @@ bool changes_photo_presentation(std::string_view key) {
 
 bool changes_live_presentation(std::string_view key) {
   return key == "slide_seconds" || key == "clock_format" || key == "transition" || key == "transition_speed" ||
-         key == "conn_timeout" || key == "screen_rotation";
+         key == "conn_timeout" || key == "screen_rotation" || key == "brightness_day" || key == "brightness_night" ||
+         key == "schedule_enabled" || key == "schedule_on_hour" || key == "schedule_off_hour" ||
+         key == "schedule_wake_timeout";
 }
 
 void publish_photo_feed(PhotoFeedSettings &&feed, bool selection_changed) {
@@ -1182,6 +1184,8 @@ bool Settings::save_playback(const char *json, bool *restart_required) {
 void Settings::publish_live_presentation() const {
   active_slideshow_interval.store(slide_seconds, std::memory_order_relaxed);
   requested_screen_rotation.store(screen_rotation, std::memory_order_relaxed);
+  active_screen_brightness.store({brightness_day, night_brightness()}, std::memory_order_relaxed);
+  active_screen_schedule.store(schedule.packed(), std::memory_order_relaxed);
   active_clock_twelve_hour.store(clock.twelve_hour(), std::memory_order_relaxed);
   active_device_language.store(metadata.language, std::memory_order_relaxed);
   active_warm_tone_override.store(tone.night_override, std::memory_order_relaxed);
@@ -1267,7 +1271,7 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   // The device-tools form sends a full snapshot. Classify the actual changes
   // after validation, including an explicitly pinned night brightness.
   bool changed = connection_secret_changed || fixed_night_brightness;
-  bool restart = changed || !was_configured;
+  bool restart = connection_secret_changed || !was_configured;
   bool selection_changed = false;
   bool photo_changed = false;
   bool live_presentation_changed = false;

@@ -814,6 +814,22 @@ int main() {
   const auto enable_developer = update_configuration(R"({"values":{"developer_features_enabled":true}})");
   assert(!enable_developer.error && !enable_developer.restart_required);
   assert(current.read() && current.developer_features_enabled && current.screen_rotation == ScreenRotation::UpsideDown);
+  using espframe::native::active_screen_brightness;
+  using espframe::native::active_screen_schedule;
+  using espframe::native::ScreenBrightness;
+  using espframe::native::ScreenScheduleSettings;
+  const auto live_display = update_configuration(R"({"values":{"brightness_day":72,"brightness_night":54,
+      "schedule_enabled":true,"schedule_on_hour":19,"schedule_off_hour":7,"schedule_wake_timeout":61}})");
+  assert(!live_display.error && !live_display.restart_required);
+  assert((active_screen_brightness.load() == ScreenBrightness{72, 54}));
+  const auto awake_hours = ScreenScheduleSettings::unpack(active_screen_schedule.load());
+  assert(awake_hours.enabled && awake_hours.on_hour == 19 && awake_hours.off_hour == 7 && awake_hours.wake_seconds == 61);
+  assert(current.read() && current.brightness_day == 72 && current.night_brightness() == 54);
+  fail_commit = true;
+  assert(update_configuration(R"({"values":{"brightness_day":76,"schedule_wake_timeout":600}})").error);
+  fail_commit = false;
+  assert((active_screen_brightness.load() == ScreenBrightness{72, 54}));
+  assert(active_screen_schedule.load() == awake_hours.packed());
   const auto selection_before_rotation = espframe::native::photo_selection_revision.load();
   const auto rotate = update_configuration(R"({"values":{"screen_rotation":"90","portrait_pairing":true}})");
   assert(!rotate.error && !rotate.restart_required);
@@ -1301,7 +1317,8 @@ int main() {
   assert(!Settings::expire_warm_tone_override(current.clock.timezone, *tinted_feed));
   fail_commit = false;
   assert(active_warm_tone_override.load() && photo_source_revision.load() == before_tone + 1);
-  const auto awaiting_restart = update_configuration(R"({"values":{"brightness_day":70,"favorites_enabled":true}})");
+  const auto awaiting_restart = update_configuration(
+      R"({"values":{"frame_name":"Restarting frame","brightness_day":70,"favorites_enabled":true}})");
   assert(!awaiting_restart.error && awaiting_restart.restart_required);
   assert(Settings::expire_warm_tone_override(current.clock.timezone, *tinted_feed));
   assert(!active_warm_tone_override.load() && photo_source_revision.load() == before_tone + 2);

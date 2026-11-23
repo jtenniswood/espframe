@@ -364,6 +364,37 @@ void entering_the_on_window_clears_a_temporary_wake() {
   assert(!schedule.update(5, 30'000, false));
 }
 
+void changing_the_schedule_reuses_an_active_wake() {
+  const espframe::native::ScreenScheduleSettings initial{true, 6, 22, 60};
+  ScreenSchedule schedule{initial};
+  assert(!schedule.update(23, 0, false));
+  schedule.wake(1'000'000);
+  auto updated = initial;
+  updated.wake_seconds = 30;
+  schedule.set_settings(updated);
+  assert(schedule.update(23, 30'999'999, false));
+  assert(!schedule.update(23, 31'000'000, false));
+  schedule.wake(32'000'000);
+  updated.wake_seconds = 75;
+  schedule.set_settings(updated);
+  assert(schedule.update(23, 106'999'999, false));
+  assert(!schedule.update(23, 107'000'000, false));
+
+  // Changing the hours can wake a schedule-slept screen, but preserves a
+  // manual sleep until the schedule is explicitly switched off.
+  updated.on_hour = 23;
+  updated.off_hour = 7;
+  schedule.set_settings(updated);
+  assert(schedule.update(23, 108'000'000, false));
+  schedule.sleep();
+  updated.off_hour = 8;
+  schedule.set_settings(updated);
+  assert(!schedule.update(23, 109'000'000, false));
+  updated.enabled = false;
+  schedule.set_settings(updated);
+  assert(schedule.update(23, 110'000'000, false));
+}
+
 void a_scheduled_wake_consumes_the_touch_and_expires_after_its_duration() {
   Swipe swipe{width, 5, 2};
   SwipeInput input;
@@ -487,6 +518,7 @@ int main() {
   only_a_short_stationary_contact_on_a_settled_photo_taps();
   scheduled_hours_preserve_manual_sleep_and_handle_midnight();
   entering_the_on_window_clears_a_temporary_wake();
+  changing_the_schedule_reuses_an_active_wake();
   a_scheduled_wake_consumes_the_touch_and_expires_after_its_duration();
   web_commands_are_applied_through_the_same_schedule();
   putting_the_screen_to_sleep_mid_swipe_waits_for_the_next_contact();

@@ -588,9 +588,8 @@ void run(void *) {
   FrameBlitter blitter;
   blitter.init();
   ClockOverlay clock;
-  const auto day_level = loader.brightness();
-  const auto night_level = loader.night_brightness();
-  const bool solar_brightness = day_level != night_level;
+  ScreenBrightness brightness_levels{loader.brightness(), loader.night_brightness()};
+  const bool solar_brightness = brightness_levels.day != brightness_levels.night;
   const bool use_local_time = loader.clock().show || loader.schedule().enabled || solar_brightness;
   const auto *clock_zone = find_clock_zone(loader.clock().timezone);
   const bool show_solar_times = !esphome_trial && clock_zone != nullptr;
@@ -600,7 +599,8 @@ void run(void *) {
   std::optional<SolarTimes> published_solar_times;
   if (show_solar_times && local_time_configured)
     network.request_time_sync();
-  uint8_t brightness = day_level;
+  bool daytime = true;
+  uint8_t brightness = brightness_levels.day;
   std::optional<uint8_t> manual_brightness;
   uint8_t applied_brightness = 0;
   const bool can_layer_fade = clock.init(loader.clock(), clock_atlas, can_fade && display.can_pin_frame(), rotation);
@@ -749,6 +749,14 @@ void run(void *) {
 
   while (true) {
     auto now = esp_timer_get_time();
+    if constexpr (!esphome_trial) {
+      const auto levels = active_screen_brightness.load(std::memory_order_relaxed);
+      if (levels != brightness_levels) {
+        brightness_levels = levels;
+        manual_brightness.reset();
+      }
+      schedule.set_settings(ScreenScheduleSettings::unpack(active_screen_schedule.load(std::memory_order_relaxed)));
+    }
     bool local_time_became_ready = false;
     if ((use_local_time || !esphome_trial) && local_time_configured && now >= next_clock_poll) {
       const auto local = local_clock_time(std::time(nullptr));
@@ -761,16 +769,16 @@ void run(void *) {
           published_solar_times = times;
         }
       }
-      if (use_local_time) {
-        clock.set_twelve_hour(loader.twelve_hour_clock());
-        clock_dirty |= clock.update(local);
-        local_hour = local ? std::optional<int>{local->tm_hour} : std::nullopt;
-        const uint8_t scheduled_brightness = daylight.is_day(local) ? day_level : night_level;
-        if (scheduled_brightness != brightness)
-          manual_brightness.reset();
-        brightness = scheduled_brightness;
-      }
+      clock.set_twelve_hour(loader.twelve_hour_clock());
+      clock_dirty |= clock.update(local);
+      local_hour = local ? std::optional<int>{local->tm_hour} : std::nullopt;
+      daytime = daylight.is_day(local);
       next_clock_poll = now + 250'000;
+    }
+    const uint8_t scheduled_brightness = daytime ? brightness_levels.day : brightness_levels.night;
+    if (scheduled_brightness != brightness) {
+      manual_brightness.reset();
+      brightness = scheduled_brightness;
     }
     if (const auto scanout = display.poll_presented()) {
       awaiting_rotation_frame = false;
