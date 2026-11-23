@@ -69,13 +69,30 @@ void set_response_headers(httpd_req_t *request) {
 
 NativeNetwork &network(httpd_req_t *request) { return *static_cast<NativeNetwork *>(request->user_ctx); }
 
+uint32_t socket_ipv4(const sockaddr_storage &address, socklen_t length) {
+  if (address.ss_family == AF_INET && length >= sizeof(sockaddr_in))
+    return reinterpret_cast<const sockaddr_in &>(address).sin_addr.s_addr;
+#if CONFIG_LWIP_IPV6
+  if (address.ss_family == AF_INET6 && length >= sizeof(sockaddr_in6)) {
+    // The dual-stack HTTP listener represents IPv4 connections as ::ffff:a.b.c.d.
+    constexpr uint8_t mapped_prefix[]{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff};
+    const auto &bytes = reinterpret_cast<const sockaddr_in6 &>(address).sin6_addr.s6_addr;
+    if (std::memcmp(bytes, mapped_prefix, sizeof(mapped_prefix)) == 0) {
+      uint32_t ipv4;
+      std::memcpy(&ipv4, bytes + sizeof(mapped_prefix), sizeof(ipv4));
+      return ipv4;
+    }
+  }
+#endif
+  return 0;
+}
+
 uint32_t local_address(httpd_req_t *request) {
-  sockaddr_in address{};
+  sockaddr_storage address{};
   socklen_t length = sizeof(address);
-  if (getsockname(httpd_req_to_sockfd(request), reinterpret_cast<sockaddr *>(&address), &length) != 0 ||
-      address.sin_family != AF_INET)
+  if (getsockname(httpd_req_to_sockfd(request), reinterpret_cast<sockaddr *>(&address), &length) != 0)
     return 0;
-  return address.sin_addr.s_addr;
+  return socket_ipv4(address, length);
 }
 
 bool hotspot_socket(httpd_req_t *request) {
@@ -95,10 +112,12 @@ bool same_origin(httpd_req_t *request) {
 }
 
 bool from_hotspot_client(httpd_req_t *request) {
-  sockaddr_in peer{};
+  sockaddr_storage peer{};
   socklen_t length = sizeof(peer);
-  if (getpeername(httpd_req_to_sockfd(request), reinterpret_cast<sockaddr *>(&peer), &length) != 0 ||
-      peer.sin_family != AF_INET)
+  if (getpeername(httpd_req_to_sockfd(request), reinterpret_cast<sockaddr *>(&peer), &length) != 0)
+    return false;
+  const auto ipv4 = socket_ipv4(peer, length);
+  if (!ipv4)
     return false;
 
   wifi_sta_list_t associated{};
@@ -106,7 +125,7 @@ bool from_hotspot_client(httpd_req_t *request) {
   if (esp_wifi_ap_get_sta_list(&associated) != ESP_OK || esp_wifi_ap_get_sta_list_with_ip(&associated, &addresses) != ESP_OK)
     return false;
   for (int i = 0; i < addresses.num; ++i) {
-    if (addresses.sta[i].ip.addr == peer.sin_addr.s_addr)
+    if (addresses.sta[i].ip.addr == ipv4)
       return true;
   }
   return false;

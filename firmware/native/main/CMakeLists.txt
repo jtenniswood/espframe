@@ -35,6 +35,7 @@ idf_component_register(
     PRIV_REQUIRES esp_lcd esp_hw_support esp_driver_dma esp_driver_gpio esp_driver_i2c esp_driver_ledc esp_timer esp_mm esp_driver_jpeg esp_driver_ppa
                   esp_driver_uart esp_event esp_http_client esp_http_server esp_netif esp_wifi mbedtls nvs_flash
                   app_update bootloader_support esp_app_format libjpeg-turbo-esp32 libwebp-esp32 home_assistant lwip
+                  esphome__libsodium
     EMBED_TXTFILES web/native_settings.html web/native_settings.css web/shared_settings.js
                    web/settings.html web/settings.js web/recovery.html web/recovery.js
                    "${repo_root}/docs/public/webserver/style.css"
