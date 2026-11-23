@@ -10,6 +10,7 @@
 #include "initial_photo_timeout.h"
 #include "live_trial.h"
 #include "native_network.h"
+#include "native_release_updates.h"
 #include "playback_transition.h"
 #include "recovery_card.h"
 #include "screen_control.h"
@@ -483,8 +484,10 @@ class SlideLoader {
 };
 
 void run(void *) {
-  if constexpr (!esphome_trial)
+  if constexpr (!esphome_trial) {
     start_firmware_boot_check();
+    start_native_release_updates(network);
+  }
   static SlideLoader loader;
   if (!loader.start()) {
     vTaskDelete(nullptr);

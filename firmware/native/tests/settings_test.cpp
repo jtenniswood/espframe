@@ -1302,9 +1302,17 @@ int main() {
   assert(cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(update_fields, "wifi_auto_update")));
   const auto *frequency = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(update_fields, "update_frequency"));
   assert(frequency && std::string_view(frequency) == "Weekly");
-  assert(update_configuration(R"({"values":{"auto_update":true}})").error);
+  const auto update_preferences = update_configuration(R"({"values":{"auto_update":true,"update_frequency":"Hourly"}})");
+  assert(!update_preferences.error && !update_preferences.restart_required);
+  assert(current.read() && current.stock_update_preferences.auto_update.value_or(false) &&
+         current.stock_update_preferences.frequency == "Hourly" && current.stock_update_preferences.wifi_auto_update == false);
+  assert(update_configuration(R"({"values":{"update_frequency":"On every boot"}})").error);
+  const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> update_snapshot(configuration_snapshot(current), cJSON_Delete);
+  const auto *update_values = cJSON_GetObjectItemCaseSensitive(update_snapshot.get(), "values");
+  assert(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(update_values, "auto_update")));
+  assert(std::string_view(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(update_values, "update_frequency"))) == "Hourly");
   assert(Settings::reset(ResetMode::Customization));
-  assert(current.read() && current.stock_update_preferences.frequency == "Weekly");
+  assert(current.read() && current.stock_update_preferences.frequency == "Hourly");
   assert(Settings::reset(ResetMode::Factory));
   assert(current.read() && !current.stock_update_preferences.frequency && !current.stock_update_preferences.auto_update);
 

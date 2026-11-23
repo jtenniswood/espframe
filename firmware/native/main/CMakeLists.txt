@@ -24,7 +24,7 @@ endif()
 
 idf_component_register(
     SRCS app.cpp clock_overlay.cpp clock_settings.cpp daylight.cpp display.cpp frame_blend.cpp frame_blitter.cpp immich.cpp immich_http.cpp
-         immich_memories.cpp immich_selection.cpp improv_serial.cpp native_configuration.cpp native_network.cpp p4_jpeg_decoder.cpp
+         immich_memories.cpp immich_selection.cpp improv_serial.cpp native_configuration.cpp native_network.cpp native_release_index.cpp native_release_updates.cpp p4_jpeg_decoder.cpp
          playback_trace.cpp preview_decoder.cpp preview_prefetch.cpp
          photo_caption.cpp recovery_card.cpp screen_tone.cpp settings.cpp touch.cpp
          firmware_update.cpp usb_setup.cpp web_settings.cpp
@@ -47,6 +47,12 @@ idf_component_register(
 # Emit native RGB565 words directly, avoiding a second pass through PSRAM.
 idf_component_get_property(webp_lib libwebp-esp32 COMPONENT_LIB)
 target_compile_definitions(${webp_lib} PRIVATE WEBP_SWAP_16BIT_CSP=1)
+
+set(project_contract "${repo_root}/product/contract/project.json")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${project_contract}")
+file(READ "${project_contract}" project_metadata)
+string(JSON public_base_url GET "${project_metadata}" public_base_url)
+target_compile_definitions(${COMPONENT_LIB} PRIVATE NATIVE_RELEASE_FEED="${public_base_url}/native-preview/")
 
 set(device_catalog "${repo_root}/product/contract/devices.json")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${device_catalog}")

@@ -63,6 +63,7 @@ struct StockUpdatePreferences {
   std::optional<bool> auto_update;
   std::optional<std::string> frequency;
   std::optional<bool> wifi_auto_update;
+  bool operator==(const StockUpdatePreferences &) const = default;
 };
 
 struct Settings : PhotoFeedSettings {

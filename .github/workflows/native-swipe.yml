@@ -1,5 +1,5 @@
 name: Native Swipe Prototype
-run-name: ${{ inputs.preview_version != '' && format('Build Native Preview {0}', inputs.preview_version) || github.event.pull_request.title || 'Native Swipe Prototype' }}
+run-name: ${{ inputs.publish_preview && format('Publish native preview {0}', inputs.preview_version) || inputs.preview_version != '' && format('Build Native Preview {0}', inputs.preview_version) || github.event.pull_request.title || 'Native Swipe Prototype' }}
 
 on:
   pull_request:
@@ -35,6 +35,10 @@ on:
         default: ''
       preview_v1_linked_scanout:
         description: Use experimental linked scanout on V1 in this preview
+        type: boolean
+        default: false
+      publish_preview:
+        description: Publish a verified draft for the matching native preview tag
         type: boolean
         default: false
 
@@ -237,6 +241,10 @@ jobs:
             firmware/native/tests/settings_test.cpp "$RUNNER_TEMP/cjson.o" \
             -o "$RUNNER_TEMP/settings-test"
           "$RUNNER_TEMP/settings-test"
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -I"$cjson" \
+            firmware/native/main/native_release_index.cpp firmware/native/tests/native_release_index_test.cpp \
+            "$RUNNER_TEMP/cjson.o" -o "$RUNNER_TEMP/native-release-index-test"
+          "$RUNNER_TEMP/native-release-index-test"
           c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/stubs -I"$zones" \
             firmware/native/main/clock_settings.cpp firmware/native/main/clock_overlay.cpp \
             firmware/native/tests/clock_overlay_test.cpp -o "$RUNNER_TEMP/clock-overlay-test"
@@ -382,6 +390,8 @@ jobs:
           node firmware/native/tests/wifi_recovery_browser_test.mjs
           node firmware/native/tests/photo_source_browser_test.mjs
           node firmware/native/tests/shared_settings_browser_test.mjs
+          node firmware/native/tests/native_firmware_browser_test.mjs
+          python3 scripts/tests_native_preview_releases.py
           for board in v1 v2 v3; do
             mv "firmware/native/build/firmware-test-native-swipe-$board" "firmware/native/build/$board"
           done
@@ -401,6 +411,39 @@ jobs:
           name: ${{ inputs.preview_version != '' && format('espframe-native-{0}', inputs.preview_version) || 'native-browser-installer' }}
           path: firmware/native/build/browser-installer
           if-no-files-found: error
+
+  publish-preview:
+    name: Publish versioned Native Preview
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_preview
+    needs: browser-installer
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: espframe-native-${{ inputs.preview_version }}
+          path: preview
+      - name: Upload and publish verified preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.preview_version }}
+        run: |
+          test "$GITHUB_REF_TYPE" = tag
+          test "$GITHUB_REF_NAME" = "native-$VERSION"
+          test "$(gh release view "$GITHUB_REF_NAME" --json isDraft,isPrerelease --jq '.isDraft and .isPrerelease')" = true
+          cd preview
+          sha256sum -c SHA256SUMS
+          zip -q "../espframe-native-$VERSION.zip" ./*
+          gh release upload "$GITHUB_REF_NAME" "../espframe-native-$VERSION.zip" SHA256SUMS v[123]-ota.bin --clobber
+          verify_dir=$(mktemp -d)
+          gh release download "$GITHUB_REF_NAME" --pattern "espframe-native-$VERSION.zip" --pattern SHA256SUMS \
+            --pattern "v[123]-ota.bin" --dir "$verify_dir"
+          cmp "../espframe-native-$VERSION.zip" "$verify_dir/espframe-native-$VERSION.zip"
+          cmp SHA256SUMS "$verify_dir/SHA256SUMS"
+          for file in v[123]-ota.bin; do cmp "$file" "$verify_dir/$file"; done
+          gh release edit "$GITHUB_REF_NAME" --draft=false --prerelease --latest=false
 
   esphome-v1-live-trial:
     if: github.event_name != 'workflow_dispatch' || inputs.preview_version == ''

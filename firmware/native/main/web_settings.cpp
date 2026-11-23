@@ -5,6 +5,7 @@
 #include "frame_status.h"
 #include "native_configuration.h"
 #include "native_network.h"
+#include "native_release_updates.h"
 #include "screen_control.h"
 
 #include "cJSON.h"
@@ -524,6 +525,33 @@ esp_err_t firmware_status(httpd_req_t *request) {
   return send_configuration(request, document.get());
 }
 
+esp_err_t release_firmware(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  if (request->method == HTTP_GET) {
+    const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(native_release_status(), cJSON_Delete);
+    return send_configuration(request, document.get());
+  }
+  if (!same_origin(request))
+    return httpd_resp_send_err(request, HTTPD_403_FORBIDDEN, "Open the frame settings to update firmware.");
+  std::array<char, 32> version{};
+  if (!header_is(request, "Content-Type", "text/plain") || request->content_len >= version.size())
+    return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Choose a published preview version.");
+  size_t received = 0;
+  while (received < request->content_len) {
+    const auto count = httpd_req_recv(request, version.data() + received, request->content_len - received);
+    if (count <= 0)
+      return ESP_FAIL;
+    received += count;
+  }
+  if (!request_native_release({version.data(), received})) {
+    httpd_resp_set_status(request, "409 Conflict");
+    return httpd_resp_sendstr(request, "A release update is unavailable or already in progress.");
+  }
+  httpd_resp_set_status(request, "202 Accepted");
+  return httpd_resp_sendstr(request, "Accepted");
+}
+
 esp_err_t update_firmware(httpd_req_t *request) {
   if (!authorize(request))
     return ESP_OK;
@@ -618,6 +646,8 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       {.uri = contract::RESET_PATH, .method = HTTP_POST, .handler = reset_settings, .user_ctx = &network},
       {.uri = "/api/firmware", .method = HTTP_GET, .handler = firmware_status, .user_ctx = &network},
       {.uri = "/api/firmware", .method = HTTP_POST, .handler = update_firmware, .user_ctx = &network},
+      {.uri = "/api/firmware/releases", .method = HTTP_GET, .handler = release_firmware, .user_ctx = &network},
+      {.uri = "/api/firmware/releases", .method = HTTP_POST, .handler = release_firmware, .user_ctx = &network},
       {.uri = "/recovery.js", .method = HTTP_GET, .handler = recovery_script, .user_ctx = &network},
       {.uri = "/api/recovery", .method = HTTP_GET, .handler = recovery_status, .user_ctx = &network},
       {.uri = "/api/recovery", .method = HTTP_POST, .handler = recover_wifi, .user_ctx = &network},

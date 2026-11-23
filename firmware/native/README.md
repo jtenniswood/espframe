@@ -130,6 +130,21 @@ stable ESPHome installer provides the return path. Keep a backup and leave
 **Erase device** unchecked when switching firmware to retain the saved
 ESPHome preferences.
 
+### Firmware releases and automatic updates
+
+Open **Firmware** in the frame settings to see the installed Native Preview,
+check for a release, install an available version, or choose a previous one.
+Enable **Auto Update** and choose **Update Frequency** to install newer releases
+from the frame itself. The frame verifies the board and download checksum before
+restarting into the update. The native startup check can return to the previous
+firmware if startup fails.
+
+To publish a preview, prepare a GitHub draft prerelease on the matching
+`native-v0.1.0-preview.N` tag. Dispatch **Native Swipe Prototype** on that tag
+with `preview_version` set to `v0.1.0-preview.N` and **Publish a verified draft**
+enabled. A successful publish updates the Native Preview feed on GitHub Pages.
+The feed serves the most recent five published previews for each board.
+
 ### Open the frame's web settings
 
 Set a web settings password when saving over USB to enable the frame's

@@ -8,11 +8,12 @@ on:
       - 'product/**'
       - 'scripts/firmware_release.py'
       - 'scripts/product_config.py'
+      - 'scripts/native_preview_releases.py'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/docs.yml'
   workflow_run:
-    workflows: ["Build Release"]
+    workflows: ["Build Release", "Native Swipe Prototype"]
     types: [completed]
   workflow_dispatch:
 
@@ -34,7 +35,9 @@ jobs:
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
-       startsWith(github.event.workflow_run.display_title, 'Publish firmware '))
+       github.event.workflow_run.event == 'workflow_dispatch' &&
+       (startsWith(github.event.workflow_run.display_title, 'Publish firmware ') ||
+        startsWith(github.event.workflow_run.display_title, 'Publish native preview ')))
     runs-on: espframe
     timeout-minutes: 20
     steps:
@@ -51,6 +54,12 @@ jobs:
       - name: Build docs
         run: npm run docs:build
 
+      - name: Stage native preview update feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 scripts/native_preview_releases.py docs/.vitepress/dist/native-preview
+
       - name: Upload docs artifact
         uses: actions/upload-artifact@v7
         with:
@@ -62,7 +71,9 @@ jobs:
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
-       startsWith(github.event.workflow_run.display_title, 'Publish firmware '))
+       github.event.workflow_run.event == 'workflow_dispatch' &&
+       (startsWith(github.event.workflow_run.display_title, 'Publish firmware ') ||
+        startsWith(github.event.workflow_run.display_title, 'Publish native preview ')))
     runs-on: espframe
     timeout-minutes: 20
     outputs:
@@ -231,7 +242,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           BETA_TAG=$(gh release list --limit 20 --json tagName,isPrerelease \
-            -q '[.[] | select(.isPrerelease)] | .[0].tagName // empty')
+            -q '[.[] | select(.isPrerelease and (.tagName | startswith("v")))] | .[0].tagName // empty')
           if [ -n "$BETA_TAG" ]; then
             BETA_MANIFEST_DIR=$(dirname "$DEFAULT_PUBLIC_BETA_MANIFEST")
             mkdir -p "$BETA_MANIFEST_DIR"
