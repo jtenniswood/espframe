@@ -610,7 +610,8 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
     return false;
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.lru_purge_enable = true;
-  config.stack_size = 6144;
+  // Configuration writes validate and persist a full settings record on this task.
+  config.stack_size = 12288;
   config.max_open_sockets = 4;
   config.recv_wait_timeout = 3;
 
