@@ -1440,8 +1440,8 @@ void start_player() {
   } else {
     start_usb_setup(network);
   }
-  // Live trials read ESPHome NVS while a candidate Settings record is on this stack.
-  constexpr uint32_t player_stack_bytes = trial_immich ? 6144 : 4096;
+  // The standalone player also loads and normalizes its saved configuration at startup.
+  constexpr uint32_t player_stack_bytes = !esphome_trial ? 8192 : trial_immich ? 6144 : 4096;
   const auto result = xTaskCreatePinnedToCore(run, "photo-player", player_stack_bytes, nullptr, player_priority, nullptr,
                                             player_core);
   ESP_ERROR_CHECK(result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
