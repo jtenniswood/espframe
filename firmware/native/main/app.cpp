@@ -25,6 +25,7 @@
 #include "trial_replay.h"
 #include "trial_swipe_landing.h"
 #include "usb_setup.h"
+#include "web_logs.h"
 
 #include "driver/jpeg_decode.h"
 #include "esp_cache.h"
@@ -1360,6 +1361,7 @@ void start_player() {
     if (!start_esphome_trial(trial_seconds))
       return;
   } else {
+    start_web_logs();
     start_usb_setup(network);
   }
   // Live trials read ESPHome NVS while a candidate Settings record is on this stack.

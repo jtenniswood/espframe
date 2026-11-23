@@ -29,6 +29,7 @@ idf_component_register(
          photo_caption.cpp recovery_card.cpp screen_tone.cpp settings.cpp touch.cpp
          firmware_update.cpp usb_setup.cpp web_settings.cpp
          ${platform_source}
+         web_logs.cpp
          "${touch_source}/gsl_point_id.cpp"
     PRIV_INCLUDE_DIRS "${touch_source}" "${repo_root}/components/remote_image" "${repo_root}/components/espframe"
                       "${CMAKE_CURRENT_BINARY_DIR}"

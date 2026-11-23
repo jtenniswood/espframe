@@ -18,6 +18,7 @@ const resetPath = '/espframe/api/v1/reset'
 const releasePath = '/api/firmware/releases'
 const writes = []
 const deviceActions = []
+const logPositions = []
 const releaseRequests = []
 const unexpected = []
 let restartPending = false
@@ -114,7 +115,7 @@ const browserTest = String.raw`
     }
     await until(() => card('Frequency') && card('Photo Display') && card('Connection'), 'Immich cards')
     if (tab('Immich').getAttribute('aria-selected') !== 'true') throw new Error('Immich did not open first')
-    if (tab('Logs') || card('WireGuard VPN') || card('Screen Tone')) throw new Error('Unavailable controls appeared')
+    if (!tab('Logs') || card('WireGuard VPN') || card('Screen Tone')) throw new Error('Incorrect controls appeared')
     const rating = () => setting(card('Filters').closest('.card'), 'Filter by Rating')
     if (rating().tabIndex !== -1) throw new Error('Rating became available before discovery')
     await until(() => rating().tabIndex === 0, 'Immich to report support for structured filters')
@@ -215,6 +216,16 @@ const browserTest = String.raw`
       return values.brightness_day === 85 && values.auto_update === false && values.update_frequency === 'Weekly'
     }, 'brightness and update preference saves')
     if (!document.querySelector('a.sp-tab-docs')) throw new Error('Shared Docs link is missing')
+    tab('Logs').click()
+    const log = document.querySelector('.sp-log-output')
+    await until(() => log.querySelector('.sp-log-info')?.textContent.includes('Player ready'), 'the startup log')
+    await until(() => log.querySelector('.sp-log-warn')?.textContent.includes('Preview unavailable'), 'the live warning')
+    button(document.querySelector('#sp-logs'), 'Clear').click()
+    if (log.children.length !== 0) throw new Error('Clearing logs left the previous lines visible')
+    await until(() => log.textContent.includes('Wi-Fi connected'), 'the log after clearing')
+    await until(() => log.textContent.includes('Frame restarted'), 'the log stream after reboot')
+    if (log.children.length !== 2 || log.textContent.includes('Preview unavailable')) throw new Error('Old logs were replayed')
+    tab('Device').click()
     let exported
     const createObjectURL = URL.createObjectURL.bind(URL)
     URL.createObjectURL = blob => {
@@ -255,7 +266,8 @@ const browserTest = String.raw`
 const server = createServer(async (req, res) => {
   const send = (body, type) => res.writeHead(200, { 'content-type': type }).end(body)
   const json = body => send(JSON.stringify(body), 'application/json')
-  switch (req.url) {
+  const route = new URL(req.url, 'http://localhost')
+  switch (route.pathname) {
     case '/admin':
       res.setHeader('content-security-policy', "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'none'")
       return send(html.replace('</body>', '<script defer src="/verify.js"></script></body>'), 'text/html')
@@ -296,6 +308,16 @@ const server = createServer(async (req, res) => {
       assert.equal(req.headers.origin, 'http://' + req.headers.host)
       deviceActions.push('reboot')
       return json({ status: 'accepted', restart_required: true })
+    case '/espframe/api/v1/logs': {
+      const after = Number(route.searchParams.get('after'))
+      logPositions.push(after)
+      if (logPositions.length === 2) return res.writeHead(503).end()
+      if (logPositions.length >= 5) {
+        return json({ boot: 8, lines: after ? [] : [{ id: 1, level: 3, message: 'Frame restarted' }], more: false })
+      }
+      const messages = ['Player ready', 'Preview unavailable', 'Wi-Fi connected']
+      return json({ boot: 7, lines: [{ id: after + 1, level: after === 1 ? 2 : 3, message: messages[after] }], more: false })
+    }
     case resetPath:
       if (req.method === 'POST') {
         const chunks = []
@@ -338,7 +360,7 @@ const server = createServer(async (req, res) => {
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 try {
   const chrome = spawn(process.env.CHROME_BIN || 'google-chrome', [
-    '--headless', '--no-sandbox', '--disable-background-networking', '--dump-dom', '--virtual-time-budget=38000',
+    '--headless', '--no-sandbox', '--disable-background-networking', '--dump-dom', '--virtual-time-budget=42000',
     'http://127.0.0.1:' + server.address().port + '/admin',
   ], { signal: AbortSignal.timeout(18000) })
   let page = ''
@@ -366,11 +388,12 @@ try {
     { api_version: 1, reset_epoch: 3, values: { immich_url: 'https://backup-photos.test/api', brightness_day: 75, portrait_pair_framing: 'Fit' } },
   ])
   assert.deepEqual(deviceActions, ['reboot', 'customization'])
+  assert.deepEqual(logPositions, [0, 1, 1, 2, 3, 0])
   assert.deepEqual(releaseRequests, ['', '', 'v0.1.0-preview.10', 'v0.1.0-preview.8'])
   assert.equal(restartsObserved, 4)
   assert.ok(bootChecks > 2)
   assert.deepEqual(unexpected, [])
-  console.log('Shared admin verified native settings, release requests, backup export and restore, reboot and first-time setup')
+  console.log('Shared admin verified live logs, settings, release requests, backup, reboot and first-time setup')
 } finally {
   server.close()
 }

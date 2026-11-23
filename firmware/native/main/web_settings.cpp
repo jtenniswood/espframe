@@ -6,6 +6,7 @@
 #include "native_configuration.h"
 #include "native_network.h"
 #include "screen_control.h"
+#include "web_logs.h"
 
 #include "cJSON.h"
 #include "esp_http_server.h"
@@ -20,6 +21,7 @@
 
 #include <array>
 #include <atomic>
+#include <charconv>
 #include <cinttypes>
 #include <cstdio>
 #include <cstring>
@@ -351,6 +353,46 @@ esp_err_t status(httpd_req_t *request) {
   return send_configuration(request, document.get());
 }
 
+esp_err_t logs(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+
+  uint32_t after = 0;
+  if (const auto length = httpd_req_get_url_query_len(request)) {
+    constexpr std::string_view prefix = "after=";
+    std::array<char, prefix.size() + 10 + 1> query{};
+    if (length >= query.size() || httpd_req_get_url_query_str(request, query.data(), query.size()) != ESP_OK ||
+        !std::string_view(query.data(), length).starts_with(prefix))
+      return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Invalid log position.");
+    const auto end = query.data() + length;
+    const auto parsed = std::from_chars(query.data() + prefix.size(), end, after);
+    if (parsed.ec != std::errc{} || parsed.ptr != end)
+      return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Invalid log position.");
+  }
+
+  std::array<WebLogLine, 12> lines{};
+  const auto page = read_web_logs(after, lines);
+  const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> body(cJSON_CreateObject(), cJSON_Delete);
+  if (!body || !cJSON_AddNumberToObject(body.get(), "boot", page.boot) ||
+      !cJSON_AddBoolToObject(body.get(), "more", page.more))
+    return send_configuration(request, nullptr);
+  auto *entries = cJSON_AddArrayToObject(body.get(), "lines");
+  if (!entries)
+    return send_configuration(request, nullptr);
+  for (size_t i = 0; i < page.count; ++i) {
+    const auto &line = lines[i];
+    auto *entry = cJSON_CreateObject();
+    if (!entry || !cJSON_AddItemToArray(entries, entry)) {
+      cJSON_Delete(entry);
+      return send_configuration(request, nullptr);
+    }
+    if (!cJSON_AddNumberToObject(entry, "id", line.id) || !cJSON_AddNumberToObject(entry, "level", line.level) ||
+        !cJSON_AddStringToObject(entry, "message", line.message.data()))
+      return send_configuration(request, nullptr);
+  }
+  return send_configuration(request, body.get());
+}
+
 esp_err_t configuration_reply(httpd_req_t *request, const ConfigurationUpdate &result) {
   const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> body(cJSON_CreateObject(), cJSON_Delete);
   if (!body ||
@@ -660,6 +702,7 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       {.uri = "/api/playback", .method = HTTP_POST, .handler = update, .user_ctx = &network},
       {.uri = contract::CAPABILITIES_PATH, .method = HTTP_GET, .handler = capabilities, .user_ctx = &network},
       {.uri = frame_status_path, .method = HTTP_GET, .handler = status, .user_ctx = &network},
+      {.uri = "/espframe/api/v1/logs", .method = HTTP_GET, .handler = logs, .user_ctx = &network},
       {.uri = "/espframe/api/v1/reboot", .method = HTTP_POST, .handler = reboot_device, .user_ctx = &network},
       {.uri = frame_identity_path, .method = HTTP_GET, .handler = identity, .user_ctx = &network},
       {.uri = frame_identity_path, .method = HTTP_POST, .handler = identity, .user_ctx = &network},

@@ -26,6 +26,55 @@ window.espframeNativeUrl = function (url) {
   return hasPath && url.endsWith("/api") ? url : url + "/api";
 };
 
+window.espframeShowLogs = (() => {
+  let active = false;
+  let reading = false;
+  let timer;
+  let boot;
+  let after = 0;
+
+  async function read(appendLog) {
+    if (!active || reading) return;
+    reading = true;
+    let delay = 1000;
+    try {
+      if (document.hidden) return;
+      const response = await fetch("/espframe/api/v1/logs?after=" + after, {
+        cache: "no-store", signal: AbortSignal.timeout(2500),
+      });
+      if (!active || !response.ok) return;
+      const page = await response.json();
+      if (!Number.isInteger(page.boot) || !Array.isArray(page.lines)) return;
+      if (boot !== undefined && boot !== page.boot && after !== 0) {
+        boot = page.boot;
+        after = 0;
+        delay = 0;
+        return;
+      }
+      boot = page.boot;
+      const initial = after;
+      for (const line of page.lines) {
+        if (!Number.isInteger(line.id) || line.id <= after || typeof line.message !== "string") continue;
+        appendLog(line.message, line.level);
+        after = line.id;
+      }
+      if (page.more === true && after !== initial) delay = 30;
+    } catch (_) {
+      // The frame can briefly disappear during an update or restart.
+    } finally {
+      reading = false;
+      if (active) timer = setTimeout(() => read(appendLog), delay);
+    }
+  }
+
+  return (visible, appendLog) => {
+    if (visible === active) return;
+    active = visible;
+    clearTimeout(timer);
+    if (active) void read(appendLog);
+  };
+})();
+
 window.espframeNativeBackupSchema = function (schema) {
   schema.push({ group: "photos", field: "portrait_pair_framing", state_keys: ["portrait_pair_framing"] });
 };
