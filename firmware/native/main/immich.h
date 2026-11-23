@@ -55,6 +55,7 @@ class ImmichSource {
   SlideIndex next_slide() const { return this->history_.next(); }
   PhotoSourceStatus source_status() const { return this->source_status_; }
   ImmichResponse response() const { return this->response_; }
+  void probe_filter_support();
 
  private:
   enum class PreviewStatus { Ready, Missing, Retry };
@@ -68,6 +69,7 @@ class ImmichSource {
   bool online_();
   bool allocate_download_();
   bool select_search_api_(PhotoSourceMode mode);
+  int discover_search_api_(int64_t deadline_us, bool report_response);
   int fetch_(std::string_view path, std::string_view body, size_t limit, size_t &received, int64_t deadline_us = 0,
              bool report_response = true);
   std::vector<ImmichPhoto> search_(const PhotoSource &source, std::optional<std::chrono::sys_days> local_day = {},
@@ -110,6 +112,7 @@ class ImmichSource {
   P4JpegDecoder jpeg_;
   uint32_t http_connection_{};
   ImmichSearchApi search_api_{ImmichSearchApi::Unknown};
+  int64_t next_filter_probe_us_{};
   struct AlbumPage {
     uint32_t page{1};
     size_t count{photo_search_batch};

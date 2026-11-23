@@ -557,7 +557,7 @@
               }, 0);
               var appliedCount = queuedCount - failedCount;
               if (needsPhotoSourceApply && appliedCount) {
-                return post(endpoints.apply_photo_source + "/press")
+                return applyPhotoSource()
                   .then(function () {
                     return { appliedCount: appliedCount, failedCount: failedCount };
                   })

@@ -327,6 +327,9 @@ constexpr std::pair<const char *, std::string ImmichFilterConfig::*> filter_plac
     {"filter_country", &ImmichFilterConfig::country}, {"filter_state", &ImmichFilterConfig::state},
     {"filter_city", &ImmichFilterConfig::city}};
 
+constexpr std::array filter_label_fields{"album_labels", "person_labels", "tag_labels",
+    "excluded_album_labels", "excluded_person_labels", "excluded_tag_labels"};
+
 constexpr std::array ratings{"Any", "1+", "2+", "3+", "4+", "5+"};
 
 bool read_choice(const cJSON *root, const char *key, std::string &value,
@@ -373,6 +376,12 @@ bool read_photo_filters(const cJSON *root, PhotoFilters &filters) {
     if (!read_field(root, key, criteria.*member, true) || !normalize_filter_ids(criteria.*member))
       return false;
   }
+  for (size_t i = 0; i < filter_label_fields.size(); ++i) {
+    auto &labels = filters.labels[i];
+    // Stock settings and backups can use either JSON text or comma-separated labels.
+    if (!read_field(root, filter_label_fields[i], labels, true) || labels.size() > 255)
+      return false;
+  }
   for (const auto &[key, member] : filter_places) {
     auto &value = criteria.*member;
     if (!read_field(root, key, value, true) || value.size() > 96 ||
@@ -395,7 +404,7 @@ bool read_photo_filters(const cJSON *root, PhotoFilters &filters) {
          read_choice(root, "favorite_mode", criteria.favorite_mode, {"Any", "Favorites only", "Exclude favorites"});
 }
 
-bool add_photo_filter_fields(cJSON *object, const PhotoFilters &filters) {
+bool add_photo_filter_fields(cJSON *object, const PhotoFilters &filters, bool include_empty_labels) {
   const auto &criteria = filters.criteria;
   for (const auto &[key, member] : filter_flags) {
     if (!cJSON_AddBoolToObject(object, key, criteria.*member))
@@ -403,6 +412,11 @@ bool add_photo_filter_fields(cJSON *object, const PhotoFilters &filters) {
   }
   for (const auto &[key, member] : filter_lists) {
     if (!cJSON_AddStringToObject(object, key, (criteria.*member).c_str()))
+      return false;
+  }
+  for (size_t i = 0; i < filter_label_fields.size(); ++i) {
+    if ((include_empty_labels || !filters.labels[i].empty()) &&
+        !cJSON_AddStringToObject(object, filter_label_fields[i], filters.labels[i].c_str()))
       return false;
   }
   for (const auto &[key, member] : filter_places) {
@@ -641,6 +655,51 @@ PhotoFilters shared_photo_filters(const PhotoFeedSettings &settings) {
     filters.criteria.favorite_mode = "Favorites only";
   }
   return filters;
+}
+
+void apply_photo_preset(PhotoFeedSettings &settings, PhotoPreset preset) {
+  auto &source = settings.photo_source;
+  auto &criteria = settings.photo_filters.criteria;
+  source.legacy_preset.reset();
+  if (preset == PhotoPreset::Memories) {
+    source.mode = PhotoSourceMode::Memories;
+  } else if (preset == PhotoPreset::Custom) {
+    source.mode = PhotoSourceMode::Custom;
+  } else {
+    // Use the same preset behavior as the stock selector. Keep the saved
+    // inclusion lists so another preset can use them later.
+    criteria.albums_enabled = preset == PhotoPreset::Album;
+    criteria.people_enabled = preset == PhotoPreset::Person;
+    criteria.tags_enabled = preset == PhotoPreset::Tag;
+    criteria.favorites_enabled = preset == PhotoPreset::Favorites;
+    criteria.rating_enabled = criteria.location_enabled = false;
+    criteria.inclusion_matching = "Match all enabled groups";
+    criteria.album_matching = "Any selected album";
+    criteria.person_matching = "Any selected person";
+    criteria.tag_matching = "Any selected tag";
+    criteria.favorite_mode = criteria.favorites_enabled ? "Favorites only" : "Any";
+    criteria.minimum_rating = 0;
+    criteria.country.clear();
+    criteria.state.clear();
+    criteria.city.clear();
+    criteria.excluded_album_ids.clear();
+    criteria.excluded_person_ids.clear();
+    criteria.excluded_tag_ids.clear();
+    for (size_t i = 3; i < filter_label_fields.size(); ++i)
+      settings.photo_filters.labels[i].clear();
+    if (preset == PhotoPreset::All) {
+      source.mode = PhotoSourceMode::Library;
+    } else if (preset == PhotoPreset::Favorites) {
+      source.mode = PhotoSourceMode::Favorites;
+    } else if (preset == PhotoPreset::Album && !source.album_id.empty() &&
+               (criteria.album_ids.empty() || criteria.album_ids == source.album_id)) {
+      source.mode = PhotoSourceMode::Album;
+      criteria.album_ids = source.album_id;
+    } else {
+      source.mode = PhotoSourceMode::Custom;
+      source.legacy_preset = preset;
+    }
+  }
 }
 
 bool changes_photo_source(std::string_view key) {
@@ -907,46 +966,7 @@ bool Settings::save_photo_preset(PhotoPreset preset, std::string_view paired_key
   if (settings.photo_source.preset() == preset)
     return true;
 
-  auto &source = settings.photo_source;
-  auto &criteria = settings.photo_filters.criteria;
-  source.legacy_preset.reset();
-  if (preset == PhotoPreset::Memories) {
-    source.mode = PhotoSourceMode::Memories;
-  } else if (preset == PhotoPreset::Custom) {
-    source.mode = PhotoSourceMode::Custom;
-  } else {
-    // Use the same preset behavior as the stock selector. Keep the saved
-    // inclusion lists so another preset can use them later.
-    criteria.albums_enabled = preset == PhotoPreset::Album;
-    criteria.people_enabled = preset == PhotoPreset::Person;
-    criteria.tags_enabled = preset == PhotoPreset::Tag;
-    criteria.favorites_enabled = preset == PhotoPreset::Favorites;
-    criteria.rating_enabled = criteria.location_enabled = false;
-    criteria.inclusion_matching = "Match all enabled groups";
-    criteria.album_matching = "Any selected album";
-    criteria.person_matching = "Any selected person";
-    criteria.tag_matching = "Any selected tag";
-    criteria.favorite_mode = criteria.favorites_enabled ? "Favorites only" : "Any";
-    criteria.minimum_rating = 0;
-    criteria.country.clear();
-    criteria.state.clear();
-    criteria.city.clear();
-    criteria.excluded_album_ids.clear();
-    criteria.excluded_person_ids.clear();
-    criteria.excluded_tag_ids.clear();
-    if (preset == PhotoPreset::All) {
-      source.mode = PhotoSourceMode::Library;
-    } else if (preset == PhotoPreset::Favorites) {
-      source.mode = PhotoSourceMode::Favorites;
-    } else if (preset == PhotoPreset::Album && !source.album_id.empty() &&
-               (criteria.album_ids.empty() || criteria.album_ids == source.album_id)) {
-      source.mode = PhotoSourceMode::Album;
-      criteria.album_ids = source.album_id;
-    } else {
-      source.mode = PhotoSourceMode::Custom;
-      source.legacy_preset = preset;
-    }
-  }
+  apply_photo_preset(settings, preset);
   if (store_settings(settings) != UpdateResult::Saved)
     return false;
   publish_photo_feed(std::move(settings), true);
@@ -982,8 +1002,10 @@ bool Settings::add_playback_fields(cJSON *object, PhotoFilterUpdate filter_updat
       return false;
   }
   const bool filters_added = filter_update == PhotoFilterUpdate::Compose
-                                 ? add_photo_filter_fields(object, shared_photo_filters(*this))
-                                 : add_photo_filter_fields(object, photo_filters);
+                                 ? add_photo_filter_fields(object, shared_photo_filters(*this), true)
+                                 : add_photo_filter_fields(object, photo_filters, false);
+  const auto *source_name = filter_update == PhotoFilterUpdate::Compose ? photo_preset_name(photo_source.preset())
+                                                                       : photo_source_name(photo_source.mode);
   return filters_added &&
          cJSON_AddStringToObject(object, "frame_name", frame_name.c_str()) &&
          cJSON_AddStringToObject(object, "immich_url", immich_url.c_str()) &&
@@ -1010,7 +1032,7 @@ bool Settings::add_playback_fields(cJSON *object, PhotoFilterUpdate filter_updat
          cJSON_AddStringToObject(object, "display_mode", display_mode_name(display_mode)) &&
          cJSON_AddStringToObject(object, "photo_orientation", photo_orientation_name(photo_orientation)) &&
          cJSON_AddStringToObject(object, "screen_rotation", screen_rotation_name(screen_rotation)) &&
-         cJSON_AddStringToObject(object, "photo_source", photo_source_name(photo_source.mode)) &&
+         cJSON_AddStringToObject(object, "photo_source", source_name) &&
          (!photo_source.legacy_preset ||
           cJSON_AddStringToObject(object, "legacy_photo_preset", photo_preset_name(photo_source.preset()))) &&
          cJSON_AddStringToObject(object, "album_id", photo_source.album_id.c_str()) &&
@@ -1071,7 +1093,7 @@ void Settings::publish_live_presentation() const {
 }
 
 Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optional<uint32_t> expected_epoch,
-                                                 PhotoFilterUpdate filter_update) {
+                                                 PhotoFilterUpdate filter_update, std::optional<PhotoPreset> preset) {
   std::string replacement_key;
   std::string replacement_token;
   const std::lock_guard lock(storage_mutex);
@@ -1080,10 +1102,11 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
     return UpdateResult::Failed;
   if (expected_epoch && *expected_epoch != settings.reset_epoch)
     return UpdateResult::Stale;
-  if (!update->child)
+  if (!update->child && !preset)
     return UpdateResult::Unchanged;
   const bool shared_filters = filter_update == PhotoFilterUpdate::Compose;
-  const bool compose_filters = shared_filters && settings.photo_source.mode != PhotoSourceMode::Memories;
+  const bool change_preset = preset && *preset != settings.photo_source.preset();
+  const bool compose_filters = shared_filters && !change_preset && settings.photo_source.mode != PhotoSourceMode::Memories;
   std::optional<ImmichFilterConfig> stored_criteria;
   // Compare the submitted fields with the same implied filter values the
   // shared API returns. Only save those values when the filter really changes.
@@ -1105,6 +1128,12 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   const bool was_configured = settings.has_immich();
   const auto previous_night_brightness = settings.brightness_night;
   const auto previous_prepared_url = settings.prepared_slide_url;
+  const auto previous_labels = settings.photo_filters.labels;
+  if (change_preset) {
+    if (*preset == PhotoPreset::Memories || *preset == PhotoPreset::Custom)
+      settings.photo_filters = shared_photo_filters(settings);
+    apply_photo_preset(settings, *preset);
+  }
   if (!read_field(update, "immich_url", settings.immich_url, true) ||
       !read_field(update, "immich_key", replacement_key, true) ||
       !read_field(update, "frame_name", settings.frame_name, true) ||
@@ -1143,11 +1172,11 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   const cJSON *field;
   cJSON_ArrayForEach(field, next.get()) {
     const std::string_view key(field->string);
-    if (key == "legacy_photo_preset" ||
+    if (key == "legacy_photo_preset" || std::ranges::find(filter_label_fields, key) != filter_label_fields.end() ||
         cJSON_Compare(field, cJSON_GetObjectItemCaseSensitive(previous.get(), field->string), true))
       continue;
     changed = true;
-    if (changes_photo_source(key))
+    if (!change_preset && changes_photo_source(key))
       settings.photo_source.legacy_preset.reset();
     if (shared_filters && is_composable_filter(key)) {
       if (!compose_filters)
@@ -1162,7 +1191,7 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
     live_presentation_changed |= presents_playback;
     restart |= !selects_photos && !presents_photos && !presents_playback;
   }
-  if (!changed)
+  if (!changed && !change_preset && previous_labels == settings.photo_filters.labels)
     return UpdateResult::Unchanged;
   if (filters_changed) {
     const auto &criteria = settings.photo_filters.criteria;
@@ -1180,8 +1209,8 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   if (result == UpdateResult::Saved && !restart) {
     if (live_presentation_changed)
       settings.publish_live_presentation();
-    if (photo_changed)
-      publish_photo_feed(std::move(settings), selection_changed);
+    if (photo_changed || change_preset)
+      publish_photo_feed(std::move(settings), selection_changed || change_preset);
     return UpdateResult::SavedLive;
   }
   return result;

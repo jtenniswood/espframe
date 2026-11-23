@@ -1,6 +1,8 @@
 window.espframeNativeCards = {
   makeConnectionCard: ["immich_url", "conn_timeout"],
   makeFrequencyCard: ["interval"],
+  makeMemoriesCard: ["photo_source", "memories_window", "memories_fallback"],
+  makeFiltersCard: ["photo_source", "immich_filter_support", "album_labels", "excluded_tag_labels"],
   makePortraitPairingCard: ["portrait_pairing", "portrait_pairs_only", "portrait_pairing_range"],
   makeLayoutCard: ["photo_orientation", "display_mode", "transition", "transition_speed"],
   makeMetadataCard: ["photo_metadata_date_enabled", "photo_metadata_location_enabled",
@@ -13,6 +15,30 @@ window.espframeNativeCards = {
   makeClockCard: ["show_clock", "clock_format", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"],
   makeFrameNameCard: ["frame_name"],
   makeFirmwareCard: ["auto_update", "update_frequency"],
+};
+
+window.espframeWatchFilters = async function (state, readSettings, renderSettings) {
+  if (state.immich_filter_support !== "unknown") return;
+  for (let attempt = 0; attempt < 8; ++attempt) {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    try {
+      const { values } = await readSettings();
+      if (values.immich_filter_support === "structured" || values.immich_filter_support === "legacy") {
+        state.immich_filter_support = values.immich_filter_support;
+        renderSettings();
+        return;
+      }
+    } catch (_) {
+      // Reconnects are expected while the frame is starting.
+    }
+  }
+};
+
+window.espframePairFraming = function (field, select, current, save) {
+  const labels = { "Follow photo framing": "Follow photo framing", Fill: "Fill each half", Fit: "Fit both full photos" };
+  const control = field("Portrait pair framing");
+  control.appendChild(select(Object.keys(labels), current, save, value => labels[value]));
+  return control;
 };
 
 window.espframeNativeReconnect = async function (readSettings) {

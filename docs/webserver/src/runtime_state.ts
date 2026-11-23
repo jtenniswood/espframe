@@ -278,6 +278,7 @@
     rendered = true;
     renderAttemptInFlight = false;
     renderSettings();
+    if (nativeAdmin) window["espframeWatchFilters"](S, getConfigurationSnapshot, renderSettingsAfterEditing);
   }
 
   var startupHydrationPromise = null;

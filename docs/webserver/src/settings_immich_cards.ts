@@ -472,10 +472,9 @@
       filterBadge.textContent = memoriesActive ? "Disabled" : "On";
       filterBadge.className = "on-badge" + (filtersActive() || memoriesActive ? " active" : "");
     }
-    var version = String(S.immich_server_version || "Unknown");
-    var parts = version.split(".").map(Number);
-    var supportsStructured = parts.length >= 2 && isFinite(parts[0]) && isFinite(parts[1]) &&
-      (parts[0] > 3 || (parts[0] === 3 && parts[1] >= 2));
+    var [major, minor] = String(S.immich_server_version || "").split(".").map(Number);
+    var supportsStructured = S.immich_filter_support === "structured" ||
+      (isFinite(major) && isFinite(minor) && (major > 3 || (major === 3 && minor >= 2)));
     var compatibilityUpdates = [];
     function updateCompatibility() {
       compatibilityUpdates.forEach(function (update) { update(); });
@@ -577,12 +576,8 @@
         editor.error.textContent = "Invalid UUID format";
         return;
       }
-      S[idKey] = ids;
-      S[labelKey] = labels;
+      saveSettingValues({ [idKey]: ids, [labelKey]: labels }).then(applyPhotoSource).catch(reportSettingSaveFailure);
       updateCompatibility();
-      Promise.all([saveSetting(idKey, ids), saveSetting(labelKey, labels)]).then(function () {
-        return post(endpoints.apply_photo_source + "/press");
-      }).catch(reportSettingSaveFailure);
     }
     function addExclusions(parent, label, idKey, labelKey, noun) {
       var nested = document.createElement("details");
@@ -999,7 +994,7 @@
       Promise.all(requests).then(function () {
         if (changes.source || changes.album || changes.albumOrder || changes.person ||
             changes.tag || changes.tagMatching)
-          return post(endpoints.apply_photo_source + "/press");
+          return applyPhotoSource();
       }).catch(reportSettingSaveFailure);
     }
     function schedulePhotoSourceApply(delayMs, changes) {
@@ -1159,21 +1154,14 @@
     function applyFilterSettings() {
       var vals = readFilterValues();
       if (!vals) return;
-      S.date_filter_mode = modeVal;
-      S.date_from = vals.from;
-      S.date_to = vals.to;
-      S.relative_amount = vals.amount;
-      S.relative_unit = vals.unit;
-      Promise.all([
-        saveSetting("date_filter_enabled", S.date_filter_enabled),
-        saveSetting("date_filter_mode", modeVal),
-        saveSetting("date_from", vals.from),
-        saveSetting("date_to", vals.to),
-        saveSetting("relative_amount", vals.amount),
-        saveSetting("relative_unit", vals.unit)
-      ]).then(function () {
-        return post(endpoints.apply_photo_source + "/press");
-      }).catch(reportSettingSaveFailure);
+      saveSettingValues({
+        date_filter_enabled: S.date_filter_enabled,
+        date_filter_mode: modeVal,
+        date_from: vals.from,
+        date_to: vals.to,
+        relative_amount: vals.amount,
+        relative_unit: vals.unit
+      }).then(applyPhotoSource).catch(reportSettingSaveFailure);
     }
 
     function scheduleFilterApply() {
@@ -1237,6 +1225,10 @@
     if (portraitRotationActive) pairingRangeSelect.title = pairingOptionsDisabledTitle;
     fPairingRange.appendChild(pairingRangeSelect);
     pairingOptionsBody.appendChild(fPairingRange);
+    if (nativeSettings.has("portrait_pair_framing")) {
+      pairingOptionsBody.appendChild(window["espframePairFraming"](field, selectFromOptions, S.portrait_pair_framing,
+        function (value) { saveSetting("portrait_pair_framing", value); }));
+    }
 
     pairingBody.appendChild(pairingToggle.field);
     pairingOptionsBody.style.display = pairingEnabled ? "" : "none";

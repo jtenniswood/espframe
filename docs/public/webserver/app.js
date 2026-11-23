@@ -2309,13 +2309,6 @@ to {
     });
   }
   var MAX_NTP_SERVER_LENGTH = 253;
-  function postTextValueSet(url, value, useQueryFallback) {
-    return apiClient.postText(url, value == null ? "" : String(value), useQueryFallback).catch(function(err) {
-      console.error("POST " + url + " error:", err);
-      showBanner("Failed to save setting", "error");
-      throw err;
-    });
-  }
   function delayMs(ms) {
     return new Promise(function(resolve) {
       setTimeout(resolve, ms);
@@ -2328,7 +2321,11 @@ to {
     if (nativeAdmin) return saveAndVerifyConnection({ immich_url: value });
     return settingSaves.save({ immich_url: value }, async function() {
       var path = endpoints.immich_url;
-      await postTextValueSet(path + "/set", value, true);
+      await apiClient.postText(path + "/set", value, true).catch(function(err) {
+        console.error("POST " + path + "/set error:", err);
+        showBanner("Failed to save setting", "error");
+        throw err;
+      });
       await delayMs(1200);
       if (normalizeImmichUrl(connectionResponseValue(await safeGet(path))) !== value) throw Error("verify_failed");
     });
@@ -2455,7 +2452,7 @@ to {
     });
   }
   function saveGenericSetting(key, value) {
-    if (!key || !endpoints[key]) return Promise.resolve(null);
+    if (!key || !(endpoints[key] || nativeSettings.has(key))) return Promise.resolve(null);
     if (key === "api_key") return saveAndVerifyApiKey(value);
     var domain = settingEntityDomain(key);
     var savedValue = value;
@@ -2490,13 +2487,16 @@ to {
     schedule_wake_timeout: saveScheduleWakeTimeoutSetting,
     screen_rotation: saveScreenRotationSetting
   };
+  async function applyPhotoSource() {
+    if (!nativeAdmin) await post(endpoints.apply_photo_source + "/press");
+  }
   function saveSetting(key, value, options) {
     var opts = options || {};
     var adapter = SETTING_SAVE_ADAPTERS[key];
     var result = adapter ? adapter(key, value, opts) : saveGenericSetting(key, value);
     if (opts.applyPhotoSource && settingUsesPhotoSourceApply(key)) {
       result = Promise.resolve(result).then(function(saved) {
-        return post(endpoints.apply_photo_source + "/press").then(function() {
+        return applyPhotoSource().then(function() {
           return saved;
         });
       });
@@ -2831,6 +2831,7 @@ to {
     rendered = true;
     renderAttemptInFlight = false;
     renderSettings();
+    if (nativeAdmin) window["espframeWatchFilters"](S, getConfigurationSnapshot, renderSettingsAfterEditing);
   }
   var startupHydrationPromise = null;
   function getStartupHydration() {
@@ -3513,9 +3514,8 @@ to {
       filterBadge.textContent = memoriesActive ? "Disabled" : "On";
       filterBadge.className = "on-badge" + (filtersActive() || memoriesActive ? " active" : "");
     }
-    var version = String(S.immich_server_version || "Unknown");
-    var parts = version.split(".").map(Number);
-    var supportsStructured = parts.length >= 2 && isFinite(parts[0]) && isFinite(parts[1]) && (parts[0] > 3 || parts[0] === 3 && parts[1] >= 2);
+    var [major, minor] = String(S.immich_server_version || "").split(".").map(Number);
+    var supportsStructured = S.immich_filter_support === "structured" || isFinite(major) && isFinite(minor) && (major > 3 || major === 3 && minor >= 2);
     var compatibilityUpdates = [];
     function updateCompatibility() {
       compatibilityUpdates.forEach(function(update) {
@@ -3616,12 +3616,8 @@ to {
         editor.error.textContent = "Invalid UUID format";
         return;
       }
-      S[idKey] = ids;
-      S[labelKey] = labels;
+      saveSettingValues({ [idKey]: ids, [labelKey]: labels }).then(applyPhotoSource).catch(reportSettingSaveFailure);
       updateCompatibility();
-      Promise.all([saveSetting(idKey, ids), saveSetting(labelKey, labels)]).then(function() {
-        return post(endpoints.apply_photo_source + "/press");
-      }).catch(reportSettingSaveFailure);
     }
     function addExclusions(parent, label, idKey, labelKey, noun) {
       var nested = document.createElement("details");
@@ -3990,21 +3986,14 @@ to {
     function applyFilterSettings() {
       var vals = readFilterValues();
       if (!vals) return;
-      S.date_filter_mode = modeVal;
-      S.date_from = vals.from;
-      S.date_to = vals.to;
-      S.relative_amount = vals.amount;
-      S.relative_unit = vals.unit;
-      Promise.all([
-        saveSetting("date_filter_enabled", S.date_filter_enabled),
-        saveSetting("date_filter_mode", modeVal),
-        saveSetting("date_from", vals.from),
-        saveSetting("date_to", vals.to),
-        saveSetting("relative_amount", vals.amount),
-        saveSetting("relative_unit", vals.unit)
-      ]).then(function() {
-        return post(endpoints.apply_photo_source + "/press");
-      }).catch(reportSettingSaveFailure);
+      saveSettingValues({
+        date_filter_enabled: S.date_filter_enabled,
+        date_filter_mode: modeVal,
+        date_from: vals.from,
+        date_to: vals.to,
+        relative_amount: vals.amount,
+        relative_unit: vals.unit
+      }).then(applyPhotoSource).catch(reportSettingSaveFailure);
     }
     function scheduleFilterApply() {
       clearTimeout(filterApplyTimer);
@@ -4070,6 +4059,16 @@ to {
     if (portraitRotationActive) pairingRangeSelect.title = pairingOptionsDisabledTitle;
     fPairingRange.appendChild(pairingRangeSelect);
     pairingOptionsBody.appendChild(fPairingRange);
+    if (nativeSettings.has("portrait_pair_framing")) {
+      pairingOptionsBody.appendChild(window["espframePairFraming"](
+        field,
+        selectFromOptions,
+        S.portrait_pair_framing,
+        function(value) {
+          saveSetting("portrait_pair_framing", value);
+        }
+      ));
+    }
     pairingBody.appendChild(pairingToggle.field);
     pairingOptionsBody.style.display = pairingEnabled ? "" : "none";
     pairingBody.appendChild(pairingOptionsBody);
@@ -6551,7 +6550,7 @@ to {
             }, 0);
             var appliedCount = queuedCount - failedCount;
             if (needsPhotoSourceApply && appliedCount) {
-              return post(endpoints.apply_photo_source + "/press").then(function() {
+              return applyPhotoSource().then(function() {
                 return { appliedCount, failedCount };
               }).catch(function() {
                 return { appliedCount, failedCount: failedCount + 1 };

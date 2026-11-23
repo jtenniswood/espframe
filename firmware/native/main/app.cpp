@@ -464,6 +464,11 @@ class SlideLoader {
                                   result != Result::Ready && loader.cancelled_.load(), source_ready,
                                   request.preparation, presentation};
       xQueueSend(loader.completed_, &completion, portMAX_DELAY);
+      if constexpr (!esphome_trial) {
+        // Check which filters the server supports after handing off a ready slide.
+        if (result == Result::Ready && loader.live_ && lease.slide > 0 && uxQueueMessagesWaiting(loader.requests_) == 0)
+          loader.source_.probe_filter_support();
+      }
     }
   }
 

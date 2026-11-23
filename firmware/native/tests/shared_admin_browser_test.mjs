@@ -21,12 +21,25 @@ const unexpected = []
 let restartPending = false
 let restartsObserved = 0
 let bootChecks = 0
+let configurationReads = 0
 let release = { current: 'v0.1.0-preview.9', versions: [], status: 'idle', available: true }
 const snapshot = {
   api_version: 1, reset_epoch: 2, api_key_configured: true,
   values: {
     immich_url: 'https://photos.test/api',
     conn_timeout: '10 minutes',
+    immich_filter_support: 'unknown',
+    photo_source: 'All Photos',
+    memories_window: 'Within 2 Days',
+    memories_fallback: true,
+    albums_enabled: true,
+    album_ids: '11111111-1111-4111-8111-111111111111',
+    album_labels: '["Summer"]',
+    excluded_tag_labels: '',
+    portrait_pairing: true,
+    portrait_pairs_only: false,
+    portrait_pairing_range: 'Same Day',
+    portrait_pair_framing: 'Follow photo framing',
     interval: '15 seconds',
     photo_orientation: 'Any', display_mode: 'Fit', transition: 'Cross Fade', transition_speed: 'Fast',
     screen_rotation: '0',
@@ -60,9 +73,17 @@ const browserTest = String.raw`
       control.dispatchEvent(new Event('change', { bubbles: true }))
     }
     const button = (root, label) => [...root.querySelectorAll('button')].find(el => el.textContent.trim() === label)
+    const setting = (root, label) => root.querySelector('[aria-label="' + label + '"]')
+    const savedValue = async (key, expected) => {
+      const response = await fetch('/espframe/api/v1/configuration')
+      return (await response.json()).values[key] === expected
+    }
     await until(() => card('Frequency') && card('Photo Display') && card('Connection'), 'Immich cards')
     if (tab('Immich').getAttribute('aria-selected') !== 'true') throw new Error('Immich did not open first')
     if (tab('Logs') || card('WireGuard VPN') || card('Screen Tone')) throw new Error('Unavailable controls appeared')
+    const rating = () => setting(card('Filters').closest('.card'), 'Filter by Rating')
+    if (rating().tabIndex !== -1) throw new Error('Rating became available before discovery')
+    await until(() => rating().tabIndex === 0, 'Immich to report support for structured filters')
     const select = openCard('Frequency').querySelector('select')
     if (select.value !== '15 seconds') throw new Error('Native configuration was not loaded')
     change(select, '30 seconds')
@@ -70,6 +91,37 @@ const browserTest = String.raw`
       const response = await fetch('/espframe/api/v1/configuration')
       return (await response.json()).values.interval === '30 seconds'
     }, 'the interval save')
+    const pairing = openCard('Portrait Pairing')
+    const framing = [...pairing.querySelectorAll('select')].find(control =>
+      [...control.options].some(option => option.textContent === 'Fill each half'))
+    if (!framing) throw new Error('Portrait fill control was missing')
+    change(framing, 'Fill')
+    await until(() => savedValue('portrait_pair_framing', 'Fill'), 'portrait fill save')
+
+    const memories = openCard('Memories')
+    const filters = openCard('Filters')
+    const memoryToggle = setting(memories, 'Show Memories Only')
+    const ratingToggle = setting(filters, 'Filter by Rating')
+    if (ratingToggle.getAttribute('aria-disabled') === 'true') throw new Error('Structured filters were disabled')
+    memoryToggle.click()
+    if (!filters.classList.contains('memory-filter-disabled') || ratingToggle.getAttribute('aria-disabled') !== 'true') {
+      throw new Error('Memories did not lock photo filters')
+    }
+    await until(() => savedValue('photo_source', 'Memories'), 'Memories to save')
+    memoryToggle.click()
+    await until(() => savedValue('photo_source', 'Custom'), 'saved filters to resume')
+    if (filters.classList.contains('memory-filter-disabled')) throw new Error('Filters stayed disabled after Memories')
+    const album = [...filters.querySelectorAll('details')].find(panel => panel.querySelector('summary').textContent === 'Included Albums')
+    album.open = true
+    const id = album.querySelector('input[placeholder^="Paste album UUID"]')
+    const label = album.querySelector('input[placeholder="Optional label"]')
+    id.value = '22222222-2222-4222-8222-222222222222'
+    id.dispatchEvent(new Event('input', { bubbles: true }))
+    label.value = 'Family trip'
+    label.dispatchEvent(new Event('input', { bubbles: true }))
+    await until(() => savedValue('album_labels', '["Family trip"]'), 'the album IDs and labels to save as a pair')
+    setting(filters, 'Filter by Date').click()
+    await until(() => savedValue('date_filter_enabled', true), 'the date range to save')
     const connection = openCard('Connection')
     const url = connection.querySelector('input[type="url"]')
     change(url, 'new-photos.test/api/')
@@ -170,6 +222,7 @@ const server = createServer(async (req, res) => {
         ++restartsObserved
         return res.writeHead(503).end()
       }
+      if (++configurationReads > 1) snapshot.values.immich_filter_support = 'structured'
       return json(snapshot)
     case releasePath:
       if (req.method === 'POST') {
@@ -212,6 +265,11 @@ try {
   assert.equal(page.match(/data-result="([^"]*)"/)?.[1], 'passed')
   assert.deepEqual(writes, [
     { interval: '30 seconds' },
+    { portrait_pair_framing: 'Fill' },
+    { photo_source: 'Memories' },
+    { photo_source: 'Custom' },
+    { album_ids: '22222222-2222-4222-8222-222222222222', album_labels: '["Family trip"]' },
+    { date_filter_enabled: true, date_filter_mode: 'Fixed Range', date_from: '', date_to: '', relative_amount: 1, relative_unit: 'Years' },
     { immich_url: 'https://new-photos.test/api' },
     { api_key: 'replacement-test-key' },
     { brightness_day: 85 },
@@ -222,7 +280,7 @@ try {
   assert.equal(restartsObserved, 2)
   assert.ok(bootChecks > 2)
   assert.deepEqual(unexpected, [])
-  console.log('Shared admin saved native connection, brightness and update preferences and verified a mock firmware restart')
+  console.log('Shared admin saved native Memories, photo filters, portrait fill, connection, brightness and update preferences')
 } finally {
   server.close()
 }

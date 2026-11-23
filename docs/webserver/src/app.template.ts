@@ -157,14 +157,6 @@ import {
   var PHOTO_LABEL_FIELD_TOO_LONG =
     "Labels exceed 255 characters (device limit). Shorten or remove labels.";
 
-  function postTextValueSet(url, value, useQueryFallback?) {
-    return apiClient.postText(url, value == null ? "" : String(value), useQueryFallback).catch(function (err) {
-      console.error("POST " + url + " error:", err);
-      showBanner("Failed to save setting", "error");
-      throw err;
-    });
-  }
-
   function delayMs(ms) {
     return new Promise(function (resolve) { setTimeout(resolve, ms); });
   }
@@ -177,7 +169,11 @@ import {
     if (nativeAdmin) return saveAndVerifyConnection({ immich_url: value });
     return settingSaves.save({ immich_url: value }, async function () {
       var path = endpoints.immich_url;
-      await postTextValueSet(path + "/set", value, true);
+      await apiClient.postText(path + "/set", value, true).catch(function (err) {
+        console.error("POST " + path + "/set error:", err);
+        showBanner("Failed to save setting", "error");
+        throw err;
+      });
       await delayMs(1200);
       if (normalizeImmichUrl(connectionResponseValue(await safeGet(path))) !== value) throw Error("verify_failed");
     });
@@ -313,7 +309,7 @@ import {
   }
 
   function saveGenericSetting(key, value) {
-    if (!key || !endpoints[key]) return Promise.resolve(null);
+    if (!key || !(endpoints[key] || nativeSettings.has(key))) return Promise.resolve(null);
     if (key === "api_key") return saveAndVerifyApiKey(value);
     var domain = settingEntityDomain(key);
     var savedValue = value;
@@ -354,13 +350,17 @@ import {
     screen_rotation: saveScreenRotationSetting
   };
 
+  async function applyPhotoSource() {
+    if (!nativeAdmin) await post(endpoints.apply_photo_source + "/press");
+  }
+
   function saveSetting(key, value, options?) {
     var opts = options || {};
     var adapter = SETTING_SAVE_ADAPTERS[key];
     var result = adapter ? adapter(key, value, opts) : saveGenericSetting(key, value);
     if (opts.applyPhotoSource && settingUsesPhotoSourceApply(key)) {
       result = Promise.resolve(result).then(function (saved) {
-        return post(endpoints.apply_photo_source + "/press").then(function () { return saved; });
+        return applyPhotoSource().then(function () { return saved; });
       });
     }
     // Event handlers may ignore the result; backup import still receives the

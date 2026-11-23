@@ -128,14 +128,31 @@ int ImmichSource::fetch_(std::string_view path, std::string_view body, size_t li
   return status;
 }
 
+int ImmichSource::discover_search_api_(int64_t deadline_us, bool report_response) {
+  size_t length;
+  const int status = this->fetch_("/server/version", {}, 1024, length, deadline_us, report_response);
+  if (status == 200) {
+    this->search_api_ = parse_search_api({reinterpret_cast<const char *>(this->encoded_), length});
+    if constexpr (!SWIPE_ESPHOME_TRIAL) {
+      active_immich_search_api.store(this->search_api_, std::memory_order_relaxed);
+    }
+  }
+  return status;
+}
+
+void ImmichSource::probe_filter_support() {
+  const auto now = esp_timer_get_time();
+  if (this->search_api_ != ImmichSearchApi::Unknown || now < this->next_filter_probe_us_ || !this->encoded_)
+    return;
+  this->next_filter_probe_us_ = now + 60'000'000;
+  this->discover_search_api_(now + 350'000, false);
+}
+
 bool ImmichSource::select_search_api_(PhotoSourceMode mode) {
   const bool library = mode == PhotoSourceMode::Library;
   if ((library && !this->capture_date_range_.active()) || this->search_api_ != ImmichSearchApi::Unknown)
     return true;
-  size_t length;
-  const int status = this->fetch_("/server/version", {}, 1024, length);
-  if (status == 200)
-    this->search_api_ = parse_search_api({reinterpret_cast<const char *>(this->encoded_), length});
+  const int status = this->discover_search_api_(0, true);
   if (this->search_api_ == ImmichSearchApi::Unknown) {
     ESP_LOGW(tag, "Could not determine Immich search capabilities for the selected photo source (%d)", status);
     return library;

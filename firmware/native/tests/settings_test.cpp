@@ -580,14 +580,10 @@ int main() {
   assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(values, "transition")) == std::string("Cross Fade"));
   assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(values, "transition_speed")) == std::string("Fast"));
   assert(!cJSON_HasObjectItem(values, "api_key") && !cJSON_HasObjectItem(values, "immich_key") &&
-         !cJSON_HasObjectItem(values, "web_password") && !cJSON_HasObjectItem(values, "password") &&
-         !cJSON_HasObjectItem(values, "photo_source"));
-  bool source_unavailable = false;
-  const cJSON *key;
-  cJSON_ArrayForEach(key, cJSON_GetObjectItemCaseSensitive(snapshot.get(), "unavailable")) {
-    source_unavailable |= cJSON_GetStringValue(key) == std::string("photo_source");
-  }
-  assert(source_unavailable);
+         !cJSON_HasObjectItem(values, "web_password") && !cJSON_HasObjectItem(values, "password"));
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(values, "photo_source")) == std::string_view("Memories"));
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(values, "immich_filter_support")) ==
+         std::string_view("unknown"));
 
   const auto form = decode_configuration_form(
       "configuration=%7B%22values%22%3A%7B%22interval%22%3A%2230+seconds%22%2C%22api_key%22%3A%22new%2B%26key%22%7D%7D");
@@ -607,7 +603,9 @@ int main() {
   for (const auto *invalid : {
            R"({"api_version":2,"values":{"brightness_day":50}})",
            R"({"reset_epoch":1,"values":{"brightness_day":50}})",
-           R"({"values":{"brightness_day":50,"photo_source":"Custom"}})",
+           R"({"values":{"brightness_day":50,"photo_source":"custom"}})",
+           R"({"values":{"brightness_day":50,"photo_source":"Memories","photo_source":"Custom"}})",
+           R"({"values":{"brightness_day":50,"album_labels":true}})",
            R"({"values":{"brightness_day":50,"screen_rotation":"90"}})",
            R"({"values":{"brightness_day":50,"portrait_pairs_only":"true"}})",
            R"({"values":{"brightness_day":50,"transition":"Dissolve"}})",
@@ -1104,6 +1102,20 @@ int main() {
          filtered.photo_filters.criteria.favorites_enabled &&
          filtered.photo_filters.criteria.favorite_mode == "Exclude favorites");
   assert(active_photo_preset.load() == PhotoPreset::Custom);
+  const auto label_revision = photo_source_revision.load();
+  auto label_save = update_configuration(R"({"values":{"person_labels":"[\"Family, Friends\"]"}})");
+  assert(!label_save.error && !label_save.restart_required && photo_source_revision.load() == label_revision);
+  assert(current.read());
+  const Json labeled(configuration_snapshot(current), cJSON_Delete);
+  const auto *labeled_values = cJSON_GetObjectItemCaseSensitive(labeled.get(), "values");
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(labeled_values, "person_labels")) ==
+         std::string_view(R"(["Family, Friends"])"));
+  const auto labeled_document = stored;
+  const std::string oversized_label = "{\"values\":{\"person_labels\":\"" + std::string(256, 'x') + "\"}}";
+  assert(update_configuration(oversized_label.c_str()).error && stored == labeled_document);
+  label_save = update_configuration(R"({"values":{"person_labels":""}})");
+  assert(!label_save.error && !label_save.restart_required && photo_source_revision.load() == label_revision);
+  assert(current.read() && current.photo_filters.labels[1].empty());
 
   save_filter_frame("album");
   assert(current.read() && !current.photo_filters.criteria.albums_enabled &&
@@ -1123,6 +1135,18 @@ int main() {
   assert(composed_album.photo_source.mode == PhotoSourceMode::Custom && composed_album.photo_filters.criteria.albums_enabled);
   assert(composed_album.photo_filters.criteria.album_ids == "11111111-1111-4111-8111-111111111111");
   assert(composed_album.photo_filters.criteria.location_enabled && composed_album.photo_filters.criteria.city == "London");
+
+  save_filter_frame("album");
+  const auto memories_with_album = apply_shared_filters(R"({"values":{"photo_source":"Memories"}})");
+  assert(memories_with_album.photo_source.mode == PhotoSourceMode::Memories);
+  assert(memories_with_album.photo_filters.criteria.albums_enabled &&
+         memories_with_album.photo_filters.criteria.album_ids == "11111111-1111-4111-8111-111111111111");
+  const auto resumed_filters = apply_shared_filters(R"({"values":{"photo_source":"Custom"}})");
+  assert(resumed_filters.photo_source.mode == PhotoSourceMode::Custom && resumed_filters.photo_filters.criteria.albums_enabled);
+  const auto person_preset = apply_shared_filters(R"({"values":{"photo_source":"Person",
+      "person_ids":"22222222-2222-4222-8222-222222222222","person_labels":"Family"}})");
+  assert(person_preset.photo_source.preset() == PhotoPreset::Person && person_preset.photo_filters.criteria.people_enabled);
+  assert(!person_preset.photo_filters.criteria.albums_enabled && person_preset.photo_filters.labels[1] == "Family");
 
   save_filter_frame("album");
   assert(Settings::save_playback(R"({"immich_url":"http://fresh.test",

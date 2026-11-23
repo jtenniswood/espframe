@@ -19,6 +19,7 @@ async function legacyConnectionRollback(status) {
     S: state,
     settingSaves: saves,
     rendered: false,
+    nativeAdmin: false,
     renderAttemptInFlight: false,
     renderTimer: null,
     wizardActive: false,

@@ -29,12 +29,6 @@ const contract::ConfigurationField *find_field(std::string_view key) {
   return nullptr;
 }
 
-// The native playback endpoint uses its own source names. The shared API
-// exposes the independent filters instead.
-bool passes_through(const char *key, const cJSON *playback) {
-  return std::string_view(key) != "photo_source" && cJSON_HasObjectItem(playback, key);
-}
-
 bool add_copy(cJSON *object, const char *key, const cJSON *value) {
   Json copy(cJSON_Duplicate(value, false), cJSON_Delete);
   if (!copy || !cJSON_AddItemToObject(object, key, copy.get()))
@@ -162,9 +156,12 @@ cJSON *configuration_snapshot(const Settings &settings) {
     return nullptr;
   auto *values = cJSON_AddObjectToObject(body.get(), "values");
   auto *unavailable = cJSON_AddArrayToObject(body.get(), "unavailable");
+  const auto search_api = active_immich_search_api.load(std::memory_order_relaxed);
   if (!values || !unavailable ||
       !cJSON_AddStringToObject(values, "interval", interval_label(settings.slide_seconds).c_str()) ||
       !cJSON_AddStringToObject(values, "frame_name", settings.frame_name.c_str()) ||
+      !cJSON_AddStringToObject(values, "immich_filter_support", search_api == ImmichSearchApi::Structured ? "structured" :
+                                                             search_api == ImmichSearchApi::Legacy ? "legacy" : "unknown") ||
       !cJSON_AddStringToObject(values, "portrait_pair_framing", pair_framing_name(settings.pair_framing)) ||
       !cJSON_AddStringToObject(values, "prepared_slide_url", settings.prepared_slide_url.c_str()) ||
       !cJSON_AddBoolToObject(values, "prepared_slide_token_configured", settings.has_prepared_slides()))
@@ -172,8 +169,8 @@ cJSON *configuration_snapshot(const Settings &settings) {
   for (const auto &field : contract::CONFIGURATION_FIELDS) {
     if (field.secret || std::string_view(field.key) == "interval")
       continue;
-    if (passes_through(field.key, playback.get())) {
-      if (!add_copy(values, field.key, cJSON_GetObjectItemCaseSensitive(playback.get(), field.key)))
+    if (const auto *setting = cJSON_GetObjectItemCaseSensitive(playback.get(), field.key)) {
+      if (!add_copy(values, field.key, setting))
         return nullptr;
     } else {
       Json key(cJSON_CreateString(field.key), cJSON_Delete);
@@ -255,14 +252,22 @@ ConfigurationUpdate update_configuration(const char *json) {
 
   const Json update(cJSON_CreateObject(), cJSON_Delete);
   const Json playback(cJSON_CreateObject(), cJSON_Delete);
-  if (!update || !playback || !Settings{}.add_playback_fields(playback.get()))
+  if (!update || !playback || !Settings{}.add_playback_fields(playback.get(), PhotoFilterUpdate::Compose))
     return {"500 Internal Server Error", "settings_unavailable", {}};
 
   size_t count = 0;
   std::optional<std::string> frame_name;
+  std::optional<PhotoPreset> source_preset;
   const cJSON *value;
   cJSON_ArrayForEach(value, values) {
     const std::string_view requested_key(value->string);
+    if (requested_key == "photo_source") {
+      const auto *name = cJSON_GetStringValue(value);
+      if (source_preset || !name || !(source_preset = parse_photo_preset(name)))
+        return {"422 Unprocessable Entity", "invalid_value", value->string};
+      ++count;
+      continue;
+    }
     if (requested_key == "frame_name") {
       const auto *input = cJSON_GetStringValue(value);
       std::string name;
@@ -301,7 +306,7 @@ ConfigurationUpdate update_configuration(const char *json) {
         if (!secret || !*secret)
           return {"422 Unprocessable Entity", "invalid_value", key};
         native_key = "immich_key";
-      } else if (field->secret || !passes_through(key, playback.get())) {
+      } else if (field->secret || !cJSON_HasObjectItem(playback.get(), key)) {
         return {"422 Unprocessable Entity", "unavailable", key};
       }
       if (cJSON_HasObjectItem(update.get(), native_key))
@@ -314,7 +319,7 @@ ConfigurationUpdate update_configuration(const char *json) {
 
   const auto result = count == 0 && !expected_epoch ? Settings::UpdateResult::Unchanged
                                                     : Settings::update_playback(update.get(), expected_epoch,
-                                                                                PhotoFilterUpdate::Compose);
+                                                                                PhotoFilterUpdate::Compose, source_preset);
   if (result == Settings::UpdateResult::Invalid)
     return {"422 Unprocessable Entity", "invalid_value", {}};
   if (result == Settings::UpdateResult::Stale)
