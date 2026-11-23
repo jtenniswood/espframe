@@ -421,7 +421,7 @@ Set **Portrait pair framing** to **Fill each half** to crop both portraits
 independently of single-photo framing. **Fit both full photos** keeps both
 portraits intact. **Follow photo framing** retains the previous behavior.
 Set **Mounting orientation** to **Upside down (180°)** when the frame is
-mounted the other way round. After restart, photos, portrait pairs, the clock,
+mounted the other way round. Photos, portrait pairs, the clock,
 and touch follow the new orientation together. Espframe backups carry the
 landscape mounting choice.
 

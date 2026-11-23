@@ -15,6 +15,7 @@
 #include "stock_settings.h"
 #include "wifi_credentials.h"
 
+#include <atomic>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -23,6 +24,8 @@
 struct cJSON;
 
 namespace espframe::native {
+
+inline std::atomic<ScreenRotation> requested_screen_rotation{};
 
 inline constexpr const char *screen_rotation_name(ScreenRotation rotation) {
   switch (rotation) {

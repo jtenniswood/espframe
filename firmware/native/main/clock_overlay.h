@@ -35,6 +35,7 @@ class ClockOverlay {
 
   bool init(const ClockSettings &settings, const uint8_t *atlas, bool snapshots,
             ScreenRotation rotation = ScreenRotation::Normal);
+  void set_rotation(ScreenRotation rotation);
   void set_twelve_hour(bool enabled) { twelve_hour_ = enabled; }
   bool update(const std::optional<std::tm> &local);
   bool visible() const { return text_[0] != '\0'; }

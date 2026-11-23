@@ -31,20 +31,22 @@ enum class PreviewTarget;
 class ImmichSource {
  public:
   enum class PrepareResult { Ready, Retry, NextCandidate };
-  enum class Preparation { FullPreview, AllowThumbnail, RefineThumbnail, CaptionOnly };
+  enum class Preparation { FullPreview, AllowThumbnail, RefineThumbnail, CaptionOnly, RotateCached };
   struct PendingPresentation {
     PhotoCaption caption;
     bool caption_time{};
     bool caption_details{};
     bool thumbnail{};
     bool thumbnail_pair{};
+    bool paired{};
   };
 
   ImmichSource(const Settings &settings, const NativeNetwork &network, const std::atomic<bool> &cancelled,
                PreparationCheckpoint checkpoint)
       : cancelled_(cancelled), checkpoint_(checkpoint), settings_(settings), network_(network), http_(cancelled) {}
   PrepareResult prepare(SlideIndex slide, uint16_t *panel, bool replacement, PendingPresentation &presentation,
-                        Preparation preparation);
+                        Preparation preparation, ScreenRotation rotation);
+  PendingPresentation describe_cached_slide(SlideIndex slide, ScreenRotation rotation);
   bool claim_preview_promotion() { return preview_promotable_.exchange(false, std::memory_order_acq_rel); }
   void end_preview_promotion() { preview_promotable_.store(false, std::memory_order_release); }
   void apply_photo_settings(PhotoFeedSettings feed, std::optional<SlideIndex> first_slide);
@@ -54,6 +56,7 @@ class ImmichSource {
   SlideIndex first_slide() const { return this->history_.first(); }
   SlideIndex next_slide() const { return this->history_.next(); }
   PhotoSourceStatus source_status() const { return this->source_status_; }
+  DisplayMode display_mode() const { return this->feed_().display_mode; }
   ImmichResponse response() const { return this->response_; }
   void probe_filter_support();
 
@@ -87,8 +90,10 @@ class ImmichSource {
   void discard_candidate_(const AssetId &id);
   bool needs_caption_details_(const PhotoMetadata &metadata) const;
   void complete_caption_details_(PhotoSlide &frame);
+  void describe_slide_(PendingPresentation &presentation, const PhotoMetadata &metadata,
+                       ScreenRotation rotation, const std::optional<std::tm> &local) const;
   PreviewStatus load_preview_(const AssetId &id, DecodedPreview &preview, PreviewTarget target, int64_t deadline_us,
-                              bool report_response, const AssetId &lookahead = {});
+                              bool report_response, const AssetId &lookahead = {}, bool cached_only = false);
   bool load_thumbnail_(const AssetId &id, DecodedPreview &preview, PreviewTarget target, PhotoOrientation orientation,
                        bool use_prefetch = false);
   PreparedPreview render_prepared_(const PhotoSlide &frame, uint16_t *panel, PhotoOrientation orientation);
@@ -99,10 +104,11 @@ class ImmichSource {
   std::atomic<bool> preview_promotable_{};
   const PreparationCheckpoint checkpoint_;
   const Settings &settings_;
+  ScreenRotation rotation_{};
   std::optional<PhotoFeedSettings> selection_;
   const PhotoFeedSettings &feed_() const { return selection_ ? *selection_ : settings_; }
   bool uses_prepared_slides_() const {
-    return !portrait_screen(settings_.screen_rotation) && settings_.has_prepared_slides();
+    return !portrait_screen(rotation_) && settings_.has_prepared_slides();
   }
   const NativeNetwork &network_;
   ImmichHttp http_;

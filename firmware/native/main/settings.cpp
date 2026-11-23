@@ -792,7 +792,7 @@ bool changes_photo_presentation(std::string_view key) {
 
 bool changes_live_presentation(std::string_view key) {
   return key == "slide_seconds" || key == "clock_format" || key == "transition" || key == "transition_speed" ||
-         key == "conn_timeout";
+         key == "conn_timeout" || key == "screen_rotation";
 }
 
 void publish_photo_feed(PhotoFeedSettings &&feed, bool selection_changed) {
@@ -1181,6 +1181,7 @@ bool Settings::save_playback(const char *json, bool *restart_required) {
 
 void Settings::publish_live_presentation() const {
   active_slideshow_interval.store(slide_seconds, std::memory_order_relaxed);
+  requested_screen_rotation.store(screen_rotation, std::memory_order_relaxed);
   active_clock_twelve_hour.store(clock.twelve_hour(), std::memory_order_relaxed);
   active_device_language.store(metadata.language, std::memory_order_relaxed);
   active_warm_tone_override.store(tone.night_override, std::memory_order_relaxed);
@@ -1226,6 +1227,7 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   const auto previous_night_brightness = settings.brightness_night;
   const auto previous_prepared_url = settings.prepared_slide_url;
   const auto previous_labels = settings.photo_filters.labels;
+  const auto previous_rotation = settings.screen_rotation;
   if (change_preset) {
     if (*preset == PhotoPreset::Memories || *preset == PhotoPreset::Custom)
       settings.photo_filters = shared_photo_filters(settings);
@@ -1258,6 +1260,7 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   }
   if (!normalize(settings))
     return UpdateResult::Invalid;
+  const bool rotation_changed = previous_rotation != settings.screen_rotation;
   if (!settings.add_playback_fields(next.get()))
     return UpdateResult::Failed;
   const bool fixed_night_brightness = previous_night_brightness != settings.brightness_night;
@@ -1286,7 +1289,9 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
     const bool selects_photos = changes_photo_selection(key);
     const bool presents_photos = changes_photo_presentation(key);
     const bool presents_playback = changes_live_presentation(key);
-    selection_changed |= selects_photos;
+    const bool rotation_disables_pairing = rotation_changed && portrait_screen(settings.screen_rotation) &&
+                                          key == "portrait_pairing";
+    selection_changed |= selects_photos && !rotation_disables_pairing;
     photo_changed |= selects_photos || presents_photos;
     live_presentation_changed |= presents_playback;
     restart |= !selects_photos && !presents_photos && !presents_playback && key != "developer_features_enabled";

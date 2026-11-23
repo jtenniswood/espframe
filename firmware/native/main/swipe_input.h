@@ -19,6 +19,8 @@ class SwipeInput {
   int64_t contact_started_us() const { return down_since_us_; }
   int contact_y() const { return down_y_; }
 
+  void wait_for_new_contact() { wait_for_release_ = true; }
+
   void sleep(Swipe &swipe) {
     swipe.show(swipe.settled());
     wait_for_release_ |= down_;

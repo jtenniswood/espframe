@@ -55,7 +55,15 @@ bool ClockOverlay::init(const ClockSettings &settings, const uint8_t *atlas, boo
     return true;
   atlas_ = atlas;
   twelve_hour_ = settings.twelve_hour();
+  set_rotation(rotation);
+  if (snapshots)
+    underlays_ = static_cast<Underlays *>(heap_caps_malloc(sizeof(Underlays), MALLOC_CAP_SPIRAM));
+  return !snapshots || underlays_ != nullptr;
+}
+
+void ClockOverlay::set_rotation(ScreenRotation rotation) {
   rotation_ = rotation;
+  latest_painted_ = pinned_painted_ = false;
   const Viewport viewport{rotation};
   const int top = viewport.height - first_column - columns;
   const int first = viewport.offset(first_row + (viewport.x_stride < 0 ? rows - 1 : 0),
@@ -64,9 +72,6 @@ bool ClockOverlay::init(const ClockSettings &settings, const uint8_t *atlas, boo
   physical_column_ = first % panel_width;
   physical_rows_ = viewport.portrait ? columns : rows;
   physical_columns_ = viewport.portrait ? rows : columns;
-  if (snapshots)
-    underlays_ = static_cast<Underlays *>(heap_caps_malloc(sizeof(Underlays), MALLOC_CAP_SPIRAM));
-  return !snapshots || underlays_ != nullptr;
 }
 
 bool ClockOverlay::update(const std::optional<std::tm> &local) {

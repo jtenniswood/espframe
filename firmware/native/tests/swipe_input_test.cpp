@@ -455,6 +455,20 @@ void putting_the_screen_to_sleep_mid_swipe_waits_for_the_next_contact() {
   assert(swipe.idle() && swipe.settled() == 2);
 }
 
+void changing_the_viewport_requires_a_fresh_touch() {
+  Swipe swipe{800, 5, 2};
+  SwipeInput input;
+  input.wait_for_new_contact();
+  const auto position = swipe.position();
+  assert(input.update(swipe, report(7, 5'000, 550), position) == Effect::None);
+  assert(input.update(swipe, report(8, 10'000, 150), position) == Effect::None);
+  assert(input.update(swipe, report(9, 15'000, 0, 0), position) == Effect::None);
+  assert(!input.engaged() && swipe.idle());
+  input.update(swipe, report(10, 20'000, 550), position);
+  input.update(swipe, report(11, 25'000, 150), position);
+  assert(swipe.dragging() && swipe.position() == position + 400);
+}
+
 }  // namespace
 
 int main() {
@@ -476,4 +490,5 @@ int main() {
   a_scheduled_wake_consumes_the_touch_and_expires_after_its_duration();
   web_commands_are_applied_through_the_same_schedule();
   putting_the_screen_to_sleep_mid_swipe_waits_for_the_next_contact();
+  changing_the_viewport_requires_a_fresh_touch();
 }

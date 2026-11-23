@@ -333,6 +333,44 @@ Decode decode_webp(const uint8_t *encoded, size_t length, uint16_t *&pixels, Pho
 
 }  // namespace
 
+bool reframe_cached_photo(uint16_t *destination, const uint16_t *source, ScreenRotation from,
+                          ScreenRotation to, bool paired, DisplayMode mode, PreparationCheckpoint checkpoint) {
+  const Viewport previous{from};
+  const Viewport next{to};
+  const int source_width = paired && next.portrait ? portrait_pair_width : previous.width;
+  const auto framing = frame_photo(source_width, previous.height, next.width, next.height, mode);
+  const int left = (next.width - framing.width) / 2;
+  const int top = (next.height - framing.height) / 2;
+  if (!clear_region(destination, 0, 0, next.width, top, next, checkpoint) ||
+      !clear_region(destination, 0, top + framing.height, next.width, next.height - top - framing.height, next, checkpoint) ||
+      !clear_region(destination, 0, top, left, framing.height, next, checkpoint) ||
+      !clear_region(destination, left + framing.width, top, next.width - left - framing.width, framing.height, next,
+                    checkpoint))
+    return false;
+
+  const auto &crop = framing.source;
+  const uint32_t step_x = (static_cast<uint32_t>(crop.width) << 16) / framing.width;
+  const uint32_t step_y = (static_cast<uint32_t>(crop.height) << 16) / framing.height;
+  // Walk the native rows in both orientations so the writes stay contiguous.
+  const int rows = next.portrait ? framing.height : framing.width;
+  const int columns = next.portrait ? framing.width : framing.height;
+  const uint32_t row_step = next.portrait ? step_y : step_x;
+  const uint32_t column_step = next.portrait ? step_x : step_y;
+  const int old_row_stride = next.portrait ? previous.y_stride : previous.x_stride;
+  const int old_column_stride = next.portrait ? previous.x_stride : previous.y_stride;
+  const int new_column_stride = next.portrait ? next.x_stride : next.y_stride;
+  const auto *cropped = source + previous.offset(crop.x, crop.y);
+  for (int row = 0; row < rows; ++row) {
+    if (row % 8 == 0 && !checkpoint())
+      return false;
+    const auto *input = cropped + static_cast<int>((row * row_step) >> 16) * old_row_stride;
+    auto *output = destination + (next.portrait ? next.offset(left, top + row) : next.offset(left + row, top));
+    for (int column = 0; column < columns; ++column)
+      output[column * new_column_stride] = input[static_cast<int>((column * column_step) >> 16) * old_column_stride];
+  }
+  return true;
+}
+
 DecodedPreview::~DecodedPreview() { heap_caps_free(this->pixels_); }
 
 bool DecodedPreview::paint_(uint16_t *panel, int left, int max_width, DisplayMode mode, HorizontalAlignment alignment,

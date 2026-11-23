@@ -24,6 +24,10 @@ inline bool is_jpeg_preview(const uint8_t *encoded, size_t length) {
 }
 bool is_webp_preview(const uint8_t *encoded, size_t length);
 
+// Reuse the displayed pixels if the original compressed preview has been evicted.
+bool reframe_cached_photo(uint16_t *destination, const uint16_t *source, ScreenRotation from,
+                          ScreenRotation to, bool paired, DisplayMode mode, PreparationCheckpoint checkpoint);
+
 // Worker-owned packed RGB565 preview. Retain the primary until the optional
 // companion is ready so a single photo can still fill the slide on failure.
 class DecodedPreview {
